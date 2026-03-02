@@ -1,0 +1,9 @@
+# OS
+.DS_Store
+
+# Conversation summaries (generated at runtime)
+.claude/memory/*.md
+
+# Performance logs (generated at runtime)
+.claude/metrics/*.json
+.claude/metrics/*.log
