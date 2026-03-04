@@ -1,6 +1,7 @@
 ---
 name: performance-metrics
 description: Schema and procedures for capturing performance data and evaluating agent effectiveness
+role: worker
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Schema and procedures for capturing performance data in `metrics/`. Metrics enable evidence-based evaluation of agent effectiveness, cost efficiency, and quality outcomes.
+
+## Constraints
+- Never log credentials, API keys, or PII in metric entries
+- Log entries are append-only; do not modify or delete existing JSONL records
+- Log at task completion, not mid-task; mid-task state belongs in `memory/` progress files
+- Use the defined JSONL schema; do not invent new top-level fields without updating the reference
 
 ## Metric Categories
 
@@ -109,6 +116,9 @@ Logged at the end of each task:
 | Configuration change | Log in `metrics/config-changelog.jsonl` (see Feedback & Learning skill) |
 | Hallucination detected | Flag in task entry + log separately if correction applied |
 | Context summarization triggered | Increment counter in current task entry |
+
+## Output
+JSONL log entries written to `metrics/` and/or a summary report of metric trends. Be concise — report anomalies and trend signals; omit entries within normal range.
 
 ## Reporting
 

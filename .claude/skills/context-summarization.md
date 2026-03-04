@@ -1,6 +1,7 @@
 ---
 name: context-summarization
 description: Compress conversation history to maintain context utilization below 40% using LSTM-inspired gates
+role: orchestrator
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Procedure for compressing conversation history to maintain context utilization below 40%. Uses an LSTM-inspired approach with forget/input/output gates to decide what to keep, compress, and discard.
+
+## Constraints
+- Summaries replace conversation history; do not reload prior turns from memory
+- Never include credentials, PII, or sensitive data in `memory/` summary files
+- Summaries must be sufficient for the next phase to start without replaying history
+- Archive summaries older than 30 days; delete after 90 days
 
 ## When to Summarize
 
@@ -113,6 +120,8 @@ Example: `memory/2026-02-20-user-auth-api.md`
 ## Skills Applied
 - [Skill]: [How it was applied]
 ```
+
+Be concise in summaries — preserve decisions and artifacts, discard process narration.
 
 ## Phase Progress File Templates
 

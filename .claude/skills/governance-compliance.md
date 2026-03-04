@@ -1,6 +1,7 @@
 ---
 name: governance-compliance
 description: Audit logging, multi-layer quality assurance, and ethical operation procedures
+role: worker
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Requirements and procedures for audit logging, multi-layer quality assurance, and ethical operation of the agent team. Ensures all agent activity is traceable, quality is validated at multiple levels, and ethical principles are maintained.
+
+## Constraints
+- The audit changelog is append-only; never modify or delete existing entries
+- Never log credentials, API keys, or PII in `metrics/` or `memory/` files
+- All agent decisions must be explainable on request — no black-box outputs
+- Ethical concerns are never auto-resolved; always escalate to the human
 
 ## Audit & Transparency
 
@@ -103,6 +110,9 @@ No task output is delivered until it passes applicable quality gates:
 3. Orchestrator escalates to human (always - ethical concerns are never auto-resolved)
 4. Human decides
 5. Decision is logged with full rationale
+
+## Output
+Compliance checklist results (pass/fail per item) and/or new audit log entries written to `metrics/`. Be concise — report failures and entries written; omit passing items.
 
 ## Compliance Checklist
 

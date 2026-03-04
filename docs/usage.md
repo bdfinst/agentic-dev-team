@@ -8,7 +8,7 @@ Describe what you need in natural language:
 > Build a REST API for user authentication with JWT tokens
 ```
 
-The Scrum Master classifies the task, selects agents (Software Engineer + Architect + QA), loads them in phases, and coordinates delivery.
+The Orchestrator classifies the task, selects agents (Software Engineer + Architect + QA), loads them in phases, and coordinates delivery.
 
 ## Multi-Agent Collaboration
 
@@ -18,7 +18,7 @@ Complex requests automatically engage multiple agents:
 > Design and implement a dashboard with real-time data visualization
 ```
 
-Agents are loaded in phases (design, then implementation, then testing) to keep context utilization low. The Scrum Master manages transitions between phases.
+Agents are loaded in phases (design, then implementation, then testing) to keep context utilization low. The Orchestrator manages transitions between phases.
 
 ## Give Feedback
 

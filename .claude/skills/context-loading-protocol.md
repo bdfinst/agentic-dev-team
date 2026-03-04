@@ -1,6 +1,7 @@
 ---
 name: context-loading-protocol
 description: Procedure for deciding which agent and skill files to load into context for a given task
+role: orchestrator
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Concrete procedure for deciding which agent and skill files to load into context for a given task. The goal is to keep total context utilization below 40% of the model's window by loading only what's needed.
+
+## Constraints
+- Never load all agents upfront; load only the primary agent for each phase
+- Keep total context below 40% of the model's window at all times
+- Load agents on demand when their phase begins, not speculatively
+- Do not copy-paste file contents into the prompt; use tool-based file reads
 
 ## Token Budget Reference
 
@@ -149,6 +156,9 @@ Load in three phases, each in a fresh context window. A human review gate separa
 - Human reviews and approves the progress file before the next phase begins
 - Sub-agents are used primarily for context isolation — they search, read, and return concise findings so the parent context stays clean
 - If implementation is large, compact mid-phase: update the plan progress file with completed steps and continue in a fresh context
+
+## Output
+Loading plan: selected agents and skills with their token costs, estimated total, and utilization percentage against the 40% ceiling. Be concise — one table, no narration.
 
 ## Unloading Strategy
 

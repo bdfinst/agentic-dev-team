@@ -1,6 +1,7 @@
 ---
 name: human-oversight-protocol
 description: Human approval gates, intervention mechanisms, and transparency requirements for agent oversight
+role: orchestrator
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Unified protocol for human approval gates, intervention mechanisms, and transparency requirements. Ensures humans maintain oversight of autonomous agent decisions without becoming bottlenecks for routine work.
+
+## Constraints
+- Approval gates cannot be skipped; do not proceed past a gate without explicit human sign-off
+- Ethical concerns are never auto-resolved; always escalate to the human
+- Intervention commands (`override`, `pause`, `stop`) take immediate effect with no debate
+- Overrides accumulate; 3+ overrides on the same topic must trigger a config amend
 
 ## Philosophy
 
@@ -163,6 +170,9 @@ All oversight events (approvals, overrides, pauses, stops) are logged in `metric
 - `type`: `approval`, `override`, `pause`, `stop`
 - `trigger`: `user`
 - `description`: What happened and why
+
+## Output
+Gate classification (autonomous/notify/approve) with rationale, or escalation summary with severity and recommended action. Be concise — one decision per output; no restating of protocol rules.
 
 ## Escalation Paths
 

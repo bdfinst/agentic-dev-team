@@ -1,6 +1,7 @@
 ---
 name: mutation-testing
 description: Evaluate test suite quality by introducing code mutants and checking whether tests detect them
+role: worker
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Technique for evaluating test suite quality by introducing small changes (mutants) to production code and checking whether tests detect them. Mutation testing validates test effectiveness, not code correctness. A test suite that achieves high code coverage but low mutation score has weak assertions — it executes the code without verifying meaningful behavior.
+
+## Constraints
+- Only run mutation testing after tests exist; do not use it as a substitute for writing tests
+- Do not chase 100% mutation score; mark equivalent mutants as excluded
+- Run targeted mutation on changed files for CI; reserve full-codebase runs for periodic audits
+- Surviving mutants in critical paths require action; in trivial code they may be acceptable
 
 ## Core Concepts
 
@@ -88,6 +95,9 @@ Run mutation analysis on changed files or lines only for regular CI feedback. Re
 5. Equivalent mutants are noise. Mark and exclude them; do not chase 100% mutation score.
 6. Integrate mutation testing into CI as a quality gate on critical modules, not as a blocking gate on all code.
 7. Combine with code coverage: high coverage + low mutation score means weak assertions.
+
+## Output
+Mutation score, list of surviving mutants with triage classification (equivalent/missing-assertion/missing-test/edge-case), and recommended test additions. Be concise — table format; skip killed mutants.
 
 ## Integration
 

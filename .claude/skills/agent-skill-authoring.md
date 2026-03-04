@@ -1,6 +1,7 @@
 ---
 name: agent-skill-authoring
 description: How to create and maintain agents and skills within the Agentic Scrum Team system
+role: worker
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 This skill defines how to create and maintain agents and skills within the Agentic Scrum Team system. Agents own orchestration logic (when and why); skills own execution knowledge (how). This separation keeps agents readable as workflow definitions while keeping capabilities DRY across the team.
+
+## Constraints
+- Skills must be agent-agnostic; no persona or behavioral logic in skill files
+- Execution details belong in skills; orchestration logic belongs in agents
+- Every new agent or skill must be registered in `.claude/CLAUDE.md`
+- Do not embed a skill's knowledge inline in an agent — reference the skill file
 
 ## Core Pattern
 
@@ -135,6 +142,9 @@ After creating an agent or skill, update `.claude/CLAUDE.md`:
 ### For a New Skill
 1. Add to the **Skills Registry** table with the "Used By" column listing all referencing agents
 2. Add a reference in each agent's `## Skills` section with invocation context
+
+## Output
+New or updated `.claude/agents/*.md` or `.claude/skills/*.md` file(s) with corresponding CLAUDE.md registry entries updated. Be concise — confirm what was created/updated and its registration status.
 
 ## Anti-Patterns
 

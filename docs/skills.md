@@ -6,7 +6,7 @@ Skills define **what agents know**. Each skill file in `.claude/skills/` capture
 
 ### Orchestration Skills
 
-Used by the Scrum Master to manage the team:
+Used by the Orchestrator to manage the team:
 
 | Skill | File | ~Tokens | Purpose |
 | --- | --- | --- | --- |

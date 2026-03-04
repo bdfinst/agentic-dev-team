@@ -1,6 +1,7 @@
 ---
 name: agent-assisted-specification
 description: Structured workflow for producing specification artifacts before implementation begins
+role: worker
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Structured workflow for collaborating with humans to produce four specification artifacts (Intent Description, User-Facing Behavior, Architecture Specification, Acceptance Criteria) before any implementation begins. Ensures clarity, completeness, and consistency for the next single unit of work.
+
+## Constraints
+- No code or implementation during the specification phase
+- The consistency gate is a hard stop — do not proceed to implementation until it passes
+- Each specification covers one vertical slice only; split if scope is too broad
+- Max 2 critique-refine iterations per artifact before escalating to the Orchestrator
 
 ## Core Concepts
 
@@ -107,6 +114,9 @@ When scope-too-large signals fire:
 6. **Escalate after 2 iterations.** If an artifact does not stabilize after 2 critique-refine cycles, escalate to the Orchestrator for re-scoping or human intervention.
 7. **Small batches only.** If the specification cannot fit a single vertical slice, split before continuing.
 8. **Document decisions, not just outcomes.** When the human rejects an agent suggestion, briefly note why — this context prevents the same suggestion from recurring.
+
+## Output
+Four specification artifacts (Intent Description, User-Facing Behavior in Gherkin, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict. Be concise — flag gaps and conflicts; do not narrate the artifact collaboration process.
 
 ## Integration
 

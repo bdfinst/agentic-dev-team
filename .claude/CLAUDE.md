@@ -55,6 +55,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | API Design | `skills/api-design.md` | 600 | Architect, Software Engineer |
 | Legacy Code | `skills/legacy-code.md` | 700 | Software Engineer, QA Engineer, Architect |
 | Mutation Testing | `skills/mutation-testing.md` | 700 | QA Engineer, Software Engineer |
+| Beads Task Tracking | `skills/beads.md` | 500 | Orchestrator, Software Engineer, QA Engineer |
 | Code Review (external) | `/code-review` (cab-killer plugin) | — | Orchestrator, Software Engineer, QA Engineer |
 
 ## Request Processing Flow

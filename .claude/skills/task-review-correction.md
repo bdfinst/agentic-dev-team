@@ -1,6 +1,7 @@
 ---
 name: task-review-correction
 description: Structured workflow for reviewing agent output, identifying defects, and iterating corrections
+role: worker
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Structured workflow for reviewing completed agent output, identifying defects, and iterating corrections until acceptance criteria are met. Fills the gap between pre-delivery validation (Accuracy Validation) and post-hoc learning (Feedback & Learning) by defining a repeatable review-correct-verify loop.
+
+## Constraints
+- Max 3 review-correction cycles before escalating to the Orchestrator
+- Each cycle must reduce total defect count; flat or increasing defects trigger escalation
+- Cascading fixes require verifying related work, not only the isolated change
+- Do not use this skill during initial development; use Accuracy Validation instead
 
 ## Core Concepts
 
@@ -100,6 +107,9 @@ When corrections are not converging:
 - Trivial one-line fixes with obvious correctness
 - During initial development (use Accuracy Validation instead)
 - For feedback that changes requirements rather than correcting output (use Feedback & Learning instead)
+
+## Output
+Defect list with severity (critical/major/minor/cosmetic), correction scope, and status (fixed/deferred/escalated). Be concise — table format; omit passing checklist items.
 
 ## Integration
 

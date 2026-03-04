@@ -6,7 +6,7 @@ Agents define **who does the work**. Each agent file in `.claude/agents/` specif
 
 | Agent | File | ~Tokens | Purpose |
 | --- | --- | --- | --- |
-| Scrum Master | [`scrum-master.md`](../.claude/agents/scrum-master.md) | 370 | Routes tasks, coordinates multi-agent work, manages context budget |
+| Orchestrator | [`orchestrator.md`](../.claude/agents/orchestrator.md) | 370 | Routes tasks, coordinates multi-agent work, manages context budget |
 | Software Engineer | [`software-engineer.md`](../.claude/agents/software-engineer.md) | 300 | Code generation, implementation, refactoring, bug fixes |
 | Data Scientist | [`data-scientist.md`](../.claude/agents/data-scientist.md) | 290 | ML models, data analysis, statistical validation |
 | QA/SQA Engineer | [`qa-engineer.md`](../.claude/agents/qa-engineer.md) | 310 | Test generation, automated testing, quality gates |

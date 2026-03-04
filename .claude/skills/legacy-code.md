@@ -1,6 +1,7 @@
 ---
 name: legacy-code
 description: Techniques for safely modifying code that lacks tests or has poor structure
+role: worker
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Techniques for safely modifying code that lacks tests or has poor structure. Based on the principle that legacy code is code without tests (Michael Feathers' definition) — regardless of age. The goal is to get code under test before changing it, then improve structure incrementally.
+
+## Constraints
+- Never change behavior and structure in the same step; refactor under green tests only
+- Write characterization tests before modifying legacy code — not after
+- Prefer the smallest dependency break that gets code under test
+- Do not apply aggressive refactoring without test coverage
 
 ## Core Concepts
 
@@ -67,7 +74,7 @@ Incrementally replace legacy components by routing new behavior through new code
 5. Remove old code only when fully replaced and verified
 
 ## Output
-Report the legacy code analysis: identified change points, test points, dependency breaks needed, characterization test targets, and the recommended refactoring sequence.
+Report the legacy code analysis: identified change points, test points, dependency breaks needed, characterization test targets, and the recommended refactoring sequence. Be concise — bullet list format; skip background explanation.
 
 ## When to Apply
 

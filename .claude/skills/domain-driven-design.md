@@ -1,6 +1,7 @@
 ---
 name: domain-driven-design
 description: Model software around the business domain using ubiquitous language, bounded contexts, and tactical patterns
+role: worker
 user-invocable: true
 ---
 
@@ -98,7 +99,7 @@ Define explicit relationships between bounded contexts:
 - Confirm repositories exist per aggregate root with interfaces in domain/application layer
 
 ## Output
-Report modeling decisions: bounded contexts identified, aggregate boundaries, context map relationships, and any violations of DDD constraints found in existing code.
+Report modeling decisions: bounded contexts identified, aggregate boundaries, context map relationships, and any violations of DDD constraints found in existing code. Be concise — use tables for context maps and violation lists; skip concept narration.
 
 ## Constraints
 - Do not share aggregate instances across bounded contexts; reference by ID only

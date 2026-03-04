@@ -3,16 +3,16 @@
 ## System Overview
 
 ```text
-User Request → Scrum Master → Agent Selection → Task Execution → Result
+User Request → Orchestrator → Agent Selection → Task Execution → Result
                     ↑                                    ↓
                     └──────── Learning Loop ──────────────┘
 ```
 
-The Scrum Master receives every request, classifies it by type and complexity, selects agents, loads them in phases, and coordinates delivery. After each task, the learning loop captures metrics and evaluates whether configuration updates are needed.
+The Orchestrator receives every request, classifies it by type and complexity, selects agents, loads them in phases, and coordinates delivery. After each task, the learning loop captures metrics and evaluates whether configuration updates are needed.
 
 ## Context Management
 
-The Scrum Master manages context utilization using two operational skills.
+The Orchestrator manages context utilization using two operational skills.
 
 ### Loading Protocol
 
@@ -58,7 +58,7 @@ Validation happens at four progressive layers:
 | Self-validation | Active agent | Before delivering any output |
 | Peer validation | QA agent | After primary output, before delivery |
 | Human spot-check | User | After delivery (accept/reject/amend) |
-| Post-hoc monitoring | Scrum Master | During learning loop |
+| Post-hoc monitoring | Orchestrator | During learning loop |
 
 Every agent applies the [Accuracy Validation](../.claude/skills/accuracy-validation.md) self-check before output. This includes factual accuracy verification, instruction fidelity, internal consistency, and confidence scoring.
 
@@ -100,7 +100,7 @@ Intervention commands (`override`, `pause`, `stop`) give humans immediate contro
 
 1. User provides feedback via keywords (`amend`, `learn`, `remember`, `forget`)
 2. Changes are previewed, applied, and logged with full audit trail
-3. The Scrum Master monitors for recurring patterns (3+ occurrences)
+3. The Orchestrator monitors for recurring patterns (3+ occurrences)
 4. System-initiated changes are proposed to the user with rationale
 
 ## Multi-LLM Routing

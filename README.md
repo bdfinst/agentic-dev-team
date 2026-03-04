@@ -12,14 +12,14 @@ A persona-driven AI development team orchestrated through Claude Code's `.claude
 > Build a REST API for user authentication with JWT tokens
 ```
 
-The Scrum Master analyzes the request, selects the right agents, and coordinates delivery. See [Setup](docs/setup.md) for full installation steps.
+The Orchestrator analyzes the request, selects the right agents, and coordinates delivery. See [Setup](docs/setup.md) for full installation steps.
 
 ## How It Works
 
 **Agents** define roles (persona, behavior, collaboration). **Skills** define capabilities (patterns, guidelines, procedures). Agents own orchestration logic (*when* and *why*); skills own execution knowledge (*how*). This keeps agents readable as workflow definitions while keeping capabilities DRY.
 
 ```text
-User Request → Scrum Master → Agent Selection → Task Execution → Result
+User Request → Orchestrator → Agent Selection → Task Execution → Result
                     ↑                                    ↓
                     └──────── Learning Loop ──────────────┘
 ```
@@ -38,7 +38,7 @@ User Request → Scrum Master → Agent Selection → Task Execution → Result
 
 | Agent | Purpose |
 | --- | --- |
-| **Scrum Master** | Routes tasks, coordinates agents, manages context budget |
+| **Orchestrator** | Routes tasks, coordinates agents, manages context budget |
 | **Software Engineer** | Code generation, implementation, refactoring |
 | **Data Scientist** | ML models, data analysis, statistical validation |
 | **QA/SQA Engineer** | Testing, quality gates, peer validation |

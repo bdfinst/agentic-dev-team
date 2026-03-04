@@ -1,6 +1,7 @@
 ---
 name: accuracy-validation
 description: Procedures for detecting hallucinations, scoring output confidence, and triggering corrections
+role: worker
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Procedures for detecting hallucinations, scoring output confidence, and triggering corrections. Every agent applies self-validation before delivering output. The QA agent performs secondary validation when applicable.
+
+## Constraints
+- Do not deliver output containing unverified claims; pause and verify first
+- Do not guess at file paths, function names, or API signatures — use tools to confirm
+- Escalate rather than fabricate when a claim cannot be verified
+- Apply self-validation to your own output before delivery, not only to others'
 
 ## Multi-Layer Validation
 
@@ -92,6 +99,9 @@ Flag to the user with full context:
 - Multiple hallucination signals firing on the same output
 - Low confidence on a critical deliverable
 - Contradictory information from different sources
+
+## Output
+Confidence-scored validation result: list of checklist items that failed, hallucination signals identified, and required corrections with their trigger type (automatic/user-confirmed/escalation). Be concise — report failures only; omit passing items.
 
 ## Integration with Other Skills
 

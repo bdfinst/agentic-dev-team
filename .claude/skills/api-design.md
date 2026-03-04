@@ -1,6 +1,7 @@
 ---
 name: api-design
 description: Contract-first API design patterns for defining stable, evolvable interfaces
+role: worker
 user-invocable: true
 ---
 
@@ -103,6 +104,9 @@ Before implementation begins, verify the API contract against:
 4. **Contracts are versioned artifacts.** Treat API contracts with the same rigor as source code — reviewed, versioned, and tested.
 5. **Avoid leaking internal models.** Domain entities exposed through an API may need a separate representation (DTO/view model) to prevent tight coupling.
 6. **Pagination is not optional for collections.** Unbounded collection responses are a reliability risk.
+
+## Output
+API contract document covering resources, operations, error cases, versioning strategy, and the backward compatibility checklist results. Be concise — use tables; skip narrative prose.
 
 ## Integration
 

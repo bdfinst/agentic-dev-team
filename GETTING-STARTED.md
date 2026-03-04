@@ -34,15 +34,15 @@ Use a slash command to apply a skill's procedures without a specific persona:
 /agent-assisted-specification Specify the user registration feature
 ```
 
-### Let the Scrum Master route
+### Let the Orchestrator route
 
-For complex or ambiguous requests, invoke the Scrum Master and let it decide which agents to load:
+For complex or ambiguous requests, invoke the Orchestrator and let it decide which agents to load:
 
 ```
-/scrum-master Build a new authentication system with OAuth2 support
+/orchestrator Build a new authentication system with OAuth2 support
 ```
 
-The Scrum Master classifies the task, selects the right agents, and coordinates multi-agent collaboration when needed.
+The Orchestrator classifies the task, selects the right agents, and coordinates multi-agent collaboration when needed.
 
 ## Common Workflows
 
@@ -99,7 +99,7 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 
 | Command | Role | When to Use |
 |---------|------|-------------|
-| `/scrum-master` | Task routing and coordination | Complex tasks, multi-agent work, unclear routing |
+| `/orchestrator` | Task routing and coordination | Complex tasks, multi-agent work, unclear routing |
 | `/software-engineer` | Code implementation | Writing code, bug fixes, refactoring |
 | `/architect` | System design | Architecture decisions, API design, scalability |
 | `/qa-engineer` | Testing and quality | Test strategy, acceptance tests, quality gates |
@@ -128,6 +128,7 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 | `/context-loading-protocol` | Context management | Optimizing what gets loaded into context |
 | `/context-summarization` | Context compression | Managing long conversations |
 | `/performance-metrics` | Task metrics | Logging and reviewing performance data |
+| `/beads` | Task tracking | Query unblocked work, create issues, link dependencies |
 
 ## Rules to Know
 
@@ -135,6 +136,27 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 2. **Human-in-the-loop.** Agents work autonomously but you make the decisions. They propose, you approve.
 3. **Consistency gate is a hard stop.** For new features, all four specification artifacts must be consistent before implementation begins.
 4. **Feedback keywords.** You can modify system behavior anytime using `amend`, `learn`, `remember`, or `forget`. Say `stop` or `pause` to halt agent work.
+
+## Prerequisites
+
+### Beads (recommended)
+
+Beads is a git-backed issue tracker for AI agents. It gives agents persistent, structured task memory across sessions — they query `bd ready --json` at the start of each session instead of relying on reconstructed prose context.
+
+Install once, system-wide:
+
+```bash
+npm install -g @beads/bd   # or: brew install beads
+```
+
+Initialize in your project:
+
+```bash
+bd init
+git add .beads && git commit -m "Initialize Beads task tracker"
+```
+
+That's it. Agents will automatically use Beads for task tracking following the `/beads` skill. If `bd` is not installed, agents fall back to `memory/` progress files only.
 
 ## Project Structure
 

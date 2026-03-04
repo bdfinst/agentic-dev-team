@@ -1,6 +1,7 @@
 ---
 name: threat-modeling
 description: Structured security analysis for identifying threats, attack surfaces, and mitigations
+role: worker
 user-invocable: true
 ---
 
@@ -9,6 +10,12 @@ user-invocable: true
 ## Overview
 
 Structured security analysis for identifying threats, attack surfaces, and mitigations during design or review phases. Ensures security considerations are addressed before implementation, not after.
+
+## Constraints
+- Focus on trust boundaries, not implementation details
+- Every mitigation must map to a verifiable test or verification method
+- Document accepted risks explicitly with rationale; do not silently ignore threats
+- Revisit the threat model when architecture, authentication, or data flows change
 
 ## Core Concepts
 
@@ -87,6 +94,9 @@ Revisit the threat model when any of the following occur:
 4. **Review when architecture changes.** The threat model is a living document that stays current with the system it describes.
 5. **Severity drives priority.** Critical and high-severity threats block implementation; medium and low are tracked and scheduled.
 6. **Threat models are collaborative.** Security analysis improves with input from architects, developers, and operations engineers.
+
+## Output
+STRIDE threat table with severity ratings, mitigation mapping, and verification methods. Explicitly list accepted risks with rationale. Be concise — table format; group by STRIDE category.
 
 ## Integration
 

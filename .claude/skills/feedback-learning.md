@@ -1,6 +1,7 @@
 ---
 name: feedback-learning
 description: Capture user feedback, update agent and skill configurations dynamically, and maintain audit trail
+role: orchestrator
 user-invocable: true
 ---
 
@@ -58,6 +59,9 @@ forget: the PostgreSQL preference, we're switching to MySQL
 4. **Apply**: Make the edit to the target file(s)
 5. **Log**: Record the change in the audit trail
 6. **Verify**: Read back the modified section to confirm correctness
+
+## Output
+Preview diff of proposed change, confirmation of edit applied, and new changelog entry written. Be concise — show only the changed lines; omit file context outside the edit.
 
 ## Audit Trail
 

@@ -29,7 +29,7 @@ Claude automatically loads `CLAUDE.md` on startup. Agent and skill files are loa
 
 ## Verify
 
-After starting Claude Code, the Scrum Master orchestration pipeline is active. Submit any natural language request to confirm the system is working:
+After starting Claude Code, the Orchestrator pipeline is active. Submit any natural language request to confirm the system is working:
 
 ```text
 > What agents are available on this team?

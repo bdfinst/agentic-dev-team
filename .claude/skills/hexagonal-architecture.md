@@ -1,6 +1,7 @@
 ---
 name: hexagonal-architecture
 description: Design systems with clear separation between business logic and infrastructure using ports and adapters
+role: worker
 user-invocable: true
 ---
 
@@ -66,7 +67,7 @@ src/
 - Confirm tests can substitute adapters without touching domain logic
 
 ## Output
-Report structural compliance as a list of violations (port without adapter, domain importing infrastructure, etc.) or confirm the structure passes all checks.
+Report structural compliance as a list of violations (port without adapter, domain importing infrastructure, etc.) or confirm the structure passes all checks. Be concise — violations only; no narration for passing checks.
 
 ## Constraints
 - Do not embed framework dependencies in the domain layer
