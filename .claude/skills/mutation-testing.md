@@ -1,6 +1,6 @@
 ---
 name: mutation-testing
-description: Evaluate test suite quality by introducing code mutants and checking whether tests detect them
+description: Validate test suite quality by injecting mutants and checking whether tests detect them. Use after writing tests to verify assertions are meaningful, or as a CI quality gate on critical modules. High coverage with a low mutation score means weak assertions.
 role: worker
 user-invocable: true
 ---

@@ -1,6 +1,6 @@
 ---
 name: context-summarization
-description: Compress conversation history to maintain context utilization below 40% using LSTM-inspired gates
+description: Compress conversation history when context utilization approaches 40%. Use when too many files have been read, the conversation is long, or output quality is degrading — write a structured summary to memory/ and start a fresh context window.
 role: orchestrator
 user-invocable: true
 ---

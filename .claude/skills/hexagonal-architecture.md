@@ -1,6 +1,6 @@
 ---
 name: hexagonal-architecture
-description: Design systems with clear separation between business logic and infrastructure using ports and adapters
+description: Design with ports and adapters to separate business logic from infrastructure. Use when designing a new service, reviewing structural compliance, or deciding how to introduce a new external dependency without coupling the domain.
 role: worker
 user-invocable: true
 ---
@@ -72,7 +72,6 @@ Report structural compliance as a list of violations (port without adapter, doma
 ## Constraints
 - Do not embed framework dependencies in the domain layer
 - Do not bypass ports with direct infrastructure access from application services
-- Keep the application layer thin: orchestrate domain objects, don't duplicate domain logic
 
 ## Guidelines
 - Every external dependency gets its own adapter behind a port

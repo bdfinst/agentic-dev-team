@@ -1,6 +1,6 @@
 ---
 name: performance-metrics
-description: Schema and procedures for capturing performance data and evaluating agent effectiveness
+description: Log task completion data to metrics/. Use at the end of every task to record tokens, cost, agents used, rework cycles, and hallucination events. Also use for periodic reporting to identify efficiency and quality trends.
 role: worker
 user-invocable: true
 ---

@@ -1,6 +1,6 @@
 ---
 name: governance-compliance
-description: Audit logging, multi-layer quality assurance, and ethical operation procedures
+description: Audit logging, quality gates, and ethics procedures for the agent team. Use for periodic compliance reviews, when logging task completion events, or when an ethical concern arises that requires human escalation.
 role: worker
 user-invocable: true
 ---

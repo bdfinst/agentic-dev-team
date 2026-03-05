@@ -1,6 +1,6 @@
 ---
 name: context-loading-protocol
-description: Procedure for deciding which agent and skill files to load into context for a given task
+description: Decide which agents and skills to load for a given task. Use at the start of every task to select the minimum viable context load, calculate the token budget, and stay below the 40% utilization ceiling.
 role: orchestrator
 user-invocable: true
 ---
@@ -56,6 +56,7 @@ These are the measured sizes of each loadable file. CLAUDE.md is always loaded a
 | API Design | `skills/api-design.md` | ~600 |
 | Legacy Code | `skills/legacy-code.md` | ~700 |
 | Mutation Testing | `skills/mutation-testing.md` | ~700 |
+| Beads Task Tracking | `skills/beads.md` | ~500 |
 
 ### Always-Loaded Baseline
 | Item | ~Tokens |

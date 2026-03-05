@@ -1,6 +1,6 @@
 ---
 name: agent-skill-authoring
-description: How to create and maintain agents and skills within the Agentic Scrum Team system
+description: How to create and maintain agent and skill files for the Agentic Scrum Team. Use whenever adding a new agent persona, creating a new skill, or updating an existing one — including required registration in CLAUDE.md.
 role: worker
 user-invocable: true
 ---
@@ -104,6 +104,13 @@ Agent (when + why)          Skill (how)
 ### Required Sections
 
 ```markdown
+---
+name: skill-name
+description: When to trigger this skill and what it does. Be specific about the contexts that should cause an agent to invoke it.
+role: worker
+user-invocable: true
+---
+
 # [Skill Name]
 
 ## Overview

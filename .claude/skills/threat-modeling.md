@@ -1,6 +1,6 @@
 ---
 name: threat-modeling
-description: Structured security analysis for identifying threats, attack surfaces, and mitigations
+description: Structured STRIDE security analysis for identifying threats, attack surfaces, and mitigations. Use before implementing any new API, service, authentication change, or data flow crossing trust boundaries — security analysis belongs in the design phase, not after.
 role: worker
 user-invocable: true
 ---

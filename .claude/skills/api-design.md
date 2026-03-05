@@ -1,6 +1,6 @@
 ---
 name: api-design
-description: Contract-first API design patterns for defining stable, evolvable interfaces
+description: Contract-first API design for stable, evolvable interfaces. Use whenever defining a new API endpoint, inter-service boundary, or modifying an existing contract. Includes backward compatibility checklist and error contract specification.
 role: worker
 user-invocable: true
 ---

@@ -1,6 +1,6 @@
 ---
 name: legacy-code
-description: Techniques for safely modifying code that lacks tests or has poor structure
+description: Safely modify code that lacks tests. Use whenever tasked with changing code without test coverage — apply characterization tests and dependency-breaking techniques before making any behavioral changes.
 role: worker
 user-invocable: true
 ---

@@ -1,6 +1,6 @@
 ---
 name: task-review-correction
-description: Structured workflow for reviewing agent output, identifying defects, and iterating corrections
+description: Review completed output, classify defects by severity, and iterate corrections until acceptance criteria are met. Use when output is returned for rework, when peer-reviewing another agent's work, or when self-reviewing before delivery.
 role: worker
 user-invocable: true
 ---

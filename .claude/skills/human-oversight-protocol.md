@@ -1,6 +1,6 @@
 ---
 name: human-oversight-protocol
-description: Human approval gates, intervention mechanisms, and transparency requirements for agent oversight
+description: Approval gates, intervention commands, and transparency requirements. Use to classify any agent action as autonomous/notify/approve, respond to override/pause/stop commands, or structure a plan review before the implementation phase begins.
 role: orchestrator
 user-invocable: true
 ---
