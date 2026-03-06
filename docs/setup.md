@@ -9,6 +9,8 @@
 
 ## Install
 
+### Full installation
+
 1. Clone the repository:
 
    ```bash
@@ -29,6 +31,36 @@
    ```
 
 Claude automatically loads `CLAUDE.md` on startup. Agent and skill files are loaded on demand as tasks require them.
+
+### Selective installation (review agents only)
+
+If you only want the code review pipeline without the full team persona system:
+
+```bash
+# Copy review infrastructure only
+cp -r agentic-scrum-team/.claude/agents/*-review.md /path/to/your-project/.claude/agents/
+cp -r agentic-scrum-team/.claude/skills/ /path/to/your-project/.claude/skills/
+cp -r agentic-scrum-team/.claude/commands/code-review.md /path/to/your-project/.claude/commands/
+cp -r agentic-scrum-team/.claude/commands/review-agent.md /path/to/your-project/.claude/commands/
+cp -r agentic-scrum-team/.claude/commands/apply-fixes.md /path/to/your-project/.claude/commands/
+```
+
+Then add the Review Agents registry table from `agentic-scrum-team/.claude/CLAUDE.md` into your project's `CLAUDE.md`.
+
+### Merging with an existing `.claude/` directory
+
+If your project already has a `.claude/` configuration, merge selectively:
+
+```bash
+# Add agents and skills without overwriting your existing CLAUDE.md or settings
+cp -r agentic-scrum-team/.claude/agents/ /path/to/your-project/.claude/agents/
+cp -r agentic-scrum-team/.claude/skills/ /path/to/your-project/.claude/skills/
+cp -r agentic-scrum-team/.claude/commands/ /path/to/your-project/.claude/commands/
+```
+
+Then manually copy the agent registry tables from `agentic-scrum-team/.claude/CLAUDE.md` into your project's `CLAUDE.md`. Agents not listed in `CLAUDE.md` will not be routed to by the Orchestrator.
+
+For adding individual agents from this repo or other repositories, and for creating project-specific custom agents, see [Agents — Custom and Cross-Repo](agent_info.md#add-a-project-specific-custom-agent).
 
 Three PostToolUse hooks activate automatically on every file write or edit:
 

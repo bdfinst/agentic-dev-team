@@ -106,6 +106,127 @@ Manual process:
 4. Run `/eval-runner --agent {name}-review` to validate accuracy
 5. Add a row to the Review Agents table in `.claude/CLAUDE.md`
 
+## Add a Project-Specific Custom Agent
+
+Custom agents extend the team with knowledge specific to your project — your domain model, internal frameworks, coding conventions, or tech stack. They live in your project's `.claude/agents/` directory alongside the standard team agents and are invisible to other projects.
+
+**When to add a custom agent** (rather than relying on a standard agent):
+- The agent needs deep knowledge of your domain that would bloat the standard agent's context
+- The role is specific to your team's process (e.g., a `compliance-reviewer` for regulated industries)
+- You want a review agent that enforces internal conventions the standard agents don't know about
+
+**Steps**:
+
+1. Create the agent file in your project's `.claude/agents/`:
+
+   ```bash
+   # In your project (not this repo)
+   touch .claude/agents/django-review.md
+   ```
+
+2. Write the agent using the [persona template](#persona-template) above. For a review agent, copy an existing one (e.g., `.claude/agents/js-fp-review.md`) as a starting point.
+
+3. Register it in your project's `.claude/CLAUDE.md` under the appropriate table (Team Agents or Review Agents).
+
+4. If it's a review agent, add eval fixtures so you can validate its accuracy:
+   ```
+   .claude/evals/fixtures/django-review/     # sample code the agent should flag
+   .claude/evals/expected/django-review.json # expected findings
+   ```
+
+5. Validate with `/eval-audit` and test with `/eval-runner --agent django-review`.
+
+**Important**: Custom agents in your project's `.claude/` are *additive* — they extend the standard team without replacing it. The Orchestrator will route to them when appropriate based on the task.
+
+## Incorporate Agents from Another Repository
+
+You can pull individual agents or the full team from any repository that follows this structure.
+
+### Pull a single agent from another repo
+
+```bash
+# Copy a specific agent into your project
+cp path/to/other-repo/.claude/agents/react-review.md .claude/agents/
+
+# Register it in your CLAUDE.md under Review Agents
+# Then validate:
+claude -p "/eval-audit .claude/agents/react-review.md --fix"
+```
+
+Any agent file that follows the standard template will work. If the source repo has eval fixtures for the agent, copy those too:
+
+```bash
+cp -r path/to/other-repo/.claude/evals/fixtures/react-review .claude/evals/fixtures/
+cp path/to/other-repo/.claude/evals/expected/react-review.json .claude/evals/expected/
+```
+
+### Pull the full team into your project
+
+This is the standard installation path. Copy the entire `.claude/` directory:
+
+```bash
+git clone https://github.com/your-org/agentic-dev-team /tmp/adt
+cp -r /tmp/adt/.claude/ /path/to/your-project/.claude/
+```
+
+If your project already has a `.claude/` directory, merge selectively:
+
+```bash
+# Merge only agents and skills, preserve your existing CLAUDE.md and settings
+cp -r /tmp/adt/.claude/agents/ /path/to/your-project/.claude/agents/
+cp -r /tmp/adt/.claude/skills/ /path/to/your-project/.claude/skills/
+cp -r /tmp/adt/.claude/commands/ /path/to/your-project/.claude/commands/
+# Then manually merge the registry tables from /tmp/adt/.claude/CLAUDE.md into yours
+```
+
+### Install a subset of agents
+
+If you only need specific agents (e.g., only review agents, no team personas):
+
+```bash
+# Copy only review agents
+cp /tmp/adt/.claude/agents/*-review.md .claude/agents/
+
+# Copy only team agents you want
+cp /tmp/adt/.claude/agents/software-engineer.md .claude/agents/
+cp /tmp/adt/.claude/agents/architect.md .claude/agents/
+
+# Copy all skills (agents reference them)
+cp -r /tmp/adt/.claude/skills/ .claude/skills/
+```
+
+After selective installation, update your `.claude/CLAUDE.md` to register only the agents you copied. Agents not registered in `CLAUDE.md` will not be routed to by the Orchestrator.
+
+### Merge agents from multiple sources
+
+If you maintain custom agents and also use agents from this repo:
+
+1. Keep this repo's agents under `.claude/agents/` (the standard set)
+2. Add your custom agents to the same directory — they coexist with no conflict as long as filenames don't collide
+3. Register all agents (standard + custom) in your `.claude/CLAUDE.md`
+4. The Orchestrator discovers agents from the registry tables, not by file scan, so registration is what activates an agent
+
+### Keep agents up to date with upstream
+
+```bash
+# Check what changed in the upstream repo
+cd /tmp/adt && git pull && cd -
+
+# Selectively apply updates
+cp /tmp/adt/.claude/agents/security-review.md .claude/agents/
+cp /tmp/adt/.claude/agents/arch-review.md .claude/agents/
+```
+
+Review the diff before copying — if you have local modifications to a standard agent file, merge them manually rather than overwriting.
+
+### Contribute a custom agent back
+
+If you've built a custom agent that would be useful to others:
+
+1. Ensure the agent file follows the standard template (run `/eval-audit` against it)
+2. Add eval fixtures and expected outputs
+3. Submit a PR to this repository with the agent file, fixtures, and a registry entry in `CLAUDE.md`
+
 ## Remove an Agent
 
 1. Delete the agent file from `.claude/agents/`

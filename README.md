@@ -40,11 +40,12 @@ Every non-trivial task follows **Research → Plan → Implement** with human re
 
 | Guide | Description |
 | --- | --- |
-| [Setup](docs/setup.md) | Prerequisites and installation |
+| [Setup](docs/setup.md) | Prerequisites, full and selective installation, merging with existing projects |
 | [Usage](docs/usage.md) | Submitting requests, feedback keywords, intervention commands |
-| [Agents](docs/agent_info.md) | Agent roster, persona template, adding/removing agents |
+| [Agents](docs/agent_info.md) | Agent roster, persona template, adding/removing agents, custom and cross-repo agents |
 | [Skills & Commands](docs/skills.md) | Skills catalog, slash commands catalog, adding new skills and commands |
 | [Architecture](docs/architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
+| [C-DAD Roadmap](docs/cadad-roadmap.md) | Backlog of gaps identified against the Contract-Driven AI Development white paper |
 
 ## Team Agents
 
