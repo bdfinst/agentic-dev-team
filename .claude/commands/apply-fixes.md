@@ -66,6 +66,7 @@ alphabetically. Each file contains:
 ```json
 {
   "priority": "high|medium|low",
+  "confidence": "high|medium",
   "category": "<agent-name>",
   "instruction": "<what to fix>",
   "context": "<where>",
@@ -73,25 +74,49 @@ alphabetically. Each file contains:
 }
 ```
 
-### 3. Apply each fix
+Note: correction prompts are only generated for issues with
+`confidence: high` or `confidence: medium`. Issues with
+`confidence: none` are surfaced in the review report only and
+do not produce correction prompt files.
+
+### 3. Apply each fix by confidence tier
 
 Copy this checklist and track progress:
 
 ```text
 - [ ] Correction prompts loaded
-- [ ] Fixes sorted by priority
-- [ ] All fixes applied
+- [ ] Fixes sorted by priority then confidence
+- [ ] High-confidence fixes applied automatically
+- [ ] Medium-confidence fixes confirmed and applied
 - [ ] Validation complete
 - [ ] Summary generated
 - [ ] Applied prompts moved to completed/
 ```
 
-For each prompt, sorted by priority (high first):
+For each prompt, sorted by priority (high first), then by
+confidence (high before medium):
+
+**`confidence: high` — auto-apply:**
 
 1. Read the affected file(s)
 2. Apply the minimal fix described in the instruction
 3. Follow all repository rules and coding conventions
 4. Do not change anything beyond what the instruction requires
+
+**`confidence: medium` — confirm before applying:**
+
+1. Display the suggested diff to the user:
+   ```
+   [medium confidence] <category>: <instruction>
+   File: <context>
+   Suggested fix: <suggestedFix>
+   Apply? (y/n/skip)
+   ```
+2. If approved, apply the fix
+3. If declined or skipped, record as "skipped by user" in the summary
+
+If running non-interactively (e.g., in CI), treat `medium`
+confidence the same as `high` (auto-apply).
 
 ### 4. Validate after each fix
 
@@ -110,10 +135,16 @@ After completing all fixes, display a summary:
 ```text
 Fix Summary
 ===========
-Total: N | Applied: N | Failed: N | Validation Failed: N
+Total: N | Applied: N | Skipped: N | Failed: N | Validation Failed: N
 
---- APPLIED ---
+--- APPLIED (high confidence) ---
 [category] instruction (files)
+
+--- APPLIED (medium confidence, confirmed) ---
+[category] instruction (files)
+
+--- SKIPPED (medium confidence, declined) ---
+[category] instruction (reason)
 
 --- FAILED ---
 [category] instruction (reason)

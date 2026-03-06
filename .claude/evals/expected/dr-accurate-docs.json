@@ -1,0 +1,12 @@
+{
+  "fixture": "dr-accurate-docs.md",
+  "description": "README and inline docs accurately reflect current implementation",
+  "applicableAgents": ["doc-review"],
+  "agents": {
+    "doc-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 },
+      "severities": { "error": { "min": 0, "max": 0 } }
+    }
+  }
+}

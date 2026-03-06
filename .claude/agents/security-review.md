@@ -10,11 +10,12 @@ model: opus
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
 Status: pass=no vulnerabilities, warn=concerns, fail=critical vulnerabilities
 Severity: error=exploitable, warning=potential weakness, suggestion=best practice
+Confidence: high=clear vulnerability with known fix (parameterize query, remove hardcoded secret); medium=vulnerability pattern present, exact fix depends on auth architecture; none=requires human judgment (security architecture, threat model tradeoffs)
 
 Model tier: frontier
 Context needs: full-file

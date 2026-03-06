@@ -10,11 +10,12 @@ model: sonnet
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
 Status: pass=no concurrency issues, warn=potential concerns, fail=likely race conditions or safety violations
 Severity: error=race condition or data corruption risk, warning=potential concurrency concern, suggestion=defensive improvement
+Confidence: high=mechanical pattern fix (add await, add finally); medium=fix direction clear but requires understanding shared state; none=requires human judgment (architectural concurrency design)
 
 Model tier: mid
 Context needs: full-file

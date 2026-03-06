@@ -1,0 +1,13 @@
+{
+  "fixture": "ar-layer-violation.ts",
+  "description": "Domain service imports infrastructure ORM entity directly, violating layered architecture",
+  "applicableAgents": ["arch-review"],
+  "agents": {
+    "arch-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": { "error": { "min": 1, "max": 3 } },
+      "mustMention": ["layer", "import"]
+    }
+  }
+}

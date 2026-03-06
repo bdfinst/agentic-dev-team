@@ -13,11 +13,12 @@ Skip non-component files (utilities, services, stores, configs, tests, routes/pa
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
 Status: pass=accessible, warn=minor gaps, fail=WCAG AA violations
 Severity: error=blocks users, warning=degrades experience, suggestion=enhancement
+Confidence: high=mechanical fix (add missing attribute, swap element); medium=direction clear, implementation may vary; none=requires human judgment (design decisions, color palette)
 
 Model tier: mid
 Context needs: full-file

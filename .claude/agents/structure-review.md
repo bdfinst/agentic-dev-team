@@ -10,11 +10,12 @@ model: sonnet
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
 Status: pass=clean, warn=minor issues, fail=architectural problems
 Severity: error=breaks maintainability, warning=tech debt, suggestion=improvement
+Confidence: high=mechanical extraction (duplicate block → shared function); medium=SRP split direction clear but interface design may vary; none=requires human judgment (module boundary decisions, coupling tradeoffs)
 
 Model tier: mid
 Context needs: full-file

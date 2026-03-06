@@ -29,8 +29,8 @@ The orchestrator is the **authoritative source for model selection**. When spawn
 | Agent / Task Class | Model | Rationale |
 |---|---|---|
 | naming-review, complexity-review, claude-setup-review, token-efficiency-review, performance-review | `haiku` | Pattern-matching, deterministic, low context |
-| test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review | `sonnet` | Semantic analysis, balanced cost/quality |
-| security-review, domain-review, architect | `opus` | Cross-file reasoning, high-stakes decisions |
+| test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review | `sonnet` | Semantic analysis, balanced cost/quality |
+| security-review, domain-review, arch-review, architect | `opus` | Cross-file reasoning, high-stakes decisions |
 | orchestrator | `sonnet` | Routing and coordination |
 | software-engineer | `sonnet` (default) / `opus` for architectural changes | Complexity-driven |
 | qa-engineer, tech-writer, all others | `sonnet` | Standard analysis |
@@ -122,6 +122,8 @@ After each discrete unit of work (a function, a module, a feature slice — as d
 | Domain/business logic | domain-review (opus) |
 | UI components | a11y-review (sonnet), structure-review (sonnet) |
 | Agent or command files | eval-compliance-check hook runs automatically; also run /eval-audit |
+| Documentation files (.md) | doc-review (sonnet) |
+| Architecture/dependency changes | arch-review (opus) |
 | All changes | structure-review (sonnet) as a baseline |
 
 **Step 2 — Run selected agents in parallel** using Agent tool with model from the Routing Table above.

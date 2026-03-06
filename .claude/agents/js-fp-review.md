@@ -13,10 +13,11 @@ Skip this agent entirely if the project has no JS/TS files.
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
 Severity: error=external state mutation, warning=local mutation, suggestion=style
+Confidence: high=mechanical substitution (push→spread, let→const); medium=pattern clear but spread vs clone depends on usage; none=requires human judgment (intentional mutation for performance)
 
 Model tier: mid
 Context needs: diff-only

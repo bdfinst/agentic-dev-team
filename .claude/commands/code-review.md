@@ -69,7 +69,15 @@ Arguments: $ARGUMENTS
 - `--json`: Output aggregated JSON instead of prose summary (for CI
   integration)
 - `--force`: Skip pre-flight gates and run agents even if
-  deterministic checks fail
+  deterministic checks fail. **Requires `--reason "<text>"`** — the
+  justification is logged to `metrics/override-audit.jsonl`.
+- `--reason "<text>"`: Override justification (required with
+  `--force`, ignored otherwise)
+- `--background`: Drift review mode — review the default branch for
+  accumulated documentation, naming, and structural drift without
+  requiring changed files. Runs doc-review, arch-review,
+  naming-review, and structure-review only. Does not run pre-flight
+  gates. Intended for scheduled or periodic invocation.
 - No arguments: review all files in the target directory
 
 ## Progress tracking
@@ -99,6 +107,31 @@ Based on arguments, build a file list:
   node_modules, .git, dist, build, coverage)
 
 ### 2. Pre-flight gates (fail fast, fail cheap)
+
+If `--background` is passed, skip pre-flight gates entirely and jump
+to step 3.
+
+If `--force` is passed without `--reason`, halt immediately:
+```
+ERROR: --force requires --reason "<justification>". Override without
+justification cannot be logged.
+```
+
+If `--force` is passed with `--reason`, log the override before
+skipping gates:
+```bash
+# Append to metrics/override-audit.jsonl (create if missing)
+{
+  "timestamp": "<ISO 8601>",
+  "branch": "<current branch>",
+  "triggeredBy": "--force",
+  "reason": "<value of --reason>",
+  "targetFiles": ["<file list>"],
+  "gatesSkipped": ["lint", "type-check", "secret-scan", "semgrep", "pipeline-red"]
+}
+```
+
+Then skip the remaining pre-flight steps and proceed to step 3.
 
 Run deterministic checks before spending tokens on AI agents. Skip
 this step if `--force` is passed.
@@ -136,9 +169,12 @@ skip that gate silently.
 
 ### 3. Determine enabled agents
 
-List all agent files in `.claude/agents/*.md`. All review agents are
-enabled by default. Review agents are identified by declaring
-`Model tier:` in their body.
+If `--background` is passed, run only: doc-review, arch-review,
+naming-review, structure-review. Skip all other agents for this mode.
+
+Otherwise, list all agent files in `.claude/agents/*.md`. All review
+agents are enabled by default. Review agents are identified by
+declaring `Model tier:` in their body.
 
 If a `review-config.json` exists in the project root, read it. It
 can disable specific agents (`"enabled": false`). This file is
@@ -226,11 +262,18 @@ first).
 
 ### 6. Generate correction prompts
 
-For each issue, generate a correction prompt:
+Generate correction prompts only for issues where
+`confidence: "high"` or `confidence: "medium"`. Issues with
+`confidence: "none"` appear in the report but do not produce
+correction prompt files — they require human judgment and cannot be
+safely auto-applied.
+
+For each qualifying issue:
 
 ```json
 {
   "priority": "high|medium|low",
+  "confidence": "high|medium",
   "category": "<agent-name>",
   "instruction": "Fix: <message> (Suggested: <suggestedFix>)",
   "context": "Line <line> in <file>",
@@ -239,6 +282,9 @@ For each issue, generate a correction prompt:
 ```
 
 Severity mapping: error→high, warning→medium, suggestion→low.
+
+In the report, mark `confidence: none` issues with `[human review
+required]` — these are listed but have no correction prompt file.
 
 If the user requests it, save prompts as individual JSON files in a
 `corrections/` directory.

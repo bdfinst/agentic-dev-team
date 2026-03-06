@@ -42,9 +42,11 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | Agent | File | Model Tier | What It Checks |
 |-------|------|------------|----------------|
 | a11y-review | `agents/a11y-review.md` | mid | WCAG 2.1 AA, ARIA, keyboard nav, focus management |
+| arch-review | `agents/arch-review.md` | frontier | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
 | claude-setup-review | `agents/claude-setup-review.md` | small | CLAUDE.md completeness, rules, skills, path accuracy |
 | complexity-review | `agents/complexity-review.md` | small | Function size, cyclomatic complexity, nesting, parameters |
 | concurrency-review | `agents/concurrency-review.md` | mid | Race conditions, async pitfalls, shared state |
+| doc-review | `agents/doc-review.md` | mid | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
 | domain-review | `agents/domain-review.md` | frontier | Domain boundaries, abstraction leaks, entity/DTO confusion |
 | js-fp-review | `agents/js-fp-review.md` | mid | Array mutations, impure patterns, global state |
 | naming-review | `agents/naming-review.md` | small | Intent-revealing names, boolean prefixes, magic values |
@@ -144,8 +146,8 @@ The orchestrator controls model selection for all agents. The full routing table
 | Model | Assigned to |
 |-------|------------|
 | `haiku` | naming-review, complexity-review, claude-setup-review, token-efficiency-review, performance-review |
-| `sonnet` | test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
-| `opus` | security-review, domain-review, architect, software-engineer (architectural changes) |
+| `sonnet` | test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
+| `opus` | security-review, domain-review, arch-review, architect, software-engineer (architectural changes) |
 
 Each agent's `model:` frontmatter is a fallback for direct invocation. When the orchestrator spawns agents via the Agent tool, it passes the model explicitly from the routing table.
 

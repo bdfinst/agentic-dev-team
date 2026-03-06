@@ -10,11 +10,12 @@ model: haiku
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
 Status: pass=complete config, warn=gaps, fail=critical missing
 Severity: error=blocks AI effectiveness, warning=reduces quality, suggestion=enhancement
+Confidence: high=mechanical fix (add missing section, fix broken path); medium=content exists but needs restructuring; none=requires human judgment (project-specific conventions)
 
 Model tier: small
 Context needs: project-structure

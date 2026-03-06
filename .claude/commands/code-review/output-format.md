@@ -10,6 +10,7 @@
   "issues": [
     {
       "severity": "error|warning|suggestion",
+      "confidence": "high|medium|none",
       "file": "src/auth/login.ts",
       "line": 42,
       "message": "God object: AuthController handles login, registration, and password reset",
@@ -19,6 +20,14 @@
   "summary": "2 issues found: 1 error, 1 warning"
 }
 ```
+
+### `confidence` field values
+
+| Value | Meaning | `apply-fixes` behavior |
+|-------|---------|----------------------|
+| `high` | Mechanical fix; correct with high certainty | Auto-apply |
+| `medium` | Direction right; tradeoffs possible | Present as suggested diff — require confirmation |
+| `none` | Requires human judgment | Present finding only; do not generate correction prompt |
 
 ## Aggregated JSON result (`--json` flag)
 
@@ -52,6 +61,7 @@ The `tokenEstimate` field provides rough cost observability:
 ```json
 {
   "priority": "high|medium|low",
+  "confidence": "high|medium",
   "category": "structure-review",
   "instruction": "Fix: God object handles too many concerns (Suggested: Split into focused controllers)",
   "context": "Line 42 in src/auth/login.ts",
@@ -59,7 +69,9 @@ The `tokenEstimate` field provides rough cost observability:
 }
 ```
 
-Severity mapping: error->high, warning->medium, suggestion->low.
+Severity mapping: error→high, warning→medium, suggestion→low.
+
+Correction prompts are only generated for issues with `confidence: high` or `confidence: medium`. Issues with `confidence: none` are included in the review report but do not produce correction prompts — they require human judgment and must be resolved manually before merging.
 
 ## Status rules
 

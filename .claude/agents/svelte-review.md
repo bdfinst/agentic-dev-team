@@ -14,11 +14,12 @@ Covers both Svelte 4 ($:, stores) and Svelte 5 ($state, $derived, $effect).
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
 Status: pass=no reactivity issues, warn=potential concerns, fail=likely silent reactivity breakage
 Severity: error=silent reactivity breakage, warning=potential reactivity concern, suggestion=defensive improvement
+Confidence: high=mechanical Svelte fix (wrap in $state, add unsubscribe, change to $derived); medium=reactivity pattern identified but component design may affect the fix; none=requires human judgment (state architecture decisions)
 
 Model tier: mid
 Context needs: full-file

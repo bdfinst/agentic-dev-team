@@ -10,11 +10,12 @@ model: haiku
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
 Status: pass=efficient, warn=optimization opportunities, fail=major waste
 Severity: error=critical waste, warning=significant, suggestion=minor
+Confidence: high=mechanical (trim verbose rule, extract procedure to skill); medium=verbosity identified, rewrite depends on intent; none=requires human judgment (what detail level is appropriate)
 
 Model tier: small
 Context needs: full-file
