@@ -73,6 +73,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Agent & Skill Authoring | `skills/agent-skill-authoring.md` | 990 | Orchestrator |
 | Hexagonal Architecture | `skills/hexagonal-architecture.md` | 420 | Architect, Software Engineer |
 | Domain-Driven Design | `skills/domain-driven-design.md` | 710 | Architect, Software Engineer, Product Manager |
+| Domain Analysis | `skills/domain-analysis.md` | 650 | Architect, Product Manager, Orchestrator |
 | Task Review & Correction | `skills/task-review-correction.md` | 600 | QA Engineer, Orchestrator, All agents (self-review) |
 | Agent-Assisted Specification | `skills/agent-assisted-specification.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
 | Threat Modeling | `skills/threat-modeling.md` | 600 | Security Engineer, Architect |
@@ -97,6 +98,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/apply-fixes` | `commands/apply-fixes.md` | implementation | Apply correction prompts from `/code-review` output |
 | `/review-summary` | `commands/review-summary.md` | orchestrator | Generate compact session summary for context continuity |
 | `/semgrep-analyze` | `commands/semgrep-analyze.md` | worker | Run Semgrep SAST and return structured findings |
+| `/domain-analysis` | `commands/domain-analysis.md` | worker | Assess existing system DDD health: bounded contexts, context map, event storm, value stream, friction report |
 
 ## Request Processing Flow
 
