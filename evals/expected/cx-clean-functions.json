@@ -1,0 +1,11 @@
+{
+  "fixture": "cx-clean-functions",
+  "description": "Well-structured functions with low complexity that should pass review",
+  "applicableAgents": ["complexity-review"],
+  "agents": {
+    "complexity-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

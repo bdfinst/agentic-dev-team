@@ -1,0 +1,13 @@
+{
+  "fixture": "dm-logic-in-ui.js",
+  "description": "Business logic incorrectly placed in UI or controller layer",
+  "applicableAgents": ["domain-review"],
+  "agents": {
+    "domain-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 6 },
+      "severities": { "error": { "min": 2, "max": 4 } },
+      "mustMention": ["business logic", "controller"]
+    }
+  }
+}

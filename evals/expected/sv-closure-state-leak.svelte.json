@@ -1,0 +1,14 @@
+{
+  "fixture": "sv-closure-state-leak.svelte",
+  "description": "Factory returning closure-backed objects with getters exposing internal mutable refs — Svelte cannot observe closure state",
+  "applicableAgents": ["svelte-review"],
+  "agents": {
+    "svelte-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 6 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["closure"],
+      "mustNotMention": ["$effect", "$derived"]
+    }
+  }
+}

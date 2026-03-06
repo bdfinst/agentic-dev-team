@@ -1,0 +1,14 @@
+{
+  "fixture": "sec-xss-vulnerable",
+  "description": "Code with unsanitized user input rendered directly into HTML, enabling cross-site scripting",
+  "applicableAgents": ["security-review"],
+  "agents": {
+    "security-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 6 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["XSS"],
+      "mustNotMention": ["sanitized"]
+    }
+  }
+}

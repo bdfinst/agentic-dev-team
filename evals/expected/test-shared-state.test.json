@@ -1,0 +1,14 @@
+{
+  "fixture": "test-shared-state.test",
+  "description": "Test suite with mutable shared state across tests causing order-dependent failures",
+  "applicableAgents": ["test-review"],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 6 },
+      "severities": { "error": { "min": 1, "max": 3 } },
+      "mustMention": ["shared", "state"],
+      "mustNotMention": ["isolated", "beforeEach"]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "fixture": "fp-immutable-state.js",
+  "description": "Immutable state management with spread operators and no direct mutation - should pass cleanly",
+  "applicableAgents": ["js-fp-review"],
+  "agents": {
+    "js-fp-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 }
+    }
+  }
+}

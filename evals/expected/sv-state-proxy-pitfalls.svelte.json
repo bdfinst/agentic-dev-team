@@ -1,0 +1,14 @@
+{
+  "fixture": "sv-state-proxy-pitfalls.svelte",
+  "description": "Destructuring $state, deep mutation without reassignment, spreading $state into plain objects",
+  "applicableAgents": ["svelte-review"],
+  "agents": {
+    "svelte-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": { "error": { "min": 2, "max": 6 } },
+      "mustMention": ["$state"],
+      "mustNotMention": ["store", "subscribe"]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "fixture": "test-well-structured.test",
+  "description": "Well-organized test suite with clear describe blocks, specific assertions, and proper setup/teardown",
+  "applicableAgents": ["test-review"],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 },
+      "mustNotMention": ["weak", "missing", "shared state"]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "nm-inconsistent-naming",
+  "description": "Code mixing naming conventions such as camelCase and snake_case inconsistently",
+  "applicableAgents": ["naming-review"],
+  "agents": {
+    "naming-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": { "warning": { "min": 2, "max": 5 } },
+      "mustMention": ["inconsistent"]
+    }
+  }
+}

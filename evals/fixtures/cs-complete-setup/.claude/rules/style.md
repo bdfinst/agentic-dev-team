@@ -1,0 +1,9 @@
+- Use `const` by default. Only use `let` when reassignment is required.
+- Prefer `interface` over `type` for object shapes.
+- Use named exports. No default exports.
+- One component per file. File name matches export name.
+- Prefer early returns over nested conditionals.
+- Use template literals over string concatenation.
+- Destructure function parameters when >2 properties.
+- Max function length: 30 lines. Extract helpers if longer.
+- All async functions must handle errors with try/catch or Result.

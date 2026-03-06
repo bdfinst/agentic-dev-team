@@ -1,0 +1,13 @@
+{
+  "fixture": "st-duplicate-code",
+  "description": "Repeated code blocks that should be extracted into shared functions per DRY",
+  "applicableAgents": ["structure-review"],
+  "agents": {
+    "structure-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 6 },
+      "severities": { "warning": { "min": 2, "max": 5 } },
+      "mustMention": ["duplicate", "DRY"]
+    }
+  }
+}

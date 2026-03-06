@@ -1,0 +1,13 @@
+{
+  "fixture": "te-duplicate-code.js",
+  "description": "Code with duplicated logic that should be extracted and reused",
+  "applicableAgents": ["token-efficiency-review"],
+  "agents": {
+    "token-efficiency-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 6 },
+      "severities": { "warning": { "min": 2, "max": 4 } },
+      "mustMention": ["duplicate"]
+    }
+  }
+}

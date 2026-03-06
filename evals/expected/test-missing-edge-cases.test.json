@@ -1,0 +1,14 @@
+{
+  "fixture": "test-missing-edge-cases.test",
+  "description": "Test suite that only covers happy paths and misses null, empty, and boundary edge cases",
+  "applicableAgents": ["test-review"],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": { "warning": { "min": 2, "max": 5 } },
+      "mustMention": ["edge case", "null"],
+      "mustNotMention": ["thorough", "comprehensive"]
+    }
+  }
+}

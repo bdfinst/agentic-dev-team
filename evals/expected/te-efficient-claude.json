@@ -1,0 +1,11 @@
+{
+  "fixture": "te-efficient-claude.md",
+  "description": "Efficiently structured CLAUDE.md with concise instructions",
+  "applicableAgents": ["token-efficiency-review"],
+  "agents": {
+    "token-efficiency-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

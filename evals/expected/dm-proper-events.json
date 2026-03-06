@@ -1,0 +1,11 @@
+{
+  "fixture": "dm-proper-events.js",
+  "description": "Proper use of domain events for cross-boundary communication",
+  "applicableAgents": ["domain-review"],
+  "agents": {
+    "domain-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

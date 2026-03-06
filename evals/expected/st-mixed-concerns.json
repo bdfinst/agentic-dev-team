@@ -1,0 +1,13 @@
+{
+  "fixture": "st-mixed-concerns",
+  "description": "Module mixing unrelated concerns such as UI logic with data access",
+  "applicableAgents": ["structure-review"],
+  "agents": {
+    "structure-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": { "error": { "min": 1, "max": 4 } },
+      "mustMention": ["concern", "mixed"]
+    }
+  }
+}

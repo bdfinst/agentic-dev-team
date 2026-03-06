@@ -8,3 +8,9 @@
 .claude/metrics/*.json
 .claude/metrics/*.log
 UPDATE.md
+
+# Dev-setup symlinks (created by dev-setup.sh, not for distribution)
+.claude/agents
+.claude/commands
+.claude/skills
+.claude/hooks

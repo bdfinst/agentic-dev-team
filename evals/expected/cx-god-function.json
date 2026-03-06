@@ -1,0 +1,13 @@
+{
+  "fixture": "cx-god-function",
+  "description": "Oversized function with too many parameters and excessive line count",
+  "applicableAgents": ["complexity-review"],
+  "agents": {
+    "complexity-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["parameter", "lines"]
+    }
+  }
+}

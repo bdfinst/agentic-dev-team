@@ -1,0 +1,17 @@
+{
+  "blocked_paths": [
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
+    "*credential*",
+    "*secret*",
+    "*.token"
+  ],
+  "warn_paths": [
+    ".claude/settings.json",
+    ".claude/claude.md"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "dm-leaky-abstraction.js",
+  "description": "Leaky abstractions exposing infrastructure details to domain layer",
+  "applicableAgents": ["domain-review"],
+  "agents": {
+    "domain-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["abstraction", "infrastructure"]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "cs-broken-paths",
+  "description": "CLAUDE.md referencing file paths that do not exist on disk",
+  "applicableAgents": ["claude-setup-review"],
+  "agents": {
+    "claude-setup-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["path", "exist"]
+    }
+  }
+}

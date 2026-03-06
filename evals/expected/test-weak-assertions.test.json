@@ -1,0 +1,14 @@
+{
+  "fixture": "test-weak-assertions.test",
+  "description": "Test suite relying on toBeTruthy/toBeDefined instead of specific value assertions",
+  "applicableAgents": ["test-review"],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": { "error": { "min": 1, "max": 4 } },
+      "mustMention": ["toBeTruthy", "assertion"],
+      "mustNotMention": ["toEqual", "toStrictEqual"]
+    }
+  }
+}

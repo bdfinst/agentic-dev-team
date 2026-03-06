@@ -1,0 +1,14 @@
+{
+  "fixture": "sv-effect-pitfalls.svelte",
+  "description": "$effect writing to own dependencies, side effects in $derived, $effect used for synchronous derived state",
+  "applicableAgents": ["svelte-review"],
+  "agents": {
+    "svelte-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 4, "max": 8 },
+      "severities": { "error": { "min": 3, "max": 7 } },
+      "mustMention": ["$effect"],
+      "mustNotMention": ["store", "subscribe"]
+    }
+  }
+}

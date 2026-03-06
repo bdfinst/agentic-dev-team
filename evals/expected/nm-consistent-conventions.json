@@ -1,0 +1,11 @@
+{
+  "fixture": "nm-consistent-conventions",
+  "description": "Code following consistent naming conventions throughout that should pass review",
+  "applicableAgents": ["naming-review"],
+  "agents": {
+    "naming-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

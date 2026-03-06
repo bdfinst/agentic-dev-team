@@ -1,0 +1,14 @@
+{
+  "fixture": "sec-sql-injection",
+  "description": "Code with string-concatenated SQL queries vulnerable to SQL injection attacks",
+  "applicableAgents": ["security-review"],
+  "agents": {
+    "security-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 6 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["SQL", "injection"],
+      "mustNotMention": ["parameterized"]
+    }
+  }
+}

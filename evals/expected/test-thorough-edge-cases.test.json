@@ -1,0 +1,12 @@
+{
+  "fixture": "test-thorough-edge-cases.test",
+  "description": "Test suite with thorough coverage of edge cases including nulls, empty inputs, and boundary values",
+  "applicableAgents": ["test-review"],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 },
+      "mustNotMention": ["missing", "incomplete"]
+    }
+  }
+}

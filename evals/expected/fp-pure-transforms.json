@@ -1,0 +1,11 @@
+{
+  "fixture": "fp-pure-transforms.js",
+  "description": "Pure functional transforms with no mutations - should pass cleanly",
+  "applicableAgents": ["js-fp-review"],
+  "agents": {
+    "js-fp-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 }
+    }
+  }
+}

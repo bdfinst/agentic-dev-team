@@ -1,0 +1,14 @@
+{
+  "fixture": "sv-lifecycle-issues.svelte",
+  "description": "DOM access before mount, missing cleanup for listeners/timers/observers, reactive declarations with hidden dependencies",
+  "applicableAgents": ["svelte-review"],
+  "agents": {
+    "svelte-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 4, "max": 8 },
+      "severities": { "error": { "min": 3, "max": 7 } },
+      "mustMention": ["cleanup"],
+      "mustNotMention": ["store", "subscribe"]
+    }
+  }
+}

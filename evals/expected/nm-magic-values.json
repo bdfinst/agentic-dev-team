@@ -1,0 +1,13 @@
+{
+  "fixture": "nm-magic-values",
+  "description": "Code with unnamed magic numbers and strings that should be named constants",
+  "applicableAgents": ["naming-review"],
+  "agents": {
+    "naming-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 4, "max": 8 },
+      "severities": { "warning": { "min": 2, "max": 6 } },
+      "mustMention": ["magic", "constant"]
+    }
+  }
+}

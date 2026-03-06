@@ -1,0 +1,12 @@
+{
+  "name": "invoice-generator",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "jest",
+    "dev": "ts-node-dev src/index.ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^21.0.0"
+  }
+}

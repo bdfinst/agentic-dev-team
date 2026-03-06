@@ -1,0 +1,11 @@
+{
+  "fixture": "cs-minimal-valid",
+  "description": "Minimal but valid CLAUDE.md with only essential sections",
+  "applicableAgents": ["claude-setup-review"],
+  "agents": {
+    "claude-setup-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

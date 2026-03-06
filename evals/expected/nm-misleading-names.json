@@ -1,0 +1,13 @@
+{
+  "fixture": "nm-misleading-names",
+  "description": "Code with names that do not accurately describe their purpose or behavior",
+  "applicableAgents": ["naming-review"],
+  "agents": {
+    "naming-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": { "error": { "min": 1, "max": 4 } },
+      "mustMention": ["misleading"]
+    }
+  }
+}

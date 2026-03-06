@@ -1,0 +1,12 @@
+{
+  "fixture": "sec-safe-headers",
+  "description": "Correctly configured security headers including CSP, HSTS, and X-Frame-Options",
+  "applicableAgents": ["security-review"],
+  "agents": {
+    "security-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 },
+      "mustNotMention": ["missing", "vulnerable"]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "fixture": "fp-array-mutations.ts",
+  "description": "In-place array mutations via push, splice, sort, reverse - should flag errors",
+  "applicableAgents": ["js-fp-review"],
+  "agents": {
+    "js-fp-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 4, "max": 8 },
+      "severities": {
+        "error": { "min": 2, "max": 5 },
+        "warning": { "min": 0, "max": 7 }
+      },
+      "mustMention": ["push", "sort"],
+      "mustNotMention": []
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "fixture": "sec-safe-auth",
+  "description": "Properly implemented authentication with hashed passwords and secure session handling",
+  "applicableAgents": ["security-review"],
+  "agents": {
+    "security-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 },
+      "mustNotMention": ["injection", "hardcoded", "vulnerable"]
+    }
+  }
+}

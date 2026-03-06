@@ -1,0 +1,17 @@
+{
+  "fixture": "fp-object-mutations.js",
+  "description": "Direct object property mutation and Object.assign on targets - should flag errors",
+  "applicableAgents": ["js-fp-review"],
+  "agents": {
+    "js-fp-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 7 },
+      "severities": {
+        "error": { "min": 1, "max": 4 },
+        "warning": { "min": 0, "max": 4 }
+      },
+      "mustMention": ["Object.assign"],
+      "mustNotMention": []
+    }
+  }
+}

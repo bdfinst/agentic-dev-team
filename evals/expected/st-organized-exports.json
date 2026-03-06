@@ -1,0 +1,11 @@
+{
+  "fixture": "st-organized-exports",
+  "description": "Module with well-structured exports and clean public API that should pass review",
+  "applicableAgents": ["structure-review"],
+  "agents": {
+    "structure-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

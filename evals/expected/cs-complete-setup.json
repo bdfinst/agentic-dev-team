@@ -1,0 +1,11 @@
+{
+  "fixture": "cs-complete-setup",
+  "description": "Complete CLAUDE.md setup with all required sections and valid paths",
+  "applicableAgents": ["claude-setup-review"],
+  "agents": {
+    "claude-setup-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

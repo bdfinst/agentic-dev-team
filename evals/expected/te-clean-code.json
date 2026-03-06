@@ -1,0 +1,11 @@
+{
+  "fixture": "te-clean-code.js",
+  "description": "Clean concise code with short functions and no duplication",
+  "applicableAgents": ["token-efficiency-review"],
+  "agents": {
+    "token-efficiency-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

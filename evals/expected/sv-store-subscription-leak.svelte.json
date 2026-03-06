@@ -1,0 +1,14 @@
+{
+  "fixture": "sv-store-subscription-leak.svelte",
+  "description": "Manual .subscribe() calls without corresponding unsubscribe in onDestroy — memory leaks on unmount",
+  "applicableAgents": ["svelte-review"],
+  "agents": {
+    "svelte-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 6 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["subscribe"],
+      "mustNotMention": ["$state", "$derived"]
+    }
+  }
+}

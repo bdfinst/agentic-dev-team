@@ -1,0 +1,11 @@
+{
+  "fixture": "cx-simple-logic",
+  "description": "Simple conditional logic with minimal branching that should pass review",
+  "applicableAgents": ["complexity-review"],
+  "agents": {
+    "complexity-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

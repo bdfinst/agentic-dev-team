@@ -1,0 +1,11 @@
+{
+  "fixture": "nm-clear-names",
+  "description": "Code with descriptive, intention-revealing names that should pass review",
+  "applicableAgents": ["naming-review"],
+  "agents": {
+    "naming-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}
