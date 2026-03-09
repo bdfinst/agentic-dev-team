@@ -14,3 +14,4 @@ UPDATE.md
 .claude/commands
 .claude/skills
 .claude/hooks
+sync-to-aci.sh
