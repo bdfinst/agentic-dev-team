@@ -54,6 +54,12 @@ Organization:
 
 - Inconsistent file/folder structure
 - Misplaced abstractions
+- Duplicate type definitions — same interface, class, or module defined
+  in multiple locations (e.g., an interface file at both project root
+  and inside an Interfaces/ subdirectory)
+- Non-functional assets in API projects — static web assets (CSS, JS,
+  images, fonts) shipped in projects that serve only JSON/XML API
+  responses with no UI
 
 ## Ignore
 

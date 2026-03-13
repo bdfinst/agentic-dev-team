@@ -106,6 +106,46 @@ Based on arguments, build a file list:
 - Default: glob all source files in the target path (exclude
   node_modules, .git, dist, build, coverage)
 
+**Scope validation**: After building the file list, count the files.
+If not using `--changed`, `--since`, or `--path`:
+
+| File count | Action |
+|------------|--------|
+| ≤200 | Proceed normally |
+| 201-500 | Warn: "Reviewing {N} files — consider `--changed` or `--path` to narrow scope." Proceed. |
+| >500 | Warn: "Reviewing {N} files is expensive. Use `--changed`, `--since`, or `--path` to narrow scope. Continue anyway?" Wait for confirmation. |
+
+### 1b. Check for institutional context
+
+Check if `REVIEW-CONTEXT.md` exists in the project root.
+
+If it exists, read its full contents. This file contains
+**institutional knowledge** — domain context, related services, known
+issues, team notes, or architectural history that agents cannot
+discover from code alone.
+
+If it does not exist, proceed without it. This file is optional.
+
+When passing context to agents in step 4, include the contents
+prefixed with: "Institutional context provided for this review:"
+
+### 1c. Probe for optional MCP tools
+
+Check for availability of enhanced analysis tools. These are
+additive — all agents work without them.
+
+| Tool | Check | Benefits |
+|------|-------|----------|
+| RoslynMCP | Try `get_code_metrics` or `search_symbols` | C# code metrics, compiler diagnostics, symbol analysis |
+| Code knowledge graph | Try `list_repos` | Cross-repo dependency mapping, blast radius |
+| Documentation MCP | Try wiki/docs search | Architecture docs, design decisions |
+| Semgrep | `which semgrep` | SAST findings for security-review context |
+
+Record which tools are available. Pass availability info to each
+agent so they can use enhanced tools or fall back to Glob/Grep/Read.
+Include tool availability in the final report (see
+`knowledge/review-template.md`).
+
 ### 2. Pre-flight gates (fail fast, fail cheap)
 
 If `--background` is passed, skip pre-flight gates entirely and jump
@@ -176,6 +216,20 @@ Otherwise, list all agent files in `.claude/agents/*.md`. All review
 agents are enabled by default. Review agents are identified by
 declaring `Model tier:` in their body.
 
+**Language-agnostic agents must always run.** The following agents are
+not scoped to a specific programming language and must be included
+regardless of the project's tech stack:
+
+- `doc-review` — checks README, API docs, inline comments, and ADR
+  alignment
+- `arch-review` — checks layer boundaries, dependency direction, and
+  pattern consistency
+- `claude-setup-review` — checks CLAUDE.md completeness and accuracy
+- `token-efficiency-review` — checks CLAUDE.md and rule verbosity
+
+Do not skip these agents based on file extension filtering. They
+operate on project structure and documentation, not source code syntax.
+
 If a `review-config.json` exists in the project root, read it. It
 can disable specific agents (`"enabled": false`). This file is
 optional and project-local — it is not part of the toolkit.
@@ -223,6 +277,13 @@ Produce a JSON result per agent:
 ```
 
 ### 5. Aggregate and report
+
+Read `knowledge/review-rubric.md` for the health scoring formula.
+Read `knowledge/review-template.md` for the report structure.
+
+Compute the overall health score from agent results using the rubric's
+category weights and escalation rules. Security failures auto-escalate
+to 🔴.
 
 **If `--json` flag is set**, output a single aggregated JSON object
 and stop:

@@ -20,14 +20,30 @@ Confidence: high=clear violation of explicit rule (wrong import direction, prohi
 Model tier: frontier
 Context needs: project-structure
 
+## Knowledge Files
+
+Read `knowledge/architecture-assessment.md` before starting analysis.
+It contains exploration patterns, ADR compliance checks, layer boundary
+rules, dependency direction checks, pattern consistency detection, and
+optional MCP-enhanced analysis guidance.
+
+## MCP Tools (Optional)
+
+Probe for these tools at session start. Use if available, fall back
+to Glob/Grep/Read if not.
+
+| Tool | Purpose |
+|------|---------|
+| Code knowledge graph (e.g., GitNexus) | Cross-repo dependency mapping, blast radius, integration context |
+| Documentation MCP (Confluence, Notion) | Architecture docs, design decisions, system context |
+
+Note tool availability in output for the orchestrator's report.
+
 ## Explore
 
-Before detecting issues, map the architectural landscape:
-
-1. Glob for ADRs: `**/adr/**`, `**/adrs/**`, `**/decisions/**`, `docs/adr*`
-2. Glob for architecture docs: `docs/architecture.md`, `docs/arch*.md`, `ARCHITECTURE.md`, `README.md`
-3. Glob for layer definitions: `**/domain/**`, `**/application/**`, `**/infrastructure/**`, `**/presentation/**`, `**/api/**`, `**/ui/**`
-4. Grep for import/dependency patterns across layer boundaries
+Follow the discovery sequence in `knowledge/architecture-assessment.md`
+to map the architectural landscape: ADRs, architecture docs, layer
+definitions, and import patterns.
 
 If no architecture documentation and no discernible layered structure exists, return skip.
 

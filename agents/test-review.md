@@ -40,6 +40,10 @@ Coverage gaps:
 
 Assertion quality:
 
+- Tests with no assertion — test methods containing no Assert, expect,
+  should, verify, or equivalent assertion call. A test that only
+  exercises code without asserting outcomes provides zero regression
+  protection.
 - Non-specific assertions (truthiness-only checks)
 - Implementation verification instead of behavior
 - Incomplete state verification

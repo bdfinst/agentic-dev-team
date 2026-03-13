@@ -20,6 +20,25 @@ Confidence: high=clear vulnerability with known fix (parameterize query, remove 
 Model tier: frontier
 Context needs: full-file
 
+## Knowledge Files
+
+Read `knowledge/owasp-detection.md` before starting analysis. It
+contains OWASP-categorized detection patterns with language-specific
+grep signals for each vulnerability class.
+
+## MCP Tools (Optional)
+
+Probe for these tools at session start. Use if available, fall back
+to Glob/Grep/Read if not.
+
+| Tool | Purpose |
+|------|---------|
+| Semgrep MCP / `semgrep` CLI | SAST findings — assess exploitability, focus AI on logic flaws semgrep misses |
+| RoslynMCP `get_diagnostics` | C# compiler security warnings, nullable misuse |
+| SonarQube MCP | Pre-existing security debt, historical vulnerability trends |
+
+Note tool availability in output for the orchestrator's report.
+
 ## Skip
 
 Return `{"status": "skip", "issues": [], "summary": "No source files with security-relevant patterns"}` when:

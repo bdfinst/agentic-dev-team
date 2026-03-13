@@ -82,6 +82,22 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Mutation Testing | `skills/mutation-testing.md` | 700 | QA Engineer, Software Engineer |
 | Beads Task Tracking | `skills/beads.md` | 500 | Orchestrator, Software Engineer, QA Engineer |
 
+### Knowledge Files
+
+Knowledge files in `knowledge/` provide progressive disclosure — agents read them on demand during analysis rather than carrying all detection patterns inline. This keeps agent prompts lean while preserving depth.
+
+| File | ~Tokens | Used By |
+|------|---------|---------|
+| Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
+| Review Rubric | `knowledge/review-rubric.md` | 300 | `/code-review` (health scoring) |
+| OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |
+| Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
+| Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
+
+### Institutional Context
+
+Teams can create a `REVIEW-CONTEXT.md` file in their project root to provide domain knowledge that code analysis alone cannot discover: related services, known issues, team context, architectural history. When present, `/code-review` reads it and passes the contents to each agent as additional context. This file is optional and project-local.
+
 ## Slash Commands Registry
 
 User-invocable workflows in `.claude/commands/`. All review commands are executed under orchestrator direction. The orchestrator's **Model Routing Table** (`agents/orchestrator.md`) determines model assignment for all review agents.
@@ -98,6 +114,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/apply-fixes` | `commands/apply-fixes.md` | implementation | Apply correction prompts from `/code-review` output |
 | `/review-summary` | `commands/review-summary.md` | orchestrator | Generate compact session summary for context continuity |
 | `/semgrep-analyze` | `commands/semgrep-analyze.md` | worker | Run Semgrep SAST and return structured findings |
+| `/review` | `commands/review.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
 | `/domain-analysis` | `commands/domain-analysis.md` | worker | Assess existing system DDD health: bounded contexts, context map, event storm, value stream, friction report |
 
 ## Request Processing Flow
@@ -174,6 +191,7 @@ Context management is the Orchestrator's responsibility, governed by two operati
 - Single team agent + single skill: ~600-1,100 tokens
 - All team agents (no skills): ~3,590 tokens
 - All review agents: ~2,800 tokens (spawned as sub-agents, not loaded in parent context)
+- Knowledge files: ~2,250 tokens total (loaded on demand by agents, not in parent context)
 - Full load (all team agents + all skills): ~14,200 tokens
 
 ### Operating Rules

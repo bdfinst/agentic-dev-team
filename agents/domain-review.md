@@ -20,32 +20,19 @@ Confidence: high=mechanical (add missing DTO, rename to domain term); medium=dir
 Model tier: frontier
 Context needs: project-structure
 
+## Knowledge Files
+
+Read `knowledge/domain-modeling.md` before starting analysis. It
+contains exploration patterns (glob/grep signals per language for
+entities, services, repositories, DTOs), anti-pattern recognition
+guides, and ubiquitous language drift detection.
+
 ## Explore
 
-Before detecting issues, map the project structure:
-
-1. Glob for entity/model files: `**/domain/**`, `**/entities/**`, `**/models/**`, `**/aggregates/**`
-2. Glob for service files: `**/services/**`, `**/application/**`, `**/usecases/**`, `**/handlers/**`
-3. Glob for repository/data-access files: `**/repositories/**`, `**/dal/**`, `**/persistence/**`, `**/infrastructure/**`
-4. Glob for DTO/response files: `**/dto/**`, `**/dtos/**`, `**/responses/**`, `**/contracts/**`, `**/api/**`, `**/viewmodels/**`
-
-Locate persistence-mapped classes by grepping for ORM markers:
-
-- **JS/TS**: `@Entity`, `@Table`, `@Column`, `@Document`
-- **C#**: `\[Table\]`, `\[Key\]`, `\[Column\]`, `DbContext`, `DbSet<`
-- **Java**: `@Entity`, `@Table`, `@MappedSuperclass`, `@Repository`
-
-Locate boundary entry points by grepping for framework markers:
-
-- **JS/TS**: `express`, `fastify`, `from 'express'`, `Request, Response`
-- **C#**: `ControllerBase`, `\[ApiController\]`, `IActionResult`, `Microsoft.AspNetCore`
-- **Java**: `@RestController`, `@Controller`, `@RequestMapping`, `HttpServletRequest`
-
-Locate application service layer by grepping for:
-
-- **JS/TS**: `@Injectable`, `@Service`, class names ending in `Service`
-- **C#**: class names ending in `Service`, `Handler`, `UseCase`
-- **Java**: `@Service`, `@Component`, class names ending in `Service`, `Handler`, `UseCase`
+Follow the exploration patterns in `knowledge/domain-modeling.md` to
+map the project structure: entity/model files, service layer,
+repositories, DTOs, ORM markers, boundary entry points, and
+application services.
 
 If none of these patterns yield files, return skip.
 

@@ -123,7 +123,7 @@ Every non-trivial task follows **Research → Plan → Implement** with human re
 
 ## Review Agents
 
-13 specialized review agents run as sub-agents during Phase 3 checkpoints and full `/code-review` runs.
+15 specialized review agents run as sub-agents during Phase 3 checkpoints and full `/code-review` runs. Heavyweight agents (security, domain, architecture) load detection knowledge from `knowledge/` files at runtime for progressive disclosure.
 
 | Agent | Focus | Model |
 | --- | --- | --- |
@@ -147,26 +147,31 @@ Every non-trivial task follows **Research → Plan → Implement** with human re
 
 | Command | What It Does |
 | --- | --- |
-| `/code-review` | Run all review agents with pre-flight gates |
+| `/code-review` | Run all review agents with pre-flight gates, scope validation, and MCP probing |
+| `/review` | Alias for `/code-review` |
 | `/review-agent <name>` | Run a single review agent |
 | `/eval-audit` | Audit agents and commands for structural compliance |
 | `/eval-runner` | Run eval fixtures and grade review agent accuracy |
 | `/agent-add` | Scaffold a new review agent |
 | `/agent-remove` | Remove an agent and all registry entries |
+| `/add-plugin` | Install a plugin and register it in settings.json |
 | `/apply-fixes` | Apply correction prompts from `/code-review` |
 | `/review-summary` | Generate compact session summary |
 | `/semgrep-analyze` | Run Semgrep SAST |
+| `/domain-analysis` | Assess DDD health: bounded contexts, context map, friction report |
 
 ## Plugin Structure
 
 ```text
 agents/                # Team agents (10) + review agents (15)
-skills/                # Reusable knowledge modules (17 skills)
-commands/              # Slash commands (10 commands)
+skills/                # Reusable knowledge modules (18 skills)
+knowledge/             # Progressive disclosure reference files for heavyweight agents
+commands/              # Slash commands (12 user-invocable + agent/skill invokers)
 hooks/                 # PreToolUse guard + PostToolUse advisory hooks
 evals/                 # Review agent accuracy fixtures
 docs/                  # Architecture and reference documentation
 CLAUDE.md              # Orchestration pipeline configuration (auto-loaded)
+REVIEW-CONTEXT.md      # (optional, user-created) Institutional context for reviews
 install.sh             # Prerequisite check
 ```
 

@@ -1,0 +1,14 @@
+{
+  "fixture": "test-no-assertions.test",
+  "description": "Test suite with multiple test methods that exercise code without any assertion calls — zero regression protection",
+  "applicableAgents": ["test-review"],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 3, "max": 6 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["assertion", "no assert"],
+      "mustNotMention": []
+    }
+  }
+}
