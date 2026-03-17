@@ -33,7 +33,16 @@ Before creating the PR, verify:
 - Labels: add relevant labels (bug, feature, refactor, docs)
 - Reviewers: assign based on who should review (human decides)
 
-### 3. Merge Strategy Decision
+### 3. Present Options
+
+After confirming the base branch, present exactly four choices:
+
+1. **Merge locally** — Integrate feature branch into base, run tests on merged result, delete feature branch and worktree
+2. **Push and create PR** — Push branch and create pull request via `gh pr create`. Keep worktree (PR still in progress)
+3. **Keep as-is** — Preserve branch and worktree for later handling
+4. **Discard** — Permanently delete branch and all commits. **Requires the human to type "discard" to confirm.** Never discard without typed confirmation.
+
+### 4. Merge Strategy (for options 1 and 2)
 
 | Situation | Strategy | Why |
 |-----------|----------|-----|
@@ -44,10 +53,11 @@ Before creating the PR, verify:
 
 Default: **squash merge** unless the human specifies otherwise.
 
-### 4. Post-Merge Cleanup
-- Delete the feature branch (remote and local)
+### 5. Post-Merge Verification & Cleanup
+- Run tests on the merged result — **do not skip this**. Broken code must never reach base branches.
+- Delete the feature branch (remote and local) — only for options 1 and 4
 - Close related Beads issues if not auto-closed
-- Verify the merge didn't break main (CI should catch this)
+- Remove worktree if applicable (options 1 and 4 only; keep for option 2)
 
 ## Integration
 - Triggered after Phase 3 human gate approval

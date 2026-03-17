@@ -5,14 +5,22 @@ A Claude Code plugin that adds a full persona-driven AI development team to any 
 ```mermaid
 flowchart TD
     U([User Request]) --> O[Orchestrator]
-    O --> MR[Model Routing]
-    O --> AS[Agent Selection]
-    MR --> AS
-    AS --> TE[Task Execution\nCoding Agent]
-    TE --> IRC[Inline Review Checkpoint\nTargeted Review Agents]
-    IRC -->|fail| RF[Review Feedback\nCorrection Context]
-    RF --> TE
-    IRC -->|pass / warn| LL[Learning Loop]
+    O --> R[Research Phase]
+    R --> DD[Design Doc\ndocs/specs/]
+    DD --> HG1([Human Gate])
+    HG1 --> PL[Plan Phase]
+    PL --> PR[Plan Reviewer\nprompts/plan-reviewer.md]
+    PR --> HG2([Human Gate])
+    HG2 --> IM[Implement Phase\nTDD: RED-GREEN-REFACTOR]
+    IM --> SC[Stage 1: Spec Compliance\nspec-compliance-review]
+    SC -->|fail| IM
+    SC -->|pass| QR[Stage 2: Quality Review\nTargeted Review Agents]
+    QR -->|fail| RF[Correction Context]
+    RF --> IM
+    QR -->|pass / warn| VBC[Verification Gate\nFresh test evidence required]
+    VBC --> HG3([Human Gate])
+    HG3 --> BW[Branch Workflow\nPR + Merge + Cleanup]
+    BW --> LL[Learning Loop]
     LL --> O
 ```
 
@@ -116,7 +124,11 @@ After starting Claude Code, confirm the system is working:
 
 ### Three-Phase Workflow
 
-Every non-trivial task follows **Research → Plan → Implement** with human review gates between phases. During Implement, the orchestrator runs inline review checkpoints after each discrete unit of work. Review findings feed back to the coding agent (max 2 correction cycles) before escalating to human.
+Every non-trivial task follows **Research → Plan → Implement** with human review gates between phases:
+
+- **Research** produces a **design document** (`docs/specs/`) with problem statement, alternatives, and scope boundaries
+- **Plan** is pre-checked by an automated **plan reviewer** before the human sees it
+- **Implement** enforces strict **TDD** (RED-GREEN-REFACTOR with hard gates), uses **worktree isolation** for parallel units, and runs a **two-stage inline review**: spec-compliance first ("does code match spec?"), then quality agents ("is code good?"). All agents must provide **verification evidence** (fresh test output) before claiming completion. After the human gate, a **branch workflow** handles PR creation and merge strategy.
 
 ## Team Agents
 
@@ -135,10 +147,11 @@ Every non-trivial task follows **Research → Plan → Implement** with human re
 
 ## Review Agents
 
-15 specialized review agents run as sub-agents during Phase 3 checkpoints and full `/code-review` runs. Heavyweight agents (security, domain, architecture) load detection knowledge from `knowledge/` files at runtime for progressive disclosure.
+16 specialized review agents run as sub-agents during Phase 3 checkpoints and full `/code-review` runs. The **two-stage review pattern** runs spec-compliance first (does code match spec?), then quality agents (is code good?). Heavyweight agents (security, domain, architecture) load detection knowledge from `knowledge/` files at runtime for progressive disclosure.
 
 | Agent | Focus | Model |
 | --- | --- | --- |
+| `spec-compliance-review` | **First gate** — spec-to-code matching before quality review | sonnet |
 | `test-review` | Coverage gaps, assertion quality, test hygiene | sonnet |
 | `security-review` | Injection, auth/authz, data exposure | opus |
 | `domain-review` | Abstraction leaks, boundary violations | opus |
@@ -175,13 +188,15 @@ Every non-trivial task follows **Research → Plan → Implement** with human re
 ## Plugin Structure
 
 ```text
-agents/                # Team agents (10) + review agents (15)
-skills/                # Reusable knowledge modules (18 skills)
+agents/                # Team agents (10) + review agents (16)
+skills/                # Reusable knowledge modules (23 skills)
 knowledge/             # Progressive disclosure reference files for heavyweight agents
+prompts/               # Subagent prompt templates (4) for reproducible dispatch
 commands/              # Slash commands (12 user-invocable + agent/skill invokers)
 hooks/                 # PreToolUse guard + PostToolUse advisory hooks
 evals/                 # Review agent accuracy fixtures
 docs/                  # Architecture and reference documentation
+docs/specs/            # Design documents produced during Research phase
 CLAUDE.md              # Orchestration pipeline configuration (auto-loaded)
 REVIEW-CONTEXT.md      # (optional, user-created) Institutional context for reviews
 install.sh             # Prerequisite check

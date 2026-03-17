@@ -16,6 +16,16 @@ The Research phase explores what exists. This skill adds a structured output: a 
 - Do not treat the design doc as a plan — it captures intent and approach, not file-level changes
 - Do not skip alternatives analysis — a design doc with one option isn't a design doc, it's a plan
 - The human must explicitly approve the design doc before proceeding
+- **Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action** until the design doc is approved. The design doc is a gate, not a suggestion.
+
+## Rationalization Prevention
+
+| Excuse | Reality |
+|--------|---------|
+| "This is too simple to need a design doc" | Simple projects harbor unexamined assumptions. The design doc will be short — just write it. |
+| "I already know the approach" | Then it'll take 5 minutes to write down. And the human might disagree. |
+| "Writing a spec slows us down" | Misunderstandings caught at design time cost minutes. Misunderstandings caught at implementation time cost hours. |
+| "The requirements are clear enough" | Clear to you. The human may interpret them differently. Write it down and verify. |
 
 ## When to Produce a Design Doc
 

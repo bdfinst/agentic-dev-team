@@ -153,6 +153,15 @@ Before writing a new skill, read 2-3 existing skills in `skills/` to absorb the 
 
 **Test against the forgetting curve.** Skills are most likely to be skipped when the agent is deep in implementation and eager to deliver. Front-load the most critical constraints in the skill's ## Constraints section — they're read first and remembered longest.
 
+**Apply TDD to skill-writing itself.** The most effective skill-writing methodology maps directly from TDD:
+1. **RED**: Run the task scenario WITHOUT the skill. Observe how the agent naturally fails — what does it skip, get wrong, or rationalize away?
+2. **GREEN**: Write the minimal skill that addresses those specific failures.
+3. **REFACTOR**: Capture the verbatim excuses the agent generated during baseline testing and build explicit counters into a rationalization prevention table.
+
+This approach reveals assumption gaps (documentation that seems clear but lacks what agents need) and untested rationalizations (loopholes agents discover under pressure). Without baseline testing, you're guessing at what the skill needs to prevent.
+
+**Optimize skill descriptions for triggering.** The `description` field in frontmatter is what determines whether the skill gets invoked. Key insight from testing: descriptions that summarize the workflow cause the agent to follow the description instead of reading the full skill. Descriptions should contain triggering conditions only — *when should I use this?* — not workflow summaries.
+
 ## Registration
 
 After creating an agent or skill, update all of the following. Incomplete registration leaves the system in an inconsistent state.
