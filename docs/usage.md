@@ -14,12 +14,13 @@ The Orchestrator classifies the task, selects agents (Software Engineer + Archit
 
 Non-trivial tasks follow **Research → Plan → Implement** with human review gates between each phase:
 
-1. **Research** — Sub-agents explore the codebase and return concise findings. Output: progress file in `memory/`.
-2. **Human gate** — Review findings before planning.
-3. **Plan** — Specify every file change, test strategy, and verification step. Output: implementation plan in `memory/`.
+1. **Research** — Sub-agents explore the codebase and return concise findings. For non-trivial features, a **design document** is produced at `docs/specs/` with problem statement, alternatives, and scope boundaries. Output: progress file + design doc in `memory/`.
+2. **Human gate** — Review findings and design doc before planning.
+3. **Plan** — Specify every file change, test strategy, and verification step. An automated **plan reviewer** pre-checks completeness and consistency before the human sees it. Output: implementation plan in `memory/`.
 4. **Human gate** — Review the plan. This is the primary quality gate.
-5. **Implement** — Execute the plan. After each discrete unit of work, the Orchestrator runs targeted review agents inline. Findings feed back to the coding agent (max 2 correction cycles). Final `/code-review --changed` before committing. The tech-writer then verifies all affected documentation is current before the human gate.
+5. **Implement** — Execute the plan following strict **RED-GREEN-REFACTOR** (TDD). For parallel independent units, **worktree isolation** prevents file conflicts. After each unit, a **two-stage inline review** runs: spec-compliance first (does code match spec?), then quality review agents (is code high quality?). Findings feed back (max 2 correction cycles). All agents must provide **verification evidence** (fresh test output) before claiming completion. Final `/code-review --changed` before committing. The tech-writer verifies all affected documentation.
 6. **Human gate** — Review the output. Lightweight if the plan was correct.
+7. **Branch workflow** — Create PR, choose merge strategy, clean up branch.
 
 ## Slash Commands
 

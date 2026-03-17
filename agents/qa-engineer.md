@@ -18,6 +18,9 @@ model: sonnet
 
 ## Skills
 - [Accuracy Validation](../skills/accuracy-validation.md) - invoke when performing peer validation of other agents' output
+- [Test-Driven Development](../skills/test-driven-development.md) - invoke when generating tests to ensure proper RED-GREEN-REFACTOR discipline and TDD compliance
+- [Verification Before Completion](../skills/verification-before-completion.md) - invoke before signing off on any deliverable; require fresh test evidence
+- [Systematic Debugging](../skills/systematic-debugging.md) - invoke when investigating test failures or defects; enforce 4-phase protocol
 - [Governance & Compliance](../skills/governance-compliance.md) - invoke when enforcing quality gates and multi-layer validation procedures
 - [Task Review & Correction](../skills/task-review-correction.md) - invoke when reviewing completed work from other agents or performing rework cycles
 - [Agent-Assisted Specification](../skills/agent-assisted-specification.md) - invoke after the consistency gate passes; treat BDD scenarios as acceptance test contracts

@@ -35,14 +35,18 @@ The orchestrator selects review agents based on what changed in each unit of wor
 
 ```mermaid
 flowchart LR
-    CO[Orchestrator\nModel Routing] -->|JS/TS functions| R1[complexity-review\nhaiku]
-    CO -->|JS/TS functions| R2[naming-review\nhaiku]
-    CO -->|JS/TS functions| R3[js-fp-review\nsonnet]
-    CO -->|Test files| R4[test-review\nsonnet]
-    CO -->|API / auth| R5[security-review\nopus]
-    CO -->|Domain logic| R6[domain-review\nopus]
-    CO -->|UI components| R7[a11y-review\nsonnet]
-    CO -->|All changes| R8[structure-review\nsonnet]
+    CO[Orchestrator\nModel Routing] -->|All changes| R0[spec-compliance-review\nsonnet]
+    R0 -->|pass| QUALITY[Quality Gate]
+    R0 -->|fail| FB
+
+    QUALITY -->|JS/TS functions| R1[complexity-review\nhaiku]
+    QUALITY -->|JS/TS functions| R2[naming-review\nhaiku]
+    QUALITY -->|JS/TS functions| R3[js-fp-review\nsonnet]
+    QUALITY -->|Test files| R4[test-review\nsonnet]
+    QUALITY -->|API / auth| R5[security-review\nopus]
+    QUALITY -->|Domain logic| R6[domain-review\nopus]
+    QUALITY -->|UI components| R7[a11y-review\nsonnet]
+    QUALITY -->|All changes| R8[structure-review\nsonnet]
 
     R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 --> AGG{Aggregate\nFindings}
     AGG -->|pass / warn| CONT([Continue])

@@ -17,6 +17,7 @@ model: sonnet
 
 ## Skills
 - [Accuracy Validation](../skills/accuracy-validation.md) - invoke before delivering designs to verify referenced components, patterns, and accessibility standards
+- [Design Doc](../skills/design-doc.md) - invoke during brainstorming and design phases to produce visual artifacts (Mermaid diagrams, wireframes, mockups) alongside the design document
 
 ## Collaboration Protocols
 

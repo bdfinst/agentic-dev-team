@@ -1,0 +1,96 @@
+# Agent & Skill Registry (Full)
+
+This file contains the complete registry tables. CLAUDE.md references this file for on-demand loading — the orchestrator reads it when routing decisions require the full catalog.
+
+## Team Agents
+
+| Agent | File | ~Tokens | Primary Focus |
+|-------|------|---------|---------------|
+| Orchestrator | `agents/orchestrator.md` | 500 | Task routing, model selection, review coordination |
+| Software Engineer | `agents/software-engineer.md` | 320 | Code generation, implementation |
+| Data Scientist | `agents/data-scientist.md` | 290 | ML models, data analysis |
+| QA/SQA Engineer | `agents/qa-engineer.md` | 320 | Testing, quality assurance |
+| UI/UX Designer | `agents/ui-ux-designer.md` | 300 | Interface design, UX |
+| Architect | `agents/architect.md` | 360 | System design, architecture |
+| Product Manager | `agents/product-manager.md` | 300 | Requirements, prioritization |
+| Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
+| Security Engineer | `agents/security-engineer.md` | 320 | Security analysis, threat modeling |
+| DevOps/SRE Engineer | `agents/devops-sre-engineer.md` | 320 | Pipeline, deployment, reliability |
+| **All team agents** | | **~3,590** | |
+
+## Review Agents
+
+Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Model selection follows the **Orchestrator Model Routing Table** in `agents/orchestrator.md`.
+
+| Agent | File | Model Tier | What It Checks |
+|-------|------|------------|----------------|
+| spec-compliance-review | `agents/spec-compliance-review.md` | mid | Spec-to-code matching — first gate before quality review |
+| a11y-review | `agents/a11y-review.md` | mid | WCAG 2.1 AA, ARIA, keyboard nav, focus management |
+| arch-review | `agents/arch-review.md` | frontier | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
+| claude-setup-review | `agents/claude-setup-review.md` | small | CLAUDE.md completeness, rules, skills, path accuracy |
+| complexity-review | `agents/complexity-review.md` | small | Function size, cyclomatic complexity, nesting, parameters |
+| concurrency-review | `agents/concurrency-review.md` | mid | Race conditions, async pitfalls, shared state |
+| doc-review | `agents/doc-review.md` | mid | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
+| domain-review | `agents/domain-review.md` | frontier | Domain boundaries, abstraction leaks, entity/DTO confusion |
+| js-fp-review | `agents/js-fp-review.md` | mid | Array mutations, impure patterns, global state |
+| naming-review | `agents/naming-review.md` | small | Intent-revealing names, boolean prefixes, magic values |
+| performance-review | `agents/performance-review.md` | small | Resource leaks, N+1 queries, unbounded growth |
+| security-review | `agents/security-review.md` | frontier | Injection, auth/authz, data exposure, crypto |
+| structure-review | `agents/structure-review.md` | mid | SRP violations, DRY, coupling, file organization |
+| svelte-review | `agents/svelte-review.md` | mid | Svelte reactivity pitfalls, closure state leaks |
+| test-review | `agents/test-review.md` | mid | Coverage gaps, assertion quality, test hygiene |
+| token-efficiency-review | `agents/token-efficiency-review.md` | small | File/function size, LLM anti-patterns, token usage |
+
+## Skills Registry
+
+Skills are reusable knowledge modules in `.claude/skills/` that agents reference. They define patterns, guidelines, and project structures without being tied to any single agent persona.
+
+| Skill | File | ~Tokens | Used By |
+|-------|------|---------|---------|
+| Context Loading Protocol | `skills/context-loading-protocol.md` | 600 | Orchestrator |
+| Context Summarization | `skills/context-summarization.md` | 500 | Orchestrator |
+| Feedback & Learning | `skills/feedback-learning.md` | 1,010 | Orchestrator |
+| Human Oversight Protocol | `skills/human-oversight-protocol.md` | 1,020 | Orchestrator, Product Manager |
+| Performance Metrics | `skills/performance-metrics.md` | 890 | Orchestrator |
+| Accuracy Validation | `skills/accuracy-validation.md` | 880 | All agents |
+| Governance & Compliance | `skills/governance-compliance.md` | 990 | QA Engineer, Technical Writer |
+| Agent & Skill Authoring | `skills/agent-skill-authoring.md` | 990 | Orchestrator |
+| Hexagonal Architecture | `skills/hexagonal-architecture.md` | 420 | Architect, Software Engineer |
+| Domain-Driven Design | `skills/domain-driven-design.md` | 710 | Architect, Software Engineer, Product Manager |
+| Domain Analysis | `skills/domain-analysis.md` | 650 | Architect, Product Manager, Orchestrator |
+| Task Review & Correction | `skills/task-review-correction.md` | 600 | QA Engineer, Orchestrator, All agents (self-review) |
+| Agent-Assisted Specification | `skills/agent-assisted-specification.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
+| Threat Modeling | `skills/threat-modeling.md` | 600 | Security Engineer, Architect |
+| API Design | `skills/api-design.md` | 600 | Architect, Software Engineer |
+| Legacy Code | `skills/legacy-code.md` | 700 | Software Engineer, QA Engineer, Architect |
+| Mutation Testing | `skills/mutation-testing.md` | 700 | QA Engineer, Software Engineer |
+| Beads Task Tracking | `skills/beads.md` | 500 | Orchestrator, Software Engineer, QA Engineer |
+| Test-Driven Development | `skills/test-driven-development.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
+| Verification Before Completion | `skills/verification-before-completion.md` | 550 | All agents |
+| Systematic Debugging | `skills/systematic-debugging.md` | 600 | Software Engineer, QA Engineer |
+| Design Doc | `skills/design-doc.md` | 500 | Architect, Product Manager, Orchestrator |
+| Branch Workflow | `skills/branch-workflow.md` | 450 | Orchestrator, Software Engineer |
+
+## Subagent Prompt Templates
+
+Concrete prompt templates in `prompts/` that the orchestrator and `/code-review` use when dispatching subagents, making behavior reproducible.
+
+| Template | File | Used By |
+|----------|------|---------|
+| Implementer | `prompts/implementer.md` | Orchestrator (Phase 3 implementation dispatch) |
+| Spec Reviewer | `prompts/spec-reviewer.md` | Orchestrator (two-stage review gate 1) |
+| Quality Reviewer | `prompts/quality-reviewer.md` | Orchestrator (two-stage review gate 2) |
+| Plan Reviewer | `prompts/plan-reviewer.md` | Orchestrator (Phase 2 automated pre-check) |
+
+## Knowledge Files
+
+Knowledge files in `knowledge/` provide progressive disclosure — agents read them on demand during analysis rather than carrying all detection patterns inline.
+
+| File | ~Tokens | Used By |
+|------|---------|---------|
+| Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
+| Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
+| Review Rubric | `knowledge/review-rubric.md` | 300 | `/code-review` (health scoring) |
+| OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |
+| Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
+| Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |

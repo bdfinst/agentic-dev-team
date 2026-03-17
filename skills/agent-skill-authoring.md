@@ -137,6 +137,31 @@ user-invocable: true
 - Include project structure templates when the skill implies a file organization
 - Keep skills focused on a single cohesive topic; split broad topics into multiple skills
 
+### Writing Effective Skills (Meta-Patterns)
+
+Before writing a new skill, read 2-3 existing skills in `skills/` to absorb the project's voice and structure. Skills that follow existing patterns integrate better.
+
+**Explain the why, not just the what.** LLMs follow rules more reliably when they understand the reasoning. "Do X because Y happens without it" beats "ALWAYS do X." Compare:
+- Weak: "ALWAYS run tests before claiming done"
+- Strong: "Run tests before claiming done — LLMs confidently claim 'done' without verification, and this is the single most common failure mode"
+
+**Include rationalization prevention.** LLMs generate plausible excuses to skip hard steps. Add an "Excuses vs. Reality" table that pre-empts the common rationalizations for the skill's domain. This is the most effective compliance pattern in this project.
+
+**Use hard gates, not soft suggestions.** "Should" is ignored; "must, with evidence" is followed. Gate pattern: require tool output (paste the result) as proof that a step was completed. Without evidence, the agent cannot proceed.
+
+**Constrain scope explicitly.** Skills that try to cover everything get applied inconsistently. Define clear boundaries: what this skill covers, what it doesn't, and what adjacent skills handle the rest.
+
+**Test against the forgetting curve.** Skills are most likely to be skipped when the agent is deep in implementation and eager to deliver. Front-load the most critical constraints in the skill's ## Constraints section — they're read first and remembered longest.
+
+**Apply TDD to skill-writing itself.** The most effective skill-writing methodology maps directly from TDD:
+1. **RED**: Run the task scenario WITHOUT the skill. Observe how the agent naturally fails — what does it skip, get wrong, or rationalize away?
+2. **GREEN**: Write the minimal skill that addresses those specific failures.
+3. **REFACTOR**: Capture the verbatim excuses the agent generated during baseline testing and build explicit counters into a rationalization prevention table.
+
+This approach reveals assumption gaps (documentation that seems clear but lacks what agents need) and untested rationalizations (loopholes agents discover under pressure). Without baseline testing, you're guessing at what the skill needs to prevent.
+
+**Optimize skill descriptions for triggering.** The `description` field in frontmatter is what determines whether the skill gets invoked. Key insight from testing: descriptions that summarize the workflow cause the agent to follow the description instead of reading the full skill. Descriptions should contain triggering conditions only — *when should I use this?* — not workflow summaries.
+
 ## Registration
 
 After creating an agent or skill, update all of the following. Incomplete registration leaves the system in an inconsistent state.

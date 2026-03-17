@@ -17,6 +17,9 @@ model: opus
 
 ## Skills
 - [Accuracy Validation](../skills/accuracy-validation.md) - invoke before delivering any code output to verify paths, names, and logic
+- [Test-Driven Development](../skills/test-driven-development.md) - invoke for every unit of work: RED-GREEN-REFACTOR with hard gates, no exceptions
+- [Verification Before Completion](../skills/verification-before-completion.md) - invoke before claiming any task is done; requires fresh test output as evidence
+- [Systematic Debugging](../skills/systematic-debugging.md) - invoke when any test fails or unexpected behavior occurs; no guess-and-fix
 - [Hexagonal Architecture](../skills/hexagonal-architecture.md) - invoke when structuring new services or modules with port/adapter separation
 - [Domain-Driven Design](../skills/domain-driven-design.md) - invoke when modeling business domains, defining aggregates, or mapping bounded contexts
 - [API Design](../skills/api-design.md) - invoke when implementing APIs to verify contract compliance

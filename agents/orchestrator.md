@@ -31,6 +31,7 @@ The orchestrator is the **authoritative source for model selection**. When spawn
 | naming-review, complexity-review, claude-setup-review, token-efficiency-review, performance-review | `haiku` | Pattern-matching, deterministic, low context |
 | test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review | `sonnet` | Semantic analysis, balanced cost/quality |
 | security-review, domain-review, arch-review, architect | `opus` | Cross-file reasoning, high-stakes decisions |
+| spec-compliance-review | `sonnet` | Spec-to-code matching, first gate before quality review |
 | orchestrator | `sonnet` | Routing and coordination |
 | software-engineer | `sonnet` (default) / `opus` for architectural changes | Complexity-driven |
 | qa-engineer, tech-writer, all others | `sonnet` | Standard analysis |
@@ -70,6 +71,9 @@ All review commands are executed under orchestrator direction. When a user trigg
 - [Agent Add](../commands/agent-add.md) - invoke when a new review capability is needed; runs agent-audit and doc updates automatically
 - [Agent Remove](../commands/agent-remove.md) - invoke when retiring any agent; handles file deletion, registry cleanup, and doc updates
 - [Semgrep Analyze](../commands/semgrep-analyze.md) - invoke as pre-flight context for security-review when SAST findings are needed
+- [Design Doc](../skills/design-doc.md) - invoke during Research phase for non-trivial features; produces a written design document with user approval before planning
+- [Verification Before Completion](../skills/verification-before-completion.md) - enforce on all agents at delivery step; require fresh tool output as evidence before accepting completion claims
+- [Branch Workflow](../skills/branch-workflow.md) - invoke after Phase 3 human gate approval to formalize PR creation, merge strategy, and branch cleanup
 
 ## Three-Phase Workflow
 
@@ -79,14 +83,16 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 - **Goal**: Understand how the system works, identify all relevant files, locate the problem or feature surface area
 - **Agents**: Orchestrator + sub-agents for exploration (context isolation — sub-agents search, read, and return concise findings so the parent context stays clean)
 - **Output**: A research progress file with file paths, line numbers, data flows, and key findings; file any discovered side-issues as Beads issues (`bd create`) so they survive context compaction
-- **Human gate**: Human reviews the research findings before planning begins. Catching a misunderstanding here prevents hundreds of bad lines of code downstream.
+- **Design doc**: For non-trivial features (see Design Doc skill for criteria), produce a design document at `docs/specs/{feature-name}.md` with problem statement, proposed approach, alternatives, key decisions, and scope boundaries. The human approves the design doc as part of the research gate.
+- **Human gate**: Human reviews the research findings and design doc before planning begins. Catching a misunderstanding here prevents hundreds of bad lines of code downstream.
 - **Context**: Compact after this phase — write progress file, start fresh context for Phase 2
 
 ### Phase 2: Plan
 - **Goal**: Specify every change to be made — files, snippets, test strategy, verification steps
 - **Agents**: Architect (primary), Product Manager (if requirements unclear), Orchestrator
-- **Input**: Research progress file from Phase 1
+- **Input**: Research progress file from Phase 1 + approved design doc (if produced in Phase 1)
 - **Output**: An implementation plan with explicit file changes, test expectations, and acceptance criteria; create a Beads issue for each discrete unit of work (`bd create`) and link dependencies (`bd dep add`)
+- **Automated plan review**: Before the human gate, dispatch a plan-reviewer subagent using the `prompts/plan-reviewer.md` template. The reviewer checks completeness, consistency, risk, and scope. If `needs-revision`, address issues before presenting to the human.
 - **Human gate**: Human reviews the plan. This is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. If the plan is wrong, fix it here, not in code.
 - **Context**: Compact after this phase — write progress file (include Beads IDs), start fresh context for Phase 3
 
@@ -94,9 +100,13 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 - **Goal**: Execute the plan. Write code, run tests, verify at each step.
 - **Agents**: Software Engineer (primary), QA Engineer (validation), others as needed
 - **Input**: Plan progress file from Phase 2; query `bd ready --json` at session start to find the next unblocked task; claim it with `bd update <id> --assignee software-engineer` before starting
+- **Subagent dispatch**: Use the `prompts/implementer.md` template when dispatching implementation subagents. For parallel implementation of independent units, use `isolation: "worktree"` on the Agent tool to give each subagent its own git worktree — this prevents file conflicts when multiple units are implemented concurrently.
+- **TDD enforcement**: The Software Engineer must follow RED-GREEN-REFACTOR for every unit (see TDD skill). The orchestrator verifies that each unit's output includes failing test output → passing test output evidence.
 - **Checkpointing**: After each file written or significant milestone, update the active Beads issue body with a structured progress snapshot (`bd update <id> --body "..."`) — this is the crash-recovery record. If the session closes before `done`, the next session reads `bd show <id>` and resumes from the last checkpoint.
 - **Output**: Working code that passes all tests, acceptance criteria, and code review; mark each issue done with `bd update <id> --status done` and start a fresh session for the next `bd ready` item
-- **Inline review**: After each discrete unit of work completes (not after every file), run the **Inline Review Checkpoint** (see below)
+- **Two-stage inline review**: After each discrete unit of work completes, run spec-compliance first, then quality:
+  1. **Stage 1 — Spec compliance**: Run `spec-compliance-review` using the `prompts/spec-reviewer.md` template. Does the code match the spec? If fail → fix before proceeding to Stage 2.
+  2. **Stage 2 — Code quality**: Run the standard **Inline Review Checkpoint** (see below) using the `prompts/quality-reviewer.md` template. Is the code high quality?
 - **Final verify**: After all units complete and tests pass, run `/code-review --changed` on all modified files:
   - `fail` → Software Engineer addresses critical issues, re-run review
   - `warn` → include findings in human gate summary
@@ -126,6 +136,7 @@ After each discrete unit of work (a function, a module, a feature slice — as d
 | Documentation files (.md) | doc-review (sonnet) |
 | Architecture/dependency changes | arch-review (opus) |
 | All changes | structure-review (sonnet) as a baseline |
+| All changes (before quality review) | spec-compliance-review (sonnet) as first gate |
 
 **Step 2 — Run selected agents in parallel** using Agent tool with model from the Routing Table above.
 

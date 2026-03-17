@@ -17,82 +17,21 @@ This project implements a fully automated development team using persona-driven 
 
 See @docs/team-structure.md for the full team org chart (Mermaid diagram).
 
-## Agent Registry
+## Agent & Skill Registry
 
-### Team Agents
+Full registry tables with token counts, model tiers, and used-by mappings are in [`knowledge/agent-registry.md`](knowledge/agent-registry.md). The orchestrator reads this file when routing decisions require the full catalog.
 
-| Agent | File | ~Tokens | Primary Focus |
-|-------|------|---------|---------------|
-| Orchestrator | `agents/orchestrator.md` | 500 | Task routing, model selection, review coordination |
-| Software Engineer | `agents/software-engineer.md` | 320 | Code generation, implementation |
-| Data Scientist | `agents/data-scientist.md` | 290 | ML models, data analysis |
-| QA/SQA Engineer | `agents/qa-engineer.md` | 320 | Testing, quality assurance |
-| UI/UX Designer | `agents/ui-ux-designer.md` | 300 | Interface design, UX |
-| Architect | `agents/architect.md` | 360 | System design, architecture |
-| Product Manager | `agents/product-manager.md` | 300 | Requirements, prioritization |
-| Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
-| Security Engineer | `agents/security-engineer.md` | 320 | Security analysis, threat modeling |
-| DevOps/SRE Engineer | `agents/devops-sre-engineer.md` | 320 | Pipeline, deployment, reliability |
-| **All team agents** | | **~3,590** | |
+### Quick Reference
 
-### Review Agents
+**Team agents** (10): Orchestrator, Software Engineer, Data Scientist, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, DevOps/SRE Engineer (~3,590 tokens total)
 
-Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Model selection follows the **Orchestrator Model Routing Table** in `agents/orchestrator.md`.
+**Review agents** (16): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review
 
-| Agent | File | Model Tier | What It Checks |
-|-------|------|------------|----------------|
-| a11y-review | `agents/a11y-review.md` | mid | WCAG 2.1 AA, ARIA, keyboard nav, focus management |
-| arch-review | `agents/arch-review.md` | frontier | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
-| claude-setup-review | `agents/claude-setup-review.md` | small | CLAUDE.md completeness, rules, skills, path accuracy |
-| complexity-review | `agents/complexity-review.md` | small | Function size, cyclomatic complexity, nesting, parameters |
-| concurrency-review | `agents/concurrency-review.md` | mid | Race conditions, async pitfalls, shared state |
-| doc-review | `agents/doc-review.md` | mid | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
-| domain-review | `agents/domain-review.md` | frontier | Domain boundaries, abstraction leaks, entity/DTO confusion |
-| js-fp-review | `agents/js-fp-review.md` | mid | Array mutations, impure patterns, global state |
-| naming-review | `agents/naming-review.md` | small | Intent-revealing names, boolean prefixes, magic values |
-| performance-review | `agents/performance-review.md` | small | Resource leaks, N+1 queries, unbounded growth |
-| security-review | `agents/security-review.md` | frontier | Injection, auth/authz, data exposure, crypto |
-| structure-review | `agents/structure-review.md` | mid | SRP violations, DRY, coupling, file organization |
-| svelte-review | `agents/svelte-review.md` | mid | Svelte reactivity pitfalls, closure state leaks |
-| test-review | `agents/test-review.md` | mid | Coverage gaps, assertion quality, test hygiene |
-| token-efficiency-review | `agents/token-efficiency-review.md` | small | File/function size, LLM anti-patterns, token usage |
+**Skills** (23): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Accuracy Validation, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Task Review & Correction, Agent-Assisted Specification, Threat Modeling, API Design, Legacy Code, Mutation Testing, Beads Task Tracking, Test-Driven Development, Verification Before Completion, Systematic Debugging, Design Doc, Branch Workflow
 
-## Skills Registry
+**Subagent prompt templates** (4): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`
 
-Skills are reusable knowledge modules in `.claude/skills/` that agents reference. They define patterns, guidelines, and project structures without being tied to any single agent persona.
-
-| Skill | File | ~Tokens | Used By |
-|-------|------|---------|---------|
-| Context Loading Protocol | `skills/context-loading-protocol.md` | 600 | Orchestrator |
-| Context Summarization | `skills/context-summarization.md` | 500 | Orchestrator |
-| Feedback & Learning | `skills/feedback-learning.md` | 1,010 | Orchestrator |
-| Human Oversight Protocol | `skills/human-oversight-protocol.md` | 1,020 | Orchestrator, Product Manager |
-| Performance Metrics | `skills/performance-metrics.md` | 890 | Orchestrator |
-| Accuracy Validation | `skills/accuracy-validation.md` | 880 | All agents |
-| Governance & Compliance | `skills/governance-compliance.md` | 990 | QA Engineer, Technical Writer |
-| Agent & Skill Authoring | `skills/agent-skill-authoring.md` | 990 | Orchestrator |
-| Hexagonal Architecture | `skills/hexagonal-architecture.md` | 420 | Architect, Software Engineer |
-| Domain-Driven Design | `skills/domain-driven-design.md` | 710 | Architect, Software Engineer, Product Manager |
-| Domain Analysis | `skills/domain-analysis.md` | 650 | Architect, Product Manager, Orchestrator |
-| Task Review & Correction | `skills/task-review-correction.md` | 600 | QA Engineer, Orchestrator, All agents (self-review) |
-| Agent-Assisted Specification | `skills/agent-assisted-specification.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
-| Threat Modeling | `skills/threat-modeling.md` | 600 | Security Engineer, Architect |
-| API Design | `skills/api-design.md` | 600 | Architect, Software Engineer |
-| Legacy Code | `skills/legacy-code.md` | 700 | Software Engineer, QA Engineer, Architect |
-| Mutation Testing | `skills/mutation-testing.md` | 700 | QA Engineer, Software Engineer |
-| Beads Task Tracking | `skills/beads.md` | 500 | Orchestrator, Software Engineer, QA Engineer |
-
-### Knowledge Files
-
-Knowledge files in `knowledge/` provide progressive disclosure — agents read them on demand during analysis rather than carrying all detection patterns inline. This keeps agent prompts lean while preserving depth.
-
-| File | ~Tokens | Used By |
-|------|---------|---------|
-| Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
-| Review Rubric | `knowledge/review-rubric.md` | 300 | `/code-review` (health scoring) |
-| OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |
-| Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
-| Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
+**Knowledge files** (6): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment
 
 ### Institutional Context
 
@@ -122,13 +61,14 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 For trivial tasks (typo fix, simple query), the Orchestrator routes directly to a single agent. For non-trivial tasks, the Orchestrator follows the **Research → Plan → Implement** workflow:
 
 ### Three-Phase Workflow
-1. **Research** — Understand the system: find relevant files, trace data flows, identify the problem surface area. Sub-agents explore the codebase and return concise findings to keep the parent context clean. Output: research progress file written to `memory/`.
-2. **Human Review Gate** — Human reviews research findings. Catching a misunderstanding here prevents hundreds of bad lines of code.
-3. **Plan** — Specify every change: files, snippets, test strategy, verification steps. The plan is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. Output: implementation plan progress file written to `memory/`.
+1. **Research** — Understand the system: find relevant files, trace data flows, identify the problem surface area. Sub-agents explore the codebase and return concise findings to keep the parent context clean. For non-trivial features, produce a **design document** at `docs/specs/` with problem statement, approach, alternatives, and scope boundaries. Output: research progress file + design doc written to `memory/`.
+2. **Human Review Gate** — Human reviews research findings and design doc. Catching a misunderstanding here prevents hundreds of bad lines of code.
+3. **Plan** — Specify every change: files, snippets, test strategy, verification steps. An automated **plan reviewer** (`prompts/plan-reviewer.md`) pre-checks completeness and consistency before the human sees it. The plan is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. Output: implementation plan progress file written to `memory/`.
 4. **Human Review Gate** — Human reviews the plan. This replaces traditional line-by-line code review as the primary quality gate.
-5. **Implement** — Execute the plan. Write code, run tests, verify at each step. After each discrete unit of work, the orchestrator runs an **inline review checkpoint** using targeted review agents. Review findings feed back to the coding agent (max 2 correction iterations). Run `/code-review --changed` before committing. Then invoke the tech-writer to verify all affected documentation is current before the human gate. Output: working code + test results + code review pass + docs verified.
+5. **Implement** — Execute the plan using the `prompts/implementer.md` template. All code follows **RED-GREEN-REFACTOR** (TDD skill). For parallel independent units, use **worktree isolation** (`isolation: "worktree"`). After each unit, a **two-stage inline review** runs: (1) spec-compliance-review checks code matches spec, (2) quality review agents check code quality. Review findings feed back to the coding agent (max 2 correction iterations). Run `/code-review --changed` before committing. Then invoke the tech-writer to verify all affected documentation is current. All agents must provide **verification evidence** (fresh test output) before claiming completion. Output: working code + test results + code review pass + docs verified.
 6. **Human Review Gate** — Human reviews the final output. Lightweight if the plan was correct.
-7. **Learning loop** — Update configs if needed, log metrics, refine routing.
+7. **Branch Workflow** — Create PR, choose merge strategy, clean up branch (see Branch Workflow skill).
+8. **Learning loop** — Update configs if needed, log metrics, refine routing.
 
 ### Phase Transitions
 Each phase runs in a fresh context window. The output of each phase is a structured progress file in `memory/` that onboards the next phase. See the Orchestrator agent for the full protocol.
@@ -165,7 +105,7 @@ The orchestrator controls model selection for all agents. The full routing table
 | Model | Assigned to |
 |-------|------------|
 | `haiku` | naming-review, complexity-review, claude-setup-review, token-efficiency-review, performance-review |
-| `sonnet` | test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
+| `sonnet` | spec-compliance-review, test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
 | `opus` | security-review, domain-review, arch-review, architect, software-engineer (architectural changes) |
 
 Each agent's `model:` frontmatter is a fallback for direct invocation. When the orchestrator spawns agents via the Agent tool, it passes the model explicitly from the routing table.
@@ -187,12 +127,13 @@ Context management is the Orchestrator's responsibility, governed by two operati
 2. **[Context Summarization](skills/context-summarization.md)** - decides *when* to compress and *how*, using LSTM-inspired gates, utilization triggers, and structured summaries written to `memory/`
 
 ### Baseline Budget
-- CLAUDE.md (always loaded): ~1,400 tokens
+- CLAUDE.md (always loaded): ~800 tokens (reduced by moving registries to `knowledge/agent-registry.md`)
 - Single team agent + single skill: ~600-1,100 tokens
 - All team agents (no skills): ~3,590 tokens
-- All review agents: ~2,800 tokens (spawned as sub-agents, not loaded in parent context)
-- Knowledge files: ~2,250 tokens total (loaded on demand by agents, not in parent context)
-- Full load (all team agents + all skills): ~14,200 tokens
+- All review agents: ~3,100 tokens (spawned as sub-agents, not loaded in parent context; includes spec-compliance-review)
+- Knowledge files: ~3,450 tokens total (loaded on demand by agents, not in parent context; includes agent-registry)
+- Subagent prompt templates: ~800 tokens total (loaded by orchestrator when dispatching)
+- Full load (all team agents + all skills): ~17,100 tokens
 
 ### Operating Rules
 1. **Load on demand**: Only load agent/skill files when their phase begins (see Loading Protocol)

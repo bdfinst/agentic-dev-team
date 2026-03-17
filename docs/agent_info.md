@@ -25,6 +25,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
+| `spec-compliance-review` | [`spec-compliance-review.md`](../.claude/agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
 | `test-review` | [`test-review.md`](../.claude/agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
 | `security-review` | [`security-review.md`](../.claude/agents/security-review.md) | opus | Injection, auth, data exposure |
 | `domain-review` | [`domain-review.md`](../.claude/agents/domain-review.md) | opus | Abstraction leaks, boundary violations |

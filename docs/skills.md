@@ -31,6 +31,18 @@ Used by all agents to ensure output correctness:
 | --- | --- | --- |
 | Accuracy Validation | [`accuracy-validation.md`](../.claude/skills/accuracy-validation.md) | Self-validation checklist, hallucination detection, confidence scoring |
 | Governance & Compliance | [`governance-compliance.md`](../.claude/skills/governance-compliance.md) | Audit trail, quality assurance layers, ethics principles |
+| Verification Before Completion | [`verification-before-completion.md`](../.claude/skills/verification-before-completion.md) | Require fresh tool output as evidence before any completion claim |
+
+### Development Discipline Skills
+
+Enforce rigorous development practices:
+
+| Skill | File | Purpose |
+| --- | --- | --- |
+| Test-Driven Development | [`test-driven-development.md`](../.claude/skills/test-driven-development.md) | RED-GREEN-REFACTOR cycle with hard gates, rationalization prevention |
+| Systematic Debugging | [`systematic-debugging.md`](../.claude/skills/systematic-debugging.md) | 4-phase debugging protocol (reproduce, investigate, root-cause, fix) |
+| Design Doc | [`design-doc.md`](../.claude/skills/design-doc.md) | Written design document with alternatives analysis before planning |
+| Branch Workflow | [`branch-workflow.md`](../.claude/skills/branch-workflow.md) | PR creation, merge strategy, and branch cleanup after Phase 3 |
 
 ### Technical Skills
 
@@ -44,6 +56,17 @@ Domain knowledge for implementation work:
 | Threat Modeling | [`threat-modeling.md`](../.claude/skills/threat-modeling.md) | STRIDE analysis, trust boundaries, mitigation strategies |
 | Legacy Code | [`legacy-code.md`](../.claude/skills/legacy-code.md) | Characterization testing, safe refactoring in untested code |
 | Mutation Testing | [`mutation-testing.md`](../.claude/skills/mutation-testing.md) | Evaluating test suite effectiveness against behavioral mutations |
+
+### Subagent Prompt Templates
+
+Concrete templates in `prompts/` for reproducible subagent dispatch:
+
+| Template | File | Purpose |
+| --- | --- | --- |
+| Implementer | [`implementer.md`](../prompts/implementer.md) | Phase 3 implementation dispatch with TDD enforcement |
+| Spec Reviewer | [`spec-reviewer.md`](../prompts/spec-reviewer.md) | Two-stage review gate 1: does code match spec? |
+| Quality Reviewer | [`quality-reviewer.md`](../prompts/quality-reviewer.md) | Two-stage review gate 2: is code high quality? |
+| Plan Reviewer | [`plan-reviewer.md`](../prompts/plan-reviewer.md) | Phase 2 automated pre-check before human review |
 
 ## Slash Commands Catalog
 
