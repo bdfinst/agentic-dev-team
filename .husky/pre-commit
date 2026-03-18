@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Auto-bump patch version in plugin.json and marketplace.json on every commit
+set -euo pipefail
+
+PLUGIN_JSON=".claude-plugin/plugin.json"
+MARKETPLACE_JSON=".claude-plugin/marketplace.json"
+
+if [[ ! -f "$PLUGIN_JSON" ]]; then exit 0; fi
+
+# Get current version
+CURRENT=$(jq -r '.version' "$PLUGIN_JSON")
+if [[ -z "$CURRENT" || "$CURRENT" == "null" ]]; then exit 0; fi
+
+# Split and bump patch
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+
+# Update plugin.json
+jq --arg v "$NEW_VERSION" '.version = $v' "$PLUGIN_JSON" > "$PLUGIN_JSON.tmp" && mv "$PLUGIN_JSON.tmp" "$PLUGIN_JSON"
+
+# Update marketplace.json if it exists
+if [[ -f "$MARKETPLACE_JSON" ]]; then
+  jq --arg v "$NEW_VERSION" '.plugins[0].version = $v' "$MARKETPLACE_JSON" > "$MARKETPLACE_JSON.tmp" && mv "$MARKETPLACE_JSON.tmp" "$MARKETPLACE_JSON"
+fi
+
+git add "$PLUGIN_JSON"
+[[ -f "$MARKETPLACE_JSON" ]] && git add "$MARKETPLACE_JSON"
