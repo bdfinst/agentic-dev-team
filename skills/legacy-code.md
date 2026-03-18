@@ -101,6 +101,5 @@ Report the legacy code analysis: identified change points, test points, dependen
 
 - **[Agent-Assisted Specification](agent-assisted-specification.md)** — when modifying legacy code to add new behavior, specify the new behavior first, then use this skill to get existing code under test before implementing
 - **[Hexagonal Architecture](hexagonal-architecture.md)** — dependency breaking techniques move legacy code toward port/adapter separation incrementally
-- **[Accuracy Validation](accuracy-validation.md)** — verify characterization tests actually match observed behavior, not assumed behavior
-- **[Task Review & Correction](task-review-correction.md)** — legacy code changes have higher defect risk; apply review with increased scrutiny
+- **[Quality Gate Pipeline](quality-gate-pipeline.md)** — verify characterization tests match observed behavior (Phase 1); legacy code changes have higher defect risk, apply review-correction with increased scrutiny (Phase 3)
 - **[Mutation Testing](mutation-testing.md)** — after writing characterization tests, use mutation testing to verify those tests catch behavioral changes

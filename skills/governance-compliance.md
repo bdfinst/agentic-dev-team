@@ -49,7 +49,7 @@ To answer "why did the system do X?", trace through:
 Quality is enforced at four progressive layers:
 
 #### Layer 1: Agent Self-Validation
-- Every agent applies the [Accuracy Validation](accuracy-validation.md) checklist before delivering output
+- Every agent applies the [Quality Gate Pipeline](quality-gate-pipeline.md) before delivering output
 - Confidence scoring on all major claims
 - Tool-based verification for factual claims (file paths, APIs, data)
 

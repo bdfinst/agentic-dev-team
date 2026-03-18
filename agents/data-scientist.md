@@ -15,7 +15,7 @@ model: opus
 - Model performance monitoring and optimization
 
 ## Skills
-- [Accuracy Validation](../skills/accuracy-validation.md) - invoke before delivering analysis results to verify data sources, statistical claims, and model outputs
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke before delivering analysis results (Phase 1: verify data sources, statistical claims, and model outputs)
 
 ## Collaboration Protocols
 

@@ -59,7 +59,7 @@ All review commands are executed under orchestrator direction. When a user trigg
 - [Human Oversight Protocol](../skills/human-oversight-protocol.md) - invoke when approval gates fire, when user issues override/pause/stop, or when escalating decisions
 - [Performance Metrics](../skills/performance-metrics.md) - invoke at task completion to log metrics, and during learning loop to review trends
 - [Agent & Skill Authoring](../skills/agent-skill-authoring.md) - invoke when adding new team members, defining new capabilities, or restructuring agent responsibilities
-- [Task Review & Correction](../skills/task-review-correction.md) - invoke when a task needs rework or when coordinating review-correction loops between agents
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke to enforce the three-phase quality gate: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3)
 - [Agent-Assisted Specification](../skills/agent-assisted-specification.md) - invoke when routing a new feature request; verify the consistency gate passed before loading implementing agents
 - [Beads Task Tracking](../skills/beads.md) - invoke at task start to query `bd ready --json` for unblocked work; invoke during Research to file discovered issues; invoke during Plan to create and link Beads issues for each planned change; invoke during Implement to update issue status as work completes
 - [Code Review](../commands/code-review.md) - invoke after each Phase 3 checkpoint and before committing; runs all relevant review agents with orchestrator-assigned models
@@ -72,7 +72,6 @@ All review commands are executed under orchestrator direction. When a user trigg
 - [Agent Remove](../commands/agent-remove.md) - invoke when retiring any agent; handles file deletion, registry cleanup, and doc updates
 - [Semgrep Analyze](../commands/semgrep-analyze.md) - invoke as pre-flight context for security-review when SAST findings are needed
 - [Design Doc](../skills/design-doc.md) - invoke during Research phase for non-trivial features; produces a written design document with user approval before planning
-- [Verification Before Completion](../skills/verification-before-completion.md) - enforce on all agents at delivery step; require fresh tool output as evidence before accepting completion claims
 - [Branch Workflow](../skills/branch-workflow.md) - invoke after Phase 3 human gate approval to formalize PR creation, merge strategy, and branch cleanup
 
 ## Three-Phase Workflow

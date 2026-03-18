@@ -98,7 +98,7 @@ Validation happens in this sequence during Phase 3:
 | 7 | Human gate | User | At each phase transition (Research, Plan, Implement) |
 | 8 | Post-hoc monitoring | Orchestrator | During learning loop after task completion |
 
-Every agent applies the [Accuracy Validation](../.claude/skills/accuracy-validation.md) self-check before output. This includes factual accuracy verification, instruction fidelity, internal consistency, and confidence scoring.
+Every agent applies the [Quality Gate Pipeline](../.claude/skills/quality-gate-pipeline.md) before output. This includes self-validation (Phase 1: factual accuracy, instruction fidelity, consistency, confidence scoring), verification evidence (Phase 2), and review-correction loops (Phase 3).
 
 Quality gates by task type:
 

@@ -1,11 +1,11 @@
 ---
-name: learn
+name: knowledge-capture
 description: Captures institutional knowledge after feature completion or complex bug fixes — gotchas, patterns, decisions, and edge cases
 tools: Read, Grep, Glob
 model: sonnet
 ---
 
-# Learn Agent
+# Knowledge Capture Agent
 
 ## Technical Responsibilities
 

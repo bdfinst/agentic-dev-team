@@ -39,17 +39,17 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 ### Quick Reference
 
-**Team agents** (14): Orchestrator, Software Engineer, Data Scientist, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, DevOps/SRE Engineer, Learn, ADR, Use Case Data Patterns, Progress Guardian (~4,800 tokens total)
+**Team agents** (12): Orchestrator, Software Engineer, Data Scientist, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, DevOps/SRE Engineer, Knowledge Capture, ADR Author (~4,200 tokens total)
 
-**Review agents** (17): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactor-scan
+**Review agents** (19): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactoring-review, progress-guardian, data-flow-tracer
 
-**Skills** (25): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Accuracy Validation, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Task Review & Correction, Agent-Assisted Specification, Threat Modeling, API Design, Legacy Code, Mutation Testing, Beads Task Tracking, Test-Driven Development, Verification Before Completion, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer
+**Skills** (23): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Agent-Assisted Specification, Threat Modeling, API Design, Legacy Code, Mutation Testing, Beads Task Tracking, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer
 
 **Subagent prompt templates** (4): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`
 
 **Knowledge files** (6): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment
 
-**Agent templates** (10): ts-enforcer, esm-enforcer, functional-patterns, react-testing, front-end-testing, twelve-factor-audit, python-quality, go-quality, csharp-quality, angular-testing (in `templates/agents/`, scaffolded by `/setup`)
+**Agent templates** (9): ts-enforcer, esm-enforcer, react-testing, front-end-testing, twelve-factor-audit, python-quality, go-quality, csharp-quality, angular-testing (in `templates/agents/`, scaffolded by `/setup`)
 
 ### Institutional Context
 
@@ -179,7 +179,7 @@ Intervention commands: `amend`, `learn`, `remember`, `forget`, `override`, `paus
 
 ## Quality & Accuracy
 
-All agents apply self-validation before delivering output. The QA agent performs peer validation when applicable. See **[Accuracy Validation](skills/accuracy-validation.md)** for the checklist and confidence scoring system.
+All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline.md)** before delivering output: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3). The QA agent performs peer validation when applicable.
 
 Audit logging, quality gates, and ethics principles are defined in **[Governance & Compliance](skills/governance-compliance.md)**.
 

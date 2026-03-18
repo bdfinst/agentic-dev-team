@@ -1,11 +1,11 @@
 ---
-name: refactor-scan
+name: refactoring-review
 description: Assesses refactoring opportunities after tests pass (TDD REFACTOR phase), distinguishing semantic duplication from structural similarity
 tools: Read, Grep, Glob
 model: sonnet
 ---
 
-# Refactor Scan
+# Refactoring Review
 
 Output JSON:
 

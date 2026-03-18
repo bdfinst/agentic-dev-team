@@ -69,7 +69,7 @@ If a JavaScript or TypeScript project is detected:
 1. **ES Modules check**: Read `package.json` and verify `"type": "module"` is set. If missing, report it and ask the user whether to add it.
 2. **TypeScript check**: If `package.json` exists but `tsconfig.json` does not, ask: "This is a JavaScript project. Would you like to add TypeScript?" If yes, scaffold a `tsconfig.json` with strict mode and note that `ts-enforcer` template should be activated.
 3. **Require/module.exports scan**: Run a quick grep for `require(` and `module.exports` in source files (exclude `node_modules`). Report any findings as migration candidates.
-4. Always mark `functional-patterns` and `esm-enforcer` templates for activation.
+4. Always mark `esm-enforcer` template for activation. (`functional-patterns` is superseded by the built-in `js-fp-review` agent — do not activate it.)
 
 ### 3. Select agent templates
 
@@ -79,7 +79,7 @@ Based on detected stack, select applicable templates from `templates/agents/`:
 |----------|-----------|
 | `ts-enforcer` | `tsconfig.json` exists or TypeScript in deps |
 | `esm-enforcer` | Any JS/TS project (always-on) |
-| `functional-patterns` | Any JS/TS project (always-on) |
+| ~~`functional-patterns`~~ | ~~Any JS/TS project~~ — **deprecated**, superseded by `js-fp-review` agent |
 | `react-testing` | `react` or `react-dom` in deps |
 | `front-end-testing` | Any frontend framework (React, Vue, Svelte, Angular) |
 | `twelve-factor-audit` | Has Dockerfile, server entry point, or cloud config |
@@ -135,7 +135,7 @@ Display a summary of everything created:
 - `.claude/project-stack.json` — stack detection results
 - `.claude/CLAUDE.md` — project conventions
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
-- Activated templates: ts-enforcer, esm-enforcer, functional-patterns, react-testing
+- Activated templates: ts-enforcer, esm-enforcer, react-testing
 
 ### Recommendations
 - Add `"type": "module"` to package.json

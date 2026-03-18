@@ -19,7 +19,6 @@ Used by the Orchestrator to manage the team:
 | Human Oversight Protocol | [`human-oversight-protocol.md`](../.claude/skills/human-oversight-protocol.md) | Approval gates, intervention commands, escalation |
 | Performance Metrics | [`performance-metrics.md`](../.claude/skills/performance-metrics.md) | Task logging schema and reporting procedures |
 | Agent & Skill Authoring | [`agent-skill-authoring.md`](../.claude/skills/agent-skill-authoring.md) | How to create and maintain agents and skills |
-| Task Review & Correction | [`task-review-correction.md`](../.claude/skills/task-review-correction.md) | Review-correction loop coordination between agents |
 | Agent-Assisted Specification | [`agent-assisted-specification.md`](../.claude/skills/agent-assisted-specification.md) | BDD scenario consistency gate before implementation |
 | Beads Task Tracking | [`beads.md`](../.claude/skills/beads.md) | Beads issue lifecycle, session discipline, multi-agent coordination |
 
@@ -29,9 +28,8 @@ Used by all agents to ensure output correctness:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Accuracy Validation | [`accuracy-validation.md`](../.claude/skills/accuracy-validation.md) | Self-validation checklist, hallucination detection, confidence scoring |
+| Quality Gate Pipeline | [`quality-gate-pipeline.md`](../.claude/skills/quality-gate-pipeline.md) | Unified quality gate: self-validation, verification evidence, review-correction loops |
 | Governance & Compliance | [`governance-compliance.md`](../.claude/skills/governance-compliance.md) | Audit trail, quality assurance layers, ethics principles |
-| Verification Before Completion | [`verification-before-completion.md`](../.claude/skills/verification-before-completion.md) | Require fresh tool output as evidence before any completion claim |
 
 ### Development Discipline Skills
 

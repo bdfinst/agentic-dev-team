@@ -147,12 +147,12 @@ Every non-trivial task follows **Research → Plan → Implement** with human re
 
 ## Review Agents
 
-16 specialized review agents run as sub-agents during Phase 3 checkpoints and full `/code-review` runs. The **two-stage review pattern** runs spec-compliance first (does code match spec?), then quality agents (is code good?). Heavyweight agents (security, domain, architecture) load detection knowledge from `knowledge/` files at runtime for progressive disclosure.
+19 specialized review agents run as sub-agents during Phase 3 checkpoints and full `/code-review` runs. The **two-stage review pattern** runs spec-compliance first (does code match spec?), then quality agents (is code good?). Heavyweight agents (security, domain, architecture) load detection knowledge from `knowledge/` files at runtime for progressive disclosure.
 
 | Agent | Focus | Model |
 | --- | --- | --- |
 | `spec-compliance-review` | **First gate** — spec-to-code matching before quality review | sonnet |
-| `test-review` | Coverage gaps, assertion quality, test hygiene | sonnet |
+| `test-review` | Coverage gaps, assertion quality, test hygiene (QA Engineer delegates here) | sonnet |
 | `security-review` | Injection, auth/authz, data exposure | opus |
 | `domain-review` | Abstraction leaks, boundary violations | opus |
 | `arch-review` | ADR compliance, layer violations, dependency direction | opus |
@@ -167,6 +167,9 @@ Every non-trivial task follows **Research → Plan → Implement** with human re
 | `claude-setup-review` | CLAUDE.md completeness and accuracy | haiku |
 | `doc-review` | README accuracy, API doc alignment, comment drift | sonnet |
 | `svelte-review` | Svelte reactivity, closure state leaks | sonnet |
+| `progress-guardian` | Plan adherence, commit discipline, scope creep | sonnet |
+| `refactoring-review` | Post-GREEN refactoring opportunities | sonnet |
+| `data-flow-tracer` | Data flow tracing through architecture layers (analysis-only) | sonnet |
 
 ## Slash Commands
 
@@ -188,7 +191,7 @@ Every non-trivial task follows **Research → Plan → Implement** with human re
 ## Plugin Structure
 
 ```text
-agents/                # Team agents (10) + review agents (16)
+agents/                # Team agents (12) + review agents (19)
 skills/                # Reusable knowledge modules (23 skills)
 knowledge/             # Progressive disclosure reference files for heavyweight agents
 prompts/               # Subagent prompt templates (4) for reproducible dispatch
