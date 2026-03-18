@@ -2,6 +2,18 @@
 
 A Claude Code plugin that adds a full persona-driven AI development team to any project. The Orchestrator routes tasks to specialized agents, inline review checkpoints catch quality issues during implementation, and skills provide reusable knowledge modules that any agent can draw on.
 
+## How It Works
+
+**Team agents** define roles (persona, behavior, collaboration). **Review agents** check work quality in real time. **Skills** define knowledge (patterns, guidelines, procedures). **Slash commands** invoke agents and skills directly. The **Orchestrator** controls task routing, model selection, and the inline review feedback loop.
+
+### Three-Phase Workflow
+
+Every non-trivial task follows **Research → Plan → Implement** with human review gates between phases:
+
+- **Research** produces a **design document** (`docs/specs/`) with problem statement, alternatives, and scope boundaries
+- **Plan** is pre-checked by an automated **plan reviewer** before the human sees it
+- **Implement** enforces strict **TDD** (RED-GREEN-REFACTOR with hard gates), uses **worktree isolation** for parallel units, and runs a **two-stage inline review**: spec-compliance first ("does code match spec?"), then quality agents ("is code good?"). All agents must provide **verification evidence** (fresh test output) before claiming completion. After the human gate, a **branch workflow** handles PR creation and merge strategy.
+
 ```mermaid
 flowchart TD
     U([User Request]) --> O[Orchestrator]
@@ -117,18 +129,6 @@ After starting Claude Code, confirm the system is working:
 ```
 > What agents are available on this team?
 ```
-
-## How It Works
-
-**Team agents** define roles (persona, behavior, collaboration). **Review agents** check work quality in real time. **Skills** define knowledge (patterns, guidelines, procedures). **Slash commands** invoke agents and skills directly. The **Orchestrator** controls task routing, model selection, and the inline review feedback loop.
-
-### Three-Phase Workflow
-
-Every non-trivial task follows **Research → Plan → Implement** with human review gates between phases:
-
-- **Research** produces a **design document** (`docs/specs/`) with problem statement, alternatives, and scope boundaries
-- **Plan** is pre-checked by an automated **plan reviewer** before the human sees it
-- **Implement** enforces strict **TDD** (RED-GREEN-REFACTOR with hard gates), uses **worktree isolation** for parallel units, and runs a **two-stage inline review**: spec-compliance first ("does code match spec?"), then quality agents ("is code good?"). All agents must provide **verification evidence** (fresh test output) before claiming completion. After the human gate, a **branch workflow** handles PR creation and merge strategy.
 
 ## Team Agents
 
