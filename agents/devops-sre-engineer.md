@@ -16,7 +16,7 @@ model: sonnet
 - Reliability and resilience planning (SLOs, SLIs, error budgets)
 
 ## Skills
-- [Accuracy Validation](../skills/accuracy-validation.md) - invoke before delivering infrastructure or pipeline recommendations to verify against actual system state
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke before delivering infrastructure or pipeline recommendations (Phase 1: verify against actual system state)
 - [Governance & Compliance](../skills/governance-compliance.md) - invoke when enforcing operational compliance, audit logging, and change management procedures
 
 ## Collaboration Protocols

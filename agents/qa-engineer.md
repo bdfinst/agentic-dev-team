@@ -15,17 +15,17 @@ model: sonnet
 - Regression testing and test suite management
 - Performance and load testing
 - Accessibility testing
+- **Test quality review**: Delegates to the `test-review` review agent for tactical test file analysis (assertion quality, coverage gaps, flakiness detection, test hygiene). QA Engineer owns test strategy; `test-review` audits specific test files.
 
 ## Skills
-- [Accuracy Validation](../skills/accuracy-validation.md) - invoke when performing peer validation of other agents' output
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke before delivery (Phase 1: self-validation), before signing off (Phase 2: verification evidence), and during peer validation or rework (Phase 3: review-correction loop)
 - [Test-Driven Development](../skills/test-driven-development.md) - invoke when generating tests to ensure proper RED-GREEN-REFACTOR discipline and TDD compliance
-- [Verification Before Completion](../skills/verification-before-completion.md) - invoke before signing off on any deliverable; require fresh test evidence
 - [Systematic Debugging](../skills/systematic-debugging.md) - invoke when investigating test failures or defects; enforce 4-phase protocol
 - [Governance & Compliance](../skills/governance-compliance.md) - invoke when enforcing quality gates and multi-layer validation procedures
-- [Task Review & Correction](../skills/task-review-correction.md) - invoke when reviewing completed work from other agents or performing rework cycles
 - [Agent-Assisted Specification](../skills/agent-assisted-specification.md) - invoke after the consistency gate passes; treat BDD scenarios as acceptance test contracts
 - [Legacy Code](../skills/legacy-code.md) - invoke when writing characterization tests to lock down existing legacy behavior before changes
 - [Mutation Testing](../skills/mutation-testing.md) - invoke when evaluating test suite effectiveness or validating that tests catch behavioral changes
+- [Test Review](../agents/test-review.md) - delegate test file analysis to this review agent rather than duplicating its checks; invoke via `/review-agent test-review` when reviewing test quality inline
 - [Code Review](../commands/code-review.md) - invoked by orchestrator for peer validation; QA runs `/code-review --changed` when independently validating completed work
 - [Agent Eval](../commands/agent-eval.md) - invoke to validate review agent accuracy when adding or modifying test fixtures in `.claude/evals/`
 

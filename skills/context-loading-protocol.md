@@ -45,12 +45,11 @@ These are the measured sizes of each loadable file. CLAUDE.md is always loaded a
 | Feedback & Learning | `skills/feedback-learning.md` | ~1,010 |
 | Human Oversight Protocol | `skills/human-oversight-protocol.md` | ~1,020 |
 | Performance Metrics | `skills/performance-metrics.md` | ~890 |
-| Accuracy Validation | `skills/accuracy-validation.md` | ~880 |
+| Quality Gate Pipeline | `skills/quality-gate-pipeline.md` | ~900 |
 | Governance & Compliance | `skills/governance-compliance.md` | ~990 |
 | Agent & Skill Authoring | `skills/agent-skill-authoring.md` | ~990 |
 | Hexagonal Architecture | `skills/hexagonal-architecture.md` | ~420 |
 | Domain-Driven Design | `skills/domain-driven-design.md` | ~710 |
-| Task Review & Correction | `skills/task-review-correction.md` | ~600 |
 | Agent-Assisted Specification | `skills/agent-assisted-specification.md` | ~800 |
 | Threat Modeling | `skills/threat-modeling.md` | ~600 |
 | API Design | `skills/api-design.md` | ~600 |

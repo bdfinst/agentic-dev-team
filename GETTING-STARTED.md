@@ -119,8 +119,7 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 | `/api-design` | Contract-first API design | New APIs, service boundaries, inter-service contracts |
 | `/hexagonal-architecture` | Port/adapter architecture | Structuring services and modules |
 | `/domain-driven-design` | DDD patterns | Modeling domains, bounded contexts, aggregates |
-| `/accuracy-validation` | Output self-validation | Verifying claims before delivery |
-| `/task-review-correction` | Review-correct-verify loop | Reviewing completed work, rework cycles |
+| `/quality-gate-pipeline` | Unified quality gate (self-validation, verification, review-correction) | Before delivery, at completion, during rework |
 | `/governance-compliance` | Audit and compliance | Quality gates, audit trails, ethics |
 | `/agent-skill-authoring` | Creating agents and skills | Extending the team with new capabilities |
 | `/feedback-learning` | Modify system behavior | Teaching the system new preferences |

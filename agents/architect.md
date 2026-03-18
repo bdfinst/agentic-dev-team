@@ -16,7 +16,7 @@ model: opus
 - Cross-cutting concern management (security, observability, resilience)
 
 ## Skills
-- [Accuracy Validation](../skills/accuracy-validation.md) - invoke before delivering architecture decisions to verify assumptions against actual codebase state
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke before delivering architecture decisions (Phase 1: verify assumptions against actual codebase state)
 - [Design Doc](../skills/design-doc.md) - invoke during Research phase to produce a written design document with alternatives analysis before planning begins
 - [Hexagonal Architecture](../skills/hexagonal-architecture.md) - invoke when designing service boundaries, port/adapter separation, and dependency rules
 - [Domain-Driven Design](../skills/domain-driven-design.md) - invoke when modeling bounded contexts, aggregates, domain events, and context maps

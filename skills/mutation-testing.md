@@ -181,6 +181,5 @@ Mutation score, list of surviving mutants with triage classification (equivalent
 
 - **[Test-Driven Development](test-driven-development.md)** — run mutation testing after TDD cycles to verify test strength
 - **[Legacy Code](legacy-code.md)** — after writing characterization tests, use mutation testing to verify those tests catch behavioral changes
-- **[Task Review & Correction](task-review-correction.md)** — surviving mutants in reviewed code indicate review gaps
-- **[Accuracy Validation](accuracy-validation.md)** — mutation score as a quantitative confidence signal for test suite reliability
+- **[Quality Gate Pipeline](quality-gate-pipeline.md)** — mutation score feeds Phase 1 confidence assessment; surviving mutants in reviewed code indicate review gaps
 - **[Governance & Compliance](governance-compliance.md)** — mutation score thresholds as quality gates in compliance-sensitive modules

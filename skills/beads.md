@@ -1,5 +1,5 @@
 ---
-name: beads
+name: beads-task-tracking
 description: Use Beads (bd) as the structured task tracker for all agent work. Replaces markdown TODO lists with a git-backed, dependency-aware issue graph that persists across sessions.
 role: worker
 user-invocable: true

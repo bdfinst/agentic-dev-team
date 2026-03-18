@@ -41,7 +41,7 @@ Before writing any code, review the task specification. If anything is unclear â
 - Only modify files listed above unless the plan explicitly requires new files.
 - Each file should have one clear responsibility with a well-defined interface.
 - Apply TDD discipline: no implementation without a failing test first.
-- Apply verification-before-completion: paste fresh test output before claiming done.
+- Apply Quality Gate Pipeline Phase 2: paste fresh test output before claiming done.
 - Use real code, not mocks, whenever feasible.
 
 ## Escalation

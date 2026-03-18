@@ -42,7 +42,7 @@ flowchart LR
     QUALITY -->|JS/TS functions| R1[complexity-review\nhaiku]
     QUALITY -->|JS/TS functions| R2[naming-review\nhaiku]
     QUALITY -->|JS/TS functions| R3[js-fp-review\nsonnet]
-    QUALITY -->|Test files| R4[test-review\nsonnet]
+    QUALITY -->|Test files| R4[test-review\nsonnet\n← QA delegates]
     QUALITY -->|API / auth| R5[security-review\nopus]
     QUALITY -->|Domain logic| R6[domain-review\nopus]
     QUALITY -->|UI components| R7[a11y-review\nsonnet]

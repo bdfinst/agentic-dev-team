@@ -18,7 +18,7 @@ model: opus
 ## Skills
 - [Threat Modeling](../skills/threat-modeling.md) - invoke when analyzing new or modified components for security risks, trust boundary changes, or attack surface expansion
 - [Governance & Compliance](../skills/governance-compliance.md) - invoke when enforcing security-related compliance requirements, audit trails, and change management
-- [Accuracy Validation](../skills/accuracy-validation.md) - invoke before delivering security assessments to verify claims against actual system state
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke before delivering security assessments (Phase 1: verify claims against actual system state)
 
 ## Collaboration Protocols
 
