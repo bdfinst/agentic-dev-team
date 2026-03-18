@@ -4,6 +4,22 @@
 
 This project implements a fully automated development team using persona-driven AI agents orchestrated through an intelligent coordination pipeline. The Orchestrator agent acts as the central dispatcher, routing tasks to specialized agents based on task classification, complexity, and required expertise.
 
+## Architecture
+
+This project uses a layered loading strategy to minimize token usage:
+
+- **CLAUDE.md**: Core philosophy + quick reference (always loaded, ~800 tokens)
+- **Skills**: Detailed patterns and procedures (loaded on-demand when a phase or task requires them)
+- **Knowledge**: Reference data — registries, rubrics, detection patterns (loaded on-demand by agents)
+- **Agents**: Behavioral specifications (loaded per-phase, never all at once)
+- **Templates**: Language-specific agent templates (scaffolded per-project by `/setup`)
+
+## Output Guardrails
+
+1. **Write to files, not chat.** Artifacts (plans, design docs, reports, code) go to files. Chat is for decisions, status updates, and questions — not deliverables.
+2. **Plan-only mode.** When asked for a plan, produce ONLY the plan. Do not start implementing. The plan is a gate, not a warm-up.
+3. **Incremental output.** Produce a first draft within 3-4 tool calls, then refine iteratively. Don't spend 20 tool calls exploring before writing anything.
+
 ## Core Principles
 
 1. **Selective Agent Loading**: Only load necessary agents into context, avoiding token bloat. Target < 10,000 tokens for simple tasks.
@@ -23,15 +39,17 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 ### Quick Reference
 
-**Team agents** (10): Orchestrator, Software Engineer, Data Scientist, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, DevOps/SRE Engineer (~3,590 tokens total)
+**Team agents** (14): Orchestrator, Software Engineer, Data Scientist, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, DevOps/SRE Engineer, Learn, ADR, Use Case Data Patterns, Progress Guardian (~4,800 tokens total)
 
-**Review agents** (16): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review
+**Review agents** (17): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactor-scan
 
-**Skills** (23): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Accuracy Validation, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Task Review & Correction, Agent-Assisted Specification, Threat Modeling, API Design, Legacy Code, Mutation Testing, Beads Task Tracking, Test-Driven Development, Verification Before Completion, Systematic Debugging, Design Doc, Branch Workflow
+**Skills** (25): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Accuracy Validation, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Task Review & Correction, Agent-Assisted Specification, Threat Modeling, API Design, Legacy Code, Mutation Testing, Beads Task Tracking, Test-Driven Development, Verification Before Completion, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer
 
 **Subagent prompt templates** (4): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`
 
 **Knowledge files** (6): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment
+
+**Agent templates** (10): ts-enforcer, esm-enforcer, functional-patterns, react-testing, front-end-testing, twelve-factor-audit, python-quality, go-quality, csharp-quality, angular-testing (in `templates/agents/`, scaffolded by `/setup`)
 
 ### Institutional Context
 
@@ -55,6 +73,10 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/semgrep-analyze` | `commands/semgrep-analyze.md` | worker | Run Semgrep SAST and return structured findings |
 | `/review` | `commands/review.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
 | `/domain-analysis` | `commands/domain-analysis.md` | worker | Assess existing system DDD health: bounded contexts, context map, event storm, value stream, friction report |
+| `/setup` | `commands/setup.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
+| `/continue` | `commands/continue.md` | orchestrator | Resume work from a prior session using phase progress files |
+| `/plan` | `commands/plan.md` | orchestrator | Create a structured implementation plan with TDD steps |
+| `/pr` | `commands/pr.md` | orchestrator | Run quality gates and create a pull request |
 
 ## Request Processing Flow
 

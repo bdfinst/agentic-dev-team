@@ -16,7 +16,10 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
 | Security Engineer | `agents/security-engineer.md` | 320 | Security analysis, threat modeling |
 | DevOps/SRE Engineer | `agents/devops-sre-engineer.md` | 320 | Pipeline, deployment, reliability |
-| **All team agents** | | **~3,590** | |
+| Learn | `agents/learn.md` | 300 | Institutional knowledge capture |
+| ADR | `agents/adr.md` | 320 | Architecture decision records |
+| Use Case Data Patterns | `agents/use-case-data-patterns.md` | 300 | Data flow tracing through architecture layers |
+| **All team agents** | | **~4,800** | |
 
 ## Review Agents
 
@@ -40,6 +43,8 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | svelte-review | `agents/svelte-review.md` | mid | Svelte reactivity pitfalls, closure state leaks |
 | test-review | `agents/test-review.md` | mid | Coverage gaps, assertion quality, test hygiene |
 | token-efficiency-review | `agents/token-efficiency-review.md` | small | File/function size, LLM anti-patterns, token usage |
+| progress-guardian | `agents/progress-guardian.md` | mid | Plan adherence, commit discipline, scope creep detection |
+| refactor-scan | `agents/refactor-scan.md` | mid | Post-GREEN refactoring opportunities, semantic vs structural duplication |
 
 ## Skills Registry
 
@@ -70,6 +75,8 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Systematic Debugging | `skills/systematic-debugging.md` | 600 | Software Engineer, QA Engineer |
 | Design Doc | `skills/design-doc.md` | 500 | Architect, Product Manager, Orchestrator |
 | Branch Workflow | `skills/branch-workflow.md` | 450 | Orchestrator, Software Engineer |
+| CI Debugging | `skills/ci-debugging.md` | 550 | DevOps/SRE Engineer, Software Engineer, QA Engineer |
+| Test Design Reviewer | `skills/test-design-reviewer.md` | 600 | QA Engineer, test-review |
 
 ## Subagent Prompt Templates
 
@@ -94,3 +101,20 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
+
+## Agent Templates
+
+Language-specific review agents in `templates/agents/`. Scaffolded into projects by `/setup` when the matching stack is detected. Not bundled as always-on.
+
+| Template | File | Activates When |
+|----------|------|---------------|
+| ts-enforcer | `templates/agents/ts-enforcer.md` | TypeScript detected |
+| esm-enforcer | `templates/agents/esm-enforcer.md` | Any JS/TS project (always-on) |
+| functional-patterns | `templates/agents/functional-patterns.md` | Any JS/TS project (always-on) |
+| react-testing | `templates/agents/react-testing.md` | React in deps |
+| front-end-testing | `templates/agents/front-end-testing.md` | Any frontend framework |
+| twelve-factor-audit | `templates/agents/twelve-factor-audit.md` | Service/API project |
+| python-quality | `templates/agents/python-quality.md` | Python stack |
+| go-quality | `templates/agents/go-quality.md` | Go stack |
+| csharp-quality | `templates/agents/csharp-quality.md` | C#/.NET stack |
+| angular-testing | `templates/agents/angular-testing.md` | Angular in deps |
