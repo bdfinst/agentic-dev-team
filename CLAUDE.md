@@ -43,7 +43,7 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Review agents** (19): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactoring-review, progress-guardian, data-flow-tracer
 
-**Skills** (23): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Agent-Assisted Specification, Threat Modeling, API Design, Legacy Code, Mutation Testing, Beads Task Tracking, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer
+**Skills** (24): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Agent-Assisted Specification, Threat Modeling, API Design, Legacy Code, Mutation Testing, Beads Task Tracking, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing
 
 **Subagent prompt templates** (4): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`
 
@@ -77,6 +77,13 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/continue` | `commands/continue.md` | orchestrator | Resume work from a prior session using phase progress files |
 | `/plan` | `commands/plan.md` | orchestrator | Create a structured implementation plan with TDD steps |
 | `/pr` | `commands/pr.md` | orchestrator | Run quality gates and create a pull request |
+| `/browse` | `commands/browse.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
+| `/careful` | `commands/careful.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
+| `/freeze` | `commands/freeze.md` | worker | Scope-lock editing to a glob pattern; blocks edits outside the pattern |
+| `/unfreeze` | `commands/unfreeze.md` | worker | Lift the scope lock set by `/freeze` |
+| `/guard` | `commands/guard.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
+| `/upgrade` | `commands/upgrade.md` | worker | Check for and apply plugin updates from within a session |
+| `/help` | `commands/help.md` | worker | List all available slash commands with descriptions |
 
 ## Request Processing Flow
 
@@ -183,7 +190,7 @@ All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline.md)*
 
 Audit logging, quality gates, and ethics principles are defined in **[Governance & Compliance](skills/governance-compliance.md)**.
 
-A `PreToolUse` hook (`hooks/pre-tool-guard.sh`) blocks writes to sensitive paths (credentials, keys, secrets) before they execute. Protected path patterns are configurable via `hooks/guards.json`.
+A `PreToolUse` hook (`hooks/pre-tool-guard.sh`) blocks writes to sensitive paths (credentials, keys, secrets) before they execute. Protected path patterns are configurable via `hooks/guards.json`. A second `PreToolUse` hook (`hooks/destructive-guard.sh`) detects destructive Bash commands (rm -rf, force-push, DROP TABLE, etc.) and warns by default. Use `/careful` to escalate warnings to blocks, `/freeze` to scope-lock edits, or `/guard` for both.
 
 ## Performance Metrics
 

@@ -1,0 +1,42 @@
+{
+  "file_destruction": [
+    "rm -rf",
+    "rm -r",
+    "rm -fr"
+  ],
+  "database_destruction": [
+    "drop table",
+    "drop database",
+    "truncate"
+  ],
+  "git_destruction": [
+    "git push --force",
+    "git push -f",
+    "git reset --hard",
+    "git clean -f",
+    "git clean -fd",
+    "git checkout -- .",
+    "git branch -D"
+  ],
+  "process_destruction": [
+    "kill -9",
+    "killall",
+    "pkill"
+  ],
+  "permission_escalation": [
+    "chmod 777"
+  ],
+  "safe_allowlist": [
+    "rm -rf node_modules",
+    "rm -rf dist",
+    "rm -rf build",
+    "rm -rf .cache",
+    "rm -rf coverage",
+    "rm -rf tmp",
+    "rm -rf __pycache__",
+    "rm -rf .next",
+    "rm -rf .nuxt",
+    "rm -rf .turbo",
+    "rm -rf target"
+  ]
+}

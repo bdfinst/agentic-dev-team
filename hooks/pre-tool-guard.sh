@@ -55,6 +55,33 @@ else
 .claude/claude.md"
 fi
 
+# ── Freeze mode: scope-lock editing to allowed patterns ───────────────────────
+FREEZE_FILE="$SCRIPT_DIR/freeze-state.json"
+if [ -f "$FREEZE_FILE" ] && command -v jq &>/dev/null; then
+  FREEZE_ACTIVE=$(jq -r '.active // false' "$FREEZE_FILE" 2>/dev/null || echo "false")
+  if [ "$FREEZE_ACTIVE" = "true" ]; then
+    ALLOWED_PATTERNS=$(jq -r '.allowed_patterns[]' "$FREEZE_FILE" 2>/dev/null || true)
+    FREEZE_MATCH=false
+    while IFS= read -r pattern; do
+      [ -z "$pattern" ] && continue
+      # shellcheck disable=SC2254
+      case "$FILE_PATH" in
+        $pattern) FREEZE_MATCH=true; break ;;
+      esac
+      case "$LOWER_PATH" in
+        $pattern) FREEZE_MATCH=true; break ;;
+      esac
+    done <<< "$ALLOWED_PATTERNS"
+    if [ "$FREEZE_MATCH" = "false" ]; then
+      echo "BLOCKED: Freeze mode is active. Only files matching the allowed patterns can be edited."
+      echo "File: $FILE_PATH"
+      echo "Allowed: $ALLOWED_PATTERNS"
+      echo "Use /unfreeze to lift the scope lock."
+      exit 2
+    fi
+  fi
+fi
+
 # ── Block: sensitive credential / key paths ───────────────────────────────────
 if matches_any "$LOWER_FILENAME" "$BLOCKED_PATTERNS" || \
    matches_any "$LOWER_PATH" "$BLOCKED_PATTERNS"; then

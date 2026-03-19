@@ -76,6 +76,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Branch Workflow | `skills/branch-workflow.md` | 450 | Orchestrator, Software Engineer |
 | CI Debugging | `skills/ci-debugging.md` | 550 | DevOps/SRE Engineer, Software Engineer, QA Engineer |
 | Test Design Reviewer | `skills/test-design-reviewer.md` | 600 | QA Engineer, test-review |
+| Browser Testing | `skills/browser-testing.md` | 700 | QA Engineer |
 
 ## Subagent Prompt Templates
 

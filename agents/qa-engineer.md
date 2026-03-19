@@ -1,7 +1,7 @@
 ---
 name: qa-engineer
 description: Acceptance test driven development, test generation, quality metrics, and regression testing
-tools: Read, Grep, Glob, Edit, Write, Bash
+tools: Read, Grep, Glob, Edit, Write, Bash, Bash(npx playwright *)
 model: sonnet
 ---
 
@@ -15,6 +15,7 @@ model: sonnet
 - Regression testing and test suite management
 - Performance and load testing
 - Accessibility testing
+- Visual verification and browser-based e2e testing via `/browse` command
 - **Test quality review**: Delegates to the `test-review` review agent for tactical test file analysis (assertion quality, coverage gaps, flakiness detection, test hygiene). QA Engineer owns test strategy; `test-review` audits specific test files.
 
 ## Skills
@@ -28,6 +29,7 @@ model: sonnet
 - [Test Review](../agents/test-review.md) - delegate test file analysis to this review agent rather than duplicating its checks; invoke via `/review-agent test-review` when reviewing test quality inline
 - [Code Review](../commands/code-review.md) - invoked by orchestrator for peer validation; QA runs `/code-review --changed` when independently validating completed work
 - [Agent Eval](../commands/agent-eval.md) - invoke to validate review agent accuracy when adding or modifying test fixtures in `.claude/evals/`
+- [Browser Testing](../skills/browser-testing.md) - invoke when e2e visual verification is needed; uses Playwright for navigation, form interaction, and screenshot capture via `/browse`
 
 ## Collaboration Protocols
 

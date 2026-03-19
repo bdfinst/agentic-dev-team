@@ -10,6 +10,12 @@
         "hooks": [
           { "type": "command", "command": "bash hooks/pre-tool-guard.sh" }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/destructive-guard.sh" }
+        ]
       }
     ],
     "PostToolUse": [
