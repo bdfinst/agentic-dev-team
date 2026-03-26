@@ -2,13 +2,48 @@
 
 A Claude Code plugin that adds a full persona-driven AI development team to any project. The Orchestrator routes tasks to specialized agents, inline review checkpoints catch quality issues during implementation, and skills provide reusable knowledge modules that any agent can draw on.
 
+## Workflow
+
+Four commands drive feature development from idea to pull request:
+
+```
+/specs  →  /plan  →  /build  →  /pr
+```
+
+| Step | Command | What it does |
+| --- | --- | --- |
+| **1. Specify** | `/specs` | Collaborate on four artifacts: Intent, BDD/Gherkin scenarios, Architecture notes, Acceptance Criteria. A consistency gate must pass before moving on. Skip for bug fixes, refactors, or trivial changes. |
+| **2. Plan** | `/plan` | Create a step-by-step TDD implementation plan. Checks for spec artifacts first — if none exist, asks whether to continue or run `/specs`. Human approves before any code is written. |
+| **3. Build** | `/build` | Execute the approved plan. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). Produces verification evidence. |
+| **4. Ship** | `/pr` | Run quality gates (tests, typecheck, lint, code review) and create a pull request. |
+
+Each step produces artifacts the next step consumes. Human review gates sit between each transition.
+
+```mermaid
+flowchart LR
+    S["/specs\n4 artifacts"] -->|consistency gate| P["/plan\nTDD steps"]
+    P -->|human approval| B["/build\nRED-GREEN-REFACTOR"]
+    B -->|code review| PR["/pr\nquality gates"]
+```
+
+For bug fixes or simple tasks, skip `/specs` and start at `/plan` or go straight to implementation. The orchestrator routes trivially when the full workflow isn't needed.
+
+### Supporting commands
+
+| Command | When to use |
+| --- | --- |
+| `/code-review` | Run all review agents against changed files (also runs as part of `/build`) |
+| `/continue` | Resume an in-progress build or plan across sessions |
+| `/browse` | Visual QA via Playwright |
+| `/careful` / `/freeze` / `/guard` | Safety modes for production-critical sessions |
+
 ## How It Works
 
 **Team agents** define roles (persona, behavior, collaboration). **Review agents** check work quality in real time. **Skills** define knowledge (patterns, guidelines, procedures). **Slash commands** invoke agents and skills directly. The **Orchestrator** controls task routing, model selection, and the inline review feedback loop.
 
-### Three-Phase Workflow
+### Three-Phase Workflow (Orchestrator-Driven)
 
-Every non-trivial task follows **Research → Plan → Implement** with human review gates between phases:
+For complex tasks where the orchestrator manages the full lifecycle, every non-trivial task follows **Research → Plan → Implement** with human review gates between phases:
 
 - **Research** produces a **design document** (`docs/specs/`) with problem statement, alternatives, and scope boundaries
 - **Plan** is pre-checked by an automated **plan reviewer** before the human sees it
@@ -201,6 +236,7 @@ After starting Claude Code, confirm the system is working:
 | `/upgrade` | Check for and apply plugin updates from within a session |
 | `/help` | List all available slash commands with descriptions |
 | `/plan` | Create a structured implementation plan with TDD steps |
+| `/build` | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | Run quality gates and create a pull request |
 | `/setup` | Detect tech stack, generate project-level config and hooks |
 | `/continue` | Resume work from a prior session using phase progress files |

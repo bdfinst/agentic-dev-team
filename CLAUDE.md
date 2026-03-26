@@ -76,6 +76,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/setup` | `commands/setup.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
 | `/continue` | `commands/continue.md` | orchestrator | Resume work from a prior session using phase progress files |
 | `/plan` | `commands/plan.md` | orchestrator | Create a structured implementation plan with TDD steps |
+| `/build` | `commands/build.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | `commands/pr.md` | orchestrator | Run quality gates and create a pull request |
 | `/browse` | `commands/browse.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
 | `/careful` | `commands/careful.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |

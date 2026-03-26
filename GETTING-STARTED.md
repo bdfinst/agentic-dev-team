@@ -48,16 +48,18 @@ The Orchestrator classifies the task, selects the right agents, and coordinates 
 
 ### New Feature (full lifecycle)
 
-This is the most common workflow. It follows ATDD — behaviors are defined as scenarios in feature files before any implementation begins.
+The core workflow is four commands: `/specs` → `/plan` → `/build` → `/pr`
 
-1. **Specify** — `/specs` to produce Intent Description, User-Facing Behavior (Gherkin scenarios), Architecture Specification, and Acceptance Criteria
-2. **Design** — `/architect` to define the technical approach, review the architecture specification
-3. **Secure** — `/threat-modeling` if the feature crosses trust boundaries or handles sensitive data
-4. **Implement** — `/software-engineer` to build it, guided by the feature file scenarios
-5. **Test** — `/qa-engineer` to validate acceptance tests pass and coverage is adequate
-6. **Document** — `/tech-writer` if user-facing documentation is needed
+1. **Specify** — `/specs` to produce Intent Description, User-Facing Behavior (Gherkin scenarios), Architecture Specification, and Acceptance Criteria. The consistency gate must pass before moving on.
+2. **Plan** — `/plan` to create a step-by-step TDD implementation plan. It checks for spec artifacts automatically. Human approves before building.
+3. **Build** — `/build` to execute the approved plan. Each step follows RED-GREEN-REFACTOR with inline review checkpoints and verification evidence.
+4. **Ship** — `/pr` to run quality gates and create a pull request.
 
-The consistency gate in step 1 must pass before proceeding to implementation. This is a hard stop.
+For additional depth at any stage, invoke agents directly:
+- `/architect` to define the technical approach or review architecture
+- `/threat-modeling` if the feature crosses trust boundaries or handles sensitive data
+- `/qa-engineer` to validate acceptance tests pass and coverage is adequate
+- `/tech-writer` if user-facing documentation is needed
 
 ### Bug Fix
 

@@ -100,6 +100,7 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 | Command | File | Purpose |
 | --- | --- | --- |
 | `/plan` | [`plan.md`](../.claude/commands/plan.md) | Create a structured implementation plan with TDD steps |
+| `/build` | [`build.md`](../.claude/commands/build.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | [`pr.md`](../.claude/commands/pr.md) | Run quality gates and create a pull request |
 | `/setup` | [`setup.md`](../.claude/commands/setup.md) | Detect tech stack, generate project-level config and hooks |
 | `/continue` | [`continue.md`](../.claude/commands/continue.md) | Resume work from a prior session using phase progress files |
