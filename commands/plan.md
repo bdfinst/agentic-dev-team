@@ -8,7 +8,7 @@ description: >-
   implement this".
 argument-hint: "<task-description> [--output <path>]"
 user-invocable: true
-allowed-tools: Read, Write, Glob, Grep, Bash(mkdir *), Bash(date *), Bash(git branch *)
+allowed-tools: Read, Write, Glob, Grep, Bash(mkdir *), Bash(date *), Bash(git branch *), AskUserQuestion
 ---
 
 # Plan
@@ -33,11 +33,19 @@ Arguments: $ARGUMENTS
 
 ## Steps
 
-### 1. Understand the task
+### 1. Check for spec artifacts
 
-Read relevant code and context to understand what needs to change. Keep exploration focused — this is planning, not research. If the task is complex enough to need deep research, suggest `/design-doc` instead.
+Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**`, `specs/**`, or `*.feature` files related to the task. Check for the four artifacts: Intent Description, User-Facing Behavior (Gherkin), Architecture Specification, and Acceptance Criteria.
 
-### 2. Create the plan
+If no spec artifacts are found, ask the user: "No specification artifacts found for this task. Run `/specs` first to produce them, or continue planning without specs?"
+
+If the user chooses to continue without specs, proceed. Otherwise, stop and let them run `/specs` first.
+
+### 2. Understand the task
+
+Read relevant code and context to understand what needs to change. Keep exploration focused — this is planning, not research. If the task is complex enough to need deep research, suggest `/design-doc` instead. If spec artifacts exist, use them as the primary source for acceptance criteria and scope.
+
+### 3. Create the plan
 
 Write the plan file using this structure:
 
@@ -85,11 +93,11 @@ Write the plan file using this structure:
 - <Risk or question, with mitigation or who should answer>
 ```
 
-### 3. Create the plans directory
+### 4. Create the plans directory
 
 Create `plans/` if it doesn't exist.
 
-### 4. Present for approval
+### 5. Present for approval
 
 Display the plan and ask: "Approve this plan to begin implementation, or suggest changes?"
 

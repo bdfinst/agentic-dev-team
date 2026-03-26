@@ -31,7 +31,7 @@ Use a slash command to apply a skill's procedures without a specific persona:
 ```
 /threat-modeling Analyze the new payment API for security risks
 /api-design Define the contract for the notification service
-/agent-assisted-specification Specify the user registration feature
+/specs Specify the user registration feature
 ```
 
 ### Let the Orchestrator route
@@ -50,7 +50,7 @@ The Orchestrator classifies the task, selects the right agents, and coordinates 
 
 This is the most common workflow. It follows ATDD — behaviors are defined as scenarios in feature files before any implementation begins.
 
-1. **Specify** — `/agent-assisted-specification` to produce Intent Description, User-Facing Behavior (Gherkin scenarios), Architecture Specification, and Acceptance Criteria
+1. **Specify** — `/specs` to produce Intent Description, User-Facing Behavior (Gherkin scenarios), Architecture Specification, and Acceptance Criteria
 2. **Design** — `/architect` to define the technical approach, review the architecture specification
 3. **Secure** — `/threat-modeling` if the feature crosses trust boundaries or handles sensitive data
 4. **Implement** — `/software-engineer` to build it, guided by the feature file scenarios
@@ -114,7 +114,7 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 
 | Command | Skill | When to Use |
 |---------|-------|-------------|
-| `/agent-assisted-specification` | Structured specification | New features — produces 4 artifacts before implementation |
+| `/specs` | Structured specification | New features — produces 4 artifacts before implementation |
 | `/threat-modeling` | STRIDE-based security analysis | New endpoints, auth changes, trust boundary changes |
 | `/api-design` | Contract-first API design | New APIs, service boundaries, inter-service contracts |
 | `/hexagonal-architecture` | Port/adapter architecture | Structuring services and modules |

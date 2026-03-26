@@ -63,7 +63,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Hexagonal Architecture | `skills/hexagonal-architecture.md` | 420 | Architect, Software Engineer |
 | Domain-Driven Design | `skills/domain-driven-design.md` | 710 | Architect, Software Engineer, Product Manager |
 | Domain Analysis | `skills/domain-analysis.md` | 650 | Architect, Product Manager, Orchestrator |
-| Agent-Assisted Specification | `skills/agent-assisted-specification.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
+| Specs | `skills/specs.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
 | Threat Modeling | `skills/threat-modeling.md` | 600 | Security Engineer, Architect |
 | API Design | `skills/api-design.md` | 600 | Architect, Software Engineer |
 | Legacy Code | `skills/legacy-code.md` | 700 | Software Engineer, QA Engineer, Architect |

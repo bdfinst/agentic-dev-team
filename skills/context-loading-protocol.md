@@ -50,7 +50,7 @@ These are the measured sizes of each loadable file. CLAUDE.md is always loaded a
 | Agent & Skill Authoring | `skills/agent-skill-authoring.md` | ~990 |
 | Hexagonal Architecture | `skills/hexagonal-architecture.md` | ~420 |
 | Domain-Driven Design | `skills/domain-driven-design.md` | ~710 |
-| Agent-Assisted Specification | `skills/agent-assisted-specification.md` | ~800 |
+| Specs | `skills/specs.md` | ~800 |
 | Threat Modeling | `skills/threat-modeling.md` | ~600 |
 | API Design | `skills/api-design.md` | ~600 |
 | Legacy Code | `skills/legacy-code.md` | ~700 |

@@ -20,7 +20,7 @@ model: opus
 - [Design Doc](../skills/design-doc.md) - invoke during Research phase to produce a written design document with alternatives analysis before planning begins
 - [Hexagonal Architecture](../skills/hexagonal-architecture.md) - invoke when designing service boundaries, port/adapter separation, and dependency rules
 - [Domain-Driven Design](../skills/domain-driven-design.md) - invoke when modeling bounded contexts, aggregates, domain events, and context maps
-- [Agent-Assisted Specification](../skills/agent-assisted-specification.md) - invoke during specification phase to lead Architecture Specification stage and run the cross-artifact consistency gate
+- [Specs](../skills/specs.md) - invoke during specification phase to lead Architecture Specification stage and run the cross-artifact consistency gate
 - [Threat Modeling](../skills/threat-modeling.md) - invoke when designing systems with external interfaces, auth boundaries, or sensitive data flows
 - [API Design](../skills/api-design.md) - invoke when designing API contracts, service interfaces, or inter-service communication boundaries
 - [Legacy Code](../skills/legacy-code.md) - invoke when planning incremental migration of legacy components toward target architecture

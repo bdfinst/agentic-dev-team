@@ -19,7 +19,7 @@ Used by the Orchestrator to manage the team:
 | Human Oversight Protocol | [`human-oversight-protocol.md`](../.claude/skills/human-oversight-protocol.md) | Approval gates, intervention commands, escalation |
 | Performance Metrics | [`performance-metrics.md`](../.claude/skills/performance-metrics.md) | Task logging schema and reporting procedures |
 | Agent & Skill Authoring | [`agent-skill-authoring.md`](../.claude/skills/agent-skill-authoring.md) | How to create and maintain agents and skills |
-| Agent-Assisted Specification | [`agent-assisted-specification.md`](../.claude/skills/agent-assisted-specification.md) | BDD scenario consistency gate before implementation |
+| Specs | [`specs.md`](../.claude/skills/specs.md) | BDD scenario consistency gate before implementation |
 | Beads Task Tracking | [`beads.md`](../.claude/skills/beads.md) | Beads issue lifecycle, session discipline, multi-agent coordination |
 
 ### Quality Skills

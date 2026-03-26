@@ -23,7 +23,7 @@ model: sonnet
 - [Test-Driven Development](../skills/test-driven-development.md) - invoke when generating tests to ensure proper RED-GREEN-REFACTOR discipline and TDD compliance
 - [Systematic Debugging](../skills/systematic-debugging.md) - invoke when investigating test failures or defects; enforce 4-phase protocol
 - [Governance & Compliance](../skills/governance-compliance.md) - invoke when enforcing quality gates and multi-layer validation procedures
-- [Agent-Assisted Specification](../skills/agent-assisted-specification.md) - invoke after the consistency gate passes; treat BDD scenarios as acceptance test contracts
+- [Specs](../skills/specs.md) - invoke after the consistency gate passes; treat BDD scenarios as acceptance test contracts
 - [Legacy Code](../skills/legacy-code.md) - invoke when writing characterization tests to lock down existing legacy behavior before changes
 - [Mutation Testing](../skills/mutation-testing.md) - invoke when evaluating test suite effectiveness or validating that tests catch behavioral changes
 - [Test Review](../agents/test-review.md) - delegate test file analysis to this review agent rather than duplicating its checks; invoke via `/review-agent test-review` when reviewing test quality inline

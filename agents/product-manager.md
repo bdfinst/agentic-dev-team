@@ -19,7 +19,7 @@ model: sonnet
 - [Design Doc](../skills/design-doc.md) - invoke during brainstorming and design phases to produce a written spec artifact with alternatives analysis
 - [Domain-Driven Design](../skills/domain-driven-design.md) - invoke when clarifying requirements to ensure ubiquitous language alignment and bounded context identification
 - [Human Oversight Protocol](../skills/human-oversight-protocol.md) - invoke when managing stakeholder approval gates and escalation decisions
-- [Agent-Assisted Specification](../skills/agent-assisted-specification.md) - invoke when a new feature or behavior change requires specification; lead Intent Description and User-Facing Behavior stages
+- [Specs](../skills/specs.md) - invoke when a new feature or behavior change requires specification; lead Intent Description and User-Facing Behavior stages
 
 ## Collaboration Protocols
 

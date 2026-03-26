@@ -60,7 +60,7 @@ All review commands are executed under orchestrator direction. When a user trigg
 - [Performance Metrics](../skills/performance-metrics.md) - invoke at task completion to log metrics, and during learning loop to review trends
 - [Agent & Skill Authoring](../skills/agent-skill-authoring.md) - invoke when adding new team members, defining new capabilities, or restructuring agent responsibilities
 - [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke to enforce the three-phase quality gate: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3)
-- [Agent-Assisted Specification](../skills/agent-assisted-specification.md) - invoke when routing a new feature request; verify the consistency gate passed before loading implementing agents
+- [Specs](../skills/specs.md) - invoke when routing a new feature request; verify the consistency gate passed before loading implementing agents
 - [Beads Task Tracking](../skills/beads.md) - invoke at task start to query `bd ready --json` for unblocked work; invoke during Research to file discovered issues; invoke during Plan to create and link Beads issues for each planned change; invoke during Implement to update issue status as work completes
 - [Code Review](../commands/code-review.md) - invoke after each Phase 3 checkpoint and before committing; runs all relevant review agents with orchestrator-assigned models
 - [Review Agent](../commands/review-agent.md) - invoke for targeted single-agent inline review during Phase 3 checkpoints
