@@ -4,20 +4,20 @@ Agents define **who does the work**. There are two categories: **team agents** (
 
 ## Team Agents
 
-Each team agent file in `.claude/agents/` specifies a role's persona, behavior, collaboration style, and which skills it uses.
+Each team agent file in `agents/` specifies a role's persona, behavior, collaboration style, and which skills it uses.
 
 | Agent | File | Purpose |
 | --- | --- | --- |
-| Orchestrator | [`orchestrator.md`](../.claude/agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
-| Software Engineer | [`software-engineer.md`](../.claude/agents/software-engineer.md) | Code generation, implementation, applies review corrections |
-| Data Scientist | [`data-scientist.md`](../.claude/agents/data-scientist.md) | ML models, data analysis, statistical validation |
-| QA/SQA Engineer | [`qa-engineer.md`](../.claude/agents/qa-engineer.md) | Test generation, automated testing, quality gates |
-| UI/UX Designer | [`ui-ux-designer.md`](../.claude/agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
-| Architect | [`architect.md`](../.claude/agents/architect.md) | System design, tech decisions, scalability planning |
-| Product Manager | [`product-manager.md`](../.claude/agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
-| Technical Writer | [`tech-writer.md`](../.claude/agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
-| Security Engineer | [`security-engineer.md`](../.claude/agents/security-engineer.md) | Security analysis, threat modeling, compliance |
-| DevOps/SRE Engineer | [`devops-sre-engineer.md`](../.claude/agents/devops-sre-engineer.md) | Pipeline, deployment, reliability, observability |
+| Orchestrator | [`orchestrator.md`](../agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
+| Software Engineer | [`software-engineer.md`](../agents/software-engineer.md) | Code generation, implementation, applies review corrections |
+| Data Scientist | [`data-scientist.md`](../agents/data-scientist.md) | ML models, data analysis, statistical validation |
+| QA/SQA Engineer | [`qa-engineer.md`](../agents/qa-engineer.md) | Test generation, automated testing, quality gates |
+| UI/UX Designer | [`ui-ux-designer.md`](../agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
+| Architect | [`architect.md`](../agents/architect.md) | System design, tech decisions, scalability planning |
+| Product Manager | [`product-manager.md`](../agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
+| Technical Writer | [`tech-writer.md`](../agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
+| Security Engineer | [`security-engineer.md`](../agents/security-engineer.md) | Security analysis, threat modeling, compliance |
+| DevOps/SRE Engineer | [`devops-sre-engineer.md`](../agents/devops-sre-engineer.md) | Pipeline, deployment, reliability, observability |
 
 ## Review Agents
 
@@ -25,20 +25,25 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
-| `spec-compliance-review` | [`spec-compliance-review.md`](../.claude/agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
-| `test-review` | [`test-review.md`](../.claude/agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
-| `security-review` | [`security-review.md`](../.claude/agents/security-review.md) | opus | Injection, auth, data exposure |
-| `domain-review` | [`domain-review.md`](../.claude/agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
-| `structure-review` | [`structure-review.md`](../.claude/agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
-| `complexity-review` | [`complexity-review.md`](../.claude/agents/complexity-review.md) | haiku | Function size, cyclomatic complexity, nesting |
-| `naming-review` | [`naming-review.md`](../.claude/agents/naming-review.md) | haiku | Intent-revealing names, magic values |
-| `js-fp-review` | [`js-fp-review.md`](../.claude/agents/js-fp-review.md) | sonnet | Array mutations, impure patterns (JS/TS) |
-| `concurrency-review` | [`concurrency-review.md`](../.claude/agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
-| `a11y-review` | [`a11y-review.md`](../.claude/agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
-| `performance-review` | [`performance-review.md`](../.claude/agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
-| `token-efficiency-review` | [`token-efficiency-review.md`](../.claude/agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
-| `claude-setup-review` | [`claude-setup-review.md`](../.claude/agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
-| `svelte-review` | [`svelte-review.md`](../.claude/agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
+| `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
+| `test-review` | [`test-review.md`](../agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
+| `security-review` | [`security-review.md`](../agents/security-review.md) | opus | Injection, auth, data exposure |
+| `domain-review` | [`domain-review.md`](../agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
+| `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
+| `complexity-review` | [`complexity-review.md`](../agents/complexity-review.md) | haiku | Function size, cyclomatic complexity, nesting |
+| `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
+| `js-fp-review` | [`js-fp-review.md`](../agents/js-fp-review.md) | sonnet | Array mutations, impure patterns (JS/TS) |
+| `concurrency-review` | [`concurrency-review.md`](../agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
+| `a11y-review` | [`a11y-review.md`](../agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
+| `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
+| `token-efficiency-review` | [`token-efficiency-review.md`](../agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
+| `claude-setup-review` | [`claude-setup-review.md`](../agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
+| `doc-review` | [`doc-review.md`](../agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
+| `arch-review` | [`arch-review.md`](../agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
+| `svelte-review` | [`svelte-review.md`](../agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
+| `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
+| `refactoring-review` | [`refactor-scan.md`](../agents/refactor-scan.md) | sonnet | Post-GREEN refactoring opportunities |
+| `data-flow-tracer` | [`use-case-data-patterns.md`](../agents/use-case-data-patterns.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
 
 To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.
 
@@ -84,13 +89,13 @@ The `## Skills` section is the bridge between agents and skills. The agent defin
 
 ## Add a Team Agent
 
-1. Create `.claude/agents/{role-name}.md` using the template above
-2. Add the agent to the Team Organization diagram in `.claude/CLAUDE.md`
-3. Add it to the Team Agents table in `.claude/CLAUDE.md`
+1. Create `agents/{role-name}.md` using the template above
+2. Add the agent to the Team Organization diagram in `CLAUDE.md`
+3. Add it to the Team Agents table in `CLAUDE.md`
 4. Define collaboration protocols with existing agents
 5. Reference any applicable skills in the `## Skills` section
 
-See [Agent & Skill Authoring](../.claude/skills/agent-skill-authoring.md) for detailed guidelines.
+See [Agent & Skill Authoring](../skills/agent-skill-authoring.md) for detailed guidelines.
 
 ## Add a Review Agent
 
@@ -101,15 +106,15 @@ Use the `/agent-add` slash command — it scaffolds a compliant agent, checks fo
 ```
 
 Manual process:
-1. Create `.claude/agents/{name}-review.md` using the review agent template (see any existing review agent for reference)
+1. Create `agents/{name}-review.md` using the review agent template (see any existing review agent for reference)
 2. Run `/agent-audit .claude/agents/{name}-review.md --fix` to validate compliance
-3. Add eval fixtures to `.claude/evals/fixtures/` and expected results to `.claude/evals/expected/`
+3. Add eval fixtures to `evals/fixtures/` and expected results to `evals/expected/`
 4. Run `/agent-eval --agent {name}-review` to validate accuracy
-5. Add a row to the Review Agents table in `.claude/CLAUDE.md`
+5. Add a row to the Review Agents table in `CLAUDE.md`
 
 ## Add a Project-Specific Custom Agent
 
-Custom agents extend the team with knowledge specific to your project — your domain model, internal frameworks, coding conventions, or tech stack. They live in your project's `.claude/agents/` directory alongside the standard team agents and are invisible to other projects.
+Custom agents extend the team with knowledge specific to your project — your domain model, internal frameworks, coding conventions, or tech stack. They live in your project's `agents/` directory alongside the standard team agents and are invisible to other projects.
 
 **When to add a custom agent** (rather than relying on a standard agent):
 - The agent needs deep knowledge of your domain that would bloat the standard agent's context
@@ -118,16 +123,16 @@ Custom agents extend the team with knowledge specific to your project — your d
 
 **Steps**:
 
-1. Create the agent file in your project's `.claude/agents/`:
+1. Create the agent file in your project's `agents/`:
 
    ```bash
    # In your project (not this repo)
    touch .claude/agents/django-review.md
    ```
 
-2. Write the agent using the [persona template](#persona-template) above. For a review agent, copy an existing one (e.g., `.claude/agents/js-fp-review.md`) as a starting point.
+2. Write the agent using the [persona template](#persona-template) above. For a review agent, copy an existing one (e.g., `agents/js-fp-review.md`) as a starting point.
 
-3. Register it in your project's `.claude/CLAUDE.md` under the appropriate table (Team Agents or Review Agents).
+3. Register it in your project's `CLAUDE.md` under the appropriate table (Team Agents or Review Agents).
 
 4. If it's a review agent, add eval fixtures so you can validate its accuracy:
    ```
@@ -196,15 +201,15 @@ cp /tmp/adt/.claude/agents/architect.md .claude/agents/
 cp -r /tmp/adt/.claude/skills/ .claude/skills/
 ```
 
-After selective installation, update your `.claude/CLAUDE.md` to register only the agents you copied. Agents not registered in `CLAUDE.md` will not be routed to by the Orchestrator.
+After selective installation, update your `CLAUDE.md` to register only the agents you copied. Agents not registered in `CLAUDE.md` will not be routed to by the Orchestrator.
 
 ### Merge agents from multiple sources
 
 If you maintain custom agents and also use agents from this repo:
 
-1. Keep this repo's agents under `.claude/agents/` (the standard set)
+1. Keep this repo's agents under `agents/` (the standard set)
 2. Add your custom agents to the same directory — they coexist with no conflict as long as filenames don't collide
-3. Register all agents (standard + custom) in your `.claude/CLAUDE.md`
+3. Register all agents (standard + custom) in your `CLAUDE.md`
 4. The Orchestrator discovers agents from the registry tables, not by file scan, so registration is what activates an agent
 
 ### Keep agents up to date with upstream
@@ -230,6 +235,6 @@ If you've built a custom agent that would be useful to others:
 
 ## Remove an Agent
 
-1. Delete the agent file from `.claude/agents/`
-2. Remove it from the organization diagram and registry in `.claude/CLAUDE.md`
+1. Delete the agent file from `agents/`
+2. Remove it from the organization diagram and registry in `CLAUDE.md`
 3. Update other agents' collaboration protocols that referenced the removed agent

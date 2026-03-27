@@ -335,9 +335,8 @@ This scaffolds the agent file, adds it to the registry in `CLAUDE.md`, and creat
 
 | Guide | Description |
 | --- | --- |
-| [Getting Started](GETTING-STARTED.md) | How to invoke agents, skills, and common workflows |
-| [Agents](docs/agent_info.md) | Agent roster, persona template, adding/removing agents |
+| [Getting Started](GETTING-STARTED.md) | Hands-on tutorial: invoke agents, skills, and common workflows |
+| [Architecture](docs/architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
+| [Agents](docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing agents |
 | [Skills & Commands](docs/skills.md) | Skills catalog, slash commands catalog |
-| [Architecture](docs/architecture.md) | Context management, quality assurance, multi-LLM routing |
 | [Eval System](docs/eval-system.md) | How review agent accuracy is measured and graded |
-| [C-DAD Roadmap](docs/cadad-roadmap.md) | Gaps against the Contract-Driven AI Development white paper |

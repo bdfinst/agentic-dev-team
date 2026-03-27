@@ -13,14 +13,14 @@ Used by the Orchestrator to manage the team:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Context Loading Protocol | [`context-loading-protocol.md`](../.claude/skills/context-loading-protocol.md) | Decides which agent/skill files to load and when |
-| Context Summarization | [`context-summarization.md`](../.claude/skills/context-summarization.md) | Compresses conversation history at utilization thresholds |
-| Feedback & Learning | [`feedback-learning.md`](../.claude/skills/feedback-learning.md) | Processes feedback keywords, audit trail, rollback |
-| Human Oversight Protocol | [`human-oversight-protocol.md`](../.claude/skills/human-oversight-protocol.md) | Approval gates, intervention commands, escalation |
-| Performance Metrics | [`performance-metrics.md`](../.claude/skills/performance-metrics.md) | Task logging schema and reporting procedures |
-| Agent & Skill Authoring | [`agent-skill-authoring.md`](../.claude/skills/agent-skill-authoring.md) | How to create and maintain agents and skills |
-| Specs | [`specs.md`](../.claude/skills/specs.md) | BDD scenario consistency gate before implementation |
-| Beads Task Tracking | [`beads.md`](../.claude/skills/beads.md) | Beads issue lifecycle, session discipline, multi-agent coordination |
+| Context Loading Protocol | [`context-loading-protocol.md`](../skills/context-loading-protocol.md) | Decides which agent/skill files to load and when |
+| Context Summarization | [`context-summarization.md`](../skills/context-summarization.md) | Compresses conversation history at utilization thresholds |
+| Feedback & Learning | [`feedback-learning.md`](../skills/feedback-learning.md) | Processes feedback keywords, audit trail, rollback |
+| Human Oversight Protocol | [`human-oversight-protocol.md`](../skills/human-oversight-protocol.md) | Approval gates, intervention commands, escalation |
+| Performance Metrics | [`performance-metrics.md`](../skills/performance-metrics.md) | Task logging schema and reporting procedures |
+| Agent & Skill Authoring | [`agent-skill-authoring.md`](../skills/agent-skill-authoring.md) | How to create and maintain agents and skills |
+| Specs | [`specs.md`](../skills/specs.md) | BDD scenario consistency gate before implementation |
+| Beads Task Tracking | [`beads.md`](../skills/beads.md) | Beads issue lifecycle, session discipline, multi-agent coordination |
 
 ### Quality Skills
 
@@ -28,8 +28,8 @@ Used by all agents to ensure output correctness:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Quality Gate Pipeline | [`quality-gate-pipeline.md`](../.claude/skills/quality-gate-pipeline.md) | Unified quality gate: self-validation, verification evidence, review-correction loops |
-| Governance & Compliance | [`governance-compliance.md`](../.claude/skills/governance-compliance.md) | Audit trail, quality assurance layers, ethics principles |
+| Quality Gate Pipeline | [`quality-gate-pipeline.md`](../skills/quality-gate-pipeline.md) | Unified quality gate: self-validation, verification evidence, review-correction loops |
+| Governance & Compliance | [`governance-compliance.md`](../skills/governance-compliance.md) | Audit trail, quality assurance layers, ethics principles |
 
 ### Development Discipline Skills
 
@@ -37,10 +37,10 @@ Enforce rigorous development practices:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Test-Driven Development | [`test-driven-development.md`](../.claude/skills/test-driven-development.md) | RED-GREEN-REFACTOR cycle with hard gates, rationalization prevention |
-| Systematic Debugging | [`systematic-debugging.md`](../.claude/skills/systematic-debugging.md) | 4-phase debugging protocol (reproduce, investigate, root-cause, fix) |
-| Design Doc | [`design-doc.md`](../.claude/skills/design-doc.md) | Written design document with alternatives analysis before planning |
-| Branch Workflow | [`branch-workflow.md`](../.claude/skills/branch-workflow.md) | PR creation, merge strategy, and branch cleanup after Phase 3 |
+| Test-Driven Development | [`test-driven-development.md`](../skills/test-driven-development.md) | RED-GREEN-REFACTOR cycle with hard gates, rationalization prevention |
+| Systematic Debugging | [`systematic-debugging.md`](../skills/systematic-debugging.md) | 4-phase debugging protocol (reproduce, investigate, root-cause, fix) |
+| Design Doc | [`design-doc.md`](../skills/design-doc.md) | Written design document with alternatives analysis before planning |
+| Branch Workflow | [`branch-workflow.md`](../skills/branch-workflow.md) | PR creation, merge strategy, and branch cleanup after Phase 3 |
 
 ### Technical Skills
 
@@ -48,12 +48,12 @@ Domain knowledge for implementation work:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Hexagonal Architecture | [`hexagonal-architecture.md`](../.claude/skills/hexagonal-architecture.md) | Ports & adapters pattern, dependency rule, project structure |
-| Domain-Driven Design | [`domain-driven-design.md`](../.claude/skills/domain-driven-design.md) | Bounded contexts, aggregates, domain events, ubiquitous language |
-| API Design | [`api-design.md`](../.claude/skills/api-design.md) | Contract-first design, versioning, REST conventions |
-| Threat Modeling | [`threat-modeling.md`](../.claude/skills/threat-modeling.md) | STRIDE analysis, trust boundaries, mitigation strategies |
-| Legacy Code | [`legacy-code.md`](../.claude/skills/legacy-code.md) | Characterization testing, safe refactoring in untested code |
-| Mutation Testing | [`mutation-testing.md`](../.claude/skills/mutation-testing.md) | Evaluating test suite effectiveness against behavioral mutations |
+| Hexagonal Architecture | [`hexagonal-architecture.md`](../skills/hexagonal-architecture.md) | Ports & adapters pattern, dependency rule, project structure |
+| Domain-Driven Design | [`domain-driven-design.md`](../skills/domain-driven-design.md) | Bounded contexts, aggregates, domain events, ubiquitous language |
+| API Design | [`api-design.md`](../skills/api-design.md) | Contract-first design, versioning, REST conventions |
+| Threat Modeling | [`threat-modeling.md`](../skills/threat-modeling.md) | STRIDE analysis, trust boundaries, mitigation strategies |
+| Legacy Code | [`legacy-code.md`](../skills/legacy-code.md) | Characterization testing, safe refactoring in untested code |
+| Mutation Testing | [`mutation-testing.md`](../skills/mutation-testing.md) | Evaluating test suite effectiveness against behavioral mutations |
 
 ### Subagent Prompt Templates
 
@@ -74,54 +74,54 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 
 | Command | File | Purpose |
 | --- | --- | --- |
-| `/code-review` | [`code-review.md`](../.claude/commands/code-review.md) | Run all review agents with pre-flight gates (lint, type-check, secret scan) |
-| `/review-agent <name>` | [`review-agent.md`](../.claude/commands/review-agent.md) | Run a single named review agent; used for inline Phase 3 checkpoints |
-| `/apply-fixes` | [`apply-fixes.md`](../.claude/commands/apply-fixes.md) | Apply correction prompts generated by `/code-review` |
-| `/review-summary` | [`review-summary.md`](../.claude/commands/review-summary.md) | Generate a compact session summary for cross-session context continuity |
-| `/semgrep-analyze` | [`semgrep-analyze.md`](../.claude/commands/semgrep-analyze.md) | Run Semgrep static analysis and return structured findings |
+| `/code-review` | [`code-review.md`](../commands/code-review.md) | Run all review agents with pre-flight gates (lint, type-check, secret scan) |
+| `/review-agent <name>` | [`review-agent.md`](../commands/review-agent.md) | Run a single named review agent; used for inline Phase 3 checkpoints |
+| `/apply-fixes` | [`apply-fixes.md`](../commands/apply-fixes.md) | Apply correction prompts generated by `/code-review` |
+| `/review-summary` | [`review-summary.md`](../commands/review-summary.md) | Generate a compact session summary for cross-session context continuity |
+| `/semgrep-analyze` | [`semgrep-analyze.md`](../commands/semgrep-analyze.md) | Run Semgrep static analysis and return structured findings |
 
 ### Eval Commands
 
 | Command | File | Purpose |
 | --- | --- | --- |
-| `/agent-audit` | [`agent-audit.md`](../.claude/commands/agent-audit.md) | Audit agents and commands for structural compliance |
-| `/agent-eval` | [`agent-eval.md`](../.claude/commands/agent-eval.md) | Run eval fixtures, grade review agent accuracy, detect regressions |
+| `/agent-audit` | [`agent-audit.md`](../commands/agent-audit.md) | Audit agents and commands for structural compliance |
+| `/agent-eval` | [`agent-eval.md`](../commands/agent-eval.md) | Run eval fixtures, grade review agent accuracy, detect regressions |
 
 ### Scaffolding Commands
 
 | Command | File | Purpose |
 | --- | --- | --- |
-| `/agent-add` | [`agent-add.md`](../.claude/commands/agent-add.md) | Scaffold a new review agent with eval compliance check and doc updates |
-| `/agent-remove` | [`agent-remove.md`](../.claude/commands/agent-remove.md) | Remove an agent and all its registry entries and doc references |
-| `/add-plugin` | [`add-plugin.md`](../.claude/commands/add-plugin.md) | Install a plugin and register it in `settings.json` |
+| `/agent-add` | [`agent-add.md`](../commands/agent-add.md) | Scaffold a new review agent with eval compliance check and doc updates |
+| `/agent-remove` | [`agent-remove.md`](../commands/agent-remove.md) | Remove an agent and all its registry entries and doc references |
+| `/add-plugin` | [`add-plugin.md`](../commands/add-plugin.md) | Install a plugin and register it in `settings.json` |
 
 ### Workflow Commands
 
 | Command | File | Purpose |
 | --- | --- | --- |
-| `/plan` | [`plan.md`](../.claude/commands/plan.md) | Create a structured implementation plan with TDD steps |
-| `/build` | [`build.md`](../.claude/commands/build.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
-| `/pr` | [`pr.md`](../.claude/commands/pr.md) | Run quality gates and create a pull request |
-| `/setup` | [`setup.md`](../.claude/commands/setup.md) | Detect tech stack, generate project-level config and hooks |
-| `/continue` | [`continue.md`](../.claude/commands/continue.md) | Resume work from a prior session using phase progress files |
-| `/domain-analysis` | [`domain-analysis.md`](../.claude/commands/domain-analysis.md) | Assess DDD health: bounded contexts, context map, friction report |
-| `/browse` | [`browse.md`](../.claude/commands/browse.md) | Browser-based QA via Playwright: navigate, screenshot, click, fill forms |
+| `/plan` | [`plan.md`](../commands/plan.md) | Create a structured implementation plan with TDD steps |
+| `/build` | [`build.md`](../commands/build.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
+| `/pr` | [`pr.md`](../commands/pr.md) | Run quality gates and create a pull request |
+| `/setup` | [`setup.md`](../commands/setup.md) | Detect tech stack, generate project-level config and hooks |
+| `/continue` | [`continue.md`](../commands/continue.md) | Resume work from a prior session using phase progress files |
+| `/domain-analysis` | [`domain-analysis.md`](../commands/domain-analysis.md) | Assess DDD health: bounded contexts, context map, friction report |
+| `/browse` | [`browse.md`](../commands/browse.md) | Browser-based QA via Playwright: navigate, screenshot, click, fill forms |
 
 ### Safety Commands
 
 | Command | File | Purpose |
 | --- | --- | --- |
-| `/careful` | [`careful.md`](../.claude/commands/careful.md) | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE) |
-| `/freeze <glob>` | [`freeze.md`](../.claude/commands/freeze.md) | Scope-lock editing to a glob pattern |
-| `/unfreeze` | [`unfreeze.md`](../.claude/commands/unfreeze.md) | Lift the scope lock set by `/freeze` |
-| `/guard <glob>` | [`guard.md`](../.claude/commands/guard.md) | Combined `/careful` + `/freeze` for production-critical sessions |
+| `/careful` | [`careful.md`](../commands/careful.md) | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE) |
+| `/freeze <glob>` | [`freeze.md`](../commands/freeze.md) | Scope-lock editing to a glob pattern |
+| `/unfreeze` | [`unfreeze.md`](../commands/unfreeze.md) | Lift the scope lock set by `/freeze` |
+| `/guard <glob>` | [`guard.md`](../commands/guard.md) | Combined `/careful` + `/freeze` for production-critical sessions |
 
 ### Utility Commands
 
 | Command | File | Purpose |
 | --- | --- | --- |
-| `/upgrade` | [`upgrade.md`](../.claude/commands/upgrade.md) | Check for and apply plugin updates from within a session |
-| `/help` | [`help.md`](../.claude/commands/help.md) | List all available slash commands with descriptions |
+| `/upgrade` | [`upgrade.md`](../commands/upgrade.md) | Check for and apply plugin updates from within a session |
+| `/help` | [`help.md`](../commands/help.md) | List all available slash commands with descriptions |
 
 ## How Agents Use Skills
 
@@ -169,7 +169,7 @@ user-invocable: true
 [Actionable rules for applying this skill]
 ```
 
-See [Agent & Skill Authoring](../.claude/skills/agent-skill-authoring.md) for detailed guidelines and anti-patterns.
+See [Agent & Skill Authoring](../skills/agent-skill-authoring.md) for detailed guidelines and anti-patterns.
 
 ## Add a Slash Command
 

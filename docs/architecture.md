@@ -26,8 +26,8 @@ The Orchestrator is the **authoritative source for model selection**. Individual
 | Model | Assigned to |
 | --- | --- |
 | `haiku` | naming-review, complexity-review, claude-setup-review, token-efficiency-review, performance-review |
-| `sonnet` | test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
-| `opus` | security-review, domain-review, architect, software-engineer (architectural changes) |
+| `sonnet` | spec-compliance-review, test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review, refactoring-review, progress-guardian, data-flow-tracer, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
+| `opus` | security-review, domain-review, arch-review, architect, software-engineer (architectural changes) |
 
 Full routing table: `agents/orchestrator.md` → Model Routing Table section.
 
@@ -49,7 +49,7 @@ The Orchestrator manages context utilization using two operational skills.
 
 ### Loading Protocol
 
-[Context Loading Protocol](../.claude/skills/context-loading-protocol.md) controls what gets loaded and when:
+[Context Loading Protocol](../skills/context-loading-protocol.md) controls what gets loaded and when:
 
 1. **Classify** the task (simple, standard, multi-agent, complex)
 2. **Select** the minimum set of agents and skills required
@@ -58,7 +58,7 @@ The Orchestrator manages context utilization using two operational skills.
 
 ### Summarization
 
-[Context Summarization](../.claude/skills/context-summarization.md) controls when to compress:
+[Context Summarization](../skills/context-summarization.md) controls when to compress:
 
 | Utilization | Action |
 | --- | --- |
@@ -74,12 +74,13 @@ Utilization is measured via the `usage` field in API responses. Summaries follow
 
 | Component | ~Tokens |
 | --- | --- |
-| CLAUDE.md (always loaded) | ~1,400 |
+| CLAUDE.md (always loaded) | ~800 |
 | Single team agent | 290-560 |
 | Single skill | 420-1,020 |
 | All team agents (no skills) | ~3,590 |
-| Review agents | ~2,800 (sub-agents, not loaded in parent context) |
-| Full load (all team agents + all skills) | ~14,200 |
+| All review agents | ~3,100 (sub-agents, not loaded in parent context) |
+| Knowledge files | ~3,450 (loaded on demand by agents) |
+| Full load (all team agents + all skills) | ~17,100 |
 
 A typical task loads 1 agent + 1-2 skills: roughly 1,000-2,000 tokens of configuration overhead. Review agents run as isolated sub-agents — their context burden does not accumulate in the parent.
 
@@ -98,7 +99,7 @@ Validation happens in this sequence during Phase 3:
 | 7 | Human gate | User | At each phase transition (Research, Plan, Implement) |
 | 8 | Post-hoc monitoring | Orchestrator | During learning loop after task completion |
 
-Every agent applies the [Quality Gate Pipeline](../.claude/skills/quality-gate-pipeline.md) before output. This includes self-validation (Phase 1: factual accuracy, instruction fidelity, consistency, confidence scoring), verification evidence (Phase 2), and review-correction loops (Phase 3).
+Every agent applies the [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) before output. This includes self-validation (Phase 1: factual accuracy, instruction fidelity, consistency, confidence scoring), verification evidence (Phase 2), and review-correction loops (Phase 3).
 
 Quality gates by task type:
 
@@ -112,7 +113,7 @@ Quality gates by task type:
 
 ## Human Oversight
 
-Agents operate autonomously within boundaries. The [Human Oversight Protocol](../.claude/skills/human-oversight-protocol.md) defines three levels of human involvement:
+Agents operate autonomously within boundaries. The [Human Oversight Protocol](../skills/human-oversight-protocol.md) defines three levels of human involvement:
 
 | Level | When | Example |
 | --- | --- | --- |
@@ -124,7 +125,7 @@ Intervention commands (`override`, `pause`, `stop`) give humans immediate contro
 
 ## Governance
 
-[Governance & Compliance](../.claude/skills/governance-compliance.md) defines audit and ethics requirements:
+[Governance & Compliance](../skills/governance-compliance.md) defines audit and ethics requirements:
 
 - All task completions logged to `metrics/` (JSONL format)
 - All configuration changes logged to `metrics/config-changelog.jsonl`
@@ -161,7 +162,7 @@ Agents append to `memory/decisions.md` when making non-obvious decisions during 
 
 ## Feedback Loop
 
-[Feedback & Learning](../.claude/skills/feedback-learning.md) enables continuous improvement:
+[Feedback & Learning](../skills/feedback-learning.md) enables continuous improvement:
 
 1. User provides feedback via keywords (`amend`, `learn`, `remember`, `forget`)
 2. Changes are previewed, applied, and logged with full audit trail

@@ -161,12 +161,12 @@ if [ "$FILE_TYPE" = "config" ]; then
   printf "  DOC SYNC REQUIRED: Verify affected documentation is current:\n"
   case "$FILE_PATH" in
     */hooks/*.sh)
-      printf "    - .claude/CLAUDE.md (hooks section)\n"
-      printf "    - docs/setup.md (hooks section)\n"
+      printf "    - CLAUDE.md (hooks section)\n"
+      printf "    - docs/architecture.md (Governance section)\n"
       ;;
     */settings.json)
-      printf "    - .claude/CLAUDE.md (plugins/commands registry)\n"
-      printf "    - docs/setup.md (plugins/hooks section)\n"
+      printf "    - CLAUDE.md (plugins/commands registry)\n"
+      printf "    - docs/architecture.md (Governance section)\n"
       ;;
     */CLAUDE.md)
       printf "    - docs/ (any section that mirrors CLAUDE.md tables)\n"
@@ -187,9 +187,7 @@ if [ "$FILE_TYPE" = "other" ]; then
   printf "\n"
   printf "  File changed: $CHANGED_NAME\n"
   printf "  DOC SYNC CHECK: If this change affects observable behavior or architecture, update:\n"
-  printf "    - docs/usage.md        (user-facing behavior changes)\n"
-  printf "    - docs/architecture.md (system design changes)\n"
-  printf "    - docs/setup.md        (configuration or tooling changes)\n"
+  printf "    - docs/architecture.md (system design or configuration changes)\n"
   printf "    - README.md            (top-level changes visible to new users)\n"
   printf "  Invoke the tech-writer persona to confirm docs are current before closing the task.\n"
 fi

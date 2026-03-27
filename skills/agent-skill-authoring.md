@@ -187,7 +187,7 @@ Use `/agent-add` — it handles all registration steps automatically. For manual
 ### For a New Slash Command
 1. Add to the **Slash Commands Registry** table in `.claude/CLAUDE.md`
 2. Add to the appropriate section of `docs/skills.md`
-3. Add a row to the relevant table in `docs/usage.md` if user-facing
+3. Add a row to the relevant table in `README.md` if user-facing
 
 ## Documentation Sync Policy
 
@@ -204,13 +204,13 @@ Files that must stay in sync:
 
 | Change type | Source of truth | Must match |
 |---|---|---|
-| Agent files | `.claude/CLAUDE.md` agent tables | `docs/agent_info.md` tables |
-| Slash commands | `.claude/CLAUDE.md` slash commands table | `docs/skills.md` commands tables + `docs/usage.md` commands table |
-| Model routing | `.claude/agents/orchestrator.md` Model Routing Table | `.claude/CLAUDE.md` Model Routing summary |
-| Team structure | `docs/team-structure.md` Mermaid diagrams | Actual agent files in `.claude/agents/` |
-| Behavior/workflow | `.claude/agents/orchestrator.md` Phase workflow | `docs/usage.md` Three-Phase Workflow + `README.md` |
+| Agent files | `CLAUDE.md` agent tables | `docs/agent_info.md` tables + `README.md` |
+| Slash commands | `CLAUDE.md` slash commands table | `docs/skills.md` commands tables + `README.md` |
+| Model routing | `agents/orchestrator.md` Model Routing Table | `CLAUDE.md` Model Routing summary |
+| Team structure | `docs/team-structure.md` Mermaid diagrams | Actual agent files in `agents/` |
+| Behavior/workflow | `agents/orchestrator.md` Phase workflow | `README.md` Workflow section |
 | Architecture | `docs/architecture.md` | `README.md` architecture section |
-| Config/setup | `.claude/settings.json` + hook scripts | `docs/setup.md` Hooks and Plugins sections |
+| Config/setup | `settings.json` + hook scripts | `docs/architecture.md` Governance section |
 
 ## Output
 New or updated `.claude/agents/*.md` or `.claude/skills/*.md` file(s) with all registry tables and docs updated. Be concise — confirm what was created/updated and its registration status.

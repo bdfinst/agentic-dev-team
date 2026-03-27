@@ -162,13 +162,13 @@ That's it. Agents will automatically use Beads for task tracking following the `
 ## Project Structure
 
 ```
-.claude/
-  CLAUDE.md              # System configuration (auto-loaded)
-  agents/                # Agent persona files (10 agents)
-  skills/                # Reusable knowledge modules (14 skills)
-  commands/              # Slash command wrappers
-  memory/                # Conversation summaries (written by agents)
-  metrics/               # Performance logs (JSONL)
+agents/                # Team agents (12) + review agents (19)
+skills/                # Reusable knowledge modules (24 skills)
+commands/              # Slash commands (50 user-invocable)
+hooks/                 # PreToolUse guards + PostToolUse advisory hooks
+knowledge/             # Progressive disclosure reference files
+prompts/               # Subagent prompt templates
+CLAUDE.md              # Orchestration pipeline configuration (auto-loaded)
 ```
 
 ## Extending the Team
