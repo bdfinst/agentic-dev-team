@@ -1,6 +1,6 @@
 # Quality Reviewer Subagent Prompt Template
 
-Used by the orchestrator when dispatching a subagent for the second gate in the two-stage review pattern — "is code high quality?" runs after spec-compliance passes.
+Used by the orchestrator when dispatching a subagent for the second gate in the three-stage review pattern — "is code high quality?" runs after spec-compliance passes.
 
 ## Template
 
@@ -27,9 +27,24 @@ Also evaluate:
 - Does the implementation follow the file structure from the plan?
 - Evaluate only the changes contributed — don't flag pre-existing issues in unchanged code
 
+## Quality Dimensions
+
+After collecting agent findings, assess the implementation on these four dimensions. Rate each as **strong**, **adequate**, or **weak** with brief evidence (file or pattern references).
+
+| Dimension | What to assess |
+|-----------|---------------|
+| Correctness | Logic is sound, edge cases handled, no silent failures |
+| Clarity | Code is readable, intent is obvious, naming is descriptive |
+| Minimal complexity | No unnecessary abstractions, over-engineering, or premature generalization |
+| Test coverage | Tests cover the behavior adequately, assertions are specific |
+
+Dimension-to-verdict mapping:
+- Any dimension rated **weak** → overall `warn` or `fail` (depending on severity of agent findings)
+- All dimensions **adequate** or **strong** → overall follows agent findings alone
+
 ## Aggregation
 
-Combine all agent findings into a single result:
+Combine all agent findings and dimension ratings into a single result:
 
 - strengths: [{positive findings worth noting}]
 - agents:
@@ -43,9 +58,14 @@ Severity levels:
 - **Important**: Should be fixed. Design issues, missing error handling, poor naming.
 - **Minor**: Nice to fix. Style, minor readability improvements.
 
+- dimensions:
+  - name: correctness | clarity | minimal_complexity | test_coverage
+    rating: strong | adequate | weak
+    evidence: {brief file/pattern reference supporting the rating}
+
 - overall: pass | warn | fail
-- assessment: {overall quality evaluation — one paragraph}
-- summary: {N agents passed, N warned, N failed. N total issues.}
+- assessment: {overall quality evaluation — one paragraph referencing dimension ratings}
+- summary: {N agents passed, N warned, N failed. N total issues. Dimensions: N strong, N adequate, N weak.}
 - blocking_issues: [{issues with severity: critical}]
-- correction_context: [{structured findings for the coding agent, if any fail}]
+- correction_context: [{structured findings for the coding agent, if any fail or weak dimensions}]
 ```

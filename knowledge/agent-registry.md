@@ -85,8 +85,8 @@ Concrete prompt templates in `prompts/` that the orchestrator and `/code-review`
 | Template | File | Used By |
 |----------|------|---------|
 | Implementer | `prompts/implementer.md` | Orchestrator (Phase 3 implementation dispatch) |
-| Spec Reviewer | `prompts/spec-reviewer.md` | Orchestrator (two-stage review gate 1) |
-| Quality Reviewer | `prompts/quality-reviewer.md` | Orchestrator (two-stage review gate 2) |
+| Spec Reviewer | `prompts/spec-reviewer.md` | Orchestrator (three-stage review gate 1) |
+| Quality Reviewer | `prompts/quality-reviewer.md` | Orchestrator (three-stage review gate 2) |
 | Plan Reviewer | `prompts/plan-reviewer.md` | Orchestrator (Phase 2 automated pre-check) |
 
 ## Knowledge Files

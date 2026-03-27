@@ -84,6 +84,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/unfreeze` | `commands/unfreeze.md` | worker | Lift the scope lock set by `/freeze` |
 | `/guard` | `commands/guard.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
 | `/upgrade` | `commands/upgrade.md` | worker | Check for and apply plugin updates from within a session |
+| `/harness-audit` | `commands/harness-audit.md` | orchestrator | Analyze harness effectiveness and flag stale components |
 | `/help` | `commands/help.md` | worker | List all available slash commands with descriptions |
 
 ## Request Processing Flow
@@ -95,7 +96,7 @@ For trivial tasks (typo fix, simple query), the Orchestrator routes directly to 
 2. **Human Review Gate** — Human reviews research findings and design doc. Catching a misunderstanding here prevents hundreds of bad lines of code.
 3. **Plan** — Specify every change: files, snippets, test strategy, verification steps. An automated **plan reviewer** (`prompts/plan-reviewer.md`) pre-checks completeness and consistency before the human sees it. The plan is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. Output: implementation plan progress file written to `memory/`.
 4. **Human Review Gate** — Human reviews the plan. This replaces traditional line-by-line code review as the primary quality gate.
-5. **Implement** — Execute the plan using the `prompts/implementer.md` template. All code follows **RED-GREEN-REFACTOR** (TDD skill). For parallel independent units, use **worktree isolation** (`isolation: "worktree"`). After each unit, a **two-stage inline review** runs: (1) spec-compliance-review checks code matches spec, (2) quality review agents check code quality. Review findings feed back to the coding agent (max 2 correction iterations). Run `/code-review --changed` before committing. Then invoke the tech-writer to verify all affected documentation is current. All agents must provide **verification evidence** (fresh test output) before claiming completion. Output: working code + test results + code review pass + docs verified.
+5. **Implement** — Execute the plan using the `prompts/implementer.md` template. All code follows **RED-GREEN-REFACTOR** (TDD skill). For parallel independent units, use **worktree isolation** (`isolation: "worktree"`). After each unit, a **three-stage inline review** runs: (1) spec-compliance-review checks code matches spec, (2) quality review agents check code quality, (3) browser verification for UI changes. Review findings feed back to the coding agent (max 2 correction iterations). Run `/code-review --changed` before committing. Then invoke the tech-writer to verify all affected documentation is current. All agents must provide **verification evidence** (fresh test output) before claiming completion. Output: working code + test results + code review pass + docs verified.
 6. **Human Review Gate** — Human reviews the final output. Lightweight if the plan was correct.
 7. **Branch Workflow** — Create PR, choose merge strategy, clean up branch (see Branch Workflow skill).
 8. **Learning loop** — Update configs if needed, log metrics, refine routing.

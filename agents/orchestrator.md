@@ -51,6 +51,7 @@ All review commands are executed under orchestrator direction. When a user trigg
 | `/apply-fixes` | Apply correction prompts | After `/code-review` generates corrections |
 | `/review-summary` | Persist session summary | At phase transitions |
 | `/semgrep-analyze` | Static analysis | As pre-flight context for security-review |
+| `/harness-audit` | Harness effectiveness analysis | Periodically to review harness staleness |
 
 ## Skills
 - [Context Loading Protocol](../skills/context-loading-protocol.md) - invoke at the start of every task to decide which agents and skills to load, and at phase transitions to unload/swap
@@ -103,9 +104,10 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 - **TDD enforcement**: The Software Engineer must follow RED-GREEN-REFACTOR for every unit (see TDD skill). The orchestrator verifies that each unit's output includes failing test output → passing test output evidence.
 - **Checkpointing**: After each file written or significant milestone, update the active Beads issue body with a structured progress snapshot (`bd update <id> --body "..."`) — this is the crash-recovery record. If the session closes before `done`, the next session reads `bd show <id>` and resumes from the last checkpoint.
 - **Output**: Working code that passes all tests, acceptance criteria, and code review; mark each issue done with `bd update <id> --status done` and start a fresh session for the next `bd ready` item
-- **Two-stage inline review**: After each discrete unit of work completes, run spec-compliance first, then quality:
+- **Three-stage inline review**: After each discrete unit of work completes, run spec-compliance first, then quality, then browser verification for UI changes:
   1. **Stage 1 — Spec compliance**: Run `spec-compliance-review` using the `prompts/spec-reviewer.md` template. Does the code match the spec? If fail → fix before proceeding to Stage 2.
   2. **Stage 2 — Code quality**: Run the standard **Inline Review Checkpoint** (see below) using the `prompts/quality-reviewer.md` template. Is the code high quality?
+  3. **Stage 3 — Browser verification (UI changes only)**: If the plan step involves UI components, run `/browse` in automated smoke test mode against the running dev server. Capture screenshots, verify rendering, and check basic interaction. If the dev server is not running, skip with a warning (do not fail). Timeout: 30 seconds. Failures enter the review loop (max 2 iterations). This stage is skipped for non-UI changes.
 - **Final verify**: After all units complete and tests pass, run `/code-review --changed` on all modified files:
   - `fail` → Software Engineer addresses critical issues, re-run review
   - `warn` → include findings in human gate summary
@@ -118,9 +120,21 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 - **Human gate**: Human reviews the final output. If the plan was good, implementation review is lightweight.
 - **Context**: If implementation is large, compact mid-phase — update the plan progress file with completed steps and continue in a fresh context
 
+#### Review Depth by Complexity
+
+Each plan step includes a **Complexity** classification that controls review depth:
+
+| Complexity | Inline review behavior |
+|------------|----------------------|
+| `trivial` | Skip inline review entirely. The final `/code-review --changed` covers all files. |
+| `standard` | Run spec-compliance + quality agents relevant to the change type (see table below). |
+| `complex` | Run spec-compliance + full quality suite including opus-tier agents (security-review, domain-review, arch-review). |
+
+If a step has no complexity annotation, default to `standard`.
+
 #### Inline Review Checkpoint
 
-After each discrete unit of work (a function, a module, a feature slice — as defined in the Phase 2 plan):
+After each discrete unit of work classified as **standard** or **complex** (a function, a module, a feature slice — as defined in the Phase 2 plan):
 
 **Step 1 — Select agents by what changed:**
 

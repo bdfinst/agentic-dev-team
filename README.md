@@ -47,27 +47,42 @@ For complex tasks where the orchestrator manages the full lifecycle, every non-t
 
 - **Research** produces a **design document** (`docs/specs/`) with problem statement, alternatives, and scope boundaries
 - **Plan** is pre-checked by an automated **plan reviewer** before the human sees it
-- **Implement** enforces strict **TDD** (RED-GREEN-REFACTOR with hard gates), uses **worktree isolation** for parallel units, and runs a **two-stage inline review**: spec-compliance first ("does code match spec?"), then quality agents ("is code good?"). All agents must provide **verification evidence** (fresh test output) before claiming completion. After the human gate, a **branch workflow** handles PR creation and merge strategy.
+- **Implement** enforces strict **TDD** (RED-GREEN-REFACTOR with hard gates), uses **worktree isolation** for parallel units, and runs a **three-stage inline review**: spec-compliance first ("does code match spec?"), then quality agents ("is code good?"), then browser verification for UI changes. All agents must provide **verification evidence** (fresh test output) before claiming completion. After the human gate, a **branch workflow** handles PR creation and merge strategy.
 
 ```mermaid
 flowchart TD
     U([User Request]) --> O[Orchestrator]
-    O --> R[Research Phase]
-    R --> DD[Design Doc\ndocs/specs/]
-    DD --> HG1([Human Gate])
-    HG1 --> PL[Plan Phase]
-    PL --> PR[Plan Reviewer\nprompts/plan-reviewer.md]
-    PR --> HG2([Human Gate])
-    HG2 --> IM[Implement Phase\nTDD: RED-GREEN-REFACTOR]
-    IM --> SC[Stage 1: Spec Compliance\nspec-compliance-review]
-    SC -->|fail| IM
-    SC -->|pass| QR[Stage 2: Quality Review\nTargeted Review Agents]
-    QR -->|fail| RF[Correction Context]
-    RF --> IM
-    QR -->|pass / warn| VBC[Verification Gate\nFresh test evidence required]
-    VBC --> HG3([Human Gate])
-    HG3 --> BW[Branch Workflow\nPR + Merge + Cleanup]
-    BW --> LL[Learning Loop]
+
+    subgraph "Phase 1 — Research"
+        O --> SP["/specs\nIntent · BDD · Architecture · Criteria"]
+        SP --> DD["Design Doc\ndocs/specs/"]
+    end
+
+    DD --> HG1([Human Gate — approve spec + design])
+
+    subgraph "Phase 2 — Plan"
+        HG1 --> PL["/plan\nTDD steps · complexity tiers · acceptance criteria"]
+        PL --> PR["Plan Reviewer\nprompts/plan-reviewer.md"]
+    end
+
+    PR --> HG2([Human Gate — approve plan])
+
+    subgraph "Phase 3 — Implement"
+        HG2 --> CV["/build step 3\nVerify criteria testability"]
+        CV --> IM["TDD Loop\nRED → GREEN → REFACTOR"]
+        IM --> SC["Stage 1: Spec Compliance\nspec-compliance-review"]
+        SC -->|fail| IM
+        SC -->|pass| QR["Stage 2: Quality Review\nTargeted agents by complexity tier"]
+        QR -->|fail max 2×| IM
+        QR -->|pass| BV{"UI change?"}
+        BV -->|yes| BR["Stage 3: Browser Verify\n/browse smoke test"]
+        BV -->|no| CR
+        BR --> CR["/code-review --changed\nFull suite on all modified files"]
+    end
+
+    CR --> HG3([Human Gate — approve implementation])
+    HG3 --> PRR["/pr\nQuality gate · create pull request"]
+    PRR --> LL["Learning Loop\nMetrics · /harness-audit"]
     LL --> O
 ```
 
@@ -188,7 +203,7 @@ After starting Claude Code, confirm the system is working:
 
 ## Review Agents
 
-19 specialized review agents run as sub-agents during Phase 3 checkpoints and full `/code-review` runs. The **two-stage review pattern** runs spec-compliance first (does code match spec?), then quality agents (is code good?). Heavyweight agents (security, domain, architecture) load detection knowledge from `knowledge/` files at runtime for progressive disclosure.
+19 specialized review agents run as sub-agents during Phase 3 checkpoints and full `/code-review` runs. The **three-stage review pattern** runs spec-compliance first (does code match spec?), then quality agents (is code good?), then browser verification for UI changes. Heavyweight agents (security, domain, architecture) load detection knowledge from `knowledge/` files at runtime for progressive disclosure.
 
 | Agent | Focus | Model |
 | --- | --- | --- |

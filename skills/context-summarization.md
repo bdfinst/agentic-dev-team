@@ -25,7 +25,7 @@ Procedure for compressing conversation history to maintain context utilization b
 | --- | --- | --- |
 | < 30% | Normal | No action needed |
 | 30-40% | Warning | Prepare: identify summarization candidates |
-| 40-50% | Active | Summarize older conversation turns, keep recent 3-5 turns verbatim |
+| 40-50% | Active | Write summary to `memory/`, start fresh context window |
 | 50-65% | Aggressive | Summarize everything except current task, compress skill/agent content |
 | 65%+ | Critical | Write full summary to `memory/`, start new conversation |
 
@@ -241,22 +241,6 @@ Read .claude/memory/2026-02-20-user-auth-api.md
 ```
 
 Use the summary to orient, then proceed. If specific details are needed from an artifact, read the artifact file directly rather than trying to reconstruct conversation history.
-
-## In-Conversation Compression
-
-When summarization is needed mid-conversation (40-50% utilization) but a new conversation isn't warranted:
-
-1. Mentally partition the conversation into phases
-2. For completed phases, retain only:
-   - What was decided
-   - What was produced (file paths)
-   - What constraints carry forward
-3. Let go of:
-   - How the decision was reached
-   - Intermediate drafts
-   - Tool output details
-
-This isn't a literal operation (you can't delete context mid-conversation), but it guides what to reference and build on vs. what to treat as background noise.
 
 ## Cleanup
 

@@ -130,6 +130,38 @@ If the user's goal appears to be testing or verification, note any issues found 
 - **CAPTCHA or auth wall**: Report that manual intervention is needed — instruct the user to complete the challenge in their browser, then re-run `/browse` to continue
 - **Playwright not installed**: Guide the user through `npx playwright install chromium`
 
+## Automated Smoke Test Mode
+
+When invoked non-interactively by the inline review pipeline (Stage 3 browser verification), the caller provides:
+
+- **URL**: The dev server URL for the page under test
+- **Selectors to verify**: CSS selectors that should be visible after the change (e.g., `[data-testid="user-list"]`, `.dashboard-header`)
+- **Expected state**: Brief description of what the page should look like
+
+In this mode:
+
+1. Navigate to the URL with a 30-second timeout
+2. Wait for network idle
+3. For each selector, verify it exists and is visible
+4. Take a full-page screenshot as verification evidence
+5. Return a structured result:
+   ```
+   - url: <final URL>
+   - selectors_found: [list of selectors that were visible]
+   - selectors_missing: [list of selectors that were not found or not visible]
+   - screenshot: <path to screenshot>
+   - status: pass | fail
+   - issues: [description of any rendering problems observed]
+   ```
+
+If the connection times out or refuses (dev server not running), return:
+```
+- status: skipped
+- reason: "Dev server not reachable at <URL>"
+```
+
+This result feeds into the review loop — `fail` triggers correction iterations (max 2), `skipped` is logged as a warning and does not block the build.
+
 ## Multi-Step Interactions
 
 For complex flows (login → navigate → fill form → submit), chain actions in a single script rather than multiple `/browse` invocations. Build the full action sequence in the Node.js script.

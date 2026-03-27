@@ -40,25 +40,45 @@ If `--plan` was provided, read that file. Otherwise, search `plans/` for `.md` f
 
 Read the plan file. If the status is not `approved`, ask the user: "This plan has status '<status>'. Approve it before building, or continue anyway?"
 
-### 3. Implement each step
+### 3. Verify acceptance criteria (gate)
+
+Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `prompts/spec-reviewer.md` § Pre-build criteria verification mode). Pass the plan's acceptance criteria and per-step test expectations.
+
+The reviewer evaluates each criterion for:
+- **Specificity**: Could two developers independently verify this criterion and agree on pass/fail?
+- **Testability**: Can this criterion be validated with a test or observable output?
+- **Completeness**: Are edge cases and error conditions addressed?
+
+If any criteria are flagged:
+1. Present the findings to the user with the reviewer's suggested improvements
+2. Ask: "Revise these criteria before building, or proceed anyway?"
+3. If the user overrides, log the override in the build output and continue
+4. If the user revises, update the plan file and re-verify
+
+### 4. Implement each step
 
 For each step in the plan, dispatch implementation following the implementer template (`prompts/implementer.md`):
 
 1. **RED** — Write the failing test described in the step. Run the test suite. **Hard gate: the new test must fail.** Paste the failing output. If the test passes without new code, the behavior already exists — pick a different test. Do NOT proceed to GREEN without pasted failing output.
 2. **GREEN** — Write the minimum implementation to make the failing test pass. Do not add behavior beyond what the test requires. Run the test suite. **Hard gate: all tests must pass.** Paste the passing output. Do NOT proceed without pasted passing output.
 3. **REFACTOR** — Clean up structure, naming, duplication without changing behavior. Run tests again — they must still pass. If tests break, undo and try a smaller change.
-4. **Inline review checkpoint** — Run `/review-agent spec-compliance-review` against changed files. If it passes, run quality review agents relevant to what changed. If review fails, apply corrections (max 2 iterations). If still failing after 2, escalate to the user.
+4. **Inline review checkpoint** — Route review depth based on the step's **Complexity** classification:
+   - **trivial**: Skip inline review. The final `/code-review --changed` (step 6) covers all modified files.
+   - **standard**: Run `/review-agent spec-compliance-review` against changed files. If it passes, run quality review agents relevant to what changed. If review fails, apply corrections (max 2 iterations). If still failing after 2, escalate to the user.
+   - **complex**: Run `/review-agent spec-compliance-review`, then the full quality agent suite including opus-tier agents (security-review, domain-review, arch-review). Same correction loop applies.
+   - If no complexity is specified, default to **standard**.
+   - **UI changes (any complexity)**: After quality review passes, run browser verification via `/browse` in automated smoke test mode. Skip with warning if the dev server is not running. See `agents/orchestrator.md` Stage 3.
 5. **Mark step done** — Update the plan file: check off the step's acceptance criteria, set the step as completed.
 
-### 4. Run full test suite
+### 5. Run full test suite
 
 After all steps are complete, run the full test suite. Paste the output as final verification evidence.
 
-### 5. Run code review
+### 6. Run code review
 
 Run `/code-review --changed` against all files modified during the build.
 
-### 6. Update plan status
+### 7. Update plan status
 
 Set the plan status to `implemented`. Report a summary:
 - Steps completed

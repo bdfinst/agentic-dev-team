@@ -70,6 +70,7 @@ Write the plan file using this structure:
 
 ### Step 1: <Description>
 
+**Complexity**: <trivial | standard | complex>
 **RED**: Write test for <behavior>
 **GREEN**: Implement <minimal code to pass>
 **REFACTOR**: <What to clean up, or "None needed">
@@ -79,6 +80,18 @@ Write the plan file using this structure:
 ### Step 2: <Description>
 
 ...
+
+## Complexity Classification
+
+Each step must include a complexity rating that controls review depth during `/build`:
+
+| Rating | Criteria | Review depth |
+|--------|----------|--------------|
+| `trivial` | Single-file rename, config change, typo fix, documentation-only | Skip inline review; covered by final `/code-review --changed` |
+| `standard` | New function, test, module, or behavioral change within existing patterns | Spec-compliance + relevant quality agents |
+| `complex` | Architectural change, security-sensitive, cross-cutting concern, new abstraction | Full agent suite including opus-tier agents |
+
+When in doubt, classify up (standard rather than trivial, complex rather than standard).
 
 ## Pre-PR Quality Gate
 

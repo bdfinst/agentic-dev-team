@@ -33,8 +33,7 @@ Before writing any code, review the task specification. If anything is unclear �
 6. Refactor if needed — run tests again, they must still pass
 7. Repeat RED-GREEN-REFACTOR for each behavior in the unit
 8. When all behaviors pass, run the full test suite
-9. Self-review: read your own diff. Check for missed edge cases, naming issues, unnecessary changes.
-10. Paste final test output as verification evidence
+9. Paste final test output as verification evidence
 
 ## Constraints
 - Follow the plan exactly. If the plan is wrong, flag it — do not deviate silently.
@@ -57,7 +56,6 @@ Return a structured result:
 - files_modified: [list of files changed]
 - tests_added: [list of test files and test names]
 - test_output: [final test suite output]
-- self_review_findings: [any concerns found during self-review]
 - deviations: [any departures from the plan, with justification]
 - blocked_reason: [if blocked/needs_context, what's preventing completion]
 ```

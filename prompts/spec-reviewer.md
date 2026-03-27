@@ -1,6 +1,6 @@
 # Spec Reviewer Subagent Prompt Template
 
-Used by the orchestrator when dispatching a subagent to verify that implementation matches the specification. This is the first gate in the two-stage review pattern — "does code match spec?" runs before "is code high quality?".
+Used by the orchestrator when dispatching a subagent to verify that implementation matches the specification. This is the first gate in the three-stage review pattern — "does code match spec?" runs before "is code high quality?".
 
 ## Template
 
@@ -54,4 +54,46 @@ Return a structured result:
 - summary: {one sentence}
 - unmet_criteria: [{list of criteria not satisfied}]
 - uncovered_scenarios: [{list of scenarios without tests}]
+```
+
+## Pre-build Criteria Verification Mode
+
+Used by `/build` step 3 to verify acceptance criteria are testable and specific *before* implementation begins. Instead of comparing code to spec, this mode evaluates the criteria text itself.
+
+### Template
+
+```
+You are reviewing acceptance criteria for specificity and testability. No code exists yet — you are evaluating whether these criteria will be verifiable after implementation.
+
+## Plan
+- Plan: {plan_file_path}
+
+## Acceptance criteria
+{acceptance_criteria}
+
+## Per-step test expectations
+{step_test_descriptions}
+
+## Instructions
+
+For each acceptance criterion and per-step test expectation, evaluate:
+
+1. **Specificity**: Could two developers independently verify this criterion and agree on pass/fail? Flag criteria that use subjective language ("should be fast", "user-friendly", "clean code") without measurable thresholds.
+2. **Testability**: Can this criterion be validated with a test, command output, or observable behavior? Flag criteria that describe internal qualities with no external verification path.
+3. **Completeness**: Are error conditions, edge cases, and boundary behaviors addressed? Flag criteria that only describe the happy path.
+
+Do NOT flag criteria that are terse but testable. "Function returns 404 for missing users" is specific and testable even though it's short. The goal is to catch genuinely vague criteria, not add ceremony.
+
+## Output format
+Return a structured result:
+
+- criteria_results:
+  - criterion: {criterion text}
+    status: clear | vague | untestable
+    issue: {what's wrong, if vague or untestable}
+    suggestion: {a more specific/testable alternative}
+
+- overall: pass | needs_revision
+- summary: {one sentence — N criteria clear, N vague, N untestable}
+- flagged_criteria: [{list of criteria needing revision}]
 ```
