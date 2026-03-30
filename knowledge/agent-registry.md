@@ -77,6 +77,9 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | CI Debugging | `skills/ci-debugging.md` | 550 | DevOps/SRE Engineer, Software Engineer, QA Engineer |
 | Test Design Reviewer | `skills/test-design-reviewer.md` | 600 | QA Engineer, test-review |
 | Browser Testing | `skills/browser-testing.md` | 700 | QA Engineer |
+| Competitive Analysis | `skills/competitive-analysis.md` | 600 | Orchestrator, Product Manager |
+| Design Interrogation | `skills/design-interrogation.md` | 500 | Architect, Product Manager, Orchestrator |
+| Design It Twice | `skills/design-it-twice.md` | 550 | Architect, Software Engineer |
 
 ## Subagent Prompt Templates
 

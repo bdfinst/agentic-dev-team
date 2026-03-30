@@ -13,6 +13,8 @@ graph TD
     CO --> TW[Technical Writer]
     CO --> SecE[Security Engineer]
     CO --> DO[DevOps/SRE Engineer]
+    CO --> KC[Knowledge Capture]
+    CO --> ADR[ADR Author]
 
     SE <--> QA
     SE <--> AR
@@ -27,6 +29,8 @@ graph TD
     DO <--> AR
     DO <--> SE
     DO <--> SecE
+    KC <--> SE
+    ADR <--> AR
 ```
 
 ## Review Agent Dispatch (Phase 3 Inline Checkpoints)

@@ -106,6 +106,31 @@ Ask your human partner before skipping TDD for:
 
 Even with permission, document the exception.
 
+## Anti-Pattern: Horizontal Slicing
+
+**DO NOT write all tests first, then all implementation.** This is "horizontal slicing" — treating RED as "write all tests" and GREEN as "write all code."
+
+This produces bad tests:
+- Tests written in bulk test *imagined* behavior, not *actual* behavior
+- You end up testing the *shape* of things (data structures, signatures) rather than user-facing behavior
+- Tests become insensitive to real changes — passing when behavior breaks, failing when behavior is fine
+- You outrun your headlights, committing to test structure before understanding the implementation
+
+**Correct approach: vertical slices via tracer bullets.** One test → one implementation → repeat. Each test responds to what you learned from the previous cycle.
+
+```
+WRONG (horizontal):
+  RED:   test1, test2, test3, test4, test5
+  GREEN: impl1, impl2, impl3, impl4, impl5
+
+RIGHT (vertical / tracer bullet):
+  RED→GREEN: test1→impl1
+  RED→GREEN: test2→impl2
+  RED→GREEN: test3→impl3
+```
+
+The first vertical slice is the **tracer bullet** — it proves the path works end-to-end before you invest in breadth. If the tracer bullet reveals a bad design assumption, you've wasted one cycle, not five.
+
 ## Integration with Phases
 
 - **Phase 2 (Plan)**: Test strategy is part of the plan — identify what tests will be written for each unit
