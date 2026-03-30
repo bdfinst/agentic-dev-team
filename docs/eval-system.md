@@ -43,7 +43,7 @@ issues cheaply before the model-based agents spend tokens on full analysis.
 
 ### Layer 2: Model-based (agents)
 
-Nine specialized agents that require LLM judgment:
+Nineteen specialized agents that require LLM judgment. The full roster is documented in `docs/agent_info.md`. Agents with eval fixture coverage:
 
 | Agent | Focus |
 | ----- | ----- |
@@ -56,6 +56,7 @@ Nine specialized agents that require LLM judgment:
 | token-efficiency-review | Token optimization (full analysis beyond hook) |
 | security-review | Injection, auth, data exposure, crypto |
 | js-fp-review | Mutation detection (full analysis beyond hook) |
+| svelte-review | Svelte reactivity, closure state leaks, store subscriptions |
 
 Each agent outputs a structured result:
 
@@ -167,15 +168,16 @@ The `evals/` directory contains a test corpus for validating agent accuracy:
 
 ```text
 evals/
-├── fixtures/           # 46 code samples (checked in)
+├── fixtures/           # 54+ code samples (checked in)
 │   ├── fp-*.ts         # js-fp-review (6 files)
 │   ├── sec-*.ts        # security-review (5 files)
-│   ├── test-*.test.ts  # test-review (5 files)
+│   ├── test-*.test.ts  # test-review (6 files)
 │   ├── cx-*.ts         # complexity-review (5 files)
 │   ├── nm-*.ts         # naming-review (5 files)
 │   ├── st-*.ts         # structure-review (5 files)
 │   ├── dm-*.ts         # domain-review (5 files)
 │   ├── te-*.md/.ts     # token-efficiency-review (5 files)
+│   ├── sv-*.svelte.ts  # svelte-review (8 files)
 │   └── cs-*/           # claude-setup-review (4 directories)
 ├── expected/           # Reference solutions (checked in)
 │   └── <fixture-stem>.json
@@ -205,7 +207,7 @@ severity ranges, and keyword checks.
 }
 ```
 
-### `/agent-eval` skill
+### `/agent-eval` command
 
 Run agents against fixtures and grade results:
 

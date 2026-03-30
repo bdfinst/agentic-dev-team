@@ -18,6 +18,8 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 | Technical Writer | [`tech-writer.md`](../agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
 | Security Engineer | [`security-engineer.md`](../agents/security-engineer.md) | Security analysis, threat modeling, compliance |
 | DevOps/SRE Engineer | [`devops-sre-engineer.md`](../agents/devops-sre-engineer.md) | Pipeline, deployment, reliability, observability |
+| Knowledge Capture | [`learn.md`](../agents/learn.md) | Captures institutional knowledge after feature completion or complex bug fixes |
+| ADR Author | [`adr.md`](../agents/adr.md) | Creates and manages Architecture Decision Records |
 
 ## Review Agents
 
@@ -90,7 +92,7 @@ The `## Skills` section is the bridge between agents and skills. The agent defin
 ## Add a Team Agent
 
 1. Create `agents/{role-name}.md` using the template above
-2. Add the agent to the Team Organization diagram in `CLAUDE.md`
+2. Add the agent to the Team Organization diagram in `docs/team-structure.md`
 3. Add it to the Team Agents table in `CLAUDE.md`
 4. Define collaboration protocols with existing agents
 5. Reference any applicable skills in the `## Skills` section
@@ -107,7 +109,7 @@ Use the `/agent-add` slash command — it scaffolds a compliant agent, checks fo
 
 Manual process:
 1. Create `agents/{name}-review.md` using the review agent template (see any existing review agent for reference)
-2. Run `/agent-audit .claude/agents/{name}-review.md --fix` to validate compliance
+2. Run `/agent-audit agents/{name}-review.md --fix` to validate compliance
 3. Add eval fixtures to `evals/fixtures/` and expected results to `evals/expected/`
 4. Run `/agent-eval --agent {name}-review` to validate accuracy
 5. Add a row to the Review Agents table in `CLAUDE.md`

@@ -68,7 +68,7 @@ The Orchestrator manages context utilization using two operational skills.
 | 60-75% | Aggressive summarization |
 | 75%+ | Write summary to `memory/`, start new conversation |
 
-Utilization is measured via the `usage` field in API responses. Summaries follow a structured template and are stored in `memory/` for cross-session continuity.
+Utilization is estimated via proxy signals (tool call volume, message count, accumulated file reads) as described in the Context Loading Protocol. Summaries follow a structured template and are stored in `memory/` for cross-session continuity.
 
 ### Token Budgets
 

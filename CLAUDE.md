@@ -151,7 +151,7 @@ The orchestrator controls model selection for all agents. The full routing table
 | Model | Assigned to |
 |-------|------------|
 | `haiku` | naming-review, complexity-review, claude-setup-review, token-efficiency-review, performance-review |
-| `sonnet` | spec-compliance-review, test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
+| `sonnet` | spec-compliance-review, test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review, refactoring-review, progress-guardian, data-flow-tracer, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
 | `opus` | security-review, domain-review, arch-review, architect, software-engineer (architectural changes) |
 
 Each agent's `model:` frontmatter is a fallback for direct invocation. When the orchestrator spawns agents via the Agent tool, it passes the model explicitly from the routing table.

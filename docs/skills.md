@@ -2,8 +2,8 @@
 
 There are two kinds of reusable capabilities in this system:
 
-- **Skills** (`/skills/`) — knowledge modules that agents read for domain expertise (patterns, guidelines, procedures). Agent-agnostic; any agent can reference them.
-- **Slash commands** (`/commands/`) — user-invocable workflows with numbered steps, argument parsing, and structured output. Executed under Orchestrator direction.
+- **Skills** (`skills/`) — knowledge modules that agents read for domain expertise (patterns, guidelines, procedures). Agent-agnostic; any agent can reference them.
+- **Slash commands** (`commands/`) — user-invocable workflows with numbered steps, argument parsing, and structured output. Executed under Orchestrator direction.
 
 ## Skills Catalog
 
@@ -41,6 +41,19 @@ Enforce rigorous development practices:
 | Systematic Debugging | [`systematic-debugging.md`](../skills/systematic-debugging.md) | 4-phase debugging protocol (reproduce, investigate, root-cause, fix) |
 | Design Doc | [`design-doc.md`](../skills/design-doc.md) | Written design document with alternatives analysis before planning |
 | Branch Workflow | [`branch-workflow.md`](../skills/branch-workflow.md) | PR creation, merge strategy, and branch cleanup after Phase 3 |
+| CI Debugging | [`ci-debugging.md`](../skills/ci-debugging.md) | CI pipeline failure investigation and resolution |
+| Test Design Reviewer | [`test-design-reviewer.md`](../skills/test-design-reviewer.md) | Test quality patterns and anti-patterns |
+| Browser Testing | [`browser-testing.md`](../skills/browser-testing.md) | Playwright-based browser QA for visual verification |
+
+### Research & Design Skills
+
+Used during the Research phase to explore alternatives and stress-test designs:
+
+| Skill | File | Purpose |
+| --- | --- | --- |
+| Competitive Analysis | [`competitive-analysis.md`](../skills/competitive-analysis.md) | Gap analysis against external tools, plugins, or feature sets |
+| Design Interrogation | [`design-interrogation.md`](../skills/design-interrogation.md) | Stress-test design decisions before planning |
+| Design It Twice | [`design-it-twice.md`](../skills/design-it-twice.md) | Generate parallel alternative interfaces via sub-agents |
 
 ### Technical Skills
 
@@ -86,6 +99,7 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 | --- | --- | --- |
 | `/agent-audit` | [`agent-audit.md`](../commands/agent-audit.md) | Audit agents and commands for structural compliance |
 | `/agent-eval` | [`agent-eval.md`](../commands/agent-eval.md) | Run eval fixtures, grade review agent accuracy, detect regressions |
+| `/harness-audit` | [`harness-audit.md`](../commands/harness-audit.md) | Analyze harness effectiveness, flag stale components |
 
 ### Scaffolding Commands
 
@@ -106,6 +120,9 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 | `/continue` | [`continue.md`](../commands/continue.md) | Resume work from a prior session using phase progress files |
 | `/domain-analysis` | [`domain-analysis.md`](../commands/domain-analysis.md) | Assess DDD health: bounded contexts, context map, friction report |
 | `/browse` | [`browse.md`](../commands/browse.md) | Browser-based QA via Playwright: navigate, screenshot, click, fill forms |
+| `/triage` | [`triage.md`](../commands/triage.md) | Investigate a bug, find root cause, file a GitHub issue with TDD fix plan |
+| `/issues-from-plan` | [`issues-from-plan.md`](../commands/issues-from-plan.md) | Break a plan into independently-grabbable GitHub issues |
+| `/competitive-analysis` | [`competitive-analysis.md`](../commands/competitive-analysis.md) | Compare plugin against others to find gaps and weaknesses |
 
 ### Safety Commands
 
@@ -122,6 +139,7 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 | --- | --- | --- |
 | `/upgrade` | [`upgrade.md`](../commands/upgrade.md) | Check for and apply plugin updates from within a session |
 | `/help` | [`help.md`](../commands/help.md) | List all available slash commands with descriptions |
+| `/review` | [`review.md`](../commands/review.md) | Alias for `/code-review` — same arguments, same behavior |
 
 ## How Agents Use Skills
 
@@ -137,8 +155,8 @@ The annotation explains *when and why* that agent uses the skill. The skill itse
 
 ## Add a Knowledge Skill
 
-1. Create `.claude/skills/{skill-name}.md` with the required sections (see template below)
-2. Add it to the Skills Registry table in `.claude/CLAUDE.md`
+1. Create `skills/{skill-name}.md` with the required sections (see template below). In a consuming project, the path is `.claude/skills/{skill-name}.md`.
+2. Add it to the Skills Registry table in `CLAUDE.md`
 3. Reference it from each relevant agent's `## Skills` section with invocation context
 
 ### Skill Template
