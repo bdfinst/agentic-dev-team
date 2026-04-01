@@ -198,16 +198,16 @@ After starting Claude Code, confirm the system is working:
 
 | Agent | Purpose |
 | --- | --- |
-| **Orchestrator** | Routes tasks, selects models, coordinates inline review feedback loop |
-| **Software Engineer** | Code generation, implementation, applies review corrections |
-| **Data Scientist** | ML models, data analysis, statistical validation |
-| **QA/SQA Engineer** | Testing, quality gates, peer validation |
-| **UI/UX Designer** | Interface design, accessibility compliance |
-| **Architect** | System design, tech decisions, scalability |
-| **Product Manager** | Requirements, prioritization, stakeholder alignment |
-| **Technical Writer** | Documentation, terminology consistency |
-| **Security Engineer** | Security analysis, threat modeling |
-| **DevOps/SRE Engineer** | Pipeline, deployment, reliability |
+| [**Orchestrator**](agents/orchestrator.md) | Routes tasks, selects models, coordinates inline review feedback loop |
+| [**Software Engineer**](agents/software-engineer.md) | Code generation, implementation, applies review corrections |
+| [**Data Scientist**](agents/data-scientist.md) | ML models, data analysis, statistical validation |
+| [**QA/SQA Engineer**](agents/qa-engineer.md) | Testing, quality gates, peer validation |
+| [**UI/UX Designer**](agents/ui-ux-designer.md) | Interface design, accessibility compliance |
+| [**Architect**](agents/architect.md) | System design, tech decisions, scalability |
+| [**Product Manager**](agents/product-manager.md) | Requirements, prioritization, stakeholder alignment |
+| [**Technical Writer**](agents/tech-writer.md) | Documentation, terminology consistency |
+| [**Security Engineer**](agents/security-engineer.md) | Security analysis, threat modeling |
+| [**DevOps/SRE Engineer**](agents/devops-sre-engineer.md) | Pipeline, deployment, reliability |
 
 ## Review Agents
 
@@ -215,54 +215,95 @@ After starting Claude Code, confirm the system is working:
 
 | Agent | Focus | Model |
 | --- | --- | --- |
-| `spec-compliance-review` | **First gate** — spec-to-code matching before quality review | sonnet |
-| `test-review` | Coverage gaps, assertion quality, test hygiene (QA Engineer delegates here) | sonnet |
-| `security-review` | Injection, auth/authz, data exposure | opus |
-| `domain-review` | Abstraction leaks, boundary violations | opus |
-| `arch-review` | ADR compliance, layer violations, dependency direction | opus |
-| `structure-review` | SRP, DRY, coupling, organization | sonnet |
-| `complexity-review` | Function size, cyclomatic complexity, nesting | haiku |
-| `naming-review` | Intent-revealing names, magic values | haiku |
-| `js-fp-review` | Array mutations, impure patterns | sonnet |
-| `concurrency-review` | Race conditions, async pitfalls | sonnet |
-| `a11y-review` | WCAG 2.1 AA, ARIA, keyboard nav | sonnet |
-| `performance-review` | Resource leaks, N+1 queries | haiku |
-| `token-efficiency-review` | File size, LLM anti-patterns | haiku |
-| `claude-setup-review` | CLAUDE.md completeness and accuracy | haiku |
-| `doc-review` | README accuracy, API doc alignment, comment drift | sonnet |
-| `svelte-review` | Svelte reactivity, closure state leaks | sonnet |
-| `progress-guardian` | Plan adherence, commit discipline, scope creep | sonnet |
-| `refactoring-review` | Post-GREEN refactoring opportunities | sonnet |
-| `data-flow-tracer` | Data flow tracing through architecture layers (analysis-only) | sonnet |
+| [`spec-compliance-review`](agents/spec-compliance-review.md) | **First gate** — spec-to-code matching before quality review | sonnet |
+| [`test-review`](agents/test-review.md) | Coverage gaps, assertion quality, test hygiene (QA Engineer delegates here) | sonnet |
+| [`security-review`](agents/security-review.md) | Injection, auth/authz, data exposure | opus |
+| [`domain-review`](agents/domain-review.md) | Abstraction leaks, boundary violations | opus |
+| [`arch-review`](agents/arch-review.md) | ADR compliance, layer violations, dependency direction | opus |
+| [`structure-review`](agents/structure-review.md) | SRP, DRY, coupling, organization | sonnet |
+| [`complexity-review`](agents/complexity-review.md) | Function size, cyclomatic complexity, nesting | haiku |
+| [`naming-review`](agents/naming-review.md) | Intent-revealing names, magic values | haiku |
+| [`js-fp-review`](agents/js-fp-review.md) | Array mutations, impure patterns | sonnet |
+| [`concurrency-review`](agents/concurrency-review.md) | Race conditions, async pitfalls | sonnet |
+| [`a11y-review`](agents/a11y-review.md) | WCAG 2.1 AA, ARIA, keyboard nav | sonnet |
+| [`performance-review`](agents/performance-review.md) | Resource leaks, N+1 queries | haiku |
+| [`token-efficiency-review`](agents/token-efficiency-review.md) | File size, LLM anti-patterns | haiku |
+| [`claude-setup-review`](agents/claude-setup-review.md) | CLAUDE.md completeness and accuracy | haiku |
+| [`doc-review`](agents/doc-review.md) | README accuracy, API doc alignment, comment drift | sonnet |
+| [`svelte-review`](agents/svelte-review.md) | Svelte reactivity, closure state leaks | sonnet |
+| [`progress-guardian`](agents/progress-guardian.md) | Plan adherence, commit discipline, scope creep | sonnet |
+| [`refactoring-review`](agents/refactor-scan.md) | Post-GREEN refactoring opportunities | sonnet |
+| [`data-flow-tracer`](agents/use-case-data-patterns.md) | Data flow tracing through architecture layers (analysis-only) | sonnet |
 
 ## Slash Commands
 
 | Command | What It Does |
 | --- | --- |
-| `/code-review` | Run all review agents with pre-flight gates, scope validation, and MCP probing |
-| `/review` | Alias for `/code-review` |
-| `/review-agent <name>` | Run a single review agent |
-| `/agent-audit` | Audit agents and commands for structural compliance |
-| `/agent-eval` | Run eval fixtures and grade review agent accuracy |
-| `/agent-add` | Scaffold a new review agent |
-| `/agent-remove` | Remove an agent and all registry entries |
-| `/add-plugin` | Install a plugin and register it in settings.json |
-| `/apply-fixes` | Apply correction prompts from `/code-review` |
-| `/review-summary` | Generate compact session summary |
-| `/semgrep-analyze` | Run Semgrep SAST |
-| `/domain-analysis` | Assess DDD health: bounded contexts, context map, friction report |
-| `/browse` | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
-| `/careful` | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE) |
-| `/freeze <glob>` | Scope-lock editing to a glob pattern |
-| `/unfreeze` | Lift the scope lock set by `/freeze` |
-| `/guard <glob>` | Combined `/careful` + `/freeze` for production-critical sessions |
-| `/upgrade` | Check for and apply plugin updates from within a session |
-| `/help` | List all available slash commands with descriptions |
-| `/plan` | Create a structured implementation plan with TDD steps |
-| `/build` | Execute an approved plan with TDD, inline reviews, and verification evidence |
-| `/pr` | Run quality gates and create a pull request |
-| `/setup` | Detect tech stack, generate project-level config and hooks |
-| `/continue` | Resume work from a prior session using phase progress files |
+| [`/code-review`](commands/code-review.md) | Run all review agents with pre-flight gates, scope validation, and MCP probing |
+| [`/review`](commands/review.md) | Alias for `/code-review` |
+| [`/review-agent <name>`](commands/review-agent.md) | Run a single review agent |
+| [`/agent-audit`](commands/agent-audit.md) | Audit agents and commands for structural compliance |
+| [`/agent-eval`](commands/agent-eval.md) | Run eval fixtures and grade review agent accuracy |
+| [`/agent-add`](commands/agent-add.md) | Scaffold a new review agent |
+| [`/agent-remove`](commands/agent-remove.md) | Remove an agent and all registry entries |
+| [`/add-plugin`](commands/add-plugin.md) | Install a plugin and register it in settings.json |
+| [`/apply-fixes`](commands/apply-fixes.md) | Apply correction prompts from `/code-review` |
+| [`/review-summary`](commands/review-summary.md) | Generate compact session summary |
+| [`/semgrep-analyze`](commands/semgrep-analyze.md) | Run Semgrep SAST |
+| [`/domain-analysis`](commands/domain-analysis.md) | Assess DDD health: bounded contexts, context map, friction report |
+| [`/mutation-testing`](commands/mutation-testing.md) | Run mutation testing tool and triage surviving mutants |
+| [`/browse`](commands/browse.md) | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
+| [`/careful`](commands/careful.md) | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE) |
+| [`/freeze <glob>`](commands/freeze.md) | Scope-lock editing to a glob pattern |
+| [`/unfreeze`](commands/unfreeze.md) | Lift the scope lock set by `/freeze` |
+| [`/guard <glob>`](commands/guard.md) | Combined `/careful` + `/freeze` for production-critical sessions |
+| [`/upgrade`](commands/upgrade.md) | Check for and apply plugin updates from within a session |
+| [`/help`](commands/help.md) | List all available slash commands with descriptions |
+| [`/plan`](commands/plan.md) | Create a structured implementation plan with TDD steps |
+| [`/build`](commands/build.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
+| [`/pr`](commands/pr.md) | Run quality gates and create a pull request |
+| [`/setup`](commands/setup.md) | Detect tech stack, generate project-level config and hooks |
+| [`/continue`](commands/continue.md) | Resume work from a prior session using phase progress files |
+| [`/specs`](commands/specs.md) | Collaborative specification workflow |
+| [`/triage`](commands/triage.md) | Investigate a bug and file a GitHub issue with TDD fix plan |
+| [`/issues-from-plan`](commands/issues-from-plan.md) | Break a plan into independently-grabbable GitHub issues |
+| [`/harness-audit`](commands/harness-audit.md) | Analyze harness effectiveness and flag stale components |
+| [`/competitive-analysis`](commands/competitive-analysis.md) | Compare plugin against others to find gaps |
+
+## Skills
+
+Reusable knowledge modules that any agent can draw on. Skills define patterns, procedures, and guidelines — not personas.
+
+| Skill | Purpose |
+| --- | --- |
+| [Context Loading Protocol](skills/context-loading-protocol.md) | Decide what to load and when; stay below 40% context ceiling |
+| [Context Summarization](skills/context-summarization.md) | Compress conversation history to structured summaries in `memory/` |
+| [Feedback & Learning](skills/feedback-learning.md) | Process `amend`/`learn`/`remember`/`forget` trigger keywords |
+| [Human Oversight Protocol](skills/human-oversight-protocol.md) | Approval gates, intervention commands, transparency requirements |
+| [Performance Metrics](skills/performance-metrics.md) | Log task completion data to `metrics/` in JSONL format |
+| [Quality Gate Pipeline](skills/quality-gate-pipeline.md) | Self-validation, verification evidence, review-correction loops |
+| [Governance & Compliance](skills/governance-compliance.md) | Audit logging, quality gates, ethics procedures |
+| [Agent & Skill Authoring](skills/agent-skill-authoring.md) | Create and maintain agent and skill files |
+| [Specs](skills/specs.md) | Collaborative spec workflow: Intent, BDD, Architecture, Acceptance Criteria |
+| [API Design](skills/api-design.md) | Contract-first API design for stable, evolvable interfaces |
+| [Hexagonal Architecture](skills/hexagonal-architecture.md) | Ports and adapters to separate business logic from infrastructure |
+| [Domain-Driven Design](skills/domain-driven-design.md) | Bounded contexts, aggregates, context mapping |
+| [Domain Analysis](skills/domain-analysis.md) | Assess existing system DDD health |
+| [Threat Modeling](skills/threat-modeling.md) | Structured STRIDE security analysis |
+| [Legacy Code](skills/legacy-code.md) | Characterization tests and dependency-breaking before behavioral changes |
+| [Test-Driven Development](skills/test-driven-development.md) | RED-GREEN-REFACTOR with hard gates |
+| [Mutation Testing](skills/mutation-testing.md) | Run Stryker/pitest/mutmut and triage surviving mutants |
+| [Systematic Debugging](skills/systematic-debugging.md) | Structured root cause analysis |
+| [Browser Testing](skills/browser-testing.md) | Playwright-based visual QA |
+| [Test Design Reviewer](skills/test-design-reviewer.md) | Evaluate test quality and design |
+| [CI Debugging](skills/ci-debugging.md) | Diagnose CI pipeline failures |
+| [Design Doc](skills/design-doc.md) | Problem statement, approach, alternatives, scope boundaries |
+| [Design Interrogation](skills/design-interrogation.md) | Stress-test designs and surface unresolved decisions |
+| [Design It Twice](skills/design-it-twice.md) | Generate parallel alternative interfaces via sub-agents |
+| [Branch Workflow](skills/branch-workflow.md) | PR creation, merge strategy, branch cleanup |
+| [Beads Task Tracking](skills/beads.md) | Git-backed issue graphs for multi-agent coordination |
+| [Competitive Analysis](skills/competitive-analysis.md) | Compare against external tools to find gaps and weaknesses |
+| [JS Project Init](skills/js-project-init/SKILL.md) | Scaffold a new JS project with ESM, vitest, eslint, prettier |
 
 ## Plugin Structure
 
