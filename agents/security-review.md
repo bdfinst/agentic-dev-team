@@ -72,11 +72,20 @@ Auth/authz:
 
 Data exposure:
 
-- Hardcoded secrets/API keys/passwords
+- Hardcoded secrets/API keys/passwords **in source files**
 - Sensitive data in logs
 - Unencrypted sensitive storage
 - PII mishandling
 - Verbose error messages exposing internals
+
+**`.env` false-positive guard:** Before flagging secrets in `.env`
+files, check whether the file is gitignored (`grep -q '^\.env' .gitignore`)
+and untracked (`git ls-files .env` returns empty). If `.env` is
+gitignored and untracked, do NOT report it as a committed-secrets
+error. `.env` files that are properly excluded from version control
+are the *correct* place for secrets — flagging them produces false
+positives and erodes trust in the agent's findings. Only flag `.env`
+if it is tracked by git or missing from `.gitignore`.
 
 Config:
 
