@@ -1,6 +1,6 @@
 ---
 name: mutation-testing
-description: Validate test suite quality by injecting mutants and checking whether tests detect them. Use after writing tests to verify assertions are meaningful, when evaluating test coverage quality, or as a CI quality gate on critical modules. High coverage with a low mutation score means weak assertions — your tests execute code without verifying behavior. Also use when someone asks "are my tests good enough?" or after TDD to verify the tests actually catch faults.
+description: Validate test suite quality by running a real mutation testing tool and triaging surviving mutants. Use after writing tests to verify assertions catch behavioral changes, when evaluating test coverage quality, or as a CI quality gate on critical modules. The AI value here is triage — classifying survivors, writing fix tests — not generating or estimating mutations.
 role: worker
 user-invocable: true
 ---
@@ -9,79 +9,159 @@ user-invocable: true
 
 ## Overview
 
-Coverage tells you what code your tests execute. Mutation testing tells you if your tests would **detect changes** to that code. A test suite that achieves high code coverage but low mutation score has weak assertions — it runs the code without verifying meaningful behavior.
+Coverage tells you what code your tests execute. Mutation testing tells you if your tests would **detect changes** to that code. A test suite with high coverage but a low mutation score has weak assertions — it runs code without verifying behavior.
 
-Mutation testing works by introducing small, deliberate changes (mutants) to production code and checking whether tests catch them. If a test fails, the mutant is "killed." If all tests pass despite the mutation, the mutant "survives" — revealing a gap in your test suite.
+This skill wraps real mutation testing tools (Stryker, pitest) and adds AI-powered triage of surviving mutants. The tool does the deterministic work (mutate code, run tests, report survivors). The AI does the judgment work (classify survivors, explain gaps, write fix tests).
+
+**This skill does NOT estimate or guess mutation outcomes.** If no mutation tool is available, it helps set one up. It does not substitute academic reasoning for actual test execution.
 
 ## Constraints
-- Only run mutation testing after tests exist; do not use it as a substitute for writing tests
-- Do not chase 100% mutation score; mark equivalent mutants as excluded
-- Run targeted mutation on changed files for CI; reserve full-codebase runs for periodic audits
+- **Always ask the user before running mutation testing.** Present the time estimate (see below) and scope, and get explicit approval. This applies during review workflows, build phases, and direct invocation. Mutation testing can be slow — never surprise the user with a long-running process.
+- Only run after tests exist; mutation testing validates tests, it does not replace them
+- Do not chase 100% mutation score; equivalent mutants are noise
+- Scope to changed files by default; full-codebase runs are periodic audits
 - Surviving mutants in critical paths require action; in trivial code they may be acceptable
 
-## The 4-Step Process
+## Time Estimation
 
-### 1. Generate Mutants
-Apply mutation operators to production code. Each operator category tests a different kind of assertion weakness:
+Before running, estimate and present the expected duration to the user:
 
-| Operator Category | Example Mutation | What It Tests |
+**Formula:** `mutation time ≈ (number of mutants) × (per-mutant test time)`
+
+Tools optimize per-mutant time significantly:
+- **Stryker** with `coverageAnalysis: "perTest"` runs only tests covering the mutated line, not the full suite
+- **pitest** with `withHistory` skips mutants killed in prior runs — first run is slow, incremental runs are fast
+
+**Rough heuristics (with per-test coverage analysis enabled):**
+
+| Scope | LOC | Expected Duration |
 | --- | --- | --- |
-| Arithmetic | `a + b` → `a - b`, `a * b` → `a / b` | Assertions on computed values |
-| Conditional | `if (x)` → `if (true)`, `if (false)` | Branch coverage completeness |
-| Equality | `===` → `!==`, `==` → `!=` | Equality check assertions |
-| Relational | `x > 0` → `x >= 0`, `x < y` → `x <= y` | Boundary condition coverage |
-| Logical | `a && b` → `a \|\| b`, `!a` → `a` | Boolean logic assertions |
-| Unary | `-x` → `x`, `++x` → `--x` | Sign and increment assertions |
-| Statement deletion | Remove a method call or assignment | Detection of missing behavior |
-| Return value | `return x` → `return 0` / `return null` / `return true` | Assertions on return values |
-| Null/boundary | `return obj` → `return null`, `""` → `"__mutated__"` | Null handling and edge cases |
-| Array/method | `.filter()` → `.map()`, `.slice()` → `.splice()` | Method behavior assertions |
-| Assignment | `x = y` → `x = 0`, `x += y` → `x -= y` | State mutation assertions |
+| Single small file | 50-200 | Seconds to ~1 min |
+| Single medium file | 200-500 | 1-5 min |
+| Multiple files / module | 500-1000 | 5-15 min |
+| Full codebase | 1000+ | 10 min to hours |
 
-### 2. Run Tests Against Each Mutant
-Execute the test suite for each mutant. A mutant has one of four states:
+The biggest variable is **test execution speed**, not mutant count. A project with slow integration tests will hurt far more than one with many mutants but fast unit tests.
 
-| State | Meaning | Action |
+**How to estimate for a specific project:**
+1. Check how long the test suite takes: `time npm test` or `time mvn test`
+2. Count approximate mutants: ~5-15 mutants per 100 LOC depending on code density
+3. With per-test coverage: per-mutant time is typically 5-20% of full suite time
+4. Without per-test coverage: per-mutant time ≈ full suite time (configure coverage analysis!)
+
+**Present to user before running:**
+> Mutation testing on `src/calculator.ts` (~150 LOC, ~20 mutants). Test suite runs in ~3s. Estimated time: under 1 minute. Proceed?
+
+If the estimate exceeds 5 minutes, suggest scoping down or confirm the user is willing to wait.
+
+## Step 1: Detect or Set Up Tooling
+
+Check what's available in the project:
+
+| Ecosystem | Tool | Detection |
 | --- | --- | --- |
-| **Killed** | At least one test fails | Good — your tests detect this change |
-| **Survived** | All tests pass despite the mutation | Bad — triage and fix (see below) |
-| **No coverage** | No test executes the mutated code | Write a test that reaches this code |
-| **Equivalent** | Mutation produces identical behavior | Exclude from scoring (false positive) |
+| JS/TS | [Stryker](https://stryker-mutator.io/) | `package.json` has `@stryker-mutator/core` or `stryker.conf.json` exists |
+| Java/Kotlin | [pitest](https://pitest.org/) | `pom.xml` or `build.gradle` has `pitest` plugin |
+| Python | [mutmut](https://mutmut.readthedocs.io/) | `mutmut` in requirements or pyproject |
+| C#/.NET | [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/) | `dotnet-stryker` in tool manifest |
 
-### 3. Calculate Mutation Score
+**If no tool is found:** Help the user install one. For JS/TS projects:
 
+```bash
+npm install --save-dev @stryker-mutator/core @stryker-mutator/vitest-runner  # or jest-runner, karma-runner
+npx stryker init
 ```
-mutation score = killed mutants / (total mutants - equivalent mutants) × 100
+
+For Java with Maven:
+```xml
+<plugin>
+  <groupId>org.pitest</groupId>
+  <artifactId>pitest-maven</artifactId>
+  <version>1.17.4</version>
+</plugin>
 ```
 
-| Score | Interpretation |
+**Do not proceed to mutation testing without a working tool.** If the user declines to install one, explain that this skill requires real test execution and cannot substitute estimation.
+
+## Step 2: Run the Tool (Scoped to Target)
+
+Run the mutation tool scoped to the files the user specified or to changed files:
+
+**Stryker (JS/TS):**
+```bash
+# Specific files
+npx stryker run --mutate "src/calculator.ts"
+
+# Changed files only (CI mode)
+npx stryker run --mutate "$(git diff --name-only HEAD~1 -- '*.ts' | grep -v test | tr '\n' ',')"
+```
+
+**Pitest (Java):**
+```bash
+# Specific class
+mvn pitest:mutationCoverage -DtargetClasses="com.example.Calculator"
+
+# With history (faster incremental runs)
+mvn pitest:mutationCoverage -DwithHistory
+```
+
+**mutmut (Python):**
+```bash
+mutmut run --paths-to-mutate=src/calculator.py
+```
+
+Capture the full output. If the tool produces an HTML report, note its path for the user.
+
+## Step 3: Parse Results
+
+Extract surviving mutants from the tool output. Map each to:
+
+| Field | Source |
 | --- | --- |
-| 90%+ | Strong test suite — assertions are thorough |
-| 70-89% | Good but has gaps — review surviving mutants |
-| 60-69% | Weak — significant assertion gaps exist |
-| Below 60% | Tests provide false confidence — major rework needed |
+| File + line | Tool report |
+| Mutation operator | Tool report (e.g., "ConditionalBoundary", "NegateConditional") |
+| Original code | Read the source at that line |
+| Mutated code | Tool report or infer from operator |
+| Mutation score | Tool summary |
 
-### 4. Triage Surviving Mutants
+## Step 4: Triage Survivors (AI Value)
 
-When a mutant survives, follow this procedure:
+This is where AI adds value the tool cannot. For each surviving mutant, classify it:
 
-1. **Equivalent mutant?** — Does the mutation produce identical behavior? If yes, mark as equivalent and exclude.
-2. **Missing assertion?** — Does a test execute the mutated code but not assert on the affected output? If yes, strengthen the assertion.
-3. **Missing test case?** — Is there no test that exercises the mutated path? If yes, write a new test.
-4. **Undertested edge case?** — Does the mutation expose a boundary or corner case with no coverage? If yes, add an edge case test.
+### Classification
 
-When strengthening tests, apply the same RED-GREEN discipline: write the test that fails against the mutant, then verify it passes against the original.
+| Classification | Meaning | Action |
+| --- | --- | --- |
+| **Equivalent** | Mutation produces identical behavior | Mark as excluded — no test can kill it |
+| **Missing assertion** | A test executes this code but doesn't assert on the affected output | Strengthen the existing test's assertion |
+| **Missing test case** | No test exercises the mutated path | Write a new test |
+| **Undertested boundary** | Mutation exposes a boundary/edge case with no coverage | Add a boundary test |
+| **Acceptable risk** | Trivial code where the mutation doesn't matter in practice | Document and skip |
 
-## Weak vs Strong Test Patterns
+### Triage Procedure
 
-The most common mutation testing failure: tests that execute code without meaningfully asserting on behavior.
+For each survivor:
 
-**Arithmetic operators** — Beware identity values that mask mutations:
+1. **Read the source context** — understand what the code does and why
+2. **Check for equivalence** — does the mutation actually change observable behavior? Common equivalent patterns:
+   - Mutating dead code or unreachable branches
+   - Changing order of commutative operations
+   - Negating conditions that are redundant with other guards
+   - Mutating logging/debug-only code
+3. **Find related tests** — which tests cover this code? What do they assert?
+4. **Classify** — missing assertion, missing test, boundary gap, or equivalent?
+5. **Write the fix test** — using RED-GREEN discipline: the test must fail against the mutant and pass against the original
+
+### Weak vs Strong Test Patterns
+
+The most common reason mutants survive: tests execute code without meaningfully asserting on behavior.
+
+**Arithmetic operators** — Beware identity values:
 ```js
 // WEAK: 0 is identity for addition — a + 0 === a - 0
 expect(calculate(5, 0)).toBe(5);  // passes with + or -
 
-// STRONG: use non-identity values that distinguish operators
+// STRONG: non-identity values distinguish operators
 expect(calculate(5, 3)).toBe(8);  // fails if + becomes -
 ```
 
@@ -90,7 +170,7 @@ expect(calculate(5, 3)).toBe(8);  // fails if + becomes -
 // WEAK: only tests the happy path
 expect(isAdult(25)).toBe(true);
 
-// STRONG: test the boundary itself
+// STRONG: test the boundary
 expect(isAdult(18)).toBe(true);   // exactly at boundary
 expect(isAdult(17)).toBe(false);  // one below
 ```
@@ -114,42 +194,38 @@ processOrder(order);
 expect(db.save).toHaveBeenCalledWith(order);
 ```
 
-## Mutation Operator Selection by Context
+## Step 5: Fix and Verify
 
-Prioritize operators based on the code under test:
+After writing fix tests:
 
-| Code Context | Priority Operators | Rationale |
-| --- | --- | --- |
-| Business logic | Relational, logical, return value, conditional | Decision correctness matters most |
-| Data processing | Arithmetic, return value, null/boundary | Computation accuracy is critical |
-| Control flow | Statement deletion, logical, relational, conditional | Path coverage gaps are high-risk |
-| API boundaries | Return value, null/boundary, equality | Contract violations affect consumers |
-| State management | Assignment, statement deletion, unary | State corruption is hard to debug |
+1. **Verify the fix test fails against the mutant** — if possible, manually apply the mutation and run the test to confirm it catches it. If the tool supports re-running specific mutants, use that.
+2. **Re-run the mutation tool** on the same scope to confirm the mutant is now killed.
+3. **Report the updated mutation score.**
 
-## Integration with TDD
+## Output Format
 
-Mutation testing and TDD are complementary:
+```markdown
+## Mutation Testing Results
 
-1. **TDD** ensures code is written to pass tests (tests drive design)
-2. **Mutation testing** ensures tests would catch regressions (tests verify behavior)
+**Tool:** Stryker 8.x | **Scope:** src/calculator.ts | **Duration:** 45s
+**Score:** 82% (41 killed / 50 total, 3 equivalent, 6 survived)
 
-After completing a TDD cycle, run mutation testing on the new code to verify your tests are strong enough. If mutants survive, strengthen assertions before moving on — this is cheaper than finding the gap later.
+### Surviving Mutants
 
-## Tool Integration (Optional)
+| # | File:Line | Operator | Original | Mutated | Classification | Fix |
+|---|-----------|----------|----------|---------|---------------|-----|
+| 1 | calculator.ts:42 | ConditionalBoundary | `x > 0` | `x >= 0` | Missing boundary test | Add test: `expect(calc(0)).toBe(...)` |
+| 2 | calculator.ts:67 | ReturnValue | `return result` | `return 0` | Missing assertion | Strengthen: assert on specific value |
+| ... | | | | | | |
 
-For automated mutation testing, configure [Stryker](https://stryker-mutator.io/):
+### Equivalent Mutants (excluded)
+| # | File:Line | Operator | Why Equivalent |
+|---|-----------|----------|---------------|
+| 1 | calculator.ts:15 | ArithmeticOperator | Dead code — branch unreachable |
 
-```json
-// stryker.conf.json (JavaScript/TypeScript)
-{
-  "mutate": ["src/**/*.ts", "!src/**/*.test.ts"],
-  "testRunner": "jest",
-  "reporters": ["html", "clear-text", "progress"],
-  "coverageAnalysis": "perTest"
-}
+### Recommended Test Additions
+(Specific test code for each non-equivalent survivor)
 ```
-
-Run with `npx stryker run`. For CI, use `--since <ref>` to limit to changed files.
 
 ## When to Apply
 
@@ -161,21 +237,19 @@ Run with `npx stryker run`. For CI, use `--since <ref>` to limit to changed file
 | CI quality gate on critical modules | Yes |
 | Reviewing a PR with test changes | Yes |
 | No tests exist yet | No — write tests first |
+| No mutation tool installed and user declines setup | No — explain limitation, do not estimate |
 | Prototype or spike code | No |
-| Performance-critical hot loops (mutation overhead) | Targeted only |
 
 ## Guidelines
 
-1. Mutation testing validates test quality, not code quality. Use it after tests exist, not instead of writing tests.
-2. Start with targeted mutation on changed code. Full-codebase mutation is expensive and noisy.
-3. Surviving mutants in critical paths require action. Surviving mutants in trivial code may be acceptable.
-4. When a surviving mutant reveals a test gap, write a test that fails without the fix — same red-green discipline as TDD.
-5. Equivalent mutants are noise. Mark and exclude them; do not chase 100% mutation score.
-6. Avoid identity values in test inputs (0 for add/subtract, 1 for multiply/divide, empty string for concat) — they mask operator mutations.
-7. Assert on specific values and shapes, not just truthiness — `toEqual(expected)` catches more mutants than `toBeTruthy()`.
-
-## Output
-Mutation score, list of surviving mutants with triage classification (equivalent/missing-assertion/missing-test/edge-case), and recommended test additions. Table format; skip killed mutants.
+1. **Always use a real mutation tool.** Do not estimate, guess, or academically reason about which mutants would survive. Run the tool, read the output.
+2. Start with changed files. Full-codebase runs are expensive and noisy.
+3. The AI's job is triage and fix-test authoring, not mutation generation. The tool handles generation deterministically.
+4. When a surviving mutant reveals a test gap, write a test that fails against the mutant — same RED-GREEN discipline as TDD.
+5. Equivalent mutants are noise. Classify and exclude them; do not chase 100%.
+6. Avoid identity values in test inputs (0 for +/-, 1 for *///, empty string for concat) — they mask operator mutations.
+7. Assert on specific values and shapes, not just truthiness.
+8. If the mutation tool is slow, suggest configuration improvements (incremental analysis, history, per-test coverage analysis) rather than skipping the tool.
 
 ## Integration
 
