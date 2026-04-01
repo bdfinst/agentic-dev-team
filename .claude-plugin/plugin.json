@@ -1,6 +1,6 @@
 {
   "name": "agentic-dev-team",
-  "version": "1.2.12",
+  "version": "1.2.13",
   "description": "Persona-driven AI development team: orchestrator, team agents, review agents, skills, slash commands, and advisory hooks for Claude Code",
   "author": {
     "name": "finsterb",

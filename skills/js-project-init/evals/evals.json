@@ -1,0 +1,59 @@
+{
+  "skill_name": "js-project-init",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need a new Node.js project for a CLI tool that processes CSV files. Just set up the project structure and tooling, I'll add the CSV logic myself.",
+      "expected_output": "A scaffolded JS project with package.json (type: module), eslint.config.js with functional rules, prettier.config.js, .editorconfig, .gitignore, vitest.config.js, and a starter src/index.js + src/index.test.js. No Playwright since this is a backend project. All lint/format/test commands should pass.",
+      "files": [],
+      "expectations": [
+        "package.json has \"type\": \"module\"",
+        "eslint.config.js exists and uses flat config format (export default [])",
+        "ESLint config bans ClassDeclaration and ClassExpression",
+        "prettier.config.js exists with singleQuote: true",
+        ".editorconfig exists with indent_size = 2",
+        ".gitignore includes node_modules and .env",
+        "vitest.config.js exists",
+        "No playwright.config.js (backend project)",
+        "src/index.js exports a pure function",
+        "src/index.test.js imports from src/index.js and has passing tests",
+        "npm run lint succeeds",
+        "npm test succeeds",
+        "The skill presented defaults and asked for confirmation before scaffolding"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Set up a new React project for a dashboard app. I want the full tooling — linting, formatting, testing, the works.",
+      "expected_output": "A scaffolded JS project with all standard configs plus Playwright for e2e testing. Should include playwright.config.js and an e2e/ directory. The package.json should have a test:e2e script.",
+      "files": [],
+      "expectations": [
+        "package.json has \"type\": \"module\"",
+        "playwright.config.js exists (frontend project detected)",
+        "e2e/ directory exists with at least one spec file",
+        "package.json scripts include test:e2e",
+        "eslint.config.js bans classes",
+        ".gitignore includes .env",
+        "vitest.config.js exists",
+        "The skill presented defaults and asked for confirmation before scaffolding"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Init a JS project but I want tabs instead of spaces, semicolons on, and 4-space tab width. Everything else can be default.",
+      "expected_output": "Standard scaffold but with customized formatting: prettier uses tabs, semicolons, tabWidth 4. EditorConfig uses tab indent. ESLint still has functional rules.",
+      "files": [],
+      "expectations": [
+        "prettier.config.js has useTabs: true",
+        "prettier.config.js has semi: true",
+        "prettier.config.js has tabWidth: 4",
+        ".editorconfig has indent_style = tab",
+        ".editorconfig has indent_size = 4 or tab_width = 4",
+        "eslint.config.js still bans ClassDeclaration",
+        "package.json has \"type\": \"module\"",
+        "npm run lint succeeds",
+        "npm test succeeds"
+      ]
+    }
+  ]
+}
