@@ -130,7 +130,7 @@ flowchart TD
 
 ### Plugin install (recommended)
 
-Installation is two steps: add the marketplace source, then install the plugin.
+Add the marketplace source, then install the plugin. The marketplace resolves the plugin location automatically from `marketplace.json`.
 
 **From GitHub:**
 
@@ -153,10 +153,14 @@ claude plugin marketplace add --scope project https://github.com/bdfinst/agentic
 claude plugin install --scope project agentic-dev-team
 ```
 
-After installing, run the prerequisite check:
+### Upgrading from a previous install
+
+If you previously installed the plugin before the directory restructure (pre-v2.1), remove and re-add the marketplace source:
 
 ```bash
-./plugins/agentic-dev-team/install.sh
+claude plugin marketplace remove agentic-dev-team
+claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
+claude plugin install agentic-dev-team
 ```
 
 ### Verify
