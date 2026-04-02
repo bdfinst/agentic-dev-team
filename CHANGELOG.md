@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.1.1](https://github.com/bdfinst/agentic-dev-team/compare/v2.1.0...v2.1.1) (2026-04-02)
+
+
+### Code Refactoring
+
+* move hook registrations to plugin settings.json ([95af67d](https://github.com/bdfinst/agentic-dev-team/commit/95af67d76a96572e9b551a52b7bafed59a55b4c5))
+* move plugin components into plugins/agentic-dev-team/ ([b1a4792](https://github.com/bdfinst/agentic-dev-team/commit/b1a47920c4e92c8bf9e4513928668e0d66110eed))
+* point marketplace.json source to plugins/agentic-dev-team ([b5ee9b8](https://github.com/bdfinst/agentic-dev-team/commit/b5ee9b82354db9ddf324d27be928c6c77cf703ab))
+* split CLAUDE.md into plugin config and dev instructions ([8157142](https://github.com/bdfinst/agentic-dev-team/commit/815714218bb63e62e3a9185b6caa3dade6d35c07))
+
 ## [2.1.0](https://github.com/bdfinst/agentic-dev-team/compare/v2.0.0...v2.1.0) (2026-04-02)
 
 
