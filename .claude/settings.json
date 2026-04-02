@@ -2,39 +2,5 @@
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          { "type": "command", "command": "bash hooks/pre-tool-guard.sh" }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          { "type": "command", "command": "bash hooks/destructive-guard.sh" },
-          { "type": "command", "command": "bash hooks/pre-commit-review.sh" }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          { "type": "command", "command": "bash hooks/js-fp-review.sh" },
-          { "type": "command", "command": "bash hooks/token-efficiency-review.sh" },
-          { "type": "command", "command": "bash hooks/eval-compliance-check.sh" },
-          { "type": "command", "command": "bash hooks/tdd-guard.sh" }
-        ]
-      },
-      {
-        "matcher": "Read",
-        "hooks": [
-          { "type": "command", "command": "bash hooks/version-check.sh" }
-        ]
-      }
-    ]
   }
 }
