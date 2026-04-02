@@ -10,7 +10,7 @@
     { "type": "perf", "section": "Performance Improvements" }
   ],
   "extra-files": [
-    ".claude-plugin/plugin.json",
+    "plugins/agentic-dev-team/.claude-plugin/plugin.json",
     {
       "type": "json",
       "path": ".claude-plugin/marketplace.json",
