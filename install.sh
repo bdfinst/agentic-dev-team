@@ -54,10 +54,6 @@ check_required "jq"     "macOS: brew install jq  |  Linux: apt install jq"
 
 echo ""
 echo "--- Optional ---"
-check_optional "bd" \
-  "Beads task tracker — agents use this for persistent task memory across sessions" \
-  "npm install -g @beads/bd  |  brew install beads"
-
 check_optional "semgrep" \
   "SAST scanning via /semgrep-analyze" \
   "pip install semgrep  |  brew install semgrep"

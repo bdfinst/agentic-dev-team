@@ -24,7 +24,6 @@ Before creating the PR, verify:
 - [ ] All tests pass (fresh run, not cached)
 - [ ] `/code-review --changed` passed or warnings are documented
 - [ ] Documentation is current (tech-writer verified in Phase 3)
-- [ ] Beads issues are marked done (`bd update <id> --status done`)
 - [ ] Branch is rebased on latest main (resolve conflicts if needed)
 
 ### 2. Create the PR
@@ -56,12 +55,10 @@ Default: **squash merge** unless the human specifies otherwise.
 ### 5. Post-Merge Verification & Cleanup
 - Run tests on the merged result — **do not skip this**. Broken code must never reach base branches.
 - Delete the feature branch (remote and local) — only for options 1 and 4
-- Close related Beads issues if not auto-closed
 - Remove worktree if applicable (options 1 and 4 only; keep for option 2)
 
 ## Integration
 - Triggered after Phase 3 human gate approval
-- Uses Beads for issue lifecycle (`bd update --status done`)
 - PR creation follows the git commit conventions in the project
 
 ## Output

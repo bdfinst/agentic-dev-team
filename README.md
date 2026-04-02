@@ -105,34 +105,6 @@ flowchart TD
   - macOS: `brew install jq`
   - Linux: `apt install jq` or `yum install jq`
 
-**Recommended:**
-
-- [Beads](https://github.com/beads-dev/beads) (`bd`) — git-backed issue tracker designed for AI agents. If `bd` is not installed, agents fall back to `memory/` progress files.
-
-  AI agents start each session with a fresh context window — they don't remember what happened last time. Beads solves this "fresh context" problem by giving agents a structured, queryable task graph they can read at session start instead of reconstructing state from prose summaries.
-
-  How agents use it across the three-phase workflow:
-
-  - **Session start** — Agents run `bd ready --json` to find their next unblocked task
-  - **Research** — Discovered problems are filed as Beads issues so they survive context compaction
-  - **Plan** — The implementation plan is decomposed into Beads issues with dependency links (`bd dep add`)
-  - **Implement** — Agents work one issue per session, mark it `done`, then end the session. The next session picks up the next unblocked item
-  - **Crash recovery** — If a session dies mid-task, the issue stays `in-progress` with a checkpoint in the body, so the next session can resume
-
-  Beads and `memory/` progress files are complementary: Beads is the source of truth for *what work remains* (structured task graph), while `memory/` captures *why decisions were made* (prose context).
-
-  ```bash
-  npm install -g @beads/bd
-  # or: brew install beads
-  ```
-
-  Initialize in your project:
-
-  ```bash
-  bd init
-  git add .beads && git commit -m "Initialize Beads task tracker"
-  ```
-
 **Optional:**
 
 - `semgrep` — required only for `/semgrep-analyze`
@@ -177,13 +149,6 @@ After installing, run the prerequisite check:
 
 ```bash
 ./install.sh
-```
-
-Then add the Beads session-start hook to your global `~/.claude/CLAUDE.md`:
-
-```markdown
-## Session Start
-At the beginning of every session, run `bd prime` to load Beads context before any other work.
 ```
 
 ### Verify
@@ -301,7 +266,6 @@ Reusable knowledge modules that any agent can draw on. Skills define patterns, p
 | [Design Interrogation](skills/design-interrogation.md) | Stress-test designs and surface unresolved decisions |
 | [Design It Twice](skills/design-it-twice.md) | Generate parallel alternative interfaces via sub-agents |
 | [Branch Workflow](skills/branch-workflow.md) | PR creation, merge strategy, branch cleanup |
-| [Beads Task Tracking](skills/beads.md) | Git-backed issue graphs for multi-agent coordination |
 | [Competitive Analysis](skills/competitive-analysis.md) | Compare against external tools to find gaps and weaknesses |
 | [JS Project Init](skills/js-project-init/SKILL.md) | Scaffold a new JS project with ESM, vitest, eslint, prettier |
 

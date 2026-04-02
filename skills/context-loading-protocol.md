@@ -55,7 +55,6 @@ These are the measured sizes of each loadable file. CLAUDE.md is always loaded a
 | API Design | `skills/api-design.md` | ~600 |
 | Legacy Code | `skills/legacy-code.md` | ~700 |
 | Mutation Testing | `skills/mutation-testing.md` | ~700 |
-| Beads Task Tracking | `skills/beads.md` | ~500 |
 
 ### Always-Loaded Baseline
 | Item | ~Tokens |

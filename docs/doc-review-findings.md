@@ -122,9 +122,9 @@ The Slash Commands Catalog is missing commands that exist in `commands/` and are
 
 ---
 
-### W5. `docs/skills.md` — Missing "Beads Task Tracking" from Orchestration Skills table
+### W5. `docs/skills.md` — Beads Task Tracking removed
 
-**Line 23.** The Orchestration Skills table includes Beads, so this is actually present. No action needed. *(Self-correction after re-read.)*
+Beads was removed from the plugin. No action needed.
 
 However, the table is missing **three development discipline skills** that were added later:
 

@@ -68,7 +68,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | API Design | `skills/api-design.md` | 600 | Architect, Software Engineer |
 | Legacy Code | `skills/legacy-code.md` | 700 | Software Engineer, QA Engineer, Architect |
 | Mutation Testing | `skills/mutation-testing.md` | 700 | QA Engineer, Software Engineer |
-| Beads Task Tracking | `skills/beads.md` | 500 | Orchestrator, Software Engineer, QA Engineer |
+
 
 | Test-Driven Development | `skills/test-driven-development.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
 | Systematic Debugging | `skills/systematic-debugging.md` | 600 | Software Engineer, QA Engineer |

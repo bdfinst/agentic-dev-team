@@ -129,7 +129,6 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 | `/context-loading-protocol` | Context management | Optimizing what gets loaded into context |
 | `/context-summarization` | Context compression | Managing long conversations |
 | `/performance-metrics` | Task metrics | Logging and reviewing performance data |
-| `/beads` | Task tracking | Query unblocked work, create issues, link dependencies |
 
 ## Rules to Know
 
@@ -139,25 +138,6 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 4. **Feedback keywords.** You can modify system behavior anytime using `amend`, `learn`, `remember`, or `forget`. Say `stop` or `pause` to halt agent work.
 
 ## Prerequisites
-
-### Beads (recommended)
-
-Beads is a git-backed issue tracker for AI agents. It gives agents persistent, structured task memory across sessions — they query `bd ready --json` at the start of each session instead of relying on reconstructed prose context.
-
-Install once, system-wide:
-
-```bash
-npm install -g @beads/bd   # or: brew install beads
-```
-
-Initialize in your project:
-
-```bash
-bd init
-git add .beads && git commit -m "Initialize Beads task tracker"
-```
-
-That's it. Agents will automatically use Beads for task tracking following the `/beads` skill. If `bd` is not installed, agents fall back to `memory/` progress files only.
 
 ## Project Structure
 

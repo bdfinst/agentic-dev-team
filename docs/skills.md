@@ -20,7 +20,6 @@ Used by the Orchestrator to manage the team:
 | Performance Metrics | [`performance-metrics.md`](../skills/performance-metrics.md) | Task logging schema and reporting procedures |
 | Agent & Skill Authoring | [`agent-skill-authoring.md`](../skills/agent-skill-authoring.md) | How to create and maintain agents and skills |
 | Specs | [`specs.md`](../skills/specs.md) | BDD scenario consistency gate before implementation |
-| Beads Task Tracking | [`beads.md`](../skills/beads.md) | Beads issue lifecycle, session discipline, multi-agent coordination |
 
 ### Quality Skills
 

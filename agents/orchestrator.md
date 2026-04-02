@@ -62,7 +62,6 @@ All review commands are executed under orchestrator direction. When a user trigg
 - [Agent & Skill Authoring](../skills/agent-skill-authoring.md) - invoke when adding new team members, defining new capabilities, or restructuring agent responsibilities
 - [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke to enforce the three-phase quality gate: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3)
 - [Specs](../skills/specs.md) - invoke when routing a new feature request; verify the consistency gate passed before loading implementing agents
-- [Beads Task Tracking](../skills/beads.md) - invoke at task start to query `bd ready --json` for unblocked work; invoke during Research to file discovered issues; invoke during Plan to create and link Beads issues for each planned change; invoke during Implement to update issue status as work completes
 - [Code Review](../commands/code-review.md) - invoke after each Phase 3 checkpoint and before committing; runs all relevant review agents with orchestrator-assigned models
 - [Review Agent](../commands/review-agent.md) - invoke for targeted single-agent inline review during Phase 3 checkpoints
 - [Eval Audit](../commands/agent-audit.md) - invoke after adding or modifying any agent or command file
@@ -82,7 +81,7 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 ### Phase 1: Research
 - **Goal**: Understand how the system works, identify all relevant files, locate the problem or feature surface area
 - **Agents**: Orchestrator + sub-agents for exploration (context isolation — sub-agents search, read, and return concise findings so the parent context stays clean)
-- **Output**: A research progress file with file paths, line numbers, data flows, and key findings; file any discovered side-issues as Beads issues (`bd create`) so they survive context compaction
+- **Output**: A research progress file with file paths, line numbers, data flows, and key findings
 - **Design doc**: For non-trivial features (see Design Doc skill for criteria), produce a design document at `docs/specs/{feature-name}.md` with problem statement, proposed approach, alternatives, key decisions, and scope boundaries. The human approves the design doc as part of the research gate.
 - **Human gate**: Human reviews the research findings and design doc before planning begins. Catching a misunderstanding here prevents hundreds of bad lines of code downstream.
 - **Context**: Compact after this phase — write progress file, start fresh context for Phase 2
@@ -91,19 +90,18 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 - **Goal**: Specify every change to be made — files, snippets, test strategy, verification steps
 - **Agents**: Architect (primary), Product Manager (if requirements unclear), Orchestrator
 - **Input**: Research progress file from Phase 1 + approved design doc (if produced in Phase 1)
-- **Output**: An implementation plan with explicit file changes, test expectations, and acceptance criteria; create a Beads issue for each discrete unit of work (`bd create`) and link dependencies (`bd dep add`)
+- **Output**: An implementation plan with explicit file changes, test expectations, and acceptance criteria
 - **Automated plan review**: Before the human gate, dispatch a plan-reviewer subagent using the `prompts/plan-reviewer.md` template. The reviewer checks completeness, consistency, risk, and scope. If `needs-revision`, address issues before presenting to the human.
 - **Human gate**: Human reviews the plan. This is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. If the plan is wrong, fix it here, not in code.
-- **Context**: Compact after this phase — write progress file (include Beads IDs), start fresh context for Phase 3
+- **Context**: Compact after this phase — write progress file, start fresh context for Phase 3
 
 ### Phase 3: Implement
 - **Goal**: Execute the plan. Write code, run tests, verify at each step.
 - **Agents**: Software Engineer (primary), QA Engineer (validation), others as needed
-- **Input**: Plan progress file from Phase 2; query `bd ready --json` at session start to find the next unblocked task; claim it with `bd update <id> --assignee software-engineer` before starting
+- **Input**: Plan progress file from Phase 2
 - **Subagent dispatch**: Use the `prompts/implementer.md` template when dispatching implementation subagents. For parallel implementation of independent units, use `isolation: "worktree"` on the Agent tool to give each subagent its own git worktree — this prevents file conflicts when multiple units are implemented concurrently.
 - **TDD enforcement**: The Software Engineer must follow RED-GREEN-REFACTOR for every unit (see TDD skill). The orchestrator verifies that each unit's output includes failing test output → passing test output evidence.
-- **Checkpointing**: After each file written or significant milestone, update the active Beads issue body with a structured progress snapshot (`bd update <id> --body "..."`) — this is the crash-recovery record. If the session closes before `done`, the next session reads `bd show <id>` and resumes from the last checkpoint.
-- **Output**: Working code that passes all tests, acceptance criteria, and code review; mark each issue done with `bd update <id> --status done` and start a fresh session for the next `bd ready` item
+- **Output**: Working code that passes all tests, acceptance criteria, and code review
 - **Three-stage inline review**: After each discrete unit of work completes, run spec-compliance first, then quality, then browser verification for UI changes:
   1. **Stage 1 — Spec compliance**: Run `spec-compliance-review` using the `prompts/spec-reviewer.md` template. Does the code match the spec? If fail → fix before proceeding to Stage 2.
   2. **Stage 2 — Code quality**: Run the standard **Inline Review Checkpoint** (see below) using the `prompts/quality-reviewer.md` template. Is the code high quality?
