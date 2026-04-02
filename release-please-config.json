@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "include-v-in-tag": true,
+  "include-component-in-tag": false,
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "refactor", "section": "Code Refactoring" },
+    { "type": "perf", "section": "Performance Improvements" }
+  ],
+  "extra-files": [
+    ".claude-plugin/plugin.json",
+    {
+      "type": "json",
+      "path": ".claude-plugin/marketplace.json",
+      "jsonpath": "$.plugins[0].version"
+    }
+  ],
+  "packages": {
+    ".": {}
+  }
+}
