@@ -88,6 +88,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/triage` | `commands/triage.md` | worker | Investigate a bug and file a GitHub issue with TDD fix plan |
 | `/issues-from-plan` | `commands/issues-from-plan.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
 | `/harness-audit` | `commands/harness-audit.md` | orchestrator | Analyze harness effectiveness and flag stale components |
+| `/version` | `commands/version.md` | worker | Report the installed plugin version |
 | `/help` | `commands/help.md` | worker | List all available slash commands with descriptions |
 
 ## Request Processing Flow
