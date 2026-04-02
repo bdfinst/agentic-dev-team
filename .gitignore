@@ -11,11 +11,6 @@ node_modules/
 .claude/metrics/*.log
 UPDATE.md
 
-# Dev-setup symlinks (created by dev-setup.sh, not for distribution)
-.claude/agents
-.claude/commands
-.claude/skills
-.claude/hooks
 sync-to-aci.sh
 
 # Pre-commit review gate file (generated at runtime)

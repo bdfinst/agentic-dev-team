@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "agentic-dev-team",
-      "source": "./",
+      "source": "./plugins/agentic-dev-team",
       "description": "Persona-driven AI development team: orchestrator, team agents, review agents, skills, slash commands, and advisory hooks for Claude Code",
       "version": "2.1.0",
       "author": {

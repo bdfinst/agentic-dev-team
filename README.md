@@ -130,7 +130,7 @@ flowchart TD
 
 ### Plugin install (recommended)
 
-Installation is two steps: add the marketplace source, then install the plugin.
+Add the marketplace source, then install the plugin. The marketplace resolves the plugin location automatically from `marketplace.json`.
 
 **From GitHub:**
 
@@ -153,10 +153,14 @@ claude plugin marketplace add --scope project https://github.com/bdfinst/agentic
 claude plugin install --scope project agentic-dev-team
 ```
 
-After installing, run the prerequisite check:
+### Upgrading from a previous install
+
+If you previously installed the plugin before the directory restructure (pre-v2.1), remove and re-add the marketplace source:
 
 ```bash
-./install.sh
+claude plugin marketplace remove agentic-dev-team
+claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
+claude plugin install agentic-dev-team
 ```
 
 ### Verify
@@ -171,16 +175,16 @@ After starting Claude Code, confirm the system is working:
 
 | Agent | Purpose |
 | --- | --- |
-| [**Orchestrator**](agents/orchestrator.md) | Routes tasks, selects models, coordinates inline review feedback loop |
-| [**Software Engineer**](agents/software-engineer.md) | Code generation, implementation, applies review corrections |
-| [**Data Scientist**](agents/data-scientist.md) | ML models, data analysis, statistical validation |
-| [**QA/SQA Engineer**](agents/qa-engineer.md) | Testing, quality gates, peer validation |
-| [**UI/UX Designer**](agents/ui-ux-designer.md) | Interface design, accessibility compliance |
-| [**Architect**](agents/architect.md) | System design, tech decisions, scalability |
-| [**Product Manager**](agents/product-manager.md) | Requirements, prioritization, stakeholder alignment |
-| [**Technical Writer**](agents/tech-writer.md) | Documentation, terminology consistency |
-| [**Security Engineer**](agents/security-engineer.md) | Security analysis, threat modeling |
-| [**DevOps/SRE Engineer**](agents/devops-sre-engineer.md) | Pipeline, deployment, reliability |
+| [**Orchestrator**](plugins/agentic-dev-team/agents/orchestrator.md) | Routes tasks, selects models, coordinates inline review feedback loop |
+| [**Software Engineer**](plugins/agentic-dev-team/agents/software-engineer.md) | Code generation, implementation, applies review corrections |
+| [**Data Scientist**](plugins/agentic-dev-team/agents/data-scientist.md) | ML models, data analysis, statistical validation |
+| [**QA/SQA Engineer**](plugins/agentic-dev-team/agents/qa-engineer.md) | Testing, quality gates, peer validation |
+| [**UI/UX Designer**](plugins/agentic-dev-team/agents/ui-ux-designer.md) | Interface design, accessibility compliance |
+| [**Architect**](plugins/agentic-dev-team/agents/architect.md) | System design, tech decisions, scalability |
+| [**Product Manager**](plugins/agentic-dev-team/agents/product-manager.md) | Requirements, prioritization, stakeholder alignment |
+| [**Technical Writer**](plugins/agentic-dev-team/agents/tech-writer.md) | Documentation, terminology consistency |
+| [**Security Engineer**](plugins/agentic-dev-team/agents/security-engineer.md) | Security analysis, threat modeling |
+| [**DevOps/SRE Engineer**](plugins/agentic-dev-team/agents/devops-sre-engineer.md) | Pipeline, deployment, reliability |
 
 ## Review Agents
 
@@ -188,60 +192,60 @@ After starting Claude Code, confirm the system is working:
 
 | Agent | Focus | Model |
 | --- | --- | --- |
-| [`spec-compliance-review`](agents/spec-compliance-review.md) | **First gate** — spec-to-code matching before quality review | sonnet |
-| [`test-review`](agents/test-review.md) | Coverage gaps, assertion quality, test hygiene (QA Engineer delegates here) | sonnet |
-| [`security-review`](agents/security-review.md) | Injection, auth/authz, data exposure | opus |
-| [`domain-review`](agents/domain-review.md) | Abstraction leaks, boundary violations | opus |
-| [`arch-review`](agents/arch-review.md) | ADR compliance, layer violations, dependency direction | opus |
-| [`structure-review`](agents/structure-review.md) | SRP, DRY, coupling, organization | sonnet |
-| [`complexity-review`](agents/complexity-review.md) | Function size, cyclomatic complexity, nesting | haiku |
-| [`naming-review`](agents/naming-review.md) | Intent-revealing names, magic values | haiku |
-| [`js-fp-review`](agents/js-fp-review.md) | Array mutations, impure patterns | sonnet |
-| [`concurrency-review`](agents/concurrency-review.md) | Race conditions, async pitfalls | sonnet |
-| [`a11y-review`](agents/a11y-review.md) | WCAG 2.1 AA, ARIA, keyboard nav | sonnet |
-| [`performance-review`](agents/performance-review.md) | Resource leaks, N+1 queries | haiku |
-| [`token-efficiency-review`](agents/token-efficiency-review.md) | File size, LLM anti-patterns | haiku |
-| [`claude-setup-review`](agents/claude-setup-review.md) | CLAUDE.md completeness and accuracy | haiku |
-| [`doc-review`](agents/doc-review.md) | README accuracy, API doc alignment, comment drift | sonnet |
-| [`svelte-review`](agents/svelte-review.md) | Svelte reactivity, closure state leaks | sonnet |
-| [`progress-guardian`](agents/progress-guardian.md) | Plan adherence, commit discipline, scope creep | sonnet |
-| [`refactoring-review`](agents/refactor-scan.md) | Post-GREEN refactoring opportunities | sonnet |
-| [`data-flow-tracer`](agents/use-case-data-patterns.md) | Data flow tracing through architecture layers (analysis-only) | sonnet |
+| [`spec-compliance-review`](plugins/agentic-dev-team/agents/spec-compliance-review.md) | **First gate** — spec-to-code matching before quality review | sonnet |
+| [`test-review`](plugins/agentic-dev-team/agents/test-review.md) | Coverage gaps, assertion quality, test hygiene (QA Engineer delegates here) | sonnet |
+| [`security-review`](plugins/agentic-dev-team/agents/security-review.md) | Injection, auth/authz, data exposure | opus |
+| [`domain-review`](plugins/agentic-dev-team/agents/domain-review.md) | Abstraction leaks, boundary violations | opus |
+| [`arch-review`](plugins/agentic-dev-team/agents/arch-review.md) | ADR compliance, layer violations, dependency direction | opus |
+| [`structure-review`](plugins/agentic-dev-team/agents/structure-review.md) | SRP, DRY, coupling, organization | sonnet |
+| [`complexity-review`](plugins/agentic-dev-team/agents/complexity-review.md) | Function size, cyclomatic complexity, nesting | haiku |
+| [`naming-review`](plugins/agentic-dev-team/agents/naming-review.md) | Intent-revealing names, magic values | haiku |
+| [`js-fp-review`](plugins/agentic-dev-team/agents/js-fp-review.md) | Array mutations, impure patterns | sonnet |
+| [`concurrency-review`](plugins/agentic-dev-team/agents/concurrency-review.md) | Race conditions, async pitfalls | sonnet |
+| [`a11y-review`](plugins/agentic-dev-team/agents/a11y-review.md) | WCAG 2.1 AA, ARIA, keyboard nav | sonnet |
+| [`performance-review`](plugins/agentic-dev-team/agents/performance-review.md) | Resource leaks, N+1 queries | haiku |
+| [`token-efficiency-review`](plugins/agentic-dev-team/agents/token-efficiency-review.md) | File size, LLM anti-patterns | haiku |
+| [`claude-setup-review`](plugins/agentic-dev-team/agents/claude-setup-review.md) | CLAUDE.md completeness and accuracy | haiku |
+| [`doc-review`](plugins/agentic-dev-team/agents/doc-review.md) | README accuracy, API doc alignment, comment drift | sonnet |
+| [`svelte-review`](plugins/agentic-dev-team/agents/svelte-review.md) | Svelte reactivity, closure state leaks | sonnet |
+| [`progress-guardian`](plugins/agentic-dev-team/agents/progress-guardian.md) | Plan adherence, commit discipline, scope creep | sonnet |
+| [`refactoring-review`](plugins/agentic-dev-team/agents/refactor-scan.md) | Post-GREEN refactoring opportunities | sonnet |
+| [`data-flow-tracer`](plugins/agentic-dev-team/agents/use-case-data-patterns.md) | Data flow tracing through architecture layers (analysis-only) | sonnet |
 
 ## Slash Commands
 
 | Command | What It Does |
 | --- | --- |
-| [`/code-review`](commands/code-review.md) | Run all review agents with pre-flight gates, scope validation, and MCP probing |
-| [`/review`](commands/review.md) | Alias for `/code-review` |
-| [`/review-agent <name>`](commands/review-agent.md) | Run a single review agent |
-| [`/agent-audit`](commands/agent-audit.md) | Audit agents and commands for structural compliance |
-| [`/agent-eval`](commands/agent-eval.md) | Run eval fixtures and grade review agent accuracy |
-| [`/agent-add`](commands/agent-add.md) | Scaffold a new review agent |
-| [`/agent-remove`](commands/agent-remove.md) | Remove an agent and all registry entries |
-| [`/add-plugin`](commands/add-plugin.md) | Install a plugin and register it in settings.json |
-| [`/apply-fixes`](commands/apply-fixes.md) | Apply correction prompts from `/code-review` |
-| [`/review-summary`](commands/review-summary.md) | Generate compact session summary |
-| [`/semgrep-analyze`](commands/semgrep-analyze.md) | Run Semgrep SAST |
-| [`/domain-analysis`](commands/domain-analysis.md) | Assess DDD health: bounded contexts, context map, friction report |
-| [`/mutation-testing`](commands/mutation-testing.md) | Run mutation testing tool and triage surviving mutants |
-| [`/browse`](commands/browse.md) | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
-| [`/careful`](commands/careful.md) | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE) |
-| [`/freeze <glob>`](commands/freeze.md) | Scope-lock editing to a glob pattern |
-| [`/unfreeze`](commands/unfreeze.md) | Lift the scope lock set by `/freeze` |
-| [`/guard <glob>`](commands/guard.md) | Combined `/careful` + `/freeze` for production-critical sessions |
-| [`/upgrade`](commands/upgrade.md) | Check for and apply plugin updates from within a session |
-| [`/help`](commands/help.md) | List all available slash commands with descriptions |
-| [`/plan`](commands/plan.md) | Create a structured implementation plan with TDD steps |
-| [`/build`](commands/build.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
-| [`/pr`](commands/pr.md) | Run quality gates and create a pull request |
-| [`/setup`](commands/setup.md) | Detect tech stack, generate project-level config and hooks |
-| [`/continue`](commands/continue.md) | Resume work from a prior session using phase progress files |
-| [`/specs`](commands/specs.md) | Collaborative specification workflow |
-| [`/triage`](commands/triage.md) | Investigate a bug and file a GitHub issue with TDD fix plan |
-| [`/issues-from-plan`](commands/issues-from-plan.md) | Break a plan into independently-grabbable GitHub issues |
-| [`/harness-audit`](commands/harness-audit.md) | Analyze harness effectiveness and flag stale components |
-| [`/competitive-analysis`](commands/competitive-analysis.md) | Compare plugin against others to find gaps |
+| [`/code-review`](plugins/agentic-dev-team/commands/code-review.md) | Run all review agents with pre-flight gates, scope validation, and MCP probing |
+| [`/review`](plugins/agentic-dev-team/commands/review.md) | Alias for `/code-review` |
+| [`/review-agent <name>`](plugins/agentic-dev-team/commands/review-agent.md) | Run a single review agent |
+| [`/agent-audit`](plugins/agentic-dev-team/commands/agent-audit.md) | Audit agents and commands for structural compliance |
+| [`/agent-eval`](plugins/agentic-dev-team/commands/agent-eval.md) | Run eval fixtures and grade review agent accuracy |
+| [`/agent-add`](plugins/agentic-dev-team/commands/agent-add.md) | Scaffold a new review agent |
+| [`/agent-remove`](plugins/agentic-dev-team/commands/agent-remove.md) | Remove an agent and all registry entries |
+| [`/add-plugin`](plugins/agentic-dev-team/commands/add-plugin.md) | Install a plugin and register it in settings.json |
+| [`/apply-fixes`](plugins/agentic-dev-team/commands/apply-fixes.md) | Apply correction prompts from `/code-review` |
+| [`/review-summary`](plugins/agentic-dev-team/commands/review-summary.md) | Generate compact session summary |
+| [`/semgrep-analyze`](plugins/agentic-dev-team/commands/semgrep-analyze.md) | Run Semgrep SAST |
+| [`/domain-analysis`](plugins/agentic-dev-team/commands/domain-analysis.md) | Assess DDD health: bounded contexts, context map, friction report |
+| [`/mutation-testing`](plugins/agentic-dev-team/commands/mutation-testing.md) | Run mutation testing tool and triage surviving mutants |
+| [`/browse`](plugins/agentic-dev-team/commands/browse.md) | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
+| [`/careful`](plugins/agentic-dev-team/commands/careful.md) | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE) |
+| [`/freeze <glob>`](plugins/agentic-dev-team/commands/freeze.md) | Scope-lock editing to a glob pattern |
+| [`/unfreeze`](plugins/agentic-dev-team/commands/unfreeze.md) | Lift the scope lock set by `/freeze` |
+| [`/guard <glob>`](plugins/agentic-dev-team/commands/guard.md) | Combined `/careful` + `/freeze` for production-critical sessions |
+| [`/upgrade`](plugins/agentic-dev-team/commands/upgrade.md) | Check for and apply plugin updates from within a session |
+| [`/help`](plugins/agentic-dev-team/commands/help.md) | List all available slash commands with descriptions |
+| [`/plan`](plugins/agentic-dev-team/commands/plan.md) | Create a structured implementation plan with TDD steps |
+| [`/build`](plugins/agentic-dev-team/commands/build.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
+| [`/pr`](plugins/agentic-dev-team/commands/pr.md) | Run quality gates and create a pull request |
+| [`/setup`](plugins/agentic-dev-team/commands/setup.md) | Detect tech stack, generate project-level config and hooks |
+| [`/continue`](plugins/agentic-dev-team/commands/continue.md) | Resume work from a prior session using phase progress files |
+| [`/specs`](plugins/agentic-dev-team/commands/specs.md) | Collaborative specification workflow |
+| [`/triage`](plugins/agentic-dev-team/commands/triage.md) | Investigate a bug and file a GitHub issue with TDD fix plan |
+| [`/issues-from-plan`](plugins/agentic-dev-team/commands/issues-from-plan.md) | Break a plan into independently-grabbable GitHub issues |
+| [`/harness-audit`](plugins/agentic-dev-team/commands/harness-audit.md) | Analyze harness effectiveness and flag stale components |
+| [`/competitive-analysis`](plugins/agentic-dev-team/commands/competitive-analysis.md) | Compare plugin against others to find gaps |
 
 ## Skills
 
@@ -249,107 +253,78 @@ Reusable knowledge modules that any agent can draw on. Skills define patterns, p
 
 | Skill | Purpose |
 | --- | --- |
-| [Context Loading Protocol](skills/context-loading-protocol.md) | Decide what to load and when; stay below 40% context ceiling |
-| [Context Summarization](skills/context-summarization.md) | Compress conversation history to structured summaries in `memory/` |
-| [Feedback & Learning](skills/feedback-learning.md) | Process `amend`/`learn`/`remember`/`forget` trigger keywords |
-| [Human Oversight Protocol](skills/human-oversight-protocol.md) | Approval gates, intervention commands, transparency requirements |
-| [Performance Metrics](skills/performance-metrics.md) | Log task completion data to `metrics/` in JSONL format |
-| [Quality Gate Pipeline](skills/quality-gate-pipeline.md) | Self-validation, verification evidence, review-correction loops |
-| [Governance & Compliance](skills/governance-compliance.md) | Audit logging, quality gates, ethics procedures |
-| [Agent & Skill Authoring](skills/agent-skill-authoring.md) | Create and maintain agent and skill files |
-| [Specs](skills/specs.md) | Collaborative spec workflow: Intent, BDD, Architecture, Acceptance Criteria |
-| [API Design](skills/api-design.md) | Contract-first API design for stable, evolvable interfaces |
-| [Hexagonal Architecture](skills/hexagonal-architecture.md) | Ports and adapters to separate business logic from infrastructure |
-| [Domain-Driven Design](skills/domain-driven-design.md) | Bounded contexts, aggregates, context mapping |
-| [Domain Analysis](skills/domain-analysis.md) | Assess existing system DDD health |
-| [Threat Modeling](skills/threat-modeling.md) | Structured STRIDE security analysis |
-| [Legacy Code](skills/legacy-code.md) | Characterization tests and dependency-breaking before behavioral changes |
-| [Test-Driven Development](skills/test-driven-development.md) | RED-GREEN-REFACTOR with hard gates |
-| [Mutation Testing](skills/mutation-testing.md) | Run Stryker/pitest/mutmut and triage surviving mutants |
-| [Systematic Debugging](skills/systematic-debugging.md) | Structured root cause analysis |
-| [Browser Testing](skills/browser-testing.md) | Playwright-based visual QA |
-| [Test Design Reviewer](skills/test-design-reviewer.md) | Evaluate test quality and design |
-| [CI Debugging](skills/ci-debugging.md) | Diagnose CI pipeline failures |
-| [Design Doc](skills/design-doc.md) | Problem statement, approach, alternatives, scope boundaries |
-| [Design Interrogation](skills/design-interrogation.md) | Stress-test designs and surface unresolved decisions |
-| [Design It Twice](skills/design-it-twice.md) | Generate parallel alternative interfaces via sub-agents |
-| [Branch Workflow](skills/branch-workflow.md) | PR creation, merge strategy, branch cleanup |
-| [Competitive Analysis](skills/competitive-analysis.md) | Compare against external tools to find gaps and weaknesses |
-| [JS Project Init](skills/js-project-init/SKILL.md) | Scaffold a new JS project with ESM, vitest, eslint, prettier |
+| [Context Loading Protocol](plugins/agentic-dev-team/skills/context-loading-protocol.md) | Decide what to load and when; stay below 40% context ceiling |
+| [Context Summarization](plugins/agentic-dev-team/skills/context-summarization.md) | Compress conversation history to structured summaries in `memory/` |
+| [Feedback & Learning](plugins/agentic-dev-team/skills/feedback-learning.md) | Process `amend`/`learn`/`remember`/`forget` trigger keywords |
+| [Human Oversight Protocol](plugins/agentic-dev-team/skills/human-oversight-protocol.md) | Approval gates, intervention commands, transparency requirements |
+| [Performance Metrics](plugins/agentic-dev-team/skills/performance-metrics.md) | Log task completion data to `metrics/` in JSONL format |
+| [Quality Gate Pipeline](plugins/agentic-dev-team/skills/quality-gate-pipeline.md) | Self-validation, verification evidence, review-correction loops |
+| [Governance & Compliance](plugins/agentic-dev-team/skills/governance-compliance.md) | Audit logging, quality gates, ethics procedures |
+| [Agent & Skill Authoring](plugins/agentic-dev-team/skills/agent-skill-authoring.md) | Create and maintain agent and skill files |
+| [Specs](plugins/agentic-dev-team/skills/specs.md) | Collaborative spec workflow: Intent, BDD, Architecture, Acceptance Criteria |
+| [API Design](plugins/agentic-dev-team/skills/api-design.md) | Contract-first API design for stable, evolvable interfaces |
+| [Hexagonal Architecture](plugins/agentic-dev-team/skills/hexagonal-architecture.md) | Ports and adapters to separate business logic from infrastructure |
+| [Domain-Driven Design](plugins/agentic-dev-team/skills/domain-driven-design.md) | Bounded contexts, aggregates, context mapping |
+| [Domain Analysis](plugins/agentic-dev-team/skills/domain-analysis.md) | Assess existing system DDD health |
+| [Threat Modeling](plugins/agentic-dev-team/skills/threat-modeling.md) | Structured STRIDE security analysis |
+| [Legacy Code](plugins/agentic-dev-team/skills/legacy-code.md) | Characterization tests and dependency-breaking before behavioral changes |
+| [Test-Driven Development](plugins/agentic-dev-team/skills/test-driven-development.md) | RED-GREEN-REFACTOR with hard gates |
+| [Mutation Testing](plugins/agentic-dev-team/skills/mutation-testing.md) | Run Stryker/pitest/mutmut and triage surviving mutants |
+| [Systematic Debugging](plugins/agentic-dev-team/skills/systematic-debugging.md) | Structured root cause analysis |
+| [Browser Testing](plugins/agentic-dev-team/skills/browser-testing.md) | Playwright-based visual QA |
+| [Test Design Reviewer](plugins/agentic-dev-team/skills/test-design-reviewer.md) | Evaluate test quality and design |
+| [CI Debugging](plugins/agentic-dev-team/skills/ci-debugging.md) | Diagnose CI pipeline failures |
+| [Design Doc](plugins/agentic-dev-team/skills/design-doc.md) | Problem statement, approach, alternatives, scope boundaries |
+| [Design Interrogation](plugins/agentic-dev-team/skills/design-interrogation.md) | Stress-test designs and surface unresolved decisions |
+| [Design It Twice](plugins/agentic-dev-team/skills/design-it-twice.md) | Generate parallel alternative interfaces via sub-agents |
+| [Branch Workflow](plugins/agentic-dev-team/skills/branch-workflow.md) | PR creation, merge strategy, branch cleanup |
+| [Competitive Analysis](plugins/agentic-dev-team/skills/competitive-analysis.md) | Compare against external tools to find gaps and weaknesses |
+| [JS Project Init](plugins/agentic-dev-team/skills/js-project-init/SKILL.md) | Scaffold a new JS project with ESM, vitest, eslint, prettier |
 
-## Plugin Structure
+## Repository Structure
 
 ```text
-agents/                # Team agents (12) + review agents (19)
-skills/                # Reusable knowledge modules (24 skills)
-knowledge/             # Progressive disclosure reference files for heavyweight agents
-prompts/               # Subagent prompt templates (4) for reproducible dispatch
-commands/              # Slash commands (23 user-invocable + agent/skill invokers)
-hooks/                 # PreToolUse guards (sensitive paths + destructive commands + freeze) + PostToolUse advisory hooks
-plans/                 # Implementation plans created by /plan
-evals/                 # Review agent accuracy fixtures
-docs/                  # Architecture and reference documentation
-docs/specs/            # Design documents produced during Research phase
-CLAUDE.md              # Orchestration pipeline configuration (auto-loaded)
-REVIEW-CONTEXT.md      # (optional, user-created) Institutional context for reviews
-install.sh             # Prerequisite check
+.claude-plugin/marketplace.json     # Marketplace catalog
+plugins/agentic-dev-team/           # Plugin source (ships to users)
+├── .claude-plugin/plugin.json      # Plugin manifest + version
+├── agents/                         # Team agents (12) + review agents (19)
+├── commands/                       # Slash commands
+├── skills/                         # Reusable knowledge modules (26 skills)
+├── hooks/                          # PreToolUse guards + PostToolUse advisory hooks
+├── knowledge/                      # Progressive disclosure reference files
+├── templates/                      # Language-specific agent templates
+├── settings.json                   # Hook registrations
+├── install.sh                      # Prerequisite check
+└── CLAUDE.md                       # Orchestration pipeline config (auto-loaded)
+
+docs/                               # Dev documentation (not shipped)
+plans/                              # Implementation plans (not shipped)
+evals/                              # Agent eval fixtures (not shipped)
+reports/                            # Review reports (not shipped)
 ```
 
 ---
 
 ## Local Development
 
-### Setup
+### Testing locally
 
-Clone the repo, then run `dev-setup.sh` to symlink root-level plugin files into `.claude/` so Claude Code can load them while you develop:
-
-```bash
-git clone <repo-url> agentic-dev-team
-cd agentic-dev-team
-./dev-setup.sh
-```
-
-This creates symlinks:
-
-```
-.claude/agents   -> ../agents
-.claude/skills   -> ../skills
-.claude/commands -> ../commands
-.claude/hooks    -> ../hooks
-```
-
-To remove the symlinks:
+Install the plugin from the local path into a test project:
 
 ```bash
-./dev-setup.sh --clean
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
 ```
 
-### Testing changes
+### Testing agents and hooks
 
-**Unit testing agents and skills** — run the eval suite against a single agent or the full set:
+**Eval suite** — run against a single agent or the full set:
 
 ```
 /agent-eval
-/agent-eval agents/naming-review.md
+/agent-eval plugins/agentic-dev-team/agents/naming-review.md
 ```
 
-**Testing a hook change** — hooks fire automatically on every file write/edit while Claude is running in this repo. Trigger one manually to confirm behavior:
-
-```bash
-echo '{"tool_input":{"file_path":"test.js"}}' | bash hooks/js-fp-review.sh
-```
-
-**Testing in a real project** — the most reliable test is installing the plugin into a scratch project:
-
-```bash
-mkdir /tmp/plugin-test && cd /tmp/plugin-test
-git init && claude
-# inside claude:
-# claude plugin marketplace add --scope project /path/to/agentic-dev-team
-# claude plugin install --scope project agentic-dev-team
-```
-
-**Running the eval audit** — verify all agents and commands meet structural compliance:
+**Structural compliance** — verify all agents and commands:
 
 ```
 /agent-audit
