@@ -37,6 +37,14 @@ For bug fixes or simple tasks, skip `/specs` and start at `/plan` or go straight
 | `/browse` | Visual QA via Playwright |
 | `/careful` / `/freeze` / `/guard` | Safety modes for production-critical sessions |
 
+### Automated pre-commit review
+
+Every `git commit` is automatically gated by `/code-review --changed`. A `PreToolUse` hook detects commit attempts and blocks them until a passing review exists for the exact set of staged files.
+
+**Flow**: attempt commit → hook blocks → Claude runs `/code-review --changed` → if pass/warn, a `.review-passed` gate file is written → next commit attempt succeeds.
+
+**Bypass**: `git commit --no-verify` skips the review gate.
+
 ## How It Works
 
 **Team agents** define roles (persona, behavior, collaboration). **Review agents** check work quality in real time. **Skills** define knowledge (patterns, guidelines, procedures). **Slash commands** invoke agents and skills directly. The **Orchestrator** controls task routing, model selection, and the inline review feedback loop.

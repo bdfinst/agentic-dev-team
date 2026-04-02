@@ -1,47 +1,60 @@
 #!/usr/bin/env bash
 #
-# pre-commit-review.sh - Claude Code PreCommit hook (opt-in)
+# pre-commit-review.sh — PreToolUse hook that gates git commits on code review
 #
-# Blocks commits when review agents report fail status.
-# Only active when review-config.json has "blockOnFail": true.
+# Blocks git commit (exit 2) unless a .review-passed file exists with a hash
+# matching the currently staged files. The /code-review --changed command
+# writes this file when review passes.
 #
-# Input: JSON on stdin with tool_input (commit details)
-# Output: Feedback on stdout
-# Exit 0: Advisory (pass or blockOnFail not enabled)
-# Exit 2: Block commit (blockOnFail enabled and agents returned fail)
+# Non-commit Bash commands pass through immediately (exit 0).
+# git commit --no-verify is allowed through (standard bypass).
+#
+# Input: JSON on stdin with tool_input.command
+# Exit 0: Allow the tool call
+# Exit 2: Block the tool call (feedback returned to Claude)
 
 set -uo pipefail
 
-# Check if blockOnFail is enabled in review-config.json
-CONFIG_FILE="review-config.json"
-if [ ! -f "$CONFIG_FILE" ]; then
+# Read the tool input from stdin
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null)
+
+# Fast exit for non-commit commands
+if ! echo "$COMMAND" | grep -qE '^\s*git\s+commit\b'; then
   exit 0
 fi
 
-BLOCK_ON_FAIL=$(jq -r '.blockOnFail // false' "$CONFIG_FILE" 2>/dev/null)
-if [ "$BLOCK_ON_FAIL" != "true" ]; then
+# Allow --no-verify bypass
+if echo "$COMMAND" | grep -qE '--no-verify'; then
   exit 0
 fi
 
-# Get changed files
-CHANGED_FILES=$(git diff --cached --name-only 2>/dev/null)
-if [ -z "$CHANGED_FILES" ]; then
+# Check for staged files
+STAGED=$(git diff --cached --name-only 2>/dev/null)
+if [ -z "$STAGED" ]; then
   exit 0
 fi
 
-# Count source files (exclude docs, configs, images)
-SOURCE_COUNT=$(echo "$CHANGED_FILES" | grep -cE '\.(js|ts|jsx|tsx|py|rb|go|rs|java|c|cpp|h)$' || true)
-if [ "$SOURCE_COUNT" -eq 0 ]; then
-  exit 0
+# Compute hash of staged file paths
+HASH=$(echo "$STAGED" | sort | shasum -a 256 2>/dev/null || echo "$STAGED" | sort | sha256sum 2>/dev/null)
+HASH=$(echo "$HASH" | cut -d' ' -f1)
+
+# Check for .review-passed gate file
+GATE_FILE=".review-passed"
+if [ -f "$GATE_FILE" ]; then
+  STORED_HASH=$(cat "$GATE_FILE" 2>/dev/null)
+  if [ "$HASH" = "$STORED_HASH" ]; then
+    # Review passed for these exact files — allow commit and clean up
+    rm -f "$GATE_FILE"
+    exit 0
+  fi
 fi
 
+# Block the commit
+printf "BLOCKED: Code review required before committing.\n"
 printf "\n"
-printf "  pre-commit-review: blockOnFail is enabled\n"
-printf "  %s source file(s) staged for commit\n" "$SOURCE_COUNT"
-printf "  Run /code-review --changed --json to check for blocking issues before committing.\n"
-printf "  To bypass: set \"blockOnFail\": false in review-config.json\n"
+printf "Run /code-review --changed to review staged files.\n"
+printf "If review passes, the commit will be allowed on the next attempt.\n"
 printf "\n"
-
-# Advisory exit — the actual blocking happens via the review skill integration.
-# This hook warns the user; the /code-review --json output determines pass/fail.
-exit 0
+printf "To bypass: use git commit --no-verify\n"
+exit 2

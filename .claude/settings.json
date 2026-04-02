@@ -14,7 +14,8 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "bash hooks/destructive-guard.sh" }
+          { "type": "command", "command": "bash hooks/destructive-guard.sh" },
+          { "type": "command", "command": "bash hooks/pre-commit-review.sh" }
         ]
       }
     ],

@@ -349,3 +349,25 @@ required]` — these are listed but have no correction prompt file.
 
 If the user requests it, save prompts as individual JSON files in a
 `corrections/` directory.
+
+### 7. Write pre-commit gate file
+
+If the `--changed` flag was used and the overall review status is
+`pass` or `warn`, write a `.review-passed` gate file so the
+pre-commit hook allows the next commit:
+
+```bash
+git diff --cached --name-only | sort | shasum -a 256 | cut -d' ' -f1 > .review-passed
+```
+
+If no files are staged (e.g., `--changed` picked up unstaged
+changes only), compute the hash from the files that were actually
+reviewed:
+
+```bash
+echo "<reviewed-file-list>" | sort | shasum -a 256 | cut -d' ' -f1 > .review-passed
+```
+
+If the overall status is `fail`, do **not** write `.review-passed`.
+The pre-commit hook will continue blocking commits until the issues
+are fixed and the review is re-run.
