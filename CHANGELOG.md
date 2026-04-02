@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/bdfinst/agentic-dev-team/compare/v2.0.0...v2.1.0) (2026-04-02)
+
+
+### Features
+
+* add /version command to report installed plugin version ([712ee1e](https://github.com/bdfinst/agentic-dev-team/commit/712ee1ef4ada98d3b7eae5d2b90853c4e90a5765))
+
 ## [2.0.0](https://github.com/bdfinst/agentic-dev-team/compare/v1.2.16...v2.0.0) (2026-04-02)
 
 
