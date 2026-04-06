@@ -173,7 +173,7 @@ After starting Claude Code, confirm the system is working:
 
 ## What's Included
 
-The plugin ships with **12 team agents**, **19 review agents**, **27 skills**, and **30+ slash commands**. For the full catalogs:
+The plugin ships with **12 team agents**, **19 review agents**, **28 skills**, and **30+ slash commands**. For the full catalogs:
 
 - [Agents](docs/agent_info.md) — team agent roster, review agent roster, persona template, how to add/remove/customize
 - [Skills & Commands](docs/skills.md) — skills catalog (by category), slash commands catalog, how to add new ones

@@ -43,7 +43,7 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Review agents** (19): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactoring-review, progress-guardian, data-flow-tracer
 
-**Skills** (27): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration
+**Skills** (28): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation
 
 **Subagent prompt templates** (4): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`
 

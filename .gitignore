@@ -15,3 +15,4 @@ sync-to-aci.sh
 
 # Pre-commit review gate file (generated at runtime)
 .review-passed
+feature-file-validation-workspace/

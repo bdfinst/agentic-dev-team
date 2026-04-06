@@ -43,6 +43,7 @@ Enforce rigorous development practices:
 | CI Debugging | [`ci-debugging.md`](../plugins/agentic-dev-team/skills/ci-debugging.md) | CI pipeline failure investigation and resolution |
 | Test Design Reviewer | [`test-design-reviewer.md`](../plugins/agentic-dev-team/skills/test-design-reviewer.md) | Test quality patterns and anti-patterns |
 | Browser Testing | [`browser-testing.md`](../plugins/agentic-dev-team/skills/browser-testing.md) | Playwright-based browser QA for visual verification |
+| Feature File Validation | [`feature-file-validation.md`](../plugins/agentic-dev-team/skills/feature-file-validation.md) | Gherkin quality, determinism, implementation independence, test automation coverage |
 
 ### Research & Design Skills
 
