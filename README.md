@@ -340,7 +340,7 @@ When running Claude Code in this repo, hooks are loaded from `hooks/` at the pro
 /agent-add <description or URL to a coding standard>
 ```
 
-This scaffolds the agent file, adds it to the registry in `CLAUDE.md`, and creates eval fixtures. Run `/agent-audit` and `/agent-eval` after to verify compliance.
+This scaffolds the agent file, adds it to the registry in `CLAUDE.md`, and creates eval fixtures. Run `/agent-audit` and `/agent-eval` to verify compliance.
 
 ### Documentation
 
