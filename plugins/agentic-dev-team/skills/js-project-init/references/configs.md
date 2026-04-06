@@ -146,6 +146,14 @@ export default defineConfig({
 })
 ```
 
+## .husky/pre-push
+
+```bash
+npm run lint
+npm run format:check
+npm test
+```
+
 ## src/index.js (starter file)
 
 ```js

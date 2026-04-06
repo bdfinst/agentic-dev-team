@@ -37,6 +37,7 @@ Here's what I'll set up for your project:
   Editor config:    EditorConfig (2-space indent, UTF-8, LF line endings)
   Testing:          Vitest
   E2E testing:      [Playwright — only if frontend project]
+  Git hooks:        Husky pre-push (lint + format check + test)
   .gitignore:       node_modules, dist, coverage, .env, OS files
 
 Want to change anything, or should I go ahead?
@@ -73,7 +74,8 @@ The scripts section should include:
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   }
 }
 ```
@@ -93,8 +95,10 @@ For frontend projects, add:
 Install all dev dependencies in one command:
 
 ```bash
-npm install -D eslint prettier vitest @eslint/js eslint-config-prettier eslint-plugin-prettier
+npm install -D eslint prettier vitest @eslint/js eslint-config-prettier husky
 ```
+
+Note: `eslint-config-prettier` disables ESLint rules that conflict with Prettier. We do NOT install `eslint-plugin-prettier` — the modern practice is to run Prettier as a separate step (`npm run format:check`), not through ESLint. This keeps concerns separated and avoids double-reporting.
 
 For frontend projects, also install Playwright:
 
@@ -135,7 +139,38 @@ e2e/
   example.spec.js   — one Playwright test placeholder
 ```
 
-### Step 6: Verify Everything Works
+### Step 6: Set Up Git Hooks
+
+Initialize Husky and create the pre-push hook:
+
+```bash
+git init  # skip if already a git repo
+npx husky init
+```
+
+Then create the pre-push hook using the template in `references/configs.md`. The hook runs lint, format check, and tests before every push:
+
+```bash
+echo 'npm run lint
+npm run format:check
+npm test' > .husky/pre-push
+```
+
+Remove the default pre-commit hook that Husky creates (we use pre-push instead):
+
+```bash
+rm .husky/pre-commit
+```
+
+For frontend projects, append the e2e test to the pre-push hook:
+
+```bash
+echo 'npm run test:e2e' >> .husky/pre-push
+```
+
+This ensures broken code never reaches the remote — lint, formatting, and tests must all pass before `git push` succeeds. The hook runs on push (not commit) to keep the local development loop fast while still gating what goes upstream.
+
+### Step 7: Verify Everything Works
 
 Run the following commands and confirm they succeed:
 
@@ -147,7 +182,7 @@ npm test
 
 If any command fails, fix the issue before reporting success. Show the user the test output as proof that the scaffold is working.
 
-### Step 7: Summary
+### Step 8: Summary
 
 After everything passes, give the user a brief summary of what was created:
 
