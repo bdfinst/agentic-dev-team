@@ -48,14 +48,7 @@ The Orchestrator classifies the task, selects the right agents, and coordinates 
 
 ### New Feature (full lifecycle)
 
-The core workflow is four commands: `/specs` → `/plan` → `/build` → `/pr`
-
-1. **Specify** — `/specs` to produce Intent Description, User-Facing Behavior (Gherkin scenarios), Architecture Specification, and Acceptance Criteria. The consistency gate must pass before moving on.
-2. **Plan** — `/plan` to create a step-by-step TDD implementation plan. It checks for spec artifacts automatically. Human approves before building.
-3. **Build** — `/build` to execute the approved plan. Each step follows RED-GREEN-REFACTOR with inline review checkpoints and verification evidence.
-4. **Ship** — `/pr` to run quality gates and create a pull request.
-
-For additional depth at any stage, invoke agents directly:
+Follow the core workflow (`/specs` → `/plan` → `/build` → `/pr`) described in the [README](README.md#workflow). At any stage, invoke agents directly for additional depth:
 - `/architect` to define the technical approach or review architecture
 - `/threat-modeling` if the feature crosses trust boundaries or handles sensitive data
 - `/qa-engineer` to validate acceptance tests pass and coverage is adequate
@@ -97,38 +90,12 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 /devops-sre-engineer Design the CI/CD pipeline for the new microservice
 ```
 
-## Available Agents
+## Available Agents and Skills
 
-| Command | Role | When to Use |
-|---------|------|-------------|
-| `/orchestrator` | Task routing and coordination | Complex tasks, multi-agent work, unclear routing |
-| `/software-engineer` | Code implementation | Writing code, bug fixes, refactoring |
-| `/architect` | System design | Architecture decisions, API design, scalability |
-| `/qa-engineer` | Testing and quality | Test strategy, acceptance tests, quality gates |
-| `/product-manager` | Requirements | Feature scoping, prioritization, user stories |
-| `/security-engineer` | Security analysis | Threat modeling, vulnerability assessment, secure design |
-| `/devops-sre-engineer` | Operations | Pipelines, deployment, monitoring, reliability |
-| `/data-scientist` | Data and ML | ML models, data analysis, data pipelines |
-| `/ui-ux-designer` | Interface design | UX patterns, accessibility, design specs |
-| `/tech-writer` | Documentation | Technical docs, style consistency, user guides |
+For the full roster of team agents, review agents, skills, and slash commands, see:
 
-## Available Skills
-
-| Command | Skill | When to Use |
-|---------|-------|-------------|
-| `/specs` | Structured specification | New features — produces 4 artifacts before implementation |
-| `/threat-modeling` | STRIDE-based security analysis | New endpoints, auth changes, trust boundary changes |
-| `/api-design` | Contract-first API design | New APIs, service boundaries, inter-service contracts |
-| `/hexagonal-architecture` | Port/adapter architecture | Structuring services and modules |
-| `/domain-driven-design` | DDD patterns | Modeling domains, bounded contexts, aggregates |
-| `/quality-gate-pipeline` | Unified quality gate (self-validation, verification, review-correction) | Before delivery, at completion, during rework |
-| `/governance-compliance` | Audit and compliance | Quality gates, audit trails, ethics |
-| `/agent-skill-authoring` | Creating agents and skills | Extending the team with new capabilities |
-| `/feedback-learning` | Modify system behavior | Teaching the system new preferences |
-| `/human-oversight-protocol` | Approval gates | High-impact decisions requiring human sign-off |
-| `/context-loading-protocol` | Context management | Optimizing what gets loaded into context |
-| `/context-summarization` | Context compression | Managing long conversations |
-| `/performance-metrics` | Task metrics | Logging and reviewing performance data |
+- [Agents](docs/agent_info.md) — who does the work (team agents and review agents)
+- [Skills & Commands](docs/skills.md) — reusable knowledge modules and slash command catalog
 
 ## Rules to Know
 
@@ -136,20 +103,6 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 2. **Human-in-the-loop.** Agents work autonomously but you make the decisions. They propose, you approve.
 3. **Consistency gate is a hard stop.** For new features, all four specification artifacts must be consistent before implementation begins.
 4. **Feedback keywords.** You can modify system behavior anytime using `amend`, `learn`, `remember`, or `forget`. Say `stop` or `pause` to halt agent work.
-
-## Prerequisites
-
-## Project Structure
-
-```
-agents/                # Team agents (12) + review agents (19)
-skills/                # Reusable knowledge modules (24 skills)
-commands/              # Slash commands (50 user-invocable)
-hooks/                 # PreToolUse guards + PostToolUse advisory hooks
-knowledge/             # Progressive disclosure reference files
-prompts/               # Subagent prompt templates
-CLAUDE.md              # Orchestration pipeline configuration (auto-loaded)
-```
 
 ## Extending the Team
 
