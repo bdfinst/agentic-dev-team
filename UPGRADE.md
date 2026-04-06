@@ -129,11 +129,11 @@ Defines a pre-pass stage for `/code-review`:
 
 ### Acceptance Criteria
 
-- [ ] `/code-review --static-analysis` runs Semgrep (if installed) before dispatching agents
-- [ ] Static analysis findings are passed to review agents as pre-confirmed context
-- [ ] Review agents do not duplicate findings already caught by static analysis
-- [ ] Pipeline gracefully skips static analysis if no tools are installed
-- [ ] ESLint integration works for JS/TS projects when ESLint is configured
+- [x] `/code-review --static-analysis` runs Semgrep (if installed) before dispatching agents
+- [x] Static analysis findings are passed to review agents as pre-confirmed context
+- [x] Review agents do not duplicate findings already caught by static analysis
+- [x] Pipeline gracefully skips static analysis if no tools are installed
+- [x] ESLint integration works for JS/TS projects when ESLint is configured
 
 ---
 
@@ -152,6 +152,7 @@ Our Feedback & Learning skill requires explicit user triggers (`amend`, `learn`,
 Phased approach:
 
 **Phase A — Pattern Extraction** (ship first):
+
 1. Command `/learn-patterns` analyzes the last N merged PRs (default 20)
 2. Extracts recurring patterns: naming conventions, file organization, import patterns, test structure, error handling approaches
 3. Generates candidate rules in the same format as `custom-review-rules.md`
@@ -159,6 +160,7 @@ Phased approach:
 5. Approved rules are appended to `knowledge/learned-patterns.md`
 
 **Phase B — Continuous Learning** (ship later):
+
 1. After each `/code-review` run, compare findings against merged code to detect false positives
 2. After each PR merge, compare the merged code against review findings to detect missed issues
 3. Surface pattern drift to the user periodically
@@ -174,12 +176,14 @@ Same schema as `custom-review-rules.md` but populated by the learning skill rath
 ### Acceptance Criteria
 
 **Phase A**:
+
 - [ ] `/learn-patterns` analyzes recent merged PRs and extracts candidate rules
 - [ ] Candidates are presented to the user for approval before activation
 - [ ] Approved patterns are stored in `knowledge/learned-patterns.md`
 - [ ] `/code-review` loads learned patterns as additional review context
 
 **Phase B** (deferred):
+
 - [ ] False positive detection from merged code vs. review findings
 - [ ] Periodic pattern drift reports
 

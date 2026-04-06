@@ -80,6 +80,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Competitive Analysis | `skills/competitive-analysis.md` | 600 | Orchestrator, Product Manager |
 | Design Interrogation | `skills/design-interrogation.md` | 500 | Architect, Product Manager, Orchestrator |
 | Design It Twice | `skills/design-it-twice.md` | 550 | Architect, Software Engineer |
+| Static Analysis Integration | `skills/static-analysis-integration.md` | 650 | Orchestrator, `/code-review` |
 
 ## Subagent Prompt Templates
 

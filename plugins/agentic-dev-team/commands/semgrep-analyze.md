@@ -32,6 +32,10 @@ Arguments: $ARGUMENTS
 - `path`: Directory or file to scan (default: current working
   directory)
 - `--rules <ruleset>`: Semgrep ruleset (default: `auto`)
+- `--programmatic`: Return structured JSON only, with no prose or
+  status messages. Designed for callers like the static analysis
+  pre-pass in `/code-review`. When set, skip installation guidance
+  on failure — just return the skip status JSON.
 
 Examples:
 
@@ -40,6 +44,7 @@ Examples:
 /semgrep-analyze src/
 /semgrep-analyze --rules p/security-audit
 /semgrep-analyze src/utils --rules p/javascript
+/semgrep-analyze --programmatic src/
 ```
 
 ## Steps
@@ -55,6 +60,9 @@ If not installed, output:
 ```json
 {"status": "skip", "issues": [], "summary": "semgrep not installed — install via pip install semgrep, pipx install semgrep, or brew install semgrep"}
 ```
+
+If `--programmatic` is set, return the JSON above and stop — do not
+add installation guidance or prose.
 
 Stop.
 

@@ -14,7 +14,7 @@ allowed-tools: >-
   Read, Grep, Glob, Bash(git diff *), Bash(npx *), Bash(npm run *),
   Bash(pnpm *), Bash(yarn *), Bash(tsc *), Bash(eslint *),
   Bash(git log *), Bash(gh run *), Bash(semgrep *),
-  Skill(review-agent *)
+  Bash(pylint *), Skill(review-agent *)
 ---
 
 # Code Review
@@ -73,6 +73,13 @@ Arguments: $ARGUMENTS
   justification is logged to `metrics/override-audit.jsonl`.
 - `--reason "<text>"`: Override justification (required with
   `--force`, ignored otherwise)
+- `--static-analysis`: Run a static analysis pre-pass (Semgrep,
+  ESLint, TypeScript compiler, pylint) before dispatching AI review
+  agents. Findings are passed to agents as pre-confirmed context so
+  they focus on semantic concerns. Auto-enabled when tools are
+  detected unless `--no-static-analysis` is passed.
+- `--no-static-analysis`: Skip the static analysis pre-pass even
+  when tools are available.
 - `--background`: Drift review mode — review the default branch for
   accumulated documentation, naming, and structural drift without
   requiring changed files. Runs doc-review, arch-review,
@@ -87,6 +94,7 @@ Copy this checklist and track progress:
 ```text
 - [ ] Target files determined
 - [ ] Pre-flight gates passed
+- [ ] Static analysis pre-pass (if enabled)
 - [ ] Agents loaded and filtered
 - [ ] All agents executed
 - [ ] Results aggregated
@@ -207,6 +215,49 @@ details and stop. Do not run agents.
 If a tool is not available (e.g., no eslint, no tsconfig, no gh),
 skip that gate silently.
 
+### 2b. Static analysis pre-pass
+
+Skip this step if `--no-static-analysis` is passed or if `--background`
+is set.
+
+This step runs deterministic static analysis tools to collect
+confirmed findings before AI agents run. Refer to
+[static-analysis-integration.md](../skills/static-analysis-integration.md)
+for the full tool detection, execution, and deduplication procedure.
+
+**When to run**:
+
+- `--static-analysis` flag: always run
+- No flag and no `--no-static-analysis`: auto-detect available tools.
+  If at least one tool is available, run the pre-pass. If none are
+  available, skip silently.
+
+**Execution**:
+
+1. Detect available tools: Semgrep (`which semgrep`), ESLint
+   (`npx eslint --version` or ESLint config exists), TypeScript
+   (`tsconfig.json` exists), pylint (`which pylint`).
+2. Run each available tool against the target files determined in
+   step 1. Filter target files by tool file type support (e.g.,
+   ESLint only gets `.js`, `.ts`, `.jsx`, `.tsx` files).
+3. Collect structured findings from each tool.
+4. Deduplicate findings across tools (same file + line + semantic
+   match). Keep the more specific tool's finding.
+5. Store the aggregated result for injection into agent context in
+   step 4.
+
+**Relationship to pre-flight gates**: Pre-flight gates (step 2) are
+fail-fast checks — they stop the pipeline on errors. The static
+analysis pre-pass does **not** stop the pipeline. Its purpose is to
+collect findings as context for agents, not to gate execution.
+Findings from the pre-pass that overlap with pre-flight gate checks
+(e.g., ESLint errors caught in both) are naturally deduplicated — the
+gate catches hard failures, the pre-pass provides detailed context.
+
+**Note on Semgrep**: If Semgrep ran in the pre-flight gate (step 2,
+gate 4) and findings were already collected, reuse those findings
+here instead of running Semgrep again. Do not invoke Semgrep twice.
+
 ### 3. Determine enabled agents
 
 If `--background` is passed, run only: doc-review, arch-review,
@@ -261,10 +312,18 @@ when spawning each subagent via the Agent tool. The agent's own
 `Model tier` field serves as a fallback if not running under
 orchestrator direction.
 
-**Semgrep context**: If semgrep findings were collected in gate 4,
-pass them as additional context to the security-review agent prompt.
-This lets the agent assess exploitability and focus AI analysis on
-issues semgrep cannot detect.
+**Static analysis context**: If the static analysis pre-pass (step 2b)
+produced findings, inject them into **every** review agent's prompt
+using the agent context injection format defined in
+`skills/static-analysis-integration.md`. This tells agents:
+"These issues were detected by static analysis tools. Do not re-report
+them. Focus on semantic and architectural concerns."
+
+If only Semgrep findings were collected (from the pre-flight gate,
+without a full pre-pass), pass those to the security-review agent as
+before, plus any other agents whose domain overlaps (e.g.,
+performance-review for resource issues, concurrency-review for
+thread-safety findings).
 
 **Parallelism**: Launch all agents concurrently using multiple Agent
 tool calls in a single message. Wait for all to complete before
