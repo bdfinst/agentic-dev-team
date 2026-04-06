@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.0](https://github.com/bdfinst/agentic-dev-team/compare/v2.1.1...v2.2.0) (2026-04-06)
+
+
+### Features
+
+* add static analysis pipeline integration to code-review ([c031b4f](https://github.com/bdfinst/agentic-dev-team/commit/c031b4fe41936060d82fe542042a03ffc8633bb2))
+* **js-project-init:** add Husky pre-push hook and drop eslint-plugin-prettier ([119a71a](https://github.com/bdfinst/agentic-dev-team/commit/119a71a67c354478c05cdfd480377979f168f3b2))
+
 ## [2.1.1](https://github.com/bdfinst/agentic-dev-team/compare/v2.1.0...v2.1.1) (2026-04-02)
 
 
