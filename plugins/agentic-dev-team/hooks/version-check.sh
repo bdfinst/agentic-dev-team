@@ -62,7 +62,7 @@ DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 BEHIND=$(git -C "$PLUGIN_DIR" rev-list --count "HEAD..origin/${DEFAULT_BRANCH}" 2>/dev/null || echo "0")
 
 if [ "$BEHIND" -gt 0 ]; then
-  MSG="📦 agentic-dev-team: ${BEHIND} update(s) available. Run /upgrade to update."
+  MSG="📦 agentic-dev-team@bfinster: ${BEHIND} update(s) available. Run /upgrade to update."
   echo "$MSG" > "$CACHE_FILE"
   echo "$MSG"
 else

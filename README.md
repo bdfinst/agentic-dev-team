@@ -136,21 +136,21 @@ Add the marketplace source, then install the plugin. The marketplace resolves th
 
 ```bash
 claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install agentic-dev-team
+claude plugin install agentic-dev-team@bfinster
 ```
 
 **From a local clone:**
 
 ```bash
 claude plugin marketplace add /path/to/agentic-dev-team
-claude plugin install agentic-dev-team
+claude plugin install agentic-dev-team@bfinster
 ```
 
 By default the marketplace is registered at user scope (available in all projects). To scope it to a single project:
 
 ```bash
 claude plugin marketplace add --scope project https://github.com/bdfinst/agentic-dev-team
-claude plugin install --scope project agentic-dev-team
+claude plugin install --scope project agentic-dev-team@bfinster
 ```
 
 ### Upgrading from a previous install
@@ -160,7 +160,7 @@ If you previously installed the plugin before the directory restructure (pre-v2.
 ```bash
 claude plugin marketplace remove agentic-dev-team
 claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install agentic-dev-team
+claude plugin install agentic-dev-team@bfinster
 ```
 
 ### Verify

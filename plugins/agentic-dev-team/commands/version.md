@@ -16,4 +16,4 @@ You have been invoked with the `/version` command.
 
 1. Read `.claude-plugin/plugin.json`
 2. Extract the `version` field
-3. Output: `agentic-dev-team v{version}`
+3. Output: `agentic-dev-team@bfinster v{version}`

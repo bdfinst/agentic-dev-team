@@ -34,6 +34,8 @@ Install the plugin from the local path into a test project:
 
 ```bash
 claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
+# Or from the marketplace:
+# claude plugin install agentic-dev-team@bfinster
 ```
 
 ### Adding agents, skills, or commands

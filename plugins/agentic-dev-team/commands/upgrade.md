@@ -33,7 +33,7 @@ If no git repo is found at any of these locations:
 > 1. Remove the current copy
 > 2. Re-clone from the repository
 >
-> Or run: `claude plugin install agentic-dev-team`
+> Or run: `claude plugin install agentic-dev-team@bfinster`
 
 Exit without making changes.
 
