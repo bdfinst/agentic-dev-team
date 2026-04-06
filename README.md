@@ -173,7 +173,7 @@ After starting Claude Code, confirm the system is working:
 
 ## What's Included
 
-The plugin ships with **12 team agents**, **19 review agents**, **28 skills**, and **30+ slash commands**. For the full catalogs:
+The plugin ships with **12 team agents**, **19 review agents**, **29 skills**, and **55 slash commands**. For the full catalogs:
 
 - [Agents](docs/agent_info.md) — team agent roster, review agent roster, persona template, how to add/remove/customize
 - [Skills & Commands](docs/skills.md) — skills catalog (by category), slash commands catalog, how to add new ones
@@ -186,7 +186,7 @@ plugins/agentic-dev-team/           # Plugin source (ships to users)
 ├── .claude-plugin/plugin.json      # Plugin manifest + version
 ├── agents/                         # Team agents (12) + review agents (19)
 ├── commands/                       # Slash commands
-├── skills/                         # Reusable knowledge modules (26 skills)
+├── skills/                         # Reusable knowledge modules (29 skills)
 ├── hooks/                          # PreToolUse guards + PostToolUse advisory hooks
 ├── knowledge/                      # Progressive disclosure reference files
 ├── templates/                      # Language-specific agent templates
@@ -229,7 +229,7 @@ claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-
 
 ### Hook paths
 
-When running Claude Code in this repo, hooks are loaded from `hooks/` at the project root via `.claude/settings.json`. The hook path references in `settings.json` match the plugin structure (`hooks/X.sh`, not `.claude/hooks/X.sh`).
+Hooks are registered in `plugins/agentic-dev-team/settings.json` and ship with the plugin. When developing locally, hooks run from `plugins/agentic-dev-team/hooks/`.
 
 ### Adding an agent or skill
 
