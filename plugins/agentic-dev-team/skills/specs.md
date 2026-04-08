@@ -116,7 +116,42 @@ When scope-too-large signals fire:
 8. **Document decisions, not just outcomes.** When the human rejects an agent suggestion, briefly note why — this context prevents the same suggestion from recurring.
 
 ## Output
+
 Four specification artifacts (Intent Description, User-Facing Behavior in Gherkin, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict. Be concise — flag gaps and conflicts; do not narrate the artifact collaboration process.
+
+### Persist to file
+
+After the consistency gate passes, write all four artifacts plus the gate verdict to a markdown file. This is how downstream commands (`/plan`, `/build`, spec-compliance-review) find the spec — if it only exists in chat, it is lost between sessions.
+
+1. **Slugify** the feature name: lowercase, replace spaces with hyphens, strip special characters. Example: "User Login with MFA" → `user-login-with-mfa`
+2. **Create** `docs/specs/` if it does not exist
+3. **Check** whether `docs/specs/<slug>.md` already exists. If it does, ask the user whether to overwrite or create a versioned file (e.g., `<slug>-v2.md`)
+4. **Write** the file using this structure:
+
+```markdown
+# Spec: <Feature Name>
+
+## Intent Description
+<intent artifact>
+
+## User-Facing Behavior
+<Gherkin scenarios in a fenced code block>
+
+## Architecture Specification
+<architecture artifact>
+
+## Acceptance Criteria
+<acceptance criteria artifact>
+
+## Consistency Gate
+- [x/  ] Intent is unambiguous
+- [x/  ] Every behavior has a corresponding BDD scenario
+- [x/  ] Architecture constrains without over-engineering
+- [x/  ] Terminology consistent across artifacts
+- [x/  ] No contradictions between artifacts
+```
+
+5. **Print** the file path to chat so the user can find it
 
 ## Integration
 
