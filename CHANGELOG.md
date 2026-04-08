@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.3.0](https://github.com/bdfinst/agentic-dev-team/compare/v2.2.0...v2.3.0) (2026-04-08)
+
+
+### Features
+
+* add feature-file-validation skill to test-review pipeline ([5f53264](https://github.com/bdfinst/agentic-dev-team/commit/5f53264e3a35be53942958128ac80829937a6eb7))
+* namespace plugin as agentic-dev-team@bfinster ([0a86eef](https://github.com/bdfinst/agentic-dev-team/commit/0a86eef6d5f795257eba4bdd98f8a77b933b9b54))
+* persist /specs output to docs/specs/ after consistency gate passes ([69004a9](https://github.com/bdfinst/agentic-dev-team/commit/69004a9216756cfaaaa06c5cf0caa9a61d12562f))
+
 ## [2.2.0](https://github.com/bdfinst/agentic-dev-team/compare/v2.1.1...v2.2.0) (2026-04-06)
 
 
