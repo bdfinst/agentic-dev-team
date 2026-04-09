@@ -38,7 +38,7 @@ If the user points to a Dockerfile but no built image exists, offer to build it 
 hadolint --format json Dockerfile
 ```
 
-Catches base image issues, security anti-patterns (`ADD` vs `COPY`, running as root), efficiency problems (missing `--no-cache`, uncleaned apt cache), and shell issues in `RUN` instructions via integrated ShellCheck.
+Catches base image issues (`:latest` tag, unpinned versions), security anti-patterns (`ADD` vs `COPY`, running as root), efficiency problems (missing `--no-cache`, uncleaned apt cache), and shell issues in `RUN` instructions via integrated ShellCheck. Note: hadolint flags `:latest` (`DL3007`) but not other unpinned tags like `:10.0` without a digest — call those out in Step 2b if the base image lacks a specific patch version or SHA digest.
 
 ### Step 2b: Structural Analysis
 
@@ -53,6 +53,9 @@ Hadolint catches per-instruction issues but misses architectural problems. Read 
 | **Redundant COPY** | Broad `COPY . .` followed by selective copies (redundant); same files re-copied across stages; `COPY . .` before `RUN <restore>` busting the dependency cache. Fix: copy manifests first (`*.csproj`, `package-lock.json`, `go.sum`), restore, then copy source. | **MEDIUM** |
 | **TLS verification disabled** | `--insecure-skip-tls-verify`, `curl -k`, `NODE_TLS_REJECT_UNAUTHORIZED=0`, `GIT_SSL_NO_VERIFY=true`. Vulnerable to MITM. Fix: configure proper CA certs. | **MEDIUM** |
 | **Missing HEALTHCHECK** | Final stage has no `HEALTHCHECK` instruction. Orchestrators can't detect unhealthy containers. | **MEDIUM** |
+| **Baked-in configuration** | Hardcoded environment-specific URLs, API keys, database connection strings, or service endpoints in `ENV` or config files copied into the image. These should be injected at runtime via environment variables, orchestrator secrets, or ConfigMaps. | **MEDIUM** |
+| **Swiss Army Knife image** | Build tools, compilers, test runners, or dev dependencies present in the final production stage. Check the final `FROM` base (full SDK vs. runtime/slim/distroless) and look for `COPY --from=build` that pulls more than just the application binaries. Fix: multi-stage build where the final stage contains only the runtime and published output. | **MEDIUM** |
+| **Stateful container** | Writing logs, uploads, temp files, or session data to the container's writable layer (`VOLUME` pointing to local paths, `RUN mkdir /data`). Containers should be ephemeral — use external volumes, object storage, or centralized logging. Flag `VOLUME` instructions that suggest local state. | **MEDIUM** |
 | **Dead-end stages** | Stages copying to `scratch` that aren't targeted, or stages whose output (reports, charts) is never referenced by the final stage. Wastes build time. | **LOW** |
 | **UID/GID mismatch** | `--chown=<uid>` doesn't match the `USER` in the same stage. Verify the UID maps to the expected user in the base image. | **LOW** |
 | **Language-specific anti-patterns** | **Python**: `pip install` without `--no-cache-dir`; unpinned versions. **Node**: `npm install` instead of `npm ci`; missing `NODE_ENV=production`. **Go**: missing `CGO_ENABLED=0` for scratch/distroless. **.NET**: missing `--locked-mode` on restore; copying `bin/`/`obj/`. **Java**: full JDK as runtime base when JRE suffices. **Multi-platform**: missing `--platform` in `FROM`. | **MEDIUM** |
@@ -95,7 +98,7 @@ Write findings to `docker-audit-report.md` in the project root (not chat). Use t
 |----------|----------|
 | **CRITICAL** | Actively exploited CVE, RCE, exposed secrets in final image |
 | **HIGH** | Known CVE with public exploit, secrets in ARGs, "God Dockerfile", missing .dockerignore + broad COPY, root in final stage |
-| **MEDIUM** | Known CVE without public exploit, missing HEALTHCHECK, unpinned base, config mismatch, redundant COPY, TLS disabled, language-specific anti-patterns |
+| **MEDIUM** | Known CVE without public exploit, missing HEALTHCHECK, unpinned base, config mismatch, redundant COPY, TLS disabled, baked-in configuration, Swiss Army Knife image, stateful container patterns, language-specific anti-patterns |
 | **LOW** | Informational CVE, dead-end stages, UID/GID mismatch, root in build-only stages |
 | **INFO** | Style suggestions, layer consolidation opportunities |
 
