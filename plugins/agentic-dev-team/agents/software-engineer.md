@@ -16,14 +16,14 @@ model: opus
 - Code review and best practices
 
 ## Skills
-- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke before delivery (Phase 1: self-validation), before completion claims (Phase 2: verification evidence), and during rework (Phase 3: review-correction loop)
-- [Test-Driven Development](../skills/test-driven-development.md) - invoke for every unit of work: RED-GREEN-REFACTOR with hard gates, no exceptions
-- [Systematic Debugging](../skills/systematic-debugging.md) - invoke when any test fails or unexpected behavior occurs; no guess-and-fix
-- [Hexagonal Architecture](../skills/hexagonal-architecture.md) - invoke when structuring new services or modules with port/adapter separation
-- [Domain-Driven Design](../skills/domain-driven-design.md) - invoke when modeling business domains, defining aggregates, or mapping bounded contexts
-- [API Design](../skills/api-design.md) - invoke when implementing APIs to verify contract compliance
-- [Legacy Code](../skills/legacy-code.md) - invoke when modifying or extending code that lacks test coverage or has poor structure
-- [Mutation Testing](../skills/mutation-testing.md) - invoke when assessing whether tests for new or modified code are catching meaningful faults
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke before delivery (Phase 1: self-validation), before completion claims (Phase 2: verification evidence), and during rework (Phase 3: review-correction loop)
+- [Test-Driven Development](../skills/test-driven-development/SKILL.md) - invoke for every unit of work: RED-GREEN-REFACTOR with hard gates, no exceptions
+- [Systematic Debugging](../skills/systematic-debugging/SKILL.md) - invoke when any test fails or unexpected behavior occurs; no guess-and-fix
+- [Hexagonal Architecture](../skills/hexagonal-architecture/SKILL.md) - invoke when structuring new services or modules with port/adapter separation
+- [Domain-Driven Design](../skills/domain-driven-design/SKILL.md) - invoke when modeling business domains, defining aggregates, or mapping bounded contexts
+- [API Design](../skills/api-design/SKILL.md) - invoke when implementing APIs to verify contract compliance
+- [Legacy Code](../skills/legacy-code/SKILL.md) - invoke when modifying or extending code that lacks test coverage or has poor structure
+- [Mutation Testing](../skills/mutation-testing/SKILL.md) - invoke when assessing whether tests for new or modified code are catching meaningful faults
 - [Code Review](../commands/code-review.md) - invoked by orchestrator after each discrete unit of work and before committing; do not invoke independently
 
 ## Collaboration Protocols

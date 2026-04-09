@@ -54,14 +54,14 @@ All review commands are executed under orchestrator direction. When a user trigg
 | `/harness-audit` | Harness effectiveness analysis | Periodically to review harness staleness |
 
 ## Skills
-- [Context Loading Protocol](../skills/context-loading-protocol.md) - invoke at the start of every task to decide which agents and skills to load, and at phase transitions to unload/swap
-- [Context Summarization](../skills/context-summarization.md) - invoke when context utilization signals are present (high turn count, degraded output quality) or at phase transitions
-- [Feedback & Learning](../skills/feedback-learning.md) - invoke when user uses amend/learn/remember/forget keywords, or during learning loop at task completion
-- [Human Oversight Protocol](../skills/human-oversight-protocol.md) - invoke when approval gates fire, when user issues override/pause/stop, or when escalating decisions
-- [Performance Metrics](../skills/performance-metrics.md) - invoke at task completion to log metrics, and during learning loop to review trends
-- [Agent & Skill Authoring](../skills/agent-skill-authoring.md) - invoke when adding new team members, defining new capabilities, or restructuring agent responsibilities
-- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke to enforce the three-phase quality gate: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3)
-- [Specs](../skills/specs.md) - invoke when routing a new feature request; verify the consistency gate passed before loading implementing agents
+- [Context Loading Protocol](../skills/context-loading-protocol/SKILL.md) - invoke at the start of every task to decide which agents and skills to load, and at phase transitions to unload/swap
+- [Context Summarization](../skills/context-summarization/SKILL.md) - invoke when context utilization signals are present (high turn count, degraded output quality) or at phase transitions
+- [Feedback & Learning](../skills/feedback-learning/SKILL.md) - invoke when user uses amend/learn/remember/forget keywords, or during learning loop at task completion
+- [Human Oversight Protocol](../skills/human-oversight-protocol/SKILL.md) - invoke when approval gates fire, when user issues override/pause/stop, or when escalating decisions
+- [Performance Metrics](../skills/performance-metrics/SKILL.md) - invoke at task completion to log metrics, and during learning loop to review trends
+- [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) - invoke when adding new team members, defining new capabilities, or restructuring agent responsibilities
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke to enforce the three-phase quality gate: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3)
+- [Specs](../skills/specs/SKILL.md) - invoke when routing a new feature request; verify the consistency gate passed before loading implementing agents
 - [Code Review](../commands/code-review.md) - invoke after each Phase 3 checkpoint and before committing; runs all relevant review agents with orchestrator-assigned models
 - [Review Agent](../commands/review-agent.md) - invoke for targeted single-agent inline review during Phase 3 checkpoints
 - [Eval Audit](../commands/agent-audit.md) - invoke after adding or modifying any agent or command file
@@ -71,8 +71,8 @@ All review commands are executed under orchestrator direction. When a user trigg
 - [Agent Add](../commands/agent-add.md) - invoke when a new review capability is needed; runs agent-audit and doc updates automatically
 - [Agent Remove](../commands/agent-remove.md) - invoke when retiring any agent; handles file deletion, registry cleanup, and doc updates
 - [Semgrep Analyze](../commands/semgrep-analyze.md) - invoke as pre-flight context for security-review when SAST findings are needed
-- [Design Doc](../skills/design-doc.md) - invoke during Research phase for non-trivial features; produces a written design document with user approval before planning
-- [Branch Workflow](../skills/branch-workflow.md) - invoke after Phase 3 human gate approval to formalize PR creation, merge strategy, and branch cleanup
+- [Design Doc](../skills/design-doc/SKILL.md) - invoke during Research phase for non-trivial features; produces a written design document with user approval before planning
+- [Branch Workflow](../skills/branch-workflow/SKILL.md) - invoke after Phase 3 human gate approval to formalize PR creation, merge strategy, and branch cleanup
 
 ## Three-Phase Workflow
 

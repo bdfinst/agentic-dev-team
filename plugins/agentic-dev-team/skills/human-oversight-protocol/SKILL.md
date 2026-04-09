@@ -94,7 +94,7 @@ forget: [remove a preference]
 
 - Does NOT stop the current task
 - Agent incorporates the feedback and continues
-- See [Feedback & Learning](feedback-learning.md) for the full procedure
+- See [Feedback & Learning](../feedback-learning/SKILL.md) for the full procedure
 
 ### 2. Override (Decision Reversal)
 

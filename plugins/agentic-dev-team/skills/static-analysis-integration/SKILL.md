@@ -57,87 +57,14 @@ which tools are available. If none are available, return:
 
 Run tools in parallel where possible. For each tool:
 
-**Semgrep**:
-```bash
-semgrep scan --config auto --quiet --json <target-files-or-path>
-```
+- **Semgrep**: `semgrep scan --config auto --quiet --json <targets>`
+- **ESLint**: `npx eslint -f json <target-js-ts-files>`
+- **TypeScript**: `npx tsc --noEmit 2>&1`
+- **pylint**: `pylint --output-format=json <target-py-files>`
 
-Map findings using the schema from `/semgrep-analyze` (step 3 of that
-skill). Each finding becomes:
-
-```json
-{
-  "tool": "semgrep",
-  "severity": "error|warning|suggestion",
-  "file": "<path>",
-  "line": 0,
-  "ruleId": "<check_id>",
-  "message": "<description>",
-  "cwe": "<CWE-ID if present>"
-}
-```
-
-**ESLint**:
-```bash
-npx eslint -f json <target-js-ts-files>
-```
-
-Map findings:
-
-| ESLint field | Output field |
-|-------------|-------------|
-| `filePath` | `file` |
-| `messages[].line` | `line` |
-| `messages[].ruleId` | `ruleId` |
-| `messages[].message` | `message` |
-| `messages[].severity` (1=warn, 2=error) | `severity` |
-
-```json
-{
-  "tool": "eslint",
-  "severity": "error|warning",
-  "file": "<path>",
-  "line": 0,
-  "ruleId": "<rule-id>",
-  "message": "<description>"
-}
-```
-
-**TypeScript compiler**:
-```bash
-npx tsc --noEmit 2>&1
-```
-
-Parse `file(line,col): error TSxxxx: message` lines:
-
-```json
-{
-  "tool": "tsc",
-  "severity": "error",
-  "file": "<path>",
-  "line": 0,
-  "ruleId": "TSxxxx",
-  "message": "<description>"
-}
-```
-
-**pylint**:
-```bash
-pylint --output-format=json <target-py-files>
-```
-
-Map findings:
-
-| pylint field | Output field |
-|-------------|-------------|
-| `path` | `file` |
-| `line` | `line` |
-| `message-id` | `ruleId` |
-| `message` | `message` |
-| `type` (error/warning/convention/refactor) | `severity` |
-
-Severity mapping: `error` → error, `warning` → warning,
-`convention`/`refactor` → suggestion.
+Map each tool's output to the unified finding schema. See
+`references/tool-configs.md` for commands, field mappings, severity
+mappings, and JSON schemas per tool.
 
 ### 3. Deduplicate findings
 

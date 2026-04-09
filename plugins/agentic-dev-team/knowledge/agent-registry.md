@@ -16,9 +16,8 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
 | Security Engineer | `agents/security-engineer.md` | 320 | Security analysis, threat modeling |
 | DevOps/SRE Engineer | `agents/devops-sre-engineer.md` | 320 | Pipeline, deployment, reliability |
-| Knowledge Capture | `agents/learn.md` | 300 | Institutional knowledge capture — gotchas, patterns, decisions |
 | ADR Author | `agents/adr.md` | 320 | Creates and manages Architecture Decision Records |
-| **All team agents** | | **~4,200** | |
+| **All team agents** | | **~3,900** | |
 
 ## Review Agents
 

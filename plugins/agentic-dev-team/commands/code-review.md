@@ -222,7 +222,7 @@ is set.
 
 This step runs deterministic static analysis tools to collect
 confirmed findings before AI agents run. Refer to
-[static-analysis-integration.md](../skills/static-analysis-integration.md)
+[static-analysis-integration.md](../skills/static-analysis-integration/SKILL.md)
 for the full tool detection, execution, and deduplication procedure.
 
 **When to run**:

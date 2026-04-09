@@ -13,13 +13,13 @@ Used by the Orchestrator to manage the team:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Context Loading Protocol | [`context-loading-protocol.md`](../plugins/agentic-dev-team/skills/context-loading-protocol.md) | Decides which agent/skill files to load and when |
-| Context Summarization | [`context-summarization.md`](../plugins/agentic-dev-team/skills/context-summarization.md) | Compresses conversation history at utilization thresholds |
-| Feedback & Learning | [`feedback-learning.md`](../plugins/agentic-dev-team/skills/feedback-learning.md) | Processes feedback keywords, audit trail, rollback |
-| Human Oversight Protocol | [`human-oversight-protocol.md`](../plugins/agentic-dev-team/skills/human-oversight-protocol.md) | Approval gates, intervention commands, escalation |
-| Performance Metrics | [`performance-metrics.md`](../plugins/agentic-dev-team/skills/performance-metrics.md) | Task logging schema and reporting procedures |
-| Agent & Skill Authoring | [`agent-skill-authoring.md`](../plugins/agentic-dev-team/skills/agent-skill-authoring.md) | How to create and maintain agents and skills |
-| Specs | [`specs.md`](../plugins/agentic-dev-team/skills/specs.md) | BDD scenario consistency gate before implementation |
+| Context Loading Protocol | [`context-loading-protocol.md`](../plugins/agentic-dev-team/skills/context-loading-protocol/SKILL.md) | Decides which agent/skill files to load and when |
+| Context Summarization | [`context-summarization.md`](../plugins/agentic-dev-team/skills/context-summarization/SKILL.md) | Compresses conversation history at utilization thresholds |
+| Feedback & Learning | [`feedback-learning.md`](../plugins/agentic-dev-team/skills/feedback-learning/SKILL.md) | Processes feedback keywords, audit trail, rollback |
+| Human Oversight Protocol | [`human-oversight-protocol.md`](../plugins/agentic-dev-team/skills/human-oversight-protocol/SKILL.md) | Approval gates, intervention commands, escalation |
+| Performance Metrics | [`performance-metrics.md`](../plugins/agentic-dev-team/skills/performance-metrics/SKILL.md) | Task logging schema and reporting procedures |
+| Agent & Skill Authoring | [`agent-skill-authoring.md`](../plugins/agentic-dev-team/skills/agent-skill-authoring/SKILL.md) | How to create and maintain agents and skills |
+| Specs | [`specs.md`](../plugins/agentic-dev-team/skills/specs/SKILL.md) | BDD scenario consistency gate before implementation |
 
 ### Quality Skills
 
@@ -27,8 +27,8 @@ Used by all agents to ensure output correctness:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Quality Gate Pipeline | [`quality-gate-pipeline.md`](../plugins/agentic-dev-team/skills/quality-gate-pipeline.md) | Unified quality gate: self-validation, verification evidence, review-correction loops |
-| Governance & Compliance | [`governance-compliance.md`](../plugins/agentic-dev-team/skills/governance-compliance.md) | Audit trail, quality assurance layers, ethics principles |
+| Quality Gate Pipeline | [`quality-gate-pipeline.md`](../plugins/agentic-dev-team/skills/quality-gate-pipeline/SKILL.md) | Unified quality gate: self-validation, verification evidence, review-correction loops |
+| Governance & Compliance | [`governance-compliance.md`](../plugins/agentic-dev-team/skills/governance-compliance/SKILL.md) | Audit trail, quality assurance layers, ethics principles |
 
 ### Development Discipline Skills
 
@@ -36,14 +36,14 @@ Enforce rigorous development practices:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Test-Driven Development | [`test-driven-development.md`](../plugins/agentic-dev-team/skills/test-driven-development.md) | RED-GREEN-REFACTOR cycle with hard gates, rationalization prevention |
-| Systematic Debugging | [`systematic-debugging.md`](../plugins/agentic-dev-team/skills/systematic-debugging.md) | 4-phase debugging protocol (reproduce, investigate, root-cause, fix) |
-| Design Doc | [`design-doc.md`](../plugins/agentic-dev-team/skills/design-doc.md) | Written design document with alternatives analysis before planning |
-| Branch Workflow | [`branch-workflow.md`](../plugins/agentic-dev-team/skills/branch-workflow.md) | PR creation, merge strategy, and branch cleanup after Phase 3 |
-| CI Debugging | [`ci-debugging.md`](../plugins/agentic-dev-team/skills/ci-debugging.md) | CI pipeline failure investigation and resolution |
-| Test Design Reviewer | [`test-design-reviewer.md`](../plugins/agentic-dev-team/skills/test-design-reviewer.md) | Test quality patterns and anti-patterns |
-| Browser Testing | [`browser-testing.md`](../plugins/agentic-dev-team/skills/browser-testing.md) | Playwright-based browser QA for visual verification |
-| Feature File Validation | [`feature-file-validation.md`](../plugins/agentic-dev-team/skills/feature-file-validation.md) | Gherkin quality, determinism, implementation independence, test automation coverage |
+| Test-Driven Development | [`test-driven-development.md`](../plugins/agentic-dev-team/skills/test-driven-development/SKILL.md) | RED-GREEN-REFACTOR cycle with hard gates, rationalization prevention |
+| Systematic Debugging | [`systematic-debugging.md`](../plugins/agentic-dev-team/skills/systematic-debugging/SKILL.md) | 4-phase debugging protocol (reproduce, investigate, root-cause, fix) |
+| Design Doc | [`design-doc.md`](../plugins/agentic-dev-team/skills/design-doc/SKILL.md) | Written design document with alternatives analysis before planning |
+| Branch Workflow | [`branch-workflow.md`](../plugins/agentic-dev-team/skills/branch-workflow/SKILL.md) | PR creation, merge strategy, and branch cleanup after Phase 3 |
+| CI Debugging | [`ci-debugging.md`](../plugins/agentic-dev-team/skills/ci-debugging/SKILL.md) | CI pipeline failure investigation and resolution |
+| Test Design Reviewer | [`test-design-reviewer.md`](../plugins/agentic-dev-team/skills/test-design-reviewer/SKILL.md) | Test quality patterns and anti-patterns |
+| Browser Testing | [`browser-testing.md`](../plugins/agentic-dev-team/skills/browser-testing/SKILL.md) | Playwright-based browser QA for visual verification |
+| Feature File Validation | [`feature-file-validation.md`](../plugins/agentic-dev-team/skills/feature-file-validation/SKILL.md) | Gherkin quality, determinism, implementation independence, test automation coverage |
 
 ### Research & Design Skills
 
@@ -51,9 +51,9 @@ Used during the Research phase to explore alternatives and stress-test designs:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Competitive Analysis | [`competitive-analysis.md`](../plugins/agentic-dev-team/skills/competitive-analysis.md) | Gap analysis against external tools, plugins, or feature sets |
-| Design Interrogation | [`design-interrogation.md`](../plugins/agentic-dev-team/skills/design-interrogation.md) | Stress-test design decisions before planning |
-| Design It Twice | [`design-it-twice.md`](../plugins/agentic-dev-team/skills/design-it-twice.md) | Generate parallel alternative interfaces via sub-agents |
+| Competitive Analysis | [`competitive-analysis.md`](../plugins/agentic-dev-team/skills/competitive-analysis/SKILL.md) | Gap analysis against external tools, plugins, or feature sets |
+| Design Interrogation | [`design-interrogation.md`](../plugins/agentic-dev-team/skills/design-interrogation/SKILL.md) | Stress-test design decisions before planning |
+| Design It Twice | [`design-it-twice.md`](../plugins/agentic-dev-team/skills/design-it-twice/SKILL.md) | Generate parallel alternative interfaces via sub-agents |
 
 ### Technical Skills
 
@@ -61,12 +61,12 @@ Domain knowledge for implementation work:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Hexagonal Architecture | [`hexagonal-architecture.md`](../plugins/agentic-dev-team/skills/hexagonal-architecture.md) | Ports & adapters pattern, dependency rule, project structure |
-| Domain-Driven Design | [`domain-driven-design.md`](../plugins/agentic-dev-team/skills/domain-driven-design.md) | Bounded contexts, aggregates, domain events, ubiquitous language |
-| API Design | [`api-design.md`](../plugins/agentic-dev-team/skills/api-design.md) | Contract-first design, versioning, REST conventions |
-| Threat Modeling | [`threat-modeling.md`](../plugins/agentic-dev-team/skills/threat-modeling.md) | STRIDE analysis, trust boundaries, mitigation strategies |
-| Legacy Code | [`legacy-code.md`](../plugins/agentic-dev-team/skills/legacy-code.md) | Characterization testing, safe refactoring in untested code |
-| Mutation Testing | [`mutation-testing.md`](../plugins/agentic-dev-team/skills/mutation-testing.md) | Evaluating test suite effectiveness against behavioral mutations |
+| Hexagonal Architecture | [`hexagonal-architecture.md`](../plugins/agentic-dev-team/skills/hexagonal-architecture/SKILL.md) | Ports & adapters pattern, dependency rule, project structure |
+| Domain-Driven Design | [`domain-driven-design.md`](../plugins/agentic-dev-team/skills/domain-driven-design/SKILL.md) | Bounded contexts, aggregates, domain events, ubiquitous language |
+| API Design | [`api-design.md`](../plugins/agentic-dev-team/skills/api-design/SKILL.md) | Contract-first design, versioning, REST conventions |
+| Threat Modeling | [`threat-modeling.md`](../plugins/agentic-dev-team/skills/threat-modeling/SKILL.md) | STRIDE analysis, trust boundaries, mitigation strategies |
+| Legacy Code | [`legacy-code.md`](../plugins/agentic-dev-team/skills/legacy-code/SKILL.md) | Characterization testing, safe refactoring in untested code |
+| Mutation Testing | [`mutation-testing.md`](../plugins/agentic-dev-team/skills/mutation-testing/SKILL.md) | Evaluating test suite effectiveness against behavioral mutations |
 | Docker Image Create | [`docker-image-create/SKILL.md`](../plugins/agentic-dev-team/skills/docker-image-create/SKILL.md) | Generate production Dockerfiles with multi-stage builds, slim/distroless bases |
 | Docker Image Audit | [`docker-image-audit/SKILL.md`](../plugins/agentic-dev-team/skills/docker-image-audit/SKILL.md) | Audit Dockerfiles and images with hadolint, Trivy, Grype; structured severity report |
 
@@ -149,8 +149,8 @@ Agents reference skills in their `## Skills` section with invocation context:
 
 ```markdown
 ## Skills
-- [Hexagonal Architecture](../plugins/agentic-dev-team/skills/hexagonal-architecture.md) - invoke when structuring new services
-- [Domain-Driven Design](../plugins/agentic-dev-team/skills/domain-driven-design.md) - invoke when modeling bounded contexts
+- [Hexagonal Architecture](../plugins/agentic-dev-team/skills/hexagonal-architecture/SKILL.md) - invoke when structuring new services
+- [Domain-Driven Design](../plugins/agentic-dev-team/skills/domain-driven-design/SKILL.md) - invoke when modeling bounded contexts
 ```
 
 The annotation explains *when and why* that agent uses the skill. The skill itself defines *how* and is agent-agnostic.
@@ -189,7 +189,7 @@ user-invocable: true
 [Actionable rules for applying this skill]
 ```
 
-See [Agent & Skill Authoring](../plugins/agentic-dev-team/skills/agent-skill-authoring.md) for detailed guidelines and anti-patterns.
+See [Agent & Skill Authoring](../plugins/agentic-dev-team/skills/agent-skill-authoring/SKILL.md) for detailed guidelines and anti-patterns.
 
 ## Add a Slash Command
 

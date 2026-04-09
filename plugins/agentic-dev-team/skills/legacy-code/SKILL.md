@@ -99,7 +99,7 @@ Report the legacy code analysis: identified change points, test points, dependen
 
 ## Integration
 
-- **[Specs](specs.md)** — when modifying legacy code to add new behavior, specify the new behavior first, then use this skill to get existing code under test before implementing
-- **[Hexagonal Architecture](hexagonal-architecture.md)** — dependency breaking techniques move legacy code toward port/adapter separation incrementally
-- **[Quality Gate Pipeline](quality-gate-pipeline.md)** — verify characterization tests match observed behavior (Phase 1); legacy code changes have higher defect risk, apply review-correction with increased scrutiny (Phase 3)
-- **[Mutation Testing](mutation-testing.md)** — after writing characterization tests, use mutation testing to verify those tests catch behavioral changes
+- **[Specs](../specs/SKILL.md)** — when modifying legacy code to add new behavior, specify the new behavior first, then use this skill to get existing code under test before implementing
+- **[Hexagonal Architecture](../hexagonal-architecture/SKILL.md)** — dependency breaking techniques move legacy code toward port/adapter separation incrementally
+- **[Quality Gate Pipeline](../quality-gate-pipeline/SKILL.md)** — verify characterization tests match observed behavior (Phase 1); legacy code changes have higher defect risk, apply review-correction with increased scrutiny (Phase 3)
+- **[Mutation Testing](../mutation-testing/SKILL.md)** — after writing characterization tests, use mutation testing to verify those tests catch behavioral changes

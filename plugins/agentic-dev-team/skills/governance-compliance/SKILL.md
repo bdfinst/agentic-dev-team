@@ -49,7 +49,7 @@ To answer "why did the system do X?", trace through:
 Quality is enforced at four progressive layers:
 
 #### Layer 1: Agent Self-Validation
-- Every agent applies the [Quality Gate Pipeline](quality-gate-pipeline.md) before delivering output
+- Every agent applies the [Quality Gate Pipeline](../quality-gate-pipeline/SKILL.md) before delivering output
 - Confidence scoring on all major claims
 - Tool-based verification for factual claims (file paths, APIs, data)
 
@@ -62,7 +62,7 @@ When applicable (code generation, data analysis, architecture changes):
 #### Layer 3: Human Spot-Check
 - User reviews delivered output
 - Feedback captured via accept/reject/amend
-- Patterns in rejections feed back through [Feedback & Learning](feedback-learning.md)
+- Patterns in rejections feed back through [Feedback & Learning](../feedback-learning/SKILL.md)
 
 #### Layer 4: Post-Hoc Monitoring
 - Orchestrator reviews task metrics during learning loop

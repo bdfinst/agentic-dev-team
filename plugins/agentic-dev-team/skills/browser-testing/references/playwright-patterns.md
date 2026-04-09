@@ -1,25 +1,4 @@
----
-name: browser-testing
-description: >-
-  Patterns and templates for browser-based QA using Playwright. Covers
-  navigation, form interaction, screenshot capture, visual verification,
-  and CAPTCHA/auth handoff.
-role: worker
-user-invocable: false
----
-
-# Browser Testing Skill
-
-## Overview
-
-This skill provides reusable patterns for browser-based testing and visual verification using Playwright. Agents load this skill when they need to interact with a running application through a real browser.
-
-## Prerequisites
-
-Playwright must be installed with at least the Chromium browser:
-```bash
-npx playwright install chromium
-```
+# Playwright Patterns Reference
 
 ## Interaction Patterns
 
@@ -209,15 +188,3 @@ For recurring auth needs, suggest the user:
 - Use session cookies via Playwright's `storageState`
 - Pre-authenticate and save state: `await context.storageState({ path: 'auth.json' })`
 - Load saved state: `browser.newContext({ storageState: 'auth.json' })`
-
-## Visual Verification Guidelines
-
-When interpreting screenshots, describe:
-
-1. **Layout**: Is the page structure correct? Any overlapping elements, broken grids, or overflow?
-2. **Content**: Is the expected text/data visible? Any placeholder text or missing images?
-3. **State**: Are interactive elements in the right state? (buttons enabled/disabled, forms populated, etc.)
-4. **Responsiveness**: At the given viewport, does the layout adapt correctly?
-5. **Errors**: Any visible error messages, 404 pages, or console errors captured?
-
-Compare observations against acceptance criteria when available. Flag discrepancies as findings.

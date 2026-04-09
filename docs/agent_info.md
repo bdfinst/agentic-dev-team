@@ -18,7 +18,6 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 | Technical Writer | [`tech-writer.md`](../plugins/agentic-dev-team/agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
 | Security Engineer | [`security-engineer.md`](../plugins/agentic-dev-team/agents/security-engineer.md) | Security analysis, threat modeling, compliance |
 | DevOps/SRE Engineer | [`devops-sre-engineer.md`](../plugins/agentic-dev-team/agents/devops-sre-engineer.md) | Pipeline, deployment, reliability, observability |
-| Knowledge Capture | [`learn.md`](../plugins/agentic-dev-team/agents/learn.md) | Captures institutional knowledge after feature completion or complex bug fixes |
 | ADR Author | [`adr.md`](../plugins/agentic-dev-team/agents/adr.md) | Creates and manages Architecture Decision Records |
 
 ## Review Agents
@@ -97,7 +96,7 @@ The `## Skills` section is the bridge between agents and skills. The agent defin
 4. Define collaboration protocols with existing agents
 5. Reference any applicable skills in the `## Skills` section
 
-See [Agent & Skill Authoring](../plugins/agentic-dev-team/skills/agent-skill-authoring.md) for detailed guidelines.
+See [Agent & Skill Authoring](../plugins/agentic-dev-team/skills/agent-skill-authoring/SKILL.md) for detailed guidelines.
 
 ## Add a Review Agent
 

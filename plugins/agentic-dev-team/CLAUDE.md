@@ -39,7 +39,7 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 ### Quick Reference
 
-**Team agents** (12): Orchestrator, Software Engineer, Data Scientist, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, DevOps/SRE Engineer, Knowledge Capture, ADR Author (~4,200 tokens total)
+**Team agents** (11): Orchestrator, Software Engineer, Data Scientist, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, DevOps/SRE Engineer, ADR Author (~3,900 tokens total)
 
 **Review agents** (19): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactoring-review, progress-guardian, data-flow-tracer
 
@@ -170,8 +170,8 @@ Each agent's `model:` frontmatter is a fallback for direct invocation. When the 
 
 Context management is the Orchestrator's responsibility, governed by two operational skills:
 
-1. **[Context Loading Protocol](skills/context-loading-protocol.md)** - decides *what* to load and *when*, using task classification, phased loading, and measured token budgets
-2. **[Context Summarization](skills/context-summarization.md)** - decides *when* to compress and *how*, using LSTM-inspired gates, utilization triggers, and structured summaries written to `memory/`
+1. **[Context Loading Protocol](skills/context-loading-protocol/SKILL.md)** - decides *what* to load and *when*, using task classification, phased loading, and measured token budgets
+2. **[Context Summarization](skills/context-summarization/SKILL.md)** - decides *when* to compress and *how*, using LSTM-inspired gates, utilization triggers, and structured summaries written to `memory/`
 
 ### Baseline Budget
 - CLAUDE.md (always loaded): ~800 tokens (reduced by moving registries to `knowledge/agent-registry.md`)
@@ -190,7 +190,7 @@ Context management is the Orchestrator's responsibility, governed by two operati
 
 ## Feedback & Learning
 
-Users can modify system behavior at any time using trigger keywords (`amend`, `learn`, `remember`, `forget`). The full procedure is defined in **[Feedback & Learning](skills/feedback-learning.md)**.
+Users can modify system behavior at any time using trigger keywords (`amend`, `learn`, `remember`, `forget`). The full procedure is defined in **[Feedback & Learning](skills/feedback-learning/SKILL.md)**.
 
 Changes are logged to `metrics/config-changelog.jsonl` with full audit trail and rollback support.
 
@@ -198,21 +198,21 @@ Non-obvious routing and architectural decisions are logged to `memory/decisions.
 
 ## Human Oversight
 
-Agents operate autonomously within defined boundaries. Human involvement is required for high-impact decisions (production deployments, architecture changes, scope modifications). The full protocol is defined in **[Human Oversight Protocol](skills/human-oversight-protocol.md)**.
+Agents operate autonomously within defined boundaries. Human involvement is required for high-impact decisions (production deployments, architecture changes, scope modifications). The full protocol is defined in **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**.
 
 Intervention commands: `amend`, `learn`, `remember`, `forget`, `override`, `pause`, `stop`.
 
 ## Quality & Accuracy
 
-All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline.md)** before delivering output: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3). The QA agent performs peer validation when applicable.
+All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKILL.md)** before delivering output: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3). The QA agent performs peer validation when applicable.
 
-Audit logging, quality gates, and ethics principles are defined in **[Governance & Compliance](skills/governance-compliance.md)**.
+Audit logging, quality gates, and ethics principles are defined in **[Governance & Compliance](skills/governance-compliance/SKILL.md)**.
 
 A `PreToolUse` hook (`hooks/pre-tool-guard.sh`) blocks writes to sensitive paths (credentials, keys, secrets) before they execute. Protected path patterns are configurable via `hooks/guards.json`. A second `PreToolUse` hook (`hooks/destructive-guard.sh`) detects destructive Bash commands (rm -rf, force-push, DROP TABLE, etc.) and warns by default. Use `/careful` to escalate warnings to blocks, `/freeze` to scope-lock edits, or `/guard` for both.
 
 ## Performance Metrics
 
-Task completion data is logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics.md)** for the schema and reporting cadence.
+Task completion data is logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)** for the schema and reporting cadence.
 
 ### Targets
 - 10-15% overall efficiency gains

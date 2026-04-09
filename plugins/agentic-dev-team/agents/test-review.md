@@ -22,11 +22,11 @@ Context needs: full-file
 
 ## Skills
 
-- [Feature File Validation](../skills/feature-file-validation.md) - invoke when `.feature` files or step definition files are in the target; validates Gherkin quality, determinism, implementation independence, and test automation coverage
+- [Feature File Validation](../skills/feature-file-validation/SKILL.md) - invoke when `.feature` files or step definition files are in the target; validates Gherkin quality, determinism, implementation independence, and test automation coverage
 
 ## Skip
 
-Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` when no test files are found in the target. Note: `.feature` files count as test files — if feature files are present, do not skip; run [Feature File Validation](../skills/feature-file-validation.md) on them.
+Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` when no test files are found in the target. Note: `.feature` files count as test files — if feature files are present, do not skip; run [Feature File Validation](../skills/feature-file-validation/SKILL.md) on them.
 
 Test file indicators by language:
 

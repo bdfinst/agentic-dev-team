@@ -16,8 +16,8 @@ model: sonnet
 - User journey mapping
 
 ## Skills
-- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke before delivering designs (Phase 1: verify referenced components, patterns, and accessibility standards)
-- [Design Doc](../skills/design-doc.md) - invoke during brainstorming and design phases to produce visual artifacts (Mermaid diagrams, wireframes, mockups) alongside the design document
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke before delivering designs (Phase 1: verify referenced components, patterns, and accessibility standards)
+- [Design Doc](../skills/design-doc/SKILL.md) - invoke during brainstorming and design phases to produce visual artifacts (Mermaid diagrams, wireframes, mockups) alongside the design document
 
 ## Collaboration Protocols
 

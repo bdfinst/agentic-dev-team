@@ -15,7 +15,7 @@ model: opus
 - Model performance monitoring and optimization
 
 ## Skills
-- [Quality Gate Pipeline](../skills/quality-gate-pipeline.md) - invoke before delivering analysis results (Phase 1: verify data sources, statistical claims, and model outputs)
+- [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke before delivering analysis results (Phase 1: verify data sources, statistical claims, and model outputs)
 
 ## Collaboration Protocols
 

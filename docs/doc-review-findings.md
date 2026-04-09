@@ -23,14 +23,9 @@ The documentation is well-structured and comprehensive. The primary issues are *
 
 ### E1. `docs/agent_info.md` — Team agents table missing 2 agents
 
-**Lines 9-20.** The Team Agents table lists 10 agents, but `CLAUDE.md` lists 12. Missing:
+**Lines 9-20.** The Team Agents table was missing the ADR Author agent. Knowledge Capture was removed — its responsibilities are now handled by the Feedback & Learning skill's post-task reflection and learning loop.
 
-- **Knowledge Capture** (`agents/learn.md`)
-- **ADR Author** (`agents/adr.md`)
-
-Both files exist and both appear in the `docs/team-structure.md` Mermaid diagram (as `KC` and `ADR` nodes). The table is the only place they're omitted.
-
-**Fix**: Add two rows to the Team Agents table.
+**Fix**: ADR Author row added. Knowledge Capture removed from all references.
 
 ---
 

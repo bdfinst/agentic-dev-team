@@ -51,12 +51,22 @@ echo ""
 echo "--- Required ---"
 check_required "claude" "Install from https://docs.anthropic.com/en/docs/claude-code"
 check_required "jq"     "macOS: brew install jq  |  Linux: apt install jq"
+check_required "gh"     "macOS: brew install gh  |  https://cli.github.com/"
 
 echo ""
 echo "--- Optional ---"
 check_optional "semgrep" \
   "SAST scanning via /semgrep-analyze" \
   "pip install semgrep  |  brew install semgrep"
+check_optional "hadolint" \
+  "Dockerfile linting via /docker-image-audit" \
+  "brew install hadolint  |  https://github.com/hadolint/hadolint/releases"
+check_optional "trivy" \
+  "image vulnerability scanning via /docker-image-audit" \
+  "brew install trivy  |  https://aquasecurity.github.io/trivy/"
+check_optional "grype" \
+  "second-opinion CVE scanning via /docker-image-audit" \
+  "brew install grype  |  https://github.com/anchore/grype"
 
 echo ""
 
