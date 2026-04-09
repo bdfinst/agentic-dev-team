@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.0.0](https://github.com/bdfinst/agentic-dev-team/compare/v2.3.0...v3.0.0) (2026-04-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* skill file paths changed from skills/foo.md to skills/foo/SKILL.md. Team agent count reduced from 12 to 11.
+
+### Features
+
+* add baked-in config, Swiss Army Knife, and stateful container checks to docker-image-audit ([eefe5a8](https://github.com/bdfinst/agentic-dev-team/commit/eefe5a81349b2529dfcb97138d7f49a379a9f519))
+* add docker-image-create and docker-image-audit skills ([7e115c8](https://github.com/bdfinst/agentic-dev-team/commit/7e115c8697aeab02a82c4b4dee49001ac8636502))
+* restructure skills into directories with progressive disclosure ([bab081b](https://github.com/bdfinst/agentic-dev-team/commit/bab081b448d540b4b378ea93bdbbbc6bbc0900d0))
+
 ## [2.3.0](https://github.com/bdfinst/agentic-dev-team/compare/v2.2.0...v2.3.0) (2026-04-08)
 
 
