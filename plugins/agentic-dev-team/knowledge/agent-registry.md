@@ -82,6 +82,8 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Design It Twice | `skills/design-it-twice.md` | 550 | Architect, Software Engineer |
 | Static Analysis Integration | `skills/static-analysis-integration.md` | 650 | Orchestrator, `/code-review` |
 | Feature File Validation | `skills/feature-file-validation.md` | 700 | test-review, QA Engineer, spec-compliance-review |
+| Docker Image Create | `skills/docker-image-create/SKILL.md` | 800 | DevOps/SRE Engineer, Software Engineer |
+| Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), DevOps/SRE Engineer, Security Engineer |
 
 ## Subagent Prompt Templates
 

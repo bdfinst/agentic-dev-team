@@ -51,8 +51,9 @@ flowchart LR
     QUALITY -->|Domain logic| R6[domain-review\nopus]
     QUALITY -->|UI components| R7[a11y-review\nsonnet]
     QUALITY -->|All changes| R8[structure-review\nsonnet]
+    QUALITY -->|Dockerfile| R9[docker-image-audit\nsonnet]
 
-    R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 --> AGG{Aggregate\nFindings}
+    R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 & R9 --> AGG{Aggregate\nFindings}
     AGG -->|pass / warn| CONT([Continue])
     AGG -->|fail| FB[Correction Context\n→ Coding Agent]
     FB -->|max 2 iterations| AGG

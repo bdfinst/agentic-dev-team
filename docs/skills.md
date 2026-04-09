@@ -67,6 +67,8 @@ Domain knowledge for implementation work:
 | Threat Modeling | [`threat-modeling.md`](../plugins/agentic-dev-team/skills/threat-modeling.md) | STRIDE analysis, trust boundaries, mitigation strategies |
 | Legacy Code | [`legacy-code.md`](../plugins/agentic-dev-team/skills/legacy-code.md) | Characterization testing, safe refactoring in untested code |
 | Mutation Testing | [`mutation-testing.md`](../plugins/agentic-dev-team/skills/mutation-testing.md) | Evaluating test suite effectiveness against behavioral mutations |
+| Docker Image Create | [`docker-image-create/SKILL.md`](../plugins/agentic-dev-team/skills/docker-image-create/SKILL.md) | Generate production Dockerfiles with multi-stage builds, slim/distroless bases |
+| Docker Image Audit | [`docker-image-audit/SKILL.md`](../plugins/agentic-dev-team/skills/docker-image-audit/SKILL.md) | Audit Dockerfiles and images with hadolint, Trivy, Grype; structured severity report |
 
 ### Subagent Prompt Templates
 

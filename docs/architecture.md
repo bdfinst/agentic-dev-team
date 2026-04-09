@@ -35,7 +35,7 @@ Full routing table: `agents/orchestrator.md` → Model Routing Table section.
 
 During Phase 3, after each discrete unit of work:
 
-1. Orchestrator selects targeted review agents based on what changed (JS/TS → js-fp-review + complexity-review; API surface → security-review; etc.)
+1. Orchestrator selects targeted review agents based on what changed (JS/TS → js-fp-review + complexity-review; API surface → security-review; Dockerfile → docker-image-audit; etc.)
 2. Agents run in parallel as sub-agents with orchestrator-assigned models
 3. `fail` findings → packaged as correction context → sent to coding agent
 4. Coding agent revises only targeted code

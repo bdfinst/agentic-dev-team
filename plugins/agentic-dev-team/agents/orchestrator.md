@@ -144,6 +144,7 @@ After each discrete unit of work classified as **standard** or **complex** (a fu
 | Domain/business logic | domain-review (opus) |
 | UI components | a11y-review (sonnet), structure-review (sonnet) |
 | Agent or command files | eval-compliance-check hook runs automatically; also run /agent-audit |
+| Dockerfile or .dockerignore | docker-image-audit skill (sonnet) |
 | Documentation files (.md) | doc-review (sonnet) |
 | Architecture/dependency changes | arch-review (opus) |
 | All changes | structure-review (sonnet) as a baseline |
