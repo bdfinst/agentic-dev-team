@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.2.0](https://github.com/bdfinst/agentic-dev-team/compare/v3.1.1...v3.2.0) (2026-04-10)
+
+
+### Features
+
+* add plan review personas, performance benchmarking, review-fix loop, and auto-scope ([682e7ec](https://github.com/bdfinst/agentic-dev-team/commit/682e7eca3a35b3f5c9e91df79fc6b9ad277a8a98))
+* replace Mermaid diagrams with styled SVG images ([0e11eb8](https://github.com/bdfinst/agentic-dev-team/commit/0e11eb87d6a8d94ce51c865131db9057fab5d78f))
+
+
+### Bug Fixes
+
+* add more bottom padding to three-phase workflow SVG ([151cfef](https://github.com/bdfinst/agentic-dev-team/commit/151cfef539329f162db44a454a098096e81495e0))
+* align fail-loop arrow to enter TDD box from the left edge ([37c4aa8](https://github.com/bdfinst/agentic-dev-team/commit/37c4aa856153234781d9b0765d9125a312ceb113))
+* clean up broken lines and misaligned arrows in three-phase SVG ([86f97e9](https://github.com/bdfinst/agentic-dev-team/commit/86f97e9e5ceb5df11844252ba899697620b443ba))
+* compress three-phase workflow SVG to prevent GitHub clipping ([2032cc9](https://github.com/bdfinst/agentic-dev-team/commit/2032cc942a450444b7e0445347e65bd728bae36f))
+* connect Gate 3 arrows directly to /pr and Learning Loop box tops ([99d2d32](https://github.com/bdfinst/agentic-dev-team/commit/99d2d32d40f251bca56149b897a3729b58ae0d9b))
+* increase three-phase workflow SVG viewBox height to prevent clipping ([18441fd](https://github.com/bdfinst/agentic-dev-team/commit/18441fddd2d807da4d041d8b41a572e42b69e9f2))
+* move human gates inline with last step of each phase ([2134bc5](https://github.com/bdfinst/agentic-dev-team/commit/2134bc541a5f28a841841cadb9fe1385b5fef9fc))
+* replace T-junction with two direct lines to /pr and Learning Loop ([703515b](https://github.com/bdfinst/agentic-dev-team/commit/703515b715a710e05bbae2ca98792db7f637f142))
+
 ## [3.1.1](https://github.com/bdfinst/agentic-dev-team/compare/v3.1.0...v3.1.1) (2026-04-10)
 
 
