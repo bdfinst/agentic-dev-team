@@ -43,7 +43,7 @@ If the user chooses to continue without specs, proceed. Otherwise, stop and let 
 
 ### 2. Understand the task
 
-Read relevant code and context to understand what needs to change. Keep exploration focused — this is planning, not research. If the task is complex enough to need deep research, suggest `/design-doc` instead. If spec artifacts exist, use them as the primary source for acceptance criteria and scope.
+Read relevant code and context to understand what needs to change. Keep exploration focused — this is planning, not research. If the task is complex enough to need deep research, suggest `/design-doc` instead. If spec artifacts exist, use them as the primary source for acceptance criteria and scope. When spec artifacts include BDD scenarios, copy them verbatim into the plan's "User-Facing Behavior" section. Each TDD step should trace back to one or more scenarios.
 
 ### 3. Create the plan
 
@@ -65,6 +65,10 @@ Write the plan file using this structure:
 - [ ] <Criterion 1 — observable, testable>
 - [ ] <Criterion 2>
 - [ ] <Criterion 3>
+
+## User-Facing Behavior
+
+<Copy the Gherkin scenarios from the spec file verbatim. These are the behavioral contracts that drive the TDD steps below.>
 
 ## Steps
 

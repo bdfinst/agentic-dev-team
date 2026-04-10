@@ -67,6 +67,16 @@ Each specification covers **one vertical slice** — a single scenario, a single
 | 4. Refine | — | Produce updated artifact incorporating decisions |
 | 5. Repeat | Review refined version | If issues remain, return to step 2 (max 2 iterations before escalation) |
 
+### BDD Scenario Review
+
+Before running the consistency gate, validate the BDD scenarios for completeness. Run the `feature-file-validation` skill against the User-Facing Behavior artifact to check:
+
+- [ ] Negative cases are covered (what happens when input is invalid, unauthorized, missing, or malformed)
+- [ ] Edge cases are covered (empty collections, boundary values, concurrent access, idempotency)
+- [ ] Error scenarios are explicit (not just "should fail" — specify the observable error behavior)
+
+If gaps are found, present them to the user as a critique on the BDD artifact and run another collaboration loop iteration before proceeding to the consistency gate.
+
 ### Cross-Artifact Consistency Gate
 
 Before implementation begins, validate all four artifacts as a set:
@@ -152,6 +162,10 @@ After the consistency gate passes, write all four artifacts plus the gate verdic
 ```
 
 5. **Print** the file path to chat so the user can find it
+
+### Auto-trigger /plan
+
+After persisting the spec file, automatically invoke `/plan` with the feature description as the task. The plan command will discover the spec artifacts and include the BDD scenarios in the plan document. Do not ask the user whether to proceed — the approved spec is the trigger.
 
 ## Integration
 
