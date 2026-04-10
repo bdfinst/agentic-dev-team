@@ -91,8 +91,19 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 - **Agents**: Architect (primary), Product Manager (if requirements unclear), Orchestrator
 - **Input**: Research progress file from Phase 1 + approved design doc (if produced in Phase 1)
 - **Output**: An implementation plan with explicit file changes, test expectations, and acceptance criteria
-- **Automated plan review**: Before the human gate, dispatch a plan-reviewer subagent using the `prompts/plan-reviewer.md` template. The reviewer checks completeness, consistency, risk, and scope. If `needs-revision`, address issues before presenting to the human.
-- **Human gate**: Human reviews the plan. This is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. If the plan is wrong, fix it here, not in code.
+- **Automated plan review**: Before the human gate, dispatch **four plan review personas in parallel** as sub-agents. Each reviewer independently challenges the plan from a different critical perspective:
+
+  | Reviewer | Template | Model | What it challenges |
+  |----------|----------|-------|--------------------|
+  | Acceptance Test Critic | `prompts/plan-review-acceptance.md` | `sonnet` | Criteria verifiability, scenario completeness, error paths, TDD traceability |
+  | Design & Architecture Critic | `prompts/plan-review-design.md` | `sonnet` | Coupling, abstraction quality, structural risks, pattern consistency |
+  | UX Critic | `prompts/plan-review-ux.md` | `sonnet` | User journey, error experience, cognitive load, accessibility |
+  | Strategic Critic | `prompts/plan-review-strategic.md` | `sonnet` | Problem-solution fit, scope, risk, opportunity cost |
+
+  Each returns a `verdict` of `approve` or `needs-revision`. If **any** reviewer returns `needs-revision`, address the blocker issues before presenting to the human. Aggregate all findings (including warnings from approving reviewers) into the plan review summary.
+
+  The UX Critic self-skips for plans with no user-facing changes. The remaining three always run.
+- **Human gate**: Human reviews the plan and the aggregated review findings. This is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. If the plan is wrong, fix it here, not in code.
 - **Context**: Compact after this phase — write progress file, start fresh context for Phase 3
 
 ### Phase 3: Implement
@@ -106,7 +117,7 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
   1. **Stage 1 — Spec compliance**: Run `spec-compliance-review` using the `prompts/spec-reviewer.md` template. Does the code match the spec? If fail → fix before proceeding to Stage 2.
   2. **Stage 2 — Code quality**: Run the standard **Inline Review Checkpoint** (see below) using the `prompts/quality-reviewer.md` template. Is the code high quality?
   3. **Stage 3 — Browser verification (UI changes only)**: If the plan step involves UI components, run `/browse` in automated smoke test mode against the running dev server. Capture screenshots, verify rendering, and check basic interaction. If the dev server is not running, skip with a warning (do not fail). Timeout: 30 seconds. Failures enter the review loop (max 2 iterations). This stage is skipped for non-UI changes.
-- **Final verify**: After all units complete and tests pass, run `/code-review --changed` on all modified files:
+- **Final verify**: After all units complete and tests pass, run `/code-review` on all modified files:
   - `fail` → Software Engineer addresses critical issues, re-run review
   - `warn` → include findings in human gate summary
   - `pass` → proceed to doc review
@@ -124,7 +135,7 @@ Each plan step includes a **Complexity** classification that controls review dep
 
 | Complexity | Inline review behavior |
 |------------|----------------------|
-| `trivial` | Skip inline review entirely. The final `/code-review --changed` covers all files. |
+| `trivial` | Skip inline review entirely. The final `/code-review` covers all files. |
 | `standard` | Run spec-compliance + quality agents relevant to the change type (see table below). |
 | `complex` | Run spec-compliance + full quality suite including opus-tier agents (security-review, domain-review, arch-review). |
 
@@ -161,19 +172,21 @@ After each discrete unit of work classified as **standard** or **complex** (a fu
 
 When any checkpoint agent returns `fail`:
 
-1. Package findings as structured correction context:
-   ```
-   Review finding — [agent-name] at [file:line]
-   Issue: [message]
-   Required fix: [suggestedFix]
-   ```
-2. Send to Software Engineer: "Revise to address these findings before continuing."
-3. Software Engineer revises **only the targeted code** — no surrounding changes.
-4. Re-run only the agents that returned `fail`.
-5. If still `fail` after **2 iterations** → escalate to human with:
-   - The original findings
-   - Both revision attempts
-   - Recommended resolution path
+1. Classify issues by actionability (same criteria as `/code-review` step 5):
+   - **Actionable**: severity `error` or `warning` with confidence `high` or `medium`
+   - **Human-required**: confidence `none` — log and skip, do not attempt auto-fix
+2. For actionable issues, apply the minimal fix directly:
+   - Apply file-by-file, top-to-bottom by line number
+   - Run tests after each batch of fixes — revert and mark as human-required if tests break
+3. Re-run only the agents that reported actionable issues.
+4. Repeat up to **5 iterations** total (matching `/code-review` loop behavior).
+5. **Exit conditions**:
+   - Zero actionable issues remain → continue to next plan step
+   - Same issues persist after fix attempt → not converging, escalate
+   - Iteration limit reached (5) → escalate to human with:
+     - The original findings
+     - All fix attempts
+     - Remaining issues and recommended resolution path
 6. `warn` after any iteration is acceptable; document in phase output and continue.
 
 ### Phase Transitions

@@ -12,7 +12,7 @@ The orchestrator reads this file during Step 5 (Aggregate and report).
 
 **Overall: {PASS|WARN|FAIL}** — {1-sentence summary}
 **Date:** {ISO 8601}
-**Scope:** {file count} files ({--changed|--since <ref>|--path <dir>|full repo})
+**Scope:** {file count} files ({uncommitted changes|--since <ref>|--path <dir>|full repo})
 **Health:** {🟢|🟠|🔴} ({see review-rubric.md for scoring})
 
 ## Pre-Flight Gates

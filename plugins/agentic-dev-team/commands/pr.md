@@ -20,7 +20,7 @@ You have been invoked with the `/pr` command.
 
 Arguments: $ARGUMENTS
 
-- `--skip-review`: Skip the `/code-review --changed` step (not recommended)
+- `--skip-review`: Skip the `/code-review` step (not recommended)
 - `--draft`: Create a draft PR
 - `--base <branch>`: Target branch (default: `main`)
 
@@ -55,7 +55,7 @@ Run each check sequentially. Stop on first failure:
    - `golangci-lint` available: `golangci-lint run`
 
 4. **Code review** (unless `--skip-review`):
-   - Run `/code-review --changed`
+   - Run `/code-review`
    - If review returns `fail`, show the results and ask the user whether to proceed or fix
 
 Report results as a checklist:

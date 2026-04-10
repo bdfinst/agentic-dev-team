@@ -43,9 +43,9 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Review agents** (19): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactoring-review, progress-guardian, data-flow-tracer
 
-**Skills** (30): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit
+**Skills** (31): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark
 
-**Subagent prompt templates** (4): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`
+**Subagent prompt templates** (8): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`
 
 **Knowledge files** (6): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment
 
@@ -61,7 +61,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 
 | Command | File | Role | What It Does |
 |---------|------|------|--------------|
-| `/code-review` | `commands/code-review.md` | orchestrator | Run all enabled review agents with pre-flight gates |
+| `/code-review` | `commands/code-review.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
 | `/review-agent` | `commands/review-agent.md` | worker | Run a single review agent (used for inline checkpoints) |
 | `/agent-audit` | `commands/agent-audit.md` | orchestrator | Audit agents/commands/hooks for structural compliance |
 | `/agent-eval` | `commands/agent-eval.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
@@ -89,6 +89,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/issues-from-plan` | `commands/issues-from-plan.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
 | `/harness-audit` | `commands/harness-audit.md` | orchestrator | Analyze harness effectiveness and flag stale components |
 | `/version` | `commands/version.md` | worker | Report the installed plugin version |
+| `/benchmark` | `commands/benchmark.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
 | `/help` | `commands/help.md` | worker | List all available slash commands with descriptions |
 
 ## Request Processing Flow
@@ -98,9 +99,9 @@ For trivial tasks (typo fix, simple query), the Orchestrator routes directly to 
 ### Three-Phase Workflow
 1. **Research** — Understand the system: find relevant files, trace data flows, identify the problem surface area. Sub-agents explore the codebase and return concise findings to keep the parent context clean. For non-trivial features, produce a **design document** at `docs/specs/` with problem statement, approach, alternatives, and scope boundaries. Optionally run **Design Interrogation** to stress-test the design and surface unresolved decisions before planning. For module boundaries, use **Design It Twice** to generate parallel alternative interfaces via sub-agents. Output: research progress file + design doc written to `memory/`.
 2. **Human Review Gate** — Human reviews research findings and design doc. Catching a misunderstanding here prevents hundreds of bad lines of code.
-3. **Plan** — Specify every change: files, snippets, test strategy, verification steps. An automated **plan reviewer** (`prompts/plan-reviewer.md`) pre-checks completeness and consistency before the human sees it. The plan is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. After approval, optionally run `/issues-from-plan` to create GitHub issues for team distribution. Output: implementation plan progress file written to `memory/`.
+3. **Plan** — Specify every change: files, snippets, test strategy, verification steps. Before the human sees the plan, **four plan review personas** run in parallel as critical outside reviewers: Acceptance Test Critic (criteria quality, scenario gaps), Design & Architecture Critic (coupling, structural risks), UX Critic (user journey, accessibility), and Strategic Critic (scope, risk, opportunity cost). Any blocker findings are addressed before the human gate. The plan is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. After approval, optionally run `/issues-from-plan` to create GitHub issues for team distribution. Output: implementation plan progress file written to `memory/`.
 4. **Human Review Gate** — Human reviews the plan. This replaces traditional line-by-line code review as the primary quality gate.
-5. **Implement** — Execute the plan using the `prompts/implementer.md` template. All code follows **RED-GREEN-REFACTOR** with **vertical slices** (TDD skill). For parallel independent units, use **worktree isolation** (`isolation: "worktree"`). After each unit, a **three-stage inline review** runs: (1) spec-compliance-review checks code matches spec, (2) quality review agents check code quality, (3) browser verification for UI changes. Review findings feed back to the coding agent (max 2 correction iterations). Run `/code-review --changed` before committing. Then invoke the tech-writer to verify all affected documentation is current. All agents must provide **verification evidence** (fresh test output) before claiming completion. Output: working code + test results + code review pass + docs verified.
+5. **Implement** — Execute the plan using the `prompts/implementer.md` template. All code follows **RED-GREEN-REFACTOR** with **vertical slices** (TDD skill). For parallel independent units, use **worktree isolation** (`isolation: "worktree"`). After each unit, a **three-stage inline review** runs: (1) spec-compliance-review checks code matches spec, (2) quality review agents check code quality, (3) browser verification for UI changes. Actionable issues (error/warning severity with high/medium confidence) are **auto-fixed and re-reviewed** in a loop (up to 5 iterations) — only issues requiring human judgment are escalated. Run `/code-review` before committing (which auto-scopes to uncommitted changes and runs its own fix loop). Then invoke the tech-writer to verify all affected documentation is current. All agents must provide **verification evidence** (fresh test output) before claiming completion. Output: working code + test results + code review pass + docs verified.
 6. **Human Review Gate** — Human reviews the final output. Lightweight if the plan was correct.
 7. **Branch Workflow** — Create PR, choose merge strategy, clean up branch (see Branch Workflow skill).
 8. **Learning loop** — Update configs if needed, log metrics, refine routing.
@@ -112,7 +113,7 @@ For trivial tasks (typo fix, simple query), the Orchestrator routes directly to 
 | **Research** | Design Doc, Domain Analysis, Domain-Driven Design, Threat Modeling, Design Interrogation, Design It Twice, Competitive Analysis | Understand the system, explore alternatives, stress-test designs |
 | **Plan** | Specs, API Design, Hexagonal Architecture, Legacy Code | Define what to build, specify interfaces and test strategy |
 | **Plan → Team** | `/issues-from-plan` | Break plan into GitHub issues for team distribution |
-| **Implement** | Test-Driven Development, Systematic Debugging, Mutation Testing, Browser Testing, CI Debugging | Build with TDD, debug issues, validate quality |
+| **Implement** | Test-Driven Development, Systematic Debugging, Mutation Testing, Browser Testing, Performance Benchmark, CI Debugging | Build with TDD, debug issues, validate quality, measure performance |
 | **Bug Triage** | `/triage` (Systematic Debugging + GitHub issue creation) | Investigate bugs and file actionable issues |
 | **Review** | Quality Gate Pipeline, Test Design Reviewer | Validate output before delivery |
 | **Cross-phase** | Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Governance & Compliance, Branch Workflow, Agent & Skill Authoring | Orchestration, context management, learning |
@@ -179,8 +180,8 @@ Context management is the Orchestrator's responsibility, governed by two operati
 - All team agents (no skills): ~3,590 tokens
 - All review agents: ~3,100 tokens (spawned as sub-agents, not loaded in parent context; includes spec-compliance-review)
 - Knowledge files: ~3,450 tokens total (loaded on demand by agents, not in parent context; includes agent-registry)
-- Subagent prompt templates: ~800 tokens total (loaded by orchestrator when dispatching)
-- Full load (all team agents + all skills): ~17,100 tokens
+- Subagent prompt templates: ~1,800 tokens total (loaded by orchestrator when dispatching; includes 4 plan review personas)
+- Full load (all team agents + all skills): ~18,100 tokens
 
 ### Operating Rules
 1. **Load on demand**: Only load agent/skill files when their phase begins (see Loading Protocol)

@@ -48,6 +48,19 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 
 To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.
 
+## Plan Review Personas
+
+Plan review personas are subagent prompt templates that critically challenge implementation plans during Phase 2, before the human gate. They run **in parallel** and return structured verdicts. Unlike review agents (which check code), these check the plan itself.
+
+| Persona | File | Focus |
+| --- | --- | --- |
+| Acceptance Test Critic | [`plan-review-acceptance.md`](../plugins/agentic-dev-team/prompts/plan-review-acceptance.md) | Criteria verifiability, BDD scenario gaps, error paths, TDD traceability |
+| Design & Architecture Critic | [`plan-review-design.md`](../plugins/agentic-dev-team/prompts/plan-review-design.md) | Coupling, abstraction quality, structural risks, pattern consistency |
+| UX Critic | [`plan-review-ux.md`](../plugins/agentic-dev-team/prompts/plan-review-ux.md) | User journey, error experience, cognitive load, accessibility |
+| Strategic Critic | [`plan-review-strategic.md`](../plugins/agentic-dev-team/prompts/plan-review-strategic.md) | Problem-solution fit, scope, risk, opportunity cost |
+
+The UX Critic self-skips for plans with no user-facing changes. The other three always run. Any `needs-revision` verdict triggers plan revision before the human sees it (max 2 iterations).
+
 ## Persona Template
 
 Every agent file follows this structure:

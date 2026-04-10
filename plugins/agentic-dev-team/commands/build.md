@@ -63,9 +63,9 @@ For each step in the plan, dispatch implementation following the implementer tem
 2. **GREEN** — Write the minimum implementation to make the failing test pass. Do not add behavior beyond what the test requires. Run the test suite. **Hard gate: all tests must pass.** Paste the passing output. Do NOT proceed without pasted passing output.
 3. **REFACTOR** — Clean up structure, naming, duplication without changing behavior. Run tests again — they must still pass. If tests break, undo and try a smaller change.
 4. **Inline review checkpoint** — Route review depth based on the step's **Complexity** classification:
-   - **trivial**: Skip inline review. The final `/code-review --changed` (step 6) covers all modified files.
-   - **standard**: Run `/review-agent spec-compliance-review` against changed files. If it passes, run quality review agents relevant to what changed. If review fails, apply corrections (max 2 iterations). If still failing after 2, escalate to the user.
-   - **complex**: Run `/review-agent spec-compliance-review`, then the full quality agent suite including opus-tier agents (security-review, domain-review, arch-review). Same correction loop applies.
+   - **trivial**: Skip inline review. The final `/code-review` (step 6) covers all modified files.
+   - **standard**: Run `/review-agent spec-compliance-review` against changed files. If it passes, run quality review agents relevant to what changed. If review finds actionable issues (error/warning with high/medium confidence), auto-fix and re-run failed agents (up to 5 iterations per the review-fix loop in `agents/orchestrator.md`). Escalate to user if the loop doesn't converge.
+   - **complex**: Run `/review-agent spec-compliance-review`, then the full quality agent suite including opus-tier agents (security-review, domain-review, arch-review). Same review-fix loop applies.
    - If no complexity is specified, default to **standard**.
    - **UI changes (any complexity)**: After quality review passes, run browser verification via `/browse` in automated smoke test mode. Skip with warning if the dev server is not running. See `agents/orchestrator.md` Stage 3.
 5. **Mark step done** — Update the plan file: check off the step's acceptance criteria, set the step as completed.
@@ -76,7 +76,7 @@ After all steps are complete, run the full test suite. Paste the output as final
 
 ### 6. Run code review
 
-Run `/code-review --changed` against all files modified during the build.
+Run `/code-review` against all files modified during the build.
 
 ### 7. Update plan status
 

@@ -3,8 +3,8 @@
 # pre-commit-review.sh — PreToolUse hook that gates git commits on code review
 #
 # Blocks git commit (exit 2) unless a .review-passed file exists with a hash
-# matching the currently staged files. The /code-review --changed command
-# writes this file when review passes.
+# matching the currently staged files. The /code-review command auto-scopes
+# to uncommitted changes and writes this file when review passes.
 #
 # Non-commit Bash commands pass through immediately (exit 0).
 # git commit --no-verify is allowed through (standard bypass).
@@ -53,7 +53,7 @@ fi
 # Block the commit
 printf "BLOCKED: Code review required before committing.\n"
 printf "\n"
-printf "Run /code-review --changed to review staged files.\n"
+printf "Run /code-review to review staged files.\n"
 printf "If review passes, the commit will be allowed on the next attempt.\n"
 printf "\n"
 printf "To bypass: use git commit --no-verify\n"

@@ -7,11 +7,12 @@ description: >-
   agents", or has just finished implementing a feature. Use proactively
   before commits and pull requests.
 argument-hint: >-
-  [--agent <name>] [--changed | --since <ref>] [--path <dir>]
+  [--agent <name>] [--since <ref>] [--path <dir>] [--all]
   [--json] [--force]
 user-invocable: true
 allowed-tools: >-
-  Read, Grep, Glob, Bash(git diff *), Bash(npx *), Bash(npm run *),
+  Read, Edit, Grep, Glob, AskUserQuestion,
+  Bash(git diff *), Bash(npx *), Bash(npm run *),
   Bash(pnpm *), Bash(yarn *), Bash(tsc *), Bash(eslint *),
   Bash(git log *), Bash(gh run *), Bash(semgrep *),
   Bash(pylint *), Skill(review-agent *)
@@ -60,12 +61,11 @@ Arguments: $ARGUMENTS
 
 - `--agent <name>`: Run only the named agent (delegates to
   `/review-agent`)
-- `--changed`: Review only uncommitted changes
-  (`git diff --name-only` + `git diff --cached --name-only`)
 - `--since <ref>`: Review files changed since a git ref
   (`git diff --name-only <ref>...HEAD`)
-- `--path <dir>`: Target directory (default: current working
-  directory)
+- `--path <dir>`: Review only files in this directory
+- `--all`: Force full-repository review even when uncommitted
+  changes exist
 - `--json`: Output aggregated JSON instead of prose summary (for CI
   integration)
 - `--force`: Skip pre-flight gates and run agents even if
@@ -85,7 +85,8 @@ Arguments: $ARGUMENTS
   requiring changed files. Runs doc-review, arch-review,
   naming-review, and structure-review only. Does not run pre-flight
   gates. Intended for scheduled or periodic invocation.
-- No arguments: review all files in the target directory
+- No arguments: **auto-scope** — review uncommitted changes if any
+  exist, otherwise review the full repository (see step 1)
 
 ## Progress tracking
 
@@ -98,30 +99,57 @@ Copy this checklist and track progress:
 - [ ] Agents loaded and filtered
 - [ ] All agents executed
 - [ ] Results aggregated
+- [ ] User asked: fix or report only?
+- [ ] Review-fix loop (if user chose fix, up to 5 iterations)
+  - [ ] Fixes applied
+  - [ ] Failed agents re-run
+  - [ ] Re-aggregated
 - [ ] Report generated
-- [ ] Correction prompts saved (if requested)
+- [ ] Correction prompts saved for remaining issues
+- [ ] Pre-commit gate file written (if auto-scoped to uncommitted changes)
 ```
 
 ## Steps
 
 ### 1. Determine target files
 
-Based on arguments, build a file list:
+Build the file list using this priority order:
 
-- `--changed`: run `git diff --name-only` and
-  `git diff --cached --name-only`, combine and deduplicate
-- `--since <ref>`: run `git diff --name-only <ref>...HEAD`
-- Default: glob all source files in the target path (exclude
-  node_modules, .git, dist, build, coverage)
+1. **Explicit path** (`--path <dir>`): Review only files in this
+   directory (exclude node_modules, .git, dist, build, coverage)
+2. **Explicit ref** (`--since <ref>`): Review files changed since
+   that ref (`git diff --name-only <ref>...HEAD`)
+3. **Force full repo** (`--all`): Review all source files regardless
+   of git status
+4. **Auto-scope** (no flags): Detect uncommitted changes and decide:
 
-**Scope validation**: After building the file list, count the files.
-If not using `--changed`, `--since`, or `--path`:
+**Auto-scope logic** (the default when no targeting flag is given):
+
+```
+Run: git diff --name-only && git diff --cached --name-only
+Combine and deduplicate the results.
+
+If the list is non-empty:
+  → Review only those files (uncommitted changes)
+  → Report: "Reviewing N uncommitted files."
+
+If the list is empty (working tree is clean):
+  → Review all source files in the repository
+  → Report: "Working tree is clean. Reviewing full repository."
+```
+
+This means `/code-review` with no arguments always does the right
+thing: it reviews what you've changed, or everything if there's
+nothing pending.
+
+**Scope validation**: After building the file list, if reviewing
+the full repository (auto-scope clean or `--all`):
 
 | File count | Action |
 |------------|--------|
 | ≤200 | Proceed normally |
-| 201-500 | Warn: "Reviewing {N} files — consider `--changed` or `--path` to narrow scope." Proceed. |
-| >500 | Warn: "Reviewing {N} files is expensive. Use `--changed`, `--since`, or `--path` to narrow scope. Continue anyway?" Wait for confirmation. |
+| 201-500 | Warn: "Reviewing {N} files — consider `--path` to narrow scope." Proceed. |
+| >500 | Warn: "Reviewing {N} files is expensive. Use `--path` to narrow scope. Continue anyway?" Wait for confirmation. |
 
 ### 1b. Check for institutional context
 
@@ -296,14 +324,15 @@ Respect these scope declarations — only pass matching files, and
 skip the agent entirely if no target files match.
 
 **Context needs**: Each agent declares a `Context needs` field.
-When using `--changed` or `--since`:
+When reviewing uncommitted changes (auto-scope or `--since`):
 
 - `diff-only`: Pass only the diff output, not full files. More
   token-efficient.
 - `full-file`: Pass full file contents for files in the target list.
 - `project-structure`: Pass full files plus directory tree context.
 
-When not using `--changed`/`--since`, always pass full files
+When reviewing the full repository (clean working tree, `--all`,
+or `--path`), always pass full files
 regardless of context needs.
 
 **Model assignment**: Consult the Orchestrator Model Routing Table in
@@ -335,14 +364,166 @@ Produce a JSON result per agent:
 {"agentName": "<name>", "status": "pass|warn|fail", "issues": [], "summary": "..."}
 ```
 
-### 5. Aggregate and report
+### 5. Aggregate results
 
 Read `knowledge/review-rubric.md` for the health scoring formula.
-Read `knowledge/review-template.md` for the report structure.
 
 Compute the overall health score from agent results using the rubric's
 category weights and escalation rules. Security failures auto-escalate
 to 🔴.
+
+Classify each issue by actionability:
+
+| Severity | Confidence | Actionable? | Auto-fix behavior |
+|----------|------------|-------------|-------------------|
+| error | high | Yes | Auto-apply |
+| error | medium | Yes | Auto-apply |
+| error | none | No | Report only — requires human judgment |
+| warning | high | Yes | Auto-apply |
+| warning | medium | Yes | Auto-apply |
+| warning | none | No | Report only |
+| suggestion | any | No | Report only — suggestions do not trigger the fix loop |
+
+**Actionable issues** = issues with severity `error` or `warning`
+AND confidence `high` or `medium`. These drive the fix loop.
+
+### 6. Present findings and ask for direction
+
+If there are **zero actionable issues**, skip to step 7 (generate
+report). There is nothing to fix automatically.
+
+If there **are** actionable issues, present a summary to the user
+before taking any action:
+
+```text
+## Review Findings
+
+Found N actionable issues (N errors, N warnings) that can be
+auto-fixed, plus N issues requiring human review.
+
+Actionable issues by agent:
+- structure-review: 3 (2 error, 1 warning)
+- naming-review: 2 (2 warning)
+- js-fp-review: 1 (1 error)
+
+Options:
+1. **Fix** — Auto-fix actionable issues and re-run review
+   (up to 5 iterations until clean)
+2. **Report only** — Save all findings to a report without
+   modifying any code
+```
+
+Ask the user: **"Fix these issues automatically, or save as
+report only?"**
+
+- If the user chooses **Fix** (or says "fix", "apply", "yes",
+  "go ahead", etc.) → proceed to step 6a (review-fix loop)
+- If the user chooses **Report only** (or says "report", "no",
+  "don't fix", "just the report", etc.) → skip to step 7
+  (generate report) with all issues intact — no code is modified
+
+**Exception — non-interactive mode**: If running inside `/build`
+(as part of the inline review checkpoint or final review gate),
+skip this prompt and proceed directly to the fix loop. The build
+pipeline is already an approved automated workflow — pausing for
+confirmation at every review checkpoint would defeat the purpose.
+The orchestrator's Phase 3 approval already serves as the human
+gate.
+
+### 6a. Review-fix loop
+
+This loop fixes actionable issues and re-runs review until the
+code is clean or the iteration limit is reached.
+
+```
+iteration = 1
+MAX_ITERATIONS = 5
+
+while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
+    1. Apply fixes for all actionable issues
+    2. Re-run only the agents that reported actionable issues
+    3. Re-aggregate results
+    4. iteration += 1
+
+if iteration > MAX_ITERATIONS AND actionable_issues > 0:
+    escalate to human with remaining issues
+```
+
+#### 6a-i. Apply fixes
+
+For each actionable issue from step 5 (or the previous loop
+iteration), apply the minimal fix:
+
+1. Read the affected file(s)
+2. Apply the fix described in the issue's `suggestedFix` field
+3. Follow all repository rules and coding conventions
+4. Change only what the fix requires — no surrounding improvements
+5. After all fixes in this iteration are applied, run the project's
+   test suite. If tests fail, revert the last fix that broke them
+   and mark that issue as `[auto-fix failed — human review required]`
+
+**Fix order**: Apply fixes file-by-file, top-to-bottom by line number
+within each file. This prevents line-number drift from earlier fixes
+invalidating later ones.
+
+**Confidence handling**:
+- `high` confidence: Apply without confirmation
+- `medium` confidence: Apply without confirmation (the loop will
+  re-validate by re-running the agent — if the fix was wrong, the
+  agent will flag it again or flag a new issue)
+
+#### 6a-ii. Re-run failed agents
+
+After fixes are applied, re-run **only the agents that reported
+actionable issues** in the previous iteration. Do not re-run agents
+that passed or only had suggestions.
+
+- Use the same model routing and file scope as the original run
+- Pass only the files that were modified by the fixes (not the full
+  original file list) — this is a targeted re-review
+- Collect new results in the same JSON format
+
+#### 6a-iii. Re-aggregate
+
+Merge new agent results with the results from agents that already
+passed (their status carries forward). Recompute the overall health
+score. Reclassify remaining issues as actionable or not.
+
+**Loop exit conditions** (checked after each iteration):
+
+| Condition | Action |
+|-----------|--------|
+| Zero actionable issues remain | Exit loop → proceed to step 7 |
+| Iteration limit reached (5) | Exit loop → escalate remaining issues |
+| Same issues persist after fix attempt | Exit loop — the auto-fix is not converging |
+| Tests fail after fix and revert | Mark issue as human-required, continue with remaining |
+
+#### 6a-iv. Loop reporting
+
+Track each iteration for the final report:
+
+```text
+## Review-Fix Loop
+
+| Iteration | Actionable Issues | Fixed | Remaining | Agents Re-run |
+|-----------|-------------------|-------|-----------|---------------|
+| 1         | 7                 | 6     | 1         | 3             |
+| 2         | 1                 | 1     | 0         | 1             |
+
+Loop converged in 2 iterations.
+```
+
+If the loop did not converge:
+
+```text
+Loop stopped after 5 iterations. 2 issues remain:
+- [security-review] SQL injection at src/db/query.ts:42 [auto-fix failed — human review required]
+- [domain-review] Abstraction leak at src/api/handler.ts:15 [confidence: none — human review required]
+```
+
+### 7. Generate report
+
+Read `knowledge/review-template.md` for the report structure.
 
 **If `--json` flag is set**, output a single aggregated JSON object
 and stop:
@@ -353,12 +534,14 @@ and stop:
   "timestamp": "<ISO 8601>",
   "targetFiles": 42,
   "preFlightPassed": true,
+  "iterations": 2,
   "agents": [
     {"agentName": "test-review", "status": "pass", "issues": [], "summary": "..."},
-    {"agentName": "security-review", "status": "fail", "issues": [], "summary": "..."}
+    {"agentName": "security-review", "status": "pass", "issues": [], "summary": "..."}
   ],
-  "totals": {"errors": 2, "warnings": 5, "suggestions": 3},
-  "summary": "FAIL (N passed, N warned, N failed). N total issues."
+  "totals": {"errors": 0, "warnings": 0, "suggestions": 3},
+  "fixSummary": {"applied": 6, "failed": 0, "humanRequired": 1},
+  "summary": "PASS after 2 fix iterations. 6 issues auto-fixed, 1 requires human review."
 }
 ```
 
@@ -367,59 +550,57 @@ and stop:
 ```text
 # Code Review Summary
 
-| Agent              | Status | Issues | Model Tier |
-|--------------------|--------|--------|------------|
-| test-review        | PASS   | 0      | mid        |
-| structure-review   | WARN   | 2      | mid        |
-| ...                | ...    | ...    | ...        |
+| Agent              | Status | Issues | Fixed | Model Tier |
+|--------------------|--------|--------|-------|------------|
+| test-review        | PASS   | 0      | —     | mid        |
+| structure-review   | PASS   | 2      | 2     | mid        |
+| security-review    | WARN   | 1      | 0     | frontier   |
+| ...                | ...    | ...    | ...   | ...        |
 
-Overall: WARN (N agents passed, N warned, N failed)
-Total issues: N (N errors, N warnings, N suggestions)
+Overall: WARN after 2 fix iterations (N agents passed, N warned, N failed)
+Total issues found: N | Auto-fixed: N | Human review required: N
 ```
 
-Then list all issues grouped by file, sorted by severity (errors
-first).
+Then list remaining issues (those not auto-fixed) grouped by file,
+sorted by severity (errors first). Mark each with its reason:
+`[confidence: none]`, `[auto-fix failed]`, or `[suggestion]`.
 
-### 6. Generate correction prompts
+Include the iteration table from step 6d.
 
-Generate correction prompts only for issues where
-`confidence: "high"` or `confidence: "medium"`. Issues with
-`confidence: "none"` appear in the report but do not produce
-correction prompt files — they require human judgment and cannot be
-safely auto-applied.
+### 8. Save correction prompts for remaining issues
 
-For each qualifying issue:
+For issues that were NOT auto-fixed (confidence: none, auto-fix
+failed, or suggestions the user may want to address), generate
+correction prompt files:
 
 ```json
 {
   "priority": "high|medium|low",
-  "confidence": "high|medium",
+  "confidence": "high|medium|none",
   "category": "<agent-name>",
   "instruction": "Fix: <message> (Suggested: <suggestedFix>)",
   "context": "Line <line> in <file>",
-  "affectedFiles": ["<file>"]
+  "affectedFiles": ["<file>"],
+  "autoFixResult": "not-attempted|failed|human-required"
 }
 ```
 
-Severity mapping: error→high, warning→medium, suggestion→low.
+Save to `corrections/` directory if any remain. These can be
+addressed manually or via `/apply-fixes`.
 
-In the report, mark `confidence: none` issues with `[human review
-required]` — these are listed but have no correction prompt file.
+### 9. Write pre-commit gate file
 
-If the user requests it, save prompts as individual JSON files in a
-`corrections/` directory.
-
-### 7. Write pre-commit gate file
-
-If the `--changed` flag was used and the overall review status is
-`pass` or `warn`, write a `.review-passed` gate file so the
-pre-commit hook allows the next commit:
+If the review was auto-scoped to uncommitted changes (step 1
+auto-scope detected dirty working tree) and the overall review
+status is `pass` or `warn` (after the fix loop), write a
+`.review-passed` gate file so the pre-commit hook allows the next
+commit:
 
 ```bash
 git diff --cached --name-only | sort | shasum -a 256 | cut -d' ' -f1 > .review-passed
 ```
 
-If no files are staged (e.g., `--changed` picked up unstaged
+If no files are staged (e.g., auto-scope picked up unstaged
 changes only), compute the hash from the files that were actually
 reviewed:
 
@@ -428,5 +609,5 @@ echo "<reviewed-file-list>" | sort | shasum -a 256 | cut -d' ' -f1 > .review-pas
 ```
 
 If the overall status is `fail`, do **not** write `.review-passed`.
-The pre-commit hook will continue blocking commits until the issues
-are fixed and the review is re-run.
+The pre-commit hook will continue blocking commits until the
+remaining issues are resolved and the review is re-run.

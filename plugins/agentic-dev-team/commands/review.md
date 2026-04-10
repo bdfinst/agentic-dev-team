@@ -6,7 +6,7 @@ description: >-
   code, says "review my code", "check this before I PR", "what's wrong with
   this", "run the agents", or has just finished implementing a feature.
 argument-hint: >-
-  [--agent <name>] [--changed | --since <ref>] [--path <dir>]
+  [--agent <name>] [--since <ref>] [--path <dir>] [--all]
   [--json] [--force]
 user-invocable: true
 allowed-tools: >-

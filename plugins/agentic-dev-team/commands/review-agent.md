@@ -7,7 +7,7 @@ description: >-
   suite. Prefer this over /code-review when only one concern is relevant or
   speed matters. Also used by the orchestrator for inline review checkpoints
   during Phase 3 implementation.
-argument-hint: "<agent-name> [--changed | --since <ref>] [--path <dir>]"
+argument-hint: "<agent-name> [--since <ref>] [--path <dir>]"
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(git diff *)
 ---
@@ -27,7 +27,7 @@ follows the Orchestrator Model Routing Table in `.claude/agents/orchestrator.md`
 1. **Follow the agent definition exactly.** The agent file is your
    specification — detect what it says to detect, skip what it says
    to skip.
-2. **Respect context needs.** When `--changed` or `--since` is used,
+2. **Respect context needs.** When reviewing uncommitted changes or `--since`,
    honor the agent's `Context needs` field (diff-only, full-file, or
    project-structure).
 3. **Do not add findings beyond the agent's scope.** If the agent
@@ -46,7 +46,6 @@ Required: agent name (`$0`, e.g., `test-review`, `js-fp-review`, `security-revie
 
 Optional:
 
-- `--changed`: Review only uncommitted changes
 - `--since <ref>`: Review files changed since a git ref
 - `--path <dir>`: Target directory (default: current working directory)
 
@@ -60,11 +59,12 @@ ask the user to pick one.
 
 ### 2. Determine target files
 
-Same logic as `/code-review`:
+Same auto-scope logic as `/code-review`:
 
-- `--changed`: `git diff --name-only` + `git diff --cached --name-only`
+- If uncommitted changes exist: review those files
+- If working tree is clean: review all source files
 - `--since <ref>`: `git diff --name-only <ref>...HEAD`
-- Default: glob all source files
+- `--path <dir>`: review files in that directory
 
 ### 3. Run review
 

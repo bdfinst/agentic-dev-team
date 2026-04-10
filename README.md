@@ -13,7 +13,7 @@ Four commands drive feature development from idea to pull request:
 | Step | Command | What it does |
 | --- | --- | --- |
 | **1. Specify** | `/specs` | Collaborate on four artifacts: Intent, BDD/Gherkin scenarios, Architecture notes, Acceptance Criteria. A consistency gate must pass before moving on. Skip for bug fixes, refactors, or trivial changes. |
-| **2. Plan** | `/plan` | Create a step-by-step TDD implementation plan. Checks for spec artifacts first — if none exist, asks whether to continue or run `/specs`. Human approves before any code is written. |
+| **2. Plan** | `/plan` | Create a step-by-step TDD implementation plan. Four plan review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. Human approves before any code is written. |
 | **3. Build** | `/build` | Execute the approved plan. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). Produces verification evidence. |
 | **4. Ship** | `/pr` | Run quality gates (tests, typecheck, lint, code review) and create a pull request. |
 
@@ -32,16 +32,17 @@ For bug fixes or simple tasks, skip `/specs` and start at `/plan` or go straight
 
 | Command | When to use |
 | --- | --- |
-| `/code-review` | Run all review agents against changed files (also runs as part of `/build`) |
+| `/code-review` | Run all review agents, auto-fix actionable issues, and re-run until clean (up to 5 iterations) |
 | `/continue` | Resume an in-progress build or plan across sessions |
 | `/browse` | Visual QA via Playwright |
+| `/benchmark` | Runtime performance metrics (Core Web Vitals, resource sizes) against baselines |
 | `/careful` / `/freeze` / `/guard` | Safety modes for production-critical sessions |
 
 ### Automated pre-commit review
 
-Every `git commit` is automatically gated by `/code-review --changed`. A `PreToolUse` hook detects commit attempts and blocks them until a passing review exists for the exact set of staged files.
+Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook detects commit attempts and blocks them until a passing review exists for the exact set of staged files.
 
-**Flow**: attempt commit → hook blocks → Claude runs `/code-review --changed` → if pass/warn, a `.review-passed` gate file is written → next commit attempt succeeds.
+**Flow**: attempt commit → hook blocks → Claude runs `/code-review` (auto-scopes to uncommitted changes) → if pass/warn, a `.review-passed` gate file is written → next commit attempt succeeds.
 
 **Bypass**: `git commit --no-verify` skips the review gate.
 
@@ -54,8 +55,8 @@ Every `git commit` is automatically gated by `/code-review --changed`. A `PreToo
 For complex tasks where the orchestrator manages the full lifecycle, every non-trivial task follows **Research → Plan → Implement** with human review gates between phases:
 
 - **Research** produces a **design document** (`docs/specs/`) with problem statement, alternatives, and scope boundaries
-- **Plan** is pre-checked by an automated **plan reviewer** before the human sees it
-- **Implement** enforces strict **TDD** (RED-GREEN-REFACTOR with hard gates), uses **worktree isolation** for parallel units, and runs a **three-stage inline review**: spec-compliance first ("does code match spec?"), then quality agents ("is code good?"), then browser verification for UI changes. All agents must provide **verification evidence** (fresh test output) before claiming completion. After the human gate, a **branch workflow** handles PR creation and merge strategy.
+- **Plan** is critically reviewed by **four plan review personas** (Acceptance Test, Design & Architecture, UX, and Strategic critics) running in parallel before the human sees it
+- **Implement** enforces strict **TDD** (RED-GREEN-REFACTOR with hard gates), uses **worktree isolation** for parallel units, and runs a **three-stage inline review**: spec-compliance first ("does code match spec?"), then quality agents ("is code good?"), then browser verification for UI changes. Actionable issues (error/warning severity with high/medium confidence) are **auto-fixed and re-reviewed** in a loop (up to 5 iterations) — only issues requiring human judgment are escalated. All agents must provide **verification evidence** (fresh test output) before claiming completion. After the human gate, a **branch workflow** handles PR creation and merge strategy.
 
 ```mermaid
 flowchart TD
@@ -70,10 +71,18 @@ flowchart TD
 
     subgraph "Phase 2 — Plan"
         HG1 --> PL["/plan\nTDD steps · complexity tiers · acceptance criteria"]
-        PL --> PR["Plan Reviewer\nprompts/plan-reviewer.md"]
+        PL --> PRV["Plan Review Personas\n4 critics in parallel"]
+        PRV --> ATC["Acceptance Test Critic\ncriteria · scenarios · error paths"]
+        PRV --> DAC["Design & Architecture Critic\ncoupling · abstractions · patterns"]
+        PRV --> UXC["UX Critic\njourney · a11y · cognitive load"]
+        PRV --> STC["Strategic Critic\nscope · risk · opportunity cost"]
+        ATC --> AGG["Aggregate Findings\nfix blockers · collect warnings"]
+        DAC --> AGG
+        UXC --> AGG
+        STC --> AGG
     end
 
-    PR --> HG2([Human Gate — approve plan])
+    AGG --> HG2([Human Gate — approve plan + review summary])
 
     subgraph "Phase 3 — Implement (/build)"
         HG2 --> CV["Verify criteria testability\n(sprint contract gate)"]
@@ -86,14 +95,14 @@ flowchart TD
             CX -->|standard / complex| SC["Stage 1: Spec Compliance\n/review-agent spec-compliance"]
             SC -->|fail| IM
             SC -->|pass| QR["Stage 2: Quality Agents\n/review-agent per change type"]
-            QR -->|"fail (max 2×)"| IM
+            QR -->|"fail → auto-fix (max 5×)"| IM
             QR -->|pass| BV{"UI change?"}
             BV -->|yes| BR["Stage 3: Browser Verify\n/browse smoke test"]
             BV -->|no| NEXT
             BR --> NEXT
         end
 
-        NEXT -->|all done| CR["/review --changed\nFull agent suite · all modified files"]
+        NEXT -->|all done| CR["/code-review\nauto-scope · fix loop · up to 5×"]
     end
 
     CR --> HG3([Human Gate — approve implementation])
@@ -237,7 +246,7 @@ After starting Claude Code, confirm the system is working:
 
 ## What's Included
 
-The plugin ships with **12 team agents**, **19 review agents**, **29 skills**, and **55 slash commands**. For the full catalogs:
+The plugin ships with **12 team agents**, **19 review agents**, **31 skills**, **8 subagent prompt templates**, and **56 slash commands**. For the full catalogs:
 
 - [Agents](docs/agent_info.md) — team agent roster, review agent roster, persona template, how to add/remove/customize
 - [Skills & Commands](docs/skills.md) — skills catalog (by category), slash commands catalog, how to add new ones
@@ -250,7 +259,7 @@ plugins/agentic-dev-team/           # Plugin source (ships to users)
 ├── .claude-plugin/plugin.json      # Plugin manifest + version
 ├── agents/                         # Team agents (12) + review agents (19)
 ├── commands/                       # Slash commands
-├── skills/                         # Reusable knowledge modules (29 skills)
+├── skills/                         # Reusable knowledge modules (31 skills)
 ├── hooks/                          # PreToolUse guards + PostToolUse advisory hooks
 ├── knowledge/                      # Progressive disclosure reference files
 ├── templates/                      # Language-specific agent templates

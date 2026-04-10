@@ -31,17 +31,21 @@ The Orchestrator is the **authoritative source for model selection**. Individual
 
 Full routing table: `agents/orchestrator.md` → Model Routing Table section.
 
-## Inline Review Loop
+## Review-Fix Loop
 
-During Phase 3, after each discrete unit of work:
+Both inline review checkpoints (Phase 3) and `/code-review` use the same review-fix loop:
 
 1. Orchestrator selects targeted review agents based on what changed (JS/TS → js-fp-review + complexity-review; API surface → security-review; Dockerfile → docker-image-audit; etc.)
 2. Agents run in parallel as sub-agents with orchestrator-assigned models
-3. `fail` findings → packaged as correction context → sent to coding agent
-4. Coding agent revises only targeted code
-5. Failed agents re-run; if still `fail` after 2 iterations → escalate to human
-6. `warn` findings → logged in phase output, continue
-7. Final gate: `/code-review --changed` before commit
+3. Issues are classified by actionability:
+   - **Actionable**: error/warning severity with high/medium confidence → auto-fix
+   - **Human-required**: confidence `none` → report only, escalate
+   - **Suggestions**: logged, do not trigger the fix loop
+4. Actionable issues are auto-fixed (file-by-file, top-to-bottom by line number)
+5. Only agents that reported actionable issues are re-run against the modified files
+6. Loop repeats up to **5 iterations** until zero actionable issues remain
+7. If the loop doesn't converge (same issues persist, or iteration limit reached) → escalate to human with all fix attempts and remaining issues
+8. Final gate: `/code-review` before commit (auto-scopes to uncommitted changes, runs its own fix loop)
 
 ## Context Management
 
@@ -80,9 +84,25 @@ Utilization is estimated via proxy signals (tool call volume, message count, acc
 | All team agents (no skills) | ~3,590 |
 | All review agents | ~3,100 (sub-agents, not loaded in parent context) |
 | Knowledge files | ~3,450 (loaded on demand by agents) |
-| Full load (all team agents + all skills) | ~17,100 |
+| Subagent prompt templates | ~1,800 (loaded by orchestrator when dispatching) |
+| Full load (all team agents + all skills) | ~18,100 |
 
-A typical task loads 1 agent + 1-2 skills: roughly 1,000-2,000 tokens of configuration overhead. Review agents run as isolated sub-agents — their context burden does not accumulate in the parent.
+A typical task loads 1 agent + 1-2 skills: roughly 1,000-2,000 tokens of configuration overhead. Review agents and plan review personas run as isolated sub-agents — their context burden does not accumulate in the parent.
+
+## Plan Review Personas
+
+Before the human reviews a plan (Phase 2), four critical review personas run **in parallel** as sub-agents. Each challenges the plan from a distinct perspective:
+
+| Persona | Template | Model | What It Challenges |
+| --- | --- | --- | --- |
+| Acceptance Test Critic | `prompts/plan-review-acceptance.md` | sonnet | Criteria verifiability, BDD scenario completeness, error path coverage, TDD step traceability |
+| Design & Architecture Critic | `prompts/plan-review-design.md` | sonnet | Dependency direction, abstraction quality, structural risks, pattern consistency |
+| UX Critic | `prompts/plan-review-ux.md` | sonnet | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
+| Strategic Critic | `prompts/plan-review-strategic.md` | sonnet | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
+
+Each reviewer returns a structured `approve` or `needs-revision` verdict. If any reviewer flags blockers, the plan is revised before the human sees it (max 2 iterations). Warnings from all four are aggregated into a Plan Review Summary appended to the plan file.
+
+This gate catches problems when they cost minutes to fix (in a plan), not hours (in code).
 
 ## Quality Assurance
 
@@ -93,7 +113,7 @@ Validation happens in this sequence during Phase 3:
 | 1 | Self-validation | Active agent | Before delivering any unit of work |
 | 2 | Inline review checkpoint | Targeted review agents | After each discrete unit of work |
 | 3 | Review feedback correction | Coding agent | Up to 2 correction cycles per checkpoint |
-| 4 | Final code review | `/code-review --changed` | Before committing; runs full agent suite |
+| 4 | Final code review | `/code-review` | Before committing; auto-scopes to uncommitted changes, runs full agent suite with fix loop |
 | 5 | Documentation review | Tech-writer | After code review passes; verifies docs reflect current behavior |
 | 6 | Peer validation | QA agent | After implementation, before phase delivery |
 | 7 | Human gate | User | At each phase transition (Research, Plan, Implement) |

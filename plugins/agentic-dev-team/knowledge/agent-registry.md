@@ -83,6 +83,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Feature File Validation | `skills/feature-file-validation.md` | 700 | test-review, QA Engineer, spec-compliance-review |
 | Docker Image Create | `skills/docker-image-create/SKILL.md` | 800 | DevOps/SRE Engineer, Software Engineer |
 | Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), DevOps/SRE Engineer, Security Engineer |
+| Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, DevOps/SRE Engineer, `/benchmark` command |
 
 ## Subagent Prompt Templates
 
@@ -94,6 +95,10 @@ Concrete prompt templates in `prompts/` that the orchestrator and `/code-review`
 | Spec Reviewer | `prompts/spec-reviewer.md` | Orchestrator (three-stage review gate 1) |
 | Quality Reviewer | `prompts/quality-reviewer.md` | Orchestrator (three-stage review gate 2) |
 | Plan Reviewer | `prompts/plan-reviewer.md` | Orchestrator (Phase 2 automated pre-check) |
+| Plan Review — Acceptance | `prompts/plan-review-acceptance.md` | Orchestrator (Phase 2 plan review persona) |
+| Plan Review — Design | `prompts/plan-review-design.md` | Orchestrator (Phase 2 plan review persona) |
+| Plan Review — UX | `prompts/plan-review-ux.md` | Orchestrator (Phase 2 plan review persona) |
+| Plan Review — Strategic | `prompts/plan-review-strategic.md` | Orchestrator (Phase 2 plan review persona) |
 
 ## Knowledge Files
 

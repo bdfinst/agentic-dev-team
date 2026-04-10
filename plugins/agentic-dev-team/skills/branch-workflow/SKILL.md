@@ -22,7 +22,7 @@ The three-phase workflow ends at the Phase 3 human gate. This skill formalizes w
 ### 1. Pre-PR Checklist
 Before creating the PR, verify:
 - [ ] All tests pass (fresh run, not cached)
-- [ ] `/code-review --changed` passed or warnings are documented
+- [ ] `/code-review` passed or warnings are documented
 - [ ] Documentation is current (tech-writer verified in Phase 3)
 - [ ] Branch is rebased on latest main (resolve conflicts if needed)
 

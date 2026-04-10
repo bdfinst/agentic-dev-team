@@ -91,7 +91,7 @@ Each step must include a complexity rating that controls review depth during `/b
 
 | Rating | Criteria | Review depth |
 |--------|----------|--------------|
-| `trivial` | Single-file rename, config change, typo fix, documentation-only | Skip inline review; covered by final `/code-review --changed` |
+| `trivial` | Single-file rename, config change, typo fix, documentation-only | Skip inline review; covered by final `/code-review` |
 | `standard` | New function, test, module, or behavioral change within existing patterns | Spec-compliance + relevant quality agents |
 | `complex` | Architectural change, security-sensitive, cross-cutting concern, new abstraction | Full agent suite including opus-tier agents |
 
@@ -102,7 +102,7 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 - [ ] All tests pass
 - [ ] Type check passes (if applicable)
 - [ ] Linter passes
-- [ ] `/code-review --changed` passes
+- [ ] `/code-review` passes
 - [ ] Documentation updated (if applicable)
 
 ## Risks & Open Questions
@@ -114,9 +114,26 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 
 Create `plans/` if it doesn't exist.
 
-### 5. Present for approval
+### 5. Run plan review personas
 
-Display the plan and ask: "Approve this plan to begin implementation, or suggest changes?"
+Before presenting to the user, dispatch **four plan review personas in parallel** as sub-agents. Each critically challenges the plan from a different perspective:
+
+| Reviewer | Template | Model | Focus |
+|----------|----------|-------|-------|
+| Acceptance Test Critic | `prompts/plan-review-acceptance.md` | `sonnet` | Criteria quality, scenario gaps, error paths, TDD traceability |
+| Design & Architecture Critic | `prompts/plan-review-design.md` | `sonnet` | Coupling, abstractions, structural risks, pattern adherence |
+| UX Critic | `prompts/plan-review-ux.md` | `sonnet` | User journey, error UX, cognitive load, accessibility |
+| Strategic Critic | `prompts/plan-review-strategic.md` | `sonnet` | Problem fit, scope, risk, opportunity cost |
+
+Pass each reviewer the full plan content. Each returns a structured verdict (`approve` or `needs-revision`) with issues.
+
+**If any reviewer returns `needs-revision`**: Address all `blocker` issues by revising the plan. Re-run only the reviewers that flagged blockers. Repeat until all pass (max 2 iterations — escalate to user if still failing).
+
+**After all pass**: Append a `## Plan Review Summary` section to the plan file with the aggregated findings (warnings and observations from all four reviewers).
+
+### 6. Present for approval
+
+Display the plan and the review summary. Ask: "Approve this plan to begin implementation, or suggest changes?"
 
 Mark the plan status as `approved` once the user confirms. If the user requests changes, update the plan and re-present.
 
