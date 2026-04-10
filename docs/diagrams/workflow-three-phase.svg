@@ -159,9 +159,9 @@
     <text x="750" y="387" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human Gate — approve</text>
   </g>
 
-  <!-- Fail loop (under Phase 3 row) -->
-  <path d="M398,404 C398,418 105,418 105,404" stroke="#F43F5E" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-red)"/>
-  <text x="250" y="432" text-anchor="middle" font-size="8" fill="#F43F5E">fail → auto-fix → re-run (max 5x)</text>
+  <!-- Fail loop (under Phase 3 row, enters TDD box from left) -->
+  <path d="M398,404 C398,430 40,430 40,382" stroke="#F43F5E" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-red)"/>
+  <text x="220" y="440" text-anchor="middle" font-size="8" fill="#F43F5E">fail → auto-fix → re-run (max 5x)</text>
 
   <!-- /pr -->
   <g filter="url(#shadow)">
