@@ -19,12 +19,7 @@ Four commands drive feature development from idea to pull request:
 
 Each step produces artifacts the next step consumes. Human review gates sit between each transition.
 
-```mermaid
-flowchart LR
-    S["/specs\n4 artifacts"] -->|consistency gate| P["/plan\nTDD steps"]
-    P -->|human approval| B["/build\nRED-GREEN-REFACTOR"]
-    B -->|code review| PR["/pr\nquality gates"]
-```
+![Workflow: specs → plan → build → pr](docs/diagrams/workflow-linear.svg)
 
 For bug fixes or simple tasks, skip `/specs` and start at `/plan` or go straight to implementation. The orchestrator routes trivially when the full workflow isn't needed.
 
@@ -58,58 +53,7 @@ For complex tasks where the orchestrator manages the full lifecycle, every non-t
 - **Plan** is critically reviewed by **four plan review personas** (Acceptance Test, Design & Architecture, UX, and Strategic critics) running in parallel before the human sees it
 - **Implement** enforces strict **TDD** (RED-GREEN-REFACTOR with hard gates), uses **worktree isolation** for parallel units, and runs a **three-stage inline review**: spec-compliance first ("does code match spec?"), then quality agents ("is code good?"), then browser verification for UI changes. Actionable issues (error/warning severity with high/medium confidence) are **auto-fixed and re-reviewed** in a loop (up to 5 iterations) — only issues requiring human judgment are escalated. All agents must provide **verification evidence** (fresh test output) before claiming completion. After the human gate, a **branch workflow** handles PR creation and merge strategy.
 
-```mermaid
-flowchart TD
-    U([User Request]) --> O[Orchestrator]
-
-    subgraph "Phase 1 — Research"
-        O --> SP["/specs\nIntent · BDD · Architecture · Criteria"]
-        SP --> DD["Design Doc\ndocs/specs/"]
-    end
-
-    DD --> HG1([Human Gate — approve spec + design])
-
-    subgraph "Phase 2 — Plan"
-        HG1 --> PL["/plan\nTDD steps · complexity tiers · acceptance criteria"]
-        PL --> PRV["Plan Review Personas\n4 critics in parallel"]
-        PRV --> ATC["Acceptance Test Critic\ncriteria · scenarios · error paths"]
-        PRV --> DAC["Design & Architecture Critic\ncoupling · abstractions · patterns"]
-        PRV --> UXC["UX Critic\njourney · a11y · cognitive load"]
-        PRV --> STC["Strategic Critic\nscope · risk · opportunity cost"]
-        ATC --> AGG["Aggregate Findings\nfix blockers · collect warnings"]
-        DAC --> AGG
-        UXC --> AGG
-        STC --> AGG
-    end
-
-    AGG --> HG2([Human Gate — approve plan + review summary])
-
-    subgraph "Phase 3 — Implement (/build)"
-        HG2 --> CV["Verify criteria testability\n(sprint contract gate)"]
-        CV --> NEXT{"Next step?"}
-        NEXT -->|more steps| IM["TDD Loop\nRED → GREEN → REFACTOR"]
-
-        subgraph "Per-Step Inline Review"
-            IM --> CX{"Complexity?"}
-            CX -->|trivial| NEXT
-            CX -->|standard / complex| SC["Stage 1: Spec Compliance\n/review-agent spec-compliance"]
-            SC -->|fail| IM
-            SC -->|pass| QR["Stage 2: Quality Agents\n/review-agent per change type"]
-            QR -->|"fail → auto-fix (max 5×)"| IM
-            QR -->|pass| BV{"UI change?"}
-            BV -->|yes| BR["Stage 3: Browser Verify\n/browse smoke test"]
-            BV -->|no| NEXT
-            BR --> NEXT
-        end
-
-        NEXT -->|all done| CR["/code-review\nauto-scope · fix loop · up to 5×"]
-    end
-
-    CR --> HG3([Human Gate — approve implementation])
-    HG3 --> PRR["/pr\nQuality gate · create pull request"]
-    PRR --> LL["Learning Loop\nMetrics · /harness-audit"]
-    LL --> O
-```
+![Three-Phase Workflow: Research → Plan → Implement](docs/diagrams/workflow-three-phase.svg)
 
 ## Install
 

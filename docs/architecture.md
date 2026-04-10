@@ -2,20 +2,7 @@
 
 ## System Overview
 
-```mermaid
-flowchart TD
-    U([User Request]) --> O[Orchestrator]
-    O --> MR[Model Routing Table]
-    O --> AS[Agent Selection]
-    MR --> AS
-    AS --> TE[Task Execution\nCoding Agent]
-    TE --> IRC[Inline Review Checkpoint\nTargeted Review Agents]
-    IRC -->|fail ≤ 2 iterations| RF[Review Feedback\nCorrection Context]
-    RF --> TE
-    IRC -->|fail after 2 iterations| HE([Escalate to Human])
-    IRC -->|pass / warn| LL[Learning Loop]
-    LL --> O
-```
+![System Overview](diagrams/architecture-overview.svg)
 
 The Orchestrator receives every request, classifies it by type and complexity, selects agents, assigns models, and coordinates delivery. During Phase 3 (Implement), review agents check coding agent output at each discrete unit-of-work checkpoint. Findings feed back as structured corrections (max 2 cycles before human escalation). After each task, the learning loop captures metrics and evaluates whether configuration updates are needed.
 

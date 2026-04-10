@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <defs>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.07"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#94A3B8"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#10B981"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#F43F5E"/>
+    </marker>
+  </defs>
+
+  <!-- Orchestrator -->
+  <g filter="url(#shadow)">
+    <rect x="16" y="190" width="160" height="52" rx="12" fill="#6366F1" stroke="#4F46E5" stroke-width="1"/>
+    <text x="96" y="213" text-anchor="middle" font-size="13" font-weight="600" fill="#FFF">Orchestrator</text>
+    <text x="96" y="229" text-anchor="middle" font-size="10" fill="#C7D2FE">Model Routing</text>
+  </g>
+
+  <!-- Arrow to spec-compliance -->
+  <line x1="176" y1="216" x2="210" y2="216" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="193" y="208" text-anchor="middle" font-size="9" fill="#64748B">all</text>
+
+  <!-- Spec Compliance (first gate) -->
+  <g filter="url(#shadow)">
+    <rect x="214" y="190" width="180" height="52" rx="12" fill="#EEF2FF" stroke="#6366F1" stroke-width="1.5"/>
+    <rect x="214" y="190" width="5" height="52" rx="2.5" fill="#6366F1"/>
+    <text x="304" y="213" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">spec-compliance</text>
+    <text x="304" y="229" text-anchor="middle" font-size="10" fill="#6366F1">sonnet</text>
+  </g>
+
+  <!-- Pass arrow to Quality Gate -->
+  <line x1="394" y1="216" x2="430" y2="216" stroke="#10B981" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="412" y="208" text-anchor="middle" font-size="9" fill="#10B981">pass</text>
+
+  <!-- Quality Gate label -->
+  <g filter="url(#shadow)">
+    <rect x="434" y="190" width="120" height="52" rx="12" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+    <text x="494" y="221" text-anchor="middle" font-size="13" font-weight="600" fill="#065F46">Quality Gate</text>
+  </g>
+
+  <!-- Fail arrow back -->
+  <path d="M304,242 L304,262 L96,262 L96,242" stroke="#F43F5E" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-red)"/>
+  <text x="200" y="276" text-anchor="middle" font-size="9" fill="#F43F5E">fail → correction</text>
+
+  <!-- Fan-out lines from Quality Gate to agents -->
+  <line x1="554" y1="200" x2="630" y2="46" stroke="#CBD5E1" stroke-width="1.5"/>
+  <line x1="554" y1="205" x2="630" y2="106" stroke="#CBD5E1" stroke-width="1.5"/>
+  <line x1="554" y1="210" x2="630" y2="166" stroke="#CBD5E1" stroke-width="1.5"/>
+  <line x1="554" y1="216" x2="630" y2="226" stroke="#CBD5E1" stroke-width="1.5"/>
+  <line x1="554" y1="222" x2="630" y2="286" stroke="#CBD5E1" stroke-width="1.5"/>
+  <line x1="554" y1="228" x2="630" y2="346" stroke="#CBD5E1" stroke-width="1.5"/>
+  <line x1="554" y1="232" x2="630" y2="406" stroke="#CBD5E1" stroke-width="1.5"/>
+
+  <!-- Trigger labels (left of agents) -->
+  <text x="588" y="40" text-anchor="middle" font-size="8" fill="#94A3B8">JS/TS</text>
+  <text x="588" y="100" text-anchor="middle" font-size="8" fill="#94A3B8">JS/TS</text>
+  <text x="588" y="160" text-anchor="middle" font-size="8" fill="#94A3B8">Tests</text>
+  <text x="588" y="220" text-anchor="middle" font-size="8" fill="#94A3B8">API/auth</text>
+  <text x="588" y="280" text-anchor="middle" font-size="8" fill="#94A3B8">Domain</text>
+  <text x="588" y="340" text-anchor="middle" font-size="8" fill="#94A3B8">UI</text>
+  <text x="588" y="400" text-anchor="middle" font-size="8" fill="#94A3B8">All</text>
+
+  <!-- Review agents (right column) -->
+  <!-- complexity-review (haiku) -->
+  <g filter="url(#shadow)">
+    <rect x="630" y="20" width="180" height="44" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1"/>
+    <rect x="630" y="20" width="4" height="44" rx="2" fill="#94A3B8"/>
+    <text x="720" y="40" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">complexity-review</text>
+    <text x="720" y="54" text-anchor="middle" font-size="9" fill="#94A3B8">haiku</text>
+  </g>
+
+  <!-- naming-review (haiku) -->
+  <g filter="url(#shadow)">
+    <rect x="630" y="80" width="180" height="44" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1"/>
+    <rect x="630" y="80" width="4" height="44" rx="2" fill="#94A3B8"/>
+    <text x="720" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">naming-review</text>
+    <text x="720" y="114" text-anchor="middle" font-size="9" fill="#94A3B8">haiku</text>
+  </g>
+
+  <!-- test-review (sonnet) -->
+  <g filter="url(#shadow)">
+    <rect x="630" y="140" width="180" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
+    <rect x="630" y="140" width="4" height="44" rx="2" fill="#3B82F6"/>
+    <text x="720" y="160" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">test-review</text>
+    <text x="720" y="174" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
+  </g>
+
+  <!-- security-review (opus) -->
+  <g filter="url(#shadow)">
+    <rect x="630" y="200" width="180" height="44" rx="10" fill="#FEF2F2" stroke="#EF4444" stroke-width="1"/>
+    <rect x="630" y="200" width="4" height="44" rx="2" fill="#EF4444"/>
+    <text x="720" y="220" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">security-review</text>
+    <text x="720" y="234" text-anchor="middle" font-size="9" fill="#EF4444">opus</text>
+  </g>
+
+  <!-- domain-review (opus) -->
+  <g filter="url(#shadow)">
+    <rect x="630" y="260" width="180" height="44" rx="10" fill="#FEF2F2" stroke="#EF4444" stroke-width="1"/>
+    <rect x="630" y="260" width="4" height="44" rx="2" fill="#EF4444"/>
+    <text x="720" y="280" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">domain-review</text>
+    <text x="720" y="294" text-anchor="middle" font-size="9" fill="#EF4444">opus</text>
+  </g>
+
+  <!-- a11y-review (sonnet) -->
+  <g filter="url(#shadow)">
+    <rect x="630" y="320" width="180" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
+    <rect x="630" y="320" width="4" height="44" rx="2" fill="#3B82F6"/>
+    <text x="720" y="340" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">a11y-review</text>
+    <text x="720" y="354" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
+  </g>
+
+  <!-- structure-review (sonnet) -->
+  <g filter="url(#shadow)">
+    <rect x="630" y="380" width="180" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
+    <rect x="630" y="380" width="4" height="44" rx="2" fill="#3B82F6"/>
+    <text x="720" y="400" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">structure-review</text>
+    <text x="720" y="414" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
+  </g>
+
+  <!-- Aggregate -->
+  <line x1="810" y1="42" x2="850" y2="216" stroke="#CBD5E1" stroke-width="1"/>
+  <line x1="810" y1="102" x2="850" y2="216" stroke="#CBD5E1" stroke-width="1"/>
+  <line x1="810" y1="162" x2="850" y2="216" stroke="#CBD5E1" stroke-width="1"/>
+  <line x1="810" y1="222" x2="850" y2="216" stroke="#CBD5E1" stroke-width="1"/>
+  <line x1="810" y1="282" x2="850" y2="216" stroke="#CBD5E1" stroke-width="1"/>
+  <line x1="810" y1="342" x2="850" y2="216" stroke="#CBD5E1" stroke-width="1"/>
+  <line x1="810" y1="402" x2="850" y2="216" stroke="#CBD5E1" stroke-width="1"/>
+
+  <!-- Aggregate diamond -->
+  <polygon points="850,196 870,216 850,236 830,216" fill="#FFF7ED" stroke="#F97316" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="850" y="220" text-anchor="middle" font-size="8" font-weight="600" fill="#C2410C">AGG</text>
+
+  <!-- Legend -->
+  <g transform="translate(16, 440)">
+    <rect x="0" y="0" width="12" height="12" rx="3" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1"/>
+    <text x="18" y="10" font-size="10" fill="#64748B">haiku (fast, pattern-matching)</text>
+    <rect x="220" y="0" width="12" height="12" rx="3" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
+    <text x="238" y="10" font-size="10" fill="#64748B">sonnet (semantic analysis)</text>
+    <rect x="440" y="0" width="12" height="12" rx="3" fill="#FEF2F2" stroke="#EF4444" stroke-width="1"/>
+    <text x="458" y="10" font-size="10" fill="#64748B">opus (cross-file reasoning)</text>
+  </g>
+</svg>
