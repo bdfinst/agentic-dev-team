@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/bdfinst/agentic-dev-team/compare/v3.0.0...v3.1.0) (2026-04-10)
+
+
+### Features
+
+* auto-trigger plan after spec approval and add BDD scenario review ([af99078](https://github.com/bdfinst/agentic-dev-team/commit/af990788855c13a8212cc37c1283d7b06ef30991))
+
 ## [3.0.0](https://github.com/bdfinst/agentic-dev-team/compare/v2.3.0...v3.0.0) (2026-04-09)
 
 
