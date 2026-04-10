@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.1](https://github.com/bdfinst/agentic-dev-team/compare/v3.1.0...v3.1.1) (2026-04-10)
+
+
+### Bug Fixes
+
+* use official claude plugin update mechanism in /upgrade command ([ab4c5d7](https://github.com/bdfinst/agentic-dev-team/commit/ab4c5d7c6b2b585e3cc0dedfc08dc959219c17a9))
+
 ## [3.1.0](https://github.com/bdfinst/agentic-dev-team/compare/v3.0.0...v3.1.0) (2026-04-10)
 
 
