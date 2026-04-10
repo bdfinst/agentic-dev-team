@@ -163,25 +163,21 @@
   <path d="M398,404 C398,418 105,418 105,404" stroke="#F43F5E" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-red)"/>
   <text x="250" y="432" text-anchor="middle" font-size="8" fill="#F43F5E">fail → auto-fix → re-run (max 5x)</text>
 
-  <!-- Vertical drop from Gate 3 center straight down -->
-  <line x1="750" y1="400" x2="750" y2="456" stroke="#F59E0B" stroke-width="2"/>
-
-  <!-- Horizontal line splitting to /pr and Learning Loop -->
-  <line x1="350" y1="456" x2="750" y2="456" stroke="#F59E0B" stroke-width="2"/>
-  <line x1="350" y1="456" x2="350" y2="478" stroke="#F59E0B" stroke-width="2" marker-end="url(#arrow-amber)"/>
-  <line x1="650" y1="456" x2="650" y2="478" stroke="#F59E0B" stroke-width="2" marker-end="url(#arrow-amber)"/>
+  <!-- Two straight lines from Gate 3 down to /pr and Learning Loop -->
+  <line x1="700" y1="400" x2="350" y2="478" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="800" y1="400" x2="650" y2="478" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- /pr -->
   <g filter="url(#shadow)">
-    <rect x="285" y="482" width="130" height="36" rx="10" fill="#FFF7ED" stroke="#F97316" stroke-width="1.5"/>
-    <rect x="285" y="482" width="4" height="36" rx="2" fill="#F97316"/>
-    <text x="350" y="505" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">/pr</text>
+    <rect x="285" y="480" width="130" height="36" rx="10" fill="#FFF7ED" stroke="#F97316" stroke-width="1.5"/>
+    <rect x="285" y="480" width="4" height="36" rx="2" fill="#F97316"/>
+    <text x="350" y="503" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">/pr</text>
   </g>
 
   <!-- Learning Loop -->
   <g filter="url(#shadow)">
-    <rect x="575" y="482" width="150" height="36" rx="10" fill="#F8FAFC" stroke="#64748B" stroke-width="1.5"/>
-    <rect x="575" y="482" width="4" height="36" rx="2" fill="#64748B"/>
-    <text x="650" y="505" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Learning Loop</text>
+    <rect x="575" y="480" width="150" height="36" rx="10" fill="#F8FAFC" stroke="#64748B" stroke-width="1.5"/>
+    <rect x="575" y="480" width="4" height="36" rx="2" fill="#64748B"/>
+    <text x="650" y="503" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Learning Loop</text>
   </g>
 </svg>
