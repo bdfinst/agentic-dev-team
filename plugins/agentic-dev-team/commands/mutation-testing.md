@@ -6,7 +6,7 @@ argument-hint: "<source-file-or-module>"
 user-invocable: true
 ---
 
-Read skills/mutation-testing.md and follow its 5-step procedure exactly:
+Read skills/mutation-testing/SKILL.md and follow its 5-step procedure exactly:
 
 1. **Detect tooling** — find the project's mutation testing tool (Stryker, pitest, mutmut). If none is installed, help set one up. Do NOT proceed without a real tool.
 2. **Run the tool** — scoped to the target files. Capture full output.

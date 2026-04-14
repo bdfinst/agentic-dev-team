@@ -6,6 +6,6 @@ argument-hint: "<system-or-endpoint>"
 user-invocable: true
 ---
 
-Apply the guidelines defined in skills/threat-modeling.md to the current task. Read the skill file and follow its procedures, checklists, and protocols.
+Apply the guidelines defined in skills/threat-modeling/SKILL.md to the current task. Read the skill file and follow its procedures, checklists, and protocols.
 
 Apply this skill to: $ARGUMENTS

@@ -11,7 +11,7 @@ user-invocable: true
 
 Assess the domain health of an existing multi-component system. Produce a structured report covering bounded context boundaries, context map relationships, domain event flows, value stream throughput, and a friction report identifying where the architecture inhibits continuous delivery.
 
-This skill is analytical, not prescriptive. It describes what *is*, not what should be built. For greenfield design, use `skills/domain-driven-design.md`. For code-level violations (anemic model, missing DTOs, wrong layer), use `agents/domain-review.md`.
+This skill is analytical, not prescriptive. It describes what *is*, not what should be built. For greenfield design, use `skills/domain-driven-design/SKILL.md`. For code-level violations (anemic model, missing DTOs, wrong layer), use `agents/domain-review.md`.
 
 ## Scope
 

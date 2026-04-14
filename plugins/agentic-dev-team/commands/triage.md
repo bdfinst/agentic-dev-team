@@ -24,7 +24,7 @@ Arguments: $ARGUMENTS
 
 ### 2. Investigate
 
-Apply the systematic debugging protocol from `skills/systematic-debugging.md`:
+Apply the systematic debugging protocol from `skills/systematic-debugging/SKILL.md`:
 
 1. **Reproduce**: Run the failing test or trigger the error
 2. **Investigate**: Trace data flow, check recent changes, find working reference code

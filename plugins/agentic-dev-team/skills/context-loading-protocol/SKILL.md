@@ -40,21 +40,21 @@ These are the measured sizes of each loadable file. CLAUDE.md is always loaded a
 
 | Skill | File | ~Tokens |
 | --- | --- | --- |
-| Context Loading Protocol | `skills/context-loading-protocol.md` | ~600 |
-| Context Summarization | `skills/context-summarization.md` | ~500 |
-| Feedback & Learning | `skills/feedback-learning.md` | ~1,010 |
-| Human Oversight Protocol | `skills/human-oversight-protocol.md` | ~1,020 |
-| Performance Metrics | `skills/performance-metrics.md` | ~890 |
-| Quality Gate Pipeline | `skills/quality-gate-pipeline.md` | ~900 |
-| Governance & Compliance | `skills/governance-compliance.md` | ~990 |
-| Agent & Skill Authoring | `skills/agent-skill-authoring.md` | ~990 |
-| Hexagonal Architecture | `skills/hexagonal-architecture.md` | ~420 |
-| Domain-Driven Design | `skills/domain-driven-design.md` | ~710 |
-| Specs | `skills/specs.md` | ~800 |
-| Threat Modeling | `skills/threat-modeling.md` | ~600 |
-| API Design | `skills/api-design.md` | ~600 |
-| Legacy Code | `skills/legacy-code.md` | ~700 |
-| Mutation Testing | `skills/mutation-testing.md` | ~700 |
+| Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | ~600 |
+| Context Summarization | `skills/context-summarization/SKILL.md` | ~500 |
+| Feedback & Learning | `skills/feedback-learning/SKILL.md` | ~1,010 |
+| Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | ~1,020 |
+| Performance Metrics | `skills/performance-metrics/SKILL.md` | ~890 |
+| Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | ~900 |
+| Governance & Compliance | `skills/governance-compliance/SKILL.md` | ~990 |
+| Agent & Skill Authoring | `skills/agent-skill-authoring/SKILL.md` | ~990 |
+| Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | ~420 |
+| Domain-Driven Design | `skills/domain-driven-design/SKILL.md` | ~710 |
+| Specs | `skills/specs/SKILL.md` | ~800 |
+| Threat Modeling | `skills/threat-modeling/SKILL.md` | ~600 |
+| API Design | `skills/api-design/SKILL.md` | ~600 |
+| Legacy Code | `skills/legacy-code/SKILL.md` | ~700 |
+| Mutation Testing | `skills/mutation-testing/SKILL.md` | ~700 |
 
 ### Always-Loaded Baseline
 | Item | ~Tokens |
@@ -117,7 +117,7 @@ Instruct the Orchestrator to load files using the Read tool:
 
 ```
 Read agents/software-engineer.md    → load persona
-Read skills/hexagonal-architecture.md → load skill
+Read skills/hexagonal-architecture/SKILL.md → load skill
 ```
 
 Do NOT load files by copy-pasting their contents into the system prompt or conversation. Use tool-based file reads so the content is available but retrievable on demand.

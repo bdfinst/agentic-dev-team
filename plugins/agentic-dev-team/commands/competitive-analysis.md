@@ -10,6 +10,6 @@ user-invocable: true
 allowed-tools: Read, Glob, Grep, Write, WebFetch, WebSearch, Bash(date *), Bash(ls *)
 ---
 
-Apply the guidelines defined in skills/competitive-analysis.md to the current task. Read the skill file and follow its analysis framework, steps, and output format.
+Apply the guidelines defined in skills/competitive-analysis/SKILL.md to the current task. Read the skill file and follow its analysis framework, steps, and output format.
 
 Apply this skill to: $ARGUMENTS
