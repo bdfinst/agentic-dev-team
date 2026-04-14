@@ -6,6 +6,6 @@ argument-hint: "<scope-or-question>"
 user-invocable: true
 ---
 
-Apply the guidelines defined in skills/domain-analysis.md to the current task. Read the skill file and follow its analysis framework, steps, and output format.
+Apply the guidelines defined in skills/domain-analysis/SKILL.md to the current task. Read the skill file and follow its analysis framework, steps, and output format.
 
 Apply this skill to: $ARGUMENTS

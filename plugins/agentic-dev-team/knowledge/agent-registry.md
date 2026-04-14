@@ -51,36 +51,36 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 
 | Skill | File | ~Tokens | Used By |
 |-------|------|---------|---------|
-| Context Loading Protocol | `skills/context-loading-protocol.md` | 600 | Orchestrator |
-| Context Summarization | `skills/context-summarization.md` | 500 | Orchestrator |
-| Feedback & Learning | `skills/feedback-learning.md` | 1,010 | Orchestrator |
-| Human Oversight Protocol | `skills/human-oversight-protocol.md` | 1,020 | Orchestrator, Product Manager |
-| Performance Metrics | `skills/performance-metrics.md` | 890 | Orchestrator |
-| Quality Gate Pipeline | `skills/quality-gate-pipeline.md` | 900 | All agents |
-| Governance & Compliance | `skills/governance-compliance.md` | 990 | QA Engineer, Technical Writer |
-| Agent & Skill Authoring | `skills/agent-skill-authoring.md` | 990 | Orchestrator |
-| Hexagonal Architecture | `skills/hexagonal-architecture.md` | 420 | Architect, Software Engineer |
-| Domain-Driven Design | `skills/domain-driven-design.md` | 710 | Architect, Software Engineer, Product Manager |
-| Domain Analysis | `skills/domain-analysis.md` | 650 | Architect, Product Manager, Orchestrator |
-| Specs | `skills/specs.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
-| Threat Modeling | `skills/threat-modeling.md` | 600 | Security Engineer, Architect |
-| API Design | `skills/api-design.md` | 600 | Architect, Software Engineer |
-| Legacy Code | `skills/legacy-code.md` | 700 | Software Engineer, QA Engineer, Architect |
-| Mutation Testing | `skills/mutation-testing.md` | 700 | QA Engineer, Software Engineer |
+| Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | 600 | Orchestrator |
+| Context Summarization | `skills/context-summarization/SKILL.md` | 500 | Orchestrator |
+| Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,010 | Orchestrator |
+| Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 1,020 | Orchestrator, Product Manager |
+| Performance Metrics | `skills/performance-metrics/SKILL.md` | 890 | Orchestrator |
+| Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | 900 | All agents |
+| Governance & Compliance | `skills/governance-compliance/SKILL.md` | 990 | QA Engineer, Technical Writer |
+| Agent & Skill Authoring | `skills/agent-skill-authoring/SKILL.md` | 990 | Orchestrator |
+| Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 420 | Architect, Software Engineer |
+| Domain-Driven Design | `skills/domain-driven-design/SKILL.md` | 710 | Architect, Software Engineer, Product Manager |
+| Domain Analysis | `skills/domain-analysis/SKILL.md` | 650 | Architect, Product Manager, Orchestrator |
+| Specs | `skills/specs/SKILL.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
+| Threat Modeling | `skills/threat-modeling/SKILL.md` | 600 | Security Engineer, Architect |
+| API Design | `skills/api-design/SKILL.md` | 600 | Architect, Software Engineer |
+| Legacy Code | `skills/legacy-code/SKILL.md` | 700 | Software Engineer, QA Engineer, Architect |
+| Mutation Testing | `skills/mutation-testing/SKILL.md` | 700 | QA Engineer, Software Engineer |
 
 
-| Test-Driven Development | `skills/test-driven-development.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
-| Systematic Debugging | `skills/systematic-debugging.md` | 600 | Software Engineer, QA Engineer |
-| Design Doc | `skills/design-doc.md` | 500 | Architect, Product Manager, Orchestrator |
-| Branch Workflow | `skills/branch-workflow.md` | 450 | Orchestrator, Software Engineer |
-| CI Debugging | `skills/ci-debugging.md` | 550 | DevOps/SRE Engineer, Software Engineer, QA Engineer |
-| Test Design Reviewer | `skills/test-design-reviewer.md` | 600 | QA Engineer, test-review |
-| Browser Testing | `skills/browser-testing.md` | 700 | QA Engineer |
-| Competitive Analysis | `skills/competitive-analysis.md` | 600 | Orchestrator, Product Manager |
-| Design Interrogation | `skills/design-interrogation.md` | 500 | Architect, Product Manager, Orchestrator |
-| Design It Twice | `skills/design-it-twice.md` | 550 | Architect, Software Engineer |
-| Static Analysis Integration | `skills/static-analysis-integration.md` | 650 | Orchestrator, `/code-review` |
-| Feature File Validation | `skills/feature-file-validation.md` | 700 | test-review, QA Engineer, spec-compliance-review |
+| Test-Driven Development | `skills/test-driven-development/SKILL.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
+| Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 600 | Software Engineer, QA Engineer |
+| Design Doc | `skills/design-doc/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
+| Branch Workflow | `skills/branch-workflow/SKILL.md` | 450 | Orchestrator, Software Engineer |
+| CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | DevOps/SRE Engineer, Software Engineer, QA Engineer |
+| Test Design Reviewer | `skills/test-design-reviewer/SKILL.md` | 600 | QA Engineer, test-review |
+| Browser Testing | `skills/browser-testing/SKILL.md` | 700 | QA Engineer |
+| Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
+| Design Interrogation | `skills/design-interrogation/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
+| Design It Twice | `skills/design-it-twice/SKILL.md` | 550 | Architect, Software Engineer |
+| Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 650 | Orchestrator, `/code-review` |
+| Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
 | Docker Image Create | `skills/docker-image-create/SKILL.md` | 800 | DevOps/SRE Engineer, Software Engineer |
 | Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), DevOps/SRE Engineer, Security Engineer |
 | Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, DevOps/SRE Engineer, `/benchmark` command |

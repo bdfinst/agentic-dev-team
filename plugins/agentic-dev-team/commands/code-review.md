@@ -344,7 +344,7 @@ orchestrator direction.
 **Static analysis context**: If the static analysis pre-pass (step 2b)
 produced findings, inject them into **every** review agent's prompt
 using the agent context injection format defined in
-`skills/static-analysis-integration.md`. This tells agents:
+`skills/static-analysis-integration/SKILL.md`. This tells agents:
 "These issues were detected by static analysis tools. Do not re-report
 them. Focus on semantic and architectural concerns."
 
