@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.3.0](https://github.com/bdfinst/agentic-dev-team/compare/v3.2.0...v3.3.0) (2026-04-14)
+
+
+### Features
+
+* add default permissions to auto-approve most tools ([440407c](https://github.com/bdfinst/agentic-dev-team/commit/440407ce91952e64a7d32dd4f515ac697772519f))
+
+
+### Bug Fixes
+
+* update skill file references to include SKILL.md path ([90cd81d](https://github.com/bdfinst/agentic-dev-team/commit/90cd81dbaff644e320b7b40b58b915455f820da3))
+* update skill file references to include SKILL.md path ([34a7474](https://github.com/bdfinst/agentic-dev-team/commit/34a74746bcfdcc64cc04998ad66f36b6387c68b3))
+
 ## [3.2.0](https://github.com/bdfinst/agentic-dev-team/compare/v3.1.1...v3.2.0) (2026-04-10)
 
 
