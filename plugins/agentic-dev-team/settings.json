@@ -12,11 +12,28 @@
       "WebSearch",
       "Agent",
       "NotebookEdit",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskGet",
+      "TaskList",
+      "TaskOutput",
+      "TaskStop",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "EnterWorktree",
+      "ExitWorktree",
+      "Monitor",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "RemoteTrigger",
+      "ScheduleWakeup",
       "mcp__*"
     ],
     "deny": [
-      "Bash(rm *)",
-      "Bash(git push *)"
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git push * --force *)"
     ]
   },
   "hooks": {
