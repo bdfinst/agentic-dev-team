@@ -84,6 +84,18 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Docker Image Create | `skills/docker-image-create/SKILL.md` | 800 | DevOps/SRE Engineer, Software Engineer |
 | Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), DevOps/SRE Engineer, Security Engineer |
 | Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, DevOps/SRE Engineer, `/benchmark` command |
+| Receiving Code Review | `skills/receiving-code-review/SKILL.md` | 440 | All agents (when receiving review feedback) |
+
+### Supporting Reference Files
+
+These are loaded on demand by their parent skill — not standalone skills.
+
+| File | Parent Skill | ~Tokens |
+|------|-------------|---------|
+| Testing Anti-Patterns | `skills/test-driven-development/testing-anti-patterns.md` | 320 |
+| Root-Cause Tracing | `skills/systematic-debugging/root-cause-tracing.md` | 400 |
+| Condition-Based Waiting | `skills/systematic-debugging/condition-based-waiting.md` | 390 |
+| Find Polluter | `skills/systematic-debugging/find-polluter.md` | 396 |
 
 ## Subagent Prompt Templates
 
@@ -112,6 +124,8 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
+| Anti-Rationalization | `knowledge/anti-rationalization.md` | 466 | All agents (cross-cutting rationalization patterns) |
+| Worktree Setup | `knowledge/worktree-setup.md` | 400 | Implementer subagent (worktree dependency install) |
 
 ## Agent Templates
 

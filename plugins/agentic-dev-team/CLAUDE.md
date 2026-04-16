@@ -43,11 +43,11 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Review agents** (19): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactoring-review, progress-guardian, data-flow-tracer
 
-**Skills** (31): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark
+**Skills** (32): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, Receiving Code Review
 
-**Subagent prompt templates** (8): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`
+**Subagent prompt templates** (7): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`
 
-**Knowledge files** (6): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment
+**Knowledge files** (8): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, anti-rationalization, worktree-setup
 
 **Agent templates** (9): ts-enforcer, esm-enforcer, react-testing, front-end-testing, twelve-factor-audit, python-quality, go-quality, csharp-quality, angular-testing (in `templates/agents/`, scaffolded by `/setup`)
 
@@ -115,7 +115,7 @@ For trivial tasks (typo fix, simple query), the Orchestrator routes directly to 
 | **Plan → Team** | `/issues-from-plan` | Break plan into GitHub issues for team distribution |
 | **Implement** | Test-Driven Development, Systematic Debugging, Mutation Testing, Browser Testing, Performance Benchmark, CI Debugging | Build with TDD, debug issues, validate quality, measure performance |
 | **Bug Triage** | `/triage` (Systematic Debugging + GitHub issue creation) | Investigate bugs and file actionable issues |
-| **Review** | Quality Gate Pipeline, Test Design Reviewer | Validate output before delivery |
+| **Review** | Quality Gate Pipeline, Test Design Reviewer, Receiving Code Review | Validate output before delivery, verify review findings before implementing |
 | **Cross-phase** | Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Governance & Compliance, Branch Workflow, Agent & Skill Authoring | Orchestration, context management, learning |
 
 ### Phase Transitions
@@ -133,6 +133,10 @@ The primary value of sub-agents is **context isolation**, not persona specializa
 - The parent can get right to work without the context burden of exploration
 
 Persona specialization (Software Engineer, Architect, etc.) provides behavioral guardrails and domain expertise, but context isolation is what makes multi-agent workflows scale.
+
+### Subagent Status Protocol
+
+Every subagent returns a structured status: `DONE`, `DONE_WITH_CONCERNS`, `NEEDS_CONTEXT`, or `BLOCKED`. The orchestrator's response table maps each status to a concrete action. See `agents/orchestrator.md` § Subagent Status Protocol for the full protocol, output formats, and re-dispatch rules.
 
 ### Multi-Agent Coordination
 
