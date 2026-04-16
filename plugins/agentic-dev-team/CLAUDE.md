@@ -47,7 +47,7 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Subagent prompt templates** (7): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`
 
-**Knowledge files** (8): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, anti-rationalization, worktree-setup
+**Knowledge files** (9): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, anti-rationalization, worktree-setup, contract-testing
 
 **Agent templates** (9): ts-enforcer, esm-enforcer, react-testing, front-end-testing, twelve-factor-audit, python-quality, go-quality, csharp-quality, angular-testing (in `templates/agents/`, scaffolded by `/setup`)
 

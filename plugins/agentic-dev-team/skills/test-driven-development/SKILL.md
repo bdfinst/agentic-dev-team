@@ -20,7 +20,7 @@ Enforces strict RED-GREEN-REFACTOR discipline with verifiable gates. LLMs are es
 - Do not move to the next unit of work until all tests pass
 - Do not skip the refactor step — it's where design quality happens
 - Do not rationalize exceptions to the cycle (see Rationalization Prevention below)
-- Do not use mocks when real code is feasible — mocks test your assumptions, not your code
+- Use validated test doubles at architectural boundaries (external services, databases) — doubles are the preferred approach when backed by integration tests that verify them against real dependencies. Use real code for internal modules. See [contract testing pattern](../../knowledge/contract-testing.md).
 
 ## The Cycle
 
@@ -92,7 +92,7 @@ Before completing a unit of work:
 - [ ] Each failure occurred for the expected reason (missing feature, not typo)
 - [ ] Minimal code written to pass each test
 - [ ] All tests passing with clean output (no errors, no warnings)
-- [ ] Tests use real code (mocks only when unavoidable)
+- [ ] Tests use real code for internal modules; validated test doubles at architectural boundaries (see [contract testing](../../knowledge/contract-testing.md))
 - [ ] Edge cases and error conditions covered
 
 Missing any checkbox = TDD was skipped. Restart from RED.

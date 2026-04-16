@@ -126,6 +126,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
 | Anti-Rationalization | `knowledge/anti-rationalization.md` | 466 | All agents (cross-cutting rationalization patterns) |
 | Worktree Setup | `knowledge/worktree-setup.md` | 400 | Implementer subagent (worktree dependency install) |
+| Contract Testing | `knowledge/contract-testing.md` | 450 | TDD skill, test-review, QA Engineer |
 
 ## Agent Templates
 

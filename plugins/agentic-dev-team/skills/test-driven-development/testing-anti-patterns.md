@@ -18,6 +18,6 @@ Mocking a dependency without reading its contract. The mock silently diverges fr
 
 Mocking only the happy path — no errors, edge cases, or state transitions. Tests pass but production fails on the first unexpected response. **Fix**: mock the full contract including error paths and boundary conditions.
 
-## 5. Integration Tests as Afterthought
+## 5. Unvalidated Test Doubles
 
-Writing unit tests with mocks first and deferring integration tests. Mocks mask integration failures, which are the most expensive bugs to find late. **Fix**: start with one integration test that proves the path works end-to-end, then add unit tests for edge cases.
+Using test doubles (mocks, stubs, fakes) at external boundaries without integration tests that verify the doubles match real behavior. The doubles silently drift from reality — tests pass against a fiction while production breaks. **Fix**: follow the [contract testing pattern](../../knowledge/contract-testing.md) — use test doubles in the main test flow (deterministic, every commit), and run separate integration tests against real dependencies to validate the doubles. When a double drifts, the integration test catches it.
