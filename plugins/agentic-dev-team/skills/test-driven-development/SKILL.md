@@ -67,7 +67,7 @@ LLMs generate plausible excuses for skipping TDD. These are the common ones and 
 | "The test is hard to write — I'll come back to it" | Hard-to-test code is hard-to-use code. The test is telling you the design needs work. Listen to it. |
 | "TDD slows me down / I'm being pragmatic" | TDD is the pragmatic choice. Truly pragmatic means test-first because debugging costs more than testing. |
 
-If you catch yourself composing an excuse not on this list, it's still an excuse. Write the test first.
+If you catch yourself composing an excuse not on this list, it's still an excuse. See also [anti-rationalization patterns](../../knowledge/anti-rationalization.md) for cross-cutting patterns beyond TDD. Write the test first.
 
 ## Red Flags Requiring Restart
 
@@ -136,6 +136,10 @@ The first vertical slice is the **tracer bullet** — it proves the path works e
 - **Phase 2 (Plan)**: Test strategy is part of the plan — identify what tests will be written for each unit
 - **Phase 3 (Implement)**: Every unit of work follows RED-GREEN-REFACTOR. The inline review checkpoint runs after GREEN, not during RED.
 - **Acceptance tests**: Feature file scenarios (Gherkin) define the outer loop. TDD operates within each scenario's implementation.
+
+## Supporting References
+
+- **[Testing Anti-Patterns](testing-anti-patterns.md)** — Load during RED phase when writing tests. Covers mock abuse, test-only methods, and other patterns that produce tests that pass but don't validate behavior.
 
 ## Output
 Verified RED-GREEN-REFACTOR cycle evidence: failing test output, passing test output, and refactored code with passing tests for each unit of work.

@@ -29,6 +29,8 @@ Follow the [Test-Driven Development](../skills/test-driven-development/SKILL.md)
 3. **Hard gate**: The new test MUST fail. Paste the failing test output here before proceeding.
 4. If the test passes without new code, the behavior already exists. Pick a different test or return DONE if all behaviors are covered.
 
+When writing tests during the RED phase, load [testing anti-patterns](../skills/test-driven-development/testing-anti-patterns.md) if you need guidance on test quality — especially when using mocks.
+
 Do not proceed to GREEN without pasted failing output.
 
 ### GREEN -- Make it pass
