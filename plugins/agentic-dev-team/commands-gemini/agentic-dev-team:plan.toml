@@ -1,0 +1,1 @@
+prompt = """Create a structured implementation plan for the following task: {{args}}. Include: goal, acceptance criteria, TDD steps (RED-GREEN-REFACTOR for each), file paths, and a pre-PR quality gate checklist. Write the plan to a file in plans/."""

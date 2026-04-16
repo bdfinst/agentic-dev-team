@@ -1,0 +1,4 @@
+{
+  "_note": "Gemini CLI hooks are experimental. Most agentic-dev-team hooks require Claude Code's stdin JSON format. Compatible hooks will be added as Gemini CLI's hook API stabilizes.",
+  "hooks": []
+}
