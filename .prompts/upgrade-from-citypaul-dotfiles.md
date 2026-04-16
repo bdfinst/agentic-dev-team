@@ -131,7 +131,7 @@ The `/setup` command generates the hook with only the branches relevant to the d
 
 **What they have:** A systematic CI/CD failure diagnosis skill with hypothesis-first approach, environment delta analysis, and anti-patterns (no blind retries).
 
-**Why it matters:** CI failures are a common pain point. We have a devops-sre-engineer agent but no specific skill for diagnosing CI failures methodically. This would prevent the common anti-pattern of "just re-run it."
+**Why it matters:** CI failures are a common pain point. We have a ops-engineer agent but no specific skill for diagnosing CI failures methodically. This would prevent the common anti-pattern of "just re-run it."
 
 **Action:** Create `skills/ci-debugging.md` covering:
 - Hypothesis-first diagnosis
@@ -145,7 +145,7 @@ The `/setup` command generates the hook with only the branches relevant to the d
   - Network and filesystem differences
 - Local reproduction steps
 - Anti-patterns: blind retries, adding retries to "flaky" tests, speculative fix pushes
-- Integration with devops-sre-engineer agent
+- Integration with ops-engineer agent
 
 ### 9. Add a `test-design-reviewer` skill
 

@@ -1,11 +1,11 @@
 ---
-name: devops-sre-engineer
+name: ops-engineer
 description: Pipeline design, deployment strategy, observability, and reliability planning
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 
-# DevOps/SRE Engineer Agent
+# Ops Engineer Agent
 
 ## Technical Responsibilities
 - Pipeline design and maintenance for build, test, and deployment

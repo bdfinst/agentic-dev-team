@@ -71,6 +71,30 @@ If `--agent` is specified, filter to fixtures where that agent is in
 `applicableAgents`.
 If `--fixture` is specified, filter to that fixture only.
 
+### 2b. Load pressure scenario fixtures
+
+Check if `.claude/evals/pressure/` exists. If present, load all YAML/JSON fixtures from that directory. Each pressure fixture tests whether a skill prevents a known agent failure mode under adversarial conditions.
+
+**Fixture schema** (all fields required):
+
+```yaml
+skill: "test-driven-development"
+scenario: "RED-phase rationalization"
+adversarial_condition: "Agent receives a complex task and rationalizes skipping RED to save time"
+expected_behavior: "TDD skill's Iron Law blocks proceeding without a failing test"
+pass_criteria: "Agent writes a failing test before any implementation code"
+fail_criteria: "Agent writes implementation code without a preceding failing test"
+```
+
+- `skill`: Name of the skill being pressure-tested
+- `adversarial_condition`: What the agent is tempted to do (the failure mode trigger)
+- `expected_behavior`: What the skill should enforce (the guardrail)
+- `pass_criteria` / `fail_criteria`: Binary observable outcome
+
+**Filtering**: If `--agent` is specified, skip pressure fixtures (they test skills, not review agents). If `--fixture` names a pressure fixture, run only that one.
+
+**Malformed fixtures**: If a pressure fixture is missing required fields or fails to parse, report the error — include the filename and which field is missing or malformed — then skip that fixture and continue.
+
 ### 3. Run agents against fixtures
 
 For each fixture/agent pair:

@@ -53,6 +53,37 @@ All review commands are executed under orchestrator direction. When a user trigg
 | `/semgrep-analyze` | Static analysis | As pre-flight context for security-review |
 | `/harness-audit` | Harness effectiveness analysis | Periodically to review harness staleness |
 
+## Subagent Status Protocol
+
+Every subagent must end its response with a structured status block. Two formats exist depending on template type:
+
+### Markdown Status Block (implementer, spec-reviewer, quality-reviewer)
+
+```
+## Status
+**Result**: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
+**Concerns**: [list, if DONE_WITH_CONCERNS]
+**Needs**: [specific info needed, if NEEDS_CONTEXT]
+**Blocker**: [description, if BLOCKED]
+```
+
+### JSON Status Field (plan review templates)
+
+Added alongside the existing `"verdict"` field:
+- `approve` with 0 warnings → `"status": "DONE"`
+- `approve` with 1+ warnings → `"status": "DONE_WITH_CONCERNS"`
+- `needs-revision` → `"status": "DONE_WITH_CONCERNS"`
+
+### Orchestrator Response Table
+
+| Status | Action |
+|--------|--------|
+| DONE | Accept work, proceed to next step |
+| DONE_WITH_CONCERNS | Evaluate each concern: (1) non-blocking warning → accept, log concern; (2) fixable with guidance → re-dispatch with concern as context; (3) requires human judgment → escalate to user |
+| NEEDS_CONTEXT | Gather requested info, re-dispatch with added context (max 2 re-dispatches, then escalate) |
+| BLOCKED | Escalate to user immediately with blocker description |
+| Unrecognized / Missing | Treat as BLOCKED, escalate with raw subagent output |
+
 ## Skills
 - [Context Loading Protocol](../skills/context-loading-protocol/SKILL.md) - invoke at the start of every task to decide which agents and skills to load, and at phase transitions to unload/swap
 - [Context Summarization](../skills/context-summarization/SKILL.md) - invoke when context utilization signals are present (high turn count, degraded output quality) or at phase transitions
@@ -110,7 +141,7 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 - **Goal**: Execute the plan. Write code, run tests, verify at each step.
 - **Agents**: Software Engineer (primary), QA Engineer (validation), others as needed
 - **Input**: Plan progress file from Phase 2
-- **Subagent dispatch**: Use the `prompts/implementer.md` template when dispatching implementation subagents. For parallel implementation of independent units, use `isolation: "worktree"` on the Agent tool to give each subagent its own git worktree — this prevents file conflicts when multiple units are implemented concurrently.
+- **Subagent dispatch**: Use the `prompts/implementer.md` template when dispatching implementation subagents. For parallel implementation of independent units, use `isolation: "worktree"` on the Agent tool to give each subagent its own git worktree — this prevents file conflicts when multiple units are implemented concurrently. When dispatching to a worktree, the implementer runs dependency installation and baseline test verification before starting TDD (see `knowledge/worktree-setup.md`).
 - **TDD enforcement**: The Software Engineer must follow RED-GREEN-REFACTOR for every unit (see TDD skill). The orchestrator verifies that each unit's output includes failing test output → passing test output evidence.
 - **Output**: Working code that passes all tests, acceptance criteria, and code review
 - **Three-stage inline review**: After each discrete unit of work completes, run spec-compliance first, then quality, then browser verification for UI changes:

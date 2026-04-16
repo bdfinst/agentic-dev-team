@@ -47,7 +47,7 @@ is_test_file() {
 
 # --- State tracking ---
 # Use a project-scoped temp file. The working directory hash identifies the session scope.
-STATE_DIR="${TMPDIR:-/tmp}/tdd-guard"
+STATE_DIR="${TMPDIR:-${TEMP:-/tmp}}/tdd-guard"
 mkdir -p "$STATE_DIR"
 PROJECT_HASH=$(echo "$PWD" | md5sum 2>/dev/null | cut -c1-12 || echo "$PWD" | md5 -q 2>/dev/null | cut -c1-12 || echo "default")
 STATE_FILE="$STATE_DIR/session-$PROJECT_HASH"

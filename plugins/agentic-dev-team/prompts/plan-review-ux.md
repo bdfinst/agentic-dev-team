@@ -53,6 +53,7 @@ You represent the user who will actually use this feature. You are not reviewing
 {
   "reviewer": "plan-review-ux",
   "verdict": "approve | needs-revision",
+  "status": "DONE | DONE_WITH_CONCERNS",
   "issues": [
     {
       "category": "journey | error-experience | cognitive-load | accessibility | interaction",
@@ -84,6 +85,14 @@ You represent the user who will actually use this feature. You are not reviewing
 - Any `blocker` → `needs-revision`
 - 3+ warnings with no blockers → `needs-revision`
 - Otherwise → `approve`
+
+## Status rules
+
+- `approve` with 0 warnings → `"status": "DONE"`
+- `approve` with 1+ warnings → `"status": "DONE_WITH_CONCERNS"`
+- `needs-revision` (any) → `"status": "DONE_WITH_CONCERNS"`
+
+The `status` field is additive — the `verdict` field and its rules are unchanged.
 
 ## Scope
 

@@ -1,0 +1,1 @@
+prompt = """Run a code review on the changed files in this project. Check for: naming quality, structural issues, complexity, test quality, security basics, and consistency with existing patterns. Categorize findings as Critical (must fix), Important (should fix), or Suggestion (optional). Include file paths and line numbers for every finding."""

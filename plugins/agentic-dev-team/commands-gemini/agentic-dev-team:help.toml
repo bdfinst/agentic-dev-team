@@ -1,0 +1,1 @@
+prompt = """List all available agentic-dev-team commands and skills with brief descriptions. Include: code-review, plan, build, browse, and all skills in the skills/ directory."""

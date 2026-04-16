@@ -1,0 +1,1 @@
+prompt = """Execute the most recently approved plan in plans/. For each step, follow RED-GREEN-REFACTOR: write a failing test, implement minimally to pass, refactor. Paste test output at each gate. Commit after each step."""

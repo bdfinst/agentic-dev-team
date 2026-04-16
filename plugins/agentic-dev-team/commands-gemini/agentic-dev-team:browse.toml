@@ -1,0 +1,1 @@
+prompt = """Launch a browser to navigate to {{args}}. Take a screenshot, describe what you see, and report any visual issues or accessibility concerns."""

@@ -1,0 +1,6 @@
+{
+  "name": "agentic-dev-team",
+  "version": "3.3.0",
+  "description": "Automated development team with specialized agents for code review, planning, implementation, and quality gates. Skills include TDD, systematic debugging, domain-driven design, threat modeling, and more.",
+  "contextFileName": "GEMINI.md"
+}

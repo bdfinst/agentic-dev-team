@@ -79,6 +79,6 @@ Fix the root cause. Verify the fix locally. Push and confirm CI passes.
 
 ## Integration
 
-- **DevOps/SRE Engineer agent**: Collaborates on infrastructure-level CI issues
+- **Ops Engineer agent**: Collaborates on infrastructure-level CI issues
 - **QA Engineer agent**: Collaborates on test isolation and fixture problems
 - **Systematic Debugging skill**: Uses the same hypothesis-first methodology

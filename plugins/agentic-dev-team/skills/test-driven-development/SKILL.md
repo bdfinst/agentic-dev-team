@@ -20,7 +20,7 @@ Enforces strict RED-GREEN-REFACTOR discipline with verifiable gates. LLMs are es
 - Do not move to the next unit of work until all tests pass
 - Do not skip the refactor step — it's where design quality happens
 - Do not rationalize exceptions to the cycle (see Rationalization Prevention below)
-- Do not use mocks when real code is feasible — mocks test your assumptions, not your code
+- Use validated test doubles at architectural boundaries (external services, databases) — doubles are the preferred approach when backed by integration tests that verify them against real dependencies. Use real code for internal modules. See [contract testing pattern](../../knowledge/contract-testing.md).
 
 ## The Cycle
 
@@ -67,7 +67,7 @@ LLMs generate plausible excuses for skipping TDD. These are the common ones and 
 | "The test is hard to write — I'll come back to it" | Hard-to-test code is hard-to-use code. The test is telling you the design needs work. Listen to it. |
 | "TDD slows me down / I'm being pragmatic" | TDD is the pragmatic choice. Truly pragmatic means test-first because debugging costs more than testing. |
 
-If you catch yourself composing an excuse not on this list, it's still an excuse. Write the test first.
+If you catch yourself composing an excuse not on this list, it's still an excuse. See also [anti-rationalization patterns](../../knowledge/anti-rationalization.md) for cross-cutting patterns beyond TDD. Write the test first.
 
 ## Red Flags Requiring Restart
 
@@ -92,7 +92,7 @@ Before completing a unit of work:
 - [ ] Each failure occurred for the expected reason (missing feature, not typo)
 - [ ] Minimal code written to pass each test
 - [ ] All tests passing with clean output (no errors, no warnings)
-- [ ] Tests use real code (mocks only when unavoidable)
+- [ ] Tests use real code for internal modules; validated test doubles at architectural boundaries (see [contract testing](../../knowledge/contract-testing.md))
 - [ ] Edge cases and error conditions covered
 
 Missing any checkbox = TDD was skipped. Restart from RED.
@@ -136,6 +136,10 @@ The first vertical slice is the **tracer bullet** — it proves the path works e
 - **Phase 2 (Plan)**: Test strategy is part of the plan — identify what tests will be written for each unit
 - **Phase 3 (Implement)**: Every unit of work follows RED-GREEN-REFACTOR. The inline review checkpoint runs after GREEN, not during RED.
 - **Acceptance tests**: Feature file scenarios (Gherkin) define the outer loop. TDD operates within each scenario's implementation.
+
+## Supporting References
+
+- **[Testing Anti-Patterns](testing-anti-patterns.md)** — Load during RED phase when writing tests. Covers mock abuse, test-only methods, and other patterns that produce tests that pass but don't validate behavior.
 
 ## Output
 Verified RED-GREEN-REFACTOR cycle evidence: failing test output, passing test output, and refactored code with passing tests for each unit of work.

@@ -1,0 +1,7 @@
+# Agentic Dev Team - Codex Configuration
+
+[features]
+codex_hooks = true
+
+# Skills are loaded from .agents/skills/ — see CODEX-INSTALL.md for setup
+# Hooks are experimental on Codex — see .codex/hooks.json

@@ -1,4 +1,5 @@
 {
+  "_windows_hooks": "On Windows, invoke hooks via: hooks\\run-hook.cmd hooks/<script>.sh — the shim locates bash (PATH, Git for Windows, or WSL) and passes stdin/args/exit codes through.",
   "permissions": {
     "allow": [
       "Bash",
@@ -11,11 +12,28 @@
       "WebSearch",
       "Agent",
       "NotebookEdit",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskGet",
+      "TaskList",
+      "TaskOutput",
+      "TaskStop",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "EnterWorktree",
+      "ExitWorktree",
+      "Monitor",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "RemoteTrigger",
+      "ScheduleWakeup",
       "mcp__*"
     ],
     "deny": [
-      "Bash(rm *)",
-      "Bash(git push *)"
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git push * --force *)"
     ]
   },
   "hooks": {

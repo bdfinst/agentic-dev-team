@@ -49,6 +49,7 @@ You are not reviewing code, design, or test quality — other reviewers handle t
 {
   "reviewer": "plan-review-strategic",
   "verdict": "approve | needs-revision",
+  "status": "DONE | DONE_WITH_CONCERNS",
   "issues": [
     {
       "category": "problem-fit | scope | risk | opportunity-cost | consistency",
@@ -86,3 +87,11 @@ You are not reviewing code, design, or test quality — other reviewers handle t
 - Any `blocker` → `needs-revision`
 - 3+ warnings with no blockers → `needs-revision`
 - Otherwise → `approve`
+
+## Status rules
+
+- `approve` with 0 warnings → `"status": "DONE"`
+- `approve` with 1+ warnings → `"status": "DONE_WITH_CONCERNS"`
+- `needs-revision` (any) → `"status": "DONE_WITH_CONCERNS"`
+
+The `status` field is additive — the `verdict` field and its rules are unchanged.

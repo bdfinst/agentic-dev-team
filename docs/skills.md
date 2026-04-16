@@ -29,6 +29,7 @@ Used by all agents to ensure output correctness:
 | --- | --- | --- |
 | Quality Gate Pipeline | [`quality-gate-pipeline.md`](../plugins/agentic-dev-team/skills/quality-gate-pipeline/SKILL.md) | Unified quality gate: self-validation, verification evidence, review-correction loops |
 | Governance & Compliance | [`governance-compliance.md`](../plugins/agentic-dev-team/skills/governance-compliance/SKILL.md) | Audit trail, quality assurance layers, ethics principles |
+| Static Analysis Integration | [`static-analysis-integration/SKILL.md`](../plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md) | Pre-pass stage for /code-review that runs available static analysis tools before dispatching AI agents |
 
 ### Development Discipline Skills
 
@@ -44,6 +45,7 @@ Enforce rigorous development practices:
 | Test Design Reviewer | [`test-design-reviewer.md`](../plugins/agentic-dev-team/skills/test-design-reviewer/SKILL.md) | Test quality patterns and anti-patterns |
 | Browser Testing | [`browser-testing.md`](../plugins/agentic-dev-team/skills/browser-testing/SKILL.md) | Playwright-based browser QA for visual verification |
 | Feature File Validation | [`feature-file-validation.md`](../plugins/agentic-dev-team/skills/feature-file-validation/SKILL.md) | Gherkin quality, determinism, implementation independence, test automation coverage |
+| Receiving Code Review | [`receiving-code-review/SKILL.md`](../plugins/agentic-dev-team/skills/receiving-code-review/SKILL.md) | Behavioral constraints for review reception: verification gates, YAGNI check, anti-performative-agreement |
 
 ### Research & Design Skills
 
@@ -54,6 +56,7 @@ Used during the Research phase to explore alternatives and stress-test designs:
 | Competitive Analysis | [`competitive-analysis.md`](../plugins/agentic-dev-team/skills/competitive-analysis/SKILL.md) | Gap analysis against external tools, plugins, or feature sets |
 | Design Interrogation | [`design-interrogation.md`](../plugins/agentic-dev-team/skills/design-interrogation/SKILL.md) | Stress-test design decisions before planning |
 | Design It Twice | [`design-it-twice.md`](../plugins/agentic-dev-team/skills/design-it-twice/SKILL.md) | Generate parallel alternative interfaces via sub-agents |
+| Domain Analysis | [`domain-analysis/SKILL.md`](../plugins/agentic-dev-team/skills/domain-analysis/SKILL.md) | Strategic DDD health assessment: bounded contexts, event flows, value stream, friction report |
 
 ### Technical Skills
 
@@ -70,6 +73,7 @@ Domain knowledge for implementation work:
 | Docker Image Create | [`docker-image-create/SKILL.md`](../plugins/agentic-dev-team/skills/docker-image-create/SKILL.md) | Generate production Dockerfiles with multi-stage builds, slim/distroless bases |
 | Docker Image Audit | [`docker-image-audit/SKILL.md`](../plugins/agentic-dev-team/skills/docker-image-audit/SKILL.md) | Audit Dockerfiles and images with hadolint, Trivy, Grype; structured severity report |
 | Performance Benchmark | [`performance-benchmark/SKILL.md`](../plugins/agentic-dev-team/skills/performance-benchmark/SKILL.md) | Runtime performance measurement: Core Web Vitals, resource sizes, baseline comparison, performance budgets, trend tracking |
+| JS Project Init | [`js-project-init/README.md`](../plugins/agentic-dev-team/skills/js-project-init/README.md) | Initialize JS project with ES modules, prettier, eslint, vitest, editorconfig |
 
 ### Subagent Prompt Templates
 
@@ -79,8 +83,7 @@ Concrete templates in `prompts/` for reproducible subagent dispatch:
 | --- | --- | --- |
 | Implementer | [`implementer.md`](../plugins/agentic-dev-team/prompts/implementer.md) | Phase 3 implementation dispatch with TDD enforcement |
 | Spec Reviewer | [`spec-reviewer.md`](../plugins/agentic-dev-team/prompts/spec-reviewer.md) | Two-stage review gate 1: does code match spec? |
-| Quality Reviewer | [`quality-reviewer.md`](../plugins/agentic-dev-team/prompts/quality-reviewer.md) | Two-stage review gate 2: is code high quality? |
-| Plan Reviewer | [`plan-reviewer.md`](../plugins/agentic-dev-team/prompts/plan-reviewer.md) | Phase 2 automated pre-check before human review |
+| Quality Reviewer | [`quality-reviewer.md`](../plugins/agentic-dev-team/prompts/quality-reviewer.md) | Stage 2 dispatcher: selects and runs specialized review agents based on what changed |
 | Plan Review — Acceptance | [`plan-review-acceptance.md`](../plugins/agentic-dev-team/prompts/plan-review-acceptance.md) | Criteria verifiability, scenario completeness, error paths, TDD traceability |
 | Plan Review — Design | [`plan-review-design.md`](../plugins/agentic-dev-team/prompts/plan-review-design.md) | Coupling, abstraction quality, structural risks, pattern consistency |
 | Plan Review — UX | [`plan-review-ux.md`](../plugins/agentic-dev-team/prompts/plan-review-ux.md) | User journey, error experience, cognitive load, accessibility |

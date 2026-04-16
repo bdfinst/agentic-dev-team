@@ -6,7 +6,7 @@
 #
 # Input:  JSON on stdin (ignored)
 # Output: Update notice on stdout, or nothing if up-to-date
-# Cache:  /tmp/adt-version-check-<date> prevents repeated checks
+# Cache:  $TMPDIR/adt-version-check-<date> prevents repeated checks
 
 set -uo pipefail
 
@@ -15,7 +15,7 @@ cat > /dev/null
 
 # ── Daily cache: skip if already checked today ───────────────────────────────
 TODAY=$(date +%Y-%m-%d)
-CACHE_FILE="/tmp/adt-version-check-${TODAY}"
+CACHE_FILE="${TMPDIR:-${TEMP:-/tmp}}/adt-version-check-${TODAY}"
 
 if [ -f "$CACHE_FILE" ]; then
   # Already checked today — replay cached message if any

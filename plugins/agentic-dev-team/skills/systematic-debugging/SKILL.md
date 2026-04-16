@@ -50,6 +50,14 @@ When LLMs hit failures, they tend to guess at fixes — changing code, re-runnin
 - **Identify differences**: List every distinction between working and broken code, no matter how minor
 - **Understand dependencies**: What components, settings, and assumptions are required?
 
+### Supporting References
+
+Load these on demand when a specific technique is needed:
+
+- **[Root-Cause Tracing](root-cause-tracing.md)** — When the failure involves a wrong value at the point of use. Trace backward through the call chain to find where the value first diverges.
+- **[Condition-Based Waiting](condition-based-waiting.md)** — When debugging a flaky test that uses arbitrary sleeps or timeouts. Replace with polling.
+- **[Find Polluter](find-polluter.md)** — When a test passes in isolation but fails in suite. Bisect the test list to find the polluting test.
+
 **Gate**: state what you know and don't know. List the facts, not guesses.
 
 ### Phase 3: Root Cause Hypothesis

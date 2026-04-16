@@ -15,7 +15,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Product Manager | `agents/product-manager.md` | 300 | Requirements, prioritization |
 | Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
 | Security Engineer | `agents/security-engineer.md` | 320 | Security analysis, threat modeling |
-| DevOps/SRE Engineer | `agents/devops-sre-engineer.md` | 320 | Pipeline, deployment, reliability |
+| Ops Engineer | `agents/ops-engineer.md` | 320 | Pipeline, deployment, reliability |
 | ADR Author | `agents/adr.md` | 320 | Creates and manages Architecture Decision Records |
 | **All team agents** | | **~3,900** | |
 
@@ -73,7 +73,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 600 | Software Engineer, QA Engineer |
 | Design Doc | `skills/design-doc/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
 | Branch Workflow | `skills/branch-workflow/SKILL.md` | 450 | Orchestrator, Software Engineer |
-| CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | DevOps/SRE Engineer, Software Engineer, QA Engineer |
+| CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | Ops Engineer, Software Engineer, QA Engineer |
 | Test Design Reviewer | `skills/test-design-reviewer/SKILL.md` | 600 | QA Engineer, test-review |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 700 | QA Engineer |
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
@@ -81,9 +81,22 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Design It Twice | `skills/design-it-twice/SKILL.md` | 550 | Architect, Software Engineer |
 | Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 650 | Orchestrator, `/code-review` |
 | Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
-| Docker Image Create | `skills/docker-image-create/SKILL.md` | 800 | DevOps/SRE Engineer, Software Engineer |
-| Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), DevOps/SRE Engineer, Security Engineer |
-| Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, DevOps/SRE Engineer, `/benchmark` command |
+| Docker Image Create | `skills/docker-image-create/SKILL.md` | 800 | Ops Engineer, Software Engineer |
+| Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), Ops Engineer, Security Engineer |
+| Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, Ops Engineer, `/benchmark` command |
+| Receiving Code Review | `skills/receiving-code-review/SKILL.md` | 440 | All agents (when receiving review feedback) |
+| JS Project Init | `skills/js-project-init/README.md` | 500 | Software Engineer |
+
+### Supporting Reference Files
+
+These are loaded on demand by their parent skill — not standalone skills.
+
+| File | Parent Skill | ~Tokens |
+|------|-------------|---------|
+| Testing Anti-Patterns | `skills/test-driven-development/testing-anti-patterns.md` | 320 |
+| Root-Cause Tracing | `skills/systematic-debugging/root-cause-tracing.md` | 400 |
+| Condition-Based Waiting | `skills/systematic-debugging/condition-based-waiting.md` | 390 |
+| Find Polluter | `skills/systematic-debugging/find-polluter.md` | 396 |
 
 ## Subagent Prompt Templates
 
@@ -94,7 +107,6 @@ Concrete prompt templates in `prompts/` that the orchestrator and `/code-review`
 | Implementer | `prompts/implementer.md` | Orchestrator (Phase 3 implementation dispatch) |
 | Spec Reviewer | `prompts/spec-reviewer.md` | Orchestrator (three-stage review gate 1) |
 | Quality Reviewer | `prompts/quality-reviewer.md` | Orchestrator (three-stage review gate 2) |
-| Plan Reviewer | `prompts/plan-reviewer.md` | Orchestrator (Phase 2 automated pre-check) |
 | Plan Review — Acceptance | `prompts/plan-review-acceptance.md` | Orchestrator (Phase 2 plan review persona) |
 | Plan Review — Design | `prompts/plan-review-design.md` | Orchestrator (Phase 2 plan review persona) |
 | Plan Review — UX | `prompts/plan-review-ux.md` | Orchestrator (Phase 2 plan review persona) |
@@ -112,6 +124,9 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
+| Anti-Rationalization | `knowledge/anti-rationalization.md` | 466 | All agents (cross-cutting rationalization patterns) |
+| Worktree Setup | `knowledge/worktree-setup.md` | 400 | Implementer subagent (worktree dependency install) |
+| Contract Testing | `knowledge/contract-testing.md` | 450 | TDD skill, test-review, QA Engineer |
 
 ## Agent Templates
 
