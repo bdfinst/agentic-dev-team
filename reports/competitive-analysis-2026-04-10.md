@@ -141,7 +141,7 @@ gstack is a 23+ skill Claude Code toolkit focused on the full product delivery l
 - **Type**: skill + command
 - **File**: `skills/canary-monitoring/SKILL.md`, `commands/canary.md`
 - **Description**: Post-deploy smoke testing and monitoring. Uses Playwright to load key pages, capture console errors, measure performance metrics against baselines, and screenshot-diff for visual regressions. Produces a health report. Integrates with the Branch Workflow skill as a post-merge step.
-- **Dependencies**: Browser Testing skill, DevOps/SRE Engineer agent
+- **Dependencies**: Browser Testing skill, Ops Engineer agent
 - **Estimated complexity**: Large
 - **Model tier**: sonnet
 
@@ -158,7 +158,7 @@ gstack is a 23+ skill Claude Code toolkit focused on the full product delivery l
 - **Type**: skill + command
 - **File**: `skills/performance-benchmark/SKILL.md`, `commands/benchmark.md`
 - **Description**: Capture and track frontend performance metrics (Core Web Vitals, resource sizes, load times) against defined budgets. Compare current state to baselines, flag regressions, and maintain trend history. Complements the existing `performance-review` agent which focuses on code-level issues rather than runtime metrics.
-- **Dependencies**: Browser Testing skill, DevOps/SRE Engineer agent
+- **Dependencies**: Browser Testing skill, Ops Engineer agent
 - **Estimated complexity**: Medium
 - **Model tier**: sonnet
 
