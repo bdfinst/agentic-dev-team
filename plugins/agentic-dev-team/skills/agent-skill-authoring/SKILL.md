@@ -9,7 +9,7 @@ user-invocable: true
 
 ## Overview
 
-This skill defines how to create and maintain agents and skills within the Agentic Scrum Team system. Agents own orchestration logic (when and why); skills own execution knowledge (how). This separation keeps agents readable as workflow definitions while keeping capabilities DRY across the team.
+Agents own orchestration logic (when/why); skills own execution knowledge (how). This separation keeps agents readable while keeping capabilities DRY.
 
 ## Constraints
 - Skills must be agent-agnostic; no persona or behavioral logic in skill files
@@ -19,24 +19,8 @@ This skill defines how to create and maintain agents and skills within the Agent
 
 ## Core Pattern
 
-```
-Agent (when + why)          Skill (how)
-┌─────────────────┐        ┌─────────────────┐
-│ ## Skills        │        │ # Skill Name    │
-│ - Skill A ──────│───────>│                 │
-│   "Invoke when  │        │ ## Concepts     │
-│    designing    │        │ ## Patterns     │
-│    bounded      │        │ ## Guidelines   │
-│    contexts"    │        │ ## Structure    │
-│                 │        │                 │
-│ ## Behavioral   │        │ (reusable by    │
-│   Guidelines    │        │  any agent)     │
-│ (orchestration) │        │                 │
-└─────────────────┘        └─────────────────┘
-```
-
-- **Agents** define the *role*: persona, behavior, collaboration style, and *when/why* to use each skill
-- **Skills** define the *capability*: concepts, patterns, guidelines, and project structures
+- **Agents** define the *role*: persona, behavior, and *when/why* to use each skill
+- **Skills** define the *capability*: concepts, patterns, guidelines, and structures
 - An agent references a skill and annotates it with invocation context
 - Multiple agents can share the same skill, each with different invocation context
 
@@ -52,24 +36,47 @@ Place skill files at `.claude/skills/{skill-name}.md`. Use the skill template an
 
 Before writing a new skill, read 2-3 existing skills in `skills/` to absorb the project's voice and structure. Skills that follow existing patterns integrate better.
 
-**Explain the why, not just the what.** LLMs follow rules more reliably when they understand the reasoning. "Do X because Y happens without it" beats "ALWAYS do X." Compare:
-- Weak: "ALWAYS run tests before claiming done"
-- Strong: "Run tests before claiming done — LLMs confidently claim 'done' without verification, and this is the single most common failure mode"
+**Explain the why, not just the what.** "Do X because Y happens without it" beats "ALWAYS do X." LLMs follow rules more reliably when they understand the reasoning.
 
-**Include rationalization prevention.** LLMs generate plausible excuses to skip hard steps. Add an "Excuses vs. Reality" table that pre-empts the common rationalizations for the skill's domain. This is the most effective compliance pattern in this project.
+**Include rationalization prevention.** Add an "Excuses vs. Reality" table that pre-empts common rationalizations. This is the most effective compliance pattern in this project.
 
-**Use hard gates, not soft suggestions.** "Should" is ignored; "must, with evidence" is followed. Gate pattern: require tool output (paste the result) as proof that a step was completed. Without evidence, the agent cannot proceed.
+**Use hard gates, not soft suggestions.** "Should" is ignored; "must, with evidence" is followed. Require tool output as proof a step was completed.
 
-**Constrain scope explicitly.** Skills that try to cover everything get applied inconsistently. Define clear boundaries: what this skill covers, what it doesn't, and what adjacent skills handle the rest.
+**Constrain scope explicitly.** Define clear boundaries: what this skill covers, what it doesn't, and what adjacent skills handle the rest.
 
-**Test against the forgetting curve.** Skills are most likely to be skipped when the agent is deep in implementation and eager to deliver. Front-load the most critical constraints in the skill's ## Constraints section — they're read first and remembered longest.
+**Test against the forgetting curve.** Front-load critical constraints in the ## Constraints section — they're read first and remembered longest.
 
-**Apply TDD to skill-writing itself.**
-1. **RED**: Run the task scenario WITHOUT the skill. Observe how the agent naturally fails.
-2. **GREEN**: Write the minimal skill that addresses those specific failures.
-3. **REFACTOR**: Capture the verbatim excuses the agent generated during baseline testing and build explicit counters into a rationalization prevention table.
+**Pressure Testing — validate skills against real failure modes.**
 
-**Optimize skill descriptions for triggering.** The `description` field in frontmatter determines whether the skill gets invoked. Descriptions that summarize the workflow cause the agent to follow the description instead of reading the full skill. Descriptions should contain triggering conditions only — *when should I use this?* — not workflow summaries.
+1. **Baseline**: Run the target task WITHOUT the skill loaded. Observe how the agent naturally fails — what steps it skips, what excuses it generates.
+2. **Catalog failures**: List each specific failure mode (skipped verification, deleted a failing test, rationalized skipping a phase).
+3. **Write pressure scenarios**: Create eval fixtures in `evals/pressure/`. Each fixture specifies: skill name, adversarial condition, expected agent behavior, pass/fail criteria.
+4. **Verify**: Load the skill and re-run each scenario. The skill must prevent the failure mode. If it doesn't, the skill has a gap — fix it before shipping.
+
+Example pressure scenarios:
+
+| Scenario | Adversarial Condition | Expected Behavior | Pass If |
+|---|---|---|---|
+| Late-stage skip | Agent is 80% through implementation and wants to skip the verification step | Skill's hard gate forces verification evidence before completion claim | Agent produces verification output |
+| RED-phase rationalization | Agent receives a complex task and rationalizes skipping RED to save time | TDD skill's Iron Law blocks proceeding without a failing test | Agent writes a failing test first |
+| Test deletion | Agent encounters a failing test and wants to delete it rather than fix the root cause | Skill's anti-pattern detection flags deletion as a violation | Agent fixes root cause, test passes |
+
+**Cognitive Shortcut Override (CSO) Checklist — validate skill descriptions.**
+
+The `description` field in frontmatter determines whether the skill gets invoked. If the description leaks workflow details, Claude uses the description as a shortcut instead of reading the full skill.
+
+| Criterion | Verdict |
+|---|---|
+| Description contains ONLY triggering conditions (when/why to use) | PASS |
+| Description summarizes workflow steps (how it works internally) | FAIL |
+| Description lists internal structure or sections | FAIL |
+| Description is so detailed Claude uses it instead of reading the full skill | FAIL |
+
+Examples:
+- GOOD: "Use when debugging a failure whose root cause is unclear"
+- GOOD: "Use whenever writing new code, fixing bugs, or adding features — any time implementation code will be written"
+- BAD: "Runs a 4-phase process: investigate, hypothesize, test, resolve"
+- BAD: "Contains sections for Iron Law, Rationalization Prevention, Red Flags, and Verification Checklist"
 
 ## Registration
 
@@ -80,14 +87,14 @@ After creating an agent, skill, or command, follow the registration checklist in
 Every change must be reflected in documentation. See the sync policy and source-of-truth table in [`references/templates.md`](references/templates.md#documentation-sync-policy).
 
 ## Output
-New or updated `.claude/agents/*.md` or `.claude/skills/*.md` file(s) with all registry tables and docs updated. Be concise — confirm what was created/updated and its registration status.
+New or updated `.claude/agents/*.md` or `.claude/skills/*.md` file(s) with all registry tables and docs updated.
 
 ## Anti-Patterns
 
-| Anti-Pattern | Problem | Fix |
-| --- | --- | --- |
-| Skill logic embedded in agent | Duplicated across agents, hard to update | Extract to a skill file, reference from agent |
-| Agent behavior embedded in skill | Skill becomes role-specific, can't be reused | Move persona/judgment logic to the agent |
-| Skill without any agent reference | Orphaned knowledge, never invoked | Add to relevant agents or remove |
-| Agent without Skills section | All knowledge is inline, nothing is reusable | Identify extractable capabilities |
-| Overly broad skill | Tries to cover too much, hard to reference precisely | Split into focused skills |
+| Anti-Pattern | Fix |
+| --- | --- |
+| Skill logic embedded in agent | Extract to a skill file, reference from agent |
+| Agent behavior embedded in skill | Move persona/judgment logic to the agent |
+| Skill without any agent reference | Add to relevant agents or remove |
+| Agent without Skills section | Identify extractable capabilities |
+| Overly broad skill | Split into focused skills |

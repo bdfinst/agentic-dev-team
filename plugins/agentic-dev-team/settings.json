@@ -1,4 +1,5 @@
 {
+  "_windows_hooks": "On Windows, invoke hooks via: hooks\\run-hook.cmd hooks/<script>.sh — the shim locates bash (PATH, Git for Windows, or WSL) and passes stdin/args/exit codes through.",
   "permissions": {
     "allow": [
       "Bash",

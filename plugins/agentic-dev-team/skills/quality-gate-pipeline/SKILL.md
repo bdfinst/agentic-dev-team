@@ -60,6 +60,8 @@ Strong signals (likely hallucination):
 
 When a signal fires: **Pause** → **Verify** (use tools) → **Correct** → **Log** (`hallucination_detected: true` in metrics)
 
+For cross-cutting rationalization patterns that bypass verification, see [`knowledge/anti-rationalization.md`](../../knowledge/anti-rationalization.md).
+
 ### Phase 2: Verification Evidence (before completion claims)
 
 **Iron Law**: No completion claims without fresh verification evidence. Skipping any step is falsification, not verification.
@@ -100,6 +102,7 @@ When a signal fires: **Pause** → **Verify** (use tools) → **Correct** → **
 - "should work now" / "should be fixed" / "probably" / "I believe"
 - Expressing satisfaction before running verification
 - Preparing commits without verification output
+- Any excuse from the [anti-rationalization patterns](../../knowledge/anti-rationalization.md)
 
 ### Phase 3: Review-Correction Loop (post-delivery rework)
 
