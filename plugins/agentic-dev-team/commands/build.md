@@ -62,13 +62,19 @@ For each step in the plan, dispatch implementation following the implementer tem
 1. **RED** — Write the failing test described in the step. Run the test suite. **Hard gate: the new test must fail.** Paste the failing output. If the test passes without new code, the behavior already exists — pick a different test. Do NOT proceed to GREEN without pasted failing output.
 2. **GREEN** — Write the minimum implementation to make the failing test pass. Do not add behavior beyond what the test requires. Run the test suite. **Hard gate: all tests must pass.** Paste the passing output. Do NOT proceed without pasted passing output.
 3. **REFACTOR** — Clean up structure, naming, duplication without changing behavior. Run tests again — they must still pass. If tests break, undo and try a smaller change.
-4. **Inline review checkpoint** — Route review depth based on the step's **Complexity** classification:
+4. **Status check** — After the implementer returns, check the status block:
+   - **DONE**: Proceed to inline review checkpoint.
+   - **DONE_WITH_CONCERNS**: Review concerns. If non-blocking, log and proceed. If actionable, address before review checkpoint.
+   - **NEEDS_CONTEXT**: Gather the requested information from the plan or codebase, re-dispatch the same step with added context. Max 2 re-dispatches — escalate to user after that.
+   - **BLOCKED**: Stop this step. Present the blocker to the user. Do not proceed until the user provides direction.
+   - **Missing/Unrecognized status**: Treat as BLOCKED. Escalate with raw output.
+5. **Inline review checkpoint** — Route review depth based on the step's **Complexity** classification:
    - **trivial**: Skip inline review. The final `/code-review` (step 6) covers all modified files.
    - **standard**: Run `/review-agent spec-compliance-review` against changed files. If it passes, run quality review agents relevant to what changed. If review finds actionable issues (error/warning with high/medium confidence), auto-fix and re-run failed agents (up to 5 iterations per the review-fix loop in `agents/orchestrator.md`). Escalate to user if the loop doesn't converge.
    - **complex**: Run `/review-agent spec-compliance-review`, then the full quality agent suite including opus-tier agents (security-review, domain-review, arch-review). Same review-fix loop applies.
    - If no complexity is specified, default to **standard**.
    - **UI changes (any complexity)**: After quality review passes, run browser verification via `/browse` in automated smoke test mode. Skip with warning if the dev server is not running. See `agents/orchestrator.md` Stage 3.
-5. **Mark step done** — Update the plan file: check off the step's acceptance criteria, set the step as completed.
+6. **Mark step done** — Update the plan file: check off the step's acceptance criteria, set the step as completed.
 
 ### 5. Run full test suite
 

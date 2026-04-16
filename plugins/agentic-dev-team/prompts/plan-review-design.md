@@ -49,6 +49,7 @@ You are the reviewer who asks "will we regret this in 6 months?" You are not her
 {
   "reviewer": "plan-review-design",
   "verdict": "approve | needs-revision",
+  "status": "DONE | DONE_WITH_CONCERNS",
   "issues": [
     {
       "category": "dependency | abstraction | structure | consistency | testability",
@@ -79,3 +80,11 @@ You are the reviewer who asks "will we regret this in 6 months?" You are not her
 - Any `blocker` → `needs-revision`
 - 3+ warnings with no blockers → `needs-revision`
 - Otherwise → `approve`
+
+## Status rules
+
+- `approve` with 0 warnings → `"status": "DONE"`
+- `approve` with 1+ warnings → `"status": "DONE_WITH_CONCERNS"`
+- `needs-revision` (any) → `"status": "DONE_WITH_CONCERNS"`
+
+The `status` field is additive — the `verdict` field and its rules are unchanged.
