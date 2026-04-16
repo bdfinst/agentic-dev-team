@@ -15,7 +15,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Product Manager | `agents/product-manager.md` | 300 | Requirements, prioritization |
 | Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
 | Security Engineer | `agents/security-engineer.md` | 320 | Security analysis, threat modeling |
-| DevOps/SRE Engineer | `agents/devops-sre-engineer.md` | 320 | Pipeline, deployment, reliability |
+| Ops Engineer | `agents/ops-engineer.md` | 320 | Pipeline, deployment, reliability |
 | ADR Author | `agents/adr.md` | 320 | Creates and manages Architecture Decision Records |
 | **All team agents** | | **~3,900** | |
 
@@ -73,7 +73,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 600 | Software Engineer, QA Engineer |
 | Design Doc | `skills/design-doc/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
 | Branch Workflow | `skills/branch-workflow/SKILL.md` | 450 | Orchestrator, Software Engineer |
-| CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | DevOps/SRE Engineer, Software Engineer, QA Engineer |
+| CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | Ops Engineer, Software Engineer, QA Engineer |
 | Test Design Reviewer | `skills/test-design-reviewer/SKILL.md` | 600 | QA Engineer, test-review |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 700 | QA Engineer |
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
@@ -81,9 +81,9 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Design It Twice | `skills/design-it-twice/SKILL.md` | 550 | Architect, Software Engineer |
 | Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 650 | Orchestrator, `/code-review` |
 | Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
-| Docker Image Create | `skills/docker-image-create/SKILL.md` | 800 | DevOps/SRE Engineer, Software Engineer |
-| Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), DevOps/SRE Engineer, Security Engineer |
-| Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, DevOps/SRE Engineer, `/benchmark` command |
+| Docker Image Create | `skills/docker-image-create/SKILL.md` | 800 | Ops Engineer, Software Engineer |
+| Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), Ops Engineer, Security Engineer |
+| Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, Ops Engineer, `/benchmark` command |
 | Receiving Code Review | `skills/receiving-code-review/SKILL.md` | 440 | All agents (when receiving review feedback) |
 | JS Project Init | `skills/js-project-init/README.md` | 500 | Software Engineer |
 

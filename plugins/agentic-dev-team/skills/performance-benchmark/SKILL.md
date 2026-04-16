@@ -225,7 +225,7 @@ When writing a human-readable report (for `/benchmark` command output):
 ## Integration Points
 
 - **QA Engineer**: Invokes this skill for performance and load testing
-- **DevOps/SRE Engineer**: Uses baselines for SLI/SLO definition
+- **Ops Engineer**: Uses baselines for SLI/SLO definition
 - **`/build` command**: Can be triggered after performance-critical steps (when step metadata includes `performance-sensitive: true`)
 - **`/code-review`**: The `performance-review` agent flags code patterns; this skill validates the runtime impact
 - **Browser Testing skill**: Shares Playwright infrastructure and patterns

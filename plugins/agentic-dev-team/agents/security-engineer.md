@@ -26,7 +26,7 @@ model: opus
 - Architect: Security architecture review, trust boundary analysis, secure design patterns
 - QA/SQA Engineer: Security test coverage, penetration test coordination, vulnerability verification
 - Software Engineer: Secure implementation guidance, code-level security review
-- DevOps/SRE Engineer: Infrastructure security, deployment pipeline hardening, secrets management
+- Ops Engineer: Infrastructure security, deployment pipeline hardening, secrets management
 
 ### Communication Style
 - Risk-focused and evidence-based

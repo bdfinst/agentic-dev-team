@@ -91,5 +91,5 @@ Display in chat:
 - Complements the `performance-review` agent (static code analysis) with runtime measurement
 - Uses Playwright infrastructure shared with `/browse` and the Browser Testing skill
 - QA Engineer invokes this for performance validation
-- DevOps/SRE Engineer uses baselines for SLI/SLO definition
+- Ops Engineer uses baselines for SLI/SLO definition
 - Can be run as part of `/build` for performance-critical plan steps

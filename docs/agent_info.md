@@ -17,7 +17,7 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 | Product Manager | [`product-manager.md`](../plugins/agentic-dev-team/agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
 | Technical Writer | [`tech-writer.md`](../plugins/agentic-dev-team/agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
 | Security Engineer | [`security-engineer.md`](../plugins/agentic-dev-team/agents/security-engineer.md) | Security analysis, threat modeling, compliance |
-| DevOps/SRE Engineer | [`devops-sre-engineer.md`](../plugins/agentic-dev-team/agents/devops-sre-engineer.md) | Pipeline, deployment, reliability, observability |
+| Ops Engineer | [`ops-engineer.md`](../plugins/agentic-dev-team/agents/ops-engineer.md) | Pipeline, deployment, reliability, observability |
 | ADR Author | [`adr.md`](../plugins/agentic-dev-team/agents/adr.md) | Creates and manages Architecture Decision Records |
 
 ## Review Agents

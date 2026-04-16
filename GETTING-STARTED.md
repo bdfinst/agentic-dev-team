@@ -68,7 +68,7 @@ Bug fixes typically need only the Software Engineer. The QA Engineer loads after
 /architect Review the current service topology for scalability concerns
 ```
 
-The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross-cutting concerns.
+The Architect may pull in the Security Engineer or Ops Engineer for cross-cutting concerns.
 
 ### API Design
 
@@ -87,7 +87,7 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 ### Pipeline and Deployment
 
 ```
-/devops-sre-engineer Design the CI/CD pipeline for the new microservice
+/ops-engineer Design the CI/CD pipeline for the new microservice
 ```
 
 ## Available Agents and Skills

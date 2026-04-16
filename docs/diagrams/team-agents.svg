@@ -98,7 +98,7 @@
   <g filter="url(#shadow)">
     <rect x="560" y="344" width="200" height="48" rx="12" fill="#F0FDFA" stroke="#14B8A6" stroke-width="1.5"/>
     <rect x="560" y="344" width="5" height="48" rx="2.5" fill="#14B8A6"/>
-    <text x="660" y="373" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">DevOps / SRE</text>
+    <text x="660" y="373" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Ops Engineer</text>
   </g>
 
   <!-- Collaboration lines (dashed, between peers) -->
