@@ -85,6 +85,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), DevOps/SRE Engineer, Security Engineer |
 | Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, DevOps/SRE Engineer, `/benchmark` command |
 | Receiving Code Review | `skills/receiving-code-review/SKILL.md` | 440 | All agents (when receiving review feedback) |
+| JS Project Init | `skills/js-project-init/README.md` | 500 | Software Engineer |
 
 ### Supporting Reference Files
 
@@ -106,7 +107,6 @@ Concrete prompt templates in `prompts/` that the orchestrator and `/code-review`
 | Implementer | `prompts/implementer.md` | Orchestrator (Phase 3 implementation dispatch) |
 | Spec Reviewer | `prompts/spec-reviewer.md` | Orchestrator (three-stage review gate 1) |
 | Quality Reviewer | `prompts/quality-reviewer.md` | Orchestrator (three-stage review gate 2) |
-| Plan Reviewer | `prompts/plan-reviewer.md` | Orchestrator (Phase 2 automated pre-check) |
 | Plan Review — Acceptance | `prompts/plan-review-acceptance.md` | Orchestrator (Phase 2 plan review persona) |
 | Plan Review — Design | `prompts/plan-review-design.md` | Orchestrator (Phase 2 plan review persona) |
 | Plan Review — UX | `prompts/plan-review-ux.md` | Orchestrator (Phase 2 plan review persona) |

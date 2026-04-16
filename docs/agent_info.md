@@ -48,9 +48,21 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 
 To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.
 
-## Plan Review Personas
+## Prompt Templates
 
-Plan review personas are subagent prompt templates that critically challenge implementation plans during Phase 2, before the human gate. They run **in parallel** and return structured verdicts. Unlike review agents (which check code), these check the plan itself.
+Prompt templates in `prompts/` are subagent dispatches used by the Orchestrator at various pipeline phases. They are never invoked directly by the user.
+
+### Implementation & Review Dispatch
+
+| Template | File | Purpose |
+| --- | --- | --- |
+| Implementer | [`implementer.md`](../plugins/agentic-dev-team/prompts/implementer.md) | Phase 3 implementation dispatch with TDD and status protocol |
+| Spec Reviewer | [`spec-reviewer.md`](../plugins/agentic-dev-team/prompts/spec-reviewer.md) | Stage 1 spec compliance review with status protocol |
+| Quality Reviewer | [`quality-reviewer.md`](../plugins/agentic-dev-team/prompts/quality-reviewer.md) | Stage 2 dispatcher that selects review agents by what changed |
+
+### Plan Review Personas
+
+Plan review personas critically challenge implementation plans during Phase 2, before the human gate. They run **in parallel** and return structured verdicts. Unlike review agents (which check code), these check the plan itself.
 
 | Persona | File | Focus |
 | --- | --- | --- |
