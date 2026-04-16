@@ -18,6 +18,16 @@ Before writing any code, read the task description completely.
 
 Do not begin implementation if you have unresolved questions. A wrong implementation costs more than a round-trip for clarification.
 
+## Worktree Setup
+
+If you are running in a git worktree (isolation mode), run setup before starting implementation:
+
+1. **Detect project type**: Check for indicator files in order per [worktree-setup reference](../knowledge/worktree-setup.md). First match wins.
+2. **Install dependencies**: Run the install command for the detected project type.
+3. **Run baseline tests**: Run the test command. All existing tests must pass.
+4. **If install or tests fail**: Return BLOCKED with the error output. Do not attempt to fix pre-existing issues.
+5. **If no project type detected**: Skip setup, proceed with a warning.
+
 ## TDD Enforcement
 
 Follow the [Test-Driven Development](../skills/test-driven-development/SKILL.md) skill for the full protocol. The cycle below summarizes the hard gates.

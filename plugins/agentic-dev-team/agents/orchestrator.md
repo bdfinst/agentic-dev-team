@@ -141,7 +141,7 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 - **Goal**: Execute the plan. Write code, run tests, verify at each step.
 - **Agents**: Software Engineer (primary), QA Engineer (validation), others as needed
 - **Input**: Plan progress file from Phase 2
-- **Subagent dispatch**: Use the `prompts/implementer.md` template when dispatching implementation subagents. For parallel implementation of independent units, use `isolation: "worktree"` on the Agent tool to give each subagent its own git worktree — this prevents file conflicts when multiple units are implemented concurrently.
+- **Subagent dispatch**: Use the `prompts/implementer.md` template when dispatching implementation subagents. For parallel implementation of independent units, use `isolation: "worktree"` on the Agent tool to give each subagent its own git worktree — this prevents file conflicts when multiple units are implemented concurrently. When dispatching to a worktree, the implementer runs dependency installation and baseline test verification before starting TDD (see `knowledge/worktree-setup.md`).
 - **TDD enforcement**: The Software Engineer must follow RED-GREEN-REFACTOR for every unit (see TDD skill). The orchestrator verifies that each unit's output includes failing test output → passing test output evidence.
 - **Output**: Working code that passes all tests, acceptance criteria, and code review
 - **Three-stage inline review**: After each discrete unit of work completes, run spec-compliance first, then quality, then browser verification for UI changes:
