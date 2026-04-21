@@ -35,10 +35,22 @@ Phase 1b: Judgment-layer detection  (parallel across agents)
   produces:  adds unified findings to memory/findings-<slug>.jsonl
   requires:  Phase 0, Phase 1
 
+Phase 1c: ACCEPTED-RISKS suppression (mandatory gate)
+  procedure: parse ACCEPTED-RISKS.md at target root (if present);
+             filter findings matching any rule; move them to
+             memory/suppressed-<slug>.jsonl with suppression
+             audit log memory/suppression-log-<slug>.jsonl.
+  produces:  memory/suppressed-<slug>.jsonl + memory/suppression-log-<slug>.jsonl
+  requires:  Phase 1 + Phase 1b
+  enforced:  exec-report-generator's Appendix C expects
+             memory/suppressed-<slug>.jsonl to exist when
+             ACCEPTED-RISKS.md was present. Absent file + present policy
+             surfaces a warning about the missed gate.
+
 Phase 2: FP-reduction
   agent:     fp-reduction (opus)
   produces:  memory/disposition-<slug>.json
-  requires:  Phase 1 + Phase 1b
+  requires:  Phase 1 + Phase 1b + Phase 1c
   optional:  skipped when --fp-reduce=no passed
 
 Phase 3: Narrative + compliance

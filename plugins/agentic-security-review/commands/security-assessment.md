@@ -70,7 +70,19 @@ Their SARIF outputs flow through the shared parser.
 - `security-review` (opus; reads RECON + target files)
 - `business-logic-domain-review` (opus; reads RECON + target files + `knowledge/domain-logic-patterns.md`)
 
-Append their findings to `memory/findings-<slug>.jsonl`. Apply ACCEPTED-RISKS suppression at this stage (post-detection filter).
+Append their findings to `memory/findings-<slug>.jsonl`.
+
+**Phase 1c — ACCEPTED-RISKS suppression (mandatory gate).** Runs exactly once after all Phase 1 + 1b findings have been collected, before Phase 2 begins. Procedure:
+
+1. For each target, check for `ACCEPTED-RISKS.md` at the target root. Absent → skip this target; log `no ACCEPTED-RISKS.md; proceeded with all findings`.
+2. Parse the YAML frontmatter (`rules:` list) per `plugins/agentic-dev-team/knowledge/accepted-risks-schema.md`. A schema-invalid file fails the run with a named parse error; do not silently skip.
+3. Validate rules: every rule must have `id`, `rule_id`, `files[]`, `rationale` (≥ 50 chars), `expires` (ISO-8601), `owner`, `scope`. Wildcards in `rule_id` require `broad: true`.
+4. For each finding in `memory/findings-<slug>.jsonl`, iterate rules in file-declaration order. First matching rule wins (per the schema's matching algorithm): match when rule's `rule_id` pattern matches the finding's `rule_id` AND one of the rule's `files[]` globs matches the finding's `file`.
+5. Expired rules (past `expires` date) become inert — they stop suppressing and emit a WARN naming the rule + owner; listed in the audit log.
+6. Matched findings are written to `memory/suppressed-<slug>.jsonl` (one per line, each with a `_suppressed_by` field naming the rule id). The matched findings are removed from `memory/findings-<slug>.jsonl` and do NOT advance to Phase 2. Emit exactly one audit log entry per suppression: `SUPPRESSED: <file>:<line> [<rule_id>] by ACCEPTED-RISKS rule <rule.id>`.
+7. After filtering, write `memory/suppression-log-<slug>.jsonl` (the audit entries) and record in the final report's Appendix C per `agents/exec-report-generator.md` § Section 7.
+
+**This step is mandatory when `ACCEPTED-RISKS.md` is present.** The exec report's Appendix C is populated from `memory/suppressed-<slug>.jsonl`; if that file is absent or empty AND `ACCEPTED-RISKS.md` existed, the run surfaces a warning about the missed gate.
 
 **Phase 2 — FP-reduction.** Skip if `--fp-reduce=no`. Otherwise dispatch `fp-reduction` (opus). Produces `memory/disposition-<slug>.json`. Log `reachability_tool` (joern-cpg or llm-fallback) to audit.
 
