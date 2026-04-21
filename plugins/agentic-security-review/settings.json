@@ -16,7 +16,15 @@
     ]
   },
   "hooks": {
-    "_comment": "Hooks default ON in this plugin (see CLAUDE.md § 'Hooks default ON'). static-scan-on-edit.sh is populated by P2 Step 7. Until then, the entry is a placeholder that exercises the registration path without firing a real script.",
+    "_comment": "Hooks default ON in this plugin (see CLAUDE.md § 'Hooks default ON'). static-scan-on-edit.sh is populated by P2 Step 7. redteam-guard.sh blocks direct orchestrator invocation without REDTEAM_AUTHORIZED=1.",
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/redteam-guard.sh" }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
