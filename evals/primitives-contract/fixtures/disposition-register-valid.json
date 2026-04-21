@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-04-21T11:00:00Z",
+  "dispositioner": "fp-reduction",
+  "reachability_tool": "joern-cpg",
+  "entries": [
+    {
+      "finding": {
+        "rule_id": "semgrep.python.hardcoded-password",
+        "file": "src/db/users.py",
+        "line": 87,
+        "severity": "error",
+        "message": "Hardcoded password literal in SQL connection string",
+        "metadata": {
+          "source": "semgrep",
+          "confidence": "high"
+        }
+      },
+      "verdict": "true_positive",
+      "reachability": {
+        "reachable": true,
+        "rationale": "Reached by HTTP handler /api/users via chain: route -> service.getUser -> repo.find."
+      },
+      "reachability_source": "joern-cpg",
+      "exploitability": {
+        "score": 8,
+        "rationale": "Credential is network-reachable via public endpoint; no input validation gate upstream."
+      },
+      "dispositioner": "fp-reduction",
+      "dispositioned_at": "2026-04-21T11:00:03Z"
+    }
+  ]
+}

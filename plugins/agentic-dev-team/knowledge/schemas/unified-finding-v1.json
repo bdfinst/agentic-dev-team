@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-dev-team.local/schemas/unified-finding-v1.json",
+  "title": "Unified finding envelope v1.0",
+  "description": "Narrow normalization of a SARIF result object. One instance per finding produced by any review agent or static-analysis adapter. See security-primitives-contract.md for versioning policy.",
+  "type": "object",
+  "required": ["rule_id", "file", "line", "severity", "message", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+(\\.[a-z0-9_-]+)+$",
+      "description": "Dotted path: <source>.<language?>.<rule>. Examples: 'semgrep.python.hardcoded-password', 'gitleaks.generic.aws-access-key', 'security-review.auth.missing-csrf'."
+    },
+    "file": {
+      "type": "string",
+      "description": "Repo-relative POSIX path. No leading slash. No absolute paths."
+    },
+    "line": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "1-indexed line number of the finding's primary location."
+    },
+    "column": { "type": "integer", "minimum": 1 },
+    "end_line": { "type": "integer", "minimum": 1 },
+    "end_column": { "type": "integer", "minimum": 1 },
+    "severity": {
+      "type": "string",
+      "enum": ["error", "warning", "suggestion", "info"]
+    },
+    "message": {
+      "type": "string",
+      "description": "One-line human-readable summary. Multi-line detail belongs in metadata.",
+      "maxLength": 500
+    },
+    "cwe": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^CWE-[0-9]+$" }
+    },
+    "cve": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^CVE-[0-9]{4}-[0-9]+$" }
+    },
+    "owasp": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["source", "confidence"],
+      "additionalProperties": true,
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "Tool or agent that produced this finding. Examples: 'semgrep', 'gitleaks', 'security-review', 'trivy'."
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low", "none"]
+        },
+        "source_ref": {
+          "description": "Opaque pointer to the raw tool output for debugging. Shape is NOT contract-stable; consumers MUST not depend on it.",
+          "type": ["string", "object", "null"]
+        },
+        "exploitability": {
+          "type": "string",
+          "enum": ["demonstrated", "plausible", "theoretical", "unknown"]
+        }
+      }
+    }
+  }
+}

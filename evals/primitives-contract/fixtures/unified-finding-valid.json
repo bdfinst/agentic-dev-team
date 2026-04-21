@@ -1,0 +1,15 @@
+{
+  "rule_id": "semgrep.python.hardcoded-password",
+  "file": "src/db/users.py",
+  "line": 87,
+  "column": 12,
+  "severity": "error",
+  "message": "Hardcoded password literal in SQL connection string",
+  "cwe": ["CWE-798"],
+  "owasp": ["A07:2021"],
+  "metadata": {
+    "source": "semgrep",
+    "confidence": "high",
+    "exploitability": "plausible"
+  }
+}

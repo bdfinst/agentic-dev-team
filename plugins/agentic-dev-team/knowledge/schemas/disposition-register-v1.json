@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-dev-team.local/schemas/disposition-register-v1.json",
+  "title": "Disposition register v1.0",
+  "description": "Output of fp-reduction (companion plugin). One disposition entry per unified finding processed. See security-primitives-contract.md for versioning.",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "dispositioner", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "dispositioner": {
+      "type": "string",
+      "description": "Agent ID that produced this register. Typically 'fp-reduction'."
+    },
+    "reachability_tool": {
+      "type": "string",
+      "enum": ["joern-cpg", "llm-fallback"],
+      "description": "Which reachability source drove this register overall. Per-entry override via entries[*].reachability_source."
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["finding", "verdict", "reachability", "reachability_source", "exploitability", "dispositioned_at"],
+        "additionalProperties": false,
+        "properties": {
+          "finding": {
+            "$ref": "unified-finding-v1.json",
+            "description": "The unified finding being dispositioned, embedded verbatim (not a reference — the disposition register is self-contained for archival)."
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["true_positive", "likely_true_positive", "uncertain", "likely_false_positive", "false_positive"]
+          },
+          "reachability": {
+            "type": "object",
+            "required": ["reachable", "rationale"],
+            "additionalProperties": false,
+            "properties": {
+              "reachable": { "type": "boolean" },
+              "rationale": { "type": "string", "minLength": 20 }
+            }
+          },
+          "reachability_source": {
+            "type": "string",
+            "enum": ["joern-cpg", "llm-fallback"],
+            "description": "Per-entry override of the register-level reachability_tool. Drives the exec report's fallback banner logic (if any entry has reachability_source = llm-fallback, banner is shown)."
+          },
+          "exploitability": {
+            "type": "object",
+            "required": ["score", "rationale"],
+            "additionalProperties": false,
+            "properties": {
+              "score": { "type": "integer", "minimum": 0, "maximum": 10 },
+              "rationale": { "type": "string", "minLength": 20 }
+            }
+          },
+          "dispositioner": { "type": "string" },
+          "dispositioned_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}
