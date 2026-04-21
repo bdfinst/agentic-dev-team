@@ -187,44 +187,161 @@ def _map_presentational(unified_severity: str, exploit_score: float) -> str:
 # ── Reference parser ──────────────────────────────────────────────────────────
 
 
-# Reference report structure per opus_repo_scan_test/docs/static-analysis-agents.md:
-# Findings appear in detailed blocks with the shape:
-#   ### SECRETS-001 — <title>
-#   **File**: path/to/file.py
-#   **Line**: 42
-#   **Severity**: CRITICAL
-#   **CWE**: CWE-798
-#   ...
-# (or in condensed form in the Medium/Low section)
+# Reference report structure (per actual output from opus_repo_scan_test):
+#   ### <ID>: <title>              where ID is like FS-C-01, AG-H-03, X-01
+#                                  (abbrev-level-NN — C/H/M/L encodes severity)
+#   | Severity | CRITICAL |            (from field table)
+#   | CWE | CWE-755 — description |
+#   **File:** `path/file.py:line[-range]`    (or **Files:** for multi-file)
+#
+# Cross-repo report also has a Shared Credential Inventory pipe-table with
+# inline `path:line` file references; these are swept as a second pass.
 
-REF_FINDING_BLOCK = re.compile(
-    r"###?\s+(?P<id>[A-Z0-9]+-[0-9]+)\s*—?\s*(?P<title>[^\n]+?)\s*\n"
-    r"(?:.*?\*\*File\*\*:\s*`?(?P<file>[^\s`]+)`?\s*\n)?"
-    r"(?:.*?\*\*Line\*\*:\s*(?P<line>[0-9]+)\s*\n)?"
-    r"(?:.*?\*\*Severity\*\*:\s*(?P<severity>[A-Z]+))?",
-    re.DOTALL,
+REF_HEADER = re.compile(r"^###\s+(?P<id>[A-Z]+-[A-Z]?-?[0-9]+):\s*(?P<title>.+?)\s*$")
+REF_FIELD_SEVERITY = re.compile(r"^\|\s*Severity\s*\|\s*(?P<severity>[A-Z]+)\s*\|")
+REF_FIELD_CWE = re.compile(r"^\|\s*CWE\s*\|\s*(?P<cwe>[^|]+?)\s*\|")
+REF_FILE_LINE = re.compile(
+    r"\*\*Files?:\*\*\s*`(?P<path>[^`:]+):(?P<line>[0-9]+)(?:[-,][0-9,-]*)?`",
+    re.IGNORECASE,
 )
+# Inline `path:line` refs used in cross-repo tables
+INLINE_PATH_LINE = re.compile(
+    r"`([^`]+\.(?:py|ts|tsx|js|jsx|yaml|yml|sh|json|md|txt|toml|lock|env(?:\.[a-z]+)?)):([0-9]+)(?:[-,][0-9,-]*)?`"
+)
+
+ID_LEVEL_TO_SEVERITY = {"C": "CRITICAL", "H": "HIGH", "M": "MEDIUM", "L": "LOW"}
+
+
+def _level_from_id(rule_id: str) -> str | None:
+    """Infer severity from an ID like FS-C-01 → CRITICAL."""
+    for p in rule_id.split("-"):
+        if p in ID_LEVEL_TO_SEVERITY:
+            return ID_LEVEL_TO_SEVERITY[p]
+    return None
 
 
 def parse_reference(reports_dir: Path) -> list[EmittedFinding]:
-    """Parse the reference's four markdown reports under results/reports/.
+    """Parse opus_repo_scan_test reports.
 
-    Extracts each finding block by regex over the Critical/High/Medium/Low
-    sections. Severity is taken from either the section header or an explicit
-    **Severity**: field.
+    For each `### ID: title` detail block, reads the following lines until the
+    next ### or --- to capture Severity (field table OR id-letter fallback),
+    CWE, and one or more `**File:** \\`path:line\\`` markers. Multi-file
+    blocks yield multiple EmittedFindings.
+
+    Second pass: sweeps cross-repo markdown tables for inline `path:line`
+    references (Shared Credential Inventory, Top-N tables); these are tagged
+    XREF-NNN when they are not already captured by a detail block.
     """
     findings: list[EmittedFinding] = []
-    for md in reports_dir.glob("*.md"):
+    emitted_keys: set[tuple[str, str, int]] = set()
+
+    for md in sorted(reports_dir.glob("*.md")):
         text = md.read_text(encoding="utf-8", errors="replace")
-        for m in REF_FINDING_BLOCK.finditer(text):
-            findings.append(EmittedFinding(
-                source="reference",
-                rule_id=m.group("id"),  # reference uses IDs like SECRETS-001 rather than rule names
-                file=m.group("file") or "",
-                line=int(m.group("line")) if m.group("line") else None,
-                severity=(m.group("severity") or "").upper() or None,
-                message=m.group("title").strip(),
-            ))
+        lines = text.splitlines()
+
+        i = 0
+        while i < len(lines):
+            header_match = REF_HEADER.match(lines[i])
+            if not header_match:
+                i += 1
+                continue
+
+            rule_id = header_match.group("id")
+            title = header_match.group("title").strip()
+
+            # Collect the block (up to next ### or ---)
+            block_lines = [lines[i]]
+            j = i + 1
+            while j < len(lines):
+                nxt = lines[j]
+                if nxt.startswith("### ") or nxt.rstrip() == "---":
+                    break
+                block_lines.append(nxt)
+                j += 1
+            block = "\n".join(block_lines)
+
+            # Severity: field table first, then id-letter fallback
+            severity = None
+            for bl in block_lines:
+                sm = REF_FIELD_SEVERITY.match(bl)
+                if sm:
+                    severity = sm.group("severity").upper()
+                    break
+            if not severity:
+                severity = _level_from_id(rule_id)
+
+            # CWE (informational — not required for matching but emitted for stats)
+            cwe = None
+            for bl in block_lines:
+                cm = REF_FIELD_CWE.match(bl)
+                if cm:
+                    cwe_m = re.search(r"CWE-\d+", cm.group("cwe"))
+                    if cwe_m:
+                        cwe = cwe_m.group(0)
+                    break
+
+            # File(s) + line(s)
+            emitted_block = False
+            for fm in REF_FILE_LINE.finditer(block):
+                path = fm.group("path").strip()
+                line_no = int(fm.group("line"))
+                key = (rule_id, path, line_no)
+                if key in emitted_keys:
+                    continue
+                emitted_keys.add(key)
+                findings.append(EmittedFinding(
+                    source="reference",
+                    rule_id=rule_id,
+                    file=path,
+                    line=line_no,
+                    severity=severity,
+                    message=title,
+                ))
+                emitted_block = True
+
+            if not emitted_block:
+                # Block without file location — still record for recall stats
+                key = (rule_id, "", 0)
+                if key not in emitted_keys:
+                    emitted_keys.add(key)
+                    findings.append(EmittedFinding(
+                        source="reference",
+                        rule_id=rule_id,
+                        file="",
+                        line=None,
+                        severity=severity,
+                        message=title,
+                    ))
+
+            i = j
+
+    # Second pass: sweep cross-repo tables (Shared Credential Inventory etc.)
+    xref_counter = 0
+    for md in sorted(reports_dir.glob("*.md")):
+        if "cross" not in md.name.lower():
+            continue
+        text = md.read_text(encoding="utf-8", errors="replace")
+        for ln in text.splitlines():
+            if not ln.strip().startswith("|"):
+                continue
+            sev_m = re.search(r"\b(CRITICAL|HIGH|MEDIUM|LOW)\b", ln)
+            row_sev = sev_m.group(1) if sev_m else None
+            for lm in INLINE_PATH_LINE.finditer(ln):
+                path = lm.group(1).strip()
+                line_no = int(lm.group(2))
+                # Skip if already captured in a detail block at the same location
+                if any(f.file == path and f.line == line_no for f in findings):
+                    continue
+                xref_counter += 1
+                findings.append(EmittedFinding(
+                    source="reference",
+                    rule_id=f"XREF-{xref_counter:03d}",
+                    file=path,
+                    line=line_no,
+                    severity=row_sev,
+                    message="cross-repo table entry",
+                ))
+
     return findings
 
 
