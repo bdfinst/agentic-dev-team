@@ -482,6 +482,120 @@ Feature: Security plugin — adversarial ML red-team
 **Files**: both CLAUDE.md, `knowledge/agent-registry.md`, `.claude-plugin/marketplace.json`, `release-please-config.json`, `.release-please-manifest.json`
 **Commit**: `docs(security-review): register components + split release-please`
 
+## Detailed implementation guidance from `opus_repo_scan_test` reference
+
+This plan's structure mirrors a working reference (`opus_repo_scan_test-main`). The sections below lift concrete implementation details from that reference so Phase B/C implementers do not rediscover them. Each bullet is keyed to the step it informs.
+
+### Step 3b ruleset coverage — add `crypto-anti-patterns.yaml`
+
+Reference `scan-07` catches a specific crypto anti-pattern class our rulesets do not currently cover. Ship a fourth custom semgrep ruleset `knowledge/semgrep-rules/crypto-anti-patterns.yaml` alongside ml-patterns / llm-safety / fraud-domain. Patterns to include:
+
+- `NODE_TLS_REJECT_UNAUTHORIZED=0` literal or env assignment
+- `--openssl-legacy-provider` flag in any invocation
+- Non-AEAD ciphers (AES-CBC without HMAC, RC4, DES, 3DES) in crypto call sites
+- pip `trusted-host` wildcards (`*.domain.tld`, bare `*`) in requirements files or install commands
+- Passphrase reuse across env files (covered by `entropy-check.py` cross-env reuse, but also flag in semgrep for single-file cases)
+
+Each pattern ships with a positive + negative fixture under `evals/semgrep-rulesets/crypto-anti-patterns/`.
+
+### Step 6 — ACCEPTED-RISKS as universal agent-level invariant
+
+Reference requires every detection agent to read `business_logic.md` before emitting findings. Add the same universal invariant to `plugins/agentic-security-review/CLAUDE.md` (and echo in `plugins/agentic-dev-team/CLAUDE.md`): "every detection agent consults `ACCEPTED-RISKS.md` at the repo root before emitting findings; items matched by a rule are suppressed with a logged audit entry, not omitted silently."
+
+Applies to: `security-review`, `domain-review`, `business-logic-domain-review`, `tool-finding-narrative-annotator`, static-analysis adapters, and any future detection agent.
+
+### Step 14 — exec-report output structure, severity framework, and enforcement invariants
+
+**Per-repo + cross-repo output structure.** When `/security-assessment` runs against multiple target paths (directories passed as separate arguments, or a single path containing repo subdirectories named in a manifest), the exec report generator emits one report per repo plus a cross-repo summary — matching the reference's four-document pattern. For single-repo assessments, a single report is emitted. Filename convention: `<repo-name>-security-assessment.md` + `cross-repository-security-summary.md`.
+
+**Severity framework mapping (presentational).** The unified finding envelope uses a lint-grade severity scale (`error | warning | suggestion | info`). The exec report maps these into a presentational CRITICAL/HIGH/MEDIUM/LOW scale via the mapping table published in `plugins/agentic-dev-team/knowledge/security-primitives-contract.md` (added in contract v1.1.0).
+
+**Invariants enforced by exec-report-generator** (reject findings from the report with a named error if violated):
+
+- Every CRITICAL or HIGH finding must carry a CWE (the primitives contract makes CWE strongly recommended at the schema level; the report-generator enforces).
+- Every CRITICAL or HIGH finding must carry a reachability trace (from the disposition register's `reachability.rationale`). If reachability_source is `llm-fallback`, the Section 0 banner per Phase B Step 14's existing AC is emitted.
+- Dedup before reporting: one credential appearing in N config variants is one finding with N locations.
+
+### Step 15 — harness `config.py`, failure handling, scoring library
+
+**Environment variable config.** `config.py` supports the following env-var overrides (names chosen to match the reference for operator muscle memory):
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `TARGET_URL` | none; required | Base URL of the model service |
+| `MODEL_ENDPOINT` | `/1_0/predict` | Model path appended to `TARGET_URL` |
+| `RATE_LIMIT` | `5` | Maximum requests per second |
+| `REQUEST_TIMEOUT` | `30` | Per-request timeout in seconds |
+| `QUERY_BUDGET` | `10000` | Hard stop across all scripts combined |
+| `MAX_RETRIES` | `3` | Retries on 5xx, timeout, or connection error |
+
+Derived URLs (`PREDICT_URL`, `PAYLOAD_URL`, `VERSION_URL`) are built from `TARGET_URL + MODEL_ENDPOINT` and used directly by probes.
+
+**Failure handling.** A failed probe does NOT halt the pipeline — the orchestrator logs the failure and continues to the next probe (best-effort). Dependents of a failed probe run without their expected input; the per-probe summary table at the end of the run names missing inputs. Reference pattern: failures are data, not exceptions.
+
+**Scoring library.** `harness/redteam/lib/scoring.py` provides:
+
+- `extract_score(response) -> float | None` — normalizes fraud / probability scores across response shapes:
+  - top-level float (`{"score": 0.92}` or raw `0.92`)
+  - common keys: `score`, `fraud_score`, `probability`, `risk_score`
+  - nested: `result.probas.B`, `predictions[0].score`, `output.confidence`
+- `build_baseline_payload(features)` — constructs a mid-range payload for sensitivity / boundary analysis.
+
+Scripts MUST use `extract_score` rather than parsing response bodies directly — this keeps the response-shape knowledge in one place.
+
+### Step 16 — feature discovery four-step cascade (probe 02)
+
+The schema-discovery probe tries discovery strategies in order until one succeeds:
+
+1. Fetch `/openapi.json` or `/swagger.json`; parse the schema for request body properties.
+2. GET the `PAYLOAD_URL` endpoint (some ML services expose this); parse the response keys.
+3. POST an empty payload, mine the error response for field names (`"field X is required"`, `"missing property Y"`, schema-validation error envelopes).
+4. Brute-force against `lib/feature_dict.py` — a curated ~200-entry list of common fraud-detection feature names organized by category (transaction, card_account, merchant, temporal, geolocation, velocity_aggregates, device_digital, risk_indicators, client_routing, authentication). Try each feature individually; retained if the response changes compared to a baseline.
+
+Record which strategy succeeded in the probe's output so downstream probes know whether they're working from an authoritative schema or a best-effort reconstruction.
+
+### Step 17 — attack methods (probes 05, 07)
+
+**Evasion (probe 05).** Combine three methods in order of cost:
+
+1. **Random search** — sample N random payloads around the decision boundary; keep the lowest-scoring fraud-like instances. Fast, wide coverage.
+2. **Greedy perturbation** — starting from a fraud-labeled baseline, iteratively modify the most-sensitive feature (from probe 03's ranking) until the score flips. Cheap, local.
+3. **`scipy.optimize.differential_evolution`** — global optimization over the feature space with a custom objective that rewards low score + input realism. Expensive; run only if (1) and (2) fail to find realistic adversarials.
+
+Each method's results are tagged in the output so analysts can reason about which attack class succeeded.
+
+**Surrogate extraction (probe 07).** Use Latin-Hypercube sampling over the feature space to generate ~2-5K query points. Train three surrogate models against the captured scores:
+
+- Decision tree (depth ≤ 8) — interpretable; extracts rule-like decision structure
+- Random forest (100 trees) — robust to noise; better R²
+- Linear regression — sanity baseline
+
+Report **R² on a held-out 20% of samples** as the extraction fidelity metric. R² > 0.85 indicates the model has been substantially reproduced locally; > 0.95 is effectively IP theft.
+
+### Step 19 — PDF CSS starting point
+
+`templates/report-css/default.css` seed values (from reference's embedded CSS):
+
+- A4 page size, 2cm × 1.5cm margins
+- Page footer: `CONFIDENTIAL — [project]` (center) + `Page N of M` (right)
+- H1 underline + blockquote border: red accent (`#c00`)
+- Zebra-striped tables
+- Monospace code blocks; `codehilite` Markdown extension for syntax highlighting
+- Muted colour scheme; no decorative graphics
+
+These are starting values — projects can override via their own stylesheet if the `--css <path>` flag is passed to `/export-pdf`.
+
+### Consistency invariants (lifted from reference's § "Consistency invariants")
+
+Every finding before it reaches the exec report:
+
+- Has `file` + `line` — enforced by unified finding schema (required fields).
+- Has CWE when severity is `error` or `warning` — enforced by exec-report-generator per Step 14 invariants.
+- CRITICAL / HIGH findings have a reachability trace — enforced by exec-report-generator.
+- Deduplication applied — credential-in-N-variants → one finding with N locations.
+
+Breaking any of these makes the exec report unreliable; the reference's experience is that enforcement is needed, not convention.
+
 ## Complexity Classification
 
 | Rating | Criteria | Review depth |

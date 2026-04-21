@@ -1,23 +1,24 @@
 ---
 name: security-primitives-contract
-description: Versioned cross-plugin contract defining the data envelopes passed between agentic-dev-team and agentic-security-review. Agent IDs, skill IDs, and three JSON schemas (RECON, unified finding, disposition register). Consumers declare `required-primitives-contract: ^1.0.0`.
-version: 1.0.0
+description: Versioned cross-plugin contract defining the data envelopes passed between agentic-dev-team and agentic-security-review. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
+version: 1.1.0
 semver-policy: |
   PATCH (1.0.x) — clarifications, typo fixes, documentation improvements; no
                   schema changes.
   MINOR (1.x.0) — additive schema changes (new OPTIONAL fields, new enum
-                  values, new agent IDs, new skill IDs). Consumers on
-                  prior 1.x.0 continue to work; new features ignored.
+                  values, new agent IDs, new skill IDs, new guidance/
+                  invariants enforced downstream). Consumers on prior
+                  1.x.0 continue to work; new features ignored.
   MAJOR (x.0.0) — breaking changes (renamed or removed fields, changed
                   semantics, new REQUIRED fields, removed enum values).
                   Consumers on prior major MUST be updated.
 ---
 
-# Security Primitives Contract v1.0.0
+# Security Primitives Contract v1.1.0
 
 This file is the single source of truth for the data envelopes exchanged between `plugins/agentic-dev-team/` (producer of primitives) and `plugins/agentic-security-review/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
 
-The contract covers three data envelopes and two registries. Per-tool raw outputs are **explicitly not in the contract** — they are normalized into the unified finding envelope by SARIF-first adapters in `skills/static-analysis-integration/SKILL.md`. That normalization layer is an implementation detail behind the contract, free to evolve under PATCH releases.
+The contract covers three data envelopes, two registries, and a presentational severity mapping. Per-tool raw outputs are **explicitly not in the contract** — they are normalized into the unified finding envelope by SARIF-first adapters in `skills/static-analysis-integration/SKILL.md`. That normalization layer is an implementation detail behind the contract, free to evolve under PATCH releases.
 
 ## Bypass path
 
@@ -25,7 +26,7 @@ Edits to this file are guarded by `hooks/contract-version-guard.sh`. A body chan
 
 ## Registries
 
-### Agent IDs (1.0.0)
+### Agent IDs
 
 Agents that produce or consume contract envelopes. Each ID is stable across the major version. Renames trigger a MAJOR bump.
 
@@ -41,7 +42,7 @@ Agents that produce or consume contract envelopes. Each ID is stable across the 
 
 Adding an agent ID is a MINOR bump. Removing one is a MAJOR bump.
 
-### Skill IDs (1.0.0)
+### Skill IDs
 
 Skills that participate in the contract (operate on envelopes or define adapter behavior).
 
@@ -75,12 +76,17 @@ Required fields:
 - `message` — one-line human-readable summary
 - `metadata` — object with `source` (string: tool name), `confidence` (enum: `high | medium | low | none`)
 
-Optional:
+Optional (at schema level):
 - `column` — 1-indexed integer
 - `end_line`, `end_column`
 - `cwe`, `cve`, `owasp` — string arrays
 - `metadata.source_ref` — opaque pointer to the raw tool output (debugging aid only; not stable)
 - `metadata.exploitability` — enum: `demonstrated | plausible | theoretical | unknown`
+
+**Strongly recommended at schema; enforced downstream (added in v1.1.0):**
+
+- `cwe` is **strongly recommended** for every finding with `severity: error` or `severity: warning`. The schema keeps `cwe` optional for backward compatibility with adapters that do not emit it (hadolint, actionlint, some trivy config rules). The `exec-report-generator` (Phase B Step 14) **rejects** findings without CWE from CRITICAL / HIGH sections of the exec report with a named error, and lists them in an appendix for follow-up.
+- CRITICAL / HIGH presentational findings (see § Severity mapping below) **must** carry a reachability trace. The trace lives on the finding's disposition entry, not on the finding itself. The exec-report-generator enforces this too.
 
 ## Envelope 3 — Disposition register
 
@@ -94,6 +100,32 @@ One disposition entry per unified finding processed. Each entry:
 - `exploitability` — object: `{ score: 0-10, rationale: string }`
 - `dispositioner` — string: agent ID that produced this disposition (typically `fp-reduction`)
 - `dispositioned_at` — ISO-8601 timestamp
+
+## Severity mapping (added in v1.1.0)
+
+The unified finding envelope uses a lint-grade severity scale optimized for tool output (`error | warning | suggestion | info`). The `exec-report-generator` maps these into a **presentational** CRITICAL / HIGH / MEDIUM / LOW scale for executive-audience reports. The presentational scale matches the `opus_repo_scan_test` reference and is familiar to CISO / CTO readers.
+
+The mapping combines the finding's `severity` with its disposition-register `exploitability.score` (0–10) and `metadata.exploitability` enum. The scale is presentational only — findings remain stored at the narrower schema-level severity.
+
+| Presentational | Definition | Driven by |
+|---|---|---|
+| **CRITICAL** | Immediate exploitation, data breach, or fraud bypass. Demands same-day remediation. | `severity: error` AND (`exploitability.score >= 7` OR `metadata.exploitability: demonstrated`) |
+| **HIGH** | Exploitable with moderate effort, significant impact. Demands same-week remediation. | `severity: error` AND `exploitability.score` in `[4, 6]`; OR `severity: warning` AND `exploitability.score >= 7` |
+| **MEDIUM** | Requires specific conditions or insider access. Addressed in normal release cycle. | `severity: warning` AND `exploitability.score` in `[3, 6]`; OR `severity: error` AND `exploitability.score < 4` |
+| **LOW** | Informational or defence-in-depth. No immediate action. | `severity: suggestion`, or `severity: warning`/`error` with `exploitability.score < 3`, or `severity: info` |
+
+Tie-breaks:
+- A finding with `verdict: false_positive` never reaches the presentational scale; suppressed from the report.
+- `verdict: likely_false_positive` downgrades one presentational level (CRITICAL → HIGH → MEDIUM → LOW).
+- A finding without a disposition entry (happens when FP-reduction is bypassed) is presented at one level lower than the mechanical mapping would give, with a footnote noting FP-reduction was skipped.
+
+### Downstream invariants
+
+The `exec-report-generator` enforces these invariants and rejects (with named errors) any finding that violates them from CRITICAL / HIGH sections. LOW findings can bypass all three:
+
+1. **CWE required** on CRITICAL and HIGH. Findings without CWE appear in an appendix labelled "Findings missing CWE — investigate" for the audit trail.
+2. **Reachability trace required** on CRITICAL and HIGH. The trace comes from the disposition entry's `reachability.rationale` (min 20 chars per schema). Missing → same appendix.
+3. **Dedup applied**. One credential appearing in N config variants is one finding with N locations, not N findings.
 
 ## Out of contract
 
@@ -116,10 +148,18 @@ A mutation test alters a field in a conformance fixture; CI must fail. A version
 ## Versioning lifecycle
 
 - Clarifications and typos → open a PR with `version: 1.0.X` (PATCH).
-- New optional fields, new enum values, new agent or skill IDs → `version: 1.X.0` (MINOR). Update the relevant schema file; add a fixture; document the addition under `## Changelog`.
+- New optional fields, new enum values, new agent or skill IDs, new guidance or invariants enforced downstream → `version: 1.X.0` (MINOR). Update the relevant schema file; add a fixture; document the addition under `## Changelog`.
 - Removing a field, renaming a field, changing a field's semantics, or adding a REQUIRED field → `version: X.0.0` (MAJOR). Publish a migration note; downstream plugins' `required-primitives-contract` constraints force them to update before installing.
 
 ## Changelog
+
+### 1.1.0 (2026-04-21)
+
+Additive guidance release. Schema files unchanged; consumers on `^1.0.0` work unmodified.
+
+- **New section:** Severity mapping from unified `severity` + disposition `exploitability` into presentational CRITICAL / HIGH / MEDIUM / LOW. Matches the `opus_repo_scan_test` reference's severity framework so executive-audience reports are comparable.
+- **New invariants (enforced by `exec-report-generator`, not by schema):** CWE required on CRITICAL / HIGH; reachability trace required on CRITICAL / HIGH; dedup applied before reporting. Findings violating these are reported in a dedicated appendix rather than silently dropped.
+- **Backward compatibility:** adapters that do not emit CWE (hadolint, actionlint, some trivy config rules) continue to work; their findings land at MEDIUM or LOW unless FP-reduction's exploitability scoring elevates them — in which case the CWE-missing appendix notifies reviewers.
 
 ### 1.0.0 (2026-04-21)
 
