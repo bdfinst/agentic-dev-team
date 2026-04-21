@@ -1,0 +1,159 @@
+/* default.css — executive-audience styling for PDF export.
+ *
+ * Modelled on the opus_repo_scan_test reference's utilities/convert_report.py
+ * embedded CSS. A4 page, 2cm × 1.5cm margins, confidentiality footer, muted
+ * colour palette, red accent.
+ *
+ * Override via `/export-pdf --css <path>` for organization-specific branding.
+ */
+
+@page {
+  size: A4;
+  margin: 2cm 1.5cm;
+
+  @bottom-center {
+    content: "CONFIDENTIAL";
+    font-family: "Helvetica", "Arial", sans-serif;
+    font-size: 9pt;
+    color: #555;
+  }
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: "Helvetica", "Arial", sans-serif;
+    font-size: 9pt;
+    color: #555;
+  }
+}
+
+body {
+  font-family: "Helvetica", "Arial", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.5;
+  color: #222;
+  max-width: 17cm;
+  margin: 0 auto;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  color: #111;
+  page-break-after: avoid;
+}
+
+h1 {
+  font-size: 22pt;
+  padding-bottom: 0.2em;
+  border-bottom: 2px solid #c00;
+  margin-top: 1em;
+}
+
+h2 {
+  font-size: 15pt;
+  margin-top: 1.6em;
+}
+
+h3 {
+  font-size: 12pt;
+  margin-top: 1.2em;
+}
+
+blockquote {
+  border-left: 3px solid #c00;
+  padding: 0.2em 1em;
+  margin: 1em 0;
+  color: #444;
+  background: #fafafa;
+}
+
+table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 0.4em 0.7em;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f0f0f0;
+  font-weight: 600;
+}
+
+tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+code {
+  font-family: "SF Mono", "Menlo", "Consolas", "Courier New", monospace;
+  font-size: 9pt;
+  background: #f3f3f3;
+  padding: 0.1em 0.3em;
+  border-radius: 2px;
+}
+
+pre {
+  font-family: "SF Mono", "Menlo", "Consolas", "Courier New", monospace;
+  font-size: 9pt;
+  background: #f3f3f3;
+  border: 1px solid #e0e0e0;
+  padding: 0.6em 0.8em;
+  border-radius: 3px;
+  overflow-x: auto;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  border: none;
+}
+
+/* codehilite (pygments) basic theme */
+.codehilite .hll { background-color: #ffffcc }
+.codehilite .c  { color: #60a0b0; font-style: italic } /* Comment */
+.codehilite .k  { color: #007020; font-weight: bold } /* Keyword */
+.codehilite .s  { color: #4070a0 }                    /* String */
+.codehilite .n  { color: #222 }                       /* Name */
+.codehilite .o  { color: #666 }                       /* Operator */
+.codehilite .p  { color: #222 }                       /* Punctuation */
+.codehilite .mi { color: #40a070 }                    /* Number.Integer */
+
+a {
+  color: #005c99;
+  text-decoration: none;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #ccc;
+  margin: 1.5em 0;
+}
+
+ul, ol {
+  margin: 0.4em 0 0.8em 0;
+  padding-left: 1.5em;
+}
+
+li {
+  margin: 0.15em 0;
+}
+
+/* Admonitions (used for banners in exec reports) */
+.admonition {
+  border-left: 4px solid #c00;
+  background: #fff5f5;
+  padding: 0.7em 1em;
+  margin: 1em 0;
+  page-break-inside: avoid;
+}
+
+.admonition.note {
+  border-left-color: #005c99;
+  background: #f0f6fb;
+}
