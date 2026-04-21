@@ -37,6 +37,9 @@ TOOL_TIER_MAP: dict[str, str] = {
     "trivy": "iac",
     "hadolint": "dockerfile",
     "actionlint": "workflows",
+    # Custom scripts shipped by agentic-dev-team (P2 Step 3b partial)
+    "entropy-check": "secrets",
+    "model-hash-verify": "ml",
 }
 
 SEVERITY_MAP: dict[str, str] = {

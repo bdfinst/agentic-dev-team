@@ -49,6 +49,8 @@ out: semgrep.python.django.audit.sql-injection
 | trivy | `iac` for config findings; `cve` for CVE findings; `supply-chain` for vuln findings |
 | hadolint | `dockerfile` |
 | actionlint | `workflows` |
+| entropy-check | `secrets` (custom script — passphrase entropy + cross-env reuse) |
+| model-hash-verify | `ml` (custom script — ML model integrity + provenance) |
 
 ```
 raw: aws-access-key        out: gitleaks.secrets.aws-access-key
