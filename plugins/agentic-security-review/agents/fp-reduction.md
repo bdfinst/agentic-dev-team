@@ -79,6 +79,52 @@ Map the combined reachability + environment + control + scoring into one of:
 
 Write both artifacts atomically (JSON validates against schema first, then MD writes — if JSON schema validation fails, abort without writing either).
 
+**Output shape — schema-conformant, findings MUST nest under `finding` key:**
+
+```json
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-04-21T10:15:00Z",
+  "dispositioner": "fp-reduction",
+  "reachability_tool": "joern-cpg",
+  "entries": [
+    {
+      "finding": {
+        "rule_id": "semgrep.python.hardcoded-password",
+        "file": "src/db/users.py",
+        "line": 87,
+        "severity": "error",
+        "message": "String concatenation into SQL query",
+        "metadata": { "source": "semgrep", "confidence": "high" }
+      },
+      "verdict": "true_positive",
+      "reachability": {
+        "reachable": true,
+        "rationale": "Reached by HTTP handler /api/users via route -> service.getUser -> repo.find."
+      },
+      "reachability_source": "joern-cpg",
+      "exploitability": {
+        "score": 8,
+        "rationale": "Credential is network-reachable via public endpoint; no input validation upstream."
+      },
+      "dispositioner": "fp-reduction",
+      "dispositioned_at": "2026-04-21T10:15:03Z"
+    }
+  ]
+}
+```
+
+**Schema contract (enforced by `plugins/agentic-dev-team/knowledge/schemas/disposition-register-v1.json`):**
+
+- Each entry MUST contain `finding`, `verdict`, `reachability`, `reachability_source`, `exploitability`, `dispositioner`, `dispositioned_at`.
+- The `finding` sub-object MUST carry the full unified finding envelope at least `rule_id`, `file`, `line`, `severity`, `message`, `metadata`. Downstream consumers (`exec-report-generator`, `compliance-mapping`, `score.py`) access these as `entry.finding.<field>`.
+- A flat shape (with `rule_id`/`file`/`line` at the entry top level instead of nested) is schema-invalid and breaks downstream scorers and report generators. Always nest.
+- `reachability.rationale` and `exploitability.rationale` MUST each be ≥ 20 chars.
+- `exploitability.score` is an integer 0–10.
+- `reachability_source` is `"joern-cpg"` or `"llm-fallback"`.
+
+Before writing, validate the assembled object against the schema. If any required field is missing or shape-wrong, fix it in-place rather than emitting non-conformant output.
+
 ## Invariants
 
 - One input finding → exactly one output entry. No dropping.
