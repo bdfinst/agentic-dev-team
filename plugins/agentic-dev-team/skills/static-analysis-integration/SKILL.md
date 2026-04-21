@@ -93,6 +93,39 @@ If no Tier 1 tools are present, return:
 Dispatch each available tool's invocation. Each returns SARIF on stdout (or
 via its adapter). Collect SARIF documents keyed by tool name.
 
+**Target walk MUST include CI/CD workflow files.** Some scanners (actionlint,
+trivy) work on files under `.github/workflows/` that sit OUTSIDE a repo's
+`src/` tree. When walking a target path, include:
+
+- `.github/workflows/*.{yml,yaml}` (GitHub Actions)
+- `.gitlab-ci.yml` + `.gitlab/**/*.{yml,yaml}` (GitLab CI)
+- `.circleci/config.yml` (CircleCI)
+- `azure-pipelines.yml` + `.azure-pipelines/**/*.{yml,yaml}` (Azure Pipelines)
+- `bitbucket-pipelines.yml`
+- `Jenkinsfile` + `jenkinsfile.d/**/*` (Jenkins declarative)
+
+These are in-scope for scan-06 (CI/CD pipeline security). Every Tier-1 tool
+that can process them should be invoked on them — actionlint for GitHub
+Actions, trivy-config for any CI YAML, semgrep with `p/github-actions` (or
+the bundled `crypto-anti-patterns.yaml` rule that catches `printenv` in
+workflow `run:` blocks).
+
+A target path whose CI files live OUTSIDE the walked tree (e.g. a monorepo
+where `.github/workflows/` is at the repo root but the target is a
+subdirectory) MUST still walk up to the repo root to find them. Record in
+the returned result which CI directories were scanned:
+
+```json
+{
+  "ci_dirs_scanned": [".github/workflows", ".gitlab-ci.yml"],
+  ...
+}
+```
+
+If no CI files were found, record `"ci_dirs_scanned": []` — the caller can
+then surface "no CI files in scope" as a Top 3 Actions item when a CI config
+would be expected.
+
 ### 3. Normalize to unified finding envelope
 
 The shared SARIF parser (`references/sarif-parser.md`) walks each SARIF

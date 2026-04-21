@@ -60,6 +60,8 @@ For each target repo, run phases 0 → 5 per the pipeline skill. Between targets
 
 **Phase 1 — Tool-first detection.** Invoke the `static-analysis-integration` skill's SARIF pipeline over the target. For each available tool (semgrep, gitleaks, trivy, hadolint, actionlint, plus Step 3b optional/bespoke when available), run its invocation and normalize output to unified findings. Stream into `memory/findings-<slug>.jsonl`.
 
+**Scope includes CI/CD workflow files.** The target walk must include `.github/workflows/`, `.gitlab-ci.yml`, `.circleci/config.yml`, `azure-pipelines.yml`, `bitbucket-pipelines.yml`, `Jenkinsfile`, and their respective subdirectories — see `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md` § "Target walk" for the full list. These files are in scope for scan-06 (CI/CD security): printenv in `run:` blocks, `continue-on-error: true` on security steps, excessive `permissions:` blocks, hardcoded PAT embedding, `npm audit` / `pip audit` behind `continue-on-error`. actionlint is the canonical tool but semgrep with `p/github-actions` catches the same patterns when actionlint is unavailable. If the target lacks ALL of these files, record `ci_dirs_scanned: []` in the summary — the exec report can then surface "no CI configuration in scope" as a Top 3 Actions item if a CI config would be expected.
+
 Also invoke the two custom scripts:
 - `plugins/agentic-dev-team/tools/entropy-check.py` on target
 - `plugins/agentic-dev-team/tools/model-hash-verify.py` on target

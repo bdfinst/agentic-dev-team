@@ -87,6 +87,20 @@ Brief statement of what was and was not assessed. Explicit list of:
 - Target scope
 - Excluded files (test fixtures, vendored third-party, etc.)
 
+**Coverage-gap callouts.** When tools were absent, surface the specific scan concerns that lose coverage in a "Scan concerns with reduced coverage" sub-bullet, so the reader understands what the report cannot claim. Known tool→concern mapping:
+
+| Absent tool | Reduced-coverage concerns |
+|---|---|
+| actionlint | scan-06 (CI/CD): printenv in workflows, continue-on-error misuse, excessive permissions |
+| hadolint | scan-05 (container): Dockerfile linting — USER directive, unpinned images, apt-get pipelines |
+| gitleaks | scan-01 (secrets): pattern-detected credentials (supplemented by entropy-check.py but narrower) |
+| trivy | scan-05 + scan-08: IaC policy + CVE in deps + image-layer scanning |
+| joern | Reachability analysis in fp-reduction — falls back to LLM (banner emitted; analysis less precise on dead-code paths) |
+
+If `ci_dirs_scanned: []` appears in the static-analysis summary AND the target has no `.github/workflows/`, `.gitlab-ci.yml`, or equivalent, note: "No CI/CD configuration files in scope — scan-06 not applicable for this target."
+
+If `ci_dirs_scanned: []` appears AND the target DOES have CI files (path walk reached them but no CI tool ran), that is a tool-availability gap — list actionlint + semgrep p/github-actions as missing tools and include scan-06 in reduced-coverage concerns.
+
 ### Section 7 — Appendices
 
 - **Appendix A — Secrets inventory** (from gitleaks + entropy-check)
