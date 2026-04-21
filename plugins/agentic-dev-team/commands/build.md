@@ -80,14 +80,7 @@ Run `/code-review` against all files modified during the build.
 
 ### 7. Update plan status
 
-Set the plan status to `implemented`. Report a summary:
-- Steps completed
-- Tests added/modified
-- Files changed
-- Review findings (if any)
-- Any deviations from the plan (with justification)
-
-Ask the user: "Build complete. Run `/pr` to create a pull request, or review the changes first?"
+Update the plan status to `implemented`. Briefly confirm completion and direct the user to `/pr`.
 
 ## Escalation
 
