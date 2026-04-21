@@ -1,0 +1,97 @@
+#
+# crypto-anti-patterns.yaml — cryptography anti-pattern detection.
+#
+# Covers the reference's scan-07 concerns: passphrase reuse, TLS bypass flags,
+# non-AEAD ciphers, pip trusted-host wildcards.
+#
+# Maintainers (bus-factor minimum 2):
+#   - bdfinst
+#   - unassigned
+#
+rules:
+  - id: crypto-anti-patterns.node-tls-reject-unauthorized
+    pattern-either:
+      - pattern: |
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+      - pattern: |
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0
+      - pattern-regex: "NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*['\"]?0"
+    message: >-
+      NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS certificate verification in
+      Node.js. Attackers on-path intercept plaintext. Remove the override and
+      fix the underlying cert issue.
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-295"
+      category: "crypto.tls-disabled"
+
+  - id: crypto-anti-patterns.openssl-legacy-provider
+    pattern-either:
+      - pattern-regex: "--openssl-legacy-provider"
+      - pattern-regex: "NODE_OPTIONS.*--openssl-legacy-provider"
+    message: >-
+      --openssl-legacy-provider re-enables deprecated crypto (MD5, DES, RC4).
+      Migrate to modern algorithms.
+    severity: WARNING
+    languages: [javascript, typescript, bash, python]
+    metadata:
+      cwe: "CWE-327"
+      category: "crypto.deprecated"
+
+  - id: crypto-anti-patterns.python-verify-false
+    pattern-either:
+      - pattern: requests.get($URL, ..., verify=False, ...)
+      - pattern: requests.post($URL, ..., verify=False, ...)
+      - pattern: httpx.get($URL, ..., verify=False, ...)
+      - pattern: httpx.post($URL, ..., verify=False, ...)
+    message: >-
+      TLS certificate verification disabled. Traffic can be MITMed. Set verify=True
+      (default) and fix the underlying trust-chain issue.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-295"
+      category: "crypto.tls-disabled"
+
+  - id: crypto-anti-patterns.non-aead-cipher
+    pattern-either:
+      - pattern: AES.new($KEY, AES.MODE_CBC)
+      - pattern: Cipher(algorithms.AES($KEY), modes.CBC($IV))
+      - pattern: DES.new(...)
+      - pattern: DES3.new(...)
+      - pattern: RC4.new(...)
+    message: >-
+      Non-AEAD cipher in use. AES-CBC without HMAC is vulnerable to padding
+      oracle attacks; DES / 3DES / RC4 are broken. Use AES-GCM or ChaCha20-Poly1305.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-327"
+      category: "crypto.weak-cipher"
+
+  - id: crypto-anti-patterns.pip-trusted-host-wildcard
+    pattern-regex: "--trusted-host[[:space:]]+\\*"
+    message: >-
+      pip --trusted-host * disables all PyPI certificate verification. Any
+      package source becomes trusted. Pin to specific hosts.
+    severity: ERROR
+    languages: [bash]
+    metadata:
+      cwe: "CWE-494"
+      category: "crypto.pip-wildcard-host"
+
+  - id: crypto-anti-patterns.md5-for-integrity
+    pattern-either:
+      - pattern: hashlib.md5($DATA).hexdigest()
+      - pattern: hashlib.md5($DATA).digest()
+      - pattern: crypto.createHash("md5")
+    message: >-
+      MD5 used for integrity / signature / password-hash. MD5 is broken —
+      collisions are trivially achievable. Use SHA-256+ for integrity or
+      Argon2 / scrypt / bcrypt for passwords.
+    severity: WARNING
+    languages: [python, javascript, typescript]
+    metadata:
+      cwe: "CWE-328"
+      category: "crypto.weak-hash"

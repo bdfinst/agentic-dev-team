@@ -1,0 +1,94 @@
+#
+# fraud-domain.yaml — fraud-scoring / payments domain-specific patterns.
+#
+# Complements the business-logic-domain-review agent: this catches
+# pattern-visible instances; the agent catches reasoning-required cases.
+#
+# Maintainers (bus-factor minimum 2):
+#   - bdfinst
+#   - unassigned
+#
+rules:
+  - id: fraud-domain.fail-open-scoring
+    pattern-either:
+      - pattern: |
+          try:
+            $SCORE = $MODEL.predict(...)
+          except ...:
+            return {"decision": "allow", ...}
+      - pattern: |
+          try:
+            $SCORE = $MODEL.predict(...)
+          except ...:
+            $SCORE = 0.0
+      - pattern: |
+          try:
+            $SCORE = $MODEL.predict(...)
+          except ...:
+            return {"score": 0.0, ...}
+    message: >-
+      Scoring error path defaults to allow / low-score. Attackers force model
+      failure to bypass scoring. Fail closed (deny + alert) or return an
+      explicit error shape that the caller handles.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-754"
+      category: "fraud.fail-open"
+
+  - id: fraud-domain.client-controlled-aggregate-feature
+    patterns:
+      - pattern-either:
+          - pattern: $FEATURES["$KEY"] = request.$FIELD
+          - pattern: $FEATURES["$KEY"] = $REQ.body.$FIELD
+          - pattern: $FEATURES["$KEY"] = $REQ.json.$FIELD
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: "(velocity|count|sum|aggregate|rate|last_)"
+    message: >-
+      Aggregate feature (velocity / count / sum / rate / last_*) populated
+      from request body rather than server-side lookup. Attacker can poison
+      the feature to lower their fraud score.
+    severity: ERROR
+    languages: [python, javascript, typescript]
+    metadata:
+      cwe: "CWE-841"
+      category: "fraud.feature-poisoning"
+
+  - id: fraud-domain.emulation-mode-bypass
+    pattern-either:
+      - pattern: |
+          if os.environ.get("EMULATION_MODE"):
+            return $STUB
+      - pattern: |
+          if request.headers.get("X-Test-Mode"):
+            return $STUB
+      - pattern: |
+          if config.DEMO_MODE:
+            return $STUB
+    message: >-
+      Production code path short-circuits scoring based on a flag / header.
+      If the flag is reachable in production (via misconfig or header spoofing),
+      attackers bypass fraud scoring entirely.
+    severity: WARNING
+    languages: [python, javascript, typescript]
+    metadata:
+      cwe: "CWE-840"
+      category: "fraud.emulation-bypass"
+
+  - id: fraud-domain.tokenization-skip-under-flag
+    pattern-either:
+      - pattern: |
+          if config.SKIP_TOKENIZATION:
+            $PAN = $RAW
+      - pattern: |
+          if request.headers.get("X-Raw-PAN"):
+            return $RAW
+    message: >-
+      Conditional path reads raw PAN without tokenization. Any flag that
+      disables tokenization is a PCI-DSS §3.4 violation.
+    severity: ERROR
+    languages: [python, javascript, typescript]
+    metadata:
+      cwe: "CWE-319"
+      category: "fraud.tokenization-skip"
