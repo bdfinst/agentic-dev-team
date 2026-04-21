@@ -63,6 +63,40 @@ If a control is found in the repo, cite file:line and downgrade to `likely_true_
 
 Apply the weighted-factor table from the skill. Sum factor weights (cap at 10). Write the score and a rationale (min 20 chars).
 
+#### Domain-class severity floors
+
+After computing the mechanical score, apply a minimum floor if the finding's `rule_id` matches one of the patterns below. The floor applies only when the mechanical score is **lower**; it never downgrades.
+
+| Rule pattern | Floor | Class rationale |
+|---|---|---|
+| `*.pii-log*`, `*.pan-at-log*`, `*.pii-*`, `*.pii-in-response*` | 7 | PCI-DSS §3.4 / §10.2 and GDPR Art 32 violations by mere presence. Compliance-grade CRITICAL regardless of local-only mechanics. |
+| `*.tls-disabled*`, `*.node-tls-reject-unauthorized`, `*.python-verify-false`, `*.insecure-tls*` | 7 | MITM-enabling class. Cascades to credential theft, request/response tampering, and downstream bypass. |
+| `*.non-aead-cipher`, `*.weak-hash*`, `*.md5-for-integrity`, `*.weak-cipher*`, `*.deprecated-crypto*` | 6 | Broken or deprecated cryptographic primitives. Enable padding-oracle, collision, and downgrade attacks. |
+| `*.hardcoded-*`, `gitleaks.secrets.*`, `entropy-check.secrets.*`, `*.shared-credential`, `*.cross-env-reuse` | 7 | Direct credential exposure. Attacker utility is immediate; cascades through cred-reuse chains. |
+| `fraud-domain.fail-open*`, `business-logic.fraud.fail-open*`, `*.fail-open-scoring` | 8 | Direct fraud bypass — the finding IS the exploit. CRITICAL class. |
+| `fraud-domain.emulation-mode*`, `business-logic.fraud.emulation*` | 7 | Production short-circuit of fraud scoring via env var or header. |
+| `fraud-domain.client-controlled-aggregate*`, `business-logic.fraud.feature-poisoning` | 7 | Attacker controls features the model trusts. Direct scoring manipulation. |
+| `*.unauth*endpoint*`, `*.missing-auth*`, `*.unauthenticated-*` on paths matching `/admin*`, `/internal*`, `/actuator*`, `/metrics*`, `/management*`, `/predict*`, `/score*` | 7 | Auth bypass on privileged or decision-making surface. |
+| `*.tokenization-skip*`, `*.pan-bypass*` | 8 | Tokenization / PII-masking disabled — direct PCI-DSS §3.4 violation with a bypass path. |
+
+**Semantics**: final exploitability = `max(mechanical_score, floor_for_rule_id)`. Floor lookup is a first-match fnmatch against the patterns above; first-match-wins. A rule not matching any pattern retains its mechanical score.
+
+**When applying a floor**, record it in the `exploitability.rationale`:
+
+> `"Floor applied (class: pii-class, reason: PCI-DSS §3.4 by presence); mechanical: 1; final: 7."`
+
+This makes the calibration decision auditable per-finding.
+
+**Why domain floors exist**: the mechanical rubric rewards exploit mechanics (network-reachable, input-controlled, cascading) but understates findings whose severity derives from **compliance significance** or **industry-consensus class risk**. A `log.debug(pan)` isn't mechanically exploitable — yet it's a breach. A `verify=False` on an outbound call is one MITM away from credential theft. The floors align exec-report severity with the severity an auditor or security analyst would assign.
+
+**Why floors don't over-call production noise**:
+
+- Test-file findings are already handled by `ACCEPTED-RISKS.md` (Phase 1c gate in `/security-assessment`) and the Stage 1 reachability filter (test-only paths → `likely_false_positive`, which do not reach the exec report).
+- The floor applies only to findings that passed those gates — i.e. production-reachable code. For that population, the class-level severity is almost always the right call.
+- Rule patterns are narrow. `crypto-anti-patterns.md5-for-integrity` is context-scoped (integrity use); an MD5 used as a cache key matches a different rule pattern and gets no floor.
+
+**Maintenance**: floors are reviewed quarterly alongside the ruleset-maintenance cadence (`knowledge/semgrep-rules/*.yaml` frontmatter). Add new patterns when a new rule class ships; remove only if evidence shows systematic over-calibration.
+
 ### 4. Assign verdict
 
 Map the combined reachability + environment + control + scoring into one of:
