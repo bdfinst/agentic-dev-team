@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "gitleaks",
+          "semanticVersion": "8.18.0",
+          "informationUri": "https://github.com/gitleaks/gitleaks",
+          "rules": [
+            {
+              "id": "aws-access-key",
+              "name": "AWS Access Key",
+              "shortDescription": { "text": "Identified AWS access key pattern" }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "aws-access-key",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": { "text": "AWS access key ID exposed in committed file: AKIA****" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "config/staging.env" },
+                "region": { "startLine": 3, "startColumn": 1, "endLine": 3, "endColumn": 28 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

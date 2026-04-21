@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Semgrep",
+          "semanticVersion": "1.75.0",
+          "rules": [
+            {
+              "id": "python.django.audit.sql-injection",
+              "shortDescription": { "text": "SQL injection via string concatenation" },
+              "properties": {
+                "cwe": "CWE-89",
+                "owasp": "A03:2021 — Injection"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "python.django.audit.sql-injection",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": { "text": "String concatenation into SQL query; use parameterized queries instead" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/db/users.py" },
+                "region": { "startLine": 87, "startColumn": 12 }
+              }
+            }
+          ],
+          "properties": { "confidence": "high" }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+[
+  {
+    "rule_id": "hadolint.dockerfile.dl3008",
+    "file": "Dockerfile",
+    "line": 12,
+    "severity": "warning",
+    "message": "Pin versions in apt-get install. Instead of `apt-get install <package>` use `apt-get install <package>=<version>`.",
+    "metadata": {
+      "source": "hadolint",
+      "confidence": "medium"
+    }
+  }
+]

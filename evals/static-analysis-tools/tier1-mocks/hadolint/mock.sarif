@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hadolint",
+          "fullName": "Haskell Dockerfile Linter",
+          "version": "2.12.0",
+          "informationUri": "https://github.com/hadolint/hadolint",
+          "rules": [
+            {
+              "id": "DL3008",
+              "shortDescription": { "text": "Pin versions in apt-get install" }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "DL3008",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": { "text": "Pin versions in apt-get install. Instead of `apt-get install <package>` use `apt-get install <package>=<version>`." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "Dockerfile" },
+                "region": { "startLine": 12 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

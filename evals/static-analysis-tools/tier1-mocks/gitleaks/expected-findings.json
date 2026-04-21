@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "gitleaks.secrets.aws-access-key",
+    "file": "config/staging.env",
+    "line": 3,
+    "column": 1,
+    "end_line": 3,
+    "end_column": 28,
+    "severity": "error",
+    "message": "AWS access key ID exposed in committed file: AKIA****",
+    "metadata": {
+      "source": "gitleaks",
+      "confidence": "medium"
+    }
+  }
+]

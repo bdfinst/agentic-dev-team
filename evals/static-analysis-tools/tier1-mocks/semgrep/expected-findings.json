@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "semgrep.python.django.audit.sql-injection",
+    "file": "src/db/users.py",
+    "line": 87,
+    "column": 12,
+    "severity": "error",
+    "message": "String concatenation into SQL query; use parameterized queries instead",
+    "cwe": ["CWE-89"],
+    "owasp": ["A03:2021 — Injection"],
+    "metadata": {
+      "source": "semgrep",
+      "confidence": "high"
+    }
+  }
+]
