@@ -1,0 +1,174 @@
+# Compliance pattern table — pattern-first mapping from unified findings to
+# regulatory citations. Consumed by the compliance-mapping skill. LLM is
+# invoked ONLY when llm_review_trigger is true on a matched row.
+#
+# Schema: see plugins/agentic-security-review/skills/compliance-mapping/SKILL.md
+# § "Pattern table schema".
+#
+# Maintainers (bus-factor minimum 2):
+#   - bdfinst
+#   - unassigned  # TODO: name a second maintainer before shipping
+
+patterns:
+  # ── PCI-DSS / PII ─────────────────────────────────────────────────────────
+  - id: pan-at-log
+    pattern_regex: '(?i)(log|logger|print|console)\.(debug|info|warn).*((pan|card_number|primary_account|cc_number|creditcard))'
+    field_type: "pii.pan"
+    applies_to_rules:
+      - "semgrep.*.pii-log*"
+      - "semgrep.*.pan-at-log*"
+      - "business-logic.fraud.tokenization-skip-under-flag"
+    regulations:
+      - regulation: "PCI-DSS"
+        control_id: "3.4"
+        citation: "PCI-DSS v4.0 §3.4 — PAN must be rendered unreadable in storage and in logs"
+      - regulation: "PCI-DSS"
+        control_id: "10.2"
+        citation: "PCI-DSS v4.0 §10.2 — Audit logs must not contain sensitive authentication data"
+    llm_review_trigger: false
+
+  - id: pii-in-response-body
+    pattern_regex: '(?i)(res\.json|return jsonify|response\.body\.|context\.Body).*\b(ssn|dob|full_name|address|phone|email)\b'
+    field_type: "pii.general"
+    applies_to_rules:
+      - "semgrep.*.pii-*"
+      - "business-logic.*"
+    regulations:
+      - regulation: "GDPR"
+        control_id: "Art. 5"
+        citation: "GDPR Article 5 — Principles relating to processing of personal data (data minimisation)"
+      - regulation: "GDPR"
+        control_id: "Art. 32"
+        citation: "GDPR Article 32 — Security of Processing"
+    llm_review_trigger: true
+
+  # ── Encryption / transport ────────────────────────────────────────────────
+  - id: unencrypted-db-transit
+    pattern_regex: '(?i)(mongodb|postgres|mysql|mariadb)://[^@]+@[^/]+/'
+    field_type: "db.transit"
+    applies_to_rules:
+      - "semgrep.*.unencrypted-database-connection"
+      - "semgrep.*.insecure-transport"
+      - "trivy.iac.*"
+    regulations:
+      - regulation: "PCI-DSS"
+        control_id: "4.1"
+        citation: "PCI-DSS v4.0 §4.1 — Strong cryptography and security protocols on open public networks"
+      - regulation: "GDPR"
+        control_id: "Art. 32"
+        citation: "GDPR Article 32 — Security of Processing (encryption in transit)"
+    llm_review_trigger: false
+
+  - id: tls-disabled-explicit
+    pattern_regex: '(?i)(NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*0|verify\s*=\s*False|--openssl-legacy-provider|InsecureRequestWarning)'
+    field_type: "crypto.tls"
+    applies_to_rules:
+      - "semgrep.crypto-anti-patterns.*"
+      - "semgrep.*.insecure-tls"
+    regulations:
+      - regulation: "PCI-DSS"
+        control_id: "4.2.1"
+        citation: "PCI-DSS v4.0 §4.2.1 — Strong cryptography for transmission"
+    llm_review_trigger: false
+
+  - id: insecure-random-for-secrets
+    pattern_regex: '(?i)(random\.random|random\.randint|Math\.random|rand\(\)).*(token|password|secret|key|nonce|iv|session)'
+    field_type: "crypto.random"
+    applies_to_rules:
+      - "semgrep.*.insecure-random*"
+      - "semgrep.*.weak-random*"
+    regulations:
+      - regulation: "PCI-DSS"
+        control_id: "3.6.1"
+        citation: "PCI-DSS v4.0 §3.6.1 — Cryptographic key generation practices"
+      - regulation: "NIST"
+        control_id: "SP 800-90A"
+        citation: "NIST SP 800-90A — Recommendation for Random Number Generation"
+    llm_review_trigger: false
+
+  # ── Auth / access control ─────────────────────────────────────────────────
+  - id: admin-endpoint-unauth
+    pattern_regex: '(?i)(\/admin|\/internal|\/debug|\/actuator|\/metrics|\/management)'
+    field_type: "auth.admin-route"
+    applies_to_rules:
+      - "semgrep.*.unauthenticated-endpoint"
+      - "semgrep.*.missing-auth*"
+      - "business-logic.fraud.*"
+    regulations:
+      - regulation: "PCI-DSS"
+        control_id: "8.3"
+        citation: "PCI-DSS v4.0 §8.3 — Multi-factor authentication for all admin access"
+      - regulation: "SOC2"
+        control_id: "CC6.1"
+        citation: "SOC2 Trust Services Criteria CC6.1 — Logical access controls"
+    llm_review_trigger: true
+
+  - id: missing-csrf-state-changing
+    pattern_regex: '.*'
+    field_type: "auth.csrf"
+    applies_to_rules:
+      - "semgrep.*.missing-csrf*"
+    regulations:
+      - regulation: "OWASP"
+        control_id: "A01:2021"
+        citation: "OWASP Top 10 A01:2021 — Broken Access Control"
+    llm_review_trigger: false
+
+  # ── Secrets ───────────────────────────────────────────────────────────────
+  - id: hardcoded-credential
+    pattern_regex: '.*'
+    field_type: "secret.hardcoded"
+    applies_to_rules:
+      - "gitleaks.secrets.*"
+      - "semgrep.*.hardcoded-*"
+      - "entropy-check.secrets.*"
+    regulations:
+      - regulation: "PCI-DSS"
+        control_id: "8.6"
+        citation: "PCI-DSS v4.0 §8.6 — Use of application and system accounts"
+      - regulation: "CWE"
+        control_id: "CWE-798"
+        citation: "CWE-798 — Use of Hard-coded Credentials"
+    llm_review_trigger: false
+
+  - id: cross-env-credential-reuse
+    pattern_regex: '.*'
+    field_type: "secret.reuse"
+    applies_to_rules:
+      - "entropy-check.secrets.cross-env-reuse"
+    regulations:
+      - regulation: "PCI-DSS"
+        control_id: "3.6.2"
+        citation: "PCI-DSS v4.0 §3.6.2 — Secure key distribution (reuse across environments)"
+      - regulation: "NIST"
+        control_id: "SP 800-57"
+        citation: "NIST SP 800-57 — Recommendation for Key Management (environment separation)"
+    llm_review_trigger: false
+
+  # ── ML-specific ───────────────────────────────────────────────────────────
+  - id: model-integrity
+    pattern_regex: '.*'
+    field_type: "ml.integrity"
+    applies_to_rules:
+      - "model-hash-verify.ml.integrity-failure"
+      - "model-hash-verify.ml.no-provenance"
+    regulations:
+      - regulation: "NIST"
+        control_id: "AI RMF"
+        citation: "NIST AI Risk Management Framework — model integrity and provenance"
+      - regulation: "EU-AI-Act"
+        control_id: "Art. 15"
+        citation: "EU AI Act Article 15 — Accuracy, robustness and cybersecurity"
+    llm_review_trigger: true
+
+  - id: insecure-model-load
+    pattern_regex: '(?i)(pickle\.load|torch\.load|joblib\.load|ONNX\.load).*(http|url|untrusted|input|request)'
+    field_type: "ml.load"
+    applies_to_rules:
+      - "semgrep.ml-patterns.*"
+      - "semgrep.llm-safety.*"
+    regulations:
+      - regulation: "CWE"
+        control_id: "CWE-502"
+        citation: "CWE-502 — Deserialization of Untrusted Data"
+    llm_review_trigger: false
