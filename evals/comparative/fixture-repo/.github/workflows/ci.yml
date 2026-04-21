@@ -1,0 +1,33 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-fraud:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install -r services/fraud-scoring/requirements.txt
+      # SEED: F023 (scan-06 CI/CD) — printenv leaks all env (including secrets)
+      - run: printenv
+      # SEED: F024 (scan-06 CI/CD) — continue-on-error on a security step
+      - name: security scan
+        run: semgrep --config p/security-audit services/
+        continue-on-error: true
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-fraud
+    permissions:
+      # SEED: F025 (scan-06 CI/CD) — write permissions on release branches
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      # No SAST / DAST / container scanning runs here — SEEDED scan-06 concern
+      - run: echo "deploying..."

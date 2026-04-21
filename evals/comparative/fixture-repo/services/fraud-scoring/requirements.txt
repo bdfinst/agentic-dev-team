@@ -1,0 +1,8 @@
+# SEED: F004 (scan-08 supply-chain) — unpinned dependencies
+fastapi
+onnx
+httpx
+pycryptodome
+numpy
+# SEED: F005 (scan-07 crypto) — --trusted-host wildcard in pip invocation
+# (flagged in Dockerfile where pip install is called with --trusted-host *)
