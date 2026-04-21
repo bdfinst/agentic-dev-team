@@ -110,59 +110,100 @@ UNIFIED_SEVERITY_TO_PRESENTATIONAL = {
 def parse_ours(ours_dir: Path) -> list[EmittedFinding]:
     """Parse our pipeline's output.
 
+    The plugin's fp-reduction agent currently emits disposition entries in a
+    flat shape (rule_id/file/line at the entry's top level) rather than
+    nested under `"finding"` as the v1.0 schema specifies. This parser
+    handles BOTH shapes defensively — tries nested first, falls back to
+    flat. If the flat path is taken, severity is looked up by (file, line)
+    against findings-*.jsonl so we carry the original unified severity
+    into the presentational-mapping stage.
+
     Looks for:
       - memory/findings-*.jsonl          — raw unified findings
-      - memory/disposition-*.json        — fp-reduced with presentational severity
-      - memory/report-*.md               — executive report
-
-    Prefers disposition > findings > report so presentational severity is used.
+      - memory/disposition-*.json        — fp-reduced
+      - memory/report-*.md               — executive report (not parsed here)
     """
     findings: list[EmittedFinding] = []
 
-    # Pass 1 — disposition register(s) (best signal)
+    # Build a (file, line) -> severity index from findings-*.jsonl so we can
+    # recover severity for flat-shape disposition entries
+    severity_index: dict[tuple[str, int], str] = {}
+    for jl in ours_dir.glob("findings-*.jsonl"):
+        with jl.open() as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                key = (obj.get("file", ""), obj.get("line") or 0)
+                severity_index[key] = obj.get("severity", "warning")
+
+    # Pass 1 — disposition register(s)
     dispositions = list(ours_dir.glob("disposition-*.json"))
+    disposition_entries_seen: set[tuple[str | None, str, int | None]] = set()
     for disp_path in dispositions:
         with disp_path.open() as f:
             reg = json.load(f)
         for entry in reg.get("entries", []):
-            f_obj = entry.get("finding", {})
-            # Presentational severity from contract v1.1.0 mapping:
-            # score >= 7 AND error = CRITICAL; score 4-6 AND error = HIGH; etc.
-            # We approximate by reading exploitability.score.
-            unified_sev = f_obj.get("severity", "warning")
+            # Nested-shape (schema-conformant)
+            nested = entry.get("finding")
+            if isinstance(nested, dict) and (nested.get("rule_id") or nested.get("file")):
+                rule_id = nested.get("rule_id")
+                file = nested.get("file", "")
+                line = nested.get("line")
+                unified_sev = nested.get("severity", "warning")
+                message = nested.get("message", "")
+            else:
+                # Flat shape (current plugin output)
+                rule_id = entry.get("rule_id")
+                file = entry.get("file", "")
+                line = entry.get("line")
+                # Severity not present in flat disposition → look up by file:line
+                unified_sev = severity_index.get((file, line or 0), "warning")
+                message = ""
+
             exploit_score = (entry.get("exploitability") or {}).get("score", 5)
             presentational = _map_presentational(unified_sev, exploit_score)
+
             findings.append(EmittedFinding(
                 source="ours",
-                rule_id=f_obj.get("rule_id"),
-                file=f_obj.get("file", ""),
-                line=f_obj.get("line"),
+                rule_id=rule_id,
+                file=file,
+                line=line,
                 severity=presentational,
-                message=f_obj.get("message", ""),
+                message=message,
             ))
+            disposition_entries_seen.add((rule_id, file, line))
 
-    # Pass 2 — raw findings (only those NOT in disposition register)
-    if not dispositions:
-        for jl in ours_dir.glob("findings-*.jsonl"):
-            with jl.open() as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        obj = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    findings.append(EmittedFinding(
-                        source="ours",
-                        rule_id=obj.get("rule_id"),
-                        file=obj.get("file", ""),
-                        line=obj.get("line"),
-                        severity=UNIFIED_SEVERITY_TO_PRESENTATIONAL.get(
-                            obj.get("severity", "warning"), "MEDIUM"
-                        ),
-                        message=obj.get("message", ""),
-                    ))
+    # Pass 2 — raw findings (only those NOT in the disposition register)
+    # This matters when fp-reduction was partial or when a finding was
+    # filtered upstream without a disposition entry.
+    for jl in ours_dir.glob("findings-*.jsonl"):
+        with jl.open() as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                key = (obj.get("rule_id"), obj.get("file", ""), obj.get("line"))
+                if key in disposition_entries_seen:
+                    continue  # already represented by a disposition entry
+                findings.append(EmittedFinding(
+                    source="ours",
+                    rule_id=obj.get("rule_id"),
+                    file=obj.get("file", ""),
+                    line=obj.get("line"),
+                    severity=UNIFIED_SEVERITY_TO_PRESENTATIONAL.get(
+                        obj.get("severity", "warning"), "MEDIUM"
+                    ),
+                    message=obj.get("message", ""),
+                ))
 
     return findings
 
@@ -407,11 +448,23 @@ def match_finding(exp: ExpectedFinding, emitted: list[EmittedFinding]) -> MatchR
 
 def _file_matches(expected_path: str, actual_path: str) -> bool:
     """Normalize and compare. Expected is repo-relative; actual may have fixture-repo/ prefix."""
+    # Guard: empty strings never match. (Python's s.endswith("") is always
+    # True — without this guard, a finding with file="" matches EVERY expected.)
+    if not expected_path or not actual_path:
+        return False
     # Strip any fixture-repo/ or evals/comparative/fixture-repo/ prefix from actual
     for prefix in ("evals/comparative/fixture-repo/", "fixture-repo/", "./"):
         if actual_path.startswith(prefix):
             actual_path = actual_path[len(prefix):]
             break
+    # Also strip reference's repos/<name>/ prefix for per-repo paths.
+    # Our ground-truth uses "services/fraud-scoring/src/server.py"; reference
+    # may emit "src/server.py" (relative to repos/fraud-scoring/).
+    for prefix in ("services/fraud-scoring/", "services/auth-gateway/"):
+        if expected_path.startswith(prefix):
+            expected_remainder = expected_path[len(prefix):]
+            if actual_path.endswith(expected_remainder) or actual_path == expected_remainder:
+                return True
     return actual_path.endswith(expected_path) or expected_path.endswith(actual_path)
 
 
