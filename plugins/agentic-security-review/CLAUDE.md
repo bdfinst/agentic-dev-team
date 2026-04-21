@@ -82,7 +82,45 @@ See `install.sh`. It performs four checks:
 | `/redteam-model <target>` | orchestrator | Adversarial ML red-team probes against a self-owned target |
 | `/export-pdf <report.md>` | worker | PDF export via pandoc/weasyprint |
 
-Agent list, skill list, and hook list populated as Phase B/C steps land. See the plan tracker at `plans/security-review-companion-plugin.md`.
+**Agents** (7 opus, 2 sonnet):
+- `fp-reduction` (opus) — 5-stage FP-reduction rubric; disposition register
+- `business-logic-domain-review` (opus) — fraud-domain anti-patterns
+- `cross-repo-synthesizer` (opus) — named attack chains across repos
+- `exec-report-generator` (opus) — publication-ready executive report
+- `redteam-recon-analyzer` (opus) — interpretation of probe 01
+- `redteam-evasion-analyzer` (opus) — interpretation of probes 03/04/05
+- `redteam-extraction-analyzer` (opus) — interpretation of probe 07
+- `redteam-report-generator` (opus) — final red-team report synthesis
+- `tool-finding-narrative-annotator` (sonnet) — 4-domain narrative synthesis
+- `compliance-edge-annotator` (sonnet) — LLM edge judgment for ambiguous mappings
+
+**Skills** (3):
+- `false-positive-reduction` — 5-stage rubric + joern / LLM-fallback
+- `compliance-mapping` — pattern-table first with LLM edge annotation
+- `security-assessment-pipeline` — declarative phase graph for `/security-assessment`
+
+**Commands** (4):
+- `/security-assessment <path>` — full static-analysis pipeline
+- `/cross-repo-analysis <paths>` — cross-repo attack-chain analysis
+- `/redteam-model <target>` — adversarial ML red-team
+- `/export-pdf <report.md>` — PDF export
+
+**Hooks** (2):
+- `PreToolUse:Bash` → `redteam-guard.sh` (blocks direct orchestrator invocation)
+- `PostToolUse:Edit|Write` → `static-scan-on-edit.sh` (auto-scan on writes)
+
+**Knowledge** (4):
+- `domain-logic-patterns.md` — fraud domain anti-pattern reference
+- `compliance-patterns.yaml` — 11-pattern regulatory mapping table
+- `redteam-authorization.md` — self-cert artifact format
+- `semgrep-rules/{ml-patterns,llm-safety,fraud-domain,crypto-anti-patterns}.yaml` — 18 custom rules across 4 rulesets
+
+**Harness** (Python, under `harness/`):
+- `redteam/orchestrator.py` + `config.py` + `lib/{http_client,result_store,scoring,feature_dict,scope_check}.py`
+- 8 probes: `redteam/probes/{01..08}_*.py`
+- `tools/{service-comm-parser,shared-cred-hash-match}.py`
+
+See `plans/security-review-companion-plugin.md` for the step-by-step history.
 
 ## Not in this plugin
 
