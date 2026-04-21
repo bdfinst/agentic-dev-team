@@ -23,7 +23,8 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "bash hooks/pre-tool-guard.sh" }
+          { "type": "command", "command": "bash hooks/pre-tool-guard.sh" },
+          { "type": "command", "command": "bash hooks/contract-version-guard.sh" }
         ]
       },
       {
