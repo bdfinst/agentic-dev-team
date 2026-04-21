@@ -17,7 +17,8 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Security Engineer | `agents/security-engineer.md` | 320 | Security analysis, threat modeling |
 | DevOps/SRE Engineer | `agents/devops-sre-engineer.md` | 320 | Pipeline, deployment, reliability |
 | ADR Author | `agents/adr.md` | 320 | Creates and manages Architecture Decision Records |
-| **All team agents** | | **~3,900** | |
+| Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched at the start of `/security-assessment` and on demand by architect / domain-analysis. |
+| **All team agents** | | **~4,800** | |
 
 ## Review Agents
 

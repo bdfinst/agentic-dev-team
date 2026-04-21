@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-dev-team.local/schemas/recon-envelope-v0.1.json",
+  "title": "RECON envelope (v0.1 — placeholder)",
+  "description": "Normalized reconnaissance output from the codebase-recon agent. This is the v0.1 placeholder schema; the canonical schema is finalized in plans/security-review-companion-plugin.md Step 4 (primitives contract v1.0.0). Consumers should treat field NAMES as stable and nested shapes as indicative.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "repo",
+    "entry_points",
+    "languages",
+    "dependencies",
+    "architecture",
+    "security_surface",
+    "git_history"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1",
+      "description": "Version of the RECON envelope schema this artifact conforms to."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of when the recon was produced."
+    },
+    "repo": {
+      "type": "object",
+      "required": ["name", "root", "package_manager"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "root": { "type": "string", "description": "Absolute path to repo root at scan time." },
+        "package_manager": {
+          "type": "string",
+          "enum": ["npm", "pnpm", "yarn", "pip", "poetry", "pipenv", "go-modules", "maven", "gradle", "cargo", "mixed", "unknown"]
+        },
+        "monorepo": { "type": "boolean" },
+        "workspaces": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "For monorepos: workspace-relative paths (e.g. 'packages/core')."
+        }
+      }
+    },
+    "entry_points": {
+      "type": "array",
+      "description": "Files that begin execution: CLI main, HTTP server bootstrap, lambda handlers, worker entrypoints. Each entry is classified.",
+      "items": {
+        "type": "object",
+        "required": ["path", "kind", "rationale"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": ["cli", "http-server", "worker", "lambda", "cron", "test-runner", "build-tool", "module-index", "other"]
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Why this file is an entry point (shebang, package.json main, framework decorator, etc.)."
+          },
+          "language": { "type": "string" }
+        }
+      }
+    },
+    "languages": {
+      "type": "array",
+      "description": "Languages present by file-count rank (highest first).",
+      "items": {
+        "type": "object",
+        "required": ["name", "file_count"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "file_count": { "type": "integer", "minimum": 1 },
+          "dominant_framework": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Key runtime dependencies grouped by role (not exhaustive).",
+      "additionalProperties": false,
+      "properties": {
+        "web": { "type": "array", "items": { "type": "string" } },
+        "data": { "type": "array", "items": { "type": "string" } },
+        "crypto": { "type": "array", "items": { "type": "string" } },
+        "auth": { "type": "array", "items": { "type": "string" } },
+        "messaging": { "type": "array", "items": { "type": "string" } },
+        "ml": { "type": "array", "items": { "type": "string" } },
+        "other_notable": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "required": ["summary", "layers"],
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "2-4 sentence narrative of how the code is organized (e.g. 'Hexagonal core with adapters for HTTP and SQS; domain logic under packages/core/src; all IO at boundaries')."
+        },
+        "layers": {
+          "type": "array",
+          "description": "Identified layers or bounded contexts with their paths.",
+          "items": {
+            "type": "object",
+            "required": ["name", "paths"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "paths": { "type": "array", "items": { "type": "string" } },
+              "purpose": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "security_surface": {
+      "type": "object",
+      "description": "Security-relevant surface area. Findings are NOT listed here — this is surface discovery only. Actual findings come from static-analysis pre-pass + review agents.",
+      "required": ["auth_paths", "network_egress", "secrets_referenced", "crypto_calls"],
+      "additionalProperties": false,
+      "properties": {
+        "auth_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files or routes handling auth (login, session, token, JWT, OAuth)."
+        },
+        "network_egress": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files making outbound HTTP/network calls."
+        },
+        "secrets_referenced": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files referencing env-var or secret names (does not detect hardcoded secrets — gitleaks does that)."
+        },
+        "crypto_calls": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files invoking crypto primitives (hashing, signing, encryption)."
+        },
+        "ml_models_loaded": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files loading ML models (ONNX, pickle, safetensors, joblib, etc.)."
+        }
+      }
+    },
+    "git_history": {
+      "type": "object",
+      "required": ["branches", "recent_activity", "sensitive_file_history"],
+      "additionalProperties": false,
+      "properties": {
+        "branches": {
+          "type": "object",
+          "required": ["current", "main_count", "feature_count", "names"],
+          "additionalProperties": false,
+          "properties": {
+            "current": { "type": "string" },
+            "main_count": { "type": "integer", "minimum": 0 },
+            "feature_count": { "type": "integer", "minimum": 0 },
+            "names": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Up to 20 branch names; truncate with ellipsis marker if more."
+            }
+          }
+        },
+        "recent_activity": {
+          "type": "object",
+          "required": ["last_commit_date", "commits_last_30d", "authors_last_30d"],
+          "additionalProperties": false,
+          "properties": {
+            "last_commit_date": { "type": "string", "format": "date-time" },
+            "commits_last_30d": { "type": "integer", "minimum": 0 },
+            "authors_last_30d": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "sensitive_file_history": {
+          "type": "array",
+          "description": "History of files whose names or content pattern suggest secrets, keys, certs, or auth artifacts. File path + whether it was ever present in git history, even if deleted.",
+          "items": {
+            "type": "object",
+            "required": ["path", "in_current_tree", "appeared_in_history"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string" },
+              "in_current_tree": { "type": "boolean" },
+              "appeared_in_history": { "type": "boolean" },
+              "first_seen_commit": { "type": ["string", "null"] },
+              "removed_commit": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "description": "Free-form observations the agent surfaces that don't fit structured fields.",
+      "items": { "type": "string" }
+    }
+  }
+}
