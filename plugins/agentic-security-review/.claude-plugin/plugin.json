@@ -1,0 +1,13 @@
+{
+  "name": "agentic-security-review",
+  "version": "0.1.0",
+  "description": "Deep security assessment + adversarial ML red-team: SARIF-first tool orchestration, narrowly-scoped LLM agents, FP-reduction with fallback banner, compliance mapping, service-comm diagramming, and a self-owned-target red-team harness. Companion plugin to agentic-dev-team.",
+  "author": {
+    "name": "finsterb",
+    "email": ""
+  },
+  "required-primitives-contract": "^1.0.0",
+  "depends-on": [
+    { "name": "agentic-dev-team", "minimum-version": "3.3.0" }
+  ]
+}

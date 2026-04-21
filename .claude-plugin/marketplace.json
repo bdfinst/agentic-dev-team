@@ -18,6 +18,18 @@
       "homepage": "https://github.com/bdfinst/agentic-dev-team",
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "license": "MIT"
+    },
+    {
+      "name": "agentic-security-review",
+      "source": "./plugins/agentic-security-review",
+      "description": "Deep security assessment + adversarial ML red-team: SARIF-first tool orchestration, narrowly-scoped LLM agents, FP-reduction with fallback banner, compliance mapping, service-comm diagramming, and a self-owned-target red-team harness. Companion plugin to agentic-dev-team.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Bryan Finster"
+      },
+      "homepage": "https://github.com/bdfinst/agentic-dev-team",
+      "repository": "https://github.com/bdfinst/agentic-dev-team",
+      "license": "MIT"
     }
   ]
 }

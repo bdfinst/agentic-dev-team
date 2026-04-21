@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Edit",
+      "Write",
+      "Read",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "Agent"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(git push --force*)"
+    ]
+  },
+  "hooks": {
+    "_comment": "Hooks default ON in this plugin (see CLAUDE.md § 'Hooks default ON'). static-scan-on-edit.sh is populated by P2 Step 7. Until then, the entry is a placeholder that exercises the registration path without firing a real script.",
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/static-scan-on-edit.sh" }
+        ]
+      }
+    ]
+  }
+}
