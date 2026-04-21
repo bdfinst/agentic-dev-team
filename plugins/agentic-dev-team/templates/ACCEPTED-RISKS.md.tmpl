@@ -1,0 +1,46 @@
+---
+# ACCEPTED-RISKS — project-local policy for suppressing reviewed findings.
+#
+# Each rule must carry a specific rationale, an owner, and an expiry date.
+# Consumed by /code-review, /review-agent, and security-review.
+# Schema reference: plugins/agentic-dev-team/knowledge/accepted-risks-schema.md
+#
+# Delete this example rule and add your own. If you don't yet have any
+# accepted risks, leave rules as an empty list: `rules: []`.
+rules:
+  - id: example-placeholder
+    rule_id: semgrep.generic.placeholder-example
+    files:
+      - "examples/**"
+    rationale: >
+      This is a placeholder rule demonstrating the shape of a real entry. Replace
+      it with rules that cite the SPECIFIC business or architectural reason the
+      finding is accepted — not generic disclaimers. If in doubt, delete this
+      rule and start with an empty list.
+    expires: 2026-07-20
+    owner: unassigned
+    scope: finding
+    broad: false
+---
+
+# Accepted Risks
+
+This file is a project policy, not a todo list. Every rule is a deliberate
+acceptance with a date when it MUST be re-reviewed.
+
+## How to add a rule
+
+1. Read `plugins/agentic-dev-team/knowledge/accepted-risks-schema.md` (lives in
+   the plugin) — especially the rationale and expiry requirements.
+2. Add an entry under `rules:` in the frontmatter above.
+3. Commit with a message explaining the acceptance decision.
+
+## How to remove a rule
+
+Deleting a rule is a real decision. The commit message must state why the risk
+is no longer accepted: fixed upstream, scoped out, moved to a runbook, etc.
+
+## Broad rules
+
+Rules with `broad: true` (wildcard `rule_id` or multi-file globs) get flagged
+every run. Keep these narrow; prefer two scoped rules to one broad one.

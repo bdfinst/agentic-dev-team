@@ -26,6 +26,18 @@ Read `knowledge/owasp-detection.md` before starting analysis. It
 contains OWASP-categorized detection patterns with language-specific
 grep signals for each vulnerability class.
 
+## Accepted risks
+
+If the target repo contains an `ACCEPTED-RISKS.md` at its root,
+consult it per `knowledge/accepted-risks-schema.md`. Always run the
+full scan first, then apply matching rules to suppress findings
+post-detection — suppression is a filtering step over complete
+detection output. Emit audit entries of the form
+`SUPPRESSED: <file>:<line> [<rule_id>] by ACCEPTED-RISKS rule <rule.id>`.
+Expired rules become inert (stop suppressing). Schema-invalid rules
+fail the run with a specific parse error. Absent file: proceed
+normally.
+
 ## MCP Tools (Optional)
 
 Probe for these tools at session start. Use if available, fall back

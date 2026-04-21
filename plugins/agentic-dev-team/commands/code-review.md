@@ -68,6 +68,11 @@ Arguments: $ARGUMENTS
   changes exist
 - `--json`: Output aggregated JSON instead of prose summary (for CI
   integration)
+- `--init-risks`: Scaffold `ACCEPTED-RISKS.md` at the repo root from
+  `templates/ACCEPTED-RISKS.md.tmpl` if the file is absent. Exits
+  non-zero without overwriting if the file already exists. See
+  `knowledge/accepted-risks-schema.md` for the rule schema and
+  matching semantics.
 - `--force`: Skip pre-flight gates and run agents even if
   deterministic checks fail. **Requires `--reason "<text>"`** — the
   justification is logged to `metrics/override-audit.jsonl`.
@@ -365,6 +370,38 @@ Produce a JSON result per agent:
 ```
 
 ### 5. Aggregate results
+
+#### 5a. Apply ACCEPTED-RISKS.md (project-local suppression policy)
+
+Before scoring, consult `ACCEPTED-RISKS.md` at the repo root if present.
+Parse the `rules:` YAML frontmatter per
+`knowledge/accepted-risks-schema.md`. For each finding across all
+agent outputs, check rules in declaration order; the first matching
+rule suppresses the finding and emits exactly one audit entry:
+
+```
+SUPPRESSED: <file>:<line> [<rule_id>] by ACCEPTED-RISKS rule <rule.id>
+```
+
+Suppression rules:
+- Expired rules (past `expires` date) become inert — they stop
+  suppressing, emit a WARN naming the rule and owner, and appear in
+  the Expiry Report section.
+- Rules with `broad: true` (wildcard `rule_id` or multi-file globs)
+  emit an informational notice listing broad rules for auditor
+  attention.
+- Schema-invalid rules (missing required field, bad date, wildcard
+  without `broad: true`, empty `rationale`) fail the review run with
+  a specific parse error naming the rule id.
+
+Suppressed findings are removed from the scoring input and listed in
+a dedicated "Suppressed by ACCEPTED-RISKS" section of the report
+(grouped by rule id). They bypass the fix loop (no auto-apply, no
+re-run).
+
+If `ACCEPTED-RISKS.md` is absent, skip this step silently.
+
+#### 5b. Health scoring
 
 Read `knowledge/review-rubric.md` for the health scoring formula.
 
