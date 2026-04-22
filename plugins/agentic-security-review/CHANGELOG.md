@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-review-v0.2.0...agentic-security-review-v0.2.1) (2026-04-22)
+
+
+### Bug Fixes
+
+* **security-review:** pin CWE display format to match opus_repo_scan_test reference ([74eafe2](https://github.com/bdfinst/agentic-dev-team/commit/74eafe262c4440d885603e556c9d6e2e464fedbc))
+
 ## [0.2.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-review-v0.1.0...agentic-security-review-v0.2.0) (2026-04-22)
 
 
