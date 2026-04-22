@@ -1,4 +1,4 @@
 {
-  "plugins/agentic-dev-team": "3.3.0",
-  "plugins/agentic-security-review": "0.1.0"
+  "plugins/agentic-dev-team": "4.0.0",
+  "plugins/agentic-security-review": "0.2.0"
 }
