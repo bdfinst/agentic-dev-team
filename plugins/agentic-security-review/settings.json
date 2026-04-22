@@ -23,6 +23,12 @@
         "hooks": [
           { "type": "command", "command": "bash hooks/redteam-guard.sh" }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/agent-dispatch-log.sh" }
+        ]
       }
     ],
     "PostToolUse": [
@@ -30,6 +36,12 @@
         "matcher": "Edit|Write",
         "hooks": [
           { "type": "command", "command": "bash hooks/static-scan-on-edit.sh" }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/agent-dispatch-log.sh" }
         ]
       }
     ]

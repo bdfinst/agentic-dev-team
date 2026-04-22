@@ -87,7 +87,29 @@ Brief statement of what was and was not assessed. Explicit list of:
 - Target scope
 - Excluded files (test fixtures, vendored third-party, etc.)
 
-**Phase timings.** Read `memory/phase-timings-<slug>.jsonl` (produced by `scripts/phase-timer.sh` at every phase boundary) and emit a phase-timing table:
+**Phase timings.** Read TWO timing sources and merge them:
+
+1. **`memory/phase-timings-<slug>.jsonl`** — produced by `scripts/phase-timer.sh` at every shell-driven phase boundary. Always reliable for deterministic-script phases (Phase 1c, Phase 2b); optional for LLM phases (depends on orchestrator compliance with command spec).
+
+2. **`memory/agent-dispatches.jsonl`** — produced automatically by the `hooks/agent-dispatch-log.sh` hook on every Agent tool dispatch (PreToolUse + PostToolUse). Reliable for every LLM phase, regardless of orchestrator compliance.
+
+**Correlation**: agent-dispatches are attributed to the current assessment run by time-window filter. An agent dispatch belongs to this run if its epoch falls between `first-phase-timing-start-epoch - 60s` and `last-phase-timing-end-epoch + 60s`. Dispatches outside that window belong to other commands and are excluded from the report.
+
+**Agent → phase mapping**:
+
+| Agent type (from `tool_input.subagent_type`) | Phase |
+|---|---|
+| `codebase-recon` | phase-0-recon |
+| `security-review`, `business-logic-domain-review` | phase-1b-judgment |
+| `fp-reduction` | phase-2-fp-reduction |
+| `tool-finding-narrative-annotator`, `compliance-edge-annotator` | phase-3-narrative-compliance |
+| `cross-repo-synthesizer` | phase-4-cross-repo (narrative sub-phase) |
+| `exec-report-generator` | phase-5-report |
+| `redteam-*-analyzer`, `redteam-report-generator` | phase-redteam-* (out of /security-assessment scope) |
+
+When both sources have entries for the same phase, prefer the earlier `start` epoch and later `end` epoch (widest interval — captures all subagent dispatches within a phase).
+
+Emit a phase-timing table:
 
 | Phase | Start | End | Duration | Overlapped with |
 |---|---|---|---|---|
