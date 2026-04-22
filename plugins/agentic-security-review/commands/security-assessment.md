@@ -60,7 +60,15 @@ For each target repo, run phases 0 → 5 per the pipeline skill. Between targets
 
 **Phase 1 — Tool-first detection.** Invoke the `static-analysis-integration` skill's SARIF pipeline over the target. For each available tool (semgrep, gitleaks, trivy, hadolint, actionlint, plus Step 3b optional/bespoke when available), run its invocation and normalize output to unified findings. Stream into `memory/findings-<slug>.jsonl`.
 
-**Scope includes CI/CD workflow files.** The target walk must include `.github/workflows/`, `.gitlab-ci.yml`, `.circleci/config.yml`, `azure-pipelines.yml`, `bitbucket-pipelines.yml`, `Jenkinsfile`, and their respective subdirectories — see `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md` § "Target walk" for the full list. These files are in scope for scan-06 (CI/CD security): printenv in `run:` blocks, `continue-on-error: true` on security steps, excessive `permissions:` blocks, hardcoded PAT embedding, `npm audit` / `pip audit` behind `continue-on-error`. actionlint is the canonical tool but semgrep with `p/github-actions` catches the same patterns when actionlint is unavailable. If the target lacks ALL of these files, record `ci_dirs_scanned: []` in the summary — the exec report can then surface "no CI configuration in scope" as a Top 3 Actions item if a CI config would be expected.
+**CI/CD scope widening (deterministic).** Before running tools, enumerate CI files with the deterministic script:
+
+```bash
+scripts/find-ci-files.sh <target-dir>
+```
+
+This covers GitHub Actions, GitLab CI, CircleCI, Azure Pipelines, Bitbucket Pipelines, and Jenkins — walking up to parent directories when the target is a service subdirectory whose CI lives at the repo root. Pass every CI path on stdout to actionlint (if available) and to semgrep with `p/github-actions`. If the script prints zero paths AND the run is expected to find CI config (target has `.github/` dir, `CI=true` in env vars, or is a standalone repo), emit a warning in the final report: `"No CI configuration files found in scope — scan-06 (CI/CD security) not applicable for this target."`
+
+If `find-ci-files.sh` prints paths but no CI tool is available (actionlint absent, semgrep absent), record them in `memory/meta-<slug>.json` under `ci_dirs_scanned` with a tool-availability note so the exec-report-generator can cite the coverage gap per `agents/exec-report-generator.md` § "Coverage-gap callouts".
 
 Also invoke the two custom scripts:
 - `plugins/agentic-dev-team/tools/entropy-check.py` on target
@@ -74,19 +82,42 @@ Their SARIF outputs flow through the shared parser.
 
 Append their findings to `memory/findings-<slug>.jsonl`.
 
-**Phase 1c — ACCEPTED-RISKS suppression (mandatory gate).** Runs exactly once after all Phase 1 + 1b findings have been collected, before Phase 2 begins. Procedure:
+**Phase 1c — ACCEPTED-RISKS suppression (deterministic, mandatory gate).** Execute the deterministic script; do not delegate this to LLM reasoning:
 
-1. For each target, check for `ACCEPTED-RISKS.md` at the target root. Absent → skip this target; log `no ACCEPTED-RISKS.md; proceeded with all findings`.
-2. Parse the YAML frontmatter (`rules:` list) per `plugins/agentic-dev-team/knowledge/accepted-risks-schema.md`. A schema-invalid file fails the run with a named parse error; do not silently skip.
-3. Validate rules: every rule must have `id`, `rule_id`, `files[]`, `rationale` (≥ 50 chars), `expires` (ISO-8601), `owner`, `scope`. Wildcards in `rule_id` require `broad: true`.
-4. For each finding in `memory/findings-<slug>.jsonl`, iterate rules in file-declaration order. First matching rule wins (per the schema's matching algorithm): match when rule's `rule_id` pattern matches the finding's `rule_id` AND one of the rule's `files[]` globs matches the finding's `file`.
-5. Expired rules (past `expires` date) become inert — they stop suppressing and emit a WARN naming the rule + owner; listed in the audit log.
-6. Matched findings are written to `memory/suppressed-<slug>.jsonl` (one per line, each with a `_suppressed_by` field naming the rule id). The matched findings are removed from `memory/findings-<slug>.jsonl` and do NOT advance to Phase 2. Emit exactly one audit log entry per suppression: `SUPPRESSED: <file>:<line> [<rule_id>] by ACCEPTED-RISKS rule <rule.id>`.
-7. After filtering, write `memory/suppression-log-<slug>.jsonl` (the audit entries) and record in the final report's Appendix C per `agents/exec-report-generator.md` § Section 7.
+```bash
+scripts/apply-accepted-risks.sh <target-dir> <slug> [<memory-dir>]
+```
 
-**This step is mandatory when `ACCEPTED-RISKS.md` is present.** The exec report's Appendix C is populated from `memory/suppressed-<slug>.jsonl`; if that file is absent or empty AND `ACCEPTED-RISKS.md` existed, the run surfaces a warning about the missed gate.
+Defaults: `memory-dir = ./memory`. The script:
+- Checks for `ACCEPTED-RISKS.md` at `<target-dir>/`. Absent → exits 0 without changes; this target proceeds with all findings.
+- Parses YAML frontmatter per `plugins/agentic-dev-team/knowledge/accepted-risks-schema.md`. Schema-invalid → exits 2 (fails the run with a named parse error).
+- Applies first-match-wins: rule matches when its `rule_id` pattern matches finding's `rule_id` AND any of its `files[]` globs matches the finding's file (path-normalized relative to target root).
+- Expired rules emit WARN but do not suppress.
+- Rewrites `memory/findings-<slug>.jsonl` in place (suppressed entries removed).
+- Writes `memory/suppressed-<slug>.jsonl` (removed entries + `_suppressed_by` metadata).
+- Writes `memory/suppression-log-<slug>.jsonl` (audit log).
+
+This step is **mandatory when `ACCEPTED-RISKS.md` is present**. If the exec report's Appendix C is empty but `ACCEPTED-RISKS.md` existed at the target root, the run surfaces a warning about the missed gate per `agents/exec-report-generator.md` § Section 7.
+
+Multi-target runs invoke the script once per target.
 
 **Phase 2 — FP-reduction.** Skip if `--fp-reduce=no`. Otherwise dispatch `fp-reduction` (opus). Produces `memory/disposition-<slug>.json`. Log `reachability_tool` (joern-cpg or llm-fallback) to audit.
+
+**Phase 2b — Domain-class severity floors (deterministic).** Execute the deterministic script after fp-reduction has written the disposition register:
+
+```bash
+scripts/apply-severity-floors.sh <slug> [<memory-dir>]
+```
+
+The script reads `memory/disposition-<slug>.json`, applies domain-class severity floors by rule_id pattern (PII, TLS-disabled, weak-crypto, hardcoded-creds, fail-open-fraud, emulation-bypass, feature-poisoning, tokenization-skip, unauth admin endpoints path-gated to `/admin|/internal|/predict|/score|...`, unauth info-leak endpoints floor-5), and rewrites the register with:
+- `exploitability.score = max(mechanical_score, floor)`
+- `exploitability.rationale` annotated with the floor class + original rationale
+
+Emits `memory/severity-floors-log-<slug>.jsonl` for audit (one line per floor applied).
+
+**Why deterministic**: floor rules are pure functions over `(rule_id, file_path)` — delegating this to an LLM produces run-to-run variance. The pattern-matching logic belongs in code.
+
+This step is a **no-op when fp-reduction was skipped** (`--fp-reduce=no`); exits 0 with no changes.
 
 **Phase 3 — Narrative + compliance.** Dispatch in parallel:
 - `tool-finding-narrative-annotator` (sonnet) → `memory/narratives-<slug>.md`
