@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-review-v0.2.1...agentic-security-review-v0.3.0) (2026-04-22)
+
+
+### Features
+
+* **security-review:** add NATS/messaging semgrep rules and training data inference detection (gaps 1, 6) ([fdf87c5](https://github.com/bdfinst/agentic-dev-team/commit/fdf87c57e2dcbcc41780e25a0bd4b89cca59ecee))
+* **security-review:** add serialization rules, base64 scan tool, datastore/Cassandra rules (gaps 2, 4, 5) ([48efd6e](https://github.com/bdfinst/agentic-dev-team/commit/48efd6e8bfe3b69cf9404e812ef600fb607695f0))
+* **security-review:** add severity consistency check, cross-cutting section, report verifier (gaps 3, 7, 8) ([4b270de](https://github.com/bdfinst/agentic-dev-team/commit/4b270ded5250b2b6d5e35e052f769472c362e50e))
+* **security-review:** add Windows PowerShell install script ([37930f5](https://github.com/bdfinst/agentic-dev-team/commit/37930f522ee3199937f9be2f5b018357fd9625b5))
+
+
+### Bug Fixes
+
+* **security-review:** upgrade all agents to opus ([5868b30](https://github.com/bdfinst/agentic-dev-team/commit/5868b30d971b354a2690482445e5ea04921f69a1))
+
 ## [0.2.1](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-review-v0.2.0...agentic-security-review-v0.2.1) (2026-04-22)
 
 
