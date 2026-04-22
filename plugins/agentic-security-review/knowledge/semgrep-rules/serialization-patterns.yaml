@@ -1,0 +1,269 @@
+#
+# serialization-patterns.yaml — deserialization and serialization-injection anti-patterns.
+#
+# Covers Kryo / ObjectInputStream (Java), pickle / joblib / ONNX metadata (Python),
+# NoSQL injection via deserialized payloads, and model-feature-name injection
+# during JSON serialization.
+#
+# Maintainers (bus-factor minimum 2):
+#   - bdfinst
+#   - unassigned
+#
+# version: 1.0.0
+# Review cadence: quarterly
+# FP-drift threshold: > 20% false-positive noise on tier-2 suite pauses ruleset
+#
+rules:
+  - id: serialization.java.kryo-unsafe-deserialization
+    patterns:
+      - pattern-either:
+          - pattern: $KRYO.readObject($IN, ...)
+          - pattern: $KRYO.readClassAndObject($IN)
+      - pattern-not-inside: |
+          $KRYO.setRegistrationRequired(true);
+          ...
+      - pattern-not-inside: |
+          $KRYO.register(...);
+          ...
+    message: >-
+      Kryo deserialization without a registration allowlist. An attacker who
+      controls the input stream can instantiate arbitrary classes and trigger
+      gadget chains. Call kryo.setRegistrationRequired(true) and kryo.register(AllowedType.class)
+      for every expected type before readObject / readClassAndObject.
+    severity: ERROR
+    languages: [java]
+    metadata:
+      cwe: "CWE-502"
+      category: "serialization.deserialization"
+
+  - id: serialization.python.unsafe-deserialization
+    patterns:
+      - pattern-either:
+          - pattern: pickle.load($SRC)
+          - pattern: pickle.loads($SRC)
+          - pattern: joblib.load($SRC)
+      - pattern-not: pickle.load(open("...", ...))
+      - pattern-not: pickle.loads(b"...")
+      - pattern-not: joblib.load("...")
+    message: >-
+      pickle / joblib loaded from a non-constant source (variable, function
+      argument, or env-derived path). Deserialization executes arbitrary code.
+      Prefer safetensors / onnx, verify a SHA-256 against a trusted manifest,
+      and restrict to constant local paths that ship with the deploy artifact.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-502"
+      category: "serialization.deserialization"
+
+  - id: serialization.python.onnx-metadata-injection
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $MODEL = onnx.load(...)
+              ...
+              f"...{$MODEL.metadata_props}..."
+          - pattern: |
+              $MODEL = onnx.load(...)
+              ...
+              f"...{$MODEL.graph.node[$I].name}..."
+          - pattern: |
+              $MODEL = onnx.load(...)
+              ...
+              "...{}".format($MODEL.metadata_props)
+          - pattern: |
+              $MODEL = onnx.load(...)
+              ...
+              "...{}".format($MODEL.graph.node[$I].name)
+          - pattern: |
+              $MODEL = onnx.load(...)
+              ...
+              $D[$MODEL.metadata_props] = $V
+          - pattern: |
+              $MODEL = onnx.load(...)
+              ...
+              $D[$MODEL.graph.node[$I].name] = $V
+      - pattern-not-inside: |
+          $SANITIZED = sanitize($MODEL.metadata_props)
+          ...
+      - pattern-not-inside: |
+          $SANITIZED = sanitize($MODEL.graph.node[$I].name)
+          ...
+    message: >-
+      ONNX model metadata (metadata_props, graph.node[*].name) is embedded in
+      a format string or used as a dict key without sanitization. Attacker-controlled
+      model files can carry metadata with format tokens, control characters, or
+      collision-inducing keys. Validate against an allowlist regex before use.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-20"
+      category: "serialization.metadata-injection"
+
+  - id: serialization.python.mongodb-nosql-injection
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $MSG = json.loads(...)
+              ...
+              $COLL.find($MSG, ...)
+          - pattern: |
+              $MSG = json.loads(...)
+              ...
+              $COLL.find_one($MSG, ...)
+          - pattern: |
+              $MSG = json.loads(...)
+              ...
+              $COLL.update_one($MSG, ...)
+          - pattern: |
+              $MSG = pickle.loads(...)
+              ...
+              $COLL.find($MSG, ...)
+          - pattern: |
+              $MSG = pickle.loads(...)
+              ...
+              $COLL.find_one($MSG, ...)
+          - pattern: |
+              $MSG = pickle.loads(...)
+              ...
+              $COLL.update_one($MSG, ...)
+          - pattern: |
+              def $FN(..., msg, ...):
+                ...
+                $COLL.find(msg, ...)
+          - pattern: |
+              def $FN(..., payload, ...):
+                ...
+                $COLL.find(payload, ...)
+          - pattern: |
+              def $FN(..., data, ...):
+                ...
+                $COLL.find(data, ...)
+          - pattern: |
+              def $FN(..., message, ...):
+                ...
+                $COLL.find(message, ...)
+          - pattern: |
+              def $FN(..., msg, ...):
+                ...
+                $COLL.update_one(msg, ...)
+          - pattern: |
+              def $FN(..., payload, ...):
+                ...
+                $COLL.update_one(payload, ...)
+      - pattern-not-inside: |
+          def $FN(...):
+            ...
+            $SCHEMA.validate(...)
+            ...
+      - pattern-not-inside: |
+          def $FN(...):
+            ...
+            validate(...)
+            ...
+    message: >-
+      MongoDB query filter built directly from a deserialized message or
+      NATS/Kafka payload without schema validation. Operator-injection
+      ($ne, $gt, $where) bypasses authn / authz filters. Validate with a
+      JSON schema or pydantic model before passing to find / find_one / update_one.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-943"
+      category: "serialization.nosql-injection"
+
+  - id: serialization.java.objectinputstream-unsafe
+    patterns:
+      - pattern: $OIS.readObject()
+      - pattern-not-inside: |
+          ClassFilteredObjectInputStream $OIS = ...;
+          ...
+      - pattern-not-inside: |
+          $OIS.setObjectInputFilter(...);
+          ...
+      - pattern-not-inside: |
+          ObjectInputFilter.Config.setSerialFilter(...);
+          ...
+    message: >-
+      ObjectInputStream.readObject() called without an allowlist filter
+      (ObjectInputFilter / ClassFilteredObjectInputStream). Java native
+      deserialization of untrusted input allows gadget-chain RCE. Install
+      a serial filter that rejects any class outside the expected types.
+    severity: ERROR
+    languages: [java]
+    metadata:
+      cwe: "CWE-502"
+      category: "serialization.deserialization"
+
+  - id: serialization.python.model-feature-name-injection
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $NAMES = $MODEL.feature_names_in_
+              ...
+              json.dumps({$N: $V for $N in $NAMES})
+          - pattern: |
+              $NAMES = $MODEL.get_booster().feature_names
+              ...
+              json.dumps({$N: $V for $N in $NAMES})
+          - pattern: |
+              $MODEL = onnx.load(...)
+              ...
+              json.dumps({$NODE.name: $V for $NODE in $MODEL.graph.node})
+          - pattern: |
+              for $NAME, $PARAM in $MODULE.named_parameters():
+                ...
+                $RESP[$NAME] = $V
+              ...
+              json.dumps($RESP)
+          - pattern: |
+              $RESP = {$NAME: $V for $NAME, $_ in $MODULE.named_parameters()}
+              ...
+              json.dumps($RESP)
+      - pattern-not-inside: |
+          $SANITIZED = sanitize($NAME)
+          ...
+      - pattern-not-inside: |
+          if re.match($ALLOWLIST, $NAME):
+            ...
+    message: >-
+      Model feature / parameter names used as JSON object keys without
+      sanitization. Names containing quotes, braces, or control characters
+      can break out of the intended key and inject sibling keys into the
+      serialized response. Restrict names to [A-Za-z0-9_] before serialization.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-74"
+      category: "serialization.json-injection"
+      rule_family: "serialization.general.model-feature-name-injection"
+
+  - id: serialization.javascript.model-feature-name-injection
+    patterns:
+      - pattern-either:
+          - pattern: |
+              const $RESP = {};
+              $NAMES.forEach($NAME => { $RESP[$NAME] = $V; });
+              JSON.stringify($RESP);
+          - pattern: |
+              let $RESP = {};
+              $NAMES.forEach($NAME => { $RESP[$NAME] = $V; });
+              JSON.stringify($RESP);
+          - pattern: |
+              var $RESP = {};
+              $NAMES.forEach(function ($NAME) { $RESP[$NAME] = $V; });
+              JSON.stringify($RESP);
+      - pattern-not-inside: |
+          const $SAFE = sanitize($NAME);
+          ...
+    message: >-
+      Model feature / parameter names used as JSON object keys without
+      sanitization. Names containing quotes, braces, or control characters
+      can break out of the intended key and inject sibling keys into the
+      serialized response. Restrict names to [A-Za-z0-9_] before serialization.
+    severity: WARNING
+    languages: [javascript]
+    metadata:
+      cwe: "CWE-74"
+      category: "serialization.json-injection"
+      rule_family: "serialization.general.model-feature-name-injection"

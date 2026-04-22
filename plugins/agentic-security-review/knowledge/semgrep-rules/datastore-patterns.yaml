@@ -1,0 +1,180 @@
+#
+# datastore-patterns.yaml — data-store consistency, TOCTOU, and injection patterns.
+#
+# Covers Cassandra consistency-level mismatches and optimistic-lock races,
+# MongoDB unauthenticated upserts, Redis user-controlled keys, and SQL
+# string-format injection.
+#
+# Maintainers (bus-factor minimum 2):
+#   - bdfinst
+#   - unassigned
+#
+# version: 1.0.0
+# Review cadence: quarterly
+# FP-drift threshold: > 20% false-positive noise on tier-2 suite pauses ruleset
+#
+rules:
+  - id: datastore.cassandra.consistency-level-mismatch
+    pattern-either:
+      - pattern: |
+          $S1.setConsistencyLevel(ConsistencyLevel.ONE);
+          ...
+          $S2.setConsistencyLevel(ConsistencyLevel.QUORUM);
+      - pattern: |
+          $S1.setConsistencyLevel(ConsistencyLevel.QUORUM);
+          ...
+          $S2.setConsistencyLevel(ConsistencyLevel.ONE);
+      - pattern: |
+          $S1.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
+          ...
+          $S2.setConsistencyLevel(ConsistencyLevel.LOCAL_QUORUM);
+      - pattern: |
+          $S1.setConsistencyLevel(ConsistencyLevel.LOCAL_QUORUM);
+          ...
+          $S2.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
+      - pattern: |
+          $S1.setConsistencyLevel(ConsistencyLevel.ONE);
+          ...
+          $S2.setConsistencyLevel(ConsistencyLevel.LOCAL_QUORUM);
+      - pattern: |
+          $S1.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
+          ...
+          $S2.setConsistencyLevel(ConsistencyLevel.QUORUM);
+    message: >-
+      Cassandra split-brain consistency pattern: writes at ONE / LOCAL_ONE
+      coexist with reads at QUORUM / LOCAL_QUORUM in the same class. A write
+      acknowledged by a single replica can be lost before a quorum read sees
+      it (W + R < RF). Align write and read consistency so W + R > RF, or
+      move to LWT (IF / IF EXISTS) where linearizability is required.
+    severity: ERROR
+    languages: [java]
+    metadata:
+      cwe: "CWE-362"
+      category: "datastore.consistency-mismatch"
+
+  - id: datastore.cassandra.toctou-optimistic-lock
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $RS = $SESSION.execute($SELECT);
+              ...
+              $SESSION.execute($UPDATE);
+          - pattern: |
+              $RS = $SESSION.execute($SELECT);
+              ...
+              $SESSION.execute($INSERT);
+          - pattern: $MAPPER.executeIfExists(...)
+      - pattern-not-inside: |
+          $UPDATE.ifExists();
+          ...
+      - pattern-not-inside: |
+          $INSERT.ifNotExists();
+          ...
+      - pattern-not-inside: |
+          $BUILDER.ifColumn(...).isEqualTo(...);
+          ...
+      - pattern-not-inside: |
+          QueryBuilder.update(...).ifExists();
+          ...
+    message: >-
+      Check-then-write on Cassandra without a lightweight transaction (LWT).
+      A concurrent writer can slip between the SELECT and the INSERT / UPDATE,
+      violating the assumed invariant. Wrap in a single LWT using IF EXISTS /
+      IF NOT EXISTS / IF col = val (Paxos); accept the latency cost where
+      correctness requires it.
+    severity: ERROR
+    languages: [java]
+    metadata:
+      cwe: "CWE-367"
+      category: "datastore.toctou"
+
+  - id: datastore.mongodb.unauthenticated-upsert
+    patterns:
+      - pattern-either:
+          - pattern: |
+              def $FN(request, ...):
+                ...
+                $COLL.update_one(request.$BODY, ..., upsert=True, ...)
+          - pattern: |
+              def $FN(request, ...):
+                ...
+                $COLL.update_one(request.json, ..., upsert=True, ...)
+          - pattern: |
+              def $FN(request, ...):
+                ...
+                $COLL.find_one_and_update(request.$BODY, ..., upsert=True, ...)
+          - pattern: |
+              $COLL.findOneAndUpdate(req.body, ..., { upsert: true })
+          - pattern: |
+              $COLL.findOneAndUpdate(req.params, ..., { upsert: true })
+          - pattern: |
+              $COLL.updateOne(req.body, ..., { upsert: true })
+          - pattern: |
+              $COLL.updateOne(req.params, ..., { upsert: true })
+      - pattern-not-inside: |
+          $SCHEMA.validate(...)
+          ...
+      - pattern-not-inside: |
+          validate($FILTER, ...)
+          ...
+    message: >-
+      MongoDB upsert with a filter document built directly from request
+      body / params. Operator-injection creates arbitrary documents or
+      overwrites unrelated records. Validate the filter against a JSON schema
+      or pydantic / zod model before calling update_one / findOneAndUpdate.
+    severity: ERROR
+    languages: [python, javascript]
+    metadata:
+      cwe: "CWE-943"
+      category: "datastore.nosql-injection"
+
+  - id: datastore.redis.user-controlled-key
+    patterns:
+      - pattern-either:
+          - pattern: redis.get(f"...{request.$FIELD}...")
+          - pattern: redis.set(f"...{request.$FIELD}...", ...)
+          - pattern: redis.delete(f"...{request.$FIELD}...")
+          - pattern: redis.get("..." + request.$FIELD + "...")
+          - pattern: redis.set("..." + request.$FIELD + "...", ...)
+          - pattern: redis.delete("..." + request.$FIELD + "...")
+          - pattern: redis.get("..." % request.$FIELD)
+          - pattern: $CLIENT.get(`...${req.body.$FIELD}...`)
+          - pattern: $CLIENT.set(`...${req.body.$FIELD}...`, ...)
+          - pattern: $CLIENT.del(`...${req.params.$FIELD}...`)
+          - pattern: $CLIENT.get(`...${req.query.$FIELD}...`)
+      - pattern-not-inside: |
+          $SAFE = sanitize_key($RAW)
+          ...
+      - pattern-not-inside: |
+          if re.match($ALLOWLIST, $RAW):
+            ...
+    message: >-
+      Redis key constructed by string-formatting a request parameter without
+      sanitization. Attacker enumerates or overwrites keys across tenants /
+      users (insecure direct object reference on cache). Use a server-derived
+      tenant prefix and hash-or-allowlist the user-supplied portion.
+    severity: WARNING
+    languages: [python, javascript]
+    metadata:
+      cwe: "CWE-639"
+      category: "datastore.key-injection"
+
+  - id: datastore.sql.string-format-injection
+    pattern-either:
+      - pattern: $CURSOR.execute(f"...{$VAR}...")
+      - pattern: $CURSOR.execute("..." % $VAR)
+      - pattern: $CURSOR.execute("..." % ($VAR, ...))
+      - pattern: $CURSOR.execute("..." + $VAR)
+      - pattern: $CURSOR.execute("..." + $VAR + "...")
+      - pattern: $CURSOR.execute("...".format($VAR, ...))
+    message: >-
+      SQL statement built by f-string / % / + / .format with a non-parameterized
+      variable. Use cursor.execute("... %s ...", (var,)) (or the DB-API named
+      style) so the driver binds the parameter. Trivially exploited for SQL
+      injection.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-89"
+      category: "datastore.sql-injection"
+      duplicate_of: "semgrep.p/security-audit"
