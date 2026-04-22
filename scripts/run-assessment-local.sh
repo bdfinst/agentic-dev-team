@@ -154,100 +154,150 @@ echo "Tool availability: ${TOOLS_PRESENT[*]:-(none)}"
 [[ ${#TOOLS_MISSING[@]} -gt 0 ]] && echo "             missing: ${TOOLS_MISSING[*]}"
 echo
 
-# ── Phase 0 — Deterministic Recon ────────────────────────────────────────────
+# ── Phase timer helper ───────────────────────────────────────────────────────
 
-echo "[phase 0] deterministic recon"
-# For multi-target runs, produce one recon per target
+TIMER="$SCRIPT_DIR/phase-timer.sh"
+
+timer_start() {
+  "$TIMER" start "$1" "$SLUG" "$OUTPUT_DIR"
+}
+timer_end() {
+  "$TIMER" end "$1" "$SLUG" "$OUTPUT_DIR"
+}
+# One-shot wrapping: timer_run <phase-name> -- <command>
+timer_run() {
+  "$TIMER" run "$1" "$SLUG" "$OUTPUT_DIR" -- "${@:2}"
+}
+
+# ── Phase 0 — Deterministic Recon (parallel across targets) ──────────────────
+
+echo "[phase 0] deterministic recon (parallel across targets)"
+timer_start "phase-0-recon"
+
 RECON_PRIMARY=""
+pids=()
 for t in "${ABS_TARGETS[@]}"; do
   sub_slug="$(basename "$t" | tr '[:upper:]_' '[:lower:]-')"
   out_json="$OUTPUT_DIR/recon-$sub_slug.json"
-  python3 "$LIB_DIR/deterministic_recon.py" "$t" "$out_json"
   [[ -z "$RECON_PRIMARY" ]] && RECON_PRIMARY="$out_json"
+  python3 "$LIB_DIR/deterministic_recon.py" "$t" "$out_json" &
+  pids+=($!)
 done
+# wait for all recon jobs
+for pid in "${pids[@]}"; do wait "$pid" || true; done
+timer_end "phase-0-recon"
 echo "  → $OUTPUT_DIR/recon-*.json"
 
-# ── Phase 1 — Tool-first detection ───────────────────────────────────────────
+# ── Phase 1 — Tool-first detection (parallel: targets × tools × rulesets) ────
 
 echo
-echo "[phase 1] tool-first detection"
+echo "[phase 1] tool-first detection (parallel)"
+timer_start "phase-1-tool-first"
 
-run_semgrep_rules() {
-  local target="$1"
-  local rs
-  for rs in \
-      "$REPO_ROOT/plugins/agentic-security-review/knowledge/semgrep-rules/ml-patterns.yaml" \
-      "$REPO_ROOT/plugins/agentic-security-review/knowledge/semgrep-rules/llm-safety.yaml" \
-      "$REPO_ROOT/plugins/agentic-security-review/knowledge/semgrep-rules/fraud-domain.yaml" \
-      "$REPO_ROOT/plugins/agentic-security-review/knowledge/semgrep-rules/crypto-anti-patterns.yaml"; do
-    if [[ -f "$rs" ]]; then
-      local name="$(basename "$rs" .yaml)"
-      semgrep --quiet --sarif --config "$rs" "$target" > "$SARIF_DIR/semgrep-$name-$(basename "$target").sarif" 2>/dev/null || true
-    fi
-  done
-  # Community bundles (one call each)
-  for bundle in "p/security-audit" "p/secrets"; do
-    local safe_name="$(echo "$bundle" | tr '/' '-')"
-    semgrep --quiet --sarif --config "$bundle" "$target" > "$SARIF_DIR/semgrep-$safe_name-$(basename "$target").sarif" 2>/dev/null || true
-  done
+# Each (target, tool, ruleset) combination is an independent process writing
+# its own SARIF file. Launch all in the background, then wait once.
+
+run_semgrep_rule() {
+  # one invocation = one ruleset against one target
+  local rs="$1" target="$2"
+  local name="$(basename "$rs" .yaml)"
+  semgrep --quiet --sarif --config "$rs" "$target" \
+    > "$SARIF_DIR/semgrep-$name-$(basename "$target").sarif" 2>/dev/null || true
 }
 
+run_semgrep_bundle() {
+  # community bundle against one target
+  local bundle="$1" target="$2"
+  local safe_name
+  safe_name="$(echo "$bundle" | tr '/' '-')"
+  semgrep --quiet --sarif --config "$bundle" "$target" \
+    > "$SARIF_DIR/semgrep-$safe_name-$(basename "$target").sarif" 2>/dev/null || true
+}
+
+pids=()
 for t in "${ABS_TARGETS[@]}"; do
+  sub="$(basename "$t")"
+
   if command -v semgrep &>/dev/null; then
-    echo "  semgrep (4 custom rulesets + 2 community bundles) on $(basename "$t")"
-    run_semgrep_rules "$t"
+    for rs in \
+        "$REPO_ROOT/plugins/agentic-security-review/knowledge/semgrep-rules/ml-patterns.yaml" \
+        "$REPO_ROOT/plugins/agentic-security-review/knowledge/semgrep-rules/llm-safety.yaml" \
+        "$REPO_ROOT/plugins/agentic-security-review/knowledge/semgrep-rules/fraud-domain.yaml" \
+        "$REPO_ROOT/plugins/agentic-security-review/knowledge/semgrep-rules/crypto-anti-patterns.yaml"; do
+      [[ -f "$rs" ]] || continue
+      run_semgrep_rule "$rs" "$t" &
+      pids+=($!)
+    done
+    for bundle in "p/security-audit" "p/secrets"; do
+      run_semgrep_bundle "$bundle" "$t" &
+      pids+=($!)
+    done
   fi
+
   if command -v gitleaks &>/dev/null; then
-    echo "  gitleaks on $(basename "$t")"
-    gitleaks detect --no-git --source "$t" --report-format sarif \
-      --report-path "$SARIF_DIR/gitleaks-$(basename "$t").sarif" 2>/dev/null || true
+    ( gitleaks detect --no-git --source "$t" --report-format sarif \
+        --report-path "$SARIF_DIR/gitleaks-$sub.sarif" 2>/dev/null || true ) &
+    pids+=($!)
   fi
+
   if command -v trivy &>/dev/null; then
-    echo "  trivy config on $(basename "$t")"
-    trivy config --quiet --format sarif --output "$SARIF_DIR/trivy-config-$(basename "$t").sarif" "$t" 2>/dev/null || true
+    ( trivy config --quiet --format sarif --output "$SARIF_DIR/trivy-config-$sub.sarif" "$t" \
+        2>/dev/null || true ) &
+    pids+=($!)
   fi
+
   if command -v hadolint &>/dev/null; then
     for df in "$t"/*/Dockerfile "$t"/Dockerfile; do
       [[ -f "$df" ]] || continue
-      echo "  hadolint on $df"
-      hadolint --format sarif "$df" > "$SARIF_DIR/hadolint-$(basename "$(dirname "$df")").sarif" 2>/dev/null || true
+      ( hadolint --format sarif "$df" \
+          > "$SARIF_DIR/hadolint-$(basename "$(dirname "$df")").sarif" 2>/dev/null || true ) &
+      pids+=($!)
     done
   fi
+
   if command -v actionlint &>/dev/null; then
-    # actionlint emits JSON; we do not produce SARIF here (adapter is complex;
-    # skeleton report still receives findings via a dedicated text dump)
     for wf in "$t"/.github/workflows/*.yml "$t"/.github/workflows/*.yaml; do
       [[ -f "$wf" ]] || continue
-      echo "  actionlint on $wf"
-      actionlint -format '{{json .}}' "$wf" > "$SARIF_DIR/actionlint-$(basename "$wf").json" 2>/dev/null || true
+      ( actionlint -format '{{json .}}' "$wf" \
+          > "$SARIF_DIR/actionlint-$(basename "$wf").json" 2>/dev/null || true ) &
+      pids+=($!)
     done
   fi
+
+  # Custom scripts — run in parallel with the external tools
+  ( python3 "$REPO_ROOT/plugins/agentic-dev-team/tools/entropy-check.py" "$t" \
+      > "$SARIF_DIR/entropy-check-$sub.sarif" 2>/dev/null || true ) &
+  pids+=($!)
+  ( python3 "$REPO_ROOT/plugins/agentic-dev-team/tools/model-hash-verify.py" "$t" \
+      > "$SARIF_DIR/model-hash-verify-$sub.sarif" 2>/dev/null || true ) &
+  pids+=($!)
 done
 
-# ── Phase 1b — Custom SARIF-emitting scripts ────────────────────────────────
+echo "  dispatched ${#pids[@]} tool processes across ${#ABS_TARGETS[@]} target(s); waiting..."
+for pid in "${pids[@]}"; do wait "$pid" || true; done
+timer_end "phase-1-tool-first"
+echo "  done"
 
-echo
-echo "[phase 1b] custom scripts"
-for t in "${ABS_TARGETS[@]}"; do
-  sub=$(basename "$t")
-  python3 "$REPO_ROOT/plugins/agentic-dev-team/tools/entropy-check.py" "$t" > "$SARIF_DIR/entropy-check-$sub.sarif" 2>/dev/null || true
-  python3 "$REPO_ROOT/plugins/agentic-dev-team/tools/model-hash-verify.py" "$t" > "$SARIF_DIR/model-hash-verify-$sub.sarif" 2>/dev/null || true
-done
-echo "  → $SARIF_DIR/entropy-check-*.sarif, model-hash-verify-*.sarif"
-
-# ── Phase 2 — Cross-repo (if multi-target) ──────────────────────────────────
+# ── Phase 2 / Phase 4 — Cross-repo (parallel with post-tools) ──────────────
 
 SERVICE_COMM_FILE=""
 SHARED_CREDS_FILE=""
 if (( ${#ABS_TARGETS[@]} > 1 )); then
   echo
-  echo "[phase 2] cross-repo analysis"
+  echo "[phase 4] cross-repo analysis (parallel)"
+  timer_start "phase-4-cross-repo"
   SERVICE_COMM_FILE="$OUTPUT_DIR/service-comm-$SLUG.mermaid"
   SHARED_CREDS_FILE="$OUTPUT_DIR/shared-creds-$SLUG.sarif"
-  python3 "$REPO_ROOT/plugins/agentic-security-review/harness/tools/service-comm-parser.py" "${ABS_TARGETS[@]}" > "$SERVICE_COMM_FILE" 2>/dev/null || true
-  python3 "$REPO_ROOT/plugins/agentic-security-review/harness/tools/shared-cred-hash-match.py" "${ABS_TARGETS[@]}" > "$SHARED_CREDS_FILE" 2>/dev/null || true
-  # Also add the shared-creds SARIF to the aggregated findings
+  pids=()
+  ( python3 "$REPO_ROOT/plugins/agentic-security-review/harness/tools/service-comm-parser.py" \
+      "${ABS_TARGETS[@]}" > "$SERVICE_COMM_FILE" 2>/dev/null || true ) &
+  pids+=($!)
+  ( python3 "$REPO_ROOT/plugins/agentic-security-review/harness/tools/shared-cred-hash-match.py" \
+      "${ABS_TARGETS[@]}" > "$SHARED_CREDS_FILE" 2>/dev/null || true ) &
+  pids+=($!)
+  for pid in "${pids[@]}"; do wait "$pid" || true; done
   cp "$SHARED_CREDS_FILE" "$SARIF_DIR/shared-creds.sarif" 2>/dev/null || true
+  timer_end "phase-4-cross-repo"
   echo "  → $SERVICE_COMM_FILE"
   echo "  → $SHARED_CREDS_FILE"
 fi
@@ -256,18 +306,22 @@ fi
 
 echo
 echo "[normalize] SARIF → unified findings"
+timer_start "normalize-sarif"
 FINDINGS_FILE="$OUTPUT_DIR/findings-$SLUG.jsonl"
 python3 "$LIB_DIR/normalize_findings.py" "$SARIF_DIR" "$FINDINGS_FILE"
+timer_end "normalize-sarif"
 
 # ── Build skeleton report ──────────────────────────────────────────────────
 
 echo
 echo "[report] skeleton report"
+timer_start "skeleton-report"
 REPORT_FILE="$OUTPUT_DIR/report-$SLUG.md"
 SKELETON_ARGS=(--recon "$RECON_PRIMARY" --findings "$FINDINGS_FILE" --output "$REPORT_FILE")
 [[ -n "$SERVICE_COMM_FILE" && -f "$SERVICE_COMM_FILE" ]] && SKELETON_ARGS+=(--service-comm "$SERVICE_COMM_FILE")
 [[ -n "$SHARED_CREDS_FILE" && -f "$SHARED_CREDS_FILE" ]] && SKELETON_ARGS+=(--shared-creds "$SHARED_CREDS_FILE")
 python3 "$LIB_DIR/skeleton_report.py" "${SKELETON_ARGS[@]}"
+timer_end "skeleton-report"
 
 # ── Run metadata ───────────────────────────────────────────────────────────
 
