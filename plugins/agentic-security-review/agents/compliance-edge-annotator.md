@@ -2,7 +2,7 @@
 name: compliance-edge-annotator
 description: LLM edge annotator invoked ONLY for findings matched by compliance-patterns.yaml rows with llm_review_trigger=true. Refines or contextualizes the pattern-table's citations based on the specific finding. Never invents citations; always works from the table-supplied list.
 tools: Read, Grep
-model: sonnet
+model: opus
 ---
 
 # Compliance Edge Annotator

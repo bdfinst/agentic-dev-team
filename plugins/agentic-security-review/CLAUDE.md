@@ -82,7 +82,7 @@ See `install.sh`. It performs four checks:
 | `/redteam-model <target>` | orchestrator | Adversarial ML red-team probes against a self-owned target |
 | `/export-pdf <report.md>` | worker | PDF export via pandoc/weasyprint |
 
-**Agents** (7 opus, 2 sonnet):
+**Agents** (9 opus):
 - `fp-reduction` (opus) — 5-stage FP-reduction rubric; disposition register
 - `business-logic-domain-review` (opus) — fraud-domain anti-patterns
 - `cross-repo-synthesizer` (opus) — named attack chains across repos
@@ -91,8 +91,8 @@ See `install.sh`. It performs four checks:
 - `redteam-evasion-analyzer` (opus) — interpretation of probes 03/04/05
 - `redteam-extraction-analyzer` (opus) — interpretation of probe 07
 - `redteam-report-generator` (opus) — final red-team report synthesis
-- `tool-finding-narrative-annotator` (sonnet) — 4-domain narrative synthesis
-- `compliance-edge-annotator` (sonnet) — LLM edge judgment for ambiguous mappings
+- `tool-finding-narrative-annotator` (opus) — 4-domain narrative synthesis
+- `compliance-edge-annotator` (opus) — LLM edge judgment for ambiguous mappings
 
 **Skills** (3):
 - `false-positive-reduction` — 5-stage rubric + joern / LLM-fallback

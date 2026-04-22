@@ -2,7 +2,7 @@
 name: tool-finding-narrative-annotator
 description: Consolidates tool-emitted unified findings into four narrative domains (PII flow, ML edge cases, NATS/messaging auth, crypto cross-file). Produces human-readable prose that the exec-report-generator embeds in the report body. Does not detect — synthesizes.
 tools: Read, Grep, Glob
-model: sonnet
+model: opus
 ---
 
 # Tool Finding Narrative Annotator
