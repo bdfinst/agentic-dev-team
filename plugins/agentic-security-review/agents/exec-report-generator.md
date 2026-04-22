@@ -87,6 +87,32 @@ Brief statement of what was and was not assessed. Explicit list of:
 - Target scope
 - Excluded files (test fixtures, vendored third-party, etc.)
 
+**Phase timings.** Read `memory/phase-timings-<slug>.jsonl` (produced by `scripts/phase-timer.sh` at every phase boundary) and emit a phase-timing table:
+
+| Phase | Start | End | Duration | Overlapped with |
+|---|---|---|---|---|
+| phase-0-recon | 00:00 | 00:12 | 12s | — |
+| phase-1-tool-first | 00:12 | 00:48 | 36s | phase-1b-judgment, phase-4-cross-repo |
+| phase-1b-judgment | 00:12 | 02:30 | 2m18s | phase-1-tool-first, phase-4-cross-repo |
+| phase-4-cross-repo | 00:13 | 00:16 | 3s | phase-1, phase-1b |
+| phase-1c-accepted-risks | 02:30 | 02:31 | 1s | — |
+| phase-2-fp-reduction | 02:31 | 04:50 | 2m19s | — |
+| ... | | | | |
+| **Total wall time** | 00:00 | 07:15 | **7m15s** | |
+
+Computation:
+- Read the JSONL; for each `end` record, compute duration from its paired `start` record (same phase name).
+- Compute "overlapped with" by checking which OTHER phases had start/end intervals that intersected this phase's interval. Phase X overlaps phase Y when `max(X.start, Y.start) < min(X.end, Y.end)`.
+- Wall time = `last_end_epoch - first_start_epoch` across all records.
+
+**Drift detection**: flag when the intended parallelism per `skills/security-assessment-pipeline/SKILL.md § Phase graph` didn't happen. Specifically:
+
+- If `phase-1-tool-first` and `phase-1b-judgment` did NOT overlap, emit: `"INFO: Phase 1 and Phase 1b ran sequentially (should have been parallel per skill § Phase graph). Wall-time cost: ~<phase-1-duration + phase-1b-duration - parallel-optimum>s."`
+- If `phase-4-cross-repo` did NOT overlap with `phase-1*` / `phase-2*` / `phase-3*`, emit: `"INFO: Phase 4 ran sequentially after Phase 3 (should have run concurrently with Phase 1b-3). Wall-time cost: ~<phase-4-duration>s."`
+- If multi-target runs show per-target phases completing strictly sequentially (no per-target interval overlap), emit: `"INFO: Multi-target phases ran sequentially (N targets took ~N×single-target time; parallel fan-out would have run at wall time ≈ max(per-target-time))."`
+
+These messages are informational — the report still publishes — but they make suboptimal orchestration visible so the dispatching pattern can be tightened over time.
+
 **Coverage-gap callouts.** When tools were absent, surface the specific scan concerns that lose coverage in a "Scan concerns with reduced coverage" sub-bullet, so the reader understands what the report cannot claim. Known tool→concern mapping:
 
 | Absent tool | Reduced-coverage concerns |

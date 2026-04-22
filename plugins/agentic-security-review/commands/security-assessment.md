@@ -56,6 +56,41 @@ If a prior run's artifacts exist AND `--start` is NOT set, archive them to `memo
 
 For each target repo, run phases 0 → 5 per the pipeline skill. Between targets, phases can interleave if independent (e.g. Phase 0 of repo A + Phase 0 of repo B run in parallel subagent dispatches).
 
+#### Parallelization requirements
+
+Wall time matters for real-world assessments. Three parallelism rules **MUST** be observed by the orchestrator:
+
+1. **Multi-target fan-out.** When invoked with multiple targets, each target's Phase 0 through Phase 2b runs as an **independent pipeline**. Dispatch them as **parallel Agent tool calls in the SAME message** — not sequential. Each target's pipeline is self-contained until Phase 4 (service-comm across targets) and Phase 5 (cross-repo summary). For N targets on a machine with K cores, expect N-way wall-time parallelism up to K.
+
+2. **Intra-phase fan-out.** Within a phase with multiple agents or tools:
+   - Phase 1b dispatches `security-review` AND `business-logic-domain-review` as parallel Agent tool calls in one message
+   - Phase 3 dispatches `tool-finding-narrative-annotator` AND `compliance-mapping` as parallel Agent tool calls in one message
+   - Phase 1's static-analysis-integration skill dispatches every available tool (semgrep variants + gitleaks + trivy + hadolint + actionlint + custom scripts) as concurrent shell processes, not sequentially
+
+3. **Phase 4 runs concurrently with Phase 1b–3 once Phase 0 finishes.** Phase 4 (service-communication) depends only on Phase 0. Do NOT block Phase 4 behind Phase 3 — it can start as soon as Phase 0 completes and run alongside everything between Phase 1 and Phase 5.
+
+**Why this matters**: LLM agent phases dominate wall time. Sequential dispatch of two opus agents for Phase 1b costs ~2× the parallel dispatch cost, burning 2-5 minutes per target unnecessarily. Multi-target pipelines run sequentially by default (the LLM reads "for each target" as a loop) unless the spec explicitly calls for parallel fan-out — which this section does.
+
+#### Phase timing (mandatory)
+
+Every phase is bracketed with `scripts/phase-timer.sh start <phase> <slug>` at its beginning and `scripts/phase-timer.sh end <phase> <slug>` at its end. Writes accumulate in `memory/phase-timings-<slug>.jsonl` (one JSONL record per start and per end).
+
+The exec-report-generator reads this file to compute actual parallelism vs. sequential execution and surfaces the result in Section 6 § Phase timings. Drift from the intended parallelism shows up visibly in the published report.
+
+Phases to instrument:
+
+```
+phase-0-recon
+phase-1-tool-first
+phase-1b-judgment
+phase-1c-accepted-risks
+phase-2-fp-reduction
+phase-2b-severity-floors
+phase-3-narrative-compliance
+phase-4-cross-repo
+phase-5-report
+```
+
 **Phase 0 — Reconnaissance.** Dispatch `codebase-recon` (opus) via Agent tool. Write `memory/recon-<slug>.json` + `.md`. Verify schema conformance against `plugins/agentic-dev-team/knowledge/schemas/recon-envelope-v1.json`.
 
 **Phase 1 — Tool-first detection.** Invoke the `static-analysis-integration` skill's SARIF pipeline over the target. For each available tool (semgrep, gitleaks, trivy, hadolint, actionlint, plus Step 3b optional/bespoke when available), run its invocation and normalize output to unified findings. Stream into `memory/findings-<slug>.jsonl`.
