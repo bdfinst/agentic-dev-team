@@ -26,6 +26,18 @@ Read `knowledge/owasp-detection.md` before starting analysis. It
 contains OWASP-categorized detection patterns with language-specific
 grep signals for each vulnerability class.
 
+## Accepted risks
+
+If the target repo contains an `ACCEPTED-RISKS.md` at its root,
+consult it per `knowledge/accepted-risks-schema.md`. Always run the
+full scan first, then apply matching rules to suppress findings
+post-detection — suppression is a filtering step over complete
+detection output. Emit audit entries of the form
+`SUPPRESSED: <file>:<line> [<rule_id>] by ACCEPTED-RISKS rule <rule.id>`.
+Expired rules become inert (stop suppressing). Schema-invalid rules
+fail the run with a specific parse error. Absent file: proceed
+normally.
+
 ## MCP Tools (Optional)
 
 Probe for these tools at session start. Use if available, fall back
@@ -45,6 +57,16 @@ Return `{"status": "skip", "issues": [], "summary": "No source files with securi
 
 - Target contains only static assets, images, or documentation
 - No code files that could contain security vulnerabilities
+
+## Scope — files always in scope
+
+Every review run examines these file classes in addition to the primary source tree, because security-relevant content in them often escapes the `src/` tree walk:
+
+- CI/CD workflow files: `.github/workflows/*.{yml,yaml}`, `.gitlab-ci.yml`, `.gitlab/**/*.{yml,yaml}`, `.circleci/config.yml`, `azure-pipelines.yml`, `bitbucket-pipelines.yml`, `Jenkinsfile`, `jenkinsfile.d/**`. Check each for: `printenv` / `env | ` in `run:` blocks, `continue-on-error: true` on security-scanning steps, excessive `permissions:` (especially `contents: write` + `id-token: write` combined), hardcoded PAT / API-key patterns, `npm audit` / `pip audit` behind `continue-on-error`, auto-version commit steps with write permissions.
+- Dockerfiles: `Dockerfile`, `Dockerfile.*`, `*.dockerfile`. Check for: final-stage `USER` directive absent, unpinned base images (no `@sha256:` or `:<version>`), secrets COPYed from build context, `--trusted-host *` in pip invocations, apt-get / curl pipelines running as root.
+- Infrastructure manifests: `docker-compose*.yml`, `helm/**/*.yaml`, `k8s/**/*.yaml`, `terraform/**/*.tf`. Check for: hardcoded credentials, overly permissive RBAC, missing resource limits, missing NetworkPolicy, container security context (privileged, allowPrivilegeEscalation).
+
+If a target has no files in any of these classes, note `"ci_dirs_scanned": []` in the summary rather than silently skipping.
 
 ## Detect
 

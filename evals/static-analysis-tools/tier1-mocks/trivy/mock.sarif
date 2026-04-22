@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Trivy",
+          "version": "0.50.0",
+          "informationUri": "https://github.com/aquasecurity/trivy",
+          "rules": [
+            {
+              "id": "DS002",
+              "name": "RootUserContainer",
+              "shortDescription": { "text": "Image user should not be 'root'" }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "DS002",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": { "text": "Specify USER in the Dockerfile; running as root increases blast radius of any compromise." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "Dockerfile" },
+                "region": { "startLine": 1 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

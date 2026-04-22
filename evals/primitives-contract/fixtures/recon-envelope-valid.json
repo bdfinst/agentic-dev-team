@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-04-21T10:15:00Z",
+  "repo": {
+    "name": "fixture-repo",
+    "root": "/tmp/fixture-repo",
+    "package_manager": "npm",
+    "monorepo": true,
+    "workspaces": ["packages/core", "packages/api"],
+    "vcs": {
+      "kind": "git",
+      "remote_host": "github.com",
+      "default_branch": "main"
+    }
+  },
+  "entry_points": [
+    {
+      "path": "packages/api/src/server.ts",
+      "kind": "http-server",
+      "rationale": "Calls app.listen(port) on line 14",
+      "language": "TypeScript"
+    },
+    {
+      "path": "packages/core/src/index.ts",
+      "kind": "module-index",
+      "rationale": "Referenced as 'main' in packages/core/package.json",
+      "language": "TypeScript"
+    }
+  ],
+  "languages": [
+    { "name": "TypeScript", "file_count": 8, "dominant_framework": "express" }
+  ],
+  "dependencies": {
+    "web": ["express"],
+    "auth": ["jsonwebtoken"],
+    "other_notable": ["zod"]
+  },
+  "architecture": {
+    "summary": "Monorepo with core library (@fixture/core) and HTTP API service (@fixture/api) that depends on it via workspace link. Domain logic in core; IO and routing in api.",
+    "layers": [
+      { "name": "core", "paths": ["packages/core/src"], "purpose": "Domain types and validation via zod" },
+      { "name": "api", "paths": ["packages/api/src"], "purpose": "HTTP surface and auth routes" }
+    ],
+    "notable_anti_patterns": []
+  },
+  "security_surface": {
+    "auth_paths": ["packages/api/src/routes/auth.ts"],
+    "network_egress": ["packages/api/src/notify.ts"],
+    "secrets_referenced": ["packages/api/src/routes/auth.ts", "packages/api/src/notify.ts", "packages/api/src/server.ts"],
+    "crypto_calls": [],
+    "csp_headers": []
+  },
+  "git_history": {
+    "branches": {
+      "current": "main",
+      "main_count": 1,
+      "feature_count": 0,
+      "names": ["main"]
+    },
+    "recent_activity": {
+      "last_commit_date": "2026-04-20T12:00:00Z",
+      "commits_last_30d": 0,
+      "authors_last_30d": 0
+    },
+    "sensitive_file_history": [
+      {
+        "path": ".env.example",
+        "in_current_tree": true,
+        "appeared_in_history": true,
+        "first_seen_commit": null,
+        "removed_commit": null
+      }
+    ]
+  },
+  "notes": ["Fixture repo — no real commits."]
+}

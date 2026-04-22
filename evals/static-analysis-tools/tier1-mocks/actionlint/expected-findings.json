@@ -1,0 +1,14 @@
+[
+  {
+    "rule_id": "actionlint.workflows.shellcheck",
+    "file": ".github/workflows/deploy.yml",
+    "line": 24,
+    "column": 9,
+    "severity": "warning",
+    "message": "SC2086: Double quote to prevent globbing and word splitting.",
+    "metadata": {
+      "source": "actionlint",
+      "confidence": "medium"
+    }
+  }
+]

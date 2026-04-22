@@ -1,23 +1,31 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "release-type": "simple",
   "include-v-in-tag": true,
-  "include-component-in-tag": false,
+  "include-component-in-tag": true,
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
     { "type": "fix", "section": "Bug Fixes" },
     { "type": "refactor", "section": "Code Refactoring" },
-    { "type": "perf", "section": "Performance Improvements" }
-  ],
-  "extra-files": [
-    "plugins/agentic-dev-team/.claude-plugin/plugin.json",
-    {
-      "type": "json",
-      "path": ".claude-plugin/marketplace.json",
-      "jsonpath": "$.plugins[0].version"
-    }
+    { "type": "perf", "section": "Performance Improvements" },
+    { "type": "docs", "section": "Documentation" },
+    { "type": "chore", "section": "Miscellaneous" }
   ],
   "packages": {
-    ".": {}
+    "plugins/agentic-dev-team": {
+      "release-type": "simple",
+      "package-name": "agentic-dev-team",
+      "component": "agentic-dev-team",
+      "extra-files": [
+        ".claude-plugin/plugin.json"
+      ]
+    },
+    "plugins/agentic-security-review": {
+      "release-type": "simple",
+      "package-name": "agentic-security-review",
+      "component": "agentic-security-review",
+      "extra-files": [
+        ".claude-plugin/plugin.json"
+      ]
+    }
   }
 }

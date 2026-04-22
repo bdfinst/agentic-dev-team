@@ -1,0 +1,87 @@
+#
+# llm-safety.yaml — static LLM safety anti-patterns.
+#
+# Coverage bound (verbatim, required in docs):
+#   "static coverage via llm-safety.yaml is intentionally narrow — it catches
+#    pattern-visible issues but is NOT a substitute for runtime LLM safety
+#    testing"
+#
+# Runtime LLM-safety testing (garak, rebuff, PyRIT) is deferred to the
+# red-team harness's runtime probes.
+#
+# Maintainers (bus-factor minimum 2):
+#   - bdfinst
+#   - unassigned
+#
+rules:
+  - id: llm-safety.hardcoded-api-key
+    pattern-either:
+      - pattern: |
+          openai.api_key = "$KEY"
+      - pattern: |
+          anthropic.Anthropic(api_key="$KEY")
+      - pattern: |
+          Cohere(api_key="$KEY")
+    message: >-
+      LLM provider API key hardcoded in source. Attackers who read your repo
+      (or a compiled binary) get free API access on your account.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-798"
+      category: "llm.credential"
+
+  - id: llm-safety.prompt-template-string-injection
+    pattern-either:
+      - pattern: |
+          $PROMPT = f"...{$USER_INPUT}..."
+      - pattern: |
+          $PROMPT = "..." + $USER_INPUT + "..."
+      - pattern: |
+          $PROMPT = "...%s..." % $USER_INPUT
+    pattern-not-inside: |
+      $USER_INPUT = sanitize($RAW)
+      ...
+    message: >-
+      Prompt is constructed by string concatenation with user input. An attacker
+      can inject instructions that override the system prompt (prompt injection).
+      Use a structured prompt format (system / user separation) and sanitize
+      control tokens before substitution.
+    severity: WARNING
+    languages: [python, javascript, typescript]
+    metadata:
+      cwe: "CWE-94"
+      category: "llm.prompt-injection"
+
+  - id: llm-safety.untrusted-tool-response-used
+    pattern: |
+      $RESULT = $TOOL_CALL.execute()
+      ...
+      $CLIENT.messages.create(..., messages=[..., $RESULT, ...])
+    message: >-
+      Tool-use response fed back into the LLM without validation. A malicious
+      tool can inject instructions that the LLM then follows. Strip / escape
+      control sequences or only pass tool results through a schema validator.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-94"
+      category: "llm.tool-use"
+
+  - id: llm-safety.insecure-model-download
+    pattern-either:
+      - pattern: |
+          urllib.request.urlretrieve("http://...", $DEST)
+      - pattern: |
+          requests.get("http://...", ...)
+    pattern-not: |
+      urllib.request.urlretrieve("https://...", $DEST)
+    message: >-
+      Model or weight file downloaded over HTTP. An attacker on-path can serve
+      a modified model. Use HTTPS and verify the downloaded artifact's hash
+      against a trusted manifest.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-319"
+      category: "llm.supply-chain"

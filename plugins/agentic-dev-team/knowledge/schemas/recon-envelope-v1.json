@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-dev-team.local/schemas/recon-envelope-v1.json",
+  "title": "RECON envelope v1.0",
+  "description": "Finalized RECON envelope produced by the codebase-recon agent. Supersedes the v0.1 placeholder at evals/codebase-recon/expected-schema.json once the consumer plugin (agentic-security-review) loads. See plugins/agentic-dev-team/knowledge/security-primitives-contract.md for context.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "repo",
+    "entry_points",
+    "languages",
+    "dependencies",
+    "architecture",
+    "security_surface",
+    "git_history"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "repo": {
+      "type": "object",
+      "required": ["name", "root", "package_manager"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "root": { "type": "string" },
+        "package_manager": {
+          "type": "string",
+          "enum": ["npm", "pnpm", "yarn", "pip", "poetry", "pipenv", "go-modules", "maven", "gradle", "cargo", "mixed", "unknown"]
+        },
+        "monorepo": { "type": "boolean" },
+        "workspaces": { "type": "array", "items": { "type": "string" } },
+        "vcs": {
+          "type": "object",
+          "description": "Added in v1.0. Distinguishes git/mercurial/none.",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "type": "string", "enum": ["git", "mercurial", "none"] },
+            "remote_host": { "type": ["string", "null"] },
+            "default_branch": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "entry_points": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "kind", "rationale"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "kind": { "type": "string", "enum": ["cli", "http-server", "worker", "lambda", "cron", "test-runner", "build-tool", "module-index", "other"] },
+          "rationale": { "type": "string" },
+          "language": { "type": "string" }
+        }
+      }
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "file_count"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "file_count": { "type": "integer", "minimum": 1 },
+          "dominant_framework": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "web": { "type": "array", "items": { "type": "string" } },
+        "data": { "type": "array", "items": { "type": "string" } },
+        "crypto": { "type": "array", "items": { "type": "string" } },
+        "auth": { "type": "array", "items": { "type": "string" } },
+        "messaging": { "type": "array", "items": { "type": "string" } },
+        "ml": { "type": "array", "items": { "type": "string" } },
+        "other_notable": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "required": ["summary", "layers"],
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string" },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "paths"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "paths": { "type": "array", "items": { "type": "string" } },
+              "purpose": { "type": "string" }
+            }
+          }
+        },
+        "notable_anti_patterns": {
+          "type": "array",
+          "description": "Added in v1.0. Open-ended notes from the recon pass (e.g. 'domain imports ORM directly in packages/core/src/user.ts').",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "security_surface": {
+      "type": "object",
+      "required": ["auth_paths", "network_egress", "secrets_referenced", "crypto_calls"],
+      "additionalProperties": false,
+      "properties": {
+        "auth_paths": { "type": "array", "items": { "type": "string" } },
+        "network_egress": { "type": "array", "items": { "type": "string" } },
+        "secrets_referenced": { "type": "array", "items": { "type": "string" } },
+        "crypto_calls": { "type": "array", "items": { "type": "string" } },
+        "ml_models_loaded": { "type": "array", "items": { "type": "string" } },
+        "csp_headers": {
+          "type": "array",
+          "description": "Added in v1.0. Files declaring Content-Security-Policy headers (surface discovery only).",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "git_history": {
+      "type": "object",
+      "required": ["branches", "recent_activity", "sensitive_file_history"],
+      "additionalProperties": false,
+      "properties": {
+        "branches": {
+          "type": "object",
+          "required": ["current", "main_count", "feature_count", "names"],
+          "additionalProperties": false,
+          "properties": {
+            "current": { "type": "string" },
+            "main_count": { "type": "integer", "minimum": 0 },
+            "feature_count": { "type": "integer", "minimum": 0 },
+            "names": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "recent_activity": {
+          "type": "object",
+          "required": ["last_commit_date", "commits_last_30d", "authors_last_30d"],
+          "additionalProperties": false,
+          "properties": {
+            "last_commit_date": { "type": "string", "format": "date-time" },
+            "commits_last_30d": { "type": "integer", "minimum": 0 },
+            "authors_last_30d": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "sensitive_file_history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "in_current_tree", "appeared_in_history"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string" },
+              "in_current_tree": { "type": "boolean" },
+              "appeared_in_history": { "type": "boolean" },
+              "first_seen_commit": { "type": ["string", "null"] },
+              "removed_commit": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

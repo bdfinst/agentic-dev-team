@@ -1,0 +1,11 @@
+{
+  "name": "@fixture/api",
+  "version": "0.0.0",
+  "main": "src/server.ts",
+  "dependencies": {
+    "@fixture/core": "workspace:*",
+    "express": "^4.19.0",
+    "jsonwebtoken": "^9.0.0",
+    "node-fetch": "^3.3.2"
+  }
+}

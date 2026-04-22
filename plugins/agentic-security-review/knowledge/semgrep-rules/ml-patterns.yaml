@@ -1,0 +1,81 @@
+#
+# ml-patterns.yaml — semgrep rules for ML-specific anti-patterns.
+#
+# Maintainers (bus-factor minimum 2):
+#   - bdfinst
+#   - unassigned
+#
+# Review cadence: quarterly
+# FP-drift threshold: > 20% false-positive noise on tier-2 suite pauses ruleset
+#
+rules:
+  - id: ml-patterns.insecure-pickle-load
+    pattern-either:
+      - pattern: pickle.load($F)
+      - pattern: pickle.loads($DATA)
+      - pattern: joblib.load($F)
+    message: >-
+      Loading pickle / joblib from untrusted source executes arbitrary code.
+      Prefer safetensors or onnx for model artifacts; validate hash before
+      loading.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-502"
+      category: "ml.model-load"
+
+  - id: ml-patterns.unverified-onnx-load
+    patterns:
+      - pattern: onnx.load($F)
+      - pattern-not-inside: |
+          if $HASHFN($DATA).hexdigest() == $EXPECTED:
+            ...
+      - pattern-not-inside: |
+          if computed == expected_hash:
+            ...
+      - pattern-not-inside: |
+          verify_integrity(...)
+          ...
+          $RESULT = onnx.load(...)
+    message: >-
+      ONNX model loaded without an obvious integrity verification step.
+      Compute SHA-256 against a trusted manifest before load and fail closed
+      on mismatch. Known FP patterns: suppress via ACCEPTED-RISKS.md if your
+      integrity check is in an unusual shape.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-345"
+      category: "ml.integrity"
+
+  - id: ml-patterns.torch-load-untrusted
+    patterns:
+      - pattern: torch.load(...)
+      - pattern-not: torch.load(..., weights_only=True, ...)
+      - pattern-not: torch.load(..., weights_only=True)
+    message: >-
+      torch.load without weights_only=True can execute arbitrary pickle payloads.
+      Set weights_only=True for any untrusted source.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-502"
+      category: "ml.model-load"
+
+  - id: ml-patterns.model-from-url
+    pattern-either:
+      - pattern: |
+          $MODEL = AutoModel.from_pretrained($URL, ...)
+      - pattern: |
+          $MODEL = pipeline($TASK, model=$URL, ...)
+    pattern-not-inside: |
+      if $URL.startswith("$TRUSTED_PREFIX"):
+        ...
+    message: >-
+      Hugging Face model loaded from a URL without domain allowlist. Pin the
+      model revision (revision="sha256...") and restrict to trusted namespaces.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-829"
+      category: "ml.supply-chain"

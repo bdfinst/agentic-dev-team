@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+*.pyo
+harness/redteam/results/
+harness/redteam/memory/

@@ -1,0 +1,385 @@
+# ground-truth.yaml — 25 seeded findings across the 9 reference scan concerns.
+#
+# Each entry is matched by evals/comparative/score.py against the findings
+# emitted by both the opus_repo_scan_test reference and our
+# /security-assessment pipeline. The rule_id_patterns are GLOBS; a finding
+# matches if its rule_id matches any one of the patterns OR the finding's
+# file+line falls within the expected_file + line_tolerance window.
+#
+# Reference-scan mapping:
+#   scan-01 = secrets & credentials
+#   scan-02 = auth & authorization
+#   scan-03 = business-logic / fraud
+#   scan-04 = data-flow / PII / PCI
+#   scan-05 = infrastructure / container
+#   scan-06 = CI/CD pipeline
+#   scan-07 = cryptographic
+#   scan-08 = supply-chain
+#   scan-09 = concurrency / state (none seeded — outside the static-analysis scope
+#             for this fixture; would need multi-threaded fixture files)
+
+expected_findings:
+  # ── scan-01 secrets & credentials ──────────────────────────────────────
+  - id: F001
+    category: secrets
+    reference_concern: scan-01
+    rule_id_patterns:
+      - "gitleaks.secrets.aws-*"
+      - "semgrep.*.hardcoded-*"
+    expected_file: "services/fraud-scoring/config/.env.production"
+    line_range: [2, 3]
+    line_tolerance: 3
+    expected_severity: CRITICAL
+    description: "Hardcoded AWS access key + secret in committed env file"
+
+  - id: F002
+    category: secrets
+    reference_concern: scan-01
+    rule_id_patterns:
+      - "entropy-check.secrets.cross-env-reuse"
+      - "shared-cred-hash-match.*"
+      - "semgrep.*.shared-credential"
+    expected_file: "services/fraud-scoring/config/.env.production"
+    line_range: [6, 6]
+    line_tolerance: 3
+    expected_severity: HIGH
+    also_at:
+      - file: "services/auth-gateway/config/.env.staging"
+        line_range: [3, 3]
+    description: "JWT_SECRET value reused across fraud-scoring and auth-gateway"
+
+  - id: F019
+    category: secrets
+    reference_concern: scan-01
+    rule_id_patterns:
+      - "gitleaks.secrets.slack-*"
+      - "gitleaks.secrets.generic-api-key"
+    expected_file: "services/auth-gateway/config/.env.staging"
+    line_range: [6, 6]
+    line_tolerance: 3
+    expected_severity: HIGH
+    description: "Hardcoded Slack webhook URL"
+
+  # ── scan-02 auth & authorization ───────────────────────────────────────
+  - id: F008
+    category: auth
+    reference_concern: scan-02
+    rule_id_patterns:
+      - "semgrep.*.unauthenticated-endpoint"
+      - "semgrep.*.missing-auth*"
+      - "business-logic.fraud.*"
+    expected_file: "services/fraud-scoring/src/server.py"
+    line_range: [20, 22]
+    line_tolerance: 5
+    expected_severity: HIGH
+    description: "POST /admin/reload-model has no auth check"
+
+  - id: F009
+    category: auth
+    reference_concern: scan-02
+    rule_id_patterns:
+      - "semgrep.*.unauthenticated-endpoint"
+      - "semgrep.*.exposed-actuator"
+    expected_file: "services/fraud-scoring/src/server.py"
+    line_range: [28, 30]
+    line_tolerance: 5
+    expected_severity: MEDIUM
+    description: "GET /actuator/heap exposes runtime internals without auth"
+
+  - id: F021
+    category: auth
+    reference_concern: scan-02
+    rule_id_patterns:
+      - "semgrep.*.unauthenticated-endpoint"
+      - "semgrep.*.missing-auth*"
+    expected_file: "services/auth-gateway/src/routes/admin.ts"
+    line_range: [8, 10]
+    line_tolerance: 5
+    expected_severity: HIGH
+    description: "POST /admin/flush-cache has no auth middleware"
+
+  - id: F022
+    category: auth
+    reference_concern: scan-02
+    rule_id_patterns:
+      - "semgrep.*.hardcoded-credentials"
+      - "semgrep.*.hardcoded-jwt-secret"
+    expected_file: "services/auth-gateway/src/routes/admin.ts"
+    line_range: [14, 16]
+    line_tolerance: 5
+    expected_severity: HIGH
+    description: "JWT signed with hardcoded fallback secret"
+
+  # ── scan-03 business-logic / fraud ────────────────────────────────────
+  - id: F010
+    category: business-logic
+    reference_concern: scan-03
+    rule_id_patterns:
+      - "fraud-domain.fail-open*"
+      - "business-logic.fraud.fail-open*"
+      - "semgrep.fraud-domain.fail-open-scoring"
+    expected_file: "services/fraud-scoring/src/server.py"
+    line_range: [38, 42]
+    line_tolerance: 5
+    expected_severity: CRITICAL
+    description: "Fail-open: exception returns allow + score 0.0"
+
+  - id: F012
+    category: business-logic
+    reference_concern: scan-03
+    rule_id_patterns:
+      - "fraud-domain.emulation-mode*"
+      - "business-logic.fraud.emulation*"
+      - "semgrep.fraud-domain.emulation-mode-bypass"
+    expected_file: "services/fraud-scoring/src/scorer.py"
+    line_range: [17, 19]
+    line_tolerance: 5
+    expected_severity: HIGH
+    description: "EMULATION_MODE env var short-circuits production scoring"
+
+  - id: F013
+    category: business-logic
+    reference_concern: scan-03
+    rule_id_patterns:
+      - "fraud-domain.client-controlled-aggregate*"
+      - "business-logic.fraud.feature-poisoning"
+      - "semgrep.fraud-domain.client-controlled-aggregate-feature"
+    expected_file: "services/fraud-scoring/src/features.py"
+    line_range: [18, 18]
+    line_tolerance: 5
+    expected_severity: HIGH
+    description: "velocity_24h feature sourced from request body"
+
+  - id: F014
+    category: business-logic
+    reference_concern: scan-03
+    rule_id_patterns:
+      - "fraud-domain.client-controlled-aggregate*"
+      - "business-logic.fraud.feature-poisoning"
+    expected_file: "services/fraud-scoring/src/features.py"
+    line_range: [21, 21]
+    line_tolerance: 5
+    expected_severity: HIGH
+    description: "count_last_1h feature sourced from request body"
+
+  # ── scan-04 PII / PCI ──────────────────────────────────────────────────
+  - id: F015
+    category: pii
+    reference_concern: scan-04
+    rule_id_patterns:
+      - "semgrep.*.pii-log*"
+      - "semgrep.*.pan-at-log*"
+      - "business-logic.fraud.tokenization-skip*"
+    expected_file: "services/fraud-scoring/src/logging_config.py"
+    line_range: [14, 16]
+    line_tolerance: 5
+    expected_severity: CRITICAL
+    description: "log.debug emits raw PAN"
+
+  - id: F020
+    category: pii
+    reference_concern: scan-04
+    rule_id_patterns:
+      - "semgrep.*.pii-flow*"
+      - "business-logic.*"
+    expected_file: "services/auth-gateway/src/server.ts"
+    line_range: [18, 22]
+    line_tolerance: 5
+    expected_severity: MEDIUM
+    description: "User-controlled body forwarded to fraud-scoring and result echoed back"
+
+  # ── scan-05 infrastructure / container ────────────────────────────────
+  - id: F006
+    category: infrastructure
+    reference_concern: scan-05
+    rule_id_patterns:
+      - "hadolint.dockerfile.dl3002"
+      - "trivy.iac.ds002"
+      - "semgrep.dockerfile.root-user"
+    expected_file: "services/fraud-scoring/Dockerfile"
+    line_range: [11, 14]
+    line_tolerance: 5
+    expected_severity: HIGH
+    description: "Final stage runs as root (no USER directive); also applies to auth-gateway/Dockerfile"
+
+  - id: F007
+    category: infrastructure
+    reference_concern: scan-05
+    rule_id_patterns:
+      - "hadolint.dockerfile.dl3007"
+      - "trivy.iac.*"
+      - "semgrep.dockerfile.unpinned-image"
+    expected_file: "services/fraud-scoring/Dockerfile"
+    line_range: [10, 10]
+    line_tolerance: 3
+    expected_severity: MEDIUM
+    description: "Unpinned base image python:3.10-slim (no @sha256 digest)"
+
+  # ── scan-06 CI/CD ──────────────────────────────────────────────────────
+  - id: F023
+    category: cicd
+    reference_concern: scan-06
+    rule_id_patterns:
+      - "actionlint.workflows.*"
+      - "semgrep.*.printenv-leak"
+    expected_file: ".github/workflows/ci.yml"
+    line_range: [15, 17]
+    line_tolerance: 5
+    expected_severity: CRITICAL
+    description: "printenv in CI leaks all env vars (including secrets)"
+
+  - id: F024
+    category: cicd
+    reference_concern: scan-06
+    rule_id_patterns:
+      - "actionlint.workflows.*"
+      - "semgrep.*.continue-on-error-misuse"
+    expected_file: ".github/workflows/ci.yml"
+    line_range: [18, 21]
+    line_tolerance: 5
+    expected_severity: HIGH
+    description: "continue-on-error on a security-scanning step — failures hidden"
+
+  - id: F025
+    category: cicd
+    reference_concern: scan-06
+    rule_id_patterns:
+      - "actionlint.workflows.*"
+      - "semgrep.*.excessive-permissions"
+    expected_file: ".github/workflows/ci.yml"
+    line_range: [26, 30]
+    line_tolerance: 5
+    expected_severity: MEDIUM
+    description: "Excessive write permissions in deploy job"
+
+  # ── scan-07 cryptographic ──────────────────────────────────────────────
+  - id: F003
+    category: crypto
+    reference_concern: scan-07
+    rule_id_patterns:
+      - "semgrep.crypto-anti-patterns.node-tls-reject-unauthorized"
+      - "semgrep.*.tls-disabled"
+    expected_file: "services/fraud-scoring/config/.env.production"
+    line_range: [9, 9]
+    line_tolerance: 3
+    expected_severity: CRITICAL
+    also_at:
+      - file: "services/auth-gateway/src/server.ts"
+        line_range: [9, 9]
+    description: "NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS verification"
+
+  - id: F005
+    category: crypto
+    reference_concern: scan-07
+    rule_id_patterns:
+      - "semgrep.crypto-anti-patterns.pip-trusted-host*"
+      - "semgrep.*.insecure-pip"
+    expected_file: "services/fraud-scoring/Dockerfile"
+    line_range: [5, 6]
+    line_tolerance: 3
+    expected_severity: HIGH
+    description: "pip --trusted-host * disables PyPI cert verification"
+
+  - id: F016
+    category: crypto
+    reference_concern: scan-07
+    rule_id_patterns:
+      - "semgrep.crypto-anti-patterns.md5-for-integrity"
+      - "semgrep.*.weak-hash"
+    expected_file: "services/fraud-scoring/src/crypto_utils.py"
+    line_range: [11, 11]
+    line_tolerance: 3
+    expected_severity: MEDIUM
+    description: "MD5 used for integrity check"
+
+  - id: F017
+    category: crypto
+    reference_concern: scan-07
+    rule_id_patterns:
+      - "semgrep.crypto-anti-patterns.python-verify-false"
+      - "semgrep.*.insecure-tls"
+    expected_file: "services/fraud-scoring/src/crypto_utils.py"
+    line_range: [16, 16]
+    line_tolerance: 3
+    expected_severity: HIGH
+    description: "httpx.get with verify=False"
+
+  - id: F018
+    category: crypto
+    reference_concern: scan-07
+    rule_id_patterns:
+      - "semgrep.crypto-anti-patterns.non-aead-cipher"
+      - "semgrep.*.weak-cipher"
+    expected_file: "services/fraud-scoring/src/crypto_utils.py"
+    line_range: [21, 22]
+    line_tolerance: 3
+    expected_severity: HIGH
+    description: "AES-CBC without HMAC (non-AEAD cipher)"
+
+  # ── scan-08 supply-chain ───────────────────────────────────────────────
+  - id: F004a
+    category: supply-chain
+    reference_concern: scan-08
+    rule_id_patterns:
+      - "semgrep.*.unpinned-dependency"
+      - "depcheck.*"
+      - "deptry.*"
+    expected_file: "services/fraud-scoring/requirements.txt"
+    line_range: [2, 7]
+    line_tolerance: 10
+    expected_severity: MEDIUM
+    description: "Unpinned Python dependencies"
+
+  - id: F004b
+    category: supply-chain
+    reference_concern: scan-08
+    rule_id_patterns:
+      - "semgrep.*.unpinned-dependency"
+      - "depcheck.*"
+    expected_file: "services/auth-gateway/package.json"
+    line_range: [10, 20]
+    line_tolerance: 20
+    expected_severity: MEDIUM
+    description: "Unpinned npm dependencies (^ ranges)"
+
+  # ── ML-specific ────────────────────────────────────────────────────────
+  - id: F011
+    category: ml
+    reference_concern: scan-03   # reference treats ML as part of fraud/business
+    rule_id_patterns:
+      - "semgrep.ml-patterns.unverified-onnx-load"
+      - "model-hash-verify.ml.*"
+    expected_file: "services/fraud-scoring/src/scorer.py"
+    line_range: [14, 15]
+    line_tolerance: 5
+    expected_severity: HIGH
+    description: "onnx.load without integrity check; sidecar .sha256 is wrong"
+
+# ── Expected suppressions (both systems should suppress these) ────────
+expected_suppressions:
+  - id: S001
+    reason: "test-fixture-credentials rule in ACCEPTED-RISKS.md / business_logic.md"
+    expected_file: "services/fraud-scoring/tests/test_scorer.py"
+    line_range: [5, 8]
+    rule_id_patterns:
+      - "gitleaks.secrets.*"
+      - "semgrep.*.hardcoded-*"
+    description: "Test-only credentials — should NOT appear in final report"
+
+  - id: S002
+    reason: "multistage-dockerfile-root-in-builder rule"
+    expected_file: "services/fraud-scoring/Dockerfile"
+    line_range: [2, 2]
+    rule_id_patterns:
+      - "hadolint.dockerfile.dl3002"
+      - "trivy.iac.ds-0002"
+      - "semgrep.dockerfile.root-user*"
+    description: "Root user in builder stage (FROM python:3.10 AS builder) is accepted; final stage finding F006 must remain"
+
+# ── Severity mapping (for score.py) ───────────────────────────────────
+severity_ranks:
+  CRITICAL: 4
+  HIGH: 3
+  MEDIUM: 2
+  LOW: 1
+  INFO: 0

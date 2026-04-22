@@ -1,0 +1,49 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Edit",
+      "Write",
+      "Read",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "Agent"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(git push --force*)"
+    ]
+  },
+  "hooks": {
+    "_comment": "Hooks default ON in this plugin (see CLAUDE.md § 'Hooks default ON'). static-scan-on-edit.sh is populated by P2 Step 7. redteam-guard.sh blocks direct orchestrator invocation without REDTEAM_AUTHORIZED=1.",
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/redteam-guard.sh" }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/agent-dispatch-log.sh" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/static-scan-on-edit.sh" }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/agent-dispatch-log.sh" }
+        ]
+      }
+    ]
+  }
+}

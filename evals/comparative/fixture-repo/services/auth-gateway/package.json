@@ -1,0 +1,22 @@
+{
+  "name": "@fixture/auth-gateway",
+  "version": "0.0.0",
+  "private": true,
+  "main": "src/server.ts",
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "build": "tsc"
+  },
+  "_SEED": "F004 (scan-08) — unpinned dependencies across the whole block (no exact versions)",
+  "dependencies": {
+    "express": "^4.19.0",
+    "jsonwebtoken": "^9.0.0",
+    "node-fetch": "^3.3.0",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/express": "^4.17.0",
+    "ts-node": "^10.9.0"
+  }
+}

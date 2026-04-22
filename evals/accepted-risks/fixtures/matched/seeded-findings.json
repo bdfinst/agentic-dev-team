@@ -1,0 +1,36 @@
+{
+  "_comment": "Seeded unified-finding-envelope entries for this fixture. Feed these to the review pipeline in place of a real static-analysis run when running the eval. See evals/accepted-risks/rubric.md.",
+  "findings": [
+    {
+      "rule_id": "semgrep.python.hardcoded-credentials-test",
+      "file": "tests/auth_test.py",
+      "line": 14,
+      "severity": "warning",
+      "message": "Hardcoded credential literal in auth_test fixture",
+      "metadata": { "source": "semgrep", "confidence": "high" }
+    },
+    {
+      "rule_id": "semgrep.python.sql-injection",
+      "file": "src/db/users.py",
+      "line": 87,
+      "severity": "error",
+      "message": "String concatenation into SQL query",
+      "metadata": { "source": "semgrep", "confidence": "high" }
+    },
+    {
+      "rule_id": "semgrep.python.insecure-random",
+      "file": "src/util/tokens.py",
+      "line": 22,
+      "severity": "warning",
+      "message": "random.random() used for token; use secrets module",
+      "metadata": { "source": "semgrep", "confidence": "high" }
+    }
+  ],
+  "expected_suppressions": [
+    {
+      "finding_index": 0,
+      "rule_id_matched": "a-known-false-positive-in-tests"
+    }
+  ],
+  "expected_unsuppressed_count": 2
+}

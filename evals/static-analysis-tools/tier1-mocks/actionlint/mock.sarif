@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "actionlint",
+          "version": "1.7.1",
+          "informationUri": "https://github.com/rhysd/actionlint",
+          "rules": [
+            {
+              "id": "shellcheck",
+              "shortDescription": { "text": "shellcheck findings in workflow run-step shell scripts" }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "shellcheck",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": { "text": "SC2086: Double quote to prevent globbing and word splitting." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": ".github/workflows/deploy.yml" },
+                "region": { "startLine": 24, "startColumn": 9 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

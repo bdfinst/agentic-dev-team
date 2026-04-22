@@ -1,0 +1,13 @@
+[
+  {
+    "rule_id": "trivy.iac.ds002",
+    "file": "Dockerfile",
+    "line": 1,
+    "severity": "warning",
+    "message": "Specify USER in the Dockerfile; running as root increases blast radius of any compromise.",
+    "metadata": {
+      "source": "trivy",
+      "confidence": "medium"
+    }
+  }
+]
