@@ -423,14 +423,42 @@ EOF
 fi
 
 # ── Phase 1c — ACCEPTED-RISKS suppression gate (deterministic) ──────────────
+#
+# ACCEPTED-RISKS.md commonly lives at a monorepo root rather than each
+# service subdirectory. For each target, walk upward (target → parent →
+# grandparent …) until ACCEPTED-RISKS.md is found or the filesystem root
+# is reached. That directory is passed as the "target-root" so path globs
+# in the rules resolve against the monorepo root.
 
 echo
 echo "[phase 1c] ACCEPTED-RISKS suppression gate (deterministic)"
-# Apply per target repo (rules live at each target's root).
+find_accepted_risks_root() {
+  local dir="$1"
+  while [[ "$dir" != "/" && -n "$dir" ]]; do
+    [[ -f "$dir/ACCEPTED-RISKS.md" ]] && { echo "$dir"; return 0; }
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+# Dedup roots: many targets can share the same ancestor with ACCEPTED-RISKS.md.
+# (bash 3.2 on macOS lacks associative arrays; use a newline-separated string.)
+SEEN_RISKS_ROOTS=""
 for t in "${ABS_TARGETS[@]}"; do
   sub_slug="$(basename "$t" | tr '[:upper:]_' '[:lower:]-')"
-  "$SCRIPT_DIR/apply-accepted-risks.sh" "$t" "$SLUG" "$OUTPUT_DIR" \
-    || echo "  [warn] suppression gate failed for $sub_slug (target=$t)"
+  risks_root="$(find_accepted_risks_root "$t" || true)"
+  if [[ -z "$risks_root" ]]; then
+    echo "  note: no ACCEPTED-RISKS.md on the path from $t upward — skipping"
+    continue
+  fi
+  if [[ $'\n'"$SEEN_RISKS_ROOTS"$'\n' == *$'\n'"$risks_root"$'\n'* ]]; then
+    echo "  note: $risks_root already applied for another target — skipping dup"
+    continue
+  fi
+  SEEN_RISKS_ROOTS="$SEEN_RISKS_ROOTS"$'\n'"$risks_root"
+  echo "  target=$t → ACCEPTED-RISKS.md at $risks_root"
+  "$SCRIPT_DIR/apply-accepted-risks.sh" "$risks_root" "$SLUG" "$OUTPUT_DIR" \
+    || echo "  [warn] suppression gate failed for $sub_slug (risks-root=$risks_root)"
 done
 
 # ── Phase 2 — fp-reduction LLM ──────────────────────────────────────────────

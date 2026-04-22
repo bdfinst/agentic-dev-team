@@ -361,12 +361,19 @@ expected_suppressions:
     reason: "test-fixture-credentials rule in ACCEPTED-RISKS.md / business_logic.md"
     expected_file: "services/fraud-scoring/tests/test_scorer.py"
     line_range: [5, 8]
+    rule_id_patterns:
+      - "gitleaks.secrets.*"
+      - "semgrep.*.hardcoded-*"
     description: "Test-only credentials — should NOT appear in final report"
 
   - id: S002
     reason: "multistage-dockerfile-root-in-builder rule"
     expected_file: "services/fraud-scoring/Dockerfile"
     line_range: [2, 2]
+    rule_id_patterns:
+      - "hadolint.dockerfile.dl3002"
+      - "trivy.iac.ds-0002"
+      - "semgrep.dockerfile.root-user*"
     description: "Root user in builder stage (FROM python:3.10 AS builder) is accepted; final stage finding F006 must remain"
 
 # ── Severity mapping (for score.py) ───────────────────────────────────

@@ -15,7 +15,7 @@ rules:
     scope: finding
     broad: false
 
-  - id: multistage-dockerfile-root-in-builder
+  - id: multistage-dockerfile-root-in-builder-hadolint
     rule_id: hadolint.dockerfile.dl3002
     files:
       - "services/*/Dockerfile"
@@ -29,6 +29,24 @@ rules:
     owner: security-team
     scope: finding
     broad: true   # matches on Dockerfile path — both stages — not ideal
+
+  - id: multistage-dockerfile-root-in-builder-trivy
+    rule_id: trivy.iac.ds-0002
+    files:
+      - "services/*/Dockerfile"
+      - "Dockerfile"   # some normalizers emit bare filename; accept both
+    rationale: >
+      Same intent as multistage-dockerfile-root-in-builder-hadolint, but
+      expressed for trivy's equivalent detector. trivy.iac.ds-0002 fires at
+      line 1 when no USER directive is present anywhere in the file;
+      on a multi-stage build with a non-root final stage this is a false
+      positive specific to the builder stage. The final-stage root finding
+      is still surfaced by semgrep.dockerfile.security.missing-user (line
+      19), which is NOT suppressed here.
+    expires: 2026-10-21
+    owner: security-team
+    scope: finding
+    broad: true   # matches on Dockerfile path — not line-range-aware
 ---
 
 # Accepted Risks — comparative-testing fixture

@@ -474,18 +474,33 @@ def _file_matches(expected_path: str, actual_path: str) -> bool:
 def check_suppressions(
     emitted: list[EmittedFinding], expected_suppressions: list[dict]
 ) -> tuple[int, int, list[str]]:
-    """Return (correctly_suppressed, incorrectly_emitted, details)."""
+    """Return (correctly_suppressed, incorrectly_emitted, details).
+
+    A suppression is considered applied iff NO emitted finding falls in the
+    path+line window. When the suppression declares `rule_id_patterns`, the
+    window-match is further narrowed to findings whose rule_id matches at
+    least one pattern — unrelated findings on the same path (e.g. a nearby
+    HEALTHCHECK finding on the same Dockerfile line) no longer falsely
+    count as "not suppressed".
+    """
+    import fnmatch
     correct = 0
     incorrect = 0
     details: list[str] = []
     for supp in expected_suppressions:
         exp_file = supp["expected_file"]
         line_range = tuple(supp["line_range"])
+        patterns = supp.get("rule_id_patterns") or []
+        def _rule_matches(rid: str) -> bool:
+            if not patterns:
+                return True
+            return any(fnmatch.fnmatch(rid, p) for p in patterns)
         emitted_on_suppressed = [
             ef for ef in emitted
             if _file_matches(exp_file, ef.file)
             and ef.line is not None
             and line_range[0] - 2 <= ef.line <= line_range[1] + 2
+            and _rule_matches(ef.rule_id or "")
         ]
         if not emitted_on_suppressed:
             correct += 1
