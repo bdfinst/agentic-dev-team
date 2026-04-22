@@ -14,22 +14,68 @@ Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle 
 
 ## Install
 
+### Prerequisites
+
+**Required:**
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated.
+- The [`agentic-dev-team`](../agentic-dev-team/README.md) plugin — this plugin depends on its primitives contract (`^1.0.0`), codebase-recon agent, and ACCEPTED-RISKS convention.
+- Python ≥ 3.10 — required by the red-team harness.
+- `jq` — JSON parsing in hooks + pipeline glue.
+
+**Tier-1 static-analysis tools (required for `/security-assessment` to produce useful output):**
+
+| Tool | Coverage | Install |
+| --- | --- | --- |
+| `semgrep` | SAST across every scan concern | `pip install semgrep` |
+| `gitleaks` | Secrets / credentials in committed files | `brew install gitleaks` |
+| `trivy` | IaC config + vulnerability DB | `brew install trivy` |
+| `hadolint` | Dockerfile linting | `brew install hadolint` |
+| `actionlint` | GitHub Actions linting | `brew install actionlint` |
+
+**Optional tools** (broader coverage; the pipeline degrades gracefully without them): `checkov`, `bandit`, `gosec`, `bearer`, `osv-scanner`, `grype`, `kube-linter`, `trufflehog`, `detect-secrets`, `deptry`, `kube-score`, `govulncheck`, `pandoc`, `weasyprint`.
+
+### Install the tools
+
+**macOS — one command:**
+
+```bash
+./plugins/agentic-security-review/install-macos.sh           # tier-1 only
+./plugins/agentic-security-review/install-macos.sh --all     # tier-1 + optional + PDF deps
+./plugins/agentic-security-review/install-macos.sh --dry-run # preview commands without running
+```
+
+Re-runnable — each step skips tools that are already present.
+
+**Linux / other platforms:** use the install hints in the table above. All tools ship prebuilt Linux binaries via their GitHub releases or `pip`.
+
+### Install the plugin
+
 ```bash
 # From the marketplace
+claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
 claude plugin install agentic-security-review@bfinster
 
-# From local checkout
+# From a local clone
 claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-review
+```
 
-# Verify prerequisites
+### Verify
+
+```bash
 ./plugins/agentic-security-review/install.sh
 ```
 
-The install check validates:
-1. `agentic-dev-team` is installed with a compatible primitives-contract version (^1.0.0).
-2. Python ≥ 3.10 for the red-team harness.
-3. Tier-1 static-analysis tools (semgrep, gitleaks, trivy, hadolint, actionlint). Absence of any required tool is a hard failure.
-4. Optional Tier 2 / Tier 3 tools. Absence emits warnings only.
+The check validates:
+
+1. `agentic-dev-team` present with primitives-contract `^1.0.0`.
+2. Python ≥ 3.10 on PATH.
+3. Tier-1 tool presence. Absence of any required tool is a hard failure.
+4. Optional tool presence — warnings only.
+
+### Run without installing (zero-install flow)
+
+`scripts/run-assessment-local.sh` runs the full pipeline from the repo checkout. Auto-detects the `claude` CLI and runs the LLM judgment phases when available; degrades to deterministic-only output otherwise. See [`docs/user-guide-security-assessment.md`](../../docs/user-guide-security-assessment.md) for the full runbook.
 
 ## Commands
 

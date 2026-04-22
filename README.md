@@ -57,136 +57,14 @@ For complex tasks where the orchestrator manages the full lifecycle, every non-t
 
 ## Install
 
-### Prerequisites
+This repository ships **two plugins**. Install instructions, tool prerequisites, and verification steps live in each plugin's README:
 
-**Required:**
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
-- `jq` — used by hooks for JSON parsing
-  - macOS: `brew install jq`
-  - Linux: `apt install jq` or `yum install jq`
-- `gh` — [GitHub CLI](https://cli.github.com/), used by `/pr` and `/triage` for creating PRs and issues
-  - macOS: `brew install gh`
-  - Linux: see [GitHub CLI install docs](https://github.com/cli/cli#installation)
-  - Then authenticate: `gh auth login`
-
-**Optional — by feature:**
-
-| Tool(s) | Required for | Install |
+| Plugin | Purpose | Install guide |
 | --- | --- | --- |
-| `semgrep` | `/semgrep-analyze`, static analysis pre-pass in `/code-review` | See below |
-| `playwright` | `/browse` (browser-based QA) | See below |
-| `hadolint`, `trivy`, `grype` | `/docker-image-audit` | See below |
+| **agentic-dev-team** | Full persona-driven development team — orchestrator, 12 team agents, 19 review agents, 31 skills, 56 commands | [plugins/agentic-dev-team/README.md](plugins/agentic-dev-team/README.md) |
+| **agentic-security-review** | Deep security assessment + adversarial ML red-team harness. Companion to agentic-dev-team. | [plugins/agentic-security-review/README.md](plugins/agentic-security-review/README.md) |
 
-**Optional — auto-formatting (detected per language):**
-
-The `post-format` hook auto-formats files on every edit. It detects available formatters and degrades silently if none are installed. Install the ones relevant to your stack:
-
-| Tool | Language | Install |
-| --- | --- | --- |
-| `prettier` | JS/TS/CSS/HTML/JSON | `npm install -D prettier` (project-local) |
-| `eslint` | JS/TS | `npm install -D eslint` (project-local) |
-| `ruff` | Python | `pip install ruff` or `brew install ruff` |
-| `black` | Python (fallback if ruff absent) | `pip install black` |
-| `gofmt` | Go | Included with Go toolchain |
-| `rustfmt` | Rust | `rustup component add rustfmt` |
-| `rubocop` | Ruby | `gem install rubocop` (or add to Gemfile) |
-| `google-java-format` | Java | `brew install google-java-format` or [GitHub releases](https://github.com/google/google-java-format/releases) |
-| `ktlint` | Kotlin | `brew install ktlint` or [GitHub releases](https://github.com/pinterest/ktlint/releases) |
-| `dotnet format` | C# | Included with .NET SDK 6+ |
-
-**Optional — quality gates in `/pr` (detected per stack):**
-
-`/pr` auto-detects test runners, type checkers, and linters based on project manifests. No configuration needed — if the tool is installed and the project has the relevant config file, it runs automatically.
-
-| Tool | Detected via | Install |
-| --- | --- | --- |
-| `tsc` | `tsconfig.json` | `npm install -D typescript` (project-local) |
-| `mypy` | `mypy.ini` or `pyproject.toml` [mypy] | `pip install mypy` |
-| `pylint` | `which pylint` | `pip install pylint` |
-| `golangci-lint` | `which golangci-lint` | `brew install golangci-lint` or [install docs](https://golangci-lint.run/welcome/install/) |
-
----
-
-#### Installing semgrep
-
-```bash
-pip install semgrep
-# or: brew install semgrep
-# or: pipx install semgrep
-```
-
-#### Installing Playwright
-
-```bash
-npx playwright install chromium
-```
-
-Requires Node.js. Used by `/browse` for browser-based visual QA.
-
-#### Installing hadolint, trivy, grype
-
-```bash
-# macOS (Homebrew)
-brew install hadolint trivy grype
-
-# Linux
-# hadolint
-curl -sL -o /usr/local/bin/hadolint \
-  "https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64"
-chmod +x /usr/local/bin/hadolint
-
-# trivy
-curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
-# grype
-curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-```
-
-All three also run as Docker containers if you prefer not to install locally — see the [docker-image-audit skill docs](plugins/agentic-dev-team/skills/docker-image-audit/SKILL.md) for details.
-
-### Plugin install (recommended)
-
-Add the marketplace source, then install the plugin. The marketplace resolves the plugin location automatically from `marketplace.json`.
-
-**From GitHub:**
-
-```bash
-claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install agentic-dev-team@bfinster
-```
-
-**From a local clone:**
-
-```bash
-claude plugin marketplace add /path/to/agentic-dev-team
-claude plugin install agentic-dev-team@bfinster
-```
-
-By default the marketplace is registered at user scope (available in all projects). To scope it to a single project:
-
-```bash
-claude plugin marketplace add --scope project https://github.com/bdfinst/agentic-dev-team
-claude plugin install --scope project agentic-dev-team@bfinster
-```
-
-### Upgrading from a previous install
-
-If you previously installed the plugin before the directory restructure (pre-v2.1), remove and re-add the marketplace source:
-
-```bash
-claude plugin marketplace remove agentic-dev-team
-claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install agentic-dev-team@bfinster
-```
-
-### Verify
-
-After starting Claude Code, confirm the system is working:
-
-```
-> What agents are available on this team?
-```
+**First time here?** Start with `agentic-dev-team`. Add `agentic-security-review` only if you run full `/security-assessment` pipelines against target repos.
 
 ## What's Included
 
@@ -198,23 +76,32 @@ The plugin ships with **12 team agents**, **19 review agents**, **31 skills**, *
 ## Repository Structure
 
 ```text
-.claude-plugin/marketplace.json     # Marketplace catalog
-plugins/agentic-dev-team/           # Plugin source (ships to users)
-├── .claude-plugin/plugin.json      # Plugin manifest + version
-├── agents/                         # Team agents (12) + review agents (19)
-├── commands/                       # Slash commands
-├── skills/                         # Reusable knowledge modules (31 skills)
-├── hooks/                          # PreToolUse guards + PostToolUse advisory hooks
-├── knowledge/                      # Progressive disclosure reference files
-├── templates/                      # Language-specific agent templates
-├── settings.json                   # Hook registrations
-├── install.sh                      # Prerequisite check
-└── CLAUDE.md                       # Orchestration pipeline config (auto-loaded)
+.claude-plugin/marketplace.json         # Marketplace catalog (points at both plugins)
 
-docs/                               # Dev documentation (not shipped)
-plans/                              # Implementation plans (not shipped)
-evals/                              # Agent eval fixtures (not shipped)
-reports/                            # Review reports (not shipped)
+plugins/agentic-dev-team/                # Plugin source (ships to users)
+├── README.md                            # Install + prerequisites for this plugin
+├── .claude-plugin/plugin.json           # Plugin manifest + version
+├── agents/                              # Team agents (12) + review agents (19)
+├── commands/                            # Slash commands
+├── skills/                              # Reusable knowledge modules (31 skills)
+├── hooks/                               # PreToolUse guards + PostToolUse advisory hooks
+├── knowledge/                           # Progressive disclosure reference files
+├── templates/                           # Language-specific agent templates
+├── settings.json                        # Hook registrations
+├── install.sh                           # Prerequisite check
+└── CLAUDE.md                            # Orchestration pipeline config (auto-loaded)
+
+plugins/agentic-security-review/         # Companion plugin — /security-assessment
+├── README.md                            # Install + prerequisites for this plugin
+├── install-macos.sh                     # One-command tool installer (macOS)
+├── install.sh                           # Prerequisite verifier
+├── agents/ commands/ skills/ harness/   # Assessment + red-team pipeline
+└── CLAUDE.md                            # Pipeline config (auto-loaded)
+
+docs/                                    # Dev documentation (not shipped)
+plans/                                   # Implementation plans (not shipped)
+evals/                                   # Agent eval fixtures (not shipped)
+scripts/                                 # Zero-install assessment runner + helpers
 ```
 
 ---
