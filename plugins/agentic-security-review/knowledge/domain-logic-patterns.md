@@ -118,6 +118,26 @@ deduplicate|replay_protection|already_seen
 
 **Exploit scenario**: attacker submits the same fraud transaction body repeatedly. Early submissions might score as fraud; later ones might score as legitimate once timing-dependent features reset. Attacker retries until a low score is returned, then that becomes the recorded decision.
 
+## 8. Training data inference from metrics/logs
+
+Any endpoint or logging statement that returns or records per-request model confidence scores, feature importances, SHAP values, or per-feature contribution metrics gives an attacker a side channel to infer training data or decision-boundary structure. A single bucketed score is relatively low-risk; per-feature SHAP values, precise confidence floats, or feature-importance vectors are high-risk because they reveal how the model reasons about each input.
+
+**Grep cues:**
+```
+log\.(debug|info)\(.*\b(score|confidence|shap|importance|feature_weight)\b
+response.*\b(confidence|shap_values|feature_importances|contributions)\b
+json\(.*\bshap\b|jsonify\(.*\bshap\b
+metrics\.(gauge|counter|histogram)\(.*\b(score|prediction|confidence)\b
+```
+
+**Confirming context**: the response body or log line contains per-request model internals (not just the final allow/deny decision). A single score float is lower risk; SHAP values, feature-importance dicts, per-feature contribution arrays, and raw confidence floats are high risk. Metrics emissions keyed by per-request score values are also exploitable if the metrics endpoint is externally readable (e.g. Prometheus scrape without auth).
+
+**Exploit scenario**: attacker queries the model 10,000 times with systematically varied inputs (single-feature perturbations, boundary probes) and correlates the returned SHAP values or confidence floats to reconstruct decision rules, recover feature thresholds, or infer training-data distributions. The harvested surrogate model then lets them craft evasion inputs offline at zero cost.
+
+**Remediation pointer**: responses must expose only the final decision (and optionally a coarsely bucketed score, e.g. `low|medium|high`, never a precise float). Confidence floats and SHAP values must never appear in external API responses. Log at INFO or above with PII and model-internal fields masked; route per-feature diagnostics to an internal-only metrics path guarded by network policy.
+
+**Reference**: OWASP ML-Top-10 ML06 (AI/ML-specific information disclosure). CWE-200 Exposure of Sensitive Information to an Unauthorized Actor.
+
 ## Ordering
 
 The `business-logic-domain-review` agent walks files in order of likelihood of hosting these patterns:

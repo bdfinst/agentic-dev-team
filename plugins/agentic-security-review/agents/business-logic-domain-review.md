@@ -1,6 +1,6 @@
 ---
 name: business-logic-domain-review
-description: Domain-specific business-logic review focused on ML/fraud service patterns. Detects fail-open paths, score manipulation, emulation-mode bypass, model-endpoint confusion, tokenization skip under flag, feature poisoning, and missing replay idempotency. Produces unified findings at the domain-logic level that static tools cannot see.
+description: Domain-specific business-logic review focused on ML/fraud service patterns. Detects fail-open paths, score manipulation, emulation-mode bypass, model-endpoint confusion, tokenization skip under flag, feature poisoning, missing replay idempotency, messaging attack surface (NATS/Kafka), and training-data inference via metrics/log disclosure. Produces unified findings at the domain-logic level that static tools cannot see.
 tools: Read, Grep, Glob
 model: opus
 ---
@@ -29,13 +29,13 @@ Target domain: ML-backed fraud-scoring services (ACI-Worldwide-style). The patte
 Unified findings per the schema at `plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json`. Written to `memory/business-logic-findings-<slug>.json`.
 
 Every finding MUST include:
-- `rule_id` in the form `business-logic.fraud.<category>` (e.g. `business-logic.fraud.fail-open-scoring`)
+- `rule_id` in the form `business-logic.fraud.<category>` (e.g. `business-logic.fraud.fail-open-scoring`, `business-logic.fraud.messaging-subject-injection`, `business-logic.fraud.messaging-subscriber-poisoning`, `business-logic.fraud.training-data-inference`)
 - `metadata.source: "business-logic-domain-review"`
 - `metadata.confidence: high | medium`
 - `metadata.exploitability` when reasoning supports it
 - `cwe` when applicable (CWE-754 Improper Check for Unusual or Exceptional Conditions, CWE-841 Improper Enforcement of Behavioral Workflow, CWE-840 Business Logic Errors, etc.)
 
-## Seven detection patterns
+## Nine detection patterns
 
 ### 1. Fail-open scoring
 
@@ -107,6 +107,40 @@ Detection cues:
 - No idempotency key check at the scoring endpoint
 - No request deduplication by transaction ID
 - A cached score that can be retrieved but is not keyed by (transaction_id, timestamp)
+
+### 8. Messaging attack surface
+
+Scoring and feature-lookup services increasingly sit behind a message bus (NATS, Kafka, AMQP). The bus introduces three distinct business-logic failure modes the static rulesets only partially cover.
+
+**NATS subject injection** — the scoring or feature-lookup service constructs a NATS subject from user-supplied data (transaction ID, client ID, model name). Attacker-controlled subject strings can reach internal subjects, bypass subject-level ACLs, or fan-out to unintended consumers.
+
+Detection cues: f-string or string concatenation inside `publish()` / `subscribe()` arguments where the interpolated variable comes from `request.body`, `request.params`, or `request.headers`. CWE-74.
+
+Example bad pattern (Python):
+```python
+nc.publish(f"score.{request.json()['client_id']}", payload)
+```
+
+**Subscriber poisoning** — a NATS or Kafka subscriber that writes received message data directly to a database, cache, or scoring feature store without schema validation. Attackers who can publish to the subject (via NATS subject injection, a leaked credential, or a no-auth broker) inject fake records that later contaminate scoring.
+
+Detection cues: `subscribe()` callbacks (or Kafka consumer loops) that call `db.insert()`, `cache.set()`, `collection.insert_one()`, or similar persistence primitives with the raw message payload object. No pydantic / zod / JSON-schema validation step in the callback body. CWE-20.
+
+Exploit scenario: attacker publishes a crafted message to an unauthenticated NATS subject like `txn.ingest.v1`; the subscriber writes the attacker's record into MongoDB as if it were a real transaction, and the next fraud-scoring run treats it as ground truth.
+
+**Missing replay protection** — a message handler that processes a payload and scores / persists without an idempotency check. See pattern 7 grep cues in `domain-logic-patterns.md`; the same `already_seen` / `deduplicate` / `idempotency_key` checks apply. Note: messaging systems deliver at-least-once by default, so this is a default-dangerous shape — unlike the REST idempotency pattern where clients must explicitly replay, messaging replay happens during ordinary broker retries.
+
+### 9. Training data inference (metrics/log disclosure)
+
+What it catches: API responses or log statements that expose model internals — SHAP values, feature importances, confidence floats, or per-feature contribution arrays — giving an attacker a side channel to infer training-data distributions or reconstruct decision-boundary structure.
+
+Detection cues:
+- Response-building code (`return jsonify(...)`, `response.json = {...}`, `ctx.body = {...}`) that includes keys like `shap`, `shap_values`, `feature_importance`, `feature_importances`, `contributions`, `confidence`.
+- `log.debug(...)` / `log.info(...)` calls whose message argument contains per-request scoring internals (`score`, `confidence`, `shap`, `importance`, `feature_weight`).
+- Metrics emissions (`metrics.gauge(...)`, `metrics.histogram(...)`, `metrics.counter(...)`) keyed by per-request score, prediction, or confidence values — especially problematic if the metrics scrape endpoint is externally reachable.
+
+Rule_id: `business-logic.fraud.training-data-inference`
+CWE: CWE-200 (Exposure of Sensitive Information to an Unauthorized Actor)
+Confidence: `medium` (requires confirming the value is externally visible — returned in an API response, logged at a shipped level, or emitted on an externally scrapeable metrics endpoint — not merely computed and held internally).
 
 ## Procedure
 

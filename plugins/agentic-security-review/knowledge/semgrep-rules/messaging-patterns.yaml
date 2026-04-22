@@ -1,0 +1,365 @@
+#
+# messaging-patterns.yaml — messaging / event-bus attack-surface patterns.
+#
+# Covers NATS (primary), Kafka, AMQP, and generic messaging misconfigurations.
+# Complements the business-logic-domain-review agent's "messaging attack
+# surface" section: this catches pattern-visible instances; the agent catches
+# reasoning-required cases (e.g. subscriber poisoning across files, missing
+# auth-check chain).
+#
+# ---
+# Frontmatter (consumed by ruleset-maintenance tooling, ignored by semgrep):
+#   maintainers: [bdfinst, unassigned]
+#   version: 1.0.0
+#   description: see `description` key below
+# ---
+#
+maintainers:
+  - bdfinst
+  - unassigned
+version: 1.0.0
+description: >-
+  Semgrep ruleset for NATS, Kafka, AMQP, and generic messaging misconfigurations.
+  Detects subject injection, no-auth server configs, plaintext credentials,
+  unauthenticated subscriber registration for financial subjects, Kafka
+  PLAINTEXT producer defaults, and missing idempotency key checks in message
+  handlers.
+
+rules:
+  # ------------------------------------------------------------------
+  # 1. NATS subject injection
+  # ------------------------------------------------------------------
+  - id: messaging.nats.subject-injection
+    pattern-either:
+      # Python f-string subject with request data
+      - pattern: |
+          $NC.publish(f"...{request.$FIELD}...", ...)
+      - pattern: |
+          $NC.publish(f"...{request.json()[...]}...", ...)
+      - pattern: |
+          $NC.publish(f"...{request.body[...]}...", ...)
+      - pattern: |
+          $NC.publish(f"...{request.params[...]}...", ...)
+      - pattern: |
+          $NC.publish(f"...{request.headers[...]}...", ...)
+      - pattern: |
+          $NC.subscribe(f"...{request.$FIELD}...", ...)
+      - pattern: |
+          $NC.subscribe(f"...{request.json()[...]}...", ...)
+      # Python string concatenation subject
+      - pattern: |
+          $NC.publish("..." + request.$FIELD + "...", ...)
+      - pattern: |
+          $NC.publish("..." + request.$FIELD, ...)
+      - pattern: |
+          $NC.subscribe("..." + request.$FIELD + "...", ...)
+      - pattern: |
+          $NC.subscribe("..." + request.$FIELD, ...)
+      # Python .format() subject
+      - pattern: |
+          $NC.publish("...{}...".format(request.$FIELD), ...)
+      - pattern: |
+          $NC.subscribe("...{}...".format(request.$FIELD), ...)
+      # JavaScript/TypeScript template literal subject
+      - pattern: |
+          $NC.publish(`...${req.body.$FIELD}...`, ...)
+      - pattern: |
+          $NC.publish(`...${req.params.$FIELD}...`, ...)
+      - pattern: |
+          $NC.publish(`...${req.headers[...]}...`, ...)
+      - pattern: |
+          $NC.subscribe(`...${req.body.$FIELD}...`, ...)
+      # JavaScript string concatenation subject
+      - pattern: |
+          $NC.publish("..." + req.body.$FIELD + "...", ...)
+      - pattern: |
+          $NC.publish("..." + req.body.$FIELD, ...)
+      - pattern: |
+          $NC.subscribe("..." + req.body.$FIELD, ...)
+    message: >-
+      NATS subject is built from unsanitized request data. An attacker who
+      controls the request field can address arbitrary NATS subjects (including
+      internal / fraud-scoring subjects), bypass ACLs, or fan-out to unintended
+      consumers. Use an allow-list of static subjects, or map the client-supplied
+      identifier through a server-side lookup before composing the subject.
+    severity: ERROR
+    languages: [python, javascript, typescript]
+    metadata:
+      cwe: "CWE-74"
+      category: "messaging.nats.subject-injection"
+      owasp: "A03:2021 - Injection"
+
+  # ------------------------------------------------------------------
+  # 2. NATS no-auth server config
+  # ------------------------------------------------------------------
+  - id: messaging.nats.no-auth-config
+    pattern-either:
+      - pattern-regex: |
+          (?s)^\s*authorization\s*\{\s*\}\s*$
+      - pattern-regex: |
+          (?i)allow_everyone\s*[:=]\s*true
+      - pattern-regex: |
+          (?i)no_auth_user\s*[:=]
+    paths:
+      include:
+        - "*.conf"
+        - "*nats*.cfg"
+        - "nats-server.conf"
+    message: >-
+      NATS server config has no authorization enforced (empty authorization
+      block, allow_everyone:true, or no_auth_user). Any client that can reach
+      the server can publish/subscribe to any subject, including financial and
+      fraud-scoring subjects. Require accounts + users with per-subject
+      publish/subscribe permissions.
+    severity: ERROR
+    languages: [generic]
+    metadata:
+      cwe: "CWE-306"
+      category: "messaging.nats.no-auth"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+
+  # ------------------------------------------------------------------
+  # 3. NATS plaintext / hardcoded credentials
+  # ------------------------------------------------------------------
+  - id: messaging.nats.hardcoded-credentials
+    pattern-either:
+      # Python nats-py client — keyword-argument form
+      - pattern: |
+          nats.connect(..., user="$USER", password="$PASS", ...)
+      - pattern: |
+          nats.connect(..., user="$USER", password="$PASS")
+      - pattern: |
+          await nats.connect(..., user="$USER", password="$PASS", ...)
+      - pattern: |
+          await nats.connect(..., user="$USER", password="$PASS")
+      # Python nats-py client — URL credential form
+      - pattern: |
+          nats.connect("nats://$USER:$PASS@...", ...)
+      - pattern: |
+          nats.connect("nats://$USER:$PASS@...")
+      - pattern: |
+          await nats.connect("nats://$USER:$PASS@...", ...)
+      - pattern: |
+          await nats.connect("nats://$USER:$PASS@...")
+      # JavaScript/TypeScript NATS client — object-literal form
+      - pattern: |
+          NATS.connect({ user: "$USER", pass: "$PASS", ... })
+      - pattern: |
+          NATS.connect({ user: "$USER", pass: "$PASS" })
+      - pattern: |
+          connect({ user: "$USER", pass: "$PASS", ... })
+      - pattern: |
+          nats.connect({ user: "$USER", pass: "$PASS", ... })
+      # Go nats.Connect with UserInfo
+      - pattern: |
+          nats.Connect($URL, nats.UserInfo("$USER", "$PASS"))
+      - pattern: |
+          nats.Connect($URL, nats.UserInfo("$USER", "$PASS"), ...)
+    message: >-
+      NATS credentials hardcoded in source. Anyone with repo / binary access
+      obtains broker credentials. Load via environment variables, a secrets
+      manager, or NATS credential files (nats.UserCredentials, creds=...).
+    severity: ERROR
+    languages: [python, javascript, typescript, go]
+    metadata:
+      cwe: "CWE-798"
+      category: "messaging.nats.hardcoded-credentials"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+
+  # ------------------------------------------------------------------
+  # 4. Unauthenticated subscriber registration on financial subjects
+  # ------------------------------------------------------------------
+  - id: messaging.nats.unauthenticated-subscriber
+    patterns:
+      - pattern-either:
+          - pattern: |
+              def $HANDLER(...):
+                ...
+                $NC.subscribe("$SUBJECT", ...)
+                ...
+          - pattern: |
+              async def $HANDLER(...):
+                ...
+                $NC.subscribe("$SUBJECT", ...)
+                ...
+          - pattern: |
+              def $HANDLER(...):
+                ...
+                nats.subscribe("$SUBJECT", ...)
+                ...
+          - pattern: |
+              async def $HANDLER(...):
+                ...
+                nats.subscribe("$SUBJECT", ...)
+                ...
+      - metavariable-regex:
+          metavariable: $SUBJECT
+          regex: ".*(txn|transaction|payment|fraud|score|predict).*"
+      - pattern-not: |
+          def $HANDLER(...):
+            ...
+            authenticate(...)
+            ...
+            $NC.subscribe("$SUBJECT", ...)
+            ...
+      - pattern-not: |
+          def $HANDLER(...):
+            ...
+            verify_token(...)
+            ...
+            $NC.subscribe("$SUBJECT", ...)
+            ...
+      - pattern-not: |
+          def $HANDLER(...):
+            ...
+            check_auth(...)
+            ...
+            $NC.subscribe("$SUBJECT", ...)
+            ...
+      - pattern-not: |
+          def $HANDLER(...):
+            ...
+            require_auth(...)
+            ...
+            $NC.subscribe("$SUBJECT", ...)
+            ...
+    message: >-
+      Subscriber registered on a financial subject (transaction / payment /
+      fraud / scoring / prediction) with no authentication check in the
+      enclosing function. An unauthenticated consumer exposes payment or
+      scoring data and can ingest attacker-controlled messages. Enforce
+      subject-level ACLs in NATS and authenticate the consumer context before
+      subscribing.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-306"
+      category: "messaging.nats.unauthenticated-subscriber"
+      owasp: "A01:2021 - Broken Access Control"
+
+  # ------------------------------------------------------------------
+  # 5. Kafka no-auth producer (PLAINTEXT default)
+  # ------------------------------------------------------------------
+  - id: messaging.kafka.no-auth-producer
+    patterns:
+      - pattern-either:
+          - pattern: |
+              KafkaProducer(bootstrap_servers=$BS, ...)
+          - pattern: |
+              KafkaProducer(bootstrap_servers=$BS)
+          - pattern: |
+              new KafkaProducer($CFG)
+          - pattern: |
+              new Kafka({ brokers: $BROKERS, ... })
+          - pattern: |
+              Producer({ "bootstrap.servers": $BS, ... })
+      - pattern-not: |
+          KafkaProducer(..., security_protocol=$P, ...)
+      - pattern-not: |
+          KafkaProducer(..., security_protocol="SSL", ...)
+      - pattern-not: |
+          KafkaProducer(..., security_protocol="SASL_SSL", ...)
+      - pattern-not: |
+          KafkaProducer(..., security_protocol="SASL_PLAINTEXT", ...)
+      - pattern-not: |
+          Producer({ ..., "security.protocol": $P, ... })
+      - pattern-not: |
+          new Kafka({ ..., ssl: $SSL, ... })
+      - pattern-not: |
+          new Kafka({ ..., sasl: $SASL, ... })
+    message: >-
+      Kafka producer instantiated without security.protocol set. The client
+      defaults to PLAINTEXT — broker traffic (including message payloads and
+      any credentials) crosses the network unencrypted and unauthenticated.
+      Set security_protocol to SSL or SASL_SSL and configure client certs or
+      SASL credentials.
+    severity: ERROR
+    languages: [python, javascript, typescript, java]
+    metadata:
+      cwe: "CWE-319"
+      category: "messaging.kafka.no-auth-producer"
+      owasp: "A02:2021 - Cryptographic Failures"
+
+  # ------------------------------------------------------------------
+  # 6. Message replay — no idempotency-key check
+  # ------------------------------------------------------------------
+  - id: messaging.general.no-idempotency-check
+    patterns:
+      - pattern-either:
+          - pattern: |
+              def $HANDLER($MSG):
+                ...
+                $SCORE(...)
+                ...
+          - pattern: |
+              async def $HANDLER($MSG):
+                ...
+                $SCORE(...)
+                ...
+          - pattern: |
+              def $HANDLER($MSG):
+                ...
+                $DB.insert(...)
+                ...
+          - pattern: |
+              async def $HANDLER($MSG):
+                ...
+                $DB.insert(...)
+                ...
+          - pattern: |
+              def $HANDLER($MSG):
+                ...
+                $DB.insert_one(...)
+                ...
+          - pattern: |
+              def $HANDLER($MSG):
+                ...
+                $DB.save(...)
+                ...
+      - metavariable-regex:
+          metavariable: $HANDLER
+          regex: ".*(handle|on_message|process|consume|subscriber|callback).*"
+      - pattern-not: |
+          def $HANDLER($MSG):
+            ...
+            $CACHE.get(idempotency_key)
+            ...
+      - pattern-not: |
+          def $HANDLER($MSG):
+            ...
+            $CACHE.get(message_id)
+            ...
+      - pattern-not: |
+          def $HANDLER($MSG):
+            ...
+            $CACHE.get(correlation_id)
+            ...
+      - pattern-not: |
+          def $HANDLER($MSG):
+            ...
+            $CACHE.get(dedup_id)
+            ...
+      - pattern-not: |
+          def $HANDLER($MSG):
+            ...
+            if already_seen(...):
+              ...
+            ...
+      - pattern-not: |
+          def $HANDLER($MSG):
+            ...
+            deduplicate(...)
+            ...
+    message: >-
+      Message handler processes a payload and persists / scores it without
+      checking an idempotency key (idempotency_key, message_id, correlation_id,
+      or dedup_id). Messaging systems deliver at-least-once by default, so
+      duplicate deliveries (retry storms, consumer re-balance, attacker replay)
+      cause duplicate scoring or double-writes. Look up the message's dedup
+      identifier in a short-TTL cache before processing.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-841"
+      category: "messaging.general.no-idempotency-check"
+      owasp: "A04:2021 - Insecure Design"
