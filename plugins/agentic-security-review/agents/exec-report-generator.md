@@ -77,6 +77,20 @@ Condensed — one row per finding, with a summary sentence and a remediation poi
 
 **CWE inline format (Section 3):** Number(s) only — no name. Single: `**CWE-NNN**`. Multiple: `**CWE-NNN + CWE-MMM**`. Use `+` as the separator.
 
+### Section 3b — Cross-Cutting Concerns (multi-repo runs only)
+
+Omit entirely for single-repo assessments.
+
+For multi-repo runs, insert a one-page section after Section 3 containing:
+
+1. **Shared credentials involving this repo** — read `memory/shared-creds-<combined-slug>.sarif`; list only entries where one of the `locations` paths belongs to this repo's slug. For each: secret type, value (truncated to 4 chars + `…`), the other repo(s) it appears in. If none, omit this subsection.
+
+2. **Attack chains involving this repo** — read `memory/cross-repo-analysis-<combined-slug>.md`; include only chains that explicitly name this repo's slug in their step list. For each chain: name, one-line summary, severity. If none, omit this subsection.
+
+3. **Regulatory gaps specific to this repo** — from `memory/compliance-<slug>.json`, list any annotation where `regulation_risk: high` that was not already surfaced in Sections 2 or 3.
+
+Keep the total length to ≤ 1 page. Point to the cross-repo summary for depth.
+
 ### Section 4 — Service Communication Diagram
 
 Embed the Mermaid block from `service-comm-parser.py` **verbatim**. Do not re-render. Line-endings normalized (CRLF → LF on both sides if needed) but bytes otherwise identical.
@@ -154,6 +168,8 @@ These messages are informational — the report still publishes — but they mak
 If `ci_dirs_scanned: []` appears in the static-analysis summary AND the target has no `.github/workflows/`, `.gitlab-ci.yml`, or equivalent, note: "No CI/CD configuration files in scope — scan-06 not applicable for this target."
 
 If `ci_dirs_scanned: []` appears AND the target DOES have CI files (path walk reached them but no CI tool ran), that is a tool-availability gap — list actionlint + semgrep p/github-actions as missing tools and include scan-06 in reduced-coverage concerns.
+
+**Cross-repo severity calibration.** When the pipeline ran against multiple targets, read `memory/severity-consistency-<combined-slug>.txt`. If the file contains any WARN lines, emit them verbatim in this section under the heading "Severity calibration warnings". If the file is absent or empty (single-target run or no drift found), omit this subsection.
 
 ### Section 7 — Appendices
 

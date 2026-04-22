@@ -132,6 +132,18 @@ Phase 5: Report generation (sequential, single-threaded)
   agent:     exec-report-generator (opus)
   produces:  memory/report-<slug>.md  (plus memory/cross-repo-summary-<slug>.md for multi-repo)
   requires:  Phase 2b + Phase 3 + Phase 4 (all parallel branches joined)
+
+Phase 5b: Severity-consistency check (multi-target only, deterministic)
+  script:    scripts/check-severity-consistency.sh
+  produces:  memory/severity-consistency-<combined-slug>.txt
+  requires:  Phase 5 (all report-<slug>.md written) + Phase 2 disposition registers
+  condition: skipped for single-target runs
+
+Phase 5c: Report verification (per target, deterministic)
+  script:    scripts/verify-report.sh
+  produces:  memory/verify-report-<slug>.txt
+  requires:  Phase 5 (report-<slug>.md written)
+  on-fail:   logs to audit trail; does NOT block publication; failures appear in Section 6
 ```
 
 **Phase timing instrumentation**: every phase is bracketed with
@@ -209,6 +221,8 @@ Every phase writes to `memory/<kind>-<slug>.<ext>` where `<slug>` is derived fro
 | `service-comm-<slug>.mermaid` | Phase 4 | Phase 5, `/cross-repo-analysis` |
 | `report-<slug>.md` | Phase 5 | Final output |
 | `cross-repo-summary-<slug>.md` | Phase 5 (multi-repo only) | Final output |
+| `severity-consistency-<combined-slug>.txt` | Phase 5b (multi-target only) | exec-report-generator (Section 6) |
+| `verify-report-<slug>.txt` | Phase 5c | Audit trail; surfaced in report Section 6 on FAIL |
 
 ## Dependency contract
 

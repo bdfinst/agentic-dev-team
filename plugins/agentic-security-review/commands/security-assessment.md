@@ -162,6 +162,10 @@ This step is a **no-op when fp-reduction was skipped** (`--fp-reduce=no`); exits
 
 **Phase 5 — Report generation.** Dispatch `exec-report-generator` (opus). Single-repo: produces `memory/report-<slug>.md`. Multi-repo: produces per-repo reports + `memory/cross-repo-summary-<slug>.md`.
 
+**Phase 5b — Severity consistency (multi-target only).** Run `scripts/check-severity-consistency.sh` with all target slugs. Skip for single-target runs.
+
+**Phase 5c — Report verification.** Run `scripts/verify-report.sh memory/report-<slug>.md <slug>` for each target. Failures are logged to the audit trail and surfaced in Section 6 of the report; they do NOT prevent report publication.
+
 ### 4. Surface summary
 
 Print:
