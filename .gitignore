@@ -35,13 +35,26 @@ memory/findings-*
 memory/disposition-*
 memory/narratives-*
 memory/compliance-*
+memory/compliance-llm-candidates-*
 memory/service-comm-*
+memory/shared-creds-*
 memory/report-*
 memory/cross-repo-summary-*
 memory/suppressed-*
 memory/suppression-log-*
 memory/severity-floors-log-*
+memory/phase-timings-*
+memory/audit-*
 memory/meta-*
+# Stale scratch scripts occasionally dropped by earlier iterations
+memory/_*.py
+memory/_*.sh
+
+# Editor config (personal)
+.vscode/
+
+# Runtime report output (ad-hoc competitive / comparative analyses)
+reports/
 
 # Scratch files
 xx
