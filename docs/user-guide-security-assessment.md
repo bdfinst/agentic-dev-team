@@ -3,9 +3,9 @@
 Running a security assessment against a target repository. Two paths:
 
 - **Path A (recommended)** — install the plugin and use `/security-assessment`
-- **Path B (zero-install)** — use the deterministic local script `scripts/run-assessment-local.sh`
+- **Path B (zero-install)** — use the local script `scripts/run-assessment-local.sh`
 
-Both produce output in the same layout under `memory/` (or a directory you choose). Both score against the comparative-testing harness at `evals/comparative/score.py`. The difference is coverage: Path A uses LLM agents for judgment phases (business-logic review, narrative annotation, exec report) that Path B skips.
+Both produce output in the same layout under `memory/` (or a directory you choose) and score against the comparative-testing harness at `evals/comparative/score.py`. Path B auto-detects the `claude` CLI and runs the same LLM judgment phases when it is available; when it isn't (or with `--no-llm`), Path B degrades to deterministic-only output.
 
 ---
 
@@ -163,9 +163,9 @@ memory/
 
 ---
 
-## Path B — zero-install local script
+## Path B — local script
 
-For CI integration, ruleset iteration, or when you don't want to install the plugin. Uses only the deterministic tools + custom scripts; skips LLM judgment phases.
+For CI integration, ruleset iteration, or when you don't want to install the plugin. Deterministic phases always run; LLM judgment phases run automatically when the `claude` CLI is on PATH.
 
 ### Quickstart
 
@@ -190,35 +190,24 @@ Custom output directory:
   /path/to/target
 ```
 
-### What the script does vs. skips
+Force deterministic-only (skip LLM phases even if `claude` is available):
 
-**Runs (deterministic)**:
-- Phase 0 recon via `scripts/lib/deterministic_recon.py` (file-system walk + grep, no LLM)
-- Phase 1 tool-first detection — invokes every available Tier-1 + Tier-2 tool from the matrix above
-- Phase 1b custom scripts (`entropy-check.py`, `model-hash-verify.py`)
-- Phase 1c ACCEPTED-RISKS suppression (via `scripts/apply-accepted-risks.sh`)
-- Phase 4 service-communication (multi-target only)
-- Skeleton report generation — same 7-section structure `/security-assessment` produces, but with `[LLM-SKIPPED]` tags where narrative goes
-
-**Skips (needs the plugin for LLM judgment)**:
-- `security-review` — semantic auth/injection/authz analysis that tools miss
-- `business-logic-domain-review` — fraud-domain anti-patterns (fail-open, emulation bypass, feature poisoning)
-- `fp-reduction` — 5-stage reachability + exploitability rubric
-- `tool-finding-narrative-annotator` — PII/ML/NATS/crypto narrative synthesis
-- `compliance-mapping` — LLM edge annotation for ambiguous regulatory mappings
-- `exec-report-generator` — executive summary narrative, Top 3 Actions prose, remediation text
-
-Expected recall without LLM phases: **40-50%** on a typical target (vs. 85-95% with the full plugin). The gap is primarily in scan-02 (auth), scan-03 (business-logic), and scan-04 (PII flows) — concerns that require semantic reasoning static tools can't perform.
-
-### Running the LLM phases manually (if you really don't want the plugin)
-
-Run the zero-install script first for the deterministic 40-50%. Then for each LLM phase, paste the agent's task into any Claude Code session:
-
-```
-Read plugins/agentic-dev-team/agents/security-review.md and apply it to the files under <target>. Use the RECON artifact at memory/recon-<slug>.json as context. Emit findings in the unified finding envelope format (plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json). Append them to memory/findings-<slug>.jsonl.
+```bash
+./scripts/run-assessment-local.sh --no-llm /path/to/target
 ```
 
-Repeat for each skipped phase. This is tedious — Path A is strictly better for routine use. Path B is documented as a fallback for CI-only runs or ruleset iteration.
+### LLM auto-detection
+
+The script probes `command -v claude` at startup:
+
+- **claude present** — runs every phase: Phase 0 recon enrichment, Phase 1b judgment (security-review + business-logic-domain-review), Phase 2 fp-reduction, Phase 3 narratives + compliance, Phase 5 exec report. Each LLM phase uses headless `claude -p <prompt>` and times itself via `scripts/phase-timer.sh`.
+- **claude missing or `--no-llm`** — runs only deterministic phases (recon skeleton, SARIF tools, custom scripts, suppression gate, skeleton report). The run logs each skipped LLM phase in `meta-<slug>.json` under `llm_phases_skipped`.
+
+Headless Claude calls go through `scripts/lib/invoke_claude.sh`, which adds `--allow-dangerously-skip-permissions` and passes a fixed allowlist (`Read Glob Grep Bash Edit Write Agent`). Every LLM phase writes to `<OUTPUT_DIR>` and is verified by file-existence check — the wrapper does not parse prose to determine success.
+
+### Deterministic-only coverage expectations
+
+When LLM is unavailable, expected recall is **40-50%** on a typical target. The gap is primarily in scan-02 (auth), scan-03 (business-logic), and scan-04 (PII flows) — concerns that require semantic reasoning static tools can't perform. With LLM enabled, recall climbs to the 85-95% range the full plugin produces.
 
 ### What Path B is useful for
 

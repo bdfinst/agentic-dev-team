@@ -5,7 +5,7 @@ Comparative testing scorecard
                                           reference         ours              
   --------------------------------------------------------  ----------------  
   Recall (findings caught)                18/26 (69%)       23/26 (88%)       
-  Severity agreement (±1 tier)            100%              91%               
+  Severity agreement (±1 tier)            100%              96%               
   Suppressions (correct/total)            2/2               0/2               
   Extra emissions (potential FPs)         28                31                
 
@@ -22,11 +22,11 @@ Comparative testing scorecard
   Per-finding detail:
   ID       Category       Expected severity reference         ours              
   ------------------------------------------------------------------------------
-  F001     secrets        CRITICAL          CRITICAL=0 locationHIGH  ↓1 location
+  F001     secrets        CRITICAL          CRITICAL=0 locationCRITICAL=0 location
   F002     secrets        HIGH              HIGH  =0 locationCRITICAL↑1 location
   F019     secrets        HIGH              HIGH  =0 locationCRITICAL↑1 location
   F008     auth           HIGH              CRITICAL↑1 locationCRITICAL↑1 location
-  F009     auth           MEDIUM            HIGH  ↑1 locationCRITICAL↑2 location
+  F009     auth           MEDIUM            HIGH  ↑1 locationHIGH  ↑1 location
   F021     auth           HIGH              CRITICAL↑1 locationCRITICAL↑1 location
   F022     auth           HIGH              CRITICAL↑1 locationCRITICAL↑1 location
   F010     business-logic CRITICAL          CRITICAL=0 locationCRITICAL=0 location
