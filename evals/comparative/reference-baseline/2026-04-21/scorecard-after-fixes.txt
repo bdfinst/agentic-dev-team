@@ -1,0 +1,51 @@
+
+==============================================================================
+Comparative testing scorecard
+==============================================================================
+                                          reference         ours              
+  --------------------------------------------------------  ----------------  
+  Recall (findings caught)                18/26 (69%)       23/26 (88%)       
+  Severity agreement (±1 tier)            100%              91%               
+  Suppressions (correct/total)            2/2               0/2               
+  Extra emissions (potential FPs)         28                31                
+
+  Recall by reference concern:
+    scan-01                               3/3               3/3               
+    scan-02                               4/4               4/4               
+    scan-03                               5/5               5/5               
+    scan-04                               0/2               2/2               
+    scan-05                               2/2               2/2               
+    scan-06                               0/3               0/3               
+    scan-07                               2/5               5/5               
+    scan-08                               2/2               2/2               
+
+  Per-finding detail:
+  ID       Category       Expected severity reference         ours              
+  ------------------------------------------------------------------------------
+  F001     secrets        CRITICAL          CRITICAL=0 locationHIGH  ↓1 location
+  F002     secrets        HIGH              HIGH  =0 locationCRITICAL↑1 location
+  F019     secrets        HIGH              HIGH  =0 locationCRITICAL↑1 location
+  F008     auth           HIGH              CRITICAL↑1 locationCRITICAL↑1 location
+  F009     auth           MEDIUM            HIGH  ↑1 locationCRITICAL↑2 location
+  F021     auth           HIGH              CRITICAL↑1 locationCRITICAL↑1 location
+  F022     auth           HIGH              CRITICAL↑1 locationCRITICAL↑1 location
+  F010     business-logic CRITICAL          CRITICAL=0 locationCRITICAL=0 location
+  F012     business-logic HIGH              CRITICAL↑1 locationHIGH  =0 location
+  F013     business-logic HIGH              CRITICAL↑1 locationCRITICAL↑1 location
+  F014     business-logic HIGH              CRITICAL↑1 locationCRITICAL↑1 location
+  F015     pii            CRITICAL          MISS              MEDIUM↓2 location
+  F020     pii            MEDIUM            MISS              MEDIUM=0 location
+  F006     infrastructure HIGH              HIGH  =0 locationHIGH  =0 location
+  F007     infrastructure MEDIUM            HIGH  ↑1 locationHIGH  ↑1 location
+  F023     cicd           CRITICAL          MISS              MISS              
+  F024     cicd           HIGH              MISS              MISS              
+  F025     cicd           MEDIUM            MISS              MISS              
+  F003     crypto         CRITICAL          HIGH  ↓1 locationCRITICAL=0 location
+  F005     crypto         HIGH              HIGH  =0 locationMEDIUM↓1 location
+  F016     crypto         MEDIUM            MISS              LOW   ↓1 location
+  F017     crypto         HIGH              MISS              MEDIUM↓1 location
+  F018     crypto         HIGH              MISS              MEDIUM↓1 location
+  F004a    supply-chain   MEDIUM            HIGH  ↑1 locationMEDIUM=0 location
+  F004b    supply-chain   MEDIUM            HIGH  ↑1 locationMEDIUM=0 location
+  F011     ml             HIGH              HIGH  =0 locationHIGH  =0 location
+
