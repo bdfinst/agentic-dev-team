@@ -19,6 +19,15 @@ LIB="$SCRIPT_DIR/lib/apply_severity_floors.py"
 SLUG="${1:?usage: apply-severity-floors.sh <slug> [<memory-dir>]}"
 MEMORY="${2:-$(pwd)/memory}"
 
+# Auto-record phase timing — works even if the LLM orchestrator forgets to
+# bracket the invocation per commands/security-assessment.md § Phase timing.
+TIMER="$SCRIPT_DIR/phase-timer.sh"
+PHASE="phase-2b-severity-floors"
+if [[ -x "$TIMER" ]]; then
+  "$TIMER" start "$PHASE" "$SLUG" "$MEMORY" 2>/dev/null || true
+  trap '"$TIMER" end "$PHASE" "$SLUG" "$MEMORY" 2>/dev/null || true' EXIT
+fi
+
 DISPOSITION="$MEMORY/disposition-$SLUG.json"
 AUDIT="$MEMORY/severity-floors-log-$SLUG.jsonl"
 

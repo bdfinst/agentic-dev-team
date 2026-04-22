@@ -27,6 +27,16 @@ TARGET="${1:?usage: apply-accepted-risks.sh <target-dir> <slug> [<memory-dir>]}"
 SLUG="${2:?slug required}"
 MEMORY="${3:-$(pwd)/memory}"
 
+# Auto-record phase timing — works even if the LLM orchestrator forgets to
+# bracket the invocation per commands/security-assessment.md § Phase timing.
+TIMER="$SCRIPT_DIR/phase-timer.sh"
+PHASE="phase-1c-accepted-risks"
+if [[ -x "$TIMER" ]]; then
+  "$TIMER" start "$PHASE" "$SLUG" "$MEMORY" 2>/dev/null || true
+  # Always record end, even on failure
+  trap '"$TIMER" end "$PHASE" "$SLUG" "$MEMORY" 2>/dev/null || true' EXIT
+fi
+
 if [[ ! -d "$TARGET" ]]; then
   echo "error: target not a directory: $TARGET" >&2
   exit 3
