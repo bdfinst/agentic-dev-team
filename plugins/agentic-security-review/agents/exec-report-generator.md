@@ -56,6 +56,8 @@ Required content:
 
 One table, all findings (post-disposition), grouped by presentational severity. Columns: ID, Rule, File:Line, Category, Severity, Verdict.
 
+**CWE column format (dashboard):** Number(s) only — no name. Single: `CWE-NNN`. Multiple: `CWE-NNN + CWE-MMM`. Use `+` as the separator; never `/`.
+
 ### Section 2 — CRITICAL and HIGH Findings
 
 Detailed blocks — one block per CRITICAL + HIGH finding. Each block contains:
@@ -67,9 +69,13 @@ Detailed blocks — one block per CRITICAL + HIGH finding. Each block contains:
 - Remediation guidance (2-4 sentences, specific)
 - Compliance citations (from compliance-mapping annotations)
 
+**CWE field format (Section 2 detail block):** Always include the full CWE name. Single: `CWE-NNN — Full CWE Name`. Multiple: `CWE-NNN — Name + CWE-MMM — Name`. Use em dash (`—`) before each name and `+` between entries; never use parentheses `()` or slash `/` as separator.
+
 ### Section 3 — MEDIUM and LOW Findings
 
 Condensed — one row per finding, with a summary sentence and a remediation pointer.
+
+**CWE inline format (Section 3):** Number(s) only — no name. Single: `**CWE-NNN**`. Multiple: `**CWE-NNN + CWE-MMM**`. Use `+` as the separator.
 
 ### Section 4 — Service Communication Diagram
 
