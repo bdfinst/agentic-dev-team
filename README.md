@@ -1,8 +1,22 @@
 # Agentic Dev Team
 
-A Claude Code plugin that adds a full persona-driven AI development team to any project. The Orchestrator routes tasks to specialized agents, inline review checkpoints catch quality issues during implementation, and skills provide reusable knowledge modules that any agent can draw on.
+Two Claude Code plugins for engineering workflows. Install one or both.
 
-## Workflow
+- **`agentic-dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
+- **`agentic-security-review`** is the security companion. It adds a deterministic-first `/security-assessment` pipeline (SAST + LLM judgment + FP-reduction + exec report), a `/cross-repo-analysis` command for multi-repo attack chains, and an adversarial ML red-team harness (`/redteam-model`) for self-owned model endpoints.
+
+The two plugins share a primitives contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding envelope) that lives in `agentic-dev-team`. Install that plugin first; add the security companion when you need it.
+
+## Plugins
+
+| Plugin | What it does | Key commands | Install |
+| --- | --- | --- | --- |
+| **agentic-dev-team** | Persona-driven development team, reviewer swarm, TDD-gated build loop | `/specs`, `/plan`, `/build`, `/pr`, `/code-review`, `/triage` | [plugins/agentic-dev-team/README.md](plugins/agentic-dev-team/README.md) |
+| **agentic-security-review** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | [plugins/agentic-security-review/README.md](plugins/agentic-security-review/README.md) |
+
+**First time here?** Start with `agentic-dev-team`. Add `agentic-security-review` only when you run full `/security-assessment` pipelines against target repos.
+
+## Dev team workflow
 
 Four commands drive feature development from idea to pull request:
 
@@ -12,26 +26,27 @@ Four commands drive feature development from idea to pull request:
 
 | Step | Command | What it does |
 | --- | --- | --- |
-| **1. Specify** | `/specs` | Collaborate on four artifacts: Intent, BDD/Gherkin scenarios, Architecture notes, Acceptance Criteria. A consistency gate must pass before moving on. Skip for bug fixes, refactors, or trivial changes. |
-| **2. Plan** | `/plan` | Create a step-by-step TDD implementation plan. Four plan review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. Human approves before any code is written. |
+| **1. Specify** | `/specs` | Produce Intent, BDD/Gherkin scenarios, Architecture notes, Acceptance Criteria. A consistency gate must pass before moving on. Skip for bug fixes, refactors, or trivial changes. |
+| **2. Plan** | `/plan` | Create a TDD step-plan. Four plan-review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. Human approves before any code is written. |
 | **3. Build** | `/build` | Execute the approved plan. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). Produces verification evidence. |
-| **4. Ship** | `/pr` | Run quality gates (tests, typecheck, lint, code review) and create a pull request. |
+| **4. Ship** | `/pr` | Run quality gates (tests, typecheck, lint, code review) and open a pull request. |
 
-Each step produces artifacts the next step consumes. Human review gates sit between each transition.
+Each step produces artifacts the next step consumes. Human review gates sit between transitions.
 
 ![Workflow: specs → plan → build → pr](docs/diagrams/workflow-linear.svg)
 
-For bug fixes or simple tasks, skip `/specs` and start at `/plan` or go straight to implementation. The orchestrator routes trivially when the full workflow isn't needed.
+For bug fixes or simple tasks, skip `/specs` and start at `/plan` — or go straight to implementation. The Orchestrator routes trivially when the full workflow isn't needed.
 
 ### Supporting commands
 
 | Command | When to use |
 | --- | --- |
-| `/code-review` | Run all review agents, auto-fix actionable issues, and re-run until clean (up to 5 iterations) |
+| `/code-review` | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
 | `/continue` | Resume an in-progress build or plan across sessions |
 | `/browse` | Visual QA via Playwright |
 | `/benchmark` | Runtime performance metrics (Core Web Vitals, resource sizes) against baselines |
 | `/careful` / `/freeze` / `/guard` | Safety modes for production-critical sessions |
+| `/triage` | Investigate a bug and file a GitHub issue with a TDD fix plan |
 
 ### Automated pre-commit review
 
@@ -41,45 +56,60 @@ Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook
 
 **Bypass**: `git commit --no-verify` skips the review gate.
 
-## How It Works
+### Orchestrator-driven three-phase workflow
 
-**Team agents** define roles (persona, behavior, collaboration). **Review agents** check work quality in real time. **Skills** define knowledge (patterns, guidelines, procedures). **Slash commands** invoke agents and skills directly. The **Orchestrator** controls task routing, model selection, and the inline review feedback loop.
+For complex tasks, the Orchestrator manages the full lifecycle as **Research → Plan → Implement** with human gates between phases:
 
-### Three-Phase Workflow (Orchestrator-Driven)
-
-For complex tasks where the orchestrator manages the full lifecycle, every non-trivial task follows **Research → Plan → Implement** with human review gates between phases:
-
-- **Research** produces a **design document** (`docs/specs/`) with problem statement, alternatives, and scope boundaries
-- **Plan** is critically reviewed by **four plan review personas** (Acceptance Test, Design & Architecture, UX, and Strategic critics) running in parallel before the human sees it
-- **Implement** enforces strict **TDD** (RED-GREEN-REFACTOR with hard gates), uses **worktree isolation** for parallel units, and runs a **three-stage inline review**: spec-compliance first ("does code match spec?"), then quality agents ("is code good?"), then browser verification for UI changes. Actionable issues (error/warning severity with high/medium confidence) are **auto-fixed and re-reviewed** in a loop (up to 5 iterations) — only issues requiring human judgment are escalated. All agents must provide **verification evidence** (fresh test output) before claiming completion. After the human gate, a **branch workflow** handles PR creation and merge strategy.
+- **Research** produces a design document (`docs/specs/`) with problem statement, alternatives, and scope boundaries.
+- **Plan** is critically reviewed by four plan-review personas running in parallel before the human sees it.
+- **Implement** enforces strict TDD (RED-GREEN-REFACTOR hard gates), uses worktree isolation for parallel units, and runs a three-stage inline review — spec-compliance first ("does code match spec?"), then quality agents ("is code good?"), then browser verification for UI changes. Actionable issues auto-fix and re-review in a loop (up to 5 iterations); only issues requiring human judgment escalate. All agents provide verification evidence (fresh test output) before claiming completion.
 
 ![Three-Phase Workflow: Research → Plan → Implement](docs/diagrams/workflow-three-phase.svg)
 
-## Install
+## Security assessment pipeline
 
-This repository ships **two plugins**. Install instructions, tool prerequisites, and verification steps live in each plugin's README:
+`/security-assessment <path>` runs a six-phase pipeline against one or more target repos. Deterministic tools do the detection; LLM agents handle the judgment stages.
 
-| Plugin | Purpose | Install guide |
+| Phase | Runs | Output |
 | --- | --- | --- |
-| **agentic-dev-team** | Full persona-driven development team — orchestrator, 12 team agents, 19 review agents, 31 skills, 56 commands | [plugins/agentic-dev-team/README.md](plugins/agentic-dev-team/README.md) |
-| **agentic-security-review** | Deep security assessment + adversarial ML red-team harness. Companion to agentic-dev-team. | [plugins/agentic-security-review/README.md](plugins/agentic-security-review/README.md) |
+| **0. Recon** | `codebase-recon` agent | `memory/recon-<slug>.{json,md}` |
+| **1. Tool-first detection** | semgrep, gitleaks, trivy, hadolint, actionlint, custom rulesets | unified findings stream |
+| **1b. Judgment** | `security-review`, `business-logic-domain-review` agents | appended findings |
+| **1c. Suppression** | `ACCEPTED-RISKS.md` gate (deterministic) | filtered stream + audit log |
+| **2. FP-reduction** | 5-stage rubric (reachability, environment, controls, dedup, severity) | disposition register |
+| **2b. Severity floors** | deterministic domain-class calibration | floor-adjusted scores |
+| **3. Narrative + compliance** | `tool-finding-narrative-annotator`, compliance-mapping skill | 4-domain narrative + compliance JSON |
+| **4. Cross-repo** | service-comm parser, shared-cred hash match (multi-target only) | mermaid diagram + SARIF |
+| **5. Exec report** | `exec-report-generator` agent | publication-ready 7-section markdown |
 
-**First time here?** Start with `agentic-dev-team`. Add `agentic-security-review` only if you run full `/security-assessment` pipelines against target repos.
+**Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. Auto-detects the `claude` CLI; degrades to deterministic-only when absent. See [docs/user-guide-security-assessment.md](docs/user-guide-security-assessment.md) for the full runbook.
 
-## What's Included
+**Adversarial ML red-team**: `/redteam-model` probes a self-owned model endpoint (localhost / RFC1918 by default; public targets require a signed `authorization.md`). Eight probes covering recon, evasion, extraction, and report synthesis.
 
-The plugin ships with **12 team agents**, **19 review agents**, **31 skills**, **8 subagent prompt templates**, and **56 slash commands**. For the full catalogs:
+## What's included
 
-- [Agents](docs/agent_info.md) — team agent roster, review agent roster, persona template, how to add/remove/customize
-- [Skills & Commands](docs/skills.md) — skills catalog (by category), slash commands catalog, how to add new ones
+| | agentic-dev-team | agentic-security-review |
+| --- | --- | --- |
+| Team agents | 12 (orchestrator, engineer, QA, architect, PM, …) | — |
+| Review agents | 19 (security, domain, test, naming, …) | — |
+| Security / red-team agents | — | 10 (fp-reduction, narrative annotator, red-team analyzers, exec-report-generator, …) |
+| Skills | 31 | 3 (false-positive-reduction, compliance-mapping, security-assessment-pipeline) |
+| Slash commands | 56 | 4 |
+| Subagent prompt templates | 8 | — |
+| Language templates | 9 | — |
 
-## Repository Structure
+Full catalogs:
+
+- [Agents](docs/agent_info.md) — team + review agent rosters, persona template, how to add/remove/customize
+- [Skills & Commands](docs/skills.md) — skills catalog (by category), slash-commands catalog, how to add new ones
+
+## Repository structure
 
 ```text
 .claude-plugin/marketplace.json         # Marketplace catalog (points at both plugins)
 
-plugins/agentic-dev-team/                # Plugin source (ships to users)
-├── README.md                            # Install + prerequisites for this plugin
+plugins/agentic-dev-team/                # Dev-team plugin source
+├── README.md                            # Install + prerequisites
 ├── .claude-plugin/plugin.json           # Plugin manifest + version
 ├── agents/                              # Team agents (12) + review agents (19)
 ├── commands/                            # Slash commands
@@ -91,8 +121,8 @@ plugins/agentic-dev-team/                # Plugin source (ships to users)
 ├── install.sh                           # Prerequisite check
 └── CLAUDE.md                            # Orchestration pipeline config (auto-loaded)
 
-plugins/agentic-security-review/         # Companion plugin — /security-assessment
-├── README.md                            # Install + prerequisites for this plugin
+plugins/agentic-security-review/         # Security companion plugin
+├── README.md                            # Install + prerequisites
 ├── install-macos.sh                     # One-command tool installer (macOS)
 ├── install.sh                           # Prerequisite verifier
 ├── agents/ commands/ skills/ harness/   # Assessment + red-team pipeline
@@ -100,40 +130,46 @@ plugins/agentic-security-review/         # Companion plugin — /security-assess
 
 docs/                                    # Dev documentation (not shipped)
 plans/                                   # Implementation plans (not shipped)
-evals/                                   # Agent eval fixtures (not shipped)
+evals/                                   # Agent eval fixtures + comparative harness
 scripts/                                 # Zero-install assessment runner + helpers
 ```
 
 ---
 
-## Local Development
+## Local development
 
 ### Testing locally
 
-Install the plugin from the local path into a test project:
+Install either plugin from the local path into a test project:
 
 ```bash
 claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-review
 ```
 
-### Testing agents and hooks
-
-**Eval suite** — run against a single agent or the full set:
+### Testing agents and hooks (dev-team plugin)
 
 ```
-/agent-eval
-/agent-eval plugins/agentic-dev-team/agents/naming-review.md
+/agent-eval                                                # full eval suite
+/agent-eval plugins/agentic-dev-team/agents/naming-review.md   # one agent
+/agent-audit                                               # structural compliance
 ```
 
-**Structural compliance** — verify all agents and commands:
+### Comparative-testing harness (security plugin)
 
+Regression-test the `/security-assessment` pipeline against a seeded fixture + reference baseline:
+
+```bash
+python3 evals/comparative/score.py \
+  --reference evals/comparative/reference-baseline/2026-04-21 \
+  --ours memory
 ```
-/agent-audit
-```
+
+See [docs/comparative-testing.md](docs/comparative-testing.md) for the scoring methodology.
 
 ### Hook paths
 
-Hooks are registered in `plugins/agentic-dev-team/settings.json` and ship with the plugin. When developing locally, hooks run from `plugins/agentic-dev-team/hooks/`.
+Hooks are registered in each plugin's `settings.json` and ship with that plugin. Local development runs them from `plugins/<plugin-name>/hooks/`.
 
 ### Adding an agent or skill
 
@@ -141,7 +177,7 @@ Hooks are registered in `plugins/agentic-dev-team/settings.json` and ship with t
 /agent-add <description or URL to a coding standard>
 ```
 
-This scaffolds the agent file, adds it to the registry in `CLAUDE.md`, and creates eval fixtures. Run `/agent-audit` and `/agent-eval` to verify compliance.
+This scaffolds the agent file, adds it to the registry in the owning plugin's `CLAUDE.md`, and creates eval fixtures. Run `/agent-audit` and `/agent-eval` to verify compliance.
 
 ### Documentation
 
@@ -149,6 +185,8 @@ This scaffolds the agent file, adds it to the registry in `CLAUDE.md`, and creat
 | --- | --- |
 | [Getting Started](GETTING-STARTED.md) | Hands-on tutorial: invoke agents, skills, and common workflows |
 | [Architecture](docs/architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
-| [Agents](docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing agents |
-| [Skills & Commands](docs/skills.md) | Skills catalog, slash commands catalog |
-| [Eval System](docs/eval-system.md) | How review agent accuracy is measured and graded |
+| [Agents](docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
+| [Skills & Commands](docs/skills.md) | Skills catalog, slash-commands catalog |
+| [Eval System](docs/eval-system.md) | How review-agent accuracy is measured and graded |
+| [Security Assessment User Guide](docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool install matrix |
+| [Comparative Testing](docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |
