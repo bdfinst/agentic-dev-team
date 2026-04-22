@@ -45,7 +45,18 @@ Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle 
 ./plugins/agentic-security-review/install-macos.sh --dry-run # preview commands without running
 ```
 
-Re-runnable — each step skips tools that are already present.
+**Windows — PowerShell (requires [Scoop](https://scoop.sh)):**
+
+```powershell
+# If needed, allow local scripts first (run once in an elevated session):
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+.\plugins\agentic-security-review\install-windows.ps1          # tier-1 only
+.\plugins\agentic-security-review\install-windows.ps1 -All     # tier-1 + optional + PDF deps
+.\plugins\agentic-security-review\install-windows.ps1 -DryRun  # preview commands without running
+```
+
+Re-runnable on all platforms — each step skips tools that are already present.
 
 **Linux / other platforms:** use the install hints in the table above. All tools ship prebuilt Linux binaries via their GitHub releases or `pip`.
 
