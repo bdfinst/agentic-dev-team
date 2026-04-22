@@ -16,3 +16,20 @@ sync-to-aci.sh
 # Pre-commit review gate file (generated at runtime)
 .review-passed
 feature-file-validation-workspace/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Runtime joern / CPG cache + workspace
+memory/cpg/
+memory/raw/
+memory/archive/
+workspace/
+
+# Scratch files
+xx
+xxx
+tmp-*.sh
+tmp-*.py
