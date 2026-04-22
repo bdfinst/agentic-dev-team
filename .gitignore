@@ -28,6 +28,21 @@ memory/raw/
 memory/archive/
 workspace/
 
+# Per-assessment runtime artifacts under memory/
+# (decisions.md is persistent plugin state — keep tracked)
+memory/recon-*
+memory/findings-*
+memory/disposition-*
+memory/narratives-*
+memory/compliance-*
+memory/service-comm-*
+memory/report-*
+memory/cross-repo-summary-*
+memory/suppressed-*
+memory/suppression-log-*
+memory/severity-floors-log-*
+memory/meta-*
+
 # Scratch files
 xx
 xxx
