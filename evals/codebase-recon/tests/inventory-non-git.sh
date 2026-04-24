@@ -21,8 +21,12 @@ mkdir -p "$SCRATCH"
   cd "$FIXTURE_SRC"
   tar --exclude='expected-inventory.txt' \
       --exclude='expected-file-inventory.json' \
+      --exclude='setup.sh' \
       -cf - . | (cd "$SCRATCH" && tar -xf -)
 )
+
+# Materialise the two gitignored exclude-cases (.DS_Store + node_modules/).
+"$FIXTURE_SRC/setup.sh" "$SCRATCH"
 
 MAIN_JSON_OUT="$TMP/main-fragment.json"
 STDOUT_OUT="$TMP/stdout.txt"
