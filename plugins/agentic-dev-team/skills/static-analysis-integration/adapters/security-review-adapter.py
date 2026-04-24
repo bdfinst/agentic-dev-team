@@ -25,6 +25,19 @@ import re
 import sys
 from typing import Any, Dict, Optional, Tuple
 
+# Resolved at startup; exposed via module-level for test inspection.
+_SCHEMA_PATH = os.path.abspath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "..",
+        "knowledge",
+        "schemas",
+        "unified-finding-v1.json",
+    )
+)
+
 # Namespace prefix used when a well-formed category is not in the mapping YAML.
 # This is the ONLY rule_id-shaped literal permitted in this source file;
 # every other rule_id travels in from security-review-rule-map.yaml.
@@ -141,6 +154,21 @@ def _parse_args(argv):
     return parser.parse_args(argv)
 
 
+def _load_validator():
+    """Load the unified-finding validator once at startup."""
+    try:
+        from jsonschema import Draft202012Validator
+    except ImportError as exc:  # pragma: no cover
+        print(
+            f"ERROR: jsonschema not installed; install with 'pip install jsonschema' ({exc})",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    with open(_SCHEMA_PATH, "r", encoding="utf-8") as fh:
+        schema = json.load(fh)
+    return Draft202012Validator(schema)
+
+
 def main(argv=None) -> int:
     args = _parse_args(argv)
     try:
@@ -151,6 +179,7 @@ def main(argv=None) -> int:
         return 1
 
     mapping = _load_mapping(args.mapping)
+    validator = _load_validator()
     issues = agent.get("issues", []) or []
 
     with open(args.output, "w", encoding="utf-8") as out:
@@ -168,6 +197,18 @@ def main(argv=None) -> int:
             if warning:
                 print(warning, file=sys.stderr)
             finding = _build_finding(issue, rule_id)
+            errors = list(validator.iter_errors(finding))
+            if errors:
+                detail = "; ".join(
+                    f"{'.'.join(str(p) for p in e.path) or '<root>'}: {e.message}"
+                    for e in errors
+                )
+                print(
+                    "ERROR: emitted finding violates unified-finding-v1 schema "
+                    f"({detail})",
+                    file=sys.stderr,
+                )
+                return 1
             out.write(json.dumps(finding, ensure_ascii=False) + "\n")
     return 0
 
