@@ -403,24 +403,40 @@ Step order follows the spec's recommended order: smallest and broadest-dependenc
 
 **Canonical ACCEPTED-RISKS.md format** (committed to the plan before RED so implementer and reviewer share one reference):
 
-```markdown
----
-# ACCEPTED-RISKS frontmatter — parsed by apply-accepted-risks.sh.
-# Times are UTC. Globs use bash-extglob semantics ONLY (no Python fnmatch variance).
-accepted_risks:
-  - rule_id: semgrep.csharp.sqli.raw-sql-concat
-    source_ref_glob: "src/Legacy/**/*.cs"
-    reason: "Legacy reporting module scheduled for deletion Q3 2026 (ACI-RPT-1234)."
-    expires: "2026-09-30"
-  - rule_id: hadolint.DL3003
-    source_ref_glob: "docker/base/Dockerfile"
-    reason: "Base image built in a controlled CI step; cd is intentional."
-    expires: "2027-01-01"
----
+The machine-parseable block is a fenced ```` ```json ```` code block. The first such block in the file is the authoritative data. This avoids a pyyaml dependency (the plugin already depends on `jq`) while keeping ACCEPTED-RISKS.md human-readable. Free prose surrounding the block is ignored by the parser.
 
-# Context (optional — free prose below the frontmatter is ignored by the parser)
-...
+````markdown
+# ACCEPTED-RISKS
+
+Suppression entries for this repo. The `json` block below is parsed by
+`apply-accepted-risks.sh`; free prose surrounding it is ignored.
+
+Times are UTC. Globs use bash-extglob semantics only (no Python fnmatch
+variance — the parser uses `[[ "$source_ref" == $glob ]]` with
+`shopt -s extglob globstar`).
+
+```json
+{
+  "accepted_risks": [
+    {
+      "rule_id": "semgrep.csharp.sqli.raw-sql-concat",
+      "source_ref_glob": "src/Legacy/**/*.cs",
+      "reason": "Legacy reporting module scheduled for deletion Q3 2026 (ACI-RPT-1234).",
+      "expires": "2026-09-30"
+    },
+    {
+      "rule_id": "hadolint.DL3003",
+      "source_ref_glob": "docker/base/Dockerfile",
+      "reason": "Base image built in a controlled CI step; cd is intentional.",
+      "expires": "2027-01-01"
+    }
+  ]
+}
 ```
+
+Additional context, justification history, and approvals can live as free
+prose anywhere outside the `json` block.
+````
 
 Field semantics:
 - `rule_id` — exact string match against a finding's `rule_id`.
@@ -428,7 +444,11 @@ Field semantics:
 - `reason` — required human-readable string; copied into the suppression log for audit.
 - `expires` — required `YYYY-MM-DD` UTC calendar date; entry is active up to and including that date, and expired starting the day after.
 
-Any entry missing a required field is a parse error → exit 3.
+Parse contract:
+- Valid JSON in the first ```` ```json ```` block and an `accepted_risks` array at the top level → proceed.
+- Missing `json` block → no-op (exit 0) — treat as "no suppressions declared".
+- Malformed JSON → exit 3 with `apply-accepted-risks.sh: ACCEPTED-RISKS.md parse error at <location> — <detail>; no risks applied` to stderr; findings file unchanged.
+- Missing required field on any entry → exit 3.
 
 **RED**:
 - Create `docs/accepted-risks-format.md` describing the above (the plan already fully specifies it; the file makes it discoverable outside the plan).
@@ -455,8 +475,8 @@ Any entry missing a required field is a parse error → exit 3.
 - Create `plugins/agentic-security-assessment/scripts/apply-accepted-risks.sh`:
   - Header + shebang + `set -euo pipefail` + pattern-convention line.
   - `-h` prints usage with the exit-code contract.
-  - Parse ACCEPTED-RISKS.md frontmatter: locate first `^---$ ... ^---$` block. Prefer `yq -p m4` (if the plugin already depends on yq); else minimal awk extraction + `python3 -c 'yaml.safe_load(...)'` using stdlib `yaml` module via `pip install pyyaml` already present in `harness/`. Validate required fields; on any error emit the parse-error template and exit 3.
-  - Enable `shopt -s extglob globstar` for glob matching; match `source_ref` against `source_ref_glob` via `[[ "$ref" == $glob ]]`.
+  - Parse ACCEPTED-RISKS.md's first fenced ```` ```json ```` code block via awk, then validate with `jq empty` + a Python stdlib validator (top-level `accepted_risks` array, per-entry required fields, `YYYY-MM-DD` expires format). On any error emit the parse-error template and exit 3. (Fenced-JSON replaces YAML frontmatter per the defaults approved in session — no new deps.)
+  - Hand-rolled `glob_to_regex` in Python implements the documented semantics (`*` excludes `/`, `**` recurses, `?` matches a single non-`/` char) deterministically across Python versions; the format doc at `docs/accepted-risks-format.md` is the single source of truth for the grammar.
   - For each finding: iterate active (non-expired) entries; first matching entry suppresses.
   - Expired entries (today UTC > `expires`): emit `status: expired` log record; do not suppress any finding for that entry.
   - Atomic rewrite of findings file (`<path>.tmp` then `mv`); append-only log.

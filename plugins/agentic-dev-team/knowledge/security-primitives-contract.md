@@ -1,7 +1,7 @@
 ---
 name: security-primitives-contract
 description: Versioned cross-plugin contract defining the data envelopes passed between agentic-dev-team and agentic-security-assessment. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
-version: 1.2.0
+version: 1.3.0
 semver-policy: |
   PATCH (1.0.x) — clarifications, typo fixes, documentation improvements; no
                   schema changes.
@@ -14,9 +14,11 @@ semver-policy: |
                   Consumers on prior major MUST be updated.
 ---
 
-# Security Primitives Contract v1.2.0
+# Security Primitives Contract v1.3.0
 
 This file is the single source of truth for the data envelopes exchanged between `plugins/agentic-dev-team/` (producer of primitives) and `plugins/agentic-security-assessment/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
+
+**Canonical schema registry**: this file is the single registry for every JSON/JSONL artifact shape shared or emitted in the security-assessment pipeline. Producer plugins (including the companion `agentic-security-assessment`) PR into this file rather than forking per-plugin contracts, so reviewers can trace any artifact back to one authoritative schema. New envelopes arrive as MINOR releases with `## Envelope N` sections plus changelog entries; per-tool raw outputs remain out of contract (see below).
 
 The contract covers three data envelopes, two registries, and a presentational severity mapping. Per-tool raw outputs are **explicitly not in the contract** — they are normalized into the unified finding envelope by SARIF-first adapters in `skills/static-analysis-integration/SKILL.md`. That normalization layer is an implementation detail behind the contract, free to evolve under PATCH releases.
 
@@ -142,6 +144,74 @@ One disposition entry per unified finding processed. Each entry:
 - `dispositioner` — string: agent ID that produced this disposition (typically `fp-reduction`)
 - `dispositioned_at` — ISO-8601 timestamp
 
+## Envelope 4 — Accepted-risks log (added in v1.3.0)
+
+Per-target suppression log emitted by `scripts/apply-accepted-risks.sh` in the companion plugin. Written to `<memory-dir>/accepted-risks-<slug>.jsonl`. Source-of-truth input is `<target-dir>/ACCEPTED-RISKS.md` — see `plugins/agentic-security-assessment/docs/accepted-risks-format.md` for the input format.
+
+Two record shapes, discriminated by the `status` field:
+
+**Suppression record** — an active accepted-risks entry matched a finding and that finding was removed from `findings-<slug>.jsonl`:
+
+```json
+{
+  "status": "suppressed",
+  "rule_id": "semgrep.csharp.sqli.raw-sql-concat",
+  "source_ref": "src/Legacy/Query/Foo.cs",
+  "source_ref_glob": "src/Legacy/**/*.cs",
+  "reason": "Legacy reporting module scheduled for deletion Q3 2026 (ACI-RPT-1234).",
+  "expires": "2026-09-30",
+  "iso": "2026-04-24T17:30:39Z"
+}
+```
+
+**Expired-entry record** — an ACCEPTED-RISKS.md entry's `expires` date has passed; the script logs the lapse but does NOT suppress any finding:
+
+```json
+{
+  "status": "expired",
+  "rule_id": "hadolint.DL3003",
+  "source_ref_glob": "docker/base/Dockerfile",
+  "reason": "Base image built in a controlled CI step; cd is intentional.",
+  "expires": "2020-01-01",
+  "iso": "2026-04-24T17:30:39Z"
+}
+```
+
+Field invariants:
+- `status` ∈ `{"suppressed", "expired"}`.
+- `rule_id`, `source_ref_glob`, `reason`, `expires`, `iso` are required on both shapes.
+- `source_ref` is required only on `status:"suppressed"` (it records the specific finding that matched).
+- `expires` is `YYYY-MM-DD` UTC.
+- `iso` is ISO-8601 UTC (second precision suffices; the log is for audit, not tracing).
+
+Idempotency: the script rewrites (does not append to) the log file on each run, so a re-run against unchanged inputs produces a byte-identical file.
+
+## Envelope 5 — Severity-floors log (added in v1.3.0)
+
+Per-target floor-application log emitted by `scripts/apply-severity-floors.sh` in the companion plugin. Written to `<memory-dir>/severity-floors-log-<slug>.jsonl`. The script raises `exploitability.score` on matched disposition entries (Envelope 3) and emits one JSONL record per match.
+
+```json
+{
+  "id": "sec-appsettings.json-511",
+  "floor_class": "hardcoded-creds",
+  "floor": 9,
+  "original_score": 9,
+  "final_score": 9
+}
+```
+
+Field invariants:
+- `id` matches an entry `id` in the disposition register.
+- `floor_class` comes from the `<class> floor=<n>` pattern embedded in the entry's `exploitability.rationale` (fp-reduction agent convention) AND must appear in `plugins/agentic-security-assessment/knowledge/severity-floors.json`'s `recognized_classes`.
+- `floor`, `original_score`, `final_score` are integers in 0..10.
+- `final_score >= original_score` (floors only raise).
+- `final_score >= floor` (the floor was respected).
+- Records are emitted for every matched entry on first run, even when `original_score == final_score` (log-every-match semantics, matching the 2026-04-24 extranetapi reference).
+
+Idempotency: the script sets `exploitability.floor_applied: true` on each mutated entry; subsequent runs skip marked entries, so the log file is append-safe across re-runs against an already-floored register.
+
+Suppression phrase: entries whose rationale contains `floor=<n> suppressed to <m>` are skipped entirely (the fp-reduction agent signaled the default floor does not apply in context) — no log record is emitted.
+
 ## Severity mapping (added in v1.1.0)
 
 The unified finding envelope uses a lint-grade severity scale optimized for tool output (`error | warning | suggestion | info`). The `exec-report-generator` maps these into a **presentational** CRITICAL / HIGH / MEDIUM / LOW scale for executive-audience reports. The presentational scale matches the `opus_repo_scan_test` reference and is familiar to CISO / CTO readers.
@@ -193,6 +263,15 @@ A mutation test alters a field in a conformance fixture; CI must fail. A version
 - Removing a field, renaming a field, changing a field's semantics, or adding a REQUIRED field → `version: X.0.0` (MAJOR). Publish a migration note; downstream plugins' `required-primitives-contract` constraints force them to update before installing.
 
 ## Changelog
+
+### 1.3.0 (2026-04-24)
+
+Additive schema release. Consumers on `^1.0.0` continue to install unmodified.
+
+- **New Envelope 4 — Accepted-risks log.** Registers the `<memory-dir>/accepted-risks-<slug>.jsonl` artifact emitted by the companion plugin's new `scripts/apply-accepted-risks.sh` (Phase 1c). Two record shapes: `status:"suppressed"` and `status:"expired"`. Input format reference lives at `plugins/agentic-security-assessment/docs/accepted-risks-format.md`.
+- **New Envelope 5 — Severity-floors log.** Registers the `<memory-dir>/severity-floors-log-<slug>.jsonl` artifact emitted by the companion plugin's new `scripts/apply-severity-floors.sh` (Phase 2b). Schema matches the 2026-04-24 extranetapi reference byte-for-byte.
+- **New canonical-registry paragraph** in the preamble making explicit that this file is the single registry for artifacts shared between the two plugins. Addresses an architecture-review observation during the helper-scripts PR that producers should PR into this file rather than fork per-plugin contracts.
+- **Backward compatibility:** pre-1.3.0 plugin installations continue to work — the new envelopes have no producers outside the new helper scripts, and the existing envelopes are unchanged.
 
 ### 1.2.0 (2026-04-24)
 
