@@ -121,7 +121,7 @@ Write both files together. Do not emit partial artifacts.
 
 **JSON** (`memory/recon-<slug>.json`):
 - Validates against `evals/codebase-recon/expected-schema.json`
-- `schema_version` = `"0.1"`
+- `schema_version` = `"0.2"`
 - `generated_at` = current UTC time (ISO-8601)
 - Unset/unknown values: empty arrays, `null`, or the appropriate skeleton — do NOT omit required keys
 
@@ -139,7 +139,7 @@ RECON written:
   memory/recon-<slug>.json              (<N> bytes)
   memory/recon-<slug>.md                (<N> bytes)
   memory/recon-<slug>.inventory.txt     (<N> lines)
-  schema_version: 0.1
+  schema_version: 0.2
 ```
 
 ## What this agent does NOT do
@@ -163,4 +163,4 @@ Consumers of `memory/recon-<slug>.json`:
 - `exec-report-generator` (P2 Step 14) — consumes `git_history` for context in the executive summary
 - Any future manifest-membership consumer (Gap 6's PreToolUse hook, audit tooling) — consumes `file_inventory.sibling_ref` to locate the path list at `memory/<sibling_ref>`. Consumers MUST follow the fail-open contract in `knowledge/security-primitives-contract.md#consumer-error-contract` when the field is absent, the sibling file is missing, or the declared `count` mismatches `wc -l` of the sibling.
 
-If the consumer receives a RECON with `schema_version != "0.1"`, treat as incompatible until P2 Step 4's contract v1.0.0 subsumes this placeholder.
+If the consumer receives a RECON with `schema_version != "0.2"`, treat as incompatible until P2 Step 4's contract v1.0.0 subsumes this placeholder.
