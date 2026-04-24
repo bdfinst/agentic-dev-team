@@ -78,7 +78,7 @@ Add these three acceptance criteria to `plans/security-review-companion-plugin.m
 
 ### AC-CIF-1: Opus-tier agents carry thinking directive
 
-> Any new file added under `plugins/agentic-dev-team/agents/` or `plugins/agentic-security-review/agents/` whose YAML frontmatter declares `model: opus` must contain the literal sentence `Think carefully and step-by-step; this problem is harder than it looks.` as an H2 subsection titled `## Thinking Guidance` placed immediately after the frontmatter close (`---`) and before any other heading. The body of the subsection is exactly that one sentence.
+> Any new file added under `plugins/agentic-dev-team/agents/` or `plugins/agentic-security-assessment/agents/` whose YAML frontmatter declares `model: opus` must contain the literal sentence `Think carefully and step-by-step; this problem is harder than it looks.` as an H2 subsection titled `## Thinking Guidance` placed immediately after the frontmatter close (`---`) and before any other heading. The body of the subsection is exactly that one sentence.
 >
 > Any new file with `model: haiku` must contain the literal sentence `Prioritize responding quickly rather than thinking deeply.` in the same placement.
 >

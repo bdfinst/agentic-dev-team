@@ -10,11 +10,11 @@
 Deliver deep-security-assessment and adversarial ML red-team capability inspired by `opus_repo_scan_test`, **inverting its prompt-heavy design**: deterministic tools do the detection, hooks automate invocation in the security plugin only, and LLM agents are reserved for semantic reasoning (business logic, narrative annotation, executive prose, cross-repo attack chains). Two plugins:
 
 - **A. `agentic-dev-team`** receives reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned primitives contract, SARIF-first tool orchestration).
-- **B. `agentic-security-review`** (new, mirrored layout + `harness/` extension) hosts: the PostToolUse auto-scan hook (default on, security-plugin-only), FP-reduction (joern + LLM with fallback banner), narrowly-LLM agents, `/security-assessment` orchestration, service-communication diagram tool, `/cross-repo-analysis`, compliance mapping (pattern-table first), PDF export, and the adversarial ML red-team harness (self-owned targets only).
+- **B. `agentic-security-assessment`** (new, mirrored layout + `harness/` extension) hosts: the PostToolUse auto-scan hook (default on, security-plugin-only), FP-reduction (joern + LLM with fallback banner), narrowly-LLM agents, `/security-assessment` orchestration, service-communication diagram tool, `/cross-repo-analysis`, compliance mapping (pattern-table first), PDF export, and the adversarial ML red-team harness (self-owned targets only).
 
 ## Plugin Structure Contract
 
-`plugins/agentic-security-review/` mirrors `plugins/agentic-dev-team/` one-for-one; `harness/` is a first-class top-level directory for executable application code. Structural parity rule: "same schema where the directory applies; omitted directories documented in CLAUDE.md with rationale."
+`plugins/agentic-security-assessment/` mirrors `plugins/agentic-dev-team/` one-for-one; `harness/` is a first-class top-level directory for executable application code. Structural parity rule: "same schema where the directory applies; omitted directories documented in CLAUDE.md with rationale."
 
 ## Tool Orchestration Strategy (Decision Record)
 
@@ -50,7 +50,7 @@ Note: `trufflehog` v3 emits SARIF via `--output sarif` — moved to SARIF tier a
 `entropy-check.py` — passphrase entropy + cross-env reuse
 `model-hash-verify.py` — ML model integrity + provenance
 
-**Custom scripts shipped by agentic-security-review (emit appropriate format):**
+**Custom scripts shipped by agentic-security-assessment (emit appropriate format):**
 `shared-cred-hash-match.py` — cross-repo shared credentials (SARIF)
 `service-comm-parser.py` — NATS/K8s/package configs → Mermaid (not a SARIF finding)
 
@@ -94,7 +94,7 @@ Semver: PATCH = doc; MINOR = additive; MAJOR = breaking. Consumer declares `requ
 - [ ] `ACCEPTED-RISKS.md` convention: suppresses matched findings with logging; `--init-risks` scaffolds when absent
 - [ ] `static-analysis-integration` uses SARIF-first parsing; adapters (SARIF + JSON) detect tool presence, emit `install with: ...` hint per missing tool, never fail the pipeline
 - [ ] Install-hint format is consistent: `<tool-name> — <capability-tier>. install: <package-manager> install <name>` (one format across all tools); required tools visually distinguished from optional (e.g., `[REQUIRED]` prefix); tier-implementation labels ("SARIF adapter" / "bespoke-JSON adapter") never surface in user-facing output
-- [ ] CLAUDE.md and README in `agentic-security-review` each contain the `llm-safety.yaml` coverage-bound statement verbatim (not paraphrased): "static coverage via llm-safety.yaml is intentionally narrow — it catches pattern-visible issues but is NOT a substitute for runtime LLM safety testing"
+- [ ] CLAUDE.md and README in `agentic-security-assessment` each contain the `llm-safety.yaml` coverage-bound statement verbatim (not paraphrased): "static coverage via llm-safety.yaml is intentionally narrow — it catches pattern-visible issues but is NOT a substitute for runtime LLM safety testing"
 - [ ] Custom scripts (`entropy-check.py`, `model-hash-verify.py`) emit SARIF and pass schema validation
 - [ ] Semgrep rulesets are shipped: community list + three custom rulesets (`ml-patterns.yaml`, `llm-safety.yaml`, `fraud-domain.yaml`); each custom ruleset has a positive+negative fixture
 - [ ] Primitives contract v1.0.0 exists; unified finding schema is a narrow SARIF-derived envelope (no per-tool raw output); conformance fixture passes under `evals/primitives-contract/`
@@ -106,11 +106,11 @@ Semver: PATCH = doc; MINOR = additive; MAJOR = breaking. Consumer declares `requ
 
 These three ACs ensure P2 execution stays aligned with P1 (`plans/opus-4-7-alignment.md`) conventions so that P1's Stage 7 is verification rather than a multi-file retrofit. Each AC adds ~15 minutes per affected commit.
 
-- [ ] **AC-CIF-1 (Opus-tier agents carry thinking directive)**: Any new file added under `plugins/agentic-dev-team/agents/` or `plugins/agentic-security-review/agents/` whose YAML frontmatter declares `model: opus` must contain the literal sentence `Think carefully and step-by-step; this problem is harder than it looks.` as an H2 subsection titled `## Thinking Guidance` placed immediately after the frontmatter close (`---`) and before any other heading. The body of the subsection is exactly that one sentence. Any new file with `model: haiku` must contain the literal sentence `Prioritize responding quickly rather than thinking deeply.` in the same placement. Impacted new opus agents (per this plan): `codebase-recon`, `fp-reduction`, `business-logic-domain-review`, `cross-repo-synthesizer`, `exec-report-generator`, `redteam-recon-analyzer`, `redteam-evasion-analyzer`, `redteam-extraction-analyzer`, `redteam-report-generator` (9 files). Source: Anthropic's official "Best Practices for Claude Opus 4.7 with Claude Code" post (`https://claude.com/blog/best-practices-for-using-claude-opus-4-7-with-claude-code`). Verification: P1 Step 7 ships `scripts/check-thinking-directives.sh` as the Stage 7 gate; during P2 execution reviewers verify manually at commit time.
+- [ ] **AC-CIF-1 (Opus-tier agents carry thinking directive)**: Any new file added under `plugins/agentic-dev-team/agents/` or `plugins/agentic-security-assessment/agents/` whose YAML frontmatter declares `model: opus` must contain the literal sentence `Think carefully and step-by-step; this problem is harder than it looks.` as an H2 subsection titled `## Thinking Guidance` placed immediately after the frontmatter close (`---`) and before any other heading. The body of the subsection is exactly that one sentence. Any new file with `model: haiku` must contain the literal sentence `Prioritize responding quickly rather than thinking deeply.` in the same placement. Impacted new opus agents (per this plan): `codebase-recon`, `fp-reduction`, `business-logic-domain-review`, `cross-repo-synthesizer`, `exec-report-generator`, `redteam-recon-analyzer`, `redteam-evasion-analyzer`, `redteam-extraction-analyzer`, `redteam-report-generator` (9 files). Source: Anthropic's official "Best Practices for Claude Opus 4.7 with Claude Code" post (`https://claude.com/blog/best-practices-for-using-claude-opus-4-7-with-claude-code`). Verification: P1 Step 7 ships `scripts/check-thinking-directives.sh` as the Stage 7 gate; during P2 execution reviewers verify manually at commit time.
 - [ ] **AC-CIF-2 (CLAUDE.md additions follow architecture rule)**: New content added to `plugins/agentic-dev-team/CLAUDE.md` during P2 execution must be *needed every session*. Reference data (schemas, registries, policy tables) goes in `plugins/agentic-dev-team/knowledge/`; procedures go in `plugins/agentic-dev-team/skills/`; CLAUDE.md receives at most a one-line pointer per relocated block. Exception: registry summary rows for new agents/skills/commands may appear in CLAUDE.md's existing `### Quick Reference` section. Verification: review at P2 commit time; P1 Step 3 ships `scripts/check-links.sh` as the Stage 7 gate.
 - [ ] **AC-CIF-3 (New negative rules pre-classified)**: Any new line added to `{plugins/agentic-dev-team/agents/orchestrator.md, plugins/agentic-dev-team/commands/build.md, plugins/agentic-dev-team/commands/plan.md, plugins/agentic-dev-team/commands/code-review.md, plugins/agentic-dev-team/CLAUDE.md}` during P2 execution matching `^.*(Do not|DO NOT|Don't|DON'T|Never|NEVER)` must be preceded by `<!-- SAFETY-GATE: <1-line reason> -->` (destructive / security / data-loss protection — keep negative) OR converted to a positive exemplar block containing the literal strings `Example 1:` and `Example 2:` (process rules). Rules that would classify as `NATIVE` (Opus 4.7 handles without the rule) should not be added. Verification: P1 Step 5 ships `scripts/check-negative-rules.sh` as the Stage 7 gate.
 
-### Companion plugin (agentic-security-review)
+### Companion plugin (agentic-security-assessment)
 - [ ] Plugin directory follows Structure Contract; `install.sh` refuses on major primitives-contract mismatch, reports tool-presence grouped by capability tier, and prints the exact `settings.local.json` opt-out snippet inline
 - [ ] **Hooks default ON** in this plugin only; hooks are NOT registered in agentic-dev-team
 - [ ] `PostToolUse: static-scan-on-edit.sh` fires on relevant file writes, default severity threshold **error only** (warnings require `verbose_hooks: true` in settings); fast-tier tools only (gitleaks, hadolint, actionlint, semgrep-quick-profile); `settings.local.json` opt-out verified by an eval that disables the hook and asserts it does not fire
@@ -179,7 +179,7 @@ Feature: Primitives in agentic-dev-team
 Feature: Security plugin — hooks, tool-first scanning, FP-reduction
 
   Scenario: Hooks default ON in security plugin only
-    Given a fresh install of agentic-security-review
+    Given a fresh install of agentic-security-assessment
     When a Dockerfile is written via Edit
     Then the PostToolUse hook runs hadolint
     And findings at severity "error" are surfaced
@@ -202,7 +202,7 @@ Feature: Security plugin — hooks, tool-first scanning, FP-reduction
     And the finding severity is "error"
 
   Scenario: Install output prints opt-out snippet inline
-    Given a fresh install of agentic-security-review
+    Given a fresh install of agentic-security-assessment
     Then the install report prints a capability-tier grouped tool-presence summary
     And the install report includes the exact JSON to paste into settings.local.json for hook opt-out
 
@@ -338,16 +338,16 @@ Feature: Security plugin — adversarial ML red-team
 **RED**: Structure-parity assertion. `/agent-audit` passes. `install.sh` tests: (a) agentic-dev-team missing → non-zero + install hint; (b) primitives-contract major mismatch → non-zero + version names; (c) missing optional tools → warning list grouped by capability tier, not failure; (d) install output prints the exact `settings.local.json` opt-out snippet inline.
 **GREEN**: Scaffold mirrored layout including `harness/` placeholder. `plugin.json` declares `required-primitives-contract: ^1.0.0`. `install.sh` does dep + contract + tool-presence checks, groups output by capability tier (secrets / IaC / CI-CD / supply-chain / SAST / data-flow), **distinguishes required from optional tools visually (required shown with `[REQUIRED]` prefix; absence is a hard failure vs. optional absence which is a warning)**, and prints the exact opt-out JSON snippet. CLAUDE.md documents hook opt-out and adapter + ruleset policies.
 **REFACTOR**: Share install.sh helpers with agentic-dev-team via sourced snippet
-**Files**: full `plugins/agentic-security-review/` tree + `.claude-plugin/marketplace.json`
+**Files**: full `plugins/agentic-security-assessment/` tree + `.claude-plugin/marketplace.json`
 **Commit**: `feat(security-review): scaffold companion plugin`
 
 #### Step 7: PostToolUse static-scan-on-edit hook (security plugin only)
 
 **Complexity**: standard
 **RED**: (a) Dockerfile write → hadolint fires if present; skip if absent; default severity threshold = error; warnings suppressed unless `verbose_hooks: true`. (b) `.github/workflows/*.yml` write → actionlint fires. (c) JS/TS write → semgrep quick-profile fires. (d) File with AWS key pattern → gitleaks fires with error severity. (e) **Negative case:** write of an unmatched file type (e.g., `.txt`, `.md` without secret patterns) → no tool fires, no finding surfaced. (f) `settings.local.json` hook opt-out → hook does NOT fire (verified by opt-out eval).
-**GREEN**: `plugins/agentic-security-review/hooks/static-scan-on-edit.sh` — file-extension matcher dispatches to fast-tier tools (gitleaks, hadolint, actionlint, semgrep with quick profile only). Registered in `plugins/agentic-security-review/settings.json` — not agentic-dev-team. Default severity = error; `settings.local.json` can set `"verbose_hooks": true` to surface warnings. Opt-out JSON snippet documented in install output.
+**GREEN**: `plugins/agentic-security-assessment/hooks/static-scan-on-edit.sh` — file-extension matcher dispatches to fast-tier tools (gitleaks, hadolint, actionlint, semgrep with quick profile only). Registered in `plugins/agentic-security-assessment/settings.json` — not agentic-dev-team. Default severity = error; `settings.local.json` can set `"verbose_hooks": true` to surface warnings. Opt-out JSON snippet documented in install output.
 **REFACTOR**: Extract tool-matcher regex to `hooks/static-scan-matchers.conf` for maintainability
-**Files**: `plugins/agentic-security-review/hooks/static-scan-on-edit.sh`, `hooks/static-scan-matchers.conf`, `settings.json`, `evals/hook-opt-out/`
+**Files**: `plugins/agentic-security-assessment/hooks/static-scan-on-edit.sh`, `hooks/static-scan-matchers.conf`, `settings.json`, `evals/hook-opt-out/`
 **Commit**: `feat(security-review): PostToolUse auto-scan hook, error-severity default, security-plugin only`
 
 #### Step 8: FP-reduction hybrid (joern + LLM with fallback banner) — **MVP Core**
@@ -390,7 +390,7 @@ Feature: Security plugin — adversarial ML red-team
 
 **Complexity**: standard
 **RED**: (a) Fixture repo with NATS + K8s Services + package.json inter-service calls → `service-comm-parser.py` emits Mermaid; edges annotated with auth/encryption status. (b) Fixture two repos both containing hash of `"Welcome2ACI"` → `shared-cred-hash-match.py` reports shared cred. (c) `/cross-repo-analysis <paths>` composes both tools then invokes `cross-repo-synthesizer` which produces a named attack chain.
-**GREEN**: `plugins/agentic-security-review/harness/tools/service-comm-parser.py` and `harness/tools/shared-cred-hash-match.py` (shipped in companion plugin; they have no agentic-dev-team caller). `commands/cross-repo-analysis.md` orchestrates. `agents/cross-repo-synthesizer.md` (opus) produces narrative. Parser output is a Mermaid code block; passed through verbatim by downstream consumers.
+**GREEN**: `plugins/agentic-security-assessment/harness/tools/service-comm-parser.py` and `harness/tools/shared-cred-hash-match.py` (shipped in companion plugin; they have no agentic-dev-team caller). `commands/cross-repo-analysis.md` orchestrates. `agents/cross-repo-synthesizer.md` (opus) produces narrative. Parser output is a Mermaid code block; passed through verbatim by downstream consumers.
 **REFACTOR**: None
 **Files**: `commands/cross-repo-analysis.md`, `agents/cross-repo-synthesizer.md`, `harness/tools/{service-comm-parser.py,shared-cred-hash-match.py}`, `evals/cross-repo/{fixtures/,rubric.md}`
 **Commit**: `feat(security-review): service-comm diagram + /cross-repo-analysis`
@@ -500,7 +500,7 @@ Each pattern ships with a positive + negative fixture under `evals/semgrep-rules
 
 ### Step 6 — ACCEPTED-RISKS as universal agent-level invariant
 
-Reference requires every detection agent to read `business_logic.md` before emitting findings. Add the same universal invariant to `plugins/agentic-security-review/CLAUDE.md` (and echo in `plugins/agentic-dev-team/CLAUDE.md`): "every detection agent consults `ACCEPTED-RISKS.md` at the repo root before emitting findings; items matched by a rule are suppressed with a logged audit entry, not omitted silently."
+Reference requires every detection agent to read `business_logic.md` before emitting findings. Add the same universal invariant to `plugins/agentic-security-assessment/CLAUDE.md` (and echo in `plugins/agentic-dev-team/CLAUDE.md`): "every detection agent consults `ACCEPTED-RISKS.md` at the repo root before emitting findings; items matched by a rule are suppressed with a logged audit entry, not omitted silently."
 
 Applies to: `security-review`, `domain-review`, `business-logic-domain-review`, `tool-finding-narrative-annotator`, static-analysis adapters, and any future detection agent.
 
@@ -614,7 +614,7 @@ Breaking any of these makes the exec report unreliable; the reference's experien
 - [ ] Primitives contract conformance fixture passes
 - [ ] SARIF schema validation passes on all SARIF-emitting adapters + custom scripts
 - [ ] Semgrep custom rulesets each have passing positive + negative fixtures
-- [ ] PostToolUse hook registered in agentic-security-review only (not agentic-dev-team); opt-out eval passes
+- [ ] PostToolUse hook registered in agentic-security-assessment only (not agentic-dev-team); opt-out eval passes
 - [ ] PreToolUse contract-version-guard blocks unversioned edits; bypass path for release-please verified
 - [ ] Consent gate + scope enforcement tests pass; public targets refused by default
 - [ ] Per-plugin release-please produces independent version bumps
@@ -670,7 +670,7 @@ Four plan review personas ran across six revision cycles. Final verdicts on revi
 
 **Rev 5 — SARIF-first + hook-in-companion:**
 - SARIF-first tool orchestration: shared SARIF parser + thin per-tool adapters; unified finding envelope narrowed to SARIF `result` fields
-- PostToolUse hook moved from agentic-dev-team to agentic-security-review (security plugin only)
+- PostToolUse hook moved from agentic-dev-team to agentic-security-assessment (security plugin only)
 - Adapter Maintenance Policy documented with update trigger + deprecation path
 - Release-please bypass path for contract-version-guard
 - Tier-1 (mock) + tier-2 (real-binary nightly) CI split for tool adapters
