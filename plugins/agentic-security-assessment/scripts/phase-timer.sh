@@ -35,6 +35,10 @@
 
 set -euo pipefail
 
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=./_lib.sh
+source "$(dirname "$0")/_lib.sh"
+
 usage() {
   cat <<'USAGE'
 usage: phase-timer.sh start|end <phase-name> <slug> [<memory-dir>]
@@ -55,12 +59,7 @@ if [[ $# -eq 0 ]]; then
   exit 3
 fi
 
-case "${1:-}" in
-  -h|--help)
-    usage
-    exit 0
-    ;;
-esac
+lib_parse_help "$@"
 
 if [[ $# -lt 3 ]]; then
   usage >&2
@@ -100,19 +99,13 @@ fi
 
 OUT="$MEMORY_DIR/phase-timings-$SLUG.jsonl"
 
-# Millisecond epoch + ISO-8601 timestamp — portable across GNU (Linux) and
-# BSD (macOS) date. Python3 is a hard dependency of this plugin's harness/,
-# so falling back to it is safe.
-if TS="$(date +%s%3N 2>/dev/null)" && [[ "$TS" =~ ^[0-9]{13}$ ]]; then
-  EPOCH_MS="$TS"
-else
-  EPOCH_MS="$(python3 -c 'import time;print(int(time.time()*1000))')" || {
-    echo "phase-timer.sh: failed to obtain millisecond timestamp" >&2
-    exit 1
-  }
-fi
-
-ISO="$(python3 -c 'from datetime import datetime,timezone; print(datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00","Z"))')" || {
+# Millisecond epoch + ISO-8601 timestamp via _lib.sh helpers. python3
+# fallback ensures portability across macOS BSD date and GNU date.
+EPOCH_MS="$(lib_epoch_ms)" || {
+  echo "phase-timer.sh: failed to obtain millisecond timestamp" >&2
+  exit 1
+}
+ISO="$(lib_iso_now milliseconds)" || {
   echo "phase-timer.sh: failed to format ISO-8601 timestamp" >&2
   exit 1
 }

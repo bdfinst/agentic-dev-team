@@ -50,6 +50,10 @@
 
 set -euo pipefail
 
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=./_lib.sh
+source "$(dirname "$0")/_lib.sh"
+
 usage() {
   cat <<'USAGE'
 usage: apply-severity-floors.sh <slug> [<memory-dir>]
@@ -71,12 +75,7 @@ if [[ $# -eq 0 ]]; then
   exit 3
 fi
 
-case "${1:-}" in
-  -h|--help)
-    usage
-    exit 0
-    ;;
-esac
+lib_parse_help "$@"
 
 SLUG="$1"
 MEMORY_DIR="${2:-./memory}"

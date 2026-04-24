@@ -125,12 +125,11 @@ scripts/apply-accepted-risks.sh <target-dir> <slug> [<memory-dir>]
 
 Defaults: `memory-dir = ./memory`. The script:
 - Checks for `ACCEPTED-RISKS.md` at `<target-dir>/`. Absent → exits 0 without changes; this target proceeds with all findings.
-- Parses YAML frontmatter per `plugins/agentic-dev-team/knowledge/accepted-risks-schema.md`. Schema-invalid → exits 2 (fails the run with a named parse error).
-- Applies first-match-wins: rule matches when its `rule_id` pattern matches finding's `rule_id` AND any of its `files[]` globs matches the finding's file (path-normalized relative to target root).
-- Expired rules emit WARN but do not suppress.
-- Rewrites `memory/findings-<slug>.jsonl` in place (suppressed entries removed).
-- Writes `memory/suppressed-<slug>.jsonl` (removed entries + `_suppressed_by` metadata).
-- Writes `memory/suppression-log-<slug>.jsonl` (audit log).
+- Parses the first fenced ```` ```json ```` code block per `plugins/agentic-security-assessment/docs/accepted-risks-format.md`. Malformed JSON or missing required fields → exits 3 (fails the run with a named parse error); `findings-<slug>.jsonl` is left unchanged.
+- Applies first-match-wins: entry matches when its `rule_id` is an exact string match against `finding.rule_id` AND its `source_ref_glob` (bash-extglob semantics documented in the format reference) matches `finding.source_ref`.
+- Expired rules (today UTC > `expires`) are logged with `status:"expired"` but do NOT suppress.
+- Rewrites `memory/findings-<slug>.jsonl` in place (suppressed entries removed) via atomic `.tmp` + `mv`.
+- Writes `memory/accepted-risks-<slug>.jsonl` (one record per suppressed finding with `status:"suppressed"`, plus one record per expired entry with `status:"expired"`). Schema is Envelope 4 of `plugins/agentic-dev-team/knowledge/security-primitives-contract.md`.
 
 This step is **mandatory when `ACCEPTED-RISKS.md` is present**. If the exec report's Appendix C is empty but `ACCEPTED-RISKS.md` existed at the target root, the run surfaces a warning about the missed gate per `agents/exec-report-generator.md` § Section 7.
 
@@ -144,11 +143,13 @@ Multi-target runs invoke the script once per target.
 scripts/apply-severity-floors.sh <slug> [<memory-dir>]
 ```
 
-The script reads `memory/disposition-<slug>.json`, applies domain-class severity floors by rule_id pattern (PII, TLS-disabled, weak-crypto, hardcoded-creds, fail-open-fraud, emulation-bypass, feature-poisoning, tokenization-skip, unauth admin endpoints path-gated to `/admin|/internal|/predict|/score|...`, unauth info-leak endpoints floor-5), and rewrites the register with:
-- `exploitability.score = max(mechanical_score, floor)`
-- `exploitability.rationale` annotated with the floor class + original rationale
+The script reads `memory/disposition-<slug>.json`, extracts `<class> floor=<n>` from each entry's `exploitability.rationale` (the fp-reduction agent's existing convention), and applies the floor when the class appears in `knowledge/severity-floors.json`'s recognized-classes allow-list (hardcoded-creds, weak-crypto, tls-disabled, info-leak-unauth, unauth-admin-endpoint). Effects per matched entry:
+- `exploitability.score = max(original, floor)`
+- `exploitability.floor_applied = true` (idempotency marker — subsequent runs skip marked entries)
 
-Emits `memory/severity-floors-log-<slug>.jsonl` for audit (one line per floor applied).
+Rationales containing `floor=<n> suppressed to <m>` are ignored (fp-reduction signaled the floor does not apply in context).
+
+Emits `memory/severity-floors-log-<slug>.jsonl` — one record per matched entry with `{id, floor_class, floor, original_score, final_score}` (schema is Envelope 5 of the primitives contract). Log-every-match semantics: records are written even when `original_score == final_score`.
 
 **Why deterministic**: floor rules are pure functions over `(rule_id, file_path)` — delegating this to an LLM produces run-to-run variance. The pattern-matching logic belongs in code.
 

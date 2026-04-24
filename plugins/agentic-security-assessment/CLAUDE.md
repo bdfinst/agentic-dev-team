@@ -126,6 +126,6 @@ See `plans/security-review-companion-plugin.md` for the step-by-step history.
 
 - The primitives contract itself (`security-primitives-contract.md`) — lives in `agentic-dev-team/knowledge/`
 - The codebase-recon agent — lives in `agentic-dev-team/agents/`
-- ACCEPTED-RISKS schema — lives in `agentic-dev-team/knowledge/`
+- ACCEPTED-RISKS schema registry — Envelope 4 of `plugins/agentic-dev-team/knowledge/security-primitives-contract.md`; input format reference at `plugins/agentic-security-assessment/docs/accepted-risks-format.md`
 - Baseline static-analysis orchestration — lives in `agentic-dev-team/skills/static-analysis-integration/`
 - Static-scan hooks for general dev workflows (the PostToolUse auto-scan hook in THIS plugin is narrowly scoped to security-relevant file writes)

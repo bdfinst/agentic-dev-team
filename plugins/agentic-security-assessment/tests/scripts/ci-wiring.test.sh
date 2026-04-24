@@ -28,8 +28,11 @@ test_workflow_runs_tests() {
 
 test_workflow_runs_shellcheck() {
   [[ -f "$WORKFLOW" ]] || { fail "workflow missing; prerequisite"; return; }
-  grep -q '^[[:space:]]*[-]* name:.*[Ss]hellcheck\|shellcheck[[:space:]]' "$WORKFLOW" \
-    || { fail "workflow does not run shellcheck on the scripts"; return; }
+  # Accept any reference to shellcheck — a `run: shellcheck ...` step, a
+  # named step, or a `uses:` action — without depending on fragile
+  # layout assumptions about newlines or leading whitespace.
+  grep -qE 'shellcheck' "$WORKFLOW" \
+    || { fail "workflow does not mention shellcheck at all"; return; }
   ok "workflow runs shellcheck"
 }
 

@@ -37,6 +37,10 @@
 
 set -euo pipefail
 
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=./_lib.sh
+source "$(dirname "$0")/_lib.sh"
+
 usage() {
   cat <<'USAGE'
 usage: apply-accepted-risks.sh <target-dir> <slug> [<memory-dir>]
@@ -63,12 +67,7 @@ if [[ $# -eq 0 ]]; then
   exit 3
 fi
 
-case "${1:-}" in
-  -h|--help)
-    usage
-    exit 0
-    ;;
-esac
+lib_parse_help "$@"
 
 if [[ $# -lt 2 ]]; then
   usage >&2
@@ -165,9 +164,9 @@ fi
 # Ensure memory-dir exists.
 mkdir -p "$MEMORY_DIR"
 
-# Today's UTC date for expiry check.
+# Today's UTC date for expiry check; ISO-8601 (seconds precision) for log records.
 TODAY_UTC="$(python3 -c 'from datetime import datetime,timezone; print(datetime.now(timezone.utc).date().isoformat())')"
-ISO_NOW="$(python3 -c 'from datetime import datetime,timezone; print(datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z"))')"
+ISO_NOW="$(lib_iso_now seconds)"
 
 FINDINGS_TMP="$FINDINGS.tmp"
 LOG_TMP="$LOG.tmp"

@@ -16,7 +16,8 @@ jobs:
 
       - name: Shellcheck agentic-security-assessment helper scripts
         run: |
-          shellcheck \
+          shellcheck -x \
+            plugins/agentic-security-assessment/scripts/_lib.sh \
             plugins/agentic-security-assessment/scripts/apply-accepted-risks.sh \
             plugins/agentic-security-assessment/scripts/apply-severity-floors.sh \
             plugins/agentic-security-assessment/scripts/find-ci-files.sh \
