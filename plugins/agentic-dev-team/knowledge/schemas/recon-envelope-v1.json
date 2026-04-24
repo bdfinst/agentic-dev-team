@@ -171,6 +171,28 @@
         }
       }
     },
+    "file_inventory": {
+      "type": "object",
+      "description": "Added in v1.2.0. Pointer to the sibling inventory file memory/recon-<slug>.inventory.txt. Object is optional at schema level (backward-compat with pre-1.2.0 envelopes); codebase-recon always emits it from 1.2.0 forward.",
+      "required": ["source", "count", "sibling_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["git-ls-files", "filesystem-walk"],
+          "description": "Enumeration branch: git-ls-files (git target) or filesystem-walk (non-git target)."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of lines in the sibling file. MUST equal wc -l of memory/recon-<slug>.inventory.txt."
+        },
+        "sibling_ref": {
+          "type": "string",
+          "description": "Basename of the sibling inventory file, e.g. 'recon-ts-monorepo.inventory.txt'."
+        }
+      }
+    },
     "notes": { "type": "array", "items": { "type": "string" } }
   }
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentic-dev-team.local/schemas/recon-envelope-v0.1.json",
-  "title": "RECON envelope (v0.1 — placeholder)",
+  "$id": "https://agentic-dev-team.local/schemas/recon-envelope-v0.2.json",
+  "title": "RECON envelope (v0.2 — placeholder)",
   "description": "Normalized reconnaissance output from the codebase-recon agent. This is the v0.1 placeholder schema; the canonical schema is finalized in plans/security-review-companion-plugin.md Step 4 (primitives contract v1.0.0). Consumers should treat field NAMES as stable and nested shapes as indicative.",
   "type": "object",
   "required": [
@@ -19,7 +19,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "0.1",
+      "const": "0.2",
       "description": "Version of the RECON envelope schema this artifact conforms to."
     },
     "generated_at": {
@@ -198,6 +198,25 @@
               "removed_commit": { "type": ["string", "null"] }
             }
           }
+        }
+      }
+    },
+    "file_inventory": {
+      "type": "object",
+      "description": "Added in v0.2 (mirrors 1.2.0 contract). Pointer to the sibling inventory file memory/recon-<slug>.inventory.txt. Optional for backward compatibility.",
+      "required": ["source", "count", "sibling_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["git-ls-files", "filesystem-walk"]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sibling_ref": {
+          "type": "string"
         }
       }
     },

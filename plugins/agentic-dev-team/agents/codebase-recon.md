@@ -98,13 +98,30 @@ Run these git commands (read-only). If the target is not a git repo, fill arrays
   - Match against: `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.crt`, `.env`, `.env.*`, `*credentials*`, `*secret*`, `id_rsa*`, `id_ed25519*`
   - For each match: record `path`, `in_current_tree` (true if the file exists in HEAD), `appeared_in_history` (always true by construction)
 
+### 6.5 Enumerate inventory
+
+Run the canonical enumeration pipeline to produce the authoritative list of files the recon considered in-scope. This file backs the envelope's `file_inventory` field (primitives contract 1.2.0+) and is the anchor for any consumer that wants to detect reads of files outside the recon surface (e.g., Gap 6's manifest-membership hook).
+
+```
+plugins/agentic-dev-team/scripts/recon-inventory.sh <repo-root> \
+    --slug <slug> \
+    --emit-main-inventory-json <tmpfile-for-main-envelope-fragment>
+```
+
+- The script decides git-ls-files vs filesystem-walk automatically (and respects `--force-filesystem-walk` for tests).
+- Write the stdout inventory to `memory/recon-<slug>.inventory.txt` (LF-terminated, `LC_ALL=C` sorted, deduplicated — the script already produces this shape).
+- Splice the JSON fragment from `<tmpfile-for-main-envelope-fragment>` into the main envelope as `file_inventory`.
+- Capture any `# BROKEN_SYMLINK:` lines from stderr and append their text (minus the marker) to the envelope's `notes` array so the staleness breadcrumb travels with the artifact.
+
+Do NOT hand-enumerate the tree with Read/Glob/Bash in this step — the canonical script is the single source of truth per the 1.2.0 plan. Duplicating the pipeline inside the agent prompt would make the shape non-deterministic across runs.
+
 ### 7. Emit artifacts
 
 Write both files together. Do not emit partial artifacts.
 
 **JSON** (`memory/recon-<slug>.json`):
 - Validates against `evals/codebase-recon/expected-schema.json`
-- `schema_version` = `"0.1"`
+- `schema_version` = `"0.2"`
 - `generated_at` = current UTC time (ISO-8601)
 - Unset/unknown values: empty arrays, `null`, or the appropriate skeleton — do NOT omit required keys
 
@@ -113,12 +130,16 @@ Write both files together. Do not emit partial artifacts.
 - One section per envelope field (Repo, Languages, Entry Points, Dependencies, Architecture, Security Surface, Git History, Notes)
 - Narrative tone: a reader can skim this in 90 seconds and orient themselves
 
+Also write the inventory sibling file from Step 6.5:
+- `memory/recon-<slug>.inventory.txt` — one repo-relative path per line, produced by the canonical script
+
 After emission, print to the dispatcher ONLY:
 ```
 RECON written:
-  memory/recon-<slug>.json  (<N> bytes)
-  memory/recon-<slug>.md    (<N> bytes)
-  schema_version: 0.1
+  memory/recon-<slug>.json              (<N> bytes)
+  memory/recon-<slug>.md                (<N> bytes)
+  memory/recon-<slug>.inventory.txt     (<N> lines)
+  schema_version: 0.2
 ```
 
 ## What this agent does NOT do
@@ -140,5 +161,6 @@ Consumers of `memory/recon-<slug>.json`:
 - `tool-finding-narrative-annotator` (P2 Step 10) — consumes `security_surface` to scope narratives
 - `cross-repo-synthesizer` (P2 Step 12) — consumes `repo` + `architecture` for attack-chain context
 - `exec-report-generator` (P2 Step 14) — consumes `git_history` for context in the executive summary
+- Any future manifest-membership consumer (Gap 6's PreToolUse hook, audit tooling) — consumes `file_inventory.sibling_ref` to locate the path list at `memory/<sibling_ref>`. Consumers MUST follow the fail-open contract in `knowledge/security-primitives-contract.md#consumer-error-contract` when the field is absent, the sibling file is missing, or the declared `count` mismatches `wc -l` of the sibling.
 
-If the consumer receives a RECON with `schema_version != "0.1"`, treat as incompatible until P2 Step 4's contract v1.0.0 subsumes this placeholder.
+If the consumer receives a RECON with `schema_version != "0.2"`, treat as incompatible until P2 Step 4's contract v1.0.0 subsumes this placeholder.

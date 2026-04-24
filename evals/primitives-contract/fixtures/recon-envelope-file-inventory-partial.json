@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-04-24T12:00:00Z",
+  "repo": {
+    "name": "fixture-repo",
+    "root": "/tmp/fixture-repo",
+    "package_manager": "npm",
+    "monorepo": false,
+    "workspaces": [],
+    "vcs": {
+      "kind": "git",
+      "remote_host": "github.com",
+      "default_branch": "main"
+    }
+  },
+  "entry_points": [],
+  "languages": [
+    { "name": "TypeScript", "file_count": 3, "dominant_framework": null }
+  ],
+  "dependencies": {},
+  "architecture": {
+    "summary": "Single service.",
+    "layers": [
+      { "name": "api", "paths": ["src"], "purpose": "HTTP surface" }
+    ],
+    "notable_anti_patterns": []
+  },
+  "security_surface": {
+    "auth_paths": [],
+    "network_egress": [],
+    "secrets_referenced": [],
+    "crypto_calls": [],
+    "csp_headers": []
+  },
+  "git_history": {
+    "branches": {
+      "current": "main",
+      "main_count": 1,
+      "feature_count": 0,
+      "names": ["main"]
+    },
+    "recent_activity": {
+      "last_commit_date": "2026-04-24T11:00:00Z",
+      "commits_last_30d": 0,
+      "authors_last_30d": 0
+    },
+    "sensitive_file_history": []
+  },
+  "file_inventory": {
+    "source": "git-ls-files"
+  },
+  "notes": []
+}

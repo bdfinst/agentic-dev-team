@@ -9,6 +9,21 @@ Grading criteria for `codebase-recon` agent output against the fixtures in `eval
 3. **Git history section present**: `git_history.branches`, `git_history.recent_activity`, `git_history.sensitive_file_history` all populated (may be empty arrays but keys must exist).
 4. **Timestamps valid**: `generated_at` is a valid ISO-8601 UTC datetime within 5 minutes of the eval run.
 
+### Inventory determinism
+
+The sibling file `memory/recon-<slug>.inventory.txt` must be byte-identical across repeated recon runs on the same input. The authoritative test: `evals/codebase-recon/tests/inventory-ts-monorepo.sh` + `inventory-polyglot.sh`. Hard gate — any non-determinism fails the fixture.
+
+### Sibling-file contract compliance
+
+The sibling file and the main-envelope `file_inventory` object must agree on every structural rule from `knowledge/security-primitives-contract.md#file_inventory-added-in-120` and `#consumer-error-contract`:
+
+- Sibling is LF-terminated, `LC_ALL=C` sorted, deduplicated, no blank lines
+- `file_inventory.count == wc -l <sibling>`
+- `file_inventory.sibling_ref` matches the basename of the emitted sibling
+- `file_inventory.source` is the enum value actually used by the canonical script
+
+Authoritative tests: `evals/codebase-recon/tests/inventory-*.sh` (ts-monorepo, polyglot, non-git-basic, submodule-symlink) and `evals/primitives-contract/tests/backward-compat-1.2.0.sh`. Hard gate — any mismatch fails the fixture.
+
 ## Fixture-specific correctness
 
 ### ts-monorepo fixture
