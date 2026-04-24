@@ -35,7 +35,7 @@ For each path, locate `memory/recon-*.json`. If any target path lacks a RECON ar
 ### 2. Run service-comm-parser.py
 
 ```bash
-python3 plugins/agentic-security-review/harness/tools/service-comm-parser.py <path1> <path2> ... > memory/service-comm-<slug>.mermaid
+python3 plugins/agentic-security-assessment/harness/tools/service-comm-parser.py <path1> <path2> ... > memory/service-comm-<slug>.mermaid
 ```
 
 Where `<slug>` is a dash-joined concatenation of target repo names.
@@ -43,7 +43,7 @@ Where `<slug>` is a dash-joined concatenation of target repo names.
 ### 3. Run shared-cred-hash-match.py
 
 ```bash
-python3 plugins/agentic-security-review/harness/tools/shared-cred-hash-match.py <path1> <path2> ... > memory/shared-cred-<slug>.sarif
+python3 plugins/agentic-security-assessment/harness/tools/shared-cred-hash-match.py <path1> <path2> ... > memory/shared-cred-<slug>.sarif
 ```
 
 The SARIF output is consumed by the synthesizer agent; it is NOT passed through the unified-finding SARIF parser at this stage (findings are shared-credential hashes, not code-level issues).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# static-scan-on-edit.sh — PostToolUse hook for the agentic-security-review plugin.
+# static-scan-on-edit.sh — PostToolUse hook for the agentic-security-assessment plugin.
 #
 # Fires on Edit/Write of security-relevant files. Dispatches to fast-tier
 # tools based on file extension. Default severity threshold: error. Set

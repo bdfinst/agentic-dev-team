@@ -8,7 +8,7 @@
 
 ## Goal
 
-Extend the agentic-security-review Phase 1 tool-first pipeline so it auto-detects target languages (Java, Go, Python, JavaScript, TypeScript, C#) and dispatches per-language SAST scanners in parallel. Outputs normalize through the existing SARIF → unified-finding pipeline, so Phase 2+ sees a consistent, single `findings-<slug>.jsonl` regardless of the target's language mix. Closes the silent Java coverage gap that motivated this work (`targets/spshared/processing-atmserver`).
+Extend the agentic-security-assessment Phase 1 tool-first pipeline so it auto-detects target languages (Java, Go, Python, JavaScript, TypeScript, C#) and dispatches per-language SAST scanners in parallel. Outputs normalize through the existing SARIF → unified-finding pipeline, so Phase 2+ sees a consistent, single `findings-<slug>.jsonl` regardless of the target's language mix. Closes the silent Java coverage gap that motivated this work (`targets/spshared/processing-atmserver`).
 
 ## Acceptance Criteria
 
@@ -37,7 +37,7 @@ Feature: Multi-language SAST auto-dispatch
   So that non-.NET codebases receive complete SAST coverage without manual configuration
 
   Background:
-    Given the agentic-security-review plugin is installed
+    Given the agentic-security-assessment plugin is installed
     And required SAST tools are available on PATH
 
   Scenario: Java-only repository is fully scanned

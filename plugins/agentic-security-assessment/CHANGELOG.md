@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.0 — RENAMED from `agentic-security-review` (2026-04-24)
+
+### BREAKING CHANGE — plugin rename
+
+The plugin has been renamed from `agentic-security-review` to `agentic-security-assessment` to eliminate the prefix collision with the `security-review` agent that lives in `agentic-dev-team`. The agent name is contract-stable and did not move.
+
+### Migration
+
+Existing users must update the following references:
+
+1. `claude plugin install`: `agentic-security-review@bfinster` → `agentic-security-assessment@bfinster`
+2. `.claude/settings.local.json` opt-out snippets referencing `plugins/agentic-security-review/` → `plugins/agentic-security-assessment/`
+3. Any automation, docs, or commit-scope conventions citing the plugin path or name
+
+The plugin's primitives-contract compatibility is unchanged (`^1.0.0`). The `security-review` agent ID in the contract registry is unchanged. No runtime behavior change.
+
+Link to spec: `docs/specs/plugin-rename-security-assessment.md`.
+
 ## [0.3.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-review-v0.2.1...agentic-security-review-v0.3.0) (2026-04-22)
 
 

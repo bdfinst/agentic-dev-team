@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Install the tools the agentic-security-review plugin calls on Windows.
+    Install the tools the agentic-security-assessment plugin calls on Windows.
 
 .DESCRIPTION
     Companion to install.sh (which only verifies presence). This script runs the
@@ -39,7 +39,7 @@ $ErrorActionPreference = 'Stop'
 
 if ($Help) {
     Write-Host @"
-install-windows.ps1 — install agentic-security-review tool dependencies on Windows.
+install-windows.ps1 — install agentic-security-assessment tool dependencies on Windows.
 
 Groups:
   tier-1 (default): python, jq, semgrep, gitleaks, trivy, hadolint, actionlint
@@ -230,7 +230,7 @@ if ($Failed.Count -gt 0) {
 
 Write-Host ""
 Write-Host "  Done. Verify the install:"
-Write-Host "    bash plugins/agentic-security-review/install.sh"
+Write-Host "    bash plugins/agentic-security-assessment/install.sh"
 Write-Host ""
 Write-Host "  Then try: /security-assessment <path-to-target>"
 exit 0

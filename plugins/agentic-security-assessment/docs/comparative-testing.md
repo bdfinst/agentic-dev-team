@@ -36,7 +36,7 @@ test is roughly the conjunction of all of these passing.
 | `scan-00-codebase-recon.md` | `plugins/agentic-dev-team/agents/codebase-recon.md` | ✅ [`codebase-recon-equivalence.md`](../../../evals/comparative/unit-tests/codebase-recon-equivalence.md) |
 | `scan-01-secrets-credentials.md` | `gitleaks` + `entropy-check.py` + `semgrep.secrets` | TBD — `secrets-equivalence.md` |
 | `scan-02-auth-authorization.md` | `agents/security-review.md` | TBD |
-| `scan-03-business-logic-fraud.md` | `plugins/agentic-security-review/agents/business-logic-domain-review.md` + `knowledge/semgrep-rules/fraud-domain.yaml` | TBD |
+| `scan-03-business-logic-fraud.md` | `plugins/agentic-security-assessment/agents/business-logic-domain-review.md` + `knowledge/semgrep-rules/fraud-domain.yaml` | TBD |
 | `scan-04-data-flow-pii-pci.md` | `tool-finding-narrative-annotator` (PII-flow narrative) + pattern rules | TBD |
 | `scan-05-infrastructure-container.md` | `hadolint` + `trivy` | TBD |
 | `scan-06-cicd-pipeline.md` | `actionlint` + `semgrep` | TBD |
@@ -51,7 +51,7 @@ Adversarial pipeline (reference ships 8 Python probes + 5 prompts):
 
 | Reference | Our counterpart |
 |---|---|
-| `adversarial-agents/scripts/01..08_*.py` | `plugins/agentic-security-review/harness/redteam/probes/01..08_*.py` |
+| `adversarial-agents/scripts/01..08_*.py` | `plugins/agentic-security-assessment/harness/redteam/probes/01..08_*.py` |
 | `adversarial-agents/lib/{http_client,result_store,scoring,feature_dict}.py` | `harness/redteam/lib/{http_client,result_store,scoring,feature_dict,scope_check}.py` |
 | `adversarial-agents/prompts/adversarial-{01..05}-*.md` | `agents/redteam-{recon,evasion,extraction,report-generator}.md` |
 | `adversarial-agents/orchestrator.py` | `harness/redteam/orchestrator.py` + `/redteam-model` command (adds scope / consent enforcement) |
@@ -62,7 +62,7 @@ Adversarial pipeline (reference ships 8 Python probes + 5 prompts):
 
 **Prerequisites**:
 - `opus_repo_scan_test-main` at the known path with its agents configured
-- Claude Code CLI installed; agentic-security-review plugin installed locally
+- Claude Code CLI installed; agentic-security-assessment plugin installed locally
 - `semgrep`, `gitleaks`, `hadolint`, `actionlint` ideally installed (affects recall ceiling on `ours`)
 
 **Steps**:

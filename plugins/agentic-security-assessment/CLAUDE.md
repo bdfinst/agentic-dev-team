@@ -1,4 +1,4 @@
-# agentic-security-review — Companion Plugin
+# agentic-security-assessment — Companion Plugin
 
 Deep security assessment and adversarial ML red-team capability. Companion to `agentic-dev-team`, which provides the reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned security-primitives-contract, SARIF-first tool orchestration).
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-macos.sh — install the tools the agentic-security-review plugin calls.
+# install-macos.sh — install the tools the agentic-security-assessment plugin calls.
 #
 # Companion to install.sh (which only verifies presence). This script runs the
 # actual brew / pip commands on macOS.
@@ -25,7 +25,7 @@ DRY_RUN=0
 
 print_help() {
   cat <<'EOF'
-install-macos.sh — install agentic-security-review tool dependencies on macOS.
+install-macos.sh — install agentic-security-assessment tool dependencies on macOS.
 
 Groups:
   tier-1 (default): python3, jq, semgrep, gitleaks, trivy, hadolint, actionlint
@@ -209,7 +209,7 @@ fi
 
 echo ""
 echo "  Done. Verify the install:"
-echo "    ./plugins/agentic-security-review/install.sh"
+echo "    ./plugins/agentic-security-assessment/install.sh"
 echo ""
 echo "  Then try: /security-assessment <path-to-target>"
 exit 0

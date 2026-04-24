@@ -94,7 +94,7 @@ Fastest for development (install from the repo you cloned):
    ```
    /plugin marketplace add .
    /plugin install agentic-dev-team@bfinster
-   /plugin install agentic-security-review@bfinster
+   /plugin install agentic-security-assessment@bfinster
    ```
 
    The `.` tells Claude Code to look for `.claude-plugin/marketplace.json` in the current directory. Both plugins become available.
@@ -119,7 +119,7 @@ Skip the marketplace registration — load plugins at session start:
 cd /path/to/agentic-dev-team
 claude \
   --plugin-dir ./plugins/agentic-dev-team \
-  --plugin-dir ./plugins/agentic-security-review
+  --plugin-dir ./plugins/agentic-security-assessment
 ```
 
 Then in the session:
@@ -130,7 +130,7 @@ Then in the session:
 
 ### What `/security-assessment` does
 
-Phases are declared in `plugins/agentic-security-review/commands/security-assessment.md`:
+Phases are declared in `plugins/agentic-security-assessment/commands/security-assessment.md`:
 
 | Phase | What runs | Deterministic? |
 |---|---|---|
@@ -277,7 +277,7 @@ If the dry-run reports parse errors, the `ACCEPTED-RISKS.md` needs fixing. See `
 
 ### Red-team target refused with scope-violation
 
-`/redteam-model` refuses public targets by default. To test against a public target you own, pass `--self-certify-owned <path-to-authorization-artifact>`. See `plugins/agentic-security-review/knowledge/redteam-authorization.md` for the required artifact format.
+`/redteam-model` refuses public targets by default. To test against a public target you own, pass `--self-certify-owned <path-to-authorization-artifact>`. See `plugins/agentic-security-assessment/knowledge/redteam-authorization.md` for the required artifact format.
 
 ---
 
@@ -292,7 +292,7 @@ cd /path/to/agentic-dev-team
 claude                                    # opens Claude Code in this dir
 /plugin marketplace add .                 # register the local marketplace
 /plugin install agentic-dev-team@bfinster
-/plugin install agentic-security-review@bfinster
+/plugin install agentic-security-assessment@bfinster
 /security-assessment /path/to/target
 
 # Path B: zero-install deterministic run

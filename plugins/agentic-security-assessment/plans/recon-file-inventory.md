@@ -5,12 +5,12 @@
 **Approved**: 2026-04-24 (user approval; in-plan path references will need a short update pass after the plugin rename lands)
 **Branch**: main
 **Status**: approved (v2)
-**Spec**: `plugins/agentic-security-review/docs/specs/recon-file-inventory.md`
+**Spec**: `plugins/agentic-security-assessment/docs/specs/recon-file-inventory.md`
 **Source prompt**: `.prompts/close-gaps-vs-opus-repo-scan.md` (Gap 6a, precondition of Gap 6)
 
 ## Goal
 
-Extend the RECON envelope (primitives contract 1.2.0, MINOR) with an optional `file_inventory` field backed by a sibling file `memory/recon-<slug>.inventory.txt`. This closes the precondition for Gap 6 (forbid LLM tree re-walks): the hook Gap 6 introduces needs an authoritative, complete list of files the recon considered in scope, and the current envelope does not provide one. Field ships as a sibling file (not embedded) because large repos produce 10k+ paths that bloat JSON diffs and validation cost. Cross-plugin: implementation lives in `plugins/agentic-dev-team/` (envelope owner) even though the spec file is colocated with Gap 6 under `plugins/agentic-security-review/`.
+Extend the RECON envelope (primitives contract 1.2.0, MINOR) with an optional `file_inventory` field backed by a sibling file `memory/recon-<slug>.inventory.txt`. This closes the precondition for Gap 6 (forbid LLM tree re-walks): the hook Gap 6 introduces needs an authoritative, complete list of files the recon considered in scope, and the current envelope does not provide one. Field ships as a sibling file (not embedded) because large repos produce 10k+ paths that bloat JSON diffs and validation cost. Cross-plugin: implementation lives in `plugins/agentic-dev-team/` (envelope owner) even though the spec file is colocated with Gap 6 under `plugins/agentic-security-assessment/`.
 
 ## Key design decisions (resolved)
 
@@ -411,7 +411,7 @@ Four personas ran in parallel against v1. All returned `needs-revision`. v2 reso
 - **Strategic:** MINOR bump on a cross-plugin envelope rarely truly additive. De-facto-required field emerges when consumers start assuming presence. Current plan keeps field optional at schema and documents fail-open — mitigates but doesn't eliminate.
 - **Strategic:** Steps 3–5 could be deferred to 1.3.0 if scope reduction is desired. Minimum viable subset = Steps 1, 2, 6 only.
 - **Design:** Sibling-file-plus-JSON-pointer pattern is newly invented; no generalization into a reusable `external_ref` sub-schema. Future large fields may reinvent inconsistently.
-- **Design:** Spec colocation in `agentic-security-review/docs/specs/` inverts envelope ownership. Consider cross-reference from `agentic-dev-team`.
+- **Design:** Spec colocation in `agentic-security-assessment/docs/specs/` inverts envelope ownership. Consider cross-reference from `agentic-dev-team`.
 - **UX — R10:** Rename `sibling_ref` → `sibling_path` with full relative path. Would be a spec change; flagged for user.
 - **UX:** Enum values `git-ls-files` / `filesystem-walk` mix tool name with activity. Alternatives: `git` / `filesystem`. Observation-level; defer.
 - **Acceptance:** Missing scenarios — symlink cycles, directory symlinks, non-UTF-8 filenames, atomic-write. Not blockers; would strengthen the test suite if added later.

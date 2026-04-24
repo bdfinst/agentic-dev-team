@@ -53,7 +53,7 @@ A `compliance-annotations.json` file per the following shape:
 Each row maps a finding pattern to one or more regulatory citations.
 
 ```yaml
-# plugins/agentic-security-review/knowledge/compliance-patterns.yaml
+# plugins/agentic-security-assessment/knowledge/compliance-patterns.yaml
 patterns:
   - id: pan-at-log
     pattern_regex: 'log\.(debug|info).*(pan|card_number|primary_account)'

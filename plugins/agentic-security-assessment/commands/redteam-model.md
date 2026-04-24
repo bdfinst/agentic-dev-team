@@ -12,7 +12,7 @@ You have been invoked with the `/redteam-model` command.
 
 ## Role
 
-Orchestrator entry point for the adversarial ML red-team harness. Performs scope + consent checks, then dispatches the Python orchestrator at `plugins/agentic-security-review/harness/redteam/orchestrator.py`. Interprets probe artifacts via the four analyzer agents after the Python passes complete.
+Orchestrator entry point for the adversarial ML red-team harness. Performs scope + consent checks, then dispatches the Python orchestrator at `plugins/agentic-security-assessment/harness/redteam/orchestrator.py`. Interprets probe artifacts via the four analyzer agents after the Python passes complete.
 
 ## Safety constraints (non-negotiable)
 

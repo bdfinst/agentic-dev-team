@@ -158,7 +158,7 @@ This step is a **no-op when fp-reduction was skipped** (`--fp-reduce=no`); exits
 - `tool-finding-narrative-annotator` (sonnet) → `memory/narratives-<slug>.md`
 - `compliance-mapping` skill → `memory/compliance-<slug>.json` (invokes `compliance-edge-annotator` only for `llm_review_trigger: true` matches per the skill)
 
-**Phase 4 — Service-communication.** Run `plugins/agentic-security-review/harness/tools/service-comm-parser.py` against the target. For multi-repo runs, pass all targets at once so cross-service edges are captured.
+**Phase 4 — Service-communication.** Run `plugins/agentic-security-assessment/harness/tools/service-comm-parser.py` against the target. For multi-repo runs, pass all targets at once so cross-service edges are captured.
 
 **Phase 5 — Report generation.** Dispatch `exec-report-generator` (opus). Single-repo: produces `memory/report-<slug>.md`. Multi-repo: produces per-repo reports + `memory/cross-repo-summary-<slug>.md`.
 

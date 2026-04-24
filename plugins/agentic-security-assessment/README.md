@@ -1,4 +1,4 @@
-# agentic-security-review
+# agentic-security-assessment
 
 Deep security assessment + adversarial ML red-team for Claude Code. Companion to [`agentic-dev-team`](../agentic-dev-team/), which provides the reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned primitives contract, SARIF-first tool orchestration).
 
@@ -48,9 +48,9 @@ Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle 
 **macOS — one command:**
 
 ```bash
-./plugins/agentic-security-review/install-macos.sh           # tier-1 only
-./plugins/agentic-security-review/install-macos.sh --all     # tier-1 + optional + PDF deps
-./plugins/agentic-security-review/install-macos.sh --dry-run # preview commands without running
+./plugins/agentic-security-assessment/install-macos.sh           # tier-1 only
+./plugins/agentic-security-assessment/install-macos.sh --all     # tier-1 + optional + PDF deps
+./plugins/agentic-security-assessment/install-macos.sh --dry-run # preview commands without running
 ```
 
 **Windows — PowerShell (requires [Scoop](https://scoop.sh)):**
@@ -59,9 +59,9 @@ Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle 
 # If needed, allow local scripts first (run once in an elevated session):
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
-.\plugins\agentic-security-review\install-windows.ps1          # tier-1 only
-.\plugins\agentic-security-review\install-windows.ps1 -All     # tier-1 + optional + PDF deps
-.\plugins\agentic-security-review\install-windows.ps1 -DryRun  # preview commands without running
+.\plugins\agentic-security-assessment\install-windows.ps1          # tier-1 only
+.\plugins\agentic-security-assessment\install-windows.ps1 -All     # tier-1 + optional + PDF deps
+.\plugins\agentic-security-assessment\install-windows.ps1 -DryRun  # preview commands without running
 ```
 
 Re-runnable on all platforms — each step skips tools that are already present.
@@ -73,16 +73,16 @@ Re-runnable on all platforms — each step skips tools that are already present.
 ```bash
 # From the marketplace
 claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install agentic-security-review@bfinster
+claude plugin install agentic-security-assessment@bfinster
 
 # From a local clone
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-review
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-assessment
 ```
 
 ### Verify
 
 ```bash
-./plugins/agentic-security-review/install.sh
+./plugins/agentic-security-assessment/install.sh
 ```
 
 The check validates:

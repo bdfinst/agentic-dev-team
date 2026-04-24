@@ -1,12 +1,12 @@
 # Spec: Multi-Language SAST Auto-Dispatch
 
-**Target plugin:** `plugins/agentic-security-review`
+**Target plugin:** `plugins/agentic-security-assessment`
 **Target release:** 0.4.0
 **Status:** Ready for /plan
 
 ## Intent Description
 
-The agentic-security-review plugin currently dispatches SAST tools without awareness of the target language. Non-.NET targets (Java, Go, Python, JavaScript, TypeScript) receive only generic semgrep coverage, leaving language-specific vulnerability classes undetected and giving users no signal that coverage is thin.
+The agentic-security-assessment plugin currently dispatches SAST tools without awareness of the target language. Non-.NET targets (Java, Go, Python, JavaScript, TypeScript) receive only generic semgrep coverage, leaving language-specific vulnerability classes undetected and giving users no signal that coverage is thin.
 
 This change extends Phase 1 (tool-first detection) with automatic language detection. A new detection step inspects the target tree — file extensions plus build manifests (`pom.xml`, `build.gradle`, `go.mod`, `requirements.txt`, `pyproject.toml`, `package.json`, `tsconfig.json`, `*.csproj`, `*.sln`) — and emits a `memory/languages-<slug>.json` manifest. Per-language scanner scripts read the manifest and no-op unless their language is present. Outputs normalize through the existing SARIF → unified-finding pipeline so Phase 2+ sees consistent data regardless of source language. All dispatch is automatic; no user prompt.
 
@@ -19,7 +19,7 @@ Feature: Multi-language SAST auto-dispatch
   So that non-.NET codebases receive complete SAST coverage without manual configuration
 
   Background:
-    Given the agentic-security-review plugin is installed
+    Given the agentic-security-assessment plugin is installed
     And required SAST tools are available on PATH
 
   Scenario: Java-only repository is fully scanned
@@ -182,11 +182,11 @@ All new scripts mirror the header, `set -euo pipefail` usage, logging prefix, an
 
 ## Handoff Notes
 
-This spec targets a **sibling plugin** (`plugins/agentic-security-review`), not the current working repo. The `/specs` skill's auto-trigger of `/plan` is intentionally suppressed — `/plan` should be invoked from within a session scoped to the target plugin, using this file as input.
+This spec targets a **sibling plugin** (`plugins/agentic-security-assessment`), not the current working repo. The `/specs` skill's auto-trigger of `/plan` is intentionally suppressed — `/plan` should be invoked from within a session scoped to the target plugin, using this file as input.
 
 To kick off implementation:
 ```
-cd plugins/agentic-security-review
+cd plugins/agentic-security-assessment
 # start a fresh session, then:
 /plan @docs/specs/multi-language-sast.md
 ```

@@ -2,7 +2,7 @@
 # regulatory citations. Consumed by the compliance-mapping skill. LLM is
 # invoked ONLY when llm_review_trigger is true on a matched row.
 #
-# Schema: see plugins/agentic-security-review/skills/compliance-mapping/SKILL.md
+# Schema: see plugins/agentic-security-assessment/skills/compliance-mapping/SKILL.md
 # § "Pattern table schema".
 #
 # Maintainers (bus-factor minimum 2):

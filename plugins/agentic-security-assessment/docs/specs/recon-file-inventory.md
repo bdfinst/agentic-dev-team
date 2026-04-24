@@ -14,7 +14,7 @@ Extend the RECON envelope (primitives contract 1.2.0, MINOR bump) with a `file_i
 
 The field is optional at schema level so consumers declaring `required-primitives-contract: ^1.0.0` aren't broken, but `codebase-recon` always emits it from 1.2.0 forward.
 
-Scope applies to all 10 LLM agents in `agentic-security-review` that will consume the inventory via Gap 6's hook: `fp-reduction`, `business-logic-domain-review`, `cross-repo-synthesizer`, `exec-report-generator`, `tool-finding-narrative-annotator`, `compliance-edge-annotator`, `redteam-recon-analyzer`, `redteam-evasion-analyzer`, `redteam-extraction-analyzer`, `redteam-report-generator`.
+Scope applies to all 10 LLM agents in `agentic-security-assessment` that will consume the inventory via Gap 6's hook: `fp-reduction`, `business-logic-domain-review`, `cross-repo-synthesizer`, `exec-report-generator`, `tool-finding-narrative-annotator`, `compliance-edge-annotator`, `redteam-recon-analyzer`, `redteam-evasion-analyzer`, `redteam-extraction-analyzer`, `redteam-report-generator`.
 
 ## User-Facing Behavior
 

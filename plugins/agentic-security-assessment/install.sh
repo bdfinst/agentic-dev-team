@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — verify prerequisites for the agentic-security-review plugin.
+# install.sh — verify prerequisites for the agentic-security-assessment plugin.
 #
 # Checks (in order):
 #   1. agentic-dev-team is installed with a compatible primitives-contract
@@ -36,7 +36,7 @@ FAIL=0
 
 print_help() {
   cat <<'EOF'
-agentic-security-review install.sh — prerequisite checker.
+agentic-security-assessment install.sh — prerequisite checker.
 
 Checks agentic-dev-team presence + contract version, Python >= 3.10, and
 tier-1 static-analysis tools. Prints the settings.local.json opt-out
@@ -156,7 +156,7 @@ opt weasyprint   "PDF export (fallback)"           "pip install weasyprint"
 
 # Python packages can't use command -v — check via import.
 printf "  [info] python harness packages checked at /redteam-model invocation time;\n"
-printf "         see plugins/agentic-security-review/harness/redteam/requirements.txt\n"
+printf "         see plugins/agentic-security-assessment/harness/redteam/requirements.txt\n"
 
 # ── 4. Hook opt-out snippet ───────────────────────────────────────────────────
 
@@ -176,6 +176,18 @@ cat <<'EOF'
   To enable warning-level surfacing: set "verbose_hooks": true at the root
   of settings.local.json.
 EOF
+
+# ── Stale-opt-out check (post 1.0.0 rename) ──────────────────────────────────
+# Warn if the user's settings.local.json still references the old plugin name.
+
+section "checking for stale opt-out snippets from pre-1.0.0 plugin name"
+for settings in "$HOME/.claude/settings.local.json" "$(pwd)/.claude/settings.local.json"; do
+  if [ -f "$settings" ] && grep -q 'agentic-security-review' "$settings" 2>/dev/null; then
+    echo "  [WARN] $settings references the old plugin name 'agentic-security-review'."
+    echo "         Update to 'agentic-security-assessment'. See CHANGELOG 1.0.0 for the full migration."
+    WARN=$((WARN + 1))
+  fi
+done
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 

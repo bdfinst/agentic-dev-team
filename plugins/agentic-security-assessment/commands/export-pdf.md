@@ -28,7 +28,7 @@ Arguments: $ARGUMENTS
 
 **Flags:**
 - `--output <path>`: output PDF path. Default: same basename with `.pdf` extension.
-- `--css <path>`: custom CSS stylesheet. Default: `plugins/agentic-security-review/templates/report-css/default.css`.
+- `--css <path>`: custom CSS stylesheet. Default: `plugins/agentic-security-assessment/templates/report-css/default.css`.
 
 ## Steps
 
@@ -103,7 +103,7 @@ Stop and ask the user when:
 
 ## CSS stylesheet
 
-The bundled CSS at `plugins/agentic-security-review/templates/report-css/default.css` is modelled on the `opus_repo_scan_test` reference's `utilities/convert_report.py` CSS:
+The bundled CSS at `plugins/agentic-security-assessment/templates/report-css/default.css` is modelled on the `opus_repo_scan_test` reference's `utilities/convert_report.py` CSS:
 
 - A4 page size, 2cm × 1.5cm margins
 - Page footer: confidentiality notice (center) + page N of M (right)
