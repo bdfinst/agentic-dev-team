@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-assessment-v1.0.0...agentic-security-assessment-v2.0.0) (2026-04-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **security-assessment:** plugin renamed to eliminate prefix collision with the `security-review` agent that lives in `agentic-dev-team`. The agent name is contract-stable (per security-primitives-contract.md registry) and does not move. The plugin ships under its new name from 1.0.0 forward.
+
+### Code Refactoring
+
+* **security-assessment:** rename plugin agentic-security-review → agentic-security-assessment (1.0.0) ([9195f22](https://github.com/bdfinst/agentic-dev-team/commit/9195f22a29b181ff049c9b7e689bfa2b69fa3c2a))
+
+
+### Documentation
+
+* **agentic-dev-team:** update cross-references to renamed companion plugin + history note on rename docs ([87a7a34](https://github.com/bdfinst/agentic-dev-team/commit/87a7a3445a26e2471ceff312fe34ecd92a3098de))
+* **security-assessment:** update plugin-internal references to new name + CHANGELOG 1.0.0 migration entry ([7e0ebc7](https://github.com/bdfinst/agentic-dev-team/commit/7e0ebc7e4adc4a0a10b7f4b96bc00c0e8f4e355b))
+
 ## 1.0.0 — RENAMED from `agentic-security-review` (2026-04-24)
 
 ### BREAKING CHANGE — plugin rename

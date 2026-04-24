@@ -1,5 +1,42 @@
 # Changelog
 
+## [5.0.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v4.0.0...agentic-dev-team-v5.0.0) (2026-04-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* the `/data-scientist` slash command and data-scientist team agent have been removed. Consumers should migrate to `/software-engineer` or `/architect`.
+
+### Features
+
+* **recon:** add optional file_inventory to envelope schemas (contract 1.2.0) ([5dc9ffe](https://github.com/bdfinst/agentic-dev-team/commit/5dc9ffeb4c4754bdc791df699e0f0254eed55012))
+* **recon:** canonical inventory enumeration script + ts-monorepo fixture ([9bf2ded](https://github.com/bdfinst/agentic-dev-team/commit/9bf2ded99b2477161ee3f8cf59426f06e020eaa0))
+* remove data-scientist agent and overhaul plugin docs ([a91d7e9](https://github.com/bdfinst/agentic-dev-team/commit/a91d7e907e275195b5100d6fefbc2c1bc69c74b4))
+* **security-review:** adapter error paths — malformed/unmapped category + missing category + bad mapping YAML ([c70cbd1](https://github.com/bdfinst/agentic-dev-team/commit/c70cbd1df4ebf995dceb05fb2bd754a601723cf4))
+* **security-review:** adapter validates envelope schema + normalizes rule_id case + negative schema fixture ([6a81033](https://github.com/bdfinst/agentic-dev-team/commit/6a8103369bf3e0c8763763e419ba85f2c7b6c2a2))
+* **security-review:** agent output schema + judgment-only OWASP category annotations + reliability eval ([095523d](https://github.com/bdfinst/agentic-dev-team/commit/095523d17c77554d07849c4ec7a428b41723427d))
+* **security-review:** canonical rule_id mapping + adapter happy-path (language-specific included) ([02ce542](https://github.com/bdfinst/agentic-dev-team/commit/02ce542c339368b163c0f89609e6a31122f09bc5))
+
+
+### Bug Fixes
+
+* **recon:** align codebase-recon schema_version emission with 0.2 placeholder bump ([6558664](https://github.com/bdfinst/agentic-dev-team/commit/6558664218c6a64e2594ee71f1831a5c39135b0b))
+
+
+### Code Refactoring
+
+* **security-review:** strip pattern-visible classes from owasp-detection with pointer stubs (Item 3b) ([9af6355](https://github.com/bdfinst/agentic-dev-team/commit/9af635572cd843354030c40bc4f33f241e325c2f))
+
+
+### Documentation
+
+* **agentic-dev-team:** update cross-references to renamed companion plugin + history note on rename docs ([87a7a34](https://github.com/bdfinst/agentic-dev-team/commit/87a7a3445a26e2471ceff312fe34ecd92a3098de))
+* **overlap-cleanup:** trigger-context section on security-review agent + reciprocal companion README note ([e6f5378](https://github.com/bdfinst/agentic-dev-team/commit/e6f5378368676d196a7a4bd1689e9f50c7d04f97))
+* **recon:** contract 1.2.0 + codebase-recon Step 6.5 + fail-open consumer contract + pipeline budget ([af61d67](https://github.com/bdfinst/agentic-dev-team/commit/af61d672287e52ee8e03eb2b6101ece197828540))
+* regenerate team-agents diagram for current roster ([1016411](https://github.com/bdfinst/agentic-dev-team/commit/10164118d7af035a27f15ecb188065b9b51da621))
+* **security-review:** adapter docs + Phase 1b wiring + AST invariant + runtime smoke + backward-compat ([0522025](https://github.com/bdfinst/agentic-dev-team/commit/05220258912751fec5cc1c5473b0e848521b6689))
+* **specs:** approved specs + plans for Item 5, Gap 6a, and plugin-rename ([764aa3b](https://github.com/bdfinst/agentic-dev-team/commit/764aa3b09ef2ee6491b65a560ca201ae1fce3c4c))
+
 ## [4.0.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v3.3.0...agentic-dev-team-v4.0.0) (2026-04-22)
 
 
