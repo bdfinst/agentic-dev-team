@@ -1,0 +1,9 @@
+{
+  "code_snippet": "@app.post('/login')\ndef login(): return check_creds(request.form)",
+  "expected_category": "A04.no-rate-limiting",
+  "agent_output": {
+    "status": "warn",
+    "issues": [{"category": "A04.no-rate-limiting", "severity": "warning", "confidence": "medium", "file": "auth.py", "line": 14, "message": "Login endpoint has no rate-limiter middleware", "suggestedFix": "Apply Flask-Limiter to the route."}],
+    "summary": "no rate limit"
+  }
+}

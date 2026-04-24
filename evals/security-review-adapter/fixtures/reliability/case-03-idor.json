@@ -1,0 +1,9 @@
+{
+  "code_snippet": "@app.get('/order/<id>')\ndef get_order(id): return Order.query.get(id)",
+  "expected_category": "A01.idor",
+  "agent_output": {
+    "status": "fail",
+    "issues": [{"category": "A01.idor", "severity": "error", "confidence": "medium", "file": "orders.py", "line": 4, "message": "Order fetched by id without ownership check", "suggestedFix": "Filter by current_user.id."}],
+    "summary": "idor"
+  }
+}

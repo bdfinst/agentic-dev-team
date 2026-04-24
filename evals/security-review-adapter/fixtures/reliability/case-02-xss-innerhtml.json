@@ -1,0 +1,9 @@
+{
+  "code_snippet": "el.innerHTML = req.query.name;",
+  "expected_category": "A03.xss-innerhtml",
+  "agent_output": {
+    "status": "fail",
+    "issues": [{"category": "A03.xss-innerhtml", "severity": "error", "confidence": "high", "file": "widget.js", "line": 12, "message": "Unsanitized user input written to innerHTML", "suggestedFix": "Use textContent."}],
+    "summary": "xss"
+  }
+}

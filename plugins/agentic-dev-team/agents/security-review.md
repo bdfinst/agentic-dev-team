@@ -10,12 +10,36 @@ model: opus
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"category": "A<NN>.<slug>", "severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
 Status: pass=no vulnerabilities, warn=concerns, fail=critical vulnerabilities
 Severity: error=exploitable, warning=potential weakness, suggestion=best practice
 Confidence: high=clear vulnerability with known fix (parameterize query, remove hardcoded secret); medium=vulnerability pattern present, exact fix depends on auth architecture; none=requires human judgment (security architecture, threat model tradeoffs)
+
+### Category (required)
+
+Every issue MUST carry a `category` identifying the OWASP class the
+finding belongs to. The canonical list lives in
+`knowledge/owasp-detection.md`; the category-to-rule_id mapping lives
+in `knowledge/security-review-rule-map.yaml`.
+
+Format regex: `^A[0-9]{2}\.[a-z0-9-]+$`
+
+- `A<NN>` is the OWASP top-10 category, zero-padded (e.g. `A01`, `A03`, `A09`).
+- `<slug>` is a kebab-case identifier (lowercase letters, digits, hyphens only).
+
+Concrete examples:
+
+- SQL injection via string concatenation → `"category": "A03.sql-injection"`
+- Unsanitized input into `innerHTML` → `"category": "A03.xss-innerhtml"`
+- Route loads record by id without ownership check → `"category": "A01.idor"`
+
+A regex-violating category (e.g. `A3.sqli`, `a03.sql-injection`) causes
+the unified-finding adapter to hard-fail the run. Prefer a
+well-formed-but-unmapped category (e.g. `A99.new-class`) when the class
+is legitimate but not yet in the mapping; the adapter will mint a
+`security-review.*` rule_id and warn.
 
 Model tier: frontier
 Context needs: full-file
