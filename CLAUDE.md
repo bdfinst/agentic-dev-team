@@ -14,11 +14,12 @@ plugins/agentic-dev-team/          # The plugin source
 ├── hooks/                         # PreToolUse and PostToolUse scripts
 ├── knowledge/                     # Progressive disclosure reference files
 ├── templates/                     # Language-specific agent templates
+├── docs/                          # Plugin-specific docs (architecture, agents, skills, eval system)
 ├── settings.json                  # Hook registrations (ships with plugin)
 ├── install.sh                     # Prerequisite checker
 └── CLAUDE.md                      # Plugin instructions (ships with plugin)
 
-docs/                              # Dev documentation (not shipped)
+docs/                              # Cross-plugin dev documentation (roadmaps, spikes, repo-level specs)
 plans/                             # Implementation plans (not shipped)
 evals/                             # Agent eval fixtures (not shipped)
 reports/                           # Review reports (not shipped)

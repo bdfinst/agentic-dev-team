@@ -3,7 +3,7 @@
 **Created**: 2026-04-02
 **Branch**: main
 **Status**: approved
-**Spec**: [docs/specs/pre-commit-review.md](../docs/specs/pre-commit-review.md)
+**Spec**: [plugins/agentic-dev-team/docs/specs/pre-commit-review.md](../plugins/agentic-dev-team/docs/specs/pre-commit-review.md)
 
 ## Goal
 

@@ -33,7 +33,7 @@ test is roughly the conjunction of all of these passing.
 
 | Reference agent | Our counterpart | Unit test |
 |---|---|---|
-| `scan-00-codebase-recon.md` | `plugins/agentic-dev-team/agents/codebase-recon.md` | ✅ [`codebase-recon-equivalence.md`](../evals/comparative/unit-tests/codebase-recon-equivalence.md) |
+| `scan-00-codebase-recon.md` | `plugins/agentic-dev-team/agents/codebase-recon.md` | ✅ [`codebase-recon-equivalence.md`](../../../evals/comparative/unit-tests/codebase-recon-equivalence.md) |
 | `scan-01-secrets-credentials.md` | `gitleaks` + `entropy-check.py` + `semgrep.secrets` | TBD — `secrets-equivalence.md` |
 | `scan-02-auth-authorization.md` | `agents/security-review.md` | TBD |
 | `scan-03-business-logic-fraud.md` | `plugins/agentic-security-review/agents/business-logic-domain-review.md` + `knowledge/semgrep-rules/fraud-domain.yaml` | TBD |

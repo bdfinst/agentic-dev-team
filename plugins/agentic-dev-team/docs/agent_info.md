@@ -8,17 +8,17 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 
 | Agent | File | Purpose |
 | --- | --- | --- |
-| Orchestrator | [`orchestrator.md`](../plugins/agentic-dev-team/agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
-| Software Engineer | [`software-engineer.md`](../plugins/agentic-dev-team/agents/software-engineer.md) | Code generation, implementation, applies review corrections |
-| Data Scientist | [`data-scientist.md`](../plugins/agentic-dev-team/agents/data-scientist.md) | ML models, data analysis, statistical validation |
-| QA/SQA Engineer | [`qa-engineer.md`](../plugins/agentic-dev-team/agents/qa-engineer.md) | Test generation, automated testing, quality gates |
-| UI/UX Designer | [`ui-ux-designer.md`](../plugins/agentic-dev-team/agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
-| Architect | [`architect.md`](../plugins/agentic-dev-team/agents/architect.md) | System design, tech decisions, scalability planning |
-| Product Manager | [`product-manager.md`](../plugins/agentic-dev-team/agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
-| Technical Writer | [`tech-writer.md`](../plugins/agentic-dev-team/agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
-| Security Engineer | [`security-engineer.md`](../plugins/agentic-dev-team/agents/security-engineer.md) | Security analysis, threat modeling, compliance |
-| DevOps/SRE Engineer | [`devops-sre-engineer.md`](../plugins/agentic-dev-team/agents/devops-sre-engineer.md) | Pipeline, deployment, reliability, observability |
-| ADR Author | [`adr.md`](../plugins/agentic-dev-team/agents/adr.md) | Creates and manages Architecture Decision Records |
+| Orchestrator | [`orchestrator.md`](../agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
+| Software Engineer | [`software-engineer.md`](../agents/software-engineer.md) | Code generation, implementation, applies review corrections |
+| Data Scientist | [`data-scientist.md`](../agents/data-scientist.md) | ML models, data analysis, statistical validation |
+| QA/SQA Engineer | [`qa-engineer.md`](../agents/qa-engineer.md) | Test generation, automated testing, quality gates |
+| UI/UX Designer | [`ui-ux-designer.md`](../agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
+| Architect | [`architect.md`](../agents/architect.md) | System design, tech decisions, scalability planning |
+| Product Manager | [`product-manager.md`](../agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
+| Technical Writer | [`tech-writer.md`](../agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
+| Security Engineer | [`security-engineer.md`](../agents/security-engineer.md) | Security analysis, threat modeling, compliance |
+| DevOps/SRE Engineer | [`devops-sre-engineer.md`](../agents/devops-sre-engineer.md) | Pipeline, deployment, reliability, observability |
+| ADR Author | [`adr.md`](../agents/adr.md) | Creates and manages Architecture Decision Records |
 
 ## Review Agents
 
@@ -26,25 +26,25 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
-| `spec-compliance-review` | [`spec-compliance-review.md`](../plugins/agentic-dev-team/agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
-| `test-review` | [`test-review.md`](../plugins/agentic-dev-team/agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
-| `security-review` | [`security-review.md`](../plugins/agentic-dev-team/agents/security-review.md) | opus | Injection, auth, data exposure |
-| `domain-review` | [`domain-review.md`](../plugins/agentic-dev-team/agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
-| `structure-review` | [`structure-review.md`](../plugins/agentic-dev-team/agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
-| `complexity-review` | [`complexity-review.md`](../plugins/agentic-dev-team/agents/complexity-review.md) | haiku | Function size, cyclomatic complexity, nesting |
-| `naming-review` | [`naming-review.md`](../plugins/agentic-dev-team/agents/naming-review.md) | haiku | Intent-revealing names, magic values |
-| `js-fp-review` | [`js-fp-review.md`](../plugins/agentic-dev-team/agents/js-fp-review.md) | sonnet | Array mutations, impure patterns (JS/TS) |
-| `concurrency-review` | [`concurrency-review.md`](../plugins/agentic-dev-team/agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
-| `a11y-review` | [`a11y-review.md`](../plugins/agentic-dev-team/agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
-| `performance-review` | [`performance-review.md`](../plugins/agentic-dev-team/agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
-| `token-efficiency-review` | [`token-efficiency-review.md`](../plugins/agentic-dev-team/agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
-| `claude-setup-review` | [`claude-setup-review.md`](../plugins/agentic-dev-team/agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
-| `doc-review` | [`doc-review.md`](../plugins/agentic-dev-team/agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
-| `arch-review` | [`arch-review.md`](../plugins/agentic-dev-team/agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
-| `svelte-review` | [`svelte-review.md`](../plugins/agentic-dev-team/agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
-| `progress-guardian` | [`progress-guardian.md`](../plugins/agentic-dev-team/agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
-| `refactoring-review` | [`refactor-scan.md`](../plugins/agentic-dev-team/agents/refactor-scan.md) | sonnet | Post-GREEN refactoring opportunities |
-| `data-flow-tracer` | [`use-case-data-patterns.md`](../plugins/agentic-dev-team/agents/use-case-data-patterns.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
+| `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
+| `test-review` | [`test-review.md`](../agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
+| `security-review` | [`security-review.md`](../agents/security-review.md) | opus | Injection, auth, data exposure |
+| `domain-review` | [`domain-review.md`](../agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
+| `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
+| `complexity-review` | [`complexity-review.md`](../agents/complexity-review.md) | haiku | Function size, cyclomatic complexity, nesting |
+| `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
+| `js-fp-review` | [`js-fp-review.md`](../agents/js-fp-review.md) | sonnet | Array mutations, impure patterns (JS/TS) |
+| `concurrency-review` | [`concurrency-review.md`](../agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
+| `a11y-review` | [`a11y-review.md`](../agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
+| `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
+| `token-efficiency-review` | [`token-efficiency-review.md`](../agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
+| `claude-setup-review` | [`claude-setup-review.md`](../agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
+| `doc-review` | [`doc-review.md`](../agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
+| `arch-review` | [`arch-review.md`](../agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
+| `svelte-review` | [`svelte-review.md`](../agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
+| `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
+| `refactoring-review` | [`refactor-scan.md`](../agents/refactor-scan.md) | sonnet | Post-GREEN refactoring opportunities |
+| `data-flow-tracer` | [`use-case-data-patterns.md`](../agents/use-case-data-patterns.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
 
 To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.
 
@@ -54,10 +54,10 @@ Plan review personas are subagent prompt templates that critically challenge imp
 
 | Persona | File | Focus |
 | --- | --- | --- |
-| Acceptance Test Critic | [`plan-review-acceptance.md`](../plugins/agentic-dev-team/prompts/plan-review-acceptance.md) | Criteria verifiability, BDD scenario gaps, error paths, TDD traceability |
-| Design & Architecture Critic | [`plan-review-design.md`](../plugins/agentic-dev-team/prompts/plan-review-design.md) | Coupling, abstraction quality, structural risks, pattern consistency |
-| UX Critic | [`plan-review-ux.md`](../plugins/agentic-dev-team/prompts/plan-review-ux.md) | User journey, error experience, cognitive load, accessibility |
-| Strategic Critic | [`plan-review-strategic.md`](../plugins/agentic-dev-team/prompts/plan-review-strategic.md) | Problem-solution fit, scope, risk, opportunity cost |
+| Acceptance Test Critic | [`plan-review-acceptance.md`](../prompts/plan-review-acceptance.md) | Criteria verifiability, BDD scenario gaps, error paths, TDD traceability |
+| Design & Architecture Critic | [`plan-review-design.md`](../prompts/plan-review-design.md) | Coupling, abstraction quality, structural risks, pattern consistency |
+| UX Critic | [`plan-review-ux.md`](../prompts/plan-review-ux.md) | User journey, error experience, cognitive load, accessibility |
+| Strategic Critic | [`plan-review-strategic.md`](../prompts/plan-review-strategic.md) | Problem-solution fit, scope, risk, opportunity cost |
 
 The UX Critic self-skips for plans with no user-facing changes. The other three always run. Any `needs-revision` verdict triggers plan revision before the human sees it (max 2 iterations).
 
@@ -72,7 +72,7 @@ Every agent file follows this structure:
 - [Primary capabilities - what this agent delivers]
 
 ## Skills
-- [Skill Name](../plugins/agentic-dev-team/skills/{file}.md) - [when/why this agent uses it]
+- [Skill Name](../skills/{file}.md) - [when/why this agent uses it]
 
 ## Collaboration Protocols
 ### Primary Collaborators
@@ -109,7 +109,7 @@ The `## Skills` section is the bridge between agents and skills. The agent defin
 4. Define collaboration protocols with existing agents
 5. Reference any applicable skills in the `## Skills` section
 
-See [Agent & Skill Authoring](../plugins/agentic-dev-team/skills/agent-skill-authoring/SKILL.md) for detailed guidelines.
+See [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) for detailed guidelines.
 
 ## Add a Review Agent
 

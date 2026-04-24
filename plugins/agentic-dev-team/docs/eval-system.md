@@ -80,7 +80,7 @@ Each agent outputs a structured result:
 ### Layer 3: Human review
 
 The user reviews agent findings and decides which fixes to apply. The
-`/apply-fixes` skill automates fix application but the user controls which
+`/apply-fixes` command automates fix application but the user controls which
 correction prompts are included.
 
 ## Workflows

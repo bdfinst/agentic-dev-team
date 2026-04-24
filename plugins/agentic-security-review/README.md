@@ -86,7 +86,7 @@ The check validates:
 
 ### Run without installing (zero-install flow)
 
-`scripts/run-assessment-local.sh` runs the full pipeline from the repo checkout. Auto-detects the `claude` CLI and runs the LLM judgment phases when available; degrades to deterministic-only output otherwise. See [`docs/user-guide-security-assessment.md`](../../docs/user-guide-security-assessment.md) for the full runbook.
+`scripts/run-assessment-local.sh` runs the full pipeline from the repo checkout. Auto-detects the `claude` CLI and runs the LLM judgment phases when available; degrades to deterministic-only output otherwise. See [`docs/user-guide-security-assessment.md`](docs/user-guide-security-assessment.md) for the full runbook.
 
 ## Commands
 

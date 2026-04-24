@@ -94,8 +94,8 @@ The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross
 
 For the full roster of team agents, review agents, skills, and slash commands, see:
 
-- [Agents](docs/agent_info.md) — who does the work (team agents and review agents)
-- [Skills & Commands](docs/skills.md) — reusable knowledge modules and slash command catalog
+- [Agents](plugins/agentic-dev-team/docs/agent_info.md) — who does the work (team agents and review agents)
+- [Skills & Commands](plugins/agentic-dev-team/docs/skills.md) — reusable knowledge modules and slash command catalog
 
 ## Rules to Know
 

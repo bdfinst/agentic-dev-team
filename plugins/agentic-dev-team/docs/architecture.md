@@ -1,5 +1,7 @@
 # Architecture
 
+> **Reading order**: Start with the System Overview flowchart, then read Context Management to understand how agents are loaded and unloaded, followed by Quality Assurance for the validation sequence during Phase 3.
+
 ## System Overview
 
 ![System Overview](diagrams/architecture-overview.svg)
@@ -40,7 +42,7 @@ The Orchestrator manages context utilization using two operational skills.
 
 ### Loading Protocol
 
-[Context Loading Protocol](../plugins/agentic-dev-team/skills/context-loading-protocol/SKILL.md) controls what gets loaded and when:
+[Context Loading Protocol](../skills/context-loading-protocol/SKILL.md) controls what gets loaded and when:
 
 1. **Classify** the task (simple, standard, multi-agent, complex)
 2. **Select** the minimum set of agents and skills required
@@ -49,7 +51,7 @@ The Orchestrator manages context utilization using two operational skills.
 
 ### Summarization
 
-[Context Summarization](../plugins/agentic-dev-team/skills/context-summarization/SKILL.md) controls when to compress:
+[Context Summarization](../skills/context-summarization/SKILL.md) controls when to compress:
 
 | Utilization | Action |
 | --- | --- |
@@ -106,7 +108,7 @@ Validation happens in this sequence during Phase 3:
 | 7 | Human gate | User | At each phase transition (Research, Plan, Implement) |
 | 8 | Post-hoc monitoring | Orchestrator | During learning loop after task completion |
 
-Every agent applies the [Quality Gate Pipeline](../plugins/agentic-dev-team/skills/quality-gate-pipeline/SKILL.md) before output. This includes self-validation (Phase 1: factual accuracy, instruction fidelity, consistency, confidence scoring), verification evidence (Phase 2), and review-correction loops (Phase 3).
+Every agent applies the [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) before output. This includes self-validation (Phase 1: factual accuracy, instruction fidelity, consistency, confidence scoring), verification evidence (Phase 2), and review-correction loops (Phase 3).
 
 Quality gates by task type:
 
@@ -120,7 +122,7 @@ Quality gates by task type:
 
 ## Human Oversight
 
-Agents operate autonomously within boundaries. The [Human Oversight Protocol](../plugins/agentic-dev-team/skills/human-oversight-protocol/SKILL.md) defines three levels of human involvement:
+Agents operate autonomously within boundaries. The [Human Oversight Protocol](../skills/human-oversight-protocol/SKILL.md) defines three levels of human involvement:
 
 | Level | When | Example |
 | --- | --- | --- |
@@ -132,7 +134,7 @@ Intervention commands (`override`, `pause`, `stop`) give humans immediate contro
 
 ## Governance
 
-[Governance & Compliance](../plugins/agentic-dev-team/skills/governance-compliance/SKILL.md) defines audit and ethics requirements:
+[Governance & Compliance](../skills/governance-compliance/SKILL.md) defines audit and ethics requirements:
 
 - All task completions logged to `metrics/` (JSONL format)
 - All configuration changes logged to `metrics/config-changelog.jsonl`
@@ -169,7 +171,7 @@ Agents append to `memory/decisions.md` when making non-obvious decisions during 
 
 ## Feedback Loop
 
-[Feedback & Learning](../plugins/agentic-dev-team/skills/feedback-learning/SKILL.md) enables continuous improvement:
+[Feedback & Learning](../skills/feedback-learning/SKILL.md) enables continuous improvement:
 
 1. User provides feedback via keywords (`amend`, `learn`, `remember`, `forget`)
 2. Changes are previewed, applied, and logged with full audit trail

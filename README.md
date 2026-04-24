@@ -33,7 +33,7 @@ Four commands drive feature development from idea to pull request:
 
 Each step produces artifacts the next step consumes. Human review gates sit between transitions.
 
-![Workflow: specs → plan → build → pr](docs/diagrams/workflow-linear.svg)
+![Workflow: specs → plan → build → pr](plugins/agentic-dev-team/docs/diagrams/workflow-linear.svg)
 
 For bug fixes or simple tasks, skip `/specs` and start at `/plan` — or go straight to implementation. The Orchestrator routes trivially when the full workflow isn't needed.
 
@@ -64,7 +64,7 @@ For complex tasks, the Orchestrator manages the full lifecycle as **Research →
 - **Plan** is critically reviewed by four plan-review personas running in parallel before the human sees it.
 - **Implement** enforces strict TDD (RED-GREEN-REFACTOR hard gates), uses worktree isolation for parallel units, and runs a three-stage inline review — spec-compliance first ("does code match spec?"), then quality agents ("is code good?"), then browser verification for UI changes. Actionable issues auto-fix and re-review in a loop (up to 5 iterations); only issues requiring human judgment escalate. All agents provide verification evidence (fresh test output) before claiming completion.
 
-![Three-Phase Workflow: Research → Plan → Implement](docs/diagrams/workflow-three-phase.svg)
+![Three-Phase Workflow: Research → Plan → Implement](plugins/agentic-dev-team/docs/diagrams/workflow-three-phase.svg)
 
 ## Security assessment pipeline
 
@@ -82,7 +82,7 @@ For complex tasks, the Orchestrator manages the full lifecycle as **Research →
 | **4. Cross-repo** | service-comm parser, shared-cred hash match (multi-target only) | mermaid diagram + SARIF |
 | **5. Exec report** | `exec-report-generator` agent | publication-ready 7-section markdown |
 
-**Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. Auto-detects the `claude` CLI; degrades to deterministic-only when absent. See [docs/user-guide-security-assessment.md](docs/user-guide-security-assessment.md) for the full runbook.
+**Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. Auto-detects the `claude` CLI; degrades to deterministic-only when absent. See [docs/user-guide-security-assessment.md](plugins/agentic-security-review/docs/user-guide-security-assessment.md) for the full runbook.
 
 **Adversarial ML red-team**: `/redteam-model` probes a self-owned model endpoint (localhost / RFC1918 by default; public targets require a signed `authorization.md`). Eight probes covering recon, evasion, extraction, and report synthesis.
 
@@ -100,8 +100,8 @@ For complex tasks, the Orchestrator manages the full lifecycle as **Research →
 
 Full catalogs:
 
-- [Agents](docs/agent_info.md) — team + review agent rosters, persona template, how to add/remove/customize
-- [Skills & Commands](docs/skills.md) — skills catalog (by category), slash-commands catalog, how to add new ones
+- [Agents](plugins/agentic-dev-team/docs/agent_info.md) — team + review agent rosters, persona template, how to add/remove/customize
+- [Skills & Commands](plugins/agentic-dev-team/docs/skills.md) — skills catalog (by category), slash-commands catalog, how to add new ones
 
 ## Repository structure
 
@@ -117,6 +117,7 @@ plugins/agentic-dev-team/                # Dev-team plugin source
 ├── hooks/                               # PreToolUse guards + PostToolUse advisory hooks
 ├── knowledge/                           # Progressive disclosure reference files
 ├── templates/                           # Language-specific agent templates
+├── docs/                                # Plugin docs (architecture, agents, skills, eval system)
 ├── settings.json                        # Hook registrations
 ├── install.sh                           # Prerequisite check
 └── CLAUDE.md                            # Orchestration pipeline config (auto-loaded)
@@ -126,9 +127,10 @@ plugins/agentic-security-review/         # Security companion plugin
 ├── install-macos.sh                     # One-command tool installer (macOS)
 ├── install.sh                           # Prerequisite verifier
 ├── agents/ commands/ skills/ harness/   # Assessment + red-team pipeline
+├── docs/                                # Plugin docs (user guide, comparative testing)
 └── CLAUDE.md                            # Pipeline config (auto-loaded)
 
-docs/                                    # Dev documentation (not shipped)
+docs/                                    # Cross-plugin dev documentation (roadmaps, spikes, repo-level specs)
 plans/                                   # Implementation plans (not shipped)
 evals/                                   # Agent eval fixtures + comparative harness
 scripts/                                 # Zero-install assessment runner + helpers
@@ -165,7 +167,7 @@ python3 evals/comparative/score.py \
   --ours memory
 ```
 
-See [docs/comparative-testing.md](docs/comparative-testing.md) for the scoring methodology.
+See [docs/comparative-testing.md](plugins/agentic-security-review/docs/comparative-testing.md) for the scoring methodology.
 
 ### Hook paths
 
@@ -184,9 +186,9 @@ This scaffolds the agent file, adds it to the registry in the owning plugin's `C
 | Guide | Description |
 | --- | --- |
 | [Getting Started](GETTING-STARTED.md) | Hands-on tutorial: invoke agents, skills, and common workflows |
-| [Architecture](docs/architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
-| [Agents](docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
-| [Skills & Commands](docs/skills.md) | Skills catalog, slash-commands catalog |
-| [Eval System](docs/eval-system.md) | How review-agent accuracy is measured and graded |
-| [Security Assessment User Guide](docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool install matrix |
-| [Comparative Testing](docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |
+| [Architecture](plugins/agentic-dev-team/docs/architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
+| [Agents](plugins/agentic-dev-team/docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
+| [Skills & Commands](plugins/agentic-dev-team/docs/skills.md) | Skills catalog, slash-commands catalog |
+| [Eval System](plugins/agentic-dev-team/docs/eval-system.md) | How review-agent accuracy is measured and graded |
+| [Security Assessment User Guide](plugins/agentic-security-review/docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool install matrix |
+| [Comparative Testing](plugins/agentic-security-review/docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |
