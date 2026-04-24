@@ -20,6 +20,17 @@ Confidence: high=clear vulnerability with known fix (parameterize query, remove 
 Model tier: frontier
 Context needs: full-file
 
+## Trigger context
+
+This agent is invoked in two distinct contexts:
+
+1. **`/code-review` inline checkpoint** — runs standalone as one of the review agents during active development. Single-file or changeset scope. Fast, opinionated, no downstream synthesis. Use for every commit.
+2. **`agentic-security-review` plugin Phase 1b** — invoked as a judgment-layer detector inside the full `/security-assessment` pipeline (see `plugins/agentic-security-review/skills/security-assessment-pipeline/SKILL.md:85-90`). Its findings feed FP-reduction, severity floors, narrative annotation, compliance mapping, and the executive report.
+
+This agent does NOT do FP-reduction, reachability analysis, business-logic / fraud-domain review, compliance mapping, or executive-report synthesis. Those live in `plugins/agentic-security-review/`. If deeper analysis is required, escalate from `/code-review` to `/security-assessment`.
+
+When a vulnerability class is pattern-visible (single-line regex, stable AST shape, ≤10% false-positive rate), the authoritative detector is a semgrep rule in `plugins/agentic-security-review/knowledge/semgrep-rules/*.yaml` — not a grep pattern here. See `docs/rules-vs-prompts-policy.md` for the boundary. This agent's value is judgment on cases that rules cannot reach: logic flaws, authz architecture gaps, business-layer leaks, and exploitability assessment over pre-existing tool findings.
+
 ## Knowledge Files
 
 Read `knowledge/owasp-detection.md` before starting analysis. It

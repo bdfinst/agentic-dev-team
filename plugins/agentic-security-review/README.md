@@ -6,6 +6,14 @@ Deep security assessment + adversarial ML red-team for Claude Code. Companion to
 
 Inverts the usual "LLM does everything" pattern: **deterministic tools do the detection**, hooks automate invocation, and LLM agents are reserved for what they do best — business-logic reasoning, narrative annotation, cross-repo attack chains, executive prose, and the judgment stages of FP-reduction.
 
+## When to use this vs. `/code-review`
+
+This plugin is the **deep layer**. Use it for audits, release gates, milestone reviews, publication-grade reports, and red-team runs. Runtime is minutes (recon → parallel tools → parallel judgment → FP-reduction → narratives → exec report).
+
+For **inline checkpoints during active development**, use `/code-review`, which invokes the sibling `security-review` agent from the `agentic-dev-team` plugin. That's a single opus pass in seconds, appropriate for every commit. The agent is also what this plugin invokes internally at Phase 1b of `/security-assessment` — so running the agent during development is complementary, not redundant. When a `/code-review` finding warrants deeper analysis (FP-reduction, reachability, compliance mapping, domain-layer review), escalate to `/security-assessment` here.
+
+Pattern-visible vulnerability classes (single-line regex, stable AST shape, ≤10% false-positive rate) are authoritatively detected by the semgrep rules under `knowledge/semgrep-rules/*.yaml` — not by agent prompts. See `docs/rules-vs-prompts-policy.md` for the boundary.
+
 ## LLM-safety coverage bound
 
 static coverage via llm-safety.yaml is intentionally narrow — it catches pattern-visible issues but is NOT a substitute for runtime LLM safety testing
