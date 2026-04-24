@@ -1,0 +1,10 @@
+.env.example
+.github/workflows/ci.yml
+package.json
+packages/api/package.json
+packages/api/src/notify.ts
+packages/api/src/routes/auth.ts
+packages/api/src/server.ts
+packages/core/package.json
+packages/core/src/errors.ts
+packages/core/src/index.ts

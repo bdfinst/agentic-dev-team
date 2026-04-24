@@ -1,0 +1,32 @@
+# Single source of truth for filesystem-walk exclusions used by
+# plugins/agentic-dev-team/scripts/recon-inventory.sh when the target is not a
+# git working tree. Two sections, each with one entry per line.
+#
+# The git-ls-files branch does NOT consult this file — git's own .gitignore +
+# working-tree rules are already authoritative. This file drives ONLY the
+# non-git fallback.
+#
+# Format:
+#   - Lines starting with `#` are comments.
+#   - Blank lines are ignored.
+#   - Two section markers: `# prefix:` and `# filename:`
+#   - Under `# prefix:` each line is a directory name to prune during descent.
+#     Trailing slash is recommended (matches the spec) but not required; the
+#     script normalises by stripping any trailing slash before matching.
+#   - Under `# filename:` each line is a filename to drop wherever it appears.
+
+# prefix:
+.git/
+node_modules/
+.venv/
+__pycache__/
+dist/
+build/
+target/
+.tox/
+.next/
+.nuxt/
+
+# filename:
+.DS_Store
+Thumbs.db
