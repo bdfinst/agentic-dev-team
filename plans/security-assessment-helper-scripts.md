@@ -2,7 +2,7 @@
 
 **Created**: 2026-04-24
 **Branch**: main
-**Status**: approved (2026-04-24, by Bryan Finster)
+**Status**: implemented (2026-04-24, via `/build`)
 **Spec**: [`docs/specs/security-assessment-helper-scripts.md`](../docs/specs/security-assessment-helper-scripts.md)
 **Source prompt**: [`.prompts/security-review-ship-missing-helper-scripts.md`](../.prompts/security-review-ship-missing-helper-scripts.md)
 **Target plugin**: `plugins/agentic-security-assessment/` (renamed from `agentic-security-review`)
