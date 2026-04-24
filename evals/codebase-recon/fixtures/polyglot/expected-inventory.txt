@@ -1,0 +1,5 @@
+backend/app.py
+backend/requirements.txt
+frontend/package.json
+frontend/src/main.ts
+scripts/deploy.sh
