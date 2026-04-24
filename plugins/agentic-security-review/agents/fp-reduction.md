@@ -54,8 +54,8 @@ If joern is present, invoke `tools/reachability.sh` to build or load the CPG. Th
 If a control is found in the repo, cite file:line and downgrade to `likely_true_positive`. If none, state "no compensating control located in repo".
 
 **Stage 4 — Deduplication.** Compare against already-processed findings in the register so far:
-- Identical `rule_id` + identical `metadata.source_ref` hash → collapse to the first entry; add the current file:line to its locations array.
-- Identical rule-semantic (e.g. both `semgrep.python.hardcoded-password` and `gitleaks.generic.aws-access-key` on the same file:line) → keep the higher-priority source per the priority order in `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md` § Deduplicate.
+- Identical `rule_id` + identical `file` + identical `line` → collapse to a single entry. Each original `metadata.source_ref` is appended to the entry's `locations[]` array so per-source provenance is preserved. This is what enables cross-source collapse when two producers emit the same `rule_id` for the same issue — e.g., the `security-review` agent's unified-finding adapter adopts the corresponding semgrep rule_id per `docs/rules-vs-prompts-policy.md` Q4, so semgrep + agent findings on one issue share the key and collapse cleanly.
+- Identical rule-semantic but DIFFERENT `rule_id` (e.g. `semgrep.python.hardcoded-password` and `gitleaks.generic.aws-access-key` at the same `file:line`) → keep the higher-priority source per the priority order in `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md` § Deduplicate. The lower-priority finding is dropped, not merged.
 
 **Stage 5 — Severity calibration.** Read back the register after Stages 1–4. Ensure findings with identical exploitability profiles get identical verdict and `exploitability.score`. When two findings straddle a severity boundary, prefer the higher one.
 

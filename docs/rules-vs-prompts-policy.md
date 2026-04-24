@@ -88,9 +88,11 @@ Each custom rule in `plugins/agentic-security-review/knowledge/semgrep-rules/*.y
 
 When the 10% threshold is exceeded, the rule is demoted to the agent prompt surface (judgment class) until the rule can be tightened.
 
-## Rule_id namespacing (prerequisite)
+## Rule_id namespacing
 
-This policy assumes the agent emits findings with `rule_id` fields in the unified finding envelope, namespaced `security-review.A<NN>.<slug>`. That work is a prerequisite — tracked as Finding #1 in `docs/rule-id-audit.md`. Until it lands, this policy is advisory.
+The agent emits findings with `rule_id` fields in the unified finding envelope via the adapter at `plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py`. Pattern-visible classes adopt upstream rule_ids (e.g. `semgrep.generic.sql-injection`); judgment-only classes use the `security-review.a<NN>.<slug>` namespace. The canonical mapping lives at `plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml`.
+
+Cross-source dedup collapse (agent + semgrep on the same issue) works because the adapter adopts upstream rule_ids, matching fp-reduction's Stage 4 collapse key `rule_id + file + line` (`plugins/agentic-security-review/agents/fp-reduction.md:57`).
 
 ## Out of scope
 
