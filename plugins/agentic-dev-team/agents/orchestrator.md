@@ -122,8 +122,8 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
   - `warn` → include findings in human gate summary
   - `pass` → proceed to doc review
 - **Doc review**: Before the human gate, invoke the tech-writer to review all documentation affected by the changes:
-  - Any behavioral or architectural change → check `docs/architecture.md`, `README.md`
-  - Any configuration or tooling change → check `docs/architecture.md` (Governance section)
+  - Any behavioral or architectural change → check `docs/agent-architecture.md`, `README.md`
+  - Any configuration or tooling change → check `docs/agent-architecture.md` (Governance section)
   - Any agent or skill change → check `CLAUDE.md`, `docs/agent_info.md`, `docs/skills.md`, `docs/team-structure.md`
   - Tech-writer updates outdated sections and confirms all docs reflect current behavior before proceeding
 - **Human gate**: Human reviews the final output. If the plan was good, implementation review is lightweight.

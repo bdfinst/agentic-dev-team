@@ -57,9 +57,9 @@ Return `{"status": "skip", "issues": [], "summary": "No documentation files foun
 
 ### docs/ directory consistency
 
-- `docs/architecture.md` does not reflect structural changes made in source
+- `docs/agent-architecture.md` does not reflect structural changes made in source
 - `README.md` workflow section describes a workflow that differs from current implementation
-- `docs/architecture.md` references a configuration or governance detail that is no longer current
+- `docs/agent-architecture.md` references a configuration or governance detail that is no longer current
 - Agent or skill files changed without corresponding update to `CLAUDE.md` registry tables
 
 ## Ignore

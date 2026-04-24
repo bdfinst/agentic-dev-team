@@ -129,5 +129,5 @@ Use `/agent-add` -- it handles all registration steps automatically. For manual 
 | Model routing | `agents/orchestrator.md` Model Routing Table | `CLAUDE.md` Model Routing summary |
 | Team structure | `docs/team-structure.md` Mermaid diagrams | Actual agent files in `agents/` |
 | Behavior/workflow | `agents/orchestrator.md` Phase workflow | `README.md` Workflow section |
-| Architecture | `docs/architecture.md` | `README.md` architecture section |
-| Config/setup | `settings.json` + hook scripts | `docs/architecture.md` Governance section |
+| Architecture | `docs/agent-architecture.md` | `README.md` architecture section |
+| Config/setup | `settings.json` + hook scripts | `docs/agent-architecture.md` Governance section |

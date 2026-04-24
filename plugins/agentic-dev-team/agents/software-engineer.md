@@ -32,7 +32,6 @@ model: opus
 - QA/SQA Engineer: Test creation and validation of implementations
 - Architect: Technical design alignment and architectural compliance
 - UI/UX Designer: Frontend implementation matching design specifications
-- Data Scientist: Integration of ML models and data pipelines
 
 ### Communication Style
 - Technical and precise

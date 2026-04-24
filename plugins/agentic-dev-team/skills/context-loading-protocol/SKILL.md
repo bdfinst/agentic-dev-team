@@ -27,7 +27,6 @@ These are the measured sizes of each loadable file. CLAUDE.md is always loaded a
 | --- | --- | --- |
 | Orchestrator | `agents/orchestrator.md` | 370 |
 | Software Engineer | `agents/software-engineer.md` | 300 |
-| Data Scientist | `agents/data-scientist.md` | 290 |
 | QA/SQA Engineer | `agents/qa-engineer.md` | 310 |
 | UI/UX Designer | `agents/ui-ux-designer.md` | 300 |
 | Architect | `agents/architect.md` | 360 |

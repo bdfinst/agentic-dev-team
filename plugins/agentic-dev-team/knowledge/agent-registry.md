@@ -8,7 +8,6 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 |-------|------|---------|---------------|
 | Orchestrator | `agents/orchestrator.md` | 500 | Task routing, model selection, review coordination |
 | Software Engineer | `agents/software-engineer.md` | 320 | Code generation, implementation |
-| Data Scientist | `agents/data-scientist.md` | 290 | ML models, data analysis |
 | QA/SQA Engineer | `agents/qa-engineer.md` | 320 | Testing, quality assurance |
 | UI/UX Designer | `agents/ui-ux-designer.md` | 300 | Interface design, UX |
 | Architect | `agents/architect.md` | 360 | System design, architecture |
@@ -18,7 +17,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | DevOps/SRE Engineer | `agents/devops-sre-engineer.md` | 320 | Pipeline, deployment, reliability |
 | ADR Author | `agents/adr.md` | 320 | Creates and manages Architecture Decision Records |
 | Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched at the start of `/security-assessment` and on demand by architect / domain-analysis. |
-| **All team agents** | | **~4,800** | |
+| **All team agents** | | **~4,510** | |
 
 ## Review Agents
 

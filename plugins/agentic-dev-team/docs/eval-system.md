@@ -87,15 +87,7 @@ correction prompts are included.
 
 ### `/code-review` — Full review
 
-```text
-Files → Config → Enabled Agents → Results → Summary Table → Correction Prompts
-```
-
-1. Determine target files (all, changed, or since ref)
-2. Load config to find enabled agents
-3. Run each enabled agent
-4. Aggregate results into summary table
-5. Generate correction prompts (optionally save to directory)
+See [Code Review Process](code-review-process.md) for the full nine-step pipeline: target selection, pre-flight gates, static analysis pre-pass, parallel agent dispatch, ACCEPTED-RISKS suppression, health scoring, the auto-fix loop (up to 5 iterations), correction prompts, and the `.review-passed` gate file.
 
 ### `/review-agent <name>` — Single agent
 

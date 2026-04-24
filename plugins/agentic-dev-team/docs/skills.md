@@ -29,6 +29,7 @@ Used by all agents to ensure output correctness:
 | --- | --- | --- |
 | Quality Gate Pipeline | [`quality-gate-pipeline.md`](../skills/quality-gate-pipeline/SKILL.md) | Unified quality gate: self-validation, verification evidence, review-correction loops |
 | Governance & Compliance | [`governance-compliance.md`](../skills/governance-compliance/SKILL.md) | Audit trail, quality assurance layers, ethics principles |
+| Static Analysis Integration | [`static-analysis-integration/SKILL.md`](../skills/static-analysis-integration/SKILL.md) | SARIF-first pre-pass for `/code-review`: runs available static analysis tools, normalizes to unified finding envelope, deduplicates across tools |
 
 ### Development Discipline Skills
 
@@ -70,6 +71,7 @@ Domain knowledge for implementation work:
 | Docker Image Create | [`docker-image-create/SKILL.md`](../skills/docker-image-create/SKILL.md) | Generate production Dockerfiles with multi-stage builds, slim/distroless bases |
 | Docker Image Audit | [`docker-image-audit/SKILL.md`](../skills/docker-image-audit/SKILL.md) | Audit Dockerfiles and images with hadolint, Trivy, Grype; structured severity report |
 | Performance Benchmark | [`performance-benchmark/SKILL.md`](../skills/performance-benchmark/SKILL.md) | Runtime performance measurement: Core Web Vitals, resource sizes, baseline comparison, performance budgets, trend tracking |
+| JS Project Init | [`js-project-init/SKILL.md`](../skills/js-project-init/SKILL.md) | Scaffold a JavaScript project with ESM, functional style, prettier, eslint, editorconfig, vitest, and gitignore |
 
 ### Subagent Prompt Templates
 
@@ -141,12 +143,29 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 | `/unfreeze` | [`unfreeze.md`](../commands/unfreeze.md) | Lift the scope lock set by `/freeze` |
 | `/guard <glob>` | [`guard.md`](../commands/guard.md) | Combined `/careful` + `/freeze` for production-critical sessions |
 
+### Team Agent Commands
+
+Each team agent is exposed as a user-invocable slash command that adopts the agent's persona. All accept `<request>` as an argument and route through the persona's Skills section.
+
+| Command | File | Purpose |
+| --- | --- | --- |
+| `/orchestrator` | [`orchestrator.md`](../commands/orchestrator.md) | Routes tasks to specialized agents and coordinates multi-agent collaboration |
+| `/architect` | [`architect.md`](../commands/architect.md) | System design, architecture definition, and technical decision oversight |
+| `/software-engineer` | [`software-engineer.md`](../commands/software-engineer.md) | Full-stack development, code generation, implementation, and refactoring |
+| `/qa-engineer` | [`qa-engineer.md`](../commands/qa-engineer.md) | ATDD test generation, quality metrics, regression testing |
+| `/security-engineer` | [`security-engineer.md`](../commands/security-engineer.md) | Threat modeling, security analysis, vulnerability assessment |
+| `/devops-sre-engineer` | [`devops-sre-engineer.md`](../commands/devops-sre-engineer.md) | Pipeline, deployment, observability, reliability planning |
+| `/ui-ux-designer` | [`ui-ux-designer.md`](../commands/ui-ux-designer.md) | UI patterns, UX optimization, accessibility compliance |
+| `/product-manager` | [`product-manager.md`](../commands/product-manager.md) | Feature scoping, prioritization, stakeholder alignment |
+| `/tech-writer` | [`tech-writer.md`](../commands/tech-writer.md) | Documentation, terminology consistency, style enforcement |
+
 ### Utility Commands
 
 | Command | File | Purpose |
 | --- | --- | --- |
 | `/upgrade` | [`upgrade.md`](../commands/upgrade.md) | Check for and apply plugin updates from within a session |
 | `/help` | [`help.md`](../commands/help.md) | List all available slash commands with descriptions |
+| `/version` | [`version.md`](../commands/version.md) | Report the installed plugin version |
 | `/review` | [`review.md`](../commands/review.md) | Alias for `/code-review` — same arguments, same behavior |
 
 ## How Agents Use Skills

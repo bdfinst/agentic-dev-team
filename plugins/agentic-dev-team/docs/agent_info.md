@@ -10,7 +10,6 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 | --- | --- | --- |
 | Orchestrator | [`orchestrator.md`](../agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
 | Software Engineer | [`software-engineer.md`](../agents/software-engineer.md) | Code generation, implementation, applies review corrections |
-| Data Scientist | [`data-scientist.md`](../agents/data-scientist.md) | ML models, data analysis, statistical validation |
 | QA/SQA Engineer | [`qa-engineer.md`](../agents/qa-engineer.md) | Test generation, automated testing, quality gates |
 | UI/UX Designer | [`ui-ux-designer.md`](../agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
 | Architect | [`architect.md`](../agents/architect.md) | System design, tech decisions, scalability planning |
@@ -19,10 +18,11 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 | Security Engineer | [`security-engineer.md`](../agents/security-engineer.md) | Security analysis, threat modeling, compliance |
 | DevOps/SRE Engineer | [`devops-sre-engineer.md`](../agents/devops-sre-engineer.md) | Pipeline, deployment, reliability, observability |
 | ADR Author | [`adr.md`](../agents/adr.md) | Creates and manages Architecture Decision Records |
+| Codebase Recon | [`codebase-recon.md`](../agents/codebase-recon.md) | Surveys a codebase's structure, entry points, dependencies, security surface, and git history; produces a RECON artifact in `memory/` that other agents consume |
 
 ## Review Agents
 
-Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them — they are never invoked directly by the user. Model assignment is controlled by the Orchestrator's routing table.
+Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them — they are never invoked directly by the user. Model assignment is controlled by the Orchestrator's routing table. For the full dispatch pipeline, see [Code Review Process](code-review-process.md).
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
@@ -50,16 +50,7 @@ To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-rev
 
 ## Plan Review Personas
 
-Plan review personas are subagent prompt templates that critically challenge implementation plans during Phase 2, before the human gate. They run **in parallel** and return structured verdicts. Unlike review agents (which check code), these check the plan itself.
-
-| Persona | File | Focus |
-| --- | --- | --- |
-| Acceptance Test Critic | [`plan-review-acceptance.md`](../prompts/plan-review-acceptance.md) | Criteria verifiability, BDD scenario gaps, error paths, TDD traceability |
-| Design & Architecture Critic | [`plan-review-design.md`](../prompts/plan-review-design.md) | Coupling, abstraction quality, structural risks, pattern consistency |
-| UX Critic | [`plan-review-ux.md`](../prompts/plan-review-ux.md) | User journey, error experience, cognitive load, accessibility |
-| Strategic Critic | [`plan-review-strategic.md`](../prompts/plan-review-strategic.md) | Problem-solution fit, scope, risk, opportunity cost |
-
-The UX Critic self-skips for plans with no user-facing changes. The other three always run. Any `needs-revision` verdict triggers plan revision before the human sees it (max 2 iterations).
+Plan review personas are subagent prompt templates that critically challenge implementation plans during Phase 2, before the human gate. Unlike review agents (which check code), these check the plan itself. See [Plan Review Personas in the architecture doc](agent-architecture.md#plan-review-personas) for the full persona table, model assignments, and revision loop.
 
 ## Persona Template
 
@@ -158,90 +149,11 @@ Custom agents extend the team with knowledge specific to your project — your d
 
 **Important**: Custom agents in your project's `.claude/` are *additive* — they extend the standard team without replacing it. The Orchestrator will route to them when appropriate based on the task.
 
-## Incorporate Agents from Another Repository
+## Install or Update the Plugin
 
-You can pull individual agents or the full team from any repository that follows this structure.
+The standard install path is `claude plugin install agentic-dev-team@bfinster` — see the [repository README](../../../README.md#installation) for the full procedure, including how to update to a newer version. Copying agent files by hand is not supported: the Orchestrator routes by marketplace registry, not by file scan.
 
-### Pull a single agent from another repo
-
-```bash
-# Copy a specific agent into your project
-cp path/to/other-repo/.claude/agents/react-review.md .claude/agents/
-
-# Register it in your CLAUDE.md under Review Agents
-# Then validate:
-claude -p "/agent-audit .claude/agents/react-review.md --fix"
-```
-
-Any agent file that follows the standard template will work. If the source repo has eval fixtures for the agent, copy those too:
-
-```bash
-cp -r path/to/other-repo/.claude/evals/fixtures/react-review .claude/evals/fixtures/
-cp path/to/other-repo/.claude/evals/expected/react-review.json .claude/evals/expected/
-```
-
-### Pull the full team into your project
-
-This is the standard installation path. Copy the entire `.claude/` directory:
-
-```bash
-git clone https://github.com/your-org/agentic-dev-team /tmp/adt
-cp -r /tmp/adt/.claude/ /path/to/your-project/.claude/
-```
-
-If your project already has a `.claude/` directory, merge selectively:
-
-```bash
-# Merge only agents and skills, preserve your existing CLAUDE.md and settings
-cp -r /tmp/adt/.claude/agents/ /path/to/your-project/.claude/agents/
-cp -r /tmp/adt/.claude/skills/ /path/to/your-project/.claude/skills/
-cp -r /tmp/adt/.claude/commands/ /path/to/your-project/.claude/commands/
-# Then manually merge the registry tables from /tmp/adt/.claude/CLAUDE.md into yours
-```
-
-### Install a subset of agents
-
-If you only need specific agents (e.g., only review agents, no team personas):
-
-```bash
-# Copy only review agents
-cp /tmp/adt/.claude/agents/*-review.md .claude/agents/
-
-# Copy only team agents you want
-cp /tmp/adt/.claude/agents/software-engineer.md .claude/agents/
-cp /tmp/adt/.claude/agents/architect.md .claude/agents/
-
-# Copy all skills (agents reference them)
-cp -r /tmp/adt/.claude/skills/ .claude/skills/
-```
-
-After selective installation, update your `CLAUDE.md` to register only the agents you copied. Agents not registered in `CLAUDE.md` will not be routed to by the Orchestrator.
-
-### Merge agents from multiple sources
-
-If you maintain custom agents and also use agents from this repo:
-
-1. Keep this repo's agents under `agents/` (the standard set)
-2. Add your custom agents to the same directory — they coexist with no conflict as long as filenames don't collide
-3. Register all agents (standard + custom) in your `CLAUDE.md`
-4. The Orchestrator discovers agents from the registry tables, not by file scan, so registration is what activates an agent
-
-### Keep agents up to date with upstream
-
-```bash
-# Check what changed in the upstream repo
-cd /tmp/adt && git pull && cd -
-
-# Selectively apply updates
-cp /tmp/adt/.claude/agents/security-review.md .claude/agents/
-cp /tmp/adt/.claude/agents/arch-review.md .claude/agents/
-```
-
-Review the diff before copying — if you have local modifications to a standard agent file, merge them manually rather than overwriting.
-
-### Contribute a custom agent back
-
-If you've built a custom agent that would be useful to others:
+To contribute a custom agent back upstream:
 
 1. Ensure the agent file follows the standard template (run `/agent-audit` against it)
 2. Add eval fixtures and expected outputs

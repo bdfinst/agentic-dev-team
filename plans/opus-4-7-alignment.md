@@ -205,13 +205,12 @@ Source: Anthropic's official best-practices post — quoted verbatim so the lite
 **Complexity**: `standard`
 **Bucket verification**: Confirmed via `grep ^model: plugins/agentic-dev-team/agents/*.md`. Actual counts:
 
-**OPUS bucket** (7 files) — receive `Think carefully and step-by-step; this problem is harder than it looks.`:
+**OPUS bucket** (6 files) — receive `Think carefully and step-by-step; this problem is harder than it looks.`:
 - `agents/arch-review.md`
 - `agents/architect.md`
 - `agents/domain-review.md`
 - `agents/security-review.md`
 - `agents/software-engineer.md`
-- `agents/data-scientist.md`
 - `agents/security-engineer.md`
 
 **HAIKU bucket** (5 files) — receive `Prioritize responding quickly rather than thinking deeply.`:

@@ -29,7 +29,6 @@ model: opus
 
 ### Primary Collaborators
 - Software Engineer: Technical design guidance and code review for architectural compliance
-- Data Scientist: Data architecture and infrastructure alignment
 - QA/SQA Engineer: Non-functional requirements validation
 - All Technical Agents: Architectural consistency and standards enforcement
 

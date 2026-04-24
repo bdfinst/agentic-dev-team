@@ -186,7 +186,7 @@ This scaffolds the agent file, adds it to the registry in the owning plugin's `C
 | Guide | Description |
 | --- | --- |
 | [Getting Started](GETTING-STARTED.md) | Hands-on tutorial: invoke agents, skills, and common workflows |
-| [Architecture](plugins/agentic-dev-team/docs/architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
+| [Architecture](plugins/agentic-dev-team/docs/agent-architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
 | [Agents](plugins/agentic-dev-team/docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
 | [Skills & Commands](plugins/agentic-dev-team/docs/skills.md) | Skills catalog, slash-commands catalog |
 | [Eval System](plugins/agentic-dev-team/docs/eval-system.md) | How review-agent accuracy is measured and graded |

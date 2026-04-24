@@ -22,19 +22,9 @@ Full routing table: `agents/orchestrator.md` → Model Routing Table section.
 
 ## Review-Fix Loop
 
-Both inline review checkpoints (Phase 3) and `/code-review` use the same review-fix loop:
+Both inline review checkpoints (Phase 3) and `/code-review` use the same review-fix loop: targeted agents run in parallel, actionable issues (error/warning severity with high/medium confidence) are auto-fixed, and only the agents that reported issues are re-run against the modified files. The loop converges in up to 5 iterations or escalates to a human. `/code-review` is the final gate before commit.
 
-1. Orchestrator selects targeted review agents based on what changed (JS/TS → js-fp-review + complexity-review; API surface → security-review; Dockerfile → docker-image-audit; etc.)
-2. Agents run in parallel as sub-agents with orchestrator-assigned models
-3. Issues are classified by actionability:
-   - **Actionable**: error/warning severity with high/medium confidence → auto-fix
-   - **Human-required**: confidence `none` → report only, escalate
-   - **Suggestions**: logged, do not trigger the fix loop
-4. Actionable issues are auto-fixed (file-by-file, top-to-bottom by line number)
-5. Only agents that reported actionable issues are re-run against the modified files
-6. Loop repeats up to **5 iterations** until zero actionable issues remain
-7. If the loop doesn't converge (same issues persist, or iteration limit reached) → escalate to human with all fix attempts and remaining issues
-8. Final gate: `/code-review` before commit (auto-scopes to uncommitted changes, runs its own fix loop)
+For the full pipeline — targeting, pre-flight gates, static analysis pre-pass, ACCEPTED-RISKS suppression, fix-loop exit conditions, report generation, and the `.review-passed` gate file — see [Code Review Process](code-review-process.md).
 
 ## Context Management
 
