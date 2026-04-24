@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentic-dev-team.local/schemas/recon-envelope-v1.json",
   "title": "RECON envelope v1.0",
-  "description": "Finalized RECON envelope produced by the codebase-recon agent. Supersedes the v0.1 placeholder at evals/codebase-recon/expected-schema.json once the consumer plugin (agentic-security-review) loads. See plugins/agentic-dev-team/knowledge/security-primitives-contract.md for context.",
+  "description": "Finalized RECON envelope produced by the codebase-recon agent. Supersedes the v0.1 placeholder at evals/codebase-recon/expected-schema.json once the consumer plugin (agentic-security-assessment) loads. See plugins/agentic-dev-team/knowledge/security-primitives-contract.md for context.",
   "type": "object",
   "required": [
     "schema_version",

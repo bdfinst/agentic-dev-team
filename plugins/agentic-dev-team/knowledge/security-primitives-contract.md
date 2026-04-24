@@ -1,6 +1,6 @@
 ---
 name: security-primitives-contract
-description: Versioned cross-plugin contract defining the data envelopes passed between agentic-dev-team and agentic-security-review. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
+description: Versioned cross-plugin contract defining the data envelopes passed between agentic-dev-team and agentic-security-assessment. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
 version: 1.2.0
 semver-policy: |
   PATCH (1.0.x) — clarifications, typo fixes, documentation improvements; no
@@ -16,7 +16,7 @@ semver-policy: |
 
 # Security Primitives Contract v1.2.0
 
-This file is the single source of truth for the data envelopes exchanged between `plugins/agentic-dev-team/` (producer of primitives) and `plugins/agentic-security-review/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
+This file is the single source of truth for the data envelopes exchanged between `plugins/agentic-dev-team/` (producer of primitives) and `plugins/agentic-security-assessment/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
 
 The contract covers three data envelopes, two registries, and a presentational severity mapping. Per-tool raw outputs are **explicitly not in the contract** — they are normalized into the unified finding envelope by SARIF-first adapters in `skills/static-analysis-integration/SKILL.md`. That normalization layer is an implementation detail behind the contract, free to evolve under PATCH releases.
 
@@ -34,11 +34,11 @@ Agents that produce or consume contract envelopes. Each ID is stable across the 
 |---|---|---|---|
 | `codebase-recon` | RECON envelope | — | `plugins/agentic-dev-team/agents/codebase-recon.md` |
 | `security-review` | unified findings | — | `plugins/agentic-dev-team/agents/security-review.md` |
-| `fp-reduction` | disposition register | unified findings, RECON | `plugins/agentic-security-review/agents/fp-reduction.md` (companion plugin) |
-| `tool-finding-narrative-annotator` | — | unified findings, RECON | `plugins/agentic-security-review/agents/tool-finding-narrative-annotator.md` (companion plugin) |
-| `business-logic-domain-review` | unified findings (domain-level) | — | `plugins/agentic-security-review/agents/business-logic-domain-review.md` (companion plugin) |
-| `cross-repo-synthesizer` | — | RECON, unified findings | `plugins/agentic-security-review/agents/cross-repo-synthesizer.md` (companion plugin) |
-| `exec-report-generator` | — | all three envelopes | `plugins/agentic-security-review/agents/exec-report-generator.md` (companion plugin) |
+| `fp-reduction` | disposition register | unified findings, RECON | `plugins/agentic-security-assessment/agents/fp-reduction.md` (companion plugin) |
+| `tool-finding-narrative-annotator` | — | unified findings, RECON | `plugins/agentic-security-assessment/agents/tool-finding-narrative-annotator.md` (companion plugin) |
+| `business-logic-domain-review` | unified findings (domain-level) | — | `plugins/agentic-security-assessment/agents/business-logic-domain-review.md` (companion plugin) |
+| `cross-repo-synthesizer` | — | RECON, unified findings | `plugins/agentic-security-assessment/agents/cross-repo-synthesizer.md` (companion plugin) |
+| `exec-report-generator` | — | all three envelopes | `plugins/agentic-security-assessment/agents/exec-report-generator.md` (companion plugin) |
 
 Adding an agent ID is a MINOR bump. Removing one is a MAJOR bump.
 
@@ -49,9 +49,9 @@ Skills that participate in the contract (operate on envelopes or define adapter 
 | Skill ID | Role | Defined in |
 |---|---|---|
 | `static-analysis-integration` | SARIF-first adapters; produces unified findings from per-tool outputs | `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md` |
-| `false-positive-reduction` | Consumes unified findings, produces disposition register | `plugins/agentic-security-review/skills/false-positive-reduction/SKILL.md` (companion plugin) |
-| `compliance-mapping` | Consumes unified findings, emits compliance annotations (not in contract — downstream-only) | `plugins/agentic-security-review/skills/compliance-mapping/SKILL.md` (companion plugin) |
-| `security-assessment-pipeline` | Orchestrates full envelope flow end-to-end | `plugins/agentic-security-review/skills/security-assessment-pipeline/SKILL.md` (companion plugin) |
+| `false-positive-reduction` | Consumes unified findings, produces disposition register | `plugins/agentic-security-assessment/skills/false-positive-reduction/SKILL.md` (companion plugin) |
+| `compliance-mapping` | Consumes unified findings, emits compliance annotations (not in contract — downstream-only) | `plugins/agentic-security-assessment/skills/compliance-mapping/SKILL.md` (companion plugin) |
+| `security-assessment-pipeline` | Orchestrates full envelope flow end-to-end | `plugins/agentic-security-assessment/skills/security-assessment-pipeline/SKILL.md` (companion plugin) |
 
 ## Envelope 1 — RECON
 
@@ -176,7 +176,7 @@ Explicitly NOT part of this contract:
 - Internal adapter configuration (`references/tool-configs.md` layouts, matcher regexes). These are implementation details of `skills/static-analysis-integration`.
 - Compliance mapping outputs. These are a downstream product of the companion plugin, not shared cross-plugin primitives.
 - Report templates (executive report sections, Mermaid diagrams). These are presentation concerns.
-- Red-team harness artifacts. The harness ships its own schemas under `plugins/agentic-security-review/harness/redteam/schemas/` — separate lifecycle, separate versioning.
+- Red-team harness artifacts. The harness ships its own schemas under `plugins/agentic-security-assessment/harness/redteam/schemas/` — separate lifecycle, separate versioning.
 
 ## Conformance
 

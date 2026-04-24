@@ -295,7 +295,7 @@ Establishes the single source of truth and the adapter's core shape. Everything 
 **GREEN**:
 
 - Verify adapter output already yields the correct rule_id (work done in Steps 1-3; nothing new in the adapter).
-- Create the dedup helper script if not factored into fp-reduction. Prefer factoring: if fp-reduction.md's dedup can be extracted into `plugins/agentic-security-review/scripts/fp-reduction-dedup.py` (or equivalent), the helper imports it; else the helper replicates with a `# SOURCE: fp-reduction.md:57` comment tying it to the original.
+- Create the dedup helper script if not factored into fp-reduction. Prefer factoring: if fp-reduction.md's dedup can be extracted into `plugins/agentic-security-assessment/scripts/fp-reduction-dedup.py` (or equivalent), the helper imports it; else the helper replicates with a `# SOURCE: fp-reduction.md:57` comment tying it to the original.
 - Run test. Pass.
 
 **REFACTOR**: If the dedup algorithm is replicated, file an open item to factor it into fp-reduction proper.
@@ -310,7 +310,7 @@ Establishes the single source of truth and the adapter's core shape. Everything 
 
 - Create `test_skill_wiring.sh`:
   - Awk-check on `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md`: Tier 3 section references `adapters/security-review-adapter.py` at the new path
-  - Awk-check on `plugins/agentic-security-review/skills/security-assessment-pipeline/SKILL.md` Phase 1b block: references the adapter invocation with the adapter's full new path
+  - Awk-check on `plugins/agentic-security-assessment/skills/security-assessment-pipeline/SKILL.md` Phase 1b block: references the adapter invocation with the adapter's full new path
 - Create `test_runtime_phase_1b_smoke.sh` (closes AC-10 blocker):
   - Stage a fake agent-output.json under a tmp memory/ dir with two issues: one mapped category, one unmapped
   - Execute the Phase 1b invocation verbatim as documented in `security-assessment-pipeline/SKILL.md`: `python <adapter-path> --input <fake> --output memory/findings-fxt.jsonl`
@@ -336,7 +336,7 @@ Establishes the single source of truth and the adapter's core shape. Everything 
 - Create `plugins/agentic-dev-team/skills/static-analysis-integration/references/security-review-adapter.md`:
   - Document the adapter's CLI, input/output contracts, error semantics, failure modes, and mapping-table location
   - Include a "grep recipe" section documenting the uppercase-to-lowercase case translation so auditors know to grep both `A03` (agent side) and `a03` (unified-stream side)
-- Edit `plugins/agentic-security-review/skills/security-assessment-pipeline/SKILL.md`:
+- Edit `plugins/agentic-security-assessment/skills/security-assessment-pipeline/SKILL.md`:
   - In the Phase 1b block, append: "The `security-review` agent's output is piped through `plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py` before findings append to `memory/findings-<slug>.jsonl`. The adapter is mandatory in this phase; a non-zero exit halts Phase 1b with a named error."
 - Ensure no inline rule_id literals in adapter source beyond the `"security-review."` prefix.
 - Run all four tests. Pass.

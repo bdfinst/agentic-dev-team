@@ -1,4 +1,6 @@
-# Plan: Rename plugin `agentic-security-assessment` → `agentic-security-assessment`
+# Plan: Rename plugin `agentic-security-review` → `agentic-security-assessment`
+
+> **STATUS: landed 2026-04-24.** The rename has shipped. This plan is preserved for history. A mechanical sed pass during execution over-reached on directional references — some now read `agentic-security-assessment → agentic-security-assessment`. Read `git show 9195f22` for the authoritative rename diff.
 
 **Created**: 2026-04-24
 **Branch**: main

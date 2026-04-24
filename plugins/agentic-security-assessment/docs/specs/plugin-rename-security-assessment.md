@@ -1,6 +1,8 @@
-# Spec: Rename `agentic-security-assessment` → `agentic-security-assessment`
+# Spec: Rename `agentic-security-review` → `agentic-security-assessment`
 
-> **Source**: overlap analysis conducted 2026-04-24; Item 4 of the cleanup arising from the `security-review` agent vs. `agentic-security-assessment` plugin prefix collision.
+> **STATUS: landed 2026-04-24.** The rename has shipped. This spec is preserved for history. A mechanical sed pass during execution over-reached in directional references — some sentences now read `agentic-security-assessment → agentic-security-assessment` where they originally read `agentic-security-review → agentic-security-assessment`. Read `git show 9195f22` for the authoritative rename diff.
+>
+> **Source**: overlap analysis conducted 2026-04-24; Item 4 of the cleanup arising from the `security-review` agent vs. `agentic-security-review` plugin prefix collision.
 > **Companion docs**: `docs/rule-id-audit.md`, `docs/rules-vs-prompts-policy.md`.
 > **Cross-cutting**: touches 36 files across both plugins and repo-root config.
 

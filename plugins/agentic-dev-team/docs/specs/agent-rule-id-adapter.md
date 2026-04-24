@@ -4,7 +4,7 @@
 >
 > **Companion docs**: `docs/rule-id-audit.md`, `docs/rules-vs-prompts-policy.md`.
 >
-> **Sequencing**: strategic blocker on the `agentic-security-review` → `agentic-security-assessment` plugin rename. Item 5 must ship before Item 4 (rename).
+> **Sequencing**: strategic blocker on the `agentic-security-assessment` → `agentic-security-assessment` plugin rename. Item 5 must ship before Item 4 (rename).
 
 ## Intent Description
 
@@ -118,7 +118,7 @@ Feature: security-review agent findings normalize to unified-finding envelope
 | `plugins/agentic-dev-team/scripts/security-review-adapter.py` | **New.** Python adapter. Reads agent JSON, resolves categories via mapping, emits unified-finding JSONL. JSON Schema validation via `jsonschema` lib. |
 | `plugins/agentic-dev-team/skills/static-analysis-integration/references/security-review-adapter.md` | **New.** Adapter documentation: invocation contract, error semantics, category format. |
 | `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md` | One paragraph added under Tier 3 referencing the new adapter. |
-| `plugins/agentic-security-review/skills/security-assessment-pipeline/SKILL.md` | Phase 1b documents mandatory adapter invocation after agent emission. |
+| `plugins/agentic-security-assessment/skills/security-assessment-pipeline/SKILL.md` | Phase 1b documents mandatory adapter invocation after agent emission. |
 
 ### Category format
 
