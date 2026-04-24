@@ -68,6 +68,14 @@ Shipped in P2 Step 3b. Not part of the baseline. See that step's documentation.
 Shipped in P2 Step 3b for tools that don't yet support SARIF upstream. Kept
 narrowly scoped; each adapter is ≤ 40 LOC.
 
+A thin adapter normalizes `security-review` agent output into the unified-finding
+envelope. See `adapters/security-review-adapter.py` and
+`references/security-review-adapter.md`. Rule_id lookup is driven by the
+canonical mapping at
+`plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml`; malformed
+categories hard-fail, well-formed-but-unmapped categories fall back to the
+`security-review.*` namespace with a WARN.
+
 ### Tier 4 — legacy (pre-SARIF, preserved for compatibility)
 
 ESLint / tsc / pylint remain callable via their native JSON outputs when

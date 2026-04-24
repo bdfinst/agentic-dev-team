@@ -88,6 +88,16 @@ Phase 1b: Judgment-layer detection  (parallel across agents)
   requires:  Phase 0, Phase 1
   parallelism: two agents dispatched in a single Agent tool message,
                repeated per target
+  adapter:   The security-review agent's output is piped through
+             plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py
+             before findings append to memory/findings-<slug>.jsonl.
+             The adapter is mandatory in this phase; a non-zero exit halts
+             Phase 1b with a named error (malformed category, missing
+             category, malformed mapping YAML, or schema-invalid emission).
+             Invocation, verbatim:
+               python3 plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py \
+                 --input memory/agent-output-<slug>.json \
+                 --output memory/findings-<slug>.jsonl
 
 Phase 1c: ACCEPTED-RISKS suppression (sequential gate, mandatory)
   procedure: scripts/apply-accepted-risks.sh parses ACCEPTED-RISKS.md

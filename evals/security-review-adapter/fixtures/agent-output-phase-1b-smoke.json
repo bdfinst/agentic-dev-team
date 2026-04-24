@@ -1,0 +1,24 @@
+{
+  "status": "fail",
+  "issues": [
+    {
+      "category": "A03.sql-injection",
+      "severity": "error",
+      "confidence": "high",
+      "file": "api.py",
+      "line": 42,
+      "message": "User input concatenated into SQL query",
+      "suggestedFix": "Use parameterized queries."
+    },
+    {
+      "category": "A77.custom-class",
+      "severity": "warning",
+      "confidence": "medium",
+      "file": "utils.py",
+      "line": 5,
+      "message": "A brand-new class that is not yet in the mapping",
+      "suggestedFix": "Document it."
+    }
+  ],
+  "summary": "Two findings for phase 1b smoke test"
+}
