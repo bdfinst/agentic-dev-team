@@ -1,0 +1,15 @@
+{
+  "status": "fail",
+  "issues": [
+    {
+      "category": "A3.sqli",
+      "severity": "error",
+      "confidence": "high",
+      "file": "src/api.py",
+      "line": 42,
+      "message": "SQL injection",
+      "suggestedFix": "Parameterize."
+    }
+  ],
+  "summary": "malformed"
+}

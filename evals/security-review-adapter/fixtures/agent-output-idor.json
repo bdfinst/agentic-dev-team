@@ -1,0 +1,15 @@
+{
+  "status": "fail",
+  "issues": [
+    {
+      "category": "A01.idor",
+      "severity": "error",
+      "confidence": "medium",
+      "file": "src/orders.py",
+      "line": 88,
+      "message": "Route handler loads order by id without checking ownership",
+      "suggestedFix": "Scope the query by the authenticated user's id."
+    }
+  ],
+  "summary": "1 IDOR issue."
+}

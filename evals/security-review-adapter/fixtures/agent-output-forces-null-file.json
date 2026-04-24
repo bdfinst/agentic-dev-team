@@ -1,0 +1,15 @@
+{
+  "status": "fail",
+  "issues": [
+    {
+      "category": "A03.sql-injection",
+      "severity": "error",
+      "confidence": "high",
+      "file": null,
+      "line": 42,
+      "message": "Missing file field forces schema violation",
+      "suggestedFix": "n/a"
+    }
+  ],
+  "summary": "negative schema fixture"
+}

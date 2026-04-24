@@ -1,0 +1,15 @@
+{
+  "status": "fail",
+  "issues": [
+    {
+      "category": "A03.sql-injection",
+      "severity": "error",
+      "confidence": "high",
+      "file": "src/api.py",
+      "line": 42,
+      "message": "SQL injection via string concat",
+      "suggestedFix": "Use parameterized queries."
+    }
+  ],
+  "summary": "One critical SQL injection in api.py"
+}

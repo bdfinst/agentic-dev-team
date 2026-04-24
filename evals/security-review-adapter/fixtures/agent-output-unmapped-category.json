@@ -1,0 +1,15 @@
+{
+  "status": "warn",
+  "issues": [
+    {
+      "category": "A99.new-class",
+      "severity": "warning",
+      "confidence": "medium",
+      "file": "src/mystery.py",
+      "line": 10,
+      "message": "A brand-new class not yet in the mapping",
+      "suggestedFix": "Investigate."
+    }
+  ],
+  "summary": "unmapped"
+}

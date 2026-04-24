@@ -1,0 +1,14 @@
+{
+  "status": "fail",
+  "issues": [
+    {
+      "severity": "error",
+      "confidence": "high",
+      "file": "src/api.py",
+      "line": 42,
+      "message": "SQL injection",
+      "suggestedFix": "Parameterize."
+    }
+  ],
+  "summary": "missing category"
+}

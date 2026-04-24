@@ -1,0 +1,36 @@
+# security-review category -> unified-finding rule_id mapping
+#
+# Single source of truth for agent-emitted rule_ids. The adapter at
+# plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py
+# reads this file. See docs/specs/agent-rule-id-adapter.md for the contract.
+#
+# Versioning is independent of the primitives-contract. Bump on any semantic change:
+#   - patch: renumber / rename a rule_id that aliases an upstream rename
+#   - minor: add a new mapping
+#   - major: remove or move a mapping
+version: 1.0.0
+mappings:
+  # Pattern-visible classes — adopt upstream rule_ids (rules-vs-prompts policy Q4).
+  A02.weak-hashing-md5: semgrep.generic.weak-hash-md5
+  A03.sql-injection: semgrep.generic.sql-injection
+  A03.xss-innerhtml: semgrep.javascript.xss-innerhtml
+  A03.command-injection: semgrep.generic.command-injection
+  A08.binary-formatter: semgrep.csharp.binary-formatter
+  A08.object-input-stream: semgrep.java.deserialization-object-input-stream
+  A08.js-eval: semgrep.javascript.eval-injection
+  A05.cors-wildcard: semgrep.generic.cors-wildcard
+  A07.jwt-alg-none: semgrep.generic.jwt-alg-none
+  A02.insecure-random-js: semgrep.javascript.weak-random
+  A05.default-credentials: semgrep.generic.default-credentials
+
+  # Judgment-only classes — security-review namespace.
+  A01.idor: security-review.a01.idor
+  A01.missing-auth-middleware: security-review.a01.missing-auth-middleware
+  A01.missing-authorize-csharp: security-review.a01.missing-authorize-csharp
+  A04.no-rate-limiting: security-review.a04.no-rate-limiting
+  A04.no-brute-force-protection: security-review.a04.no-brute-force-protection
+  A07.jwt-no-exp: security-review.a07.jwt-no-exp
+  A07.session-fixation: security-review.a07.session-fixation
+  A09.pii-in-logs: security-review.a09.pii-in-logs
+  A05.verbose-errors-prod: security-review.a05.verbose-errors-prod
+  A09.no-auth-event-logging: security-review.a09.no-auth-event-logging

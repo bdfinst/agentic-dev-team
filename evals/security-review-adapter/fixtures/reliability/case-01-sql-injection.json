@@ -1,0 +1,9 @@
+{
+  "code_snippet": "def get_user(uid): return db.execute(f\"SELECT * FROM users WHERE id={uid}\")",
+  "expected_category": "A03.sql-injection",
+  "agent_output": {
+    "status": "fail",
+    "issues": [{"category": "A03.sql-injection", "severity": "error", "confidence": "high", "file": "app.py", "line": 1, "message": "f-string interpolates user input into SQL", "suggestedFix": "Use parameterized queries."}],
+    "summary": "sql injection"
+  }
+}

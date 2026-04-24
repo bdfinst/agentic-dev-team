@@ -1,0 +1,9 @@
+{
+  "code_snippet": "hash = hashlib.md5(password.encode()).hexdigest()",
+  "expected_category": "A02.weak-hashing-md5",
+  "agent_output": {
+    "status": "fail",
+    "issues": [{"category": "A02.weak-hashing-md5", "severity": "error", "confidence": "high", "file": "auth.py", "line": 9, "message": "MD5 used to hash passwords", "suggestedFix": "Use bcrypt or argon2."}],
+    "summary": "weak hash"
+  }
+}

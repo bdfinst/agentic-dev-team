@@ -1,0 +1,1 @@
+{"rule_id": "semgrep.generic.sql-injection", "file": "api.py", "line": 42, "severity": "error", "message": "SQL injection", "metadata": {"source": "semgrep", "confidence": "high"}}
