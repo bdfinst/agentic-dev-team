@@ -1,7 +1,7 @@
 ---
 name: security-primitives-contract
 description: Versioned cross-plugin contract defining the data envelopes passed between agentic-dev-team and agentic-security-review. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
-version: 1.1.0
+version: 1.2.0
 semver-policy: |
   PATCH (1.0.x) — clarifications, typo fixes, documentation improvements; no
                   schema changes.
@@ -14,7 +14,7 @@ semver-policy: |
                   Consumers on prior major MUST be updated.
 ---
 
-# Security Primitives Contract v1.1.0
+# Security Primitives Contract v1.2.0
 
 This file is the single source of truth for the data envelopes exchanged between `plugins/agentic-dev-team/` (producer of primitives) and `plugins/agentic-security-review/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
 
@@ -61,6 +61,47 @@ Key design notes:
 - Superset of the `codebase-recon` v0.1 placeholder; `schema_version` bumps to `"1.0"`.
 - Added under 1.0: `repo.vcs` object (distinguishes git from non-git repos), `architecture.notable_anti_patterns` (open-ended notes from the recon pass), `security_surface.csp_headers` (referenced in security contexts).
 - All v0.1 field names remain stable.
+
+### `file_inventory` (added in 1.2.0)
+
+An authoritative enumeration of every file the recon considered in-scope at recon time. Gap 6's manifest-membership hook depends on this field — without it, consumers cannot answer "did a scan agent read a file outside the recon surface?" without their own tree walk.
+
+The list itself ships as a **sibling file** (not embedded JSON) because mid-size repos produce 10k+ paths that bloat envelope diffs and validation cost. The main envelope carries a pointer and a count; the list lives at `memory/recon-<slug>.inventory.txt`.
+
+**Shape** (main envelope, optional at schema level):
+
+```json
+"file_inventory": {
+  "source": "git-ls-files" | "filesystem-walk",
+  "count": <integer>,
+  "sibling_ref": "recon-<slug>.inventory.txt"
+}
+```
+
+All three sub-fields are required when the object is present. Object itself is optional so pre-1.2.0 envelopes stay schema-valid; `codebase-recon` always emits it from 1.2.0 forward.
+
+**Sibling file contract** (`memory/recon-<slug>.inventory.txt`):
+
+- UTF-8, LF line terminators, no BOM.
+- One repo-relative path per line; path separator `/` on every platform; no leading `./`.
+- Sorted lexicographically under `LC_ALL=C`; deduplicated.
+- No blank lines. Final line is LF-terminated.
+- No symlink entries — symlinks resolve to real-path targets; broken symlinks are skipped and recorded in the envelope's `notes` array.
+- Plain text; not JSON; not validated by schema tooling.
+
+**Enumeration pipeline** — canonical shippable implementation at `plugins/agentic-dev-team/scripts/recon-inventory.sh` (the single source of truth per the 1.2.0 plan's decision #1). Both the `codebase-recon` agent and the test harnesses invoke this script. Excluded prefixes and filenames for the non-git branch live in `plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt`.
+
+### Consumer error contract
+
+Consumers that depend on `file_inventory` (e.g., Gap 6's PreToolUse hook, or any audit that wants to prove a reviewer didn't silently read outside the recon surface) **must fail-open** when any of the three branches below fires. Fail-open = emit a one-time informational notice to stderr in the exact format below, then proceed without the membership check. Never block the consumer's normal work; the inventory is a nice-to-have quality signal, not a correctness gate.
+
+| Branch | Trigger | Stderr notice template |
+|---|---|---|
+| a | `file_inventory` field is absent on the envelope | `[recon-inventory] notice: file_inventory field absent on envelope; proceeding without membership check` |
+| b | `file_inventory.sibling_ref` resolves to a file that is missing or unreadable at `memory/<sibling_ref>` | `[recon-inventory] notice: sibling file <path> missing; proceeding without membership check` |
+| c | `file_inventory.count != wc -l <sibling>` (envelope declares N, sibling contains M, M != N) | `[recon-inventory] notice: file_inventory.count (<declared>) != wc -l <sibling> (<actual>); proceeding without membership check` |
+
+Reference implementation: `evals/primitives-contract/fixtures/consumer-stub-fail-open.sh`. Conformance test: `evals/primitives-contract/tests/backward-compat-1.2.0.sh`.
 
 ## Envelope 2 — Unified finding
 
@@ -152,6 +193,15 @@ A mutation test alters a field in a conformance fixture; CI must fail. A version
 - Removing a field, renaming a field, changing a field's semantics, or adding a REQUIRED field → `version: X.0.0` (MAJOR). Publish a migration note; downstream plugins' `required-primitives-contract` constraints force them to update before installing.
 
 ## Changelog
+
+### 1.2.0 (2026-04-24)
+
+Additive schema release. Consumers on `^1.0.0` continue to install unmodified.
+
+- **New field:** Envelope 1 now carries an optional `file_inventory` object (`source` enum, `count` integer, `sibling_ref` string). The actual path list ships as a sibling file `memory/recon-<slug>.inventory.txt` to keep JSON diffs small on large repos.
+- **New subsection:** `### Consumer error contract` under Envelope 1 documents the three fail-open branches (field absent, sibling absent, count mismatch) with exact stderr notice templates. Reference implementation at `evals/primitives-contract/fixtures/consumer-stub-fail-open.sh`.
+- **New canonical enumeration pipeline:** `plugins/agentic-dev-team/scripts/recon-inventory.sh` is the single source of truth for both the git-ls-files branch and the filesystem-walk branch; excludes for the non-git branch live in `plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt`.
+- **Backward compatibility:** pre-1.2.0 envelopes continue to validate. Consumers that need the field (Gap 6's manifest-membership hook) follow the fail-open contract documented above.
 
 ### 1.1.0 (2026-04-21)
 
