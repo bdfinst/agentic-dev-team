@@ -1,0 +1,575 @@
+{
+  "schema_version": "disposition-v1.1.0",
+  "target_slug": "extranetapi",
+  "fp_reduction_tool": "llm-fallback",
+  "fp_reduction_note": "joern CPG not available on this harness \u2014 reachability stage used LLM reasoning; other four stages (input-trust, control-flow, context, compensating-control) unaffected.",
+  "entries": [
+    {
+      "id": "sec-appsettings.json-511",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 9,
+        "rationale": "hardcoded-creds floor=9. Plaintext OAuth-style client secret in the base config file. Anyone with git read has it. Used via DI into BillersClientLibrary -> Billers API (api-billers-*-dmz.nfr02dmz.aciworldwide.com). Covers all environments that don't override the key."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "none \u2014 checked into source"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "ba166bd3-14f3-4357-a53c-ext511",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 9,
+        "rationale": "Dedup with sec-appsettings.json-511 \u2014 same finding, different detector."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "none"
+      ],
+      "suppression": "dedup:sec-appsettings.json-511"
+    },
+    {
+      "id": "sec-appsettings.json-498",
+      "verdict": "likely_false_positive",
+      "exploitability": {
+        "score": 2,
+        "rationale": "iPerceptions site-survey keys are intentionally public (embedded in the client-side HTML tag). Committing to config is a policy violation, not a security finding. Still flagging LOW for policy consistency."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Public key by vendor design"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "ba166bd3-14f3-4357-a53c-ext498",
+      "verdict": "likely_false_positive",
+      "exploitability": {
+        "score": 2,
+        "rationale": "Dedup with sec-appsettings.json-498."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Public key by vendor design"
+      ],
+      "suppression": "dedup:sec-appsettings.json-498"
+    },
+    {
+      "id": "sec-appsettings.Development.json-32",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 9,
+        "rationale": "hardcoded-creds floor=9. Working SQL credentials (endavauser/Jupiter2020$) against SPDDB02E1A.devspeedpay.com. Dev SQL instance is internal-only but accessible from corp network; contains representative data for NextGen. Rotate + purge from git history."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Dev server is internal-only (not exposed to internet)"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-appsettings.Development.json-37",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 9,
+        "rationale": "hardcoded-creds floor=9. HS512 signing key for the Extranet AuthToken JWT. Anyone with the key can mint arbitrary AuthToken cookies for the Extranet channel. Compromised by publication to git; must rotate the production key AND this dev key, and purge from git history. Key is used as UTF-8 bytes so the entropy available is ~88 chars * ~6 bits = ~528 bits (the string is base64-like but not decoded) \u2014 enough entropy for HMAC-SHA512 in theory, but the material is now public."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "dev-only environment file; but policy forbids dev keys in source"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-QueryStringProcessor.cs-43",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 9,
+        "rationale": "weak-crypto floor=9. AES-256-CBC with caller-supplied IV and no MAC. Padding oracle + unauthenticated reach via POST /api/queryString/extract. Three distinguishable warning messages returned (invalid-IV vs decrypt-fail vs utf8-fail) make oracle construction practical. Per-client secret is pulled from dbo.SSO_ENCRYPTION_DATA so compromise is scoped per-client \u2014 but the decrypt primitive exposes whatever was encrypted into the query string (customer identifiers, tokens)."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "per-client secret key isolation",
+        "GenerateClientContext called before decrypt (validates clientId exists)"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-QueryStringProcessor.cs-177",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 7,
+        "rationale": "Padding-oracle-friendly error differentiation. Fixing this alone does not close the authentication gap but materially harms the oracle. High-value quick fix: collapse all three warnings into a single 'Invalid envelope' message."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "none"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-EncryptionKeyQuery.cs-23",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 3,
+        "rationale": "weak-crypto floor=5 applied; raw exploitability is 3 (NOLOCK dirty read on a rarely-updated secret-material table). Capped at floor. Same finding appears across multiple NextGen services (accounts, core-clientpipes). Fixable by removing NOLOCK + caching layer."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "key rotation is rare",
+        "cache masks occasional bad reads"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-AccountAppService.cs-90",
+      "verdict": "likely_true_positive",
+      "exploitability": {
+        "score": 4,
+        "rationale": "Algorithm is pinned to HS512 (Jose's JwsAlgorithm.HS512) so the alg:none / alg-confusion attacks do NOT apply. The UTF-8-bytes-of-string key derivation is a hardening gap \u2014 HS512 expects a 512-bit uniformly-random key, and a base64-looking string decoded as UTF-8 bytes has ~6 bits of entropy per byte, not 8. For an 88-char base64-shaped string that's ~528 bits of entropy, which exceeds HMAC-SHA512's 512-bit nominal requirement. So the current key is strong enough \u2014 but the pattern is incorrect and reviewers inevitably think it is wrong. Recommend base64-decode the stored key OR switch to a structured derivation (HKDF) that documents the input contract."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Algorithm pinned; Jose library accepts key size = 512 bits min for HS512"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-QueryStringController.cs-37",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 8,
+        "rationale": "unauth-admin-endpoint floor=7 (raised to 8: this is the direct entry point to the padding oracle primitive in sec-QueryStringProcessor.cs-43). GenerateClientContext is called first but only validates the clientId connection string exists; it is NOT proof-of-possession of client credentials. Recommend requiring a signed envelope instead of raw ciphertext, or gating behind a per-client rate limit."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "GenerateClientContext probes connection string existence"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-ExceptionMiddleware.cs-63",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 7,
+        "rationale": "info-leak-unauth floor=5 applied; raw exploitability is 7 because the middleware sits above ApiAuthorizationFilter and catches pre-auth exceptions on EVERY route including unauth POST /api/queryString/extract. Any exception thrown pre-auth leaks through. SQL Server exception messages leak table/column/server info; Dapper/Newtonsoft errors leak model property names."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "GenericGrpcErrorMessage is used inside GlobalExceptionFilter for RpcException \u2014 but that's the MVC filter, not this middleware"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-GlobalExceptionFilter.cs-48",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 5,
+        "rationale": "info-leak-unauth floor=5. Authenticated callers see DomainModelException.Message verbatim. Internal enumeration risk for a compromised agent account."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "RpcException is redacted to generic gRPC message"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-ExtranetUrlHelper.cs-44",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 7,
+        "rationale": "info-leak-unauth floor=5; raised to 7: IsDevelopment() bypass means a mis-deployed container with ASPNETCORE_ENVIRONMENT=Development in production disables the Referer/Origin check AND the password-reset URL host check (ForgotPasswordController.cs). Easy to get wrong; easy to exploit. Mitigation: remove the dev bypass; dev hosts already EndsWith 'localhost' or 'nprd-speedpay.com' and pass naturally."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "ASPNETCORE_ENVIRONMENT must be Production for containers serving real traffic"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-ExtranetUrlHelper.cs-45",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 7,
+        "rationale": "EndsWith match without a dot-boundary permits domain suffix attacks: `my-speedpay.com`, `attacker-speedpay.com`, `wwwspeedpay.com.attacker.net` (if DnsSafeHost returns non-canonical form), etc. Fix: compare against DNS labels: host == safe OR host.EndsWith('.'+safe)."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "none"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-AuditContextSetterMiddleware.cs-38",
+      "verdict": "likely_true_positive",
+      "exploitability": {
+        "score": 4,
+        "rationale": "info-leak-unauth floor=5 suppressed to 4: X-Request-Id is a conventional trace-correlation header; most systems trust it. Log-forging potential is real but downstream Serilog JSON sink escapes content. Fix: validate header against `[A-Za-z0-9-_]{1,64}` regex."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Serilog JSON formatter escapes on output"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-AuditContextSetterMiddleware.cs-74",
+      "verdict": "likely_true_positive",
+      "exploitability": {
+        "score": 2,
+        "rationale": "IsTokenValid actually validates signature via Jose before returning a decoded token. A bogus token fails and decodedToken is null. So the baggage is only set from validly-signed tokens \u2014 no spoofing. The concern is that this happens at middleware stage before the ApiAuthorizationFilter does its full user-context build. Doesn't grant access, just sets telemetry earlier. Low severity."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "IsTokenValid validates signature"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-ContextRequestEnableBufferingMiddleware.cs-17",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 5,
+        "rationale": "EnableBuffering() default buffers 30KB to memory then spills to disk up to 2GB (int.MaxValue). Kestrel's default MaxRequestBodySize is 30MB. In the absence of an explicit Kestrel limit for these endpoints, an attacker can send ~30MB bodies to unauthenticated POST endpoints. At sustained rates this is a disk-fill / memory-pressure DoS. Mitigation: cap EnableBuffering(size) to 1-2MB; set Kestrel MaxRequestBodySize per-route."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Kestrel 30MB default cap",
+        "infrastructure WAF / LB assumed to rate-limit"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-LoginController.cs-182",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 7,
+        "rationale": "unauth-admin-endpoint floor=7. Pre-auth attacker sets X-XsrfToken, causing the minted JWT to bind to the attacker's chosen session ID. Session-fixation pattern. If the legitimate user can be enticed to log in while the attacker-supplied XSRF cookie is set (e.g., via a prior visit to an attacker-controlled origin that sets a cookie on a shared parent domain), attacker can then replay XSRF-header-authenticated calls for the duration of the session."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "SameSite=Lax default on new cookies",
+        "separate server-side Redis session key (SessionStorageValidationConfig.Enabled=true in prod)"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-LoginController.cs-35",
+      "verdict": "likely_true_positive",
+      "exploitability": {
+        "score": 4,
+        "rationale": "DoS / credential-stuffing on login is a well-known risk with standard mitigation (WAF rate-limit + account-lockout). Assessment has no visibility into loginService.Authenticate's internal lockout policy. Noted as medium; verify downstream lockout exists before downgrading."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Assumed WAF rate-limit",
+        "assumed downstream lockout in loginService"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-LoginController.cs-191",
+      "verdict": "likely_true_positive",
+      "exploitability": {
+        "score": 4,
+        "rationale": "Username is logged verbatim on auth failure. Audit feeds that tokenize on newlines are vulnerable to log-forging if the Login field accepts control chars. Model binding likely rejects CRLF in a JSON string property but should be verified."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Newtonsoft.Json by default allows literal newlines but they come through as \\n (escaped) in the JSON string value; PrepareMessageToLog formats via $-string interpolation which does NOT escape"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-ForgotPasswordController.cs-157",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 7,
+        "rationale": "Password-reset-link host injection. Depends on the ExtranetUrlHelper.IsSafeAndWellFormedUrl EndsWith/dev-bypass pattern. An attacker-origin of `attacker-speedpay.com` satisfies EndsWith('speedpay.com') and causes the reset link to point at the attacker. User clicks reset link; attacker captures the token and can reset the password. Classic."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "safeHosts include only speedpay.com and nprd-speedpay.com",
+        "but the EndsWith match is the bypass primitive"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-ForgotPasswordController.cs-159",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 3,
+        "rationale": "Empty catch swallows errors. Operational visibility issue, not directly exploitable. Noted low."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Generic success-looking response preserves user enumeration resistance"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-ResetPasswordController.cs-65",
+      "verdict": "likely_true_positive",
+      "exploitability": {
+        "score": 5,
+        "rationale": "AnySiteMarker in ValidateResetPasswordToken relaxes site scope. Whether cross-site replay is actually possible depends on the downstream userRepository implementation (not in this repo \u2014 lives in Aci.Speedpay.UserService.Domain package). Recommend audit of the package's token scoping."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "token is bound to userId"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-LogController.cs-47",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 7,
+        "rationale": "info-leak-unauth floor=5 raised to 7: unauthenticated POST that writes arbitrary strings to the Serilog Error sink with structured extras. Flooding is trivial; structured-field injection breaks downstream log parsers; SIEM alert-fatigue exploitation viable. Mitigations: require authentication (reasonable \u2014 the UI is post-login anyway for extranet agents), or at minimum rate-limit + sanitize extras."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Tagged as Origin=extranet-ui in log so SIEM can filter \u2014 but attackers can flood anyway"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-MessagesController.cs-41",
+      "verdict": "likely_true_positive",
+      "exploitability": {
+        "score": 3,
+        "rationale": "Content is UI error messages \u2014 not PII. Rate-amplification via unauth call is the main concern. Low."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "MessagesCacheConfig (CacheKeyExpiration=30s) masks most DB hits",
+        "messages service lookup is internal-only"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-AppController.cs-36",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 5,
+        "rationale": "info-leak-unauth floor=5. /api/app/versions enumerates the entire downstream gRPC service build versions \u2014 every NextGen service's exact version. Allows targeted CVE matching for pentesters. DisableApplicationVersion=true in base config gates the single-service variants but not /versions nor /versionsandos."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "DisableApplicationVersion gate for single-service variants"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-startup.cs-272-trivy-healthcheck",
+      "verdict": "likely_false_positive",
+      "exploitability": {
+        "score": 1,
+        "rationale": "HEALTHCHECK in Dockerfile matters only for docker-compose or bare docker run deployments. Kubernetes uses configured probes (see .deploy/charts/). The app exposes /api/health/liveness + /api/health/readiness so k8s probes will work regardless. Noise finding \u2014 suppress."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "K8s liveness/readiness probes configured in values.yaml"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-Dockerfile-hadolint-DL3002",
+      "verdict": "false_positive",
+      "exploitability": {
+        "score": 1,
+        "rationale": "Multi-stage Dockerfile. Release stage (the actual runtime image) runs as USER speedpay (uid 1100). USER root in intermediate stages is normal."
+      },
+      "reachability": "not-relevant",
+      "compensating_controls": [
+        "Release stage is non-root"
+      ],
+      "suppression": "false-positive-multistage-build"
+    },
+    {
+      "id": "sec-Dockerfile-hadolint-SC2156",
+      "verdict": "false_positive",
+      "exploitability": {
+        "score": 1,
+        "rationale": "find -exec sh -c '...' {} pattern on controlled .deps.json filenames is not exploitable; filenames are build-deterministic."
+      },
+      "reachability": "not-relevant",
+      "compensating_controls": [
+        "filenames are controlled build artifacts"
+      ],
+      "suppression": "false-positive-controlled-filenames"
+    },
+    {
+      "id": "sec-HttpSettings-Billers-SkipCert",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 7,
+        "rationale": "tls-disabled floor=7. SkipServerCertificateCheck=true on Billers HTTP endpoint in BASE config. PCI Requirement 4 violation if the setting is inherited by production overlays. Fix: default to false; let prod overlay set true only if strictly required (and document why)."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Octopus overlay may override",
+        "nfr02dmz is internal DMZ"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-HttpSettings-agentCardAssist-SkipCert",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 8,
+        "rationale": "tls-disabled floor=7 raised to 8: agentCardAssist -> Semafone is the PCI pause-and-resume tokenization vendor. Disabling cert validation on the tokenization handoff breaks the cardholder-data trust chain. PCI DSS 4.0 Requirement 4.2.1 explicitly requires strong crypto + cert validation for CHD in transit."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "aci2.preprod.semafone.cloud is a preprod URL \u2014 prod overlay must point at prod Semafone endpoint"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-HttpSettings-moBills-SkipCert",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 5,
+        "rationale": "tls-disabled floor=5. Same pattern as Billers and agentCardAssist but for moBills (Walletron-owned subsidiary)."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Octopus overlay may override"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-HttpSettings-Billers-QAurl",
+      "verdict": "likely_true_positive",
+      "exploitability": {
+        "score": 4,
+        "rationale": "QE-environment URL hard-coded in base config. If prod overlay misses this key, prod traffic flows to QE Billers and exposes the committed ClientSecret to an environment it wasn't meant for. Not directly exploitable without the Octopus variable set misconfiguration."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Octopus overlay should supply prod URL"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-Startup.cs-148",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 5,
+        "rationale": "tls-disabled floor=5. HSTS excluded for speedpay.com + www.speedpay.com. If the API is ever served through those hostnames, HSTS is not enforced and a MITM downgrade to HTTP is possible on first visit. Intended to support the static marketing domain, but the API should simply not be routed via those hosts."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "HttpsRedirection still redirects HTTP->HTTPS within a single session"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-gRPC-EnableSsl-base-false",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 7,
+        "rationale": "tls-disabled floor=7. Every downstream gRPC service has EnableSsl=false in the base config. Environment overlays set it true in dev but reliance on env overrides is a latent risk \u2014 a new environment with only the base file + env-vars will run plaintext gRPC. High-severity because gRPC transports customer PII, card tokens, and payment authorizations."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "K8s mesh or ingress-level TLS termination \u2014 but the pod-to-pod hop is still plaintext unless mTLS is enforced at the service mesh"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-redirect_session-static-template",
+      "verdict": "false_positive",
+      "exploitability": {
+        "score": 1,
+        "rationale": "The HTML file is served as a raw static asset by UseStaticFiles. No C# reference substitutes the {{...}} tokens. Dead template; not a rendering sink."
+      },
+      "reachability": "not-reached",
+      "compensating_controls": [
+        "No substitution logic"
+      ],
+      "suppression": "false-positive-dead-template"
+    },
+    {
+      "id": "gitleaks-test-AutopaySettingsControllerTests",
+      "verdict": "false_positive",
+      "exploitability": {
+        "score": 1,
+        "rationale": "Test-fixture GUIDs used as map keys/values. Not production secrets."
+      },
+      "reachability": "not-reached",
+      "compensating_controls": [
+        "test code path"
+      ],
+      "suppression": "false-positive-test-fixture"
+    },
+    {
+      "id": "gitleaks-test-QueryStringProcessorTests",
+      "verdict": "false_positive",
+      "exploitability": {
+        "score": 1,
+        "rationale": "Test-only AES key material. Used exclusively in unit tests. Not production."
+      },
+      "reachability": "not-reached",
+      "compensating_controls": [
+        "test code path"
+      ],
+      "suppression": "false-positive-test-fixture"
+    },
+    {
+      "id": "sec-AccountAppService.cs-277",
+      "verdict": "likely_false_positive",
+      "exploitability": {
+        "score": 2,
+        "rationale": "ToLowerInvariant is safe for the current GUID-shaped session id contract. Noted as a brittleness risk."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "session id is always lowercase GUID"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-AccountAppService.cs-245",
+      "verdict": "likely_true_positive",
+      "exploitability": {
+        "score": 2,
+        "rationale": "Server-side session grace period extends beyond JWT exp. Intentional (allows clock-skew + network retry). 60s grace in prod is short and acceptable."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "JWT also carries exp claim; both must pass"
+      ],
+      "suppression": null
+    },
+    {
+      "id": "sec-InputValidationMiddleware.cs-26",
+      "verdict": "true_positive",
+      "exploitability": {
+        "score": 5,
+        "rationale": "The word 'password' short-circuits the HtmlSanitizer scan (purely detection-based, for logging). Attacker injects XSS + literal 'password' and the log-detection goes silent. Downstream output sinks (Angular UI) are responsible for actual XSS defense, so this finding does NOT introduce an exploitable XSS by itself \u2014 it only weakens the detection/alert signal. MEDIUM."
+      },
+      "reachability": "reached",
+      "compensating_controls": [
+        "Angular client-side binding escapes by default",
+        "Ganss.Xss is still in the DI container for other use"
+      ],
+      "suppression": null
+    }
+  ],
+  "summary": {
+    "total_entries": 42,
+    "by_verdict": {
+      "true_positive": 22,
+      "likely_true_positive": 7,
+      "likely_false_positive": 3,
+      "false_positive": 5,
+      "uncertain": 0
+    },
+    "dedup_removed": 2,
+    "unique_findings_post_dedup": 40
+  }
+}

@@ -28,10 +28,10 @@ Ship the four helper scripts that the `security-assessment` orchestrator spec al
 - [ ] `apply-accepted-risks.sh` rewrites `findings-<slug>.jsonl` atomically (write to `<path>.tmp` then `mv`); interrupted runs leave the original file intact.
 - [ ] `accepted-risks-<slug>.jsonl` schema added to `plugins/agentic-dev-team/knowledge/security-primitives-contract.md`.
 - [ ] `docs/accepted-risks-format.md` documents the ACCEPTED-RISKS.md parse format (fields, UTC expiry semantics, bash-extglob-only glob syntax — see Step 4 canonical example below).
-- [ ] `knowledge/severity-floors.json` exists with one entry per finding class (`class`, `floor`, `rationale`, `rule_id`). (JSON, not YAML, so `jq` parses it without introducing a yq/python branch — addresses the spec's "no new dependencies" stance.)
-- [ ] `apply-severity-floors.sh` is idempotent.
-- [ ] `apply-severity-floors.sh` emits exactly one log record per floor application; un-floored findings emit no record.
-- [ ] `apply-severity-floors.sh` cites the floor `rule_id` in each log record.
+- [ ] `knowledge/severity-floors.json` exists with one entry per recognized floor class (`class`, `rationale`, optional `canonical_floor` for documentation). The actual floor value applied to each finding comes from the finding's `exploitability.rationale` (pattern `<class> floor=<n>`), matching the fp-reduction agent's existing convention. The knowledge file is the authoritative list of recognized classes — any class outside this list is treated as un-known and ignored. (JSON, not YAML, so `jq` parses it without a yq/python branch.)
+- [ ] `apply-severity-floors.sh` is idempotent — repeated runs leave the disposition register and log file unchanged, even though first-run logs every matching finding including ones already at or above their floor. Idempotency marker: after application, the script sets `exploitability.floor_applied: true` in the disposition entry; subsequent runs skip marked entries.
+- [ ] `apply-severity-floors.sh` logs one record per matching finding on first run (log-every-match, even when `original_score == final_score`); un-matched findings emit no record. This matches the 2026-04-24 reference semantics.
+- [ ] `apply-severity-floors.sh` cites the `floor_class` in each log record (extracted from the rationale pattern). Log record schema: `{id, floor_class, floor, original_score, final_score}` — no `slug`, `rule_id`, or `iso` fields (per 2026-04-24 reference).
 - [ ] `apply-severity-floors.sh` exits with code 2 and emits `apply-severity-floors.sh: disposition-<slug>.json not found at <resolved-path>` to stderr when the disposition register is missing (distinct from exit 1 = runtime error, exit 3 = malformed input).
 - [ ] `apply-severity-floors.sh` byte-matches the 2026-04-24 `severity-floors-log-extranetapi.jsonl` reference WHEN the paired fixture `tests/scripts/fixtures/severity-floors/input-disposition-extranetapi.json` can be reconstructed to reproduce the reference; otherwise the assertion degrades to schema-identical + five-row spot-check (record chosen fallback in the PR description with the rows inspected).
 - [ ] `find-ci-files.sh` excludes `node_modules/`, `vendor/`, `.git/`, `bin/`, `obj/`.
@@ -123,18 +123,27 @@ Feature: Security-assessment helper scripts
     Then the entry is logged with status: expired
     And the finding it would have suppressed is retained
 
-  Scenario: apply-severity-floors raises severities to class-specific floors
-    Given disposition-<slug>.json contains findings tagged with hardcoded-creds / weak-crypto / TLS-disabled / unauth-info-leak
-    And knowledge/severity-floors.yaml declares floors for those classes
+  Scenario: apply-severity-floors raises exploitability scores matching "<class> floor=<n>" rationales
+    Given disposition-<slug>.json contains entries whose exploitability.rationale embeds "<class> floor=<n>" (e.g. "hardcoded-creds floor=9")
+    And knowledge/severity-floors.json lists <class> among recognized classes
     When apply-severity-floors.sh is invoked
-    Then each matching finding's severity is raised to the declared floor
-    And memory/severity-floors-log-<slug>.jsonl records one entry per floored finding
-    And each log entry cites the floor rule id, raw severity, and floored severity
+    Then each matching finding's exploitability.score becomes max(original_score, floor)
+    And memory/severity-floors-log-<slug>.jsonl records one entry per matched finding with {id, floor_class, floor, original_score, final_score}
+    And the disposition register is rewritten atomically in-place
 
-  Scenario: apply-severity-floors is idempotent
-    Given a disposition register has already been floored
-    When apply-severity-floors.sh is invoked again
-    Then no floor record is added and no severity is changed
+  Scenario: apply-severity-floors skips entries whose rationale contains "suppressed to <n>"
+    Given a disposition entry's rationale reads "info-leak-unauth floor=5 suppressed to 4: <context>"
+    When apply-severity-floors.sh is invoked
+    Then that entry is NOT logged
+    And the entry's exploitability.score is unchanged
+
+  Scenario: apply-severity-floors is idempotent across repeated runs
+    Given apply-severity-floors.sh has been invoked once against a disposition register
+    When apply-severity-floors.sh is invoked a second time against the resulting register
+    Then no new log records are appended
+    And no disposition entry's exploitability.score changes
+    # Mechanism: first run sets exploitability.floor_applied=true on each matched entry;
+    # subsequent runs skip marked entries.
 
   Scenario: apply-severity-floors matches the 2026-04-24 reference from the committed fixture
     Given the fixture file tests/scripts/fixtures/severity-floors/input-disposition-extranetapi.json is committed to the repo
@@ -143,12 +152,13 @@ Feature: Security-assessment helper scripts
     Then the output severity-floors-log jsonl matches the reference byte-for-byte
     # Fallback: if reconstruction failed during Step 3 RED, the test asserts schema-identical + 5-row spot-check instead of byte-identity. See Step 3 for the fallback procedure.
 
-  Scenario: apply-severity-floors skips findings already at or above floor (idempotency guardrail)
-    Given disposition-<slug>.json contains a finding tagged hardcoded-creds with severity CRITICAL
-    And knowledge/severity-floors.json declares floor CRITICAL for hardcoded-creds
-    When apply-severity-floors.sh is invoked
-    Then no log record is written for that finding
-    And the finding's severity is unchanged
+  Scenario: apply-severity-floors logs matching findings even when already at or above floor
+    Given a disposition entry has rationale "hardcoded-creds floor=9" and exploitability.score=9
+    When apply-severity-floors.sh is invoked for the first time
+    Then a log record IS emitted with original_score=9 and final_score=9
+    And the disposition entry's exploitability.floor_applied is set to true
+    # This preserves the 2026-04-24 reference log-every-match semantics.
+    # Idempotency is handled by the floor_applied marker on subsequent runs.
 
   Scenario: apply-severity-floors fails with distinct exit code when disposition register is missing
     Given disposition-<slug>.json does not exist at the resolved path
@@ -306,7 +316,13 @@ Step order follows the spec's recommended order: smallest and broadest-dependenc
 **Complexity**: complex
 **Why third**: Largest design surface among the script-only steps — introduces `knowledge/severity-floors.json`, has a byte-identical regression target, and must be idempotent. Best to tackle while the test harness is warm and before the accepted-risks format lands.
 
-**Design decision — JSON instead of YAML**: the floor table ships as `knowledge/severity-floors.json`, not `.yaml`. This eliminates the yq-vs-python fallback branch the spec flagged as out-of-scope ("no new dependencies"). `jq` parses JSON natively, and the plugin already depends on `jq`. Schema is unchanged; format only.
+**Design decision — JSON instead of YAML**: the floor table ships as `knowledge/severity-floors.json`, not `.yaml`. This eliminates the yq-vs-python fallback branch the spec flagged as out-of-scope. `jq` parses JSON natively.
+
+**Schema correction (Option A, approved 2026-04-24)**: after inspecting the real 2026-04-24 reference log, the record shape and algorithm were corrected from the plan's initial interpretation:
+- Record shape: `{id, floor_class, floor, original_score, final_score}` — numeric 0-10 scores, no `slug`/`iso`/`rule_id`. Matches the reference byte-for-byte.
+- Algorithm: floor value comes from `<class> floor=<n>` pattern in each entry's `exploitability.rationale` (the fp-reduction agent's existing convention), NOT from a static policy lookup. Knowledge file enumerates recognized classes for audit but does not supply per-finding floor values.
+- Log semantics: log every matched entry on first run (16 of 17 reference records have `original_score == final_score`); idempotency is achieved via an `exploitability.floor_applied` marker set on first application.
+- Suppression phrase: `floor=<n> suppressed to <m>` in the rationale causes the entry to be ignored.
 
 **RED**:
 - Copy the 2026-04-24 reference `severity-floors-log-extranetapi.jsonl` from `/Users/finsterb/_git-aci/ng-security-scan/memory/severity-floors-log-extranetapi.jsonl` into `tests/scripts/fixtures/severity-floors/expected-log-extranetapi.jsonl`.
@@ -314,26 +330,37 @@ Step order follows the spec's recommended order: smallest and broadest-dependenc
   - Commit `input-disposition-extranetapi.json` as the best-available reconstruction.
   - Replace the byte-identical assertion in this step's test with a **schema-identical + five-row spot-check**: assert every record carries `rule_id`, `raw_severity`, `floored_severity`, `iso`, and `finding_id`; spot-check five specific records against the reference (the five chosen records and rationale recorded in a code comment in the test file).
   - Note the chosen fallback in the PR description.
-- Harvest the floor classes appearing in the reference log → `knowledge/severity-floors.json`:
+- Harvest the recognized floor classes appearing in the reference log → `knowledge/severity-floors.json`:
   ```json
   {
-    "floors": [
-      {"class": "hardcoded-creds", "floor": "CRITICAL",
-       "rationale": "Credential in source — atomic exposure, no mitigation", "rule_id": "floor-001"},
-      {"class": "weak-crypto", "floor": "HIGH",
-       "rationale": "...", "rule_id": "floor-002"}
-      /* exact classes + floors derived from the reference log */
+    "recognized_classes": [
+      {"class": "hardcoded-creds",
+       "canonical_floor": 9,
+       "rationale": "Credential in source — atomic exposure, no practical mitigation."},
+      {"class": "weak-crypto",
+       "canonical_floor": 5,
+       "rationale": "Broken/weak primitives or disabled integrity checks — varies with exploitability context."},
+      {"class": "tls-disabled",
+       "canonical_floor": 7,
+       "rationale": "Unencrypted transport — varies with whether endpoint is internet-facing."},
+      {"class": "info-leak-unauth",
+       "canonical_floor": 5,
+       "rationale": "Unauth info leak — context-dependent; some leaks are intentional trace/correlation IDs."},
+      {"class": "unauth-admin-endpoint",
+       "canonical_floor": 7,
+       "rationale": "Unauthenticated admin/management surface."}
     ]
   }
   ```
+  Note: `canonical_floor` is documentation only; the actual floor applied per-finding comes from `<class> floor=<n>` in the entry's rationale, not this file.
 - Create `tests/scripts/apply-severity-floors.test.sh` with test cases:
   - `-h` prints usage with exit-code contract (0/1/2/3); missing-argument validation.
   - Missing `disposition-<slug>.json` → exit code **2**; stderr contains `"disposition-<slug>.json not found at <resolved-path>"`.
   - Given the fixture disposition + `severity-floors.json`, output `severity-floors-log-extranetapi.jsonl` is byte-identical to the expected reference — OR if fallback triggered, schema-identical + 5-row spot-check passes.
   - Idempotency: run twice, second run produces zero new log records and disposition is unchanged.
-  - Already-at-or-above-floor: a finding already at or above its class floor emits no log record and severity is unchanged.
-  - Un-floored findings: a finding with a class not in the floor table emits no log record.
-  - Every log record cites a `rule_id` matching an entry in the floor table.
+  - Already-at-or-above-floor: on first run, the finding IS logged (log-every-match per 2026-04-24 reference); on second run the `floor_applied` marker causes it to be skipped. (Was: "emits no log record" — superseded by Option A.)
+  - Un-matched findings: a finding whose rationale has no `<class> floor=<n>` pattern, OR whose class is not in the recognized_classes allow-list, emits no log record.
+  - Every log record carries all five fields `{id, floor_class, floor, original_score, final_score}` — nothing more, nothing less. (Was: "cites a `rule_id` matching the floor table" — superseded by Option A; records have `floor_class` instead.)
 - Run runner → RED.
 
 **GREEN**:
@@ -341,13 +368,18 @@ Step order follows the spec's recommended order: smallest and broadest-dependenc
 - Create `plugins/agentic-security-assessment/scripts/apply-severity-floors.sh`:
   - Header comment + shebang + `set -euo pipefail` + pattern-convention line (per Step 1 prelude).
   - `-h` usage prints purpose, invocation, and the exit-code contract (0 = success, 1 = runtime error, 2 = missing required input, 3 = malformed input).
-  - Parse `knowledge/severity-floors.json` with `jq` (no yq/python branch).
+  - Load `knowledge/severity-floors.json`'s `recognized_classes[].class` via `jq` as the allow-list.
   - Read `<memory-dir>/disposition-<slug>.json`; on missing file, emit the exact stderr template above and exit 2.
-  - Document in the header: "This script must run after fp-reduction (Phase 2) and before narrative/compliance (Phase 3). Callers MUST serialize invocations; concurrent invocations on the same disposition register are unsupported and will produce undefined behavior." (Atomicity of the `<path>.tmp`+`mv` handles the single-writer-but-crash case; concurrent writers are a contract violation, not a code concern.)
-  - Iterate findings, compare class against the floor table, raise severity where applicable.
-  - Idempotency check: compare current severity against floor before writing; skip if already at or above.
-  - Atomic in-place rewrite: write to `<path>.tmp` then `mv`.
-  - Append one JSONL record per floor applied: `{"slug": ..., "rule_id": "floor-NNN", "finding_id": ..., "class": ..., "raw_severity": ..., "floored_severity": ..., "iso": ...}`.
+  - Document in the header: "This script must run after fp-reduction (Phase 2) and before narrative/compliance (Phase 3). Callers MUST serialize invocations; atomicity of the `<path>.tmp`+`mv` handles single-writer-but-crash; concurrent writers are a contract violation."
+  - For each entry in `disposition.entries`:
+    - Skip if `exploitability.floor_applied == true` (idempotency).
+    - Let `rat = exploitability.rationale`. Skip if `rat` matches `/floor=\d+ suppressed to \d+/`.
+    - Let `(class, floor) = rat.match(/([a-z][a-z-]*) floor=(\d+)/)`. Skip if no match or `class` not in the allow-list.
+    - `original = exploitability.score`. `final = max(original, floor)`.
+    - Mutate: `exploitability.score = final`; set `exploitability.floor_applied = true`.
+    - Append one JSONL record: `{"id": ..., "floor_class": <class>, "floor": <floor>, "original_score": <original>, "final_score": <final>}`.
+  - Atomic in-place rewrite of the disposition register: write to `<path>.tmp` then `mv`.
+  - All JSON read/write/mutation via python3 stdlib (no yq dependency; json module is stdlib). `jq` used only for reading the recognized-classes list since that is a simple flat structure.
 - Run runner → GREEN.
 
 **REFACTOR**:
@@ -356,7 +388,7 @@ Step order follows the spec's recommended order: smallest and broadest-dependenc
 
 **Files**:
 - `plugins/agentic-security-assessment/scripts/apply-severity-floors.sh` (new)
-- `plugins/agentic-security-assessment/knowledge/severity-floors.json` (new; JSON not YAML — see Design decision above)
+- `plugins/agentic-security-assessment/knowledge/severity-floors.json` (new; documents recognized floor classes. See Schema correction above — the actual floor value comes from the entry rationale, not this file.)
 - `plugins/agentic-security-assessment/tests/scripts/apply-severity-floors.test.sh` (new)
 - `plugins/agentic-security-assessment/tests/scripts/fixtures/severity-floors/**` (new)
 

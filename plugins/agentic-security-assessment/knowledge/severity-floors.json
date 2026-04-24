@@ -1,0 +1,31 @@
+{
+  "schema_version": "severity-floors-v1.0",
+  "description": "Allow-list of recognized floor classes for scripts/apply-severity-floors.sh. The per-finding floor value is supplied by the fp-reduction agent via the `<class> floor=<n>` rationale convention and is NOT policy-enforced here. This file only decides which class names the script will process; `canonical_floor` below is documentation recording the typical floor value per class for audit/review — it is not consulted by the script at runtime.",
+  "recognized_classes": [
+    {
+      "class": "hardcoded-creds",
+      "canonical_floor": 9,
+      "rationale": "Credential (password, API key, token) embedded in source. Atomic exposure with no practical mitigation once committed; every historical commit must be rotated. Floor-to-CRITICAL regardless of reachability or compensating controls."
+    },
+    {
+      "class": "weak-crypto",
+      "canonical_floor": 5,
+      "rationale": "Broken/weak cryptographic primitives (MD5/SHA-1 for integrity, DES/3DES, ECB-mode ciphers), disabled integrity checks, or predictable IVs. Default floor 5; exploitability context (reachability, key material sensitivity) can raise it further via the rationale's `floor=<n>` value."
+    },
+    {
+      "class": "tls-disabled",
+      "canonical_floor": 7,
+      "rationale": "Plaintext transport or cert-validation disabled on a reachable endpoint. Default floor 7; 5 for internal-only endpoints where the rationale explicitly narrows the scope."
+    },
+    {
+      "class": "info-leak-unauth",
+      "canonical_floor": 5,
+      "rationale": "Unauthenticated information disclosure (stack traces, internal paths, internal IDs). Default floor 5. Often over-flagged on intentional trace-correlation headers; the fp-reduction agent can suppress via the `floor=<n> suppressed to <m>` phrase when the leak is by design."
+    },
+    {
+      "class": "unauth-admin-endpoint",
+      "canonical_floor": 7,
+      "rationale": "Administrative, management, or diagnostic endpoint reachable without authentication. Floor 7 regardless of the specific action exposed — any unauth admin surface is a pivot point."
+    }
+  ]
+}
