@@ -20,7 +20,7 @@ evals/comparative/
     └── codebase-recon-equivalence.md  # component-level spec (first of several)
 ```
 
-Full runbook: [`comparative-testing.md`](../../plugins/agentic-security-review/plugins/agentic-security-review/docs/comparative-testing.md).
+Full runbook: [`comparative-testing.md`](../../plugins/agentic-security-assessment/plugins/agentic-security-assessment/docs/comparative-testing.md).
 
 ## Quick start
 
@@ -57,7 +57,7 @@ python3 evals/comparative/score.py \
 ## What this does NOT test
 
 - **Adversarial ML pipeline** (probes 01-08 + analyzer agents). Needs a mock
-  target; see `plugins/agentic-security-review/docs/comparative-testing.md` § Future improvements.
+  target; see `plugins/agentic-security-assessment/docs/comparative-testing.md` § Future improvements.
 - **Cross-repo attack chains** at narrative level. Two services in the
   fixture exercise the `shared-cred-hash-match` path but not multi-service
   attack synthesis.
@@ -70,7 +70,7 @@ python3 evals/comparative/score.py \
 - Add a new seeded finding: create the code in `fixture-repo/`, add an
   entry to `ground-truth.yaml`, verify with `score.py`.
 - Add a component-level unit test: create a spec under `unit-tests/` and
-  link it from `plugins/agentic-security-review/docs/comparative-testing.md` § Component-level equivalence
+  link it from `plugins/agentic-security-assessment/docs/comparative-testing.md` § Component-level equivalence
   map.
-- Real-world comparison: see `plugins/agentic-security-review/docs/comparative-testing.md` § Approach 3
+- Real-world comparison: see `plugins/agentic-security-assessment/docs/comparative-testing.md` § Approach 3
   for Juice Shop guidance.

@@ -1,5 +1,5 @@
-You are working in the `agentic-security-review` plugin at
-/Users/finsterb/_git-os/agentic-dev-team/plugins/agentic-security-review/
+You are working in the `agentic-security-assessment` plugin at
+/Users/finsterb/_git-os/agentic-dev-team/plugins/agentic-security-assessment/
 
 Your task: close specific capability gaps identified by comparison with a
 reference security-assessment harness at

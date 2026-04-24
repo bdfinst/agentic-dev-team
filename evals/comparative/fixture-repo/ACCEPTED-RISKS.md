@@ -51,7 +51,7 @@ rules:
 
 # Accepted Risks — comparative-testing fixture
 
-This file is consumed by the agentic-security-review plugin's `/code-review`
+This file is consumed by the agentic-security-assessment plugin's `/code-review`
 and `/security-assessment` pipelines. The equivalent for the
 opus_repo_scan_test reference is `business_logic.md` — see that file for the
 same carveouts expressed in the reference's format.

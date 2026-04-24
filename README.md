@@ -3,7 +3,7 @@
 Two Claude Code plugins for engineering workflows. Install one or both.
 
 - **`agentic-dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
-- **`agentic-security-review`** is the security companion. It adds a deterministic-first `/security-assessment` pipeline (SAST + LLM judgment + FP-reduction + exec report), a `/cross-repo-analysis` command for multi-repo attack chains, and an adversarial ML red-team harness (`/redteam-model`) for self-owned model endpoints.
+- **`agentic-security-assessment`** is the security companion. It adds a deterministic-first `/security-assessment` pipeline (SAST + LLM judgment + FP-reduction + exec report), a `/cross-repo-analysis` command for multi-repo attack chains, and an adversarial ML red-team harness (`/redteam-model`) for self-owned model endpoints.
 
 The two plugins share a primitives contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding envelope) that lives in `agentic-dev-team`. Install that plugin first; add the security companion when you need it.
 
@@ -12,9 +12,9 @@ The two plugins share a primitives contract (`codebase-recon`, `ACCEPTED-RISKS.m
 | Plugin | What it does | Key commands | Install |
 | --- | --- | --- | --- |
 | **agentic-dev-team** | Persona-driven development team, reviewer swarm, TDD-gated build loop | `/specs`, `/plan`, `/build`, `/pr`, `/code-review`, `/triage` | [plugins/agentic-dev-team/README.md](plugins/agentic-dev-team/README.md) |
-| **agentic-security-review** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | [plugins/agentic-security-review/README.md](plugins/agentic-security-review/README.md) |
+| **agentic-security-assessment** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | [plugins/agentic-security-assessment/README.md](plugins/agentic-security-assessment/README.md) |
 
-**First time here?** Start with `agentic-dev-team`. Add `agentic-security-review` only when you run full `/security-assessment` pipelines against target repos.
+**First time here?** Start with `agentic-dev-team`. Add `agentic-security-assessment` only when you run full `/security-assessment` pipelines against target repos.
 
 ## Dev team workflow
 
@@ -82,13 +82,13 @@ For complex tasks, the Orchestrator manages the full lifecycle as **Research →
 | **4. Cross-repo** | service-comm parser, shared-cred hash match (multi-target only) | mermaid diagram + SARIF |
 | **5. Exec report** | `exec-report-generator` agent | publication-ready 7-section markdown |
 
-**Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. Auto-detects the `claude` CLI; degrades to deterministic-only when absent. See [docs/user-guide-security-assessment.md](plugins/agentic-security-review/docs/user-guide-security-assessment.md) for the full runbook.
+**Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. Auto-detects the `claude` CLI; degrades to deterministic-only when absent. See [docs/user-guide-security-assessment.md](plugins/agentic-security-assessment/docs/user-guide-security-assessment.md) for the full runbook.
 
 **Adversarial ML red-team**: `/redteam-model` probes a self-owned model endpoint (localhost / RFC1918 by default; public targets require a signed `authorization.md`). Eight probes covering recon, evasion, extraction, and report synthesis.
 
 ## What's included
 
-| | agentic-dev-team | agentic-security-review |
+| | agentic-dev-team | agentic-security-assessment |
 | --- | --- | --- |
 | Team agents | 12 (orchestrator, engineer, QA, architect, PM, …) | — |
 | Review agents | 19 (security, domain, test, naming, …) | — |
@@ -122,7 +122,7 @@ plugins/agentic-dev-team/                # Dev-team plugin source
 ├── install.sh                           # Prerequisite check
 └── CLAUDE.md                            # Orchestration pipeline config (auto-loaded)
 
-plugins/agentic-security-review/         # Security companion plugin
+plugins/agentic-security-assessment/         # Security companion plugin
 ├── README.md                            # Install + prerequisites
 ├── install-macos.sh                     # One-command tool installer (macOS)
 ├── install.sh                           # Prerequisite verifier
@@ -146,7 +146,7 @@ Install either plugin from the local path into a test project:
 
 ```bash
 claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-review
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-assessment
 ```
 
 ### Testing agents and hooks (dev-team plugin)
@@ -167,7 +167,7 @@ python3 evals/comparative/score.py \
   --ours memory
 ```
 
-See [docs/comparative-testing.md](plugins/agentic-security-review/docs/comparative-testing.md) for the scoring methodology.
+See [docs/comparative-testing.md](plugins/agentic-security-assessment/docs/comparative-testing.md) for the scoring methodology.
 
 ### Hook paths
 
@@ -190,5 +190,5 @@ This scaffolds the agent file, adds it to the registry in the owning plugin's `C
 | [Agents](plugins/agentic-dev-team/docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
 | [Skills & Commands](plugins/agentic-dev-team/docs/skills.md) | Skills catalog, slash-commands catalog |
 | [Eval System](plugins/agentic-dev-team/docs/eval-system.md) | How review-agent accuracy is measured and graded |
-| [Security Assessment User Guide](plugins/agentic-security-review/docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool install matrix |
-| [Comparative Testing](plugins/agentic-security-review/docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |
+| [Security Assessment User Guide](plugins/agentic-security-assessment/docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool install matrix |
+| [Comparative Testing](plugins/agentic-security-assessment/docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |

@@ -2,7 +2,7 @@
 
 **Status**: draft for review
 **Date**: 2026-04-24
-**Applies to**: `plugins/agentic-dev-team/agents/security-review.md` (agent prompt) and `plugins/agentic-security-review/knowledge/semgrep-rules/*.yaml` (custom rulesets) plus their interaction with community rulesets (`p/security-audit`, `p/owasp-top-ten`).
+**Applies to**: `plugins/agentic-dev-team/agents/security-review.md` (agent prompt) and `plugins/agentic-security-assessment/knowledge/semgrep-rules/*.yaml` (custom rulesets) plus their interaction with community rulesets (`p/security-audit`, `p/owasp-top-ten`).
 
 ## Why this exists
 
@@ -80,7 +80,7 @@ This is how semgrep + the agent should interoperate once the rule_id gap in the 
 
 ## Fixture suite expectation
 
-Each custom rule in `plugins/agentic-security-review/knowledge/semgrep-rules/*.yaml` must ship with:
+Each custom rule in `plugins/agentic-security-assessment/knowledge/semgrep-rules/*.yaml` must ship with:
 
 - At least one **positive fixture** (file containing the pattern; rule must fire)
 - At least one **negative fixture** (file with similar-shape code that should NOT fire; rule must not fire)
@@ -92,11 +92,11 @@ When the 10% threshold is exceeded, the rule is demoted to the agent prompt surf
 
 The agent emits findings with `rule_id` fields in the unified finding envelope via the adapter at `plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py`. Pattern-visible classes adopt upstream rule_ids (e.g. `semgrep.generic.sql-injection`); judgment-only classes use the `security-review.a<NN>.<slug>` namespace. The canonical mapping lives at `plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml`.
 
-Cross-source dedup collapse (agent + semgrep on the same issue) works because the adapter adopts upstream rule_ids, matching fp-reduction's Stage 4 collapse key `rule_id + file + line` (`plugins/agentic-security-review/agents/fp-reduction.md:57`).
+Cross-source dedup collapse (agent + semgrep on the same issue) works because the adapter adopts upstream rule_ids, matching fp-reduction's Stage 4 collapse key `rule_id + file + line` (`plugins/agentic-security-assessment/agents/fp-reduction.md:57`).
 
 ## Out of scope
 
-- Red-team probe interpretation (lives in `plugins/agentic-security-review/agents/redteam-*.md`). Those agents are narrative synthesizers over tool output, not detectors.
+- Red-team probe interpretation (lives in `plugins/agentic-security-assessment/agents/redteam-*.md`). Those agents are narrative synthesizers over tool output, not detectors.
 - Compliance mapping. The compliance skill does a different job (regulatory mapping) and doesn't participate in the rules-vs-prompts debate.
 - Dependency-vulnerability scanning. Trivy is authoritative; neither rules nor prompts reproduce that.
 

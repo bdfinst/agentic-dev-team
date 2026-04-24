@@ -23,7 +23,7 @@ if [[ "$got_rule" != "semgrep.generic.sql-injection" ]]; then
 fi
 
 # Concatenate both and apply fp-reduction's documented dedup key.
-# SOURCE: plugins/agentic-security-review/skills/false-positive-reduction/SKILL.md
+# SOURCE: plugins/agentic-security-assessment/skills/false-positive-reduction/SKILL.md
 # (Stage 4 Dedup): "Same rule_id + same value across multiple files -> collapse to ONE"
 # For same-file same-line same-rule_id, dedup key is (rule_id, file, line).
 COMBINED="$TMPDIR/combined.jsonl"

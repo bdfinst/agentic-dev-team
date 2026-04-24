@@ -5,7 +5,7 @@
 set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 SKILL="$REPO_ROOT/plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md"
-PIPELINE="$REPO_ROOT/plugins/agentic-security-review/skills/security-assessment-pipeline/SKILL.md"
+PIPELINE="$REPO_ROOT/plugins/agentic-security-assessment/skills/security-assessment-pipeline/SKILL.md"
 
 rc=0
 if ! grep -qF "adapters/security-review-adapter.py" "$SKILL"; then
