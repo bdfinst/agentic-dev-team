@@ -1,0 +1,15 @@
+{
+  "status": "fail",
+  "issues": [
+    {
+      "category": "A03.xss-innerhtml",
+      "severity": "error",
+      "confidence": "high",
+      "file": "src/widget.js",
+      "line": 17,
+      "message": "User input assigned to innerHTML without sanitization",
+      "suggestedFix": "Use textContent or a sanitizer such as DOMPurify."
+    }
+  ],
+  "summary": "1 XSS issue via innerHTML."
+}

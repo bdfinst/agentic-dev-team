@@ -1,0 +1,15 @@
+{
+  "status": "fail",
+  "issues": [
+    {
+      "category": "A03.sql-injection",
+      "severity": "error",
+      "confidence": "high",
+      "file": "src/api.py",
+      "line": 42,
+      "message": "User input concatenated into SQL query",
+      "suggestedFix": "Use parameterized queries via cursor.execute(sql, params)."
+    }
+  ],
+  "summary": "1 critical SQL injection."
+}
