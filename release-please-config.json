@@ -19,10 +19,10 @@
         ".claude-plugin/plugin.json"
       ]
     },
-    "plugins/agentic-security-review": {
+    "plugins/agentic-security-assessment": {
       "release-type": "simple",
-      "package-name": "agentic-security-review",
-      "component": "agentic-security-review",
+      "package-name": "agentic-security-assessment",
+      "component": "agentic-security-assessment",
       "extra-files": [
         ".claude-plugin/plugin.json"
       ]

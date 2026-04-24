@@ -20,10 +20,10 @@
       "license": "MIT"
     },
     {
-      "name": "agentic-security-review",
-      "source": "./plugins/agentic-security-review",
-      "description": "Deep security assessment + adversarial ML red-team: SARIF-first tool orchestration, narrowly-scoped LLM agents, FP-reduction with fallback banner, compliance mapping, service-comm diagramming, and a self-owned-target red-team harness. Companion plugin to agentic-dev-team.",
-      "version": "0.1.0",
+      "name": "agentic-security-assessment",
+      "source": "./plugins/agentic-security-assessment",
+      "description": "Deep security assessment + adversarial ML red-team: SARIF-first tool orchestration, narrowly-scoped LLM agents, FP-reduction with fallback banner, compliance mapping, service-comm diagramming, and a self-owned-target red-team harness. Companion plugin to agentic-dev-team. (Renamed from agentic-security-review in v1.0.0.)",
+      "version": "1.0.0",
       "author": {
         "name": "Bryan Finster"
       },
