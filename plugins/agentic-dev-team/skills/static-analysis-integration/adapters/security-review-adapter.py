@@ -21,13 +21,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 # Namespace prefix used when a well-formed category is not in the mapping YAML.
 # This is the ONLY rule_id-shaped literal permitted in this source file;
 # every other rule_id travels in from security-review-rule-map.yaml.
 _FALLBACK_NAMESPACE = "security-review."
+
+_CATEGORY_RE = re.compile(r"^A[0-9]{2}\.[a-z0-9-]+$")
 
 # Default mapping path resolved relative to this file, so the adapter works
 # from any cwd. The repo-relative path is also named in --help for operators.
@@ -43,12 +46,61 @@ _DEFAULT_MAPPING_REL = (
 )
 
 
+def _fail_mapping(path: str) -> None:
+    print(f"ERROR: mapping file at {path} is invalid", file=sys.stderr)
+    sys.exit(1)
+
+
 def _load_mapping(path: str) -> Dict[str, str]:
-    """Load the YAML mapping."""
-    import yaml
-    with open(path, "r", encoding="utf-8") as fh:
-        data = yaml.safe_load(fh)
+    """Load the YAML mapping. Hard-fails with a specific ERROR on any issue."""
+    try:
+        import yaml  # local import so --help works without pyyaml
+    except ImportError as exc:  # pragma: no cover
+        print(
+            f"ERROR: pyyaml not installed; install with 'pip install pyyaml' ({exc})",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = yaml.safe_load(fh)
+    except FileNotFoundError:
+        _fail_mapping(path)
+    except yaml.YAMLError:
+        _fail_mapping(path)
+    if not isinstance(data, dict) or "mappings" not in data or not isinstance(
+        data.get("mappings"), dict
+    ):
+        _fail_mapping(path)
     return {str(k): str(v) for k, v in data["mappings"].items()}
+
+
+def resolve_rule_id(
+    category: str, mapping: Dict[str, str], mapping_path: str
+) -> Tuple[str, Optional[str]]:
+    """Resolve a category to a rule_id.
+
+    Returns (rule_id, warning_or_none). The caller prints the warning to stderr
+    when it is not None.
+
+    - Malformed category (regex-violating): exits 1.
+    - Well-formed + mapped: upstream rule_id, no warning.
+    - Well-formed + unmapped: security-review.<lowercase> rule_id + WARN.
+    """
+    if not _CATEGORY_RE.fullmatch(category):
+        print(
+            f"ERROR: category {category!r} does not match required format A<NN>.<slug>",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if category in mapping:
+        return mapping[category], None
+    minted = _FALLBACK_NAMESPACE + category.lower()
+    warning = (
+        f"WARN: category {category} not in mapping at {mapping_path}; "
+        f"minted {minted}"
+    )
+    return minted, warning
 
 
 def _build_finding(issue: Dict[str, Any], rule_id: str) -> Dict[str, Any]:
@@ -91,15 +143,30 @@ def _parse_args(argv):
 
 def main(argv=None) -> int:
     args = _parse_args(argv)
-    with open(args.input, "r", encoding="utf-8") as fh:
-        agent = json.load(fh)
+    try:
+        with open(args.input, "r", encoding="utf-8") as fh:
+            agent = json.load(fh)
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        print(f"ERROR: cannot read agent input {args.input!r}: {exc}", file=sys.stderr)
+        return 1
 
     mapping = _load_mapping(args.mapping)
     issues = agent.get("issues", []) or []
 
     with open(args.output, "w", encoding="utf-8") as out:
         for issue in issues:
-            rule_id = mapping[issue["category"]]
+            if "category" not in issue:
+                print(
+                    "ERROR: agent issue missing required 'category' field; "
+                    "upgrade the agent output",
+                    file=sys.stderr,
+                )
+                return 1
+            rule_id, warning = resolve_rule_id(
+                issue["category"], mapping, args.mapping
+            )
+            if warning:
+                print(warning, file=sys.stderr)
             finding = _build_finding(issue, rule_id)
             out.write(json.dumps(finding, ensure_ascii=False) + "\n")
     return 0
