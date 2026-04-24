@@ -1,0 +1,11 @@
+{
+  "description": "Shape-freeze fixture for the file_inventory consumer contract (AC-12). Gap 6's hook depends on the four properties below being stable.",
+  "required_properties": ["source", "count", "sibling_ref"],
+  "property_types": {
+    "source": "string",
+    "count": "integer",
+    "sibling_ref": "string"
+  },
+  "source_enum": ["git-ls-files", "filesystem-walk"],
+  "sibling_ref_pattern": "^recon-[a-z0-9._-]+\\.inventory\\.txt$"
+}
