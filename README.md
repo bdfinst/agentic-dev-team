@@ -16,6 +16,92 @@ The two plugins share a primitives contract (`codebase-recon`, `ACCEPTED-RISKS.m
 
 **First time here?** Start with `agentic-dev-team`. Add `agentic-security-assessment` only when you run full `/security-assessment` pipelines against target repos.
 
+## Getting Started
+
+Install one or both plugins via the Claude Code plugin marketplace, or from a local clone for development. The marketplace at this repo's root publishes both plugins; install whichever you need.
+
+### Prerequisites
+
+Both plugins require [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated, plus `jq` for JSON parsing in hooks.
+
+```bash
+# macOS
+brew install jq
+
+# Linux
+apt install jq    # or: yum install jq
+```
+
+`agentic-dev-team` additionally uses `gh` (GitHub CLI) for `/pr` and `/triage`. `agentic-security-assessment` requires Python ≥ 3.10 and a tier-1 static-analysis toolchain (`semgrep`, `gitleaks`, `trivy`, `hadolint`, `actionlint`). Per-plugin READMEs cover the full matrix:
+
+- [`plugins/agentic-dev-team/README.md`](plugins/agentic-dev-team/README.md) — full prerequisites and optional-tool table
+- [`plugins/agentic-security-assessment/README.md`](plugins/agentic-security-assessment/README.md) — tier-1 tool requirements
+
+### Install `agentic-dev-team`
+
+Start here. Most users install only this plugin.
+
+```bash
+# From the marketplace (recommended)
+claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
+claude plugin install agentic-dev-team@bfinster
+
+# From a local clone (for plugin development)
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
+```
+
+Then verify the prerequisites:
+
+```bash
+./plugins/agentic-dev-team/install.sh
+```
+
+The verifier checks that `claude`, `jq`, and `gh` are available and authenticated.
+
+### Install `agentic-security-assessment` (optional)
+
+Add this plugin only if you want the `/security-assessment` pipeline. It depends on `agentic-dev-team`'s primitives contract, so install that one first.
+
+```bash
+# Plugin install (after agentic-dev-team is in place)
+claude plugin install agentic-security-assessment@bfinster
+# Or from a local clone:
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-assessment
+```
+
+Then install the tier-1 static-analysis tools:
+
+```bash
+# macOS — one command
+./plugins/agentic-security-assessment/install-macos.sh           # tier-1 only
+./plugins/agentic-security-assessment/install-macos.sh --all     # tier-1 + optional + PDF deps
+./plugins/agentic-security-assessment/install-macos.sh --dry-run # preview without running
+
+# Windows — PowerShell (requires Scoop)
+.\plugins\agentic-security-assessment\install-windows.ps1
+```
+
+Verify the install:
+
+```bash
+./plugins/agentic-security-assessment/install.sh
+```
+
+This checks that the `agentic-dev-team` primitives contract is at `^1.0.0`, Python ≥ 3.10 is on PATH, and the tier-1 tools are reachable.
+
+### First commands
+
+In any Claude Code session inside an installed project:
+
+```text
+/specs   Specify a new feature (Intent + BDD + Architecture + Acceptance Criteria)
+/plan    Turn an approved spec into a TDD step-plan
+/build   Execute the approved plan with RED-GREEN-REFACTOR
+/pr      Run quality gates and open a pull request
+```
+
+For a hands-on tutorial that walks through invoking individual agents and skills, see [GETTING-STARTED.md](GETTING-STARTED.md).
+
 ## Dev team workflow
 
 Four commands drive feature development from idea to pull request:
@@ -185,7 +271,7 @@ This scaffolds the agent file, adds it to the registry in the owning plugin's `C
 
 | Guide | Description |
 | --- | --- |
-| [Getting Started](GETTING-STARTED.md) | Hands-on tutorial: invoke agents, skills, and common workflows |
+| [Tutorial: Invoking Agents](GETTING-STARTED.md) | Hands-on tutorial: invoke agents, skills, and common workflows (the [Getting Started](#getting-started) section above covers install) |
 | [Architecture](plugins/agentic-dev-team/docs/agent-architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
 | [Agents](plugins/agentic-dev-team/docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
 | [Skills & Commands](plugins/agentic-dev-team/docs/skills.md) | Skills catalog, slash-commands catalog |

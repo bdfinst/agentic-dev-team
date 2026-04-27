@@ -1,0 +1,31 @@
+name: plugin-tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  shell-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck + jq
+        run: sudo apt-get update && sudo apt-get install -y shellcheck jq
+
+      - name: Shellcheck agentic-security-assessment helper scripts
+        run: |
+          shellcheck -x \
+            plugins/agentic-security-assessment/scripts/_lib.sh \
+            plugins/agentic-security-assessment/scripts/apply-accepted-risks.sh \
+            plugins/agentic-security-assessment/scripts/apply-severity-floors.sh \
+            plugins/agentic-security-assessment/scripts/find-ci-files.sh \
+            plugins/agentic-security-assessment/scripts/phase-timer.sh
+
+      - name: Shellcheck test files
+        run: |
+          shellcheck plugins/agentic-security-assessment/tests/scripts/*.sh
+
+      - name: Run tests/scripts/run-all.sh
+        run: bash plugins/agentic-security-assessment/tests/scripts/run-all.sh

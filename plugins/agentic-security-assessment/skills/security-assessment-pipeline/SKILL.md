@@ -100,13 +100,16 @@ Phase 1b: Judgment-layer detection  (parallel across agents)
                  --output memory/findings-<slug>.jsonl
 
 Phase 1c: ACCEPTED-RISKS suppression (sequential gate, mandatory)
-  procedure: scripts/apply-accepted-risks.sh parses ACCEPTED-RISKS.md
-             at target root, filters matching findings
-  produces:  memory/suppressed-<slug>.jsonl + memory/suppression-log-<slug>.jsonl
+  procedure: scripts/apply-accepted-risks.sh parses the first fenced
+             ```json block in ACCEPTED-RISKS.md, matches findings by
+             (rule_id exact, source_ref_glob), and suppresses matches
+  produces:  memory/accepted-risks-<slug>.jsonl (status:"suppressed"
+             per removed finding; status:"expired" per lapsed entry)
+             + rewrites memory/findings-<slug>.jsonl in place
   requires:  Phase 1 + Phase 1b
   enforced:  exec-report-generator's Appendix C expects
-             memory/suppressed-<slug>.jsonl to exist when
-             ACCEPTED-RISKS.md was present
+             memory/accepted-risks-<slug>.jsonl to exist when
+             ACCEPTED-RISKS.md was present at target root
 
 Phase 2: FP-reduction (sequential)
   agent:     fp-reduction (opus)
@@ -177,6 +180,21 @@ phase-5-report
 ```
 
 All memory/ artifacts are persisted between phases so `--start` can resume from any phase.
+
+## Helper-script invocation contract
+
+Deterministic phase helpers carry strict ordering requirements. The orchestrator must not reorder these invocations:
+
+| Script | Must run after | Must run before | Artifacts |
+|---|---|---|---|
+| `scripts/phase-timer.sh start/end` | any phase boundary | — | `memory/phase-timings-<slug>.jsonl` |
+| `scripts/find-ci-files.sh` | phase-0-recon | phase-1-tool-first | stdout (consulted by Phase 1 tool fan-out) |
+| `scripts/apply-accepted-risks.sh` | phase-1b-judgment (all findings appended) | phase-2-fp-reduction | rewrites `findings-<slug>.jsonl`; writes `accepted-risks-<slug>.jsonl` |
+| `scripts/apply-severity-floors.sh` | phase-2-fp-reduction (disposition register written) | phase-3-narrative-compliance | rewrites `disposition-<slug>.json` in place; writes `severity-floors-log-<slug>.jsonl` |
+
+Concurrency: each script assumes a single writer on its input file. `.tmp`+`mv` handles the single-writer-but-crash case; concurrent writers are a contract violation with undefined behavior. Callers MUST serialize invocations against the same slug.
+
+Idempotency: `apply-severity-floors.sh` and `apply-accepted-risks.sh` are both idempotent (marker-based and atomic-rewrite-based respectively) — safe to re-run from `--start`.
 
 ## Invocation
 

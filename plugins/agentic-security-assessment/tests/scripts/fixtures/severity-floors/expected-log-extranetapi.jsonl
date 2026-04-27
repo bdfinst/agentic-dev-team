@@ -1,0 +1,17 @@
+{"id":"sec-appsettings.json-511","floor_class":"hardcoded-creds","floor":9,"original_score":9,"final_score":9}
+{"id":"sec-appsettings.Development.json-32","floor_class":"hardcoded-creds","floor":9,"original_score":9,"final_score":9}
+{"id":"sec-appsettings.Development.json-37","floor_class":"hardcoded-creds","floor":9,"original_score":9,"final_score":9}
+{"id":"sec-QueryStringProcessor.cs-43","floor_class":"weak-crypto","floor":9,"original_score":9,"final_score":9}
+{"id":"sec-EncryptionKeyQuery.cs-23","floor_class":"weak-crypto","floor":5,"original_score":3,"final_score":5}
+{"id":"sec-QueryStringController.cs-37","floor_class":"unauth-admin-endpoint","floor":7,"original_score":8,"final_score":8}
+{"id":"sec-ExceptionMiddleware.cs-63","floor_class":"info-leak-unauth","floor":5,"original_score":7,"final_score":7}
+{"id":"sec-GlobalExceptionFilter.cs-48","floor_class":"info-leak-unauth","floor":5,"original_score":5,"final_score":5}
+{"id":"sec-ExtranetUrlHelper.cs-44","floor_class":"info-leak-unauth","floor":5,"original_score":7,"final_score":7}
+{"id":"sec-LoginController.cs-182","floor_class":"unauth-admin-endpoint","floor":7,"original_score":7,"final_score":7}
+{"id":"sec-LogController.cs-47","floor_class":"info-leak-unauth","floor":5,"original_score":7,"final_score":7}
+{"id":"sec-AppController.cs-36","floor_class":"info-leak-unauth","floor":5,"original_score":5,"final_score":5}
+{"id":"sec-HttpSettings-Billers-SkipCert","floor_class":"tls-disabled","floor":7,"original_score":7,"final_score":7}
+{"id":"sec-HttpSettings-agentCardAssist-SkipCert","floor_class":"tls-disabled","floor":7,"original_score":8,"final_score":8}
+{"id":"sec-HttpSettings-moBills-SkipCert","floor_class":"tls-disabled","floor":5,"original_score":5,"final_score":5}
+{"id":"sec-Startup.cs-148","floor_class":"tls-disabled","floor":5,"original_score":5,"final_score":5}
+{"id":"sec-gRPC-EnableSsl-base-false","floor_class":"tls-disabled","floor":7,"original_score":7,"final_score":7}
