@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.1.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-assessment-v2.0.0...agentic-security-assessment-v2.1.0) (2026-04-27)
+
+
+### Features
+
+* **security-assessment:** ship apply-accepted-risks.sh + primitives contract v1.3.0 ([caa62df](https://github.com/bdfinst/agentic-dev-team/commit/caa62dfa668f16736257d8fd004443da7800027e))
+* **security-assessment:** ship apply-severity-floors.sh with externalized allow-list ([399f300](https://github.com/bdfinst/agentic-dev-team/commit/399f300a899187746038d81323f030d6688fd167))
+* **security-assessment:** ship find-ci-files.sh for CI/CD definition discovery ([3782dac](https://github.com/bdfinst/agentic-dev-team/commit/3782dacd07a91e1465cf9833f67642d3450f74bb))
+* **security-assessment:** ship phase-timer.sh with shell-test harness ([652e8a9](https://github.com/bdfinst/agentic-dev-team/commit/652e8a9cb8d56d79cf347e7646a72c4617a19c38))
+
+
+### Code Refactoring
+
+* **security-assessment:** address /code-review findings ([1f61c6e](https://github.com/bdfinst/agentic-dev-team/commit/1f61c6ea370a38b912b95fbb3b170ade45d67680))
+
+
+### Miscellaneous
+
+* **ci:** wire helper-script tests + shellcheck into CI ([8cb6126](https://github.com/bdfinst/agentic-dev-team/commit/8cb61268cea9da4b05ec7a059934bed22bbbefea))
+
 ## [2.0.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-assessment-v1.0.0...agentic-security-assessment-v2.0.0) (2026-04-24)
 
 

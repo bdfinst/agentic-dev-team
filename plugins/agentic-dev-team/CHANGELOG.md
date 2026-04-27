@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.1.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.0.0...agentic-dev-team-v5.1.0) (2026-04-27)
+
+
+### Features
+
+* **security-assessment:** ship apply-accepted-risks.sh + primitives contract v1.3.0 ([caa62df](https://github.com/bdfinst/agentic-dev-team/commit/caa62dfa668f16736257d8fd004443da7800027e))
+
 ## [5.0.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v4.0.0...agentic-dev-team-v5.0.0) (2026-04-24)
 
 
