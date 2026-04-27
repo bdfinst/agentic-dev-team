@@ -37,18 +37,38 @@ apt install jq    # or: yum install jq
 - [`plugins/agentic-dev-team/README.md`](plugins/agentic-dev-team/README.md) — full prerequisites and optional-tool table
 - [`plugins/agentic-security-assessment/README.md`](plugins/agentic-security-assessment/README.md) — tier-1 tool requirements
 
+### Marketplace sources
+
+`claude plugin marketplace add` accepts a generic git URL (or a local path), then `claude plugin install <name>@<marketplace-name>` pulls the plugin. Pick the form that matches where the marketplace lives:
+
+| Source | Command |
+| --- | --- |
+| GitHub | `claude plugin marketplace add https://github.com/<owner>/<repo>` |
+| Azure DevOps (HTTPS, uses your git credential helper) | `claude plugin marketplace add https://dev.azure.com/<org>/<project>/_git/<repo>` |
+| Azure DevOps (PAT in URL — when no credential helper is configured) | `claude plugin marketplace add "https://<user>:<pat>@dev.azure.com/<org>/<project>/_git/<repo>"` |
+| Local clone (any host) | `git clone <url> /path/to/clone && claude plugin marketplace add /path/to/clone` |
+
+Notes:
+
+- The Azure DevOps PAT needs **Code (Read)** scope. Don't paste the URL into chat or commit it.
+- Behind a corporate proxy or if `git clone` over HTTPS fails non-interactively, prefer the local-clone form — it avoids Claude Code's clone path entirely.
+- For other hosts (GitLab, Bitbucket, self-hosted Gitea), the same generic-URL pattern applies; auth follows your local git configuration.
+- Full reference: [Claude Code plugin marketplaces docs](https://docs.anthropic.com/en/docs/claude-code/plugin-marketplaces).
+
 ### Install `agentic-dev-team`
 
 Start here. Most users install only this plugin.
 
 ```bash
-# From the marketplace (recommended)
+# From this marketplace (recommended)
 claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
 claude plugin install agentic-dev-team@bfinster
 
 # From a local clone (for plugin development)
 claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
 ```
+
+For Azure DevOps or another git host, swap the `marketplace add` URL per the [Marketplace sources](#marketplace-sources) table above; the install line stays the same.
 
 Then verify the prerequisites:
 
