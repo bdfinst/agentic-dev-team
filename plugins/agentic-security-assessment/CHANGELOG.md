@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-assessment-v2.2.0...agentic-security-assessment-v2.2.1) (2026-05-12)
+
+
+### Code Refactoring
+
+* **security-assessment:** trim agents and apply progressive disclosure ([f8d3b21](https://github.com/bdfinst/agentic-dev-team/commit/f8d3b213aab3dca1de09b32d93d182b6feb49c9b))
+
 ## [2.2.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-assessment-v2.1.0...agentic-security-assessment-v2.2.0) (2026-05-01)
 
 
