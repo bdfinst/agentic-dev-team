@@ -1,6 +1,6 @@
 ---
 name: compliance-mapping
-description: Pattern-table-first mapping from unified findings to regulatory control citations (PCI-DSS, GDPR, HIPAA, SOC2). Deterministic table lookup first; LLM edge-case annotator invoked ONLY for findings whose pattern has llm_review_trigger=true. Report carries informational disclaimer.
+description: Pattern-table mapping from unified findings to regulatory citations (PCI-DSS, GDPR, HIPAA, SOC2). LLM edge annotator invoked only for llm_review_trigger=true rows.
 role: worker
 user-invocable: false
 version: 1.0.0
@@ -32,7 +32,7 @@ A `compliance-annotations.json` file per the following shape:
 {
   "schema_version": "1.0",
   "generated_at": "2026-04-21T10:00:00Z",
-  "disclaimer": "This compliance mapping is informational and derived from pattern matching. It does not constitute a certified audit and should not be used as a substitute for formal compliance review.",
+  "disclaimer": "<verbatim text from knowledge/disclaimers.md § Compliance mapping disclaimer>",
   "annotations": [
     {
       "finding_rule_id": "semgrep.python.hardcoded-password",
@@ -158,9 +158,9 @@ Production dispatches go through a real LLM. Eval runs inject a mock counter and
 
 Write `memory/compliance-<slug>.json` with the disclaimer at the root. The exec-report-generator includes the disclaimer verbatim in the report header.
 
-## Disclaimer (exact wording, required on every report)
+## Disclaimer
 
-> This compliance mapping is informational and derived from pattern matching. It does not constitute a certified audit and should not be used as a substitute for formal compliance review.
+Use the exact wording in `knowledge/disclaimers.md` § "Compliance mapping disclaimer". Required on every report.
 
 ## Invariants
 

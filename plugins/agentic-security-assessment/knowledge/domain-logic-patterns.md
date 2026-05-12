@@ -118,7 +118,40 @@ deduplicate|replay_protection|already_seen
 
 **Exploit scenario**: attacker submits the same fraud transaction body repeatedly. Early submissions might score as fraud; later ones might score as legitimate once timing-dependent features reset. Attacker retries until a low score is returned, then that becomes the recorded decision.
 
-## 8. Training data inference from metrics/logs
+## 8. Messaging attack surface (NATS / Kafka / AMQP)
+
+Scoring and feature-lookup services increasingly sit behind a message bus. The bus introduces three distinct business-logic failure modes that static rulesets only partially cover.
+
+### 8a. NATS subject injection
+
+The scoring or feature-lookup service constructs a NATS subject from user-supplied data (transaction ID, client ID, model name). Attacker-controlled subject strings can reach internal subjects, bypass subject-level ACLs, or fan-out to unintended consumers.
+
+**Grep cues**: f-string or string concatenation inside `publish()` / `subscribe()` arguments where the interpolated variable comes from `request.body`, `request.params`, or `request.headers`.
+
+**Example bad pattern (Python):**
+```python
+nc.publish(f"score.{request.json()['client_id']}", payload)
+```
+
+**CWE**: CWE-74 (Injection).
+
+### 8b. Subscriber poisoning
+
+A NATS or Kafka subscriber that writes received message data directly to a database, cache, or scoring feature store without schema validation. Attackers who can publish to the subject (via NATS subject injection, a leaked credential, or a no-auth broker) inject fake records that later contaminate scoring.
+
+**Grep cues**: `subscribe()` callbacks (or Kafka consumer loops) that call `db.insert()`, `cache.set()`, `collection.insert_one()`, or similar persistence primitives with the raw message payload object. No pydantic / zod / JSON-schema validation step in the callback body.
+
+**Exploit scenario**: attacker publishes a crafted message to an unauthenticated NATS subject like `txn.ingest.v1`; the subscriber writes the attacker's record into MongoDB as if it were a real transaction, and the next fraud-scoring run treats it as ground truth.
+
+**CWE**: CWE-20 (Improper Input Validation).
+
+### 8c. Missing replay protection
+
+A message handler that processes a payload and scores / persists without an idempotency check. See pattern 7 grep cues; the same `already_seen` / `deduplicate` / `idempotency_key` checks apply.
+
+Note: messaging systems deliver at-least-once by default, so this is a default-dangerous shape — unlike the REST idempotency pattern where clients must explicitly replay, messaging replay happens during ordinary broker retries.
+
+## 9. Training data inference from metrics/logs
 
 Any endpoint or logging statement that returns or records per-request model confidence scores, feature importances, SHAP values, or per-feature contribution metrics gives an attacker a side channel to infer training data or decision-boundary structure. A single bucketed score is relatively low-risk; per-feature SHAP values, precise confidence floats, or feature-importance vectors are high-risk because they reveal how the model reasons about each input.
 

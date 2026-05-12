@@ -1,6 +1,6 @@
 ---
 name: export-pdf
-description: Convert a Markdown report to PDF using pandoc (preferred) or weasyprint (fallback). Uses the bundled CSS stylesheet for A4 layout, confidentiality footer, and executive-audience styling. Skips gracefully if neither tool is installed.
+description: Convert a Markdown report to PDF via pandoc (preferred) or weasyprint (fallback). Skips gracefully if neither is installed.
 argument-hint: "<report.md> [--output <report.pdf>] [--css <path>]"
 user-invocable: true
 allowed-tools: Read, Bash

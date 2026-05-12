@@ -1,0 +1,41 @@
+# authorization-logic-review rule-ID categories and CWE assignments
+#
+# Used by the authorization-logic-review agent to classify findings.
+
+schema_version: authz-categories-v1.0
+
+categories:
+  - rule_id: "llm-reasoning.authz.missing-layer-check"
+    description: "Auth at controller layer but not at service/repository layer"
+    cwe: ["CWE-285", "CWE-863"]
+
+  - rule_id: "llm-reasoning.authz.tenant-isolation-bypass"
+    description: "Cross-tenant data access possible (e.g. findById without tenant filter)"
+    cwe: ["CWE-284", "CWE-639"]
+
+  - rule_id: "llm-reasoning.authz.role-escalation"
+    description: "User can influence their own role/permissions via mutable field"
+    cwe: ["CWE-269"]
+
+  - rule_id: "llm-reasoning.authz.service-trust-without-verify"
+    description: "Inter-service call accepts caller assertions without re-verification"
+    cwe: ["CWE-441", "CWE-306"]
+
+  - rule_id: "llm-reasoning.authz.admin-bypass"
+    description: "Privileged bypass path not adequately gated (e.g. impersonation without separate high-priv check)"
+    cwe: ["CWE-285"]
+
+  - rule_id: "llm-reasoning.authz.workflow-permission"
+    description: "State transition permitted without verifying role for that specific transition"
+    cwe: ["CWE-285", "CWE-863"]
+
+severity_calibration:
+  error: "Gap reachable from a non-admin entry point; enables horizontal or vertical privilege escalation with no other precondition"
+  warning: "Gap requires being authenticated or meeting another precondition"
+  info: "Design concern (e.g. tenancy filter is per-query rather than centralized) that does not constitute a current exploit path but increases maintenance risk"
+
+confidence_levels:
+  high: "Policy declaration and enforcement gap both cited explicitly; attack path requires no assumptions"
+  medium: "Policy declaration found; enforcement gap inferred from structural pattern (e.g. no repo-layer filter found, but ORM behavior not fully verified)"
+
+# Per the minimum-evidence-bar invariant, `low` confidence is not permitted.

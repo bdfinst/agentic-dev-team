@@ -1,6 +1,6 @@
 ---
 name: false-positive-reduction
-description: Hybrid FP-reduction skill — joern call-graph when present, LLM fallback when absent. Five-stage rubric applied to every unified finding before it reaches the exec report. Emits the disposition register defined in security-primitives-contract.md v1.1.0.
+description: Hybrid FP-reduction — joern when present, LLM fallback when absent. Six-stage rubric (Stage 0 + Stages 1-5) applied to every finding; emits the disposition register.
 role: worker
 user-invocable: false
 version: 1.0.0
@@ -111,36 +111,15 @@ Rationale field is mandatory (min 20 chars per schema). Summarize which factors 
 
 ## Joern integration (when present)
 
-If `joern` is on PATH, invoke via `tools/reachability.sh`:
-
-```bash
-joern-parse "$REPO" --output "$CACHE/$COMMIT.cpg"
-joern-export --repr cfg --format json "$CACHE/$COMMIT.cpg" > "$CACHE/$COMMIT.cfg.json"
-```
-
-The CPG is cached per commit SHA under `memory/joern-cache/<sha>.cpg` if build time exceeds 30s.
-
-Stage 1 reachability queries the CPG for paths from the finding location back to entry points. Each finding's `reachability.rationale` cites the entry point path.
+If `joern` is on PATH, invoke via `tools/reachability.sh` (build commands + CPG cache details are in the script). Stage 1 reachability queries the CPG for paths from the finding location back to entry points; cite the entry point path in `reachability.rationale`.
 
 ## LLM-fallback mode (joern absent)
 
-Stages 1–3 use judgment rather than CPG data. Stages 4–5 work unchanged.
-
-**Every disposition entry produced in fallback mode carries `reachability_source: llm-fallback`.** The exec-report-generator detects this tag and emits a Section 0 banner (verbatim):
-
-> Reachability stage used LLM reasoning instead of call-graph analysis; dead-code paths may be less accurate. Stages 2–5 unaffected.
+Stages 1–3 use judgment rather than CPG data; Stages 4–5 work unchanged. Every entry in fallback mode carries `reachability_source: llm-fallback`. The exec-report-generator detects this and emits a banner — see `agents/exec-report-generator.md` § Section 0 banners.
 
 ## Output
 
-A `DispositionRegister` object per the schema at `plugins/agentic-dev-team/knowledge/schemas/disposition-register-v1.json`. Contains:
-
-- `schema_version: "1.0"` (contract envelope remains 1.0; primitives contract can be 1.1.0 — the envelope schema does not version lock-step with the contract)
-- `generated_at` ISO-8601
-- `dispositioner: "fp-reduction"`
-- `reachability_tool: joern-cpg | llm-fallback` (register-level default; entries can override)
-- `entries[]`: one per finding
-
-Register is written to `memory/disposition-<assessment-slug>.json`.
+A `DispositionRegister` object per `plugins/agentic-dev-team/knowledge/schemas/disposition-register-v1.json`. Required entry fields and required envelope fields (`schema_version`, `generated_at`, `dispositioner`, `reachability_tool`, `entries[]`) are defined in the schema. Written to `memory/disposition-<assessment-slug>.json`.
 
 ## Related
 

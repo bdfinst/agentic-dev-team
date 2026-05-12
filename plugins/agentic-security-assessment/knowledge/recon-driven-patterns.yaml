@@ -1,0 +1,143 @@
+# recon-driven-scan claim → search pattern library
+#
+# Validated against NextGen 2026-05-01 rerun (12 repos previously scored
+# zero-findings by Phase 1 SAST → 75 confirmed findings; 8 CRITICAL,
+# 17 HIGH; 0 false alarms).
+#
+# Each row maps a RECON narrative claim to a grep / file-reading pattern,
+# rule_id category, and CWE assignment. The recon-driven-scan agent
+# treats this as a starting point — a good RECON narrative may identify
+# novel patterns beyond this list.
+
+schema_version: recon-driven-patterns-v1.0
+
+patterns:
+  - claim: "AllowAnonymous on grpc service / unauth gRPC paths"
+    grep: "[AllowAnonymous] adjacent to a class inheriting from a service base or Grpc.Core.*ServiceBase"
+    rule_id: "recon-driven.unauth-grpc.<descriptor>"
+    cwe: ["CWE-306"]
+
+  - claim: "TLS bypass default-on / SkipServerCertificateCheck=true in BASE config"
+    grep: 'SkipServerCertificateCheck.*=.*true in appsettings.json (not Development.json)'
+    rule_id: "recon-driven.tls-bypass.skip-server-cert-default"
+    cwe: ["CWE-295"]
+
+  - claim: "Inverted boolean TLS bypass"
+    grep: '!bool.TryParse.*\|\| in TLS-related setting reads'
+    rule_id: "recon-driven.tls-bypass.inverted-bool-default-true"
+    cwe: ["CWE-295", "CWE-1287"]
+
+  - claim: "ServerCertificateValidationCallback bypass"
+    grep: 'ServerCertificateValidationCallback\s*=\s*.*=>\s*true | delegate.*return true'
+    rule_id: "recon-driven.cert-validation.callback-returns-true"
+    cwe: ["CWE-295"]
+
+  - claim: "Plaintext SQL credential in appsettings / endavauser/Jupiter2020"
+    grep: "Password= literal + value not a placeholder"
+    rule_id: "recon-driven.hardcoded-creds.sql-conn-string"
+    cwe: ["CWE-798"]
+
+  - claim: "Cross-env credential reuse"
+    grep: "same secret hash across appsettings.{Development,QA,UAT,Production}.json"
+    rule_id: "recon-driven.hardcoded-creds.cross-env-reuse"
+    cwe: ["CWE-798", "CWE-1392"]
+
+  - claim: "Unmasked PII in SNS / MSMQ / log"
+    grep: "PII field name (CreditAccount, SSN, AccountNumber) in publish/log/return paths without masking"
+    rule_id: "recon-driven.pii-leak.unmasked-in-<channel>"
+    cwe: ["CWE-200", "CWE-359"]
+
+  - claim: "Masker echoing PII on exception"
+    grep: "catch block in masker logic that returns or logs the unmasked input"
+    rule_id: "recon-driven.pii-leak.masker-exception-fallback"
+    cwe: ["CWE-209", "CWE-200"]
+
+  - claim: "Redis AllowAdmin=true"
+    grep: 'AllowAdmin\s*=\s*true in connection options'
+    rule_id: "recon-driven.redis.allowadmin-enabled"
+    cwe: ["CWE-732"]
+
+  - claim: "Swagger / Prometheus on !IsProduction()"
+    grep: 'if\s*\(.*!.*IsProduction | .*EnvironmentName.*!=.*Production near UseSwagger|UsePrometheus'
+    rule_id: "recon-driven.config-leak.devsurface-non-prod-only"
+    cwe: ["CWE-489"]
+
+  - claim: "Header-driven SQL connection-string interpolation"
+    grep: 'connection string built from Request.Headers | HttpContext.Request.Headers'
+    rule_id: "recon-driven.sql-injection.connection-string-from-header"
+    cwe: ["CWE-89", "CWE-918"]
+
+  - claim: "SQL injection via LIKE concat"
+    grep: '\$@?".*LIKE.*\{.*\}.*" in repository methods'
+    rule_id: "recon-driven.sql-injection.like-concat"
+    cwe: ["CWE-89"]
+
+  - claim: "EXEC string concat / raw SQL with concat"
+    grep: 'EXEC|sp_executesql.*\+|"$" near IDbCommand.ExecuteNonQuery'
+    rule_id: "recon-driven.sql-injection.exec-concat"
+    cwe: ["CWE-89"]
+
+  - claim: "AES key from UTF-8 bytes of string / key not base64"
+    grep: 'Encoding.UTF8.GetBytes\(.*\) adjacent to aes.Key = | key= | new RijndaelManaged'
+    rule_id: "recon-driven.crypto-misuse.utf8-bytes-as-key"
+    cwe: ["CWE-326"]
+
+  - claim: "Static IV / operator IV / fixed IV"
+    grep: 'IV\s*=\s*new byte\[\]\s*\{ | aes.IV =\s*Encoding with constant value'
+    rule_id: "recon-driven.crypto-misuse.static-iv"
+    cwe: ["CWE-329"]
+
+  - claim: "SHA256 == auth / no HMAC, no timing-safe"
+    grep: 'SHA256.*Equals | hash == | .SequenceEqual\(.*hash in auth path'
+    rule_id: "recon-driven.crypto-misuse.equals-on-hash"
+    cwe: ["CWE-208", "CWE-327"]
+
+  - claim: "RCE via expression library / Flee / Dynamic LINQ"
+    grep: 'InvokeMethod | CreateInstance | ResolveTypesBySimpleName | DynamicLinqType'
+    rule_id: "recon-driven.code-injection.expression-library-rce-shape"
+    cwe: ["CWE-94", "CWE-470"]
+
+  - claim: "Body-trusted clientId / request body trust"
+    grep: "DTO field ClientId|TenantId used directly in DB query without comparing to authenticated user's claim"
+    rule_id: "recon-driven.idor.body-trusted-tenant-id"
+    cwe: ["CWE-639"]
+
+  - claim: "Exception message returned to caller"
+    grep: 'catch.*ex\)\s*\{.*return.*ex.Message | return.*ToString\(\)'
+    rule_id: "recon-driven.exception-leak.return-ex-message"
+    cwe: ["CWE-209"]
+
+  - claim: "Stack trace leaked in error response"
+    grep: 'response body containing ex.StackTrace | ex.ToString()'
+    rule_id: "recon-driven.exception-leak.stack-trace-in-response"
+    cwe: ["CWE-209"]
+
+  - claim: "AllowInvalid TLS in dev only / dev TLS hint to skip"
+    grep: 'AllowInvalid | SkipCert.*Development | environment.IsDevelopment near TLS setting'
+    rule_id: "recon-driven.tls-bypass.dev-only-but-misconfigured"
+    cwe: ["CWE-295"]
+
+  - claim: "Static delegate cache unbounded"
+    grep: 'ConcurrentDictionary<.*,Delegate> | static.*Compile\(\) without eviction'
+    rule_id: "recon-driven.dos.unbounded-delegate-cache"
+    cwe: ["CWE-401", "CWE-770"]
+
+  - claim: "X-Request-Id no length cap / header capture unbounded"
+    grep: 'Request.Headers["X-Request-Id"] echoed to log/response without length check'
+    rule_id: "recon-driven.dos.unbounded-header-capture"
+    cwe: ["CWE-20", "CWE-117"]
+
+  - claim: "URL-format SSRF / URL passed to outbound request"
+    grep: 'new HttpClient | HttpWebRequest.Create with URL from input'
+    rule_id: "recon-driven.ssrf.url-from-input"
+    cwe: ["CWE-918"]
+
+  - claim: "Recursion DoS"
+    grep: "recursive method on user-controlled tree without depth limit"
+    rule_id: "recon-driven.dos.recursion-no-depth-cap"
+    cwe: ["CWE-674"]
+
+  - claim: "Format-preserving token"
+    grep: "tokenizer producing token with same structure as input (BIN+last4)"
+    rule_id: "recon-driven.crypto-misuse.format-preserving-token"
+    cwe: ["CWE-330"]
