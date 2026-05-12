@@ -1,7 +1,7 @@
 ---
 name: tech-writer
 description: Project documentation, terminology consistency, and ubiquitous language enforcement
-tools: Read, Grep, Glob, Edit, Write
+tools: Read, Grep, Glob, Edit, Write, Skill
 model: sonnet
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: software-engineer
 description: Full-stack development, code generation, implementation, and refactoring
-tools: Read, Grep, Glob, Edit, Write, Bash
+tools: Read, Grep, Glob, Edit, Write, Bash, Skill
 model: opus
 ---
 

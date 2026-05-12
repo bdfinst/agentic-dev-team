@@ -103,6 +103,20 @@ review agents). Check:
    - Valid values: `diff-only`, `full-file`, `project-structure`
    - WARN if missing
 
+### 2b. Audit agent tool declarations (all agents)
+
+Read every file in `.claude/agents/*.md` (team agents and review agents). Check:
+
+1. **Skills-Skill invariant**: If the agent body contains a `## Skills` heading, the `tools:` frontmatter MUST include `Skill`.
+   - The `## Skills` section documents which skills an agent invokes. Without `Skill` in `tools:`, the agent cannot load skill content at runtime (when `tools:` is specified as an allowlist, only listed tools are available).
+   - FAIL if a `## Skills` section is present but `Skill` is absent from `tools:`.
+   - PASS if no `## Skills` section is present (the invariant does not apply).
+   - PASS if `## Skills` is present and `Skill` is in `tools:`.
+
+Include the result in the agent report table under a `Skills-Tool` column.
+
+**Fix (when `--fix` is passed)**: Append `, Skill` to the `tools:` frontmatter line. Report `FIXED: <agent> — Added Skill to tools:`.
+
 ### 3. Audit skills
 
 Read each file in `.claude/commands/*.md` and check:
@@ -172,10 +186,10 @@ Read each file in `.claude/hooks/*.sh` and check:
 # Agent Audit Report
 
 ## Agents
-| Agent | Output Format | Severity | Detection | Scope | Self-Describing | File Scope | Skip | Model Tier | Context Needs | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| test-review | PASS | PASS | PASS | PASS | PASS | N/A | PASS | PASS | PASS | OK |
-| js-fp-review | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | OK |
+| Agent | Output Format | Severity | Detection | Scope | Self-Describing | File Scope | Skip | Model Tier | Context Needs | Skills-Tool | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| test-review | PASS | PASS | PASS | PASS | PASS | N/A | PASS | PASS | PASS | PASS | OK |
+| js-fp-review | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | N/A | OK |
 | ... | | | | | | | | | | |
 
 ## Skills

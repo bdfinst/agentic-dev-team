@@ -1,7 +1,7 @@
 ---
 name: security-engineer
 description: Threat modeling, security analysis, vulnerability assessment, and secure design guidance
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, Skill
 model: opus
 ---
 

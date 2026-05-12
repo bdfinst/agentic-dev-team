@@ -1,7 +1,7 @@
 ---
 name: test-review
 description: Test quality, coverage gaps, assertion quality, and test hygiene
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Skill
 model: sonnet
 ---
 

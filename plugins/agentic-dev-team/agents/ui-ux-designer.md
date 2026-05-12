@@ -1,7 +1,7 @@
 ---
 name: ui-ux-designer
 description: User interface design, UX optimization, and accessibility compliance
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Skill
 model: sonnet
 ---
 

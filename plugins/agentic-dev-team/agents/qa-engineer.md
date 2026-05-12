@@ -1,7 +1,7 @@
 ---
 name: qa-engineer
 description: Acceptance test driven development, test generation, quality metrics, and regression testing
-tools: Read, Grep, Glob, Edit, Write, Bash, Bash(npx playwright *)
+tools: Read, Grep, Glob, Edit, Write, Bash, Bash(npx playwright *), Skill
 model: sonnet
 ---
 

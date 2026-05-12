@@ -1,7 +1,7 @@
 ---
 name: product-manager
 description: Requirements clarification, priority management, and stakeholder alignment
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Skill
 model: sonnet
 ---
 
