@@ -7,136 +7,98 @@ user-invocable: true
 
 # Agent-Assisted Specification
 
-## Overview
+Produce four specification artifacts collaboratively with the human before any implementation begins. The consistency gate is a hard stop; do not proceed to code until it passes.
 
-Structured workflow for collaborating with humans to produce four specification artifacts (Intent Description, User-Facing Behavior, Architecture Specification, Acceptance Criteria) before any implementation begins. Ensures clarity, completeness, and consistency for the next single unit of work.
+## Rules
 
-## Constraints
-- No code or implementation during the specification phase
-- The consistency gate is a hard stop — do not proceed to implementation until it passes
-- Each specification covers one vertical slice only; split if scope is too broad
-- Max 2 critique-refine iterations per artifact before escalating to the Orchestrator
+1. **No implementation during specification.** No code, no tests, no infrastructure until the consistency gate passes.
+2. **One vertical slice per specification.** Split if scope is too broad (see Scope Split Protocol).
+3. **Consistency gate is a hard stop.** Conflicts caught now cost minutes; conflicts caught during implementation cost sessions.
+4. **Gherkin scenarios are contracts.** BDD scenarios in feature files are the single source of truth for expected behavior. No implementation without a scenario; no scenario without an acceptance test.
+5. **Max 2 critique-refine iterations** per artifact. If it doesn't stabilize, escalate to the Orchestrator.
+6. **Preserve human language** when refining. The human owns the specification; the agent improves precision.
+7. **Structured critique output.** Categorize every critique (gap, ambiguity, conflict, scope violation) with a specific reference to the artifact text.
+8. **Document decisions, not just outcomes.** When the human rejects an agent suggestion, note why — prevents the same suggestion from recurring.
 
-## Core Concepts
-
-### Specification Artifacts
+## Artifacts
 
 | Artifact | Purpose | Format |
-| --- | --- | --- |
-| Intent Description | What the change achieves and why | Plain language, 1-3 paragraphs |
+|---|---|---|
+| Intent Description | What the change achieves and why | Plain language, 1–3 paragraphs |
 | User-Facing Behavior | Observable behavior from the user's perspective | BDD/Gherkin scenarios |
-| Architecture Specification | Where the change fits in the system and what constraints apply | Structured notes: components, interfaces, dependencies, constraints |
+| Architecture Specification | Where the change fits and what constraints apply | Structured notes: components, interfaces, dependencies, constraints |
 | Acceptance Criteria | Non-functional requirements and quality thresholds | Measurable criteria with pass/fail conditions |
 
-### Collaboration Pattern
+## Collaboration loop
 
-Every artifact follows the same four-step loop:
+Every artifact follows the same loop:
 
-1. **Human drafts** — write the first version based on current understanding
-2. **Agent critiques** — identify gaps, ambiguities, conflicts, and scope violations
-3. **Human decides** — accept, reject, or modify the agent's suggestions
-4. **Agent refines** — generate an updated version incorporating human decisions
+1. **Human drafts** based on current understanding.
+2. **Agent critiques** — categorize each finding as gap, ambiguity, conflict, or scope violation, with a specific reference.
+3. **Human decides** — accept, reject, or modify.
+4. **Agent refines** — produce an updated version incorporating decisions.
 
-### Scope Constraint
+Repeat up to **2 iterations** before escalating.
 
-Each specification covers **one vertical slice** — a single scenario, a single behavior. Scope signals that the change is too broad:
-
-- Specification effort exceeds a short conversation
-- More than 3 components are affected
-- Multiple independent behaviors are described
-- The change cannot be deployed and validated independently
-
-### Critique Categories
+### Critique categories
 
 | Category | Description |
-| --- | --- |
+|---|---|
 | Gaps | Missing scenarios, unstated assumptions, undefined behavior |
-| Ambiguities | Statements that could be interpreted differently by two implementers |
+| Ambiguities | Statements two implementers would interpret differently |
 | Conflicts | Contradictions between artifacts or with existing system behavior |
 | Scope violations | Change covers more than one vertical slice |
 
-## Patterns
+## Scope signals
 
-### Artifact Collaboration Loop
+Specification is too broad when any of these fire:
 
-| Step | Human Action | Agent Action |
-| --- | --- | --- |
-| 1. Draft | Write initial artifact | — |
-| 2. Critique | — | Identify gaps, ambiguities, conflicts, scope violations |
-| 3. Decide | Accept/reject/modify suggestions | — |
-| 4. Refine | — | Produce updated artifact incorporating decisions |
-| 5. Repeat | Review refined version | If issues remain, return to step 2 (max 2 iterations before escalation) |
-
-### BDD Scenario Review
-
-Before running the consistency gate, validate the BDD scenarios for completeness. Run the `feature-file-validation` skill against the User-Facing Behavior artifact to check:
-
-- [ ] Negative cases are covered (what happens when input is invalid, unauthorized, missing, or malformed)
-- [ ] Edge cases are covered (empty collections, boundary values, concurrent access, idempotency)
-- [ ] Error scenarios are explicit (not just "should fail" — specify the observable error behavior)
-
-If gaps are found, present them to the user as a critique on the BDD artifact and run another collaboration loop iteration before proceeding to the consistency gate.
-
-### Cross-Artifact Consistency Gate
-
-Before implementation begins, validate all four artifacts as a set:
-
-- [ ] Intent is unambiguous — two developers would interpret it the same way
-- [ ] Every behavior in the intent has at least one corresponding BDD scenario
-- [ ] Architecture specification constrains implementation to what the intent requires, without over-engineering
-- [ ] Same concepts are named consistently across all four artifacts
-- [ ] No artifact contradicts another
-
-This gate is a **hard stop**. Do not proceed to implementation until all items pass.
+- Specification effort exceeds a short conversation.
+- More than 3 components are affected.
+- Multiple independent behaviors are described.
+- The change cannot be deployed and validated independently.
 
 ### Scope Split Protocol
 
-When scope-too-large signals fire:
+1. Identify the independent behaviors within the oversized change.
+2. Propose a split into separately deliverable vertical slices.
+3. Human approves the split before specification continues on any slice.
+4. Each slice gets its own full set of four artifacts.
 
-1. Identify the independent behaviors within the oversized change
-2. Propose a split into separately deliverable vertical slices
-3. Human approves the split before continuing specification on any slice
-4. Each slice gets its own full set of four artifacts
+## BDD Scenario Review
 
-## When to Apply
+Before the consistency gate, run `feature-file-validation` against the User-Facing Behavior artifact:
 
-| Scenario | Apply? |
-| --- | --- |
-| New feature or behavior change | Yes |
-| Bug fix with clear reproduction steps | No |
-| Refactoring with no behavior change | No |
-| Spike or investigation | No |
-| Feature modification changing user-facing behavior | Yes |
+- Negative cases covered (invalid, unauthorized, missing, malformed input)
+- Edge cases covered (empty collections, boundary values, concurrent access, idempotency)
+- Error scenarios explicit (specify observable error behavior, not just "should fail")
 
-## When Not to Apply
+If gaps appear, present them as a critique and run another collaboration loop iteration before the gate.
 
-- Changes with no user-facing behavior impact
-- Exploratory work where the goal is learning, not delivery
-- Trivial changes where the specification would be larger than the implementation
+## Cross-Artifact Consistency Gate
 
-## Guidelines
+Validate all four artifacts as a set:
 
-1. **No implementation during the specification phase.** Do not generate code, tests, or infrastructure until the consistency gate passes.
-2. **Structured critique output.** Agent critiques must be categorized (gap, ambiguity, conflict, scope violation) with specific references to the artifact text.
-3. **Preserve human language.** When refining artifacts, keep the human's phrasing where possible. The human owns the specification; the agent improves its precision.
-4. **Consistency gate is a hard stop.** No exceptions. Conflicts caught in specification cost minutes; conflicts caught during implementation cost sessions.
-5. **Gherkin scenarios are contracts.** BDD scenarios in feature files are the single source of truth for expected behavior. No implementation begins without corresponding scenarios; no scenario exists without a corresponding acceptance test.
-6. **Escalate after 2 iterations.** If an artifact does not stabilize after 2 critique-refine cycles, escalate to the Orchestrator for re-scoping or human intervention.
-7. **Small batches only.** If the specification cannot fit a single vertical slice, split before continuing.
-8. **Document decisions, not just outcomes.** When the human rejects an agent suggestion, briefly note why — this context prevents the same suggestion from recurring.
+- [ ] Intent is unambiguous — two developers would interpret it the same way.
+- [ ] Every behavior in the intent has at least one BDD scenario.
+- [ ] Architecture specification constrains implementation to what the intent requires, without over-engineering.
+- [ ] Same concepts are named consistently across all four artifacts.
+- [ ] No artifact contradicts another.
+
+**Hard stop**: do not proceed to implementation until every item passes.
 
 ## Output
 
-Four specification artifacts (Intent Description, User-Facing Behavior in Gherkin, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict. Be concise — flag gaps and conflicts; do not narrate the artifact collaboration process.
+Four artifacts (Intent, User-Facing Behavior in Gherkin, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict. Be concise — flag gaps and conflicts; do not narrate the collaboration process.
 
 ### Persist to file
 
-After the consistency gate passes, write all four artifacts plus the gate verdict to a markdown file. This is how downstream commands (`/plan`, `/build`, spec-compliance-review) find the spec — if it only exists in chat, it is lost between sessions.
+After the gate passes, write all four artifacts plus the verdict to a markdown file. Downstream commands (`/plan`, `/build`, spec-compliance-review) find the spec via this file — chat-only specs are lost between sessions.
 
-1. **Slugify** the feature name: lowercase, replace spaces with hyphens, strip special characters. Example: "User Login with MFA" → `user-login-with-mfa`
-2. **Create** `docs/specs/` if it does not exist
-3. **Check** whether `docs/specs/<slug>.md` already exists. If it does, ask the user whether to overwrite or create a versioned file (e.g., `<slug>-v2.md`)
-4. **Write** the file using this structure:
+1. **Slugify** the feature name: lowercase, replace spaces with hyphens, strip special characters. ("User Login with MFA" → `user-login-with-mfa`)
+2. **Create** `docs/specs/` if missing.
+3. **Check** whether `docs/specs/<slug>.md` already exists. If yes, ask: overwrite or create a versioned file (`<slug>-v2.md`)?
+4. **Write** using this structure:
 
 ```markdown
 # Spec: <Feature Name>
@@ -161,15 +123,8 @@ After the consistency gate passes, write all four artifacts plus the gate verdic
 - [x/  ] No contradictions between artifacts
 ```
 
-5. **Print** the file path to chat so the user can find it
+5. **Print** the file path to chat so the user can find it.
 
 ### Auto-trigger /plan
 
-After persisting the spec file, automatically invoke `/plan` with the feature description as the task. The plan command will discover the spec artifacts and include the BDD scenarios in the plan document. Do not ask the user whether to proceed — the approved spec is the trigger.
-
-## Integration
-
-- **Human Oversight Protocol** — the consistency gate is an approval gate; if it fails, the human resolves conflicts before proceeding
-- **Accuracy Validation** — agents apply self-validation to their critique output before presenting it
-- **Task Review & Correction** — if implementation reveals specification gaps, feed corrections back through the artifact collaboration loop
-- **Performance Metrics** — log specification cycle count, consistency gate pass/fail, and scope splits per task
+After persisting, automatically invoke `/plan` with the feature description. The plan command discovers spec artifacts and includes BDD scenarios in the plan document. Do not ask first — the approved spec is the trigger.
