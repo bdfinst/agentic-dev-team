@@ -72,7 +72,6 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/review-summary` | `commands/review-summary.md` | orchestrator | Generate compact session summary for context continuity |
 | `/semgrep-analyze` | `commands/semgrep-analyze.md` | worker | Run Semgrep SAST and return structured findings |
 | `/review` | `commands/review.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
-| `/domain-analysis` | `commands/domain-analysis.md` | worker | Assess existing system DDD health: bounded contexts, context map, event storm, value stream, friction report |
 | `/setup` | `commands/setup.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
 | `/continue` | `commands/continue.md` | orchestrator | Resume work from a prior session using phase progress files |
 | `/plan` | `commands/plan.md` | orchestrator | Create a structured implementation plan with TDD steps |
@@ -84,7 +83,6 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/unfreeze` | `commands/unfreeze.md` | worker | Lift the scope lock set by `/freeze` |
 | `/guard` | `commands/guard.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
 | `/upgrade` | `commands/upgrade.md` | worker | Check for and apply plugin updates from within a session |
-| `/competitive-analysis` | `commands/competitive-analysis.md` | orchestrator | Compare plugin against others to find gaps and weaknesses |
 | `/triage` | `commands/triage.md` | worker | Investigate a bug and file a GitHub issue with TDD fix plan |
 | `/issues-from-plan` | `commands/issues-from-plan.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
 | `/harness-audit` | `commands/harness-audit.md` | orchestrator | Analyze harness effectiveness and flag stale components |
@@ -152,9 +150,9 @@ The orchestrator controls model selection for all agents. The full routing table
 
 | Model | Assigned to |
 |-------|------------|
-| `haiku` | naming-review, complexity-review, claude-setup-review, token-efficiency-review, performance-review |
-| `sonnet` | spec-compliance-review, test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review, refactoring-review, progress-guardian, data-flow-tracer, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
-| `opus` | security-review, domain-review, arch-review, architect, software-engineer (architectural changes) |
+| `haiku` | naming-review, complexity-review, claude-setup-review, token-efficiency-review, a11y-review, svelte-review, js-fp-review, progress-guardian |
+| `sonnet` | spec-compliance-review, test-review, structure-review, concurrency-review, doc-review, refactoring-review, data-flow-tracer, performance-review, orchestrator, software-engineer, qa-engineer, tech-writer, platform-engineer, product-manager, ui-ux-designer, adr |
+| `opus` | security-review, domain-review, arch-review, architect, security-engineer, codebase-recon |
 
 Each agent's `model:` frontmatter is a fallback for direct invocation. When the orchestrator spawns agents via the Agent tool, it passes the model explicitly from the routing table.
 

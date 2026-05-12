@@ -2,7 +2,7 @@
 name: svelte-review
 description: Svelte reactivity pitfalls, closure state leaks, $state proxy issues, store subscription leaks
 tools: Read, Grep, Glob
-model: sonnet
+model: haiku
 ---
 
 # Svelte Review

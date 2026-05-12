@@ -128,12 +128,10 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 | `/pr` | [`pr.md`](../commands/pr.md) | Run quality gates and create a pull request |
 | `/setup` | [`setup.md`](../commands/setup.md) | Detect tech stack, generate project-level config and hooks |
 | `/continue` | [`continue.md`](../commands/continue.md) | Resume work from a prior session using phase progress files |
-| `/domain-analysis` | [`domain-analysis.md`](../commands/domain-analysis.md) | Assess DDD health: bounded contexts, context map, friction report |
 | `/browse` | [`browse.md`](../commands/browse.md) | Browser-based QA via Playwright: navigate, screenshot, click, fill forms |
 | `/triage` | [`triage.md`](../commands/triage.md) | Investigate a bug, find root cause, file a GitHub issue with TDD fix plan |
 | `/issues-from-plan` | [`issues-from-plan.md`](../commands/issues-from-plan.md) | Break a plan into independently-grabbable GitHub issues |
 | `/benchmark` | [`benchmark.md`](../commands/benchmark.md) | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
-| `/competitive-analysis` | [`competitive-analysis.md`](../commands/competitive-analysis.md) | Compare plugin against others to find gaps and weaknesses |
 
 ### Safety Commands
 
@@ -144,44 +142,13 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 | `/unfreeze` | [`unfreeze.md`](../commands/unfreeze.md) | Lift the scope lock set by `/freeze` |
 | `/guard <glob>` | [`guard.md`](../commands/guard.md) | Combined `/careful` + `/freeze` for production-critical sessions |
 
-### Team Agent Commands
+### Team Agent Invocation
 
-Each team agent is exposed as a user-invocable slash command that adopts the agent's persona. All accept `<request>` as an argument and route through the persona's Skills section.
+Team agent personas (orchestrator, architect, software-engineer, qa-engineer, security-engineer, platform-engineer, ui-ux-designer, product-manager, tech-writer) are **not exposed as slash commands**. They are dispatched as subagents via the Agent tool with `subagent_type: "agentic-dev-team:<agent-name>"`. This gives each persona a fresh context window, isolating its reading and reasoning from the parent conversation. The orchestrator routes work to these agents automatically; users typically don't dispatch them directly.
 
-| Command | File | Purpose |
-| --- | --- | --- |
-| `/orchestrator` | [`orchestrator.md`](../commands/orchestrator.md) | Routes tasks to specialized agents and coordinates multi-agent collaboration |
-| `/architect` | [`architect.md`](../commands/architect.md) | System design, architecture definition, and technical decision oversight |
-| `/software-engineer` | [`software-engineer.md`](../commands/software-engineer.md) | Full-stack development, code generation, implementation, and refactoring |
-| `/qa-engineer` | [`qa-engineer.md`](../commands/qa-engineer.md) | ATDD test generation, quality metrics, regression testing |
-| `/security-engineer` | [`security-engineer.md`](../commands/security-engineer.md) | Threat modeling, security analysis, vulnerability assessment |
-| `/platform-engineer` | [`platform-engineer.md`](../commands/platform-engineer.md) | Pipeline, deployment, observability, reliability planning |
-| `/ui-ux-designer` | [`ui-ux-designer.md`](../commands/ui-ux-designer.md) | UI patterns, UX optimization, accessibility compliance |
-| `/product-manager` | [`product-manager.md`](../commands/product-manager.md) | Feature scoping, prioritization, stakeholder alignment |
-| `/tech-writer` | [`tech-writer.md`](../commands/tech-writer.md) | Documentation, terminology consistency, style enforcement |
+### Skill Invocation
 
-### Skill Commands
-
-Each skill is also a user-invocable slash command. These adopt the skill directly, without a team agent persona wrapper. Useful for targeted invocation outside of the full orchestration pipeline.
-
-| Command | File | Purpose |
-| --- | --- | --- |
-| `/specs` | [`specs.md`](../commands/specs.md) | Collaborative spec workflow: Intent, BDD scenarios, Architecture notes, Acceptance Criteria |
-| `/threat-modeling` | [`threat-modeling.md`](../commands/threat-modeling.md) | STRIDE analysis for new APIs, auth changes, or data flows |
-| `/hexagonal-architecture` | [`hexagonal-architecture.md`](../commands/hexagonal-architecture.md) | Ports-and-adapters design for separating domain from infrastructure |
-| `/domain-driven-design` | [`domain-driven-design.md`](../commands/domain-driven-design.md) | Bounded contexts, aggregates, context mapping |
-| `/domain-analysis` | [`domain-analysis.md`](../commands/domain-analysis.md) | Assess DDD health: bounded contexts, context map, friction report |
-| `/api-design` | [`api-design.md`](../commands/api-design.md) | Contract-first API design, versioning, REST conventions |
-| `/legacy-code` | [`legacy-code.md`](../commands/legacy-code.md) | Characterization tests and safe refactoring in untested code |
-| `/mutation-testing` | [`mutation-testing.md`](../commands/mutation-testing.md) | Run mutation tool and triage surviving mutants |
-| `/governance-compliance` | [`governance-compliance.md`](../commands/governance-compliance.md) | Audit logging, quality gates, ethics escalation |
-| `/feedback-learning` | [`feedback-learning.md`](../commands/feedback-learning.md) | Process amend/learn/remember/forget keywords |
-| `/context-loading-protocol` | [`context-loading-protocol.md`](../commands/context-loading-protocol.md) | Select minimum viable context load for a task |
-| `/context-summarization` | [`context-summarization.md`](../commands/context-summarization.md) | Compress conversation history at utilization threshold |
-| `/performance-metrics` | [`performance-metrics.md`](../commands/performance-metrics.md) | Log task completion data to metrics/ |
-| `/quality-gate-pipeline` | [`quality-gate-pipeline.md`](../commands/quality-gate-pipeline.md) | Run self-validation, verification evidence, and review-correction loop |
-| `/human-oversight-protocol` | [`human-oversight-protocol.md`](../commands/human-oversight-protocol.md) | Invoke approval gates, respond to intervention commands |
-| `/agent-skill-authoring` | [`agent-skill-authoring.md`](../commands/agent-skill-authoring.md) | Guidance for creating and maintaining agent and skill files |
+Skills are user-invocable directly as `/<skill-name>` — there are no per-skill command wrappers. The available skills (specs, threat-modeling, hexagonal-architecture, domain-driven-design, domain-analysis, api-design, legacy-code, mutation-testing, governance-compliance, feedback-learning, context-loading-protocol, context-summarization, performance-metrics, quality-gate-pipeline, human-oversight-protocol, agent-skill-authoring, competitive-analysis, design-doc, branch-workflow, browser-testing, ci-debugging, design-interrogation, design-it-twice, feature-file-validation, performance-benchmark, static-analysis-integration, systematic-debugging, test-design-reviewer, test-driven-development, docker-image-audit, docker-image-create, js-project-init) load their `SKILL.md` content into the current context and apply it to the task. See [`skills/`](../skills/) for full definitions.
 
 ### Utility Commands
 

@@ -28,13 +28,13 @@ The orchestrator is the **authoritative source for model selection**. When spawn
 
 | Agent / Task Class | Model | Rationale |
 |---|---|---|
-| naming-review, complexity-review, claude-setup-review, token-efficiency-review, performance-review | `haiku` | Pattern-matching, deterministic, low context |
-| test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review | `sonnet` | Semantic analysis, balanced cost/quality |
-| security-review, domain-review, arch-review, architect | `opus` | Cross-file reasoning, high-stakes decisions |
-| spec-compliance-review | `sonnet` | Spec-to-code matching, first gate before quality review |
-| orchestrator | `sonnet` | Routing and coordination |
-| software-engineer | `sonnet` (default) / `opus` for architectural changes | Complexity-driven |
-| qa-engineer, tech-writer, all others | `sonnet` | Standard analysis |
+| naming-review, complexity-review, claude-setup-review, token-efficiency-review | `haiku` | Lexical/structural pattern matching |
+| a11y-review, svelte-review, js-fp-review, progress-guardian | `haiku` | Framework/style pattern matching, checklist-style verification |
+| performance-review | `sonnet` | N+1, algorithmic, unbounded growth — requires semantic understanding of behavior |
+| spec-compliance-review, test-review, structure-review, concurrency-review, doc-review, refactoring-review, data-flow-tracer | `sonnet` | Semantic analysis, balanced cost/quality |
+| security-review, domain-review, arch-review | `opus` | Cross-file reasoning, high-stakes decisions |
+| architect, security-engineer, codebase-recon | `opus` | Design synthesis, threat modeling, broad codebase reconnaissance |
+| orchestrator, software-engineer, qa-engineer, tech-writer, platform-engineer, product-manager, ui-ux-designer, adr | `sonnet` | Routing, implementation, and standard analysis |
 
 ## Command Delegation
 
