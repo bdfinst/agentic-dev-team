@@ -1,5 +1,34 @@
 # Changelog
 
+## [5.2.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.1.1...agentic-dev-team-v5.2.0) (2026-05-12)
+
+
+### Features
+
+* add four missing subagent prompt templates ([6c86def](https://github.com/bdfinst/agentic-dev-team/commit/6c86defdbda261128a9452e6972fb55eaa8a3556))
+* add Skill tool to agents with ## Skills sections ([c4eee0f](https://github.com/bdfinst/agentic-dev-team/commit/c4eee0f4c3a791a1d7e9d9c8c3f968f5932acf07))
+
+
+### Code Refactoring
+
+* **code-review:** trim command file, move templates to output-format ([6d04bbc](https://github.com/bdfinst/agentic-dev-team/commit/6d04bbc760e42a71d35f6c6b91f347d45c04c5ac))
+* **context-loading-protocol:** drop stale token table, tighten ([1972508](https://github.com/bdfinst/agentic-dev-team/commit/1972508ed21b607abdd5398dd5845243888a2ac7))
+* **docker-image-create:** tighten skill, keep runtime patterns inline ([cd7e686](https://github.com/bdfinst/agentic-dev-team/commit/cd7e686b559a1ac0eac6e469aaeaee7c4de965f6))
+* **human-oversight-protocol:** cut philosophy, tighten ([8491232](https://github.com/bdfinst/agentic-dev-team/commit/849123270ef7483936db686496d876b56e053cd5))
+* **js-project-init:** collapse defaults into a list, drop rationale prose ([a56257c](https://github.com/bdfinst/agentic-dev-team/commit/a56257cf7fee8a4f4db67a076be8947c7dfe1d64))
+* **mutation-testing:** drop overlap with constraints, trim ([1e2ae4c](https://github.com/bdfinst/agentic-dev-team/commit/1e2ae4c3d034735322d45c36bbfb4e7b0926ea99))
+* **performance-benchmark:** trim skill, move report template to examples ([553a107](https://github.com/bdfinst/agentic-dev-team/commit/553a1071036594a6ec49320d37d656e72058ff00))
+* remove command wrappers and realign model routing ([faf1cd8](https://github.com/bdfinst/agentic-dev-team/commit/faf1cd89b02206f7f82bdd8c2a1bac1b5868b3c6))
+* **specs:** merge Constraints + Guidelines into one Rules list ([ccff2d4](https://github.com/bdfinst/agentic-dev-team/commit/ccff2d49c241b6e1a88ff74dde9b29bb43b446f3))
+* **static-analysis-integration:** extract maintenance, trim runtime skill ([67ee544](https://github.com/bdfinst/agentic-dev-team/commit/67ee54403162e592cec98d1dad8d2bee10a85c43))
+* tighten team agent prompts and add output discipline ([0f36139](https://github.com/bdfinst/agentic-dev-team/commit/0f361395a29ca8b238f03acba2c6eacab3f8404d))
+
+
+### Documentation
+
+* add /explore spec, implementation plan, and exploratory-testing field guide ([5f1ffec](https://github.com/bdfinst/agentic-dev-team/commit/5f1ffecedd0f0a60aa14ac1bf2759dd3e5ad76e6))
+* add /triage file-based output spec and implementation plan ([58b423f](https://github.com/bdfinst/agentic-dev-team/commit/58b423fde04a7f578cc85231b2c37676ec85fb90))
+
 ## [5.1.1](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.1.0...agentic-dev-team-v5.1.1) (2026-05-06)
 
 
