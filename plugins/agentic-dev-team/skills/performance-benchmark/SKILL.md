@@ -11,103 +11,88 @@ user-invocable: false
 
 # Performance Benchmark Skill
 
-## Overview
-
-This skill measures **runtime performance** — what the user actually experiences — as opposed to the `performance-review` agent which analyzes code patterns statically. It uses Playwright to load pages in a real browser, collect timing metrics via the Performance API, measure resource sizes, and compare results against baselines and budgets.
-
-## When to Use
-
-- Before and after performance-sensitive changes to detect regressions
-- As part of a pre-PR quality gate for frontend changes
-- To establish baselines for new pages or features
-- To track performance trends over time across releases
-- When the plan flags a step as performance-critical
+Measures **runtime performance** (what the user experiences) — complements the static `performance-review` agent. Uses Playwright + Chromium to load pages, collect timing via the Performance API, measure resource sizes, and compare against baselines and budgets.
 
 ## Prerequisites
 
-Playwright with Chromium:
 ```bash
 npx playwright install chromium
 ```
 
 A running dev server (or accessible URL) for the pages being benchmarked.
 
-## Metrics Collected
+## Metrics collected
 
 ### Core Web Vitals
 
-| Metric | API | Budget Default | What It Measures |
-|--------|-----|---------------|-----------------|
-| **LCP** (Largest Contentful Paint) | `PerformanceObserver('largest-contentful-paint')` | ≤ 2500ms | When the main content is visible |
-| **FID** (First Input Delay) | `PerformanceObserver('first-input')` | ≤ 100ms | Responsiveness to first interaction |
+| Metric | API | Budget Default | Measures |
+|---|---|---|---|
+| **LCP** (Largest Contentful Paint) | `PerformanceObserver('largest-contentful-paint')` | ≤ 2500ms | When main content is visible |
+| **FID** (First Input Delay) | `PerformanceObserver('first-input')` | ≤ 100ms | First-interaction responsiveness |
 | **CLS** (Cumulative Layout Shift) | `PerformanceObserver('layout-shift')` | ≤ 0.1 | Visual stability during load |
-| **INP** (Interaction to Next Paint) | `PerformanceObserver('event')` | ≤ 200ms | Responsiveness throughout lifecycle |
+| **INP** (Interaction to Next Paint) | `PerformanceObserver('event')` | ≤ 200ms | Responsiveness across lifecycle |
 
 ### Navigation Timing
 
-| Metric | API | What It Measures |
-|--------|-----|-----------------|
-| **TTFB** (Time to First Byte) | `performance.timing.responseStart - navigationStart` | Server response time |
+| Metric | API | Measures |
+|---|---|---|
+| **TTFB** | `performance.timing.responseStart - navigationStart` | Server response time |
 | **FCP** (First Contentful Paint) | `PerformanceObserver('paint')` | When first content appears |
 | **DOM Interactive** | `performance.timing.domInteractive` | When DOM is parseable |
-| **Load Complete** | `performance.timing.loadEventEnd` | When page is fully loaded |
+| **Load Complete** | `performance.timing.loadEventEnd` | Page fully loaded |
 
-### Resource Metrics
+### Resource metrics
 
-| Metric | How Collected | Budget Default |
-|--------|--------------|---------------|
+| Metric | Collection | Budget Default |
+|---|---|---|
 | **Total transfer size** | `performance.getEntriesByType('resource')` sum | ≤ 500KB |
-| **JS bundle size** | Filter resources by `.js` extension | ≤ 200KB |
-| **CSS bundle size** | Filter resources by `.css` extension | ≤ 50KB |
-| **Image payload** | Filter resources by image MIME types | ≤ 300KB |
+| **JS bundle size** | Resources with `.js` extension | ≤ 200KB |
+| **CSS bundle size** | Resources with `.css` extension | ≤ 50KB |
+| **Image payload** | Resources with image MIME types | ≤ 300KB |
 | **Request count** | Resource entry count | ≤ 50 |
 | **Largest resource** | Max single transfer size | ≤ 150KB |
 
-## Collection Script Template
+## Collection procedure
 
-The benchmark runs a single Node.js script via Playwright that:
+Run a Playwright script that:
 
-1. Launches headless Chromium with consistent viewport (1280×720) and CPU throttling (4x slowdown for mobile simulation, or 1x for desktop)
-2. Navigates to the target URL with `waitUntil: 'networkidle'`
-3. Injects a Performance Observer to capture Web Vitals
-4. Waits for metrics to stabilize (2s after load)
+1. Launches headless Chromium with consistent viewport (1280×720) and CPU throttling (4x for mobile, 1x for desktop)
+2. Navigates with `waitUntil: 'networkidle'`
+3. Injects a Performance Observer for Web Vitals
+4. Waits 2s after load for metrics to stabilize
 5. Collects all `performance.getEntriesByType('resource')` entries
 6. Returns structured JSON
 
-See `references/benchmark-script.md` for the full script template.
+Full script template: `references/benchmark-script.md`.
 
-### Measurement Reliability
-
-To reduce variance:
-- Run each page **3 times** and take the **median** for each metric
-- Use `--disable-gpu` and `--disable-extensions` flags
-- Clear browser cache between runs (`context.clearCookies()`, fresh context per run)
-- Use consistent network conditions (no throttling by default; `--3g` flag for mobile simulation)
+**Reliability**: run each page **3 times**, take the **median**. Use `--disable-gpu` and `--disable-extensions`. Clear cookies and use a fresh context per run. No network throttling by default; `--3g` flag for mobile simulation.
 
 ## Modes
 
-### Baseline Mode (`--baseline`)
+### Baseline (`--baseline`)
 
-Captures current metrics and saves them as the baseline for future comparisons:
+Capture current metrics and save as the baseline:
 
 ```
 benchmarks/<slug>/baseline.json
 ```
 
-Baseline files are committed to the repo so the team shares a common reference point.
+Commit baselines so the team shares a reference point.
 
-### Compare Mode (default)
+### Compare (default)
 
-Runs the benchmark and compares against the saved baseline:
+Run and compare against the saved baseline:
 
-- **Regression**: Metric worsened by > 10% → `fail`
-- **Degradation**: Metric worsened by 5-10% → `warn`
-- **Improvement**: Metric improved by > 10% → noted in report
-- **Stable**: Within ±5% → `pass`
+| Change | Status |
+|---|---|
+| Metric worsened > 10% | `fail` (regression) |
+| Metric worsened 5–10% | `warn` (degradation) |
+| Metric improved > 10% | noted in report |
+| Within ±5% | `pass` (stable) |
 
-### Budget Mode (`--budget`)
+### Budget (`--budget`)
 
-Checks against absolute performance budgets defined in a `performance-budget.json` file at the project root:
+Check absolute budgets from `performance-budget.json` at the project root:
 
 ```json
 {
@@ -123,22 +108,19 @@ Checks against absolute performance budgets defined in a `performance-budget.jso
     },
     {
       "path": "/dashboard",
-      "metrics": {
-        "LCP": 3000,
-        "totalTransferSize": 800000
-      }
+      "metrics": { "LCP": 3000, "totalTransferSize": 800000 }
     }
   ]
 }
 ```
 
-If no budget file exists, use the defaults from the tables above.
+If no budget file, fall back to defaults above.
 
-### Trend Mode (`--trend`)
+### Trend (`--trend`)
 
-Reads historical benchmark results from `benchmarks/<slug>/history.jsonl` and produces a trend summary showing how metrics have changed over the last N runs.
+Read `benchmarks/<slug>/history.jsonl` and produce a trend summary across the last N runs.
 
-## Output Format
+## Output format (JSON)
 
 ```json
 {
@@ -170,67 +152,14 @@ Reads historical benchmark results from `benchmarks/<slug>/history.jsonl` and pr
     "improvements": [],
     "stable": ["FCP", "CLS", "INP", "TTFB"]
   },
-  "budget": {
-    "status": "pass",
-    "violations": []
-  },
+  "budget": { "status": "pass", "violations": [] },
   "status": "pass|warn|fail"
 }
 ```
 
-## Report Format
+Human-readable report template: [`examples/report-format.md`](examples/report-format.md).
 
-When writing a human-readable report (for `/benchmark` command output):
-
-```markdown
-# Performance Benchmark: <URL>
-
-**Date**: <timestamp>
-**Device**: desktop | mobile
-**Runs**: 3 (median reported)
-
-## Core Web Vitals
-
-| Metric | Value | Budget | Baseline | Change | Status |
-|--------|-------|--------|----------|--------|--------|
-| LCP    | 1850ms | ≤2500ms | 1600ms | +15.6% | FAIL |
-| FCP    | 920ms  | —      | 900ms  | +2.2%  | PASS |
-| CLS    | 0.05   | ≤0.1   | 0.04   | +25%   | PASS |
-| INP    | 120ms  | ≤200ms | 115ms  | +4.3%  | PASS |
-
-## Resource Budget
-
-| Resource | Size | Budget | Status |
-|----------|------|--------|--------|
-| Total    | 342KB | ≤500KB | PASS |
-| JS       | 156KB | ≤200KB | PASS |
-| CSS      | 28KB  | ≤50KB  | PASS |
-| Images   | 98KB  | ≤300KB | PASS |
-| Requests | 34    | ≤50    | PASS |
-
-## Slowest Resources
-
-| Resource | Size | Time |
-|----------|------|------|
-| /assets/main.js | 95KB | 450ms |
-| ...
-
-## Regressions
-
-- **LCP**: +15.6% (1600ms → 1850ms) — investigate main.js growth
-
-## Verdict: WARN (1 regression detected)
-```
-
-## Integration Points
-
-- **QA Engineer**: Invokes this skill for performance and load testing
-- **Platform Engineer**: Uses baselines for SLI/SLO definition
-- **`/build` command**: Can be triggered after performance-critical steps (when step metadata includes `performance-sensitive: true`)
-- **`/code-review`**: The `performance-review` agent flags code patterns; this skill validates the runtime impact
-- **Browser Testing skill**: Shares Playwright infrastructure and patterns
-
-## File Storage
+## File storage
 
 ```
 benchmarks/
@@ -240,4 +169,4 @@ benchmarks/
 └── performance-budget.json  # Committed — budget definitions
 ```
 
-Page slug is derived from the URL path: `/dashboard` → `dashboard`, `/` → `index`.
+Page slug derived from the URL path: `/dashboard` → `dashboard`, `/` → `index`.
