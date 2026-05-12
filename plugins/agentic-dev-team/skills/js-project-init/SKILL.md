@@ -6,64 +6,38 @@ user-invocable: true
 
 # JavaScript Project Initializer
 
-Scaffold a new JavaScript project with opinionated defaults for ES modules, functional development, and modern tooling. The goal is to get from zero to a working, linted, tested project in under a minute — with every config file explained and customizable.
+Scaffold a new JavaScript project with opinionated defaults for ES modules, functional development, and modern tooling. Goal: zero to working/linted/tested in under a minute, with every config file explained and customizable.
 
-## Why These Defaults
+Defaults:
+- **Package manager**: npm
+- **Module system**: ES Modules (`"type": "module"`)
+- **Style**: functional — no classes, prefer `const`, no mutation
+- **Formatter**: Prettier (2-space indent, single quotes, trailing commas, 100-char width)
+- **Linter**: ESLint flat config with functional rules
+- **Editor**: EditorConfig (2-space, UTF-8, LF, trim trailing whitespace, final newline)
+- **Tests**: Vitest
+- **E2E** (frontend only): Playwright
+- **Git hooks**: Husky pre-push (lint + format check + test)
+- **`.gitignore`**: node_modules, dist, build, coverage, .env, .env.*, OS files
 
-- **ES Modules** — the standard module system for JavaScript. CommonJS (`require`) is legacy; ESM (`import/export`) works everywhere now and enables tree-shaking, static analysis, and better tooling.
-- **Functional style** — pure functions, immutable data, no classes. Produces code that's easier to test, reason about, and compose. ESLint rules enforce this by default.
-- **Prettier** — removes formatting debates entirely. One config, zero arguments.
-- **ESLint flat config** — the modern config format (`eslint.config.js`). Simpler, composable, no more `.eslintrc` cascade confusion.
-- **EditorConfig** — ensures consistent whitespace across editors and contributors, regardless of individual editor settings.
-- **Vitest** — fast, ESM-native test runner with a Jest-compatible API. No transpilation gymnastics.
-- **Playwright** (frontend projects) — reliable cross-browser end-to-end testing.
+This skill scaffolds the **base tooling layer**. It does not replace framework-specific CLIs (`npx sv create`, `ng new`, `npm create vite@latest`). For a full framework scaffold, run the framework CLI first, then layer on these configs.
 
 ## Workflow
 
-### Step 1: Present Defaults and Ask for Customization
+### Step 1: Present defaults and confirm
 
-Before generating any files, present the defaults to the user and ask if they want to change anything. This is important — don't just start writing files.
+Present the defaults above to the user and ask: "Want to change anything, or should I go ahead?" Include Playwright in the summary only if the user mentions a frontend project (React, Svelte, Angular, Vue, Next.js, Nuxt, SvelteKit, Astro, UI, web app, dashboard). Wait for confirmation before writing files.
 
-Present this summary:
-
-```
-Here's what I'll set up for your project:
-
-  Package manager:  npm
-  Module system:    ES Modules ("type": "module")
-  Style:            Functional (no classes, prefer const, no mutation)
-  Formatter:        Prettier (2-space indent, single quotes, trailing commas)
-  Linter:           ESLint flat config with functional rules
-  Editor config:    EditorConfig (2-space indent, UTF-8, LF line endings)
-  Testing:          Vitest
-  E2E testing:      [Playwright — only if frontend project]
-  Git hooks:        Husky pre-push (lint + format check + test)
-  .gitignore:       node_modules, dist, coverage, .env, OS files
-
-Want to change anything, or should I go ahead?
-```
-
-If the user asks for a frontend project (mentions React, Svelte, Angular, Vue, Next.js, Nuxt, SvelteKit, Astro, a UI, a web app, a dashboard, etc.), include Playwright in the summary. Otherwise omit it but mention it's available.
-
-Note: this skill scaffolds the **base tooling layer** (module system, linting, formatting, testing, editor config). It does not replace framework-specific CLIs (`npx sv create`, `ng new`, `npm create vite@latest`). If the user needs a full framework scaffold, suggest they run the framework CLI first, then use this skill to layer on the opinionated configs.
-
-Wait for the user to confirm or request changes before proceeding.
-
-### Step 2: Initialize the Project
-
-Run these commands to create the foundation:
+### Step 2: Initialize package.json
 
 ```bash
 npm init -y
 ```
 
-Then update `package.json` to set ES modules and add scripts. Read the generated `package.json` first, then edit it to add/modify:
-
-- `"type": "module"`
-- `"scripts"` section with test, lint, and format commands
-- Remove any fields that don't apply (e.g., `"main"` if not a library)
-
-The scripts section should include:
+Read the generated `package.json`, then edit to:
+- Add `"type": "module"`
+- Add the scripts block below
+- Remove fields that don't apply (e.g., `"main"` for non-libraries)
 
 ```json
 {
@@ -80,75 +54,51 @@ The scripts section should include:
 }
 ```
 
-For frontend projects, add:
+Frontend projects also add: `"test:e2e": "playwright test"`.
 
-```json
-{
-  "scripts": {
-    "test:e2e": "playwright test"
-  }
-}
-```
-
-### Step 3: Install Dependencies
-
-Install all dev dependencies in one command:
+### Step 3: Install dependencies
 
 ```bash
 npm install -D eslint prettier vitest @eslint/js eslint-config-prettier husky
 ```
 
-Note: `eslint-config-prettier` disables ESLint rules that conflict with Prettier. We do NOT install `eslint-plugin-prettier` — the modern practice is to run Prettier as a separate step (`npm run format:check`), not through ESLint. This keeps concerns separated and avoids double-reporting.
+`eslint-config-prettier` disables ESLint rules that conflict with Prettier. Do NOT install `eslint-plugin-prettier` — run Prettier as a separate step (`npm run format:check`), not through ESLint.
 
-For frontend projects, also install Playwright:
+Frontend projects also:
 
 ```bash
 npm install -D @playwright/test
 npx playwright install
 ```
 
-### Step 4: Create Configuration Files
+### Step 4: Create config files
 
-Create each config file using the templates in `references/configs.md`. Read that file for the exact contents. The key files are:
+Templates: `references/configs.md`. Required files:
 
-1. **`eslint.config.js`** — flat config with functional rules (no classes, prefer const, no var, no param reassign)
-2. **`prettier.config.js`** — 2-space indent, single quotes, trailing commas, 100 char print width
-3. **`.editorconfig`** — 2-space indent, UTF-8, LF, trim trailing whitespace, final newline
-4. **`.gitignore`** — node_modules, dist, build, coverage, .env, .env.*, OS files (DS_Store, Thumbs.db)
-5. **`vitest.config.js`** — minimal config pointing at test files
+1. `eslint.config.js` — flat config with functional rules (no classes, prefer const, no var, no param reassign)
+2. `prettier.config.js` — 2-space, single quotes, trailing commas, 100-char width
+3. `.editorconfig` — 2-space, UTF-8, LF, trim trailing whitespace, final newline
+4. `.gitignore` — node_modules, dist, build, coverage, .env, .env.*, OS files (DS_Store, Thumbs.db)
+5. `vitest.config.js` — minimal config pointing at test files
+6. (frontend) `playwright.config.js` — chromium, sensible defaults
 
-For frontend projects, also create:
-6. **`playwright.config.js`** — basic config with chromium, sensible defaults
-
-### Step 5: Create Starter Files
-
-Create a minimal starter structure so the project is immediately runnable:
+### Step 5: Create starter files
 
 ```
-src/
-  index.js          — single exported function with a JSDoc comment
-src/
-  index.test.js     — one passing vitest test for the starter function
+src/index.js        — single exported pure function with JSDoc (e.g., greet or add)
+src/index.test.js   — one passing vitest test for the starter function
 ```
 
-The starter function should be a simple pure function (e.g., `greet` or `add`) — just enough to prove the toolchain works. The test should import it and assert the expected output.
+Frontend projects also create `e2e/example.spec.js` — one Playwright placeholder.
 
-For frontend projects, also create:
-```
-e2e/
-  example.spec.js   — one Playwright test placeholder
-```
-
-### Step 6: Set Up Git Hooks
-
-Initialize Husky and create the pre-push hook:
+### Step 6: Git hooks
 
 ```bash
 git init  # skip if already a git repo
 npx husky init
 ```
 
-Then create the pre-push hook using the template in `references/configs.md`. The hook runs lint, format check, and tests before every push:
+Create the pre-push hook (template in `references/configs.md`):
 
 ```bash
 echo 'npm run lint
@@ -156,23 +106,21 @@ npm run format:check
 npm test' > .husky/pre-push
 ```
 
-Remove the default pre-commit hook that Husky creates (we use pre-push instead):
+Remove Husky's default pre-commit hook (we use pre-push instead):
 
 ```bash
 rm .husky/pre-commit
 ```
 
-For frontend projects, append the e2e test to the pre-push hook:
+Frontend projects append e2e:
 
 ```bash
 echo 'npm run test:e2e' >> .husky/pre-push
 ```
 
-This ensures broken code never reaches the remote — lint, formatting, and tests must all pass before `git push` succeeds. The hook runs on push (not commit) to keep the local development loop fast while still gating what goes upstream.
+Pre-push gates what goes upstream while keeping the local commit loop fast.
 
-### Step 7: Verify Everything Works
-
-Run the following commands and confirm they succeed:
+### Step 7: Verify
 
 ```bash
 npm run lint
@@ -180,25 +128,26 @@ npm run format:check
 npm test
 ```
 
-If any command fails, fix the issue before reporting success. Show the user the test output as proof that the scaffold is working.
+If any command fails, fix it before reporting success. Show the user the test output.
 
 ### Step 8: Summary
 
-After everything passes, give the user a brief summary of what was created:
+After everything passes, give the user:
+- List of files created
+- Available npm scripts
+- One-line next-step suggestion (e.g., `npm run test:watch` to develop with live tests)
 
-- List the files created
-- Show the available npm scripts
-- Mention any next steps (e.g., "run `npm test:watch` to start developing with live tests")
+## Customization handling
 
-## Customization Handling
+If the user changes Step 1 defaults:
 
-If the user requests changes to the defaults in Step 1:
-
-- **Different indent size** — update prettier config, editorconfig, and eslint indent rule
-- **Tabs instead of spaces** — update prettier (`useTabs: true`), editorconfig (`indent_style = tab`)
-- **Double quotes** — update prettier (`singleQuote: false`)
-- **Different print width** — update prettier config
-- **Semicolons** — update prettier (`semi: true/false`)
-- **Yarn/pnpm** — substitute the package manager in all install commands and update scripts if needed
-- **TypeScript** — this skill covers JS only; suggest the user look into a TS-specific scaffold
-- **Additional ESLint plugins** — install and add to the flat config array
+| Request | Update |
+|---|---|
+| Different indent size | prettier config, editorconfig, eslint indent rule |
+| Tabs instead of spaces | prettier (`useTabs: true`), editorconfig (`indent_style = tab`) |
+| Double quotes | prettier (`singleQuote: false`) |
+| Different print width | prettier config |
+| Semicolons | prettier (`semi: true/false`) |
+| Yarn / pnpm | substitute the package manager in all install commands; adjust scripts if needed |
+| TypeScript | This skill is JS-only — suggest a TS-specific scaffold |
+| Additional ESLint plugins | install and add to the flat config array |
