@@ -99,3 +99,79 @@ Each agent declares a `Context needs` field that controls what input it receives
 | `diff-only` | Git diff output only | Pattern-matching agents (naming, FP) |
 | `full-file` | Complete file contents | Agents needing function-level context |
 | `project-structure` | Full files + directory tree | Agents reasoning about architecture |
+
+## Review Findings prompt (interactive — step 6)
+
+When actionable issues exist, present this prompt before any fix action:
+
+```text
+## Review Findings
+
+Found N actionable issues (N errors, N warnings) that can be
+auto-fixed, plus N issues requiring human review.
+
+Actionable issues by agent:
+- structure-review: 3 (2 error, 1 warning)
+- naming-review: 2 (2 warning)
+- js-fp-review: 1 (1 error)
+
+Options:
+1. **Fix** — Auto-fix actionable issues and re-run review
+   (up to 5 iterations until clean)
+2. **Report only** — Save all findings to a report without
+   modifying any code
+```
+
+## Review-Fix Loop iteration log (step 6a-iv)
+
+```text
+## Review-Fix Loop
+
+| Iteration | Actionable Issues | Fixed | Remaining | Agents Re-run |
+|-----------|-------------------|-------|-----------|---------------|
+| 1         | 7                 | 6     | 1         | 3             |
+| 2         | 1                 | 1     | 0         | 1             |
+
+Loop converged in 2 iterations.
+```
+
+If the loop did not converge:
+
+```text
+Loop stopped after 5 iterations. 2 issues remain:
+- [security-review] SQL injection at src/db/query.ts:42 [auto-fix failed — human review required]
+- [domain-review] Abstraction leak at src/api/handler.ts:15 [confidence: none — human review required]
+```
+
+## Code Review Summary report (step 7, prose mode)
+
+```text
+# Code Review Summary
+
+| Agent              | Status | Issues | Fixed | Model Tier |
+|--------------------|--------|--------|-------|------------|
+| test-review        | PASS   | 0      | —     | mid        |
+| structure-review   | PASS   | 2      | 2     | mid        |
+| security-review    | WARN   | 1      | 0     | frontier   |
+| ...                | ...    | ...    | ...   | ...        |
+
+Overall: WARN after 2 fix iterations (N agents passed, N warned, N failed)
+Total issues found: N | Auto-fixed: N | Human review required: N
+```
+
+After the summary, list remaining issues grouped by file, sorted by severity. Mark each with: `[confidence: none]`, `[auto-fix failed]`, or `[suggestion]`. Append the iteration table above.
+
+## Override audit log entry (step 2, `--force` path)
+
+Append to `metrics/override-audit.jsonl` (create if missing):
+
+```json
+{
+  "timestamp": "<ISO 8601>",
+  "branch": "<current branch>",
+  "triggeredBy": "--force",
+  "reason": "<value of --reason>",
+  "targetFiles": ["<file list>"],
+  "gatesSkipped": ["lint", "type-check", "secret-scan", "semgrep", "pipeline-red"]
+}
+```
