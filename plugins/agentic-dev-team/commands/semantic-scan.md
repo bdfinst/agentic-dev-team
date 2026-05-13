@@ -1,0 +1,22 @@
+---
+name: semantic-scan
+description: >-
+  Build a computation register and detect semantic duplicates across architectural
+  layers. Finds business logic reimplemented multiple times in different layers —
+  the same domain calculation independently appearing in domain services, client
+  adapters, and presentation components. Runs incrementally (git-diff-based) after
+  the first scan. Produces a structured duplicate report with file:line references
+  and canonical location suggestions.
+argument-hint: "[path] [--full] [--no-opus]"
+user-invocable: true
+---
+
+Apply the guidelines defined in skills/semantic-duplication-scan/SKILL.md to the current task. Read the skill file and follow its process flow, pre-filter rules, annotation procedure, clustering strategy, and report format.
+
+## Flags
+
+- `[path]` — Optional subdirectory to scope the scan. Only files under this path are re-annotated; out-of-scope register entries are preserved.
+- `--full` — Force full-scan mode regardless of whether a register exists. Bypasses the shallow-clone pre-flight check. Use when `lastScanCommit` is stale or after a major restructuring.
+- `--no-opus` — Skip Opus canonical resolution for ambiguous clusters. Ambiguous clusters are reported as `canonical: ambiguous — human review required` instead of triggering an Opus call. Use in cost-sensitive environments (CI, personal accounts).
+
+Apply this skill to: $ARGUMENTS

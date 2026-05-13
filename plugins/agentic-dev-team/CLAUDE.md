@@ -88,6 +88,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/harness-audit` | `commands/harness-audit.md` | orchestrator | Analyze harness effectiveness and flag stale components |
 | `/version` | `commands/version.md` | worker | Report the installed plugin version |
 | `/benchmark` | `commands/benchmark.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
+| `/semantic-scan` | `commands/semantic-scan.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
 | `/help` | `commands/help.md` | worker | List all available slash commands with descriptions |
 
 ## Request Processing Flow
