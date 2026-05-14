@@ -271,7 +271,9 @@ After generating the body, count all lines (including blank lines).
 
 ## Step 11 — Run /agent-audit Validation Gate
 
-Write the generated content to disk, then invoke the agent-audit skill:
+**If `--dry` was passed**: display the complete generated file content to the user and stop. Do not write any file, do not run validation, do not update the registry or CLAUDE.md.
+
+Otherwise: write the generated content to disk, then invoke the agent-audit skill:
 `Skill(agent-audit plugins/agentic-dev-team/agents/<name>.md)`
 
 **If the audit returns errors:**
@@ -289,11 +291,7 @@ Write the generated content to disk, then invoke the agent-audit skill:
 
 ## Step 12 — Present Draft and Confirm Write
 
-Display the complete generated file content to the user.
-
-**If `--dry` was passed**: display the content and stop. Do not write any file and do not update the registry or CLAUDE.md.
-
-Otherwise, ask: `Write this file to plugins/agentic-dev-team/agents/<name>.md? (yes/no)`
+Ask: `Write this file to plugins/agentic-dev-team/agents/<name>.md? (yes/no)`
 
 On `no`: delete the file written in Step 11, make no other changes, stop.
 On `yes`: the file is already on disk from Step 11; no re-write needed unless the user modified the draft.
