@@ -1,5 +1,19 @@
 # Changelog
 
+## [5.3.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.2.0...agentic-dev-team-v5.3.0) (2026-05-14)
+
+
+### Features
+
+* **agent-create:** add agent-create skill, official agent template, and schema validation ([e872244](https://github.com/bdfinst/agentic-dev-team/commit/e872244f91b1368109aac4db71b540bde9440b94))
+* semantic-scan and agent-create skills with official schema validation ([cc1b6b3](https://github.com/bdfinst/agentic-dev-team/commit/cc1b6b378e3fc57c94abd33b72429a26ec236b51))
+* **semantic-scan:** add /semantic-scan skill and command for detecting logical duplication ([324aea9](https://github.com/bdfinst/agentic-dev-team/commit/324aea949516883c2c9b942260e575f56da2afb4))
+
+
+### Bug Fixes
+
+* **agent-create:** move --dry check before file write; fix CLAUDE.md description ([7f93ef3](https://github.com/bdfinst/agentic-dev-team/commit/7f93ef34834d597710c8a3a245ddefaea234f73c))
+
 ## [5.2.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.1.1...agentic-dev-team-v5.2.0) (2026-05-12)
 
 
