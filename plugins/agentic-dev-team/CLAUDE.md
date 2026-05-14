@@ -65,7 +65,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/review-agent` | `commands/review-agent.md` | worker | Run a single review agent (used for inline checkpoints) |
 | `/agent-audit` | `commands/agent-audit.md` | orchestrator | Audit agents/commands/hooks for structural compliance |
 | `/agent-eval` | `commands/agent-eval.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
-| `/agent-add` | `commands/agent-add.md` | implementation | Scaffold a new review agent with eval compliance and doc updates |
+| `/agent-add` | `commands/agent-add.md` | implementation | Create a new review or team agent following the official schema with token-efficiency budgets |
 | `/agent-remove` | `commands/agent-remove.md` | implementation | Remove an agent and all its registry entries and doc references |
 | `/add-plugin` | `commands/add-plugin.md` | implementation | Install a plugin and register it in settings.json |
 | `/apply-fixes` | `commands/apply-fixes.md` | implementation | Apply correction prompts from `/code-review` output |
@@ -88,6 +88,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/harness-audit` | `commands/harness-audit.md` | orchestrator | Analyze harness effectiveness and flag stale components |
 | `/version` | `commands/version.md` | worker | Report the installed plugin version |
 | `/benchmark` | `commands/benchmark.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
+| `/semantic-scan` | `commands/semantic-scan.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
 | `/help` | `commands/help.md` | worker | List all available slash commands with descriptions |
 
 ## Request Processing Flow
