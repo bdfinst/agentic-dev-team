@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.3.1](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.3.0...agentic-dev-team-v5.3.1) (2026-05-15)
+
+
+### Code Refactoring
+
+* **agent-skill-authoring:** resolve overlap with agent-create skill ([2818bd5](https://github.com/bdfinst/agentic-dev-team/commit/2818bd5dd09d2e1b526cc7ea14fef274a86d0c26))
+
 ## [5.3.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.2.0...agentic-dev-team-v5.3.0) (2026-05-14)
 
 
