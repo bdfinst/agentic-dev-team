@@ -22,7 +22,7 @@ model: sonnet
 - Enforce ubiquitous language alignment between docs and code
 
 ## Skills
-- [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) - invoke when documenting how agents and skills work and how to create new ones
+- [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) - invoke when documenting how agents and skills work, how to author skills, and the registration/documentation-sync policy (the agent-creation procedure itself lives in the `agent-create` skill)
 - [Governance & Compliance](../skills/governance-compliance/SKILL.md) - invoke when documenting audit, ethics, and compliance procedures
 
 ## Behavioral Guidelines

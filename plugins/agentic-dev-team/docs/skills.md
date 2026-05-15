@@ -18,7 +18,7 @@ Used by the Orchestrator to manage the team:
 | Feedback & Learning | [`feedback-learning.md`](../skills/feedback-learning/SKILL.md) | Processes feedback keywords, audit trail, rollback |
 | Human Oversight Protocol | [`human-oversight-protocol.md`](../skills/human-oversight-protocol/SKILL.md) | Approval gates, intervention commands, escalation |
 | Performance Metrics | [`performance-metrics.md`](../skills/performance-metrics/SKILL.md) | Task logging schema and reporting procedures |
-| Agent & Skill Authoring | [`agent-skill-authoring.md`](../skills/agent-skill-authoring/SKILL.md) | How to create and maintain agents and skills |
+| Agent & Skill Authoring | [`agent-skill-authoring.md`](../skills/agent-skill-authoring/SKILL.md) | Skill-authoring conventions, anti-patterns, and the agent-vs-skill philosophy (for creating new agents, use the `agent-create` skill via `/agent-add`) |
 | Specs | [`specs.md`](../skills/specs/SKILL.md) | BDD scenario consistency gate before implementation |
 
 ### Quality Skills
@@ -205,7 +205,7 @@ user-invocable: true
 [Actionable rules for applying this skill]
 ```
 
-See [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) for detailed guidelines and anti-patterns.
+See [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) for detailed guidelines and anti-patterns. To create a new agent (review or team), use `/agent-add` — it invokes the [`agent-create`](../skills/agent-create/SKILL.md) skill, which enforces the canonical schema, token-efficiency budgets, and registration steps.
 
 ## Add a Slash Command
 

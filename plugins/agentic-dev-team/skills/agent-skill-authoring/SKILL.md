@@ -1,6 +1,6 @@
 ---
 name: agent-skill-authoring
-description: How to create and maintain agent and skill files for the Agentic Scrum Team. Use whenever adding a new agent persona, creating a new skill, or updating an existing one — including required registration in CLAUDE.md.
+description: Conventions, anti-patterns, and meta-patterns for writing skills (and the shared agent/skill philosophy). Use when creating or editing a SKILL.md file, or when reviewing the agent-vs-skill separation. For the procedural workflow that generates a new agent file, use the agent-create skill (invoked by /agent-add).
 role: worker
 user-invocable: true
 ---
@@ -9,12 +9,18 @@ user-invocable: true
 
 ## Overview
 
-This skill defines how to create and maintain agents and skills within the Agentic Scrum Team system. Agents own orchestration logic (when and why); skills own execution knowledge (how). This separation keeps agents readable as workflow definitions while keeping capabilities DRY across the team.
+This skill defines the philosophy of the agent-vs-skill split and the conventions for writing skills. Agents own orchestration logic (when and why); skills own execution knowledge (how). This separation keeps agents readable as workflow definitions while keeping capabilities DRY across the team.
+
+**Scope boundary**:
+- This skill — skill creation, shared philosophy, anti-patterns, documentation sync policy
+- `agent-create` skill — the procedural workflow for generating a new agent file (invoked by `/agent-add`)
+
+If you are creating an agent file, use `/agent-add` (which invokes the `agent-create` skill). This skill no longer duplicates that procedure.
 
 ## Constraints
 - Skills must be agent-agnostic; no persona or behavioral logic in skill files
 - Execution details belong in skills; orchestration logic belongs in agents
-- Every new agent or skill must be registered in `.claude/CLAUDE.md`
+- Every new agent or skill must be registered (see [`references/templates.md`](references/templates.md#registration-checklist))
 - Do not embed a skill's knowledge inline in an agent — reference the skill file
 
 ## Core Pattern
@@ -42,11 +48,13 @@ Agent (when + why)          Skill (how)
 
 ## Creating an Agent
 
-Place agent files at `.claude/agents/{role-name}.md`. Use the agent template and authoring guidelines from [`references/templates.md`](references/templates.md#agent-template).
+Run `/agent-add` — it invokes the `agent-create` skill, which is the canonical procedure: name validation, type detection, scope-overlap check, body generation within token-efficiency budgets, `/agent-audit` validation gate, and registry/CLAUDE.md updates.
+
+Do not hand-author agent files when `/agent-add` is available — divergent templates produced manually have historically drifted from the schema enforced by `/agent-audit`.
 
 ## Creating a Skill
 
-Place skill files at `.claude/skills/{skill-name}.md`. Use the skill template and authoring guidelines from [`references/templates.md`](references/templates.md#skill-template).
+Place skill files at `plugins/agentic-dev-team/skills/{skill-name}/SKILL.md`. Use the skill template and authoring guidelines from [`references/templates.md`](references/templates.md#skill-template). Then follow the [registration checklist](references/templates.md#registration-checklist).
 
 ## Meta-Patterns for Skill Writing
 
@@ -73,14 +81,14 @@ Before writing a new skill, read 2-3 existing skills in `skills/` to absorb the 
 
 ## Registration
 
-After creating an agent, skill, or command, follow the registration checklist in [`references/templates.md`](references/templates.md#registration-checklist). Incomplete registration leaves the system in an inconsistent state.
+After creating an agent or skill, follow the registration checklist in [`references/templates.md`](references/templates.md#registration-checklist). For agents, `/agent-add` performs registration automatically; for skills and slash commands, follow the manual steps. Incomplete registration leaves the system in an inconsistent state.
 
 ## Documentation Sync Policy
 
 Every change must be reflected in documentation. See the sync policy and source-of-truth table in [`references/templates.md`](references/templates.md#documentation-sync-policy).
 
 ## Output
-New or updated `.claude/agents/*.md` or `.claude/skills/*.md` file(s) with all registry tables and docs updated. Be concise — confirm what was created/updated and its registration status.
+New or updated `plugins/agentic-dev-team/skills/*/SKILL.md` file(s) with all registry tables and docs updated. Be concise — confirm what was created/updated and its registration status.
 
 ## Anti-Patterns
 
@@ -91,3 +99,4 @@ New or updated `.claude/agents/*.md` or `.claude/skills/*.md` file(s) with all r
 | Skill without any agent reference | Orphaned knowledge, never invoked | Add to relevant agents or remove |
 | Agent without Skills section | All knowledge is inline, nothing is reusable | Identify extractable capabilities |
 | Overly broad skill | Tries to cover too much, hard to reference precisely | Split into focused skills |
+| Hand-authoring an agent file | Drifts from the schema enforced by /agent-audit | Use /agent-add (invokes the agent-create skill) |

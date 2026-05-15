@@ -58,7 +58,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Performance Metrics | `skills/performance-metrics/SKILL.md` | 890 | Orchestrator |
 | Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | 900 | All agents |
 | Governance & Compliance | `skills/governance-compliance/SKILL.md` | 990 | QA Engineer, Technical Writer |
-| Agent & Skill Authoring | `skills/agent-skill-authoring/SKILL.md` | 990 | Orchestrator |
+| Agent & Skill Authoring | `skills/agent-skill-authoring/SKILL.md` | 1,300 | Orchestrator, Technical Writer |
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 420 | Architect, Software Engineer |
 | Domain-Driven Design | `skills/domain-driven-design/SKILL.md` | 710 | Architect, Software Engineer, Product Manager |
 | Domain Analysis | `skills/domain-analysis/SKILL.md` | 650 | Architect, Product Manager, Orchestrator |

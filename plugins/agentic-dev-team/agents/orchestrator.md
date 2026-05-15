@@ -66,7 +66,7 @@ All review commands are executed under orchestrator direction. When a user trigg
 - [Feedback & Learning](../skills/feedback-learning/SKILL.md) - invoke when user uses amend/learn/remember/forget keywords, or during learning loop at task completion
 - [Human Oversight Protocol](../skills/human-oversight-protocol/SKILL.md) - invoke when approval gates fire, when user issues override/pause/stop, or when escalating decisions
 - [Performance Metrics](../skills/performance-metrics/SKILL.md) - invoke at task completion to log metrics, and during learning loop to review trends
-- [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) - invoke when adding new team members, defining new capabilities, or restructuring agent responsibilities
+- [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) - invoke when creating or editing a skill, or when reviewing the agent-vs-skill separation (for new agent files, prefer `/agent-add` which invokes the `agent-create` skill)
 - [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke to enforce the three-phase quality gate: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3)
 - [Specs](../skills/specs/SKILL.md) - invoke when routing a new feature request; verify the consistency gate passed before loading implementing agents
 - [Code Review](../commands/code-review.md) - invoke after each Phase 3 checkpoint and before committing; runs all relevant review agents with orchestrator-assigned models
