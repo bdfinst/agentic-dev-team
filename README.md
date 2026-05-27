@@ -61,8 +61,10 @@ Start here. Most users install only this plugin.
 
 ```bash
 # From this marketplace (recommended)
-claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
+claude plugin marketplace add bdfinst/agentic-dev-team
 claude plugin install agentic-dev-team@bfinster
+# or
+claude plugin install --scope project agentic-dev-team@bfinster
 
 # From a local clone (for plugin development)
 claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
