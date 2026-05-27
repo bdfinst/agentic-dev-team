@@ -49,6 +49,16 @@ write_state "$CURRENT_RESULT" "$INPUT"
 is_red_to_green "$PREV_RESULT" "$CURRENT_RESULT" || exit 0
 
 # ---------------------------------------------------------------------------
-# RED→GREEN detected — adapter dispatch (Steps 3–7 add this logic)
+# RED→GREEN detected — detect adapter
+# ---------------------------------------------------------------------------
+ADAPTER=$(detect_adapter "$COMMAND")
+
+if [ "$ADAPTER" = "none" ]; then
+  emit_advisory "MUTATION GATE ADVISORY: no adapter for this language. Install Stryker (JS/TS), pitest (Java), or Stryker.NET (C#) to enable per-test kill analysis."
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Adapter dispatch (adapter files added in Steps 4–7)
 # ---------------------------------------------------------------------------
 exit 0

@@ -145,6 +145,23 @@ is_test_command() {
     mvn\ test*|mvn\ verify*|./mvnw\ test*|./mvnw\ verify*|mvnw\ test*) return 0 ;;
     gradle\ test*|./gradlew\ test*|gradlew\ test*) return 0 ;;
     dotnet\ test*) return 0 ;;
+    python\ *pytest*|pytest\ *) return 0 ;;
+    go\ test*) return 0 ;;
+    cargo\ test*) return 0 ;;
     *) return 1 ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# detect_adapter COMMAND — prints adapter name: stryker | pitest | stryker-net | none
+# ---------------------------------------------------------------------------
+detect_adapter() {
+  local cmd="$1"
+  case "$cmd" in
+    npm\ test*|npm\ run\ test*|npx\ vitest*|npx\ jest*) echo "stryker" ;;
+    mvn\ test*|mvn\ verify*|./mvnw\ test*|./mvnw\ verify*|mvnw\ test*|\
+    gradle\ test*|./gradlew\ test*|gradlew\ test*) echo "pitest" ;;
+    dotnet\ test*) echo "stryker-net" ;;
+    *) echo "none" ;;
   esac
 }
