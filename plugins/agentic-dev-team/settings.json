@@ -13,10 +13,7 @@
       "NotebookEdit",
       "mcp__*"
     ],
-    "deny": [
-      "Bash(rm *)",
-      "Bash(git push *)"
-    ]
+    "deny": ["Bash(rm *)", "Bash(git push *)"]
   },
   "hooks": {
     "PreToolUse": [
@@ -24,7 +21,10 @@
         "matcher": "Write|Edit",
         "hooks": [
           { "type": "command", "command": "bash hooks/pre-tool-guard.sh" },
-          { "type": "command", "command": "bash hooks/contract-version-guard.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/contract-version-guard.sh"
+          }
         ]
       },
       {
@@ -40,9 +40,21 @@
         "matcher": "Edit|Write",
         "hooks": [
           { "type": "command", "command": "bash hooks/js-fp-review.sh" },
-          { "type": "command", "command": "bash hooks/token-efficiency-review.sh" },
-          { "type": "command", "command": "bash hooks/eval-compliance-check.sh" },
+          {
+            "type": "command",
+            "command": "bash hooks/token-efficiency-review.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/eval-compliance-check.sh"
+          },
           { "type": "command", "command": "bash hooks/tdd-guard.sh" }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/mutation-gate.sh" }
         ]
       },
       {
