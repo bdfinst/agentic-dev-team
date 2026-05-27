@@ -153,6 +153,100 @@ is_test_command() {
 }
 
 # ---------------------------------------------------------------------------
+# format_blocking_reason ZERO_KILLS_FILE COMMAND — builds the blocking reason string
+# ---------------------------------------------------------------------------
+format_blocking_reason() {
+  local zero_kills_file="$1"
+  local cmd="$2"
+
+  python3 - "$zero_kills_file" "$cmd" <<'PYEOF'
+import json, sys
+
+zk_path, cmd = sys.argv[1], sys.argv[2]
+with open(zk_path) as f:
+    zero_kills = json.load(f)
+
+lines = [
+    f"MUTATION GATE BLOCKED: zero-kill tests detected after RED-GREEN transition",
+    "",
+    "These tests covered mutants but killed none — they provide no regression safety.",
+    "A useful assertion changes the expected value when the implementation changes",
+    "(e.g., assert result === 5, not assert result !== undefined).",
+    "Rewrite each to assert the precise return value or side effect, or remove it:",
+    ""
+]
+for zk in zero_kills:
+    name = zk.get("name", "<unknown>")
+    file_ = zk.get("file") or "<unknown>"
+    line = zk.get("line")
+    loc = f"({file_}:{line})" if line else f"({file_}:<unknown>)"
+    covered = zk.get("covered", 0)
+    lines.append(f"  - {name}  {loc}")
+    lines.append(f"    Covered {covered} mutants, killed 0")
+    lines.append("")
+
+lines.append("Fix these tests before continuing.")
+print("\n".join(lines))
+PYEOF
+}
+
+# ---------------------------------------------------------------------------
+# parse_stryker_kills REPORT_FILE OUTPUT_FILE
+#
+# Reads Stryker JSON report, finds tests in coveredBy[] but absent from ALL
+# killedBy[] entries across all mutants, writes normalized zero-kill list to
+# OUTPUT_FILE.
+#
+# Output format: [{"name":"TestName","file":"path","line":12,"covered":4}]
+# "line" is null when not present in tool output.
+# ---------------------------------------------------------------------------
+parse_stryker_kills() {
+  local report_file="$1"
+  local output_file="$2"
+
+  if [ ! -f "$report_file" ]; then
+    emit_advisory "MUTATION GATE ADVISORY: Stryker report not found at $report_file. Run completed without mutation gate."
+    echo "[]" > "$output_file" 2>/dev/null || true
+    return 0
+  fi
+
+  # Use python3 for reliable JSON processing
+  python3 - "$report_file" "$output_file" <<'PYEOF'
+import json, sys, collections
+
+report_path, output_path = sys.argv[1], sys.argv[2]
+with open(report_path) as f:
+    data = json.load(f)
+
+mutants = data.get("mutants", [])
+
+# Build killing set: all tests that appear in any killedBy[] array
+killing_set = set()
+# Build coverage map: test → count of mutants covered
+coverage = collections.defaultdict(int)
+
+for m in mutants:
+    for t in m.get("killedBy", []):
+        killing_set.add(t)
+    for t in m.get("coveredBy", []):
+        coverage[t] += 1
+
+# Zero-kill = covered but never killed
+zero_kills = []
+for test in sorted(set(coverage.keys()) - killing_set):
+    zero_kills.append({
+        "name": test,
+        "file": None,   # Stryker JSON does not include test file in this schema
+        "line": None,
+        "covered": coverage[test]
+    })
+
+with open(output_path, "w") as f:
+    json.dump(zero_kills, f)
+PYEOF
+}
+
+# ---------------------------------------------------------------------------
 # detect_adapter COMMAND — prints adapter name: stryker | pitest | stryker-net | none
 # ---------------------------------------------------------------------------
 detect_adapter() {

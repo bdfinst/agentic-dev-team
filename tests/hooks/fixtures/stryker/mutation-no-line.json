@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1",
+  "mutants": [
+    {
+      "id": "1",
+      "mutatorName": "ArithmeticOperator",
+      "replacement": "+",
+      "coveredBy": ["test-C"],
+      "killedBy": [],
+      "status": "Survived"
+    }
+  ]
+}

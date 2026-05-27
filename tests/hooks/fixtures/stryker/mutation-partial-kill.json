@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "mutants": [
+    {
+      "id": "1",
+      "mutatorName": "ArithmeticOperator",
+      "replacement": "+",
+      "coveredBy": ["test-A", "test-D"],
+      "killedBy": ["test-A"],
+      "status": "Killed"
+    },
+    {
+      "id": "2",
+      "mutatorName": "ConditionalBoundary",
+      "replacement": ">=",
+      "coveredBy": ["test-D"],
+      "killedBy": ["test-D"],
+      "status": "Killed"
+    },
+    {
+      "id": "3",
+      "mutatorName": "NegateConditional",
+      "replacement": "false",
+      "coveredBy": ["test-D"],
+      "killedBy": ["test-D"],
+      "status": "Killed"
+    }
+  ]
+}

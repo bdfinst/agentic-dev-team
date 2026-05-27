@@ -59,6 +59,42 @@ if [ "$ADAPTER" = "none" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Adapter dispatch (adapter files added in Steps 4–7)
+# Adapter dispatch
 # ---------------------------------------------------------------------------
+ZERO_KILLS_FILE="${TMPDIR:-/tmp}/mutation-gate/zero-kills.json"
+mkdir -p "$(dirname "$ZERO_KILLS_FILE")"
+
+export ADAPTER_TIMEOUT="${MUTATION_GATE_TIMEOUT:-60}"
+export ADAPTER_RUNNER_STDOUT
+ADAPTER_RUNNER_STDOUT=$(echo "$PREV_STATE" | jq -r '.runner_stdout // ""' 2>/dev/null || true)
+
+case "$ADAPTER" in
+  stryker)
+    # shellcheck source=hooks/mutation-adapters/stryker.sh
+    source "$SCRIPT_DIR/mutation-adapters/stryker.sh"
+    stryker_detect || exit 0
+    ADAPTER_SOURCE_FILE=$(derive_source_file "${COMMAND##* }" 2>/dev/null || true)
+    export ADAPTER_SOURCE_FILE
+    stryker_run "$ZERO_KILLS_FILE"
+    ;;
+  pitest)
+    # pitest adapter (Step 6)
+    emit_advisory "MUTATION GATE ADVISORY: pitest adapter not yet installed."
+    exit 0
+    ;;
+  stryker-net)
+    # Stryker.NET adapter (Step 7)
+    emit_advisory "MUTATION GATE ADVISORY: Stryker.NET adapter not yet installed."
+    exit 0
+    ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Emit block if zero-kill tests found
+# ---------------------------------------------------------------------------
+if [ -f "$ZERO_KILLS_FILE" ] && [ "$(jq 'length' "$ZERO_KILLS_FILE" 2>/dev/null)" != "0" ]; then
+  REASON=$(format_blocking_reason "$ZERO_KILLS_FILE" "$COMMAND")
+  emit_block "$REASON"
+fi
+
 exit 0

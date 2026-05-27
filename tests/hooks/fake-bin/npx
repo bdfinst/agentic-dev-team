@@ -1,0 +1,18 @@
+#!/bin/sh
+# Fake npx shim for mutation-gate tests.
+# Reads STRYKER_FIXTURE env var to determine which fixture to copy as output.
+# Usage: npx stryker run ...
+FIXTURE="${STRYKER_FIXTURE:-}"
+REPORT_DIR="${STRYKER_REPORT_DIR:-reports/mutation}"
+mkdir -p "$REPORT_DIR"
+if [ -n "$FIXTURE" ] && [ -f "$FIXTURE" ]; then
+  cp "$FIXTURE" "$REPORT_DIR/mutation.json"
+  exit 0
+fi
+# Default: exit 124 to simulate timeout when STRYKER_TIMEOUT=1
+if [ "${STRYKER_TIMEOUT:-0}" = "1" ]; then
+  exit 124
+fi
+# Unknown state: exit 1
+echo "fake npx: no fixture configured" >&2
+exit 1

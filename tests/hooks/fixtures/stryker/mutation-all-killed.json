@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1",
+  "mutants": [
+    {
+      "id": "1",
+      "mutatorName": "ArithmeticOperator",
+      "replacement": "+",
+      "coveredBy": ["test-A"],
+      "killedBy": ["test-A"],
+      "status": "Killed"
+    },
+    {
+      "id": "2",
+      "mutatorName": "ConditionalBoundary",
+      "replacement": ">=",
+      "coveredBy": ["test-B"],
+      "killedBy": ["test-B"],
+      "status": "Killed"
+    }
+  ]
+}
