@@ -42,13 +42,13 @@ stryker_run() {
 
   mkdir -p "$(dirname "$STRYKER_REPORT")"
 
-  local stryker_exit
+  # Use || to capture exit code without triggering set -e in the calling context
+  local stryker_exit=0
   _timeout "$timeout" npx stryker run \
     --reporters json \
     --coverageAnalysis perTest \
     ${src_file:+--mutate "$src_file"} \
-    2>/dev/null
-  stryker_exit=$?
+    2>/dev/null || stryker_exit=$?
 
   if [ "$stryker_exit" -eq 124 ]; then
     emit_advisory "MUTATION GATE SKIPPED: timeout after ${timeout}s. Run MUTATION_GATE_TIMEOUT=<seconds> to adjust."

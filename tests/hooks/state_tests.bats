@@ -98,14 +98,15 @@ get_state_result() {
 }
 
 @test "stale state file (5 hours old) + GREEN: treated as absent, no transition, exit 0" {
-  # Create a state file with an old timestamp
+  # Write a state file with a timestamp 5 hours in the past in the JSON content
   bash -c "
     cd '$TEST_PWD'
     source '$PLUGIN_DIR/hooks/mutation-adapters/lib.sh'
-    write_state 'fail' \"\$(cat '$FIXTURES/posttooluse-bash-fail.json')\"
-    # Backdate the state file by 5 hours (18001 seconds)
+    old_ts=\$(python3 -c 'import time; print(int(time.time()-18001))')
+    state_dir=\$(_state_dir)
+    mkdir -p \"\$state_dir\"
     state_file=\$(state_file_path)
-    python3 -c \"import os, time; os.utime('\$state_file', (time.time()-18001, time.time()-18001))\"
+    jq -n --arg ts \"\$old_ts\" '{\"result\":\"fail\",\"timestamp\":(\$ts|tonumber),\"runner_stdout\":\"\"}' > \"\$state_file\"
   "
   run_hook_in "$TEST_PWD" "$PASS_JSON"
   [ "$status" -eq 0 ]
