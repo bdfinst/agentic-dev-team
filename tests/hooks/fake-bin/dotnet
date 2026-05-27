@@ -1,0 +1,21 @@
+#!/bin/sh
+# Fake dotnet shim for mutation-gate tests.
+FIXTURE="${STRYKER_NET_FIXTURE:-}"
+REPORT_DIR="${STRYKER_NET_REPORT_DIR:-StrykerOutput}"
+mkdir -p "$REPORT_DIR"
+if [ "${STRYKER_NET_TIMEOUT:-0}" = "1" ]; then
+  exit 124
+fi
+if [ -n "$FIXTURE" ] && [ -f "$FIXTURE" ]; then
+  cp "$FIXTURE" "$REPORT_DIR/mutation-report.json"
+  exit 0
+fi
+# Support dotnet stryker --version (detection call)
+for arg in "$@"; do
+  if [ "$arg" = "--version" ]; then
+    echo "Stryker.NET 4.0.0"
+    exit 0
+  fi
+done
+echo "fake dotnet: no fixture configured" >&2
+exit 1
