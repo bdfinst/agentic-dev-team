@@ -65,6 +65,7 @@ ZERO_KILLS_FILE="${TMPDIR:-/tmp}/mutation-gate/zero-kills.json"
 mkdir -p "$(dirname "$ZERO_KILLS_FILE")"
 
 export ADAPTER_TIMEOUT="${MUTATION_GATE_TIMEOUT:-60}"
+export ADAPTER_COMMAND="$COMMAND"
 export ADAPTER_RUNNER_STDOUT
 ADAPTER_RUNNER_STDOUT=$(echo "$PREV_STATE" | jq -r '.runner_stdout // ""' 2>/dev/null || true)
 

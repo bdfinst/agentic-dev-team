@@ -78,7 +78,7 @@ for test in sorted(test_methods - killing_set):
         "name": test,
         "file": None,
         "line": None,
-        "covered": None  # pitest XML doesn't provide per-test coverage counts
+        "covered": 0  # pitest XML doesn't provide per-test coverage counts
     })
 
 with open(output_path, "w") as f:
@@ -86,17 +86,31 @@ with open(output_path, "w") as f:
 PYEOF
 }
 
+# _extract_test_class COMMAND — extracts test class from mvn -Dtest= flag if present
+_extract_test_class() {
+  local cmd="$1"
+  echo "$cmd" | grep -oE '\-Dtest=[^ ]+' | sed 's/-Dtest=//' || true
+}
+
 # pitest_run OUTPUT_FILE — runs pitest and writes zero-kills
 pitest_run() {
   local output_file="$1"
   local timeout="${ADAPTER_TIMEOUT:-60}"
+  local cmd="${ADAPTER_COMMAND:-}"
 
   mkdir -p "$(dirname "$PITEST_REPORT")"
 
+  local target_tests=""
+  local test_class
+  test_class=$(_extract_test_class "$cmd")
+  [ -n "$test_class" ] && target_tests="-DtargetTests=$test_class"
+
   local pitest_exit=0
+  # shellcheck disable=SC2086
   _timeout "$timeout" mvn pitest:mutationCoverage \
     -DoutputFormats=XML \
     -DtimestampedReports=false \
+    $target_tests \
     2>/dev/null || pitest_exit=$?
 
   if [ "$pitest_exit" -eq 124 ]; then

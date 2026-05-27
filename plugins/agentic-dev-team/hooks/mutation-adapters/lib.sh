@@ -4,8 +4,8 @@
 #
 # Adapter contract (for each adapter in this directory):
 # Inputs (env vars set by mutation-gate.sh orchestrator):
-#   ADAPTER_TEST_FILE     — path to the test file
-#   ADAPTER_SOURCE_FILE   — path to the source file under test
+#   ADAPTER_COMMAND       — the original test command (for class extraction in pitest)
+#   ADAPTER_SOURCE_FILE   — path to the source file under test (JS/TS adapters)
 #   ADAPTER_TIMEOUT       — seconds (from MUTATION_GATE_TIMEOUT, default 60)
 #   ADAPTER_RUNNER_STDOUT — captured test runner stdout (for pitest test-list derivation)
 # Output: adapter writes normalized zero-kill list to $TMPDIR/mutation-gate/zero-kills.json
@@ -22,8 +22,8 @@ _timeout() {
   elif command -v gtimeout &>/dev/null; then
     gtimeout "$@"
   else
-    # No timeout command — run unbounded; emit advisory so the user knows
-    emit_advisory "MUTATION GATE ADVISORY: timeout command unavailable; mutation run has no time limit" >&2 || true
+    # No timeout command — run unbounded; emit advisory to stdout
+    emit_advisory "MUTATION GATE ADVISORY: timeout command unavailable; mutation run has no time limit"
     shift
     "$@"
   fi
