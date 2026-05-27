@@ -1,0 +1,14 @@
+#!/bin/sh
+# Fake mvn shim for mutation-gate tests.
+FIXTURE="${PITEST_FIXTURE:-}"
+REPORT_DIR="${PITEST_REPORT_DIR:-target/pit-reports}"
+mkdir -p "$REPORT_DIR"
+if [ "${PITEST_TIMEOUT:-0}" = "1" ]; then
+  exit 124
+fi
+if [ -n "$FIXTURE" ] && [ -f "$FIXTURE" ]; then
+  cp "$FIXTURE" "$REPORT_DIR/mutations.xml"
+  exit 0
+fi
+echo "fake mvn: no fixture configured" >&2
+exit 1

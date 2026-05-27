@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mutations>
+  <!-- 3 killed mutations -->
+  <mutation detected="true" status="KILLED">
+    <sourceFile>Calculator.java</sourceFile>
+    <mutatedClass>com.example.Calculator</mutatedClass>
+    <mutatedMethod>add</mutatedMethod>
+    <killingTest>com.example.CalculatorTest.testAdd</killingTest>
+  </mutation>
+  <mutation detected="true" status="KILLED">
+    <sourceFile>Calculator.java</sourceFile>
+    <mutatedClass>com.example.Calculator</mutatedClass>
+    <mutatedMethod>subtract</mutatedMethod>
+    <killingTest>com.example.CalculatorTest.testSubtract</killingTest>
+  </mutation>
+  <mutation detected="true" status="KILLED">
+    <sourceFile>Calculator.java</sourceFile>
+    <mutatedClass>com.example.Calculator</mutatedClass>
+    <mutatedMethod>multiply</mutatedMethod>
+    <killingTest>com.example.CalculatorTest.testMultiply</killingTest>
+  </mutation>
+  <!-- 2 survived mutations — testDefault and testConstructor killed nothing -->
+  <mutation detected="false" status="SURVIVED">
+    <sourceFile>Calculator.java</sourceFile>
+    <mutatedClass>com.example.Calculator</mutatedClass>
+    <mutatedMethod>getDefault</mutatedMethod>
+  </mutation>
+  <mutation detected="false" status="SURVIVED">
+    <sourceFile>Calculator.java</sourceFile>
+    <mutatedClass>com.example.Calculator</mutatedClass>
+    <mutatedMethod>getDefault</mutatedMethod>
+  </mutation>
+</mutations>

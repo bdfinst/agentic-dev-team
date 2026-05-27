@@ -78,9 +78,10 @@ case "$ADAPTER" in
     stryker_run "$ZERO_KILLS_FILE"
     ;;
   pitest)
-    # pitest adapter (Step 6)
-    emit_advisory "MUTATION GATE ADVISORY: pitest adapter not yet installed."
-    exit 0
+    # shellcheck source=hooks/mutation-adapters/pitest.sh
+    source "$SCRIPT_DIR/mutation-adapters/pitest.sh"
+    pitest_detect || exit 0
+    pitest_run "$ZERO_KILLS_FILE"
     ;;
   stryker-net)
     # Stryker.NET adapter (Step 7)

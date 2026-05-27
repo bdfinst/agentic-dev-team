@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mutations>
+  <mutation detected="false" status="SURVIVED">
+    <sourceFile>Calculator.java</sourceFile>
+    <mutatedClass>com.example.Calculator</mutatedClass>
+    <mutatedMethod>getDefault</mutatedMethod>
+  </mutation>
+</mutations>
