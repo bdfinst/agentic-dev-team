@@ -1,0 +1,10 @@
+{
+  "tool_name": "Bash",
+  "tool_input": { "command": "npm test" },
+  "tool_response": {
+    "output": "✓ 3 passing (10ms)",
+    "error": "",
+    "interrupted": false,
+    "exit_code": 0
+  }
+}

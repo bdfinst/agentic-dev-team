@@ -34,7 +34,21 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || tr
 is_test_command "$COMMAND" || exit 0
 
 # ---------------------------------------------------------------------------
-# Test run detected — future steps will handle state tracking and mutation.
-# For now, exit 0 (remaining logic added in Steps 2–8).
+# Test run detected — determine pass/fail and update state
+# ---------------------------------------------------------------------------
+CURRENT_RESULT=$(detect_result "$INPUT")
+
+PREV_STATE=$(read_state)
+PREV_RESULT=$(echo "$PREV_STATE" | jq -r '.result // "none"' 2>/dev/null || echo "none")
+
+write_state "$CURRENT_RESULT" "$INPUT"
+
+# ---------------------------------------------------------------------------
+# Check for RED→GREEN transition
+# ---------------------------------------------------------------------------
+is_red_to_green "$PREV_RESULT" "$CURRENT_RESULT" || exit 0
+
+# ---------------------------------------------------------------------------
+# RED→GREEN detected — adapter dispatch (Steps 3–7 add this logic)
 # ---------------------------------------------------------------------------
 exit 0

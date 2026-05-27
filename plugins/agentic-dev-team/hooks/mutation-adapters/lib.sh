@@ -45,6 +45,96 @@ emit_advisory() {
 }
 
 # ---------------------------------------------------------------------------
+# State file management
+#
+# State file stores: result (pass/fail), timestamp (Unix seconds),
+# runner_stdout (full output, truncated at 64KB).
+# Location: $TMPDIR/mutation-gate/session-<12-char sha256 of PWD>
+# TTL: 4 hours (14400 seconds)
+# ---------------------------------------------------------------------------
+
+_state_dir() {
+  echo "${TMPDIR:-/tmp}/mutation-gate"
+}
+
+# state_file_path — prints the path to this project's state file
+state_file_path() {
+  local hash
+  hash=$(printf '%s' "${PWD}" | sha256sum 2>/dev/null | cut -c1-12 || \
+         printf '%s' "${PWD}" | shasum -a 256 2>/dev/null | cut -c1-12 || \
+         printf '%s' "${PWD}" | md5sum 2>/dev/null | cut -c1-12)
+  echo "$(_state_dir)/session-${hash}"
+}
+
+# write_state RESULT EVENT_JSON — writes state file from a PostToolUse event
+write_state() {
+  local result="$1"
+  local event_json="$2"
+  local state_dir
+  state_dir=$(_state_dir)
+  mkdir -p "$state_dir"
+  # Purge stale files (> 4 hours)
+  find "$state_dir" -name "session-*" -mmin +240 -delete 2>/dev/null || true
+  local runner_stdout
+  # Truncate runner_stdout at 64KB
+  runner_stdout=$(echo "$event_json" | jq -r '.tool_response.output // ""' 2>/dev/null | head -c 65536)
+  local ts
+  ts=$(date +%s)
+  jq -n \
+    --arg result "$result" \
+    --arg ts "$ts" \
+    --arg stdout "$runner_stdout" \
+    '{"result":$result,"timestamp":($ts|tonumber),"runner_stdout":$stdout}' \
+    > "$(state_file_path)"
+}
+
+# read_state — prints state JSON or empty if absent/stale
+read_state() {
+  local state_file
+  state_file=$(state_file_path)
+  [ -f "$state_file" ] || return 0
+  local ts now age
+  ts=$(jq -r '.timestamp // 0' "$state_file" 2>/dev/null)
+  now=$(date +%s)
+  age=$(( now - ts ))
+  if [ "$age" -gt 14400 ]; then
+    rm -f "$state_file"
+    return 0
+  fi
+  cat "$state_file"
+}
+
+# detect_result EVENT_JSON — prints "pass" or "fail" from PostToolUse event
+detect_result() {
+  local event_json="$1"
+  local exit_code
+  exit_code=$(echo "$event_json" | jq -r '.tool_response.exit_code // -1' 2>/dev/null)
+  # Primary: exit_code
+  if [ "$exit_code" = "0" ]; then
+    echo "pass"
+    return 0
+  elif [ "$exit_code" != "-1" ] && [ "$exit_code" != "null" ]; then
+    echo "fail"
+    return 0
+  fi
+  # Secondary: stdout patterns (for runners that always exit 0)
+  local output
+  output=$(echo "$event_json" | jq -r '.tool_response.output // ""' 2>/dev/null)
+  if echo "$output" | grep -qiE '(passing|tests run.*failures: 0|all tests passed|✓|ok [0-9])'; then
+    echo "pass"
+  elif echo "$output" | grep -qiE '(failing|failures: [1-9]|error:|FAILED)'; then
+    echo "fail"
+  else
+    echo "fail"
+  fi
+}
+
+# is_red_to_green PREV_RESULT CUR_RESULT — returns 0 if RED→GREEN transition
+is_red_to_green() {
+  [ "$1" = "fail" ] && [ "$2" = "pass" ]
+}
+
+# ---------------------------------------------------------------------------
 # is_test_command COMMAND — returns 0 if command looks like a test runner
 # ---------------------------------------------------------------------------
 is_test_command() {

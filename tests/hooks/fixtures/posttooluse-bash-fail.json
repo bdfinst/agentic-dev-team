@@ -1,0 +1,10 @@
+{
+  "tool_name": "Bash",
+  "tool_input": { "command": "npm test" },
+  "tool_response": {
+    "output": "1 failing\n  AssertionError: expected 1 to equal 2",
+    "error": "",
+    "interrupted": false,
+    "exit_code": 1
+  }
+}
