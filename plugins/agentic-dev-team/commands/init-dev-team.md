@@ -1,10 +1,11 @@
 ---
 name: init-dev-team
 description: >-
-  Install required tools for the agentic-dev-team plugin. OS-aware: installs
-  jq and python3 as hard dependencies, then prompts for language selection
-  (JS/TS, Java, C#) to install the matching mutation testing tool (Stryker,
-  pitest, Stryker.NET). Run this when the mutation gate reports a missing tool.
+  Install required tools for the agentic-dev-team plugin. OS-aware (macOS,
+  Linux, Windows Git Bash): installs jq and python3 as hard dependencies, then
+  prompts for language selection (JS/TS, Java, C#) to install the matching
+  mutation testing tool (Stryker, pitest, Stryker.NET). Run this when the
+  mutation gate reports a missing tool.
 user-invocable: true
 allowed-tools: Read, Bash, Write
 ---
@@ -27,8 +28,14 @@ uname -s
 
 - `Darwin` → macOS (use `brew`)
 - `Linux` → Linux (detect package manager below)
-- Other → note the platform and skip package-manager steps; provide manual
-  instructions instead
+- `MINGW*` or `MSYS*` (e.g. `MINGW64_NT-10.0-22621`) → Windows running Git Bash
+  (detect Windows package manager below)
+- Other → note the platform; provide manual instructions and continue
+
+> **Windows note:** Claude Code on Windows runs in Git Bash (MINGW) or WSL.
+> WSL reports `Linux` and is fully handled by the Linux steps. The Windows
+> steps below apply to native Git Bash only. If you are using WSL, follow
+> the Linux steps instead.
 
 For Linux, detect the available package manager:
 
@@ -40,6 +47,19 @@ command -v pacman  && echo pacman
 ```
 
 Use the first one found.
+
+For Windows (Git Bash), detect the available package manager:
+
+```bash
+command -v winget && echo winget
+command -v choco  && echo choco
+command -v scoop  && echo scoop
+```
+
+Use the first one found. If none are found, tell the user:
+"No Windows package manager detected. Install winget (built into Windows 10/11
+via the App Installer), Chocolatey (<https://chocolatey.org>), or Scoop
+(<https://scoop.sh>), then re-run `/init-dev-team`."
 
 ## Step 2 — Install hard dependencies (jq and python3)
 
@@ -61,6 +81,9 @@ If missing, install:
 | Linux (apt) | `sudo apt-get install -y jq` |
 | Linux (dnf/yum) | `sudo dnf install -y jq` or `sudo yum install -y jq` |
 | Linux (pacman) | `sudo pacman -S --noconfirm jq` |
+| Windows (winget) | `winget install jqlang.jq` |
+| Windows (choco) | `choco install jq` |
+| Windows (scoop) | `scoop install jq` |
 | Unknown | Tell the user: "Install jq manually from <https://jqlang.github.io/jq/> and re-run `/init-dev-team`." |
 
 ### python3
@@ -79,7 +102,26 @@ If missing, install:
 | Linux (apt) | `sudo apt-get install -y python3` |
 | Linux (dnf/yum) | `sudo dnf install -y python3` or `sudo yum install -y python3` |
 | Linux (pacman) | `sudo pacman -S --noconfirm python` |
+| Windows (winget) | `winget install Python.Python.3` |
+| Windows (choco) | `choco install python` |
+| Windows (scoop) | `scoop install python` |
 | Unknown | Tell the user: "Install Python 3 manually from <https://python.org> and re-run `/init-dev-team`." |
+
+> **Windows python3 alias:** Windows installers often register the binary as
+> `python`, not `python3`. After installing, check:
+>
+> ```bash
+> command -v python3 || python --version
+> ```
+>
+> If only `python` is found, create a Git Bash alias so the mutation gate can
+> find it:
+>
+> ```bash
+> echo "alias python3='python'" >> ~/.bashrc && source ~/.bashrc
+> ```
+>
+> Verify with `python3 --version` before proceeding.
 
 If either installation fails, stop and tell the user: "Could not install
 `<tool>`. Please install it manually and re-run `/init-dev-team`."
