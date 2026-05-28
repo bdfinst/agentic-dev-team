@@ -119,6 +119,19 @@ claude plugin marketplace add --scope project https://github.com/bdfinst/agentic
 claude plugin install --scope project agentic-dev-team@bfinster
 ```
 
+#### Marketplace sources
+
+`claude plugin marketplace add` accepts any git URL or local path:
+
+| Source | Command |
+| --- | --- |
+| GitHub | `claude plugin marketplace add https://github.com/<owner>/<repo>` |
+| Azure DevOps (credential helper) | `claude plugin marketplace add https://dev.azure.com/<org>/<project>/_git/<repo>` |
+| Azure DevOps (PAT in URL) | `claude plugin marketplace add "https://<user>:<pat>@dev.azure.com/<org>/<project>/_git/<repo>"` |
+| Local clone (any host) | `git clone <url> /path/to/clone && claude plugin marketplace add /path/to/clone` |
+
+Azure DevOps PATs need **Code (Read)** scope — don't paste them into chat or commit them. Behind a corporate proxy, prefer the local-clone form. For other hosts (GitLab, Bitbucket, self-hosted Gitea), auth follows your local git configuration. Full reference: [Claude Code plugin marketplaces docs](https://docs.anthropic.com/en/docs/claude-code/plugin-marketplaces).
+
 ### Upgrading from a previous install
 
 If you previously installed the plugin before the directory restructure (pre-v2.1), remove and re-add the marketplace source:
