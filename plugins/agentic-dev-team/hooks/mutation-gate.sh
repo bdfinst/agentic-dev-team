@@ -16,6 +16,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/mutation-adapters/lib.sh"
 
 # ---------------------------------------------------------------------------
+# Hard dependency guards — must come before any jq or python3 call
+# ---------------------------------------------------------------------------
+if ! command -v jq &>/dev/null; then
+  # Cannot call emit_advisory (requires jq); use raw printf for the JSON
+  printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"MUTATION GATE ADVISORY: jq is required but not installed. Install jq (brew install jq) to enable the mutation gate."}}\n'
+  exit 0
+fi
+
+if ! command -v python3 &>/dev/null; then
+  emit_advisory "MUTATION GATE ADVISORY: python3 is required but not installed. Install python3 to enable mutation analysis."
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # Opt-out
 # ---------------------------------------------------------------------------
 [ "${MUTATION_GATE_SKIP:-0}" = "1" ] && exit 0

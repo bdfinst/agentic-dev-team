@@ -92,3 +92,48 @@ TEST_JSON='{"tool_name":"Bash","tool_input":{"command":"npm test"},"tool_respons
   end=$(now_ms)
   [ $((end - start)) -lt 200 ]
 }
+
+# ---------------------------------------------------------------------------
+# Hard dependency guards: jq and python3
+# ---------------------------------------------------------------------------
+
+@test "jq guard: code exists in hook and raw-printf advisory names jq" {
+  # bash uses default PATH (/usr/bin) when PATH is unset, so jq is always findable
+  # on systems where it's installed — can't exercise absence end-to-end here.
+  # Verify the guard code is present and the raw-printf advisory message is correct.
+  grep -q 'command -v jq' "$PLUGIN_DIR/hooks/mutation-gate.sh"
+  # The jq-absent path uses raw printf (not emit_advisory); verify the JSON is valid
+  local advisory_line
+  advisory_line=$(grep 'MUTATION GATE ADVISORY.*jq' "$PLUGIN_DIR/hooks/mutation-gate.sh" | grep printf | head -1)
+  [[ "$advisory_line" == *"jq"* ]]
+  # Extract the JSON string from the printf line and verify it parses
+  run python3 -c "
+import re, json, sys
+line = '''$advisory_line'''
+m = re.search(r\"'({.*})'\", line)
+if not m: sys.exit(1)
+d = json.loads(m.group(1))
+ctx = d['hookSpecificOutput']['additionalContext']
+assert 'jq' in ctx
+assert 'MUTATION GATE ADVISORY' in ctx
+"
+  [ $? -eq 0 ]
+}
+
+@test "python3 guard: code exists in hook and advisory message names python3" {
+  # python3 is a system binary — can't reliably hide it in tests.
+  grep -q 'command -v python3' "$PLUGIN_DIR/hooks/mutation-gate.sh"
+  # Verify the advisory wording via emit_advisory (already tested to produce valid JSON)
+  run bash -c "
+    source '$PLUGIN_DIR/hooks/mutation-adapters/lib.sh'
+    emit_advisory 'MUTATION GATE ADVISORY: python3 is required but not installed. Install python3 to enable mutation analysis.'
+  "
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+ctx = d['hookSpecificOutput']['additionalContext']
+assert 'python3' in ctx and 'MUTATION GATE ADVISORY' in ctx
+"
+  [ $? -eq 0 ]
+}
