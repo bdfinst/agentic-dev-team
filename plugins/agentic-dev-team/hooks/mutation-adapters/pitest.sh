@@ -18,7 +18,7 @@ pitest_detect() {
   if [ -f "build.gradle.kts" ] && grep -q 'pitest' "build.gradle.kts" 2>/dev/null; then
     return 0
   fi
-  emit_advisory "MUTATION GATE ADVISORY: pitest not found. Add the pitest-maven plugin to pom.xml or the pitest plugin to build.gradle to enable per-test mutation analysis on Java/Kotlin projects."
+  emit_advisory "MUTATION GATE ADVISORY: pitest not found. Run /init-dev-team to configure it, or add the pitest-maven plugin to pom.xml / pitest plugin to build.gradle manually."
   return 1
 }
 

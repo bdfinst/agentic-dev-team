@@ -134,7 +134,7 @@ import json,sys
 d=json.load(sys.stdin)
 ctx=d['hookSpecificOutput']['additionalContext']
 assert 'MUTATION GATE ADVISORY' in ctx, f'expected advisory, got: {ctx}'
-assert 'no adapter' in ctx.lower(), f'expected no adapter message, got: {ctx}'
+assert 'adapter' in ctx.lower() and 'init-dev-team' in ctx, f'expected adapter advisory with /init-dev-team, got: {ctx}'
 " || {
     echo "output was: $output"
     false

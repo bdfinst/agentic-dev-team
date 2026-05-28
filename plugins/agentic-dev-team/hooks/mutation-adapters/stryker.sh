@@ -23,7 +23,7 @@ stryker_detect() {
   if [ -f "package.json" ] && grep -q '@stryker-mutator/core' "package.json" 2>/dev/null; then
     return 0
   fi
-  emit_advisory "MUTATION GATE ADVISORY: Stryker not installed. Add @stryker-mutator/core to run per-test mutation analysis on JS/TS projects."
+  emit_advisory "MUTATION GATE ADVISORY: Stryker not installed. Run /init-dev-team to install it, or add @stryker-mutator/core manually."
   return 1
 }
 

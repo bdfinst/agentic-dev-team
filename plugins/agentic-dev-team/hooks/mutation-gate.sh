@@ -20,12 +20,12 @@ source "$SCRIPT_DIR/mutation-adapters/lib.sh"
 # ---------------------------------------------------------------------------
 if ! command -v jq &>/dev/null; then
   # Cannot call emit_advisory (requires jq); use raw printf for the JSON
-  printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"MUTATION GATE ADVISORY: jq is required but not installed. Install jq (brew install jq) to enable the mutation gate."}}\n'
+  printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"MUTATION GATE ADVISORY: jq is required but not installed. Run /init-dev-team to install it, or: brew install jq (macOS) / apt install jq (Linux)."}}\n'
   exit 0
 fi
 
 if ! command -v python3 &>/dev/null; then
-  emit_advisory "MUTATION GATE ADVISORY: python3 is required but not installed. Install python3 to enable mutation analysis."
+  emit_advisory "MUTATION GATE ADVISORY: python3 is required but not installed. Run /init-dev-team to install it, or: brew install python3 (macOS) / apt install python3 (Linux)."
   exit 0
 fi
 
@@ -68,7 +68,7 @@ is_red_to_green "$PREV_RESULT" "$CURRENT_RESULT" || exit 0
 ADAPTER=$(detect_adapter "$COMMAND")
 
 if [ "$ADAPTER" = "none" ]; then
-  emit_advisory "MUTATION GATE ADVISORY: no adapter for this language. Install Stryker (JS/TS), pitest (Java), or Stryker.NET (C#) to enable per-test kill analysis."
+  emit_advisory "MUTATION GATE ADVISORY: no mutation testing adapter for this language. Run /init-dev-team to install one (supports JS/TS via Stryker, Java via pitest, C# via Stryker.NET)."
   exit 0
 fi
 

@@ -22,7 +22,7 @@ stryker_net_detect() {
       return 0
     fi
   fi
-  emit_advisory "MUTATION GATE ADVISORY: Stryker.NET not installed. Add dotnet-stryker to your .config/dotnet-tools.json to enable per-test mutation analysis on C# projects."
+  emit_advisory "MUTATION GATE ADVISORY: Stryker.NET not installed. Run /init-dev-team to install it, or run: dotnet tool install dotnet-stryker"
   return 1
 }
 
