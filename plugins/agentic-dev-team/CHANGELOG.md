@@ -1,5 +1,32 @@
 # Changelog
 
+## [5.4.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.3.1...agentic-dev-team-v5.4.0) (2026-05-28)
+
+
+### Features
+
+* **command:** add /init-dev-team command and update advisory messages ([62b9648](https://github.com/bdfinst/agentic-dev-team/commit/62b96489c79cc5fe00ed55c66f8b056c5e97a77a))
+* **command:** add Windows support to /init-dev-team ([179874c](https://github.com/bdfinst/agentic-dev-team/commit/179874c9936869bf78ffcc5437009bd0aa3509a6))
+* **hook:** add jq and python3 hard dependency guards ([cbdb518](https://github.com/bdfinst/agentic-dev-team/commit/cbdb5181ddf17e0b7cc03b90e0a40916b3e0e78c))
+* **hook:** blocking output, exit codes, and end-to-end JS/TS flow ([534ae66](https://github.com/bdfinst/agentic-dev-team/commit/534ae669308fe10cd174aaa504d1f954458269f4))
+* **hook:** language adapter dispatch with explicit adapter contract ([3a9312b](https://github.com/bdfinst/agentic-dev-team/commit/3a9312b691a61cc86f2bab8771bd83854f9052a4))
+* **hook:** mutation-gate scaffold with fast-path, opt-out, and _timeout() ([60b092e](https://github.com/bdfinst/agentic-dev-team/commit/60b092ee03b73e5711c05d17fedf33aabfd58485))
+* **hook:** pitest Java adapter with runner-stdout test-list derivation ([32b235f](https://github.com/bdfinst/agentic-dev-team/commit/32b235f5887383424fd75acb096ee1a66b6d19f1))
+* **hook:** RED-GREEN transition detection with state file and stdout capture ([92862a6](https://github.com/bdfinst/agentic-dev-team/commit/92862a66cdf81bcdc5df0483129cdca79b030169))
+* **hook:** register mutation-gate in PostToolUse Bash hook chain ([a785606](https://github.com/bdfinst/agentic-dev-team/commit/a7856069348cbdc549d3e79ef5e729ae6a80326b))
+* **hook:** Stryker JS/TS adapter with fixture-based tests ([53e3684](https://github.com/bdfinst/agentic-dev-team/commit/53e36843da27d832bbdb0156f0c381de1bdc9458))
+* **hook:** Stryker.NET C# adapter (reuses parse_stryker_kills from lib) ([c5221d4](https://github.com/bdfinst/agentic-dev-team/commit/c5221d408e97bb367786887774ff6c7a453e2359))
+
+
+### Bug Fixes
+
+* **hook:** address spec-compliance review findings ([baa072f](https://github.com/bdfinst/agentic-dev-team/commit/baa072f2e2142c6286b931e759bbca8ed4f36e92))
+
+
+### Miscellaneous
+
+* remove implemented plans and specs, add codegraph gitignore ([41e64d8](https://github.com/bdfinst/agentic-dev-team/commit/41e64d888c031a1b7cbf79022365cfe14b0b45dd))
+
 ## [5.3.1](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.3.0...agentic-dev-team-v5.3.1) (2026-05-15)
 
 ### Code Refactoring
