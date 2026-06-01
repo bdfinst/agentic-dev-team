@@ -2,7 +2,7 @@
 
 **Created**: 2026-06-01
 **Branch**: cut `feat/env-aware-model-routing` from `main` before Step 1
-**Status**: approved
+**Status**: implemented
 **Spec**: [docs/specs/environment-aware-model-routing.md](../docs/specs/environment-aware-model-routing.md)
 **Issue**: [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
 **Revision note**: addresses blockers from the first plan-review pass (R1 enforcement, missing scenarios, undefined error/prompt/output text, scope boundaries).
