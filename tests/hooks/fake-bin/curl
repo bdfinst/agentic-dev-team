@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Fake curl shim for probe tests. Behavior driven by MODEL_PROBE_FAKE_MODE:
+#   ok-all     — HTTP 200, lists all three default snapshot IDs
+#   missing    — HTTP 200, omits the haiku snapshot
+#   timeout    — exit 28 (simulates curl --max-time exhaustion)
+#   http500    — HTTP 500 (no body)
+#   bad-json   — HTTP 200 with malformed JSON body
+#   unset      — fail loud (caller should have not invoked us)
+#
+# The probe makes two distinct curl calls per probe attempt:
+#   1. With -w '%{http_code}' and -o /dev/null  → expects status code on stdout
+#   2. Without -w                                → expects response body on stdout
+# This shim branches on whether '%{http_code}' is in its argv.
+
+[[ -n "${MODEL_PROBE_CURL_SENTINEL:-}" ]] && touch "$MODEL_PROBE_CURL_SENTINEL"
+
+case "${MODEL_PROBE_FAKE_MODE:-unset}" in
+  timeout) exit 28 ;;
+esac
+
+if [[ "$*" == *"%{http_code}"* ]]; then
+  case "${MODEL_PROBE_FAKE_MODE:-unset}" in
+    ok-all|missing|bad-json) echo "200" ;;
+    http500)                 echo "500" ;;
+    *)                       echo "000" ;;
+  esac
+  exit 0
+fi
+
+case "${MODEL_PROBE_FAKE_MODE:-unset}" in
+  ok-all)
+    cat <<'JSON'
+{"data":[{"id":"claude-haiku-4-5-20251001"},{"id":"claude-sonnet-4-6"},{"id":"claude-opus-4-8"}]}
+JSON
+    ;;
+  missing)
+    cat <<'JSON'
+{"data":[{"id":"claude-sonnet-4-6"},{"id":"claude-opus-4-8"}]}
+JSON
+    ;;
+  bad-json)
+    echo "{not valid json"
+    ;;
+  http500)
+    : # no body
+    ;;
+  *)
+    echo "fake-bin/curl: unknown MODEL_PROBE_FAKE_MODE='${MODEL_PROBE_FAKE_MODE:-unset}'" >&2
+    exit 99
+    ;;
+esac
+exit 0
