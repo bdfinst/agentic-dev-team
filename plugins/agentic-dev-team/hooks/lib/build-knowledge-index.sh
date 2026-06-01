@@ -27,6 +27,33 @@
 set -uo pipefail
 
 # -----------------------------------------------------------------------------
+# _check_jq_version — exit non-zero if jq is missing or below 1.6.
+# `jq -c` output formatting changed across early versions; pinning the
+# floor keeps the deterministic index byte-identical across CI/local.
+# -----------------------------------------------------------------------------
+_check_jq_version() {
+  local raw major minor
+  raw=$(jq --version 2>/dev/null || true)
+  if [[ -z "$raw" ]]; then
+    echo "[knowledge-index] jq not found on PATH; requires jq >= 1.6" >&2
+    exit 1
+  fi
+  # `raw` looks like `jq-1.7.1` or `jq-1.5`. Strip the prefix.
+  local v="${raw#jq-}"
+  IFS='.' read -r major minor _ <<<"$v"
+  # Accept 2.x+, 1.6+, or anything with a higher major.
+  if [[ "$major" -gt 1 ]]; then
+    return 0
+  fi
+  if [[ "$major" -eq 1 && "$minor" -ge 6 ]]; then
+    return 0
+  fi
+  echo "[knowledge-index] jq version $v below required 1.6" >&2
+  exit 1
+}
+_check_jq_version
+
+# -----------------------------------------------------------------------------
 # _resolve_paths — populate the corpus root and output path from env vars,
 # falling back to plugin defaults via BASH_SOURCE.
 # -----------------------------------------------------------------------------
