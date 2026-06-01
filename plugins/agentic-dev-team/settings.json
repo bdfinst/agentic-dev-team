@@ -51,6 +51,15 @@
         "hooks": [
           { "type": "command", "command": "bash hooks/codegraph-nudge.sh" }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash hooks/agent-model-resolve.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
