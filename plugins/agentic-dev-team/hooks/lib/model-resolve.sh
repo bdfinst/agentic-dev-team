@@ -190,6 +190,16 @@ _log_bump() {
 # ---------------------------------------------------------------------------
 _resolve_tier() {
   local requested="$1" caller="${2:-}"
+
+  # Fast path: when no overrides file exists, skip the alias machinery
+  # entirely and resolve in one jq invocation. This is the dominant case
+  # for users on a standard Anthropic key and is hit on every dispatch,
+  # so the savings compound (AC15 perf gate).
+  if [[ ! -e "$MODEL_OVERRIDES_JSON" ]]; then
+    jq -r --arg t "$requested" '.[$t]' "$MODEL_ROUTING_JSON"
+    return 0
+  fi
+
   local aliases
   aliases=$(_load_aliases) || return $?
 
