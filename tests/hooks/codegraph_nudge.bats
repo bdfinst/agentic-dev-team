@@ -237,3 +237,58 @@ _setup_codegraph_project() {
   [ "$status" -eq 0 ]
   [ ! -f "$BATS_TMPDIR_CASE/.claude/codegraph-turn-state.json" ]
 }
+
+# ---------------------------------------------------------------------------
+# Step 5 — careful mode escalates warning to block
+#
+# Reads plugins/agentic-dev-team/hooks/careful-state.json (adjacent to the
+# script, matching destructive-guard.sh's pattern). When `.active == true`,
+# the multi-file warning becomes a block: stderr still receives WARN_MSG
+# (plus a [blocked by /careful] suffix), exit code becomes 2.
+# ---------------------------------------------------------------------------
+
+CAREFUL_STATE="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/careful-state.json"
+
+teardown_careful() {
+  rm -f "$CAREFUL_STATE"
+}
+
+@test "blocks_in_careful_mode: multi-file Grep exits 2 with WARN_MSG + suffix on stderr" {
+  mkdir -p "$BATS_TMPDIR_CASE/.codegraph" "$BATS_TMPDIR_CASE/src"
+  echo "one" > "$BATS_TMPDIR_CASE/src/a.ts"
+  printf '{"active":true}\n' > "$CAREFUL_STATE"
+  local input
+  input=$(printf '%s' "{\"tool_name\":\"Grep\",\"cwd\":\"$BATS_TMPDIR_CASE\",\"tool_input\":{\"pattern\":\"foo\",\"path\":\"$BATS_TMPDIR_CASE/src\"}}")
+
+  run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
+  teardown_careful
+
+  [ "$status" -eq 2 ]
+  [ "$output" = "$EXPECTED_WARN_MSG [blocked by /careful]" ]
+}
+
+@test "warns_when_careful_inactive: same call without active flag returns exit 0 with warn" {
+  mkdir -p "$BATS_TMPDIR_CASE/.codegraph" "$BATS_TMPDIR_CASE/src"
+  echo "one" > "$BATS_TMPDIR_CASE/src/a.ts"
+  printf '{"active":false}\n' > "$CAREFUL_STATE"
+  local input
+  input=$(printf '%s' "{\"tool_name\":\"Grep\",\"cwd\":\"$BATS_TMPDIR_CASE\",\"tool_input\":{\"pattern\":\"foo\",\"path\":\"$BATS_TMPDIR_CASE/src\"}}")
+
+  run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
+  teardown_careful
+
+  [ "$status" -eq 0 ]
+  [ "$output" = "$EXPECTED_WARN_MSG" ]
+}
+
+@test "warns_when_careful_state_missing: no careful-state.json behaves as inactive" {
+  mkdir -p "$BATS_TMPDIR_CASE/.codegraph" "$BATS_TMPDIR_CASE/src"
+  echo "one" > "$BATS_TMPDIR_CASE/src/a.ts"
+  rm -f "$CAREFUL_STATE"
+  local input
+  input=$(printf '%s' "{\"tool_name\":\"Grep\",\"cwd\":\"$BATS_TMPDIR_CASE\",\"tool_input\":{\"pattern\":\"foo\",\"path\":\"$BATS_TMPDIR_CASE/src\"}}")
+
+  run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$EXPECTED_WARN_MSG" ]
+}

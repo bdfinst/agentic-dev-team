@@ -93,6 +93,17 @@ esac
 if [ "$IS_MULTI" = true ]; then
   TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
   if ! codegraph_used_this_turn "$CWD" "$TRANSCRIPT_PATH"; then
+    # Careful-mode escalation — pattern lifted from destructive-guard.sh.
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    CAREFUL_FILE="$SCRIPT_DIR/careful-state.json"
+    CAREFUL_ACTIVE=false
+    if [ -f "$CAREFUL_FILE" ] && command -v jq &>/dev/null; then
+      CAREFUL_ACTIVE=$(jq -r '.active // false' "$CAREFUL_FILE" 2>/dev/null || echo "false")
+    fi
+    if [ "$CAREFUL_ACTIVE" = "true" ]; then
+      printf '%s\n' "$WARN_MSG [blocked by /careful]" >&2
+      exit 2
+    fi
     printf '%s\n' "$WARN_MSG" >&2
   fi
 fi
