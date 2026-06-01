@@ -83,7 +83,7 @@ teardown() {
   local anchor
   anchor=$(jq -r '.["plugins/agentic-dev-team/knowledge/foo.md"]["Bar"].anchor' "$KNOWLEDGE_INDEX_OUTPUT")
   [ "$anchor" = "bar" ]
-  [[ "$anchor" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]?$ ]]
+  [[ "$anchor" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -152,7 +152,7 @@ EOF
   local anchor
   anchor=$(jq -r '.["plugins/agentic-dev-team/knowledge/foo.md"]["Sub Heading With Spaces"].anchor' "$KNOWLEDGE_INDEX_OUTPUT")
   [ "$anchor" = "sub-heading-with-spaces" ]
-  [[ "$anchor" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]?$ ]]
+  [[ "$anchor" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]]
 }
 
 @test "step2: duplicate section names get disambiguating suffixes" {
@@ -245,6 +245,170 @@ EOF
   ! grep -E '"(generated_at|timestamp|build_id|updated|created_at|date)"' "$KNOWLEDGE_INDEX_OUTPUT"
   # And no ISO-8601-shaped value lurking anywhere.
   ! grep -E '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}' "$KNOWLEDGE_INDEX_OUTPUT"
+}
+
+# ---------------------------------------------------------------------------
+# Step 4 — summary extraction body-source precedence (Group A)
+# ---------------------------------------------------------------------------
+
+@test "step4: body starting with a code fence — summary is first non-code line" {
+  cat > "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/knowledge/foo.md" <<'EOF'
+# File
+
+## Bar
+
+```bash
+echo hello
+```
+
+The explanation that follows the code block is the summary.
+
+EOF
+  bash "$BUILDER"
+  local summary
+  summary=$(jq -r '.["plugins/agentic-dev-team/knowledge/foo.md"]["Bar"].summary' "$KNOWLEDGE_INDEX_OUTPUT")
+  [ "$summary" = "The explanation that follows the code block is the summary." ]
+}
+
+@test "step4: body that is only a bullet list — summary is first bullet text" {
+  cat > "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/knowledge/foo.md" <<'EOF'
+# File
+
+## Bar
+
+- First bullet about the topic.
+- Second bullet.
+- Third bullet.
+EOF
+  bash "$BUILDER"
+  local summary
+  summary=$(jq -r '.["plugins/agentic-dev-team/knowledge/foo.md"]["Bar"].summary' "$KNOWLEDGE_INDEX_OUTPUT")
+  [ "$summary" = "First bullet about the topic." ]
+}
+
+@test "step4: body empty until next sub-header — summary is from child section" {
+  cat > "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/knowledge/foo.md" <<'EOF'
+# File
+
+## Bar
+
+### Sub
+
+The first sentence of the sub-section.
+EOF
+  bash "$BUILDER"
+  local summary
+  summary=$(jq -r '.["plugins/agentic-dev-team/knowledge/foo.md"]["Bar"].summary' "$KNOWLEDGE_INDEX_OUTPUT")
+  [ "$summary" = "The first sentence of the sub-section." ]
+}
+
+# ---------------------------------------------------------------------------
+# Step 4 — sentence-boundary rule (Group B / AC7a)
+# ---------------------------------------------------------------------------
+
+_run_sentence_case() {
+  # Helper: write a fixture with the given body line(s), build, and
+  # echo the resulting summary.
+  local body="$1"
+  cat > "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/knowledge/foo.md" <<EOF
+# File
+
+## Bar
+
+$body
+EOF
+  bash "$BUILDER" >/dev/null
+  jq -r '.["plugins/agentic-dev-team/knowledge/foo.md"]["Bar"].summary' "$KNOWLEDGE_INDEX_OUTPUT"
+}
+
+@test "step4 AC7a: clean single sentence with comma" {
+  local got
+  got=$(_run_sentence_case "Detection patterns for SQL, NoSQL, and ORM injection vectors.")
+  [ "$got" = "Detection patterns for SQL, NoSQL, and ORM injection vectors." ]
+}
+
+@test "step4 AC7a: e.g. abbreviation does NOT terminate a sentence" {
+  local got
+  got=$(_run_sentence_case "Frameworks like e.g. Django need careful handling. More follows.")
+  [ "$got" = "Frameworks like e.g. Django need careful handling." ]
+}
+
+@test "step4 AC7a: single-uppercase initials (J. Doe) do NOT terminate a sentence" {
+  local got
+  got=$(_run_sentence_case "Authored by J. Doe and others. Reviewed by team.")
+  [ "$got" = "Authored by J. Doe and others." ]
+}
+
+@test "step4 AC7a: Mr. abbreviation does NOT terminate a sentence" {
+  local got
+  got=$(_run_sentence_case "Use Mr. Smith's heuristic. Then iterate.")
+  [ "$got" = "Use Mr. Smith's heuristic." ]
+}
+
+@test "step4 AC7a: vs abbreviation does NOT terminate a sentence" {
+  local got
+  got=$(_run_sentence_case "Validation, vs. trust assumptions. Always validate.")
+  [ "$got" = "Validation, vs. trust assumptions." ]
+}
+
+@test "step4 AC7a: 260-char paragraph with no terminator gets truncated with ellipsis" {
+  # 270-char string, no '.', '!', or '?' anywhere.
+  local body
+  body=$(python3 -c "print('word ' * 54)")  # ~270 chars, all whitespace-separated 'word'
+  local got
+  got=$(_run_sentence_case "$body")
+  # Length is at most 241 (240 chars + the ellipsis character)
+  # The ellipsis is a single Unicode char (3 bytes in UTF-8), count by char count.
+  local len
+  len=$(printf '%s' "$got" | python3 -c "import sys; print(len(sys.stdin.read()))")
+  [ "$len" -le 241 ]
+  [[ "$got" == *"…" ]]
+}
+
+@test "step4: section body content containing triple double-quotes is handled" {
+  # Regression test for the previous heredoc interpolation bug.
+  cat > "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/knowledge/foo.md" <<'EOF'
+# File
+
+## Bar
+
+The docstring like """example""" must not break index generation.
+EOF
+  bash "$BUILDER"
+  run jq -e '.["plugins/agentic-dev-team/knowledge/foo.md"]["Bar"]' "$KNOWLEDGE_INDEX_OUTPUT"
+  [ "$status" -eq 0 ]
+}
+
+@test "step4: every summary in the index ends with a terminator" {
+  # Property test: regardless of source variation, summaries must end
+  # with one of . ! ? or the truncation ellipsis.
+  bash "$BUILDER"
+  local bad
+  bad=$(jq -r '[.. | objects | select(.summary?) | .summary] | .[]' "$KNOWLEDGE_INDEX_OUTPUT" \
+    | grep -vE '[.!?…]$' || true)
+  [ -z "$bad" ]
+}
+
+@test "step4: sentence that wraps across two lines — first line is captured" {
+  # The spec says summary is the first non-blank line under the header.
+  # A wrapped sentence is captured up to the line wrap (the line break
+  # is the body boundary for the first-pass extractor).
+  cat > "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/knowledge/foo.md" <<'EOF'
+# File
+
+## Bar
+
+This is a sentence that wraps onto
+a second line of the same paragraph.
+EOF
+  bash "$BUILDER"
+  local summary
+  summary=$(jq -r '.["plugins/agentic-dev-team/knowledge/foo.md"]["Bar"].summary' "$KNOWLEDGE_INDEX_OUTPUT")
+  # The summary must end in a terminator (the truncation ellipsis applies
+  # when no terminator is on the captured line).
+  [[ "$summary" =~ [.!?…]$ ]]
+  # The captured body should contain content from the first line.
+  [[ "$summary" == *"This is a sentence that wraps onto"* ]] || [[ "$summary" == *"…" ]]
 }
 
 @test "no other top-level keys appear" {

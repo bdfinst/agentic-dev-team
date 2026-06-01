@@ -50,13 +50,72 @@ _slugify() {
 
 # -----------------------------------------------------------------------------
 # _first_sentence <text>
-# Returns the first sentence (extends in Step 4 to the operational
-# boundary rule; Step 1 happy path uses a minimal heuristic).
+# Returns the first sentence per the spec's operational boundary rule:
+#   - Terminates at the first `.`, `!`, or `?` followed by whitespace or
+#     end-of-line.
+#   - NOT preceded by a single uppercase letter (e.g. `J. Doe`).
+#   - NOT preceded by one of the abbreviation tokens: e.g, i.e, etc, vs,
+#     Mr, Mrs, Ms, Dr, Jr, Sr, St, No, cf.
+#   - If no terminator is found within 240 characters, truncate at the
+#     last whitespace before 240 chars and append `…`.
+# Python is a hard dependency of the plugin (jq + python3 enforced by
+# /init-dev-team), so use it for the regex precision shell can't match.
 # -----------------------------------------------------------------------------
 _first_sentence() {
-  # Step 1 minimal: everything up to the first period followed by space or EOL.
-  # Step 4 will replace with the full abbreviation-aware rule.
-  echo "$1" | sed -E 's/^[[:space:]]+//; s/^([^.!?]+[.!?])[[:space:]].*$/\1/; s/^([^.!?]+[.!?])$/\1/'
+  python3 - "$1" <<'PYEOF'
+import re
+import sys
+
+ABBREVS = {"e.g", "i.e", "etc", "vs", "Mr", "Mrs", "Ms", "Dr", "Jr", "Sr", "St", "No", "cf"}
+MAX_LEN = 240
+
+text = sys.argv[1].lstrip()
+# Walk the text, looking for terminator candidates.
+i = 0
+end = None
+while i < len(text):
+    ch = text[i]
+    if ch in ".!?":
+        # Boundary condition 1: followed by whitespace or end-of-string.
+        after = text[i + 1] if i + 1 < len(text) else ""
+        if not (after == "" or after.isspace()):
+            i += 1
+            continue
+        # Boundary condition 2: not preceded by a single uppercase letter.
+        # (Detect `X.` initial: previous char uppercase, char before that
+        # is whitespace, start-of-string, or another `.`.)
+        if i >= 1 and text[i - 1].isupper():
+            prev2 = text[i - 2] if i - 2 >= 0 else ""
+            if prev2 == "" or prev2.isspace() or prev2 == ".":
+                i += 1
+                continue
+        # Boundary condition 3: not preceded by a known abbreviation token.
+        # Find the token immediately before this terminator.
+        j = i - 1
+        while j >= 0 and not text[j].isspace():
+            j -= 1
+        token = text[j + 1:i]
+        if token in ABBREVS:
+            i += 1
+            continue
+        end = i + 1
+        break
+    i += 1
+
+if end is not None:
+    sys.stdout.write(text[:end])
+else:
+    # No terminator found. Truncate at 240 chars (last whitespace ≤ 240)
+    # and append the horizontal-ellipsis.
+    if len(text) <= MAX_LEN:
+        sys.stdout.write(text)
+    else:
+        cut = text[:MAX_LEN].rstrip()
+        last_ws = cut.rfind(" ")
+        if last_ws > 0:
+            cut = cut[:last_ws]
+        sys.stdout.write(cut + "…")
+PYEOF
 }
 
 # -----------------------------------------------------------------------------
@@ -73,10 +132,23 @@ _first_sentence() {
 # -----------------------------------------------------------------------------
 _extract_sections_for_file() {
   local abs="$1"
-  awk '
+  # First pass: emit raw section records as `level\theader\tbody`.
+  # Second pass (below): post-process to backfill empty bodies from the
+  # next child section.
+  local raw
+  raw=$(awk '
+    /^```/ { in_code = !in_code; next }
+    in_code == 1 { next }
+
+    /^#### / {
+      _flush()
+      collecting = 0
+      next
+    }
     /^### / {
       _flush()
       header = substr($0, 5)
+      level = 3
       collecting = 1
       body = ""
       next
@@ -84,35 +156,68 @@ _extract_sections_for_file() {
     /^## / {
       _flush()
       header = substr($0, 4)
+      level = 2
       collecting = 1
       body = ""
       next
     }
-    /^#### / {
-      # H4+ — stop collecting body for the enclosing section but do not
-      # emit anything for the H4.
-      _flush()
-      collecting = 0
-      next
-    }
     /^# / {
-      # H1 — skipped entirely. Resets state.
       _flush()
       collecting = 0
       next
     }
     collecting == 1 && body == "" && /[^[:space:]]/ {
-      body = $0
+      if (match($0, /^[[:space:]]*[-*+][[:space:]]+/)) {
+        body = substr($0, RLENGTH + 1)
+      } else {
+        body = $0
+      }
     }
     END { _flush() }
     function _flush() {
       if (header != "") {
-        print header "\t" body
+        print level "\t" header "\t" body
         header = ""
         body = ""
       }
     }
-  ' "$abs"
+  ' "$abs")
+
+  # Second pass: backfill empty bodies from the next section in source
+  # order. Write the raw rows to a tempfile and pass the path as argv —
+  # avoids both shell-interpolation hazards (no `"""$raw"""` escape
+  # collisions) and the bash-3.2 redirection conflict between heredoc
+  # and pipe stdin.
+  local raw_file
+  raw_file=$(mktemp)
+  printf '%s' "$raw" > "$raw_file"
+  python3 - "$raw_file" <<'PYEOF'
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = fh.read()
+
+rows = []
+for line in data.splitlines():
+    if not line:
+        continue
+    parts = line.split("\t", 2)
+    while len(parts) < 3:
+        parts.append("")
+    rows.append(parts)
+
+# Backfill empty bodies from the next row's body (regardless of level).
+for i in range(len(rows)):
+    if not rows[i][2].strip():
+        for j in range(i + 1, len(rows)):
+            if rows[j][2].strip():
+                rows[i][2] = rows[j][2]
+                break
+
+for level, header, body in rows:
+    sys.stdout.write(f"{header}\t{body}\n")
+PYEOF
+  rm -f "$raw_file"
 }
 
 # -----------------------------------------------------------------------------
