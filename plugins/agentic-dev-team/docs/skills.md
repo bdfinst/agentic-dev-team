@@ -91,7 +91,7 @@ Concrete templates in `prompts/` for reproducible subagent dispatch:
 
 ## Slash Commands Catalog
 
-Slash commands are invoked by the user (e.g., `/code-review`) and executed under Orchestrator direction. The Orchestrator's Model Routing Table controls which model runs each review agent.
+Slash commands are invoked by the user (e.g., `/code-review`) and executed under Orchestrator direction. Each review agent declares a tier alias in its `model:` frontmatter; the PreToolUse hook `hooks/agent-model-resolve.sh` resolves it to the active snapshot per the Resolution Procedure in `agents/orchestrator.md`.
 
 ### Review Commands
 

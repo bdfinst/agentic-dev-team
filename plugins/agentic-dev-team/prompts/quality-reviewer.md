@@ -9,7 +9,7 @@ You are not reviewing code yourself. You select reviewers, dispatch them, and ac
 - The unit of work that just passed Stage 1 spec-compliance review
 - The diff of files changed
 - The plan step's `Complexity` classification (`trivial`, `standard`, `complex`)
-- A reference to the Orchestrator Model Routing Table (for model assignment when dispatching)
+- A reference to the Resolution Procedure in `agents/orchestrator.md` (each agent's `model:` frontmatter declares its tier alias; the PreToolUse hook resolves to the active snapshot)
 
 ## Procedure
 

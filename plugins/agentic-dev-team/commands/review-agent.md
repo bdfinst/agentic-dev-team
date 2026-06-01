@@ -19,8 +19,10 @@ definition as its specification.
 
 You have been invoked with the `/review-agent` skill. Run a single named review agent.
 
-This command is executed under orchestrator direction. Model selection
-follows the Orchestrator Model Routing Table in `.claude/agents/orchestrator.md`.
+This command is executed under orchestrator direction. Pass the named
+agent's tier alias (from its `model:` frontmatter) when dispatching —
+the PreToolUse hook `hooks/agent-model-resolve.sh` resolves it to the
+active snapshot per the Resolution Procedure in `.claude/agents/orchestrator.md`.
 
 ## Worker constraints
 
