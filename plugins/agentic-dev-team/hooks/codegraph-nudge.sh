@@ -22,6 +22,31 @@ set -uo pipefail
 # with EXPECTED_WARN_MSG in tests/hooks/codegraph_nudge.bats.
 WARN_MSG='[codegraph-nudge] CodeGraph is initialized in this project. Prefer codegraph_context or codegraph_explore for multi-file exploration; Grep/Glob/Read for confirming a specific detail.'
 
+# Returns 0 (true) when a codegraph_* MCP tool has been used earlier in
+# the current turn, based on the sentinel written by codegraph-turn-mark.sh.
+# Returns 1 otherwise. Fails open (returns 1 — assume not used) on any
+# parse or filesystem error.
+codegraph_used_this_turn() {
+  local cwd="$1" transcript_path="$2"
+  local sentinel="$cwd/.claude/codegraph-turn-state.json"
+  [ -f "$sentinel" ] || return 1
+  [ -n "$transcript_path" ] || return 1
+  [ -f "$transcript_path" ] || return 1
+
+  local sentinel_tid sentinel_tc
+  sentinel_tid=$(jq -r '.transcript_id // empty' "$sentinel" 2>/dev/null || true)
+  sentinel_tc=$(jq -r '.turn_counter // empty' "$sentinel" 2>/dev/null || true)
+  [ -n "$sentinel_tid" ] || return 1
+  [ -n "$sentinel_tc" ] || return 1
+
+  local current_tid current_tc
+  current_tid=$(basename "$transcript_path")
+  current_tid="${current_tid%.*}"
+  current_tc=$(grep -c '"type":"user"' "$transcript_path" 2>/dev/null || echo 0)
+
+  [ "$sentinel_tid" = "$current_tid" ] && [ "$sentinel_tc" = "$current_tc" ]
+}
+
 INPUT=$(cat 2>/dev/null || true)
 [ -z "$INPUT" ] && exit 0
 
@@ -66,7 +91,10 @@ case "$TOOL_NAME" in
 esac
 
 if [ "$IS_MULTI" = true ]; then
-  printf '%s\n' "$WARN_MSG" >&2
+  TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
+  if ! codegraph_used_this_turn "$CWD" "$TRANSCRIPT_PATH"; then
+    printf '%s\n' "$WARN_MSG" >&2
+  fi
 fi
 
 exit 0
