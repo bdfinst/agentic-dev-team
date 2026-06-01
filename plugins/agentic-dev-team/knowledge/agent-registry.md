@@ -42,7 +42,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | test-review | `agents/test-review.md` | mid | Coverage gaps, assertion quality, test hygiene |
 | token-efficiency-review | `agents/token-efficiency-review.md` | small | File/function size, LLM anti-patterns, token usage |
 | progress-guardian | `agents/progress-guardian.md` | mid | Plan adherence, commit discipline, scope creep detection |
-| refactoring-review | `agents/refactor-scan.md` | mid | Post-GREEN refactoring opportunities, semantic vs structural duplication |
+| refactor-opportunity-review | `agents/refactor-opportunity-review.md` | mid | Post-GREEN refactoring opportunities, semantic vs structural duplication |
 | data-flow-tracer | `agents/use-case-data-patterns.md` | mid | Data flow tracing through architecture layers (analysis-only) |
 
 ## Skills Registry

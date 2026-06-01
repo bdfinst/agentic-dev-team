@@ -43,7 +43,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `arch-review` | [`arch-review.md`](../agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
 | `svelte-review` | [`svelte-review.md`](../agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
 | `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
-| `refactoring-review` | [`refactor-scan.md`](../agents/refactor-scan.md) | sonnet | Post-GREEN refactoring opportunities |
+| `refactor-opportunity-review` | [`refactor-opportunity-review.md`](../agents/refactor-opportunity-review.md) | sonnet | Post-GREEN refactoring opportunities |
 | `data-flow-tracer` | [`use-case-data-patterns.md`](../agents/use-case-data-patterns.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
 
 To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.

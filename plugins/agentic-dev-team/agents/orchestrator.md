@@ -51,7 +51,7 @@ For triage, run `/model-routing-check` — read-only diagnostic that prints the 
 Each agent's `model:` frontmatter is the authoritative routing input. Below is the rationale by tier class, so new agents have a guide for which tier to declare:
 
 - `haiku` — lexical/structural pattern matching, checklist-style verification (naming-review, complexity-review, claude-setup-review, token-efficiency-review, a11y-review, svelte-review, js-fp-review, progress-guardian).
-- `sonnet` — semantic analysis with balanced cost/quality (spec-compliance-review, test-review, structure-review, concurrency-review, doc-review, refactoring-review, data-flow-tracer, performance-review, orchestrator, software-engineer, qa-engineer, tech-writer, platform-engineer, product-manager, ui-ux-designer, adr).
+- `sonnet` — semantic analysis with balanced cost/quality (spec-compliance-review, test-review, structure-review, concurrency-review, doc-review, refactor-opportunity-review, data-flow-tracer, performance-review, orchestrator, software-engineer, qa-engineer, tech-writer, platform-engineer, product-manager, ui-ux-designer, adr).
 - `opus` — cross-file reasoning, high-stakes decisions, design synthesis, threat modeling, broad reconnaissance (security-review, domain-review, arch-review, architect, security-engineer, codebase-recon).
 
 ## Command Delegation

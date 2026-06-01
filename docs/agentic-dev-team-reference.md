@@ -148,7 +148,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `a11y-review` | Sonnet | WCAG 2.1 AA, ARIA, keyboard navigation, focus management |
 | `svelte-review` | Sonnet | Svelte reactivity pitfalls, closure state leaks, `$state` proxy issues |
 | `doc-review` | Sonnet | README staleness, API doc alignment, inline comment drift |
-| `refactoring-review` | Sonnet | Post-GREEN refactoring opportunities (TDD REFACTOR phase) |
+| `refactor-opportunity-review` | Sonnet | Post-GREEN refactoring opportunities (TDD REFACTOR phase) |
 | `progress-guardian` | Sonnet | Plan adherence, commit discipline, scope creep detection |
 | `data-flow-tracer` | Sonnet | Data flow tracing through architecture layers (analysis-only) |
 | `complexity-review` | Haiku | Cyclomatic complexity, nesting depth, function size |

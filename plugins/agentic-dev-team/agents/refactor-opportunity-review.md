@@ -1,11 +1,11 @@
 ---
-name: refactoring-review
+name: refactor-opportunity-review
 description: Assesses refactoring opportunities after tests pass (TDD REFACTOR phase), distinguishing semantic duplication from structural similarity
 tools: Read, Grep, Glob
 model: sonnet
 ---
 
-# Refactoring Review
+# Refactor Opportunity Review
 
 Output JSON:
 
