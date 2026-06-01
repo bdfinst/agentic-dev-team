@@ -84,6 +84,14 @@ Bats infrastructure: extend the existing `tests/hooks/`, `tests/commands/`, `tes
 
 **Files**: None (research step). Output captured inline in this plan file.
 
+**Verification result (2026-06-01)**: Verified `matcher: "Agent"`. Evidence:
+
+1. **Production plugin precedent (primary)**: `~/.claude/plugins/cache/bfinster/agentic-security-assessment/2.1.0/settings.json` and `~/.claude/plugins/cache/bfinster/agentic-security-review/0.1.0/settings.json` both register `PreToolUse` entries with `{"matcher": "Agent", "hooks": [...]}` pointing at `hooks/agent-dispatch-log.sh`. Both plugins ship and run in this user's environment.
+2. **Doc coverage (secondary)**: `https://code.claude.com/docs/en/hooks.md` confirms the `PreToolUse` decision-control contract: `hookSpecificOutput.permissionDecision="deny"` with `permissionDecisionReason` (matches AC17). `updatedInput` for input mutation is referenced but the detailed field-level contract was truncated in the fetched page; AC16's `updatedInput` shape follows the PermissionRequest example.
+3. **Negative evidence**: No occurrence of `matcher: "Task"` in any installed plugin's settings.json across 5 plugin versions surveyed.
+
+No rename needed. Steps 1–20 proceed as written with `matcher: "Agent"`.
+
 ### Step 1: Ship `knowledge/model-routing.json` with defaults
 
 **Complexity**: trivial
