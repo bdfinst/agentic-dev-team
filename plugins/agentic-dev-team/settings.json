@@ -85,7 +85,8 @@
             "type": "command",
             "command": "bash hooks/eval-compliance-check.sh"
           },
-          { "type": "command", "command": "bash hooks/tdd-guard.sh" }
+          { "type": "command", "command": "bash hooks/tdd-guard.sh" },
+          { "type": "command", "command": "bash hooks/knowledge-index.sh" }
         ]
       },
       {
