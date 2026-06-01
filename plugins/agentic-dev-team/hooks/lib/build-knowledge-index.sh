@@ -129,17 +129,20 @@ _build_index() {
   local roots="$KNOWLEDGE_INDEX_CORPUS_ROOTS"
 
   # Discover corpus files. Top-level knowledge .md and per-skill SKILL.md.
+  # File order is determinism-critical (the index uses keys_unsorted),
+  # so we sort explicitly under LC_ALL=C regardless of `find`'s native
+  # platform behavior.
   local -a files=()
-  if [[ -d "$roots/knowledge" ]]; then
-    while IFS= read -r -d '' f; do
-      files+=("$f")
-    done < <(find "$roots/knowledge" -maxdepth 1 -name '*.md' -type f -print0)
-  fi
-  if [[ -d "$roots/skills" ]]; then
-    while IFS= read -r -d '' f; do
-      files+=("$f")
-    done < <(find "$roots/skills" -mindepth 2 -maxdepth 2 -name 'SKILL.md' -type f -print0)
-  fi
+  local sorted_list
+  sorted_list=$(
+    {
+      [[ -d "$roots/knowledge" ]] && find "$roots/knowledge" -maxdepth 1 -name '*.md' -type f
+      [[ -d "$roots/skills" ]] && find "$roots/skills" -mindepth 2 -maxdepth 2 -name 'SKILL.md' -type f
+    } | LC_ALL=C sort
+  )
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && files+=("$f")
+  done <<<"$sorted_list"
 
   # Build an array of entries, one per file. Each entry is a JSON object
   # mapping section header → {summary, anchor}, preserving source order.

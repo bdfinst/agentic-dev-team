@@ -201,6 +201,52 @@ EOF
   [ "$output" = "3" ]
 }
 
+# ---------------------------------------------------------------------------
+# Step 3 — determinism + lexicographic file ordering
+# ---------------------------------------------------------------------------
+
+@test "step3: two rebuilds produce byte-identical output" {
+  bash "$BUILDER"
+  cp "$KNOWLEDGE_INDEX_OUTPUT" "$BATS_TMPDIR_CASE/first.json"
+  bash "$BUILDER"
+  cmp "$BATS_TMPDIR_CASE/first.json" "$KNOWLEDGE_INDEX_OUTPUT"
+}
+
+@test "step3: top-level file keys appear in lexicographic order" {
+  # Create fixture files in deliberately non-alphabetical creation order.
+  cat > "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/knowledge/zoo.md" <<'EOF'
+# Z
+## Bar
+Body.
+EOF
+  cat > "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/knowledge/alpha.md" <<'EOF'
+# A
+## Bar
+Body.
+EOF
+  cat > "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/knowledge/mid.md" <<'EOF'
+# M
+## Bar
+Body.
+EOF
+  bash "$BUILDER"
+  run jq -r 'keys_unsorted | join("\n")' "$KNOWLEDGE_INDEX_OUTPUT"
+  [ "$status" -eq 0 ]
+  # All knowledge files must precede the skills file, and within each
+  # group the order must be lexicographic.
+  local sorted
+  sorted=$(echo "$output" | LC_ALL=C sort)
+  [ "$output" = "$sorted" ]
+}
+
+@test "step3: index contains no timestamp / generated_at / build_id fields" {
+  bash "$BUILDER"
+  # Search the raw JSON file for forbidden field markers.
+  ! grep -E '"(generated_at|timestamp|build_id|updated|created_at|date)"' "$KNOWLEDGE_INDEX_OUTPUT"
+  # And no ISO-8601-shaped value lurking anywhere.
+  ! grep -E '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}' "$KNOWLEDGE_INDEX_OUTPUT"
+}
+
 @test "no other top-level keys appear" {
   # An extra file outside the corpus must not appear in the index.
   mkdir -p "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/agents"
