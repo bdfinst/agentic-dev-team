@@ -28,8 +28,10 @@ tools: Read, Grep, Glob
 # disallowedTools: Write, Edit
 
 # OPTIONAL — model to use
-# Aliases: sonnet | opus | haiku | inherit
-# Full model ID: claude-opus-4-7 | claude-sonnet-4-6 | claude-haiku-4-5-20251001
+# Use a tier alias: sonnet | opus | haiku | inherit
+# Tier → snapshot resolution flows through knowledge/model-routing.json
+# and the PreToolUse hook hooks/agent-model-resolve.sh. Do not pin a
+# snapshot ID here; the hook is the authoritative dispatch gate.
 # inherit: use the same model as the main conversation (default if omitted)
 #
 # Routing guidance:
