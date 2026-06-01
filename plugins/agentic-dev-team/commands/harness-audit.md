@@ -49,7 +49,7 @@ For each review agent in the registry (`knowledge/agent-registry.md`):
 
 ### 3. Analyze model routing
 
-For each agent in the model routing table (`agents/orchestrator.md`):
+For each agent listed in `knowledge/agent-registry.md` (with model tier from its `model:` frontmatter, resolved via the PreToolUse hook per `agents/orchestrator.md` → Resolution Procedure):
 
 1. **Over-tiered agents**: Agents assigned to opus that consistently produce simple pattern-match findings may work equally well on sonnet or haiku.
 2. **Under-tiered agents**: Agents on haiku that frequently miss issues caught by human review may need a higher tier.

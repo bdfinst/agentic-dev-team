@@ -31,11 +31,12 @@
   <line x1="240" y1="134" x2="240" y2="165" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="360" y1="134" x2="360" y2="165" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- Model Routing -->
+  <!-- Model Tier Resolution (PreToolUse hook) -->
   <g filter="url(#shadow)">
     <rect x="135" y="170" width="210" height="48" rx="12" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1.5"/>
     <rect x="135" y="170" width="5" height="48" rx="2.5" fill="#8B5CF6"/>
-    <text x="240" y="199" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">Model Routing Table</text>
+    <text x="240" y="194" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Model Tier Resolution</text>
+    <text x="240" y="208" text-anchor="middle" font-size="10" font-weight="400" fill="#475569">(PreToolUse hook)</text>
   </g>
 
   <!-- Agent Selection -->

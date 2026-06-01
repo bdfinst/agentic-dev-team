@@ -22,7 +22,7 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 
 ## Review Agents
 
-Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them — they are never invoked directly by the user. Model assignment is controlled by the Orchestrator's routing table. For the full dispatch pipeline, see [Code Review Process](code-review-process.md).
+Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them — they are never invoked directly by the user. Model assignment is enforced by the PreToolUse hook `hooks/agent-model-resolve.sh`; each agent's `model:` frontmatter declares its tier alias and the hook resolves it to the active snapshot per the Resolution Procedure in `agents/orchestrator.md`. For the full dispatch pipeline, see [Code Review Process](code-review-process.md).
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
@@ -111,6 +111,7 @@ Use the `/agent-add` slash command — it scaffolds a compliant agent, checks fo
 ```
 
 Manual process:
+
 1. Create `agents/{name}-review.md` using the review agent template (see any existing review agent for reference)
 2. Run `/agent-audit agents/{name}-review.md --fix` to validate compliance
 3. Add eval fixtures to `evals/fixtures/` and expected results to `evals/expected/`
@@ -122,6 +123,7 @@ Manual process:
 Custom agents extend the team with knowledge specific to your project — your domain model, internal frameworks, coding conventions, or tech stack. They live in your project's `agents/` directory alongside the standard team agents and are invisible to other projects.
 
 **When to add a custom agent** (rather than relying on a standard agent):
+
 - The agent needs deep knowledge of your domain that would bloat the standard agent's context
 - The role is specific to your team's process (e.g., a `compliance-reviewer` for regulated industries)
 - You want a review agent that enforces internal conventions the standard agents don't know about
@@ -140,6 +142,7 @@ Custom agents extend the team with knowledge specific to your project — your d
 3. Register it in your project's `CLAUDE.md` under the appropriate table (Team Agents or Review Agents).
 
 4. If it's a review agent, add eval fixtures so you can validate its accuracy:
+
    ```
    .claude/evals/fixtures/django-review/     # sample code the agent should flag
    .claude/evals/expected/django-review.json # expected findings

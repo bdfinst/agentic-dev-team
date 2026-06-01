@@ -78,7 +78,7 @@ Registry entries to remove:
 Documentation to update:
   - docs/agent_info.md: remove table row
   [team agents only]
-  - .claude/agents/orchestrator.md: Model Routing Table row (if present)
+  - .claude/agents/orchestrator.md: Tier guidance bullet (if listed)
   - Other agent files referencing <name> in collaboration protocols
 
 Proceed? (yes to continue)
@@ -110,13 +110,16 @@ Remove each matching file with `git rm` (or `rm` if not in git).
 
 - Remove the agent's row from the appropriate table (Team Agents or
   Review Agents)
-- Remove the agent from the Orchestrator Model Routing Table if it has
-  an explicit row
+- No routing-table edit required — tier-to-snapshot resolution flows
+  through `knowledge/model-routing.json` and the PreToolUse hook;
+  removing the agent file is sufficient
 - Remove the agent from the Slash Commands Registry if listed
 
 ### 7. Update .claude/agents/orchestrator.md (team agents only)
 
-- Remove from the Model Routing Table if explicitly listed
+- Remove the agent name from the "Tier guidance (informational)"
+  bullet list if it appears there (illustrative examples only; not a
+  binding dispatch table)
 - Remove from the Inline Review Checkpoint table (if listed as a
   triggered agent)
 
@@ -129,6 +132,7 @@ grep -r "<name>" .claude/agents/ --include="*.md" -l
 ```
 
 For each file found, remove or update:
+
 - Collaboration protocol entries that name the removed agent
 - Skills section references (if a team agent was referenced as a skill)
 
@@ -143,6 +147,7 @@ For each file found, remove or update:
 Remove the agent node and all its edges from both Mermaid diagrams.
 
 Example: removing `SecE[Security Engineer]`:
+
 - Remove the node declaration line
 - Remove all edges involving `SecE` (`SecE <--> AR`, `SecE <--> QA`, etc.)
 

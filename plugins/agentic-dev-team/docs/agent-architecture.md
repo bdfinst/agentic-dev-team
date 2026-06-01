@@ -10,15 +10,7 @@ The Orchestrator receives every request, classifies it by type and complexity, s
 
 ## Model Routing
 
-The Orchestrator is the **authoritative source for model selection**. Individual agent `model:` frontmatter is a fallback for direct invocation only. When the orchestrator spawns an agent via the Agent tool, it passes model explicitly from the routing table.
-
-| Model | Assigned to |
-| --- | --- |
-| `haiku` | naming-review, complexity-review, claude-setup-review, token-efficiency-review, performance-review |
-| `sonnet` | spec-compliance-review, test-review, structure-review, js-fp-review, concurrency-review, a11y-review, svelte-review, doc-review, refactoring-review, progress-guardian, data-flow-tracer, orchestrator, qa-engineer, tech-writer, software-engineer (default) |
-| `opus` | security-review, domain-review, arch-review, architect, software-engineer (architectural changes) |
-
-Full routing table: `agents/orchestrator.md` → Model Routing Table section.
+Each agent declares a tier alias (`haiku`, `sonnet`, `opus`) in its `model:` frontmatter. Tier-to-snapshot resolution is **enforced by a PreToolUse hook** (`hooks/agent-model-resolve.sh`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper `hooks/lib/model-resolve.sh`. Defaults ship in `knowledge/model-routing.json`; per-user overrides live in the gitignored `.claude/model-overrides.json` (populated by the `/init-dev-team` probe or hand-written for restricted endpoints). See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for contract and Bedrock/Vertex/proxy troubleshooting, and `/model-routing-check` for a read-only diagnostic.
 
 ## Review-Fix Loop
 

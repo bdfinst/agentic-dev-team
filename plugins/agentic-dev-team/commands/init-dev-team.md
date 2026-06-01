@@ -438,6 +438,42 @@ dotnet stryker --version 2>/dev/null || dotnet tool run dotnet-stryker --version
 
 ---
 
+## Step 4.5 — Probe model availability (opt-in)
+
+Present the following prompt **verbatim** to the user and read a single
+character from stdin:
+
+```
+Probe Anthropic's model list to detect which tiers are available?
+
+  What this does:    one GET request to $ANTHROPIC_BASE_URL/v1/models (5s timeout)
+  What it writes:    .claude/model-overrides.json (only if a default tier is missing)
+  What it skips:     Bedrock, Vertex, or non-Anthropic proxies (auto-detected)
+  Default is "n":    the resolver works without probing; this just makes the
+                     first dispatch faster for restricted endpoints.
+
+Probe model availability? [y/N]
+```
+
+If the user answers "y" or "Y", run:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/hooks/lib/model-probe.sh" <<<"y"
+```
+
+`${CLAUDE_PLUGIN_ROOT}` is set by Claude Code when running plugin commands and resolves to the installed plugin directory. The repo-layout path `plugins/agentic-dev-team/hooks/lib/model-probe.sh` only works when running from the plugin source tree and must not be used here.
+
+The probe writes `.claude/model-overrides.json` only when a default
+tier is missing from the endpoint's `/v1/models` response. On any
+failure (timeout, HTTP 5xx, malformed JSON, non-Anthropic host) it
+emits a single explanatory line and continues — `/init-dev-team` exit
+status is unaffected.
+
+Skip the probe and continue to Step 5 if the user answers anything
+other than "y" or "Y" (including pressing Enter to accept the default).
+
+---
+
 ## Step 5 — Summary
 
 Print a summary of what was installed:

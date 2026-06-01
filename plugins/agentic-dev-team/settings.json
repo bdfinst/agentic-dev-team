@@ -16,6 +16,16 @@
     "deny": ["Bash(rm *)", "Bash(git push *)"]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash hooks/overrides-banner.sh"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit",
@@ -50,6 +60,15 @@
         "matcher": "Glob",
         "hooks": [
           { "type": "command", "command": "bash hooks/codegraph-nudge.sh" }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash hooks/agent-model-resolve.sh"
+          }
         ]
       }
     ],

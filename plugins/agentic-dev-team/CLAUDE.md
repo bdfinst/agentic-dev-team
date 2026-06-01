@@ -43,7 +43,7 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Review agents** (19): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactoring-review, progress-guardian, data-flow-tracer
 
-**Skills** (32): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools
+**Skills** (33): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming
 
 **Subagent prompt templates** (8): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`
 
@@ -57,7 +57,7 @@ Teams can create a `REVIEW-CONTEXT.md` file in their project root to provide dom
 
 ## Slash Commands Registry
 
-User-invocable workflows in `.claude/commands/`. All review commands are executed under orchestrator direction. The orchestrator's **Model Routing Table** (`agents/orchestrator.md`) determines model assignment for all review agents.
+User-invocable workflows in `.claude/commands/`. All review commands are executed under orchestrator direction. Model assignment for every agent flows through the **Resolution Procedure** (`agents/orchestrator.md`), enforced by the PreToolUse hook `hooks/agent-model-resolve.sh`.
 
 | Command | File | Role | What It Does |
 |---------|------|------|--------------|
@@ -90,7 +90,8 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/benchmark` | `commands/benchmark.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
 | `/semantic-scan` | `commands/semantic-scan.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
 | `/help` | `commands/help.md` | worker | List all available slash commands with descriptions |
-| `/init-dev-team` | `commands/init-dev-team.md` | worker | Install plugin prerequisites (jq, python3, mutation tools). Includes a state-aware CodeGraph offer (install / init / silent-confirm based on `command -v codegraph` and `.codegraph/` presence) and bootstraps a JS project via `js-project-init` when JS/TS is selected but `package.json` is absent. |
+| `/init-dev-team` | `commands/init-dev-team.md` | worker | Install plugin prerequisites (jq, python3, mutation tools). Includes a state-aware CodeGraph offer (install / init / silent-confirm based on `command -v codegraph` and `.codegraph/` presence), an opt-in Anthropic model availability probe that populates `.claude/model-overrides.json` for restricted endpoints, and bootstraps a JS project via `js-project-init` when JS/TS is selected but `package.json` is absent. |
+| `/model-routing-check` | `commands/model-routing-check.md` | worker | Read-only diagnostic for environment-aware model routing. Prints the effective tier → snapshot map, any override file contents, the most recent tier bumps from the resolver log, and probe applicability for the current `ANTHROPIC_BASE_URL`. |
 
 ## Request Processing Flow
 
@@ -152,15 +153,7 @@ When a task requires multiple agents:
 
 ## Model Routing
 
-The orchestrator controls model selection for all agents. The full routing table is in `agents/orchestrator.md`. Summary:
-
-| Model | Assigned to |
-|-------|------------|
-| `haiku` | naming-review, complexity-review, claude-setup-review, token-efficiency-review, a11y-review, svelte-review, js-fp-review, progress-guardian |
-| `sonnet` | spec-compliance-review, test-review, structure-review, concurrency-review, doc-review, refactoring-review, data-flow-tracer, performance-review, orchestrator, software-engineer, qa-engineer, tech-writer, platform-engineer, product-manager, ui-ux-designer, adr |
-| `opus` | security-review, domain-review, arch-review, architect, security-engineer, codebase-recon |
-
-Each agent's `model:` frontmatter is a fallback for direct invocation. When the orchestrator spawns agents via the Agent tool, it passes the model explicitly from the routing table.
+Each agent declares a tier alias (`haiku`, `sonnet`, `opus`) in its `model:` frontmatter. Tier-to-snapshot resolution is enforced by the PreToolUse hook `hooks/agent-model-resolve.sh` (registered in `settings.json` under `matcher: "Agent"`), backed by the resolver helper `hooks/lib/model-resolve.sh`. Defaults ship in `knowledge/model-routing.json`; per-user overrides live in the gitignored `.claude/model-overrides.json`. See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for the contract and troubleshooting, and run `/model-routing-check` for a read-only diagnostic.
 
 ## Multi-LLM Routing
 
