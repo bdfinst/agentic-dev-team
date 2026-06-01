@@ -90,12 +90,14 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/benchmark` | `commands/benchmark.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
 | `/semantic-scan` | `commands/semantic-scan.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
 | `/help` | `commands/help.md` | worker | List all available slash commands with descriptions |
+| `/init-dev-team` | `commands/init-dev-team.md` | worker | Install plugin prerequisites (jq, python3, mutation tools). Includes a state-aware CodeGraph offer (install / init / silent-confirm based on `command -v codegraph` and `.codegraph/` presence) and bootstraps a JS project via `js-project-init` when JS/TS is selected but `package.json` is absent. |
 
 ## Request Processing Flow
 
 For trivial tasks (typo fix, simple query), the Orchestrator routes directly to a single agent. For non-trivial tasks, the Orchestrator follows the **Research → Plan → Implement** workflow:
 
 ### Three-Phase Workflow
+
 1. **Research** — Understand the system: find relevant files, trace data flows, identify the problem surface area. Sub-agents explore the codebase and return concise findings to keep the parent context clean. For non-trivial features, produce a **design document** at `docs/specs/` with problem statement, approach, alternatives, and scope boundaries. Optionally run **Design Interrogation** to stress-test the design and surface unresolved decisions before planning. For module boundaries, use **Design It Twice** to generate parallel alternative interfaces via sub-agents. Output: research progress file + design doc written to `memory/`.
 2. **Human Review Gate** — Human reviews research findings and design doc. Catching a misunderstanding here prevents hundreds of bad lines of code.
 3. **Plan** — Specify every change: files, snippets, test strategy, verification steps. Before the human sees the plan, **four plan review personas** run in parallel as critical outside reviewers: Acceptance Test Critic (criteria quality, scenario gaps), Design & Architecture Critic (coupling, structural risks), UX Critic (user journey, accessibility), and Strategic Critic (scope, risk, opportunity cost). Any blocker findings are addressed before the human gate. The plan is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. After approval, optionally run `/issues-from-plan` to create GitHub issues for team distribution. Output: implementation plan progress file written to `memory/`.
@@ -118,6 +120,7 @@ For trivial tasks (typo fix, simple query), the Orchestrator routes directly to 
 | **Cross-phase** | Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Governance & Compliance, Branch Workflow, Agent & Skill Authoring | Orchestration, context management, learning |
 
 ### Phase Transitions
+
 Each phase runs in a fresh context window. The output of each phase is a structured progress file in `memory/` that onboards the next phase. See the Orchestrator agent for the full protocol.
 
 ## Multi-Agent Collaboration Protocol
@@ -127,6 +130,7 @@ Each phase runs in a fresh context window. The output of each phase is a structu
 The primary value of sub-agents is **context isolation**, not persona specialization. When a parent agent dispatches a sub-agent to explore, search, or analyze, the sub-agent absorbs the context burden of reading files and tracing code flows. Only a concise, structured finding returns to the parent — keeping the parent's context clean and focused on the actual task.
 
 **Design sub-agent calls for minimal context return**:
+
 - Send the sub-agent a specific question ("Where is user authentication handled? Return file paths and line numbers.")
 - The sub-agent reads 20 files; the parent receives 10 lines of structured findings
 - The parent can get right to work without the context burden of exploration
@@ -136,6 +140,7 @@ Persona specialization (Software Engineer, Architect, etc.) provides behavioral 
 ### Multi-Agent Coordination
 
 When a task requires multiple agents:
+
 1. Orchestrator identifies multi-agent task and assigns the three-phase workflow
 2. Load primary agent + sub-agents for the current phase only
 3. Sub-agents explore and return concise findings (context isolation)
@@ -174,6 +179,7 @@ Context management is the Orchestrator's responsibility, governed by two operati
 2. **[Context Summarization](skills/context-summarization/SKILL.md)** - decides *when* to compress and *how*, using LSTM-inspired gates, utilization triggers, and structured summaries written to `memory/`
 
 ### Baseline Budget
+
 - CLAUDE.md (always loaded): ~800 tokens (reduced by moving registries to `knowledge/agent-registry.md`)
 - Single team agent + single skill: ~600-1,100 tokens
 - All team agents (no skills): ~3,590 tokens
@@ -183,6 +189,7 @@ Context management is the Orchestrator's responsibility, governed by two operati
 - Full load (all team agents + all skills): ~18,100 tokens
 
 ### Operating Rules
+
 1. **Load on demand**: Only load agent/skill files when their phase begins (see Loading Protocol)
 2. **40% utilization ceiling**: Trigger summarization when proxy signals indicate 40%+ utilization
 3. **Phase transitions**: Summarize completed phases to `memory/` before loading next-phase agents
@@ -215,6 +222,7 @@ A `PreToolUse` hook (`hooks/pre-tool-guard.sh`) blocks writes to sensitive paths
 Task completion data is logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)** for the schema and reporting cadence.
 
 ### Targets
+
 - 10-15% overall efficiency gains
 - 95% accuracy on structured data extraction
 - < 5% hallucination rate with context management

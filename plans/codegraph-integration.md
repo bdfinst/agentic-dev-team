@@ -302,7 +302,7 @@ If `no-package`:
 **Files**: `plugins/agentic-dev-team/commands/init-dev-team.md`, `tests/commands/init_dev_team_codegraph_test.bats`
 **Commit**: `feat(init): bootstrap JS project via js-project-init when no package.json exists`
 
-### Step 10: State-aware CodeGraph step — `/init-writing-team` (separate repo, separate PR)
+### Step 10: State-aware CodeGraph step — `/init-writing-team` (DEFERRED — tracked as issue #36 in `bdfinst/agentic-writing-team`)
 
 **Complexity**: standard
 **RED**: New test file `tests/commands/init_writing_team_codegraph_test.bats` in the writing-team repo asserting the same eleven prompt-related strings from Step 8 appear in `plugins/writing-core/commands/init-writing-team.md`.
