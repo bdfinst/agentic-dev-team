@@ -21,6 +21,7 @@ Team agents are persona-driven roles that implement, design, coordinate, and com
 The central dispatcher. Classifies every incoming request, selects and loads only the agents needed for the current phase, manages the three-phase workflow (Research → Plan → Implement), enforces the 40% context ceiling, and runs the inline review loop during implementation. Spans all phases; all other agents are loaded on demand.
 
 **Key responsibilities:**
+
 - Task routing and model assignment for all review agents
 - Parallel plan review (four critic personas) before human gate
 - Inline review loop: spec compliance → quality review → auto-fix (up to 5 iterations)
@@ -85,6 +86,7 @@ Performs threat modeling, assesses attack surface, and provides secure design gu
 Owns pipelines, deployment strategy, observability, and reliability planning. Provides self-service infrastructure capabilities to development teams. Advocates for safe, observable deployments and SLO-driven reliability.
 
 **Key responsibilities:**
+
 - Pipeline design and maintenance (build, test, deploy)
 - Deployment strategies: blue-green, canary, rolling, feature flags
 - Observability: metrics, logs, traces
@@ -250,6 +252,7 @@ All user-invocable workflows. Executed under Orchestrator direction unless other
 | `/browse` | Browser-based QA via Playwright: navigate, screenshot, click, fill forms |
 | `/benchmark` | Capture runtime performance metrics and compare against baselines |
 | `/competitive-analysis` | Compare plugin against other tools to find gaps and weaknesses |
+| `/init-dev-team` | Install plugin prerequisites (jq, python3, mutation tools); state-aware CodeGraph offer; JS bootstrap via `js-project-init` when `package.json` is missing |
 
 ## Safety Commands
 
