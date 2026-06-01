@@ -97,3 +97,33 @@ _contains() {
   # heading that introduces this rule.
   _contains "Stale-state override"
 }
+
+# ---------------------------------------------------------------------------
+# Step 9 — JS bootstrap via js-project-init when no package.json
+# ---------------------------------------------------------------------------
+
+@test "js_bootstrap_check_present" {
+  _contains 'test -f package.json'
+}
+
+@test "js_bootstrap_announcement_present" {
+  _contains "No package.json found. Running /agentic-dev-team:js-project-init first to scaffold the project."
+}
+
+@test "js_bootstrap_invokes_skill" {
+  _contains "/agentic-dev-team:js-project-init"
+}
+
+@test "js_abort_message_present" {
+  _contains "Stryker skipped — no package.json. Re-run /init-dev-team after scaffolding your JS project."
+}
+
+@test "js_failure_message_present" {
+  _contains "Stryker skipped — js-project-init failed. See errors above and re-run /init-dev-team after resolving them."
+}
+
+@test "js_package_present_path_unchanged" {
+  # The pre-existing 'Check if already installed (project-local)' section must
+  # still be present and follow the new bootstrap block.
+  _contains "Check if already installed (project-local)"
+}
