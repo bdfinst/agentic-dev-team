@@ -2,7 +2,7 @@
 
 **Created**: 2026-06-01
 **Branch**: cut `feat/knowledge-index` from `main` before Step 0
-**Status**: approved
+**Status**: implemented
 **Spec**: [docs/specs/on-demand-knowledge-index.md](../docs/specs/on-demand-knowledge-index.md)
 
 ## Goal
