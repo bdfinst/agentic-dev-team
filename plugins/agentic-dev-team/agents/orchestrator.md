@@ -71,7 +71,13 @@ All review commands are executed under orchestrator direction. When a user trigg
 | `/semgrep-analyze` | Static analysis | As pre-flight context for security-review |
 | `/harness-audit` | Harness effectiveness analysis | Periodically to review harness staleness |
 
+## Knowledge index — consumer usage pattern
+
+Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. `/model-routing-check` is the analogous diagnostic command; for routing, `/model-routing-check`; for knowledge freshness, `bash plugins/agentic-dev-team/hooks/lib/build-knowledge-index.sh --check`.
+
 ## Skills
+
+Whole-file load: each linked SKILL.md is loaded in full when invoked; per-section anchors don't apply to skill bodies because the skill machinery consumes the whole file.
 
 - [Context Loading Protocol](../skills/context-loading-protocol/SKILL.md) - invoke at the start of every task to decide which agents and skills to load, and at phase transitions to unload/swap
 - [Context Summarization](../skills/context-summarization/SKILL.md) - invoke when context utilization signals are present (high turn count, degraded output quality) or at phase transitions
