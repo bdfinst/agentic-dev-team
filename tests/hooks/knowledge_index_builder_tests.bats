@@ -411,6 +411,59 @@ EOF
   [[ "$summary" == *"This is a sentence that wraps onto"* ]] || [[ "$summary" == *"…" ]]
 }
 
+# ---------------------------------------------------------------------------
+# Step 5 — --check mode
+# ---------------------------------------------------------------------------
+
+@test "step5: --check on a current index exits 0 with zero stdout AND zero stderr" {
+  bash "$BUILDER"
+  # Capture stdout and stderr separately. AC17a: both must be empty.
+  local stdout_file stderr_file
+  stdout_file=$(mktemp)
+  stderr_file=$(mktemp)
+  bash "$BUILDER" --check > "$stdout_file" 2> "$stderr_file"
+  local status=$?
+  [ "$status" -eq 0 ]
+  [ ! -s "$stdout_file" ]
+  [ ! -s "$stderr_file" ]
+  rm -f "$stdout_file" "$stderr_file"
+}
+
+@test "step5: --check on a stale index exits non-zero with unified-diff stderr" {
+  bash "$BUILDER"
+  # Corrupt the on-disk index by appending content the rebuild won't produce.
+  echo '{"junk":"value"}' > "$KNOWLEDGE_INDEX_OUTPUT"
+  local stderr_file
+  stderr_file=$(mktemp)
+  run bash -c "bash '$BUILDER' --check > /dev/null 2> '$stderr_file'"
+  [ "$status" -ne 0 ]
+  grep -q '^---' "$stderr_file"
+  grep -q '^+++' "$stderr_file"
+  grep -q '^@@' "$stderr_file"
+  rm -f "$stderr_file"
+}
+
+@test "step5: --check on a missing index exits non-zero with actionable stderr" {
+  bash "$BUILDER"
+  rm -f "$KNOWLEDGE_INDEX_OUTPUT"
+  local stderr_file
+  stderr_file=$(mktemp)
+  run bash -c "bash '$BUILDER' --check > /dev/null 2> '$stderr_file'"
+  [ "$status" -ne 0 ]
+  grep -q 'missing' "$stderr_file"
+  rm -f "$stderr_file"
+}
+
+@test "step5: --check writes NO file (read-only)" {
+  bash "$BUILDER"
+  # Snapshot the file tree before --check.
+  local before after
+  before=$(cd "$BATS_TMPDIR_CASE" && find . -type f | LC_ALL=C sort | xargs shasum -a 256 2>/dev/null | shasum -a 256)
+  bash "$BUILDER" --check > /dev/null 2>&1
+  after=$(cd "$BATS_TMPDIR_CASE" && find . -type f | LC_ALL=C sort | xargs shasum -a 256 2>/dev/null | shasum -a 256)
+  [ "$before" = "$after" ]
+}
+
 @test "no other top-level keys appear" {
   # An extra file outside the corpus must not appear in the index.
   mkdir -p "$BATS_TMPDIR_CASE/plugins/agentic-dev-team/agents"
