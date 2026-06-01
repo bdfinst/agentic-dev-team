@@ -117,7 +117,7 @@ Defines interface patterns, UX flows, and accessibility requirements. Reviews UI
 
 ## ADR Author
 
-**File:** `agents/adr.md` | **Model:** Sonnet
+**File:** `agents/adr-author.md` | **Model:** Sonnet
 
 Creates and manages Architecture Decision Records. Applies a decision framework to determine when an ADR is needed, writes the record with context, decision, and consequences, and flags when existing ADRs need updating.
 

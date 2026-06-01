@@ -7,7 +7,7 @@ user-invocable: true
 
 # ADR Tools
 
-Mechanics for working with [npryce/adr-tools](https://github.com/npryce/adr-tools) — the `adr` CLI that creates numbered Architecture Decision Records. Pairs with the [`adr-author`](../../agents/adr.md) agent: that agent decides *whether* an ADR is warranted and writes the prose; this skill drives the CLI correctly.
+Mechanics for working with [npryce/adr-tools](https://github.com/npryce/adr-tools) — the `adr` CLI that creates numbered Architecture Decision Records. Pairs with the [`adr-author`](../../agents/adr-author.md) agent: that agent decides *whether* an ADR is warranted and writes the prose; this skill drives the CLI correctly.
 
 ## Pre-flight
 
@@ -103,11 +103,11 @@ Optional but useful when supersede/link chains get deep. Requires Graphviz (`dot
 - **Don't edit ADR status with a text editor when superseding.** Use `adr new -s <N>` so the bidirectional link is automatic and consistent.
 - **Don't squash multiple decisions into one ADR.** One decision per file. If a "Decision" section has multiple bullets that are not facets of the same choice, split.
 - **Don't write Decision in future tense.** "We will adopt X" reads as a proposal; "Adopt X" reads as a decision. Use the latter for `Accepted` status.
-- **Don't omit Consequences.** An ADR without trade-offs is a note, not a decision record. If there genuinely are no consequences, the decision did not need an ADR — defer to the [`adr-author`](../../agents/adr.md) decision framework.
+- **Don't omit Consequences.** An ADR without trade-offs is a note, not a decision record. If there genuinely are no consequences, the decision did not need an ADR — defer to the [`adr-author`](../../agents/adr-author.md) decision framework.
 
 ## When to defer to adr-author
 
-This skill handles the CLI mechanics. Use the [`adr-author`](../../agents/adr.md) agent when:
+This skill handles the CLI mechanics. Use the [`adr-author`](../../agents/adr-author.md) agent when:
 
 - It is unclear whether the change *warrants* an ADR (see its decision framework).
 - The decision has policy or architectural implications and you want prose with the right scope.

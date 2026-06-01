@@ -17,7 +17,7 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 | Technical Writer | [`tech-writer.md`](../agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
 | Security Engineer | [`security-engineer.md`](../agents/security-engineer.md) | Security analysis, threat modeling, compliance |
 | Platform Engineer | [`platform-engineer.md`](../agents/platform-engineer.md) | Pipeline, deployment, reliability, observability |
-| ADR Author | [`adr.md`](../agents/adr.md) | Creates and manages Architecture Decision Records |
+| ADR Author | [`adr-author.md`](../agents/adr-author.md) | Creates and manages Architecture Decision Records |
 | Codebase Recon | [`codebase-recon.md`](../agents/codebase-recon.md) | Surveys a codebase's structure, entry points, dependencies, security surface, and git history; produces a RECON artifact in `memory/` that other agents consume |
 
 ## Review Agents
@@ -44,7 +44,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `svelte-review` | [`svelte-review.md`](../agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
 | `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
 | `refactor-opportunity-review` | [`refactor-opportunity-review.md`](../agents/refactor-opportunity-review.md) | sonnet | Post-GREEN refactoring opportunities |
-| `data-flow-tracer` | [`use-case-data-patterns.md`](../agents/use-case-data-patterns.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
+| `data-flow-tracer` | [`data-flow-tracer.md`](../agents/data-flow-tracer.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
 
 To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.
 
