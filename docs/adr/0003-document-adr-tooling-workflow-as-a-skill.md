@@ -10,7 +10,7 @@ Documents tooling used by [2. Use sentinel file and argument-shape heuristic for
 
 ## Context
 
-We started using [npryce/adr-tools](https://github.com/npryce/adr-tools) to manage Architecture Decision Records under `doc/adr/`. ADR-0002 was the first decision recorded with the tool, and writing it surfaced a non-obvious failure mode: `adr new` opens `$VISUAL`/`$EDITOR` (defaulting to `vi`), which hangs in non-interactive shells — the file is created but empty, and the command exits non-zero. Without documented guidance, every future ADR run will hit the same wall and either:
+We started using [npryce/adr-tools](https://github.com/npryce/adr-tools) to manage Architecture Decision Records under `docs/adr/` (project convention; `.adr-dir` at the project root points adr-tools at it). ADR-0002 was the first decision recorded with the tool, and writing it surfaced a non-obvious failure mode: `adr new` opens `$VISUAL`/`$EDITOR` (defaulting to `vi`), which hangs in non-interactive shells — the file is created but empty, and the command exits non-zero. Without documented guidance, every future ADR run will hit the same wall and either:
 
 - Re-discover the workaround (lost time), or
 - Skip `adr-tools` entirely and write ADRs by hand (lost link bookkeeping, lost TOC generation, lost supersede semantics — the whole reason to use the tool).
@@ -36,7 +36,7 @@ Register the skill in `plugins/agentic-dev-team/CLAUDE.md`'s skills count (31 �
 **Harder:**
 
 - Two surfaces to keep aligned (the skill and the `adr-author` agent). Mitigated by an explicit "When to defer to adr-author" section at the bottom of the skill.
-- The skill assumes `doc/adr/` (adr-tools' default). Projects using `docs/adr/` or `docs/adrs/` need to adjust the path; the skill's pre-flight calls this out but does not auto-detect.
+- The skill assumes the `docs/adr/` convention (this project's choice) and reads `.adr-dir` for the configured path. Other projects using `doc/adr/` (the adr-tools default) or `docs/adrs/` need to ensure `.adr-dir` matches; the skill's pre-flight calls this out but does not auto-detect.
 
 **Risks:**
 

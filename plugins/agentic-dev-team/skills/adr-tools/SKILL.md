@@ -7,16 +7,17 @@ user-invocable: true
 
 # ADR Tools
 
-Mechanics for working with [npryce/adr-tools](https://github.com/npryce/adr-tools) — the `adr` CLI that creates numbered Architecture Decision Records under `doc/adr/`. Pairs with the [`adr-author`](../../agents/adr.md) agent: that agent decides *whether* an ADR is warranted and writes the prose; this skill drives the CLI correctly.
+Mechanics for working with [npryce/adr-tools](https://github.com/npryce/adr-tools) — the `adr` CLI that creates numbered Architecture Decision Records. Pairs with the [`adr-author`](../../agents/adr.md) agent: that agent decides *whether* an ADR is warranted and writes the prose; this skill drives the CLI correctly.
 
 ## Pre-flight
 
 ```bash
 command -v adr || echo "adr-tools not installed — see https://github.com/npryce/adr-tools"
-ls doc/adr/ 2>/dev/null | head -3
+cat .adr-dir 2>/dev/null   # project's configured ADR directory
+ls "$(cat .adr-dir 2>/dev/null || echo docs/adr)/" 2>/dev/null | head -3
 ```
 
-If the directory does not exist, run `adr init doc/adr` (or whatever path the project uses — `docs/adr/` is also common; check existing files first). Do not init silently — confirm with the user if the project layout is ambiguous.
+Project convention is `docs/adr/`. `adr-tools` stores the directory in `.adr-dir` at the project root — `adr` reads that file to find the ADRs no matter what subdirectory you're in. If `.adr-dir` is missing, run `adr init docs/adr` once. Do not init silently into a different path — confirm with the user if existing ADRs live somewhere unexpected.
 
 ## Editor caveat — the most common failure
 
@@ -30,7 +31,7 @@ If the directory does not exist, run `adr init doc/adr` (or whatever path the pr
 
    The command prints the new file path to stdout. Read it, then replace the template Context/Decision/Consequences sections with the real content via Edit or Write.
 
-2. **Fallback — let it fail, then fill in.** `adr new "<title>"` will create the templated file and exit non-zero from the editor failure. Read the new file (it lives at `doc/adr/NNNN-<slugified-title>.md`) and fill it in.
+2. **Fallback — let it fail, then fill in.** `adr new "<title>"` will create the templated file and exit non-zero from the editor failure. Read the new file (it lives at `<adr-dir>/NNNN-<slugified-title>.md` — typically `docs/adr/`) and fill it in.
 
 The skill always prefers workaround 1.
 
@@ -83,7 +84,7 @@ Returns sorted file paths. Pipe through `xargs head -1` for a quick title scan.
 ### Generate the table of contents
 
 ```bash
-adr generate toc > doc/adr/README.md
+adr generate toc > docs/adr/README.md
 ```
 
 Run this after creating or superseding any ADR, then commit the regenerated TOC alongside the ADR change. Without this, the index drifts.
@@ -91,7 +92,7 @@ Run this after creating or superseding any ADR, then commit the regenerated TOC 
 ### Generate the dependency graph
 
 ```bash
-adr generate graph | dot -Tpng > doc/adr/graph.png
+adr generate graph | dot -Tpng > docs/adr/graph.png
 ```
 
 Optional but useful when supersede/link chains get deep. Requires Graphviz (`dot`).
