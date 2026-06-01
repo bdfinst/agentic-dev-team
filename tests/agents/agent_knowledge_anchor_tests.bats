@@ -4,10 +4,6 @@
 # paragraph containing the reference contains the literal verbatim
 # token "Whole-file load:" (case-sensitive, hyphen, colon).
 #
-# This test is GATED behind KNOWLEDGE_SWEEP_DONE=1 during the per-cluster
-# sweep (Steps 12a/12b/12c). Step 12d removes the gate so the test runs
-# by default in CI.
-#
 # Optional AGENT_FILES env var lets per-cluster runs scope the sweep to
 # a subset of agent basenames. Unknown filenames in AGENT_FILES fail
 # loudly so typos don't silently pass.
@@ -18,9 +14,10 @@ AGENTS_DIR="$REPO_ROOT/plugins/agentic-dev-team/agents"
 WHOLE_FILE_TOKEN='Whole-file load:'
 
 setup() {
-  if [[ "${KNOWLEDGE_SWEEP_DONE:-0}" != "1" ]]; then
-    skip "set KNOWLEDGE_SWEEP_DONE=1 to run the anchor-citation gate (active by default once Step 12d lands)"
-  fi
+  # The anchor-citation gate runs by default. During the build's
+  # per-cluster sweep (Steps 12a/b/c) this was gated behind
+  # KNOWLEDGE_SWEEP_DONE=1; Step 12d removed the gate.
+  :
 }
 
 # Resolve which agent files to check.
