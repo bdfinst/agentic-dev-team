@@ -458,8 +458,10 @@ Probe model availability? [y/N]
 If the user answers "y" or "Y", run:
 
 ```bash
-bash plugins/agentic-dev-team/hooks/lib/model-probe.sh <<<"y"
+bash "${CLAUDE_PLUGIN_ROOT}/hooks/lib/model-probe.sh" <<<"y"
 ```
+
+`${CLAUDE_PLUGIN_ROOT}` is set by Claude Code when running plugin commands and resolves to the installed plugin directory. The repo-layout path `plugins/agentic-dev-team/hooks/lib/model-probe.sh` only works when running from the plugin source tree and must not be used here.
 
 The probe writes `.claude/model-overrides.json` only when a default
 tier is missing from the endpoint's `/v1/models` response. On any

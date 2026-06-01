@@ -36,7 +36,7 @@ If `Complexity: complex`, also add the opus-tier agents: `security-review`, `dom
 
 ### 3. Dispatch in parallel
 
-Spawn all selected agents in a **single message** using the Agent tool. Pass each agent its model from the routing table. Pass only the files matching each agent's scope.
+Spawn all selected agents in a **single message** using the Agent tool. Pass each agent's tier alias from its `model:` frontmatter — the PreToolUse hook resolves it to the active snapshot automatically. Pass only the files matching each agent's scope.
 
 ### 4. Classify findings
 

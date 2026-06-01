@@ -28,7 +28,7 @@ Output templates and JSON schemas: [`code-review/output-format.md`](code-review/
 
 1. **Do not review code yourself.** Delegate all semantic analysis to review agents.
 2. **Minimize context per agent.** Pass only what each agent's `Context needs` field requires.
-3. **Route to the right model tier.** The orchestrator routing table is authoritative; the agent's `Model tier` field is a fallback.
+3. **Route to the right model tier.** Each agent's `model:` frontmatter declares its tier alias (`haiku`/`sonnet`/`opus`); the PreToolUse hook `hooks/agent-model-resolve.sh` resolves it to the active snapshot per `agents/orchestrator.md` → Resolution Procedure. Do not override the frontmatter value.
 4. **Run deterministic gates first.** Lint, type-check, secret scan are cheaper than AI. Stop if they fail.
 5. **Return structured results.** Aggregate agent JSON; do not add your own findings.
 6. **Be concise.** Tables and JSON, no preambles, no filler.
