@@ -151,6 +151,10 @@ A second `PreToolUse` hook (`hooks/destructive-guard.sh`) monitors Bash tool cal
 
 By default, destructive commands produce a **warning** (exit 0). When `/careful` mode is active, they are **blocked** (exit 2).
 
+### CodeGraph Nudge
+
+A `PreToolUse` hook (`hooks/codegraph-nudge.sh`) registered on `Read`, `Grep`, and `Glob` recommends `codegraph_*` MCP tools over multi-file exploration when the project has a CodeGraph index (`.codegraph/` in cwd). The hook is silent for single-file Read calls, for Grep with a regular-file `path`, for Glob with a literal `pattern`, and when a `codegraph_*` MCP tool has been used earlier in the current turn (tracked via a sentinel written by a companion `PostToolUse` hook on `mcp__codegraph__.*`). Warns to stderr by default; blocks (`exit 2`) under `/careful`. Fail-open posture throughout — any internal error exits 0. See `docs/codegraph-nudge.md` for the full mechanism.
+
 ### Freeze Mode
 
 The `pre-tool-guard.sh` hook also enforces freeze mode. When `/freeze <glob>` is invoked, it writes a state file (`hooks/freeze-state.json`) that restricts Write/Edit operations to files matching the allowed pattern. This prevents accidental edits outside the scope of a debugging session. `/unfreeze` removes the restriction. `/guard <glob>` activates both careful mode and freeze mode together.
