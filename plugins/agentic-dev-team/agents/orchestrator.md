@@ -44,7 +44,7 @@ When the orchestrator (or any caller) spawns a subagent via the Agent tool with 
 4. On any bump, rewrites `tool_input.model` via `hookSpecificOutput.updatedInput` and appends one JSONL event to `.claude/metrics/model-routing.log`.
 5. On exhaustion, cycle, missing routing.json, or malformed overrides, emits `permissionDecision: "deny"` with an actionable `permissionDecisionReason`. The dispatch never reaches the harness.
 
-For triage, run `/model-routing-check` — read-only diagnostic that prints the effective map, overrides, recent bumps, and probe applicability. See `docs/model-routing.md` for contract, fallback firing, hand-writing overrides, and Bedrock/Vertex/proxy troubleshooting. See `docs/adr/00NN-pre-dispatch-resolution.md` for the design rationale (pre-dispatch vs. runtime retry; hook vs. orchestrator instruction).
+For triage, run `/model-routing-check` — read-only diagnostic that prints the effective map, overrides, recent bumps, and probe applicability. See `docs/model-routing.md` for contract, fallback firing, hand-writing overrides, and Bedrock/Vertex/proxy troubleshooting. See [ADR 0004](../../../docs/adr/0004-pre-dispatch-model-resolution.md) for the design rationale (pre-dispatch vs. runtime retry; hook vs. orchestrator instruction).
 
 ### Tier guidance (informational)
 
