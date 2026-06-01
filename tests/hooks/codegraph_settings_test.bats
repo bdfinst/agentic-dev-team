@@ -56,10 +56,12 @@ SETTINGS="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/settings.json"
 
 @test "codegraph-nudge.sh does NOT appear under a regex matcher Read|Grep|Glob" {
   # Per the plan, we chose per-tool entries over a pipe-delimited regex.
-  # Catch a future regression that introduces the regex form.
+  # The negative guard catches ANY pipe-delimited matcher whose first token
+  # is one of Read/Grep/Glob — regardless of ordering — so a future regression
+  # like "Glob|Grep|Read" or "Grep|Read" is also flagged.
   run jq -e '
     .hooks.PreToolUse[]
-    | select(.matcher | test("Read\\|.*Grep|Read\\|.*Glob|Grep\\|.*Glob"))
+    | select(.matcher | test("^(Read|Grep|Glob)\\|"))
     | .hooks[]
     | select(.command | contains("codegraph-nudge.sh"))
   ' "$SETTINGS"

@@ -42,7 +42,13 @@ codegraph_used_this_turn() {
   local current_tid current_tc
   current_tid=$(basename "$transcript_path")
   current_tid="${current_tid%.*}"
-  current_tc=$(grep -c '"type":"user"' "$transcript_path" 2>/dev/null || echo 0)
+  # Cap the scan at the last 1MB of the transcript. Transcripts grow
+  # unbounded across long sessions; without a cap this runs on every
+  # Read/Grep/Glob and scales linearly with session size. A fixed-size
+  # tail is sufficient because turn_counter only needs to detect
+  # monotonic change within a transcript, not reflect the absolute
+  # all-time count — the mark hook computes its own count the same way.
+  current_tc=$(tail -c 1048576 "$transcript_path" 2>/dev/null | grep -c '"type":"user"' 2>/dev/null || echo 0)
 
   [ "$sentinel_tid" = "$current_tid" ] && [ "$sentinel_tc" = "$current_tc" ]
 }

@@ -6,12 +6,20 @@
 HOOK="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/codegraph-nudge.sh"
 MARK_HOOK="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/codegraph-turn-mark.sh"
 
+CAREFUL_STATE="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/careful-state.json"
+
 setup() {
   BATS_TMPDIR_CASE="$(mktemp -d)"
+  # Defensive: a leaked careful-state.json from any prior run (this suite
+  # or another) would silently flip the hook into block mode and corrupt
+  # every warn-path assertion below. Wipe on every test entry.
+  rm -f "$CAREFUL_STATE"
 }
 
 teardown() {
   rm -rf "$BATS_TMPDIR_CASE"
+  # Always clean careful-state, even on assertion failure mid-test.
+  rm -f "$CAREFUL_STATE"
 }
 
 # ---------------------------------------------------------------------------
@@ -247,12 +255,6 @@ _setup_codegraph_project() {
 # (plus a [blocked by /careful] suffix), exit code becomes 2.
 # ---------------------------------------------------------------------------
 
-CAREFUL_STATE="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/careful-state.json"
-
-teardown_careful() {
-  rm -f "$CAREFUL_STATE"
-}
-
 @test "blocks_in_careful_mode: multi-file Grep exits 2 with WARN_MSG + suffix on stderr" {
   mkdir -p "$BATS_TMPDIR_CASE/.codegraph" "$BATS_TMPDIR_CASE/src"
   echo "one" > "$BATS_TMPDIR_CASE/src/a.ts"
@@ -261,7 +263,6 @@ teardown_careful() {
   input=$(printf '%s' "{\"tool_name\":\"Grep\",\"cwd\":\"$BATS_TMPDIR_CASE\",\"tool_input\":{\"pattern\":\"foo\",\"path\":\"$BATS_TMPDIR_CASE/src\"}}")
 
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
-  teardown_careful
 
   [ "$status" -eq 2 ]
   [ "$output" = "$EXPECTED_WARN_MSG [blocked by /careful]" ]
@@ -275,7 +276,6 @@ teardown_careful() {
   input=$(printf '%s' "{\"tool_name\":\"Grep\",\"cwd\":\"$BATS_TMPDIR_CASE\",\"tool_input\":{\"pattern\":\"foo\",\"path\":\"$BATS_TMPDIR_CASE/src\"}}")
 
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
-  teardown_careful
 
   [ "$status" -eq 0 ]
   [ "$output" = "$EXPECTED_WARN_MSG" ]
@@ -342,10 +342,51 @@ teardown_careful() {
 }
 
 @test "mark_hook_fails_open_on_missing_transcript_file" {
+  # Pre-create .claude/ so the absence assertion is meaningful — without
+  # this, the test would pass vacuously even if the hook crashed before
+  # reaching its write path.
+  mkdir -p "$BATS_TMPDIR_CASE/.claude"
   local input
   input=$(printf '%s' "{\"tool_name\":\"mcp__codegraph__codegraph_context\",\"transcript_path\":\"/nonexistent/transcript.jsonl\"}")
 
   run bash -c "echo '$input' | CLAUDE_PROJECT_DIR='$BATS_TMPDIR_CASE' bash '$MARK_HOOK'"
   [ "$status" -eq 0 ]
   [ ! -f "$BATS_TMPDIR_CASE/.claude/codegraph-turn-state.json" ]
+}
+
+# ---------------------------------------------------------------------------
+# Spec acceptance criterion: hook median wall-clock overhead < 50ms.
+# Run 20 invocations on the silent Read path (the hot path: codegraph
+# present, single-file Read → immediate exit 0) and assert median.
+# ---------------------------------------------------------------------------
+
+@test "performance: median hook overhead on quiet Read call is under 50ms (20 invocations)" {
+  # python3 is a hard dep of the plugin (installed by /init-dev-team).
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+
+  mkdir -p "$BATS_TMPDIR_CASE/.codegraph"
+  echo "hello" > "$BATS_TMPDIR_CASE/foo.txt"
+  local input
+  input=$(printf '%s' "{\"tool_name\":\"Read\",\"cwd\":\"$BATS_TMPDIR_CASE\",\"tool_input\":{\"file_path\":\"$BATS_TMPDIR_CASE/foo.txt\"}}")
+
+  # Hot path: codegraph present, single-file Read → hook exits 0 silently
+  # right after parsing CWD and TOOL_NAME. This is the most common path
+  # the hook will take across a session.
+  local samples=()
+  local i start end ms
+  for ((i=0; i<20; i++)); do
+    start=$(python3 -c "import time; print(time.perf_counter())")
+    echo "$input" | bash "$HOOK" >/dev/null 2>&1
+    end=$(python3 -c "import time; print(time.perf_counter())")
+    ms=$(python3 -c "print(int(($end - $start) * 1000))")
+    samples+=("$ms")
+  done
+
+  # Median: sort numerically, pick the 10th of 20 (lower median).
+  local sorted
+  sorted=$(printf '%s\n' "${samples[@]}" | sort -n | sed -n '10p')
+
+  echo "# samples ms: ${samples[*]}" >&2
+  echo "# median ms: $sorted" >&2
+  [ "$sorted" -lt 50 ]
 }

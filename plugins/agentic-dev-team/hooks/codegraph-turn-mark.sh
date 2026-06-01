@@ -42,7 +42,9 @@ mkdir -p "$PROJECT_DIR/.claude" 2>/dev/null || exit 0
 TRANSCRIPT_ID=$(basename "$TRANSCRIPT_PATH")
 TRANSCRIPT_ID="${TRANSCRIPT_ID%.*}"
 
-TURN_COUNTER=$(grep -c '"type":"user"' "$TRANSCRIPT_PATH" 2>/dev/null || echo 0)
+# Cap scan at last 1MB — same cap used by codegraph-nudge.sh's reader so
+# both sides see the same count for monotonically-growing transcripts.
+TURN_COUNTER=$(tail -c 1048576 "$TRANSCRIPT_PATH" 2>/dev/null | grep -c '"type":"user"' 2>/dev/null || echo 0)
 
 # Atomic write via temp file to avoid the nudge hook reading a partial JSON.
 SENTINEL="$PROJECT_DIR/.claude/codegraph-turn-state.json"
