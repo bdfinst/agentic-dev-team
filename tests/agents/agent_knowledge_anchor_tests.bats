@@ -82,8 +82,19 @@ with open(agent_file, "r", encoding="utf-8") as fh:
 with open(index_path, "r", encoding="utf-8") as fh:
     index = json.load(fh)
 
-# Pattern: knowledge/<name>.md(#anchor)? OR skills/<name>/SKILL.md(#anchor)?
-ref_re = re.compile(r"(knowledge/[a-z0-9-]+\.md|skills/[a-z0-9-]+/SKILL\.md)(#[a-z0-9-]+)?")
+# Pattern: agentic-dev-team's own knowledge/<name>.md or skills/<name>/SKILL.md.
+# Excludes cross-plugin references (e.g.
+# `plugins/agentic-security-assessment/skills/...`). A reference belongs to
+# this index iff it's either bare `knowledge/X.md` / `skills/Y/SKILL.md`
+# OR explicitly prefixed with `plugins/agentic-dev-team/`. Cross-plugin paths
+# start with `plugins/<other>/`, so we require either no prefix or our
+# plugin prefix.
+ref_re = re.compile(
+    r"(?:^|[^/])"
+    r"(?:plugins/agentic-dev-team/)?"
+    r"((?:knowledge/[a-z0-9-]+\.md|skills/[a-z0-9-]+/SKILL\.md))"
+    r"(#[a-z0-9-]+)?"
+)
 
 # Split body into paragraphs (blank-line separated).
 paragraphs = re.split(r"\n\s*\n", text)
@@ -93,6 +104,16 @@ for para in paragraphs:
     for m in ref_re.finditer(para):
         ref_file = m.group(1)
         anchor = m.group(2)
+        # Skip cross-plugin references — only act on our own corpus.
+        # The regex's leading non-capturing prefix is permissive; tighten
+        # here by inspecting the byte just before the match for a `/`
+        # belonging to a non-agentic-dev-team plugin path.
+        start = m.start()
+        # Find a `plugins/...` prefix immediately preceding this match.
+        pre = para[max(0, start - 60):start]
+        cross_plugin = re.search(r"plugins/(?!agentic-dev-team/)[a-z0-9-]+/$", pre)
+        if cross_plugin:
+            continue
         # Resolve the index key.
         key = f"plugins/agentic-dev-team/{ref_file}"
         if anchor:

@@ -17,9 +17,10 @@ First-pass discovery for security-review, domain-analysis, and architecture work
 
 ## Contract
 
-Output conforms to the RECON envelope schema at `evals/codebase-recon/expected-schema.json` (v0.1 placeholder). Finalized schema lives in `plugins/agentic-dev-team/knowledge/security-primitives-contract.md` once P2 Step 4 ships.
+Output conforms to the RECON envelope schema at `evals/codebase-recon/expected-schema.json` (v0.1 placeholder). Finalized schema lives in `plugins/agentic-dev-team/knowledge/security-primitives-contract.md#envelope-1-recon` once P2 Step 4 ships.
 
 Artifacts written:
+
 - `memory/recon-<slug>.json` — machine-readable, schema-conformant
 - `memory/recon-<slug>.md` — human-readable narrative over the same facts
 
@@ -120,20 +121,24 @@ Do NOT hand-enumerate the tree with Read/Glob/Bash in this step — the canonica
 Write both files together. Do not emit partial artifacts.
 
 **JSON** (`memory/recon-<slug>.json`):
+
 - Validates against `evals/codebase-recon/expected-schema.json`
 - `schema_version` = `"0.2"`
 - `generated_at` = current UTC time (ISO-8601)
 - Unset/unknown values: empty arrays, `null`, or the appropriate skeleton — do NOT omit required keys
 
 **Markdown** (`memory/recon-<slug>.md`):
+
 - H1 title: `# Recon: <repo.name>`
 - One section per envelope field (Repo, Languages, Entry Points, Dependencies, Architecture, Security Surface, Git History, Notes)
 - Narrative tone: a reader can skim this in 90 seconds and orient themselves
 
 Also write the inventory sibling file from Step 6.5:
+
 - `memory/recon-<slug>.inventory.txt` — one repo-relative path per line, produced by the canonical script
 
 After emission, print to the dispatcher ONLY:
+
 ```
 RECON written:
   memory/recon-<slug>.json              (<N> bytes)
@@ -158,6 +163,7 @@ RECON written:
 ## Handoff contract
 
 Consumers of `memory/recon-<slug>.json`:
+
 - `tool-finding-narrative-annotator` (P2 Step 10) — consumes `security_surface` to scope narratives
 - `cross-repo-synthesizer` (P2 Step 12) — consumes `repo` + `architecture` for attack-chain context
 - `exec-report-generator` (P2 Step 14) — consumes `git_history` for context in the executive summary
