@@ -20,6 +20,10 @@ Confidence: high=mechanical fix (add missing await, stub clock, extract constant
 Model tier: mid
 Context needs: full-file
 
+## Knowledge Files
+
+Read `knowledge/testability-patterns.md` before analysis. When flagging untestable code (missing interfaces, static factories, concrete class coupling), use the decision flow and anti-patterns table to specify the required production code change — never recommend a test workaround (reflection, InternalsVisibleTo, mocking concrete classes).
+
 ## Skills
 
 - [Feature File Validation](../skills/feature-file-validation/SKILL.md) - invoke when `.feature` files or step definition files are in the target; validates Gherkin quality, determinism, implementation independence, and test automation coverage
@@ -81,6 +85,16 @@ Test code quality:
 - Copy-pasted assertion blocks that should be extracted into a helper
 - Magic literal values in assertions with no explanation of their significance
 - Dead test utilities or helpers that are defined but never called
+
+Testability blockers:
+
+- Code under test that cannot be constructed with known values (static factories, singletons, no injectable constructor) — flag as error; per `knowledge/testability-patterns.md`, the production code must change, not the test approach
+- Mocking of concrete classes (not interfaces) — flag as warning; extract an interface for the dependency
+- Tests using reflection into private members as primary strategy — flag as warning; the public API surface needs expanding
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md` (test-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

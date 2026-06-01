@@ -1,7 +1,7 @@
 ---
 name: domain-review
 description: Domain boundaries, abstraction leaks, business logic placement
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Skill
 model: opus
 ---
 
@@ -80,6 +80,14 @@ Anemic domain model:
 
 - Entities or aggregates that are pure data holders (only getters/setters, no behavior) while all logic lives in services — suggest moving invariant enforcement and state transitions onto the entity
 - Entities that allow external callers to set internal state directly instead of through intention-revealing methods (e.g., setting a status field directly rather than calling a method like `markPaid()` or `Submit()`)
+
+## Skills
+
+- [Ubiquitous Language](../skills/ubiquitous-language/SKILL.md) — invoke when the user asks to "build the glossary", "extract domain terms", or "document the ubiquitous language". Also invoke when domain-review findings show pervasive terminology inconsistency (3+ different names for the same concept across the codebase).
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md` (domain-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

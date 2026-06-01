@@ -96,6 +96,10 @@ Grep for patterns that architecture documentation explicitly bans:
 - Direct `fetch`/`axios`/`HttpClient` calls outside designated HTTP adapter layer
 - Direct DB client calls outside designated repository layer
 
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md` (arch-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+
 ## Ignore
 
 Code style, naming conventions, test coverage, domain modeling correctness (handled by other agents)

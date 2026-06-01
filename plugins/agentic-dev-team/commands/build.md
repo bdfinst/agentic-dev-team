@@ -45,11 +45,13 @@ Read the plan file. If the status is not `approved`, ask the user: "This plan ha
 Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `prompts/spec-reviewer.md` § Pre-build criteria verification mode). Pass the plan's acceptance criteria and per-step test expectations.
 
 The reviewer evaluates each criterion for:
+
 - **Specificity**: Could two developers independently verify this criterion and agree on pass/fail?
 - **Testability**: Can this criterion be validated with a test or observable output?
 - **Completeness**: Are edge cases and error conditions addressed?
 
 If any criteria are flagged:
+
 1. Present the findings to the user with the reviewer's suggested improvements
 2. Ask: "Revise these criteria before building, or proceed anyway?"
 3. If the user overrides, log the override in the build output and continue
@@ -68,7 +70,11 @@ For each step in the plan, dispatch implementation following the implementer tem
    - **complex**: Run `/review-agent spec-compliance-review`, then the full quality agent suite including opus-tier agents (security-review, domain-review, arch-review). Same review-fix loop applies.
    - If no complexity is specified, default to **standard**.
    - **UI changes (any complexity)**: After quality review passes, run browser verification via `/browse` in automated smoke test mode. Skip with warning if the dev server is not running. See `agents/orchestrator.md` Stage 3.
-5. **Mark step done** — Update the plan file: check off the step's acceptance criteria, set the step as completed.
+5. **Mark step done** — Use the Edit tool to update the plan file's `## Build Progress` section on disk:
+   - Change `- [ ] Step N: <title>` to `- [x] Step N: <title>` for the completed step.
+   - For each acceptance criterion verified by this step, change `- [ ]` to `- [x]` in the Build Progress `### Acceptance Criteria` subsection.
+   - After all steps are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
+   - This disk write is the durable commit. If a `/clear` occurs, `/continue` reads `## Build Progress` to determine the resume point without needing conversation history.
 
 ### 5. Run full test suite
 
@@ -80,11 +86,12 @@ Run `/code-review` against all files modified during the build.
 
 ### 7. Update plan status
 
-Update the plan status to `implemented`. Briefly confirm completion and direct the user to `/pr`.
+Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file. Briefly confirm completion and direct the user to `/pr`.
 
 ## Escalation
 
 Stop and ask the user when:
+
 - A test fails for an unexpected reason after 3 attempts
 - The plan requires architectural decisions not covered by the plan
 - A review checkpoint fails after 2 correction iterations

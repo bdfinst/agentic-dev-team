@@ -20,6 +20,10 @@ Confidence: high=mechanical extraction (duplicate block → shared function); me
 Model tier: mid
 Context needs: full-file
 
+## Knowledge Files
+
+Read `knowledge/design-smells.md` and `knowledge/object-calisthenics.md` before analysis.
+
 ## Skip
 
 Return `{"status": "skip", "issues": [], "summary": "No multi-module code to analyze"}` when:
@@ -60,6 +64,15 @@ Organization:
 - Non-functional assets in API projects — static web assets (CSS, JS,
   images, fonts) shipped in projects that serve only JSON/XML API
   responses with no UI
+
+Design smells:
+
+- For SRP violations and coupling issues, map to the smell → pattern table in `knowledge/design-smells.md`. Every finding should name the smell, quote the code, and include a refactor sketch.
+- For method-level issues (nesting, long methods, flag arguments), check Object Calisthenics rules 1-2 and 7 in `knowledge/object-calisthenics.md`.
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md` (structure-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

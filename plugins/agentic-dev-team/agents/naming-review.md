@@ -20,6 +20,10 @@ Confidence: high=mechanical (add is/has prefix, extract magic value to constant)
 Model tier: small
 Context needs: diff-only
 
+## Knowledge Files
+
+Read the "Naming Offender Catalog" section of `knowledge/design-smells.md` before analysis. It contains: abbreviation anti-patterns with fix pairs, generic verb offenders, misleading name patterns, and type-encoded name examples — as well as the "What NOT to flag" list to avoid false positives.
+
 ## Skip
 
 Return `{"status": "skip", "issues": [], "summary": "No code files with nameable symbols"}` when:
