@@ -33,6 +33,24 @@
           { "type": "command", "command": "bash hooks/destructive-guard.sh" },
           { "type": "command", "command": "bash hooks/pre-commit-review.sh" }
         ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/codegraph-nudge.sh" }
+        ]
+      },
+      {
+        "matcher": "Grep",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/codegraph-nudge.sh" }
+        ]
+      },
+      {
+        "matcher": "Glob",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/codegraph-nudge.sh" }
+        ]
       }
     ],
     "PostToolUse": [
@@ -61,6 +79,12 @@
         "matcher": "Read",
         "hooks": [
           { "type": "command", "command": "bash hooks/version-check.sh" }
+        ]
+      },
+      {
+        "matcher": "mcp__codegraph__.*",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/codegraph-turn-mark.sh" }
         ]
       }
     ]
