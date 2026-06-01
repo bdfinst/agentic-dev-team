@@ -66,24 +66,61 @@ _first_sentence() {
 
 # -----------------------------------------------------------------------------
 # _extract_sections_for_file <abs_path>
-# Walks one markdown file and prints "header_text\tsummary\tanchor" lines.
-# Step 1 minimal: handles a single H2 followed by a one-line body.
-# Step 2 extends to full H2/H3 walk + ordering + slug disambiguation.
+# Walks one markdown file and prints "header\tbody_first_line" pairs, one
+# per H2/H3 section, in source order. H1 and H4+ are skipped. The caller
+# is responsible for slugify, summary extraction, and slug
+# disambiguation across sections within the file.
 # -----------------------------------------------------------------------------
 _extract_sections_for_file() {
   local abs="$1"
-  # Use awk to find each H2 and its first body line. Minimal Step 1
-  # implementation — Step 2 expands to multi-section + H3.
   awk '
+    /^### / {
+      _flush()
+      header = substr($0, 5)
+      collecting = 1
+      body = ""
+      next
+    }
     /^## / {
+      _flush()
       header = substr($0, 4)
-      getline body
-      while (body == "" && getline body > 0) {}
-      print header "\t" body
-      exit
+      collecting = 1
+      body = ""
+      next
+    }
+    /^#### / {
+      # H4+ — stop collecting body for the enclosing section but do not
+      # emit anything for the H4.
+      _flush()
+      collecting = 0
+      next
+    }
+    /^# / {
+      # H1 — skipped entirely. Resets state.
+      _flush()
+      collecting = 0
+      next
+    }
+    collecting == 1 && body == "" && /[^[:space:]]/ {
+      body = $0
+    }
+    END { _flush() }
+    function _flush() {
+      if (header != "") {
+        print header "\t" body
+        header = ""
+        body = ""
+      }
     }
   ' "$abs"
 }
+
+# -----------------------------------------------------------------------------
+# _disambiguate_anchor <anchor> <file_path>
+# GitHub-style: first occurrence gets the bare slug; second gets `-1`;
+# third `-2`; etc. State is per-file via a bash associative array passed
+# by name. Sourced into _build_index's scope.
+# -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # _build_index — emit the JSON object on stdout.
@@ -105,7 +142,7 @@ _build_index() {
   fi
 
   # Build an array of entries, one per file. Each entry is a JSON object
-  # mapping section header → {summary, anchor}.
+  # mapping section header → {summary, anchor}, preserving source order.
   local entries=()
   local f
   for f in ${files[@]+"${files[@]}"}; do
@@ -114,25 +151,62 @@ _build_index() {
     # Prefix back the plugin-rooted segment so the key is repo-relative.
     rel="plugins/agentic-dev-team/$rel"
 
+    # Collect all sections for this file. Each line: header\tbody.
     local section_data
     section_data="$(_extract_sections_for_file "$f")"
     if [[ -z "$section_data" ]]; then
       continue
     fi
 
-    # Build a jq filter that constructs {<header>: {summary, anchor}}.
-    local header body summary anchor
-    IFS=$'\t' read -r header body <<<"$section_data"
-    summary="$(_first_sentence "$body")"
-    anchor="$(_slugify "$header")"
+    # Per-file collision tracking. macOS ships bash 3.2 (no
+    # associative arrays), so we use newline-delimited string lookups:
+    # one "seen" record per slug or header, count derived by grep.
+    local slug_seen=""
+    local header_seen=""
+
+    # Build the per-section JSON objects in source order, then merge.
+    local section_objs=()
+    while IFS=$'\t' read -r header body; do
+      [[ -z "$header" ]] && continue
+      local base_slug summary anchor n key hcount
+      base_slug="$(_slugify "$header")"
+
+      # Slug disambiguation: github-style overview / overview-1 / overview-2
+      n=$(printf '%s\n' "$slug_seen" | grep -cFx "$base_slug" || true)
+      if (( n == 0 )); then
+        anchor="$base_slug"
+      else
+        anchor="${base_slug}-${n}"
+      fi
+      slug_seen="${slug_seen}${base_slug}"$'\n'
+
+      # Header key disambiguation: JSON requires unique keys.
+      hcount=$(printf '%s\n' "$header_seen" | grep -cFx "$header" || true)
+      if (( hcount == 0 )); then
+        key="$header"
+      else
+        key="${header} ($((hcount + 1)))"
+      fi
+      header_seen="${header_seen}${header}"$'\n'
+
+      summary="$(_first_sentence "$body")"
+      section_objs+=("$(jq -n \
+        --arg key "$key" \
+        --arg summary "$summary" \
+        --arg anchor "$anchor" \
+        '{($key): {summary: $summary, anchor: $anchor}}')")
+    done <<<"$section_data"
+
+    # Merge sections in source order using jq's `add` (preserves
+    # insertion order, which is what jq emits as keys_unsorted).
+    local file_obj
+    file_obj=$(printf '%s\n' "${section_objs[@]}" | jq -s 'add')
 
     local file_entry
     file_entry=$(jq -n \
       --arg rel "$rel" \
-      --arg header "$header" \
-      --arg summary "$summary" \
-      --arg anchor "$anchor" \
-      '{($rel): {($header): {summary: $summary, anchor: $anchor}}}')
+      --argjson file_obj "$file_obj" \
+      '{($rel): $file_obj}')
     entries+=("$file_entry")
   done
 
