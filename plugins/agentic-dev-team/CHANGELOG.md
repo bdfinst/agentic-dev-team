@@ -1,5 +1,60 @@
 # Changelog
 
+## [5.5.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.4.0...agentic-dev-team-v5.5.0) (2026-06-01)
+
+
+### Features
+
+* **commands:** add /model-routing-check diagnostic ([5aa05fc](https://github.com/bdfinst/agentic-dev-team/commit/5aa05fcc6b396455d636f5a1d11cf1aa2c4d8b4a)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* environment-aware model routing with PreToolUse hook enforcement ([511ec58](https://github.com/bdfinst/agentic-dev-team/commit/511ec58fc86a141c3f280ccc5cf8ae3209fdbfd8))
+* **hooks:** add codegraph-nudge skeleton with .codegraph/ presence check ([f0fbcf2](https://github.com/bdfinst/agentic-dev-team/commit/f0fbcf2a2b4bc860076da05b499b8aea27dab932))
+* **hooks:** codegraph-nudge blocks in careful mode ([9c1ddf5](https://github.com/bdfinst/agentic-dev-team/commit/9c1ddf51c967b034e734a39bda2f14bbde0f3be1))
+* **hooks:** codegraph-nudge warns on Grep/Glob multi-file shape ([fddaabd](https://github.com/bdfinst/agentic-dev-team/commit/fddaabde84bb28398264bd26363bae670b1335e5))
+* **hooks:** PreToolUse Agent hook enforces pre-dispatch resolution ([ff937a2](https://github.com/bdfinst/agentic-dev-team/commit/ff937a20ac77c49a47a37568eb2778941cbdf7e4)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* **hooks:** register codegraph-nudge and codegraph-turn-mark in settings.json ([60f0fa0](https://github.com/bdfinst/agentic-dev-team/commit/60f0fa0f69acd3c276300d4c84113eb95df441af))
+* **hooks:** sentinel-based turn-boundary detection for codegraph-nudge ([9115852](https://github.com/bdfinst/agentic-dev-team/commit/911585268e52e9be2f142e0dee960d3ff47fadde))
+* **init-dev-team:** opt-in probe of /v1/models with three failure modes ([d3fc9ec](https://github.com/bdfinst/agentic-dev-team/commit/d3fc9ec77aa4add6b50f3d88bdfdc1cee1be0c5c)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* **init:** bootstrap JS project via js-project-init when no package.json ([8853172](https://github.com/bdfinst/agentic-dev-team/commit/8853172c294889cef64fc84012c5eb4833f8704e))
+* **init:** state-aware CodeGraph step in /init-dev-team ([10a62cf](https://github.com/bdfinst/agentic-dev-team/commit/10a62cf1b7681eb9ff3b9e233058eb45e36905cc))
+* **knowledge:** add adversarial review protocol, design smells, object calisthenics, testability patterns ([d3fe547](https://github.com/bdfinst/agentic-dev-team/commit/d3fe5470609cf69272de830753eecf551ed31f53))
+* **knowledge:** adversarial review protocol, design smells, object calisthenics, testability patterns ([b75b8ec](https://github.com/bdfinst/agentic-dev-team/commit/b75b8ecfbd0b5abb8bfc68546dfbf2695766f218))
+* **model-resolve:** happy-path tier→snapshot resolution ([7affb2b](https://github.com/bdfinst/agentic-dev-team/commit/7affb2b72098a1cc8565cc4b523b65866983d625)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* **model-resolve:** overrides, cascade, cycle, exhaustion, dump-map ([3557378](https://github.com/bdfinst/agentic-dev-team/commit/3557378a10c4f9ddca3e6cb5511fda86748f1b58)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* **model-resolve:** perf gate + happy-path fast-path ([069cfb6](https://github.com/bdfinst/agentic-dev-team/commit/069cfb6ca5d868782bb59b3d93a234d3e3fb672b)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* **model-routing:** ship knowledge/model-routing.json defaults ([e326cc1](https://github.com/bdfinst/agentic-dev-team/commit/e326cc19a416e80a6a6967a164f1ef9f43f6dd4b)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* **skills:** add adr-tools skill for npryce/adr-tools CLI mechanics ([f0cce9d](https://github.com/bdfinst/agentic-dev-team/commit/f0cce9d940c5f7809e566e01416c40ce552e3537))
+* **skills:** add mermaid-diagramming skill with blue-gray theme ([f909895](https://github.com/bdfinst/agentic-dev-team/commit/f9098953d9038569858aebe8cdd4e9b3c9606887))
+* state-aware CodeGraph integration for init flows + PreToolUse nudge hook ([117a78e](https://github.com/bdfinst/agentic-dev-team/commit/117a78eaa2be17cd4458d0ab99f86d6fe3245229))
+* **ux:** SessionStart hook surfaces routing overrides banner ([9150c43](https://github.com/bdfinst/agentic-dev-team/commit/9150c4383f40c75f1ccf3968175957779096d4db)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+
+
+### Bug Fixes
+
+* **hooks:** address inline-review findings ([3f39271](https://github.com/bdfinst/agentic-dev-team/commit/3f39271ca6079ff9a9421db9d05e67d7ae0c2c28))
+* move ADRs to docs/adr/ to match project convention ([d568765](https://github.com/bdfinst/agentic-dev-team/commit/d56876551c057c1c7a8b9ef41f68b1f3a023efd4))
+* **review:** address code-review findings before PR ([36f1b57](https://github.com/bdfinst/agentic-dev-team/commit/36f1b5737e8648e1d0452df18b3ae682577b1cd4))
+
+
+### Code Refactoring
+
+* **orchestrator:** relocate model routing authority to PreToolUse hook ([66bca9f](https://github.com/bdfinst/agentic-dev-team/commit/66bca9f7865c3cf92d5e4893159dc8f23a5fc335)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+
+
+### Documentation
+
+* **adr:** pre-dispatch model resolution + hook enforcement decisions ([aa52c37](https://github.com/bdfinst/agentic-dev-team/commit/aa52c37069e110c45604a15aeda53ec4582b3ec7)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* complete the hook-as-authority sweep + fix probe invocation path ([0701731](https://github.com/bdfinst/agentic-dev-team/commit/0701731340f133102befe686cfa7ed168fa9c98b)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* complete the routing-doc cleanup + add architecture diagrams ([2ab3725](https://github.com/bdfinst/agentic-dev-team/commit/2ab372545b0840761c7055cad31b90ce042e2181)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+* document codegraph-nudge hook and updated init-dev-team flow ([414f67b](https://github.com/bdfinst/agentic-dev-team/commit/414f67b286c368063355dc4427764c09e519b6d2))
+* fix CHANGELOG ([0f7fd09](https://github.com/bdfinst/agentic-dev-team/commit/0f7fd09bcf68cc8cba79f72a2189b0101bd0581b))
+* mention codegraph-nudge in agent-architecture and reference ([3de9e94](https://github.com/bdfinst/agentic-dev-team/commit/3de9e949a78ad8c871243f8c4ac51476040b661c))
+* model routing contract and troubleshooting guide ([dc4bd03](https://github.com/bdfinst/agentic-dev-team/commit/dc4bd036f75a4a7e4e4bf9ca55542c939e99a8ad)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+
+
+### Miscellaneous
+
+* remove pinned snapshot IDs outside routing.json ([1d5f133](https://github.com/bdfinst/agentic-dev-team/commit/1d5f13398fe0982cdffb7677c3651d40528e88ce)), closes [#37](https://github.com/bdfinst/agentic-dev-team/issues/37)
+
 ## [5.4.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.3.1...agentic-dev-team-v5.4.0) (2026-05-28)
 
 
