@@ -8,6 +8,87 @@ environment-specific config in the repo.
 For the design rationale see
 [ADR 0004 — Pre-dispatch model tier resolution enforced by a PreToolUse hook](../../../docs/adr/0004-pre-dispatch-model-resolution.md).
 
+## Architecture at a glance
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e0f2fe', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#2563eb', 'clusterBkg': '#eff6ff', 'clusterBorder': '#bfdbfe', 'titleColor': '#1e3a5f', 'edgeLabelBackground': '#f8fafc'}}}%%
+flowchart LR
+    subgraph caller[Caller layer]
+        AF[Agent frontmatter<br/>model: tier]
+    end
+
+    subgraph harness[Claude Code harness]
+        AT[Agent tool dispatch]
+    end
+
+    subgraph plugin[Plugin enforcement surface]
+        HK[hooks/agent-model-resolve.sh<br/>PreToolUse, matcher Agent]
+        RS[hooks/lib/model-resolve.sh<br/>resolver helper]
+    end
+
+    subgraph state[Routing state]
+        RJ[(knowledge/<br/>model-routing.json<br/>defaults, shipped)]
+        OV[(.claude/<br/>model-overrides.json<br/>per-user, gitignored)]
+        BL[(.claude/metrics/<br/>model-routing.log<br/>bump events, JSONL)]
+    end
+
+    subgraph diag[Diagnostics]
+        MRC["/model-routing-check"]
+        SB["hooks/overrides-banner.sh<br/>SessionStart"]
+        PR["hooks/lib/model-probe.sh<br/>via /init-dev-team"]
+    end
+
+    AF --> AT
+    AT -.intercepted by.-> HK
+    HK --> RS
+    RS --> RJ
+    RS --> OV
+    RS -- bump --> BL
+    HK -- updatedInput<br/>or deny --> AT
+    MRC --> RS
+    MRC -. tail .-> BL
+    SB -. read .-> OV
+    PR -- write --> OV
+```
+
+The hook is the only file the harness touches at dispatch time. Everything else is either input (routing.json, overrides.json), output (bump log), or read-only diagnostics.
+
+## Dispatch flow
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e0f2fe', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#2563eb', 'clusterBkg': '#eff6ff', 'clusterBorder': '#bfdbfe', 'titleColor': '#1e3a5f', 'edgeLabelBackground': '#f8fafc'}}}%%
+sequenceDiagram
+    autonumber
+    participant LLM as Orchestrator LLM
+    participant H as PreToolUse hook
+    participant R as model-resolve.sh
+    participant FS as routing.json + overrides
+    participant Log as bump log
+    participant CC as Claude Code harness
+
+    LLM->>CC: Agent(model: haiku, subagent_type: x)
+    CC->>H: stdin: tool_input
+    H->>R: model-resolve.sh haiku --caller x
+    R->>FS: read routing.json
+    R->>FS: read overrides.json (if present)
+    alt clean install (no overrides)
+        R-->>H: stdout: claude-haiku-4-5-...
+        H-->>CC: {} (pass-through)
+        CC->>CC: dispatch with original model
+    else override applies, resolves to a snapshot
+        R->>Log: append JSONL bump event
+        R-->>H: stdout: claude-sonnet-4-6
+        H-->>CC: hookSpecificOutput.updatedInput<br/>model=claude-sonnet-4-6
+        CC->>CC: dispatch with rewritten model
+    else exhausted / cycle / missing routing / malformed
+        R-->>H: stderr + exit 3/4/5
+        H-->>CC: hookSpecificOutput.permissionDecision=deny<br/>reason=resolver stderr
+        CC->>LLM: deny + reason
+    end
+```
+
+The deny branch is the only path that surfaces to the LLM — pass-through and bump are invisible to the calling agent (bump is logged to disk for `/model-routing-check`).
+
 ## Contract
 
 Each agent's `model:` frontmatter declares a tier alias: `haiku`, `sonnet`, or

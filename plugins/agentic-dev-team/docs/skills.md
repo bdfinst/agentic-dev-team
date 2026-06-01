@@ -127,6 +127,7 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 | `/build` | [`build.md`](../commands/build.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | [`pr.md`](../commands/pr.md) | Run quality gates and create a pull request |
 | `/setup` | [`setup.md`](../commands/setup.md) | Detect tech stack, generate project-level config and hooks |
+| `/init-dev-team` | [`init-dev-team.md`](../commands/init-dev-team.md) | Install plugin prerequisites (jq, python3, mutation tools), offer CodeGraph, and optionally probe Anthropic model availability for restricted endpoints |
 | `/continue` | [`continue.md`](../commands/continue.md) | Resume work from a prior session using phase progress files |
 | `/browse` | [`browse.md`](../commands/browse.md) | Browser-based QA via Playwright: navigate, screenshot, click, fill forms |
 | `/triage` | [`triage.md`](../commands/triage.md) | Investigate a bug, find root cause, file a GitHub issue with TDD fix plan |
@@ -158,6 +159,7 @@ Skills are user-invocable directly as `/<skill-name>` — there are no per-skill
 | `/help` | [`help.md`](../commands/help.md) | List all available slash commands with descriptions |
 | `/version` | [`version.md`](../commands/version.md) | Report the installed plugin version |
 | `/review` | [`review.md`](../commands/review.md) | Alias for `/code-review` — same arguments, same behavior |
+| `/model-routing-check` | [`model-routing-check.md`](../commands/model-routing-check.md) | Read-only diagnostic: effective tier → snapshot map, override file contents, recent tier bumps, probe applicability |
 
 ## How Agents Use Skills
 

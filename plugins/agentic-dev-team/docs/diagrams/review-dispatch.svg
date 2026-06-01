@@ -18,7 +18,7 @@
   <g filter="url(#shadow)">
     <rect x="16" y="190" width="160" height="52" rx="12" fill="#6366F1" stroke="#4F46E5" stroke-width="1"/>
     <text x="96" y="213" text-anchor="middle" font-size="13" font-weight="600" fill="#FFF">Orchestrator</text>
-    <text x="96" y="229" text-anchor="middle" font-size="10" fill="#C7D2FE">Model Routing</text>
+    <text x="96" y="229" text-anchor="middle" font-size="10" fill="#C7D2FE">Agent Dispatch</text>
   </g>
 
   <!-- Arrow to spec-compliance -->
