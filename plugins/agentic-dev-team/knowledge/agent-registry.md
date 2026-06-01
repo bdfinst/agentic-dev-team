@@ -85,6 +85,8 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~4,500 | Orchestrator, Software Engineer, Architect |
 | Agent Create | `skills/agent-create/SKILL.md` | ~2,100 | Orchestrator, Software Engineer, all team agents |
 | ADR Tools | `skills/adr-tools/SKILL.md` | ~1,350 | Orchestrator, adr-author, Software Engineer, Architect |
+| Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~400 | Architect, Software Engineer, Tech Writer |
+| Ubiquitous Language | `skills/ubiquitous-language/SKILL.md` | ~800 | Architect, domain-review, Product Manager |
 
 ## Subagent Prompt Templates
 
@@ -114,6 +116,10 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
 | Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~900 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~500 | security-review, test-review, structure-review, complexity-review, arch-review, domain-review |
+| Design Smells | `knowledge/design-smells.md` | ~600 | structure-review, complexity-review, naming-review |
+| Object Calisthenics | `knowledge/object-calisthenics.md` | ~400 | structure-review, complexity-review |
+| Testability Patterns | `knowledge/testability-patterns.md` | ~500 | test-review, legacy-code |
 
 ## Agent Templates
 

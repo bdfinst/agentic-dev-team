@@ -20,6 +20,10 @@ Confidence: high=threshold violation (function >N lines, nesting >N levels); med
 Model tier: small
 Context needs: full-file
 
+## Knowledge Files
+
+Read `knowledge/object-calisthenics.md` before analysis. The nine rules provide design pressure thresholds that complement the numeric limits below (especially rule 1: one indentation level, rule 7: small entities, rule 2: no else).
+
 ## Skip
 
 Return `{"status": "skip", "issues": [], "summary": "No code files in target"}` when:
@@ -60,6 +64,10 @@ Cognitive load:
 
 - Too many concepts per function
 - Non-obvious control flow
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md` (structure-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

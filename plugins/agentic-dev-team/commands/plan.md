@@ -108,11 +108,26 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 ## Risks & Open Questions
 
 - <Risk or question, with mitigation or who should answer>
+
+## Build Progress
+
+This section is the machine-parseable recovery handle. `/build` updates checkboxes here via Edit tool so progress survives a `/clear` or session restart. `/continue` reads this section to determine the resume point.
+
+### Steps
+
+- [ ] Step 1: <title>
+- [ ] Step 2: <title>
+
+### Acceptance Criteria
+
+- [ ] <Criterion 1 — mirrors the Acceptance Criteria section above>
+- [ ] <Criterion 2>
+- [ ] <Criterion 3>
 ```
 
 ### 4. Create the plans directory
 
-Create `plans/` if it doesn't exist.
+Create `plans/` if it doesn't exist. When writing the plan file, populate the `## Build Progress` section by copying step titles from `## Steps` and criteria from `## Acceptance Criteria`. These are the checkboxes `/build` will update on disk as each step completes.
 
 ### 5. Run plan review personas
 
