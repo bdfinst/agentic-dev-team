@@ -292,3 +292,60 @@ teardown_careful() {
   [ "$status" -eq 0 ]
   [ "$output" = "$EXPECTED_WARN_MSG" ]
 }
+
+# ---------------------------------------------------------------------------
+# Step 6 — fail-open guards
+#
+# The hook is a nudge. Every internal error path must exit 0 so a broken
+# hook never blocks Read/Grep/Glob.
+# ---------------------------------------------------------------------------
+
+@test "fails_open_on_malformed_json: stdin is garbage" {
+  run bash -c "echo 'not json' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "fails_open_on_empty_stdin: hook receives nothing" {
+  run bash -c ": | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "fails_open_when_jq_missing: stub PATH with no jq still exits 0" {
+  mkdir -p "$BATS_TMPDIR_CASE/.codegraph" "$BATS_TMPDIR_CASE/stub-bin"
+  # Empty stub-bin → no jq. Use absolute path to bash via /bin so the
+  # subshell can run despite the constrained PATH.
+  local input
+  input=$(printf '%s' "{\"tool_name\":\"Grep\",\"cwd\":\"$BATS_TMPDIR_CASE\",\"tool_input\":{\"pattern\":\"foo\",\"path\":\"$BATS_TMPDIR_CASE\"}}")
+
+  run env PATH="$BATS_TMPDIR_CASE/stub-bin:/usr/bin:/bin" \
+    bash -c "echo '$input' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+}
+
+@test "fails_open_on_missing_transcript: nonexistent transcript_path falls through to warn" {
+  mkdir -p "$BATS_TMPDIR_CASE/.codegraph" "$BATS_TMPDIR_CASE/src"
+  echo "one" > "$BATS_TMPDIR_CASE/src/a.ts"
+  local input
+  input=$(printf '%s' "{\"tool_name\":\"Grep\",\"cwd\":\"$BATS_TMPDIR_CASE\",\"transcript_path\":\"/nonexistent/transcript.jsonl\",\"tool_input\":{\"pattern\":\"foo\",\"path\":\"$BATS_TMPDIR_CASE/src\"}}")
+
+  run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
+  [ "$status" -eq 0 ]
+  # Sentinel logic returns 1 (not used) → warn fires.
+  [ "$output" = "$EXPECTED_WARN_MSG" ]
+}
+
+@test "mark_hook_fails_open_on_malformed_json" {
+  run bash -c "echo 'not json' | CLAUDE_PROJECT_DIR='$BATS_TMPDIR_CASE' bash '$MARK_HOOK'"
+  [ "$status" -eq 0 ]
+}
+
+@test "mark_hook_fails_open_on_missing_transcript_file" {
+  local input
+  input=$(printf '%s' "{\"tool_name\":\"mcp__codegraph__codegraph_context\",\"transcript_path\":\"/nonexistent/transcript.jsonl\"}")
+
+  run bash -c "echo '$input' | CLAUDE_PROJECT_DIR='$BATS_TMPDIR_CASE' bash '$MARK_HOOK'"
+  [ "$status" -eq 0 ]
+  [ ! -f "$BATS_TMPDIR_CASE/.claude/codegraph-turn-state.json" ]
+}
