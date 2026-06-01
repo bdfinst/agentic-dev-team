@@ -16,7 +16,7 @@ echo "Collecting domain signals from: $ROOT"
 # Helper: grep with fallback (ignore errors on binary/missing files)
 # ---------------------------------------------------------------------------
 safe_grep() {
-  grep -rn --include="$1" "$2" "$ROOT" 2>/dev/null || true
+  grep -rn --include="$1" "$2" -- "$ROOT" 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------------------

@@ -107,8 +107,8 @@ Concrete prompt templates in `prompts/` that the orchestrator and `/code-review`
 
 Knowledge files in `knowledge/` provide progressive disclosure — agents read them on demand during analysis rather than carrying all detection patterns inline.
 
-| File | ~Tokens | Used By |
-|------|---------|---------|
+| Name | File | ~Tokens | Used By |
+|------|------|---------|---------|
 | Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
 | Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
 | Review Rubric | `knowledge/review-rubric.md` | 300 | `/code-review` (health scoring) |

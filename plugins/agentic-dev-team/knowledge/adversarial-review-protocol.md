@@ -44,6 +44,14 @@ Repeat until the challenger finds no new issues, or a maximum of 3 rounds is rea
 - Did you check constructor parameter counts? >5 parameters usually signals SRP violation.
 - Are there God objects/Megaclasses you walked past because they're "just how the code is"?
 
+### complexity-review
+
+- Did you check ALL methods and functions, not just the visibly large ones?
+- For each nesting-depth finding, did you count the actual levels rather than estimating by appearance?
+- Are there methods just under the threshold (19 lines, 3 levels) that warrant a warning?
+- Did you distinguish between genuine cognitive complexity (multiple concepts) and mechanical repetition (defensive null checks)?
+- For async findings, did you verify the pattern is actually problematic in context (library vs. application code)?
+
 ### arch-review
 
 - Did you read the ADRs before reviewing? Every finding should reference whether it contradicts an ADR.

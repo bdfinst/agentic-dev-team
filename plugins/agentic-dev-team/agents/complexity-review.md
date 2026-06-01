@@ -67,7 +67,7 @@ Cognitive load:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md` (structure-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md`. Use the structure-review challenge questions (the nearest applicable section — no complexity-specific section exists). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 
