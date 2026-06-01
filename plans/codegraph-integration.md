@@ -2,7 +2,7 @@
 
 **Created**: 2026-06-01
 **Branch**: main
-**Status**: approved
+**Status**: implemented (step 10 deferred to bdfinst/agentic-writing-team#36)
 
 ## Goal
 
