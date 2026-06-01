@@ -6,6 +6,8 @@ Date: 2026-06-01
 
 Accepted
 
+Tooling documented by [3. Document ADR tooling workflow as a skill](0003-document-adr-tooling-workflow-as-a-skill.md)
+
 ## Context
 
 We added a `PreToolUse` hook (`codegraph-nudge.sh`) that fires on every `Read`, `Grep`, and `Glob` tool call in projects with a CodeGraph index (`.codegraph/` in cwd). When the call looks like exploration, the hook should recommend the indexed `codegraph_*` MCP tools instead. Two implementation questions had non-obvious answers:

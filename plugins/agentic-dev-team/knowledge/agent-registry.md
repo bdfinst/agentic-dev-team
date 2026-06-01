@@ -84,6 +84,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, Platform Engineer, `/benchmark` command |
 | Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~4,500 | Orchestrator, Software Engineer, Architect |
 | Agent Create | `skills/agent-create/SKILL.md` | ~2,100 | Orchestrator, Software Engineer, all team agents |
+| ADR Tools | `skills/adr-tools/SKILL.md` | ~1,350 | Orchestrator, adr-author, Software Engineer, Architect |
 
 ## Subagent Prompt Templates
 
