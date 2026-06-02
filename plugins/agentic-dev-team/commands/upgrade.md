@@ -32,11 +32,58 @@ Parse the output to find `agentic-dev-team` and its current version. Also read t
 Report:
 > **Current version**: agentic-dev-team v{version} (installed from {marketplace})
 
-### 2. Ensure the marketplace is set to auto-update
+### 2. Check auto-update status and ask the user
 
-`autoUpdate` is a **marketplace-level** flag — every plugin published by the marketplace inherits it. `settings.json` is the source of truth; Claude Code syncs the flag into the plugin registry (`known_marketplaces.json`) on the next launch or plugin operation. There is no `claude plugin` CLI flag for it, so this step edits `settings.json` directly. Running it *before* the update guarantees the flag is set even when the plugin is already up to date (step 3 may exit early).
+First, check the current auto-update status by running the script below and reporting it to the user.
 
-The block resolves which marketplace `agentic-dev-team` is installed from (e.g. `bfinster`), then finds the settings scope that declares that marketplace — project (`./.claude/settings.json`), project-local (`./.claude/settings.local.json`), then user (`~/.claude/settings.json`) — and sets `autoUpdate: true` if unset. If no settings file declares it, it pulls the source from the registry and declares the marketplace (with the flag) in user settings. Idempotent: a no-op when already enabled.
+```bash
+python3 - <<'PY'
+import json, os
+
+PLUGIN = "agentic-dev-team"
+home = os.path.expanduser("~")
+cwd = os.getcwd()
+
+def load(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+    except json.JSONDecodeError as e:
+        print(f"unknown ({path} is not valid JSON)")
+        raise SystemExit(0)
+
+installed = (load(os.path.join(home, ".claude", "plugins", "installed_plugins.json")) or {}).get("plugins", {})
+market = next((pid.split("@", 1)[1] for pid in installed if pid.split("@", 1)[0] == PLUGIN and "@" in pid), None)
+if not market:
+    print("unknown (marketplace not found)")
+    raise SystemExit(0)
+
+candidates = [
+    os.path.join(cwd, ".claude", "settings.json"),
+    os.path.join(cwd, ".claude", "settings.local.json"),
+    os.path.join(home, ".claude", "settings.json"),
+]
+for path in candidates:
+    data = load(path)
+    if data and market in (data.get("extraKnownMarketplaces") or {}):
+        flag = data["extraKnownMarketplaces"][market].get("autoUpdate")
+        print("enabled" if flag is True else "disabled")
+        raise SystemExit(0)
+
+print("disabled")
+PY
+```
+
+Then ask the user:
+
+> Auto-update for the `{marketplace}` marketplace is currently **{enabled/disabled}**.
+> Would you like to enable auto-update so future releases install automatically? (yes/no)
+
+Wait for the user's answer before continuing. If they say **yes**, run the enable block below. If they say **no**, skip to step 3.
+
+**Enable block** (run only if the user consents):
 
 ```bash
 python3 - <<'PY'
@@ -56,14 +103,12 @@ def load(path):
         print(f"  ! {path} is not valid JSON ({e}); skipping")
         return None
 
-# Resolve which marketplace this plugin is installed from (e.g. "bfinster").
 installed = (load(os.path.join(home, ".claude", "plugins", "installed_plugins.json")) or {}).get("plugins", {})
 market = next((pid.split("@", 1)[1] for pid in installed if pid.split("@", 1)[0] == PLUGIN and "@" in pid), None)
 if not market:
-    print(f"  ! Could not resolve the marketplace for '{PLUGIN}'; skipping auto-update.")
+    print(f"  ! Could not resolve the marketplace for '{PLUGIN}'; skipping.")
     raise SystemExit(0)
 
-# Find the settings scope that declares the marketplace (project > local > user).
 candidates = [
     os.path.join(cwd, ".claude", "settings.json"),
     os.path.join(cwd, ".claude", "settings.local.json"),
@@ -77,12 +122,10 @@ for path in candidates:
         break
 
 if target is None:
-    # Not declared in any settings file: pull the source from the registry and
-    # declare it (with autoUpdate) in user settings so the flag is durable.
     reg = load(os.path.join(home, ".claude", "plugins", "known_marketplaces.json")) or {}
     entry = reg.get(market)
     if not entry:
-        print(f"  ! Marketplace '{market}' not found in settings or registry; skipping auto-update.")
+        print(f"  ! Marketplace '{market}' not found in settings or registry; skipping.")
         raise SystemExit(0)
     path = os.path.join(home, ".claude", "settings.json")
     data = load(path) or {}
@@ -103,15 +146,17 @@ else:
 PY
 ```
 
-Report the one-line result to the user. This step never blocks the upgrade — on any "skipping" message, continue to step 3.
+Report the one-line result to the user, then continue to step 3.
 
 ### 3. Run the update
 
+First, determine the install scope from `claude plugin list` output (the `Scope:` line for `agentic-dev-team`). It will be one of: `user`, `project`, `local`, `managed`.
+
 ```bash
-claude plugin update agentic-dev-team@{marketplace}
+claude plugin update --scope {scope} agentic-dev-team@{marketplace}
 ```
 
-Where `{marketplace}` is the marketplace name the plugin is installed from (e.g., `bfinster`).
+Where `{scope}` is the detected install scope (e.g., `project`) and `{marketplace}` is the marketplace name (e.g., `bfinster`). The `--scope` flag is required — the CLI defaults to `user`, which will fail if the plugin is installed at a different scope.
 
 If the command succeeds with a version change, proceed to step 4.
 
@@ -122,6 +167,7 @@ Exit.
 
 If the command fails, report the error and suggest:
 > Update failed. You can try a manual reinstall:
+>
 > ```
 > claude plugin uninstall agentic-dev-team@{marketplace}
 > claude plugin install agentic-dev-team@{marketplace}
@@ -138,6 +184,7 @@ claude plugin list
 ```
 
 Report:
+
 ```
 ## Upgrade Complete
 
@@ -152,4 +199,4 @@ Restart Claude Code to apply the update.
 - The `claude plugin update` command handles fetching, caching, and version management
 - Previous versions are kept for 7 days so active sessions continue working
 - A restart of Claude Code is required for the new version to take effect
-- Step 2 enables marketplace-level auto-update by writing `extraKnownMarketplaces.<marketplace>.autoUpdate: true` to `settings.json` (the same flag the `/plugin` UI toggles; there is no dedicated `claude plugin` CLI subcommand for it). It runs before the update so the flag is set even when the plugin is already current. With it on, routine releases land without running `/upgrade`.
+- Step 2 checks the current auto-update status and asks the user before enabling it. The flag is `extraKnownMarketplaces.<marketplace>.autoUpdate: true` in `settings.json` (the same flag the `/plugin` UI toggles; there is no dedicated `claude plugin` CLI subcommand for it). With it on, routine releases land without running `/upgrade`.
