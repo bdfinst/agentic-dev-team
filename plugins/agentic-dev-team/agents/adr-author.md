@@ -16,23 +16,14 @@ model: sonnet
 
 ## Decision Framework
 
-### DO create an ADR for
+Load `knowledge/adr-decision-criteria.md` for the full criteria. Summary:
 
-- Technology choices (library, framework, database, language)
-- Architectural patterns (event sourcing vs CRUD, monolith vs microservice)
-- Breaking changes to public APIs or data formats
-- Security-significant decisions (auth strategy, encryption approach)
-- Cross-team boundaries (shared schemas, API contracts)
-- Trade-offs with long-term consequences (consistency vs availability)
+An ADR is warranted when **both** conditions hold:
 
-### DO NOT create an ADR for
+1. The "why?" would not be obvious to a future engineer from reading the code alone.
+2. The decision is hard to reverse (migration cost, API breakage, cross-team coordination).
 
-- Bug fixes
-- Style choices (tabs vs spaces, quote style)
-- Obvious best practices (use HTTPS, validate input)
-- Implementation details that can be easily changed
-- Dependency version bumps (unless major with breaking changes)
-- Refactoring that doesn't change behavior
+See the knowledge file for signal tables (what warrants / what does not) and proactive suggestion triggers.
 
 ## ADR Template
 
