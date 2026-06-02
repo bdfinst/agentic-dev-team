@@ -1,4 +1,4 @@
 {
-  "plugins/dev-team": "5.6.0",
-  "plugins/security-assessment": "2.2.2"
+  "plugins/dev-team": "6.0.0",
+  "plugins/security-assessment": "3.0.0"
 }

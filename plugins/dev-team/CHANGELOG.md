@@ -1,5 +1,29 @@
 # Changelog
 
+## [6.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v5.6.0...dev-team-v6.0.0) (2026-06-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* published plugin ids in the bfinster marketplace are now 'dev-team' and 'security-assessment' (previously 'agentic-dev-team' and 'agentic-security-assessment'). The 'agentic-' prefix carried no information — every plugin in this marketplace is agentic by definition.
+
+### Features
+
+* **upgrade:** migrate legacy agentic-* plugin ids on upgrade ([f6865fc](https://github.com/bdfinst/agentic-dev-team/commit/f6865fc2735b14424118de2fc2ca51a1831283c9))
+
+
+### Code Refactoring
+
+* **agents:** orchestration cluster has no remaining sweep work (12c) ([a7c3211](https://github.com/bdfinst/agentic-dev-team/commit/a7c321173bdc967dd56d53d4f867cef262c53726))
+* **dev-team:** sweep internal references to dev-team ([5ce4ba8](https://github.com/bdfinst/agentic-dev-team/commit/5ce4ba831e2ff7d90caeba7e0c61334a6a3d0f7a))
+* rename plugins to dev-team and security-assessment ([a36bba2](https://github.com/bdfinst/agentic-dev-team/commit/a36bba28a670e5855605cadf794a7b092b04f2ba))
+
+
+### Documentation
+
+* **readme:** document /upgrade right after the install section ([7411abf](https://github.com/bdfinst/agentic-dev-team/commit/7411abf9532e40c35010b6cac239bf07840732af))
+* **repo-root:** sweep references; add Renamed plugins README notice ([49066fb](https://github.com/bdfinst/agentic-dev-team/commit/49066fbc619256a7b312dbb283d869c5676d25f8))
+
 ## [5.6.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.5.0...agentic-dev-team-v5.6.0) (2026-06-02)
 
 

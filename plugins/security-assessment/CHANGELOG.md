@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.0.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v2.2.2...security-assessment-v3.0.0) (2026-06-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* published plugin ids in the bfinster marketplace are now 'dev-team' and 'security-assessment' (previously 'agentic-dev-team' and 'agentic-security-assessment'). The 'agentic-' prefix carried no information — every plugin in this marketplace is agentic by definition.
+
+### Code Refactoring
+
+* **agents:** orchestration cluster has no remaining sweep work (12c) ([a7c3211](https://github.com/bdfinst/agentic-dev-team/commit/a7c321173bdc967dd56d53d4f867cef262c53726))
+* rename plugins to dev-team and security-assessment ([a36bba2](https://github.com/bdfinst/agentic-dev-team/commit/a36bba28a670e5855605cadf794a7b092b04f2ba))
+* **security-assessment:** sweep references; add install legacy-detection ([817e713](https://github.com/bdfinst/agentic-dev-team/commit/817e7132a9bb6b7946385ef84a9b12e56ee3848d))
+
 ## [2.2.2](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-assessment-v2.2.1...agentic-security-assessment-v2.2.2) (2026-06-02)
 
 
