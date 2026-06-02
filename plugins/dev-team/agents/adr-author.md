@@ -16,7 +16,7 @@ model: sonnet
 
 ## Decision Framework
 
-Load `knowledge/adr-decision-criteria.md` for the full criteria. Summary:
+Whole-file load: `knowledge/adr-decision-criteria.md` for the full criteria. Summary:
 
 An ADR is warranted when **both** conditions hold:
 

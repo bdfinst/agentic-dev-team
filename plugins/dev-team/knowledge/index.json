@@ -37,6 +37,28 @@
       "anchor": "out-of-scope"
     }
   },
+  "plugins/dev-team/knowledge/adr-decision-criteria.md": {
+    "Core Definition": {
+      "summary": "An ADR documents **a decision on a matter where \"why?\" would not be obvious** — especially for decisions that are **hard to change later**.",
+      "anchor": "core-definition"
+    },
+    "Signals That Warrant an ADR": {
+      "summary": "| Signal | Why it qualifies |",
+      "anchor": "signals-that-warrant-an-adr"
+    },
+    "Signals That Do NOT Warrant an ADR": {
+      "summary": "| Signal | Why it does not qualify |",
+      "anchor": "signals-that-do-not-warrant-an-adr"
+    },
+    "Proactive Suggestion Triggers": {
+      "summary": "Suggest an ADR when you observe any of the following during review or implementation:",
+      "anchor": "proactive-suggestion-triggers"
+    },
+    "Relationship to Other Documents": {
+      "summary": "**Design doc** — explores options before a decision is made.",
+      "anchor": "relationship-to-other-documents"
+    }
+  },
   "plugins/dev-team/knowledge/adversarial-review-protocol.md": {
     "The Loop": {
       "summary": "After the initial review pass, re-examine findings with the following questions.",
@@ -475,28 +497,6 @@
     "References": {
       "summary": "Michael Feathers, *Working Effectively with Legacy Code* — seam insertion, Parameterize Constructor, Extract Interface",
       "anchor": "references"
-    }
-  },
-  "plugins/dev-team/knowledge/adr-decision-criteria.md": {
-    "Core Definition": {
-      "summary": "An ADR documents a decision where 'why?' would not be obvious — especially for decisions that are hard to change later. Two tests: obscure rationale + high reversal cost.",
-      "anchor": "core-definition"
-    },
-    "Signals That Warrant an ADR": {
-      "summary": "Technology choice, architectural pattern, breaking API/data change, security-significant decision, cross-team contract, trade-off where rejected option is reasonable, deviation from project convention.",
-      "anchor": "signals-that-warrant-an-adr"
-    },
-    "Signals That Do NOT Warrant an ADR": {
-      "summary": "Bug fix, style choice, obvious best practice, implementation detail easily replaced, routine version bump, behavior-preserving refactor.",
-      "anchor": "signals-that-do-not-warrant-an-adr"
-    },
-    "Proactive Suggestion Triggers": {
-      "summary": "TODO comments explaining a choice, design doc with no ADR, unexplained convention deviation, permanent migration, debated choice with no record.",
-      "anchor": "proactive-suggestion-triggers"
-    },
-    "Relationship to Other Documents": {
-      "summary": "Design doc explores options; ADR records the outcome. adr-author writes the prose; adr-tools runs the CLI.",
-      "anchor": "relationship-to-other-documents"
     }
   },
   "plugins/dev-team/skills/adr-tools/SKILL.md": {

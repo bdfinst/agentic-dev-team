@@ -84,6 +84,24 @@ claude plugin install security-assessment@bfinster
 claude plugin install --scope project /path/to/agentic-dev-team/plugins/security-assessment
 ```
 
+### Update an installed plugin
+
+Run `/upgrade` from any Claude Code session with `dev-team` installed. It:
+
+1. Detects legacy plugin ids (`agentic-dev-team@*`, `agentic-security-assessment@*`) and migrates them in place using install-first-then-uninstall, so a failed install never leaves you without a working plugin.
+2. Reads the current installed scope from `claude plugin list` and passes `--scope <scope>` to `claude plugin update`, so project- and local-scope installs upgrade correctly rather than silently failing against the `user` default.
+3. Asks before enabling marketplace-level auto-update (the same `extraKnownMarketplaces.<marketplace>.autoUpdate` flag the `/plugin` UI toggles); decline to keep manual control.
+4. Reports the previous and new version, and prompts you to restart Claude Code so the new code loads.
+
+Migration-only runs (post-rename) exit after Step 0 with an `ACTION REQUIRED` line — restart Claude Code first, then re-run `/upgrade` if you want the auto-update prompt.
+
+Manual fallback when `/upgrade` is unavailable:
+
+```bash
+claude plugin update --scope <scope> dev-team@bfinster
+claude plugin update --scope <scope> security-assessment@bfinster
+```
+
 Then install the tier-1 static-analysis tools:
 
 ```bash
