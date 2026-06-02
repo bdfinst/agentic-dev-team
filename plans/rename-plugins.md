@@ -2,7 +2,7 @@
 
 **Created**: 2026-06-02
 **Branch**: refactor/rename-plugins
-**Status**: approved
+**Status**: implemented
 **Spec**: `docs/specs/rename-plugins.md`
 
 ## Goal
