@@ -2,6 +2,16 @@
 
 The real changelog lives at [`plugins/dev-team/CHANGELOG.md`](../dev-team/CHANGELOG.md). This file only tracks the deprecation stub.
 
+## [6.0.2] - 2026-06-02
+
+### Added
+
+- SessionStart hook (`hooks/deprecation-banner.sh`) that fires on every Claude Code launch and prints a high-visibility deprecation notice naming the destination plugin and the exact restart-then-`/upgrade` flow. Closes a gap where users running the pre-rename `/upgrade` twice without restarting in between would land on this stub, see "already at latest" on the second run, and walk away thinking migration was complete.
+
+### Changed
+
+- Updated `commands/upgrade.md` opening prose to explicitly call out the "if you just got here from running the pre-rename `/upgrade`, restart first" case.
+
 ## [6.0.1] - 2026-06-02
 
 ### Changed

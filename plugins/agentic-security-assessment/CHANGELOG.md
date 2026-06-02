@@ -2,6 +2,16 @@
 
 The real changelog lives at [`plugins/security-assessment/CHANGELOG.md`](../security-assessment/CHANGELOG.md). This file only tracks the deprecation stub.
 
+## [3.0.2] - 2026-06-02
+
+### Added
+
+- SessionStart hook (`hooks/deprecation-banner.sh`) that fires on every Claude Code launch and prints a high-visibility deprecation notice. Same rationale as `agentic-dev-team@6.0.2`.
+
+### Changed
+
+- Updated `commands/upgrade.md` opening prose to address the half-migrated session state.
+
 ## [3.0.1] - 2026-06-02
 
 ### Changed

@@ -19,6 +19,18 @@ uninstall this stub. After it runs, restart Claude Code; you'll be on
 SARIF-first pipeline, red-team harness, and all agents and skills
 intact under their new home.
 
+## Are you in the half-migrated state?
+
+If you just ran `/upgrade` from a pre-rename install (v2.2.2 or
+earlier), that `/upgrade` updated you to this stub — but the running
+Claude Code session is still bound to the **previous** plugin's
+`/upgrade` code, not this stub's. Running `/upgrade` again before
+restarting will correctly report "already at the latest" against the
+stub, but it will NOT migrate you to `security-assessment@bfinster`.
+
+**Restart Claude Code first.** Then run `/upgrade` — that invocation
+will be THIS file, and it will finish the migration.
+
 ## Steps
 
 ### 1. Detect install scope
