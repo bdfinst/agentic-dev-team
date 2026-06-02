@@ -120,8 +120,9 @@ check_manifest_names() {
       return  # stub directory absent is fine — already migrated/removed
     fi
     local forbidden
+    # hooks/ is allowed but must contain ONLY the deprecation banner.
     forbidden=$(find "$stub_dir" -mindepth 1 -maxdepth 2 -type d \
-      \( -name agents -o -name skills -o -name knowledge -o -name templates -o -name prompts -o -name harness -o -name hooks \) 2>/dev/null)
+      \( -name agents -o -name skills -o -name knowledge -o -name templates -o -name prompts -o -name harness \) 2>/dev/null)
     if [ -n "$forbidden" ]; then
       fail "$stub_dir has non-stub subdirectories: $(printf '%s ' "$forbidden")"
     else
@@ -277,10 +278,13 @@ check_dev_team_body_clean
 # plugins/security-assessment/ except CHANGELOG.md (history) and install.sh
 # (intentional legacy-detection migration notice).
 check_security_assessment_body_clean() {
+  # The plugin's /upgrade and README intentionally describe the legacy
+  # migration path; the deprecation stub does the actual migration.
   local hits
   hits=$(grep -rln 'agentic-security-assessment\|agentic-dev-team' \
     plugins/security-assessment/ \
-    --exclude=CHANGELOG.md --exclude=install.sh 2>/dev/null || true)
+    --exclude=CHANGELOG.md --exclude=install.sh \
+    --exclude=upgrade.md --exclude=README.md 2>/dev/null || true)
   if [ -z "$hits" ]; then
     pass "plugins/security-assessment/ free of legacy plugin names"
   else
@@ -345,7 +349,7 @@ check_no_live_legacy_references() {
   local hits
   hits=$(printf '%s\n' "$raw_hits" \
     | grep -vE '(github\.com/bdfinst/agentic-dev-team|Previously published as|DEPRECATED|"name": "agentic-(dev-team|security-assessment)"|"source": "\./plugins/agentic-(dev-team|security-assessment)")' \
-    | grep -vE '^(CHANGELOG\.md|.*/CHANGELOG\.md|metrics/config-changelog\.jsonl|memory/decisions\.md|plans/|docs/adr/|docs/specs/rename-plugins\.md|docs/specs/legacy-plugin-stubs\.md|docs/decisions/upgrade-step-0-sunset\.md|evals/security-review-adapter/|evals/upgrade-migration/|plugins/dev-team/commands/upgrade\.md|plugins/security-assessment/install\.sh|plugins/agentic-dev-team/|plugins/agentic-security-assessment/|scripts/assert-rename\.sh|scripts/sweep-rename\.sh|README\.md)' \
+    | grep -vE '^(CHANGELOG\.md|.*/CHANGELOG\.md|metrics/config-changelog\.jsonl|memory/decisions\.md|plans/|docs/adr/|docs/specs/rename-plugins\.md|docs/specs/legacy-plugin-stubs\.md|docs/decisions/upgrade-step-0-sunset\.md|evals/security-review-adapter/|evals/upgrade-migration/|plugins/dev-team/commands/upgrade\.md|plugins/security-assessment/install\.sh|plugins/security-assessment/commands/upgrade\.md|plugins/security-assessment/README\.md|plugins/agentic-dev-team/|plugins/agentic-security-assessment/|scripts/assert-rename\.sh|scripts/sweep-rename\.sh|tests/repo/legacy_plugin_stubs\.bats|tests/commands/security_upgrade_tests\.bats|README\.md)' \
     || true)
   if [ -z "$hits" ]; then
     pass "no live references to legacy plugin names in tracked files"

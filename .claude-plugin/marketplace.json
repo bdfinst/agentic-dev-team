@@ -34,8 +34,8 @@
     {
       "name": "agentic-dev-team",
       "source": "./plugins/agentic-dev-team",
-      "description": "DEPRECATED legacy stub — renamed to dev-team@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. Scheduled for removal from the catalog no earlier than 2027-06-01.",
-      "version": "6.0.1",
+      "description": "DEPRECATED legacy stub — renamed to dev-team@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. A SessionStart banner surfaces the half-migrated state. Scheduled for removal from the catalog no earlier than 2027-06-01.",
+      "version": "6.0.2",
       "author": {
         "name": "Bryan Finster"
       },
@@ -46,8 +46,8 @@
     {
       "name": "agentic-security-assessment",
       "source": "./plugins/agentic-security-assessment",
-      "description": "DEPRECATED legacy stub — renamed to security-assessment@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. Scheduled for removal from the catalog no earlier than 2027-06-01.",
-      "version": "3.0.1",
+      "description": "DEPRECATED legacy stub — renamed to security-assessment@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. A SessionStart banner surfaces the half-migrated state. Scheduled for removal from the catalog no earlier than 2027-06-01.",
+      "version": "3.0.2",
       "author": {
         "name": "Bryan Finster"
       },

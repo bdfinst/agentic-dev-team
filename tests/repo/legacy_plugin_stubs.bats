@@ -74,9 +74,12 @@ setup() {
   jq -e '.plugins[] | select(.name == "agentic-security-assessment") | .description' "$mp" | grep -qi 'DEPRECATED'
 }
 
-# LSAC-4: stub directories contain NO non-stub subdirectories
-@test "LSAC-4: agentic-dev-team stub has no agents/skills/knowledge/templates/prompts/harness/hooks" {
-  for forbidden in agents skills knowledge templates prompts harness hooks; do
+# LSAC-4: stub directories contain NO non-stub subdirectories.
+# hooks/ is allowed but ONLY for the deprecation-banner.sh SessionStart
+# hook — nothing else. agents/, skills/, knowledge/, etc. would mean the
+# stub regrew into something pretending to be the real plugin.
+@test "LSAC-4: agentic-dev-team stub has no agents/skills/knowledge/templates/prompts/harness" {
+  for forbidden in agents skills knowledge templates prompts harness; do
     if [ -d "$STUB_DEV/$forbidden" ]; then
       printf 'forbidden subdirectory present: %s/%s\n' "$STUB_DEV" "$forbidden" >&2
       return 1
@@ -84,13 +87,67 @@ setup() {
   done
 }
 
-@test "LSAC-4: agentic-security-assessment stub has no agents/skills/knowledge/templates/prompts/harness/hooks" {
-  for forbidden in agents skills knowledge templates prompts harness hooks; do
+@test "LSAC-4: agentic-security-assessment stub has no agents/skills/knowledge/templates/prompts/harness" {
+  for forbidden in agents skills knowledge templates prompts harness; do
     if [ -d "$STUB_SEC/$forbidden" ]; then
       printf 'forbidden subdirectory present: %s/%s\n' "$STUB_SEC" "$forbidden" >&2
       return 1
     fi
   done
+}
+
+@test "LSAC-4: agentic-dev-team stub hooks/ contains only deprecation-banner.sh" {
+  if [ -d "$STUB_DEV/hooks" ]; then
+    local files
+    files=$(find "$STUB_DEV/hooks" -mindepth 1 -maxdepth 1 -type f | sort)
+    [ "$files" = "$STUB_DEV/hooks/deprecation-banner.sh" ]
+  fi
+}
+
+@test "LSAC-4: agentic-security-assessment stub hooks/ contains only deprecation-banner.sh" {
+  if [ -d "$STUB_SEC/hooks" ]; then
+    local files
+    files=$(find "$STUB_SEC/hooks" -mindepth 1 -maxdepth 1 -type f | sort)
+    [ "$files" = "$STUB_SEC/hooks/deprecation-banner.sh" ]
+  fi
+}
+
+# LSAC-8: SessionStart deprecation banner wired correctly.
+@test "LSAC-8: agentic-dev-team stub ships a deprecation banner SessionStart hook" {
+  [ -x "$STUB_DEV/hooks/deprecation-banner.sh" ]
+  # Output must be valid JSON with SessionStart hookEventName.
+  local out
+  out=$(bash "$STUB_DEV/hooks/deprecation-banner.sh")
+  echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['hookSpecificOutput']['hookEventName'] == 'SessionStart'; assert 'agentic-dev-team' in d['hookSpecificOutput']['additionalContext']; assert 'dev-team@bfinster' in d['hookSpecificOutput']['additionalContext']; assert 'restart' in d['hookSpecificOutput']['additionalContext'].lower()"
+}
+
+@test "LSAC-8: agentic-security-assessment stub ships a deprecation banner SessionStart hook" {
+  [ -x "$STUB_SEC/hooks/deprecation-banner.sh" ]
+  local out
+  out=$(bash "$STUB_SEC/hooks/deprecation-banner.sh")
+  echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['hookSpecificOutput']['hookEventName'] == 'SessionStart'; assert 'agentic-security-assessment' in d['hookSpecificOutput']['additionalContext']; assert 'security-assessment@bfinster' in d['hookSpecificOutput']['additionalContext']"
+}
+
+# LSAC-8: settings.json registers the SessionStart hook on each stub.
+@test "LSAC-8: agentic-dev-team stub settings.json registers SessionStart hook" {
+  [ -f "$STUB_DEV/settings.json" ]
+  jq -e '.hooks.SessionStart[0].hooks[0].command' "$STUB_DEV/settings.json" | grep -q 'deprecation-banner.sh'
+}
+
+@test "LSAC-8: agentic-security-assessment stub settings.json registers SessionStart hook" {
+  [ -f "$STUB_SEC/settings.json" ]
+  jq -e '.hooks.SessionStart[0].hooks[0].command' "$STUB_SEC/settings.json" | grep -q 'deprecation-banner.sh'
+}
+
+# LSAC-8: stub /upgrade prose calls out the half-migrated session state.
+@test "LSAC-8: agentic-dev-team /upgrade documents the half-migrated state" {
+  grep -qi 'half-migrated' "$STUB_DEV/commands/upgrade.md"
+  grep -qi 'restart Claude Code first' "$STUB_DEV/commands/upgrade.md"
+}
+
+@test "LSAC-8: agentic-security-assessment /upgrade documents the half-migrated state" {
+  grep -qi 'half-migrated' "$STUB_SEC/commands/upgrade.md"
+  grep -qi 'restart Claude Code first' "$STUB_SEC/commands/upgrade.md"
 }
 
 # LSAC-5: marketplace.json lists all four ids
