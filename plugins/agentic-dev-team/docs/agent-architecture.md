@@ -12,6 +12,10 @@ The Orchestrator receives every request, classifies it by type and complexity, s
 
 Each agent declares a tier alias (`haiku`, `sonnet`, `opus`) in its `model:` frontmatter. Tier-to-snapshot resolution is **enforced by a PreToolUse hook** (`hooks/agent-model-resolve.sh`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper `hooks/lib/model-resolve.sh`. Defaults ship in `knowledge/model-routing.json`; per-user overrides live in the gitignored `.claude/model-overrides.json` (populated by the `/init-dev-team` probe or hand-written for restricted endpoints). See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for contract and Bedrock/Vertex/proxy troubleshooting, and `/model-routing-check` for a read-only diagnostic.
 
+## Knowledge Index
+
+`knowledge/index.json` is a deterministic, checked-in catalog of every H2/H3 section across `knowledge/**.md` and `skills/**/SKILL.md`. Each entry has a one-sentence summary and a slugified GitHub-style anchor. Agents that reference knowledge files cite an anchor (e.g. `knowledge/owasp-detection.md#a03-injection`) and read only the relevant section via `offset`/`limit`. Four freshness gates keep the index current: (1) PostToolUse hook auto-regen on save, (2) pre-commit sibling hook blocks stale commits, (3) `tests/repo/knowledge_index_current.bats` runs in CI, (4) `tests/agents/agent_knowledge_anchor_tests.bats` validates every reference resolves. See `agents/orchestrator.md` → Knowledge index — consumer usage pattern for the canonical lookup flow, and `hooks/lib/build-knowledge-index.sh --check` for ad-hoc verification.
+
 ## Review-Fix Loop
 
 Both inline review checkpoints (Phase 3) and `/code-review` use the same review-fix loop: targeted agents run in parallel, actionable issues (error/warning severity with high/medium confidence) are auto-fixed, and only the agents that reported issues are re-run against the modified files. The loop converges in up to 5 iterations or escalates to a human. `/code-review` is the final gate before commit.

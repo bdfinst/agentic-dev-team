@@ -22,7 +22,7 @@ Context needs: diff-only
 
 ## Knowledge Files
 
-Read the "Naming Offender Catalog" section of `knowledge/design-smells.md` before analysis. It contains: abbreviation anti-patterns with fix pairs, generic verb offenders, misleading name patterns, and type-encoded name examples — as well as the "What NOT to flag" list to avoid false positives.
+Read the "Naming Offender Catalog" section of `knowledge/design-smells.md#naming-offender-catalog` before analysis. It contains: abbreviation anti-patterns with fix pairs, generic verb offenders, misleading name patterns, and type-encoded name examples — as well as the "What NOT to flag" list to avoid false positives.
 
 ## Skip
 

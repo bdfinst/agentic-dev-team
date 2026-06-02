@@ -22,7 +22,7 @@ Context needs: full-file
 
 ## Knowledge Files
 
-Read `knowledge/design-smells.md` and `knowledge/object-calisthenics.md` before analysis.
+Read `knowledge/design-smells.md` and `knowledge/object-calisthenics.md` before analysis. Whole-file load: both files are reference catalogs the agent scans end-to-end during a review — the smell→pattern table and the nine rules are independent indexes.
 
 ## Skip
 
@@ -67,12 +67,12 @@ Organization:
 
 Design smells:
 
-- For SRP violations and coupling issues, map to the smell → pattern table in `knowledge/design-smells.md`. Every finding should name the smell, quote the code, and include a refactor sketch.
-- For method-level issues (nesting, long methods, flag arguments), check Object Calisthenics rules 1-2 and 7 in `knowledge/object-calisthenics.md`.
+- For SRP violations and coupling issues, map to the smell → pattern table in `knowledge/design-smells.md#design-smells-pattern-mapping`. Every finding should name the smell, quote the code, and include a refactor sketch.
+- For method-level issues (nesting, long methods, flag arguments), check Object Calisthenics rules 1-2 and 7 in `knowledge/object-calisthenics.md`. Whole-file load: the nine-rule catalog is short enough that the agent reads the whole file rather than picking specific rule anchors.
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md` (structure-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#structure-review` (structure-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

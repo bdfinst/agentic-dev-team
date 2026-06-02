@@ -22,14 +22,11 @@ Context needs: project-structure
 
 ## Knowledge Files
 
-Read `knowledge/domain-modeling.md` before starting analysis. It
-contains exploration patterns (glob/grep signals per language for
-entities, services, repositories, DTOs), anti-pattern recognition
-guides, and ubiquitous language drift detection.
+Read `knowledge/domain-modeling.md` before starting analysis. Whole-file load: the agent uses every section — exploration patterns, anti-pattern recognition, ubiquitous-language drift detection, and the per-language ORM / boundary / application-service signals.
 
 ## Explore
 
-Follow the exploration patterns in `knowledge/domain-modeling.md` to
+Follow the exploration patterns in `knowledge/domain-modeling.md#exploration-patterns` to
 map the project structure: entity/model files, service layer,
 repositories, DTOs, ORM markers, boundary entry points, and
 application services.
@@ -83,11 +80,13 @@ Anemic domain model:
 
 ## Skills
 
+Whole-file load: each linked SKILL.md is loaded in full when invoked.
+
 - [Ubiquitous Language](../skills/ubiquitous-language/SKILL.md) — invoke when the user asks to "build the glossary", "extract domain terms", or "document the ubiquitous language". Also invoke when domain-review findings show pervasive terminology inconsistency (3+ different names for the same concept across the codebase).
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md` (domain-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#domain-review` (domain-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

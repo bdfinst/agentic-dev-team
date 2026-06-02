@@ -15,17 +15,16 @@
 
 set -uo pipefail
 
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/pre-commit-detect.sh
+source "${HOOK_DIR}/lib/pre-commit-detect.sh"
+
 # Read the tool input from stdin
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null)
 
-# Fast exit for non-commit commands
-if ! echo "$COMMAND" | grep -qE '^\s*git\s+commit\b'; then
-  exit 0
-fi
-
-# Allow --no-verify bypass
-if echo "$COMMAND" | grep -qE '--no-verify'; then
+# Fast exit for non-commit commands or --no-verify bypass
+if ! _is_git_commit_invocation "$COMMAND"; then
   exit 0
 fi
 

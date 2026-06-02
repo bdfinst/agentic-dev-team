@@ -21,7 +21,9 @@ Confidence: high=clear vulnerability with known fix (parameterize query, remove 
 
 Every issue MUST carry a `category` identifying the OWASP class the
 finding belongs to. The canonical list lives in
-`knowledge/owasp-detection.md`; the category-to-rule_id mapping lives
+`knowledge/owasp-detection.md`.
+Whole-file load: the full A01–A10 OWASP catalog is the canonical category list — the agent scans the whole file to pick the right class for each finding.
+The category-to-rule_id mapping lives
 in `knowledge/security-review-rule-map.yaml`.
 
 Format regex: `^A[0-9]{2}\.[a-z0-9-]+$`
@@ -57,14 +59,12 @@ When a vulnerability class is pattern-visible (single-line regex, stable AST sha
 
 ## Knowledge Files
 
-Read `knowledge/owasp-detection.md` before starting analysis. It
-contains OWASP-categorized detection patterns with language-specific
-grep signals for each vulnerability class.
+Read `knowledge/owasp-detection.md` before starting analysis. Whole-file load: the agent needs the full category map (A01–A10) plus the language-specific grep signals — the per-section anchors exist but you scan all of them to triage a finding into the right OWASP class.
 
 ## Accepted risks
 
 If the target repo contains an `ACCEPTED-RISKS.md` at its root,
-consult it per `knowledge/accepted-risks-schema.md`. Always run the
+consult it per `knowledge/accepted-risks-schema.md#matching-algorithm`. Always run the
 full scan first, then apply matching rules to suppress findings
 post-detection — suppression is a filtering step over complete
 detection output. Emit audit entries of the form
@@ -168,7 +168,7 @@ Input:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md` (security-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#security-review` (security-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

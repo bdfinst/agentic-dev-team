@@ -15,7 +15,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
 | Security Engineer | `agents/security-engineer.md` | 320 | Security analysis, threat modeling |
 | Platform Engineer | `agents/platform-engineer.md` | 320 | Pipeline, deployment, reliability |
-| ADR Author | `agents/adr.md` | 320 | Creates and manages Architecture Decision Records |
+| ADR Author | `agents/adr-author.md` | 320 | Creates and manages Architecture Decision Records |
 | Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis. |
 | **All team agents** | | **~4,510** | |
 
@@ -42,8 +42,8 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | test-review | `agents/test-review.md` | mid | Coverage gaps, assertion quality, test hygiene |
 | token-efficiency-review | `agents/token-efficiency-review.md` | small | File/function size, LLM anti-patterns, token usage |
 | progress-guardian | `agents/progress-guardian.md` | mid | Plan adherence, commit discipline, scope creep detection |
-| refactoring-review | `agents/refactor-scan.md` | mid | Post-GREEN refactoring opportunities, semantic vs structural duplication |
-| data-flow-tracer | `agents/use-case-data-patterns.md` | mid | Data flow tracing through architecture layers (analysis-only) |
+| refactor-opportunity-review | `agents/refactor-opportunity-review.md` | mid | Post-GREEN refactoring opportunities, semantic vs structural duplication |
+| data-flow-tracer | `agents/data-flow-tracer.md` | mid | Data flow tracing through architecture layers (analysis-only) |
 
 ## Skills Registry
 
