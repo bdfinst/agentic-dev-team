@@ -47,10 +47,15 @@ pass() {
 
 # --- Consistency checks (always run) -------------------------------------
 
+# Deprecation stubs are deliberately NOT in release-please-config.json —
+# they're manually versioned and short-lived. The consistency check
+# excludes them.
+LEGACY_STUB_DIRS="plugins/agentic-dev-team plugins/agentic-security-assessment"
+
 # AC-14: every package key in release-please-config.json must correspond to
 # an extant plugin directory, and every plugins/* directory that ships a
-# plugin.json must be a known release-please package. This invariant must
-# hold at every commit on the branch.
+# plugin.json (excluding deprecation stubs) must be a known release-please
+# package. This invariant must hold at every commit on the branch.
 check_release_please_consistency() {
   if [ ! -f release-please-config.json ]; then
     fail "release-please-config.json missing"
@@ -63,15 +68,15 @@ check_release_please_consistency() {
     fail "release-please-config.json has no packages"
     return
   fi
-  # Directories that look like plugins (carry a plugin.json). Portable across
-  # GNU and BSD find: use -path, no -printf.
+  # Directories that look like plugins (carry a plugin.json), minus
+  # explicitly excluded deprecation stubs. Portable across GNU and BSD find.
   local actual
   actual=$(find plugins -mindepth 3 -maxdepth 3 -type f -path 'plugins/*/.claude-plugin/plugin.json' 2>/dev/null \
     | sed -e 's|/\.claude-plugin/plugin\.json$||' \
+    | grep -vE "^($(printf '%s' "$LEGACY_STUB_DIRS" | tr ' ' '|'))$" \
     | sort)
-  # Normalize: release-please paths are repo-relative without trailing slash.
   if [ "$declared" = "$actual" ]; then
-    pass "release-please packages match plugins/ layout"
+    pass "release-please packages match plugins/ layout (excluding deprecation stubs)"
   else
     fail "release-please packages diverge from plugins/ layout"
     printf '        declared: %s\n' "$declared" | tr '\n' ' '; echo
@@ -90,19 +95,10 @@ fi
 # --- Full assertion suite (added to as later steps land) -----------------
 
 # Step 2 invariants (manifest names, depends-on, marketplace catalog, dirs).
+# After the deprecation-stub work landed, plugins/agentic-* directories are
+# allowed to exist as long as they are stub-shaped (no agents/, no skills/,
+# only an /upgrade command).
 check_manifest_names() {
-  if [ -d plugins/agentic-dev-team ]; then
-    fail "plugins/agentic-dev-team still exists (expected: plugins/dev-team)"
-  else
-    pass "plugins/agentic-dev-team is gone"
-  fi
-
-  if [ -d plugins/agentic-security-assessment ]; then
-    fail "plugins/agentic-security-assessment still exists (expected: plugins/security-assessment)"
-  else
-    pass "plugins/agentic-security-assessment is gone"
-  fi
-
   if [ ! -d plugins/dev-team ]; then
     fail "plugins/dev-team missing"
   else
@@ -114,6 +110,32 @@ check_manifest_names() {
   else
     pass "plugins/security-assessment exists"
   fi
+
+  # Deprecation stubs must remain narrow: only /upgrade, no agents, no skills,
+  # no hooks beyond a settings.json stub if any. This prevents the stub from
+  # silently regrowing into a duplicate of the real plugin.
+  check_stub_is_minimal() {
+    local stub_dir="$1"
+    if [ ! -d "$stub_dir" ]; then
+      return  # stub directory absent is fine — already migrated/removed
+    fi
+    local forbidden
+    forbidden=$(find "$stub_dir" -mindepth 1 -maxdepth 2 -type d \
+      \( -name agents -o -name skills -o -name knowledge -o -name templates -o -name prompts -o -name harness -o -name hooks \) 2>/dev/null)
+    if [ -n "$forbidden" ]; then
+      fail "$stub_dir has non-stub subdirectories: $(printf '%s ' "$forbidden")"
+    else
+      pass "$stub_dir is stub-shaped (no agents/skills/knowledge/etc.)"
+    fi
+    # The stub MUST ship /upgrade — that's its entire reason to exist.
+    if [ -f "$stub_dir/commands/upgrade.md" ]; then
+      pass "$stub_dir/commands/upgrade.md present"
+    else
+      fail "$stub_dir/commands/upgrade.md missing — stub has no migration command"
+    fi
+  }
+  check_stub_is_minimal plugins/agentic-dev-team
+  check_stub_is_minimal plugins/agentic-security-assessment
 
   if [ -f plugins/dev-team/.claude-plugin/plugin.json ]; then
     local name
@@ -155,11 +177,23 @@ check_marketplace_catalog() {
   fi
   local names
   names=$(jq -r '.plugins[].name' .claude-plugin/marketplace.json | sort | tr '\n' ' ')
-  local expected="dev-team security-assessment "
+  # Real plugins + deprecation stubs are both expected. Order is alphabetical
+  # after `sort`: agentic-dev-team, agentic-security-assessment, dev-team,
+  # security-assessment.
+  local expected="agentic-dev-team agentic-security-assessment dev-team security-assessment "
   if [ "$names" = "$expected" ]; then
-    pass "marketplace.json lists exactly: dev-team, security-assessment"
+    pass "marketplace.json lists real plugins + deprecation stubs"
   else
     fail "marketplace.json plugin names = '$names' (expected '$expected')"
+  fi
+  # Stubs MUST be marked deprecated in their description so anyone browsing
+  # the catalog sees the deprecation immediately.
+  local stub_descs
+  stub_descs=$(jq -r '.plugins[] | select(.name == "agentic-dev-team" or .name == "agentic-security-assessment") | .description' .claude-plugin/marketplace.json)
+  if printf '%s' "$stub_descs" | grep -q -i 'DEPRECATED'; then
+    pass "marketplace stub descriptions mark them DEPRECATED"
+  else
+    fail "marketplace stub descriptions do not contain 'DEPRECATED'"
   fi
 }
 
@@ -225,8 +259,10 @@ check_release_please_manifest
 # except CHANGELOG.md (history) and commands/upgrade.md (migration block).
 check_dev_team_body_clean() {
   local hits
+  # Skip the deprecation stub directory — legitimate home for the legacy name.
   hits=$(grep -rln "agentic-dev-team" plugins/dev-team/ \
-    --exclude=CHANGELOG.md --exclude=upgrade.md 2>/dev/null || true)
+    --exclude=CHANGELOG.md --exclude=upgrade.md 2>/dev/null \
+    | grep -v '^plugins/agentic-dev-team/' || true)
   if [ -z "$hits" ]; then
     pass "plugins/dev-team/ free of agentic-dev-team references"
   else
@@ -308,8 +344,8 @@ check_no_live_legacy_references() {
   fi
   local hits
   hits=$(printf '%s\n' "$raw_hits" \
-    | grep -vE '(github\.com/bdfinst/agentic-dev-team|Previously published as)' \
-    | grep -vE '^(CHANGELOG\.md|.*/CHANGELOG\.md|metrics/config-changelog\.jsonl|memory/decisions\.md|plans/|docs/adr/|docs/specs/rename-plugins\.md|docs/decisions/upgrade-step-0-sunset\.md|evals/security-review-adapter/|evals/upgrade-migration/|plugins/dev-team/commands/upgrade\.md|plugins/security-assessment/install\.sh|scripts/assert-rename\.sh|scripts/sweep-rename\.sh|README\.md)' \
+    | grep -vE '(github\.com/bdfinst/agentic-dev-team|Previously published as|DEPRECATED|"name": "agentic-(dev-team|security-assessment)"|"source": "\./plugins/agentic-(dev-team|security-assessment)")' \
+    | grep -vE '^(CHANGELOG\.md|.*/CHANGELOG\.md|metrics/config-changelog\.jsonl|memory/decisions\.md|plans/|docs/adr/|docs/specs/rename-plugins\.md|docs/specs/legacy-plugin-stubs\.md|docs/decisions/upgrade-step-0-sunset\.md|evals/security-review-adapter/|evals/upgrade-migration/|plugins/dev-team/commands/upgrade\.md|plugins/security-assessment/install\.sh|plugins/agentic-dev-team/|plugins/agentic-security-assessment/|scripts/assert-rename\.sh|scripts/sweep-rename\.sh|README\.md)' \
     || true)
   if [ -z "$hits" ]; then
     pass "no live references to legacy plugin names in tracked files"

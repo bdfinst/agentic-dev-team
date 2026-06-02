@@ -1,0 +1,9 @@
+{
+  "name": "agentic-security-assessment",
+  "version": "3.0.1",
+  "description": "DEPRECATED — renamed to security-assessment@bfinster. This stub auto-migrates legacy installs on /upgrade. Will be removed from the marketplace catalog in v4.0.0 (planned: 2027-06-01).",
+  "author": {
+    "name": "finsterb",
+    "email": ""
+  }
+}

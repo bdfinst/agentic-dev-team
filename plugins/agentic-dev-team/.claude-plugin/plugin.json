@@ -1,0 +1,9 @@
+{
+  "name": "agentic-dev-team",
+  "version": "6.0.1",
+  "description": "DEPRECATED — renamed to dev-team@bfinster. This stub auto-migrates legacy installs on /upgrade. Will be removed from the marketplace catalog in v7.0.0 (planned: 2027-06-01).",
+  "author": {
+    "name": "finsterb",
+    "email": ""
+  }
+}
