@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Step 5: End-to-end JS/TS flow — blocking output, exit codes, prefix tokens
 
-PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team"
+PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/dev-team"
 FIXTURES="$BATS_TEST_DIRNAME/fixtures"
 FAKE_BIN="$BATS_TEST_DIRNAME/fake-bin"
 

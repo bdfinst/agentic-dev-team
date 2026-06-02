@@ -16,7 +16,7 @@
 #   4 — knowledge/model-routing.json missing
 #   5 — overrides file is not valid JSON
 
-RESOLVER="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/model-resolve.sh"
+RESOLVER="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/model-resolve.sh"
 
 setup() {
   BATS_TMPDIR_CASE="$(mktemp -d)"

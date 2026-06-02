@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
 # Step 2: State tracking and RED→GREEN transition detection
 
-HOOK_LIB="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/mutation-adapters/lib.sh"
-PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team"
+HOOK_LIB="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/mutation-adapters/lib.sh"
+PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/dev-team"
 FIXTURES="$BATS_TEST_DIRNAME/fixtures"
 
 PASS_JSON=$(cat "$FIXTURES/posttooluse-bash-pass.json")

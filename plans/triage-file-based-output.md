@@ -15,7 +15,7 @@ Spec: `docs/specs/triage-file-based-output.md`
 
 ## Acceptance Criteria
 
-- [ ] Running `/triage "<description>"` writes `.triage/<final-slug>.md`; static verification: `grep -r "gh " plugins/agentic-dev-team/commands/triage.md` returns nothing
+- [ ] Running `/triage "<description>"` writes `.triage/<final-slug>.md`; static verification: `grep -r "gh " plugins/dev-team/commands/triage.md` returns nothing
 - [ ] `.triage/` is created automatically if absent; if not writable, the command reports "Cannot write to .triage/ — check directory permissions", attempts to write to a system temp path, and prints the full would-be file content (frontmatter + all four body sections) to chat
 - [ ] Slug is derived from the bug title using this ordered algorithm: (1) lowercase, (2) strip non-ASCII characters, (3) replace spaces and underscores with hyphens, (4) strip all characters except `[a-z0-9-]`, (5) collapse consecutive hyphens to one, (6) truncate at the last hyphen at or before character 60, (7) strip leading/trailing hyphens, (8) if result is empty use fallback `triage-YYYYMMDD`
 - [ ] Slug collision: if `.triage/<slug>.md` exists, append `-2`, `-3`, up to `-99`; existing records are never overwritten; the final resolved filename (not the original slug) is used in the output line
@@ -35,7 +35,7 @@ Feature: /triage — File-Based Triage Records
   So that bug investigation output is portable across any issue tracker
 
   Background:
-    Given the agentic-dev-team plugin is installed
+    Given the dev-team plugin is installed
     And I am in a project directory
 
   Scenario: Basic triage creates a .triage/ record
@@ -143,12 +143,12 @@ Feature: /triage — File-Based Triage Records
 **RED**: Establish baseline — confirm the old behavior exists before changing it:
 
 ```bash
-grep -c "gh issue create" plugins/agentic-dev-team/commands/triage.md  # must return 1
-grep -c "GitHub" plugins/agentic-dev-team/commands/triage.md           # must return >= 1
-grep -c "issue URL" plugins/agentic-dev-team/commands/triage.md        # record count
+grep -c "gh issue create" plugins/dev-team/commands/triage.md  # must return 1
+grep -c "GitHub" plugins/dev-team/commands/triage.md           # must return >= 1
+grep -c "issue URL" plugins/dev-team/commands/triage.md        # record count
 ```
 
-**GREEN**: Edit `plugins/agentic-dev-team/commands/triage.md` with these sub-steps in order:
+**GREEN**: Edit `plugins/dev-team/commands/triage.md` with these sub-steps in order:
 
 **1a. Update frontmatter `description`:**
 
@@ -266,11 +266,11 @@ the full record body in chat.
 sections. The grep commands from the RED phase confirm this:
 
 ```bash
-grep "gh " plugins/agentic-dev-team/commands/triage.md     # must return nothing
-grep "GitHub" plugins/agentic-dev-team/commands/triage.md  # must return nothing
+grep "gh " plugins/dev-team/commands/triage.md     # must return nothing
+grep "GitHub" plugins/dev-team/commands/triage.md  # must return nothing
 ```
 
-**Files**: `plugins/agentic-dev-team/commands/triage.md`
+**Files**: `plugins/dev-team/commands/triage.md`
 
 **Commit**: `feat: write triage records to .triage/ instead of creating GitHub issues`
 
@@ -283,7 +283,7 @@ grep "GitHub" plugins/agentic-dev-team/commands/triage.md  # must return nothing
 **RED**: Confirm both stale locations exist:
 
 ```bash
-grep "GitHub issue" plugins/agentic-dev-team/CLAUDE.md  # must return >= 2 matches
+grep "GitHub issue" plugins/dev-team/CLAUDE.md  # must return >= 2 matches
 ```
 
 **GREEN**:
@@ -309,10 +309,10 @@ New text: `/triage (Systematic Debugging + file-based triage record in .triage/)
 **REFACTOR**: Run the RED grep again to confirm both locations updated:
 
 ```bash
-grep "GitHub issue" plugins/agentic-dev-team/CLAUDE.md  # must return nothing
+grep "GitHub issue" plugins/dev-team/CLAUDE.md  # must return nothing
 ```
 
-**Files**: `plugins/agentic-dev-team/CLAUDE.md`
+**Files**: `plugins/dev-team/CLAUDE.md`
 
 **Commit**: `docs: update /triage registry entries to reflect file-based output`
 
@@ -325,9 +325,9 @@ grep "GitHub issue" plugins/agentic-dev-team/CLAUDE.md  # must return nothing
 
 ## Pre-PR Quality Gate
 
-- [ ] `grep "gh " plugins/agentic-dev-team/commands/triage.md` — no matches
-- [ ] `grep "GitHub" plugins/agentic-dev-team/commands/triage.md` — no matches
-- [ ] `grep "GitHub issue" plugins/agentic-dev-team/CLAUDE.md` — no matches
+- [ ] `grep "gh " plugins/dev-team/commands/triage.md` — no matches
+- [ ] `grep "GitHub" plugins/dev-team/commands/triage.md` — no matches
+- [ ] `grep "GitHub issue" plugins/dev-team/CLAUDE.md` — no matches
 - [ ] File format template includes frontmatter with `id`, `created`, `status: open` and all four body sections
 - [ ] Step 5 in triage.md emits `triage-record:` line after collision resolution (not before)
 - [ ] Slug algorithm steps 1–8 present in correct order with worked examples

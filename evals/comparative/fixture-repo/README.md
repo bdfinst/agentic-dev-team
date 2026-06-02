@@ -58,12 +58,12 @@ from its emitted findings.
 ```bash
 # Reference pipeline (manual, uses Claude API credits):
 cd /path/to/opus_repo_scan_test-main
-cp -r /path/to/agentic-dev-team/evals/comparative/fixture-repo repos/fixture-repo
+cp -r /path/to/dev-team/evals/comparative/fixture-repo repos/fixture-repo
 # Run the 13 agents per docs/static-analysis-agents.md
 # Output lands in results/reports/
 
 # Our pipeline:
-cd /path/to/agentic-dev-team
+cd /path/to/dev-team
 /security-assessment evals/comparative/fixture-repo
 # Output lands in memory/report-fixture-repo.md + findings-fixture-repo.jsonl
 

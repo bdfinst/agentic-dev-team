@@ -12,7 +12,7 @@ Expected: `knowledge/agent-registry.md` contains a new row in the Review Agents 
 | unused-import-review | agents/unused-import-review.md | small | Detects unused import statements |
 ```
 
-Expected: `plugins/agentic-dev-team/CLAUDE.md` contains a new row in the Review Agents table for `unused-import-review`.
+Expected: `plugins/dev-team/CLAUDE.md` contains a new row in the Review Agents table for `unused-import-review`.
 
 Expected: NO row added to the Team Agents table in either file.
 
@@ -25,7 +25,7 @@ Expected: `knowledge/agent-registry.md` contains a new row in the Team Agents ta
 | schema-planner | agents/schema-planner.md | mid | Plans database schema migrations |
 ```
 
-Expected: `plugins/agentic-dev-team/CLAUDE.md` contains a new row in the Team Agents table.
+Expected: `plugins/dev-team/CLAUDE.md` contains a new row in the Team Agents table.
 
 Expected: NO row added to the Review Agents table in either file.
 

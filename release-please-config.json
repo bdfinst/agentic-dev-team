@@ -11,21 +11,17 @@
     { "type": "chore", "section": "Miscellaneous" }
   ],
   "packages": {
-    "plugins/agentic-dev-team": {
+    "plugins/dev-team": {
       "release-type": "simple",
-      "package-name": "agentic-dev-team",
-      "component": "agentic-dev-team",
-      "extra-files": [
-        ".claude-plugin/plugin.json"
-      ]
+      "package-name": "dev-team",
+      "component": "dev-team",
+      "extra-files": [".claude-plugin/plugin.json"]
     },
-    "plugins/agentic-security-assessment": {
+    "plugins/security-assessment": {
       "release-type": "simple",
-      "package-name": "agentic-security-assessment",
-      "component": "agentic-security-assessment",
-      "extra-files": [
-        ".claude-plugin/plugin.json"
-      ]
+      "package-name": "security-assessment",
+      "component": "security-assessment",
+      "extra-files": [".claude-plugin/plugin.json"]
     }
   }
 }

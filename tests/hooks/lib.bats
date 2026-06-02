@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Tests for hooks/mutation-adapters/lib.sh
 
-HOOK_LIB="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/mutation-adapters/lib.sh"
+HOOK_LIB="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/mutation-adapters/lib.sh"
 FAKE_BIN="$BATS_TEST_DIRNAME/fake-bin"
 
 setup() {

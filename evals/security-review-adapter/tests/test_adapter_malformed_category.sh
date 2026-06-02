@@ -2,7 +2,7 @@
 # Malformed category (regex-violating) must be a hard-fail. AC-16.
 set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-ADAPTER="$REPO_ROOT/plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
+ADAPTER="$REPO_ROOT/plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
 FXT="$REPO_ROOT/evals/security-review-adapter/fixtures/agent-output-malformed-category.json"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT

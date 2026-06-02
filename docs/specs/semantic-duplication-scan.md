@@ -155,8 +155,8 @@ Feature: Semantic Duplication Scan
 
 | Component | Location | Notes |
 |-----------|----------|-------|
-| Skill | `plugins/agentic-dev-team/skills/semantic-duplication-scan/SKILL.md` | Defines scan procedure |
-| Command | `plugins/agentic-dev-team/commands/semantic-scan.md` | User-invocable entry point |
+| Skill | `plugins/dev-team/skills/semantic-duplication-scan/SKILL.md` | Defines scan procedure |
+| Command | `plugins/dev-team/commands/semantic-scan.md` | User-invocable entry point |
 | Register | `computation-register.json` in user's project root | Created per-project, not shipped with plugin |
 
 ### Register Entry Schema

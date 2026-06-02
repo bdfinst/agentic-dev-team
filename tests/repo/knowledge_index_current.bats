@@ -5,7 +5,7 @@
 # pre-commit sibling hook is caught here.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-BUILDER="$REPO_ROOT/plugins/agentic-dev-team/hooks/lib/build-knowledge-index.sh"
+BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-knowledge-index.sh"
 
 @test "AC16: knowledge/index.json is current with the working tree" {
   cd "$REPO_ROOT"

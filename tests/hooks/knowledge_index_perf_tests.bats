@@ -9,7 +9,7 @@
 #
 # Gated by KNOWLEDGE_INDEX_PERF=1 so default test runs stay fast.
 
-BUILDER="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/build-knowledge-index.sh"
+BUILDER="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/build-knowledge-index.sh"
 
 setup() {
   if [[ "${KNOWLEDGE_INDEX_PERF:-0}" != "1" ]]; then

@@ -4,8 +4,8 @@
 # into a Read with offset/limit. This is the canonical onboarding for
 # every agent that reads index entries.
 
-ORCH="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/agents/orchestrator.md"
-ARCH_DOC="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/docs/agent-architecture.md"
+ORCH="$BATS_TEST_DIRNAME/../../plugins/dev-team/agents/orchestrator.md"
+ARCH_DOC="$BATS_TEST_DIRNAME/../../plugins/dev-team/docs/agent-architecture.md"
 
 @test "orchestrator.md documents the index → offset/limit Read flow" {
   [ -f "$ORCH" ]

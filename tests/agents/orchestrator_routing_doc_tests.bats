@@ -2,9 +2,9 @@
 # Tests for agents/orchestrator.md + CLAUDE.md routing-doc rewrite.
 # Step 15 + AC2, AC14 (cross-reference), AC18 (registry pointer).
 
-ORCH="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/agents/orchestrator.md"
-CLAUDE_MD="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/CLAUDE.md"
-ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/knowledge/model-routing.json"
+ORCH="$BATS_TEST_DIRNAME/../../plugins/dev-team/agents/orchestrator.md"
+CLAUDE_MD="$BATS_TEST_DIRNAME/../../plugins/dev-team/CLAUDE.md"
+ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/model-routing.json"
 
 @test "orchestrator: no static 'Model Routing Table' heading remains" {
   ! grep -qE "^##.*Model Routing Table" "$ORCH"

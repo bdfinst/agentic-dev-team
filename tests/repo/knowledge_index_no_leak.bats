@@ -5,7 +5,7 @@
 # changed). Catches temp-file or partial-write leaks.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-BUILDER="$REPO_ROOT/plugins/agentic-dev-team/hooks/lib/build-knowledge-index.sh"
+BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-knowledge-index.sh"
 
 @test "AC21: no temp or untracked files after a rebuild on a clean tree" {
   cd "$REPO_ROOT"

@@ -9,7 +9,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-DOC="$REPO_ROOT/plugins/agentic-dev-team/knowledge/security-primitives-contract.md"
+DOC="$REPO_ROOT/plugins/dev-team/knowledge/security-primitives-contract.md"
 
 fail=0
 

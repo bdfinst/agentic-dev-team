@@ -3,10 +3,10 @@
 # codegraph_* MCP tools over multi-file Read/Grep/Glob exploration when
 # a CodeGraph index (.codegraph/) is present in the project.
 
-HOOK="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/codegraph-nudge.sh"
-MARK_HOOK="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/codegraph-turn-mark.sh"
+HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/codegraph-nudge.sh"
+MARK_HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/codegraph-turn-mark.sh"
 
-CAREFUL_STATE="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/careful-state.json"
+CAREFUL_STATE="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/careful-state.json"
 
 setup() {
   BATS_TMPDIR_CASE="$(mktemp -d)"
@@ -249,7 +249,7 @@ _setup_codegraph_project() {
 # ---------------------------------------------------------------------------
 # Step 5 — careful mode escalates warning to block
 #
-# Reads plugins/agentic-dev-team/hooks/careful-state.json (adjacent to the
+# Reads plugins/dev-team/hooks/careful-state.json (adjacent to the
 # script, matching destructive-guard.sh's pattern). When `.active == true`,
 # the multi-file warning becomes a block: stderr still receives WARN_MSG
 # (plus a [blocked by /careful] suffix), exit code becomes 2.

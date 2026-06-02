@@ -6,7 +6,7 @@
 
 ## Goal
 
-Add `/explore` as a first-class command in the agentic-dev-team plugin. The command dispatches
+Add `/explore` as a first-class command in the dev-team plugin. The command dispatches
 the QA Engineer in "Chaos Specialist" mode — a charter-driven, discovery-first session that probes
 a running feature or endpoint using five heuristics: Goldilocks (boundary + Some/None/All set
 dimension), Happy-Path Divergence, Telemetry Deepening, Invariant Probing, and CRUD Sweep.
@@ -122,7 +122,7 @@ manual invocation to verify.
 
 **RED**: Verify `skills/exploratory-testing/SKILL.md` does not exist (`test -f` returns non-zero).
 
-**GREEN**: Create `plugins/agentic-dev-team/skills/exploratory-testing/SKILL.md`. Behavioral
+**GREEN**: Create `plugins/dev-team/skills/exploratory-testing/SKILL.md`. Behavioral
 detail lives in the spec `§Architecture Specification`; this step owns only the section list
 and the tables that require exact syntax.
 
@@ -161,7 +161,7 @@ Sections to write (in order):
 
 **REFACTOR**: Tighten prose; confirm section names match agent-skill-authoring format
 
-**Files**: `plugins/agentic-dev-team/skills/exploratory-testing/SKILL.md`
+**Files**: `plugins/dev-team/skills/exploratory-testing/SKILL.md`
 
 **Commit**: `feat: add exploratory-testing skill with five heuristics, charter quality, adversarial expansion, and session debrief`
 
@@ -175,7 +175,7 @@ Sections to write (in order):
 registry but the command file absent. The `ex-explore-command-missing` eval fixture already
 captures this state.
 
-**GREEN**: Create `plugins/agentic-dev-team/commands/explore.md`. Keep the command thin —
+**GREEN**: Create `plugins/dev-team/commands/explore.md`. Keep the command thin —
 procedural logic lives in the skill.
 
 Required sections:
@@ -232,7 +232,7 @@ defect thresholds, auto-triage handoff protocol, and report schema.
 
 **REFACTOR**: Align tone and section style with existing commands (triage.md, browse.md)
 
-**Files**: `plugins/agentic-dev-team/commands/explore.md`
+**Files**: `plugins/dev-team/commands/explore.md`
 
 **Commit**: `feat: add /explore command for charter-driven exploratory testing`
 
@@ -242,7 +242,7 @@ defect thresholds, auto-triage handoff protocol, and report schema.
 
 **Complexity**: trivial
 
-**RED**: `grep "exploratory" plugins/agentic-dev-team/agents/qa-engineer.md` returns nothing.
+**RED**: `grep "exploratory" plugins/dev-team/agents/qa-engineer.md` returns nothing.
 
 **GREEN**: Add to the Skills section:
 
@@ -254,17 +254,17 @@ defect thresholds, auto-triage handoff protocol, and report schema.
 
 **REFACTOR**: None needed
 
-**Files**: `plugins/agentic-dev-team/agents/qa-engineer.md`
+**Files**: `plugins/dev-team/agents/qa-engineer.md`
 
 **Commit**: `feat: register exploratory-testing skill in qa-engineer agent`
 
 ---
 
-### Step 5: Update `plugins/agentic-dev-team/CLAUDE.md`
+### Step 5: Update `plugins/dev-team/CLAUDE.md`
 
 **Complexity**: trivial
 
-**RED**: `grep "explore" plugins/agentic-dev-team/CLAUDE.md` returns no `/explore` row.
+**RED**: `grep "explore" plugins/dev-team/CLAUDE.md` returns no `/explore` row.
 
 **GREEN**: Add to the Slash Commands Registry table (alphabetically, between `domain-analysis`
 and `feedback-learning`):
@@ -275,7 +275,7 @@ and `feedback-learning`):
 
 **REFACTOR**: None needed
 
-**Files**: `plugins/agentic-dev-team/CLAUDE.md`
+**Files**: `plugins/dev-team/CLAUDE.md`
 
 **Commit**: `docs: register /explore in CLAUDE.md commands registry`
 
@@ -285,7 +285,7 @@ and `feedback-learning`):
 
 **Complexity**: trivial
 
-**RED**: `grep "exploratory" plugins/agentic-dev-team/knowledge/agent-registry.md` returns nothing.
+**RED**: `grep "exploratory" plugins/dev-team/knowledge/agent-registry.md` returns nothing.
 
 **GREEN**: Count lines in the completed SKILL.md to calibrate the token estimate, then add to
 the Skills Registry table (after "Domain-Driven Design"):
@@ -298,7 +298,7 @@ Update the estimate if the actual count differs significantly from ~700.
 
 **REFACTOR**: None needed
 
-**Files**: `plugins/agentic-dev-team/knowledge/agent-registry.md`
+**Files**: `plugins/dev-team/knowledge/agent-registry.md`
 
 **Commit**: `docs: register exploratory-testing skill in agent-registry`
 

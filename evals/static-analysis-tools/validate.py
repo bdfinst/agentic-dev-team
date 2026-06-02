@@ -26,7 +26,7 @@ from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
 REPO = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = REPO / "plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json"
+SCHEMA_PATH = REPO / "plugins/dev-team/knowledge/schemas/unified-finding-v1.json"
 MOCKS_DIR = REPO / "evals/static-analysis-tools/tier1-mocks"
 
 # Tool-driver (lowercased) → capability-tier segment used when the raw SARIF
@@ -37,7 +37,7 @@ TOOL_TIER_MAP: dict[str, str] = {
     "trivy": "iac",
     "hadolint": "dockerfile",
     "actionlint": "workflows",
-    # Custom scripts shipped by agentic-dev-team (P2 Step 3b partial)
+    # Custom scripts shipped by dev-team (P2 Step 3b partial)
     "entropy-check": "secrets",
     "model-hash-verify": "ml",
 }
@@ -182,7 +182,7 @@ def load_schema_registry() -> tuple[dict[str, Any], Registry]:
 INSTALL_HINT_PATTERN = re.compile(
     r"^`?(?P<tool>[a-z0-9-]+)`?\s+—\s+(?P<tier>[^.]+)\.\s+install:\s+(?P<cmd>\S.*)$"
 )
-TOOL_CONFIGS_PATH = REPO / "plugins/agentic-dev-team/skills/static-analysis-integration/references/tool-configs.md"
+TOOL_CONFIGS_PATH = REPO / "plugins/dev-team/skills/static-analysis-integration/references/tool-configs.md"
 
 
 def check_install_hints() -> int:

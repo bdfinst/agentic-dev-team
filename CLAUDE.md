@@ -1,12 +1,12 @@
 # Agentic Dev Team — Plugin Development
 
-This is the marketplace repository for the agentic-dev-team Claude Code plugin.
+This is the marketplace repository for the dev-team Claude Code plugin.
 
 ## Repository Structure
 
 ```
 .claude-plugin/marketplace.json    # Marketplace catalog (points to plugins/)
-plugins/agentic-dev-team/          # The plugin source
+plugins/dev-team/          # The plugin source
 ├── .claude-plugin/plugin.json     # Plugin manifest + version
 ├── agents/                        # Team agents + review agents
 ├── commands/                      # Slash command definitions
@@ -27,24 +27,24 @@ reports/                           # Review reports (not shipped)
 
 ## Developing the Plugin
 
-Edit files directly in `plugins/agentic-dev-team/`. All plugin components (agents, skills, commands, hooks) live there.
+Edit files directly in `plugins/dev-team/`. All plugin components (agents, skills, commands, hooks) live there.
 
 ### Testing locally
 
 Install the plugin from the local path into a test project:
 
 ```bash
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
+claude plugin install --scope project /path/to/dev-team/plugins/dev-team
 # Or from the marketplace:
-# claude plugin install agentic-dev-team@bfinster
+# claude plugin install dev-team@bfinster
 ```
 
 ### Adding agents, skills, or commands
 
-- **Agent**: Add a `.md` file to `plugins/agentic-dev-team/agents/`
-- **Skill**: Add a `.md` file to `plugins/agentic-dev-team/skills/`
-- **Command**: Add a `.md` file to `plugins/agentic-dev-team/commands/`
-- **Hook**: Add a `.sh` script to `plugins/agentic-dev-team/hooks/` and register it in `plugins/agentic-dev-team/settings.json`
+- **Agent**: Add a `.md` file to `plugins/dev-team/agents/`
+- **Skill**: Add a `.md` file to `plugins/dev-team/skills/`
+- **Command**: Add a `.md` file to `plugins/dev-team/commands/`
+- **Hook**: Add a `.sh` script to `plugins/dev-team/hooks/` and register it in `plugins/dev-team/settings.json`
 
 After changes, run `/agent-audit` to verify structural compliance.
 
@@ -57,4 +57,4 @@ Releases are managed by release-please. Push conventional commits to main:
 
 A release PR is opened automatically. Merging it creates a GitHub Release with a version tag.
 
-See `plugins/agentic-dev-team/CLAUDE.md` for the full orchestration pipeline configuration.
+See `plugins/dev-team/CLAUDE.md` for the full orchestration pipeline configuration.

@@ -1,0 +1,6 @@
+{
+  "plugins": {
+    "agentic-dev-team@bfinster": "5.6.0",
+    "agentic-security-assessment@bfinster": "2.2.2"
+  }
+}

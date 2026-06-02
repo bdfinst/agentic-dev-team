@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Step 3: Language adapter detection and dispatch
 
-PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team"
+PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/dev-team"
 FIXTURES="$BATS_TEST_DIRNAME/fixtures"
 
 # Helper: simulate a RED→GREEN transition then call the hook

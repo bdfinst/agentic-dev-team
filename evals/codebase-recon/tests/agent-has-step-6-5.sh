@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-AGENT="$REPO_ROOT/plugins/agentic-dev-team/agents/codebase-recon.md"
+AGENT="$REPO_ROOT/plugins/dev-team/agents/codebase-recon.md"
 
 fail=0
 

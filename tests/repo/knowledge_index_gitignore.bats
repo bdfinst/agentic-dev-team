@@ -2,7 +2,7 @@
 # AC20: the knowledge index is checked into git and not gitignored.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-INDEX_PATH="plugins/agentic-dev-team/knowledge/index.json"
+INDEX_PATH="plugins/dev-team/knowledge/index.json"
 
 @test "AC20: knowledge/index.json is tracked by git" {
   cd "$REPO_ROOT"

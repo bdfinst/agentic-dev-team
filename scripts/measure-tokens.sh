@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # measure-tokens.sh — count tokens in files referenced by the Baseline Budget
-# section of plugins/agentic-dev-team/CLAUDE.md.
+# section of plugins/dev-team/CLAUDE.md.
 #
 # Modes:
 #   (bare)      Print per-file measurements as table rows
@@ -16,7 +16,7 @@
 #
 # Ownership of exact-tokenizer accuracy: the Claude Code harness's own context
 # accounting is authoritative. This script is a development aid for the
-# agentic-dev-team plugin's Baseline Budget table. Cross-check one file against
+# dev-team plugin's Baseline Budget table. Cross-check one file against
 # a live sub-agent dispatch to record any systematic delta in CLAUDE.md's
 # tokenizer footnote (see P1 Step 1 REFACTOR).
 #
@@ -26,7 +26,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CLAUDE_MD="${REPO_ROOT}/plugins/agentic-dev-team/CLAUDE.md"
+CLAUDE_MD="${REPO_ROOT}/plugins/dev-team/CLAUDE.md"
 DEVIATION_THRESHOLD_PCT=10
 
 usage() {
@@ -97,28 +97,28 @@ discover_budget_targets() {
   # from the Baseline Budget bullets — not parsed syntactically (the table is
   # prose with inline paths like "knowledge/agent-registry.md").
   local targets=(
-    "plugins/agentic-dev-team/CLAUDE.md"
-    "plugins/agentic-dev-team/knowledge/agent-registry.md"
+    "plugins/dev-team/CLAUDE.md"
+    "plugins/dev-team/knowledge/agent-registry.md"
   )
 
   # All team agents
-  for f in "${REPO_ROOT}/plugins/agentic-dev-team/agents"/*.md; do
+  for f in "${REPO_ROOT}/plugins/dev-team/agents"/*.md; do
     targets+=("${f#${REPO_ROOT}/}")
   done
 
   # All skills (count SKILL.md only — the skill frontmatter entry point)
   while IFS= read -r f; do
     targets+=("${f#${REPO_ROOT}/}")
-  done < <(find "${REPO_ROOT}/plugins/agentic-dev-team/skills" -name "SKILL.md" 2>/dev/null | sort)
+  done < <(find "${REPO_ROOT}/plugins/dev-team/skills" -name "SKILL.md" 2>/dev/null | sort)
 
   # Knowledge files
-  for f in "${REPO_ROOT}/plugins/agentic-dev-team/knowledge"/*.md; do
+  for f in "${REPO_ROOT}/plugins/dev-team/knowledge"/*.md; do
     [[ -f "$f" ]] || continue
     targets+=("${f#${REPO_ROOT}/}")
   done
 
   # Subagent prompt templates
-  for f in "${REPO_ROOT}/plugins/agentic-dev-team/prompts"/*.md; do
+  for f in "${REPO_ROOT}/plugins/dev-team/prompts"/*.md; do
     [[ -f "$f" ]] || continue
     targets+=("${f#${REPO_ROOT}/}")
   done

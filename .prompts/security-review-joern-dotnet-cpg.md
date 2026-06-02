@@ -1,5 +1,5 @@
 You are working in the `agentic-security-review` plugin at
-/Users/finsterb/_git-os/agentic-dev-team/plugins/agentic-security-review/
+/Users/finsterb/_git-os/dev-team/plugins/agentic-security-review/
 
 Your task: make the fp-reduction joern path actually build CPGs for
 .NET repositories. Today every .NET target falls back to LLM mode —

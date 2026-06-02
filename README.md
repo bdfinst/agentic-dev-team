@@ -1,28 +1,46 @@
 # Agentic Dev Team
 
+> ## Renamed plugins
+>
+> The marketplace plugin ids dropped the `agentic-` prefix in June 2026:
+>
+> - `agentic-dev-team` → `dev-team`
+> - `agentic-security-assessment` → `security-assessment`
+>
+> **Already installed?** Run `/upgrade` from your existing dev-team install; Step 0 detects the legacy ids and migrates them in-place using install-first-then-uninstall so a failed install never leaves you without a plugin.
+>
+> **Fresh install?** Use the new ids:
+>
+> ```bash
+> claude plugin install dev-team@bfinster
+> claude plugin install security-assessment@bfinster   # optional companion
+> ```
+>
+> The GitHub repository name (`bdfinst/agentic-dev-team`) was **not** changed; only the published plugin ids in the `bfinster` marketplace.
+
 Two Claude Code plugins for engineering workflows. Install one or both.
 
-- **`agentic-dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
-- **`agentic-security-assessment`** is the security companion. It adds a deterministic-first `/security-assessment` pipeline (SAST + LLM judgment + FP-reduction + exec report), a `/cross-repo-analysis` command for multi-repo attack chains, and an adversarial ML red-team harness (`/redteam-model`) for self-owned model endpoints.
+- **`dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
+- **`security-assessment`** is the security companion. It adds a deterministic-first `/security-assessment` pipeline (SAST + LLM judgment + FP-reduction + exec report), a `/cross-repo-analysis` command for multi-repo attack chains, and an adversarial ML red-team harness (`/redteam-model`) for self-owned model endpoints.
 
-The two plugins share a primitives contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding envelope) that lives in `agentic-dev-team`. Install that plugin first; add the security companion when you need it.
+The two plugins share a primitives contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding envelope) that lives in `dev-team`. Install that plugin first; add the security companion when you need it.
 
 ## Plugins
 
 | Plugin | What it does | Key commands | Install |
 | --- | --- | --- | --- |
-| **agentic-dev-team** | Persona-driven development team, reviewer swarm, TDD-gated build loop | `/specs`, `/plan`, `/build`, `/pr`, `/code-review`, `/triage` | [plugins/agentic-dev-team/README.md](plugins/agentic-dev-team/README.md) |
-| **agentic-security-assessment** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | [plugins/agentic-security-assessment/README.md](plugins/agentic-security-assessment/README.md) |
+| **dev-team** | Persona-driven development team, reviewer swarm, TDD-gated build loop | `/specs`, `/plan`, `/build`, `/pr`, `/code-review`, `/triage` | [plugins/dev-team/README.md](plugins/dev-team/README.md) |
+| **security-assessment** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | [plugins/security-assessment/README.md](plugins/security-assessment/README.md) |
 
-**First time here?** Start with `agentic-dev-team`. Add `agentic-security-assessment` only when you run full `/security-assessment` pipelines against target repos.
+**First time here?** Start with `dev-team`. Add `security-assessment` only when you run full `/security-assessment` pipelines against target repos.
 
 ## Quick Start
 
-Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code), `jq`, and `gh` (GitHub CLI). See [full prerequisites](plugins/agentic-dev-team/README.md#prerequisites).
+Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code), `jq`, and `gh` (GitHub CLI). See [full prerequisites](plugins/dev-team/README.md#prerequisites).
 
 ```bash
 claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install agentic-dev-team@bfinster
+claude plugin install dev-team@bfinster
 ```
 
 Then open Claude Code in your project and initialize:
@@ -37,48 +55,66 @@ Then open Claude Code in your project and initialize:
 
 ### Prerequisites
 
-`agentic-dev-team` requires `jq` and `gh` (GitHub CLI). `agentic-security-assessment` additionally requires Python ≥ 3.10 and a tier-1 static-analysis toolchain. Full details: [agentic-dev-team prerequisites](plugins/agentic-dev-team/README.md#prerequisites) · [agentic-security-assessment prerequisites](plugins/agentic-security-assessment/README.md).
+`dev-team` requires `jq` and `gh` (GitHub CLI). `security-assessment` additionally requires Python ≥ 3.10 and a tier-1 static-analysis toolchain. Full details: [dev-team prerequisites](plugins/dev-team/README.md#prerequisites) · [security-assessment prerequisites](plugins/security-assessment/README.md).
 
-### Install `agentic-dev-team`
+### Install `dev-team`
 
 Start here. Most users install only this plugin.
 
 ```bash
 # From this marketplace (recommended)
 claude plugin marketplace add bdfinst/agentic-dev-team
-claude plugin install agentic-dev-team@bfinster
+claude plugin install dev-team@bfinster
 # or
-claude plugin install --scope project agentic-dev-team@bfinster
+claude plugin install --scope project dev-team@bfinster
 
 # From a local clone (for plugin development)
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/dev-team
 ```
 
-For Azure DevOps or another git host, see [Marketplace sources](plugins/agentic-dev-team/README.md#marketplace-sources) in the plugin README.
+For Azure DevOps or another git host, see [Marketplace sources](plugins/dev-team/README.md#marketplace-sources) in the plugin README.
 
-### Install `agentic-security-assessment` (optional)
+### Install `security-assessment` (optional)
 
-Add this plugin only if you want the `/security-assessment` pipeline. Install `agentic-dev-team` first.
+Add this plugin only if you want the `/security-assessment` pipeline. Install `dev-team` first.
 
 ```bash
-claude plugin install agentic-security-assessment@bfinster
+claude plugin install security-assessment@bfinster
 # Or from a local clone:
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-assessment
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/security-assessment
+```
+
+### Update an installed plugin
+
+Run `/upgrade` from any Claude Code session with `dev-team` installed. It:
+
+1. Detects legacy plugin ids (`agentic-dev-team@*`, `agentic-security-assessment@*`) and migrates them in place using install-first-then-uninstall, so a failed install never leaves you without a working plugin.
+2. Reads the current installed scope from `claude plugin list` and passes `--scope <scope>` to `claude plugin update`, so project- and local-scope installs upgrade correctly rather than silently failing against the `user` default.
+3. Asks before enabling marketplace-level auto-update (the same `extraKnownMarketplaces.<marketplace>.autoUpdate` flag the `/plugin` UI toggles); decline to keep manual control.
+4. Reports the previous and new version, and prompts you to restart Claude Code so the new code loads.
+
+Migration-only runs (post-rename) exit after Step 0 with an `ACTION REQUIRED` line — restart Claude Code first, then re-run `/upgrade` if you want the auto-update prompt.
+
+Manual fallback when `/upgrade` is unavailable:
+
+```bash
+claude plugin update --scope <scope> dev-team@bfinster
+claude plugin update --scope <scope> security-assessment@bfinster
 ```
 
 Then install the tier-1 static-analysis tools:
 
 ```bash
 # macOS
-./plugins/agentic-security-assessment/install-macos.sh           # tier-1 only
-./plugins/agentic-security-assessment/install-macos.sh --all     # tier-1 + optional + PDF deps
-./plugins/agentic-security-assessment/install-macos.sh --dry-run # preview without running
+./plugins/security-assessment/install-macos.sh           # tier-1 only
+./plugins/security-assessment/install-macos.sh --all     # tier-1 + optional + PDF deps
+./plugins/security-assessment/install-macos.sh --dry-run # preview without running
 
 # Windows (requires Scoop)
-.\plugins\agentic-security-assessment\install-windows.ps1
+.\plugins\security-assessment\install-windows.ps1
 ```
 
-Verify: `./plugins/agentic-security-assessment/install.sh`
+Verify: `./plugins/security-assessment/install.sh`
 
 ## Dev team workflow
 
@@ -97,7 +133,7 @@ Four commands drive feature development from idea to pull request:
 
 Each step produces artifacts the next step consumes. Human review gates sit between transitions.
 
-![Workflow: specs → plan → build → pr](plugins/agentic-dev-team/docs/diagrams/workflow-linear.svg)
+![Workflow: specs → plan → build → pr](plugins/dev-team/docs/diagrams/workflow-linear.svg)
 
 For bug fixes or simple tasks, skip `/specs` and start at `/plan` — or go straight to implementation.
 
@@ -136,7 +172,7 @@ Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook
 | **4. Cross-repo** | service-comm parser, shared-cred hash match (multi-target only) | mermaid diagram + SARIF |
 | **5. Exec report** | `exec-report-generator` agent | publication-ready 7-section markdown |
 
-**Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. Auto-detects the `claude` CLI; degrades to deterministic-only when absent. See [the user guide](plugins/agentic-security-assessment/docs/user-guide-security-assessment.md) for the full runbook.
+**Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. Auto-detects the `claude` CLI; degrades to deterministic-only when absent. See [the user guide](plugins/security-assessment/docs/user-guide-security-assessment.md) for the full runbook.
 
 **Adversarial ML red-team**: `/redteam-model` probes a self-owned model endpoint (localhost / RFC1918 by default; public targets require a signed `authorization.md`). Eight probes covering recon, evasion, extraction, and report synthesis.
 
@@ -149,15 +185,15 @@ Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook
 Install either plugin from the local path into a test project:
 
 ```bash
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-dev-team
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-assessment
+claude plugin install --scope project /path/to/dev-team/plugins/dev-team
+claude plugin install --scope project /path/to/dev-team/plugins/security-assessment
 ```
 
 ### Testing agents and hooks (dev-team plugin)
 
 ```
 /agent-eval                                                # full eval suite
-/agent-eval plugins/agentic-dev-team/agents/naming-review.md   # one agent
+/agent-eval plugins/dev-team/agents/naming-review.md   # one agent
 /agent-audit                                               # structural compliance
 ```
 
@@ -171,7 +207,7 @@ python3 evals/comparative/score.py \
   --ours memory
 ```
 
-See [docs/comparative-testing.md](plugins/agentic-security-assessment/docs/comparative-testing.md) for the scoring methodology.
+See [docs/comparative-testing.md](plugins/security-assessment/docs/comparative-testing.md) for the scoring methodology.
 
 ### Adding an agent or skill
 
@@ -186,12 +222,12 @@ This scaffolds the agent file, adds it to the registry, and creates eval fixture
 | Guide | Description |
 | --- | --- |
 | [Tutorial: Invoking Agents](GETTING-STARTED.md) | Hands-on tutorial: invoke agents, skills, and common workflows |
-| [Architecture](plugins/agentic-dev-team/docs/agent-architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
-| [Agents](plugins/agentic-dev-team/docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
-| [Skills & Commands](plugins/agentic-dev-team/docs/skills.md) | Skills catalog, slash-commands catalog |
-| [Eval System](plugins/agentic-dev-team/docs/eval-system.md) | How review-agent accuracy is measured and graded |
-| [Security Assessment User Guide](plugins/agentic-security-assessment/docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool install matrix |
-| [Comparative Testing](plugins/agentic-security-assessment/docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |
+| [Architecture](plugins/dev-team/docs/agent-architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
+| [Agents](plugins/dev-team/docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
+| [Skills & Commands](plugins/dev-team/docs/skills.md) | Skills catalog, slash-commands catalog |
+| [Eval System](plugins/dev-team/docs/eval-system.md) | How review-agent accuracy is measured and graded |
+| [Security Assessment User Guide](plugins/security-assessment/docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool install matrix |
+| [Comparative Testing](plugins/security-assessment/docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |
 
 ## CodeGraph
 

@@ -8,7 +8,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-SCRIPT="$REPO_ROOT/plugins/agentic-dev-team/scripts/recon-inventory.sh"
+SCRIPT="$REPO_ROOT/plugins/dev-team/scripts/recon-inventory.sh"
 FIXTURE_SRC="$REPO_ROOT/evals/codebase-recon/fixtures/polyglot"
 
 BUDGET_MS="${RECON_INVENTORY_BUDGET_MS:-200}"

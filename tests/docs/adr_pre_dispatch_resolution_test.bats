@@ -8,7 +8,7 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 # this test; if a future contributor renumbers, update both this test and
 # the cross-reference in docs/model-routing.md.
 ADR="$REPO_ROOT/docs/adr/0004-pre-dispatch-model-resolution.md"
-ROUTING_DOC="$REPO_ROOT/plugins/agentic-dev-team/docs/model-routing.md"
+ROUTING_DOC="$REPO_ROOT/plugins/dev-team/docs/model-routing.md"
 
 @test "AC13: ADR file exists at docs/adr/0004-pre-dispatch-model-resolution.md" {
   [ -f "$ADR" ]

@@ -2,7 +2,7 @@
 # Malformed mapping YAML -> hard-fail with the mapping path named.
 set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-ADAPTER="$REPO_ROOT/plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
+ADAPTER="$REPO_ROOT/plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
 FXT_INPUT="$REPO_ROOT/evals/security-review-adapter/fixtures/agent-output-sql-injection.json"
 BAD_MAP="$REPO_ROOT/evals/security-review-adapter/fixtures/malformed-mapping.yaml"
 TMPDIR="$(mktemp -d)"

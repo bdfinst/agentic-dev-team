@@ -4,7 +4,7 @@
 # only stable test surface is the literal strings the spec must contain.
 # Each test pins one specific string the implementer must preserve.
 
-CMD="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/commands/init-dev-team.md"
+CMD="$BATS_TEST_DIRNAME/../../plugins/dev-team/commands/init-dev-team.md"
 
 _contains() {
   local needle="$1"
@@ -107,11 +107,11 @@ _contains() {
 }
 
 @test "js_bootstrap_announcement_present" {
-  _contains "No package.json found. Running /agentic-dev-team:js-project-init first to scaffold the project."
+  _contains "No package.json found. Running /dev-team:js-project-init first to scaffold the project."
 }
 
 @test "js_bootstrap_invokes_skill" {
-  _contains "/agentic-dev-team:js-project-init"
+  _contains "/dev-team:js-project-init"
 }
 
 @test "js_abort_message_present" {

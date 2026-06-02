@@ -6,7 +6,7 @@
 # End-to-end Phase 1b dedup is tested by test_runtime_phase_1b_smoke in Step 6.
 set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-ADAPTER="$REPO_ROOT/plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
+ADAPTER="$REPO_ROOT/plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
 FXT="$REPO_ROOT/evals/security-review-adapter/fixtures"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
@@ -23,7 +23,7 @@ if [[ "$got_rule" != "semgrep.generic.sql-injection" ]]; then
 fi
 
 # Concatenate both and apply fp-reduction's documented dedup key.
-# SOURCE: plugins/agentic-security-assessment/skills/false-positive-reduction/SKILL.md
+# SOURCE: plugins/security-assessment/skills/false-positive-reduction/SKILL.md
 # (Stage 4 Dedup): "Same rule_id + same value across multiple files -> collapse to ONE"
 # For same-file same-line same-rule_id, dedup key is (rule_id, file, line).
 COMBINED="$TMPDIR/combined.jsonl"

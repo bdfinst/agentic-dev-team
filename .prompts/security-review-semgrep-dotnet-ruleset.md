@@ -1,5 +1,5 @@
 You are working in the `agentic-security-review` plugin at
-/Users/finsterb/_git-os/agentic-dev-team/plugins/agentic-security-review/
+/Users/finsterb/_git-os/dev-team/plugins/agentic-security-review/
 
 Your task: fix the broken semgrep `p/dotnet` registry reference and
 pin a working C# ruleset bundle so .NET repositories receive

@@ -1,13 +1,13 @@
 #!/usr/bin/env bats
 # Verify the codegraph-nudge and codegraph-turn-mark hooks are registered
-# in plugins/agentic-dev-team/settings.json. Per Plan Step 7, the nudge
+# in plugins/dev-team/settings.json. Per Plan Step 7, the nudge
 # hook is registered as three separate per-tool PreToolUse entries (Read,
 # Grep, Glob) rather than a pipe-delimited regex matcher — there is no
 # existing precedent for `Read|Grep|Glob` in this file and per-tool entries
 # are unambiguous. The mark hook is registered once on the regex matcher
 # `mcp__codegraph__.*`.
 
-SETTINGS="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/settings.json"
+SETTINGS="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
 
 @test "settings.json is valid JSON (codegraph-nudge changes)" {
   run jq . "$SETTINGS"

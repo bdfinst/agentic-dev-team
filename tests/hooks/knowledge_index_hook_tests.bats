@@ -3,8 +3,8 @@
 # AC10 (rebuild on corpus edit), AC11 (skip unrelated), AC12 (fail-open),
 # AC22 (PostToolUse settings registration).
 
-HOOK="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/knowledge-index.sh"
-SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/settings.json"
+HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/knowledge-index.sh"
+SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
 FAKE_BIN="$BATS_TEST_DIRNAME/fake-bin"
 SENTINEL=""
 
@@ -56,7 +56,7 @@ _hook_input() {
 
 @test "AC10: Edit on a knowledge .md triggers the builder and stderr says 'rebuilt'" {
   local input
-  input=$(_hook_input "Edit" "plugins/agentic-dev-team/knowledge/owasp-detection.md")
+  input=$(_hook_input "Edit" "plugins/dev-team/knowledge/owasp-detection.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [ -e "$SENTINEL" ]
@@ -65,7 +65,7 @@ _hook_input() {
 
 @test "AC10: Edit on a skills SKILL.md triggers the builder" {
   local input
-  input=$(_hook_input "Edit" "plugins/agentic-dev-team/skills/specs/SKILL.md")
+  input=$(_hook_input "Edit" "plugins/dev-team/skills/specs/SKILL.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [ -e "$SENTINEL" ]
@@ -73,7 +73,7 @@ _hook_input() {
 
 @test "AC10: Write on a corpus file also triggers the builder" {
   local input
-  input=$(_hook_input "Write" "plugins/agentic-dev-team/knowledge/owasp-detection.md")
+  input=$(_hook_input "Write" "plugins/dev-team/knowledge/owasp-detection.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [ -e "$SENTINEL" ]
@@ -85,7 +85,7 @@ _hook_input() {
 
 @test "AC11: Edit on an agent file does NOT trigger the builder" {
   local input
-  input=$(_hook_input "Edit" "plugins/agentic-dev-team/agents/security-review.md")
+  input=$(_hook_input "Edit" "plugins/dev-team/agents/security-review.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [ ! -e "$SENTINEL" ]
@@ -94,7 +94,7 @@ _hook_input() {
 
 @test "AC11: Edit on a command file does NOT trigger" {
   local input
-  input=$(_hook_input "Edit" "plugins/agentic-dev-team/commands/code-review.md")
+  input=$(_hook_input "Edit" "plugins/dev-team/commands/code-review.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [ ! -e "$SENTINEL" ]
@@ -102,7 +102,7 @@ _hook_input() {
 
 @test "AC11: Edit on a docs/ file does NOT trigger" {
   local input
-  input=$(_hook_input "Edit" "plugins/agentic-dev-team/docs/agent-architecture.md")
+  input=$(_hook_input "Edit" "plugins/dev-team/docs/agent-architecture.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [ ! -e "$SENTINEL" ]
@@ -110,7 +110,7 @@ _hook_input() {
 
 @test "AC11: Edit on knowledge/schemas/ does NOT trigger" {
   local input
-  input=$(_hook_input "Edit" "plugins/agentic-dev-team/knowledge/schemas/foo.json")
+  input=$(_hook_input "Edit" "plugins/dev-team/knowledge/schemas/foo.json")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [ ! -e "$SENTINEL" ]
@@ -118,7 +118,7 @@ _hook_input() {
 
 @test "AC11: Non-Edit/Write tool (e.g., Bash) is a no-op" {
   local input
-  input=$(_hook_input "Bash" "plugins/agentic-dev-team/knowledge/owasp-detection.md")
+  input=$(_hook_input "Bash" "plugins/dev-team/knowledge/owasp-detection.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [ ! -e "$SENTINEL" ]
@@ -132,7 +132,7 @@ _hook_input() {
   FAKE_BUILDER_MODE=fail
   export FAKE_BUILDER_MODE
   local input
-  input=$(_hook_input "Edit" "plugins/agentic-dev-team/knowledge/owasp-detection.md")
+  input=$(_hook_input "Edit" "plugins/dev-team/knowledge/owasp-detection.md")
   run bash -c "FAKE_BUILDER_MODE=fail echo '$input' | FAKE_BUILDER_MODE=fail bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [[ "$output" == *"[knowledge-index] rebuild failed"* ]]

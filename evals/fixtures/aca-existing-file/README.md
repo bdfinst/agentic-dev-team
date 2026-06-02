@@ -5,7 +5,7 @@
 
 ## Setup
 
-A file exists at `plugins/agentic-dev-team/agents/import-cycle-review.md` with:
+A file exists at `plugins/dev-team/agents/import-cycle-review.md` with:
 ```yaml
 ---
 name: import-cycle-review
@@ -21,11 +21,11 @@ description: Old version — detects basic import cycles
 
 ## Expected Behavior
 
-Skill emits: `plugins/agentic-dev-team/agents/import-cycle-review.md already exists (description: Old version — detects basic import cycles)`
+Skill emits: `plugins/dev-team/agents/import-cycle-review.md already exists (description: Old version — detects basic import cycles)`
 
 Then asks: `Overwrite? (yes/no)`
 
-- On `no`: emits `Cancelled. Existing agent: plugins/agentic-dev-team/agents/import-cycle-review.md — Old version — detects basic import cycles` and stops. No file written or modified.
+- On `no`: emits `Cancelled. Existing agent: plugins/dev-team/agents/import-cycle-review.md — Old version — detects basic import cycles` and stops. No file written or modified.
 - On `yes`: skill continues to generation
 
 ## Failure Conditions

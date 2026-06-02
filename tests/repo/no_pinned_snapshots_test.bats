@@ -15,9 +15,9 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 #   evals/ — semgrep fixtures for OTHER plugins' LLM model strings.
 #   tests/  — bats fixtures that depend on the literal values.
 ALLOWED_PATHS=(
-  "plugins/agentic-dev-team/knowledge/model-routing.json"
-  "plugins/agentic-dev-team/docs/model-routing.md"
-  "plugins/agentic-dev-team/templates/agents/agent-template.md"
+  "plugins/dev-team/knowledge/model-routing.json"
+  "plugins/dev-team/docs/model-routing.md"
+  "plugins/dev-team/templates/agents/agent-template.md"
 )
 
 @test "AC2: no pinned snapshot IDs in plugin source outside approved files" {
@@ -25,9 +25,9 @@ ALLOWED_PATHS=(
   local raw
   raw=$(git grep -nE 'claude-(haiku|sonnet|opus)-[0-9]' -- \
     'plugins/' \
-    ':!plugins/agentic-dev-team/knowledge/model-routing.json' \
-    ':!plugins/agentic-dev-team/docs/model-routing.md' \
-    ':!plugins/agentic-dev-team/templates/agents/agent-template.md' \
+    ':!plugins/dev-team/knowledge/model-routing.json' \
+    ':!plugins/dev-team/docs/model-routing.md' \
+    ':!plugins/dev-team/templates/agents/agent-template.md' \
     2>/dev/null || true)
   if [[ -n "$raw" ]]; then
     echo "Pinned snapshot IDs found in non-approved plugin source files:" >&2

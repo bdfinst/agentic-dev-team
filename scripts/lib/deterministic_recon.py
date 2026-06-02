@@ -2,7 +2,7 @@
 """deterministic_recon — structural reconnaissance without LLM.
 
 Produces a recon envelope conforming (approximately) to
-plugins/agentic-dev-team/knowledge/schemas/recon-envelope-v1.json by running
+plugins/dev-team/knowledge/schemas/recon-envelope-v1.json by running
 file-system and grep-based heuristics. This is a best-effort stand-in for
 the codebase-recon agent when the plugin is not installed; it covers the
 structural fields (repo metadata, languages, entry points, security surface

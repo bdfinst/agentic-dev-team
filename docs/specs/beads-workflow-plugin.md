@@ -5,11 +5,11 @@
 
 ## Intent Description
 
-**What**: Create a companion plugin (`beads-workflow`) that replaces the agentic-dev-team plugin's file-based task/plan state management with [Beads](https://github.com/gastownhall/beads), a distributed, version-controlled task tracking system built on Dolt.
+**What**: Create a companion plugin (`beads-workflow`) that replaces the dev-team plugin's file-based task/plan state management with [Beads](https://github.com/gastownhall/beads), a distributed, version-controlled task tracking system built on Dolt.
 
-**Why**: The agentic-dev-team plugin currently uses markdown files as a pseudo-database for plan execution state. Plan steps are checkboxes in `.md` files, progress is tracked by reading/writing text, cross-session continuity relies on reconstructing state from `memory/` files, and there is no dependency tracking between steps. Beads provides atomic task state, dependency graphs, audit trails, and queryable history — solving these limitations without modifying the base plugin.
+**Why**: The dev-team plugin currently uses markdown files as a pseudo-database for plan execution state. Plan steps are checkboxes in `.md` files, progress is tracked by reading/writing text, cross-session continuity relies on reconstructing state from `memory/` files, and there is no dependency tracking between steps. Beads provides atomic task state, dependency graphs, audit trails, and queryable history — solving these limitations without modifying the base plugin.
 
-**Scope**: A separate plugin (`beads-workflow`) that users install alongside `agentic-dev-team`. It provides alternative `/plan`, `/build`, and `/continue` commands backed by Beads. The base plugin is unchanged. Beads/Dolt are required dependencies of the new plugin only.
+**Scope**: A separate plugin (`beads-workflow`) that users install alongside `dev-team`. It provides alternative `/plan`, `/build`, and `/continue` commands backed by Beads. The base plugin is unchanged. Beads/Dolt are required dependencies of the new plugin only.
 
 ## User-Facing Behavior
 
@@ -18,7 +18,7 @@ Feature: Beads-backed plan creation
 
   Scenario: Plan steps are created as beads
     Given the beads-workflow plugin is installed
-    And the agentic-dev-team plugin is installed
+    And the dev-team plugin is installed
     And dolt and bd CLI tools are available on PATH
     When the user runs /beads-workflow:plan with a task description
     Then a bead graph is created with one bead per plan step
@@ -86,7 +86,7 @@ Feature: Prerequisite validation
     And provides the installation URL for beads
 
   Scenario: Missing base plugin
-    Given the agentic-dev-team plugin is not installed
+    Given the dev-team plugin is not installed
     When the user runs any /beads-workflow command
     Then the skill outputs an error explaining the base plugin is required
 ```
@@ -101,7 +101,7 @@ plugins/beads-workflow/
 ├── CLAUDE.md                        # Plugin instructions
 ├── install.sh                       # Prerequisite checker (dolt, bd)
 ├── skills/
-│   ├── beads-plan.md                # Extends agentic-dev-team:plan with bd state
+│   ├── beads-plan.md                # Extends dev-team:plan with bd state
 │   ├── beads-build.md               # Uses bd ready/claim/done for execution
 │   ├── beads-continue.md            # Uses bd ready for session resume
 │   └── beads-primitives.md          # Reusable bd CLI wrappers
@@ -117,11 +117,11 @@ The beads-workflow plugin is **additive, not replacing**. Both plugins are insta
 
 | Workflow | File-based (base) | Beads-backed (this plugin) |
 |----------|-------------------|---------------------------|
-| Plan | `/agentic-dev-team:plan` | `/beads-workflow:plan` |
-| Build | `/agentic-dev-team:build` | `/beads-workflow:build` |
-| Continue | `/agentic-dev-team:continue` | `/beads-workflow:continue` |
-| Code review | `/agentic-dev-team:code-review` | (unchanged, uses base) |
-| All other commands | `/agentic-dev-team:*` | (unchanged, uses base) |
+| Plan | `/dev-team:plan` | `/beads-workflow:plan` |
+| Build | `/dev-team:build` | `/beads-workflow:build` |
+| Continue | `/dev-team:continue` | `/beads-workflow:continue` |
+| Code review | `/dev-team:code-review` | (unchanged, uses base) |
+| All other commands | `/dev-team:*` | (unchanged, uses base) |
 
 The beads plugin **does not duplicate** review agents, team agents, hooks, or knowledge files. It only replaces the state-tracking layer for plan/build/continue.
 
@@ -152,7 +152,7 @@ The `.beads/` directory should be added to `.gitignore` by default (task state i
 
 Each beads skill prompt follows this pattern:
 
-1. Read the corresponding base skill (e.g., `agentic-dev-team:plan`) for the full workflow
+1. Read the corresponding base skill (e.g., `dev-team:plan`) for the full workflow
 2. Follow all base skill instructions (TDD steps, plan review personas, human gates)
 3. **Replace** file-based state operations with Beads equivalents
 4. **Additionally** write a human-readable markdown plan (dual-write for reviewability)
@@ -176,7 +176,7 @@ For v1, parallel execution uses embedded mode with serialized `bd` calls from th
 2. `/beads-workflow:build` uses `bd ready` to determine next steps and `bd update --done` on completion
 3. `/beads-workflow:continue` resumes from bead state without reading `memory/` files
 4. All base plugin behaviors (TDD, plan review personas, human gates, inline reviews) are preserved
-5. The base `agentic-dev-team` plugin is completely unmodified
+5. The base `dev-team` plugin is completely unmodified
 6. `install.sh` validates `dolt` and `bd` are on PATH before allowing installation
 7. `.beads/` is initialized on first plan creation if not present
 8. Plan markdown is always written alongside bead state (dual-write)

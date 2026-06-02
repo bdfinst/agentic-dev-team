@@ -4,8 +4,8 @@
 # AC-12 (judgment-only subset).
 set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-DOC="$REPO_ROOT/plugins/agentic-dev-team/knowledge/owasp-detection.md"
-MAP="$REPO_ROOT/plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml"
+DOC="$REPO_ROOT/plugins/dev-team/knowledge/owasp-detection.md"
+MAP="$REPO_ROOT/plugins/dev-team/knowledge/security-review-rule-map.yaml"
 
 python3 - "$DOC" "$MAP" <<'PY'
 import re, sys, pathlib, yaml

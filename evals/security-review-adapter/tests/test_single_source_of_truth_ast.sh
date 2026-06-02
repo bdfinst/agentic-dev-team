@@ -5,8 +5,8 @@
 # 'security-review.' used for the fallback path.
 set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-ADAPTER="$REPO_ROOT/plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
-MAP="$REPO_ROOT/plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml"
+ADAPTER="$REPO_ROOT/plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
+MAP="$REPO_ROOT/plugins/dev-team/knowledge/security-review-rule-map.yaml"
 
 python3 - "$ADAPTER" "$MAP" <<'PY'
 import ast, re, sys, yaml, pathlib

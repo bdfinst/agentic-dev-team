@@ -1,7 +1,7 @@
 # Spec: Ship missing security-assessment helper scripts
 
 Source prompt: [`.prompts/security-review-ship-missing-helper-scripts.md`](../../.prompts/security-review-ship-missing-helper-scripts.md)
-Target plugin: `plugins/agentic-security-assessment/` (prompt predates the rename from `agentic-security-review`)
+Target plugin: `plugins/security-assessment/` (prompt predates the rename from `agentic-security-review`)
 
 ## Intent Description
 
