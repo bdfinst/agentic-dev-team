@@ -1,5 +1,37 @@
 # Changelog
 
+## [5.6.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.5.0...agentic-dev-team-v5.6.0) (2026-06-02)
+
+
+### Features
+
+* **hooks:** PostToolUse hook regenerates knowledge index + fail-open ([568ed0a](https://github.com/bdfinst/agentic-dev-team/commit/568ed0ae342543e4aee5d5c3b002190ea7b754af))
+* **hooks:** pre-commit sibling hook + shared commit-detection helper ([4db7eba](https://github.com/bdfinst/agentic-dev-team/commit/4db7eba5793280861c0803d486cd1b4c95ae3307))
+* **knowledge-index:** pin jq &gt;= 1.6 for stable output formatting ([f66ceca](https://github.com/bdfinst/agentic-dev-team/commit/f66cecaf8a5e7c3af1b5a422c5ff673d7e7b4f9a))
+* **knowledge-index:** ship the initial knowledge/index.json ([4201181](https://github.com/bdfinst/agentic-dev-team/commit/42011814749ed20c89cf22ff6bda1acadd532b9c))
+* **knowledge-index:** summary extraction with operational sentence boundary ([cd4fe65](https://github.com/bdfinst/agentic-dev-team/commit/cd4fe65a74f577caa13724d124669428a1426ece))
+* on-demand knowledge index + 550× perf rewrite + agent rename ([4e680fc](https://github.com/bdfinst/agentic-dev-team/commit/4e680fc9a55b0e1738faf567ae8050ec600e6a18))
+
+
+### Code Refactoring
+
+* **agents:** cite knowledge anchors in code-quality cluster (12b) ([d2e50bc](https://github.com/bdfinst/agentic-dev-team/commit/d2e50bc0334e69a9bd008cd0678cb1b8d21ddb37))
+* **agents:** cite knowledge anchors in security cluster (12a) ([9eb5a32](https://github.com/bdfinst/agentic-dev-team/commit/9eb5a32af7173acd818c23fe8f8eee80685c08f5))
+* **agents:** orchestration cluster has no remaining sweep work (12c) ([a7c3211](https://github.com/bdfinst/agentic-dev-team/commit/a7c321173bdc967dd56d53d4f867cef262c53726))
+* **agents:** rename files to match internal agent names ([1b6d304](https://github.com/bdfinst/agentic-dev-team/commit/1b6d30474e6d2c074888dc1ddbdb25144112283d))
+* **agents:** rename refactoring-review → refactor-opportunity-review ([d602e69](https://github.com/bdfinst/agentic-dev-team/commit/d602e6922e38264d6f1aab2285ba83b4084683a5))
+
+
+### Performance Improvements
+
+* **knowledge-index:** rewrite builder inner loop as one Python process ([1f3c06c](https://github.com/bdfinst/agentic-dev-team/commit/1f3c06cfa13efd5ccd6bd10dd54ad6482911af27))
+
+
+### Documentation
+
+* capture knowledge indexing decision in ADR 0005; retire spec + plan ([f1b291a](https://github.com/bdfinst/agentic-dev-team/commit/f1b291a696283636407615b5ec3078fabc8cd2f2))
+* **orchestrator:** document the index lookup → section Read consumer pattern ([f299182](https://github.com/bdfinst/agentic-dev-team/commit/f2991829078217f9d942fc51887ac69013be1418))
+
 ## [5.5.0](https://github.com/bdfinst/agentic-dev-team/compare/agentic-dev-team-v5.4.0...agentic-dev-team-v5.5.0) (2026-06-01)
 
 

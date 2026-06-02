@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-assessment-v2.2.1...agentic-security-assessment-v2.2.2) (2026-06-02)
+
+
+### Code Refactoring
+
+* **agents:** orchestration cluster has no remaining sweep work (12c) ([a7c3211](https://github.com/bdfinst/agentic-dev-team/commit/a7c321173bdc967dd56d53d4f867cef262c53726))
+
 ## [2.2.1](https://github.com/bdfinst/agentic-dev-team/compare/agentic-security-assessment-v2.2.0...agentic-security-assessment-v2.2.1) (2026-05-12)
 
 
