@@ -1,6 +1,6 @@
 ---
 name: security-primitives-contract
-description: Versioned cross-plugin contract defining the data envelopes passed between agentic-dev-team and agentic-security-assessment. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
+description: Versioned cross-plugin contract defining the data envelopes passed between dev-team and agentic-security-assessment. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
 version: 1.3.0
 semver-policy: |
   PATCH (1.0.x) — clarifications, typo fixes, documentation improvements; no
@@ -16,7 +16,7 @@ semver-policy: |
 
 # Security Primitives Contract v1.3.0
 
-This file is the single source of truth for the data envelopes exchanged between `plugins/agentic-dev-team/` (producer of primitives) and `plugins/agentic-security-assessment/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
+This file is the single source of truth for the data envelopes exchanged between `plugins/dev-team/` (producer of primitives) and `plugins/agentic-security-assessment/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
 
 **Canonical schema registry**: this file is the single registry for every JSON/JSONL artifact shape shared or emitted in the security-assessment pipeline. Producer plugins (including the companion `agentic-security-assessment`) PR into this file rather than forking per-plugin contracts, so reviewers can trace any artifact back to one authoritative schema. New envelopes arrive as MINOR releases with `## Envelope N` sections plus changelog entries; per-tool raw outputs remain out of contract (see below).
 
@@ -34,8 +34,8 @@ Agents that produce or consume contract envelopes. Each ID is stable across the 
 
 | Agent ID | Produces | Consumes | Defined in |
 |---|---|---|---|
-| `codebase-recon` | RECON envelope | — | `plugins/agentic-dev-team/agents/codebase-recon.md` |
-| `security-review` | unified findings | — | `plugins/agentic-dev-team/agents/security-review.md` |
+| `codebase-recon` | RECON envelope | — | `plugins/dev-team/agents/codebase-recon.md` |
+| `security-review` | unified findings | — | `plugins/dev-team/agents/security-review.md` |
 | `fp-reduction` | disposition register | unified findings, RECON | `plugins/agentic-security-assessment/agents/fp-reduction.md` (companion plugin) |
 | `tool-finding-narrative-annotator` | — | unified findings, RECON | `plugins/agentic-security-assessment/agents/tool-finding-narrative-annotator.md` (companion plugin) |
 | `business-logic-domain-review` | unified findings (domain-level) | — | `plugins/agentic-security-assessment/agents/business-logic-domain-review.md` (companion plugin) |
@@ -50,7 +50,7 @@ Skills that participate in the contract (operate on envelopes or define adapter 
 
 | Skill ID | Role | Defined in |
 |---|---|---|
-| `static-analysis-integration` | SARIF-first adapters; produces unified findings from per-tool outputs | `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md` |
+| `static-analysis-integration` | SARIF-first adapters; produces unified findings from per-tool outputs | `plugins/dev-team/skills/static-analysis-integration/SKILL.md` |
 | `false-positive-reduction` | Consumes unified findings, produces disposition register | `plugins/agentic-security-assessment/skills/false-positive-reduction/SKILL.md` (companion plugin) |
 | `compliance-mapping` | Consumes unified findings, emits compliance annotations (not in contract — downstream-only) | `plugins/agentic-security-assessment/skills/compliance-mapping/SKILL.md` (companion plugin) |
 | `security-assessment-pipeline` | Orchestrates full envelope flow end-to-end | `plugins/agentic-security-assessment/skills/security-assessment-pipeline/SKILL.md` (companion plugin) |
@@ -91,7 +91,7 @@ All three sub-fields are required when the object is present. Object itself is o
 - No symlink entries — symlinks resolve to real-path targets; broken symlinks are skipped and recorded in the envelope's `notes` array.
 - Plain text; not JSON; not validated by schema tooling.
 
-**Enumeration pipeline** — canonical shippable implementation at `plugins/agentic-dev-team/scripts/recon-inventory.sh` (the single source of truth per the 1.2.0 plan's decision #1). Both the `codebase-recon` agent and the test harnesses invoke this script. Excluded prefixes and filenames for the non-git branch live in `plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt`.
+**Enumeration pipeline** — canonical shippable implementation at `plugins/dev-team/scripts/recon-inventory.sh` (the single source of truth per the 1.2.0 plan's decision #1). Both the `codebase-recon` agent and the test harnesses invoke this script. Excluded prefixes and filenames for the non-git branch live in `plugins/dev-team/knowledge/recon-inventory-excludes.txt`.
 
 ### Consumer error contract
 
@@ -250,7 +250,7 @@ Explicitly NOT part of this contract:
 
 ## Conformance
 
-Schemas live at `plugins/agentic-dev-team/knowledge/schemas/{recon-envelope,unified-finding,disposition-register}-v1.json` and must validate using any Draft 2020-12 JSON Schema validator.
+Schemas live at `plugins/dev-team/knowledge/schemas/{recon-envelope,unified-finding,disposition-register}-v1.json` and must validate using any Draft 2020-12 JSON Schema validator.
 
 Conformance fixtures at `evals/primitives-contract/fixtures/` exercise each envelope against positive and negative cases. The `/agent-audit` command validates references to this file (agent IDs cited elsewhere in the plugin must match the registry above).
 
@@ -279,7 +279,7 @@ Additive schema release. Consumers on `^1.0.0` continue to install unmodified.
 
 - **New field:** Envelope 1 now carries an optional `file_inventory` object (`source` enum, `count` integer, `sibling_ref` string). The actual path list ships as a sibling file `memory/recon-<slug>.inventory.txt` to keep JSON diffs small on large repos.
 - **New subsection:** `### Consumer error contract` under Envelope 1 documents the three fail-open branches (field absent, sibling absent, count mismatch) with exact stderr notice templates. Reference implementation at `evals/primitives-contract/fixtures/consumer-stub-fail-open.sh`.
-- **New canonical enumeration pipeline:** `plugins/agentic-dev-team/scripts/recon-inventory.sh` is the single source of truth for both the git-ls-files branch and the filesystem-walk branch; excludes for the non-git branch live in `plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt`.
+- **New canonical enumeration pipeline:** `plugins/dev-team/scripts/recon-inventory.sh` is the single source of truth for both the git-ls-files branch and the filesystem-walk branch; excludes for the non-git branch live in `plugins/dev-team/knowledge/recon-inventory-excludes.txt`.
 - **Backward compatibility:** pre-1.2.0 envelopes continue to validate. Consumers that need the field (Gap 6's manifest-membership hook) follow the fail-open contract documented above.
 
 ### 1.1.0 (2026-04-21)

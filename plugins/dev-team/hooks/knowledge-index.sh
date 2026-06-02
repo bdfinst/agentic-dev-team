@@ -3,7 +3,7 @@
 #
 # When an Edit or Write touches a file in the indexed corpus
 # (knowledge/*.md or skills/*/SKILL.md, excluding knowledge/schemas/),
-# regenerate plugins/agentic-dev-team/knowledge/index.json by shelling
+# regenerate plugins/dev-team/knowledge/index.json by shelling
 # out to hooks/lib/build-knowledge-index.sh.
 #
 # Posture: fail-open. Any internal error (missing builder, jq absent,

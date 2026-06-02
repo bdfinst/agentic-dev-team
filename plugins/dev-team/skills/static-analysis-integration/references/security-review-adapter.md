@@ -7,7 +7,7 @@ per-source adapter pattern (actionlint SARIF wrapper, tier-3 bespoke
 JSON adapters).
 
 Contract and failure modes are specified in
-`plugins/agentic-dev-team/docs/specs/agent-rule-id-adapter.md`. This
+`plugins/dev-team/docs/specs/agent-rule-id-adapter.md`. This
 reference is the operator-facing summary.
 
 ## Prerequisites
@@ -21,16 +21,16 @@ reference is the operator-facing summary.
 python security-review-adapter.py \
   --input agent-output.json \
   --output unified-findings.jsonl \
-  [--mapping plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml]
+  [--mapping plugins/dev-team/knowledge/security-review-rule-map.yaml]
 ```
 
 Default `--mapping` resolves to the canonical YAML at
-`plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml`
+`plugins/dev-team/knowledge/security-review-rule-map.yaml`
 (same path `--help` prints).
 
 ## Input contract
 
-Agent JSON shape (see `plugins/agentic-dev-team/agents/security-review.md`):
+Agent JSON shape (see `plugins/dev-team/agents/security-review.md`):
 
 ```json
 {
@@ -56,7 +56,7 @@ Agent JSON shape (see `plugins/agentic-dev-team/agents/security-review.md`):
 ## Output contract
 
 One line per issue. Each line validates against
-`plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json`.
+`plugins/dev-team/knowledge/schemas/unified-finding-v1.json`.
 
 ```json
 {

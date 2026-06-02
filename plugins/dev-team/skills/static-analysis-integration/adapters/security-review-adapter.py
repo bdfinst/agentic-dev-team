@@ -2,18 +2,18 @@
 """security-review agent output -> unified-finding envelope adapter.
 
 Reads the security-review agent's JSON output (see
-plugins/agentic-dev-team/agents/security-review.md for the agent-output
+plugins/dev-team/agents/security-review.md for the agent-output
 schema) and emits one unified-finding envelope v1 (JSONL) per issue.
 
 Rule_id lookup is driven by the canonical mapping at
-plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml. This
+plugins/dev-team/knowledge/security-review-rule-map.yaml. This
 adapter contains NO inline rule_id literals beyond the
 ``security-review.`` namespace prefix constant used for the
 fallback path; the single-source-of-truth invariant is enforced by an
 AST-level test in evals/security-review-adapter/tests/.
 
 Contract, error semantics, and failure modes are documented in
-plugins/agentic-dev-team/docs/specs/agent-rule-id-adapter.md.
+plugins/dev-team/docs/specs/agent-rule-id-adapter.md.
 """
 
 from __future__ import annotations
@@ -49,13 +49,13 @@ _CATEGORY_RE = re.compile(r"^A[0-9]{2}\.[a-z0-9-]+$")
 # from any cwd. The repo-relative path is also named in --help for operators.
 _THIS_FILE = os.path.abspath(__file__)
 _ADAPTER_DIR = os.path.dirname(_THIS_FILE)
-# /plugins/agentic-dev-team/skills/static-analysis-integration/adapters -> /plugins/agentic-dev-team
+# /plugins/dev-team/skills/static-analysis-integration/adapters -> /plugins/dev-team
 _PLUGIN_ROOT = os.path.abspath(os.path.join(_ADAPTER_DIR, "..", "..", ".."))
 _DEFAULT_MAPPING_ABS = os.path.join(
     _PLUGIN_ROOT, "knowledge", "security-review-rule-map.yaml"
 )
 _DEFAULT_MAPPING_REL = (
-    "plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml"
+    "plugins/dev-team/knowledge/security-review-rule-map.yaml"
 )
 
 

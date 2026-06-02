@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentic-dev-team.local/schemas/disposition-register-v1.json",
+  "$id": "https://dev-team.local/schemas/disposition-register-v1.json",
   "title": "Disposition register v1.0",
   "description": "Output of fp-reduction (companion plugin). One disposition entry per unified finding processed. See security-primitives-contract.md for versioning.",
   "type": "object",

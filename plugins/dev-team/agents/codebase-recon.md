@@ -17,7 +17,7 @@ First-pass discovery for security-review, domain-analysis, and architecture work
 
 ## Contract
 
-Output conforms to the RECON envelope schema at `evals/codebase-recon/expected-schema.json` (v0.1 placeholder). Finalized schema lives in `plugins/agentic-dev-team/knowledge/security-primitives-contract.md#envelope-1-recon` once P2 Step 4 ships.
+Output conforms to the RECON envelope schema at `evals/codebase-recon/expected-schema.json` (v0.1 placeholder). Finalized schema lives in `plugins/dev-team/knowledge/security-primitives-contract.md#envelope-1-recon` once P2 Step 4 ships.
 
 Artifacts written:
 
@@ -104,7 +104,7 @@ Run these git commands (read-only). If the target is not a git repo, fill arrays
 Run the canonical enumeration pipeline to produce the authoritative list of files the recon considered in-scope. This file backs the envelope's `file_inventory` field (primitives contract 1.2.0+) and is the anchor for any consumer that wants to detect reads of files outside the recon surface (e.g., Gap 6's manifest-membership hook).
 
 ```
-plugins/agentic-dev-team/scripts/recon-inventory.sh <repo-root> \
+plugins/dev-team/scripts/recon-inventory.sh <repo-root> \
     --slug <slug> \
     --emit-main-inventory-json <tmpfile-for-main-envelope-fragment>
 ```

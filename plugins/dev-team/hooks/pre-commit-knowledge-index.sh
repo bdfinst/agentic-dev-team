@@ -70,8 +70,8 @@ main() {
   cat >&2 <<'EOF'
 knowledge/index.json is stale; the auto-rebuild ran but you must stage the result.
 
-  1. bash plugins/agentic-dev-team/hooks/lib/build-knowledge-index.sh
-  2. git add plugins/agentic-dev-team/knowledge/index.json
+  1. bash plugins/dev-team/hooks/lib/build-knowledge-index.sh
+  2. git add plugins/dev-team/knowledge/index.json
 
 Diff (expected vs working tree):
 EOF

@@ -1,6 +1,6 @@
 # Model Routing
 
-Environment-aware tier-to-snapshot resolution for the agentic-dev-team plugin.
+Environment-aware tier-to-snapshot resolution for the dev-team plugin.
 Same code works on a personal Anthropic API key, a corporate proxy with a
 restricted model allowlist, and Bedrock or Vertex deployments — with zero
 environment-specific config in the repo.

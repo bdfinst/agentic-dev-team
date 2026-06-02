@@ -1,7 +1,7 @@
 ---
 name: init-dev-team
 description: >-
-  Install required tools for the agentic-dev-team plugin. OS-aware (macOS,
+  Install required tools for the dev-team plugin. OS-aware (macOS,
   Linux, Windows Git Bash): installs jq and python3 as hard dependencies, then
   prompts for language selection (JS/TS, Java, C#) to install the matching
   mutation testing tool (Stryker, pitest, Stryker.NET). Run this when the
@@ -12,7 +12,7 @@ allowed-tools: Read, Bash, Write
 
 # Init Dev Team
 
-Role: worker. Installs tools required by the agentic-dev-team plugin, with a
+Role: worker. Installs tools required by the dev-team plugin, with a
 focus on the mutation gate. Run after the plugin is installed, or when the
 mutation gate reports a missing dependency.
 
@@ -234,8 +234,8 @@ test -f package.json && echo "package.json found" || echo "no-package"
 
 If the result is `no-package`:
 
-1. Print: `No package.json found. Running /agentic-dev-team:js-project-init first to scaffold the project.`
-2. Invoke the `/agentic-dev-team:js-project-init` skill. It will scaffold a
+1. Print: `No package.json found. Running /dev-team:js-project-init first to scaffold the project.`
+2. Invoke the `/dev-team:js-project-init` skill. It will scaffold a
    functional ES-module project with prettier, eslint, editorconfig, and
    vitest (see the skill's own documentation for the full default set).
 3. After the skill returns:
@@ -461,7 +461,7 @@ If the user answers "y" or "Y", run:
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/lib/model-probe.sh" <<<"y"
 ```
 
-`${CLAUDE_PLUGIN_ROOT}` is set by Claude Code when running plugin commands and resolves to the installed plugin directory. The repo-layout path `plugins/agentic-dev-team/hooks/lib/model-probe.sh` only works when running from the plugin source tree and must not be used here.
+`${CLAUDE_PLUGIN_ROOT}` is set by Claude Code when running plugin commands and resolves to the installed plugin directory. The repo-layout path `plugins/dev-team/hooks/lib/model-probe.sh` only works when running from the plugin source tree and must not be used here.
 
 The probe writes `.claude/model-overrides.json` only when a default
 tier is missing from the endpoint's `/v1/models` response. On any
@@ -479,7 +479,7 @@ other than "y" or "Y" (including pressing Enter to accept the default).
 Print a summary of what was installed:
 
 ```
-agentic-dev-team: init complete
+dev-team: init complete
 
 Hard dependencies:
   jq:       ✓ <version>

@@ -47,26 +47,26 @@ After creating an agent or skill, update all of the following. Incomplete regist
 
 Use `/agent-add` — it invokes the `agent-create` skill, which handles all registration steps automatically:
 
-- Writes the agent file at `plugins/agentic-dev-team/agents/<name>.md`
+- Writes the agent file at `plugins/dev-team/agents/<name>.md`
 - Validates against `/agent-audit`
-- Appends a row to the matching table in `plugins/agentic-dev-team/knowledge/agent-registry.md`
-- Appends a row to the matching table in `plugins/agentic-dev-team/CLAUDE.md`
+- Appends a row to the matching table in `plugins/dev-team/knowledge/agent-registry.md`
+- Appends a row to the matching table in `plugins/dev-team/CLAUDE.md`
 
-For review agents specifically, also add eval fixtures to `plugins/agentic-dev-team/evals/fixtures/` and expected results to `plugins/agentic-dev-team/evals/expected/` (these are not auto-generated).
+For review agents specifically, also add eval fixtures to `plugins/dev-team/evals/fixtures/` and expected results to `plugins/dev-team/evals/expected/` (these are not auto-generated).
 
-For team agents, also add a node and edges to `plugins/agentic-dev-team/docs/team-structure.md` and a row to the Team Agents table in `plugins/agentic-dev-team/docs/agent_info.md`.
+For team agents, also add a node and edges to `plugins/dev-team/docs/team-structure.md` and a row to the Team Agents table in `plugins/dev-team/docs/agent_info.md`.
 
 ### For a New Knowledge Skill
 
-1. Add to the **Skills Registry** in `plugins/agentic-dev-team/knowledge/agent-registry.md`
-2. Add to the Quick Reference Skills list in `plugins/agentic-dev-team/CLAUDE.md`
-3. Add to the appropriate section of `plugins/agentic-dev-team/docs/skills.md`
+1. Add to the **Skills Registry** in `plugins/dev-team/knowledge/agent-registry.md`
+2. Add to the Quick Reference Skills list in `plugins/dev-team/CLAUDE.md`
+3. Add to the appropriate section of `plugins/dev-team/docs/skills.md`
 4. Reference it from each relevant agent's `## Skills` section with invocation context
 
 ### For a New Slash Command
 
-1. Add to the **Slash Commands Registry** table in `plugins/agentic-dev-team/CLAUDE.md`
-2. Add to the appropriate section of `plugins/agentic-dev-team/docs/skills.md`
+1. Add to the **Slash Commands Registry** table in `plugins/dev-team/CLAUDE.md`
+2. Add to the appropriate section of `plugins/dev-team/docs/skills.md`
 3. Add a row to the relevant table in `README.md` if user-facing
 
 ## Documentation Sync Policy
@@ -79,10 +79,10 @@ For team agents, also add a node and edges to `plugins/agentic-dev-team/docs/tea
 
 | Change type | Source of truth | Must match |
 |---|---|---|
-| Agent files | `plugins/agentic-dev-team/CLAUDE.md` agent tables | `plugins/agentic-dev-team/docs/agent_info.md` tables + `README.md` |
-| Slash commands | `plugins/agentic-dev-team/CLAUDE.md` slash commands table | `plugins/agentic-dev-team/docs/skills.md` commands tables + `README.md` |
-| Model routing | `plugins/agentic-dev-team/knowledge/model-routing.json` (tier defaults) + `plugins/agentic-dev-team/agents/orchestrator.md` Resolution Procedure | `plugins/agentic-dev-team/CLAUDE.md` Model Routing pointer + `plugins/agentic-dev-team/docs/agent-architecture.md` Model Routing pointer |
-| Team structure | `plugins/agentic-dev-team/docs/team-structure.md` diagrams | Actual agent files in `plugins/agentic-dev-team/agents/` |
-| Behavior/workflow | `plugins/agentic-dev-team/agents/orchestrator.md` Phase workflow | `README.md` Workflow section |
-| Architecture | `plugins/agentic-dev-team/docs/agent-architecture.md` | `README.md` architecture section |
-| Config/setup | `plugins/agentic-dev-team/settings.json` + hook scripts | `plugins/agentic-dev-team/docs/agent-architecture.md` Governance section |
+| Agent files | `plugins/dev-team/CLAUDE.md` agent tables | `plugins/dev-team/docs/agent_info.md` tables + `README.md` |
+| Slash commands | `plugins/dev-team/CLAUDE.md` slash commands table | `plugins/dev-team/docs/skills.md` commands tables + `README.md` |
+| Model routing | `plugins/dev-team/knowledge/model-routing.json` (tier defaults) + `plugins/dev-team/agents/orchestrator.md` Resolution Procedure | `plugins/dev-team/CLAUDE.md` Model Routing pointer + `plugins/dev-team/docs/agent-architecture.md` Model Routing pointer |
+| Team structure | `plugins/dev-team/docs/team-structure.md` diagrams | Actual agent files in `plugins/dev-team/agents/` |
+| Behavior/workflow | `plugins/dev-team/agents/orchestrator.md` Phase workflow | `README.md` Workflow section |
+| Architecture | `plugins/dev-team/docs/agent-architecture.md` | `README.md` architecture section |
+| Config/setup | `plugins/dev-team/settings.json` + hook scripts | `plugins/dev-team/docs/agent-architecture.md` Governance section |

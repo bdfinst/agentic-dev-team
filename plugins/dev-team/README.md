@@ -1,4 +1,4 @@
-# agentic-dev-team
+# dev-team
 
 A Claude Code plugin that adds a full persona-driven AI development team to any project. The Orchestrator routes tasks to specialized agents, inline review checkpoints catch quality issues during implementation, and skills provide reusable knowledge modules that any agent can draw on.
 
@@ -101,22 +101,22 @@ Add the marketplace source, then install the plugin. The marketplace resolves th
 **From GitHub:**
 
 ```bash
-claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install agentic-dev-team@bfinster
+claude plugin marketplace add https://github.com/bdfinst/dev-team
+claude plugin install dev-team@bfinster
 ```
 
 **From a local clone:**
 
 ```bash
-claude plugin marketplace add /path/to/agentic-dev-team
-claude plugin install agentic-dev-team@bfinster
+claude plugin marketplace add /path/to/dev-team
+claude plugin install dev-team@bfinster
 ```
 
 By default the marketplace is registered at user scope (available in all projects). To scope it to a single project:
 
 ```bash
-claude plugin marketplace add --scope project https://github.com/bdfinst/agentic-dev-team
-claude plugin install --scope project agentic-dev-team@bfinster
+claude plugin marketplace add --scope project https://github.com/bdfinst/dev-team
+claude plugin install --scope project dev-team@bfinster
 ```
 
 #### Marketplace sources
@@ -137,9 +137,9 @@ Azure DevOps PATs need **Code (Read)** scope — don't paste them into chat or c
 If you previously installed the plugin before the directory restructure (pre-v2.1), remove and re-add the marketplace source:
 
 ```bash
-claude plugin marketplace remove agentic-dev-team
-claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install agentic-dev-team@bfinster
+claude plugin marketplace remove dev-team
+claude plugin marketplace add https://github.com/bdfinst/dev-team
+claude plugin install dev-team@bfinster
 ```
 
 ### Verify

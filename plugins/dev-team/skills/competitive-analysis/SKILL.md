@@ -22,9 +22,9 @@ user-invocable: true
 
 ## Overview
 
-Systematic comparison of the agentic-dev-team plugin against another plugin, tool, feature set, or idea. The goal is to surface gaps, weaknesses, and improvement opportunities — then produce rough specs for closing each gap.
+Systematic comparison of the dev-team plugin against another plugin, tool, feature set, or idea. The goal is to surface gaps, weaknesses, and improvement opportunities — then produce rough specs for closing each gap.
 
-This skill is analytical first, generative second. It catalogs what both sides offer, identifies where agentic-dev-team falls short, and then drafts actionable specs for each gap. The analysis should be honest — if the other plugin does something better, say so plainly.
+This skill is analytical first, generative second. It catalogs what both sides offer, identifies where dev-team falls short, and then drafts actionable specs for each gap. The analysis should be honest — if the other plugin does something better, say so plainly.
 
 ## Input Sources
 
@@ -39,7 +39,7 @@ The comparison target can come in several forms. Determine which applies and gat
 
 ## Analysis Framework
 
-### Step 1: Catalog agentic-dev-team
+### Step 1: Catalog dev-team
 
 Read `knowledge/agent-registry.md` for the full inventory. Organize into these capability layers:
 
@@ -59,7 +59,7 @@ Map the other plugin's capabilities into the same layers where possible. Not eve
 For each capability, note:
 - What it does (one line)
 - How mature it appears (shipped, experimental, documented but not implemented)
-- Whether agentic-dev-team has an equivalent
+- Whether dev-team has an equivalent
 
 ### Step 3: Gap analysis
 
@@ -115,7 +115,7 @@ After listing all gaps, rank the top 5 by impact. Impact considers:
 Write the report to `reports/competitive-analysis-<date>.md` using this structure:
 
 ```markdown
-# Competitive Analysis: agentic-dev-team vs [Target]
+# Competitive Analysis: dev-team vs [Target]
 
 **Date**: <date>
 **Target**: [Name, URL, or description of what was compared]
@@ -129,7 +129,7 @@ Write the report to `reports/competitive-analysis-<date>.md` using this structur
 
 ### [Layer Name]
 
-| Capability | agentic-dev-team | [Target] | Classification |
+| Capability | dev-team | [Target] | Classification |
 |-----------|-----------------|----------|----------------|
 | ...       | ...             | ...      | Missing / Weaker / Different / Stronger |
 
@@ -145,7 +145,7 @@ Write the report to `reports/competitive-analysis-<date>.md` using this structur
 
 ## Our Strengths
 
-[Brief list of areas where agentic-dev-team is stronger — keeps the report balanced]
+[Brief list of areas where dev-team is stronger — keeps the report balanced]
 
 ## Top 5 Priorities
 

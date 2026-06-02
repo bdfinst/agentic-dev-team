@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentic-dev-team.local/schemas/unified-finding-v1.json",
+  "$id": "https://dev-team.local/schemas/unified-finding-v1.json",
   "title": "Unified finding envelope v1.0",
   "description": "Narrow normalization of a SARIF result object. One instance per finding produced by any review agent or static-analysis adapter. See security-primitives-contract.md for versioning policy.",
   "type": "object",

@@ -1,5 +1,5 @@
 {
-  "plugins/agentic-dev-team/knowledge/accepted-risks-schema.md": {
+  "plugins/dev-team/knowledge/accepted-risks-schema.md": {
     "Purpose": {
       "summary": "A project-local `ACCEPTED-RISKS.md` at the repo root declares findings the team has explicitly accepted as known risks.",
       "anchor": "purpose"
@@ -37,7 +37,7 @@
       "anchor": "out-of-scope"
     }
   },
-  "plugins/agentic-dev-team/knowledge/adversarial-review-protocol.md": {
+  "plugins/dev-team/knowledge/adversarial-review-protocol.md": {
     "The Loop": {
       "summary": "After the initial review pass, re-examine findings with the following questions.",
       "anchor": "the-loop"
@@ -75,7 +75,7 @@
       "anchor": "output"
     }
   },
-  "plugins/agentic-dev-team/knowledge/agent-registry.md": {
+  "plugins/dev-team/knowledge/agent-registry.md": {
     "Team Agents": {
       "summary": "| Agent | File | ~Tokens | Primary Focus |",
       "anchor": "team-agents"
@@ -101,7 +101,7 @@
       "anchor": "agent-templates"
     }
   },
-  "plugins/agentic-dev-team/knowledge/architecture-assessment.md": {
+  "plugins/dev-team/knowledge/architecture-assessment.md": {
     "Exploration Patterns": {
       "summary": "Map the architectural landscape before detecting issues.",
       "anchor": "exploration-patterns"
@@ -135,7 +135,7 @@
       "anchor": "mcp-enhanced-analysis"
     }
   },
-  "plugins/agentic-dev-team/knowledge/design-smells.md": {
+  "plugins/dev-team/knowledge/design-smells.md": {
     "Design Smells → Pattern Mapping": {
       "summary": "| Smell | Signature in code | Remediation pattern |",
       "anchor": "design-smells-pattern-mapping"
@@ -173,7 +173,7 @@
       "anchor": "what-not-to-flag-1"
     }
   },
-  "plugins/agentic-dev-team/knowledge/domain-modeling.md": {
+  "plugins/dev-team/knowledge/domain-modeling.md": {
     "Exploration Patterns": {
       "summary": "Map the project structure before detecting issues.",
       "anchor": "exploration-patterns"
@@ -219,7 +219,7 @@
       "anchor": "ubiquitous-language-drift"
     }
   },
-  "plugins/agentic-dev-team/knowledge/exploratory-testing-field-guide.md": {
+  "plugins/dev-team/knowledge/exploratory-testing-field-guide.md": {
     "1. Charter Quality (§2.3–2.4)": {
       "summary": "**Format**: `Explore [target] with [approach] to discover [concern]`",
       "anchor": "1-charter-quality-2324"
@@ -241,7 +241,7 @@
       "anchor": "5-implicit-expectations"
     }
   },
-  "plugins/agentic-dev-team/knowledge/object-calisthenics.md": {
+  "plugins/dev-team/knowledge/object-calisthenics.md": {
     "The Rules": {
       "summary": "If a method has nested `if`/`for`/`while`, extract the inner block into a named method.",
       "anchor": "the-rules"
@@ -287,7 +287,7 @@
       "anchor": "applying-pragmatically"
     }
   },
-  "plugins/agentic-dev-team/knowledge/owasp-detection.md": {
+  "plugins/dev-team/knowledge/owasp-detection.md": {
     "A01: Broken Access Control": {
       "summary": "| Pattern | Language | Grep Signal | Category |",
       "anchor": "a01-broken-access-control"
@@ -329,7 +329,7 @@
       "anchor": "a10-ssrf"
     }
   },
-  "plugins/agentic-dev-team/knowledge/review-rubric.md": {
+  "plugins/dev-team/knowledge/review-rubric.md": {
     "Health Score Calculation": {
       "summary": "Collect the status from each agent: `pass`, `warn`, `fail`, `skip`.",
       "anchor": "health-score-calculation"
@@ -347,7 +347,7 @@
       "anchor": "confidence-and-actionability"
     }
   },
-  "plugins/agentic-dev-team/knowledge/review-template.md": {
+  "plugins/dev-team/knowledge/review-template.md": {
     "Report Structure": {
       "summary": "Use these consistently:",
       "anchor": "report-structure"
@@ -361,7 +361,7 @@
       "anchor": "health-score-icons"
     }
   },
-  "plugins/agentic-dev-team/knowledge/security-primitives-contract.md": {
+  "plugins/dev-team/knowledge/security-primitives-contract.md": {
     "Bypass path": {
       "summary": "Edits to this file are guarded by `hooks/contract-version-guard.sh`.",
       "anchor": "bypass-path"
@@ -419,7 +419,7 @@
       "anchor": "out-of-contract"
     },
     "Conformance": {
-      "summary": "Schemas live at `plugins/agentic-dev-team/knowledge/schemas/{recon-envelope,unified-finding,disposition-register}-v1.json` and must validate using any Draft 2020-12 JSON Schema validator.",
+      "summary": "Schemas live at `plugins/dev-team/knowledge/schemas/{recon-envelope,unified-finding,disposition-register}-v1.json` and must validate using any Draft 2020-12 JSON Schema validator.",
       "anchor": "conformance"
     },
     "Versioning lifecycle": {
@@ -447,7 +447,7 @@
       "anchor": "100-2026-04-21"
     }
   },
-  "plugins/agentic-dev-team/knowledge/testability-patterns.md": {
+  "plugins/dev-team/knowledge/testability-patterns.md": {
     "\"I Can't Test This Class\" Decision Flow": {
       "summary": "---",
       "anchor": "i-cant-test-this-class-decision-flow"
@@ -477,7 +477,7 @@
       "anchor": "references"
     }
   },
-  "plugins/agentic-dev-team/knowledge/adr-decision-criteria.md": {
+  "plugins/dev-team/knowledge/adr-decision-criteria.md": {
     "Core Definition": {
       "summary": "An ADR documents a decision where 'why?' would not be obvious — especially for decisions that are hard to change later. Two tests: obscure rationale + high reversal cost.",
       "anchor": "core-definition"
@@ -499,7 +499,7 @@
       "anchor": "relationship-to-other-documents"
     }
   },
-  "plugins/agentic-dev-team/skills/adr-tools/SKILL.md": {
+  "plugins/dev-team/skills/adr-tools/SKILL.md": {
     "Pre-flight": {
       "summary": "Project convention is `docs/adr/`.",
       "anchor": "pre-flight"
@@ -545,7 +545,7 @@
       "anchor": "when-to-defer-to-adr-author"
     }
   },
-  "plugins/agentic-dev-team/skills/agent-create/SKILL.md": {
+  "plugins/dev-team/skills/agent-create/SKILL.md": {
     "Constraints": {
       "summary": "Do not write any file until validation passes and the user confirms the draft",
       "anchor": "constraints"
@@ -571,7 +571,7 @@
       "anchor": "step-5-apply-defaults"
     },
     "Step 6 — Check for Existing File": {
-      "summary": "Glob `plugins/agentic-dev-team/agents/<name>.md`.",
+      "summary": "Glob `plugins/dev-team/agents/<name>.md`.",
       "anchor": "step-6-check-for-existing-file"
     },
     "Step 7 — Check Scope Overlap (Review Agents Only)": {
@@ -611,7 +611,7 @@
       "anchor": "step-11-run-agent-audit-validation-gate"
     },
     "Step 12 — Present Draft and Confirm Write": {
-      "summary": "Ask: `Write this file to plugins/agentic-dev-team/agents/<name>.md?",
+      "summary": "Ask: `Write this file to plugins/dev-team/agents/<name>.md?",
       "anchor": "step-12-present-draft-and-confirm-write"
     },
     "Step 13 — Update Agent Registry": {
@@ -619,7 +619,7 @@
       "anchor": "step-13-update-agent-registry"
     },
     "Step 14 — Update CLAUDE.md": {
-      "summary": "Locate the table in `plugins/agentic-dev-team/CLAUDE.md` whose heading",
+      "summary": "Locate the table in `plugins/dev-team/CLAUDE.md` whose heading",
       "anchor": "step-14-update-claudemd"
     },
     "Completion Report": {
@@ -627,7 +627,7 @@
       "anchor": "completion-report"
     }
   },
-  "plugins/agentic-dev-team/skills/agent-skill-authoring/SKILL.md": {
+  "plugins/dev-team/skills/agent-skill-authoring/SKILL.md": {
     "Overview": {
       "summary": "This skill defines the philosophy of the agent-vs-skill split and the conventions for writing skills.",
       "anchor": "overview"
@@ -645,7 +645,7 @@
       "anchor": "creating-an-agent"
     },
     "Creating a Skill": {
-      "summary": "Place skill files at `plugins/agentic-dev-team/skills/{skill-name}/SKILL.md`.",
+      "summary": "Place skill files at `plugins/dev-team/skills/{skill-name}/SKILL.md`.",
       "anchor": "creating-a-skill"
     },
     "Meta-Patterns for Skill Writing": {
@@ -661,7 +661,7 @@
       "anchor": "documentation-sync-policy"
     },
     "Output": {
-      "summary": "New or updated `plugins/agentic-dev-team/skills/*/SKILL.md` file(s) with all registry tables and docs updated.",
+      "summary": "New or updated `plugins/dev-team/skills/*/SKILL.md` file(s) with all registry tables and docs updated.",
       "anchor": "output"
     },
     "Anti-Patterns": {
@@ -669,7 +669,7 @@
       "anchor": "anti-patterns"
     }
   },
-  "plugins/agentic-dev-team/skills/api-design/SKILL.md": {
+  "plugins/dev-team/skills/api-design/SKILL.md": {
     "Overview": {
       "summary": "Contract-first API design patterns for defining stable, evolvable interfaces between system components.",
       "anchor": "overview"
@@ -731,7 +731,7 @@
       "anchor": "integration"
     }
   },
-  "plugins/agentic-dev-team/skills/branch-workflow/SKILL.md": {
+  "plugins/dev-team/skills/branch-workflow/SKILL.md": {
     "Overview": {
       "summary": "The three-phase workflow ends at the Phase 3 human gate.",
       "anchor": "overview"
@@ -773,7 +773,7 @@
       "anchor": "output"
     }
   },
-  "plugins/agentic-dev-team/skills/browser-testing/SKILL.md": {
+  "plugins/dev-team/skills/browser-testing/SKILL.md": {
     "Overview": {
       "summary": "This skill provides reusable patterns for browser-based testing and visual verification using Playwright.",
       "anchor": "overview"
@@ -791,7 +791,7 @@
       "anchor": "visual-verification-guidelines"
     }
   },
-  "plugins/agentic-dev-team/skills/ci-debugging/SKILL.md": {
+  "plugins/dev-team/skills/ci-debugging/SKILL.md": {
     "Overview": {
       "summary": "CI failures are diagnosed systematically, not by guessing.",
       "anchor": "overview"
@@ -833,9 +833,9 @@
       "anchor": "integration"
     }
   },
-  "plugins/agentic-dev-team/skills/competitive-analysis/SKILL.md": {
+  "plugins/dev-team/skills/competitive-analysis/SKILL.md": {
     "Overview": {
-      "summary": "Systematic comparison of the agentic-dev-team plugin against another plugin, tool, feature set, or idea.",
+      "summary": "Systematic comparison of the dev-team plugin against another plugin, tool, feature set, or idea.",
       "anchor": "overview"
     },
     "Input Sources": {
@@ -846,9 +846,9 @@
       "summary": "Read `knowledge/agent-registry.md` for the full inventory.",
       "anchor": "analysis-framework"
     },
-    "Step 1: Catalog agentic-dev-team": {
+    "Step 1: Catalog dev-team": {
       "summary": "Read `knowledge/agent-registry.md` for the full inventory.",
-      "anchor": "step-1-catalog-agentic-dev-team"
+      "anchor": "step-1-catalog-dev-team"
     },
     "Step 2: Catalog the comparison target": {
       "summary": "Map the other plugin's capabilities into the same layers where possible.",
@@ -875,7 +875,7 @@
       "anchor": "presenting-results"
     }
   },
-  "plugins/agentic-dev-team/skills/context-loading-protocol/SKILL.md": {
+  "plugins/dev-team/skills/context-loading-protocol/SKILL.md": {
     "Constraints": {
       "summary": "Never load all agents upfront; load only the primary agent for each phase.",
       "anchor": "constraints"
@@ -937,7 +937,7 @@
       "anchor": "output"
     }
   },
-  "plugins/agentic-dev-team/skills/context-summarization/SKILL.md": {
+  "plugins/dev-team/skills/context-summarization/SKILL.md": {
     "Constraints": {
       "summary": "Summaries replace conversation history; never reload prior turns",
       "anchor": "constraints"
@@ -979,7 +979,7 @@
       "anchor": "cleanup"
     }
   },
-  "plugins/agentic-dev-team/skills/design-doc/SKILL.md": {
+  "plugins/dev-team/skills/design-doc/SKILL.md": {
     "Overview": {
       "summary": "The Research phase explores what exists.",
       "anchor": "overview"
@@ -1013,7 +1013,7 @@
       "anchor": "output"
     }
   },
-  "plugins/agentic-dev-team/skills/design-interrogation/SKILL.md": {
+  "plugins/dev-team/skills/design-interrogation/SKILL.md": {
     "Overview": {
       "summary": "Walk every branch of a decision tree until all decisions are resolved.",
       "anchor": "overview"
@@ -1055,7 +1055,7 @@
       "anchor": "anti-patterns"
     }
   },
-  "plugins/agentic-dev-team/skills/design-it-twice/SKILL.md": {
+  "plugins/dev-team/skills/design-it-twice/SKILL.md": {
     "Overview": {
       "summary": "Your first design idea is rarely your best.",
       "anchor": "overview"
@@ -1093,7 +1093,7 @@
       "anchor": "anti-patterns"
     }
   },
-  "plugins/agentic-dev-team/skills/docker-image-audit/SKILL.md": {
+  "plugins/dev-team/skills/docker-image-audit/SKILL.md": {
     "Prerequisites": {
       "summary": "| Tool | Quick install (macOS) | Purpose |",
       "anchor": "prerequisites"
@@ -1139,7 +1139,7 @@
       "anchor": "quick-audit-mode"
     }
   },
-  "plugins/agentic-dev-team/skills/docker-image-create/SKILL.md": {
+  "plugins/dev-team/skills/docker-image-create/SKILL.md": {
     "Workflow": {
       "summary": "Scan the project root to identify:",
       "anchor": "workflow"
@@ -1193,7 +1193,7 @@
       "anchor": "java-spring-boot"
     }
   },
-  "plugins/agentic-dev-team/skills/domain-analysis/SKILL.md": {
+  "plugins/dev-team/skills/domain-analysis/SKILL.md": {
     "Overview": {
       "summary": "Assess the domain health of an existing multi-component system.",
       "anchor": "overview"
@@ -1271,7 +1271,7 @@
       "anchor": "guidelines"
     }
   },
-  "plugins/agentic-dev-team/skills/domain-driven-design/SKILL.md": {
+  "plugins/dev-team/skills/domain-driven-design/SKILL.md": {
     "Overview": {
       "summary": "Model software around the business domain.",
       "anchor": "overview"
@@ -1357,7 +1357,7 @@
       "anchor": "guidelines"
     }
   },
-  "plugins/agentic-dev-team/skills/feature-file-validation/SKILL.md": {
+  "plugins/dev-team/skills/feature-file-validation/SKILL.md": {
     "When to Run": {
       "summary": "During `/code-review` when `.feature` or step definition files are in the changeset",
       "anchor": "when-to-run"
@@ -1379,7 +1379,7 @@
       "anchor": "step-4-output"
     }
   },
-  "plugins/agentic-dev-team/skills/feedback-learning/SKILL.md": {
+  "plugins/dev-team/skills/feedback-learning/SKILL.md": {
     "Trigger Keywords": {
       "summary": "| Keyword | Intent | Example |",
       "anchor": "trigger-keywords"
@@ -1433,7 +1433,7 @@
       "anchor": "constraints"
     }
   },
-  "plugins/agentic-dev-team/skills/governance-compliance/SKILL.md": {
+  "plugins/dev-team/skills/governance-compliance/SKILL.md": {
     "Overview": {
       "summary": "Requirements and procedures for audit logging, multi-layer quality assurance, and ethical operation of the agent team.",
       "anchor": "overview"
@@ -1495,7 +1495,7 @@
       "anchor": "compliance-checklist"
     }
   },
-  "plugins/agentic-dev-team/skills/hexagonal-architecture/SKILL.md": {
+  "plugins/dev-team/skills/hexagonal-architecture/SKILL.md": {
     "Overview": {
       "summary": "Design systems with clear separation between business logic and infrastructure.",
       "anchor": "overview"
@@ -1553,7 +1553,7 @@
       "anchor": "guidelines"
     }
   },
-  "plugins/agentic-dev-team/skills/human-oversight-protocol/SKILL.md": {
+  "plugins/dev-team/skills/human-oversight-protocol/SKILL.md": {
     "Constraints": {
       "summary": "Approval gates cannot be skipped; do not proceed past a gate without explicit human sign-off.",
       "anchor": "constraints"
@@ -1631,7 +1631,7 @@
       "anchor": "escalation-paths"
     }
   },
-  "plugins/agentic-dev-team/skills/js-project-init/SKILL.md": {
+  "plugins/dev-team/skills/js-project-init/SKILL.md": {
     "Workflow": {
       "summary": "Present the defaults above to the user and ask: \"Want to change anything, or should I go ahead?\" Include Playwright in the summary only if the user mentions a frontend project (React, Svelte, Angular, Vue, Next.js, Nuxt, SvelteKit, Astro, UI, web app, dashboard).",
       "anchor": "workflow"
@@ -1673,7 +1673,7 @@
       "anchor": "customization-handling"
     }
   },
-  "plugins/agentic-dev-team/skills/legacy-code/SKILL.md": {
+  "plugins/dev-team/skills/legacy-code/SKILL.md": {
     "Overview": {
       "summary": "Techniques for safely modifying code that lacks tests or has poor structure.",
       "anchor": "overview"
@@ -1739,7 +1739,7 @@
       "anchor": "integration"
     }
   },
-  "plugins/agentic-dev-team/skills/mermaid-diagramming/SKILL.md": {
+  "plugins/dev-team/skills/mermaid-diagramming/SKILL.md": {
     "Theme Directive": {
       "summary": "Paste this as the **first line** inside every ```` ```mermaid ```` block, before the diagram type declaration:",
       "anchor": "theme-directive"
@@ -1781,7 +1781,7 @@
       "anchor": "adding-a-diagram-to-an-existing-file"
     }
   },
-  "plugins/agentic-dev-team/skills/mutation-testing/SKILL.md": {
+  "plugins/dev-team/skills/mutation-testing/SKILL.md": {
     "Constraints": {
       "summary": "**Always ask the user before running.** Present the time estimate and scope; get explicit approval.",
       "anchor": "constraints"
@@ -1827,7 +1827,7 @@
       "anchor": "when-not-to-apply"
     }
   },
-  "plugins/agentic-dev-team/skills/performance-benchmark/SKILL.md": {
+  "plugins/dev-team/skills/performance-benchmark/SKILL.md": {
     "Prerequisites": {
       "summary": "A running dev server (or accessible URL) for the pages being benchmarked.",
       "anchor": "prerequisites"
@@ -1881,7 +1881,7 @@
       "anchor": "file-storage"
     }
   },
-  "plugins/agentic-dev-team/skills/performance-metrics/SKILL.md": {
+  "plugins/dev-team/skills/performance-metrics/SKILL.md": {
     "Overview": {
       "summary": "Schema and procedures for capturing performance data in `metrics/`.",
       "anchor": "overview"
@@ -1935,7 +1935,7 @@
       "anchor": "reporting"
     }
   },
-  "plugins/agentic-dev-team/skills/quality-gate-pipeline/SKILL.md": {
+  "plugins/dev-team/skills/quality-gate-pipeline/SKILL.md": {
     "Overview": {
       "summary": "Single quality gate that every agent passes through before output is accepted.",
       "anchor": "overview"
@@ -1973,7 +1973,7 @@
       "anchor": "integration"
     }
   },
-  "plugins/agentic-dev-team/skills/semantic-duplication-scan/SKILL.md": {
+  "plugins/dev-team/skills/semantic-duplication-scan/SKILL.md": {
     "Overview": {
       "summary": "Detect business logic that has been reimplemented multiple times across different architectural layers.",
       "anchor": "overview"
@@ -2051,7 +2051,7 @@
       "anchor": "report"
     }
   },
-  "plugins/agentic-dev-team/skills/specs/SKILL.md": {
+  "plugins/dev-team/skills/specs/SKILL.md": {
     "Rules": {
       "summary": "1.",
       "anchor": "rules"
@@ -2097,7 +2097,7 @@
       "anchor": "auto-trigger-plan"
     }
   },
-  "plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md": {
+  "plugins/dev-team/skills/static-analysis-integration/SKILL.md": {
     "Constraints": {
       "summary": "1.",
       "anchor": "constraints"
@@ -2143,7 +2143,7 @@
       "anchor": "4-deduplicate"
     },
     "5. Consult ACCEPTED-RISKS.md": {
-      "summary": "If present at repo root, apply suppression per `plugins/agentic-dev-team/knowledge/accepted-risks-schema.md`.",
+      "summary": "If present at repo root, apply suppression per `plugins/dev-team/knowledge/accepted-risks-schema.md`.",
       "anchor": "5-consult-accepted-risksmd"
     },
     "6. Return structured result": {
@@ -2163,7 +2163,7 @@
       "anchor": "related"
     }
   },
-  "plugins/agentic-dev-team/skills/systematic-debugging/SKILL.md": {
+  "plugins/dev-team/skills/systematic-debugging/SKILL.md": {
     "Overview": {
       "summary": "When LLMs hit failures, they tend to guess at fixes — changing code, re-running, changing more code.",
       "anchor": "overview"
@@ -2217,7 +2217,7 @@
       "anchor": "output"
     }
   },
-  "plugins/agentic-dev-team/skills/test-design-reviewer/SKILL.md": {
+  "plugins/dev-team/skills/test-design-reviewer/SKILL.md": {
     "Overview": {
       "summary": "Evaluates test quality using the 8 properties of good tests as described by Andrea Laforgia, based on Dave Farley's testing principles.",
       "anchor": "overview"
@@ -2251,7 +2251,7 @@
       "anchor": "integration"
     }
   },
-  "plugins/agentic-dev-team/skills/test-driven-development/SKILL.md": {
+  "plugins/dev-team/skills/test-driven-development/SKILL.md": {
     "Overview": {
       "summary": "Enforces strict RED-GREEN-REFACTOR discipline with verifiable gates.",
       "anchor": "overview"
@@ -2309,7 +2309,7 @@
       "anchor": "output"
     }
   },
-  "plugins/agentic-dev-team/skills/threat-modeling/SKILL.md": {
+  "plugins/dev-team/skills/threat-modeling/SKILL.md": {
     "Overview": {
       "summary": "Structured security analysis for identifying threats, attack surfaces, and mitigations during design or review phases.",
       "anchor": "overview"
@@ -2367,7 +2367,7 @@
       "anchor": "integration"
     }
   },
-  "plugins/agentic-dev-team/skills/ubiquitous-language/SKILL.md": {
+  "plugins/dev-team/skills/ubiquitous-language/SKILL.md": {
     "Announce on start": {
       "summary": "\"Running ubiquitous-language.",
       "anchor": "announce-on-start"

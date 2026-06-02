@@ -213,6 +213,22 @@ check_release_please_manifest() {
 
 check_release_please_manifest
 
+# Step 3 invariant: no live references to old name in plugins/dev-team/
+# except CHANGELOG.md (history) and commands/upgrade.md (migration block).
+check_dev_team_body_clean() {
+  local hits
+  hits=$(grep -rln "agentic-dev-team" plugins/dev-team/ \
+    --exclude=CHANGELOG.md --exclude=upgrade.md 2>/dev/null || true)
+  if [ -z "$hits" ]; then
+    pass "plugins/dev-team/ free of agentic-dev-team references"
+  else
+    fail "plugins/dev-team/ still references agentic-dev-team:"
+    printf '%s\n' "$hits" | sed 's/^/        /'
+  fi
+}
+
+check_dev_team_body_clean
+
 # --- Summary -------------------------------------------------------------
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"

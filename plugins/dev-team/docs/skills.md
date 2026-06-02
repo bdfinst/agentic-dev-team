@@ -145,7 +145,7 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 
 ### Team Agent Invocation
 
-Team agent personas (orchestrator, architect, software-engineer, qa-engineer, security-engineer, platform-engineer, ui-ux-designer, product-manager, tech-writer) are **not exposed as slash commands**. They are dispatched as subagents via the Agent tool with `subagent_type: "agentic-dev-team:<agent-name>"`. This gives each persona a fresh context window, isolating its reading and reasoning from the parent conversation. The orchestrator routes work to these agents automatically; users typically don't dispatch them directly.
+Team agent personas (orchestrator, architect, software-engineer, qa-engineer, security-engineer, platform-engineer, ui-ux-designer, product-manager, tech-writer) are **not exposed as slash commands**. They are dispatched as subagents via the Agent tool with `subagent_type: "dev-team:<agent-name>"`. This gives each persona a fresh context window, isolating its reading and reasoning from the parent conversation. The orchestrator routes work to these agents automatically; users typically don't dispatch them directly.
 
 ### Skill Invocation
 

@@ -9,7 +9,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 # Upgrade
 
-Role: worker. This command updates the agentic-dev-team plugin to the latest version and ensures its marketplace is set to auto-update going forward.
+Role: worker. This command updates the dev-team plugin to the latest version and ensures its marketplace is set to auto-update going forward.
 
 You have been invoked with the `/upgrade` command.
 
@@ -23,14 +23,14 @@ Read the installed plugin's `plugin.json` to get the current version:
 claude plugin list
 ```
 
-Parse the output to find `agentic-dev-team` and its current version. Also read the installed `plugin.json` directly:
+Parse the output to find `dev-team` and its current version. Also read the installed `plugin.json` directly:
 
 ```
-~/.claude/plugins/cache/*/agentic-dev-team/*/.claude-plugin/plugin.json
+~/.claude/plugins/cache/*/dev-team/*/.claude-plugin/plugin.json
 ```
 
 Report:
-> **Current version**: agentic-dev-team v{version} (installed from {marketplace})
+> **Current version**: dev-team v{version} (installed from {marketplace})
 
 ### 2. Check auto-update status and ask the user
 
@@ -40,7 +40,7 @@ First, check the current auto-update status by running the script below and repo
 python3 - <<'PY'
 import json, os
 
-PLUGIN = "agentic-dev-team"
+PLUGIN = "dev-team"
 home = os.path.expanduser("~")
 cwd = os.getcwd()
 
@@ -89,7 +89,7 @@ Wait for the user's answer before continuing. If they say **yes**, run the enabl
 python3 - <<'PY'
 import json, os
 
-PLUGIN = "agentic-dev-team"
+PLUGIN = "dev-team"
 home = os.path.expanduser("~")
 cwd = os.getcwd()
 
@@ -150,10 +150,10 @@ Report the one-line result to the user, then continue to step 3.
 
 ### 3. Run the update
 
-First, determine the install scope from `claude plugin list` output (the `Scope:` line for `agentic-dev-team`). It will be one of: `user`, `project`, `local`, `managed`.
+First, determine the install scope from `claude plugin list` output (the `Scope:` line for `dev-team`). It will be one of: `user`, `project`, `local`, `managed`.
 
 ```bash
-claude plugin update --scope {scope} agentic-dev-team@{marketplace}
+claude plugin update --scope {scope} dev-team@{marketplace}
 ```
 
 Where `{scope}` is the detected install scope (e.g., `project`) and `{marketplace}` is the marketplace name (e.g., `bfinster`). The `--scope` flag is required — the CLI defaults to `user`, which will fail if the plugin is installed at a different scope.
@@ -169,8 +169,8 @@ If the command fails, report the error and suggest:
 > Update failed. You can try a manual reinstall:
 >
 > ```
-> claude plugin uninstall agentic-dev-team@{marketplace}
-> claude plugin install agentic-dev-team@{marketplace}
+> claude plugin uninstall dev-team@{marketplace}
+> claude plugin install dev-team@{marketplace}
 > ```
 
 Exit.

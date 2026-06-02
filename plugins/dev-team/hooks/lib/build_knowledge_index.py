@@ -270,7 +270,7 @@ def build_index_text(roots: Path) -> str:
         rel = path.relative_to(roots)
         # The roots env var may point at the plugin dir; reattach the
         # plugin prefix so keys are repo-relative.
-        rel_key = f"plugins/agentic-dev-team/{rel.as_posix()}"
+        rel_key = f"plugins/dev-team/{rel.as_posix()}"
         rows = extract_sections(path)
         if not rows:
             continue

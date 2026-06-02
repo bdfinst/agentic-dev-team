@@ -1,7 +1,7 @@
 # security-review category -> unified-finding rule_id mapping
 #
 # Single source of truth for agent-emitted rule_ids. The adapter at
-# plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py
+# plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py
 # reads this file. See docs/specs/agent-rule-id-adapter.md for the contract.
 #
 # Versioning is independent of the primitives-contract. Bump on any semantic change:

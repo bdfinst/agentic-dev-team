@@ -1,6 +1,6 @@
 # SARIF → Unified Finding Parser
 
-Shared normalization layer for every SARIF-emitting tool in the static-analysis pre-pass. Reads a SARIF document, walks `runs[*].results[*]`, and emits unified-finding-v1 objects that validate against `plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json`.
+Shared normalization layer for every SARIF-emitting tool in the static-analysis pre-pass. Reads a SARIF document, walks `runs[*].results[*]`, and emits unified-finding-v1 objects that validate against `plugins/dev-team/knowledge/schemas/unified-finding-v1.json`.
 
 ## Field mapping
 

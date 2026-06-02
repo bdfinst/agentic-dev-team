@@ -29,7 +29,7 @@ Feature: /triage — File-Based Triage Records
   So that bug investigation output is portable across any issue tracker
 
   Background:
-    Given the agentic-dev-team plugin is installed
+    Given the dev-team plugin is installed
     And I am in a project directory
 
   # ─── Happy path ──────────────────────────────────────────────────────────────

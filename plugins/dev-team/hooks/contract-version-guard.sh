@@ -2,7 +2,7 @@
 # contract-version-guard.sh — Claude Code PreToolUse hook
 #
 # Blocks Write/Edit operations that change the body of
-# plugins/agentic-dev-team/knowledge/security-primitives-contract.md without
+# plugins/dev-team/knowledge/security-primitives-contract.md without
 # also bumping the `version:` field in its YAML frontmatter.
 #
 # Semver policy (see the contract file for details):
@@ -19,7 +19,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-CONTRACT_PATH="plugins/agentic-dev-team/knowledge/security-primitives-contract.md"
+CONTRACT_PATH="plugins/dev-team/knowledge/security-primitives-contract.md"
 AUDIT_LOG="$REPO_ROOT/metrics/contract-version-guard-audit.jsonl"
 
 INPUT=$(cat)

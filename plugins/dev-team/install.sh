@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — Verify prerequisites for the agentic-dev-team plugin.
+# install.sh — Verify prerequisites for the dev-team plugin.
 #
 # Run this after installing the plugin to confirm all required and optional
 # dependencies are available.
@@ -45,7 +45,7 @@ if [ -d ".githooks" ] && [ -d ".git" ]; then
   echo ""
 fi
 
-echo "Checking agentic-dev-team prerequisites..."
+echo "Checking dev-team prerequisites..."
 echo ""
 
 echo "--- Required ---"

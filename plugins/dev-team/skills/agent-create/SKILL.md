@@ -109,13 +109,13 @@ Only apply a default when the value was not specified by the user.
 
 ## Step 6 — Check for Existing File
 
-Glob `plugins/agentic-dev-team/agents/<name>.md`.
+Glob `plugins/dev-team/agents/<name>.md`.
 
 If the file exists:
 1. Read its `description` frontmatter field
-2. Emit: `plugins/agentic-dev-team/agents/<name>.md already exists (description: <existing-description>)`
+2. Emit: `plugins/dev-team/agents/<name>.md already exists (description: <existing-description>)`
 3. Ask: `Overwrite? (yes/no)`
-4. On `no`: emit `Cancelled. Existing agent: plugins/agentic-dev-team/agents/<name>.md — <existing-description>` and **stop with no changes**
+4. On `no`: emit `Cancelled. Existing agent: plugins/dev-team/agents/<name>.md — <existing-description>` and **stop with no changes**
 5. On `yes`: continue
 
 ---
@@ -124,7 +124,7 @@ If the file exists:
 
 For review agents, scan existing agents for topical overlap:
 
-1. Read `description` frontmatter of all files in `plugins/agentic-dev-team/agents/`
+1. Read `description` frontmatter of all files in `plugins/dev-team/agents/`
 2. For each existing agent, also read the first 20 lines of its `## Detect` section if present
 3. If the LLM judges ≥ 60% topical overlap between the new description and an existing agent's scope, emit:
 
@@ -274,7 +274,7 @@ After generating the body, count all lines (including blank lines).
 **If `--dry` was passed**: display the complete generated file content to the user and stop. Do not write any file, do not run validation, do not update the registry or CLAUDE.md.
 
 Otherwise: write the generated content to disk, then invoke the agent-audit skill:
-`Skill(agent-audit plugins/agentic-dev-team/agents/<name>.md)`
+`Skill(agent-audit plugins/dev-team/agents/<name>.md)`
 
 **If the audit returns errors:**
 1. Emit the raw `/agent-audit` output verbatim
@@ -291,7 +291,7 @@ Otherwise: write the generated content to disk, then invoke the agent-audit skil
 
 ## Step 12 — Present Draft and Confirm Write
 
-Ask: `Write this file to plugins/agentic-dev-team/agents/<name>.md? (yes/no)`
+Ask: `Write this file to plugins/dev-team/agents/<name>.md? (yes/no)`
 
 On `no`: delete the file written in Step 11, make no other changes, stop.
 On `yes`: the file is already on disk from Step 11; no re-write needed unless the user modified the draft.
@@ -319,7 +319,7 @@ Append a row to the correct table:
 
 ## Step 14 — Update CLAUDE.md
 
-Locate the table in `plugins/agentic-dev-team/CLAUDE.md` whose heading
+Locate the table in `plugins/dev-team/CLAUDE.md` whose heading
 contains `Review Agents` (review type) or `Team Agents` (team type).
 
 If the heading is not found: emit
@@ -334,7 +334,7 @@ report.
 ## Completion Report
 
 ```
-Agent created: plugins/agentic-dev-team/agents/<name>.md
+Agent created: plugins/dev-team/agents/<name>.md
 Type: <review|team>
 Model: <model> (<tier-label>)
 Body: <N> lines

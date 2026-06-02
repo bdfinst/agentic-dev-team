@@ -23,7 +23,7 @@ Expansion, and session debrief with Next Exploration Suggestions.
 ## Intent Description
 
 The `/explore` command adds discovery-driven, charter-guided exploratory testing as a first-class
-workflow in the agentic-dev-team pipeline. Where `/build` executes a predetermined TDD plan and
+workflow in the dev-team pipeline. Where `/build` executes a predetermined TDD plan and
 `/code-review` applies deterministic rules, `/explore` is unscripted: the QA Engineer is chartered
 with a specific investigation goal and given latitude to probe a running feature or endpoint using
 heuristic strategies.
@@ -53,7 +53,7 @@ Feature: /explore — Charter-Driven Exploratory Testing
   So that I can discover behavioral fragility that TDD and static review miss
 
   Background:
-    Given the agentic-dev-team plugin is installed
+    Given the dev-team plugin is installed
     And the local development server is running
 
   # ─── Happy path ──────────────────────────────────────────────────────────────
@@ -249,7 +249,7 @@ Feature: /explore — Charter-Driven Exploratory Testing
 
 | File | Change |
 |------|--------|
-| `plugins/agentic-dev-team/CLAUDE.md` | Add `/explore` row to the Slash Commands Registry table |
+| `plugins/dev-team/CLAUDE.md` | Add `/explore` row to the Slash Commands Registry table |
 | `agents/qa-engineer.md` | Add `exploratory-testing` skill reference in the Skills section |
 | `knowledge/agent-registry.md` | Add `exploratory-testing` skill row with token estimate |
 

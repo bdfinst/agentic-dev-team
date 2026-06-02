@@ -54,7 +54,7 @@ Do not hand-author agent files when `/agent-add` is available — divergent temp
 
 ## Creating a Skill
 
-Place skill files at `plugins/agentic-dev-team/skills/{skill-name}/SKILL.md`. Use the skill template and authoring guidelines from [`references/templates.md`](references/templates.md#skill-template). Then follow the [registration checklist](references/templates.md#registration-checklist).
+Place skill files at `plugins/dev-team/skills/{skill-name}/SKILL.md`. Use the skill template and authoring guidelines from [`references/templates.md`](references/templates.md#skill-template). Then follow the [registration checklist](references/templates.md#registration-checklist).
 
 ## Meta-Patterns for Skill Writing
 
@@ -88,7 +88,7 @@ After creating an agent or skill, follow the registration checklist in [`referen
 Every change must be reflected in documentation. See the sync policy and source-of-truth table in [`references/templates.md`](references/templates.md#documentation-sync-policy).
 
 ## Output
-New or updated `plugins/agentic-dev-team/skills/*/SKILL.md` file(s) with all registry tables and docs updated. Be concise — confirm what was created/updated and its registration status.
+New or updated `plugins/dev-team/skills/*/SKILL.md` file(s) with all registry tables and docs updated. Be concise — confirm what was created/updated and its registration status.
 
 ## Anti-Patterns
 

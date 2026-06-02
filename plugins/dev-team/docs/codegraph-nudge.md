@@ -72,9 +72,9 @@ production-critical sessions where you want to force codegraph use.
 
 ## Source
 
-- `plugins/agentic-dev-team/hooks/codegraph-nudge.sh`
-- `plugins/agentic-dev-team/hooks/codegraph-turn-mark.sh`
-- Registered in `plugins/agentic-dev-team/settings.json` under PreToolUse
+- `plugins/dev-team/hooks/codegraph-nudge.sh`
+- `plugins/dev-team/hooks/codegraph-turn-mark.sh`
+- Registered in `plugins/dev-team/settings.json` under PreToolUse
   (`Read`, `Grep`, `Glob`) and PostToolUse (`mcp__codegraph__.*`).
 - Tests: `tests/hooks/codegraph_nudge.bats` and
   `tests/hooks/codegraph_settings_test.bats`.

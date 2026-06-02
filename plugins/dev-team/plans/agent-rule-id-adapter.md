@@ -5,7 +5,7 @@
 **Approved**: 2026-04-24 (user approval; all four plan review personas approve v2)
 **Branch**: main
 **Status**: approved (v2)
-**Spec**: `plugins/agentic-dev-team/docs/specs/agent-rule-id-adapter.md`
+**Spec**: `plugins/dev-team/docs/specs/agent-rule-id-adapter.md`
 **Source**: Finding #1 of `docs/rule-id-audit.md` (functional blocker on dedup)
 **Sequencing**: precedes Item 4 (plugin rename) per strategic review
 
@@ -19,7 +19,7 @@ Scope strictly limited to unblocking dedup. Does NOT strip pattern-visible class
 
 ## Key decisions (resolved in v2)
 
-1. **Adapter location.** Lives inside the static-analysis-integration skill at `plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py`, matching the pattern established by other per-source adapters (actionlint SARIF wrapper, tier-3 bespoke JSON adapters). One adapter tree; one maintainers list; one drift-CI job.
+1. **Adapter location.** Lives inside the static-analysis-integration skill at `plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py`, matching the pattern established by other per-source adapters (actionlint SARIF wrapper, tier-3 bespoke JSON adapters). One adapter tree; one maintainers list; one drift-CI job.
 2. **Malformed category is a hard-fail, not a silent warning.** The LLM agent can emit drifted category strings (`A3.sqli`, `a03.sql-injection`, etc.). Silent-warn-and-continue would recreate the original dedup-blocker by minting `security-review.*` rule_ids that never collide with semgrep's. The adapter enforces `^A[0-9]{2}\.[a-z0-9-]+$` on incoming category; violations exit 1 with a specific ERROR. WARN is reserved for well-formed-but-unmapped categories (legitimate new classes not yet in the mapping).
 3. **Step 4 annotates only judgment-only pattern rows in `owasp-detection.md`.** Pattern-visible rows are scheduled for removal in Item 3b; annotating them first would be thrown-away work. The agent emits `unknown-category` fallback for pattern-visible detections during the window between Step 4 and Item 3b — acceptable because those detections are the ones moving to semgrep rules anyway.
 
@@ -75,7 +75,7 @@ Feature: security-review agent findings normalize to unified-finding envelope
   Scenario: Well-formed-but-unmapped category falls back to security-review namespace
     Given category "A99.new-class" (not in mapping but regex-valid)
     Then rule_id == "security-review.a99.new-class"
-    And stderr contains: "WARN: category A99.new-class not in mapping at plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml; minted security-review.a99.new-class"
+    And stderr contains: "WARN: category A99.new-class not in mapping at plugins/dev-team/knowledge/security-review-rule-map.yaml; minted security-review.a99.new-class"
 
   Scenario: Malformed category is a hard failure (AC-16 — LLM drift guard)
     Given category "A3.sqli" (regex-violating — missing leading zero, malformed slug)
@@ -157,19 +157,19 @@ Establishes the single source of truth and the adapter's core shape. Everything 
   - `expected-unified-xss-innerhtml.jsonl` with `rule_id: "semgrep.javascript.xss-innerhtml"`
   - `expected-unified-idor.jsonl` with `rule_id: "security-review.a01.idor"`
 - Create `evals/security-review-adapter/tests/test_mapping_table.sh`:
-  - Assert `plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml` exists
-  - Assert `python3 -c "import yaml; d = yaml.safe_load(open('plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml')); assert d['version'].count('.') == 2; assert len(d['mappings']) >= 21; [re.fullmatch(r'^[a-z0-9_-]+(\.[a-z0-9_-]+)+$', v) for v in d['mappings'].values()]"` passes
+  - Assert `plugins/dev-team/knowledge/security-review-rule-map.yaml` exists
+  - Assert `python3 -c "import yaml; d = yaml.safe_load(open('plugins/dev-team/knowledge/security-review-rule-map.yaml')); assert d['version'].count('.') == 2; assert len(d['mappings']) >= 21; [re.fullmatch(r'^[a-z0-9_-]+(\.[a-z0-9_-]+)+$', v) for v in d['mappings'].values()]"` passes
   - Assert the `version:` field is a standalone top-level key, not nested inside `mappings:`
 - Create `evals/security-review-adapter/tests/test_adapter_positive.sh`:
-  - For each of the three positive fixtures, invoke `python plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py --input <fixture> --output <tmp>`
+  - For each of the three positive fixtures, invoke `python plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py --input <fixture> --output <tmp>`
   - Deep-equal `<tmp>` against `expected-unified-*.jsonl` EXCEPT that `metadata.source_ref` is validated specifically: assert `jq '.metadata.source_ref'` of the emitted line `== jq '.issues[0]'` of the input (proves source_ref is an opaque, byte-faithful copy of the input issue — closes the opacity-assertion blocker)
   - Covers upstream-generic (A03.sql-injection), upstream-language-specific (A03.xss-innerhtml), and judgment-namespace (A01.idor) cases
 - Run both tests pre-change. All fail (mapping YAML absent, adapter absent).
 
 **GREEN**:
 
-- Create `plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml` with ≥21 entries. Include a top-level `version: 1.0.0` field. Include at least one language-specific mapping (e.g., `A03.xss-innerhtml: semgrep.javascript.xss-innerhtml`).
-- Create `plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py`:
+- Create `plugins/dev-team/knowledge/security-review-rule-map.yaml` with ≥21 entries. Include a top-level `version: 1.0.0` field. Include at least one language-specific mapping (e.g., `A03.xss-innerhtml: semgrep.javascript.xss-innerhtml`).
+- Create `plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py`:
   - Module-level docstring names the YAML path AND the spec file (addresses AC-18)
   - CLI with `--input`, `--output`, `--mapping` (default points to the YAML); `--help` output names the default mapping path (AC-18)
   - Reads input JSON; iterates `issues[]`
@@ -179,7 +179,7 @@ Establishes the single source of truth and the adapter's core shape. Everything 
 - Run tests. All pass.
 
 **REFACTOR**: None at this step.
-**Files**: `plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml` (new), `plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py` (new), six fixture files (three input + three expected), two test scripts (new)
+**Files**: `plugins/dev-team/knowledge/security-review-rule-map.yaml` (new), `plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py` (new), six fixture files (three input + three expected), two test scripts (new)
 **Commit**: `feat(security-review): canonical rule_id mapping + adapter happy-path (language-specific included)`
 
 ### Step 2: Error paths — malformed category hard-fail, well-formed-but-unmapped fallback, missing category hard-fail, malformed mapping YAML hard-fail
@@ -195,7 +195,7 @@ Establishes the single source of truth and the adapter's core shape. Everything 
   - `malformed-mapping.yaml` (syntactically broken YAML; test copies it into a tmp path and passes `--mapping <tmp>`)
 - Create tests:
   - `test_adapter_malformed_category.sh`: run adapter on malformed-category fixture; assert exit 1; assert stderr contains `ERROR: category 'A3.sqli' does not match required format A<NN>.<slug>`; assert output file is empty
-  - `test_adapter_unmapped_category.sh`: run adapter on unmapped-category fixture; assert exit 0; assert emitted `rule_id == "security-review.a99.new-class"`; assert stderr contains `WARN: category A99.new-class not in mapping at plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml; minted security-review.a99.new-class`
+  - `test_adapter_unmapped_category.sh`: run adapter on unmapped-category fixture; assert exit 0; assert emitted `rule_id == "security-review.a99.new-class"`; assert stderr contains `WARN: category A99.new-class not in mapping at plugins/dev-team/knowledge/security-review-rule-map.yaml; minted security-review.a99.new-class`
   - `test_adapter_missing_category.sh`: assert exit 1 + `ERROR: agent issue missing required 'category' field; upgrade the agent output`
   - `test_adapter_malformed_mapping.sh`: assert exit 1 + `ERROR: mapping file at <tmp path> is invalid`
 - Run pre-change. All four fail.
@@ -223,7 +223,7 @@ Establishes the single source of truth and the adapter's core shape. Everything 
   - `agent-output-mixed-case.json` with `category: "A03.sql-injection"` (uppercase `A` internal)
   - `agent-output-forces-null-file.json` designed to produce a schema-invalid unified finding (e.g., `file: null` or missing `line`) — exercises Step 3's negative-validation gate
 - Create tests:
-  - `test_adapter_schema_valid.sh`: for every positive fixture, run adapter; validate each emitted JSONL line against `plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json` via `python -m jsonschema -i <line> <schema>` or the `jsonschema` library; assert all pass
+  - `test_adapter_schema_valid.sh`: for every positive fixture, run adapter; validate each emitted JSONL line against `plugins/dev-team/knowledge/schemas/unified-finding-v1.json` via `python -m jsonschema -i <line> <schema>` or the `jsonschema` library; assert all pass
   - `test_case_normalization.sh`: run adapter on mixed-case fixture; grep emitted rule_ids for `[A-Z]`; assert zero matches
   - `test_adapter_schema_violation_fixture.sh`: run adapter on `agent-output-forces-null-file.json`; assert exit 1 + stderr contains `ERROR: emitted finding violates unified-finding-v1 schema`
 - Run pre-change. Tests fail.
@@ -260,11 +260,11 @@ Establishes the single source of truth and the adapter's core shape. Everything 
 
 **GREEN**:
 
-- Edit `plugins/agentic-dev-team/agents/security-review.md`:
+- Edit `plugins/dev-team/agents/security-review.md`:
   - Add `category` to the output JSON schema block as a required field on each issue
   - Add one paragraph documenting the category regex and pointing at `owasp-detection.md` for the canonical list
   - Add 2-3 concrete in-prompt examples of category emission (helps LLM reliability)
-- Edit `plugins/agentic-dev-team/knowledge/owasp-detection.md`:
+- Edit `plugins/dev-team/knowledge/owasp-detection.md`:
   - Add a `Category` column to every **judgment-only** row (IDOR, missing-auth-middleware, no-rate-limiting, session fixation, etc.)
   - Leave pattern-visible rows unannotated with a header comment: "Pattern-visible classes are detected by semgrep rules; category annotations will land alongside row removal in Item 3b."
 - Author the 3-5 reliability-eval fixtures. Use canned agent output in CI to keep the test deterministic; a separate manual-eval mode can exercise the real agent.
@@ -309,7 +309,7 @@ Establishes the single source of truth and the adapter's core shape. Everything 
 **RED**:
 
 - Create `test_skill_wiring.sh`:
-  - Awk-check on `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md`: Tier 3 section references `adapters/security-review-adapter.py` at the new path
+  - Awk-check on `plugins/dev-team/skills/static-analysis-integration/SKILL.md`: Tier 3 section references `adapters/security-review-adapter.py` at the new path
   - Awk-check on `plugins/agentic-security-assessment/skills/security-assessment-pipeline/SKILL.md` Phase 1b block: references the adapter invocation with the adapter's full new path
 - Create `test_runtime_phase_1b_smoke.sh` (closes AC-10 blocker):
   - Stage a fake agent-output.json under a tmp memory/ dir with two issues: one mapped category, one unmapped
@@ -331,13 +331,13 @@ Establishes the single source of truth and the adapter's core shape. Everything 
 
 **GREEN**:
 
-- Edit `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md`:
+- Edit `plugins/dev-team/skills/static-analysis-integration/SKILL.md`:
   - Add one paragraph under Tier 3: "A thin adapter normalizes `security-review` agent output into the unified-finding envelope. See `adapters/security-review-adapter.py` and `references/security-review-adapter.md`."
-- Create `plugins/agentic-dev-team/skills/static-analysis-integration/references/security-review-adapter.md`:
+- Create `plugins/dev-team/skills/static-analysis-integration/references/security-review-adapter.md`:
   - Document the adapter's CLI, input/output contracts, error semantics, failure modes, and mapping-table location
   - Include a "grep recipe" section documenting the uppercase-to-lowercase case translation so auditors know to grep both `A03` (agent side) and `a03` (unified-stream side)
 - Edit `plugins/agentic-security-assessment/skills/security-assessment-pipeline/SKILL.md`:
-  - In the Phase 1b block, append: "The `security-review` agent's output is piped through `plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py` before findings append to `memory/findings-<slug>.jsonl`. The adapter is mandatory in this phase; a non-zero exit halts Phase 1b with a named error."
+  - In the Phase 1b block, append: "The `security-review` agent's output is piped through `plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py` before findings append to `memory/findings-<slug>.jsonl`. The adapter is mandatory in this phase; a non-zero exit halts Phase 1b with a named error."
 - Ensure no inline rule_id literals in adapter source beyond the `"security-review."` prefix.
 - Run all four tests. Pass.
 

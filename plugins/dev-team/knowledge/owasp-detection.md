@@ -6,7 +6,7 @@ analysis to apply language-specific detection patterns.
 When a pattern matches, the agent emits a finding with the row's
 **Category** identifier. Category identifiers follow the regex
 `^A[0-9]{2}\.[a-z0-9-]+$` and are canonical — see
-`plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml` for
+`plugins/dev-team/knowledge/security-review-rule-map.yaml` for
 the full list mapped to rule_ids.
 
 > **Scope note (post Item 3b):** pattern-visible classes — those detected

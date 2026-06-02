@@ -1,5 +1,5 @@
 # Single source of truth for filesystem-walk exclusions used by
-# plugins/agentic-dev-team/scripts/recon-inventory.sh when the target is not a
+# plugins/dev-team/scripts/recon-inventory.sh when the target is not a
 # git working tree. Two sections, each with one entry per line.
 #
 # The git-ls-files branch does NOT consult this file — git's own .gitignore +

@@ -89,7 +89,7 @@ When `/code-review` runs in a repo without `ACCEPTED-RISKS.md`, the agent does N
 /code-review --init-risks
 ```
 
-This copies `plugins/agentic-dev-team/templates/ACCEPTED-RISKS.md.tmpl` to the repo root if the file is absent. If the file already exists, `--init-risks` exits non-zero without overwriting.
+This copies `plugins/dev-team/templates/ACCEPTED-RISKS.md.tmpl` to the repo root if the file is absent. If the file already exists, `--init-risks` exits non-zero without overwriting.
 
 ## Out of scope
 
