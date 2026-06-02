@@ -247,6 +247,33 @@ check_security_assessment_body_clean() {
 
 check_security_assessment_body_clean
 
+# Step 5 invariant: /upgrade has a Step 0 migration block that invokes
+# evals/upgrade-migration/migrate.py, and the eval runner is present.
+check_upgrade_step0() {
+  local upgrade=plugins/dev-team/commands/upgrade.md
+  if [ ! -f "$upgrade" ]; then
+    fail "$upgrade missing"
+    return
+  fi
+  if grep -q '^### 0\. Detect and migrate legacy plugin ids' "$upgrade"; then
+    pass "/upgrade has Step 0 migration heading"
+  else
+    fail "/upgrade missing Step 0 migration heading"
+  fi
+  if grep -q 'evals/upgrade-migration/migrate\.py' "$upgrade"; then
+    pass "/upgrade Step 0 invokes evals/upgrade-migration/migrate.py"
+  else
+    fail "/upgrade Step 0 does not reference evals/upgrade-migration/migrate.py"
+  fi
+  if [ -x evals/upgrade-migration/migrate.py ] && [ -x evals/upgrade-migration/run.sh ]; then
+    pass "evals/upgrade-migration/{migrate.py,run.sh} present and executable"
+  else
+    fail "evals/upgrade-migration/{migrate.py,run.sh} missing or not executable"
+  fi
+}
+
+check_upgrade_step0
+
 # --- Summary -------------------------------------------------------------
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
