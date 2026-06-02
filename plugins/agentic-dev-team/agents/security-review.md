@@ -21,7 +21,9 @@ Confidence: high=clear vulnerability with known fix (parameterize query, remove 
 
 Every issue MUST carry a `category` identifying the OWASP class the
 finding belongs to. The canonical list lives in
-`knowledge/owasp-detection.md`. Whole-file load: the full A01–A10 catalog is the canonical category list. The category-to-rule_id mapping lives
+`knowledge/owasp-detection.md`.
+Whole-file load: the full A01–A10 OWASP catalog is the canonical category list — the agent scans the whole file to pick the right class for each finding.
+The category-to-rule_id mapping lives
 in `knowledge/security-review-rule-map.yaml`.
 
 Format regex: `^A[0-9]{2}\.[a-z0-9-]+$`
