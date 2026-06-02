@@ -320,6 +320,39 @@ check_readme_renamed_notice() {
 
 check_readme_renamed_notice
 
+# Step 7 invariant: every script invoked by .github/workflows/plugin-tests.yml
+# exits zero. Skipped if shellcheck is missing (CI installs it; local devs
+# may not have it).
+check_ci_scripts() {
+  if ! command -v shellcheck >/dev/null 2>&1; then
+    pass "ci scripts skipped (shellcheck not installed locally)"
+    return
+  fi
+  if shellcheck -x \
+       plugins/security-assessment/scripts/_lib.sh \
+       plugins/security-assessment/scripts/apply-accepted-risks.sh \
+       plugins/security-assessment/scripts/apply-severity-floors.sh \
+       plugins/security-assessment/scripts/find-ci-files.sh \
+       plugins/security-assessment/scripts/phase-timer.sh \
+       >/dev/null 2>&1; then
+    pass "shellcheck passes on security-assessment helper scripts"
+  else
+    fail "shellcheck failed on security-assessment helper scripts"
+  fi
+  if shellcheck plugins/security-assessment/tests/scripts/*.sh >/dev/null 2>&1; then
+    pass "shellcheck passes on security-assessment test scripts"
+  else
+    fail "shellcheck failed on security-assessment test scripts"
+  fi
+  if bash plugins/security-assessment/tests/scripts/run-all.sh >/dev/null 2>&1; then
+    pass "plugins/security-assessment/tests/scripts/run-all.sh exits zero"
+  else
+    fail "plugins/security-assessment/tests/scripts/run-all.sh failed"
+  fi
+}
+
+check_ci_scripts
+
 # --- Summary -------------------------------------------------------------
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
