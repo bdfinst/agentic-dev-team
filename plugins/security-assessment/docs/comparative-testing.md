@@ -33,10 +33,10 @@ test is roughly the conjunction of all of these passing.
 
 | Reference agent | Our counterpart | Unit test |
 |---|---|---|
-| `scan-00-codebase-recon.md` | `plugins/agentic-dev-team/agents/codebase-recon.md` | ✅ [`codebase-recon-equivalence.md`](../../../evals/comparative/unit-tests/codebase-recon-equivalence.md) |
+| `scan-00-codebase-recon.md` | `plugins/dev-team/agents/codebase-recon.md` | ✅ [`codebase-recon-equivalence.md`](../../../evals/comparative/unit-tests/codebase-recon-equivalence.md) |
 | `scan-01-secrets-credentials.md` | `gitleaks` + `entropy-check.py` + `semgrep.secrets` | TBD — `secrets-equivalence.md` |
 | `scan-02-auth-authorization.md` | `agents/security-review.md` | TBD |
-| `scan-03-business-logic-fraud.md` | `plugins/agentic-security-assessment/agents/business-logic-domain-review.md` + `knowledge/semgrep-rules/fraud-domain.yaml` | TBD |
+| `scan-03-business-logic-fraud.md` | `plugins/security-assessment/agents/business-logic-domain-review.md` + `knowledge/semgrep-rules/fraud-domain.yaml` | TBD |
 | `scan-04-data-flow-pii-pci.md` | `tool-finding-narrative-annotator` (PII-flow narrative) + pattern rules | TBD |
 | `scan-05-infrastructure-container.md` | `hadolint` + `trivy` | TBD |
 | `scan-06-cicd-pipeline.md` | `actionlint` + `semgrep` | TBD |
@@ -51,7 +51,7 @@ Adversarial pipeline (reference ships 8 Python probes + 5 prompts):
 
 | Reference | Our counterpart |
 |---|---|
-| `adversarial-agents/scripts/01..08_*.py` | `plugins/agentic-security-assessment/harness/redteam/probes/01..08_*.py` |
+| `adversarial-agents/scripts/01..08_*.py` | `plugins/security-assessment/harness/redteam/probes/01..08_*.py` |
 | `adversarial-agents/lib/{http_client,result_store,scoring,feature_dict}.py` | `harness/redteam/lib/{http_client,result_store,scoring,feature_dict,scope_check}.py` |
 | `adversarial-agents/prompts/adversarial-{01..05}-*.md` | `agents/redteam-{recon,evasion,extraction,report-generator}.md` |
 | `adversarial-agents/orchestrator.py` | `harness/redteam/orchestrator.py` + `/redteam-model` command (adds scope / consent enforcement) |
@@ -62,7 +62,7 @@ Adversarial pipeline (reference ships 8 Python probes + 5 prompts):
 
 **Prerequisites**:
 - `opus_repo_scan_test-main` at the known path with its agents configured
-- Claude Code CLI installed; agentic-security-assessment plugin installed locally
+- Claude Code CLI installed; security-assessment plugin installed locally
 - `semgrep`, `gitleaks`, `hadolint`, `actionlint` ideally installed (affects recall ceiling on `ours`)
 
 **Steps**:
@@ -72,7 +72,7 @@ Adversarial pipeline (reference ships 8 Python probes + 5 prompts):
    ```bash
    cd /Users/finsterb/Downloads/opus_repo_scan_test-main
    mkdir -p repos
-   cp -r /Users/finsterb/_git-os/agentic-dev-team/evals/comparative/fixture-repo repos/fixture-repo
+   cp -r /Users/finsterb/_git-os/dev-team/evals/comparative/fixture-repo repos/fixture-repo
 
    # From a Claude Code session in the opus_repo_scan_test directory:
    # Run the 13 agents in order per docs/static-analysis-agents.md.
@@ -83,15 +83,15 @@ Adversarial pipeline (reference ships 8 Python probes + 5 prompts):
    # Expected time: ~10-15 minutes; cost: ~$5-15 in Opus API calls.
 
    # Archive the reference output for future diff checks:
-   mkdir -p /Users/finsterb/_git-os/agentic-dev-team/evals/comparative/reference-baseline/$(date +%Y-%m-%d)
+   mkdir -p /Users/finsterb/_git-os/dev-team/evals/comparative/reference-baseline/$(date +%Y-%m-%d)
    cp -r results/reports/* \
-     /Users/finsterb/_git-os/agentic-dev-team/evals/comparative/reference-baseline/$(date +%Y-%m-%d)/
+     /Users/finsterb/_git-os/dev-team/evals/comparative/reference-baseline/$(date +%Y-%m-%d)/
    ```
 
 2. **Run our pipeline** against the same fixture:
 
    ```bash
-   cd /Users/finsterb/_git-os/agentic-dev-team
+   cd /Users/finsterb/_git-os/dev-team
    # Invoke the /security-assessment command via your Claude Code session:
    /security-assessment evals/comparative/fixture-repo
 

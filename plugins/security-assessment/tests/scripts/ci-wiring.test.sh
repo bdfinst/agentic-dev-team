@@ -6,7 +6,7 @@ set -uo pipefail
 
 THIS_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Repo root is four levels up from tests/scripts/:
-#   plugins/agentic-security-assessment/tests/scripts → plugins/... → plugins → <repo>
+#   plugins/security-assessment/tests/scripts → plugins/... → plugins → <repo>
 REPO_ROOT="$(cd "$THIS_DIR/../../../.." && pwd)"
 WORKFLOW="$REPO_ROOT/.github/workflows/plugin-tests.yml"
 

@@ -107,7 +107,7 @@ def sarif_from_findings(
                 "driver": {
                     "name": "shared-cred-hash-match",
                     "version": "1.0.0",
-                    "informationUri": "https://github.com/bdfinst/agentic-dev-team",
+                    "informationUri": "https://github.com/bdfinst/dev-team",
                     "rules": rules,
                 }
             },

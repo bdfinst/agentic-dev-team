@@ -1,6 +1,6 @@
-# Spec: Rename `agentic-security-review` → `agentic-security-assessment`
+# Spec: Rename `agentic-security-review` → `security-assessment`
 
-> **STATUS: landed 2026-04-24.** The rename has shipped. This spec is preserved for history. A mechanical sed pass during execution over-reached in directional references — some sentences now read `agentic-security-assessment → agentic-security-assessment` where they originally read `agentic-security-review → agentic-security-assessment`. Read `git show 9195f22` for the authoritative rename diff.
+> **STATUS: landed 2026-04-24.** The rename has shipped. This spec is preserved for history. A mechanical sed pass during execution over-reached in directional references — some sentences now read `security-assessment → security-assessment` where they originally read `agentic-security-review → security-assessment`. Read `git show 9195f22` for the authoritative rename diff.
 >
 > **Source**: overlap analysis conducted 2026-04-24; Item 4 of the cleanup arising from the `security-review` agent vs. `agentic-security-review` plugin prefix collision.
 > **Companion docs**: `docs/rule-id-audit.md`, `docs/rules-vs-prompts-policy.md`.
@@ -8,64 +8,64 @@
 
 ## Intent Description
 
-The `agentic-security-assessment` plugin shares a prefix with the `security-review` agent that lives in the `agentic-dev-team` plugin. The collision consistently confuses readers: the plugin is "the security-review thing" in shorthand, the agent shares that shorthand, and documentation has to repeatedly disambiguate. The overlap analysis surfaced the terminology as a first-class concern.
+The `security-assessment` plugin shares a prefix with the `security-review` agent that lives in the `dev-team` plugin. The collision consistently confuses readers: the plugin is "the security-review thing" in shorthand, the agent shares that shorthand, and documentation has to repeatedly disambiguate. The overlap analysis surfaced the terminology as a first-class concern.
 
-Rename the plugin to `agentic-security-assessment` — this reflects what the plugin actually is (an orchestrated deep-assessment pipeline, not an inline review agent). Pure structural rename: no behavioral change, no primitives-contract bump, the agent name `security-review` stays stable (it's a contract-stable agent ID per `security-primitives-contract.md:36`).
+Rename the plugin to `security-assessment` — this reflects what the plugin actually is (an orchestrated deep-assessment pipeline, not an inline review agent). Pure structural rename: no behavioral change, no primitives-contract bump, the agent name `security-review` stays stable (it's a contract-stable agent ID per `security-primitives-contract.md:36`).
 
 Touches 36 files across the repository. Core change is a single `git mv` on the plugin directory; everything else is reference updates across manifests, config, docs, and install scripts.
 
 ## User-Facing Behavior
 
 ```gherkin
-Feature: Plugin rename agentic-security-assessment → agentic-security-assessment
+Feature: Plugin rename security-assessment → security-assessment
 
   Scenario: Marketplace install by new name succeeds
-    When a user runs `claude plugin install agentic-security-assessment@bfinster`
+    When a user runs `claude plugin install security-assessment@bfinster`
     Then .claude-plugin/marketplace.json lists the plugin under the new name and source path
     And the install completes
 
   Scenario: Plugin directory moved with git history preserved
-    Then plugins/agentic-security-assessment/ exists with all content
-    And plugins/agentic-security-assessment/ does NOT exist
+    Then plugins/security-assessment/ exists with all content
+    And plugins/security-assessment/ does NOT exist
     And `git log --follow` on any moved file traces through the rename
 
   Scenario: Manifest reflects new name and MAJOR version
-    Then plugins/agentic-security-assessment/.claude-plugin/plugin.json name == "agentic-security-assessment"
+    Then plugins/security-assessment/.claude-plugin/plugin.json name == "security-assessment"
     And the version is bumped 0.3.0 → 1.0.0 (MAJOR, signals breaking consumers that depend on the old name)
 
   Scenario: Contract and agent unchanged
-    Then plugins/agentic-dev-team/knowledge/security-primitives-contract.md version header is unchanged
+    Then plugins/dev-team/knowledge/security-primitives-contract.md version header is unchanged
     And the agent ID "security-review" continues to appear in the contract's registry
     And required-primitives-contract: "^1.0.0" is unchanged in the renamed plugin
 
   Scenario: All cross-references resolve (strict grep)
-    When `grep -rln "agentic-security-assessment" --exclude-dir=.git --exclude=CHANGELOG.md` runs over the working tree
+    When `grep -rln "security-assessment" --exclude-dir=.git --exclude=CHANGELOG.md` runs over the working tree
     Then it produces zero matches
     And every internal path reference resolves to the new location
 
   Scenario: In-flight work preserved
-    Then plugins/agentic-security-assessment/docs/specs/recon-file-inventory.md exists (moved intact)
-    And plugins/agentic-security-assessment/plans/recon-file-inventory.md exists (moved intact)
-    And plugins/agentic-security-assessment/docs/specs/multi-language-sast.md exists (moved intact)
-    And plugins/agentic-security-assessment/plans/multi-language-sast.md exists (moved intact)
-    And this rename spec itself at plugins/agentic-security-assessment/docs/specs/plugin-rename-security-assessment.md exists (moved intact)
+    Then plugins/security-assessment/docs/specs/recon-file-inventory.md exists (moved intact)
+    And plugins/security-assessment/plans/recon-file-inventory.md exists (moved intact)
+    And plugins/security-assessment/docs/specs/multi-language-sast.md exists (moved intact)
+    And plugins/security-assessment/plans/multi-language-sast.md exists (moved intact)
+    And this rename spec itself at plugins/security-assessment/docs/specs/plugin-rename-security-assessment.md exists (moved intact)
     And in-file references to the old plugin name have been updated
 
   Scenario: Release-please config points at new plugin path
-    Then release-please-config.json references plugins/agentic-security-assessment/
-    And .release-please-manifest.json references plugins/agentic-security-assessment/
+    Then release-please-config.json references plugins/security-assessment/
+    And .release-please-manifest.json references plugins/security-assessment/
     And conventional-commit scope updates to security-assessment (no preservation of old scope)
 
   Scenario: CHANGELOG captures the rename for users
-    Then plugins/agentic-security-assessment/CHANGELOG.md has a top entry for 1.0.0
+    Then plugins/security-assessment/CHANGELOG.md has a top entry for 1.0.0
     And the entry documents the rename and the migration hint for users whose settings.local.json opt-out snippets reference the old path
 
   Scenario: Install scripts run cleanly at new path
-    Then plugins/agentic-security-assessment/install.sh runs without path errors
+    Then plugins/security-assessment/install.sh runs without path errors
     And install-macos.sh and install-windows.ps1 run without path errors
 
   Scenario: Clean cut — no stub at old path
-    Then no file or directory remains at plugins/agentic-security-assessment/
+    Then no file or directory remains at plugins/security-assessment/
     And the old marketplace entry is dropped entirely (not kept as deprecated)
 
   Scenario: Source prompt and repo-level plans updated in place
@@ -79,11 +79,11 @@ Feature: Plugin rename agentic-security-assessment → agentic-security-assessme
 
 **Plugin move** (one commit, `git mv`):
 
-- `plugins/agentic-security-assessment/` → `plugins/agentic-security-assessment/` (whole directory; git preserves history for every file under it)
+- `plugins/security-assessment/` → `plugins/security-assessment/` (whole directory; git preserves history for every file under it)
 
 **Manifest updates** (one commit):
 
-- `plugins/agentic-security-assessment/.claude-plugin/plugin.json` — `name` → `agentic-security-assessment`; `version` → `1.0.0`
+- `plugins/security-assessment/.claude-plugin/plugin.json` — `name` → `security-assessment`; `version` → `1.0.0`
 - `.claude-plugin/marketplace.json` — plugin entry `name` and `source` path updated; old entry dropped (Q3 default)
 
 **Release automation** (one commit):
@@ -93,24 +93,24 @@ Feature: Plugin rename agentic-security-assessment → agentic-security-assessme
 
 **Plugin-internal references** (one commit):
 
-- `plugins/agentic-security-assessment/CLAUDE.md`
-- `plugins/agentic-security-assessment/README.md`
-- `plugins/agentic-security-assessment/CHANGELOG.md` — add 1.0.0 entry with migration note
-- `plugins/agentic-security-assessment/install.sh`, `install-macos.sh`, `install-windows.ps1`
-- `plugins/agentic-security-assessment/commands/{security-assessment,cross-repo-analysis,redteam-model,export-pdf}.md`
-- `plugins/agentic-security-assessment/skills/compliance-mapping/SKILL.md`
-- `plugins/agentic-security-assessment/knowledge/compliance-patterns.yaml`
-- `plugins/agentic-security-assessment/hooks/static-scan-on-edit.sh`
-- `plugins/agentic-security-assessment/docs/user-guide-security-assessment.md`
-- `plugins/agentic-security-assessment/docs/comparative-testing.md`
-- `plugins/agentic-security-assessment/docs/specs/{plugin-rename-security-assessment,recon-file-inventory,multi-language-sast}.md`
-- `plugins/agentic-security-assessment/plans/{recon-file-inventory,multi-language-sast}.md`
+- `plugins/security-assessment/CLAUDE.md`
+- `plugins/security-assessment/README.md`
+- `plugins/security-assessment/CHANGELOG.md` — add 1.0.0 entry with migration note
+- `plugins/security-assessment/install.sh`, `install-macos.sh`, `install-windows.ps1`
+- `plugins/security-assessment/commands/{security-assessment,cross-repo-analysis,redteam-model,export-pdf}.md`
+- `plugins/security-assessment/skills/compliance-mapping/SKILL.md`
+- `plugins/security-assessment/knowledge/compliance-patterns.yaml`
+- `plugins/security-assessment/hooks/static-scan-on-edit.sh`
+- `plugins/security-assessment/docs/user-guide-security-assessment.md`
+- `plugins/security-assessment/docs/comparative-testing.md`
+- `plugins/security-assessment/docs/specs/{plugin-rename-security-assessment,recon-file-inventory,multi-language-sast}.md`
+- `plugins/security-assessment/plans/{recon-file-inventory,multi-language-sast}.md`
 
 **Cross-plugin references** (one commit):
 
-- `plugins/agentic-dev-team/agents/security-review.md` — trigger-context section points at new plugin name
-- `plugins/agentic-dev-team/knowledge/security-primitives-contract.md` — any path references (not contract content)
-- `plugins/agentic-dev-team/knowledge/schemas/recon-envelope-v1.json` — descriptions/comments if any reference the old name
+- `plugins/dev-team/agents/security-review.md` — trigger-context section points at new plugin name
+- `plugins/dev-team/knowledge/security-primitives-contract.md` — any path references (not contract content)
+- `plugins/dev-team/knowledge/schemas/recon-envelope-v1.json` — descriptions/comments if any reference the old name
 
 **Repo-level** (one commit):
 
@@ -135,7 +135,7 @@ Feature: Plugin rename agentic-security-assessment → agentic-security-assessme
 - Agent ID `security-review` in `security-primitives-contract.md` registry
 - Primitives contract version (`1.1.0` today, unchanged by this rename)
 - `required-primitives-contract: ^1.0.0` in the renamed plugin's `plugin.json`
-- `plugins/agentic-dev-team/CLAUDE.md`, any dev-team agent, any dev-team skill, any dev-team knowledge file other than the three listed above
+- `plugins/dev-team/CLAUDE.md`, any dev-team agent, any dev-team skill, any dev-team knowledge file other than the three listed above
 - Primary contract schemas (`recon-envelope-v1.json`, `unified-finding-v1.json`, `disposition-register-v1.json`) except comment/description lines if any mention the old name
 
 ### Git + commit strategy
@@ -150,7 +150,7 @@ MAJOR bump (0.3.0 → 1.0.0) per Q1 default. The rename is breaking for any cons
 
 ### Blast radius and sequencing
 
-The rename is cross-cutting but entirely mechanical. Every reference update is a find/replace of a literal string (`agentic-security-assessment` → `agentic-security-assessment`) plus a few stylized updates (e.g., conventional-commit scopes). The seven commits isolate categories so that any one can be reviewed or reverted in place.
+The rename is cross-cutting but entirely mechanical. Every reference update is a find/replace of a literal string (`security-assessment` → `security-assessment`) plus a few stylized updates (e.g., conventional-commit scopes). The seven commits isolate categories so that any one can be reviewed or reverted in place.
 
 Gap 6a (in flight) moves with the plugin but also needs updated in-file references — handled in the "in-flight work" commit. The already-persisted Gap 6a plan v2 must be updated to reflect new paths post-rename.
 
@@ -172,14 +172,14 @@ Gap 6a (in flight) moves with the plugin but also needs updated in-file referenc
 
 ## Acceptance Criteria
 
-- [ ] AC-1: `plugins/agentic-security-assessment/` no longer exists
-- [ ] AC-2: `plugins/agentic-security-assessment/` exists with full content; `git log --follow` on a sample file traces through the rename
-- [ ] AC-3: `plugins/agentic-security-assessment/.claude-plugin/plugin.json` name == `"agentic-security-assessment"`
+- [ ] AC-1: `plugins/security-assessment/` no longer exists
+- [ ] AC-2: `plugins/security-assessment/` exists with full content; `git log --follow` on a sample file traces through the rename
+- [ ] AC-3: `plugins/security-assessment/.claude-plugin/plugin.json` name == `"security-assessment"`
 - [ ] AC-4: `.claude-plugin/marketplace.json` entry shows new name and source; no entry for the old name remains
-- [ ] AC-5: `grep -rln "agentic-security-assessment" --exclude-dir=.git --exclude=CHANGELOG.md` returns zero files
+- [ ] AC-5: `grep -rln "security-assessment" --exclude-dir=.git --exclude=CHANGELOG.md` returns zero files
 - [ ] AC-6: `required-primitives-contract: ^1.0.0` unchanged in plugin.json
 - [ ] AC-7: `security-primitives-contract.md` version header unchanged
-- [ ] AC-8: Release-please config + manifest reference `plugins/agentic-security-assessment/`; `release-please` dry-run (or config-parse check) emits no error
+- [ ] AC-8: Release-please config + manifest reference `plugins/security-assessment/`; `release-please` dry-run (or config-parse check) emits no error
 - [ ] AC-9: CHANGELOG 1.0.0 entry documents the rename and the opt-out migration hint
 - [ ] AC-10: Gap 6a spec + plan + multi-language-sast spec + plan moved and their contents updated; paths in content match the new location
 - [ ] AC-11: `install.sh`, `install-macos.sh`, `install-windows.ps1` dry-runs exit 0 at the new path

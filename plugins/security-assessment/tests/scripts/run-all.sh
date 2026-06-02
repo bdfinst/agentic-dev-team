@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-all.sh — shell-test runner for plugins/agentic-security-assessment/scripts/.
+# run-all.sh — shell-test runner for plugins/security-assessment/scripts/.
 #
 # Discovers every *.test.sh under this directory (tests/scripts/) and runs
 # each in a clean subshell. Prints `PASS: <name>` or `FAIL: <name>` per test.

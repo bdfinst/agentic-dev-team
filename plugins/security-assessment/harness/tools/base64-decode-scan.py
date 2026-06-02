@@ -225,7 +225,7 @@ def build_sarif(findings: list[dict]) -> dict:
                     "driver": {
                         "name": "base64-decode-scan",
                         "version": "1.0.0",
-                        "informationUri": "https://github.com/bdfinst/agentic-dev-team",
+                        "informationUri": "https://github.com/bdfinst/dev-team",
                         "rules": [
                             {
                                 "id": "secrets.base64-encoded-credential",

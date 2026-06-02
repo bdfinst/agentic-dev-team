@@ -22,7 +22,7 @@ tools catch syntax; this agent catches business logic.
 ## Output
 
 - `memory/business-logic-findings-<slug>.json` — unified findings.
-  Schema: `plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json`.
+  Schema: `plugins/dev-team/knowledge/schemas/unified-finding-v1.json`.
 
 Required fields per finding:
 

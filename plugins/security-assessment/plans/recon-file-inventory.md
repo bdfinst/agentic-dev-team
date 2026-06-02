@@ -5,19 +5,19 @@
 **Approved**: 2026-04-24 (user approval; in-plan path references will need a short update pass after the plugin rename lands)
 **Branch**: main
 **Status**: approved (v2)
-**Spec**: `plugins/agentic-security-assessment/docs/specs/recon-file-inventory.md`
+**Spec**: `plugins/security-assessment/docs/specs/recon-file-inventory.md`
 **Source prompt**: `.prompts/close-gaps-vs-opus-repo-scan.md` (Gap 6a, precondition of Gap 6)
 
 ## Goal
 
-Extend the RECON envelope (primitives contract 1.2.0, MINOR) with an optional `file_inventory` field backed by a sibling file `memory/recon-<slug>.inventory.txt`. This closes the precondition for Gap 6 (forbid LLM tree re-walks): the hook Gap 6 introduces needs an authoritative, complete list of files the recon considered in scope, and the current envelope does not provide one. Field ships as a sibling file (not embedded) because large repos produce 10k+ paths that bloat JSON diffs and validation cost. Cross-plugin: implementation lives in `plugins/agentic-dev-team/` (envelope owner) even though the spec file is colocated with Gap 6 under `plugins/agentic-security-assessment/`.
+Extend the RECON envelope (primitives contract 1.2.0, MINOR) with an optional `file_inventory` field backed by a sibling file `memory/recon-<slug>.inventory.txt`. This closes the precondition for Gap 6 (forbid LLM tree re-walks): the hook Gap 6 introduces needs an authoritative, complete list of files the recon considered in scope, and the current envelope does not provide one. Field ships as a sibling file (not embedded) because large repos produce 10k+ paths that bloat JSON diffs and validation cost. Cross-plugin: implementation lives in `plugins/dev-team/` (envelope owner) even though the spec file is colocated with Gap 6 under `plugins/security-assessment/`.
 
 ## Key design decisions (resolved)
 
 Locked before implementation to prevent drift (these were open questions in v1; v1 plan review flagged them as blockers):
 
-1. **Single source of truth for the enumeration pipeline.** The canonical, shippable implementation lives at `plugins/agentic-dev-team/scripts/recon-inventory.sh`. The `codebase-recon` agent prompt invokes this script. Test harnesses invoke the same script. No duplication of the pipeline anywhere.
-2. **Single source of truth for the exclude list.** Excluded prefixes and filenames (filesystem-walk branch) live in `plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt`, one entry per line, with `# prefix:` and `# filename:` section markers. The script reads this file; the contract doc and the agent prompt cross-reference it. Both files ship with the plugin (no runtime dependency on the `evals/` tree).
+1. **Single source of truth for the enumeration pipeline.** The canonical, shippable implementation lives at `plugins/dev-team/scripts/recon-inventory.sh`. The `codebase-recon` agent prompt invokes this script. Test harnesses invoke the same script. No duplication of the pipeline anywhere.
+2. **Single source of truth for the exclude list.** Excluded prefixes and filenames (filesystem-walk branch) live in `plugins/dev-team/knowledge/recon-inventory-excludes.txt`, one entry per line, with `# prefix:` and `# filename:` section markers. The script reads this file; the contract doc and the agent prompt cross-reference it. Both files ship with the plugin (no runtime dependency on the `evals/` tree).
 3. **Consumer error contract for the sibling file.** The contract doc (`security-primitives-contract.md`) states explicitly: consumers that need the inventory (e.g., Gap 6's hook) **must fail-open** when (a) the envelope lacks `file_inventory`, (b) the sibling file is absent, or (c) `count != wc -l` of the sibling. Fail-open = emit a one-time informational notice and proceed without the check. This is enforced by Step 6's backward-compat test.
 4. **AC-11 is enforced at the pipeline level, not the 10k-repo level.** The plan's gating performance test measures `scripts/recon-inventory.sh` on the polyglot fixture and asserts a concrete CI-measurable budget (<200 ms p95 on commodity hardware). The spec's 10k-repo claim becomes an observational measurement attached to the PR description, captured with `time` against a real dogfood target.
 
@@ -25,8 +25,8 @@ Locked before implementation to prevent drift (these were open questions in v1; 
 
 Directly from the spec (AC-1 … AC-12), with AC-11 re-scoped per decision #4 above, AC-10 extended to cover fail-open, and a new AC-13 for the resolved error contract.
 
-- [ ] AC-1: `plugins/agentic-dev-team/knowledge/security-primitives-contract.md` header shows version 1.2.0 and Changelog entry documents the addition
-- [ ] AC-2: `plugins/agentic-dev-team/knowledge/schemas/recon-envelope-v1.json` declares optional `file_inventory` object with `source`, `count`, `sibling_ref`
+- [ ] AC-1: `plugins/dev-team/knowledge/security-primitives-contract.md` header shows version 1.2.0 and Changelog entry documents the addition
+- [ ] AC-2: `plugins/dev-team/knowledge/schemas/recon-envelope-v1.json` declares optional `file_inventory` object with `source`, `count`, `sibling_ref`
 - [ ] AC-3: `evals/codebase-recon/expected-schema.json` bumps `schema_version` const to `"0.2"` and adds the optional `file_inventory` object
 - [ ] AC-4: On a git target, `memory/recon-<slug>.inventory.txt` exists; sorted (`LC_ALL=C`); deduped; LF-terminated; no blank lines
 - [ ] AC-5: Main envelope's `file_inventory.count == wc -l <sibling>`; `sibling_ref` matches basename
@@ -61,7 +61,7 @@ Feature: RECON envelope carries an authoritative file inventory
     Given the target is not a git repo
     When codebase-recon runs
     Then file_inventory.source == "filesystem-walk"
-    And the walk excludes prefixes and filenames listed in plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt
+    And the walk excludes prefixes and filenames listed in plugins/dev-team/knowledge/recon-inventory-excludes.txt
     And every other regular file under repo root appears in the inventory
 
   Scenario: Submodules (git target)
@@ -101,7 +101,7 @@ Feature: RECON envelope carries an authoritative file inventory
     And file_inventory.count == 0
 
   Scenario: Contract version bump
-    Then plugins/agentic-dev-team/knowledge/security-primitives-contract.md declares version 1.2.0
+    Then plugins/dev-team/knowledge/security-primitives-contract.md declares version 1.2.0
     And the Changelog section documents the addition
     And consumers declaring required-primitives-contract: ^1.0.0 install unmodified
 
@@ -112,9 +112,9 @@ Feature: RECON envelope carries an authoritative file inventory
 
 ## Implementation note — testability and single-source-of-truth
 
-`codebase-recon` is an LLM agent, but Step 6.5's enumeration is a mechanical shell pipeline. Per decision #1, that pipeline lives in exactly one shipped file: `plugins/agentic-dev-team/scripts/recon-inventory.sh`. The agent prompt instructs Claude to invoke the script. Tests invoke the same script (not a copy). Byte-identical determinism across agent runs and test runs follows by construction.
+`codebase-recon` is an LLM agent, but Step 6.5's enumeration is a mechanical shell pipeline. Per decision #1, that pipeline lives in exactly one shipped file: `plugins/dev-team/scripts/recon-inventory.sh`. The agent prompt instructs Claude to invoke the script. Tests invoke the same script (not a copy). Byte-identical determinism across agent runs and test runs follows by construction.
 
-The excludes file (`plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt`) is the single source of truth for filesystem-walk exclusions. Script, contract doc, and rubric all read from or cross-reference this file.
+The excludes file (`plugins/dev-team/knowledge/recon-inventory-excludes.txt`) is the single source of truth for filesystem-walk exclusions. Script, contract doc, and rubric all read from or cross-reference this file.
 
 ## Steps
 
@@ -135,7 +135,7 @@ The excludes file (`plugins/agentic-dev-team/knowledge/recon-inventory-excludes.
 
 **GREEN**:
 
-- Edit `plugins/agentic-dev-team/knowledge/schemas/recon-envelope-v1.json`: add optional `file_inventory` object with sub-properties `source` (enum `["git-ls-files", "filesystem-walk"]`), `count` (integer ≥ 0), `sibling_ref` (string). All three `required` within the sub-object.
+- Edit `plugins/dev-team/knowledge/schemas/recon-envelope-v1.json`: add optional `file_inventory` object with sub-properties `source` (enum `["git-ls-files", "filesystem-walk"]`), `count` (integer ≥ 0), `sibling_ref` (string). All three `required` within the sub-object.
 - Edit `evals/codebase-recon/expected-schema.json`: bump `schema_version` const to `"0.2"`; update title to `"v0.2 — placeholder"`; mirror the same optional `file_inventory` addition.
 - Conformance tests pass.
 
@@ -143,7 +143,7 @@ The excludes file (`plugins/agentic-dev-team/knowledge/recon-inventory-excludes.
 
 **Files**:
 
-- `plugins/agentic-dev-team/knowledge/schemas/recon-envelope-v1.json`
+- `plugins/dev-team/knowledge/schemas/recon-envelope-v1.json`
 - `evals/codebase-recon/expected-schema.json`
 - `evals/primitives-contract/fixtures/*` (4 new)
 - `evals/primitives-contract/validate.sh` (new if absent)
@@ -179,11 +179,11 @@ packages/core/src/index.ts
     { "source": "git-ls-files", "count": 10, "sibling_ref": "recon-ts-monorepo.inventory.txt" }
     ```
 
-- Create `plugins/agentic-dev-team/scripts/recon-inventory.sh` as an **empty stub** that exits 0 with no output. (This is the deliberate fail-first: a non-implementation so the test proves the diff fails for the right reason.)
-- Create `plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt` with the exclude list from the spec (prefix section markers for `.git/`, `node_modules/`, `.venv/`, `__pycache__/`, `dist/`, `build/`, `target/`, `.tox/`, `.next/`, `.nuxt/`; filename section markers for `.DS_Store`, `Thumbs.db`). Ships with the plugin (per decision #2).
+- Create `plugins/dev-team/scripts/recon-inventory.sh` as an **empty stub** that exits 0 with no output. (This is the deliberate fail-first: a non-implementation so the test proves the diff fails for the right reason.)
+- Create `plugins/dev-team/knowledge/recon-inventory-excludes.txt` with the exclude list from the spec (prefix section markers for `.git/`, `node_modules/`, `.venv/`, `__pycache__/`, `dist/`, `build/`, `target/`, `.tox/`, `.next/`, `.nuxt/`; filename section markers for `.DS_Store`, `Thumbs.db`). Ships with the plugin (per decision #2).
 - Create `evals/codebase-recon/tests/inventory-ts-monorepo.sh`:
   - Sets up a scratch git repo in a tmpdir with the ts-monorepo fixture contents (copy fixture files, `git init`, `git add .`, `git commit`).
-  - Invokes `plugins/agentic-dev-team/scripts/recon-inventory.sh <tmpdir> --emit-main-inventory-json <tmpfile>`.
+  - Invokes `plugins/dev-team/scripts/recon-inventory.sh <tmpdir> --emit-main-inventory-json <tmpfile>`.
   - Diffs script stdout vs `expected-inventory.txt`. Diffs tmpfile vs `expected-file-inventory.json`.
   - Asserts non-zero-count diff against the empty stub (proof of genuine RED).
 - Run the test. Fails with a clear "expected 10 lines, got 0" signal. **Do not proceed until this failure is observed.**
@@ -197,8 +197,8 @@ packages/core/src/index.ts
 
 **Files**:
 
-- `plugins/agentic-dev-team/scripts/recon-inventory.sh` (new)
-- `plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt` (new)
+- `plugins/dev-team/scripts/recon-inventory.sh` (new)
+- `plugins/dev-team/knowledge/recon-inventory-excludes.txt` (new)
 - `evals/codebase-recon/fixtures/ts-monorepo/expected-inventory.txt` (new, hand-authored)
 - `evals/codebase-recon/fixtures/ts-monorepo/expected-file-inventory.json` (new)
 - `evals/codebase-recon/tests/inventory-ts-monorepo.sh` (new)
@@ -252,7 +252,7 @@ scripts/deploy.sh
 
 **GREEN**:
 
-- Extend `scripts/recon-inventory.sh` with the filesystem-walk branch: triggered when `.git/` absent or when `--force-filesystem-walk`. Reads `plugins/agentic-dev-team/knowledge/recon-inventory-excludes.txt`, parses the two sections (`# prefix:`, `# filename:`), uses `find` with `-not -path` for prefixes and `-not -name` for filenames, sorts `LC_ALL=C`, dedupes.
+- Extend `scripts/recon-inventory.sh` with the filesystem-walk branch: triggered when `.git/` absent or when `--force-filesystem-walk`. Reads `plugins/dev-team/knowledge/recon-inventory-excludes.txt`, parses the two sections (`# prefix:`, `# filename:`), uses `find` with `-not -path` for prefixes and `-not -name` for filenames, sorts `LC_ALL=C`, dedupes.
 - Skip non-regular files (`find -type f`). Resolve symlinks; broken links recorded to stderr with a `# BROKEN_SYMLINK:` marker that the test harness can capture into envelope `notes`.
 - Test passes.
 
@@ -260,7 +260,7 @@ scripts/deploy.sh
 
 **Files**:
 
-- `plugins/agentic-dev-team/scripts/recon-inventory.sh` (updated)
+- `plugins/dev-team/scripts/recon-inventory.sh` (updated)
 - `evals/codebase-recon/fixtures/non-git-basic/**` (new)
 - `evals/codebase-recon/tests/inventory-non-git.sh` (new)
 
@@ -293,7 +293,7 @@ scripts/deploy.sh
 
 **Files**:
 
-- `plugins/agentic-dev-team/scripts/recon-inventory.sh` (updated)
+- `plugins/dev-team/scripts/recon-inventory.sh` (updated)
 - `evals/codebase-recon/fixtures/submodule-symlink/**` (new)
 - `evals/codebase-recon/tests/inventory-submodule-symlink.sh` (new)
 
@@ -323,13 +323,13 @@ scripts/deploy.sh
 
 **GREEN**:
 
-- Update `plugins/agentic-dev-team/knowledge/security-primitives-contract.md`:
+- Update `plugins/dev-team/knowledge/security-primitives-contract.md`:
   - Bump header version to `1.2.0`.
   - In "Envelope 1 — RECON" subsection, document `file_inventory` object: shape, sibling-file contract, `source` enum semantics, why externalized (cross-reference `scripts/recon-inventory.sh`).
   - Add new subsection `### Consumer error contract` under Envelope 1 covering the three fail-open branches (field absent, sibling absent, count mismatch) with exact stderr notice templates.
   - Add Changelog entry `### 1.2.0 (2026-04-24)` describing the additive change and `^1.0.0` consumer compatibility guarantee.
-- Update `plugins/agentic-dev-team/agents/codebase-recon.md`:
-  - Insert **Step 6.5: Enumerate inventory** between Step 6 (git-history probe) and Step 7 (emit). The step instructs: run `plugins/agentic-dev-team/scripts/recon-inventory.sh <repo-root> --emit-main-inventory-json <main-envelope-fragment>`. Capture stderr for broken-link notes (feed into envelope `notes`). Write sibling file to `memory/recon-<slug>.inventory.txt`.
+- Update `plugins/dev-team/agents/codebase-recon.md`:
+  - Insert **Step 6.5: Enumerate inventory** between Step 6 (git-history probe) and Step 7 (emit). The step instructs: run `plugins/dev-team/scripts/recon-inventory.sh <repo-root> --emit-main-inventory-json <main-envelope-fragment>`. Capture stderr for broken-link notes (feed into envelope `notes`). Write sibling file to `memory/recon-<slug>.inventory.txt`.
   - Update Step 7 emit block to list `memory/recon-<slug>.inventory.txt` as an artifact and print the full relative path + line count in the dispatcher summary (UX discoverability warning from review).
   - Update "Handoff contract" to note future consumers can rely on `file_inventory.sibling_ref` and must follow the documented fail-open path if any of the three branches fires.
 - Update `evals/codebase-recon/rubric.md`: add `### Inventory determinism` and `### Sibling-file contract compliance` criteria, each pointing to the authoritative test.
@@ -340,8 +340,8 @@ scripts/deploy.sh
 
 **Files**:
 
-- `plugins/agentic-dev-team/knowledge/security-primitives-contract.md` (updated)
-- `plugins/agentic-dev-team/agents/codebase-recon.md` (updated)
+- `plugins/dev-team/knowledge/security-primitives-contract.md` (updated)
+- `plugins/dev-team/agents/codebase-recon.md` (updated)
 - `evals/codebase-recon/rubric.md` (updated)
 - `evals/primitives-contract/fixtures/recon-envelope-pre-1.2.0.json` (new)
 - `evals/primitives-contract/fixtures/consumer-stub-fail-open.sh` (new)
@@ -383,7 +383,7 @@ scripts/deploy.sh
 | R3  | Open                  | 10k-repo performance (AC-11 spec language) is not CI-asserted. Re-scoped in this plan to a pipeline-only budget on polyglot; 10k-repo number becomes observational on PR. | Accepted in decision #4. User may require a CI-asserted 10k number — say now if so and I'll add a synthetic-10k-file generator step. |
 | R4  | Open                  | Case normalization deferred to Gap 6 per spec. | No action here. |
 | R5  | Resolved              | Canonical pipeline location. | Decision #1 above. |
-| R6  | Open                  | Contract 1.2.0 triggers release-please minor bump on `agentic-dev-team`. Confirm `plugin.json` + release-please config before Step 6 commit lands on main. | Check during Step 6 GREEN. |
+| R6  | Open                  | Contract 1.2.0 triggers release-please minor bump on `dev-team`. Confirm `plugin.json` + release-please config before Step 6 commit lands on main. | Check during Step 6 GREEN. |
 | R7  | Resolved              | `evals/primitives-contract/{fixtures,tests}/` directory existence — Step 1 RED creates if absent. | Baked into Step 1. |
 | R8  | Open                  | Spec amendment. Three scenarios added at plan level (empty repo, consumer fail-open on missing sibling, consumer fail-open on count mismatch) are plan-level tests; the spec should be amended in a follow-up to keep the two aligned. | File a separate spec-amendment commit or bundle with the implementation PR. |
 | R9  | Open (strategic)      | The whole slice may be avoidable. Strategic critic recommended spiking Gap 6 first against the union of existing RECON path fields (`entry_points`, `security_surface.*`, layer paths) without any contract bump. If warn-only FP rate proves acceptable, 6a can be scrapped. | User call — see summary below. Plan as written assumes 6a ships. |
@@ -400,7 +400,7 @@ Four personas ran in parallel against v1. All returned `needs-revision`. v2 reso
 | Acceptance Test Critic | AC-11 unfalsifiable (observational only) | Re-scoped AC-11 to pipeline-only budget on polyglot fixture (<200 ms p95); 10k-repo becomes observational PR attachment |
 | Acceptance Test Critic | AC-10 dropped fail-open consumer behavior from spec | New AC-10a + AC-13 + `consumer-stub-fail-open.sh` + backward-compat test branches for all three fail-open cases |
 | Acceptance Test Critic | Rubber-stamp RED in Steps 2/3 (expected harvested from SUT) | Steps 2/3 now hand-author expected-inventory.txt from enumerated fixture ground truth; Step 2 uses an empty-stub script to prove genuine RED fails for the right reason |
-| Design & Architecture Critic | Two competing sources of truth for enumeration pipeline | Decision #1 locks canonical script at `plugins/agentic-dev-team/scripts/recon-inventory.sh` |
+| Design & Architecture Critic | Two competing sources of truth for enumeration pipeline | Decision #1 locks canonical script at `plugins/dev-team/scripts/recon-inventory.sh` |
 | Design & Architecture Critic | Plugin reaching into `evals/` for runtime code | Canonical script ships with the plugin; `evals/` harness invokes it; no runtime dependency on test tree |
 | UX Critic | Consumer error contract missing for sibling-absent / count-mismatch / field-absent | Decision #3 + new `### Consumer error contract` subsection in contract doc + Step 6 tests |
 
@@ -411,7 +411,7 @@ Four personas ran in parallel against v1. All returned `needs-revision`. v2 reso
 - **Strategic:** MINOR bump on a cross-plugin envelope rarely truly additive. De-facto-required field emerges when consumers start assuming presence. Current plan keeps field optional at schema and documents fail-open — mitigates but doesn't eliminate.
 - **Strategic:** Steps 3–5 could be deferred to 1.3.0 if scope reduction is desired. Minimum viable subset = Steps 1, 2, 6 only.
 - **Design:** Sibling-file-plus-JSON-pointer pattern is newly invented; no generalization into a reusable `external_ref` sub-schema. Future large fields may reinvent inconsistently.
-- **Design:** Spec colocation in `agentic-security-assessment/docs/specs/` inverts envelope ownership. Consider cross-reference from `agentic-dev-team`.
+- **Design:** Spec colocation in `security-assessment/docs/specs/` inverts envelope ownership. Consider cross-reference from `dev-team`.
 - **UX — R10:** Rename `sibling_ref` → `sibling_path` with full relative path. Would be a spec change; flagged for user.
 - **UX:** Enum values `git-ls-files` / `filesystem-walk` mix tool name with activity. Alternatives: `git` / `filesystem`. Observation-level; defer.
 - **Acceptance:** Missing scenarios — symlink cycles, directory symlinks, non-UTF-8 filenames, atomic-write. Not blockers; would strengthen the test suite if added later.

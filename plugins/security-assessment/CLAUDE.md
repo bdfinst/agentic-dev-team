@@ -1,12 +1,12 @@
-# agentic-security-assessment — Companion Plugin
+# security-assessment — Companion Plugin
 
-Deep security assessment and adversarial ML red-team capability. Companion to `agentic-dev-team`, which provides the reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned security-primitives-contract, SARIF-first tool orchestration).
+Deep security assessment and adversarial ML red-team capability. Companion to `dev-team`, which provides the reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned security-primitives-contract, SARIF-first tool orchestration).
 
-This plugin is **opinionated**: its hooks default ON, its red-team harness accepts only self-owned targets by default, and its orchestration enforces a fixed pipeline order. If you want primitives without the assessment machinery, install only `agentic-dev-team`.
+This plugin is **opinionated**: its hooks default ON, its red-team harness accepts only self-owned targets by default, and its orchestration enforces a fixed pipeline order. If you want primitives without the assessment machinery, install only `dev-team`.
 
 ## Structure Contract
 
-This plugin mirrors `plugins/agentic-dev-team/` one-for-one; `harness/` is a first-class top-level directory for executable application code. The rule: "same schema where the directory applies; omitted directories documented here with rationale."
+This plugin mirrors `plugins/dev-team/` one-for-one; `harness/` is a first-class top-level directory for executable application code. The rule: "same schema where the directory applies; omitted directories documented here with rationale."
 
 | Directory | Mirrors dev-team? | Rationale if omitted |
 |---|---|---|
@@ -21,7 +21,7 @@ This plugin mirrors `plugins/agentic-dev-team/` one-for-one; `harness/` is a fir
 
 ## Hooks default ON (this plugin only)
 
-The PostToolUse auto-scan hook fires on Edit/Write of matched file types. It is registered in THIS plugin's `settings.json` — NOT in `agentic-dev-team`. Default severity threshold: `error` only. Set `verbose_hooks: true` in `settings.local.json` to surface warnings too.
+The PostToolUse auto-scan hook fires on Edit/Write of matched file types. It is registered in THIS plugin's `settings.json` — NOT in `dev-team`. Default severity threshold: `error` only. Set `verbose_hooks: true` in `settings.local.json` to surface warnings too.
 
 Opt-out: add this snippet to your `settings.local.json`:
 
@@ -39,7 +39,7 @@ Opt-out: add this snippet to your `settings.local.json`:
 
 ## SARIF-first tool orchestration
 
-Findings flow through the shared SARIF parser in `plugins/agentic-dev-team/skills/static-analysis-integration` and normalize to the unified finding envelope v1.0 defined in `plugins/agentic-dev-team/knowledge/security-primitives-contract.md`. This plugin ships three **custom semgrep rulesets** (`knowledge/semgrep-rules/{ml-patterns,llm-safety,fraud-domain}.yaml`) alongside invocations of the usual community rulesets (`p/security-audit`, `p/owasp-top-ten`, etc.).
+Findings flow through the shared SARIF parser in `plugins/dev-team/skills/static-analysis-integration` and normalize to the unified finding envelope v1.0 defined in `plugins/dev-team/knowledge/security-primitives-contract.md`. This plugin ships three **custom semgrep rulesets** (`knowledge/semgrep-rules/{ml-patterns,llm-safety,fraud-domain}.yaml`) alongside invocations of the usual community rulesets (`p/security-audit`, `p/owasp-top-ten`, etc.).
 
 ## LLM-safety coverage bound (verbatim, required)
 
@@ -58,7 +58,7 @@ The refusal message includes a one-line example of `authorization.md` format. Th
 
 ## Adapter Maintenance Policy
 
-See `plugins/agentic-dev-team/skills/static-analysis-integration/SKILL.md`. The companion plugin's custom adapters (e.g. actionlint's JSON→SARIF wrapper, the five bespoke-JSON adapters from Step 3b) follow the same policy: `maintainers:` list with minimum 2 names, tier-2 CI on installed binaries, 14-day escalation, three-release deprecation path.
+See `plugins/dev-team/skills/static-analysis-integration/SKILL.md`. The companion plugin's custom adapters (e.g. actionlint's JSON→SARIF wrapper, the five bespoke-JSON adapters from Step 3b) follow the same policy: `maintainers:` list with minimum 2 names, tier-2 CI on installed binaries, 14-day escalation, three-release deprecation path.
 
 ## Ruleset Maintenance Policy
 
@@ -68,7 +68,7 @@ Each custom semgrep ruleset declares `maintainers:` (min 2) in its YAML frontmat
 
 See `install.sh`. It performs four checks:
 
-1. `agentic-dev-team` plugin present with compatible primitives contract version (`^1.0.0`).
+1. `dev-team` plugin present with compatible primitives contract version (`^1.0.0`).
 2. Python ≥ 3.10 available (red-team harness requires it).
 3. Tier-1 tool presence, grouped by capability tier. Required tools carry `[REQUIRED]` prefix; absence is a hard failure. Optional tools emit a warning.
 4. Prints the exact `settings.local.json` opt-out snippet for anyone who wants hooks off.
@@ -127,8 +127,8 @@ See `plans/security-review-companion-plugin.md` for the step-by-step history.
 
 ## Not in this plugin
 
-- The primitives contract itself (`security-primitives-contract.md`) — lives in `agentic-dev-team/knowledge/`
-- The codebase-recon agent — lives in `agentic-dev-team/agents/`
-- ACCEPTED-RISKS schema registry — Envelope 4 of `plugins/agentic-dev-team/knowledge/security-primitives-contract.md`; input format reference at `plugins/agentic-security-assessment/docs/accepted-risks-format.md`
-- Baseline static-analysis orchestration — lives in `agentic-dev-team/skills/static-analysis-integration/`
+- The primitives contract itself (`security-primitives-contract.md`) — lives in `dev-team/knowledge/`
+- The codebase-recon agent — lives in `dev-team/agents/`
+- ACCEPTED-RISKS schema registry — Envelope 4 of `plugins/dev-team/knowledge/security-primitives-contract.md`; input format reference at `plugins/security-assessment/docs/accepted-risks-format.md`
+- Baseline static-analysis orchestration — lives in `dev-team/skills/static-analysis-integration/`
 - Static-scan hooks for general dev workflows (the PostToolUse auto-scan hook in THIS plugin is narrowly scoped to security-relevant file writes)

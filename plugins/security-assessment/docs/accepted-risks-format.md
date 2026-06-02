@@ -81,7 +81,7 @@ Each invocation writes `<memory-dir>/accepted-risks-<slug>.jsonl`. Two record sh
 {"status":"expired","rule_id":"...","source_ref_glob":"...","reason":"...","expires":"2020-01-01","iso":"2026-04-24T17:30:39Z"}
 ```
 
-The record schemas are registered in `plugins/agentic-dev-team/knowledge/security-primitives-contract.md` alongside the other security-assessment artifacts.
+The record schemas are registered in `plugins/dev-team/knowledge/security-primitives-contract.md` alongside the other security-assessment artifacts.
 
 ## Idempotency
 

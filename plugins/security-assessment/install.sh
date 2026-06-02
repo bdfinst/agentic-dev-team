@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# install.sh — verify prerequisites for the agentic-security-assessment plugin.
+# install.sh — verify prerequisites for the security-assessment plugin.
 #
 # Checks (in order):
-#   1. agentic-dev-team is installed with a compatible primitives-contract
+#   1. dev-team is installed with a compatible primitives-contract
 #      version (^1.0.0). Hard failure on mismatch or missing.
 #   2. Python >= 3.10 for the red-team harness. Hard failure if absent.
 #   3. Tier-1 tool presence, grouped by capability tier. Required tools are
@@ -36,9 +36,9 @@ FAIL=0
 
 print_help() {
   cat <<'EOF'
-agentic-security-assessment install.sh — prerequisite checker.
+security-assessment install.sh — prerequisite checker.
 
-Checks agentic-dev-team presence + contract version, Python >= 3.10, and
+Checks dev-team presence + contract version, Python >= 3.10, and
 tier-1 static-analysis tools. Prints the settings.local.json opt-out
 snippet for disabling hooks.
 
@@ -76,19 +76,32 @@ opt() {
   fi
 }
 
-# ── 1. agentic-dev-team presence + contract version ───────────────────────────
+# ── 1. dev-team presence + contract version ───────────────────────────
 
-section "agentic-dev-team dependency"
-DEV_TEAM_PATH="$REPO_ROOT/plugins/agentic-dev-team"
+section "dev-team dependency"
+DEV_TEAM_PATH="$REPO_ROOT/plugins/dev-team"
+LEGACY_DEV_TEAM_PATH="$REPO_ROOT/plugins/agentic-dev-team"
 CONTRACT_PATH="$DEV_TEAM_PATH/knowledge/security-primitives-contract.md"
 
-if [ -z "$REPO_ROOT" ] || [ ! -d "$DEV_TEAM_PATH" ]; then
-  echo "  [FAIL] agentic-dev-team not found at expected path"
-  echo "         install it first: claude plugin install agentic-dev-team@bfinster"
+# Legacy-detection: if dev-team is absent but agentic-dev-team is present,
+# the user is on the pre-rename install. Surface the migration command
+# instead of a silent path-not-found failure.
+if [ -n "$REPO_ROOT" ] && [ ! -d "$DEV_TEAM_PATH" ] && [ -d "$LEGACY_DEV_TEAM_PATH" ]; then
+  echo "  [FAIL] dev-team not found, but the legacy 'agentic-dev-team' directory is present."
+  echo "         The plugin was renamed (agentic-dev-team → dev-team)."
+  echo "         If you installed via the marketplace, migrate with:"
+  echo "           /upgrade   (from any session with the old plugin loaded)"
+  echo "         Or manually:"
+  echo "           claude plugin install dev-team@bfinster"
+  echo "           claude plugin uninstall agentic-dev-team@bfinster"
+  FAIL=$((FAIL + 1))
+elif [ -z "$REPO_ROOT" ] || [ ! -d "$DEV_TEAM_PATH" ]; then
+  echo "  [FAIL] dev-team not found at expected path"
+  echo "         install it first: claude plugin install dev-team@bfinster"
   FAIL=$((FAIL + 1))
 elif [ ! -f "$CONTRACT_PATH" ]; then
-  echo "  [FAIL] security-primitives-contract.md not found in agentic-dev-team"
-  echo "         your agentic-dev-team is too old; upgrade to >= 3.4.0"
+  echo "  [FAIL] security-primitives-contract.md not found in dev-team"
+  echo "         your dev-team is too old; upgrade to >= 3.4.0"
   FAIL=$((FAIL + 1))
 else
   CONTRACT_VERSION=$(awk '/^---[[:space:]]*$/{c++; next} c==1 && /^version:/{sub(/^version:[[:space:]]+/,""); gsub(/["\047[:space:]]/,""); print; exit}' "$CONTRACT_PATH")
@@ -156,7 +169,7 @@ opt weasyprint   "PDF export (fallback)"           "pip install weasyprint"
 
 # Python packages can't use command -v — check via import.
 printf "  [info] python harness packages checked at /redteam-model invocation time;\n"
-printf "         see plugins/agentic-security-assessment/harness/redteam/requirements.txt\n"
+printf "         see plugins/security-assessment/harness/redteam/requirements.txt\n"
 
 # ── 4. Hook opt-out snippet ───────────────────────────────────────────────────
 
@@ -184,7 +197,7 @@ section "checking for stale opt-out snippets from pre-1.0.0 plugin name"
 for settings in "$HOME/.claude/settings.local.json" "$(pwd)/.claude/settings.local.json"; do
   if [ -f "$settings" ] && grep -q 'agentic-security-review' "$settings" 2>/dev/null; then
     echo "  [WARN] $settings references the old plugin name 'agentic-security-review'."
-    echo "         Update to 'agentic-security-assessment'. See CHANGELOG 1.0.0 for the full migration."
+    echo "         Update to 'security-assessment'. See CHANGELOG 1.0.0 for the full migration."
     WARN=$((WARN + 1))
   fi
 done

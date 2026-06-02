@@ -1,6 +1,6 @@
-# agentic-security-assessment
+# security-assessment
 
-Deep security assessment + adversarial ML red-team for Claude Code. Companion to [`agentic-dev-team`](../agentic-dev-team/), which provides the reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned primitives contract, SARIF-first tool orchestration).
+Deep security assessment + adversarial ML red-team for Claude Code. Companion to [`dev-team`](../dev-team/), which provides the reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned primitives contract, SARIF-first tool orchestration).
 
 ## Design
 
@@ -10,7 +10,7 @@ Inverts the usual "LLM does everything" pattern: **deterministic tools do the de
 
 This plugin is the **deep layer**. Use it for audits, release gates, milestone reviews, publication-grade reports, and red-team runs. Runtime is minutes (recon → parallel tools → parallel judgment → FP-reduction → narratives → exec report).
 
-For **inline checkpoints during active development**, use `/code-review`, which invokes the sibling `security-review` agent from the `agentic-dev-team` plugin. That's a single opus pass in seconds, appropriate for every commit. The agent is also what this plugin invokes internally at Phase 1b of `/security-assessment` — so running the agent during development is complementary, not redundant. When a `/code-review` finding warrants deeper analysis (FP-reduction, reachability, compliance mapping, domain-layer review), escalate to `/security-assessment` here.
+For **inline checkpoints during active development**, use `/code-review`, which invokes the sibling `security-review` agent from the `dev-team` plugin. That's a single opus pass in seconds, appropriate for every commit. The agent is also what this plugin invokes internally at Phase 1b of `/security-assessment` — so running the agent during development is complementary, not redundant. When a `/code-review` finding warrants deeper analysis (FP-reduction, reachability, compliance mapping, domain-layer review), escalate to `/security-assessment` here.
 
 Pattern-visible vulnerability classes (single-line regex, stable AST shape, ≤10% false-positive rate) are authoritatively detected by the semgrep rules under `knowledge/semgrep-rules/*.yaml` — not by agent prompts. See `docs/rules-vs-prompts-policy.md` for the boundary.
 
@@ -27,7 +27,7 @@ Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle 
 **Required:**
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated.
-- The [`agentic-dev-team`](../agentic-dev-team/README.md) plugin — this plugin depends on its primitives contract (`^1.0.0`), codebase-recon agent, and ACCEPTED-RISKS convention.
+- The [`dev-team`](../dev-team/README.md) plugin — this plugin depends on its primitives contract (`^1.0.0`), codebase-recon agent, and ACCEPTED-RISKS convention.
 - Python ≥ 3.10 — required by the red-team harness.
 - `jq` — JSON parsing in hooks + pipeline glue.
 
@@ -48,9 +48,9 @@ Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle 
 **macOS — one command:**
 
 ```bash
-./plugins/agentic-security-assessment/install-macos.sh           # tier-1 only
-./plugins/agentic-security-assessment/install-macos.sh --all     # tier-1 + optional + PDF deps
-./plugins/agentic-security-assessment/install-macos.sh --dry-run # preview commands without running
+./plugins/security-assessment/install-macos.sh           # tier-1 only
+./plugins/security-assessment/install-macos.sh --all     # tier-1 + optional + PDF deps
+./plugins/security-assessment/install-macos.sh --dry-run # preview commands without running
 ```
 
 **Windows — PowerShell (requires [Scoop](https://scoop.sh)):**
@@ -59,9 +59,9 @@ Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle 
 # If needed, allow local scripts first (run once in an elevated session):
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
-.\plugins\agentic-security-assessment\install-windows.ps1          # tier-1 only
-.\plugins\agentic-security-assessment\install-windows.ps1 -All     # tier-1 + optional + PDF deps
-.\plugins\agentic-security-assessment\install-windows.ps1 -DryRun  # preview commands without running
+.\plugins\security-assessment\install-windows.ps1          # tier-1 only
+.\plugins\security-assessment\install-windows.ps1 -All     # tier-1 + optional + PDF deps
+.\plugins\security-assessment\install-windows.ps1 -DryRun  # preview commands without running
 ```
 
 Re-runnable on all platforms — each step skips tools that are already present.
@@ -72,22 +72,22 @@ Re-runnable on all platforms — each step skips tools that are already present.
 
 ```bash
 # From the marketplace
-claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install agentic-security-assessment@bfinster
+claude plugin marketplace add https://github.com/bdfinst/dev-team
+claude plugin install security-assessment@bfinster
 
 # From a local clone
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/agentic-security-assessment
+claude plugin install --scope project /path/to/dev-team/plugins/security-assessment
 ```
 
 ### Verify
 
 ```bash
-./plugins/agentic-security-assessment/install.sh
+./plugins/security-assessment/install.sh
 ```
 
 The check validates:
 
-1. `agentic-dev-team` present with primitives-contract `^1.0.0`.
+1. `dev-team` present with primitives-contract `^1.0.0`.
 2. Python ≥ 3.10 on PATH.
 3. Tier-1 tool presence. Absence of any required tool is a hard failure.
 4. Optional tool presence — warnings only.
@@ -114,7 +114,7 @@ See `CLAUDE.md` for the opt-out snippet.
 
 ## Status
 
-Phase A primitives (in `agentic-dev-team`) are landing in parallel:
+Phase A primitives (in `dev-team`) are landing in parallel:
 
 - ✅ codebase-recon agent
 - ✅ ACCEPTED-RISKS convention

@@ -26,7 +26,7 @@ a valid outcome — emit `[]` and stop.
 ## Output
 
 - `memory/recon-driven-<slug>.json` — JSON array of unified findings.
-  Schema: `plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json`.
+  Schema: `plugins/dev-team/knowledge/schemas/unified-finding-v1.json`.
 
 ## Procedure
 

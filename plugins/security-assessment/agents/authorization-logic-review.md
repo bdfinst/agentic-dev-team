@@ -20,7 +20,7 @@ single suspicious lines.
 ## Output
 
 - `memory/authz-review-<slug>.json` — JSON array of unified findings.
-  Schema: `plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json`.
+  Schema: `plugins/dev-team/knowledge/schemas/unified-finding-v1.json`.
 
 Required metadata: `source: "llm-reasoning"`, `cwe[]`, `confidence`
 (`high|medium` only), `secondary_locations[]` (≥ 1 policy + gap pairing),

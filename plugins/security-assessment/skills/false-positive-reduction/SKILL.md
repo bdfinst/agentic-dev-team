@@ -119,11 +119,11 @@ Stages 1–3 use judgment rather than CPG data; Stages 4–5 work unchanged. Eve
 
 ## Output
 
-A `DispositionRegister` object per `plugins/agentic-dev-team/knowledge/schemas/disposition-register-v1.json`. Required entry fields and required envelope fields (`schema_version`, `generated_at`, `dispositioner`, `reachability_tool`, `entries[]`) are defined in the schema. Written to `memory/disposition-<assessment-slug>.json`.
+A `DispositionRegister` object per `plugins/dev-team/knowledge/schemas/disposition-register-v1.json`. Required entry fields and required envelope fields (`schema_version`, `generated_at`, `dispositioner`, `reachability_tool`, `entries[]`) are defined in the schema. Written to `memory/disposition-<assessment-slug>.json`.
 
 ## Related
 
 - `agents/fp-reduction.md` — the opus agent that implements this skill
-- `plugins/agentic-dev-team/knowledge/security-primitives-contract.md` — disposition register schema + severity mapping
-- `plugins/agentic-dev-team/knowledge/schemas/disposition-register-v1.json` — JSON Schema
+- `plugins/dev-team/knowledge/security-primitives-contract.md` — disposition register schema + severity mapping
+- `plugins/dev-team/knowledge/schemas/disposition-register-v1.json` — JSON Schema
 - `tools/reachability.sh` — joern wrapper (installed if joern is on PATH)

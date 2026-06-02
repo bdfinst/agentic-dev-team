@@ -132,4 +132,4 @@ Stop and ask the user when:
 - Phase graph: `skills/security-assessment-pipeline/SKILL.md`
 - Cross-repo: pair with `/cross-repo-analysis`
 - PDF: pair with `/export-pdf`
-- Primitives: `plugins/agentic-dev-team/knowledge/security-primitives-contract.md`
+- Primitives: `plugins/dev-team/knowledge/security-primitives-contract.md`

@@ -4,7 +4,7 @@
 >
 > **Source prompt:** `.prompts/close-gaps-vs-opus-repo-scan.md` Gap 6 (acceptance requires a RECON manifest to check reads against; the current envelope has no authoritative file list).
 >
-> **Cross-plugin:** This slice modifies `plugins/agentic-dev-team/` (envelope owner). Spec colocated here with Gap 6 for trail continuity.
+> **Cross-plugin:** This slice modifies `plugins/dev-team/` (envelope owner). Spec colocated here with Gap 6 for trail continuity.
 
 ## Intent Description
 
@@ -14,7 +14,7 @@ Extend the RECON envelope (primitives contract 1.2.0, MINOR bump) with a `file_i
 
 The field is optional at schema level so consumers declaring `required-primitives-contract: ^1.0.0` aren't broken, but `codebase-recon` always emits it from 1.2.0 forward.
 
-Scope applies to all 10 LLM agents in `agentic-security-assessment` that will consume the inventory via Gap 6's hook: `fp-reduction`, `business-logic-domain-review`, `cross-repo-synthesizer`, `exec-report-generator`, `tool-finding-narrative-annotator`, `compliance-edge-annotator`, `redteam-recon-analyzer`, `redteam-evasion-analyzer`, `redteam-extraction-analyzer`, `redteam-report-generator`.
+Scope applies to all 10 LLM agents in `security-assessment` that will consume the inventory via Gap 6's hook: `fp-reduction`, `business-logic-domain-review`, `cross-repo-synthesizer`, `exec-report-generator`, `tool-finding-narrative-annotator`, `compliance-edge-annotator`, `redteam-recon-analyzer`, `redteam-evasion-analyzer`, `redteam-extraction-analyzer`, `redteam-report-generator`.
 
 ## User-Facing Behavior
 
@@ -60,7 +60,7 @@ Feature: RECON envelope carries an authoritative file inventory
     And the consumer's documented behavior is to fail-open with a one-time staleness notice
 
   Scenario: Contract version bump
-    Then plugins/agentic-dev-team/knowledge/security-primitives-contract.md declares version 1.2.0
+    Then plugins/dev-team/knowledge/security-primitives-contract.md declares version 1.2.0
     And the Changelog section documents the addition
     And consumers declaring required-primitives-contract: ^1.0.0 install unmodified
 
@@ -81,10 +81,10 @@ Feature: RECON envelope carries an authoritative file inventory
 
 | Component | Change |
 |---|---|
-| `plugins/agentic-dev-team/knowledge/security-primitives-contract.md` | Bump header version to 1.2.0; add `file_inventory` subsection under Envelope 1; Changelog entry |
-| `plugins/agentic-dev-team/knowledge/schemas/recon-envelope-v1.json` | Add optional `file_inventory` object `{ source, count, sibling_ref }` |
+| `plugins/dev-team/knowledge/security-primitives-contract.md` | Bump header version to 1.2.0; add `file_inventory` subsection under Envelope 1; Changelog entry |
+| `plugins/dev-team/knowledge/schemas/recon-envelope-v1.json` | Add optional `file_inventory` object `{ source, count, sibling_ref }` |
 | `evals/codebase-recon/expected-schema.json` | Bump `schema_version` const to `"0.2"`; mirror the `file_inventory` addition as optional |
-| `plugins/agentic-dev-team/agents/codebase-recon.md` | Insert Step 6.5 "Enumerate inventory" between git-history probe and artifact emission; update Step 7 to write the sibling file |
+| `plugins/dev-team/agents/codebase-recon.md` | Insert Step 6.5 "Enumerate inventory" between git-history probe and artifact emission; update Step 7 to write the sibling file |
 | `evals/codebase-recon/fixtures/ts-monorepo/expected-inventory.txt` | New — deterministic expected inventory |
 | `evals/codebase-recon/fixtures/ts-monorepo/expected-file-inventory.json` | New — expected main-envelope `file_inventory` object |
 | `evals/codebase-recon/fixtures/polyglot/expected-inventory.txt` | New |

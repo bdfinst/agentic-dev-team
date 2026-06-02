@@ -85,7 +85,7 @@ Fastest for development (install from the repo you cloned):
 1. Open Claude Code in the repo:
 
    ```bash
-   cd /path/to/agentic-dev-team
+   cd /path/to/dev-team
    claude
    ```
 
@@ -93,8 +93,8 @@ Fastest for development (install from the repo you cloned):
 
    ```
    /plugin marketplace add .
-   /plugin install agentic-dev-team@bfinster
-   /plugin install agentic-security-assessment@bfinster
+   /plugin install dev-team@bfinster
+   /plugin install security-assessment@bfinster
    ```
 
    The `.` tells Claude Code to look for `.claude-plugin/marketplace.json` in the current directory. Both plugins become available.
@@ -116,10 +116,10 @@ Fastest for development (install from the repo you cloned):
 Skip the marketplace registration — load plugins at session start:
 
 ```bash
-cd /path/to/agentic-dev-team
+cd /path/to/dev-team
 claude \
-  --plugin-dir ./plugins/agentic-dev-team \
-  --plugin-dir ./plugins/agentic-security-assessment
+  --plugin-dir ./plugins/dev-team \
+  --plugin-dir ./plugins/security-assessment
 ```
 
 Then in the session:
@@ -130,7 +130,7 @@ Then in the session:
 
 ### What `/security-assessment` does
 
-Phases are declared in `plugins/agentic-security-assessment/commands/security-assessment.md`:
+Phases are declared in `plugins/security-assessment/commands/security-assessment.md`:
 
 | Phase | What runs | Deterministic? |
 |---|---|---|
@@ -170,7 +170,7 @@ For CI integration, ruleset iteration, or when you don't want to install the plu
 ### Quickstart
 
 ```bash
-cd /path/to/agentic-dev-team
+cd /path/to/dev-team
 ./scripts/run-assessment-local.sh /path/to/target
 ```
 
@@ -273,11 +273,11 @@ python3 scripts/lib/apply_accepted_risks.py \
   --dry-run
 ```
 
-If the dry-run reports parse errors, the `ACCEPTED-RISKS.md` needs fixing. See `plugins/agentic-dev-team/knowledge/accepted-risks-schema.md` for the required schema.
+If the dry-run reports parse errors, the `ACCEPTED-RISKS.md` needs fixing. See `plugins/dev-team/knowledge/accepted-risks-schema.md` for the required schema.
 
 ### Red-team target refused with scope-violation
 
-`/redteam-model` refuses public targets by default. To test against a public target you own, pass `--self-certify-owned <path-to-authorization-artifact>`. See `plugins/agentic-security-assessment/knowledge/redteam-authorization.md` for the required artifact format.
+`/redteam-model` refuses public targets by default. To test against a public target you own, pass `--self-certify-owned <path-to-authorization-artifact>`. See `plugins/security-assessment/knowledge/redteam-authorization.md` for the required artifact format.
 
 ---
 
@@ -288,11 +288,11 @@ If the dry-run reports parse errors, the `ACCEPTED-RISKS.md` needs fixing. See `
 brew install jq semgrep gitleaks hadolint actionlint trivy
 
 # Path A: install the plugin and run
-cd /path/to/agentic-dev-team
+cd /path/to/dev-team
 claude                                    # opens Claude Code in this dir
 /plugin marketplace add .                 # register the local marketplace
-/plugin install agentic-dev-team@bfinster
-/plugin install agentic-security-assessment@bfinster
+/plugin install dev-team@bfinster
+/plugin install security-assessment@bfinster
 /security-assessment /path/to/target
 
 # Path B: zero-install deterministic run

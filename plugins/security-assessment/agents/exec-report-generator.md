@@ -146,7 +146,7 @@ These apply to CRITICAL/HIGH only. MEDIUM/LOW flow through.
 
 This agent does NOT re-derive severity. Read it from the disposition
 register's `(unified severity + exploitability score)` per the mapping
-table in `plugins/agentic-dev-team/knowledge/security-primitives-contract.md`
+table in `plugins/dev-team/knowledge/security-primitives-contract.md`
 § Severity mapping.
 
 ## Required disclaimer

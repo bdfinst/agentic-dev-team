@@ -16,7 +16,7 @@ Agents: `security-review`, `business-logic-domain-review`.
 Output is piped through the security-review adapter before appending:
 
 ```bash
-python3 plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py \
+python3 plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py \
   --input memory/agent-output-<slug>.json \
   --output memory/findings-<slug>.jsonl
 ```

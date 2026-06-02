@@ -8,7 +8,7 @@
 
 ## Goal
 
-Extend the agentic-security-assessment Phase 1 tool-first pipeline so it auto-detects target languages (Java, Go, Python, JavaScript, TypeScript, C#) and dispatches per-language SAST scanners in parallel. Outputs normalize through the existing SARIF → unified-finding pipeline, so Phase 2+ sees a consistent, single `findings-<slug>.jsonl` regardless of the target's language mix. Closes the silent Java coverage gap that motivated this work (`targets/spshared/processing-atmserver`).
+Extend the security-assessment Phase 1 tool-first pipeline so it auto-detects target languages (Java, Go, Python, JavaScript, TypeScript, C#) and dispatches per-language SAST scanners in parallel. Outputs normalize through the existing SARIF → unified-finding pipeline, so Phase 2+ sees a consistent, single `findings-<slug>.jsonl` regardless of the target's language mix. Closes the silent Java coverage gap that motivated this work (`targets/spshared/processing-atmserver`).
 
 ## Acceptance Criteria
 
@@ -37,7 +37,7 @@ Feature: Multi-language SAST auto-dispatch
   So that non-.NET codebases receive complete SAST coverage without manual configuration
 
   Background:
-    Given the agentic-security-assessment plugin is installed
+    Given the security-assessment plugin is installed
     And required SAST tools are available on PATH
 
   Scenario: Java-only repository is fully scanned
@@ -132,7 +132,7 @@ Feature: Multi-language SAST auto-dispatch
 
 **Complexity**: trivial (investigation; no production code change)
 **RED**: N/A — spike.
-**GREEN**: Grep the plugin + sibling `agentic-dev-team` plugin for the existing SARIF → unified-finding normalizer. Document findings in `docs/specs/normalizer-inventory.md`: absolute path, extension point, language/tool inference table, owner plugin. If the normalizer lives in the sibling plugin, document whether this plan may modify it or must wrap/extend it from this side (decision logged; re-ask user if ambiguous).
+**GREEN**: Grep the plugin + sibling `dev-team` plugin for the existing SARIF → unified-finding normalizer. Document findings in `docs/specs/normalizer-inventory.md`: absolute path, extension point, language/tool inference table, owner plugin. If the normalizer lives in the sibling plugin, document whether this plan may modify it or must wrap/extend it from this side (decision logged; re-ask user if ambiguous).
 **REFACTOR**: None.
 **Files**: `docs/specs/normalizer-inventory.md`
 **Commit**: `docs: locate and document SARIF normalizer extension points`

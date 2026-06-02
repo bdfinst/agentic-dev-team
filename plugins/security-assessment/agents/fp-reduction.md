@@ -19,7 +19,7 @@ produces exactly one disposition entry, including `false_positive`.
 
 ## Outputs
 
-- `memory/disposition-<slug>.json` — schema: `plugins/agentic-dev-team/knowledge/schemas/disposition-register-v1.json`
+- `memory/disposition-<slug>.json` — schema: `plugins/dev-team/knowledge/schemas/disposition-register-v1.json`
 - `memory/disposition-<slug>.md` — human-readable, grouped by verdict
 
 ## Procedure

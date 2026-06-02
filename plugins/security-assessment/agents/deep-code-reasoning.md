@@ -22,7 +22,7 @@ identified surface.
 ## Output
 
 - `memory/deep-reasoning-<slug>.json` — JSON array of unified findings.
-  Schema: `plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json`.
+  Schema: `plugins/dev-team/knowledge/schemas/unified-finding-v1.json`.
 
 Required metadata: `source: "llm-reasoning"`, `cwe[]` (≥ 1),
 `confidence` (`high|medium` only — never `low`), `secondary_locations[]`

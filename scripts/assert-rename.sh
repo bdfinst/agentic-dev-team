@@ -229,6 +229,24 @@ check_dev_team_body_clean() {
 
 check_dev_team_body_clean
 
+# Step 4 invariant: no live references to either old name in
+# plugins/security-assessment/ except CHANGELOG.md (history) and install.sh
+# (intentional legacy-detection migration notice).
+check_security_assessment_body_clean() {
+  local hits
+  hits=$(grep -rln 'agentic-security-assessment\|agentic-dev-team' \
+    plugins/security-assessment/ \
+    --exclude=CHANGELOG.md --exclude=install.sh 2>/dev/null || true)
+  if [ -z "$hits" ]; then
+    pass "plugins/security-assessment/ free of legacy plugin names"
+  else
+    fail "plugins/security-assessment/ still references legacy names:"
+    printf '%s\n' "$hits" | sed 's/^/        /'
+  fi
+}
+
+check_security_assessment_body_clean
+
 # --- Summary -------------------------------------------------------------
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
