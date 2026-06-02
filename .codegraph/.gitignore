@@ -16,3 +16,4 @@ cache/
 .dirty
 
 daemon.pid
+*.pid

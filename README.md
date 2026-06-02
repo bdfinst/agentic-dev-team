@@ -43,13 +43,21 @@ claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
 claude plugin install dev-team@bfinster
 ```
 
-Then open Claude Code in your project and initialize:
+Then open Claude Code in your project and install prerequisites:
+
+```
+/init-dev-team
+```
+
+`/init-dev-team` installs the tools the plugin depends on: `jq` and `python3` (required by the mutation gate), mutation testing tools for your language (Stryker for JS/TS, pitest for Java/Kotlin, Stryker.NET for C#), an optional CodeGraph initialization for code intelligence, and an opt-in model availability probe for restricted API endpoints.
+
+Then generate project-level config and hooks:
 
 ```
 /setup
 ```
 
-`/setup` detects your stack and generates project-level config and hooks. After that, run `/specs` to start a feature, or ask a question and let the Orchestrator route it.
+`/setup` detects your stack and generates project-level config and hooks, including the automated pre-commit review gate. After that, run `/specs` to start a feature, or ask a question and let the Orchestrator route it.
 
 ## Getting Started
 
