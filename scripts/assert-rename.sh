@@ -274,6 +274,52 @@ check_upgrade_step0() {
 
 check_upgrade_step0
 
+# Step 6 invariant: no live references to old names in tracked files
+# outside the explicit exclusion list. We restrict to `git ls-files` so
+# gitignored runtime artifacts (memory/recon-*, reports/, __pycache__/) and
+# user-private files don't generate noise. Line-level matches let us
+# preserve the unavoidable github.com/bdfinst/agentic-dev-team URL (the
+# actual repository name, out of scope) and the "Previously published as"
+# discoverability sentence in the marketplace catalog.
+check_no_live_legacy_references() {
+  local hits
+  hits=$(git ls-files -z 2>/dev/null \
+    | xargs -0 grep -nE 'agentic-dev-team|agentic-security-assessment' 2>/dev/null \
+    | grep -vE '(github\.com/bdfinst/agentic-dev-team|Previously published as)' \
+    | grep -vE '^(CHANGELOG\.md|.*/CHANGELOG\.md|metrics/config-changelog\.jsonl|memory/decisions\.md|plans/|docs/adr/|docs/specs/rename-plugins\.md|docs/decisions/upgrade-step-0-sunset\.md|evals/security-review-adapter/|evals/upgrade-migration/|plugins/dev-team/commands/upgrade\.md|plugins/security-assessment/install\.sh|scripts/assert-rename\.sh|scripts/sweep-rename\.sh|README\.md)' \
+    || true)
+  if [ -z "$hits" ]; then
+    pass "no live references to legacy plugin names in tracked files"
+  else
+    fail "live references to legacy plugin names found in tracked files:"
+    printf '%s\n' "$hits" | head -40 | sed 's/^/        /'
+  fi
+}
+
+check_no_live_legacy_references
+
+# Step 6 invariant: top-level README has a Renamed plugins notice.
+check_readme_renamed_notice() {
+  if [ ! -f README.md ]; then
+    fail "top-level README.md missing"
+    return
+  fi
+  # The notice may be a blockquote-style heading ('> ## Renamed plugins') or
+  # a top-level section, as long as it names both old → new and gives the
+  # new install commands.
+  if grep -qE '^>?[[:space:]]*##+ .*Renamed' README.md && \
+     grep -q 'agentic-dev-team' README.md && \
+     grep -q 'agentic-security-assessment' README.md && \
+     grep -q 'dev-team@bfinster' README.md && \
+     grep -q 'security-assessment@bfinster' README.md; then
+    pass "README.md has Renamed-plugins notice with old→new pairs and new install commands"
+  else
+    fail "README.md is missing the Renamed-plugins notice"
+  fi
+}
+
+check_readme_renamed_notice
+
 # --- Summary -------------------------------------------------------------
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"

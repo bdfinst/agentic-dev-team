@@ -6,7 +6,7 @@ date: "2026-05-06"
 
 # Agentic Dev Team Plugin
 
-The **agentic-dev-team** plugin implements a fully automated software development team using persona-driven AI agents orchestrated through a three-phase workflow: **Research → Plan → Implement**. Each agent has defined responsibilities, collaboration protocols, and behavioral guidelines. Skills are reusable knowledge modules any agent can invoke.
+The **dev-team** plugin implements a fully automated software development team using persona-driven AI agents orchestrated through a three-phase workflow: **Research → Plan → Implement**. Each agent has defined responsibilities, collaboration protocols, and behavioral guidelines. Skills are reusable knowledge modules any agent can invoke.
 
 ---
 

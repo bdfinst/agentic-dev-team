@@ -46,7 +46,7 @@ mapfile -t files < <(
        -o -name '*.yml' -o -name '*.yaml' -o -name '*.py' \
        -o -name '*.ps1' -o -name '*.ts' -o -name '*.js' \
        -o -name '*.tsx' -o -name '*.jsx' -o -name '*.txt' \
-       -o -name '*.tmpl' \) \
+       -o -name '*.tmpl' -o -name '*.bats' -o -name '*.jsonl' \) \
     -print
 )
 
@@ -57,6 +57,20 @@ for f in "${files[@]}"; do
       [ "${SWEEP_INCLUDE_CHANGELOG:-0}" = "1" ] || continue
       ;;
     */scripts/sweep-rename.sh|*/scripts/assert-rename.sh)
+      continue
+      ;;
+    # Intentional homes for legacy plugin names — never sweep these.
+    */evals/upgrade-migration/*|\
+    */docs/decisions/upgrade-step-0-sunset.md|\
+    */docs/specs/rename-plugins.md|\
+    */plans/rename-plugins.md|\
+    */plugins/dev-team/commands/upgrade.md|\
+    */plugins/security-assessment/install.sh|\
+    */.claude-plugin/marketplace.json|\
+    */docs/adr/*|\
+    */evals/security-review-adapter/*|\
+    */metrics/config-changelog.jsonl|\
+    */memory/decisions.md)
       continue
       ;;
   esac

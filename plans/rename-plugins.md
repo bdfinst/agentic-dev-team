@@ -16,7 +16,7 @@ Drop the `agentic-` prefix from both published plugin names in the `bfinster` ma
 - [ ] `security-assessment` declares `depends-on[0].name == "dev-team"` (AC-3).
 - [ ] `release-please-config.json` uses new paths, `package-name`, and `component` fields for both packages (AC-4).
 - [ ] `.release-please-manifest.json` keys match new directory paths (AC-5).
-- [ ] No live references to old names outside the explicit exclusion list (AC-6). **Exclusion list**: `CHANGELOG.md`, `plans/`, `docs/adr/`, `evals/security-review-adapter/`, `evals/upgrade-migration/`, `plugins/dev-team/commands/upgrade.md`, `scripts/assert-rename.sh`, and `scripts/sweep-rename.sh`.
+- [ ] No live references to old names outside the explicit exclusion list (AC-6). **Exclusion list** (final): `CHANGELOG.md`, `plans/`, `docs/adr/`, `docs/specs/rename-plugins.md`, `docs/decisions/upgrade-step-0-sunset.md`, `evals/security-review-adapter/`, `evals/upgrade-migration/`, `plugins/dev-team/commands/upgrade.md`, `plugins/security-assessment/install.sh`, `scripts/assert-rename.sh`, `scripts/sweep-rename.sh`, `metrics/config-changelog.jsonl`, `memory/decisions.md`, and `README.md` (which carries the redirect notice). The grep also ignores `github.com/bdfinst/agentic-dev-team` URLs and the `Previously published as …` discoverability sentence in marketplace.json.
 - [ ] CI passes on the rename branch (AC-7) — verified post-push on GitHub Actions; locally we run every script the workflow invokes.
 - [ ] `/upgrade` contains migration logic for `agentic-dev-team@*` and `agentic-security-assessment@*` patterns with a test (AC-8).
 - [ ] `/upgrade` migration uses install-first-then-uninstall ordering so a failed install never leaves the user without a plugin (AC-8a).

@@ -2,8 +2,8 @@
 # Tests for hooks/mutation-gate.sh
 # Step 1: fast-path, opt-out, timing
 
-HOOK="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/mutation-gate.sh"
-PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team"
+HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/mutation-gate.sh"
+PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/dev-team"
 FAKE_BIN="$BATS_TEST_DIRNAME/fake-bin"
 FIXTURES="$BATS_TEST_DIRNAME/fixtures"
 

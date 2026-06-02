@@ -3,7 +3,7 @@
 # and contains exactly the in-scope corpus.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-INDEX="$REPO_ROOT/plugins/agentic-dev-team/knowledge/index.json"
+INDEX="$REPO_ROOT/plugins/dev-team/knowledge/index.json"
 
 @test "AC1: index file exists and parses as JSON" {
   [ -f "$INDEX" ]
@@ -13,7 +13,7 @@ INDEX="$REPO_ROOT/plugins/agentic-dev-team/knowledge/index.json"
 
 @test "AC6: every knowledge/*.md (excluding schemas/) appears as a top-level key" {
   cd "$REPO_ROOT"
-  for f in plugins/agentic-dev-team/knowledge/*.md; do
+  for f in plugins/dev-team/knowledge/*.md; do
     [ -f "$f" ] || continue
     run jq -e --arg k "$f" 'has($k)' "$INDEX"
     [ "$status" -eq 0 ] || { echo "missing key: $f" >&2; return 1; }
@@ -22,7 +22,7 @@ INDEX="$REPO_ROOT/plugins/agentic-dev-team/knowledge/index.json"
 
 @test "AC6: every skills/*/SKILL.md appears as a top-level key" {
   cd "$REPO_ROOT"
-  for f in plugins/agentic-dev-team/skills/*/SKILL.md; do
+  for f in plugins/dev-team/skills/*/SKILL.md; do
     [ -f "$f" ] || continue
     run jq -e --arg k "$f" 'has($k)' "$INDEX"
     [ "$status" -eq 0 ] || { echo "missing key: $f" >&2; return 1; }
@@ -32,7 +32,7 @@ INDEX="$REPO_ROOT/plugins/agentic-dev-team/knowledge/index.json"
 @test "AC6: no file outside the corpus appears as a top-level key" {
   cd "$REPO_ROOT"
   local bad
-  bad=$(jq -r 'keys[]' "$INDEX" | grep -vE '^plugins/agentic-dev-team/(knowledge/[^/]+\.md|skills/[^/]+/SKILL\.md)$' || true)
+  bad=$(jq -r 'keys[]' "$INDEX" | grep -vE '^plugins/dev-team/(knowledge/[^/]+\.md|skills/[^/]+/SKILL\.md)$' || true)
   if [[ -n "$bad" ]]; then
     echo "out-of-corpus keys found:" >&2
     echo "$bad" >&2

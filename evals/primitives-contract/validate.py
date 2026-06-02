@@ -27,7 +27,7 @@ from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
 REPO = Path(__file__).resolve().parents[2]
-SCHEMA_DIR = REPO / "plugins/agentic-dev-team/knowledge/schemas"
+SCHEMA_DIR = REPO / "plugins/dev-team/knowledge/schemas"
 FIXTURE_DIR = REPO / "evals/primitives-contract/fixtures"
 
 SCHEMA_NAMES = [

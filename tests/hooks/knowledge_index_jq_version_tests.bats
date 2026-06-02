@@ -6,8 +6,8 @@
 # Renamed from the original jq-version-pin tests; kept the file name
 # stable so existing CI workflows don't drift.
 
-BUILDER_SH="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/build-knowledge-index.sh"
-BUILDER_PY="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/build_knowledge_index.py"
+BUILDER_SH="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/build-knowledge-index.sh"
+BUILDER_PY="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/build_knowledge_index.py"
 
 @test "AC24: shell wrapper and python implementation both exist" {
   [ -f "$BUILDER_SH" ]
@@ -30,13 +30,13 @@ BUILDER_PY="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/build_kn
   local tmp out
   tmp=$(mktemp -d)
   out="$tmp/index.json"
-  mkdir -p "$tmp/plugins/agentic-dev-team/knowledge"
-  cat > "$tmp/plugins/agentic-dev-team/knowledge/foo.md" <<'EOF'
+  mkdir -p "$tmp/plugins/dev-team/knowledge"
+  cat > "$tmp/plugins/dev-team/knowledge/foo.md" <<'EOF'
 # F
 ## Bar
 Body sentence.
 EOF
-  KNOWLEDGE_INDEX_CORPUS_ROOTS="$tmp/plugins/agentic-dev-team" \
+  KNOWLEDGE_INDEX_CORPUS_ROOTS="$tmp/plugins/dev-team" \
     KNOWLEDGE_INDEX_OUTPUT="$out" \
     python3 "$BUILDER_PY"
   run jq -e . "$out"

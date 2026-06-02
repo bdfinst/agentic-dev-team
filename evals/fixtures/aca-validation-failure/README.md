@@ -10,7 +10,7 @@ A generated agent file that is missing the `description` frontmatter field
 
 ## Expected Behavior
 
-1. Skill runs `/agent-audit plugins/agentic-dev-team/agents/<name>.md`
+1. Skill runs `/agent-audit plugins/dev-team/agents/<name>.md`
 2. `/agent-audit` returns errors (e.g., missing description)
 3. Skill emits the raw `/agent-audit` output verbatim
 4. Skill emits: `All your inputs are preserved.`

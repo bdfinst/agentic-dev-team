@@ -1,7 +1,7 @@
 # Unit test: codebase-recon equivalence
 
 **Reference counterpart**: `agents/scan-00-codebase-recon.md` (prompt spec)
-**Our counterpart**: `plugins/agentic-dev-team/agents/codebase-recon.md` (opus agent)
+**Our counterpart**: `plugins/dev-team/agents/codebase-recon.md` (opus agent)
 
 Asserts that given the same target repo, both agents produce RECON output with
 the same key facts — even though the reference emits free-form markdown and
@@ -80,7 +80,7 @@ From the reference repo:
 ```bash
 cd /Users/finsterb/Downloads/opus_repo_scan_test-main
 mkdir -p repos/
-cp -r /path/to/agentic-dev-team/evals/codebase-recon/fixtures/ts-monorepo repos/
+cp -r /path/to/dev-team/evals/codebase-recon/fixtures/ts-monorepo repos/
 # Open Claude Code in that directory; invoke the scan-00 agent per its spec
 # against repos/ts-monorepo/. Save the output as results/scans/RECON-ts-monorepo.md.
 # Archive under evals/comparative/reference-baseline/<date>/recon-ts-monorepo.md
@@ -89,7 +89,7 @@ cp -r /path/to/agentic-dev-team/evals/codebase-recon/fixtures/ts-monorepo repos/
 ### Step 2: Capture our output
 
 ```bash
-cd /Users/finsterb/_git-os/agentic-dev-team
+cd /Users/finsterb/_git-os/dev-team
 # Invoke codebase-recon via Agent dispatch against the same fixture.
 # Output lands in memory/recon-ts-monorepo.json + .md
 ```

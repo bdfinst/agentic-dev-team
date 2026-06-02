@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Step 8: Verify mutation-gate is registered in settings.json
 
-SETTINGS="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/settings.json"
+SETTINGS="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
 
 @test "settings.json is valid JSON" {
   run jq . "$SETTINGS"

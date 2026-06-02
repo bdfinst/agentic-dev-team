@@ -3,8 +3,8 @@
 # the one-line note when .claude/model-overrides.json exists.
 # AC19, Scenario "Active overrides surface a one-line session note".
 
-HOOK="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/overrides-banner.sh"
-SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/settings.json"
+HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/overrides-banner.sh"
+SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
 
 EXPECTED_BANNER='Note: model routing overrides active — run /model-routing-check to review.'
 

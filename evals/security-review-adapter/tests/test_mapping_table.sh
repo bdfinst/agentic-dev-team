@@ -4,7 +4,7 @@
 set -u
 FAIL=0
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-MAP="$REPO_ROOT/plugins/agentic-dev-team/knowledge/security-review-rule-map.yaml"
+MAP="$REPO_ROOT/plugins/dev-team/knowledge/security-review-rule-map.yaml"
 
 if [[ ! -f "$MAP" ]]; then
   echo "FAIL: mapping file missing at $MAP" >&2

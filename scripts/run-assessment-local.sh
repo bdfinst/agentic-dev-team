@@ -233,7 +233,7 @@ You are executing the codebase-recon agent against the target repository:
   TARGET = $t
 
 Read the agent specification at:
-  $REPO_ROOT/plugins/agentic-dev-team/agents/codebase-recon.md
+  $REPO_ROOT/plugins/dev-team/agents/codebase-recon.md
 
 Follow its seven-step procedure exactly. A deterministic-recon JSON skeleton
 already exists at:
@@ -281,10 +281,10 @@ for t in "${ABS_TARGETS[@]}"; do
 
   if command -v semgrep &>/dev/null; then
     for rs in \
-        "$REPO_ROOT/plugins/agentic-security-assessment/knowledge/semgrep-rules/ml-patterns.yaml" \
-        "$REPO_ROOT/plugins/agentic-security-assessment/knowledge/semgrep-rules/llm-safety.yaml" \
-        "$REPO_ROOT/plugins/agentic-security-assessment/knowledge/semgrep-rules/fraud-domain.yaml" \
-        "$REPO_ROOT/plugins/agentic-security-assessment/knowledge/semgrep-rules/crypto-anti-patterns.yaml"; do
+        "$REPO_ROOT/plugins/security-assessment/knowledge/semgrep-rules/ml-patterns.yaml" \
+        "$REPO_ROOT/plugins/security-assessment/knowledge/semgrep-rules/llm-safety.yaml" \
+        "$REPO_ROOT/plugins/security-assessment/knowledge/semgrep-rules/fraud-domain.yaml" \
+        "$REPO_ROOT/plugins/security-assessment/knowledge/semgrep-rules/crypto-anti-patterns.yaml"; do
       [[ -f "$rs" ]] || continue
       run_semgrep_rule "$rs" "$t" &
       pids+=($!)
@@ -325,10 +325,10 @@ for t in "${ABS_TARGETS[@]}"; do
     done
   fi
 
-  ( python3 "$REPO_ROOT/plugins/agentic-dev-team/tools/entropy-check.py" "$t" \
+  ( python3 "$REPO_ROOT/plugins/dev-team/tools/entropy-check.py" "$t" \
       > "$SARIF_DIR/entropy-check-$sub.sarif" 2>/dev/null || true ) &
   pids+=($!)
-  ( python3 "$REPO_ROOT/plugins/agentic-dev-team/tools/model-hash-verify.py" "$t" \
+  ( python3 "$REPO_ROOT/plugins/dev-team/tools/model-hash-verify.py" "$t" \
       > "$SARIF_DIR/model-hash-verify-$sub.sarif" 2>/dev/null || true ) &
   pids+=($!)
 done
@@ -349,10 +349,10 @@ if (( ${#ABS_TARGETS[@]} > 1 )); then
   SERVICE_COMM_FILE="$OUTPUT_DIR/service-comm-$SLUG.mermaid"
   SHARED_CREDS_FILE="$OUTPUT_DIR/shared-creds-$SLUG.sarif"
   pids=()
-  ( python3 "$REPO_ROOT/plugins/agentic-security-assessment/harness/tools/service-comm-parser.py" \
+  ( python3 "$REPO_ROOT/plugins/security-assessment/harness/tools/service-comm-parser.py" \
       "${ABS_TARGETS[@]}" > "$SERVICE_COMM_FILE" 2>/dev/null || true ) &
   pids+=($!)
-  ( python3 "$REPO_ROOT/plugins/agentic-security-assessment/harness/tools/shared-cred-hash-match.py" \
+  ( python3 "$REPO_ROOT/plugins/security-assessment/harness/tools/shared-cred-hash-match.py" \
       "${ABS_TARGETS[@]}" > "$SHARED_CREDS_FILE" 2>/dev/null || true ) &
   pids+=($!)
   for pid in "${pids[@]}"; do wait "$pid" || true; done
@@ -383,18 +383,18 @@ You are executing TWO review agents against the target repository:
   TARGET = $t
 
 Agent 1: security-review — spec at:
-  $REPO_ROOT/plugins/agentic-dev-team/agents/security-review.md
-  Knowledge: $REPO_ROOT/plugins/agentic-dev-team/knowledge/owasp-detection.md
+  $REPO_ROOT/plugins/dev-team/agents/security-review.md
+  Knowledge: $REPO_ROOT/plugins/dev-team/knowledge/owasp-detection.md
 
 Agent 2: business-logic-domain-review — spec at:
-  $REPO_ROOT/plugins/agentic-security-assessment/agents/business-logic-domain-review.md
-  Knowledge: $REPO_ROOT/plugins/agentic-security-assessment/knowledge/domain-logic-patterns.md
+  $REPO_ROOT/plugins/security-assessment/agents/business-logic-domain-review.md
+  Knowledge: $REPO_ROOT/plugins/security-assessment/knowledge/domain-logic-patterns.md
 
 For each agent, analyze the target and APPEND unified-finding entries to:
   $FINDINGS_FILE
 
 Unified finding schema:
-  $REPO_ROOT/plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json
+  $REPO_ROOT/plugins/dev-team/knowledge/schemas/unified-finding-v1.json
 
 Required fields per finding: rule_id (dotted), file (repo-relative), line,
 severity (error|warning|suggestion|info), message, metadata.source
@@ -469,9 +469,9 @@ if (( USE_LLM == 1 )); then
   echo "[phase 2] fp-reduction (LLM)"
   prompt=$(cat <<EOF
 You are executing the fp-reduction agent. Spec:
-  $REPO_ROOT/plugins/agentic-security-assessment/agents/fp-reduction.md
+  $REPO_ROOT/plugins/security-assessment/agents/fp-reduction.md
 Rubric skill:
-  $REPO_ROOT/plugins/agentic-security-assessment/skills/false-positive-reduction/SKILL.md
+  $REPO_ROOT/plugins/security-assessment/skills/false-positive-reduction/SKILL.md
 
 Inputs:
   Findings (post-suppression):   $FINDINGS_FILE
@@ -483,7 +483,7 @@ dedup, severity calibration). Probe for joern (command -v joern) and set
 reachability_tool accordingly; if absent, use the LLM-fallback mode.
 
 Output schema:
-  $REPO_ROOT/plugins/agentic-dev-team/knowledge/schemas/disposition-register-v1.json
+  $REPO_ROOT/plugins/dev-team/knowledge/schemas/disposition-register-v1.json
 
 Write the disposition register to:
   $DISPOSITION_FILE
@@ -519,7 +519,7 @@ if (( USE_LLM == 1 )); then
 
   narr_prompt=$(cat <<EOF
 You are executing the tool-finding-narrative-annotator agent. Spec:
-  $REPO_ROOT/plugins/agentic-security-assessment/agents/tool-finding-narrative-annotator.md
+  $REPO_ROOT/plugins/security-assessment/agents/tool-finding-narrative-annotator.md
 
 Inputs:
   Findings / disposition: $FINDINGS_FILE and $DISPOSITION_FILE (if present)
@@ -538,9 +538,9 @@ EOF
 
   comp_prompt=$(cat <<EOF
 You are executing the compliance-mapping skill + compliance-edge-annotator.
-Skill:   $REPO_ROOT/plugins/agentic-security-assessment/skills/compliance-mapping/SKILL.md
-Agent:   $REPO_ROOT/plugins/agentic-security-assessment/agents/compliance-edge-annotator.md
-Patterns: $REPO_ROOT/plugins/agentic-security-assessment/knowledge/compliance-patterns.yaml
+Skill:   $REPO_ROOT/plugins/security-assessment/skills/compliance-mapping/SKILL.md
+Agent:   $REPO_ROOT/plugins/security-assessment/agents/compliance-edge-annotator.md
+Patterns: $REPO_ROOT/plugins/security-assessment/knowledge/compliance-patterns.yaml
 
 Inputs:
   Findings:       $FINDINGS_FILE
@@ -573,7 +573,7 @@ REPORT_FILE="$OUTPUT_DIR/report-$SLUG.md"
 if (( USE_LLM == 1 )); then
   rpt_prompt=$(cat <<EOF
 You are executing the exec-report-generator agent. Spec:
-  $REPO_ROOT/plugins/agentic-security-assessment/agents/exec-report-generator.md
+  $REPO_ROOT/plugins/security-assessment/agents/exec-report-generator.md
 
 Inputs (read whatever exists; missing inputs are documented below):
   Recon:          $RECON_PRIMARY

@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Step 6: pitest (Java) adapter
 
-PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team"
+PLUGIN_DIR="$BATS_TEST_DIRNAME/../../plugins/dev-team"
 FIXTURES="$BATS_TEST_DIRNAME/fixtures/pitest"
 FAKE_BIN="$BATS_TEST_DIRNAME/fake-bin"
 

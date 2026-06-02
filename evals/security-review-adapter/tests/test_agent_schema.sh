@@ -3,7 +3,7 @@
 # documents the regex ^A[0-9]{2}\.[a-z0-9-]+$. AC-1.
 set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-AGENT="$REPO_ROOT/plugins/agentic-dev-team/agents/security-review.md"
+AGENT="$REPO_ROOT/plugins/dev-team/agents/security-review.md"
 
 if [[ ! -f "$AGENT" ]]; then
   echo "FAIL: agent file missing at $AGENT" >&2

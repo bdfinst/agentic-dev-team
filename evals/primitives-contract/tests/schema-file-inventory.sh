@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-SCHEMA="$REPO_ROOT/plugins/agentic-dev-team/knowledge/schemas/recon-envelope-v1.json"
+SCHEMA="$REPO_ROOT/plugins/dev-team/knowledge/schemas/recon-envelope-v1.json"
 FIXTURE_DIR="$REPO_ROOT/evals/primitives-contract/fixtures"
 VALIDATE="$REPO_ROOT/evals/primitives-contract/validate.sh"
 

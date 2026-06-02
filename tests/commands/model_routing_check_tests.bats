@@ -3,8 +3,8 @@
 # AC10 (side-effect-free), AC11 (surfaces bumps), AC11a (tail cap),
 # AC11b (probe-applicability line).
 
-COMMAND_MD="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/commands/model-routing-check.md"
-RESOLVER="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/model-resolve.sh"
+COMMAND_MD="$BATS_TEST_DIRNAME/../../plugins/dev-team/commands/model-routing-check.md"
+RESOLVER="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/model-resolve.sh"
 
 # Helper script that mirrors what the markdown command body invokes. We
 # extract it from the command file at test-runtime so the doc-inspection

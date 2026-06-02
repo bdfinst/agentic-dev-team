@@ -5,7 +5,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-SCRIPT="$REPO_ROOT/plugins/agentic-dev-team/scripts/recon-inventory.sh"
+SCRIPT="$REPO_ROOT/plugins/dev-team/scripts/recon-inventory.sh"
 FIXTURE_SRC="$REPO_ROOT/evals/codebase-recon/fixtures/polyglot"
 EXPECTED_INVENTORY="$FIXTURE_SRC/expected-inventory.txt"
 EXPECTED_MAIN="$FIXTURE_SRC/expected-file-inventory.json"

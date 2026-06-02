@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""validator for plugins/agentic-dev-team/tools/{entropy-check,model-hash-verify}.py
+"""validator for plugins/dev-team/tools/{entropy-check,model-hash-verify}.py
 
 For each custom script, runs it against its fixture directory and asserts:
   1. Exit code 0 (graceful completion regardless of findings)
@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
-TOOLS_DIR = REPO / "plugins/agentic-dev-team/tools"
+TOOLS_DIR = REPO / "plugins/dev-team/tools"
 FIXTURE_DIR = REPO / "evals/custom-tools"
-SCHEMA_PATH = REPO / "plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json"
+SCHEMA_PATH = REPO / "plugins/dev-team/knowledge/schemas/unified-finding-v1.json"
 
 # Import the SARIF parser from the sibling static-analysis-tools validator.
 sys.path.insert(0, str(REPO / "evals/static-analysis-tools"))

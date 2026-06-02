@@ -2,7 +2,7 @@
 # Input that would yield a schema-invalid finding -> adapter exits 1 with a named ERROR.
 set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-ADAPTER="$REPO_ROOT/plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
+ADAPTER="$REPO_ROOT/plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
 FXT="$REPO_ROOT/evals/security-review-adapter/fixtures/agent-output-forces-null-file.json"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT

@@ -2,8 +2,8 @@
 # Every positive-fixture emitted line validates against unified-finding-v1.json. AC-4.
 set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-ADAPTER="$REPO_ROOT/plugins/agentic-dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
-SCHEMA="$REPO_ROOT/plugins/agentic-dev-team/knowledge/schemas/unified-finding-v1.json"
+ADAPTER="$REPO_ROOT/plugins/dev-team/skills/static-analysis-integration/adapters/security-review-adapter.py"
+SCHEMA="$REPO_ROOT/plugins/dev-team/knowledge/schemas/unified-finding-v1.json"
 FXT="$REPO_ROOT/evals/security-review-adapter/fixtures"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT

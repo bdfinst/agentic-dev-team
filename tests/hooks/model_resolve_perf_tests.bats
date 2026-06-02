@@ -11,7 +11,7 @@
 # Gated by MODEL_RESOLVE_PERF=1 so default test runs stay fast. CI should
 # run with the gate enabled on a periodic job, not every PR.
 
-RESOLVER="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/model-resolve.sh"
+RESOLVER="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/model-resolve.sh"
 
 setup() {
   if [[ "${MODEL_RESOLVE_PERF:-0}" != "1" ]]; then

@@ -1,5 +1,5 @@
 You are working in the `agentic-security-review` plugin at
-/Users/finsterb/_git-os/agentic-dev-team/plugins/agentic-security-review/
+/Users/finsterb/_git-os/dev-team/plugins/agentic-security-review/
 
 Your task: ship the four helper scripts that the security-assessment
 orchestrator spec references but the plugin does not currently

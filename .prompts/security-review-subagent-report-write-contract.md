@@ -1,5 +1,5 @@
 You are working in the `agentic-security-review` plugin at
-/Users/finsterb/_git-os/agentic-dev-team/plugins/agentic-security-review/
+/Users/finsterb/_git-os/dev-team/plugins/agentic-security-review/
 
 Your task: resolve the contradiction between the security-assessment
 caller contract ("produce `memory/report-<slug>.md` on disk") and a

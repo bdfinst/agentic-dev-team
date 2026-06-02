@@ -1,6 +1,6 @@
 ---
 name: security-primitives-contract
-description: Versioned cross-plugin contract defining the data envelopes passed between dev-team and agentic-security-assessment. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
+description: Versioned cross-plugin contract defining the data envelopes passed between dev-team and security-assessment. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
 version: 1.3.0
 semver-policy: |
   PATCH (1.0.x) — clarifications, typo fixes, documentation improvements; no
@@ -16,9 +16,9 @@ semver-policy: |
 
 # Security Primitives Contract v1.3.0
 
-This file is the single source of truth for the data envelopes exchanged between `plugins/dev-team/` (producer of primitives) and `plugins/agentic-security-assessment/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
+This file is the single source of truth for the data envelopes exchanged between `plugins/dev-team/` (producer of primitives) and `plugins/security-assessment/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
 
-**Canonical schema registry**: this file is the single registry for every JSON/JSONL artifact shape shared or emitted in the security-assessment pipeline. Producer plugins (including the companion `agentic-security-assessment`) PR into this file rather than forking per-plugin contracts, so reviewers can trace any artifact back to one authoritative schema. New envelopes arrive as MINOR releases with `## Envelope N` sections plus changelog entries; per-tool raw outputs remain out of contract (see below).
+**Canonical schema registry**: this file is the single registry for every JSON/JSONL artifact shape shared or emitted in the security-assessment pipeline. Producer plugins (including the companion `security-assessment`) PR into this file rather than forking per-plugin contracts, so reviewers can trace any artifact back to one authoritative schema. New envelopes arrive as MINOR releases with `## Envelope N` sections plus changelog entries; per-tool raw outputs remain out of contract (see below).
 
 The contract covers three data envelopes, two registries, and a presentational severity mapping. Per-tool raw outputs are **explicitly not in the contract** — they are normalized into the unified finding envelope by SARIF-first adapters in `skills/static-analysis-integration/SKILL.md`. That normalization layer is an implementation detail behind the contract, free to evolve under PATCH releases.
 
@@ -36,11 +36,11 @@ Agents that produce or consume contract envelopes. Each ID is stable across the 
 |---|---|---|---|
 | `codebase-recon` | RECON envelope | — | `plugins/dev-team/agents/codebase-recon.md` |
 | `security-review` | unified findings | — | `plugins/dev-team/agents/security-review.md` |
-| `fp-reduction` | disposition register | unified findings, RECON | `plugins/agentic-security-assessment/agents/fp-reduction.md` (companion plugin) |
-| `tool-finding-narrative-annotator` | — | unified findings, RECON | `plugins/agentic-security-assessment/agents/tool-finding-narrative-annotator.md` (companion plugin) |
-| `business-logic-domain-review` | unified findings (domain-level) | — | `plugins/agentic-security-assessment/agents/business-logic-domain-review.md` (companion plugin) |
-| `cross-repo-synthesizer` | — | RECON, unified findings | `plugins/agentic-security-assessment/agents/cross-repo-synthesizer.md` (companion plugin) |
-| `exec-report-generator` | — | all three envelopes | `plugins/agentic-security-assessment/agents/exec-report-generator.md` (companion plugin) |
+| `fp-reduction` | disposition register | unified findings, RECON | `plugins/security-assessment/agents/fp-reduction.md` (companion plugin) |
+| `tool-finding-narrative-annotator` | — | unified findings, RECON | `plugins/security-assessment/agents/tool-finding-narrative-annotator.md` (companion plugin) |
+| `business-logic-domain-review` | unified findings (domain-level) | — | `plugins/security-assessment/agents/business-logic-domain-review.md` (companion plugin) |
+| `cross-repo-synthesizer` | — | RECON, unified findings | `plugins/security-assessment/agents/cross-repo-synthesizer.md` (companion plugin) |
+| `exec-report-generator` | — | all three envelopes | `plugins/security-assessment/agents/exec-report-generator.md` (companion plugin) |
 
 Adding an agent ID is a MINOR bump. Removing one is a MAJOR bump.
 
@@ -51,9 +51,9 @@ Skills that participate in the contract (operate on envelopes or define adapter 
 | Skill ID | Role | Defined in |
 |---|---|---|
 | `static-analysis-integration` | SARIF-first adapters; produces unified findings from per-tool outputs | `plugins/dev-team/skills/static-analysis-integration/SKILL.md` |
-| `false-positive-reduction` | Consumes unified findings, produces disposition register | `plugins/agentic-security-assessment/skills/false-positive-reduction/SKILL.md` (companion plugin) |
-| `compliance-mapping` | Consumes unified findings, emits compliance annotations (not in contract — downstream-only) | `plugins/agentic-security-assessment/skills/compliance-mapping/SKILL.md` (companion plugin) |
-| `security-assessment-pipeline` | Orchestrates full envelope flow end-to-end | `plugins/agentic-security-assessment/skills/security-assessment-pipeline/SKILL.md` (companion plugin) |
+| `false-positive-reduction` | Consumes unified findings, produces disposition register | `plugins/security-assessment/skills/false-positive-reduction/SKILL.md` (companion plugin) |
+| `compliance-mapping` | Consumes unified findings, emits compliance annotations (not in contract — downstream-only) | `plugins/security-assessment/skills/compliance-mapping/SKILL.md` (companion plugin) |
+| `security-assessment-pipeline` | Orchestrates full envelope flow end-to-end | `plugins/security-assessment/skills/security-assessment-pipeline/SKILL.md` (companion plugin) |
 
 ## Envelope 1 — RECON
 
@@ -146,7 +146,7 @@ One disposition entry per unified finding processed. Each entry:
 
 ## Envelope 4 — Accepted-risks log (added in v1.3.0)
 
-Per-target suppression log emitted by `scripts/apply-accepted-risks.sh` in the companion plugin. Written to `<memory-dir>/accepted-risks-<slug>.jsonl`. Source-of-truth input is `<target-dir>/ACCEPTED-RISKS.md` — see `plugins/agentic-security-assessment/docs/accepted-risks-format.md` for the input format.
+Per-target suppression log emitted by `scripts/apply-accepted-risks.sh` in the companion plugin. Written to `<memory-dir>/accepted-risks-<slug>.jsonl`. Source-of-truth input is `<target-dir>/ACCEPTED-RISKS.md` — see `plugins/security-assessment/docs/accepted-risks-format.md` for the input format.
 
 Two record shapes, discriminated by the `status` field:
 
@@ -202,7 +202,7 @@ Per-target floor-application log emitted by `scripts/apply-severity-floors.sh` i
 
 Field invariants:
 - `id` matches an entry `id` in the disposition register.
-- `floor_class` comes from the `<class> floor=<n>` pattern embedded in the entry's `exploitability.rationale` (fp-reduction agent convention) AND must appear in `plugins/agentic-security-assessment/knowledge/severity-floors.json`'s `recognized_classes`.
+- `floor_class` comes from the `<class> floor=<n>` pattern embedded in the entry's `exploitability.rationale` (fp-reduction agent convention) AND must appear in `plugins/security-assessment/knowledge/severity-floors.json`'s `recognized_classes`.
 - `floor`, `original_score`, `final_score` are integers in 0..10.
 - `final_score >= original_score` (floors only raise).
 - `final_score >= floor` (the floor was respected).
@@ -246,7 +246,7 @@ Explicitly NOT part of this contract:
 - Internal adapter configuration (`references/tool-configs.md` layouts, matcher regexes). These are implementation details of `skills/static-analysis-integration`.
 - Compliance mapping outputs. These are a downstream product of the companion plugin, not shared cross-plugin primitives.
 - Report templates (executive report sections, Mermaid diagrams). These are presentation concerns.
-- Red-team harness artifacts. The harness ships its own schemas under `plugins/agentic-security-assessment/harness/redteam/schemas/` — separate lifecycle, separate versioning.
+- Red-team harness artifacts. The harness ships its own schemas under `plugins/security-assessment/harness/redteam/schemas/` — separate lifecycle, separate versioning.
 
 ## Conformance
 
@@ -268,7 +268,7 @@ A mutation test alters a field in a conformance fixture; CI must fail. A version
 
 Additive schema release. Consumers on `^1.0.0` continue to install unmodified.
 
-- **New Envelope 4 — Accepted-risks log.** Registers the `<memory-dir>/accepted-risks-<slug>.jsonl` artifact emitted by the companion plugin's new `scripts/apply-accepted-risks.sh` (Phase 1c). Two record shapes: `status:"suppressed"` and `status:"expired"`. Input format reference lives at `plugins/agentic-security-assessment/docs/accepted-risks-format.md`.
+- **New Envelope 4 — Accepted-risks log.** Registers the `<memory-dir>/accepted-risks-<slug>.jsonl` artifact emitted by the companion plugin's new `scripts/apply-accepted-risks.sh` (Phase 1c). Two record shapes: `status:"suppressed"` and `status:"expired"`. Input format reference lives at `plugins/security-assessment/docs/accepted-risks-format.md`.
 - **New Envelope 5 — Severity-floors log.** Registers the `<memory-dir>/severity-floors-log-<slug>.jsonl` artifact emitted by the companion plugin's new `scripts/apply-severity-floors.sh` (Phase 2b). Schema matches the 2026-04-24 extranetapi reference byte-for-byte.
 - **New canonical-registry paragraph** in the preamble making explicit that this file is the single registry for artifacts shared between the two plugins. Addresses an architecture-review observation during the helper-scripts PR that producers should PR into this file rather than fork per-plugin contracts.
 - **Backward compatibility:** pre-1.3.0 plugin installations continue to work — the new envelopes have no producers outside the new helper scripts, and the existing envelopes are unchanged.

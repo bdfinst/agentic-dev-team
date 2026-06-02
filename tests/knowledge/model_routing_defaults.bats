@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
-# Tests for plugins/agentic-dev-team/knowledge/model-routing.json — the
+# Tests for plugins/dev-team/knowledge/model-routing.json — the
 # single source of truth for tier → snapshot resolution defaults.
 #
 # AC1 (precondition) and AC2: the routing.json file is the ONLY in-tree
 # place that ships a pinned snapshot ID. Every dispatch flows through it.
 
-ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/knowledge/model-routing.json"
+ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/model-routing.json"
 
 @test "model-routing.json exists" {
   [ -f "$ROUTING_JSON" ]

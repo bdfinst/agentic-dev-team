@@ -10,9 +10,9 @@
 #
 # AC16, AC17, AC18.
 
-HOOK="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/agent-model-resolve.sh"
-RESOLVER="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/model-resolve.sh"
-SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/settings.json"
+HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/agent-model-resolve.sh"
+RESOLVER="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/model-resolve.sh"
+SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
 
 setup() {
   BATS_TMPDIR_CASE="$(mktemp -d)"

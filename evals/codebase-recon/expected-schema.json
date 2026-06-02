@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentic-dev-team.local/schemas/recon-envelope-v0.2.json",
+  "$id": "https://dev-team.local/schemas/recon-envelope-v0.2.json",
   "title": "RECON envelope (v0.2 — placeholder)",
   "description": "Normalized reconnaissance output from the codebase-recon agent. This is the v0.1 placeholder schema; the canonical schema is finalized in plans/security-review-companion-plugin.md Step 4 (primitives contract v1.0.0). Consumers should treat field NAMES as stable and nested shapes as indicative.",
   "type": "object",

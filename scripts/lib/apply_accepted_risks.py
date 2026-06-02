@@ -3,7 +3,7 @@
 
 Reads a unified-finding-envelope JSONL stream and an ACCEPTED-RISKS.md at a
 target root, applies the first-match-wins suppression algorithm defined in
-plugins/agentic-dev-team/knowledge/accepted-risks-schema.md, and emits:
+plugins/dev-team/knowledge/accepted-risks-schema.md, and emits:
 
     - rewritten findings.jsonl with suppressed entries removed
     - suppressed.jsonl with removed entries annotated by rule id

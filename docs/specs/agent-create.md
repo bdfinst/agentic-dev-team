@@ -14,12 +14,12 @@ The skill is user-invocable directly. `/agent-add` is updated to delegate to it,
 Feature: Create Agent Skill
 
   Background:
-    Given the agentic-dev-team plugin is installed
+    Given the dev-team plugin is installed
 
   Scenario: Creates a valid agent file from name and description
     Given the user provides an agent name and description
     When the agent-create skill runs
-    Then a file is written to plugins/agentic-dev-team/agents/<name>.md
+    Then a file is written to plugins/dev-team/agents/<name>.md
     And the frontmatter name matches ^[a-z][a-z0-9-]*$
     And the frontmatter description is non-empty
     And the model field is one of: haiku, sonnet, opus, inherit
@@ -69,7 +69,7 @@ Feature: Create Agent Skill
     And the field is omitted if the user declines
 
   Scenario: Skill refuses to overwrite an existing agent silently
-    Given an agent file already exists at plugins/agentic-dev-team/agents/<name>.md
+    Given an agent file already exists at plugins/dev-team/agents/<name>.md
     When the user invokes the skill with the same name
     Then the skill reports the existing file path and its current description
     And asks for explicit confirmation before overwriting
@@ -94,7 +94,7 @@ Feature: Create Agent Skill
     When the skill completes
     Then knowledge/agent-registry.md contains a new row for the agent
     And the row includes the agent name, file path, model tier, and a description
-    And plugins/agentic-dev-team/CLAUDE.md contains a new row for the agent in the appropriate table
+    And plugins/dev-team/CLAUDE.md contains a new row for the agent in the appropriate table
 ```
 
 ## Architecture Specification
@@ -103,7 +103,7 @@ Feature: Create Agent Skill
 
 | Component | Location |
 |-----------|----------|
-| Skill | `plugins/agentic-dev-team/skills/agent-create/SKILL.md` |
+| Skill | `plugins/dev-team/skills/agent-create/SKILL.md` |
 
 No new command file. The skill is `user-invocable: true` and is also delegated to by the updated `/agent-add` command.
 
@@ -116,15 +116,15 @@ No new command file. The skill is `user-invocable: true` and is also delegated t
 ### Reads
 
 - `templates/agents/agent-template.md` — field reference and permitted values
-- `plugins/agentic-dev-team/agents/*.md` — scope-overlap check
-- `plugins/agentic-dev-team/knowledge/agent-registry.md` — to append after creation
-- `plugins/agentic-dev-team/CLAUDE.md` — to append after creation
+- `plugins/dev-team/agents/*.md` — scope-overlap check
+- `plugins/dev-team/knowledge/agent-registry.md` — to append after creation
+- `plugins/dev-team/CLAUDE.md` — to append after creation
 
 ### Writes
 
-- `plugins/agentic-dev-team/agents/<name>.md` — the new agent
-- `plugins/agentic-dev-team/knowledge/agent-registry.md` — new row (append only)
-- `plugins/agentic-dev-team/CLAUDE.md` — new row in the appropriate agents table (append only)
+- `plugins/dev-team/agents/<name>.md` — the new agent
+- `plugins/dev-team/knowledge/agent-registry.md` — new row (append only)
+- `plugins/dev-team/CLAUDE.md` — new row in the appropriate agents table (append only)
 
 ### Process Flow
 
@@ -183,7 +183,7 @@ No new command file. The skill is `user-invocable: true` and is also delegated t
 10. A file matching an existing agent path is not overwritten without explicit user confirmation
 11. A name not matching `^[a-z][a-z0-9-]*$` is rejected with a correction suggestion; no file is written
 12. After successful creation, `knowledge/agent-registry.md` contains a new row with name, file path, model tier, and description
-13. After successful creation, `plugins/agentic-dev-team/CLAUDE.md` contains a new row in the appropriate agents table
+13. After successful creation, `plugins/dev-team/CLAUDE.md` contains a new row in the appropriate agents table
 
 ## Consistency Gate
 

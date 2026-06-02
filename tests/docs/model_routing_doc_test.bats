@@ -3,7 +3,7 @@
 # with at least one paragraph each, links to the ADR, and documents the
 # env-var classification (test-only seams vs. user-facing knobs).
 
-DOC="$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/docs/model-routing.md"
+DOC="$BATS_TEST_DIRNAME/../../plugins/dev-team/docs/model-routing.md"
 
 @test "AC12: doc file exists" {
   [ -f "$DOC" ]
