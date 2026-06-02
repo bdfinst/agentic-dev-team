@@ -36,6 +36,9 @@ EOF
   cp "$DETECT_LIB" plugins/agentic-dev-team/hooks/lib/
   cp "$HOOK" plugins/agentic-dev-team/hooks/
   cp "$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/build-knowledge-index.sh" plugins/agentic-dev-team/hooks/lib/
+  # The shell wrapper exec's the Python builder; copy it too so the
+  # exec'd path exists inside the temp repo's plugin tree.
+  cp "$BATS_TEST_DIRNAME/../../plugins/agentic-dev-team/hooks/lib/build_knowledge_index.py" plugins/agentic-dev-team/hooks/lib/
 
   # Initial commit so HEAD exists.
   git add -A

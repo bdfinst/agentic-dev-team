@@ -279,9 +279,12 @@ Rules:
   `KNOWLEDGE_INDEX_CORPUS_ROOTS` (override corpus walk root),
   `KNOWLEDGE_INDEX_OUTPUT` (override on-disk output path). Production
   callers never set these.
-- `jq` requirement: `jq >= 1.6`. Builder runs `jq --version` at start
-  and exits with a clear error if the version is older. The version
-  floor is also documented in the header comment.
+- **Runtime**: Python 3 (already a hard dependency via `/init-dev-team`).
+  The builder is a single Python process — no `jq`, `awk`, or per-file
+  shell fork. The shell file `build-knowledge-index.sh` is a thin
+  wrapper that `exec`s `build_knowledge_index.py` so the path the rest
+  of the codebase already references keeps working as the canonical
+  entry point.
 
 ### Shared corpus-path helper
 
@@ -443,7 +446,7 @@ contributors writing new agents are subject to the bats test.
   changes.
 - **Fail-open hooks**: PostToolUse never blocks an edit; pre-commit
   blocks only with `exit 2` and a clear remediation line.
-- **No new dependencies**: bash + jq + git. Already required.
+- **No new dependencies**: bash + python3 + git. Already required (jq is no longer needed after the single-process Python rewrite).
 - **Encoding**: index is UTF-8, LF line endings, ends with a newline.
 
 ### Out of scope (v1)
@@ -489,8 +492,8 @@ contributors writing new agents are subject to the bats test.
 | AC20 | Index is git-tracked | `git ls-files plugins/agentic-dev-team/knowledge/index.json` returns the path AND `git check-ignore plugins/agentic-dev-team/knowledge/index.json` exits non-zero (verified by `tests/repo/knowledge_index_gitignore.bats`) |
 | AC21 | No extra build artifacts | Bats: `git status --porcelain` after a clean rebuild on a clean tree contains no untracked or modified files |
 | AC22 | Settings registration | Bats: `plugins/agentic-dev-team/settings.json` PostToolUse block has an entry with `matcher: "Edit\|Write"` invoking `bash hooks/knowledge-index.sh` AND PreToolUse Bash block has an entry invoking `bash hooks/pre-commit-knowledge-index.sh` |
-| AC23 | Builder rebuild performance (regression catcher) | Bats (opt-in via `KNOWLEDGE_INDEX_PERF=1`): 3 sequential rebuilds finish under 90s. Catches O(n²) regressions, not absolute throughput. Current shell+jq+python builder runs ~25s/build on Apple Silicon because it forks per section; a future rewrite into one Python process is the documented follow-on. |
-| AC24 | jq version floor | Bats: builder header documents `jq >= 1.6` requirement AND the builder exits non-zero with a clear `jq version` error when run against a shimmed `jq` reporting `1.5` |
+| AC23 | Builder rebuild performance | Bats (opt-in via `KNOWLEDGE_INDEX_PERF=1`): 10 sequential rebuilds of the real corpus complete in < 5s wall-clock (500ms per build ceiling). Single Python process; measured ~0.17s/build on Apple Silicon. |
+| AC24 | Single-process Python builder | Bats: `build-knowledge-index.sh` is a thin shell wrapper that `exec`s `build_knowledge_index.py`; both files exist; the wrapper's body invokes python3, not jq |
 
 ## Consistency Gate
 
