@@ -81,8 +81,10 @@ See `install.sh`. It performs four checks:
 | `/cross-repo-analysis <paths>` | orchestrator | Shared credentials + service-comm analysis across multiple repos |
 | `/redteam-model <target>` | orchestrator | Adversarial ML red-team probes against a self-owned target |
 | `/export-pdf <report.md>` | worker | PDF export via pandoc/weasyprint |
+| `/upgrade` | worker | Update the security-assessment plugin and optionally enable marketplace auto-update |
 
 **Agents** (12 opus):
+
 - `fp-reduction` (opus) — 6-stage FP-reduction rubric (Stage 0 devil's advocate + Stages 1–5); disposition register with confidence field
 - `business-logic-domain-review` (opus) — fraud-domain anti-patterns
 - `deep-code-reasoning` (opus) — RECON surface-scoped freeform vulnerability reasoning; novel context-dependent issues beyond static rules
@@ -98,27 +100,33 @@ See `install.sh`. It performs four checks:
 - `compliance-edge-annotator` (opus) — LLM edge judgment for ambiguous mappings
 
 **Skills** (3):
+
 - `false-positive-reduction` — 5-stage rubric + joern / LLM-fallback
 - `compliance-mapping` — pattern-table first with LLM edge annotation
 - `security-assessment-pipeline` — declarative phase graph for `/security-assessment`
 
-**Commands** (4):
+**Commands** (5):
+
 - `/security-assessment <path>` — full static-analysis pipeline
 - `/cross-repo-analysis <paths>` — cross-repo attack-chain analysis
 - `/redteam-model <target>` — adversarial ML red-team
 - `/export-pdf <report.md>` — PDF export
+- `/upgrade` — plugin update + auto-update opt-in
 
 **Hooks** (2):
+
 - `PreToolUse:Bash` → `redteam-guard.sh` (blocks direct orchestrator invocation)
 - `PostToolUse:Edit|Write` → `static-scan-on-edit.sh` (auto-scan on writes)
 
 **Knowledge** (4):
+
 - `domain-logic-patterns.md` — fraud domain anti-pattern reference
 - `compliance-patterns.yaml` — 11-pattern regulatory mapping table
 - `redteam-authorization.md` — self-cert artifact format
 - `semgrep-rules/{ml-patterns,llm-safety,fraud-domain,crypto-anti-patterns}.yaml` — 18 custom rules across 4 rulesets
 
 **Harness** (Python, under `harness/`):
+
 - `redteam/orchestrator.py` + `config.py` + `lib/{http_client,result_store,scoring,feature_dict,scope_check}.py`
 - 8 probes: `redteam/probes/{01..08}_*.py`
 - `tools/{service-comm-parser,shared-cred-hash-match}.py`

@@ -104,6 +104,25 @@ The check validates:
 | `/cross-repo-analysis <paths>` | Shared credentials and service-communication analysis across multiple repos |
 | `/redteam-model <target>` | Adversarial ML red-team probes against a self-owned target |
 | `/export-pdf <report.md>` | PDF export via pandoc / weasyprint |
+| `/upgrade` | Update the plugin to the latest marketplace release; offer to enable marketplace-level auto-update |
+
+## Update
+
+Run `/upgrade` from any Claude Code session with this plugin loaded. It:
+
+1. Reads the installed version from `claude plugin list`.
+2. Checks the auto-update flag on the `bfinster` marketplace and asks for consent before enabling it (the same flag the `/plugin` UI toggles).
+3. Detects the install scope and passes `--scope <scope>` to `claude plugin update` so project- and local-scope installs upgrade correctly.
+4. Warns if the companion `dev-team` plugin is not installed (it provides primitives this plugin depends on).
+5. Reports the previous and new version, and prompts a restart.
+
+Migration from the pre-rename `agentic-security-assessment@bfinster` id is handled by the legacy deprecation stub published in the marketplace catalog — install or `/upgrade` from that stub and it will install `security-assessment@bfinster` then remove itself.
+
+Manual fallback when `/upgrade` is unavailable:
+
+```bash
+claude plugin update --scope <scope> security-assessment@bfinster
+```
 
 ## Safety defaults
 
