@@ -62,10 +62,20 @@ def find_legacy_installs(installed_path):
     return matches
 
 
+VALID_SCOPES = {"user", "project", "local", "managed"}
+
+
 def detect_scope(plugin_id, dry_run):
     """Read 'claude plugin list' and find the Scope: line for this id.
-    Falls back to 'user' if not found. In dry-run mode, returns a fixed
-    sentinel scope so output is deterministic for fixtures.
+    Falls back to 'user' if not found, or if the parsed value isn't on the
+    known scope allowlist. In dry-run mode, returns a fixed sentinel scope
+    so output is deterministic for fixtures.
+
+    Defense-in-depth: the scope value is parsed from external command
+    output and later passed as an argv element to `claude plugin install/
+    uninstall`. subprocess.run uses list form (no shell), so command
+    injection is impossible — but a malformed upstream line could still
+    produce a bogus --scope argument. Allowlist-validate before use.
     """
     if dry_run:
         return "user"
@@ -79,7 +89,8 @@ def detect_scope(plugin_id, dry_run):
             if plugin_id in line:
                 for follow in lines[idx + 1 : idx + 10]:
                     if follow.strip().lower().startswith("scope:"):
-                        return follow.split(":", 1)[1].strip()
+                        candidate = follow.split(":", 1)[1].strip()
+                        return candidate if candidate in VALID_SCOPES else "user"
                 break
     except FileNotFoundError:
         pass
@@ -88,6 +99,23 @@ def detect_scope(plugin_id, dry_run):
 
 def run(cmd, dry_run):
     if dry_run:
+        # Test injection hooks: a fixture can force install or uninstall to
+        # fail without needing a real claude binary. Strictly opt-in via
+        # env vars, off in production.
+        if (
+            os.environ.get("UPGRADE_DRY_RUN_INSTALL_FAIL") == "1"
+            and len(cmd) >= 3
+            and cmd[:3] == ["claude", "plugin", "install"]
+        ):
+            print("  WOULD RUN: " + " ".join(cmd) + "  [injected: rc=1]")
+            return 1
+        if (
+            os.environ.get("UPGRADE_DRY_RUN_UNINSTALL_FAIL") == "1"
+            and len(cmd) >= 3
+            and cmd[:3] == ["claude", "plugin", "uninstall"]
+        ):
+            print("  WOULD RUN: " + " ".join(cmd) + "  [injected: rc=1]")
+            return 1
         print("  WOULD RUN: " + " ".join(cmd))
         return 0
     print("  $ " + " ".join(cmd))

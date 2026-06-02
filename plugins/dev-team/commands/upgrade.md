@@ -55,9 +55,11 @@ Behavior:
   Claude Code and re-run `/upgrade` for auto-update opt-in.
 
 **If a migration occurred (exit zero with summary), STOP `/upgrade`
-here.** Do NOT continue into Step 1 (Read current version) or Step 2
-(Auto-update status check) in the same invocation — Step 2's Python
-block hard-codes `PLUGIN = "dev-team"` and would re-prompt about
+here.** `migrate.py` exits zero and prints the summary; `/upgrade` (the
+command-layer flow) must treat that as a terminal condition and not
+proceed to Step 1. Do NOT continue into Step 1 (Read current version)
+or Step 2 (Auto-update status check) in the same invocation — Step 2's
+Python block hard-codes `PLUGIN = "dev-team"` and would re-prompt about
 auto-update against a plugin the user just installed seconds ago.
 Restart-first, then they can opt into auto-update on the next run.
 

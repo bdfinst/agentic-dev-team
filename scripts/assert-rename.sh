@@ -186,8 +186,16 @@ check_release_please_components() {
   local dt sa
   dt=$(jq -r '.packages["plugins/dev-team"].component // empty' release-please-config.json)
   sa=$(jq -r '.packages["plugins/security-assessment"].component // empty' release-please-config.json)
-  [ "$dt" = "dev-team" ] && pass "release-please component = dev-team" || fail "dev-team component = '$dt'"
-  [ "$sa" = "security-assessment" ] && pass "release-please component = security-assessment" || fail "security-assessment component = '$sa'"
+  if [ "$dt" = "dev-team" ]; then
+    pass "release-please component = dev-team"
+  else
+    fail "dev-team component = '$dt'"
+  fi
+  if [ "$sa" = "security-assessment" ]; then
+    pass "release-please component = security-assessment"
+  else
+    fail "security-assessment component = '$sa'"
+  fi
 }
 
 check_release_please_components
@@ -282,9 +290,24 @@ check_upgrade_step0
 # actual repository name, out of scope) and the "Previously published as"
 # discoverability sentence in the marketplace catalog.
 check_no_live_legacy_references() {
+  # Use git ls-files -z to get NUL-separated tracked filenames (handles
+  # spaces / newlines in paths) and pipe straight into xargs -0. xargs and
+  # grep both exit 1 on "no match" which is success here, so we must
+  # distinguish that from exit codes >= 2 (real invocation errors like
+  # "argument list too long" or a missing tool).
+  local raw_hits rc_pipeline
+  set +e +u
+  raw_hits=$(git ls-files -z 2>/dev/null \
+    | xargs -0 grep -nE 'agentic-dev-team|agentic-security-assessment' 2>/dev/null)
+  rc_pipeline=${PIPESTATUS[1]:-0}
+  set -u
+  # xargs/grep: 0 = matches, 1 = no matches (clean pass), >=2 = invocation error.
+  if [ "$rc_pipeline" -ge 2 ]; then
+    fail "xargs/grep invocation failed (rc=$rc_pipeline); cannot verify legacy references"
+    return
+  fi
   local hits
-  hits=$(git ls-files -z 2>/dev/null \
-    | xargs -0 grep -nE 'agentic-dev-team|agentic-security-assessment' 2>/dev/null \
+  hits=$(printf '%s\n' "$raw_hits" \
     | grep -vE '(github\.com/bdfinst/agentic-dev-team|Previously published as)' \
     | grep -vE '^(CHANGELOG\.md|.*/CHANGELOG\.md|metrics/config-changelog\.jsonl|memory/decisions\.md|plans/|docs/adr/|docs/specs/rename-plugins\.md|docs/decisions/upgrade-step-0-sunset\.md|evals/security-review-adapter/|evals/upgrade-migration/|plugins/dev-team/commands/upgrade\.md|plugins/security-assessment/install\.sh|scripts/assert-rename\.sh|scripts/sweep-rename\.sh|README\.md)' \
     || true)
@@ -325,7 +348,9 @@ check_readme_renamed_notice
 # may not have it).
 check_ci_scripts() {
   if ! command -v shellcheck >/dev/null 2>&1; then
-    pass "ci scripts skipped (shellcheck not installed locally)"
+    # Skip without incrementing pass/fail — shellcheck is a CI tool; a
+    # missing local install is not a passing check, just an unverified one.
+    printf '  skip  ci scripts (shellcheck not installed locally; CI verifies)\n'
     return
   fi
   if shellcheck -x \

@@ -149,6 +149,8 @@ file).
 
 ## Implementation summary
 
+> **Path note (2026-06-02):** the plugin was renamed `agentic-dev-team` → `dev-team` in the bfinster marketplace. Paths below reflect the pre-rename layout; substitute `plugins/dev-team/` for `plugins/agentic-dev-team/` to locate current files. This ADR is preserved verbatim as a historical record.
+
 | Layer | File |
 |---|---|
 | Index data | `plugins/agentic-dev-team/knowledge/index.json` |

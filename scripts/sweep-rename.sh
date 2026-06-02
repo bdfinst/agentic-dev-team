@@ -15,6 +15,12 @@
 
 set -euo pipefail
 
+# Track and clean up the current temp file across early exits and SIGINT
+# so a sed failure mid-loop doesn't leak files into /tmp.
+tmp=""
+cleanup() { [ -n "$tmp" ] && rm -f "$tmp"; }
+trap cleanup EXIT INT TERM
+
 if [ "$#" -lt 3 ]; then
   echo "usage: $0 <root> <old> <new>" >&2
   exit 2
@@ -77,16 +83,16 @@ for f in "${files[@]}"; do
   if grep -q -- "$OLD" "$f" 2>/dev/null; then
     # Portable sed -i: BSD requires '' after -i, GNU rejects it. Use a temp
     # and `cat` the result back so file mode (executable bit) is preserved.
+    # `tmp` is module-level so the EXIT trap can clean up on early exit.
     tmp=$(mktemp)
     sed "s/${ESC_OLD}/${ESC_NEW}/g" "$f" > "$tmp"
     if ! cmp -s "$f" "$tmp"; then
       cat "$tmp" > "$f"
-      rm "$tmp"
       changed=$((changed + 1))
       printf '  rewrote %s\n' "$f"
-    else
-      rm "$tmp"
     fi
+    rm -f "$tmp"
+    tmp=""
   fi
 done
 
