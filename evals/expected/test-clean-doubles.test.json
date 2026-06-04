@@ -1,0 +1,14 @@
+{
+  "fixture": "test-clean-doubles.test",
+  "description": "Clean control — stub-driven state verification, one behavior per test, no smells",
+  "applicableAgents": ["test-smell-review"],
+  "agents": {
+    "test-smell-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 },
+      "severities": {},
+      "mustMention": [],
+      "mustNotMention": ["Assertion Roulette", "Mystery Guest", "Overspecified"]
+    }
+  }
+}

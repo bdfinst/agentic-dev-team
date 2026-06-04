@@ -40,6 +40,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | structure-review | `agents/structure-review.md` | mid | SRP violations, DRY, coupling, file organization |
 | svelte-review | `agents/svelte-review.md` | mid | Svelte reactivity pitfalls, closure state leaks |
 | test-review | `agents/test-review.md` | mid | Coverage gaps, assertion quality, test hygiene |
+| test-smell-review | `agents/test-smell-review.md` | mid | xUnit test smells, test-double selection, test-pyramid layer placement |
 | token-efficiency-review | `agents/token-efficiency-review.md` | small | File/function size, LLM anti-patterns, token usage |
 | progress-guardian | `agents/progress-guardian.md` | mid | Plan adherence, commit discipline, scope creep detection |
 | refactor-opportunity-review | `agents/refactor-opportunity-review.md` | mid | Post-GREEN refactoring opportunities, semantic vs structural duplication |
@@ -73,6 +74,8 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Branch Workflow | `skills/branch-workflow/SKILL.md` | 450 | Orchestrator, Software Engineer |
 | CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | Platform Engineer, Software Engineer, QA Engineer |
 | Test Design Reviewer | `skills/test-design-reviewer/SKILL.md` | 600 | QA Engineer, test-review |
+| Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~700 | QA Engineer, Software Engineer, `/test-design` command |
+| CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~900 | QA Engineer, Architect, Platform Engineer, Software Engineer |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 700 | QA Engineer |
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
 | Design Interrogation | `skills/design-interrogation/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
@@ -116,10 +119,16 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
 | Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~900 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
-| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~500 | security-review, test-review, structure-review, complexity-review, arch-review, domain-review |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~500 | security-review, test-review, test-smell-review, structure-review, complexity-review, arch-review, domain-review |
 | Design Smells | `knowledge/design-smells.md` | ~600 | structure-review, complexity-review, naming-review |
 | Object Calisthenics | `knowledge/object-calisthenics.md` | ~400 | structure-review, complexity-review |
-| Testability Patterns | `knowledge/testability-patterns.md` | ~500 | test-review, legacy-code |
+| Testability Patterns | `knowledge/testability-patterns.md` | ~500 | test-review, test-smell-review, test-design-advisor, legacy-code |
+| Test Smells | `knowledge/test-smells.md` | ~900 | test-smell-review, test-review, test-design-advisor |
+| Test Doubles | `knowledge/test-doubles.md` | ~700 | test-smell-review, test-design-advisor |
+| Test Pyramid | `knowledge/test-pyramid.md` | ~700 | test-smell-review, test-review, test-design-advisor |
+| Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |
+| CD Test Architecture | `knowledge/cd-test-architecture.md` | ~1,100 | cd-test-architecture, test-design-advisor |
+| Component Test Patterns | `knowledge/component-test-patterns.md` | ~1,600 | cd-test-architecture |
 
 ## Agent Templates
 

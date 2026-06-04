@@ -43,6 +43,8 @@ Enforce rigorous development practices:
 | Branch Workflow | [`branch-workflow.md`](../skills/branch-workflow/SKILL.md) | PR creation, merge strategy, and branch cleanup after Phase 3 |
 | CI Debugging | [`ci-debugging.md`](../skills/ci-debugging/SKILL.md) | CI pipeline failure investigation and resolution |
 | Test Design Reviewer | [`test-design-reviewer.md`](../skills/test-design-reviewer/SKILL.md) | Test quality patterns and anti-patterns |
+| Test Design Advisor | [`test-design-advisor.md`](../skills/test-design-advisor/SKILL.md) | Advise on testability, pyramid layer, double strategy, and behavior-preserving refactor sequences |
+| CD Test Architecture | [`cd-test-architecture.md`](../skills/cd-test-architecture/SKILL.md) | Evaluate an app's tests and recommend a CD-aligned architecture: deterministic, config-free CI gate with UI/service/batch patterns |
 | Browser Testing | [`browser-testing.md`](../skills/browser-testing/SKILL.md) | Playwright-based browser QA for visual verification |
 | Feature File Validation | [`feature-file-validation.md`](../skills/feature-file-validation/SKILL.md) | Gherkin quality, determinism, implementation independence, test automation coverage |
 
@@ -149,7 +151,7 @@ Team agent personas (orchestrator, architect, software-engineer, qa-engineer, se
 
 ### Skill Invocation
 
-Skills are user-invocable directly as `/<skill-name>` — there are no per-skill command wrappers. The available skills (specs, threat-modeling, hexagonal-architecture, domain-driven-design, domain-analysis, api-design, legacy-code, mutation-testing, governance-compliance, feedback-learning, context-loading-protocol, context-summarization, performance-metrics, quality-gate-pipeline, human-oversight-protocol, agent-skill-authoring, competitive-analysis, design-doc, branch-workflow, browser-testing, ci-debugging, design-interrogation, design-it-twice, feature-file-validation, performance-benchmark, static-analysis-integration, systematic-debugging, test-design-reviewer, test-driven-development, docker-image-audit, docker-image-create, js-project-init) load their `SKILL.md` content into the current context and apply it to the task. See [`skills/`](../skills/) for full definitions.
+Skills are user-invocable directly as `/<skill-name>` — there are no per-skill command wrappers. The available skills (specs, threat-modeling, hexagonal-architecture, domain-driven-design, domain-analysis, api-design, legacy-code, mutation-testing, governance-compliance, feedback-learning, context-loading-protocol, context-summarization, performance-metrics, quality-gate-pipeline, human-oversight-protocol, agent-skill-authoring, competitive-analysis, design-doc, branch-workflow, browser-testing, ci-debugging, design-interrogation, design-it-twice, feature-file-validation, performance-benchmark, static-analysis-integration, systematic-debugging, test-design-reviewer, test-design-advisor, cd-test-architecture, test-driven-development, docker-image-audit, docker-image-create, js-project-init) load their `SKILL.md` content into the current context and apply it to the task. See [`skills/`](../skills/) for full definitions.
 
 ### Utility Commands
 
