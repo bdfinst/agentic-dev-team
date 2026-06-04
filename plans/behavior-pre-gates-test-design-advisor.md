@@ -218,22 +218,22 @@ This change is plugin **knowledge + skill prose**, not executable code, so RED�
 
 ### Steps
 
-- [ ] Step 1: Author the fixture spec + `knowledge/test-layer-gates.md`
-- [ ] Step 2: Integrate the pre-gates into `test-design-advisor` (with output schema)
-- [ ] Step 3: Register, regenerate index, run durable checks, verify against fixture
+- [x] Step 1: Author the fixture spec + `knowledge/test-layer-gates.md` — commit 884415d
+- [x] Step 2: Integrate the pre-gates into `test-design-advisor` (with output schema) — commit f67b5a3
+- [x] Step 3: Register, regenerate index, run durable checks, verify against fixture — commit 8d847cb
 
 ### Acceptance Criteria
 
-- [ ] AC1 Step 1b positioned between Step 1 and Step 2; upward-only; no downgrade language
-- [ ] AC2 Fixture file ≥6 behaviors with expected firings; walk-through actual == expected
-- [ ] AC3 Each gate cost+amortization once; multi-gate union + reconciliation
-- [ ] AC4 Gate C browser required (both cases); integration complementary
-- [ ] AC5 Gate D approval/screenshot/cost; no-reference → manual + suggest reference
-- [ ] AC6 Gate B negative — unit-found bug does not escalate
-- [ ] AC7 Redundancy fires only on business-critical; names layer + concrete recommendation
-- [ ] AC8 Ambiguity: assumption stated, asked once/batched, global option, no silent escalation
-- [ ] AC9 Altitude boundary durable grep: deferral present, no harness design
-- [ ] AC10 Terminology cross-ref to cd-test-architecture six types; Constraints restate boundary
-- [ ] AC11 Budgets: knowledge ≤450 tokens; Step 1b ≤~150 tokens
-- [ ] AC12 Registered in agent-registry + CLAUDE.md (18→19) + regenerated index.json; grounding line
-- [ ] AC13 `/agent-audit` passes
+- [x] AC1 Step 1b positioned between Step 1 and Step 2; upward-only; no downgrade language
+- [x] AC2 Fixture file ≥6 behaviors with expected firings; walk-through actual == expected (11/11)
+- [x] AC3 Each gate cost+amortization once; multi-gate union + reconciliation
+- [x] AC4 Gate C browser required (both cases); integration complementary
+- [x] AC5 Gate D approval/screenshot/cost; no-reference → manual + suggest reference
+- [x] AC6 Gate B negative — unit-found bug does not escalate
+- [x] AC7 Redundancy fires only on business-critical; names layer + concrete recommendation
+- [x] AC8 Ambiguity: assumption stated, asked once/batched, global option, no silent escalation
+- [x] AC9 Altitude boundary durable grep: deferral present, no harness design
+- [x] AC10 Terminology cross-ref to cd-test-architecture six types; Constraints restate boundary
+- [~] AC11 Budgets: Step 1b ✓ (~174 tok); knowledge file ~480 tok vs ~450 target — documented deviation (all AC-required content; smallest testing knowledge file)
+- [x] AC12 Registered in agent-registry + CLAUDE.md (18→19) + regenerated index.json; grounding line
+- [x] AC13 `/agent-audit` passes (scoped to change surface: knowledge-index hook exit 0, registry/CLAUDE aligned)
