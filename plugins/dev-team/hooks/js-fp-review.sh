@@ -3,7 +3,7 @@
 # Detects common mutation patterns and warns without blocking.
 # Full nuanced analysis is handled by the js-fp-review agent.
 
-set -euo pipefail
+set -uo pipefail
 
 # Read tool input from stdin
 INPUT=$(cat)

@@ -16,6 +16,12 @@ Role: orchestrator. This command enforces quality gates before creating a PR.
 
 You have been invoked with the `/pr` command.
 
+## Orchestrator constraints
+
+1. Run the quality gate and open the PR; do not bypass failing gates.
+2. Delegate review to the review agents; do not review code yourself.
+3. **Be concise.** Report gate results and the PR URL, no preamble.
+
 ## Parse Arguments
 
 Arguments: $ARGUMENTS
@@ -29,6 +35,7 @@ Arguments: $ARGUMENTS
 ### 1. Pre-flight checks
 
 Verify:
+
 - Current branch is not `main` or `master`
 - There are commits ahead of the base branch
 - Working tree is clean (no uncommitted changes) — if dirty, ask whether to commit or stash
@@ -59,6 +66,7 @@ Run each check sequentially. Stop on first failure:
    - If review returns `fail`, show the results and ask the user whether to proceed or fix
 
 Report results as a checklist:
+
 ```
 ## Quality Gate
 - [x] Tests pass (42 passed, 0 failed)

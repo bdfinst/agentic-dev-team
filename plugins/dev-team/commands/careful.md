@@ -14,6 +14,12 @@ Role: worker. This command toggles destructive command blocking.
 
 You have been invoked with the `/careful` command.
 
+## Worker constraints
+
+1. Toggle state only; do not modify code or other config.
+2. Do not block legitimate commands beyond the destructive set.
+3. **Be concise.** Confirm the new mode in one line, no preamble.
+
 ## Parse Arguments
 
 Arguments: $ARGUMENTS
@@ -26,6 +32,7 @@ Arguments: $ARGUMENTS
 ### Enable (no arguments or any argument except "off")
 
 1. Write the following JSON to `hooks/careful-state.json`:
+
 ```json
 {
   "active": true,
@@ -33,17 +40,20 @@ Arguments: $ARGUMENTS
 }
 ```
 
-2. Display:
+1. Display:
+
 > Careful mode ON. Destructive commands will be blocked until `/careful off`.
 
 ### Disable (`off`)
 
 1. Remove `hooks/careful-state.json`:
+
 ```bash
 rm -f hooks/careful-state.json
 ```
 
-2. Display:
+1. Display:
+
 > Careful mode OFF. Destructive commands will show warnings but not be blocked.
 
 ## Notes

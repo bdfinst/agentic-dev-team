@@ -7,7 +7,7 @@
 # the current edit is a test file or implementation file, and warns if
 # implementation is edited without a recent test edit.
 
-set -euo pipefail
+set -uo pipefail
 
 # Read tool input from stdin
 INPUT=$(cat)

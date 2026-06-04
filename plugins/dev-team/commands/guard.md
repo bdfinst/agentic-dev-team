@@ -15,6 +15,12 @@ Role: worker. Combined safety mode: careful + freeze.
 
 You have been invoked with the `/guard` command.
 
+## Worker constraints
+
+1. Compose /careful + /freeze; introduce no new blocking behavior.
+2. Do not edit source.
+3. **Be concise.** Confirm both modes in one line each.
+
 ## Parse Arguments
 
 Arguments: $ARGUMENTS
@@ -27,6 +33,7 @@ If no pattern is provided, display usage and exit:
 > Use `/careful off` and `/unfreeze` separately to disable, or pass `off` to disable both.
 
 If argument is `off`:
+
 1. Remove `hooks/careful-state.json` and `hooks/freeze-state.json`
 2. Display: "Guard mode OFF. All safety restrictions lifted."
 
@@ -35,6 +42,7 @@ If argument is `off`:
 ### 1. Enable careful mode
 
 Write to `hooks/careful-state.json`:
+
 ```json
 {
   "active": true,
@@ -45,6 +53,7 @@ Write to `hooks/careful-state.json`:
 ### 2. Enable freeze mode
 
 Write to `hooks/freeze-state.json`:
+
 ```json
 {
   "active": true,
@@ -57,6 +66,7 @@ Write to `hooks/freeze-state.json`:
 
 Display:
 > Guard mode ON.
+>
 > - Destructive commands: BLOCKED
 > - File editing: Locked to `<pattern>`
 >

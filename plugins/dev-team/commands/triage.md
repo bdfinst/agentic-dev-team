@@ -12,7 +12,15 @@ allowed-tools: Read, Glob, Grep, Bash, Write, Agent
 
 # Bug Triage
 
+Role: worker.
+
 Investigate a bug hands-off, find root cause, and file a GitHub issue with a TDD fix plan.
+
+## Worker constraints
+
+1. Investigate and file an issue; do not fix the bug.
+2. Find root cause before filing; do not file on symptoms alone.
+3. **Be concise.** Issue body is structured; chat is a one-line summary + URL.
 
 ## Process
 
@@ -31,6 +39,7 @@ Apply the systematic debugging protocol from `skills/systematic-debugging/SKILL.
 3. **Root cause**: Form and test a hypothesis
 
 Use the Agent tool with `subagent_type: "Explore"` to deeply investigate the codebase. Look at:
+
 - Related source files and their dependencies
 - Existing tests (what's tested, what's missing)
 - Recent changes to affected files (`git log`)

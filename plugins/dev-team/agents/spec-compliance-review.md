@@ -46,12 +46,12 @@ This agent answers one question: **does the code do what the spec says?** It run
 ```json
 {
   "agentName": "spec-compliance-review",
-  "status": "pass|warn|fail",
+  "status": "pass|warn|fail|skip",
   "issues": [
     {
       "file": "<file path>",
       "line": null,
-      "severity": "error|warning",
+      "severity": "error|warning|suggestion",
       "message": "<what's wrong>",
       "category": "unmet-criterion|uncovered-scenario|scope-violation|plan-deviation",
       "criterion": "<the acceptance criterion or scenario name>",
@@ -78,3 +78,4 @@ Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` 
 - Uncovered scenario → `error` (always)
 - Scope violation → `warning` (may be intentional)
 - Plan deviation → `warning` (may be justified)
+- Cosmetic divergence from the plan that meets every criterion (naming, file placement, ordering) → `suggestion`

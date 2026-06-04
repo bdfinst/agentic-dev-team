@@ -3,7 +3,7 @@
 # Checks file length, CLAUDE.md length, and function length.
 # Full analysis is handled by the token-efficiency-review agent.
 
-set -euo pipefail
+set -uo pipefail
 
 # Read tool input from stdin
 INPUT=$(cat)

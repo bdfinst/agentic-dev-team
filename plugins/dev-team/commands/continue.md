@@ -14,19 +14,29 @@ allowed-tools: Read, Glob, Grep, Bash(git log *), Bash(git branch *), Bash(git s
 
 Role: orchestrator. This command resumes work from a prior session — it does not start new work.
 
+Arguments: optional — a phase or plan name to resume; defaults to the most recent.
+
 You have been invoked with the `/continue` command.
+
+## Orchestrator constraints
+
+1. Resume from memory/ progress files; do not restart completed phases.
+2. Summarize prior state; do not replay full history.
+3. **Be concise.** Report where work resumes, no narration.
 
 ## Steps
 
 ### 1. Scan for in-progress work
 
 Read all files in `memory/` looking for phase progress files. These follow the pattern:
+
 - `memory/research-progress-*.md` — Research phase output
 - `memory/plan-progress-*.md` — Plan phase output
 - `memory/implementation-progress-*.md` — Implementation phase output
 - `memory/decisions.md` — Accumulated decision log
 
 Also check:
+
 - `plans/` directory for active plan files
 - `docs/specs/` for design documents without corresponding implementation
 - `.claude/review-summaries/` for recent review results
@@ -35,6 +45,7 @@ Also check:
 ### 2. Check git state
 
 Run `git status` and `git log --oneline -5` to understand:
+
 - Current branch and its relationship to main
 - Any uncommitted changes
 - Recent commit messages for context
@@ -71,6 +82,7 @@ If the user confirms, load the appropriate phase context and continue execution.
 ### 5. Load phase context
 
 Based on the identified phase:
+
 - **Research**: Load research progress file + relevant design doc
 - **Plan**: Load plan progress file + design doc
 - **Implement**: Load implementation progress file + plan + any review corrections

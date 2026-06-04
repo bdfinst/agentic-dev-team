@@ -18,6 +18,14 @@ during triage at any time.
 
 You have been invoked with the `/model-routing-check` command.
 
+Arguments: none.
+
+## Worker constraints
+
+1. Read-only diagnostic; touch no files, no side effects.
+2. Report resolved state only; do not change routing.
+3. **Be concise.** Tables only, no narration.
+
 ## What it shows
 
 Four sections, in order:

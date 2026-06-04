@@ -11,13 +11,22 @@ allowed-tools: Read, Glob, Grep, Bash, Write
 
 # Issues from Plan
 
+Role: orchestrator.
+
 Break an implementation plan into GitHub issues that can be worked independently.
+
+## Orchestrator constraints
+
+1. Decompose the plan into issues; do not implement.
+2. Preserve plan ordering and dependencies as issue links.
+3. **Be concise.** Report created issue numbers, no narration.
 
 ## Process
 
 ### 1. Find the Plan
 
 If a path is provided in arguments, read that file. Otherwise, look for the most recent plan in:
+
 - Active plan in conversation context
 - `memory/` directory (phase progress files)
 - `plans/` directory
@@ -29,6 +38,7 @@ If no plan is found, ask the user to point you to one.
 ### 2. Analyze the Plan
 
 Read the plan and identify:
+
 - Each discrete unit of work (implementation step, vertical slice, or phase)
 - Dependencies between units (which must complete before others can start)
 - Acceptance criteria for each unit

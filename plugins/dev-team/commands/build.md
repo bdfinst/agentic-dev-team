@@ -23,6 +23,7 @@ You have been invoked with the `/build` command.
 3. **Incremental.** Each step must leave the codebase in a working, committable state.
 4. **Verification evidence required.** Paste fresh test output before claiming a step is done.
 5. **Review checkpoints.** After each unit of work, run inline review (spec-compliance first, then quality agents). Max 2 correction iterations before escalating.
+6. **Be concise.** Report step status and verification evidence, no narration.
 
 ## Parse Arguments
 

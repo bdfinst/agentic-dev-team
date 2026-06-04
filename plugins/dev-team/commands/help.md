@@ -12,6 +12,14 @@ Role: worker. This command lists all available slash commands.
 
 You have been invoked with the `/help` command.
 
+Arguments: none.
+
+## Worker constraints
+
+1. List commands only; do not execute any.
+2. Read from the command registry; do not invent commands.
+3. **Be concise.** One line per command, no preamble.
+
 ## Steps
 
 ### 1. Find all command files

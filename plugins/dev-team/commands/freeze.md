@@ -14,6 +14,12 @@ Role: worker. This command restricts Write/Edit operations to files matching a g
 
 You have been invoked with the `/freeze` command.
 
+## Worker constraints
+
+1. Write only the freeze-state file; do not edit source.
+2. Do not enforce the lock yourself — the pre-tool-guard hook does.
+3. **Be concise.** Confirm the locked scope in one line.
+
 ## Parse Arguments
 
 Arguments: $ARGUMENTS

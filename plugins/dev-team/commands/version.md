@@ -12,6 +12,14 @@ Role: worker. This command reports the installed plugin version.
 
 You have been invoked with the `/version` command.
 
+Arguments: none.
+
+## Worker constraints
+
+1. Read only; never write or modify files.
+2. Report the first match found; do not aggregate.
+3. **Be concise.** Output only the version line.
+
 ## Steps
 
 Find the installed plugin version by checking these locations in order:
