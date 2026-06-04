@@ -3,8 +3,7 @@
 #
 # Sourced (not executed) by phase-timer.sh, find-ci-files.sh,
 # apply-severity-floors.sh, and apply-accepted-risks.sh. Extraction was
-# triggered by the "3+ identical helpers verbatim" rule (see
-# plans/security-assessment-helper-scripts.md Step 5 refactor).
+# triggered by the "3+ identical helpers verbatim" rule.
 #
 # Callers must define their own `usage()` function (each script's usage
 # text is unique) and invoke `lib_parse_help "$@"` at entry to honor
