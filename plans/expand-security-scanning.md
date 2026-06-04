@@ -3,7 +3,7 @@
 **Created**: 2026-06-04
 **Branch**: 38-feat-expand-security-scanning-with-language-scoped-tools
 **Issue**: <https://github.com/bdfinst/agentic-dev-team/issues/38>
-**Status**: revised after plan-review (acceptance/design/ux/strategic)
+**Status**: revised after plan-review (acceptance/design/ux/strategic); code-review tiering formalized 2026-06-04 (per #38 = the `/code-review` security pre-pass)
 
 ## Goal
 
@@ -16,6 +16,11 @@ pinned to local-DB-only (`--skip-update --offline-scan`). Add three bespoke SARI
 adapters (Bandit, ESLint-security, SpotBugs), extend the deduplication priority chain, and
 keep the unified finding envelope v1.0 output contract **unchanged** — only the scanner count
 grows.
+
+Because this pipeline is the **security pre-pass for `/code-review`** (diff-scoped, frequent,
+non-gating), tools are **tiered by code-review cost**: most run inline on the diff every review,
+while the heavyweight build-dependent tools (**CodeQL, SpotBugs**) run only under an explicit
+`--deep` flag (or a scheduled/CI pass), never on a routine inline review.
 
 The skill is a runtime instruction set read by the orchestrator/`/code-review`, not a program
 that executes the tools itself. Therefore the deliverables are: (a) three executable Python
@@ -44,11 +49,13 @@ envelope is frozen, so each slice is independently mergeable behind the same con
   risk, highest immediate value (unblocks restricted-egress environments). Covers AC4, AC8, AC10,
   AC14.
 - **Slice B — native-SARIF tools** (Steps 1, 1b, parts of 5/6): CodeQL/Checkov/Grype fixtures +
-  parser changes + dedup-chain extension. Covers AC2-native, AC5, AC9, AC11, AC12, AC15.
+  parser changes + dedup-chain extension. Covers AC2-native, AC5, AC9, AC11, AC12, AC15, AC16.
+  (Checkov + Grype are inline-tier; **CodeQL is deep-mode — `--deep`-only**.)
 - **Slice C — bespoke adapters** (Steps 2–4, 4a): Bandit/ESLint/SpotBugs adapters + shared
   helper + tests. The only net-new executable code; carries the nightly adapter-drift obligation.
-  Covers AC2-bespoke, AC6, AC7, AC13. The second-maintainer gap is **deferred to the release
-  gate** (see Risk 3), not a precondition on this slice.
+  Covers AC2-bespoke, AC6, AC7, AC13, AC16. (Bandit + ESLint-security are inline-tier; **SpotBugs is
+  deep-mode — `--deep`-only**.) The second-maintainer gap is **deferred to the release gate** (see
+  Risk 3), not a precondition on this slice.
 
 If the human prefers a single PR, the step order below still applies; the slice tags mark where
 the PR boundaries would fall.
@@ -74,7 +81,9 @@ Mapped 1:1 to the 15 acceptance criteria in issue #38. Verification tags reflect
   silently with no entry in tools_missing" for the no-matching-files branch; (b) `[prose-only]`
   the gate behavior is deferred to nightly integration. Step 1b adds a **detection-fixture harness**
   (`detect.py`) that exercises the file-glob → tool-set mapping against synthetic repo trees, so the
-  *detection mapping* is `[test]`-covered even though end-to-end dispatch is prose.
+  *detection mapping* is `[test]`-covered even though end-to-end dispatch is prose. At code-review
+  cadence the gate is **diff-aware** — a tool fires only when *changed files in scope* match its
+  language (`[prose-only]`; repo-wide for `--all`/`--path`/clean-tree). See AC16.
 - [ ] **AC2 — Schema conformance** `[test]`: Every new tool's findings validate against
   `unified-finding-v1.json`; a schema violation fails the run with tool name + rule id. Verified by
   per-adapter schema-valid, schema-violation, **and error-path** tests (Step 4a) plus `validate.py`
@@ -90,11 +99,14 @@ Mapped 1:1 to the 15 acceptance criteria in issue #38. Verification tags reflect
   Step 1 fixture asserts the per-language rule_id segment (`codeql.java.<rule>`) after the parser
   change in Step 1; (b) `[grep]` SKILL.md contains exact warning `CodeQL database build failed —
   <lang> skipped`; (c) `[prose-only]` per-language build isolation deferred to nightly integration.
+  **CodeQL is deep-mode** (`--deep`-only; see the code-review tiering constraint and AC16) — never
+  run by a routine inline `/code-review`.
 - [ ] **AC6 — SpotBugs build trigger** `[grep]+[prose-only]`: triggers a build when bytecode is
   absent; build failure warns (`SpotBugs skipped — build failed for JVM analysis`) and skips without
   failing the pipeline. `[grep]` exact warning present in SKILL.md; `[prose-only]` build-trigger
-  behavior deferred to nightly integration. **Build-triggering is gated behind an opt-in** (see
-  Risk 6) so `/code-review` never silently runs a project build.
+  behavior deferred to nightly integration. **SpotBugs is deep-mode** (`--deep`-only; see the
+  code-review tiering constraint and AC16) — never run by a routine inline `/code-review`;
+  build-triggering is one facet of deep-mode (see Risk 6).
 - [ ] **AC7 — ESLint plugin gate** `[grep]+[prose-only]`: ESLint-security is skipped when
   `eslint-plugin-security` is not in `node_modules`, even if `eslint` is installed. `[grep]` SKILL.md
   contains the `require('eslint-plugin-security')` detection instruction; behavior is `[prose-only]`.
@@ -129,6 +141,12 @@ Mapped 1:1 to the 15 acceptance criteria in issue #38. Verification tags reflect
   only when their target language/asset is present. Both arms covered by Step 1b detection-fixture
   harness (binary-absent+files-present → entry expected; binary-absent+no-files → entry absent);
   end-to-end emission is `[prose-only]`.
+- [ ] **AC16 — Code-review tiering (plan-added, beyond spec #38)** `[grep]+[prose-only]`: SKILL.md
+  documents the inline vs `--deep` split and gates **CodeQL + SpotBugs behind `--deep`** (never fired
+  by a routine inline `/code-review`), and detection is **diff-aware** at default (diff) scope.
+  Verified by `[grep]` for the `--deep` gating instruction + the diff-aware-detection prose; runtime
+  gating/scoping is `[prose-only]` (deferred to nightly integration). This formalizes #38's intent as
+  the `/code-review` security pre-pass.
 - [ ] `/agent-audit` passes for the modified skill; CLAUDE.md skill count/description need no change
   (skill name and role are unchanged).
 
@@ -145,8 +163,21 @@ added to the feature file as part of Slice B/C.
 ## Architecture Constraints (from the spec)
 
 - **Output contract frozen**: all tools normalize to unified-finding-v1; no schema fields added.
-- **Detection runs once per invocation** and is shared across tools that overlap (Java detection
-  covers both CodeQL and SpotBugs).
+- **Detection runs once per invocation, and is diff-aware at code-review cadence.** `/code-review`
+  default-scopes to the uncommitted diff, so a conditional tool fires only when **changed files in
+  scope** match its language/asset — not merely because the repo contains that language (otherwise a
+  one-line CSS change in a Java monorepo would trigger a whole-repo Java scan). Detection is shared
+  across overlapping tools (Java detection covers both CodeQL and SpotBugs). For full-repo runs
+  (`--all`, `--path`, or a clean tree) detection is repo-wide.
+- **Code-review tiering — inline vs `--deep`.** This skill is the SARIF pre-pass for `/code-review`,
+  which runs frequently, on a diff, non-gating. Tools split into two cost tiers:
+  - **Inline (default-on, diff-scopeable):** gitleaks, semgrep, bandit, eslint-security, hadolint,
+    actionlint, trivy (config + fs), checkov, grype — run on every review.
+  - **Deep-mode (opt-in `--deep` only):** **CodeQL** and **SpotBugs** — whole-project,
+    build-dependent, minutes-slow, not diff-scopeable (the DB/build spans the whole codebase). They
+    run **only** when the operator passes `--deep` (or in a scheduled/CI security pass), **never** on
+    a routine inline `/code-review`. This subsumes the earlier "build-triggering is opt-in" decision:
+    build-triggering is one facet of deep-mode.
 - **Adapters ≤ 40 LOC each** of *tool-specific mapping logic*. Shared validate-before-emit /
   schema-load / argparse machinery lives in `adapters/_envelope.py` (Step 0) and is excluded from
   the per-adapter count — the same way blank/comment lines are excluded. Bespoke only where upstream
@@ -174,8 +205,9 @@ Consolidated so they bind the implementer and are visible at the gate:
 3. **No new unified-finding schema fields** — the envelope is frozen at v1.0.
 4. **No changes to non-gitleaks/trivy Tier-1 tools** (semgrep, hadolint, actionlint).
 5. **No auto-install of any tool** — missing tools produce install hints only.
-6. **No silent project builds** — CodeQL/SpotBugs build-triggering is opt-in, never default in
-   `/code-review`.
+6. **No deep-mode tools at inline review cadence** — CodeQL and SpotBugs are `--deep`-only and never
+   silently trigger a project build. A routine `/code-review` runs only the inline tier; deep-mode is
+   an explicit opt-in or a scheduled/CI pass. See the code-review tiering constraint above and AC16.
 
 ## Steps
 
@@ -334,27 +366,33 @@ Prose changes verified by `[grep]`; behavioral correctness of agent-executed ite
    refs). **Remove the Tier-4 legacy ESLint entry** and drop legacy-ESLint from the dedup
    parenthetical — `eslint-security` is now its single identity (resolves the design double-identity
    warning; keep tsc/pylint as the only legacy parenthetical).
-2. **Language detection gate** — Under `### 1. Detect available tools`: detection runs once via
-   `find` (references `detect.py`'s mapping as the canonical glob table); shared across overlapping
-   tools; no-matching-files → skipped silently, **no** `tools_missing` entry; files-present +
-   binary-absent → `tools_missing` entry. State both arms verbatim per tool. `[prose-only]` dispatch.
-3. **CodeQL per-language DB strategy** — `codeql database create --language=<lang> --command=<build>`
-   per detected compiled language, parallel; build defaults (`mvn clean package -DskipTests`,
-   `gradle build -x test`, `dotnet build`); per-language failure → exact warning `CodeQL database
-   build failed — <lang> skipped`, continue others. Note build-trigger is opt-in (Non-Goal 6).
-4. **SpotBugs build trigger** — absent `.class`/JAR → detect build tool (`pom.xml`→Maven,
-   `build.gradle`→Gradle); failure → exact warning `SpotBugs skipped — build failed for JVM
-   analysis`, skip without failing pipeline. Opt-in per Non-Goal 6.
-5. **ESLint detection** — `command -v eslint` AND `node -e "require('eslint-plugin-security')"`;
+2. **Language detection gate (diff-aware)** — Under `### 1. Detect available tools`: detection runs
+   once via `find` (references `detect.py`'s mapping as the canonical glob table); shared across
+   overlapping tools; no-matching-files → skipped silently, **no** `tools_missing` entry;
+   files-present + binary-absent → `tools_missing` entry. State both arms verbatim per tool. **At
+   default (diff) scope, gate each tool on changed files in scope, not repo-wide presence**; repo-wide
+   for `--all`/`--path`/clean-tree. `[prose-only]` dispatch. (AC16)
+3. **Tool tiering — inline vs `--deep`** — Document the two tiers explicitly: inline tools run on
+   every review; **CodeQL and SpotBugs run only under `--deep`** (or scheduled/CI), never on a routine
+   inline `/code-review`. State the `--deep` flag and that the inline tier stays read-only/fast. (AC16)
+4. **CodeQL per-language DB strategy (deep-mode)** — Behind `--deep` only. `codeql database create
+   --language=<lang> --command=<build>` per detected compiled language, parallel; build defaults
+   (`mvn clean package -DskipTests`, `gradle build -x test`, `dotnet build`); per-language failure →
+   exact warning `CodeQL database build failed — <lang> skipped`, continue others. Build-triggering
+   is a facet of deep-mode (Non-Goal 6).
+5. **SpotBugs build trigger (deep-mode)** — Behind `--deep` only. Absent `.class`/JAR → detect build
+   tool (`pom.xml`→Maven, `build.gradle`→Gradle); failure → exact warning `SpotBugs skipped — build
+   failed for JVM analysis`, skip without failing pipeline. Non-Goal 6.
+6. **ESLint detection** — `command -v eslint` AND `node -e "require('eslint-plugin-security')"`;
    both pass or skip (plugin-missing → install hint). Note flat-config limitation (Risk 4).
-6. **Offline enforcement (Trivy, Grype)** — preflight DB-path + `mtime age ≤ 7d`; absent → skip+warn
+7. **Offline enforcement (Trivy, Grype)** — preflight DB-path + `mtime age ≤ 7d`; absent → skip+warn
    with the **full** strings; stale (> 7d) → run+warn with the **full** templated strings. Quote all
    four verbatim:
    - `trivy local DB missing — run: trivy image --download-db-only`
    - `trivy DB is N days old — consider refreshing with: trivy image --download-db-only`
    - `grype local DB missing — run: grype db update`
    - `grype DB is N days old — consider refreshing with: grype db update`
-7. **Extended dedup chain** — replace the chain line; reference
+8. **Extended dedup chain** — replace the chain line; reference
    `knowledge/static-analysis-dedup-priority.json` (Step 0) as the source. Exact ordering:
    `semgrep > codeql > gitleaks > bandit > eslint-security > spotbugs > trivy > checkov > grype >
    hadolint > actionlint`. Add the "deduplicated finding counted once, attributed to surviving tool"
@@ -446,6 +484,8 @@ grep -qF 'SpotBugs skipped — build failed for JVM analysis' "$SKILL"  # AC6
 grep -qF "require('eslint-plugin-security')" "$SKILL"             # AC7
 grep -qF 'semgrep > codeql > gitleaks > bandit > eslint-security > spotbugs > trivy > checkov > grype > hadolint > actionlint' "$SKILL"  # AC12
 grep -qF 'static-analysis-dedup-priority.json' "$SKILL"          # AC12 single-source ref
+grep -qF -- '--deep' "$SKILL"                                     # AC16 deep-mode gating present
+grep -qiE 'changed files in scope|diff-aware' "$SKILL"           # AC16 diff-aware detection
 for t in codeql bandit eslint-security spotbugs checkov grype; do  # AC3 hints present
   grep -q "^$t — " "$CFG" || echo "MISSING HINT: $t"
 done
@@ -482,10 +522,11 @@ the human reviewer weights them correctly.
    1). Documented limitation in the ESLint block.
 5. **Trivy flag compatibility** — `--offline-scan` skips network vuln matching; `--skip-update`
    prevents DB download. Both valid together on trivy ≥ 0.50; note the minimum version in the block.
-6. **Build-triggering inside a read-only scan** — auto-running `mvn`/`gradle`/`dotnet build` expands
-   what the pre-pass does (build-time, build-side-effects, possible `/code-review` stalls). **Decision
-   needed**: the plan gates build-triggering behind opt-in (Non-Goal 6) so the default scan stays
-   read-only. Confirm this is the desired default, or whether CodeQL/SpotBugs-with-build should be a
-   separate follow-up entirely.
+6. **Deep-mode tools inside a read-only pre-pass** — auto-running `mvn`/`gradle`/`dotnet build`
+   (CodeQL/SpotBugs) expands what the pre-pass does (build-time, build-side-effects, possible
+   `/code-review` stalls). **Decision (made):** CodeQL and SpotBugs are **deep-mode** — gated behind an
+   explicit `--deep` flag (or a scheduled/CI pass), never fired by a default inline `/code-review`. The
+   inline tier stays read-only and fast. Intent confirmed: #38 is the `/code-review` security pre-pass
+   (see the code-review tiering constraint and AC16).
 
 ```
