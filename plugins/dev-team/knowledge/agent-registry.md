@@ -130,6 +130,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |
 | CD Test Architecture | `knowledge/cd-test-architecture.md` | ~1,100 | cd-test-architecture, test-design-advisor |
 | Component Test Patterns | `knowledge/component-test-patterns.md` | ~1,600 | cd-test-architecture |
+| Test Layer Gates | `knowledge/test-layer-gates.md` | ~480 | test-design-advisor |
 
 ## Agent Templates
 

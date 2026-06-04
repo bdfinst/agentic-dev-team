@@ -26,16 +26,20 @@ Gate-column sentinels: `—` (no gate), `↑<layer>` (escalated), `→ cd-test-a
 
 For each row, record the advisor's actual gate firing(s) and layer(s). Any mismatch → fix gate wording and re-run.
 
+Walk-through run 2026-06-04 against `knowledge/test-layer-gates.md` + the Step 1b/Step 2 logic in `skills/test-design-advisor/SKILL.md`.
+
 | # | Actual gate(s) | Actual layer(s) | Match? |
 |---|----------------|-----------------|--------|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
-| 6 |  |  |  |
-| 7 |  |  |  |
-| 8 |  |  |  |
-| 9 |  |  |  |
-| 10 |  |  |  |
-| 11 |  |  |  |
+| 1 | none (`—`) | unit | ✓ |
+| 2 | A | `↑ E2E` + lower; `→ cd-test-architecture` | ✓ |
+| 3 | B | `↑ E2E` (browser = discovery layer) | ✓ |
+| 4 | B (negative) | unit (discovery layer; no escalation) | ✓ |
+| 5 | C | `↑ E2E` REQUIRED; integration complementary; `→ cd-test-architecture` | ✓ |
+| 6 | C (structural) | `↑ E2E` REQUIRED (structural seam) | ✓ |
+| 7 | D | unit + approval and/or screenshot (cost surfaced) | ✓ |
+| 8 | D (no-ref) | unit + manual; suggest creating a reference | ✓ |
+| 9 | redundancy | unit + integration (different failure mode) + recommendation | ✓ |
+| 10 | A + B | `↑ E2E` (union, no duplicate; costs listed once) | ✓ |
+| 11 | ambiguity | pending answer — assumption stated, asked once (batched), global option, no silent escalation | ✓ |
+
+**Result: 11/11 match.** No gate-wording adjustment required.

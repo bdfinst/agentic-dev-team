@@ -625,6 +625,16 @@
       "anchor": "boundaries"
     }
   },
+  "plugins/dev-team/knowledge/test-layer-gates.md": {
+    "The gates (before pyramid placement)": {
+      "summary": "**Gate A — user-facing dynamic.** The user acts and must *see* a rendered result.",
+      "anchor": "the-gates-before-pyramid-placement"
+    },
+    "Redundancy check (business-critical only, after placement)": {
+      "summary": "A business-critical behavior at only one layer → flag it, name a second layer with a **different failure mode**, and give a concrete recommendation.",
+      "anchor": "redundancy-check-business-critical-only-after-placement"
+    }
+  },
   "plugins/dev-team/knowledge/test-pyramid.md": {
     "The Layers": {
       "summary": "| Layer | Scope | Speed | Doubles | What it proves |",
@@ -2517,6 +2527,10 @@
     "1. Assess testability": {
       "summary": "Read the target.",
       "anchor": "1-assess-testability"
+    },
+    "1b. Behavior pre-gates (escalate the layer by failure mode)": {
+      "summary": "Before pyramid placement, run the gates in `knowledge/test-layer-gates.md`.",
+      "anchor": "1b-behavior-pre-gates-escalate-the-layer-by-failure-mode"
     },
     "2. Place each behavior on the pyramid": {
       "summary": "Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / integration / component / contract / E2E).",
