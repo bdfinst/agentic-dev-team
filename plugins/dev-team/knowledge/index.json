@@ -76,6 +76,10 @@
       "summary": "For every class below 90% effective coverage, did you identify the SPECIFIC uncovered behavior?",
       "anchor": "test-review"
     },
+    "test-smell-review": {
+      "summary": "For every smell flagged, did you name the specific xUnit smell (not just \"this test is bad\")?",
+      "anchor": "test-smell-review"
+    },
     "structure-review": {
       "summary": "Did you check every module/class for SRP violations, including small ones?",
       "anchor": "structure-review"
@@ -155,6 +159,110 @@
     "MCP-Enhanced Analysis": {
       "summary": "If a code knowledge graph MCP is available (e.g., GitNexus):",
       "anchor": "mcp-enhanced-analysis"
+    }
+  },
+  "plugins/dev-team/knowledge/cd-test-architecture.md": {
+    "The Six Test Types": {
+      "summary": "| Type | Verifies | Dependencies | Deterministic?",
+      "anchor": "the-six-test-types"
+    },
+    "The Pre-Merge Gate Rule": {
+      "summary": "Pre-merge (the gate that blocks a merge) contains **only**: static analysis, unit, component, and contract tests.",
+      "anchor": "the-pre-merge-gate-rule"
+    },
+    "Tests Must Live With the Code (out-of-repo testing is an anti-pattern)": {
+      "summary": "A component's tests belong **in the component's repository and pipeline**.",
+      "anchor": "tests-must-live-with-the-code-out-of-repo-testing-is-an-anti-pattern"
+    },
+    "How Component Tests Run Without Configuring Dependencies": {
+      "summary": "The component test is the workhorse of a CD gate.",
+      "anchor": "how-component-tests-run-without-configuring-dependencies"
+    },
+    "The Adapter Rule (own your boundaries)": {
+      "summary": "Wrap every third-party client (SDK, HTTP client, broker client, DB driver) in **a thin adapter the team owns**, then double the *adapter* in component tests — never mock the third-party SDK directly.",
+      "anchor": "the-adapter-rule-own-your-boundaries"
+    },
+    "Outside-In First: Baseline Before Refactor": {
+      "summary": "You rarely start from a clean slate.",
+      "anchor": "outside-in-first-baseline-before-refactor"
+    },
+    "Double Validation (keeping doubles honest)": {
+      "summary": "A double that drifts from reality gives false confidence — the central risk of double-based isolation.",
+      "anchor": "double-validation-keeping-doubles-honest"
+    },
+    "Do not depend on provider cooperation": {
+      "summary": "Consumer-driven contract verification — where the *provider* runs your contract in *their* pipeline and is blocked from deploying a breaking change — only works when teams collaborate closely and use tooling that enforces it.",
+      "anchor": "do-not-depend-on-provider-cooperation"
+    },
+    "The defense you own": {
+      "summary": "1.",
+      "anchor": "the-defense-you-own"
+    },
+    "Determinism Techniques (minimal tooling)": {
+      "summary": "**Inject the clock.** Replace system time with a fixed clock in every time-dependent test (`Clock.fixed(...)`).",
+      "anchor": "determinism-techniques-minimal-tooling"
+    },
+    "Terminology Reconciliation (read this if you also use the Fowler files)": {
+      "summary": "This file uses **MinimumCD vocabulary**, which differs from the Fowler-based `test-pyramid.md` and `microservice-testing.md`:",
+      "anchor": "terminology-reconciliation-read-this-if-you-also-use-the-fowler-files"
+    },
+    "Boundaries": {
+      "summary": "\"Minimal tooling\" means prefer in-memory doubles + a real browser + testcontainers for adapter checks — not a sprawl of test frameworks.",
+      "anchor": "boundaries"
+    }
+  },
+  "plugins/dev-team/knowledge/component-test-patterns.md": {
+    "Identify the Component's Pattern": {
+      "summary": "| If the component… | Pattern | Group |",
+      "anchor": "identify-the-components-pattern"
+    },
+    "UI": {
+      "summary": "Renders data and accepts interaction against backend APIs.",
+      "anchor": "ui"
+    },
+    "User Interface": {
+      "summary": "Renders data and accepts interaction against backend APIs.",
+      "anchor": "user-interface"
+    },
+    "Services": {
+      "summary": "Exposes endpoints, owns its data store, no outbound internal calls.",
+      "anchor": "services"
+    },
+    "API Provider": {
+      "summary": "Exposes endpoints, owns its data store, no outbound internal calls.",
+      "anchor": "api-provider"
+    },
+    "API Consumer": {
+      "summary": "Exposes endpoints **and** calls upstream services.",
+      "anchor": "api-consumer"
+    },
+    "Event Consumer": {
+      "summary": "Consumes messages from a broker (Kafka/SQS/RabbitMQ/PubSub).",
+      "anchor": "event-consumer"
+    },
+    "Event Producer": {
+      "summary": "Publishes messages to a broker (often paired with a consumer in the same service).",
+      "anchor": "event-producer"
+    },
+    "Stateful Service": {
+      "summary": "Long-lived in-memory state: caches, aggregates, coordinators, websocket gateways, real-time engines.",
+      "anchor": "stateful-service"
+    },
+    "CLI / Library": {
+      "summary": "Binary or package consumed via CLI or an exported API.",
+      "anchor": "cli-library"
+    },
+    "Batch": {
+      "summary": "Triggered by cron/queue/scheduler to process data and write output/state.",
+      "anchor": "batch"
+    },
+    "Scheduled Job": {
+      "summary": "Triggered by cron/queue/scheduler to process data and write output/state.",
+      "anchor": "scheduled-job"
+    },
+    "Quick Reference: Isolation Strategy by Pattern": {
+      "summary": "| Pattern | Double to run pre-merge without config | Validated by |",
+      "anchor": "quick-reference-isolation-strategy-by-pattern"
     }
   },
   "plugins/dev-team/knowledge/design-smells.md": {
@@ -261,6 +369,28 @@
     "5. Implicit Expectations": {
       "summary": "Stakeholders never state these because they assume they're obvious — highest-value adversarial targets:",
       "anchor": "5-implicit-expectations"
+    }
+  },
+  "plugins/dev-team/knowledge/microservice-testing.md": {
+    "The Layers (per service)": {
+      "summary": "| Layer | Scope | What it verifies | Doubles |",
+      "anchor": "the-layers-per-service"
+    },
+    "Consumer-Driven Contracts (CDC)": {
+      "summary": "The mechanism that lets services deploy independently:",
+      "anchor": "consumer-driven-contracts-cdc"
+    },
+    "What to test where (microservice heuristics)": {
+      "summary": "**Business logic** → unit, in the owning service.",
+      "anchor": "what-to-test-where-microservice-heuristics"
+    },
+    "Smells specific to distributed testing (flag these)": {
+      "summary": "| Smell | Signal | Fix |",
+      "anchor": "smells-specific-to-distributed-testing-flag-these"
+    },
+    "Boundaries": {
+      "summary": "Not every codebase is microservices.",
+      "anchor": "boundaries"
     }
   },
   "plugins/dev-team/knowledge/object-calisthenics.md": {
@@ -467,6 +597,80 @@
     "1.0.0 (2026-04-21)": {
       "summary": "Initial contract.",
       "anchor": "100-2026-04-21"
+    }
+  },
+  "plugins/dev-team/knowledge/test-doubles.md": {
+    "The Five Doubles": {
+      "summary": "| Double | What it does | Verification style | Use when |",
+      "anchor": "the-five-doubles"
+    },
+    "State Verification vs. Behavior Verification": {
+      "summary": "| | State verification | Behavior verification |",
+      "anchor": "state-verification-vs-behavior-verification"
+    },
+    "Choosing a Double (decision flow)": {
+      "summary": "---",
+      "anchor": "choosing-a-double-decision-flow"
+    },
+    "Common Misuses (flag these)": {
+      "summary": "| Misuse | Why it's wrong | Fix |",
+      "anchor": "common-misuses-flag-these"
+    },
+    "Relationship to testability": {
+      "summary": "If a collaborator can't be substituted at all (new-ed up internally, static singleton, hidden global), that's a **production-code** problem, not a test problem — introduce a seam per `testability-patterns.md` (constructor injection, interface extraction) before choosing a double.",
+      "anchor": "relationship-to-testability"
+    },
+    "Boundaries": {
+      "summary": "Don't flag a Fake (in-memory repo/DB) as \"not testing the real thing\" — at unit/integration level a Fake is a legitimate, often *better*, choice than a heavily-stubbed real dependency.",
+      "anchor": "boundaries"
+    }
+  },
+  "plugins/dev-team/knowledge/test-pyramid.md": {
+    "The Layers": {
+      "summary": "| Layer | Scope | Speed | Doubles | What it proves |",
+      "anchor": "the-layers"
+    },
+    "Layer-Selection Heuristics": {
+      "summary": "Ask, for each thing you want to verify:",
+      "anchor": "layer-selection-heuristics"
+    },
+    "Anti-Patterns": {
+      "summary": "| Anti-pattern | Shape | Symptom | Fix |",
+      "anchor": "anti-patterns"
+    },
+    "How to use this during review": {
+      "summary": "A unit-level test doing **real I/O** (DB, network, disk, sleep) is mis-layered → flag as **Slow Tests** smell; move the I/O to an integration test and double the boundary at unit level.",
+      "anchor": "how-to-use-this-during-review"
+    },
+    "Boundaries": {
+      "summary": "The pyramid is a heuristic, not a quota.",
+      "anchor": "boundaries"
+    }
+  },
+  "plugins/dev-team/knowledge/test-smells.md": {
+    "Smell Categories": {
+      "summary": "xUnit Test Patterns groups smells into three levels.",
+      "anchor": "smell-categories"
+    },
+    "Code Smells (single test, readable now)": {
+      "summary": "| Smell | Detection signal | Why it hurts | Fix |",
+      "anchor": "code-smells-single-test-readable-now"
+    },
+    "Behavior Smells (only visible when tests run)": {
+      "summary": "| Smell | Detection signal | Why it hurts | Fix |",
+      "anchor": "behavior-smells-only-visible-when-tests-run"
+    },
+    "Project Smells (visible across the suite over time)": {
+      "summary": "| Smell | Detection signal | Why it hurts | Fix |",
+      "anchor": "project-smells-visible-across-the-suite-over-time"
+    },
+    "Detection Workflow": {
+      "summary": "1.",
+      "anchor": "detection-workflow"
+    },
+    "Boundaries": {
+      "summary": "A single behavior asserted with several related assertions on one object is **not** Eager Test or Assertion Roulette — that's normal.",
+      "anchor": "boundaries"
     }
   },
   "plugins/dev-team/knowledge/testability-patterns.md": {
@@ -789,6 +993,64 @@
     "Visual Verification Guidelines": {
       "summary": "When interpreting screenshots, describe:",
       "anchor": "visual-verification-guidelines"
+    }
+  },
+  "plugins/dev-team/skills/cd-test-architecture/SKILL.md": {
+    "Overview": {
+      "summary": "An **advisory, application-level** skill: it assesses how an existing application is tested, classifies that against a CD-aligned test taxonomy, finds the tests that can't run in a clean CI gate, and recommends a target architecture plus a migration path.",
+      "anchor": "overview"
+    },
+    "Constraints": {
+      "summary": "Advisory only.",
+      "anchor": "constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: a target application/repo path or description.",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job).",
+      "anchor": "steps"
+    },
+    "1. Inventory the application's components": {
+      "summary": "Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job).",
+      "anchor": "1-inventory-the-applications-components"
+    },
+    "2. Inventory the existing tests and classify them": {
+      "summary": "Find the test suites **in the repo** and classify each against the six types in `cd-test-architecture.md`.",
+      "anchor": "2-inventory-the-existing-tests-and-classify-them"
+    },
+    "2b. Locate and harvest out-of-repo tests": {
+      "summary": "When `--external-tests` is given (or in-repo tests are sparse and the user points you to external coverage), treat the external location as the **current specification of intended behavior** and harvest it:",
+      "anchor": "2b-locate-and-harvest-out-of-repo-tests"
+    },
+    "3. Diagnose CD-fitness gaps": {
+      "summary": "Flag, with evidence:",
+      "anchor": "3-diagnose-cd-fitness-gaps"
+    },
+    "3b. Find testable seams and the achievable outside-in baseline": {
+      "summary": "For each under-tested or untested component, identify the **testable seams** — places where behavior can be observed or substituted without editing the code (HTTP handler, CLI entrypoint, message handler, exported function, existing injection points; object seams via interfaces/polymorphism, link seams via DI/module substitution).",
+      "anchor": "3b-find-testable-seams-and-the-achievable-outside-in-baseline"
+    },
+    "4. Recommend the target architecture": {
+      "summary": "Per component, using its pattern: which test types cover which layers, **what to double to run pre-merge without configuration**, the success scenarios and failure modes to cover, the double-validation loop, and the pipeline stage for each (pre-merge gate vs Stage 1/2 vs out-of-band vs post-deploy).",
+      "anchor": "4-recommend-the-target-architecture"
+    },
+    "5. Produce a migration path": {
+      "summary": "Order the moves from current → target, lowest-risk first.",
+      "anchor": "5-produce-a-migration-path"
+    },
+    "6. Report": {
+      "summary": "Write the assessment (see Output).",
+      "anchor": "6-report"
+    },
+    "Output": {
+      "summary": "Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component):",
+      "anchor": "output"
+    },
+    "Integration": {
+      "summary": "Pairs with `test-design-advisor` (unit/module design) and the `test-smell-review` / `test-review` agents (per-file findings).",
+      "anchor": "integration"
     }
   },
   "plugins/dev-team/skills/ci-debugging/SKILL.md": {
@@ -2215,6 +2477,52 @@
     "Output": {
       "summary": "Root cause analysis with evidence: reproduction output, investigation findings, root cause statement, fix applied, and verification output showing the fix works without regressions.",
       "anchor": "output"
+    }
+  },
+  "plugins/dev-team/skills/test-design-advisor/SKILL.md": {
+    "Overview": {
+      "summary": "An **advisory** skill: it recommends how to test code and how to make untestable code testable.",
+      "anchor": "overview"
+    },
+    "Constraints": {
+      "summary": "Advisory only.",
+      "anchor": "constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: target file(s), module, or a description of the code to test.",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Read the target.",
+      "anchor": "steps"
+    },
+    "1. Assess testability": {
+      "summary": "Read the target.",
+      "anchor": "1-assess-testability"
+    },
+    "2. Place each behavior on the pyramid": {
+      "summary": "Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / integration / component / contract / E2E).",
+      "anchor": "2-place-each-behavior-on-the-pyramid"
+    },
+    "3. Choose doubles": {
+      "summary": "For each collaborator at each test, recommend the simplest double using the decision flow in `knowledge/test-doubles.md` (dummy/stub/spy/mock/fake) and whether to verify by state or behavior.",
+      "anchor": "3-choose-doubles"
+    },
+    "4. Propose a behavior-preserving refactor sequence (only if blockers exist)": {
+      "summary": "If Step 1 found blockers, produce an ordered sequence that makes the code testable without changing behavior:",
+      "anchor": "4-propose-a-behavior-preserving-refactor-sequence-only-if-blockers-exist"
+    },
+    "5. Report": {
+      "summary": "Write the recommendation (see Output).",
+      "anchor": "5-report"
+    },
+    "Output": {
+      "summary": "A concise advisory report (to chat for a single unit, or to `reports/test-design-<target>.md` for a module):",
+      "anchor": "output"
+    },
+    "Integration": {
+      "summary": "Pairs with the `test-smell-review` agent (which *detects* smells) and the `test-design-reviewer` skill (which *scores* an existing suite).",
+      "anchor": "integration"
     }
   },
   "plugins/dev-team/skills/test-design-reviewer/SKILL.md": {

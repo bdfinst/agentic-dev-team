@@ -35,6 +35,15 @@ Repeat until the challenger finds no new issues, or a maximum of 3 rounds is rea
 - Did you check for shared mutable state between tests (static fields, module-level singletons)?
 - Are there non-determinism sources (unstubbed clock, real network, file I/O) that weren't flagged as flakiness risks?
 
+### test-smell-review
+
+- For every smell flagged, did you name the specific xUnit smell (not just "this test is bad")?
+- For each "Slow Tests" or "Erratic Test" finding, did you confirm the test's *intended* level — integration/E2E tests touch real resources by design?
+- For each mock-related finding, did you verify a Stub + state assertion couldn't replace it, rather than assuming all mocking is a smell?
+- Did you distinguish Test Code Duplication (extractable) from two tests covering genuinely different boundary conditions?
+- For smells rooted in untestable production code, did you recommend the production-code change (per testability-patterns.md), not a test workaround?
+- Did you defer tactical mechanics (missing assertion, missing await) to test-review instead of double-reporting them?
+
 ### structure-review
 
 - Did you check every module/class for SRP violations, including small ones?

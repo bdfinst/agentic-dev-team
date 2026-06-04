@@ -41,13 +41,13 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Team agents** (11): Orchestrator, Software Engineer, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, Platform Engineer, ADR Author, Codebase Recon (~4,510 tokens total)
 
-**Review agents** (19): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, token-efficiency-review, refactor-opportunity-review, progress-guardian, data-flow-tracer
+**Review agents** (20): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review, refactor-opportunity-review, progress-guardian, data-flow-tracer
 
-**Skills** (34): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming, Ubiquitous Language
+**Skills** (36): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Test Design Advisor, CD Test Architecture, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming, Ubiquitous Language
 
 **Subagent prompt templates** (8): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`
 
-**Knowledge files** (11): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, exploratory-testing-field-guide, adversarial-review-protocol, design-smells, object-calisthenics, testability-patterns
+**Knowledge files** (17): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, exploratory-testing-field-guide, adversarial-review-protocol, design-smells, object-calisthenics, testability-patterns, test-smells, test-doubles, test-pyramid, microservice-testing, cd-test-architecture, component-test-patterns
 
 **Agent templates** (9): ts-enforcer, esm-enforcer, react-testing, front-end-testing, twelve-factor-audit, python-quality, go-quality, csharp-quality, angular-testing (in `templates/agents/`, scaffolded by `/setup`)
 
@@ -63,6 +63,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 |---------|------|------|--------------|
 | `/code-review` | `commands/code-review.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
 | `/review-agent` | `commands/review-agent.md` | worker | Run a single review agent (used for inline checkpoints) |
+| `/test-design` | `commands/test-design.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, then run test-design-advisor for testability/refactor recommendations (advisory) |
 | `/agent-audit` | `commands/agent-audit.md` | orchestrator | Audit agents/commands/hooks for structural compliance |
 | `/agent-eval` | `commands/agent-eval.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
 | `/agent-add` | `commands/agent-add.md` | implementation | Create a new review or team agent following the official schema with token-efficiency budgets |

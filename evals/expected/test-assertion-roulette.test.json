@@ -1,0 +1,14 @@
+{
+  "fixture": "test-assertion-roulette.test",
+  "description": "One test method asserts many unrelated behaviors with bare, message-less assertions",
+  "applicableAgents": ["test-smell-review"],
+  "agents": {
+    "test-smell-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 2, "max": 5 },
+      "severities": { "warning": { "min": 1, "max": 4 } },
+      "mustMention": ["Assertion Roulette", "Eager Test"],
+      "mustNotMention": ["Mystery Guest"]
+    }
+  }
+}
