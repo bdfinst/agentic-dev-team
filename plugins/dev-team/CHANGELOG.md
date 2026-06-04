@@ -1,5 +1,15 @@
 # Changelog
 
+## [6.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.0.0...dev-team-v6.1.0) (2026-06-04)
+
+
+### Features
+
+* **dev-team:** add test-design and CD test-architecture capabilities ([5281b37](https://github.com/bdfinst/agentic-dev-team/commit/5281b37e9ae693906d81d00db7c68715d836a411))
+* **dev-team:** handle out-of-repo tests + document test evaluation workflow ([42277cf](https://github.com/bdfinst/agentic-dev-team/commit/42277cfb43ad7d18bfe15d835c58a72d9993e101))
+* **dev-team:** outside-in baseline before refactor in test evaluation ([7624645](https://github.com/bdfinst/agentic-dev-team/commit/76246450dca152fceb755074fd7fa1e62dcc5ede))
+* **dev-team:** test design + CD test architecture capabilities ([4177444](https://github.com/bdfinst/agentic-dev-team/commit/41774446a23d7d2a9099012bf897d9d687bbd47d))
+
 ## [6.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v5.6.0...dev-team-v6.0.0) (2026-06-02)
 
 

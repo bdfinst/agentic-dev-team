@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.1.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.0.0...security-assessment-v3.1.0) (2026-06-04)
+
+
+### Features
+
+* **security-assessment:** add /upgrade command ([382b89f](https://github.com/bdfinst/agentic-dev-team/commit/382b89fff84ac5f770ffa1d0ce690708fe4f0baf))
+* **security-assessment:** add /upgrade command ([3ebd5bb](https://github.com/bdfinst/agentic-dev-team/commit/3ebd5bb7f23088c956e6244d3b7146a48b25b44d))
+
 ## [3.0.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v2.2.2...security-assessment-v3.0.0) (2026-06-02)
 
 
