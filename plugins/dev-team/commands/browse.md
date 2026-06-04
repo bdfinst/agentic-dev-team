@@ -14,6 +14,12 @@ Role: worker. This command provides browser-based interaction for visual verific
 
 You have been invoked with the `/browse` command.
 
+## Worker constraints
+
+1. Drive the browser only; do not edit source.
+2. Capture evidence (screenshots/logs); do not assert pass/fail beyond what was observed.
+3. **Be concise.** Report observations and artifacts, no preamble.
+
 ## Parse Arguments
 
 Arguments: $ARGUMENTS
@@ -30,12 +36,14 @@ Arguments: $ARGUMENTS
 ### 1. Check Playwright availability
 
 Run:
+
 ```bash
 npx playwright --version 2>/dev/null
 ```
 
 If Playwright is not available, ask the user:
 > Playwright is required for browser interaction. Install it now?
+>
 > ```
 > npx playwright install chromium
 > ```
@@ -94,6 +102,7 @@ const { chromium } = require('playwright');
 ```
 
 Write the script to a temp file, execute it, then clean up:
+
 ```bash
 node /tmp/browse-action.js && rm /tmp/browse-action.js
 ```
@@ -103,6 +112,7 @@ node /tmp/browse-action.js && rm /tmp/browse-action.js
 Use the Read tool to view the screenshot image. Claude's multimodal capabilities will interpret the visual content.
 
 Describe what you see:
+
 - Page layout and structure
 - Key visible content (headings, text, images)
 - State of interactive elements (forms, buttons, error messages)
@@ -111,6 +121,7 @@ Describe what you see:
 ### 5. Report results
 
 Provide a summary:
+
 ```
 ## Browse Results
 - **URL**: <final URL after any redirects>
@@ -145,6 +156,7 @@ In this mode:
 3. For each selector, verify it exists and is visible
 4. Take a full-page screenshot as verification evidence
 5. Return a structured result:
+
    ```
    - url: <final URL>
    - selectors_found: [list of selectors that were visible]
@@ -155,6 +167,7 @@ In this mode:
    ```
 
 If the connection times out or refuses (dev server not running), return:
+
 ```
 - status: skipped
 - reason: "Dev server not reachable at <URL>"

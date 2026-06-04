@@ -23,6 +23,7 @@ You have been invoked with the `/plan` command.
 2. **Every step must be TDD.** Each step follows RED → GREEN → REFACTOR.
 3. **Incremental.** Each step must leave the codebase in a working, committable state.
 4. **Human approval required.** Present the plan for approval before any implementation begins.
+5. **Be concise.** The plan is the artifact; keep chat to decisions and gaps.
 
 ## Parse Arguments
 

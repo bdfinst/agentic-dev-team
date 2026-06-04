@@ -16,6 +16,12 @@ Role: worker. This command measures runtime performance of web pages using Playw
 
 You have been invoked with the `/benchmark` command.
 
+## Worker constraints
+
+1. Measure only; do not modify the page or app under test.
+2. Compare against the declared budget; do not invent thresholds.
+3. **Be concise.** Report the metrics table and verdict, no narration.
+
 ## Parse Arguments
 
 Arguments: $ARGUMENTS
@@ -44,6 +50,7 @@ Read `skills/performance-benchmark/SKILL.md` for the full metric definitions, ou
 ### 2. Generate and run the benchmark script
 
 Generate a Node.js script based on the template that:
+
 - Navigates to the target URL
 - Collects Core Web Vitals (LCP, FCP, CLS, INP) via Performance Observer
 - Collects Navigation Timing (TTFB, DOM Interactive, Load Complete)
@@ -57,11 +64,13 @@ Run the script with `node` and capture the JSON output.
 ### 3. Compare against baseline (unless --baseline)
 
 If `--baseline` is set:
+
 - Save the metrics to `benchmarks/<page-slug>/baseline.json`
 - Create the directory if needed
 - Report: "Baseline saved for <url>"
 
 If `--baseline` is NOT set:
+
 - Read `benchmarks/<page-slug>/baseline.json` if it exists
 - Compare each metric: regression (>10% worse) → `fail`, degradation (5-10%) → `warn`, stable (±5%) → `pass`, improvement (>10% better) → noted
 - If no baseline exists, report metrics without comparison and suggest: "No baseline found. Run `/benchmark <url> --baseline` to establish one."
@@ -81,6 +90,7 @@ If `--trend` is set, read the history file and produce a trend summary showing m
 Write a markdown report to `benchmarks/<page-slug>/report.md` using the report format from the skill file.
 
 Display in chat:
+
 - Core Web Vitals table with pass/warn/fail status
 - Resource budget table
 - Any regressions with severity

@@ -11,7 +11,15 @@ allowed-tools: Read, Glob, Grep, Bash
 
 Role: worker. This command updates the dev-team plugin to the latest version and ensures its marketplace is set to auto-update going forward.
 
+Arguments: none.
+
 You have been invoked with the `/upgrade` command.
+
+## Worker constraints
+
+1. Use the official plugin update mechanism; do not hand-edit installed plugin files.
+2. Report available updates before applying.
+3. **Be concise.** Report version deltas only.
 
 ## Steps
 

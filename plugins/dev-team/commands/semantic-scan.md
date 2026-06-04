@@ -11,6 +11,30 @@ argument-hint: "[path] [--full] [--no-opus]"
 user-invocable: true
 ---
 
+# Semantic Scan
+
+Role: worker.
+
+## Worker constraints
+
+1. Detect and report duplicates; do not refactor.
+2. Run incrementally (git-diff based) after the first scan.
+3. **Be concise.** Report the duplicate table with file:line refs, no narration.
+
+## Steps
+
+### 1. Parse arguments
+
+Capture the optional path and flags from `$ARGUMENTS`.
+
+### 2. Delegate
+
+Invoke the semantic-duplication-scan skill.
+
+### 3. Report
+
+Output the duplicate report.
+
 Apply the guidelines defined in skills/semantic-duplication-scan/SKILL.md to the current task. Read the skill file and follow its process flow, pre-filter rules, annotation procedure, clustering strategy, and report format.
 
 ## Flags

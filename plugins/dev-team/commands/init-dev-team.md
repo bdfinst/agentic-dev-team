@@ -16,7 +16,15 @@ Role: worker. Installs tools required by the dev-team plugin, with a
 focus on the mutation gate. Run after the plugin is installed, or when the
 mutation gate reports a missing dependency.
 
+Arguments: none — interactive prompts drive selection.
+
 You have been invoked with the `/init-dev-team` command.
+
+## Worker constraints
+
+1. Install prerequisites and write config only where the user confirms.
+2. Be OS-aware; do not assume a package manager.
+3. **Be concise.** Report what was installed/skipped, no narration.
 
 ## Step 1 — Detect OS
 

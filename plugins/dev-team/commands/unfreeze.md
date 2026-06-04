@@ -12,6 +12,14 @@ Role: worker. This command removes the file editing scope lock.
 
 You have been invoked with the `/unfreeze` command.
 
+Arguments: none — operates on the current freeze state.
+
+## Worker constraints
+
+1. Clear only the freeze-state file.
+2. Do not edit source.
+3. **Be concise.** Confirm the lock is lifted in one line.
+
 ## Steps
 
 ### 1. Remove freeze state

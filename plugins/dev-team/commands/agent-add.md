@@ -15,6 +15,30 @@ user-invocable: true
 allowed-tools: Read, Write, Edit, Grep, Glob, WebFetch, Skill(agent-audit *)
 ---
 
+# Agent Add
+
+Role: implementation.
+
+## Implementation constraints
+
+1. Follow the official sub-agent schema and token budgets.
+2. Delegate the build to the agent-create skill; do not improvise structure.
+3. **Be concise.** Report the created agent file, no narration.
+
+## Steps
+
+### 1. Parse arguments
+
+Capture the agent name/spec or URL from `$ARGUMENTS`.
+
+### 2. Delegate
+
+Invoke the agent-create skill with the arguments.
+
+### 3. Report
+
+Output the created file path.
+
 Apply the guidelines defined in skills/agent-create/SKILL.md to the current
 task. Read the skill file and follow its steps exactly.
 
@@ -23,6 +47,7 @@ WebFetch first and extract the relevant guidance, then use that content as
 the agent description.
 
 Pass these flags through to the skill as context:
+
 - `--name <name>` → set agent name (skips name prompt)
 - `--type review|team` → set agent type (skips type prompt)
 - `--tier small|mid|frontier` → maps to model: small→haiku, mid→sonnet, frontier→opus

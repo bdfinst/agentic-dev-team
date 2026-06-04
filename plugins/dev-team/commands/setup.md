@@ -16,6 +16,12 @@ Role: orchestrator. This command bootstraps project-level configuration by detec
 
 You have been invoked with the `/setup` command.
 
+## Orchestrator constraints
+
+1. Detect and scaffold; delegate generation, do not review code yourself.
+2. Do not overwrite existing project config without confirming.
+3. **Be concise.** Report detected stack and generated artifacts, no narration.
+
 ## Parse Arguments
 
 Arguments: $ARGUMENTS
@@ -42,6 +48,7 @@ Search the project root for manifest files and record findings:
 | `Dockerfile`, `docker-compose.yml` | Container |
 
 Also detect frameworks within each stack:
+
 - **Node**: check `package.json` dependencies for `react`, `vue`, `svelte`, `@angular/core`, `express`, `fastify`, `nestjs`, `next`, `vitest`, `jest`, `mocha`
 - **Python**: check for `django`, `flask`, `fastapi`, `pytest` in deps
 - **Go**: check for `gin`, `echo`, `fiber` in `go.mod`

@@ -18,7 +18,21 @@ allowed-tools: >-
 
 # Review (alias)
 
+Role: orchestrator.
+
+## Orchestrator constraints
+
+1. Pure alias — change no behavior.
+2. Pass all arguments through to /code-review unchanged.
+3. **Be concise.** Defer all output to code-review.md.
+
 This is an alias for `/code-review`. Read and follow
 `commands/code-review.md` with all arguments passed through.
 
 Arguments: $ARGUMENTS
+
+## Steps
+
+### 1. Pass through
+
+Read and follow `commands/code-review.md` with `$ARGUMENTS` unchanged.
