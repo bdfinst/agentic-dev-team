@@ -1,6 +1,6 @@
 # Getting Started with the Agentic Scrum Team
 
-This project gives you an AI development team — specialized agents with distinct roles, reusable skills they draw on, and slash commands to invoke them. You talk to the team in natural language. The system figures out who should do the work and what knowledge they need.
+This project gives you an AI development team — specialized agents with distinct roles, reusable skills they draw on, and slash commands for skills and workflows. You talk to the team in natural language. The system figures out who should do the work and what knowledge they need.
 
 ## Key Concepts
 
@@ -8,25 +8,30 @@ This project gives you an AI development team — specialized agents with distin
 
 **Skills** are reusable knowledge modules — patterns, checklists, and procedures that any agent can reference. Skills define *how* to do something; agents define *when* and *why*.
 
-**Commands** are slash shortcuts (`/agent-name` or `/skill-name`) that invoke an agent or skill directly.
+**Commands** are slash shortcuts for **skills and workflows** (e.g. `/plan`, `/build`, `/specs`). Run `/help` for the full list. Note: **team agents are not slash commands** — you reach them through natural language or the workflow commands (see below), not by typing `/architect`.
 
 ## How to Use It
 
-### Invoke an agent directly
+### Just describe what you want (natural language)
 
-Use a slash command to adopt a specific agent's persona:
+Most of the time, talk to the team in plain language. Claude classifies the task, adopts the right agent persona, loads the skills it needs, and coordinates multi-agent work when the task is complex:
 
 ```
-/architect Design a caching layer for the user service
-/software-engineer Implement the caching adapter using hexagonal architecture
-/qa-engineer Write acceptance tests for the caching behavior
+Build a new authentication system with OAuth2 support
 ```
 
-The agent loads its persona, skills, and collaboration protocols, then applies them to your request.
+To steer a specific role, name it in the request:
+
+```
+As the architect, design a caching layer for the user service
+As the security engineer, review the authentication flow for the mobile client
+```
+
+Under the hood this dispatches the matching agent persona (the same one the Agent tool addresses as `subagent_type: dev-team:architect`). There is no `/architect` command — the persona is selected by intent, not by a slash.
 
 ### Invoke a skill directly
 
-Use a slash command to apply a skill's procedures without a specific persona:
+Skills *are* user-invocable as slash commands — use one to apply its procedures to your request:
 
 ```
 /threat-modeling Analyze the new payment API for security risks
@@ -34,60 +39,67 @@ Use a slash command to apply a skill's procedures without a specific persona:
 /specs Specify the user registration feature
 ```
 
-### Let the Orchestrator route
+### Use the workflow commands
 
-For complex or ambiguous requests, invoke the Orchestrator and let it decide which agents to load:
+The structured lifecycle has real slash commands. These are the primary entry points:
 
 ```
-/orchestrator Build a new authentication system with OAuth2 support
+/plan    Break a task into an incremental, test-driven plan
+/build   Execute an approved plan with TDD and inline review
+/pr      Run the pre-PR quality gate and open a pull request
+/code-review   Run the review agents over your changes
+/triage  Investigate a bug and file an issue with a fix plan
 ```
 
-The Orchestrator classifies the task, selects the right agents, and coordinates multi-agent collaboration when needed.
+Run `/help` to see every available command.
 
 ## Common Workflows
 
 ### New Feature (full lifecycle)
 
-Follow the core workflow (`/specs` → `/plan` → `/build` → `/pr`) described in the [README](README.md#workflow). At any stage, invoke agents directly for additional depth:
-- `/architect` to define the technical approach or review architecture
+Follow the core workflow (`/specs` → `/plan` → `/build` → `/pr`) described in the [README](README.md#workflow). At any stage, reach for additional depth — skills via their slash commands, agent roles via natural language:
+
+- "As the architect, define the technical approach…" to set or review architecture
 - `/threat-modeling` if the feature crosses trust boundaries or handles sensitive data
-- `/qa-engineer` to validate acceptance tests pass and coverage is adequate
-- `/tech-writer` if user-facing documentation is needed
+- "As the QA engineer, confirm the acceptance tests pass and coverage is adequate"
+- "As the tech writer, draft the user-facing docs" if documentation is needed
 
 ### Bug Fix
 
 ```
-/software-engineer Fix the race condition in the order processing pipeline
+Fix the race condition in the order processing pipeline
 ```
 
-Bug fixes typically need only the Software Engineer. The QA Engineer loads afterward if regression tests are needed.
+Or run `/triage` to investigate and file an issue with a fix plan. Bug fixes typically need only the Software Engineer; the QA Engineer follows if regression tests are needed.
 
 ### Architecture Review
 
 ```
-/architect Review the current service topology for scalability concerns
+As the architect, review the current service topology for scalability concerns
 ```
 
-The Architect may pull in the Security Engineer or DevOps/SRE Engineer for cross-cutting concerns.
+The Architect may pull in the Security Engineer or Platform Engineer for cross-cutting concerns.
 
 ### API Design
 
 ```
 /api-design Define the contract for the inventory management API
-/architect Review the API contract for consistency with the domain model
 ```
+
+Then ask the architect to review the contract for consistency with the domain model.
 
 ### Security Review
 
 ```
-/security-engineer Review the authentication flow for the mobile client
 /threat-modeling Analyze the new file upload endpoint
 ```
+
+Then ask the security engineer to review the authentication flow for the mobile client.
 
 ### Pipeline and Deployment
 
 ```
-/devops-sre-engineer Design the CI/CD pipeline for the new microservice
+As the platform engineer, design the CI/CD pipeline for the new microservice
 ```
 
 ## Available Agents and Skills
