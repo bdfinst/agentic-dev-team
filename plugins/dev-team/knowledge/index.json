@@ -182,6 +182,10 @@
       "summary": "Wrap every third-party client (SDK, HTTP client, broker client, DB driver) in **a thin adapter the team owns**, then double the *adapter* in component tests — never mock the third-party SDK directly.",
       "anchor": "the-adapter-rule-own-your-boundaries"
     },
+    "Outside-In First: Baseline Before Refactor": {
+      "summary": "You rarely start from a clean slate.",
+      "anchor": "outside-in-first-baseline-before-refactor"
+    },
     "Double Validation (keeping doubles honest)": {
       "summary": "A double that drifts from reality gives false confidence — the central risk of double-based isolation.",
       "anchor": "double-validation-keeping-doubles-honest"
@@ -1023,6 +1027,10 @@
     "3. Diagnose CD-fitness gaps": {
       "summary": "Flag, with evidence:",
       "anchor": "3-diagnose-cd-fitness-gaps"
+    },
+    "3b. Find testable seams and the achievable outside-in baseline": {
+      "summary": "For each under-tested or untested component, identify the **testable seams** — places where behavior can be observed or substituted without editing the code (HTTP handler, CLI entrypoint, message handler, exported function, existing injection points; object seams via interfaces/polymorphism, link seams via DI/module substitution).",
+      "anchor": "3b-find-testable-seams-and-the-achievable-outside-in-baseline"
     },
     "4. Recommend the target architecture": {
       "summary": "Per component, using its pattern: which test types cover which layers, **what to double to run pre-merge without configuration**, the success scenarios and failure modes to cover, the double-validation loop, and the pipeline stage for each (pre-merge gate vs Stage 1/2 vs out-of-band vs post-deploy).",

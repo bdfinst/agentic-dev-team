@@ -25,6 +25,7 @@ Grounded in two knowledge references — read both before assessing:
 - The pre-merge gate may contain **only deterministic** tests (static, unit, component, contract). Any test that needs a database, broker, downstream service, or environment secrets configured to run is, by definition, not a pre-merge test — flag it.
 - Recommend isolation via in-memory doubles + owned adapters, validated by the double-validation loop. Do **not** recommend standing up the whole system (docker-compose of dependencies) for the gate — that is the configured-dependency problem this architecture removes.
 - **Do not assume provider cooperation.** For dependencies the team doesn't control, the defense against contract breakage is consumer-owned, scheduled verification against the provider's test environment (out-of-band) plus consumer resilience — not provider-side CDC verification. Recommend accordingly.
+- **Baseline before refactor (don't lead with refactoring).** For under-tested or legacy components, first recommend the best outside-in test achievable *at existing seams without changing the code* — a characterization baseline — then the refactor that improves testability under that green baseline. Never change behavior and structure in the same step. Defer the procedure to the `legacy-code` skill and use the DDD skills (`domain-driven-design`, `domain-analysis`) to suggest the target structure for the refactor.
 - Minimal tooling: prefer in-memory doubles, one real browser for UI, testcontainers only for off-gate adapter integration. Don't recommend a sprawl of frameworks.
 - Be concise: tables and ordered steps, not prose. Cite the knowledge file instead of restating it.
 
@@ -67,13 +68,29 @@ Flag, with evidence:
 - **No resilience to a broken contract** — the consumer assumes the provider holds; no tests that it survives a provider break (timeout, retry/backoff, circuit breaker, drifted/malformed response). Assume the provider *will* break without versioning.
 - **Inverted shape** — reliance on integration/E2E where component/contract tests would gate deterministically.
 
+### 3b. Find testable seams and the achievable outside-in baseline
+
+For each under-tested or untested component, identify the **testable seams** — places where behavior can be observed or substituted without editing the code (HTTP handler, CLI entrypoint, message handler, exported function, existing injection points; object seams via interfaces/polymorphism, link seams via DI/module substitution). Then state the **best outside-in test achievable right now without refactoring** — a characterization test at the outermost reachable seam that locks in current behavior. This is the immediate, zero-risk baseline, distinct from the (later) clean CD gate. See `cd-test-architecture.md` → Outside-In First, and the `legacy-code` skill.
+
 ### 4. Recommend the target architecture
 
-Per component, using its pattern: which test types cover which layers, **what to double to run pre-merge without configuration**, the success scenarios and failure modes to cover, the double-validation loop, and the pipeline stage for each (pre-merge gate vs Stage 1/2 vs out-of-band vs post-deploy). Show the resulting pre-merge gate is deterministic and config-free.
+Per component, using its pattern: which test types cover which layers, **what to double to run pre-merge without configuration**, the success scenarios and failure modes to cover, the double-validation loop, and the pipeline stage for each (pre-merge gate vs Stage 1/2 vs out-of-band vs post-deploy). Show the resulting pre-merge gate is deterministic and config-free. For under-tested components, separate the recommendation into **(a) the outside-in characterization baseline writable today without refactoring** and **(b) the post-baseline refactor** toward this target (use the DDD skills to suggest where boundaries/seams should land).
 
 ### 5. Produce a migration path
 
-Order the moves from current → target, lowest-risk first. When tests are out-of-repo (Step 2b), the path **starts by bringing the behavior in**: for each harvested behavior, re-express it as the lowest-layer deterministic in-repo test that covers it (Postman request → component/contract test; manual UI script → UI component test with the backend network-stubbed; other-repo E2E → in-repo component test + a thin post-deploy smoke), then retire the external case once its behavior is covered in the gate. Typical full sequence: harvest external coverage into an in-repo behavior inventory → introduce owned adapters → add in-memory doubles + component tests reproducing the harvested behaviors → add contract tests → add consumer resilience tests (survive a provider break) → add scheduled provider-contract verification against a test environment → move real-dependency tests off the gate to adapter-integration/out-of-band → add post-deploy checks → decommission the out-of-repo/manual suites as their behaviors land in the gate. Each step is behavior-preserving and independently shippable.
+Order the moves from current → target, lowest-risk first. The spine is **baseline before refactor**: get behavior under test at existing seams *without changing code*, then refactor under that green baseline (never behavior + structure in one step). When tests are out-of-repo (Step 2b), the harvested behaviors feed that baseline. Typical full sequence:
+
+1. **Characterization baseline (no refactoring)** — at the outermost reachable seam, write outside-in tests that lock in current behavior; harvest any out-of-repo/manual behaviors into this inventory and reproduce them here. Get green.
+2. **Introduce owned adapters and seams — under the baseline** (Adapter Rule; `testability-patterns.md`; DDD skills suggest where boundaries/seams belong). Refactor only with the baseline green.
+3. Add in-memory doubles + deterministic **component tests** reproducing the baselined behaviors.
+4. Add **contract tests** pinning request/response boundaries.
+5. Add **consumer resilience tests** (survive a provider break).
+6. Add **scheduled provider-contract verification** against a test environment.
+7. Move real-dependency tests **off the gate** to adapter-integration / out-of-band.
+8. Add **post-deploy checks**.
+9. **Decommission** the out-of-repo/manual suites and the coarse characterization tests as their behaviors land in the deterministic gate.
+
+Each step is behavior-preserving and independently shippable.
 
 ### 6. Report
 
@@ -98,6 +115,9 @@ Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component
 ### CD-fitness gaps
 | Gap | Type | Evidence (file) | Impact |
 
+### Testable seams & achievable baseline (under-tested components)
+| Component | Outermost seam | Best outside-in test writable today (no refactor) |
+
 ### Target architecture (per component)
 | Component | Layer | Test type | Double (to run config-free) | Pipeline stage |
 
@@ -115,4 +135,6 @@ Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component
 ## Integration
 
 - Pairs with `test-design-advisor` (unit/module design) and the `test-smell-review` / `test-review` agents (per-file findings). This skill sets the application-level target those operate within.
+- For under-tested/legacy components, the characterization-baseline-then-refactor procedure is the **`legacy-code`** skill (Feathers' algorithm: change points → test points/seams → break dependencies → characterization tests → refactor under green). Defer the mechanics to it.
+- Use the **`domain-driven-design`** and **`domain-analysis`** skills to suggest the target structure for the post-baseline refactor — where bounded contexts, ports, and seams should land — so refactoring improves the domain model, not just testability.
 - Hand the migration path to `/plan` or `/build` for TDD implementation. This skill stops at the architecture and plan.

@@ -75,17 +75,17 @@ Per component: which test types cover which layers, what to double to run pre-me
 
 ### Step 5: Produce a migration path
 
-Ordered lowest-risk first, each step independently shippable. When tests are out-of-repo, the path starts by bringing behavior in (see "When the tests aren't in the repo" below). Typical full sequence:
+Ordered lowest-risk first, each step independently shippable. The spine is **baseline before refactor**: get behavior under test at existing seams *without changing code*, then refactor under that green baseline. When tests are out-of-repo, the harvested behaviors feed that baseline. Typical full sequence:
 
-1. Harvest external coverage into an in-repo behavior inventory
-2. Introduce owned adapters over third-party clients
-3. Add in-memory doubles + component tests for each harvested behavior
+1. **Characterization baseline (no refactoring)** — outside-in tests at the outermost reachable seam that lock in current behavior; reproduce any harvested out-of-repo/manual behaviors here. Get green.
+2. Introduce owned adapters and seams **under the baseline** (DDD skills suggest where boundaries belong)
+3. Add in-memory doubles + component tests reproducing the baselined behaviors
 4. Add contract tests pinning request/response boundaries
 5. Add consumer resilience tests (verify the component survives a provider break)
 6. Add scheduled provider-contract verification against a test environment
 7. Move real-dependency tests off the gate to adapter integration or out-of-band
 8. Add post-deploy checks
-9. Decommission out-of-repo and manual suites as their behaviors land in the gate
+9. Decommission out-of-repo/manual suites and the coarse characterization tests as their behaviors land in the deterministic gate
 
 ### Step 6: Report
 
@@ -157,6 +157,18 @@ Consumer-driven contract verification where the provider runs your contract in t
 
 Provider-side verification of your contract is a bonus if they offer it — not the mechanism to rely on.
 
+### Baseline before refactor (legacy code)
+
+Legacy code is code without tests (regardless of age). When a component is poorly tested, **do not lead with refactoring**:
+
+1. **Find the testable seams** — places where behavior can be observed or substituted without editing the code (HTTP handler, CLI entrypoint, message handler, exported function, existing injection points).
+2. **Write the best outside-in tests achievable now, without refactoring** — characterization tests at the outermost reachable seam that lock in current behavior. This is a behavior baseline, not yet a clean gate.
+3. **Get the baseline green** — your safety net.
+4. **Refactor to improve testability under green** — introduce adapters and seams, push checks down to deterministic component/unit tests. Never change behavior and structure in the same step.
+5. **Let the domain guide the target** — the `domain-driven-design` and `domain-analysis` skills suggest where boundaries and seams should land.
+
+The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill; this workflow places it in the CD test architecture. An assessment of an under-tested component therefore returns two things: the outside-in baseline writable today, and the refactor sequence that improves testability afterward.
+
 ---
 
 ## Sample Invocations
@@ -204,5 +216,7 @@ Provider-side verification of your contract is a bonus if they offer it — not 
 | [`knowledge/microservice-testing.md`](../knowledge/microservice-testing.md) | Contract and CDC testing across independently-deployable services |
 | [`skills/cd-test-architecture/SKILL.md`](../skills/cd-test-architecture/SKILL.md) | The application-level assessment skill |
 | [`skills/test-design-advisor/SKILL.md`](../skills/test-design-advisor/SKILL.md) | The unit/module design advisor skill |
+| [`skills/legacy-code/SKILL.md`](../skills/legacy-code/SKILL.md) | Characterization testing + dependency-breaking: the baseline-before-refactor procedure |
+| [`skills/domain-driven-design/SKILL.md`](../skills/domain-driven-design/SKILL.md) | Suggests target boundaries/seams for the post-baseline refactor |
 | [`commands/test-design.md`](../commands/test-design.md) | The `/test-design` orchestrator command |
 | [`agents/test-smell-review.md`](../agents/test-smell-review.md) | The smell-detection review agent |

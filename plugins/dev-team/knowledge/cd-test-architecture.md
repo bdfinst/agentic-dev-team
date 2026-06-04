@@ -80,6 +80,20 @@ This keeps the mock surface small, stable, and owned, and localizes every "the r
 
 ---
 
+## Outside-In First: Baseline Before Refactor
+
+You rarely start from a clean slate. When a component is poorly tested or untested ("legacy" = code without tests, regardless of age), **do not lead with refactoring.** The sequence that protects behavior:
+
+1. **Find the testable seams.** A seam is a place where behavior can be observed or substituted *without editing the code under test* — an HTTP handler, a CLI entrypoint, a message handler, an exported function, an existing injection point (object seams via interfaces/polymorphism; link seams via DI/module substitution). The outermost seam you can drive is usually the best starting point.
+2. **Write the best outside-in tests achievable now, without refactoring.** At the outermost reachable seam, write characterization tests that exercise the component as fully as possible and lock in its *current* observable behavior — even if you must tolerate some real dependencies or coarse assertions at first. The goal is a **behavior baseline**, not yet a clean CD gate.
+3. **Get the baseline green.** This is the safety net.
+4. **Now refactor to improve testability — under green.** Introduce adapters and seams (the Adapter Rule, `testability-patterns.md`), push checks down to deterministic component/unit tests, and tighten assertions. **Never change behavior and structure in the same step** (`legacy-code` skill). The baseline catches regressions the refactor might introduce.
+5. **Let the domain guide the target structure.** Use the DDD skills (`domain-driven-design`, `domain-analysis`) to suggest where boundaries, ports, and seams *should* go — so the refactor moves toward a sound domain model, not just toward testability.
+
+So an assessment recommends two things per under-tested component: **(a) the best outside-in test we can write today without touching the code** (immediate baseline), and **(b) the refactor sequence that improves testability afterward**, gated by that baseline. The full procedure lives in the `legacy-code` skill; this is its place in the CD test architecture.
+
+---
+
 ## Double Validation (keeping doubles honest)
 
 A double that drifts from reality gives false confidence — the central risk of double-based isolation. Keeping a double honest has two independent jobs: **detect** when reality diverges, and **survive** the divergence when it happens.
