@@ -11,7 +11,7 @@ user-invocable: true
 
 An **advisory** skill: it recommends how to test code and how to make untestable code testable. It does not write tests or refactor code — it produces a design the human (or `/build`) then implements. Use it before writing a test suite for an untested or hard-to-test module, or when a test is hard to write and you suspect the design is the cause.
 
-Grounded in four knowledge references: `knowledge/test-smells.md`, `knowledge/test-doubles.md`, `knowledge/test-pyramid.md`, `knowledge/microservice-testing.md`, and `knowledge/testability-patterns.md` for production-code seams.
+Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/test-doubles.md`, `knowledge/test-pyramid.md`, `knowledge/microservice-testing.md`, `knowledge/testability-patterns.md` for production-code seams, and `knowledge/test-strategy.md` for fixture and SUT-interaction strategy.
 
 ## Constraints
 
@@ -38,6 +38,10 @@ Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that
 ### 3. Choose doubles
 
 For each collaborator at each test, recommend the simplest double using the decision flow in `knowledge/test-doubles.md` (dummy/stub/spy/mock/fake) and whether to verify by state or behavior. Default to state verification + stub/fake; reserve mock/spy for true side-effect boundaries.
+
+### 3b. Recommend fixture and interaction strategy
+
+Using `knowledge/test-strategy.md`, recommend per test group: fixture design + lifecycle (default Minimal + Fresh; escalate to Immutable Shared → Shared only under measured speed pressure), how the test is driven (scripted default; data-driven when variation is purely data), and SUT interaction (front-door by default; Layer Test for layered code; Back Door Manipulation only when the front door obscures intent). Flag any reliance on a mutable Shared Fixture as an Interacting-Tests risk.
 
 ### 4. Propose a behavior-preserving refactor sequence (only if blockers exist)
 

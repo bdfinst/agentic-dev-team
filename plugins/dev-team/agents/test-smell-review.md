@@ -56,7 +56,7 @@ Code smells (single test):
 - **Conditional Test Logic** — `if`/`switch`/loops/try-catch around assertions; the test verifies different things on different runs
 - **Hard-Coded / Magic Values** in assertions with no stated meaning
 - **Test Code Duplication** — copy-pasted arrange/assert blocks that should be a builder or custom assertion (not two genuinely different boundary cases)
-- **Test Logic in Production** — `if (testMode)`, test-only back doors in shipped code
+- **Test Logic in Production** — `if (testMode)`, test-only back doors in shipped code (distinct from a *test* using Back Door Manipulation to reach SUT-owned state — see `knowledge/test-strategy.md`; only the production-code form is a smell)
 
 Behavior smells (only visible on run):
 

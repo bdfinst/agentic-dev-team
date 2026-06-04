@@ -673,6 +673,24 @@
       "anchor": "boundaries"
     }
   },
+  "plugins/dev-team/knowledge/test-strategy.md": {
+    "1. Test Fixture Strategy": {
+      "summary": "The fixture is everything the test needs in place before it acts.",
+      "anchor": "1-test-fixture-strategy"
+    },
+    "2. Test Automation Strategy": {
+      "summary": "How the test is written and driven.",
+      "anchor": "2-test-automation-strategy"
+    },
+    "3. SUT Interaction Strategy": {
+      "summary": "How the test reaches the system under test.",
+      "anchor": "3-sut-interaction-strategy"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`test-doubles.md`** — once Layer Test or Back Door Manipulation needs a collaborator stand-in, choose the double there.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/testability-patterns.md": {
     "\"I Can't Test This Class\" Decision Flow": {
       "summary": "---",
@@ -2507,6 +2525,10 @@
     "3. Choose doubles": {
       "summary": "For each collaborator at each test, recommend the simplest double using the decision flow in `knowledge/test-doubles.md` (dummy/stub/spy/mock/fake) and whether to verify by state or behavior.",
       "anchor": "3-choose-doubles"
+    },
+    "3b. Recommend fixture and interaction strategy": {
+      "summary": "Using `knowledge/test-strategy.md`, recommend per test group: fixture design + lifecycle (default Minimal + Fresh; escalate to Immutable Shared → Shared only under measured speed pressure), how the test is driven (scripted default; data-driven when variation is purely data), and SUT interaction (front-door by default; Layer Test for layered code; Back Door Manipulation only when the front door obscures intent).",
+      "anchor": "3b-recommend-fixture-and-interaction-strategy"
     },
     "4. Propose a behavior-preserving refactor sequence (only if blockers exist)": {
       "summary": "If Step 1 found blockers, produce an ordered sequence that makes the code testable without changing behavior:",

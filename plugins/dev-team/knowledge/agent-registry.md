@@ -126,6 +126,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Test Smells | `knowledge/test-smells.md` | ~900 | test-smell-review, test-review, test-design-advisor |
 | Test Doubles | `knowledge/test-doubles.md` | ~700 | test-smell-review, test-design-advisor |
 | Test Pyramid | `knowledge/test-pyramid.md` | ~700 | test-smell-review, test-review, test-design-advisor |
+| Test Strategy | `knowledge/test-strategy.md` | ~900 | test-design-advisor, test-smell-review, test-review |
 | Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |
 | CD Test Architecture | `knowledge/cd-test-architecture.md` | ~1,100 | cd-test-architecture, test-design-advisor |
 | Component Test Patterns | `knowledge/component-test-patterns.md` | ~1,600 | cd-test-architecture |
