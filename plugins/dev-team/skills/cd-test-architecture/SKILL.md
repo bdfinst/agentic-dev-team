@@ -1,6 +1,6 @@
 ---
 name: cd-test-architecture
-description: Evaluate an existing application's tests and recommend a CD-pipeline-aligned test architecture — fast, deterministic tests with minimal tooling that fully validate behavior (including cross-service interaction) and run in CI without configuring the rest of the system. Use when the user says "evaluate how this app is tested", "design a test architecture", "align our tests for CD", "make our CI tests deterministic", "our tests need the whole system configured", or asks for UI/service/batch test patterns.
+description: Evaluate an existing application's tests and recommend a CD-pipeline-aligned test architecture — fast, deterministic tests with minimal tooling that fully validate behavior (including cross-service interaction) and run in CI without configuring the rest of the system. Use when the user says "evaluate how this app is tested", "design a test architecture", "align our tests for CD", "make our CI tests deterministic", "our tests need the whole system configured", "our tests live in another repo / Postman / manual scripts", or asks for UI/service/batch test patterns.
 role: worker
 user-invocable: true
 ---
@@ -30,7 +30,7 @@ Grounded in two knowledge references — read both before assessing:
 
 ## Parse Arguments
 
-Arguments: a target application/repo path or description. Optional `--component <name>` to scope to one component, `--ci <path>` to point at the existing pipeline config. If no target is given, ask for one.
+Arguments: a target application/repo path or description. Optional `--component <name>` to scope to one component, `--ci <path>` to point at the existing pipeline config, and **`--external-tests <path-or-repo-or-description>`** to point at tests that live outside this repo (another repo's suite, a third-party runner, Postman/Insomnia collections, manual test scripts, recorded UI flows, spreadsheets of test cases). If little or no in-repo testing is found and no external location is given, **ask** where the application is actually tested before concluding it is untested. If no target is given, ask for one.
 
 ## Steps
 
@@ -40,12 +40,26 @@ Map the deployable/testable surfaces and assign each its pattern from `component
 
 ### 2. Inventory the existing tests and classify them
 
-Find the test suites and classify each against the six types in `cd-test-architecture.md`. For each, record: type, what it actually exercises, whether it is deterministic, and **what it requires to run** (DB URL, broker, downstream service, secrets, sleep, real clock).
+Find the test suites **in the repo** and classify each against the six types in `cd-test-architecture.md`. For each, record: type, what it actually exercises, whether it is deterministic, and **what it requires to run** (DB URL, broker, downstream service, secrets, sleep, real clock).
+
+If in-repo tests are sparse or absent, the application is not necessarily untested — it may be tested out-of-repo (see Step 2b). Do not conclude "no tests" without checking.
+
+### 2b. Locate and harvest out-of-repo tests
+
+When `--external-tests` is given (or in-repo tests are sparse and the user points you to external coverage), treat the external location as the **current specification of intended behavior** and harvest it:
+
+- **Other-repo automated suites** — read the suites; classify them by type just like in-repo tests; note that they live outside the component's repo and pipeline.
+- **Postman / Insomnia / `.http` collections** — each request + its assertions describes an API contract and a scenario. Extract: endpoint, request shape, expected response, and which success/failure scenario it covers.
+- **Manual test scripts / spreadsheets / recorded UI flows** — extract each step as a behavior the team cares about (a candidate component/E2E scenario), and note it is currently human-executed and non-repeatable.
+
+Produce a behavior inventory from these sources, mapped to the component patterns from Step 1. This becomes the **basis for improvement** — the behaviors to re-express as deterministic, in-repo, gated tests.
 
 ### 3. Diagnose CD-fitness gaps
 
 Flag, with evidence:
 
+- **Out-of-repo / third-party-runner testing** — the component's tests live in another repo, a separate QA runner, Postman collections, or manual scripts rather than alongside the code. **This is an anti-pattern**, even when that external coverage is extensive: the tests cannot gate the component's own merges, are not versioned with the code they verify, are usually non-deterministic and environment-coupled, and silently drift from the code. The goal state is deterministic tests co-located with the code and run in its pipeline. Flag this explicitly and treat the external suite as the *source material* (Step 2b), not the destination.
+- **Manual / non-repeatable testing** — behavior verified only by humans following scripts. Non-repeatable, unsuitable for any gate; each such script is a behavior to automate.
 - **Mis-typed gate tests** — "unit/component" tests that require a real dependency or are non-deterministic (real clock/RNG/network/sleep). These cannot be a pre-merge gate.
 - **Configured-dependency tests** — tests that need the rest of the system stood up to run.
 - **Coverage gaps** — behavior (success + failure modes per the component pattern) not covered at any deterministic layer.
@@ -59,7 +73,7 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 ### 5. Produce a migration path
 
-Order the moves from current → target, lowest-risk first (typically: introduce owned adapters → add in-memory doubles + component tests → add contract tests → add consumer resilience tests (survive a provider break) → add scheduled provider-contract verification against a test environment → move real-dependency tests off the gate to adapter-integration/out-of-band → add post-deploy checks). Each step is behavior-preserving and independently shippable.
+Order the moves from current → target, lowest-risk first. When tests are out-of-repo (Step 2b), the path **starts by bringing the behavior in**: for each harvested behavior, re-express it as the lowest-layer deterministic in-repo test that covers it (Postman request → component/contract test; manual UI script → UI component test with the backend network-stubbed; other-repo E2E → in-repo component test + a thin post-deploy smoke), then retire the external case once its behavior is covered in the gate. Typical full sequence: harvest external coverage into an in-repo behavior inventory → introduce owned adapters → add in-memory doubles + component tests reproducing the harvested behaviors → add contract tests → add consumer resilience tests (survive a provider break) → add scheduled provider-contract verification against a test environment → move real-dependency tests off the gate to adapter-integration/out-of-band → add post-deploy checks → decommission the out-of-repo/manual suites as their behaviors land in the gate. Each step is behavior-preserving and independently shippable.
 
 ### 6. Report
 
@@ -75,8 +89,11 @@ Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component
 ### Components & patterns
 | Component | Pattern | Surfaces |
 
-### Current tests
+### Current tests (in-repo)
 | Suite | MinimumCD type | Deterministic? | Requires to run | Pre-merge-safe? |
+
+### Out-of-repo / external test sources (if any)
+| Source (repo / Postman / manual / …) | Location | Behaviors it covers | Why it's an anti-pattern here |
 
 ### CD-fitness gaps
 | Gap | Type | Evidence (file) | Impact |

@@ -170,6 +170,10 @@
       "summary": "Pre-merge (the gate that blocks a merge) contains **only**: static analysis, unit, component, and contract tests.",
       "anchor": "the-pre-merge-gate-rule"
     },
+    "Tests Must Live With the Code (out-of-repo testing is an anti-pattern)": {
+      "summary": "A component's tests belong **in the component's repository and pipeline**.",
+      "anchor": "tests-must-live-with-the-code-out-of-repo-testing-is-an-anti-pattern"
+    },
     "How Component Tests Run Without Configuring Dependencies": {
       "summary": "The component test is the workhorse of a CD gate.",
       "anchor": "how-component-tests-run-without-configuring-dependencies"
@@ -1009,8 +1013,12 @@
       "anchor": "1-inventory-the-applications-components"
     },
     "2. Inventory the existing tests and classify them": {
-      "summary": "Find the test suites and classify each against the six types in `cd-test-architecture.md`.",
+      "summary": "Find the test suites **in the repo** and classify each against the six types in `cd-test-architecture.md`.",
       "anchor": "2-inventory-the-existing-tests-and-classify-them"
+    },
+    "2b. Locate and harvest out-of-repo tests": {
+      "summary": "When `--external-tests` is given (or in-repo tests are sparse and the user points you to external coverage), treat the external location as the **current specification of intended behavior** and harvest it:",
+      "anchor": "2b-locate-and-harvest-out-of-repo-tests"
     },
     "3. Diagnose CD-fitness gaps": {
       "summary": "Flag, with evidence:",
@@ -1021,7 +1029,7 @@
       "anchor": "4-recommend-the-target-architecture"
     },
     "5. Produce a migration path": {
-      "summary": "Order the moves from current → target, lowest-risk first (typically: introduce owned adapters → add in-memory doubles + component tests → add contract tests → add consumer resilience tests (survive a provider break) → add scheduled provider-contract verification against a test environment → move real-dependency tests off the gate to adapter-integration/out-of-band → add post-deploy checks).",
+      "summary": "Order the moves from current → target, lowest-risk first.",
       "anchor": "5-produce-a-migration-path"
     },
     "6. Report": {

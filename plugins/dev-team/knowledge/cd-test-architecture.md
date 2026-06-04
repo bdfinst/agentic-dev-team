@@ -37,6 +37,25 @@ If a "unit test" needs a database URL, a broker, a downstream service, or enviro
 
 ---
 
+## Tests Must Live With the Code (out-of-repo testing is an anti-pattern)
+
+A component's tests belong **in the component's repository and pipeline**. When a component has little or no in-repo testing and is instead verified by suites in another repo, a separate QA runner, Postman/Insomnia collections, or manual scripts, that is an **anti-pattern — regardless of how thorough the external coverage is** — because:
+
+- It **cannot gate the component's own merges** — the build can go green while the behavior is broken.
+- It is **not versioned with the code** it verifies, so the two drift; a code change and its test change can't move together.
+- It is usually **non-deterministic and environment-coupled** (shared environments, real dependencies, human steps), so it could never be a pre-merge gate anyway.
+- **Manual scripts are not repeatable** — they're a checklist, not a regression net.
+
+This does not mean the external coverage is worthless — it is the **current specification of intended behavior** and the best available basis for improvement. The move is:
+
+1. **Harvest** the external coverage into an in-repo behavior inventory: each Postman request → an API contract + scenario; each manual step → a behavior to automate; each other-repo test → a behavior to reproduce locally.
+2. **Re-express** each behavior as the lowest-layer deterministic in-repo test that covers it (see `component-test-patterns.md`), running in the component's own gate.
+3. **Decommission** the external/manual case once its behavior is covered in the gate.
+
+A user should be able to point the assessment at where the external tests live (`--external-tests`); treat that location as source material, not as the destination.
+
+---
+
 ## How Component Tests Run Without Configuring Dependencies
 
 The component test is the workhorse of a CD gate. The pattern, consistent across every component type:

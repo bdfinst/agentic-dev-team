@@ -48,6 +48,8 @@ Enforce rigorous development practices:
 | Browser Testing | [`browser-testing.md`](../skills/browser-testing/SKILL.md) | Playwright-based browser QA for visual verification |
 | Feature File Validation | [`feature-file-validation.md`](../skills/feature-file-validation/SKILL.md) | Gherkin quality, determinism, implementation independence, test automation coverage |
 
+> For the full test evaluation workflow — how Test Design Advisor, CD Test Architecture, `/test-design`, and `test-smell-review` relate, the out-of-repo anti-pattern, and sample invocations — see [Test Evaluation and Architecture](test-evaluation.md).
+
 ### Research & Design Skills
 
 Used during the Research phase to explore alternatives and stress-test designs:
