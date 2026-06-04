@@ -13,7 +13,7 @@ fallback path; the single-source-of-truth invariant is enforced by an
 AST-level test in evals/security-review-adapter/tests/.
 
 Contract, error semantics, and failure modes are documented in
-plugins/dev-team/docs/specs/agent-rule-id-adapter.md.
+plugins/dev-team/skills/static-analysis-integration/references/security-review-adapter.md.
 """
 
 from __future__ import annotations

@@ -6,9 +6,9 @@ static-analysis-integration skill's `adapters/` tree, following the
 per-source adapter pattern (actionlint SARIF wrapper, tier-3 bespoke
 JSON adapters).
 
-Contract and failure modes are specified in
-`plugins/dev-team/docs/specs/agent-rule-id-adapter.md`. This
-reference is the operator-facing summary.
+This document is the authoritative contract for the adapter. The input
+and output envelopes, error semantics, and the single-source-of-truth
+invariant are specified in full below.
 
 ## Prerequisites
 
