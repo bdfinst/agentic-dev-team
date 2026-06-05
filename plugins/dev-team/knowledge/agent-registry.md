@@ -78,6 +78,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~900 | QA Engineer, Architect, Platform Engineer, Software Engineer |
 | Test Health | `skills/test-health/SKILL.md` | ~900 | QA Engineer, `/test-health` command |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 700 | QA Engineer |
+| Exploratory Testing | `skills/exploratory-testing/SKILL.md` | ~900 | QA Engineer, `/explore` command |
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
 | Design Interrogation | `skills/design-interrogation/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
 | Design It Twice | `skills/design-it-twice/SKILL.md` | 550 | Architect, Software Engineer |

@@ -14,7 +14,7 @@ For the workflow overview, team philosophy, and three-phase (Research → Plan �
 - `jq` — used by hooks for JSON parsing
   - macOS: `brew install jq`
   - Linux: `apt install jq` or `yum install jq`
-- `gh` — [GitHub CLI](https://cli.github.com/), used by `/pr` and `/triage` for creating PRs and issues
+- `gh` — [GitHub CLI](https://cli.github.com/), used by `/pr` and `/issues-from-plan` for creating PRs and issues
   - macOS: `brew install gh`
   - Linux: see [GitHub CLI install docs](https://github.com/cli/cli#installation)
   - Then authenticate: `gh auth login`

@@ -28,7 +28,7 @@ The design-level companion to test-review. This agent names xUnit test smells, j
 
 Load on demand by finding type — do not load all four unless the target needs them:
 
-- `knowledge/test-smells.md` — the canonical xUnit smell taxonomy (code/behavior/project smells). Primary reference; load for every run.
+- `knowledge/test-smells.md` — the canonical xUnit smell taxonomy (code/behavior/project smells). Primary reference; load for every run. Whole-file load: scan the full taxonomy to name each finding.
 - `knowledge/test-doubles.md` — dummy/stub/spy/mock/fake selection and state-vs-behavior verification. Load when the target uses mocking.
 - `knowledge/test-pyramid.md` — layer responsibilities and shape anti-patterns. Load when judging test level.
 - `knowledge/microservice-testing.md` — contract/CDC testing. Load only when the target spans independently-deployable services.
@@ -51,7 +51,7 @@ Test file indicators by language:
 
 ## Detect
 
-Always read `knowledge/test-smells.md` first; report each finding by its named smell. Detect across the three levels:
+Always read `test-smells.md` first; report each finding by its named smell. Detect across the three levels:
 
 Code smells (single test):
 
@@ -60,7 +60,7 @@ Code smells (single test):
 - **Conditional Test Logic** — `if`/`switch`/loops/try-catch around assertions; the test verifies different things on different runs
 - **Hard-Coded / Magic Values** in assertions with no stated meaning. *Remedy:* name/derive the expected value; Expected Object (`result-verification.md`)
 - **Test Code Duplication** — copy-pasted arrange/assert blocks that should be a builder or custom assertion (not two genuinely different boundary cases). *Remedy:* Test Data Builder / Extract Creation Method (`fixture-construction.md`), Custom Assertion (`result-verification.md`), or Test Utility Method (`test-organization.md`)
-- **Test Logic in Production** — `if (testMode)`, test-only back doors in shipped code (distinct from a *test* using Back Door Manipulation to reach SUT-owned state — see `knowledge/test-strategy.md`; only the production-code form is a smell)
+- **Test Logic in Production** — `if (testMode)`, test-only back doors in shipped code (distinct from a *test* using Back Door Manipulation to reach SUT-owned state — see `test-strategy.md`; only the production-code form is a smell)
 
 Behavior smells (only visible on run):
 
@@ -72,11 +72,11 @@ Project smells (suite-wide):
 
 - **Buggy Tests** (pass when code is broken — recommend mutation testing), **Manual Intervention** (human step needed to run), **High Test Maintenance Cost** (*remedy:* Test Utility Method / Parameterized Test / Testcase Class per Fixture — `test-organization.md`), **Production Bugs** slipping a green suite
 
-Test double misuse (load `knowledge/test-doubles.md`):
+Test double misuse (load `test-doubles.md`):
 
 - Mock where a Stub + state assertion would do; mocking value objects/pure functions; mocking the type under test; asserting call order/count that doesn't matter; mocking concrete classes instead of ports
 
-Pyramid placement (load `knowledge/test-pyramid.md`):
+Pyramid placement (load `test-pyramid.md`):
 
 - Unit test doing real I/O (mis-layered → Slow Tests); E2E asserting a single edge case (belongs at unit); suite-level ice-cream-cone / hourglass / cupcake shape
 

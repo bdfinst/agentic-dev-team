@@ -55,6 +55,7 @@ If `--tier` was provided, map to model: `small` → `haiku`, `mid` → `sonnet`,
 The name must match `^[a-z][a-z0-9-]*$` exactly.
 
 If it does not:
+
 1. Emit: `Name must match ^[a-z][a-z0-9-]*$ — use lowercase letters, digits, and hyphens only`
 2. Compute a kebab-case correction:
    - Lowercase all characters
@@ -112,6 +113,7 @@ Only apply a default when the value was not specified by the user.
 Glob `plugins/dev-team/agents/<name>.md`.
 
 If the file exists:
+
 1. Read its `description` frontmatter field
 2. Emit: `plugins/dev-team/agents/<name>.md already exists (description: <existing-description>)`
 3. Ask: `Overwrite? (yes/no)`
@@ -203,16 +205,19 @@ Context needs: <diff-only|full-file|project-structure>
 ## Skip
 
 Return `{"status": "skip", ...}` when:
+
 - <inapplicability condition>
 
 ## Detect
 
 <Category>:
+
 - <specific pattern to flag>
 
 ## Ignore
 
 <what other agents handle> (handled by other agents)
+
 ```
 
 ### Team Agent Body Structure (required order)
@@ -235,7 +240,7 @@ Return `{"status": "skip", ...}` when:
 
 Apply these rules when generating the body:
 
-1. **No opener**: no line may match `^You are an? ` (case-insensitive)
+1. **No opener**: no line may match `^You are an?` (case-insensitive)
 2. **No description restatement**: title must not contain the `description` field value verbatim (whitespace-normalized)
 3. **No placeholder text**: body must not contain `your-agent-name`, `One-sentence description`, or `# Agent Name`
 4. **Bullet length**: no single bullet point may span more than two lines
@@ -249,8 +254,9 @@ Apply these rules when generating the body:
 After generating the body, count all lines (including blank lines).
 
 **Review agents**: if line count > 40:
+
 1. Emit: `Body is N lines — X lines over the 40-line budget for review agents`
-2. List each removed/collapsed item, each prefixed with `- ` (dash space)
+2. List each removed/collapsed item, each prefixed with `-` (dash space)
 3. Emit: `Approve this trim? (yes/no)`
 4. On `yes`: apply trim and continue
 5. On `no`: emit `Options: (a) reduce spec scope and regenerate, (b) accept N lines and proceed without trimming` and wait
@@ -258,11 +264,13 @@ After generating the body, count all lines (including blank lines).
 **Team agents**: same gate with budget of 75 and label `team agents`.
 
 **Trimmable content** (in priority order):
+
 - Blank separator lines between sections (but not between bullets)
 - Multi-line bullets collapsed to one line
 - Wordy bullet text shortened to the essential action
 
 **Protected content** (never trim):
+
 - Output JSON block
 - Section headings (`## Skip`, `## Detect`, `## Ignore`, `## Responsibilities`)
 - The closing `---` of any required section
@@ -271,12 +279,19 @@ After generating the body, count all lines (including blank lines).
 
 ## Step 11 — Run /agent-audit Validation Gate
 
+`/agent-audit` (structural compliance of the generated agent file) is the
+validation gate of record — it is the tool that audits agent files. The gate is
+**blocking**: an unresolved audit failure aborts creation (the cancel path
+below), it never silently continues. (`claude-setup-review` audits project-level
+CLAUDE.md setup, not a single new agent file, so it is not the gate here.)
+
 **If `--dry` was passed**: display the complete generated file content to the user and stop. Do not write any file, do not run validation, do not update the registry or CLAUDE.md.
 
 Otherwise: write the generated content to disk, then invoke the agent-audit skill:
 `Skill(agent-audit plugins/dev-team/agents/<name>.md)`
 
 **If the audit returns errors:**
+
 1. Emit the raw `/agent-audit` output verbatim
 2. Emit: `All your inputs are preserved.`
 3. Emit: `(a) auto-correct and re-validate  (b) cancel`
@@ -319,15 +334,23 @@ Append a row to the correct table:
 
 ## Step 14 — Update CLAUDE.md
 
-Locate the table in `plugins/dev-team/CLAUDE.md` whose heading
-contains `Review Agents` (review type) or `Team Agents` (team type).
+CLAUDE.md carries a **prose Quick Reference list**, not a table — the
+authoritative agent tables live in `knowledge/agent-registry.md` (updated in
+Step 13). Update the matching Quick Reference line under `### Quick Reference`:
 
-If the heading is not found: emit
-`Cannot update CLAUDE.md: heading containing '<type> Agents' not found. Update manually.`
-and stop without modifying the file.
+- Review type → the line beginning `**Review agents** (<N>):`
+- Team type → the line beginning `**Team agents** (<N>):`
 
-Append a row to the correct table. Confirm both updates in the completion
-report.
+Edit that line in place: **increment the parenthesised count** `(<N>)` → `(<N+1>)`
+and **append `, <name>`** to the comma-separated list (before any trailing
+token-count note, e.g. `(~4,510 tokens total)`).
+
+If the line is not found: emit
+`Cannot update CLAUDE.md: '<type> agents' Quick Reference line not found. Update manually.`
+and stop without modifying the file. (This is a real-failure branch, not the
+normal path — the line exists in the shipped CLAUDE.md.)
+
+Confirm both updates in the completion report.
 
 ---
 
@@ -340,5 +363,5 @@ Model: <model> (<tier-label>)
 Body: <N> lines
 Validation: PASS (/agent-audit)
 Registry updated: knowledge/agent-registry.md (<type> Agents table)
-CLAUDE.md updated: <type> Agents table
+CLAUDE.md updated: <type> agents Quick Reference list (count <N>→<N+1>)
 ```
