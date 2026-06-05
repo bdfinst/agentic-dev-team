@@ -53,7 +53,7 @@ ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/model-routing.
 }
 
 @test "CLAUDE.md: Slash Commands Registry contains a /model-routing-check row" {
-  grep -qE '\| \`/model-routing-check\`' "$CLAUDE_MD"
+  grep -qE '\| `/model-routing-check`' "$CLAUDE_MD"
 }
 
 @test "CLAUDE.md: no pinned claude-(haiku|sonnet|opus)-DIGITS snapshot IDs" {

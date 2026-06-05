@@ -29,3 +29,29 @@ jobs:
 
       - name: Run tests/scripts/run-all.sh
         run: bash plugins/security-assessment/tests/scripts/run-all.sh
+
+  bats-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install bats + jq
+        run: sudo apt-get update && sudo apt-get install -y bats jq
+
+      # Content-validation suites: repo invariants, knowledge-index shape,
+      # agent knowledge-anchor citations (AC19), command/doc registry sync.
+      # Pure bash/jq/python3 — no external toolchains.
+      #
+      # tests/hooks/ is intentionally excluded: its mutation-gate end-to-end
+      # tests require stryker/pitest and its overhead tests are timing-based,
+      # neither of which is portable to a clean CI runner.
+      - name: Run dev-team content tests (bats)
+        run: |
+          bats \
+            tests/repo/ \
+            tests/knowledge/ \
+            tests/agents/ \
+            tests/commands/ \
+            tests/docs/
