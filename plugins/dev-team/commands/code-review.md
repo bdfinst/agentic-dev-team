@@ -102,7 +102,7 @@ If **every** target file is documentation, short-circuit:
 3. In `--json` mode, emit `{"status": "skipped", "reason": "documentation-only", "files": [<list>]}` instead.
 4. **Stop.** Do not run pre-flight gates, static analysis, or any agent.
 
-**Bypass:** the short-circuit does **not** apply when `--force` (with `--reason`), `--agent <name>`, or `--background` is set — those run as normal. `--background` (drift review) deliberately reviews documentation, so it is never short-circuited.
+**Bypass:** the short-circuit does **not** apply with `--force` (with `--reason`), `--agent <name>`, or `--background` (drift review always inspects docs).
 
 ### 1b. Check for institutional context
 
