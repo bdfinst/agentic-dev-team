@@ -599,6 +599,32 @@
       "anchor": "100-2026-04-21"
     }
   },
+  "plugins/dev-team/knowledge/test-automation-maturity.md": {
+    "Maturity scale (diagnose from evidence, lowest rung first)": {
+      "summary": "| Rung | Signal in the suite | Risk |",
+      "anchor": "maturity-scale-diagnose-from-evidence-lowest-rung-first"
+    },
+    "Single-Point-of-Change test": {
+      "summary": "Pick one volatile detail (a CSS selector, an endpoint path, a field name).",
+      "anchor": "single-point-of-change-test"
+    },
+    "Abstraction patterns": {
+      "summary": "**Page Object / API client / DSL** — a façade exposing domain actions (`loginAs(user)`, `placeOrder(...)`), hiding selectors/HTTP.",
+      "anchor": "abstraction-patterns"
+    },
+    "Smell: UI-based setup": {
+      "summary": "Driving the **UI** to establish preconditions (clicking through signup just to test checkout) is slow and flaky.",
+      "anchor": "smell-ui-based-setup"
+    },
+    "Graduated disclosure (don't over-build)": {
+      "summary": "Scale abstraction to suite size, not aspiration:",
+      "anchor": "graduated-disclosure-dont-over-build"
+    },
+    "Boundaries": {
+      "summary": "Maturity is about **maintainability under change**, not coverage or correctness — those are `test-design-reviewer` and `test-review`.",
+      "anchor": "boundaries"
+    }
+  },
   "plugins/dev-team/knowledge/test-doubles.md": {
     "The Five Doubles": {
       "summary": "| Double | What it does | Verification style | Use when |",
@@ -647,6 +673,14 @@
     "Anti-Patterns": {
       "summary": "| Anti-pattern | Shape | Symptom | Fix |",
       "anchor": "anti-patterns"
+    },
+    "Other shapes (a strategy lens)": {
+      "summary": "The pyramid is the default, but the *right silhouette follows the architecture*.",
+      "anchor": "other-shapes-a-strategy-lens"
+    },
+    "Shape ↔ architecture fit": {
+      "summary": "| If the codebase is… | Expected shape | A different shape signals |",
+      "anchor": "shape-architecture-fit"
     },
     "How to use this during review": {
       "summary": "A unit-level test doing **real I/O** (DB, network, disk, sleep) is mis-layered → flag as **Slow Tests** smell; move the I/O to an integration test and double the boundary at unit level.",
@@ -729,6 +763,24 @@
     "References": {
       "summary": "Michael Feathers, *Working Effectively with Legacy Code* — seam insertion, Parameterize Constructor, Extract Interface",
       "anchor": "references"
+    }
+  },
+  "plugins/dev-team/knowledge/testing-quadrants.md": {
+    "The Four Quadrants": {
+      "summary": "| Q | Facing × Stance | Tests | Mode |",
+      "anchor": "the-four-quadrants"
+    },
+    "Reading coverage against the quadrants": {
+      "summary": "For each quadrant, classify the suite as **strong / thin / empty**, then name the business impact of a gap:",
+      "anchor": "reading-coverage-against-the-quadrants"
+    },
+    "Anti-pattern: \"Q3 as the gate\"": {
+      "summary": "Leaning on manual exploratory/UAT (Q3) as the *primary* safety net — instead of Q1/Q2 automation — is the quadrant form of the ice-cream cone (`test-pyramid.md`).",
+      "anchor": "anti-pattern-q3-as-the-gate"
+    },
+    "Boundaries": {
+      "summary": "A suite need not fill every quadrant equally — weight by risk.",
+      "anchor": "boundaries"
     }
   },
   "plugins/dev-team/skills/adr-tools/SKILL.md": {
@@ -2536,6 +2588,10 @@
       "summary": "Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / integration / component / contract / E2E).",
       "anchor": "2-place-each-behavior-on-the-pyramid"
     },
+    "2b. Specialized technique overlay (on trigger match)": {
+      "summary": "Some behaviors break in a way no pyramid layer addresses.",
+      "anchor": "2b-specialized-technique-overlay-on-trigger-match"
+    },
     "3. Choose doubles": {
       "summary": "For each collaborator at each test, recommend the simplest double using the decision flow in `knowledge/test-doubles.md` (dummy/stub/spy/mock/fake) and whether to verify by state or behavior.",
       "anchor": "3-choose-doubles"
@@ -2651,6 +2707,68 @@
     "Output": {
       "summary": "Verified RED-GREEN-REFACTOR cycle evidence: failing test output, passing test output, and refactored code with passing tests for each unit of work.",
       "anchor": "output"
+    }
+  },
+  "plugins/dev-team/skills/test-health/SKILL.md": {
+    "Overview": {
+      "summary": "An **advisory, project-wide** skill: it produces the *strategic-health* view of a test suite that a team needs periodically — the suite's **shape** vs. its architecture, **Agile Testing Quadrant** coverage, **coverage + mutation** health rolled up to ROI, flaky-test management, and **automation maturity** — then an ordered improvement plan.",
+      "anchor": "overview"
+    },
+    "Constraints": {
+      "summary": "**Advisory only.** Write a report; do not edit code or tests.",
+      "anchor": "constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Target repo/subtree path (default: cwd).",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "In the first response, ask **one** optional question — \"What hurts most about testing here right now (slow suite / flaky CI / fear of changing code / low confidence / something else)?\" — then **continue the audit immediately** without waiting for an answer.",
+      "anchor": "steps"
+    },
+    "1. Pain-point calibration (non-blocking)": {
+      "summary": "In the first response, ask **one** optional question — \"What hurts most about testing here right now (slow suite / flaky CI / fear of changing code / low confidence / something else)?\" — then **continue the audit immediately** without waiting for an answer.",
+      "anchor": "1-pain-point-calibration-non-blocking"
+    },
+    "2. Trivial-suite short-circuit": {
+      "summary": "If the suite is tiny (few test files), shows no shape pathology, and follows clear conventions, **stop here** and return a one-paragraph summary (\"suite is small and healthy; nothing structural to fix; revisit when it grows\") instead of the full diagnostic.",
+      "anchor": "2-trivial-suite-short-circuit"
+    },
+    "3. Derive the test shape + architecture fit": {
+      "summary": "Inventory tests by layer (unit / integration / component / contract / E2E).",
+      "anchor": "3-derive-the-test-shape-architecture-fit"
+    },
+    "4. Quadrant coverage": {
+      "summary": "Classify coverage across the four quadrants (`testing-quadrants.md`) as strong / thin / empty, and for each gap name the **business impact** of leaving it empty (e.g.",
+      "anchor": "4-quadrant-coverage"
+    },
+    "5. Delegate architecture + pipeline": {
+      "summary": "Invoke `cd-test-architecture` on the target.",
+      "anchor": "5-delegate-architecture-pipeline"
+    },
+    "6. Coverage + mutation health (ROI)": {
+      "summary": "Invoke `test-design-reviewer` for the Farley-score quality view, and `mutation-testing` on the **critical-logic** modules only (not the whole repo — that's the ROI framing).",
+      "anchor": "6-coverage-mutation-health-roi"
+    },
+    "7. Flaky-test + automation maturity": {
+      "summary": "Flag flakiness signals (`test-smells.md` project/behavior smells: order-dependence, unstubbed clock/RNG, real I/O at unit level) and a management recommendation (quarantine + fix, don't `retry`).",
+      "anchor": "7-flaky-test-automation-maturity"
+    },
+    "8. Ordered improvement plan": {
+      "summary": "Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract), weighted by the pain point from Step 1.",
+      "anchor": "8-ordered-improvement-plan"
+    },
+    "9. Report": {
+      "summary": "Write `reports/test-health-<date>.md`.",
+      "anchor": "9-report"
+    },
+    "Output": {
+      "summary": "**Front door** for periodic test-strategy review; the unified entry point over `cd-test-architecture` + `test-design-reviewer` + `mutation-testing` without collapsing them.",
+      "anchor": "output"
+    },
+    "Integration": {
+      "summary": "**Front door** for periodic test-strategy review; the unified entry point over `cd-test-architecture` + `test-design-reviewer` + `mutation-testing` without collapsing them.",
+      "anchor": "integration"
     }
   },
   "plugins/dev-team/skills/threat-modeling/SKILL.md": {

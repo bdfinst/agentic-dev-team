@@ -24,6 +24,8 @@ Context needs: full-file
 
 Read `knowledge/testability-patterns.md` before analysis. Whole-file load: the agent uses the decision flow, the anti-patterns table, and all four patterns as one connected reference when flagging untestable code (missing interfaces, static factories, concrete class coupling). Never recommend a test workaround (reflection, InternalsVisibleTo, mocking concrete classes).
 
+For maintainability findings (duplicated selectors/literals, UI-based setup), consult `knowledge/test-automation-maturity.md` — apply its single-point-of-change check and graduated-disclosure thresholds (don't recommend abstraction below the count threshold).
+
 ## Skills
 
 Whole-file load: each linked SKILL.md is loaded in full when invoked.
@@ -87,6 +89,7 @@ Test code quality:
 - Copy-pasted assertion blocks that should be extracted into a helper
 - Magic literal values in assertions with no explanation of their significance
 - Dead test utilities or helpers that are defined but never called
+- Low automation maturity (`knowledge/test-automation-maturity.md`): a volatile detail (selector, endpoint, field name) duplicated raw across many test files (single-point-of-change failure); UI driven to establish preconditions instead of back-door setup — flag only when suite size makes the cost real (graduated thresholds)
 
 Testability blockers:
 

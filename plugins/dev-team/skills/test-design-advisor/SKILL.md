@@ -11,7 +11,7 @@ user-invocable: true
 
 An **advisory** skill: it recommends how to test code and how to make untestable code testable. It does not write tests or refactor code — it produces a design the human (or `/build`) then implements. Use it before writing a test suite for an untested or hard-to-test module, or when a test is hard to write and you suspect the design is the cause.
 
-Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/test-doubles.md`, `knowledge/test-pyramid.md`, `knowledge/test-layer-gates.md` for behavior pre-gates, `knowledge/microservice-testing.md`, `knowledge/testability-patterns.md` for production-code seams, and `knowledge/test-strategy.md` for fixture and SUT-interaction strategy.
+Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/test-doubles.md`, `knowledge/test-pyramid.md` (layers + shapes), `knowledge/test-layer-gates.md` for behavior pre-gates, `knowledge/microservice-testing.md`, `knowledge/testability-patterns.md` for production-code seams, and `knowledge/test-strategy.md` for fixture and SUT-interaction strategy. On match it overlays `knowledge/testing-techniques/` (specialized techniques), resolves tools from `knowledge/test-stack-profiles/<stack>.md`, and may adapt a worked template from `knowledge/test-matrix-examples/`.
 
 ## Constraints
 
@@ -25,7 +25,7 @@ Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/t
 
 ## Parse Arguments
 
-Arguments: target file(s), module, or a description of the code to test. If no target is given, ask for one. Detect language and whether the target crosses independently-deployable service boundaries (load `microservice-testing.md` only if so).
+Arguments: target file(s), module, or a description of the code to test. If no target is given, ask for one. Detect language **and framework/stack** (from manifests — `package.json`, `build.gradle`/`pom.xml`, `*.csproj`, `go.mod`, `requirements.txt`/`pyproject.toml`, and frontend deps like react/vue/htmx) so tool resolution can pick the right `test-stack-profiles/<stack>.md`. Detect whether the target crosses independently-deployable service boundaries (load `microservice-testing.md` only if so).
 
 ## Steps
 
@@ -51,6 +51,25 @@ Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that
 **Redundancy check (business-critical only).** After placement, for any behavior determined business-critical (labelled, or confirm by asking), if it is covered at only one layer, flag it and name a second layer with a different failure mode (catches/misses table in `test-layer-gates.md`) plus a concrete recommendation.
 
 **Gate-column output schema.** In the *Pyramid placement* table the `Gate` column uses: `—` (no gate), `↑<layer>` (escalated), `→ cd-test-architecture` (E2E architecture deferred). When multiple gates fire, union the layers (no duplicate) and list each gate's cost once, with reconciliation guidance if the amortization advice differs.
+
+**Tool resolution (by detected stack).** After the layer is fixed, name the concrete tool. If the detected stack has a profile in `knowledge/test-stack-profiles/<stack>.md`, read it and fill the `Tool` column from its layer→tool map (e.g. Spring integration → MockMvc; SSR frontend → JSDOM+MSW, **not** a browser unit runner). If no profile matches, proceed with stack-agnostic guidance and **name the missing profile** in the report — never block on it.
+
+**Few-shot templates.** When building a multi-behavior matrix for a common stack, you *may* load a worked example from `knowledge/test-matrix-examples/` as a template and adapt its rows — never copy it verbatim.
+
+### 2b. Specialized technique overlay (on trigger match)
+
+Some behaviors break in a way no pyramid layer addresses. Consult `knowledge/testing-techniques/` and add a technique **only when its trigger matches** — silent otherwise. Each overlay note states the technique and its maintenance cost; it complements (does not replace) the layer pick.
+
+| Trigger | Overlay | File |
+|---------|---------|------|
+| Invariant/law holds for all inputs | property-based | `property-based.md` |
+| Parses untrusted/unstructured input | fuzz | `fuzz.md` |
+| Large text/structured artifact vs a reference | approval | `approval.md` |
+| Visual/CSS/layout fidelity matters | screenshot | `screenshot.md` |
+| Payload governed by a declared schema (OpenAPI/JSON Schema/Avro) | schema-validation | `schema-validation.md` |
+| Resilience claim under dependency failure | chaos | `chaos.md` |
+
+**Exclusion.** Do **not** add a contract-testing technique here. Consumer↔provider agreement across an owned service boundary routes to `knowledge/microservice-testing.md` (CDC) — never double-route.
 
 ### 3. Choose doubles
 
@@ -86,7 +105,12 @@ A concise advisory report (to chat for a single unit, or to `reports/test-design
 | Unit | Testable as-is? | Blocker | Seam (testability-patterns.md) |
 
 ### Pyramid placement
-| Behavior | Layer | Gate | Why this layer |
+| Behavior | Layer | Gate | Tool | Why this layer |
+
+(`Tool` from the stack profile, or `—` / "no profile: <stack>" when none matches.)
+
+### Technique overlay (only if a trigger fired)
+| Behavior | Technique | Cost note |
 
 ### Double strategy
 | Test | Collaborator | Double | Verify by |
