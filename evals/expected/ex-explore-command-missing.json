@@ -1,0 +1,12 @@
+{
+  "fixture": "ex-explore-command-missing",
+  "description": "CLAUDE.md registers /explore but commands/explore.md does not exist — claude-setup-review should flag the broken path",
+  "applicableAgents": ["claude-setup-review"],
+  "agents": {
+    "claude-setup-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 4 },
+      "mustMention": ["explore"]
+    }
+  }
+}

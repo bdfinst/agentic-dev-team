@@ -1,0 +1,12 @@
+{
+  "fixture": "ex-explore-command-present",
+  "description": "CLAUDE.md registers /explore with a path that resolves to an existing commands/explore.md — claude-setup-review should pass",
+  "applicableAgents": ["claude-setup-review"],
+  "agents": {
+    "claude-setup-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 },
+      "mustNotMention": ["broken", "does not exist", "missing file"]
+    }
+  }
+}

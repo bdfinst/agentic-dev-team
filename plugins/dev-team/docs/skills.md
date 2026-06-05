@@ -134,7 +134,7 @@ Slash commands are invoked by the user (e.g., `/code-review`) and executed under
 | `/init-dev-team` | [`init-dev-team.md`](../commands/init-dev-team.md) | Install plugin prerequisites (jq, python3, mutation tools), offer CodeGraph, and optionally probe Anthropic model availability for restricted endpoints |
 | `/continue` | [`continue.md`](../commands/continue.md) | Resume work from a prior session using phase progress files |
 | `/browse` | [`browse.md`](../commands/browse.md) | Browser-based QA via Playwright: navigate, screenshot, click, fill forms |
-| `/triage` | [`triage.md`](../commands/triage.md) | Investigate a bug, find root cause, file a GitHub issue with TDD fix plan |
+| `/triage` | [`triage.md`](../commands/triage.md) | Investigate a bug, find root cause, write a triage record to `.triage/<slug>.md` with a TDD fix plan |
 | `/issues-from-plan` | [`issues-from-plan.md`](../commands/issues-from-plan.md) | Break a plan into independently-grabbable GitHub issues |
 | `/benchmark` | [`benchmark.md`](../commands/benchmark.md) | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
 

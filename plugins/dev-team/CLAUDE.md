@@ -43,7 +43,7 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Review agents** (20): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review, refactor-opportunity-review, progress-guardian, data-flow-tracer
 
-**Skills** (37): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Test Design Advisor, CD Test Architecture, Test Health, Browser Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming, Ubiquitous Language
+**Skills** (38): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Test Design Advisor, CD Test Architecture, Test Health, Browser Testing, Exploratory Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming, Ubiquitous Language
 
 **Subagent prompt templates** (8): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`
 
@@ -85,7 +85,8 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 | `/unfreeze` | `commands/unfreeze.md` | worker | Lift the scope lock set by `/freeze` |
 | `/guard` | `commands/guard.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
 | `/upgrade` | `commands/upgrade.md` | worker | Check for and apply plugin updates from within a session |
-| `/triage` | `commands/triage.md` | worker | Investigate a bug and file a GitHub issue with TDD fix plan |
+| `/triage` | `commands/triage.md` | worker | Investigate a bug and write a triage record to `.triage/<slug>.md` with a TDD fix plan |
+| `/explore` | `commands/explore.md` | worker | Charter-driven exploratory testing of a running target (Chaos Specialist mode): structured heuristics + adversarial expansion, auto-triages critical defects, writes an incremental report |
 | `/issues-from-plan` | `commands/issues-from-plan.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
 | `/harness-audit` | `commands/harness-audit.md` | orchestrator | Analyze harness effectiveness and flag stale components |
 | `/version` | `commands/version.md` | worker | Report the installed plugin version |
@@ -118,7 +119,7 @@ For trivial tasks (typo fix, simple query), the Orchestrator routes directly to 
 | **Plan** | Specs, API Design, Hexagonal Architecture, Legacy Code | Define what to build, specify interfaces and test strategy |
 | **Plan → Team** | `/issues-from-plan` | Break plan into GitHub issues for team distribution |
 | **Implement** | Test-Driven Development, Systematic Debugging, Mutation Testing, Browser Testing, Performance Benchmark, CI Debugging | Build with TDD, debug issues, validate quality, measure performance |
-| **Bug Triage** | `/triage` (Systematic Debugging + GitHub issue creation) | Investigate bugs and file actionable issues |
+| **Bug Triage** | `/triage` (Systematic Debugging + file-based triage record in `.triage/`) | Investigate bugs and write actionable triage records |
 | **Review** | Quality Gate Pipeline, Test Design Reviewer | Validate output before delivery |
 | **Cross-phase** | Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Governance & Compliance, Branch Workflow, Agent & Skill Authoring | Orchestration, context management, learning |
 

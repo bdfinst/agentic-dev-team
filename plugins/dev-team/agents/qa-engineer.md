@@ -41,6 +41,7 @@ model: sonnet
 - [Agent Eval](../commands/agent-eval.md) - invoke to validate review agent accuracy when adding or modifying test fixtures in `.claude/evals/`
 - [Browser Testing](../skills/browser-testing/SKILL.md) - invoke when e2e visual verification is needed; uses Playwright for navigation, form interaction, and screenshot capture via `/browse`
 - [Test Health](../skills/test-health/SKILL.md) - invoke via `/test-health` for a periodic project-wide test-strategy audit (shape vs. architecture, quadrant coverage, coverage/mutation ROI, automation maturity); delegates pipeline assessment to cd-test-architecture
+- [Exploratory Testing](../skills/exploratory-testing/SKILL.md) - invoke via `/explore` for charter-driven Chaos Specialist probing of a running feature/endpoint; structured heuristics + adversarial expansion, auto-triages critical defects to `/triage`
 
 ## Behavioral Guidelines
 

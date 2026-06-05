@@ -971,7 +971,7 @@
       "anchor": "line-budget-gate"
     },
     "Step 11 — Run /agent-audit Validation Gate": {
-      "summary": "**If `--dry` was passed**: display the complete generated file content to the user and stop.",
+      "summary": "`/agent-audit` (structural compliance of the generated agent file) is the",
       "anchor": "step-11-run-agent-audit-validation-gate"
     },
     "Step 12 — Present Draft and Confirm Write": {
@@ -983,7 +983,7 @@
       "anchor": "step-13-update-agent-registry"
     },
     "Step 14 — Update CLAUDE.md": {
-      "summary": "Locate the table in `plugins/dev-team/CLAUDE.md` whose heading",
+      "summary": "CLAUDE.md carries a **prose Quick Reference list**, not a table — the",
       "anchor": "step-14-update-claudemd"
     },
     "Completion Report": {
@@ -1777,6 +1777,60 @@
     "Guidelines": {
       "summary": "Start with strategic DDD (contexts, language) before reaching for tactical patterns",
       "anchor": "guidelines"
+    }
+  },
+  "plugins/dev-team/skills/exploratory-testing/SKILL.md": {
+    "Overview": {
+      "summary": "The QA Engineer in charter-driven **\"Chaos Specialist\"** mode.",
+      "anchor": "overview"
+    },
+    "Constraints": {
+      "summary": "**Probe a running target.** This skill exercises live behavior — it does not read code to reason about bugs (that is `/triage`'s job once a defect is found).",
+      "anchor": "constraints"
+    },
+    "Parse Arguments": {
+      "summary": "`--charter '<goal>'` — **required.** Charter format: `Explore [target] with [approach] to discover [concern]`.",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Check the charter against the anti-patterns in the field guide (§1): too specific (a test case), too broad (infinite scope), missing `with` (no approach), missing `to discover` (no risk hypothesis).",
+      "anchor": "steps"
+    },
+    "1. Evaluate charter quality (before any probe)": {
+      "summary": "Check the charter against the anti-patterns in the field guide (§1): too specific (a test case), too broad (infinite scope), missing `with` (no approach), missing `to discover` (no risk hypothesis).",
+      "anchor": "1-evaluate-charter-quality-before-any-probe"
+    },
+    "2. Reachability pre-flight": {
+      "summary": "Confirm the target responds (a baseline request).",
+      "anchor": "2-reachability-pre-flight"
+    },
+    "3. Plan the probe set (variable identification)": {
+      "summary": "From the field guide (§2), identify what can vary for this target (parameters, values, types, sizes, character sets, combinations).",
+      "anchor": "3-plan-the-probe-set-variable-identification"
+    },
+    "4. Probe loop (until budget or `/stop`)": {
+      "summary": "Run heuristics, decrementing the budget per probe.",
+      "anchor": "4-probe-loop-until-budget-or-stop"
+    },
+    "5. Adversarial expansion (default on; `--no-adversarial` skips)": {
+      "summary": "After the heuristic probes, expand along **3 implicit-expectation lenses** (field guide §5) — pick the 3 most relevant of: authorization bypass, data integrity, timing/ordering, performance-at-scale, crash-resistance — generating **up to 6 angles** total (budget permitting).",
+      "anchor": "5-adversarial-expansion-default-on-no-adversarial-skips"
+    },
+    "6. Classify defects + auto-triage": {
+      "summary": "Classify each finding by severity.",
+      "anchor": "6-classify-defects-auto-triage"
+    },
+    "7. Session debrief": {
+      "summary": "When the budget is exhausted or `/stop` is received, stop and state the termination reason (budget reached / charter exhausted / stopped).",
+      "anchor": "7-session-debrief"
+    },
+    "Output": {
+      "summary": "Write incrementally to `reports/explore-<YYYYMMDDThhmmss>.md`:",
+      "anchor": "output"
+    },
+    "Integration": {
+      "summary": "Invoked by the `/explore` command; runs as the QA Engineer's Chaos Specialist mode.",
+      "anchor": "integration"
     }
   },
   "plugins/dev-team/skills/feature-file-validation/SKILL.md": {
