@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.2.0...dev-team-v6.3.0) (2026-06-05)
+
+
+### Features
+
+* **dev-team:** /explore command, file-based /triage, agent-create reconcile ([#56](https://github.com/bdfinst/agentic-dev-team/issues/56) [#57](https://github.com/bdfinst/agentic-dev-team/issues/57) [#58](https://github.com/bdfinst/agentic-dev-team/issues/58)) ([#94](https://github.com/bdfinst/agentic-dev-team/issues/94)) ([fb790d6](https://github.com/bdfinst/agentic-dev-team/commit/fb790d6521f75978e287dda11270b879aff3c6e7))
+* **dev-team:** automate test-layer-gates fixture as an agent-eval ([#85](https://github.com/bdfinst/agentic-dev-team/issues/85)) ([#91](https://github.com/bdfinst/agentic-dev-team/issues/91)) ([84cfd35](https://github.com/bdfinst/agentic-dev-team/commit/84cfd355c77f1606e58fab5209583afffbff2f52))
+* **dev-team:** xUnit testing knowledge build-out ([#73](https://github.com/bdfinst/agentic-dev-team/issues/73) [#74](https://github.com/bdfinst/agentic-dev-team/issues/74) [#75](https://github.com/bdfinst/agentic-dev-team/issues/75) [#76](https://github.com/bdfinst/agentic-dev-team/issues/76)) ([#93](https://github.com/bdfinst/agentic-dev-team/issues/93)) ([60ca0ae](https://github.com/bdfinst/agentic-dev-team/commit/60ca0ae4a9fa5413f23a324ff279904ffb2bc04d))
+
 ## [6.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.1.0...dev-team-v6.2.0) (2026-06-05)
 
 
