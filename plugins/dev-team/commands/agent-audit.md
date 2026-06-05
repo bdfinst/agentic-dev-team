@@ -103,6 +103,10 @@ review agents). Check:
    - Valid values: `diff-only`, `full-file`, `project-structure`
    - WARN if missing
 
+10. **No colons in description**: Does the `description:` frontmatter field contain a colon?
+    - The `description` field MUST NOT contain colons — they break argument-hints and other tooling
+    - FAIL if the description value contains a colon character (`:`)
+
 ### 2b. Audit agent tool declarations (all agents)
 
 Read every file in `.claude/agents/*.md` (team agents and review agents). Check:
@@ -163,6 +167,10 @@ Read each file in `.claude/commands/*.md` and check:
      lint/build/tests
    - WARN if a code-modifying skill has no validation step
 
+8. **No colons in description**: Does the `description:` frontmatter field contain a colon?
+   - The `description` field MUST NOT contain colons — they break argument-hints and other tooling
+   - FAIL if the description value contains a colon character (`:`)
+
 ### 4. Audit hooks
 
 Read each file in `.claude/hooks/*.sh` and check:
@@ -186,17 +194,17 @@ Read each file in `.claude/hooks/*.sh` and check:
 # Agent Audit Report
 
 ## Agents
-| Agent | Output Format | Severity | Detection | Scope | Self-Describing | File Scope | Skip | Model Tier | Context Needs | Skills-Tool | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| test-review | PASS | PASS | PASS | PASS | PASS | N/A | PASS | PASS | PASS | PASS | OK |
-| js-fp-review | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | N/A | OK |
+| Agent | Output Format | Severity | Detection | Scope | Self-Describing | File Scope | Skip | Model Tier | Context Needs | Skills-Tool | No-Colon Desc | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| test-review | PASS | PASS | PASS | PASS | PASS | N/A | PASS | PASS | PASS | PASS | PASS | OK |
+| js-fp-review | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | N/A | PASS | OK |
 | ... | | | | | | | | | | |
 
 ## Skills
-| Skill | Role | Constraints | Steps | Arguments | Output | Validation | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| code-review | PASS | PASS | PASS | PASS | PASS | N/A | OK |
-| apply-fixes | PASS | PASS | PASS | PASS | PASS | PASS | OK |
+| Skill | Role | Constraints | Steps | Arguments | Output | Validation | No-Colon Desc | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| code-review | PASS | PASS | PASS | PASS | PASS | N/A | PASS | OK |
+| apply-fixes | PASS | PASS | PASS | PASS | PASS | PASS | PASS | OK |
 | ... | | | | | | | |
 
 ## Hooks
@@ -248,6 +256,7 @@ item:
   ```
 
 - Missing scope boundaries → append `## Ignore` section at the end
+- Colon in `description` → rewrite the description value to remove colons (use "–" or "and" instead)
 
 **Skill fixes:**
 
@@ -255,6 +264,7 @@ item:
   `## Steps` with `### 1.`, `### 2.`, etc.
 - Missing argument section → insert `## Parse Arguments` section
   after the skill heading
+- Colon in `description` → rewrite the description value to remove colons (use "–" or "and" instead)
 
 **After each fix:**
 
