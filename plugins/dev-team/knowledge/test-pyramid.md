@@ -46,6 +46,31 @@ If a check could live at two layers, choose the **lower** one. Duplicating the s
 
 ---
 
+## Other shapes (a strategy lens)
+
+The pyramid is the default, but the *right silhouette follows the architecture*. Two shapes are legitimate, not anti-patterns, when the architecture earns them:
+
+| Shape | Silhouette | Fits when | Source |
+|-------|-----------|-----------|--------|
+| **Pyramid** | wide unit base, narrow E2E top | logic-heavy code with real internal seams | Cohn / Fowler |
+| **Testing trophy** | small unit, **fat integration middle**, some E2E, static analysis as the base | thin-logic apps where most risk is in wiring/serialization (typical UI + API glue) | Kent C. Dodds |
+| **Diamond** | thin unit, **bulging integration/component**, thin E2E | services that are mostly orchestration/adapters over little domain logic | — |
+
+Same rule still governs: **push each check to the lowest layer that can verify it.** The trophy and diamond are wide in the middle because *that is where the behavior lives* in those architectures — not as a license to skip unit tests for real logic.
+
+### Shape ↔ architecture fit
+
+| If the codebase is… | Expected shape | A different shape signals |
+|---------------------|----------------|---------------------------|
+| Rich domain / business logic | pyramid | inverted → logic untested at unit level |
+| Thin glue over frameworks/APIs | trophy | tall pyramid → unit tests asserting framework behavior (low value) |
+| Orchestration / adapter-heavy service | diamond | wide unit base → over-mocked tests proving little |
+| Static site / content | flat (a11y + link/build checks) | any tall shape → testing the framework |
+
+Diagnose by comparing the suite's actual shape to the shape its architecture *should* produce. A mismatch — not the silhouette alone — is the finding.
+
+---
+
 ## How to use this during review
 
 - A unit-level test doing **real I/O** (DB, network, disk, sleep) is mis-layered → flag as **Slow Tests** smell; move the I/O to an integration test and double the boundary at unit level.

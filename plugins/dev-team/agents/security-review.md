@@ -166,6 +166,8 @@ Input:
 - Insecure deserialization
 - Open redirects
 
+When a finding is an untrusted-input or declared-schema boundary, a `suggestedFix` may cross-reference the matching test technique: parser/deserializer hardening → `knowledge/testing-techniques/fuzz.md`; payload-shape conformance → `knowledge/testing-techniques/schema-validation.md`.
+
 ## Self-Challenge
 
 After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#security-review` (security-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
