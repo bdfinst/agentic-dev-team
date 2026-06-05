@@ -11,7 +11,7 @@ user-invocable: true
 
 An **advisory** skill: it recommends how to test code and how to make untestable code testable. It does not write tests or refactor code — it produces a design the human (or `/build`) then implements. Use it before writing a test suite for an untested or hard-to-test module, or when a test is hard to write and you suspect the design is the cause.
 
-Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/test-doubles.md`, `knowledge/test-pyramid.md`, `knowledge/microservice-testing.md`, `knowledge/testability-patterns.md` for production-code seams, and `knowledge/test-strategy.md` for fixture and SUT-interaction strategy.
+Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/test-doubles.md`, `knowledge/test-pyramid.md`, `knowledge/test-layer-gates.md` for behavior pre-gates, `knowledge/microservice-testing.md`, `knowledge/testability-patterns.md` for production-code seams, and `knowledge/test-strategy.md` for fixture and SUT-interaction strategy.
 
 ## Constraints
 
@@ -20,6 +20,8 @@ Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/t
 - Prefer the lowest test-pyramid layer that can verify the behavior; prefer state verification and the simplest double.
 - Refactor sequences must be behavior-preserving and start with characterization tests when the code is currently untested.
 - Be concise: tables and ordered steps, not prose. No restating the source material — cite the knowledge file.
+- **Altitude boundary.** When a gate mandates application-level E2E/browser architecture, flag the seam (`→ cd-test-architecture`) and defer the harness/pipeline design to the `cd-test-architecture` skill — do not design the E2E harness here.
+- **Terminology.** Layer labels (unit / integration / component / contract / E2E) map to `cd-test-architecture.md`'s six test types; keep them consistent (see its *Terminology Reconciliation* section).
 
 ## Parse Arguments
 
@@ -31,9 +33,24 @@ Arguments: target file(s), module, or a description of the code to test. If no t
 
 Read the target. For each unit, determine whether it can be constructed and driven through its public API with controlled inputs. Use the decision flow in `knowledge/testability-patterns.md`. Record blockers: static factories/singletons, new-ed-up dependencies, hidden global/clock/RNG access, concrete-class coupling, private logic with no public path.
 
+### 1b. Behavior pre-gates (escalate the layer by failure mode)
+
+Before pyramid placement, run the gates in `knowledge/test-layer-gates.md`. They **escalate upward only** — never lower the Step 2 pick; silent when none fire:
+
+- **Gate A** user-facing dynamic → E2E alongside lower layers (state cost + amortization)
+- **Gate B** bug fix → regression at the discovery layer (no escalation above it)
+- **Gate C** HTMX/Alpine/Turbo swap → browser test REQUIRED for the seam
+- **Gate D** visual artifact → approval/screenshot (with a reference) or manual
+
+If dynamic-ness is ambiguous, state your assumption and ask **once** (batch ambiguities; offer "treat all as dynamic") — never escalate silently. When a gate mandates app-level E2E, flag it `→ cd-test-architecture` and defer the harness design there.
+
 ### 2. Place each behavior on the pyramid
 
 Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / integration / component / contract / E2E). Flag anything currently mis-layered. For service boundaries, apply contract testing per `knowledge/microservice-testing.md` instead of E2E.
+
+**Redundancy check (business-critical only).** After placement, for any behavior determined business-critical (labelled, or confirm by asking), if it is covered at only one layer, flag it and name a second layer with a different failure mode (catches/misses table in `test-layer-gates.md`) plus a concrete recommendation.
+
+**Gate-column output schema.** In the *Pyramid placement* table the `Gate` column uses: `—` (no gate), `↑<layer>` (escalated), `→ cd-test-architecture` (E2E architecture deferred). When multiple gates fire, union the layers (no duplicate) and list each gate's cost once, with reconciliation guidance if the amortization advice differs.
 
 ### 3. Choose doubles
 
@@ -69,7 +86,7 @@ A concise advisory report (to chat for a single unit, or to `reports/test-design
 | Unit | Testable as-is? | Blocker | Seam (testability-patterns.md) |
 
 ### Pyramid placement
-| Behavior | Layer | Why this layer |
+| Behavior | Layer | Gate | Why this layer |
 
 ### Double strategy
 | Test | Collaborator | Double | Verify by |
