@@ -61,7 +61,7 @@ User-invocable workflows in `.claude/commands/`. All review commands are execute
 
 | Command | File | Role | What It Does |
 |---------|------|------|--------------|
-| `/code-review` | `commands/code-review.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
+| `/code-review` | `commands/code-review.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
 | `/review-agent` | `commands/review-agent.md` | worker | Run a single review agent (used for inline checkpoints) |
 | `/test-design` | `commands/test-design.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, then run test-design-advisor for testability/refactor recommendations (advisory) |
 | `/agent-audit` | `commands/agent-audit.md` | orchestrator | Audit agents/commands/hooks for structural compliance |

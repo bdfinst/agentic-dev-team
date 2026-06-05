@@ -34,8 +34,10 @@ flowchart TD
     B --> C{Auto-scope}
     C -->|dirty tree| D1[Uncommitted files]
     C -->|clean tree| D2[Full repo]
-    D1 --> E[1b. REVIEW-CONTEXT.md]
-    D2 --> E
+    D1 --> DC{1a. All files docs-only?}
+    D2 --> DC
+    DC -->|yes — no --force/--agent/--background| SC[Short-circuit: notice +<br/>write .review-passed if auto-scoped + stop]
+    DC -->|no| E[1b. REVIEW-CONTEXT.md]
     E --> F[1c. Probe MCP tools]
     F --> G[2. Pre-flight gates]
     G -->|fail| X1[Stop — no agents run]
@@ -69,6 +71,12 @@ Auto-scope (the default) runs `git diff --name-only` plus `git diff --cached --n
 | 201–500 | Warn, proceed |
 | > 500 | Warn and request confirmation |
 
+### 1a. Documentation-only short-circuit
+
+After the target set is known, if **every** file is documentation, `/code-review` short-circuits: it emits `Documentation-only changeset — skipping code review`, writes the `.review-passed` gate file when auto-scoped to uncommitted changes (so the commit isn't blocked), and stops before any gate or agent runs. In `--json` mode it emits `{"status": "skipped", "reason": "documentation-only"}`.
+
+Documentation = `.md`/`.mdx`/`.rst`/`.txt`/`.adoc`, `docs/**`, and root docs (`README*`, `CHANGELOG*`, `LICENSE*`, …) — **except functional Claude-config markdown** (`.claude/**`, `agents/`, `skills/`, `commands/`, `prompts/`, `knowledge/`, `templates/agents/`, `CLAUDE.md`, `AGENTS.md`), which is always reviewed. `--force --reason`, `--agent`, and `--background` bypass the short-circuit.
+
 ### 1b. Institutional context
 
 If `REVIEW-CONTEXT.md` exists at the repo root, its contents are read and passed to every agent as "Institutional context provided for this review". This is where a team records domain knowledge, related services, known quirks, or architectural history that agents cannot discover from code alone. The file is optional.
@@ -89,7 +97,7 @@ Deterministic checks run before any AI agent is invoked. Cheaper checks block ex
 | 4 | Semgrep SAST | `semgrep scan --config auto` | ERROR-severity findings |
 | 5 | Pipeline-red check | `gh run list` on current branch | failing CI (warn only) |
 
-Missing tools are skipped silently. Gate failures stop the pipeline — no agents run. `--force --reason "<text>"` skips all gates and logs an entry to `metrics/override-audit.jsonl`. `--background` skips gates entirely.
+Missing tools are skipped silently. Gate failures stop the pipeline — no agents run. `--force --reason "<text>"` skips all gates (and the step-1a documentation-only short-circuit) and logs an entry to `metrics/override-audit.jsonl`. `--background` skips gates entirely.
 
 ### 2b. Static analysis pre-pass
 
