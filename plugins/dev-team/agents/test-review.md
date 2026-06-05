@@ -26,6 +26,8 @@ Read `knowledge/testability-patterns.md` before analysis. Whole-file load: the a
 
 For maintainability findings (duplicated selectors/literals, UI-based setup), consult `knowledge/test-automation-maturity.md` — apply its single-point-of-change check and graduated-disclosure thresholds (don't recommend abstraction below the count threshold).
 
+For assertion-quality findings, consult `knowledge/result-verification.md` — name the specific verification pattern (Expected Object, Custom Assertion, Guard Assertion, Delta Assertion) that fixes a weak/cluttered/misleading assertion, and enforce one logical condition per test.
+
 ## Skills
 
 Whole-file load: each linked SKILL.md is loaded in full when invoked.
