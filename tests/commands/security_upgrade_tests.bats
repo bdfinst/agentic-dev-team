@@ -65,7 +65,7 @@ setup() {
 @test "security-assessment /upgrade is registered in CLAUDE.md dispatch table" {
   local claude_md="$REPO_ROOT/plugins/security-assessment/CLAUDE.md"
   # Must appear in the dispatch registry table.
-  grep -qE '\| \`/upgrade\` \|' "$claude_md"
+  grep -qE '\| `/upgrade` \|' "$claude_md"
   # And in the Commands list (count bumped from 4 to 5).
   grep -qE '\*\*Commands\*\* \(5\)' "$claude_md"
 }
@@ -73,5 +73,5 @@ setup() {
 @test "security-assessment /upgrade is documented in README" {
   local readme="$REPO_ROOT/plugins/security-assessment/README.md"
   grep -qE '^## Update' "$readme"
-  grep -qE '\| \`/upgrade\` \|' "$readme"
+  grep -qE '\| `/upgrade` \|' "$readme"
 }
