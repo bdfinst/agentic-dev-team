@@ -7,8 +7,9 @@ description: >-
   agents", or has just finished implementing a feature. Use proactively
   before commits and pull requests.
 argument-hint: >-
-  [--agent <name>] [--since <ref>] [--path <dir>] [--all]
-  [--json] [--force]
+  [--agent <name>] [--since <ref>] [--path <dir>] [--all] [--json]
+  [--force --reason "<text>"] [--static-analysis|--no-static-analysis]
+  [--init-risks] [--background]
 user-invocable: true
 allowed-tools: >-
   Read, Edit, Grep, Glob, AskUserQuestion,
