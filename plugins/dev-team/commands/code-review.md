@@ -45,7 +45,7 @@ Arguments: $ARGUMENTS
 | `--all` | Force full-repository review even when uncommitted changes exist |
 | `--json` | Output aggregated JSON instead of prose (for CI integration) |
 | `--init-risks` | Scaffold `ACCEPTED-RISKS.md` from `templates/ACCEPTED-RISKS.md.tmpl` if absent. Exits non-zero without overwriting if present. Schema: `knowledge/accepted-risks-schema.md`. |
-| `--force` | Skip pre-flight gates. **Requires `--reason "<text>"`** — logged to `metrics/override-audit.jsonl`. |
+| `--force` | Skip pre-flight gates **and the documentation-only short-circuit** (forces a full review of doc-only changes). **Requires `--reason "<text>"`** — logged to `metrics/override-audit.jsonl`. |
 | `--reason "<text>"` | Override justification (required with `--force`) |
 | `--static-analysis` / `--no-static-analysis` | Force on/off the static analysis pre-pass (Semgrep, ESLint, TypeScript, pylint). Auto-enabled when tools are detected. |
 | `--background` | Drift review mode — review default branch for documentation, naming, and structural drift. Runs doc-review, arch-review, naming-review, structure-review only. Skips pre-flight gates. |
@@ -55,6 +55,7 @@ Arguments: $ARGUMENTS
 
 ```text
 - [ ] Target files determined
+- [ ] Documentation-only check (short-circuit if all docs)
 - [ ] Pre-flight gates passed
 - [ ] Static analysis pre-pass (if enabled)
 - [ ] Agents loaded and filtered
@@ -85,6 +86,23 @@ Priority order:
 | ≤200 | Proceed |
 | 201–500 | Warn: "Reviewing {N} files — consider `--path` to narrow scope." Proceed. |
 | >500 | Warn + confirm: "Reviewing {N} files is expensive. Continue?" Wait. |
+
+**Documentation-only short-circuit.** After the target set is known, classify each file. A file is **documentation** when it matches a doc type or path:
+
+- extension `.md`, `.mdx`, `.markdown`, `.rst`, `.txt`, `.adoc`
+- any path under a `docs/` directory
+- a root doc: `README*`, `CHANGELOG*`, `CONTRIBUTING*`, `LICENSE*`, `NOTICE*`, `AUTHORS*`, `CODE_OF_CONDUCT*`
+
+…**except functional Claude-config markdown, which is never documentation** (it drives agent/skill/command behavior and must be reviewed): any path containing a `.claude/` segment, or under `agents/`, `skills/`, `commands/`, `prompts/`, `knowledge/`, or `templates/agents/`. Treat `CLAUDE.md` and `AGENTS.md` as functional config too, not documentation.
+
+If **every** target file is documentation, short-circuit:
+
+1. Emit: `Documentation-only changeset ({N} files) — skipping code review. Re-run with --force --reason "<text>" to review anyway.`
+2. If the review was auto-scoped to uncommitted changes, write the `.review-passed` gate file (per step 9) so the pre-commit hook allows the commit.
+3. In `--json` mode, emit `{"status": "skipped", "reason": "documentation-only", "files": [<list>]}` instead.
+4. **Stop.** Do not run pre-flight gates, static analysis, or any agent.
+
+**Bypass:** the short-circuit does **not** apply when `--force` (with `--reason`), `--agent <name>`, or `--background` is set — those run as normal. `--background` (drift review) deliberately reviews documentation, so it is never short-circuited.
 
 ### 1b. Check for institutional context
 
