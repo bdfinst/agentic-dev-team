@@ -1,5 +1,41 @@
 # Changelog
 
+## [6.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.1.0...dev-team-v6.2.0) (2026-06-05)
+
+
+### Features
+
+* **dev-team:** add test-layer-gates knowledge file + fixture ([#80](https://github.com/bdfinst/agentic-dev-team/issues/80)) ([884415d](https://github.com/bdfinst/agentic-dev-team/commit/884415d5e6add81334487d35874b355d6ac0e7da))
+* **dev-team:** add test-strategy knowledge file (xUnit Test Strategy patterns) ([0e7f58a](https://github.com/bdfinst/agentic-dev-team/commit/0e7f58a1515d77daf674fe8ae554aa26b3013e3f))
+* **dev-team:** add test-strategy knowledge file (xUnit Test Strategy patterns) ([c101225](https://github.com/bdfinst/agentic-dev-team/commit/c101225c513374fa5d1ebff95887076f89195830))
+* **dev-team:** behavior pre-gates + redundancy check for test-design-advisor ([#80](https://github.com/bdfinst/agentic-dev-team/issues/80)) ([20b8053](https://github.com/bdfinst/agentic-dev-team/commit/20b80537ec8613a53d070c50673c97e400e40f55))
+* **dev-team:** complete testing-strategy epic ([#81](https://github.com/bdfinst/agentic-dev-team/issues/81) [#82](https://github.com/bdfinst/agentic-dev-team/issues/82) [#83](https://github.com/bdfinst/agentic-dev-team/issues/83) [#84](https://github.com/bdfinst/agentic-dev-team/issues/84)) ([#90](https://github.com/bdfinst/agentic-dev-team/issues/90)) ([19abe6c](https://github.com/bdfinst/agentic-dev-team/commit/19abe6c1ee20cf5662f7022ec9db2da8ac717e86))
+* **dev-team:** register test-layer-gates + verify gate firings vs fixture ([#80](https://github.com/bdfinst/agentic-dev-team/issues/80)) ([8d847cb](https://github.com/bdfinst/agentic-dev-team/commit/8d847cbac0a906bb55bb620765aeeeee0cf8a83f))
+* **dev-team:** skip /code-review for documentation-only changesets ([f3aac6f](https://github.com/bdfinst/agentic-dev-team/commit/f3aac6fff08f06423666c281e0dbd9df25b5f198))
+* **dev-team:** skip /code-review for documentation-only changesets ([2b75996](https://github.com/bdfinst/agentic-dev-team/commit/2b75996abdf2779753dfdfe8b47efe187328bc38))
+* **dev-team:** wire behavior pre-gates + redundancy into test-design-advisor ([#80](https://github.com/bdfinst/agentic-dev-team/issues/80)) ([f67b5a3](https://github.com/bdfinst/agentic-dev-team/commit/f67b5a3b0513dbee015170ca9a58ef8541836a3e))
+
+
+### Bug Fixes
+
+* **dev-team:** repoint rule-id adapter contract refs + fix skill-wiring test ([f7b0cb6](https://github.com/bdfinst/agentic-dev-team/commit/f7b0cb69eb9e483f6d1496144c2c4e04ae128f6a))
+* **dev-team:** repoint rule-id adapter contract refs + fix skill-wiring test ([9f685a3](https://github.com/bdfinst/agentic-dev-team/commit/9f685a303c867407202f20ed8ebc22d72f47a328)), closes [#65](https://github.com/bdfinst/agentic-dev-team/issues/65)
+* **dev-team:** sync /review alias frontmatter with /code-review ([#88](https://github.com/bdfinst/agentic-dev-team/issues/88)) ([5ffd156](https://github.com/bdfinst/agentic-dev-team/commit/5ffd15657bd78e36e0788605d97944194f0af964))
+* **dev-team:** sync /review alias frontmatter with /code-review ([#88](https://github.com/bdfinst/agentic-dev-team/issues/88)) ([ae0ee28](https://github.com/bdfinst/agentic-dev-team/commit/ae0ee281d1e2a8110c4bbeed2f77ab1dc38564cc))
+
+
+### Documentation
+
+* **dev-team:** document doc-only short-circuit in code-review-process ([f59f008](https://github.com/bdfinst/agentic-dev-team/commit/f59f0084b060c117ddddd4b4037d25ecf4a8d442))
+
+
+### Miscellaneous
+
+* convert pending specs/plans to GitHub issues; remove spec/plan files ([aea265e](https://github.com/bdfinst/agentic-dev-team/commit/aea265e5ad16c878a3cbd8f304917a51ea41cc10))
+* convert pending specs/plans to GitHub issues; remove spec/plan files ([cf82c79](https://github.com/bdfinst/agentic-dev-team/commit/cf82c79fc7a5e590a04bd6bb479a72d7c87b7295))
+* **dev-team:** resolve agent-audit compliance gaps ([16b4aa9](https://github.com/bdfinst/agentic-dev-team/commit/16b4aa9b86b7d0f72997a3973c196a3e61c8ba31))
+* **dev-team:** resolve agent-audit compliance gaps ([ca89416](https://github.com/bdfinst/agentic-dev-team/commit/ca89416fbde2c79d3d72f28e4d51b66a0f4851bc))
+
 ## [6.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.0.0...dev-team-v6.1.0) (2026-06-04)
 
 

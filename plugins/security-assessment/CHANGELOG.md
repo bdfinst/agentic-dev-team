@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.1.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.1.0...security-assessment-v3.1.1) (2026-06-05)
+
+
+### Miscellaneous
+
+* convert pending specs/plans to GitHub issues; remove spec/plan files ([aea265e](https://github.com/bdfinst/agentic-dev-team/commit/aea265e5ad16c878a3cbd8f304917a51ea41cc10))
+* convert pending specs/plans to GitHub issues; remove spec/plan files ([cf82c79](https://github.com/bdfinst/agentic-dev-team/commit/cf82c79fc7a5e590a04bd6bb479a72d7c87b7295))
+* scrub stale helper-scripts plan reference in _lib.sh ([0d77bd2](https://github.com/bdfinst/agentic-dev-team/commit/0d77bd276911267488cc54aae9530dc5d73abad6))
+
 ## [3.1.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.0.0...security-assessment-v3.1.0) (2026-06-04)
 
 
