@@ -11,7 +11,7 @@ user-invocable: true
 
 An **advisory** skill: it recommends how to test code and how to make untestable code testable. It does not write tests or refactor code — it produces a design the human (or `/build`) then implements. Use it before writing a test suite for an untested or hard-to-test module, or when a test is hard to write and you suspect the design is the cause.
 
-Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/test-doubles.md`, `knowledge/test-pyramid.md` (layers + shapes), `knowledge/test-layer-gates.md` for behavior pre-gates, `knowledge/microservice-testing.md`, `knowledge/testability-patterns.md` for production-code seams, and `knowledge/test-strategy.md` for fixture and SUT-interaction strategy. On match it overlays `knowledge/testing-techniques/` (specialized techniques), resolves tools from `knowledge/test-stack-profiles/<stack>.md`, and may adapt a worked template from `knowledge/test-matrix-examples/`.
+Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/test-doubles.md`, `knowledge/test-pyramid.md` (layers + shapes), `knowledge/test-layer-gates.md` for behavior pre-gates, `knowledge/microservice-testing.md`, `knowledge/testability-patterns.md` for production-code seams, and `knowledge/test-strategy.md` for fixture and SUT-interaction strategy. For the xUnit pattern families it grounds in `knowledge/fixture-construction.md` (how the fixture is built/disposed), `knowledge/result-verification.md` (assertion patterns), `knowledge/test-organization.md` (Four-Phase + suite structure), and `knowledge/test-refactoring.md` (goals/principles + the test-side refactoring catalog). On match it overlays `knowledge/testing-techniques/` (specialized techniques), resolves tools from `knowledge/test-stack-profiles/<stack>.md`, and may adapt a worked template from `knowledge/test-matrix-examples/`.
 
 ## Constraints
 
@@ -79,16 +79,26 @@ For each collaborator at each test, recommend the simplest double using the deci
 
 Using `knowledge/test-strategy.md`, recommend per test group: fixture design + lifecycle (default Minimal + Fresh; escalate to Immutable Shared → Shared only under measured speed pressure), how the test is driven (scripted default; data-driven when variation is purely data), and SUT interaction (front-door by default; Layer Test for layered code; Back Door Manipulation only when the front door obscures intent). Flag any reliance on a mutable Shared Fixture as an Interacting-Tests risk.
 
-### 4. Propose a behavior-preserving refactor sequence (only if blockers exist)
+For the construction **mechanics** that realize that strategy, recommend a specific pattern from `knowledge/fixture-construction.md` — Creation Method / Test Data Builder / Object Mother for building, the right setup location, and **Automated Teardown** for persistent fixtures — to fix fixture smells (Mystery Guest, General Fixture, Irrelevant Information, Test Code Duplication) at the root rather than only naming them.
 
-If Step 1 found blockers, produce an ordered sequence that makes the code testable without changing behavior:
+### 3c. Recommend verification and test structure
+
+Using `knowledge/result-verification.md`, recommend the assertion pattern that fixes verification smells: **Expected Object** for field-by-field clutter, **Custom Assertion / Verification Method** for repeated complex comparisons or poor failure messages, **Guard Assertion** before a precondition-dependent assertion, **Delta Assertion** against a baseline for shared/persistent fixtures — and verify one logical condition per test.
+
+Using `knowledge/test-organization.md`, recommend test/suite structure: make the **Four-Phase Test** (Setup → Exercise → Verify → Teardown) visible, group **Testcase Class per Class / Feature / Fixture** when setups diverge, share via a **Test Utility Method / Helper** (composition) over a **Testcase Superclass** (inheritance), and collapse data-only duplication into a **Parameterized Test**.
+
+### 4. Propose a behavior-preserving refactor sequence (only if blockers or test smells exist)
+
+If Step 1 found blockers in **production** code, produce an ordered sequence that makes it testable without changing behavior:
 
 1. Add characterization tests around current behavior (if untested) — pin existing behavior first.
 2. Introduce the seam (the specific pattern from `testability-patterns.md`).
 3. Write the now-possible tests at the layer from Step 2.
 4. Refactor under green.
 
-Each step names the pattern and the exact production change required.
+When the smell is in the **test** itself (not production code), name the specific behavior-preserving move from `knowledge/test-refactoring.md` that removes the smell and shifts the test toward the violated goal/principle — e.g. *Inline Mystery Guest* → Fresh Fixture via Creation Method, *Replace General Fixture with Minimal Fixture*, *Introduce Expected Object*, *Extract Custom Assertion*, *Split Test*. Test refactorings are behavior-preserving and **characterization-first** when the target is untested.
+
+Each step names the pattern and the exact change required.
 
 ### 5. Report
 

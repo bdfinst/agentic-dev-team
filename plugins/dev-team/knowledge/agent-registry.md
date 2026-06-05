@@ -128,6 +128,10 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Test Doubles | `knowledge/test-doubles.md` | ~700 | test-smell-review, test-design-advisor |
 | Test Pyramid | `knowledge/test-pyramid.md` | ~800 | test-smell-review, test-review, test-design-advisor, test-health |
 | Test Strategy | `knowledge/test-strategy.md` | ~900 | test-design-advisor, test-smell-review, test-review |
+| Fixture Construction | `knowledge/fixture-construction.md` | ~750 | test-design-advisor, test-smell-review, test-review |
+| Result Verification | `knowledge/result-verification.md` | ~700 | test-design-advisor, test-review, test-smell-review |
+| Test Organization | `knowledge/test-organization.md` | ~750 | test-design-advisor, test-smell-review |
+| Test Refactoring | `knowledge/test-refactoring.md` | ~750 | test-design-advisor, test-smell-review |
 | Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |
 | CD Test Architecture | `knowledge/cd-test-architecture.md` | ~1,100 | cd-test-architecture, test-design-advisor |
 | Component Test Patterns | `knowledge/component-test-patterns.md` | ~1,600 | cd-test-architecture |

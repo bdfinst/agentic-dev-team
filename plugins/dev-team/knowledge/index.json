@@ -371,6 +371,24 @@
       "anchor": "5-implicit-expectations"
     }
   },
+  "plugins/dev-team/knowledge/fixture-construction.md": {
+    "1. Construction patterns (how the fixture object is built)": {
+      "summary": "| Pattern | What it is | Use when | Cost / risk |",
+      "anchor": "1-construction-patterns-how-the-fixture-object-is-built"
+    },
+    "2. Setup location (where construction runs)": {
+      "summary": "| Location | What it is | Trade-off vs Fresh Fixture isolation |",
+      "anchor": "2-setup-location-where-construction-runs"
+    },
+    "3. Teardown (releasing what the test created)": {
+      "summary": "| Pattern | What it is | Use when |",
+      "anchor": "3-teardown-releasing-what-the-test-created"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`test-strategy.md`** — *which* fixture (lifecycle/design); this file is *how* it's constructed.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/microservice-testing.md": {
     "The Layers (per service)": {
       "summary": "| Layer | Scope | What it verifies | Doubles |",
@@ -479,6 +497,24 @@
     "A10: SSRF": {
       "summary": "| Pattern | Language | Grep Signal |",
       "anchor": "a10-ssrf"
+    }
+  },
+  "plugins/dev-team/knowledge/result-verification.md": {
+    "Verification style: state vs behavior": {
+      "summary": "| Style | What it checks | Use when |",
+      "anchor": "verification-style-state-vs-behavior"
+    },
+    "Assertion patterns": {
+      "summary": "| Pattern | What it is | Use when | Fixes |",
+      "anchor": "assertion-patterns"
+    },
+    "Rules": {
+      "summary": "**One logical condition per test.** Several unrelated assertions in one method is an Eager Test — split it (`test-organization.md` / `test-refactoring.md`).",
+      "anchor": "rules"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`test-smells.md`** — the smells these fix: Assertion Roulette, Obscure Test, Fragile/Overspecified Test, Hard-Coded Values.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/knowledge/review-rubric.md": {
@@ -661,6 +697,32 @@
       "anchor": "redundancy-check-business-critical-only-after-placement"
     }
   },
+  "plugins/dev-team/knowledge/test-organization.md": {
+    "The Four-Phase Test (the anchor)": {
+      "summary": "Every test follows four phases, visibly separated:",
+      "anchor": "the-four-phase-test-the-anchor"
+    },
+    "Testcase Class grouping": {
+      "summary": "| Grouping | One class per… | Use when | Trade-off |",
+      "anchor": "testcase-class-grouping"
+    },
+    "Sharing logic: composition over inheritance": {
+      "summary": "| Mechanism | What it is | Use when |",
+      "anchor": "sharing-logic-composition-over-inheritance"
+    },
+    "Parameterized Test": {
+      "summary": "When several test methods differ only by input/expected **data**, collapse them into a **Parameterized Test** — one test logic over many data rows.",
+      "anchor": "parameterized-test"
+    },
+    "Test Discovery / Enumeration / Selection + naming": {
+      "summary": "The runner finds tests by **Test Discovery** (convention/annotation), builds a **Test Enumeration**, and runs a selected subset.",
+      "anchor": "test-discovery-enumeration-selection-naming"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`fixture-construction.md`** — the Setup/Teardown phases.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/test-pyramid.md": {
     "The Layers": {
       "summary": "| Layer | Scope | Speed | Doubles | What it proves |",
@@ -689,6 +751,24 @@
     "Boundaries": {
       "summary": "The pyramid is a heuristic, not a quota.",
       "anchor": "boundaries"
+    }
+  },
+  "plugins/dev-team/knowledge/test-refactoring.md": {
+    "1. Goals & Principles (the criteria a refactoring moves toward)": {
+      "summary": "**Goals — a good automated test is:**",
+      "anchor": "1-goals-principles-the-criteria-a-refactoring-moves-toward"
+    },
+    "2. Test Refactoring catalog (the behavior-preserving moves)": {
+      "summary": "Each move removes a named smell (`test-smells.md`) and targets a pattern in a sibling file:",
+      "anchor": "2-test-refactoring-catalog-the-behavior-preserving-moves"
+    },
+    "Decision flow": {
+      "summary": "1.",
+      "anchor": "decision-flow"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`test-smells.md`** — the smells each refactoring removes.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/knowledge/test-smells.md": {
@@ -2600,9 +2680,13 @@
       "summary": "Using `knowledge/test-strategy.md`, recommend per test group: fixture design + lifecycle (default Minimal + Fresh; escalate to Immutable Shared → Shared only under measured speed pressure), how the test is driven (scripted default; data-driven when variation is purely data), and SUT interaction (front-door by default; Layer Test for layered code; Back Door Manipulation only when the front door obscures intent).",
       "anchor": "3b-recommend-fixture-and-interaction-strategy"
     },
-    "4. Propose a behavior-preserving refactor sequence (only if blockers exist)": {
-      "summary": "If Step 1 found blockers, produce an ordered sequence that makes the code testable without changing behavior:",
-      "anchor": "4-propose-a-behavior-preserving-refactor-sequence-only-if-blockers-exist"
+    "3c. Recommend verification and test structure": {
+      "summary": "Using `knowledge/result-verification.md`, recommend the assertion pattern that fixes verification smells: **Expected Object** for field-by-field clutter, **Custom Assertion / Verification Method** for repeated complex comparisons or poor failure messages, **Guard Assertion** before a precondition-dependent assertion, **Delta Assertion** against a baseline for shared/persistent fixtures — and verify one logical condition per test.",
+      "anchor": "3c-recommend-verification-and-test-structure"
+    },
+    "4. Propose a behavior-preserving refactor sequence (only if blockers or test smells exist)": {
+      "summary": "If Step 1 found blockers in **production** code, produce an ordered sequence that makes it testable without changing behavior:",
+      "anchor": "4-propose-a-behavior-preserving-refactor-sequence-only-if-blockers-or-test-smells-exist"
     },
     "5. Report": {
       "summary": "Write the recommendation (see Output).",
