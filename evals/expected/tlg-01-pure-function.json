@@ -1,0 +1,13 @@
+{
+  "fixture": "tlg-01-pure-function",
+  "description": "Pure function (format currency) — no behavior pre-gate should fire; Step 2 unit pick stands",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": [],
+      "expectedLayers": ["unit"],
+      "mustMention": ["unit"],
+      "mustNotMention": ["↑", "REQUIRED"]
+    }
+  }
+}

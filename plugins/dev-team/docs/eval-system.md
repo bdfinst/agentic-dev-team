@@ -170,7 +170,8 @@ evals/
 │   ├── dm-*.ts         # domain-review (5 files)
 │   ├── te-*.md/.ts     # token-efficiency-review (5 files)
 │   ├── sv-*.svelte.ts  # svelte-review (8 files)
-│   └── cs-*/           # claude-setup-review (4 directories)
+│   ├── cs-*/           # claude-setup-review (4 directories)
+│   └── tlg-*.md        # test-design-advisor behavior pre-gates (11 files)
 ├── expected/           # Reference solutions (checked in)
 │   └── <fixture-stem>.json
 ├── transcripts/        # Auto-created by runner (gitignored)
@@ -199,13 +200,45 @@ severity ranges, and keyword checks.
 }
 ```
 
+### Advisory-skill fixtures (gate firing)
+
+Most fixtures grade a **review agent** by its `status/issues[]` JSON. Advisory
+skills (e.g. `test-design-advisor`) don't emit that shape — they emit a report
+with a *Pyramid placement* table. The `tlg-*` corpus grades the skill's
+**behavior pre-gates** (issue #80) by declaring `applicableSkills` and a `skills`
+block instead of `applicableAgents`/`agents`:
+
+```json
+{
+  "fixture": "tlg-05-htmx-swap-mutation",
+  "description": "Gate C — HTMX swap over a server state mutation",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": ["C"],
+      "expectedLayers": ["E2E"],
+      "mustMention": ["REQUIRED", "browser", "cd-test-architecture"],
+      "mustNotMention": []
+    }
+  }
+}
+```
+
+`/agent-eval` drives the skill against each fixture and grades the Gate column +
+recommended layers + keyword checks (see the command's Step 4). This replaces the
+manual walk-through that `evals/fixtures/test-layer-gates.md` recorded for #80 —
+re-run it with `/agent-eval --skill test-design-advisor`. `expectedGates` uses the
+gate vocabulary `A`/`B`/`C`/`D`/`redundancy`/`ambiguity` (or `[]` for "no gate
+fires"); `expectedLayers` uses the `test-pyramid.md` vocabulary.
+
 ### `/agent-eval` command
 
-Run agents against fixtures and grade results:
+Run agents and skills against fixtures and grade results:
 
 ```bash
-/agent-eval                                  # run all agents against all fixtures
-/agent-eval --agent js-fp-review             # run one agent
+/agent-eval                                  # run everything against all fixtures
+/agent-eval --agent js-fp-review             # run one review agent
+/agent-eval --skill test-design-advisor      # run the gate-firing (tlg-*) corpus
 /agent-eval --fixture fp-array-mutations.ts  # run one fixture
 /agent-eval --trials 3                       # multi-trial with pass@k scoring
 ```

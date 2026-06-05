@@ -1,0 +1,13 @@
+{
+  "fixture": "tlg-11-ambiguous",
+  "description": "Ambiguity — dynamic-ness unclear; advisor states its assumption and asks once, never escalates silently",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": ["ambiguity"],
+      "expectedLayers": [],
+      "mustMention": ["assum", "ambiguous"],
+      "mustNotMention": []
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "tlg-06-alpine-toggle",
+  "description": "Gate C structural — client-side Alpine swap, no server call; browser test REQUIRED for the structural seam",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": ["C"],
+      "expectedLayers": ["E2E"],
+      "mustMention": ["REQUIRED", "browser", "seam"],
+      "mustNotMention": []
+    }
+  }
+}

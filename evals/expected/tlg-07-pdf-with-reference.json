@@ -1,0 +1,13 @@
+{
+  "fixture": "tlg-07-pdf-with-reference",
+  "description": "Gate D — visual artifact with a reference; approval (text) and/or screenshot (layout) with maintenance cost surfaced",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": ["D"],
+      "expectedLayers": ["unit"],
+      "mustMention": ["approval", "screenshot"],
+      "mustNotMention": []
+    }
+  }
+}

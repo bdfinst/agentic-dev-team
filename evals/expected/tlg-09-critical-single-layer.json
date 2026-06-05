@@ -1,0 +1,13 @@
+{
+  "fixture": "tlg-09-critical-single-layer",
+  "description": "Redundancy check — business-critical behavior at one layer; flags single-layer coverage and names a second, different-failure-mode layer",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": ["redundancy"],
+      "expectedLayers": ["unit"],
+      "mustMention": ["failure mode", "second"],
+      "mustNotMention": []
+    }
+  }
+}
