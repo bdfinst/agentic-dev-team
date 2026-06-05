@@ -1,0 +1,13 @@
+{
+  "fixture": "tlg-08-email-no-reference",
+  "description": "Gate D no-reference — visual artifact with no reference; falls back to manual review and suggests creating a reference",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": ["D"],
+      "expectedLayers": ["unit"],
+      "mustMention": ["manual", "reference"],
+      "mustNotMention": []
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "tlg-10-multi-gate",
+  "description": "Multi-gate A + B — user-facing dynamic AND browser-found bug fix; required layers unioned (E2E, no duplicate), each gate's cost listed once",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": ["A", "B"],
+      "expectedLayers": ["E2E"],
+      "mustMention": ["E2E", "regression"],
+      "mustNotMention": []
+    }
+  }
+}

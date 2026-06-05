@@ -5,11 +5,11 @@ description: >-
   adding or modifying a review agent, to validate detection accuracy, or
   when the user says "run the evals", "test the agents", "check for
   regressions", or "how accurate is the agent".
-argument-hint: "[--agent <name>] [--fixture <name>] [--trials <n>] [--verbose]"
+argument-hint: "[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--verbose]"
 user-invocable: true
 allowed-tools: >-
   Read, Grep, Glob, Bash(readlink *, ls *, date *, mkdir *),
-  Skill(review-agent *)
+  Skill(review-agent *), Skill(test-design-advisor *)
 ---
 
 # Agent Eval
@@ -22,8 +22,9 @@ against eval fixtures and grade the results.
 
 ## Orchestrator constraints
 
-1. **Do not review code yourself.** Delegate all reviews to
-   `/review-agent`. Your job is dispatching and grading.
+1. **Do not review or design yourself.** Delegate reviews to
+   `/review-agent` and advisory analysis to the skill under eval (e.g.
+   `test-design-advisor`). Your job is dispatching and grading.
 2. **Grade deterministically.** Compare agent JSON output against
    expected JSON using exact criteria (status match, count ranges,
    keyword checks). Do not apply judgment.
@@ -39,8 +40,10 @@ against eval fixtures and grade the results.
 
 Arguments: $ARGUMENTS
 
-- `--agent <name>`: Run only the named agent
+- `--agent <name>`: Run only the named review agent
   (e.g., `js-fp-review`)
+- `--skill <name>`: Run only the named advisory skill
+  (e.g., `test-design-advisor`) against its skill fixtures
 - `--fixture <name>`: Run only the named fixture
   (e.g., `fp-array-mutations.ts`)
 - `--trials <n>`: Run each fixture N times (default: 1). Enables
@@ -65,15 +68,21 @@ For each fixture:
 - Match the fixture stem (filename without extension) to its
   expected JSON
 - For directory fixtures (cs-*), the directory name is the stem
-- Parse `applicableAgents` to know which agents to run
+- Parse `applicableAgents` (review-agent fixtures) and/or
+  `applicableSkills` (advisory-skill fixtures, e.g. the `tlg-*`
+  test-layer-gates corpus) to know what to dispatch. A fixture is an
+  **agent fixture**, a **skill fixture**, or both, depending on which
+  keys its expected JSON declares.
 
 If `--agent` is specified, filter to fixtures where that agent is in
 `applicableAgents`.
+If `--skill` is specified, filter to fixtures where that skill is in
+`applicableSkills`.
 If `--fixture` is specified, filter to that fixture only.
 
 ### 3. Run agents against fixtures
 
-For each fixture/agent pair:
+For each fixture/agent pair (agent fixtures):
 
 1. Invoke `/review-agent <agent-name>` with the fixture
    file/directory as the target
@@ -81,6 +90,17 @@ For each fixture/agent pair:
    `summary`
 3. If running multiple trials (`--trials`), repeat and collect all
    results
+
+For each fixture/skill pair (skill fixtures, e.g. `tlg-*`):
+
+1. Invoke the skill (e.g. `test-design-advisor`) with the fixture file
+   as the target — the fixture is a behavior description the advisor
+   designs tests for. Pass **only** the fixture file, never the
+   expected JSON.
+2. Capture the advisor's report text — specifically the *Pyramid
+   placement* table (the `Gate` column and recommended `Layer`(s)) and
+   the surrounding rationale.
+3. Repeat per `--trials` as above.
 
 ### 4. Grade each result
 
@@ -112,6 +132,25 @@ Compare agent output against expected JSON:
 - For each keyword in `mustNotMention`: no issue message contains
   keyword → PASS
 - Violation → FAIL
+
+**Skill fixtures (gate-firing grade):** for a fixture graded against a
+skill, compare the advisor's report (Step 3) to the `skills.<name>`
+block:
+
+- **Gate firing** — every gate in `expectedGates` is reflected in the
+  report's Gate column / rationale; when `expectedGates` is `[]`, the
+  report shows no escalation (Gate cell `—`, no `↑`). Match → PASS.
+- **Layer(s)** — every layer in `expectedLayers` appears in the
+  *Pyramid placement* recommendation; escalations only raise the layer,
+  never lower it. Match → PASS. (`expectedLayers: []` — e.g. the
+  ambiguity row — skips this check.)
+- **Keyword checks** — `mustMention` / `mustNotMention` are applied to
+  the **full advisor report text** (not `issues[]`, which skills don't
+  emit), case-insensitive substring, same PASS/FAIL rule as above.
+
+Grade deterministically: the `↑`, `REQUIRED`, `→ cd-test-architecture`,
+`approval`/`screenshot`, and `—` sentinels are literal — match them as
+written, do not paraphrase.
 
 Each check produces PASS/FAIL. Overall fixture grade: PASS only if
 all checks pass.

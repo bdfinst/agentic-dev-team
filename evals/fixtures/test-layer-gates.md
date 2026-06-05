@@ -3,7 +3,15 @@
 Verification fixture for the behavior pre-gates added to the `test-design-advisor` skill (issue #80).
 Each row is a behavior the advisor may be asked to design tests for, the gate(s) expected to fire, and the
 expected resulting layer(s). The Step 3 walk-through runs the advisor against each row and records
-actual == expected. This is the reviewer-rerunnable spec the gates are written to satisfy.
+actual == expected. This is the human-readable spec the gates are written to satisfy.
+
+> **Automated (issue #85).** This manual walk-through is now reproducible as an
+> agent-eval: the 11 rows are encoded as the `tlg-*` corpus
+> (`evals/fixtures/tlg-*.md` + `evals/expected/tlg-*.json`). Re-run with
+> `/agent-eval --skill test-design-advisor` instead of walking the table by hand.
+> A deterministic structural guard lives at `tests/repo/eval_tlg_fixtures.bats`.
+> This file remains the canonical row-by-row source of truth; the `tlg-*` corpus
+> mirrors it one-to-one (row N → `tlg-0N-*`).
 
 Layer vocabulary matches `knowledge/test-pyramid.md`: unit / integration / component / contract / E2E.
 Gate-column sentinels: `—` (no gate), `↑<layer>` (escalated), `→ cd-test-architecture` (E2E architecture deferred).

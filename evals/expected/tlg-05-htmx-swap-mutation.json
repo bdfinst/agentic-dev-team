@@ -1,0 +1,13 @@
+{
+  "fixture": "tlg-05-htmx-swap-mutation",
+  "description": "Gate C — HTMX swap over a server state mutation; browser test REQUIRED, integration complementary, E2E architecture deferred",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": ["C"],
+      "expectedLayers": ["E2E"],
+      "mustMention": ["REQUIRED", "browser", "cd-test-architecture"],
+      "mustNotMention": []
+    }
+  }
+}

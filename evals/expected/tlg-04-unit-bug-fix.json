@@ -1,0 +1,13 @@
+{
+  "fixture": "tlg-04-unit-bug-fix",
+  "description": "Gate B negative — bug found at the unit level; regression stays at unit, no escalation above the discovery layer",
+  "applicableSkills": ["test-design-advisor"],
+  "skills": {
+    "test-design-advisor": {
+      "expectedGates": ["B"],
+      "expectedLayers": ["unit"],
+      "mustMention": ["unit", "regression"],
+      "mustNotMention": ["↑"]
+    }
+  }
+}
