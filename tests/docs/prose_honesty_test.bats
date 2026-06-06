@@ -26,7 +26,7 @@ BANNED_PHRASES=(
   while IFS= read -r -d '' file; do
     for phrase in "${BANNED_PHRASES[@]}"; do
       if grep -iqF "$phrase" "$file"; then
-        hits="${hits}\n  ${file#$REPO_ROOT/}: \"$phrase\""
+        hits="${hits}\n  ${file#"$REPO_ROOT"/}: \"$phrase\""
       fi
     done
   done < <(find "$PLUGIN_DOCS" -name '*.md' -print0)
@@ -39,24 +39,34 @@ BANNED_PHRASES=(
   fi
 }
 
-@test "CLAUDE.md does not ship bare un-instrumented numeric targets" {
-  # These were the un-falsifiable Targets removed in #100. If any reappears
-  # as a bare claim, it must instead name its instrument under the
-  # "Claims discipline" section.
+@test "no bare un-instrumented numeric targets in shipped plugin prose" {
+  # These were the un-falsifiable Targets removed in #100 — originally from
+  # CLAUDE.md, but they also lived in sibling shipped docs (performance-metrics
+  # and governance-compliance skills). The sensor scans ALL shipped prose, not
+  # just CLAUDE.md: a target with no instrument must not ship anywhere. If a
+  # number is real, move it under "Claims discipline" naming its instrument.
+  # Add to this list as new ones are caught.
   local banned_targets=(
     "10-15% overall efficiency gains"
     "< 5% hallucination rate"
     "95% accuracy on structured data extraction"
     "> 80% first-pass acceptance rate"
+    "< 5% of tasks"
+    "< 5% of total task tokens"
+    "> 50% reduction"
+    "within target (< 5%)"
   )
   local hits=""
-  for t in "${banned_targets[@]}"; do
-    if grep -qF "$t" "$CLAUDE_MD"; then
-      hits="${hits}\n  \"$t\""
-    fi
-  done
+  while IFS= read -r -d '' file; do
+    for t in "${banned_targets[@]}"; do
+      if grep -qF "$t" "$file"; then
+        hits="${hits}\n  ${file#"$REPO_ROOT"/}: \"$t\""
+      fi
+    done
+  done < <(find "$PLUGIN_DOCS" -name '*.md' -print0)
+
   if [ -n "$hits" ]; then
-    echo "Un-instrumented numeric target(s) reintroduced into CLAUDE.md:" >&2
+    echo "Un-instrumented numeric target(s) in shipped prose:" >&2
     echo -e "$hits" >&2
     echo "Either delete, or move under 'Claims discipline' naming the instrument." >&2
     return 1

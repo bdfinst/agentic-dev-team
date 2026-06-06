@@ -3159,7 +3159,7 @@
       "anchor": "constraints"
     },
     "Metric Categories": {
-      "summary": "| Metric | Description | Target |",
+      "summary": "> **Targets discipline.** Per CLAUDE.md → \"Claims discipline\", a numeric target",
       "anchor": "metric-categories"
     },
     "Efficiency Metrics": {
