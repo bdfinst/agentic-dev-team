@@ -9,9 +9,14 @@
   "plugins": [
     {
       "name": "dev-team",
-      "source": "./plugins/dev-team",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/bdfinst/agentic-dev-team.git",
+        "path": "plugins/dev-team",
+        "ref": "dev-team-v6.4.0"
+      },
       "description": "Persona-driven AI development team: orchestrator, team agents, review agents, skills (agent-loaded and user-invocable slash commands), and advisory hooks for Claude Code. Previously published as agentic-dev-team.",
-      "version": "3.3.0",
+      "version": "6.4.0",
       "author": {
         "name": "Bryan Finster"
       },
@@ -21,9 +26,14 @@
     },
     {
       "name": "security-assessment",
-      "source": "./plugins/security-assessment",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/bdfinst/agentic-dev-team.git",
+        "path": "plugins/security-assessment",
+        "ref": "security-assessment-v3.1.1"
+      },
       "description": "Deep security assessment + adversarial ML red-team: SARIF-first tool orchestration, narrowly-scoped LLM agents, FP-reduction with fallback banner, compliance mapping, service-comm diagramming, and a self-owned-target red-team harness. Companion plugin to dev-team. Previously published as agentic-security-assessment.",
-      "version": "1.0.0",
+      "version": "3.1.1",
       "author": {
         "name": "Bryan Finster"
       },
