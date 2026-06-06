@@ -14,24 +14,27 @@ deterministic, model-free grader that backs CI.
    asserts every `expected/*.json` is valid, declares an agent/skill target,
    and pairs with a fixture; `tests/repo/eval_grader_tests.bats` exercises the
    grader. No tokens, no flakes.
-2. **Live gate (opt-in).** Dispatches the review agents via the Claude Code
-   GitHub Action (`anthropics/claude-code-action@v1`), records their raw
-   outputs to `actuals.json`, and grades against `baseline.json` — failing the
-   PR on any **regression** with a readable diff. It is **OFF by default** and
-   only runs when the repo/environment variable `RUN_LIVE_AGENT_EVAL=true`
-   **and** `ANTHROPIC_API_KEY` is set. When not enabled the live gate is
-   **skipped, not failed** (an explicit GitHub notice is emitted); the
-   structural gate still runs.
+2. **Live gate (paid, label-gated).** Dispatches the review agents via the
+   Claude Code GitHub Action (`anthropics/claude-code-action@v1`), records
+   their raw outputs to `actuals.json`, and grades against `baseline.json` —
+   failing the PR on any **regression** with a readable diff. It costs tokens,
+   so it runs **only when the PR carries the `run-eval` label** (or via a
+   manual `workflow_dispatch` with `force_live=true`), and only when
+   `ANTHROPIC_API_KEY` is set. Otherwise it is **skipped, not failed** (a
+   GitHub notice is emitted); the structural gate still runs. A `concurrency`
+   group cancels superseded runs so rapid pushes don't stack paid runs.
+
+   **Note on workflow validation:** `claude-code-action` will *self-skip* (no
+   model run) on any PR that adds or modifies this workflow file, because
+   GitHub requires the workflow to match the default branch. The live gate
+   therefore only exercises the agents once `agent-eval.yml` is merged to the
+   default branch.
 
    The runner is wired (it stages the corpus into `.claude/evals/`, installs
    the `dev-team@bfinster` plugin, and prompts the model to write
-   `actuals.json` in the shape below). To activate:
-
-   1. Trigger the workflow manually once to confirm it produces a well-formed
-      `actuals.json` (this spends tokens — hence the opt-in).
-   2. Record the baseline from that green run (see below).
-   3. Set `RUN_LIVE_AGENT_EVAL=true` (Settings → Secrets and variables →
-      Actions → Variables).
+   `actuals.json` in the shape below). To record the baseline: add the
+   `run-eval` label to a PR (post-merge of this workflow), confirm it produces
+   a well-formed `actuals.json`, then capture its passing pairs below.
 
 ### Grader input shape (`actuals.json`)
 

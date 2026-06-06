@@ -19,6 +19,9 @@ name: agent-eval-gate
 
 on:
   pull_request:
+    # 'labeled' lets adding the run-eval label trigger the (paid) live gate.
+    # The free structural + semver gates run on every commit regardless.
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - "plugins/dev-team/agents/**"
       - "plugins/dev-team/skills/**"
@@ -26,23 +29,18 @@ on:
       - "evals/**"
       - "scripts/eval_grade.py"
       - ".github/workflows/agent-eval.yml"
-  push:
-    branches: [main]
-    paths:
-      - "plugins/dev-team/agents/**"
-      - "plugins/dev-team/skills/**"
-      - "plugins/dev-team/knowledge/**"
-      - "evals/**"
-      - "scripts/eval_grade.py"
-  # Manual trigger for the one-time validation run before flipping
-  # RUN_LIVE_AGENT_EVAL on (see evals/README.md). force_live=true runs the
-  # live gate for this dispatch without needing the repo variable set yet.
+  # Manual trigger; force_live=true runs the live gate without the label.
   workflow_dispatch:
     inputs:
       force_live:
         description: "Run the live agent-eval gate for this run (needs ANTHROPIC_API_KEY)"
         type: boolean
         default: false
+
+# Cancel superseded runs on the same ref so rapid pushes don't stack paid runs.
+concurrency:
+  group: agent-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   structural-gate:
@@ -98,31 +96,26 @@ jobs:
         id: cred
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Explicit opt-in. The live gate dispatches the real agents (costs
-          # tokens) and requires the Claude Code runner to be wired into the
-          # "Run agent-eval" step below. It is OFF until a maintainer sets the
-          # repo/environment variable RUN_LIVE_AGENT_EVAL=true. Merely having
-          # the API key present is NOT enough — otherwise an unwired seam would
-          # red-line every PR.
-          RUN_LIVE_AGENT_EVAL: ${{ vars.RUN_LIVE_AGENT_EVAL }}
+          # The live gate dispatches the real agents (costs tokens). It runs
+          # only when a PR carries the 'run-eval' label (per-PR opt-in) or via
+          # a manual force_live dispatch. The API key must also be present.
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'run-eval') }}
           FORCE_LIVE: ${{ github.event.inputs.force_live }}
         run: |
-          if { [ "$RUN_LIVE_AGENT_EVAL" = "true" ] || [ "$FORCE_LIVE" = "true" ]; } \
+          if { [ "$HAS_LABEL" = "true" ] || [ "$FORCE_LIVE" = "true" ]; } \
              && [ -n "$ANTHROPIC_API_KEY" ]; then
             echo "run_live=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_live=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Live gate not enabled — notice (structural gate still ran)
+      - name: Live gate not triggered — notice (structural gate still ran)
         if: steps.cred.outputs.run_live != 'true'
         run: |
-          echo "::notice title=agent-eval live gate not enabled::" \
-            "The model-free structural gate ran. To enable per-PR live agent" \
-            "regression detection, wire the Claude Code runner into the" \
-            "'Run agent-eval' step and set the repo variable" \
-            "RUN_LIVE_AGENT_EVAL=true (ANTHROPIC_API_KEY must also be set)." \
-            "See issue #99 and evals/README.md."
+          echo "::notice title=agent-eval live gate not triggered::" \
+            "The model-free structural gate ran. Add the 'run-eval' label to" \
+            "this PR (or dispatch with force_live) to run the paid live agent" \
+            "regression gate. See issue #99 and evals/README.md."
 
       # --- Live path (opt-in via RUN_LIVE_AGENT_EVAL) ----------------------
       # Budget: a 1-trial smoke run over the fixtures touched by the PR. The
