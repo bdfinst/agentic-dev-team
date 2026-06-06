@@ -57,7 +57,10 @@ jobs:
         run: bats tests/repo/eval_grader_tests.bats
 
   semver-contract:
-    name: Eval-corpus semver contract (issue #101)
+    # Job name is a REQUIRED status-check context (renovate-require-tests
+    # ruleset). Keep it paren-free and issue-number-free so it is stable and
+    # can't be truncated mid-token when typed into branch rules. (Issue #101.)
+    name: Eval-corpus prompt-semver gate
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
