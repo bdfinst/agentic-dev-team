@@ -1935,6 +1935,16 @@
       "anchor": "5-load-phase-context"
     }
   },
+  "plugins/dev-team/skills/cost-report/SKILL.md": {
+    "Steps": {
+      "summary": "1.",
+      "anchor": "steps"
+    },
+    "Notes": {
+      "summary": "Disable the meter with `DEV_TEAM_COST_METER=off`.",
+      "anchor": "notes"
+    }
+  },
   "plugins/dev-team/skills/design-doc/SKILL.md": {
     "Overview": {
       "summary": "The Research phase explores what exists.",
@@ -3725,6 +3735,16 @@
     "Output": {
       "summary": "Root cause analysis with evidence: reproduction output, investigation findings, root cause statement, fix applied, and verification output showing the fix works without regressions.",
       "anchor": "output"
+    }
+  },
+  "plugins/dev-team/skills/telemetry/SKILL.md": {
+    "Argument: $ARGUMENTS": {
+      "summary": "`status` (default): report whether telemetry is enabled and what's collected.",
+      "anchor": "argument-arguments"
+    },
+    "Steps": {
+      "summary": "1.",
+      "anchor": "steps"
     }
   },
   "plugins/dev-team/skills/test-design-advisor/SKILL.md": {

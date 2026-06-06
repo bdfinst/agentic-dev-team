@@ -26,6 +26,13 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash hooks/telemetry.sh" }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit",
@@ -45,7 +52,8 @@
           {
             "type": "command",
             "command": "bash hooks/pre-commit-knowledge-index.sh"
-          }
+          },
+          { "type": "command", "command": "bash hooks/telemetry.sh" }
         ]
       },
       {
@@ -109,6 +117,22 @@
         "matcher": "mcp__codegraph__.*",
         "hooks": [
           { "type": "command", "command": "bash hooks/codegraph-turn-mark.sh" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": null,
+        "hooks": [
+          { "type": "command", "command": "bash hooks/cost-meter.sh" }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": null,
+        "hooks": [
+          { "type": "command", "command": "bash hooks/cost-meter.sh" }
         ]
       }
     ]

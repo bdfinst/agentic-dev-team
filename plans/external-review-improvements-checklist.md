@@ -36,12 +36,14 @@ These pay for themselves immediately and create the harness the later waves reus
 
 Nothing downstream can be evidence-based without these two. Build them before the measurement bets.
 
-- [ ] **#102 — Runtime cost/token metering** *(High / Med)*
+- [x] **#102 — Runtime cost/token metering** *(High / Med)*
   - No hard dependency, but do after #100 (it provides the instrument #100 promised for cost claims).
   - Required by #111 (process eval needs a real cost meter to compare pipelines).
-- [ ] **#106 — Opt-in privacy-clean telemetry beacon** *(High / Med)*
+  - Done: `hooks/lib/cost_meter.py` parses the session transcript (token usage isn't in hook payloads), attributes tokens/$ per agent+model via `knowledge/model-pricing.json`, recorded by the `Stop`/`SubagentStop` hook to `metrics/cost-metering.jsonl`; `/cost-report` skill prints spend + rolling-baseline regression. Tests in `tests/repo/cost_meter_tests.bats`.
+- [x] **#106 — Opt-in privacy-clean telemetry beacon** *(High / Med)*
   - No hard dependency. Reuses the append-only event-log convention.
   - Required by #112 (exposure-based gating) and pairs with #113 (auto-learning signals).
+  - Done: `hooks/telemetry.sh` (default-off, local-only) captures command/skill usage (`UserPromptSubmit`) and pre-commit gate fired/bypassed (`PreToolUse` Bash) as minimal events (name + outcome + version, no payloads) to `metrics/telemetry.jsonl`; `/telemetry` skill manages consent and reports usage + bypass rate. Tests in `tests/repo/telemetry_tests.bats`.
 
 **Wave 1 exit:** per-dispatch cost is measurable; gate-bypass/usage telemetry exists (opt-in).
 
