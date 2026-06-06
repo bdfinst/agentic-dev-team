@@ -3741,6 +3741,16 @@
       "anchor": "output"
     }
   },
+  "plugins/dev-team/skills/telemetry/SKILL.md": {
+    "Argument: $ARGUMENTS": {
+      "summary": "`status` (default): report whether telemetry is enabled and what's collected.",
+      "anchor": "argument-arguments"
+    },
+    "Steps": {
+      "summary": "1.",
+      "anchor": "steps"
+    }
+  },
   "plugins/dev-team/skills/test-design-advisor/SKILL.md": {
     "Overview": {
       "summary": "An **advisory** skill: it recommends how to test code and how to make untestable code testable.",

@@ -26,6 +26,13 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash hooks/telemetry.sh" }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit",
@@ -45,7 +52,8 @@
           {
             "type": "command",
             "command": "bash hooks/pre-commit-knowledge-index.sh"
-          }
+          },
+          { "type": "command", "command": "bash hooks/telemetry.sh" }
         ]
       },
       {
