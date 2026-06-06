@@ -1,0 +1,21 @@
+{
+  "name": "agentic-dev-team",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tooling for the dev-team Claude Code plugin marketplace (lint config for TypeScript eval fixtures).",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "test:ci": "bash scripts/ci-local.sh",
+    "eval:changed": "bash scripts/eval-changed.sh",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "husky": "^9.1.0",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

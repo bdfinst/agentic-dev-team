@@ -16,12 +16,7 @@ jobs:
 
       - name: Shellcheck security-assessment helper scripts
         run: |
-          shellcheck -x \
-            plugins/security-assessment/scripts/_lib.sh \
-            plugins/security-assessment/scripts/apply-accepted-risks.sh \
-            plugins/security-assessment/scripts/apply-severity-floors.sh \
-            plugins/security-assessment/scripts/find-ci-files.sh \
-            plugins/security-assessment/scripts/phase-timer.sh
+          shellcheck -x plugins/security-assessment/scripts/*.sh
 
       - name: Shellcheck test files
         run: |
