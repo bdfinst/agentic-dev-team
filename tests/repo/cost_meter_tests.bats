@@ -107,6 +107,23 @@ EOF
   [ "$(echo "$output" | jq -r '.by_iteration.unattributed.input_tokens')" = "500" ]
 }
 
+@test "meter: attributes spend per orchestration phase (#139)" {
+  cat > "$CASE/phase.jsonl" <<'EOF'
+{"type":"assistant","attributionSkill":"build","message":{"model":"claude-opus-4-8","usage":{"input_tokens":8000,"output_tokens":1000}}}
+{"type":"assistant","attributionSkill":"code-review","message":{"model":"claude-opus-4-8","usage":{"input_tokens":5000,"output_tokens":600}}}
+{"type":"assistant","attributionSkill":"review-agent","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":3000,"output_tokens":200}}}
+{"type":"assistant","orchestrationPhase":"specs","message":{"model":"claude-opus-4-8","usage":{"input_tokens":1000,"output_tokens":100}}}
+EOF
+  run python3 "$METER" report --transcript "$CASE/phase.jsonl" --json
+  [ "$status" -eq 0 ]
+  # build phase from /build
+  [ "$(echo "$output" | jq -r '.by_phase.build.input_tokens')" = "8000" ]
+  # review phase aggregates code-review + review-agent: 5000+3000
+  [ "$(echo "$output" | jq -r '.by_phase.review.input_tokens')" = "8000" ]
+  # explicit orchestrationPhase marker wins
+  [ "$(echo "$output" | jq -r '.by_phase.specs.input_tokens')" = "1000" ]
+}
+
 @test "meter: record persists by_command and by_iteration (#134)" {
   cat > "$CASE/iter.jsonl" <<'EOF'
 {"type":"assistant","attributionSkill":"code-review","fixLoopIteration":1,"message":{"model":"claude-opus-4-8","usage":{"input_tokens":10000,"output_tokens":2000}}}
