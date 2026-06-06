@@ -89,6 +89,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/explore` | `skills/explore/SKILL.md` | worker | Charter-driven exploratory testing of a running target (Chaos Specialist mode): structured heuristics + adversarial expansion, auto-triages critical defects, writes an incremental report |
 | `/issues-from-plan` | `skills/issues-from-plan/SKILL.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
 | `/harness-audit` | `skills/harness-audit/SKILL.md` | orchestrator | Analyze harness effectiveness and flag stale components |
+| `/session-review` | `skills/session-review/SKILL.md` | orchestrator | Mine real session transcripts (via the deterministic `session_extract.py`) and dispatch `session-analysis` to suggest token/rework/accuracy improvements; suggests, never auto-applies |
 | `/version` | `skills/version/SKILL.md` | worker | Report the installed plugin version |
 | `/benchmark` | `skills/benchmark/SKILL.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
 | `/semantic-scan` | `skills/semantic-scan/SKILL.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
