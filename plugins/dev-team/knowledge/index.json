@@ -1940,6 +1940,14 @@
       "summary": "1.",
       "anchor": "steps"
     },
+    "Attribution dimensions (#134)": {
+      "summary": "`report` breaks spend down by **agent**, **command** (the transcript's",
+      "anchor": "attribution-dimensions-134"
+    },
+    "Privacy boundary (#134)": {
+      "summary": "The meter persists **only** token counts, dollar amounts, model/agent",
+      "anchor": "privacy-boundary-134"
+    },
     "Notes": {
       "summary": "Disable the meter with `DEV_TEAM_COST_METER=off`.",
       "anchor": "notes"
