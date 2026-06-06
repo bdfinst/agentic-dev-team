@@ -65,8 +65,25 @@ export default tseslint.config(
   // Never lint dependencies or generated build output. The `build/`/`dist/` `.js`
   // files under the recon fixtures are placeholders representing artifacts the
   // codebase-recon agent is meant to exclude — they are not source.
+  //
+  // `knowledge/rule-fixtures/**/*.js` are the positive/negative fixtures for the
+  // security semgrep rules: positives are *intentionally* vulnerable (eval of
+  // user input, wildcard CORS, JWT alg=none, …) and negatives are minimal
+  // snippets. They are detection inputs, not source — linting them only ever
+  // produces no-undef/no-unused-vars noise by design.
+  //
+  // `tests/fixtures/agent-readiness/**/*.js` are config files inside mock repos
+  // used to exercise the agent-readiness scanner (e.g. a CommonJS
+  // `commitlint.config.js` using `module.exports`). They are fixture data, not
+  // first-party source.
   {
-    ignores: ["node_modules/**", "**/build/**", "**/dist/**"],
+    ignores: [
+      "node_modules/**",
+      "**/build/**",
+      "**/dist/**",
+      "**/knowledge/rule-fixtures/**/*.js",
+      "**/tests/fixtures/agent-readiness/**/*.js",
+    ],
   },
 
   // First-party JavaScript (this config file, and any future js/cjs/mjs).
