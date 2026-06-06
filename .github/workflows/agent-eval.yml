@@ -74,32 +74,38 @@ jobs:
     name: Live regression gate (model-dependent)
     runs-on: ubuntu-latest
     needs: structural-gate
-    # Job-level gate on PRs; the live run itself is further gated on the
-    # secret being present (see the HAVE_KEY step below).
     steps:
       - uses: actions/checkout@v6
 
-      - name: Detect model credentials
+      - name: Decide whether to run the live gate
         id: cred
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Explicit opt-in. The live gate dispatches the real agents (costs
+          # tokens) and requires the Claude Code runner to be wired into the
+          # "Run agent-eval" step below. It is OFF until a maintainer sets the
+          # repo/environment variable RUN_LIVE_AGENT_EVAL=true. Merely having
+          # the API key present is NOT enough — otherwise an unwired seam would
+          # red-line every PR.
+          RUN_LIVE_AGENT_EVAL: ${{ vars.RUN_LIVE_AGENT_EVAL }}
         run: |
-          if [ -n "$ANTHROPIC_API_KEY" ]; then
-            echo "have_key=true" >> "$GITHUB_OUTPUT"
+          if [ "$RUN_LIVE_AGENT_EVAL" = "true" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "run_live=true" >> "$GITHUB_OUTPUT"
           else
-            echo "have_key=false" >> "$GITHUB_OUTPUT"
+            echo "run_live=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Degraded-mode notice (no model API)
-        if: steps.cred.outputs.have_key != 'true'
+      - name: Live gate not enabled — notice (structural gate still ran)
+        if: steps.cred.outputs.run_live != 'true'
         run: |
-          echo "::notice title=agent-eval live gate skipped::" \
-            "ANTHROPIC_API_KEY is not configured for this repo, so the live" \
-            "agent-eval regression gate is skipped. The structural gate still" \
-            "ran. Configure the secret to enable per-PR agent regression" \
-            "detection. See issue #99."
+          echo "::notice title=agent-eval live gate not enabled::" \
+            "The model-free structural gate ran. To enable per-PR live agent" \
+            "regression detection, wire the Claude Code runner into the" \
+            "'Run agent-eval' step and set the repo variable" \
+            "RUN_LIVE_AGENT_EVAL=true (ANTHROPIC_API_KEY must also be set)." \
+            "See issue #99 and evals/README.md."
 
-      # --- Live path (only when the secret is present) ---------------------
+      # --- Live path (opt-in via RUN_LIVE_AGENT_EVAL) ----------------------
       # Budget: a 1-trial smoke run over the fixtures touched by the PR. The
       # runner records each agent's JSON output into actuals.json (keyed by
       # fixture stem), then the deterministic grader compares against
@@ -107,27 +113,29 @@ jobs:
       # readable diff. Multi-trial quorum and per-agent thresholds are layered
       # in by issue #103's variance data.
       - name: Install tooling
-        if: steps.cred.outputs.have_key == 'true'
+        if: steps.cred.outputs.run_live == 'true'
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Run agent-eval (records actuals.json)
-        if: steps.cred.outputs.have_key == 'true'
+        if: steps.cred.outputs.run_live == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           # The eval dispatch requires the Claude Code runner. This step is a
           # placeholder seam: wire the Claude Code GitHub Action here to run
           # `/agent-eval` and emit actuals.json in the grader's input shape
-          # (see scripts/eval_grade.py header). Until wired, fail loudly
-          # rather than silently passing a live gate that did nothing.
+          # (see scripts/eval_grade.py header). Opting in via
+          # RUN_LIVE_AGENT_EVAL=true without wiring it is a misconfiguration,
+          # so fail loudly here rather than pass a live gate that did nothing.
           if [ ! -f actuals.json ]; then
-            echo "::error title=live eval not wired::actuals.json was not" \
-              "produced. Wire the Claude Code action into this step."
+            echo "::error title=live eval not wired::RUN_LIVE_AGENT_EVAL is" \
+              "true but actuals.json was not produced. Wire the Claude Code" \
+              "action into this step."
             exit 1
           fi
 
       - name: Grade against baseline
-        if: steps.cred.outputs.have_key == 'true'
+        if: steps.cred.outputs.run_live == 'true'
         run: |
           python3 scripts/eval_grade.py \
             --actuals actuals.json \
