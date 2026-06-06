@@ -16,12 +16,7 @@ jobs:
 
       - name: Shellcheck security-assessment helper scripts
         run: |
-          shellcheck -x \
-            plugins/security-assessment/scripts/_lib.sh \
-            plugins/security-assessment/scripts/apply-accepted-risks.sh \
-            plugins/security-assessment/scripts/apply-severity-floors.sh \
-            plugins/security-assessment/scripts/find-ci-files.sh \
-            plugins/security-assessment/scripts/phase-timer.sh
+          shellcheck -x plugins/security-assessment/scripts/*.sh
 
       - name: Shellcheck test files
         run: |
@@ -55,3 +50,15 @@ jobs:
             tests/agents/ \
             tests/commands/ \
             tests/docs/
+
+      # Model-routing conformance: the updatedInput PreToolUse rewrite
+      # contract (ADR-0004) is load-bearing and depends on undocumented
+      # harness behavior. These hook tests are toolchain-free (bash + jq),
+      # unlike the rest of tests/hooks/ which needs stryker/pitest — so they
+      # run here as a CI gate. See issue #104.
+      - name: Run model-routing hook conformance tests (bats)
+        run: |
+          bats \
+            tests/hooks/updated_input_contract_tests.bats \
+            tests/hooks/agent_model_resolve_hook_tests.bats \
+            tests/hooks/model_resolve_tests.bats

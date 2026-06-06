@@ -12,17 +12,21 @@ Each wave is gated on the prior wave's infrastructure, not just preference.
 
 These pay for themselves immediately and create the harness the later waves reuse.
 
-- [ ] **#99 — Agent-eval regression gate in CI** *(High / Low)*
+- [x] **#99 — Agent-eval regression gate in CI** *(High / Low)*
   - No dependencies. Builds the reusable eval-in-CI runner that #101, #103, #108, #110 lean on.
   - Start here: even a 1-trial smoke run closes the biggest gap both reviews named.
-- [ ] **#100 — Prose/Targets slop cleanup + de-buzzword CLAUDE.md** *(Med / Low)*
+  - Done: `scripts/eval_grade.py` (deterministic, model-free grader + corpus check), `evals/baseline.json` + `evals/README.md`, `.github/workflows/agent-eval.yml` (model-free structural gate always; live regression gate when `ANTHROPIC_API_KEY` present, else skipped-not-failed), grader unit tests in `tests/repo/eval_grader_tests.bats`.
+- [x] **#100 — Prose/Targets slop cleanup + de-buzzword CLAUDE.md** *(Med / Low)*
   - No dependencies. Pure editing; do alongside #99.
   - Establishes the "every quantitative claim names its instrument" rule that #102/#106 later satisfy.
-- [ ] **#104 — `updatedInput` hook-contract conformance test** *(Med / Low)*
+  - Done: removed "federated learning" + "LSTM-inspired gates" metaphors and the un-instrumented Targets numbers from `plugins/dev-team/CLAUDE.md`; added a "Claims discipline" rule; `tests/docs/prose_honesty_test.bats` is the deterministic sensor that keeps the prose clean.
+- [x] **#104 — `updatedInput` hook-contract conformance test** *(Med / Low)*
   - No dependencies. Isolated bats/integration test protecting model routing.
-- [ ] **#101 — Eval-corpus-as-semver contract** *(High / Low–Med)*
+  - Done: `tests/hooks/updated_input_contract_tests.bats` pins the exact PreToolUse rewrite envelope (incl. 3-hop chain + deny shape), and the model-routing hook tests now run in CI (`plugin-tests.yml`) — previously `tests/hooks/` was excluded.
+- [x] **#101 — Eval-corpus-as-semver contract** *(High / Low–Med)*
   - Depends on: #99 (reuses the eval runner + baseline).
   - Wire the patch/minor/major classifier into release-please once the runner exists.
+  - Done: `scripts/eval_semver_classify.sh` classifies expected-corpus diffs (none→patch / additive→minor / editing→major) and asserts the conventional-commit type matches; wired as a PR job in `agent-eval.yml`; tests in `tests/repo/eval_semver_classify_tests.bats`.
 
 **Wave 0 exit:** agents are tested on every PR; routing has a sensor; CLAUDE.md claims are honest; prompt semver is defined.
 

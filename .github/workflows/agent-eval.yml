@@ -1,0 +1,236 @@
+name: agent-eval-gate
+
+# Agent-eval regression gate (issue #99).
+#
+# The review agents are the non-deterministic, untested part of the system.
+# /agent-eval verifies their detection accuracy but only runs when a human
+# remembers. This gate runs on every PR that touches the agents, skills,
+# knowledge, or the eval corpus itself.
+#
+# Two tiers, by design:
+#   1. STRUCTURAL gate (always, model-free): corpus integrity + the
+#      deterministic grader's own unit tests. Cheap, hermetic, never flakes.
+#   2. LIVE gate (only when ANTHROPIC_API_KEY is configured): actually
+#      dispatches the agents against the fixtures, grades the recorded
+#      outputs against evals/expected/*.json, and fails on any regression
+#      vs evals/baseline.json. Costs model tokens, so it is opt-in via the
+#      presence of the secret and degrades gracefully (skipped, not failed)
+#      when the model API is unavailable.
+
+on:
+  pull_request:
+    # 'labeled' lets adding the run-eval label trigger the (paid) live gate.
+    # The free structural + semver gates run on every commit regardless.
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - "plugins/dev-team/agents/**"
+      - "plugins/dev-team/skills/**"
+      - "plugins/dev-team/knowledge/**"
+      - "evals/**"
+      - "scripts/eval_grade.py"
+      - ".github/workflows/agent-eval.yml"
+  # Manual trigger; force_live=true runs the live gate without the label.
+  workflow_dispatch:
+    inputs:
+      force_live:
+        description: "Run the live agent-eval gate for this run (needs ANTHROPIC_API_KEY)"
+        type: boolean
+        default: false
+
+# Cancel superseded runs on the same ref so rapid pushes don't stack paid runs.
+concurrency:
+  group: agent-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  structural-gate:
+    name: Structural gate (model-free)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install bats + jq
+        run: sudo apt-get update && sudo apt-get install -y bats jq
+
+      - name: Eval corpus integrity check
+        run: python3 scripts/eval_grade.py --check-corpus
+
+      - name: Grader unit tests
+        run: bats tests/repo/eval_grader_tests.bats
+
+  semver-contract:
+    name: Eval-corpus semver contract (issue #101)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Classify corpus change vs. commit type
+        run: |
+          # The eval corpus is the prompt's semver contract: editing an
+          # existing expected value is a behavioral break (major); adding new
+          # expectations is additive (minor); GREEN-preserving is patch. Assert
+          # the PR's conventional-commit type matches.
+          bash scripts/eval_semver_classify.sh \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}"
+
+  live-gate:
+    name: Live regression gate (model-dependent)
+    runs-on: ubuntu-latest
+    needs: structural-gate
+    # anthropics/claude-code-action@v1 authenticates its GitHub operations via
+    # an OIDC token, so id-token: write is required (it is never granted by
+    # default). contents: read to access the repo; pull-requests: write because
+    # the action's post-step buffers inline PR comments.
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # need PR base to diff which agents/skills changed
+
+      - name: Decide whether to run the live gate
+        id: cred
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The live gate dispatches the real agents (costs tokens). It runs
+          # only when a PR carries the 'run-eval' label (per-PR opt-in) or via
+          # a manual force_live dispatch. The API key must also be present.
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'run-eval') }}
+          FORCE_LIVE: ${{ github.event.inputs.force_live }}
+        run: |
+          if { [ "$HAS_LABEL" = "true" ] || [ "$FORCE_LIVE" = "true" ]; } \
+             && [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "run_live=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_live=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Live gate not triggered — notice (structural gate still ran)
+        if: steps.cred.outputs.run_live != 'true'
+        run: |
+          echo "::notice title=agent-eval live gate not triggered::" \
+            "The model-free structural gate ran. Add the 'run-eval' label to" \
+            "this PR (or dispatch with force_live) to run the paid live agent" \
+            "regression gate. See issue #99 and evals/README.md."
+
+      # --- Live path (opt-in via RUN_LIVE_AGENT_EVAL) ----------------------
+      # Budget: a 1-trial smoke run over the fixtures touched by the PR. The
+      # runner records each agent's JSON output into actuals.json (keyed by
+      # fixture stem), then the deterministic grader compares against
+      # evals/baseline.json and fails the job on any regression with a
+      # readable diff. Multi-trial quorum and per-agent thresholds are layered
+      # in by issue #103's variance data.
+      - name: Install tooling
+        if: steps.cred.outputs.run_live == 'true'
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      # The agent-eval skill reads fixtures from .claude/evals/{fixtures,
+      # expected}/, but this repo stores them at evals/. Symlink them into
+      # place so the skill finds the corpus in CI.
+      - name: Stage fixtures where the skill expects them
+        if: steps.cred.outputs.run_live == 'true'
+        run: |
+          mkdir -p .claude/evals
+          ln -sfn "$PWD/evals/fixtures" .claude/evals/fixtures
+          ln -sfn "$PWD/evals/expected" .claude/evals/expected
+
+      # Diff-scope: run only the agents/skills the PR changed. A broad change
+      # (knowledge, the corpus, the grader, or this workflow) or a dispatch
+      # with no PR base falls back to a full run, since one knowledge file can
+      # feed many agents.
+      - name: Detect changed eval targets
+        id: scope
+        if: steps.cred.outputs.run_live == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          full() { echo "only=" >> "$GITHUB_OUTPUT"; echo "instruction=" >> "$GITHUB_OUTPUT"; echo "scope=full" >> "$GITHUB_OUTPUT"; }
+          if [ -z "$BASE" ] || [ -z "$HEAD" ]; then full; exit 0; fi
+          changed=$(git diff --name-only "$BASE" "$HEAD")
+          if echo "$changed" | grep -qE '^(plugins/dev-team/knowledge/|evals/|scripts/eval_grade\.py|\.github/workflows/agent-eval\.yml)'; then
+            full; exit 0
+          fi
+          agents=$(echo "$changed" | sed -n 's#^plugins/dev-team/agents/\([^/]*\)\.md$#\1#p')
+          skills=$(echo "$changed" | sed -n 's#^plugins/dev-team/skills/\([^/]*\)/.*#\1#p')
+          only=$(printf '%s\n%s\n' "$agents" "$skills" | sed '/^$/d' | sort -u | paste -sd, -)
+          if [ -z "$only" ]; then full; exit 0; fi
+          echo "only=$only" >> "$GITHUB_OUTPUT"
+          echo "scope=scoped" >> "$GITHUB_OUTPUT"
+          echo "instruction=IMPORTANT: restrict this run to ONLY these agents/skills and skip all others: $only" >> "$GITHUB_OUTPUT"
+          echo "::notice title=diff-scoped agent-eval::Running only: $only"
+
+      # Run the review agents headlessly via the Claude Code GitHub Action and
+      # serialize their RAW outputs to actuals.json in the grader's input shape
+      # (see scripts/eval_grade.py header). Grading stays in the deterministic
+      # grader below — this step only records, it does not judge. The plugin is
+      # installed from the in-repo marketplace so its skills are discoverable.
+      - name: Run agent-eval (records actuals.json)
+        if: steps.cred.outputs.run_live == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: ${{ github.workspace }}
+          plugins: "dev-team@bfinster"
+          prompt: |
+            Run the review agents against every fixture in
+            .claude/evals/fixtures/ whose paired .claude/evals/expected/<stem>.json
+            declares an applicableAgents (or applicableSkills) target, using the
+            /review-agent skill for agent fixtures and the test-design-advisor
+            skill for skill fixtures.
+
+            Do NOT grade. Record each agent's/skill's raw output and write it to
+            a file named actuals.json at the repository root, in EXACTLY this
+            shape (keyed by fixture stem — the expected filename without .json):
+
+              {
+                "<stem>": {
+                  "agents": {
+                    "<agent>": { "status": "...",
+                                 "issues": [{ "severity": "...", "message": "..." }],
+                                 "summary": "..." }
+                  },
+                  "skills": {
+                    "<skill>": { "report": "full advisor report text",
+                                 "gates": ["A"], "layers": ["unit"] }
+                  }
+                }
+              }
+
+            Include only the block(s) (agents/skills) that the fixture targets.
+            Write valid JSON and nothing else to actuals.json.
+
+            ${{ steps.scope.outputs.instruction }}
+          claude_args: |
+            --output-format json
+            --max-turns 60
+            --model claude-sonnet-4-6
+            --allowedTools "Read" "Glob" "Grep" "Write" "Agent" "Skill(review-agent *)" "Skill(test-design-advisor *)"
+
+      - name: Grade against baseline (or skip if the action did not run)
+        if: steps.cred.outputs.run_live == 'true'
+        run: |
+          # anthropics/claude-code-action self-skips (exit 0, no model run) on
+          # any PR that adds/modifies this workflow file — GitHub workflow
+          # validation requires the file to match the default branch. In that
+          # case no actuals.json is produced; treat it as a skip, not a
+          # failure, so it does not red-line PRs. The gate exercises the agents
+          # once this workflow is merged to the default branch.
+          if [ ! -f actuals.json ] || ! jq -e . actuals.json >/dev/null 2>&1; then
+            echo "::warning title=live eval did not run::No parseable" \
+              "actuals.json was produced. This is expected on a PR that adds or" \
+              "modifies this workflow (claude-code-action only runs once the" \
+              "workflow is unchanged on the default branch), or if the runner" \
+              "wrote no file. The live gate will exercise the agents after merge."
+            exit 0
+          fi
+          python3 scripts/eval_grade.py \
+            --actuals actuals.json \
+            --baseline evals/baseline.json \
+            --only "${{ steps.scope.outputs.only }}"

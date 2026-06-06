@@ -38,13 +38,6 @@ check_optional() {
   fi
 }
 
-# Configure git hooks path for auto version bumping
-if [ -d ".githooks" ] && [ -d ".git" ]; then
-  git config core.hooksPath .githooks
-  echo "Git hooks path set to .githooks/"
-  echo ""
-fi
-
 echo "Checking dev-team prerequisites..."
 echo ""
 

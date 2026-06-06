@@ -67,3 +67,6 @@ xx
 xxx
 tmp-*.sh
 tmp-*.py
+
+# Transient agent-eval run artifact (produced by the live gate / local runs)
+actuals.json
