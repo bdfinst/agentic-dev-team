@@ -1,5 +1,18 @@
 # Changelog
 
+## [6.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.3.0...dev-team-v6.4.0) (2026-06-06)
+
+
+### Features
+
+* **dev-team:** add no-colon description rule to agent-audit, spec for commands→skills migration ([c2a6a0d](https://github.com/bdfinst/agentic-dev-team/commit/c2a6a0db2926fe410db5f63e8fdcece4a75de08b))
+* **dev-team:** collapse commands/ into skills/ — unified capability layer ([f9fde67](https://github.com/bdfinst/agentic-dev-team/commit/f9fde673a880859d9f4f74c00cd22a08536c4b57))
+
+
+### Bug Fixes
+
+* **dev-team:** update bats test paths and regenerate knowledge index after commands→skills migration ([ca976e7](https://github.com/bdfinst/agentic-dev-team/commit/ca976e75a8cb12ddbc0cbcec14260c8caaa8fda5))
+
 ## [6.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.2.0...dev-team-v6.3.0) (2026-06-05)
 
 
