@@ -34,6 +34,15 @@ on:
       - "plugins/dev-team/knowledge/**"
       - "evals/**"
       - "scripts/eval_grade.py"
+  # Manual trigger for the one-time validation run before flipping
+  # RUN_LIVE_AGENT_EVAL on (see evals/README.md). force_live=true runs the
+  # live gate for this dispatch without needing the repo variable set yet.
+  workflow_dispatch:
+    inputs:
+      force_live:
+        description: "Run the live agent-eval gate for this run (needs ANTHROPIC_API_KEY)"
+        type: boolean
+        default: false
 
 jobs:
   structural-gate:
@@ -88,8 +97,10 @@ jobs:
           # the API key present is NOT enough — otherwise an unwired seam would
           # red-line every PR.
           RUN_LIVE_AGENT_EVAL: ${{ vars.RUN_LIVE_AGENT_EVAL }}
+          FORCE_LIVE: ${{ github.event.inputs.force_live }}
         run: |
-          if [ "$RUN_LIVE_AGENT_EVAL" = "true" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
+          if { [ "$RUN_LIVE_AGENT_EVAL" = "true" ] || [ "$FORCE_LIVE" = "true" ]; } \
+             && [ -n "$ANTHROPIC_API_KEY" ]; then
             echo "run_live=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_live=false" >> "$GITHUB_OUTPUT"
@@ -116,21 +127,67 @@ jobs:
         if: steps.cred.outputs.run_live == 'true'
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # The agent-eval skill reads fixtures from .claude/evals/{fixtures,
+      # expected}/, but this repo stores them at evals/. Symlink them into
+      # place so the skill finds the corpus in CI.
+      - name: Stage fixtures where the skill expects them
+        if: steps.cred.outputs.run_live == 'true'
+        run: |
+          mkdir -p .claude/evals
+          ln -sfn "$PWD/evals/fixtures" .claude/evals/fixtures
+          ln -sfn "$PWD/evals/expected" .claude/evals/expected
+
+      # Run the review agents headlessly via the Claude Code GitHub Action and
+      # serialize their RAW outputs to actuals.json in the grader's input shape
+      # (see scripts/eval_grade.py header). Grading stays in the deterministic
+      # grader below — this step only records, it does not judge. The plugin is
+      # installed from the in-repo marketplace so its skills are discoverable.
       - name: Run agent-eval (records actuals.json)
         if: steps.cred.outputs.run_live == 'true'
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: ${{ github.workspace }}
+          plugins: "dev-team@bfinster"
+          prompt: |
+            Run the review agents against every fixture in
+            .claude/evals/fixtures/ whose paired .claude/evals/expected/<stem>.json
+            declares an applicableAgents (or applicableSkills) target, using the
+            /review-agent skill for agent fixtures and the test-design-advisor
+            skill for skill fixtures.
+
+            Do NOT grade. Record each agent's/skill's raw output and write it to
+            a file named actuals.json at the repository root, in EXACTLY this
+            shape (keyed by fixture stem — the expected filename without .json):
+
+              {
+                "<stem>": {
+                  "agents": {
+                    "<agent>": { "status": "...",
+                                 "issues": [{ "severity": "...", "message": "..." }],
+                                 "summary": "..." }
+                  },
+                  "skills": {
+                    "<skill>": { "report": "full advisor report text",
+                                 "gates": ["A"], "layers": ["unit"] }
+                  }
+                }
+              }
+
+            Include only the block(s) (agents/skills) that the fixture targets.
+            Write valid JSON and nothing else to actuals.json.
+          claude_args: |
+            --output-format json
+            --max-turns 60
+            --model claude-sonnet-4-6
+            --allowedTools "Read" "Glob" "Grep" "Write" "Agent" "Skill(review-agent *)" "Skill(test-design-advisor *)"
+
+      - name: Verify actuals.json was produced
+        if: steps.cred.outputs.run_live == 'true'
         run: |
-          # The eval dispatch requires the Claude Code runner. This step is a
-          # placeholder seam: wire the Claude Code GitHub Action here to run
-          # `/agent-eval` and emit actuals.json in the grader's input shape
-          # (see scripts/eval_grade.py header). Opting in via
-          # RUN_LIVE_AGENT_EVAL=true without wiring it is a misconfiguration,
-          # so fail loudly here rather than pass a live gate that did nothing.
-          if [ ! -f actuals.json ]; then
-            echo "::error title=live eval not wired::RUN_LIVE_AGENT_EVAL is" \
-              "true but actuals.json was not produced. Wire the Claude Code" \
-              "action into this step."
+          if [ ! -f actuals.json ] || ! jq -e . actuals.json >/dev/null 2>&1; then
+            echo "::error title=live eval produced no valid actuals.json::" \
+              "The Claude Code run did not write a parseable actuals.json."
             exit 1
           fi
 
