@@ -25,6 +25,13 @@ regression --log metrics/cost-metering.jsonl [--tolerance 0.5]
          of prior sessions; exit 1 if it exceeds mean * (1 + tolerance). The
          CI/regression hook the acceptance criteria asks for.
 
+pace     --log metrics/cost-metering.jsonl [--budget B] [--period-days 30]
+         [--window-days 7]
+         Account-level pace guidance (#142): cumulative spend over a rolling
+         window, the implied daily rate, and the projected spend for a billing
+         period. With --budget it flags when the current pace would exhaust the
+         budget and suggests dropping a model tier for the rest of the window.
+
 The transcript schema is read defensively (usage may sit on the record or under
 `message`; model + agent attribution likewise), so it tolerates schema drift.
 """
@@ -209,6 +216,67 @@ def cmd_regression(args, pricing) -> int:
     return 0
 
 
+def _parse_ts(s: str):
+    from datetime import datetime, timezone
+    try:
+        return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def cmd_pace(args, pricing) -> int:
+    """Account-level pace: cumulative spend over a rolling window, projected
+    against a budget for a billing period; flags when pace would exhaust it."""
+    from datetime import datetime, timezone, timedelta
+    log = Path(args.log)
+    if not log.is_file():
+        print("no metrics log yet; nothing to pace")
+        return 0
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(days=args.window_days)
+    in_window = []
+    for line in log.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        ts = _parse_ts(e.get("timestamp", ""))
+        cost = e.get("total", {}).get("cost_usd", 0.0)
+        if ts is not None and ts >= window_start:
+            in_window.append((ts, cost))
+
+    spend = round(sum(c for _, c in in_window), 6)
+    print(f"# Account pace — last {args.window_days} day(s)")
+    print(f"  sessions in window: {len(in_window)}")
+    print(f"  cumulative spend:   ${spend:.4f}")
+    if not in_window:
+        print("  (no sessions in window; nothing to project)")
+        return 0
+
+    earliest = min(ts for ts, _ in in_window)
+    elapsed_days = max((now - earliest).total_seconds() / 86400.0, 1e-9)
+    daily_rate = spend / elapsed_days
+    projected = daily_rate * args.period_days
+    print(f"  daily rate:         ${daily_rate:.4f}/day "
+          f"(over {elapsed_days:.2f} active day(s))")
+    print(f"  projected / {args.period_days}d:   ${projected:.4f}")
+
+    if args.budget is not None and args.budget > 0:
+        pct = projected / args.budget * 100
+        print(f"  budget / {args.period_days}d:       ${args.budget:.2f} "
+              f"({pct:.0f}% of budget at current pace)")
+        if projected > args.budget:
+            print(f"\n⚠ PACE EXCEEDS BUDGET: at ${daily_rate:.4f}/day you would "
+                  f"spend ${projected:.2f} over {args.period_days} days, past the "
+                  f"${args.budget:.2f} budget.")
+            print("  Consider dropping Opus→Sonnet for the remainder of the "
+                  "window (see .claude/model-overrides.json / /harness-audit).")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--pricing", default=str(_DEFAULT_PRICING))
@@ -220,11 +288,18 @@ def main(argv: list[str]) -> int:
     p.add_argument("--log", default="metrics/cost-metering.jsonl")
     p = sub.add_parser("regression"); p.add_argument("--log", default="metrics/cost-metering.jsonl")
     p.add_argument("--tolerance", type=float, default=0.5)
+    p = sub.add_parser("pace"); p.add_argument("--log", default="metrics/cost-metering.jsonl")
+    p.add_argument("--budget", type=float, default=None,
+                   help="account budget for one billing period (dollars)")
+    p.add_argument("--period-days", type=int, default=30,
+                   help="length of the billing period to project against")
+    p.add_argument("--window-days", type=int, default=7,
+                   help="rolling lookback used to estimate the current daily rate")
 
     args = ap.parse_args(argv)
     pricing = _load_pricing(Path(args.pricing))
     return {"report": cmd_report, "record": cmd_record,
-            "regression": cmd_regression}[args.cmd](args, pricing)
+            "regression": cmd_regression, "pace": cmd_pace}[args.cmd](args, pricing)
 
 
 if __name__ == "__main__":
