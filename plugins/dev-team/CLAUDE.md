@@ -26,7 +26,7 @@ This project uses a layered loading strategy to minimize token usage:
 2. **40% Context Window Rule**: Maintain context below 40% capacity to prevent hallucination. Trigger summarization at threshold.
 3. **Persona-Driven Behavior**: Each agent has detailed psychological and behavioral specifications defined in `.claude/agents/`.
 4. **Human-in-the-Loop**: Agents are autonomous but require oversight, not copilots.
-5. **Dynamic Configuration**: User-level configuration updates through federated learning.
+5. **Dynamic Configuration**: User-level configuration changes are applied through audited, human-approved config writes, each recorded to `metrics/config-changelog.jsonl` with `previous_value`/`new_value`/`approved_by` (see Feedback & Learning).
 6. **Acceptance Test Driven Development**: All development follows ATDD. Behaviors are defined as scenarios in feature files (Gherkin) before implementation begins. Feature file scenarios are the single source of truth for expected behavior — no implementation without a corresponding scenario, no scenario without a corresponding test.
 
 ## Team Organization
@@ -172,7 +172,7 @@ Each agent declares a tier alias (`haiku`, `sonnet`, `opus`) in its `model:` fro
 Context management is the Orchestrator's responsibility, governed by two operational skills:
 
 1. **[Context Loading Protocol](skills/context-loading-protocol/SKILL.md)** - decides *what* to load and *when*, using task classification, phased loading, and measured token budgets
-2. **[Context Summarization](skills/context-summarization/SKILL.md)** - decides *when* to compress and *how*, using LSTM-inspired gates, utilization triggers, and structured summaries written to `memory/`
+2. **[Context Summarization](skills/context-summarization/SKILL.md)** - decides *when* to compress and *how*, using utilization-threshold triggers and structured summaries written to `memory/`
 
 ### Baseline Budget
 
@@ -217,10 +217,21 @@ A `PreToolUse` hook (`hooks/pre-tool-guard.sh`) blocks writes to sensitive paths
 
 Task completion data is logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)** for the schema and reporting cadence.
 
-### Targets
+### Claims discipline
 
-- 10-15% overall efficiency gains
-- 95% accuracy on structured data extraction
-- < 5% hallucination rate with context management
-- 95% accuracy maintained across full conversation lifecycle
-- > 80% first-pass acceptance rate
+Any quantitative claim in shipped prose must name the instrument that measures
+it. A number with no sensor is fiction and gets deleted, not shipped.
+
+**Instrumented (measured today):**
+
+- Token budgets in the Baseline Budget section above — measured by
+  `scripts/measure-tokens.sh` (tiktoken/`cl100k_base`, `--verify` gate).
+- Per-agent detection accuracy against the eval corpus — measured by
+  `/agent-eval` over `evals/expected/*.json` (deterministic grading).
+
+**Aspirational, not yet instrumented:** efficiency gains, hallucination rate,
+structured-extraction accuracy, lifecycle accuracy, and first-pass acceptance
+rate are design goals with *no sensor in this repo*. They are intentionally
+not stated as numeric targets until an instrument exists. Tracking:
+runtime cost/token metering (#102) and the opt-in telemetry beacon (#106) will
+supply the missing meters; until then these remain unquantified.
