@@ -1,0 +1,26 @@
+#!/usr/bin/env sh
+# pre-commit — keep generated artifacts and lint in sync with the staged
+# changes, then RE-STAGE the results so they ride along in this same commit
+# (and therefore the same push). Nothing a hook regenerates should be left
+# dangling in the working tree.
+
+ROOT="$(git rev-parse --show-toplevel)" || exit 1
+cd "$ROOT" || exit 1
+
+# 1. Rebuild the knowledge index and stage it. Heading edits in
+#    knowledge/**.md or skills/**/SKILL.md change index.json; staging it here
+#    guarantees the regenerated index is committed and pushed rather than left
+#    as an uncommitted change after a commit or push runs the builder.
+if [ -x plugins/dev-team/hooks/lib/build-knowledge-index.sh ]; then
+  if ! plugins/dev-team/hooks/lib/build-knowledge-index.sh; then
+    echo "pre-commit: knowledge-index rebuild failed" >&2
+    exit 1
+  fi
+  git add plugins/dev-team/knowledge/index.json
+fi
+
+# 2. Run lint-staged: eslint --fix on the staged JS/TS files, with the
+#    autofixes automatically re-staged (see the lint-staged config in
+#    package.json). The pre-push CI mirror (scripts/ci-local.sh) still runs the
+#    full eslint gate.
+npx --no-install lint-staged
