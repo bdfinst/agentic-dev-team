@@ -355,6 +355,9 @@ def main(argv=None) -> int:
     ap.add_argument("--pricing", help="model-pricing.json for cost (optional)")
     ap.add_argument("--plugin-root", help="dev-team plugin root for the registry")
     ap.add_argument("-o", "--out", help="write digest here (default: stdout)")
+    ap.add_argument("--append", metavar="LOG",
+                    help="append one metrics-only summary record to a trend "
+                         "stream (append-only JSONL), e.g. metrics/session-digest.jsonl")
     args = ap.parse_args(argv)
 
     paths = resolve_transcripts(args)
@@ -371,7 +374,61 @@ def main(argv=None) -> int:
         Path(args.out).write_text(out + "\n")
     else:
         print(out)
+
+    if args.append:
+        _append_trend(Path(args.append), digest)
     return 0
+
+
+def slim_record(digest: dict) -> dict:
+    """A compact, AGGREGATE-COUNTS-ONLY trend record (#129).
+
+    Deliberately drops the per-name maps (by_skill/by_model/repeated_file_edits)
+    so the persisted trend stream carries no file names — strictly metrics, no
+    raw prompt/code content. `recorded_at` is the only wall-clock field and lives
+    on the trend log, never in the deterministic digest output."""
+    from datetime import datetime, timezone
+    tok = digest.get("token", {})
+    rew = digest.get("rework", {})
+    acc = digest.get("accuracy", {})
+    util = digest.get("utilization", {})
+    totals = tok.get("totals", {})
+    return {
+        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "schema": "session-digest/v1",
+        "sessions": digest.get("sessions", 0),
+        "transcripts": digest.get("transcripts", 0),
+        "tokens": {k: totals.get(k, 0) for k in (
+            "input_tokens", "output_tokens",
+            "cache_creation_input_tokens", "cache_read_input_tokens")},
+        "cost_usd": tok.get("cost_usd", 0.0),
+        "cache_hit_ratio": tok.get("cache_hit_ratio", 0.0),
+        "rework": {
+            "failed_edits": rew.get("failed_edits", 0),
+            "repeated_file_edits": len(rew.get("repeated_file_edits", {})),
+            "retried_bash_commands": rew.get("retried_bash_commands", 0),
+            "repeated_verify_runs": rew.get("repeated_verify_runs", 0),
+            "permission_denials": rew.get("permission_denials", 0),
+            "compaction_events": rew.get("compaction_events", 0),
+        },
+        "accuracy": {
+            "tool_calls": acc.get("tool_calls", 0),
+            "tool_error_rate": acc.get("tool_error_rate", 0.0),
+            "user_correction_turns": acc.get("user_correction_turns", 0),
+        },
+        "utilization": {
+            "skills_invoked": len(util.get("skills_invoked", {})),
+            "agents_invoked": len(util.get("agents_invoked", {})),
+            "never_observed_skills": len(util.get("never_observed_skills", [])),
+            "never_observed_agents": len(util.get("never_observed_agents", [])),
+        },
+    }
+
+
+def _append_trend(log: Path, digest: dict) -> None:
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("a") as fh:
+        fh.write(json.dumps(slim_record(digest), sort_keys=True) + "\n")
 
 
 if __name__ == "__main__":

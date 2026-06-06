@@ -70,7 +70,20 @@ hand-off destination from the table below. Nothing is auto-applied.
 | New / changed detection rule | `/agent-eval` (validate before shipping) |
 | Token-heavy skill / agent | `token-efficiency-review` |
 
-### 4. Report
+### 4. Persist the trend (#129)
+
+Append one metrics-only summary record to the trend stream so `/harness-audit`
+can consume real-session data over time:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
+  --plugin-root ${CLAUDE_PLUGIN_ROOT} --append metrics/session-digest.jsonl >/dev/null
+```
+
+The appended record holds aggregate counts only — no file names, prompts, or
+code (see the schema in the eval-system docs).
+
+### 5. Report
 
 Print the report path and the top-ranked suggestions. Do not invent numbers —
 cite exactly what the digest and the analysis agent emit.
