@@ -19,14 +19,14 @@ This agent answers one question: **does the code do what the spec says?** It run
 
 ### Unmet acceptance criteria
 
-- Read acceptance criteria from the design doc and/or feature file
+- Read acceptance criteria from the spec (`docs/specs/<slug>.md`), plan, and/or design doc
 - For each criterion, locate the implementation that satisfies it
 - For each criterion, locate the test that validates it
 - Flag criteria with no implementation or no test
 
 ### Uncovered scenarios
 
-- Read BDD scenarios from feature files
+- Read the per-slice Gherkin scenarios from the plan (or any `.feature` files, if the project keeps them)
 - For each scenario, locate the corresponding test
 - Flag scenarios with no test or with a test that doesn't match the scenario steps
 
@@ -69,7 +69,7 @@ This agent answers one question: **does the code do what the spec says?** It run
 
 Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` when:
 
-- No plan file, feature file, design doc, or acceptance criteria can be located for the target
+- No plan file (with its slice scenarios), spec, design doc, or acceptance criteria can be located for the target
 - Target is a standalone script or utility with no associated specification
 
 ## Severity Rules

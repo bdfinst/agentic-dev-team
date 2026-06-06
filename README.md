@@ -27,60 +27,37 @@ The two plugins share a primitives contract (`codebase-recon`, `ACCEPTED-RISKS.m
 
 ## Plugins
 
-| Plugin | What it does | Key commands | Install |
-| --- | --- | --- | --- |
-| **dev-team** | Persona-driven development team, reviewer swarm, TDD-gated build loop | `/specs`, `/plan`, `/build`, `/pr`, `/code-review`, `/triage` | [plugins/dev-team/README.md](plugins/dev-team/README.md) |
-| **security-assessment** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | [plugins/security-assessment/README.md](plugins/security-assessment/README.md) |
+| Plugin | What it does | Key commands | Required tools | Optional tools |
+| --- | --- | --- | --- | --- |
+| **[dev-team](plugins/dev-team/README.md)** | Persona-driven development team, reviewer swarm, TDD-gated build loop | `/specs`, `/plan`, `/build`, `/pr`, `/code-review`, `/triage` | `jq`, `gh` | `semgrep`, `playwright`, `hadolint`/`trivy`/`grype`; auto-detected formatters and test/type/lint runners |
+| **[security-assessment](plugins/security-assessment/README.md)** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | `dev-team`, Python ≥ 3.10, tier-1 SAST (`semgrep`, `gitleaks`, `trivy`, `hadolint`, `actionlint`) | `grype`, PDF-export deps |
 
-**First time here?** Start with `dev-team`. Add `security-assessment` only when you run full `/security-assessment` pipelines against target repos.
-
-## Quick Start
-
-Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code), `jq`, and `gh` (GitHub CLI). See [full prerequisites](plugins/dev-team/README.md#prerequisites).
-
-```bash
-claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
-claude plugin install dev-team@bfinster
-```
-
-Then open Claude Code in your project and install prerequisites:
-
-```
-/init-dev-team
-```
-
-`/init-dev-team` installs the tools the plugin depends on: `jq` and `python3` (required by the mutation gate), mutation testing tools for your language (Stryker for JS/TS, pitest for Java/Kotlin, Stryker.NET for C#), an optional CodeGraph initialization for code intelligence, and an opt-in model availability probe for restricted API endpoints.
-
-Then generate project-level config and hooks:
-
-```
-/setup
-```
-
-`/setup` detects your stack and generates project-level config and hooks, including the automated pre-commit review gate. After that, run `/specs` to start a feature, or ask a question and let the Orchestrator route it.
+Plugin names link to each plugin's README, where the full tool list and per-tool install commands live. Claude Code itself is assumed. **First time here?** Start with `dev-team`; add `security-assessment` only when you run full `/security-assessment` pipelines against target repos.
 
 ## Getting Started
 
-### Prerequisites
-
-`dev-team` requires `jq` and `gh` (GitHub CLI). `security-assessment` additionally requires Python ≥ 3.10 and a tier-1 static-analysis toolchain. Full details: [dev-team prerequisites](plugins/dev-team/README.md#prerequisites) · [security-assessment prerequisites](plugins/security-assessment/README.md).
-
 ### Install `dev-team`
 
-Start here. Most users install only this plugin.
+Start here — most users install only this plugin. Required tools (`jq`, `gh`) are listed in the [Plugins](#plugins) table above.
 
 ```bash
-# From this marketplace (recommended)
 claude plugin marketplace add bdfinst/agentic-dev-team
 claude plugin install dev-team@bfinster
-# or
-claude plugin install --scope project dev-team@bfinster
-
-# From a local clone (for plugin development)
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/dev-team
 ```
 
-For Azure DevOps or another git host, see [Marketplace sources](plugins/dev-team/README.md#marketplace-sources) in the plugin README.
+The `owner/repo` shorthand and the full `https://github.com/bdfinst/agentic-dev-team` URL are equivalent. For self-hosted or other git hosts, install scopes (`user`/`project`/`local`), and the upgrade/re-point commands, see the [plugin install guide](plugins/dev-team/README.md#install).
+
+Then, in your project, install tool dependencies and generate config:
+
+```text
+/init-dev-team
+/setup
+```
+
+- **`/init-dev-team`** installs the tools the plugin depends on — `jq` and `python3` (mutation gate), language-specific mutation testing (Stryker for JS/TS, pitest for Java/Kotlin, Stryker.NET for C#), an optional CodeGraph index for code intelligence, and an opt-in model-availability probe for restricted API endpoints.
+- **`/setup`** detects your stack and generates project-level config and hooks, including the automated pre-commit review gate.
+
+After `/setup`, run `/specs` to start a feature, or ask a question and let the Orchestrator route it.
 
 ### Install `security-assessment` (optional)
 
@@ -88,9 +65,9 @@ Add this plugin only if you want the `/security-assessment` pipeline. Install `d
 
 ```bash
 claude plugin install security-assessment@bfinster
-# Or from a local clone:
-claude plugin install --scope project /path/to/agentic-dev-team/plugins/security-assessment
 ```
+
+For a self-hosted git host, see the [plugin install guide](plugins/dev-team/README.md#install); for a local clone, see [Local development](CONTRIBUTING.md#local-development) in CONTRIBUTING.
 
 ### Update an installed plugin
 
@@ -128,18 +105,18 @@ Verify: `./plugins/security-assessment/install.sh`
 
 Four commands drive feature development from idea to pull request:
 
-```
+```text
 /specs  →  /plan  →  /build  →  /pr
 ```
 
 | Step | Command | What it does |
 | --- | --- | --- |
-| **1. Specify** | `/specs` | Produce Intent, BDD/Gherkin scenarios, Architecture notes, Acceptance Criteria. A consistency gate must pass before moving on. Skip for bug fixes, refactors, or trivial changes. |
-| **2. Plan** | `/plan` | Create a TDD step-plan. Four plan-review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. Human approves before any code is written. |
-| **3. Build** | `/build` | Execute the approved plan. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). Produces verification evidence. |
+| **1. Specify** | `/specs` | Describe the change and its goals — Intent, Architecture notes, Acceptance Criteria. A consistency gate must pass before moving on. Skip for bug fixes, refactors, or trivial changes. |
+| **2. Plan** | `/plan` | Decompose the feature into vertical slices, author each slice's Gherkin scenarios, and lay out the TDD steps that satisfy them. Four plan-review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. Human approves before any code is written. |
+| **3. Build** | `/build` | Execute the approved plan slice by slice. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). Produces verification evidence. |
 | **4. Ship** | `/pr` | Run quality gates (tests, typecheck, lint, code review) and open a pull request. |
 
-Each step produces artifacts the next step consumes. Human review gates sit between transitions.
+Each step produces artifacts the next step consumes. The spec describes *what* and *why*; the plan turns that into per-slice behavioral contracts (Gherkin) and *how*. Human review gates sit between transitions.
 
 ![Workflow: specs → plan → build → pr](plugins/dev-team/docs/diagrams/workflow-linear.svg)
 
@@ -186,50 +163,16 @@ Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook
 
 ---
 
-## Local development
+## Contributing
 
-### Testing locally
+Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUTING.md)** — local-dev setup (including live installs via symlinks), the `/agent-eval` and `/agent-audit` test commands, the security comparative-testing harness, how to add agents and skills, and the release process.
 
-Install either plugin from the local path into a test project:
-
-```bash
-claude plugin install --scope project /path/to/dev-team/plugins/dev-team
-claude plugin install --scope project /path/to/dev-team/plugins/security-assessment
-```
-
-### Testing agents and hooks (dev-team plugin)
-
-```
-/agent-eval                                                # full eval suite
-/agent-eval plugins/dev-team/agents/naming-review.md   # one agent
-/agent-audit                                               # structural compliance
-```
-
-### Comparative-testing harness (security plugin)
-
-Regression-test the `/security-assessment` pipeline against a seeded fixture + reference baseline:
-
-```bash
-python3 evals/comparative/score.py \
-  --reference evals/comparative/reference-baseline/2026-04-21 \
-  --ours memory
-```
-
-See [docs/comparative-testing.md](plugins/security-assessment/docs/comparative-testing.md) for the scoring methodology.
-
-### Adding an agent or skill
-
-```
-/agent-add <description or URL to a coding standard>
-```
-
-This scaffolds the agent file, adds it to the registry, and creates eval fixtures. Run `/agent-audit` and `/agent-eval` to verify compliance.
-
-### Documentation
+## Documentation
 
 | Guide | Description |
 | --- | --- |
-| [Tutorial: Invoking Agents](GETTING-STARTED.md) | Hands-on tutorial: invoke agents, skills, and common workflows |
+| [Getting Started](GETTING-STARTED.md) | User tutorial — the workflow, suggested skills, and worked examples |
+| [Contributing](CONTRIBUTING.md) | Local development, testing, adding agents/skills, releasing |
 | [Architecture](plugins/dev-team/docs/agent-architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
 | [Agents](plugins/dev-team/docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
 | [Skills & Commands](plugins/dev-team/docs/skills.md) | Skills catalog, slash-commands catalog |

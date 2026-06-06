@@ -36,21 +36,32 @@ Arguments: $ARGUMENTS
 
 ### 1. Check for spec artifacts
 
-Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**`, `specs/**`, or `*.feature` files related to the task. Check for the four artifacts: Intent Description, User-Facing Behavior (Gherkin), Architecture Specification, and Acceptance Criteria.
+Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**` or `specs/**` related to the task. Check for the three artifacts: Intent Description, Architecture Specification, and Acceptance Criteria. The spec does **not** contain Gherkin — authoring the behavioral scenarios is this command's job.
 
 If no spec artifacts are found, ask the user: "No specification artifacts found for this task. Run `/specs` first to produce them, or continue planning without specs?"
 
 If the user chooses to continue without specs, proceed. Otherwise, stop and let them run `/specs` first.
 
-### 2. Understand the task
+### 2. Understand the task and cut the slices
 
-Read relevant code and context to understand what needs to change. Keep exploration focused — this is planning, not research. If the task is complex enough to need deep research, suggest `/design-doc` instead. If spec artifacts exist, use them as the primary source for acceptance criteria and scope. When spec artifacts include BDD scenarios, copy them verbatim into the plan's "User-Facing Behavior" section. Each TDD step should trace back to one or more scenarios.
+Read relevant code and context to understand what needs to change. Keep exploration focused — this is planning, not research. If the task is complex enough to need deep research, suggest `/design-doc` instead. If spec artifacts exist, use them as the primary source for goals, constraints, and acceptance criteria.
+
+Then **decompose the feature into vertical slices**. A slice is a vertically deliverable increment — independently testable and, ideally, independently shippable. For each slice, **author the Gherkin scenario(s)** that define its observable behavior. This is where the behavioral contract is written; the spec only described the change and its goals.
+
+When authoring each slice's Gherkin, cover:
+
+- **Happy path** — the primary success behavior.
+- **Negative cases** — invalid, unauthorized, missing, or malformed input.
+- **Edge cases** — empty collections, boundary values, concurrent access, idempotency.
+- **Error scenarios** — specify observable error behavior, not just "should fail".
+
+Keep scenarios implementation-independent (no databases, selectors, or internal data structures in step text) and deterministic. Every acceptance criterion from the spec must be covered by at least one scenario across the slices. Each TDD step traces back to one or more scenarios in its slice.
 
 ### 3. Create the plan
 
 Write the plan file using this structure:
 
-```markdown
+````markdown
 # Plan: <Task Title>
 
 **Created**: <date>
@@ -67,22 +78,56 @@ Write the plan file using this structure:
 - [ ] <Criterion 2>
 - [ ] <Criterion 3>
 
-## User-Facing Behavior
+## Slices
 
-<Copy the Gherkin scenarios from the spec file verbatim. These are the behavioral contracts that drive the TDD steps below.>
+A slice is a vertically deliverable increment. Each slice carries the Gherkin
+scenario(s) that define its behavior, followed by the TDD steps that satisfy them.
+Steps are numbered `<slice>.<step>` (1.1, 1.2, 2.1, …).
 
-## Steps
+### Slice 1: <Slice Name>
 
-### Step 1: <Description>
+**Behavior:**
+
+```gherkin
+Feature: <feature name>
+
+  Scenario: <happy path>
+    Given <precondition>
+    When <action>
+    Then <observable outcome>
+
+  Scenario: <negative / edge / error case>
+    Given <precondition>
+    When <action>
+    Then <observable outcome>
+```
+
+**Steps:**
+
+#### Step 1.1: <Description>
 
 **Complexity**: <trivial | standard | complex>
-**RED**: Write test for <behavior>
+**RED**: Write test for <scenario / behavior>
 **GREEN**: Implement <minimal code to pass>
 **REFACTOR**: <What to clean up, or "None needed">
 **Files**: `path/to/file.ts`, `path/to/file.test.ts`
 **Commit**: `<draft commit message>`
 
-### Step 2: <Description>
+#### Step 1.2: <Description>
+
+...
+
+### Slice 2: <Slice Name>
+
+**Behavior:**
+
+```gherkin
+...
+```
+
+**Steps:**
+
+#### Step 2.1: <Description>
 
 ...
 
@@ -114,21 +159,24 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 
 This section is the machine-parseable recovery handle. `/build` updates checkboxes here via Edit tool so progress survives a `/clear` or session restart. `/continue` reads this section to determine the resume point.
 
-### Steps
+### Slices
 
-- [ ] Step 1: <title>
-- [ ] Step 2: <title>
+- [ ] Slice 1: <title>
+  - [ ] Step 1.1: <title>
+  - [ ] Step 1.2: <title>
+- [ ] Slice 2: <title>
+  - [ ] Step 2.1: <title>
 
 ### Acceptance Criteria
 
 - [ ] <Criterion 1 — mirrors the Acceptance Criteria section above>
 - [ ] <Criterion 2>
 - [ ] <Criterion 3>
-```
+````
 
 ### 4. Create the plans directory
 
-Create `plans/` if it doesn't exist. When writing the plan file, populate the `## Build Progress` section by copying step titles from `## Steps` and criteria from `## Acceptance Criteria`. These are the checkboxes `/build` will update on disk as each step completes.
+Create `plans/` if it doesn't exist. When writing the plan file, populate the `## Build Progress` section by copying slice and step titles from `## Slices` and criteria from `## Acceptance Criteria`. These are the checkboxes `/build` will update on disk as each step completes — a slice is checked off once all its steps are.
 
 ### 5. Run plan review personas
 
@@ -136,12 +184,12 @@ Before presenting to the user, dispatch **four plan review personas in parallel*
 
 | Reviewer | Template | Model | Focus |
 |----------|----------|-------|-------|
-| Acceptance Test Critic | `prompts/plan-review-acceptance.md` | `sonnet` | Criteria quality, scenario gaps, error paths, TDD traceability |
+| Acceptance Test Critic | `prompts/plan-review-acceptance.md` | `sonnet` | Per-slice Gherkin quality (determinism, isolation, implementation-independence), scenario gaps, error paths, criteria coverage, TDD traceability |
 | Design & Architecture Critic | `prompts/plan-review-design.md` | `sonnet` | Coupling, abstractions, structural risks, pattern adherence |
 | UX Critic | `prompts/plan-review-ux.md` | `sonnet` | User journey, error UX, cognitive load, accessibility |
-| Strategic Critic | `prompts/plan-review-strategic.md` | `sonnet` | Problem fit, scope, risk, opportunity cost |
+| Strategic Critic | `prompts/plan-review-strategic.md` | `sonnet` | Problem fit, scope, slice boundaries, risk, opportunity cost |
 
-Pass each reviewer the full plan content. Each returns a structured verdict (`approve` or `needs-revision`) with issues.
+Pass each reviewer the full plan content. Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate.
 
 **If any reviewer returns `needs-revision`**: Address all `blocker` issues by revising the plan. Re-run only the reviewers that flagged blockers. Repeat until all pass (max 2 iterations — escalate to user if still failing).
 

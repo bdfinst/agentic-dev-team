@@ -30,11 +30,13 @@ Edit files directly in `plugins/dev-team/`. All plugin components (agents, skill
 
 ### Testing locally
 
-Install the plugin from the local path into a test project:
+Register the local checkout as a marketplace, then install from it into a test project:
 
 ```bash
-claude plugin install --scope project /path/to/dev-team/plugins/dev-team
-# Or from the marketplace:
+claude plugin marketplace add /path/to/agentic-dev-team
+claude plugin install --scope project dev-team@bfinster
+# Or from the published marketplace (GitHub):
+# claude plugin marketplace add bdfinst/agentic-dev-team
 # claude plugin install dev-team@bfinster
 ```
 

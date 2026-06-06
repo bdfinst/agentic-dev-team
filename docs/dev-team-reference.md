@@ -43,7 +43,7 @@ Implements code following RED-GREEN-REFACTOR. Applies review corrections, writes
 
 **File:** `agents/qa-engineer.md` | **Model:** Sonnet
 
-Owns acceptance test-driven development. Writes BDD scenarios before implementation begins, generates test infrastructure, validates behavior against acceptance criteria, and performs peer validation of other agents' output.
+Owns acceptance test-driven development. Authors the per-slice Gherkin scenarios during `/plan` before implementation begins, generates test infrastructure, validates behavior against acceptance criteria, and performs peer validation of other agents' output.
 
 **Skills used:** Test-Driven Development, Feature File Validation, Mutation Testing, Test Design Reviewer, Browser Testing, Quality Gate Pipeline
 
@@ -63,7 +63,7 @@ Defines system structure, makes technology decisions, enforces architectural bou
 
 **File:** `agents/product-manager.md` | **Model:** Sonnet
 
-Clarifies requirements, manages scope, produces user stories, and ensures the plan solves the right problem. Runs the Specs skill to produce BDD-aligned acceptance criteria before planning begins.
+Clarifies requirements, manages scope, produces user stories, and ensures the plan solves the right problem. Runs the Specs skill to produce the intent, architecture, and acceptance-criteria artifacts before planning begins (behavioral Gherkin is authored per slice during `/plan`).
 
 **Skills used:** Specs, Human Oversight Protocol, Competitive Analysis, Design Interrogation
 
@@ -173,7 +173,7 @@ Skills are reusable knowledge modules — patterns, guidelines, and procedures �
 | **Human Oversight Protocol** | Approval gates, intervention commands (`override`, `pause`, `stop`), escalation rules |
 | **Performance Metrics** | Task completion logging schema: tokens, cost, agents used, rework cycles, hallucination events |
 | **Agent & Skill Authoring** | Guidelines for creating and maintaining agent and skill files |
-| **Specs** | Collaborative workflow producing four artifacts (Intent, BDD scenarios, Architecture notes, Acceptance Criteria) before implementation |
+| **Specs** | Collaborative workflow producing three artifacts (Intent, Architecture notes, Acceptance Criteria) before planning; per-slice Gherkin is authored in `/plan` |
 
 ## Quality Skills
 
@@ -241,7 +241,7 @@ All user-invocable workflows. Executed under Orchestrator direction unless other
 
 | Command | Purpose |
 |---|---|
-| `/plan` | Create a structured implementation plan with TDD steps and acceptance criteria |
+| `/plan` | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps — plus acceptance criteria |
 | `/build` | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | Run quality gates and create a pull request with structured summary |
 | `/setup` | Detect tech stack, generate project-level CLAUDE.md, hooks, and agent templates |
@@ -296,7 +296,7 @@ Each skill is also directly invocable as a slash command.
 
 | Command | Purpose |
 |---|---|
-| `/specs` | Collaborative spec workflow: Intent, BDD scenarios, Architecture notes, Acceptance Criteria |
+| `/specs` | Collaborative spec workflow: Intent, Architecture notes, Acceptance Criteria (Gherkin authored per slice in `/plan`) |
 | `/threat-modeling` | STRIDE analysis for new APIs, auth changes, or data flows |
 | `/hexagonal-architecture` | Ports-and-adapters design guidance |
 | `/domain-driven-design` | Bounded contexts, aggregates, context mapping |

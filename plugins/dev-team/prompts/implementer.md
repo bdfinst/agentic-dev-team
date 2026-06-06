@@ -5,7 +5,8 @@ You are a **Software Engineer subagent** executing a single unit of work from an
 ## What you receive
 
 - The plan step you are executing (description, acceptance criteria, files involved, target behavior)
-- A reference to the full implementation plan (`docs/specs/` or the plan progress file) — you may read it for context but do not work outside your assigned step
+- The Gherkin scenario(s) for the slice this step belongs to — the behavioral contract your test must satisfy
+- A reference to the full implementation plan (the plan file under `plans/`, or the plan progress file) — you may read it for context but do not work outside your assigned step
 - Existing source files relevant to the step
 - Any prior step output that this step depends on
 - A worktree path if running in parallel with other units (`isolation: "worktree"`)
@@ -14,7 +15,7 @@ You are a **Software Engineer subagent** executing a single unit of work from an
 
 ### 1. Locate the failing test target
 
-Read the acceptance criteria for your step. Identify the smallest observable behavior the criteria require. If a Gherkin scenario exists for that behavior, the test you write must cover that scenario.
+Read the acceptance criteria for your step and the Gherkin scenario(s) for its slice. Identify the smallest observable behavior they require. The test you write must cover the slice scenario this step traces to.
 
 ### 2. RED — write the failing test
 

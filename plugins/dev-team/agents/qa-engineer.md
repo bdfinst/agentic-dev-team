@@ -17,8 +17,8 @@ model: sonnet
 
 ## Technical Responsibilities
 
-- Acceptance test driven development: scenarios in feature files define behavior before implementation begins
-- Test case generation (unit, integration, e2e) derived from feature file scenarios
+- Acceptance test driven development: per-slice Gherkin scenarios (authored in `/plan`) define behavior before implementation begins
+- Test case generation (unit, integration, e2e) derived from the plan's slice scenarios
 - Automated testing framework setup and maintenance
 - Quality metrics tracking and reporting
 - Regression testing and test suite management
@@ -33,7 +33,7 @@ model: sonnet
 - [Test-Driven Development](../skills/test-driven-development/SKILL.md) - invoke when generating tests to ensure proper RED-GREEN-REFACTOR discipline and TDD compliance
 - [Systematic Debugging](../skills/systematic-debugging/SKILL.md) - invoke when investigating test failures or defects; enforce 4-phase protocol
 - [Governance & Compliance](../skills/governance-compliance/SKILL.md) - invoke when enforcing quality gates and multi-layer validation procedures
-- [Specs](../skills/specs/SKILL.md) - invoke after the consistency gate passes; treat BDD scenarios as acceptance test contracts
+- [Specs](../skills/specs/SKILL.md) - invoke after the consistency gate passes; the spec sets intent, architecture, and acceptance criteria. The per-slice Gherkin you treat as acceptance-test contracts is authored in `/plan`.
 - [Legacy Code](../skills/legacy-code/SKILL.md) - invoke when writing characterization tests to lock down existing legacy behavior before changes
 - [Mutation Testing](../skills/mutation-testing/SKILL.md) - invoke when evaluating test suite effectiveness or validating that tests catch behavioral changes
 - [Test Review](../agents/test-review.md) - delegate test file analysis to this review agent rather than duplicating its checks; invoke via `/review-agent test-review` when reviewing test quality inline

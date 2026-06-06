@@ -19,7 +19,7 @@ Used by the Orchestrator to manage the team:
 | Human Oversight Protocol | [`human-oversight-protocol.md`](../skills/human-oversight-protocol/SKILL.md) | Approval gates, intervention commands, escalation |
 | Performance Metrics | [`performance-metrics.md`](../skills/performance-metrics/SKILL.md) | Task logging schema and reporting procedures |
 | Agent & Skill Authoring | [`agent-skill-authoring.md`](../skills/agent-skill-authoring/SKILL.md) | Skill-authoring conventions, anti-patterns, and the agent-vs-skill philosophy (for creating new agents, use the `agent-create` skill via `/agent-add`) |
-| Specs | [`specs.md`](../skills/specs/SKILL.md) | BDD scenario consistency gate before implementation |
+| Specs | [`specs.md`](../skills/specs/SKILL.md) | Intent, architecture, and acceptance-criteria consistency gate before planning (Gherkin is authored per slice in `/plan`) |
 
 ### Quality Skills
 
@@ -127,7 +127,7 @@ User-invocable skills are invoked as slash commands (e.g., `/code-review`) and e
 
 | Command | File | Purpose |
 | --- | --- | --- |
-| `/plan` | [`plan/SKILL.md`](../skills/plan/SKILL.md) | Create a structured implementation plan with TDD steps |
+| `/plan` | [`plan/SKILL.md`](../skills/plan/SKILL.md) | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
 | `/build` | [`build/SKILL.md`](../skills/build/SKILL.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | [`pr/SKILL.md`](../skills/pr/SKILL.md) | Run quality gates and create a pull request |
 | `/setup` | [`setup/SKILL.md`](../skills/setup/SKILL.md) | Detect tech stack, generate project-level config and hooks |

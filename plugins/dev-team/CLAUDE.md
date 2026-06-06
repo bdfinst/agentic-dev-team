@@ -1,4 +1,4 @@
-# Agentic Scrum Team - Orchestration Pipeline
+# Agentic Dev Team - Orchestration Pipeline
 
 ## System Overview
 
@@ -27,7 +27,7 @@ This project uses a layered loading strategy to minimize token usage:
 3. **Persona-Driven Behavior**: Each agent has detailed psychological and behavioral specifications defined in `.claude/agents/`.
 4. **Human-in-the-Loop**: Agents are autonomous but require oversight, not copilots.
 5. **Dynamic Configuration**: User-level configuration changes are applied through audited, human-approved config writes, each recorded to `metrics/config-changelog.jsonl` with `previous_value`/`new_value`/`approved_by` (see Feedback & Learning).
-6. **Acceptance Test Driven Development**: All development follows ATDD. Behaviors are defined as scenarios in feature files (Gherkin) before implementation begins. Feature file scenarios are the single source of truth for expected behavior — no implementation without a corresponding scenario, no scenario without a corresponding test.
+6. **Acceptance Test Driven Development**: All development follows ATDD. The spec describes the change and its goals; `/plan` then decomposes it into vertical slices and authors the Gherkin scenarios for each slice before implementation begins. These per-slice scenarios are the single source of truth for expected behavior — no implementation without a corresponding scenario, no scenario without a corresponding test.
 
 ## Team Organization
 
@@ -76,7 +76,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/review` | `skills/review/SKILL.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
 | `/setup` | `skills/setup/SKILL.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
 | `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
-| `/plan` | `skills/plan/SKILL.md` | orchestrator | Create a structured implementation plan with TDD steps |
+| `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
 | `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request |
 | `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
@@ -104,7 +104,7 @@ For trivial tasks (typo fix, simple query), the Orchestrator routes directly to 
 
 1. **Research** — Understand the system: find relevant files, trace data flows, identify the problem surface area. Sub-agents explore the codebase and return concise findings to keep the parent context clean. For non-trivial features, produce a **design document** at `docs/specs/` with problem statement, approach, alternatives, and scope boundaries. Optionally run **Design Interrogation** to stress-test the design and surface unresolved decisions before planning. For module boundaries, use **Design It Twice** to generate parallel alternative interfaces via sub-agents. Output: research progress file + design doc written to `memory/`.
 2. **Human Review Gate** — Human reviews research findings and design doc. Catching a misunderstanding here prevents hundreds of bad lines of code.
-3. **Plan** — Specify every change: files, snippets, test strategy, verification steps. Before the human sees the plan, **four plan review personas** run in parallel as critical outside reviewers: Acceptance Test Critic (criteria quality, scenario gaps), Design & Architecture Critic (coupling, structural risks), UX Critic (user journey, accessibility), and Strategic Critic (scope, risk, opportunity cost). Any blocker findings are addressed before the human gate. The plan is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. After approval, optionally run `/issues-from-plan` to create GitHub issues for team distribution. Output: implementation plan progress file written to `memory/`.
+3. **Plan** — Decompose the feature into **vertical slices**, author each slice's **Gherkin scenarios** (the behavioral contract), then specify every change: files, snippets, TDD steps, verification. Before the human sees the plan, **four plan review personas** run in parallel as critical outside reviewers: Acceptance Test Critic (criteria quality, scenario gaps), Design & Architecture Critic (coupling, structural risks), UX Critic (user journey, accessibility), and Strategic Critic (scope, risk, opportunity cost). Any blocker findings are addressed before the human gate. The plan is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. After approval, optionally run `/issues-from-plan` to create GitHub issues for team distribution. Output: implementation plan progress file written to `memory/`.
 4. **Human Review Gate** — Human reviews the plan. This replaces traditional line-by-line code review as the primary quality gate.
 5. **Implement** — Execute the plan using the `prompts/implementer.md` template. All code follows **RED-GREEN-REFACTOR** with **vertical slices** (TDD skill). For parallel independent units, use **worktree isolation** (`isolation: "worktree"`). After each unit, a **three-stage inline review** runs: (1) spec-compliance-review checks code matches spec, (2) quality review agents check code quality, (3) browser verification for UI changes. Actionable issues (error/warning severity with high/medium confidence) are **auto-fixed and re-reviewed** in a loop (up to 5 iterations) — only issues requiring human judgment are escalated. Run `/code-review` before committing (which auto-scopes to uncommitted changes and runs its own fix loop). Then invoke the tech-writer to verify all affected documentation is current. All agents must provide **verification evidence** (fresh test output) before claiming completion. Output: working code + test results + code review pass + docs verified.
 6. **Human Review Gate** — Human reviews the final output. Lightweight if the plan was correct.

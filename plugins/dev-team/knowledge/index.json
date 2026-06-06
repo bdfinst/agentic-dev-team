@@ -1539,7 +1539,7 @@
       "anchor": "3-verify-acceptance-criteria-gate"
     },
     "4. Implement each step": {
-      "summary": "For each step in the plan, dispatch implementation following the implementer template (`prompts/implementer.md`):",
+      "summary": "Work the plan slice by slice, in order.",
       "anchor": "4-implement-each-step"
     },
     "5. Run full test suite": {
@@ -1559,7 +1559,7 @@
       "anchor": "escalation"
     },
     "Integration": {
-      "summary": "`/specs` produces the specification artifacts that inform the plan",
+      "summary": "`/specs` produces the intent, architecture, and acceptance-criteria artifacts that inform the plan",
       "anchor": "integration"
     }
   },
@@ -3203,16 +3203,16 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**`, `specs/**`, or `*.feature` files related to the task.",
+      "summary": "Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**` or `specs/**` related to the task.",
       "anchor": "steps"
     },
     "1. Check for spec artifacts": {
-      "summary": "Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**`, `specs/**`, or `*.feature` files related to the task.",
+      "summary": "Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**` or `specs/**` related to the task.",
       "anchor": "1-check-for-spec-artifacts"
     },
-    "2. Understand the task": {
+    "2. Understand the task and cut the slices": {
       "summary": "Read relevant code and context to understand what needs to change.",
-      "anchor": "2-understand-the-task"
+      "anchor": "2-understand-the-task-and-cut-the-slices"
     },
     "3. Create the plan": {
       "summary": "Write the plan file using this structure:",
@@ -3583,27 +3583,23 @@
       "anchor": "critique-categories"
     },
     "Scope signals": {
-      "summary": "Specification is too broad when any of these fire:",
+      "summary": "A specification bundles too much when any of these fire:",
       "anchor": "scope-signals"
     },
     "Scope Split Protocol": {
       "summary": "1.",
       "anchor": "scope-split-protocol"
     },
-    "BDD Scenario Review": {
-      "summary": "Before the consistency gate, run `feature-file-validation` against the User-Facing Behavior artifact:",
-      "anchor": "bdd-scenario-review"
-    },
     "Cross-Artifact Consistency Gate": {
-      "summary": "Validate all four artifacts as a set:",
+      "summary": "Validate all three artifacts as a set:",
       "anchor": "cross-artifact-consistency-gate"
     },
     "Output": {
-      "summary": "Four artifacts (Intent, User-Facing Behavior in Gherkin, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict.",
+      "summary": "Three artifacts (Intent, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict.",
       "anchor": "output"
     },
     "Persist to file": {
-      "summary": "After the gate passes, write all four artifacts plus the verdict to a markdown file.",
+      "summary": "After the gate passes, write all three artifacts plus the verdict to a markdown file.",
       "anchor": "persist-to-file"
     },
     "Auto-trigger /plan": {
