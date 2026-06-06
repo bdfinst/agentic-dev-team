@@ -301,6 +301,9 @@ def main(argv: list[str]) -> int:
                         "eval_grade.py --actuals <f> --write-baseline (merges "
                         "into this file: passing pairs added, pairs tested-but-"
                         "failing removed, untested pairs kept).",
+            # Stamped 'measured' because this baseline came from grading a real
+            # actuals.json run, distinguishing it from a hand-authored seed (#133).
+            "provenance": "measured",
             "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "passing": sorted(merged),
         }, indent=2) + "\n")

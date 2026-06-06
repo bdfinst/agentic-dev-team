@@ -176,6 +176,16 @@ EOF
   [ -f "$CASE/baseline.json" ]
   run jq -r '.passing[0]' "$CASE/baseline.json"
   [ "$output" = "ar-demo::arch-review" ]
+  # a measured run stamps provenance=measured (#133)
+  run jq -r '.provenance' "$CASE/baseline.json"
+  [ "$output" = "measured" ]
+}
+
+@test "baseline: shipped evals/baseline.json declares its provenance (#133)" {
+  # The seed baseline is honestly marked hand-authored, not a measured run.
+  run jq -r '.provenance' "$BATS_TEST_DIRNAME/../../evals/baseline.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = "hand-authored" ]
 }
 
 @test "grader: --write-baseline MERGES, keeping untested pairs and adding new" {
