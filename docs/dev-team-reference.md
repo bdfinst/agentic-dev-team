@@ -241,7 +241,7 @@ All user-invocable workflows. Executed under Orchestrator direction unless other
 
 | Command | Purpose |
 |---|---|
-| `/plan` | Create a structured implementation plan with TDD steps and acceptance criteria |
+| `/plan` | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps — plus acceptance criteria |
 | `/build` | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | Run quality gates and create a pull request with structured summary |
 | `/setup` | Detect tech stack, generate project-level CLAUDE.md, hooks, and agent templates |

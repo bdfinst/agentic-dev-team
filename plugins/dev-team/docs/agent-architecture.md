@@ -70,7 +70,7 @@ Before the human reviews a plan (Phase 2), four critical review personas run **i
 
 | Persona | Template | Model | What It Challenges |
 | --- | --- | --- | --- |
-| Acceptance Test Critic | `prompts/plan-review-acceptance.md` | sonnet | Criteria verifiability, BDD scenario completeness, error path coverage, TDD step traceability |
+| Acceptance Test Critic | `prompts/plan-review-acceptance.md` | sonnet | Per-slice Gherkin quality (determinism, isolation, completeness), criteria verifiability, error-path coverage, TDD step traceability |
 | Design & Architecture Critic | `prompts/plan-review-design.md` | sonnet | Dependency direction, abstraction quality, structural risks, pattern consistency |
 | UX Critic | `prompts/plan-review-ux.md` | sonnet | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
 | Strategic Critic | `prompts/plan-review-strategic.md` | sonnet | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
@@ -181,10 +181,4 @@ Tasks can be routed to different LLMs based on complexity and cost:
 
 ## Performance Targets
 
-| Metric | Target |
-| --- | --- |
-| Efficiency gains | 10-15% over manual workflows |
-| Structured data accuracy | > 95% |
-| Hallucination rate | < 5% |
-| Conversation-long accuracy | > 95% |
-| First-pass acceptance | > 80% |
+Two metrics are instrumented today: token budgets (measured by `scripts/measure-tokens.sh`) and per-agent detection accuracy (measured by `/agent-eval` against `evals/expected/*.json`). Other goals — efficiency gains, hallucination rate, extraction accuracy, first-pass acceptance — are aspirational and have **no sensor in this repo**, so no numeric target is published until an instrument exists. See the *Claims discipline* section of [`CLAUDE.md`](../CLAUDE.md) for the full instrumented-vs-aspirational breakdown.

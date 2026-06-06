@@ -94,52 +94,63 @@ curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh 
 
 All three also run as Docker containers if you prefer not to install locally — see the [docker-image-audit skill docs](skills/docker-image-audit/SKILL.md) for details.
 
-### Plugin install (recommended)
+### Install
 
-Add the marketplace source, then install the plugin. The marketplace resolves the plugin location automatically from `marketplace.json`.
+Installation is two steps: register the marketplace, then install the plugin. The marketplace is named **`bfinster`** (the `name` field in `marketplace.json`); the plugin is **`dev-team`**. `claude plugin marketplace add` accepts a GitHub `owner/repo`, any git URL, or a local path; `claude plugin install` takes `<plugin>@<marketplace>`.
 
-**From GitHub:**
+**From GitHub (recommended):**
 
 ```bash
-claude plugin marketplace add https://github.com/bdfinst/dev-team
+claude plugin marketplace add bdfinst/agentic-dev-team
 claude plugin install dev-team@bfinster
 ```
 
-**From a local clone:**
+The `owner/repo` shorthand and the full `https://github.com/bdfinst/agentic-dev-team` URL are equivalent.
+
+**From a self-hosted or other git host** (GitLab, Bitbucket, Gitea, Azure DevOps, on-prem):
+
+End the URL with `.git` so Claude Code clones the repository instead of treating the URL as a direct link to a `marketplace.json`, and append `#<branch-or-tag>` to pin a ref. The repository must contain `.claude-plugin/marketplace.json` at its root.
 
 ```bash
-claude plugin marketplace add /path/to/dev-team
+# HTTPS (private repos use your git credential helper)
+claude plugin marketplace add https://gitlab.example.com/team/agentic-dev-team.git
+
+# SSH
+claude plugin marketplace add git@gitlab.example.com:team/agentic-dev-team.git
+
+# pin a release tag
+claude plugin marketplace add https://gitlab.example.com/team/agentic-dev-team.git#dev-team-v6.4.0
+
+# then, for any of the above:
 claude plugin install dev-team@bfinster
 ```
 
-By default the marketplace is registered at user scope (available in all projects). To scope it to a single project:
+For a private host that needs a token, embed a **read-scoped** token in the URL — `https://<user>:<token>@host/team/agentic-dev-team.git` — but never commit it or paste it in chat (Azure DevOps PATs need **Code (Read)** scope). Behind a corporate proxy, clone first and add the local path: `git clone <url> /path/to/clone && claude plugin marketplace add /path/to/clone`.
 
-```bash
-claude plugin marketplace add --scope project https://github.com/bdfinst/dev-team
-claude plugin install --scope project dev-team@bfinster
-```
+**Scope and monorepo options** — these flags apply to `marketplace add` and `install`:
 
-#### Marketplace sources
-
-`claude plugin marketplace add` accepts any git URL or local path:
-
-| Source | Command |
+| Flag | Effect |
 | --- | --- |
-| GitHub | `claude plugin marketplace add https://github.com/<owner>/<repo>` |
-| Azure DevOps (credential helper) | `claude plugin marketplace add https://dev.azure.com/<org>/<project>/_git/<repo>` |
-| Azure DevOps (PAT in URL) | `claude plugin marketplace add "https://<user>:<pat>@dev.azure.com/<org>/<project>/_git/<repo>"` |
-| Local clone (any host) | `git clone <url> /path/to/clone && claude plugin marketplace add /path/to/clone` |
+| `--scope user` | You, across all projects (**default**) |
+| `--scope project` | All collaborators in this repo (writes `.claude/settings.json`) |
+| `--scope local` | You, this repo only (writes `.claude/settings.local.json`) |
+| `--sparse .claude-plugin plugins` | Limit the marketplace checkout to these directories — for monorepos; `marketplace add` only |
 
-Azure DevOps PATs need **Code (Read)** scope — don't paste them into chat or commit them. Behind a corporate proxy, prefer the local-clone form. For other hosts (GitLab, Bitbucket, self-hosted Gitea), auth follows your local git configuration. Full reference: [Claude Code plugin marketplaces docs](https://docs.anthropic.com/en/docs/claude-code/plugin-marketplaces).
+Full reference: [Claude Code plugin marketplaces docs](https://docs.anthropic.com/en/docs/claude-code/plugin-marketplaces).
 
-### Upgrading from a previous install
+### Upgrading
 
-If you previously installed the plugin before the directory restructure (pre-v2.1), remove and re-add the marketplace source:
+Run `/upgrade` from any session, or update manually:
 
 ```bash
-claude plugin marketplace remove dev-team
-claude plugin marketplace add https://github.com/bdfinst/dev-team
-claude plugin install dev-team@bfinster
+claude plugin update --scope <scope> dev-team@bfinster
+```
+
+To re-point the marketplace (e.g., after moving git hosts), remove it by its **marketplace name** (`bfinster`) and re-add the source:
+
+```bash
+claude plugin marketplace remove bfinster
+claude plugin marketplace add bdfinst/agentic-dev-team
 ```
 
 ### Verify

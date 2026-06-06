@@ -127,7 +127,7 @@ User-invocable skills are invoked as slash commands (e.g., `/code-review`) and e
 
 | Command | File | Purpose |
 | --- | --- | --- |
-| `/plan` | [`plan/SKILL.md`](../skills/plan/SKILL.md) | Create a structured implementation plan with TDD steps |
+| `/plan` | [`plan/SKILL.md`](../skills/plan/SKILL.md) | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
 | `/build` | [`build/SKILL.md`](../skills/build/SKILL.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | [`pr/SKILL.md`](../skills/pr/SKILL.md) | Run quality gates and create a pull request |
 | `/setup` | [`setup/SKILL.md`](../skills/setup/SKILL.md) | Detect tech stack, generate project-level config and hooks |
