@@ -1,0 +1,9 @@
+name: ci
+on: [push]
+jobs:
+  q:
+    steps:
+      - run: npm run lint
+      - run: npx prettier --check .
+      - run: npx commitlint --last
+      - run: pre-commit run --all-files

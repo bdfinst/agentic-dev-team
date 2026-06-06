@@ -22,6 +22,10 @@ jobs:
         run: |
           shellcheck plugins/security-assessment/tests/scripts/*.sh
 
+      - name: Shellcheck repo audit scripts
+        run: |
+          shellcheck scripts/audit-rules-vs-prompts.sh
+
       - name: Run tests/scripts/run-all.sh
         run: bash plugins/security-assessment/tests/scripts/run-all.sh
 
@@ -33,7 +37,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install bats + jq
-        run: sudo apt-get update && sudo apt-get install -y bats jq
+        run: sudo apt-get update && sudo apt-get install -y bats jq python3-yaml
 
       # Content-validation suites: repo invariants, knowledge-index shape,
       # agent knowledge-anchor citations (AC19), command/doc registry sync.
@@ -50,6 +54,12 @@ jobs:
             tests/agents/ \
             tests/commands/ \
             tests/docs/
+
+      # Rules-vs-prompts boundary sensor (#118): the security-review-rule-map.yaml
+      # policy must stay consistent — no class on two surfaces, every rule-surface
+      # class has fixtures + a measured fp_rate <= 10%.
+      - name: Run rules-vs-prompts audit
+        run: bash scripts/audit-rules-vs-prompts.sh
 
       # Model-routing conformance: the updatedInput PreToolUse rewrite
       # contract (ADR-0004) is load-bearing and depends on undocumented

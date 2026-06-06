@@ -1,0 +1,1 @@
+execFile("ls", [safeArg]);
