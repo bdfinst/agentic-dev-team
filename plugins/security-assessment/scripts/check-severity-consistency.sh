@@ -59,38 +59,10 @@ OUT="$MEMORY/severity-consistency-$COMBINED.txt"
 
 mkdir -p "$MEMORY"
 
-# --- Helpers ---------------------------------------------------------------
-
-# Presentational severity mapping from exploitability.score (numeric 0-10):
-#   >= 9.0 -> CRITICAL
-#   >= 7.0 -> HIGH
-#   >= 4.0 -> MEDIUM
-#   else   -> LOW
-# This mirrors the contract v1.1.0 presentational bands and is used to
-# compare dispositions across targets.
-score_to_sev() {
-  awk -v s="$1" 'BEGIN {
-    if (s == "" || s == "null") { print "UNKNOWN"; exit }
-    s = s + 0
-    if (s >= 9.0) { print "CRITICAL"; exit }
-    if (s >= 7.0) { print "HIGH"; exit }
-    if (s >= 4.0) { print "MEDIUM"; exit }
-    print "LOW"
-  }'
-}
-
-# Given a finding ID prefix letter, return the dashboard severity.
-id_letter_to_sev() {
-  case "$1" in
-    C) echo "CRITICAL" ;;
-    H) echo "HIGH" ;;
-    M) echo "MEDIUM" ;;
-    L) echo "LOW" ;;
-    *) echo "UNKNOWN" ;;
-  esac
-}
-
 # --- Collect per-slug (rule_id, presentational severity) pairs ------------
+# Presentational severity mapping (score 0-10: >=9 CRITICAL, >=7 HIGH, >=4
+# MEDIUM, else LOW) mirrors the contract v1.1.0 bands and is implemented in the
+# embedded Python below (score_to_sev).
 
 # Scratch files
 TMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t 'sevcons')"
