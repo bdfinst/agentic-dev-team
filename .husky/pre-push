@@ -40,11 +40,15 @@ case "${HUSKY_RUN_EVALS:-}" in
   1) answer=y ;;
   0) answer=n ;;
   *)
-    if [ -r /dev/tty ]; then
+    # Detect a *usable* controlling terminal. `[ -r /dev/tty ]` only checks the
+    # permission bits, which pass even from GUI git clients (VS Code, JetBrains)
+    # where there is no tty — writing then fails with "Device not configured"
+    # and aborts the hook under `sh -e`. Test-open it instead.
+    if { : > /dev/tty; } 2>/dev/null; then
       printf '\nRun live agent-evals for changed agents/skills? (costs API tokens) [y/N] ' > /dev/tty
       read -r answer < /dev/tty || answer=n
     else
-      echo "pre-push: non-interactive shell; skipping live agent-eval (set HUSKY_RUN_EVALS=1 to force)."
+      echo "pre-push: no controlling terminal; skipping live agent-eval (set HUSKY_RUN_EVALS=1 to force, or run evals via 'npm run eval:changed')."
     fi
     ;;
 esac
