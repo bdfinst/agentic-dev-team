@@ -281,17 +281,37 @@ def main(argv: list[str]) -> int:
         print(f"(diff-scoped to: {', '.join(sorted(only))})\n")
 
     if args.write_baseline:
-        passing = sorted(pair for pair, ok, _ in results if ok)
+        target = Path(args.write_baseline)
+        # Merge into an existing baseline so a diff-scoped run tops up rather
+        # than clobbers. Pairs graded this run are updated (passing added,
+        # failing removed); pairs outside this run's scope are left untouched.
+        existing = set()
+        if target.exists():
+            try:
+                existing = set(json.loads(target.read_text()).get("passing", []))
+            except (OSError, json.JSONDecodeError):
+                existing = set()
+        graded_pass = {p for p, ok, _ in results if ok}
+        graded_fail = {p for p, ok, _ in results if not ok}
+        merged = (existing | graded_pass) - graded_fail
         from datetime import datetime, timezone
-        Path(args.write_baseline).write_text(json.dumps({
+        target.write_text(json.dumps({
             "_comment": "Regression baseline for the agent-eval CI gate (#99). "
-                        "Pairs listed here must not regress. Regenerate with "
-                        "eval_grade.py --actuals <f> --write-baseline.",
+                        "Pairs listed here must not regress. Update with "
+                        "eval_grade.py --actuals <f> --write-baseline (merges "
+                        "into this file: passing pairs added, pairs tested-but-"
+                        "failing removed, untested pairs kept).",
             "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "passing": passing,
+            "passing": sorted(merged),
         }, indent=2) + "\n")
-        print(f"Wrote baseline with {len(passing)} passing pair(s) to "
-              f"{args.write_baseline}")
+        added = sorted(graded_pass - existing)
+        removed = sorted(existing & graded_fail)
+        print(f"Baseline merged → {target}: {len(merged)} total "
+              f"(+{len(added)} added, -{len(removed)} removed)")
+        if added:
+            print("  added:   " + ", ".join(added))
+        if removed:
+            print("  removed: " + ", ".join(removed))
         return 0
 
     passed = [r for r in results if r[1]]

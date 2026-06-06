@@ -163,7 +163,7 @@ EOF
   [ "$status" -eq 0 ]
 }
 
-@test "grader: --write-baseline records the passing pairs" {
+@test "grader: --write-baseline records the passing pairs (fresh file)" {
   cat > "$CASE/actuals.json" <<'EOF'
 { "ar-demo": { "agents": { "arch-review": {
   "status": "fail",
@@ -176,6 +176,38 @@ EOF
   [ -f "$CASE/baseline.json" ]
   run jq -r '.passing[0]' "$CASE/baseline.json"
   [ "$output" = "ar-demo::arch-review" ]
+}
+
+@test "grader: --write-baseline MERGES, keeping untested pairs and adding new" {
+  # Pre-existing baseline has a pair this run never touches; it must survive.
+  echo '{ "passing": ["other-demo::naming-review"] }' > "$CASE/baseline.json"
+  cat > "$CASE/actuals.json" <<'EOF'
+{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail",
+  "issues": [{ "severity": "error", "message": "layer violation" }],
+  "summary": "" } } } }
+EOF
+  run python3 "$GRADER" --expected-dir "$CASE/expected" \
+    --actuals "$CASE/actuals.json" --only "arch-review" \
+    --write-baseline "$CASE/baseline.json"
+  [ "$status" -eq 0 ]
+  run jq -c '.passing' "$CASE/baseline.json"
+  [ "$output" = '["ar-demo::arch-review","other-demo::naming-review"]' ]
+}
+
+@test "grader: --write-baseline drops a pair that was tested this run but now fails" {
+  echo '{ "passing": ["ar-demo::arch-review","keep::naming-review"] }' > "$CASE/baseline.json"
+  cat > "$CASE/actuals.json" <<'EOF'
+{ "ar-demo": { "agents": { "arch-review": {
+  "status": "pass", "issues": [], "summary": "" } } } }
+EOF
+  run python3 "$GRADER" --expected-dir "$CASE/expected" \
+    --actuals "$CASE/actuals.json" --only "arch-review" \
+    --write-baseline "$CASE/baseline.json"
+  [ "$status" -eq 0 ]
+  # arch-review failed this run -> removed; keep::naming-review untouched.
+  run jq -c '.passing' "$CASE/baseline.json"
+  [ "$output" = '["keep::naming-review"]' ]
 }
 
 @test "grader: --check-corpus passes on a well-formed corpus" {
