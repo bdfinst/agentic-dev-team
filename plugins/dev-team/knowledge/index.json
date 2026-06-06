@@ -1935,6 +1935,16 @@
       "anchor": "5-load-phase-context"
     }
   },
+  "plugins/dev-team/skills/cost-report/SKILL.md": {
+    "Steps": {
+      "summary": "1.",
+      "anchor": "steps"
+    },
+    "Notes": {
+      "summary": "Disable the meter with `DEV_TEAM_COST_METER=off`.",
+      "anchor": "notes"
+    }
+  },
   "plugins/dev-team/skills/design-doc/SKILL.md": {
     "Overview": {
       "summary": "The Research phase explores what exists.",

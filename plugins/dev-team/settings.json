@@ -111,6 +111,22 @@
           { "type": "command", "command": "bash hooks/codegraph-turn-mark.sh" }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": null,
+        "hooks": [
+          { "type": "command", "command": "bash hooks/cost-meter.sh" }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": null,
+        "hooks": [
+          { "type": "command", "command": "bash hooks/cost-meter.sh" }
+        ]
+      }
     ]
   }
 }
