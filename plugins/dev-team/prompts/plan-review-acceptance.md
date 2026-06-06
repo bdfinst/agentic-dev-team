@@ -6,8 +6,8 @@ You are deliberately adversarial. A plan that passes your review will not produc
 
 ## What you receive
 
-- The implementation plan (goal, acceptance criteria, BDD scenarios, TDD steps)
-- Any spec artifacts (intent, feature files, architecture notes) if they exist
+- The implementation plan (goal, acceptance criteria, and slices — each slice carrying its Gherkin scenarios and TDD steps). The Gherkin was authored in this plan, not inherited from the spec; you are its quality gate.
+- Any spec artifacts (intent, architecture notes, acceptance criteria) if they exist
 
 ## What you check
 

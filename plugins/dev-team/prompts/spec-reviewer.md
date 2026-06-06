@@ -9,9 +9,10 @@ If the code does not match the spec, no amount of quality review will save it. C
 ## What you receive
 
 - The plan step that was implemented (acceptance criteria, target files, expected behavior)
+- The Gherkin scenario(s) for the step's slice, from the plan file
 - The implementer's verification evidence (RED output, GREEN output, suite output)
 - The diff of files changed
-- Spec artifacts if any: `docs/specs/<slug>.md`, feature files, architecture notes
+- Spec artifacts if any: `docs/specs/<slug>.md` (intent, architecture, acceptance criteria), the plan file under `plans/`
 
 ## What you check
 
@@ -25,7 +26,7 @@ For each acceptance criterion the step listed:
 
 ### 2. Scenario coverage
 
-For each Gherkin scenario in the spec that this step is supposed to cover:
+For each Gherkin scenario in the step's plan slice that this step is supposed to cover:
 
 - Is there a test that exercises that scenario's Given/When/Then?
 - Are the scenario's preconditions actually established in the test setup?
@@ -70,7 +71,7 @@ If you find quality issues during your review, **note them in passing** but do n
   ],
   "scenarioResults": [
     {
-      "scenario": "<scenario name from the feature file>",
+      "scenario": "<scenario name from the plan slice>",
       "result": "covered | partial | missing",
       "testFile": "<path to the test, if covered>"
     }

@@ -60,9 +60,9 @@ If any criteria are flagged:
 
 ### 4. Implement each step
 
-For each step in the plan, dispatch implementation following the implementer template (`prompts/implementer.md`):
+Work the plan slice by slice, in order. For each step within a slice, dispatch implementation following the implementer template (`prompts/implementer.md`). Pass the implementer its step **and the slice's Gherkin scenario(s)** — the scenarios are the behavioral contract the step's test must satisfy.
 
-1. **RED** — Write the failing test described in the step. Run the test suite. **Hard gate: the new test must fail.** Paste the failing output. If the test passes without new code, the behavior already exists — pick a different test. Do NOT proceed to GREEN without pasted failing output.
+1. **RED** — Write the failing test described in the step, covering the slice scenario it traces to. Run the test suite. **Hard gate: the new test must fail.** Paste the failing output. If the test passes without new code, the behavior already exists — pick a different test. Do NOT proceed to GREEN without pasted failing output.
 2. **GREEN** — Write the minimum implementation to make the failing test pass. Do not add behavior beyond what the test requires. Run the test suite. **Hard gate: all tests must pass.** Paste the passing output. Do NOT proceed without pasted passing output.
 3. **REFACTOR** — Clean up structure, naming, duplication without changing behavior. Run tests again — they must still pass. If tests break, undo and try a smaller change.
 4. **Inline review checkpoint** — Route review depth based on the step's **Complexity** classification:
@@ -72,9 +72,10 @@ For each step in the plan, dispatch implementation following the implementer tem
    - If no complexity is specified, default to **standard**.
    - **UI changes (any complexity)**: After quality review passes, run browser verification via `/browse` in automated smoke test mode. Skip with warning if the dev server is not running. See `agents/orchestrator.md` Stage 3.
 5. **Mark step done** — Use the Edit tool to update the plan file's `## Build Progress` section on disk:
-   - Change `- [ ] Step N: <title>` to `- [x] Step N: <title>` for the completed step.
+   - Change `- [ ] Step N.M: <title>` to `- [x] Step N.M: <title>` for the completed step.
+   - When every step under a slice is `[x]`, check off the parent `- [ ] Slice N: <title>`.
    - For each acceptance criterion verified by this step, change `- [ ]` to `- [x]` in the Build Progress `### Acceptance Criteria` subsection.
-   - After all steps are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
+   - After all slices are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
    - This disk write is the durable commit. If a `/clear` occurs, `/continue` reads `## Build Progress` to determine the resume point without needing conversation history.
 
 ### 5. Run full test suite
@@ -100,8 +101,8 @@ Stop and ask the user when:
 
 ## Integration
 
-- `/specs` produces the specification artifacts that inform the plan
-- `/plan` creates the plan this command executes
+- `/specs` produces the intent, architecture, and acceptance-criteria artifacts that inform the plan
+- `/plan` decomposes the feature into slices, authors each slice's Gherkin, and produces the plan this command executes
 - `/code-review` runs the full review suite after implementation
 - `/pr` creates the pull request after a successful build
 - `/continue` can resume a partially completed build across sessions

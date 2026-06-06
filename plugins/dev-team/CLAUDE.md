@@ -27,7 +27,7 @@ This project uses a layered loading strategy to minimize token usage:
 3. **Persona-Driven Behavior**: Each agent has detailed psychological and behavioral specifications defined in `.claude/agents/`.
 4. **Human-in-the-Loop**: Agents are autonomous but require oversight, not copilots.
 5. **Dynamic Configuration**: User-level configuration changes are applied through audited, human-approved config writes, each recorded to `metrics/config-changelog.jsonl` with `previous_value`/`new_value`/`approved_by` (see Feedback & Learning).
-6. **Acceptance Test Driven Development**: All development follows ATDD. Behaviors are defined as scenarios in feature files (Gherkin) before implementation begins. Feature file scenarios are the single source of truth for expected behavior — no implementation without a corresponding scenario, no scenario without a corresponding test.
+6. **Acceptance Test Driven Development**: All development follows ATDD. The spec describes the change and its goals; `/plan` then decomposes it into vertical slices and authors the Gherkin scenarios for each slice before implementation begins. These per-slice scenarios are the single source of truth for expected behavior — no implementation without a corresponding scenario, no scenario without a corresponding test.
 
 ## Team Organization
 
