@@ -1,0 +1,5 @@
+{
+  "_comment": "Regression baseline for the agent-eval CI gate (issue #99). 'passing' lists fixture::agent (and fixture::skill) pairs known to pass a live /agent-eval run. The live gate fails only when a pair listed here REGRESSES (was passing, now fails), so an empty list never red-lines the gate. Record a baseline by running a green live eval and adding its passing pairs here. See evals/README.md.",
+  "recorded_at": null,
+  "passing": []
+}
