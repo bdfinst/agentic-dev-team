@@ -1,0 +1,57 @@
+#!/usr/bin/env sh
+# pre-push — run the local mirror of GitHub CI, then optionally the paid,
+# diff-scoped live agent-eval.
+#
+#   1. scripts/ci-local.sh   — the deterministic CI gates (always; blocks push).
+#   2. scripts/eval-changed.sh — the live agent-eval, scoped to changed
+#      agents/skills, but only after you opt in at the prompt below.
+#
+# Set HUSKY_RUN_EVALS=1 to auto-run the evals (no prompt), =0 to always skip.
+# Set HUSKY=0 to bypass the whole hook (git's standard escape hatch).
+
+# Resolve the push range from git's stdin lines:
+#   <local ref> <local sha> <remote ref> <remote sha>
+# remote sha is all-zero for a brand-new branch; local sha is all-zero for a
+# branch deletion (which we skip).
+BASE=""
+HEAD=""
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ -z "$local_sha" ] && continue
+  case "$local_sha" in *[!0]*) : ;; *) continue ;; esac  # all-zero => deletion
+  HEAD="$local_sha"
+  case "$remote_sha" in
+    *[!0]*) BASE="$remote_sha" ;;                          # existing remote branch
+    *) BASE="$(git merge-base "$local_sha" origin/main 2>/dev/null || git merge-base "$local_sha" main 2>/dev/null || true)" ;;
+  esac
+  break
+done
+
+# Fallbacks (e.g. a client that feeds no stdin): diff against the main base.
+[ -z "$HEAD" ] && HEAD="$(git rev-parse HEAD 2>/dev/null || true)"
+[ -z "$BASE" ] && BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || true)"
+
+# 1. Deterministic CI mirror — blocks the push on failure.
+echo "pre-push: running local CI mirror (scripts/ci-local.sh)…"
+bash scripts/ci-local.sh "$BASE" "$HEAD" || exit 1
+
+# 2. Opt-in live agent-eval, diff-scoped to changed agents/skills.
+answer=n
+case "${HUSKY_RUN_EVALS:-}" in
+  1) answer=y ;;
+  0) answer=n ;;
+  *)
+    if [ -r /dev/tty ]; then
+      printf '\nRun live agent-evals for changed agents/skills? (costs API tokens) [y/N] ' > /dev/tty
+      read -r answer < /dev/tty || answer=n
+    else
+      echo "pre-push: non-interactive shell; skipping live agent-eval (set HUSKY_RUN_EVALS=1 to force)."
+    fi
+    ;;
+esac
+
+case "$answer" in
+  [Yy]*) bash scripts/eval-changed.sh "$BASE" "$HEAD" || exit 1 ;;
+  *) echo "pre-push: skipped live agent-eval." ;;
+esac
+
+exit 0
