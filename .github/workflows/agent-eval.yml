@@ -19,16 +19,14 @@ name: agent-eval-gate
 
 on:
   pull_request:
-    # 'labeled' lets adding the run-eval label trigger the (paid) live gate.
-    # The free structural + semver gates run on every commit regardless.
+    # No 'paths' filter, on purpose. The structural + semver jobs are REQUIRED
+    # status checks. A path-filtered workflow reports NO status on PRs that don't
+    # match the filter, so a required check from it deadlocks every unrelated PR
+    # at "Expected — Waiting for status to be reported" (it can never go green).
+    # Both free gates are cheap and hermetic, so they run on every PR and always
+    # report. The paid live gate is opt-in, self-gated below by the 'run-eval'
+    # label / ANTHROPIC_API_KEY presence; 'labeled' lets the label trigger it.
     types: [opened, synchronize, reopened, labeled]
-    paths:
-      - "plugins/dev-team/agents/**"
-      - "plugins/dev-team/skills/**"
-      - "plugins/dev-team/knowledge/**"
-      - "evals/**"
-      - "scripts/eval_grade.py"
-      - ".github/workflows/agent-eval.yml"
   # Manual trigger; force_live=true runs the live gate without the label.
   workflow_dispatch:
     inputs:
@@ -92,7 +90,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0  # need PR base to diff which agents/skills changed
+          fetch-depth: 0 # need PR base to diff which agents/skills changed
 
       - name: Decide whether to run the live gate
         id: cred
