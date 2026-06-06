@@ -14,9 +14,10 @@ allowed-tools: >-
 
 Role: worker. Manages consent for and reports the local, opt-in telemetry
 beacon. The beacon (`hooks/telemetry.sh`) records MINIMAL events — a command
-NAME, a gate name + outcome, and the plugin version — to
-`metrics/telemetry.jsonl`. No prompts, paths, code, or payloads are ever
-recorded, and there is **no network egress**: everything stays local.
+NAME, a skill NAME (including agent-/auto-invoked skills), a gate name +
+outcome, and the plugin version — to `metrics/telemetry.jsonl`. No prompts,
+paths, code, or payloads are ever recorded, and there is **no network egress**:
+everything stays local.
 
 Telemetry is **OFF by default**. It activates only when
 `.claude/telemetry.json` contains `{"enabled": true}` or the env var
@@ -42,16 +43,17 @@ Telemetry is **OFF by default**. It activates only when
    ```json
    { "enabled": true }
    ```
-   For `on`, confirm consent first. Note the file is gitignored-by-convention
-   (project-local); recording is local-only.
+   For `on`, confirm consent first. Recording is local-only; the event log
+   `metrics/telemetry.jsonl` is gitignored so it can never be committed.
 
 3. **report** — summarize the event log:
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/telemetry_report.py \
      --log metrics/telemetry.jsonl
    ```
-   Shows command/skill usage counts and the pre-commit review gate's bypass
-   rate. If the log doesn't exist, the report says telemetry is off and nothing
-   has left the machine.
+   Shows command usage, skill usage (including agent-/auto-invoked skills,
+   counted distinctly from user-typed commands), and the pre-commit review
+   gate's bypass rate. If the log doesn't exist, the report says telemetry is
+   off and nothing has left the machine.
 
 Report exactly what the tool emits; do not invent counts.

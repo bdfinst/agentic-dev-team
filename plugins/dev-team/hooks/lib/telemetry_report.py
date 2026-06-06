@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Telemetry report (issue #106).
+"""Telemetry report (issues #106, #135).
 
 Aggregates the opt-in, privacy-clean event log written by hooks/telemetry.sh
-(metrics/telemetry.jsonl) into: command/skill usage counts, and the pre-commit
-review gate's bypass rate (bypassed / (fired + bypassed)). With telemetry
-disabled the log doesn't exist and this reports that nothing was collected —
-satisfying "with it disabled, nothing leaves the machine."
+(metrics/telemetry.jsonl) into: command usage counts, skill usage counts
+(including agent-/auto-invoked skills, counted distinctly from user-typed
+commands — #135), and the pre-commit review gate's bypass rate
+(bypassed / (fired + bypassed)). With telemetry disabled the log doesn't exist
+and this reports that nothing was collected — satisfying "with it disabled,
+nothing leaves the machine."
 
 Usage: telemetry_report.py [--log metrics/telemetry.jsonl] [--json]
 """
@@ -21,6 +23,7 @@ from pathlib import Path
 
 def aggregate(log: Path) -> dict:
     commands: Counter = Counter()
+    skills: Counter = Counter()
     gates: Counter = Counter()  # outcome -> count, per gate name
     gate_by_name: dict[str, Counter] = {}
     total_events = 0
@@ -35,6 +38,8 @@ def aggregate(log: Path) -> dict:
         total_events += 1
         if e.get("event") == "command":
             commands[e.get("name", "?")] += 1
+        elif e.get("event") == "skill":
+            skills[e.get("name", "?")] += 1
         elif e.get("event") == "gate":
             name = e.get("name", "?")
             gate_by_name.setdefault(name, Counter())[e.get("outcome", "?")] += 1
@@ -52,6 +57,7 @@ def aggregate(log: Path) -> dict:
     return {
         "total_events": total_events,
         "command_usage": dict(commands.most_common()),
+        "skill_usage": dict(skills.most_common()),
         "gates": gate_summary,
     }
 
@@ -74,10 +80,16 @@ def main(argv: list[str]) -> int:
         return 0
 
     print(f"# Telemetry report — {summary['total_events']} event(s)\n")
-    print("## Command / skill usage")
+    print("## Command usage (user-typed slash commands)")
     if summary["command_usage"]:
         for name, n in summary["command_usage"].items():
             print(f"  /{name}: {n}")
+    else:
+        print("  (none)")
+    print("\n## Skill usage (incl. agent-/auto-invoked)")
+    if summary["skill_usage"]:
+        for name, n in summary["skill_usage"].items():
+            print(f"  {name}: {n}")
     else:
         print("  (none)")
     print("\n## Gate bypass rates")

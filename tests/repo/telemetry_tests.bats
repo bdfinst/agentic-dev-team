@@ -1,7 +1,8 @@
 #!/usr/bin/env bats
-# Tests for the opt-in telemetry beacon (issue #106): default-off consent,
-# command/skill capture, gate fired/bypassed capture, privacy (no payloads),
-# and the report aggregation.
+# Tests for the opt-in telemetry beacon (issues #106, #135): default-off
+# consent, command capture, distinct skill capture (incl. agent-/auto-invoked),
+# gate fired/bypassed capture (incl. trailing -n), privacy (no payloads), and
+# the report aggregation.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 HOOK="$REPO_ROOT/plugins/dev-team/hooks/telemetry.sh"
@@ -60,11 +61,34 @@ _send() { echo "$1" | bash "$HOOK"; }
   [ ! -f "$D/metrics/telemetry.jsonl" ]
 }
 
-@test "report: aggregates usage and bypass rate" {
+@test "telemetry: PreToolUse Skill records a distinct skill event (agent-/auto-invoked)" {
+  _enable
+  _send "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"code-review\"},\"cwd\":\"$D\"}"
+  run jq -r '.event + " " + .name' "$D/metrics/telemetry.jsonl"
+  [ "$output" = "skill code-review" ]
+}
+
+@test "telemetry: bypass detection catches a trailing -n flag (#135)" {
+  _enable
+  _send "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m msg -n\"},\"cwd\":\"$D\"}"
+  run jq -r '.outcome' "$D/metrics/telemetry.jsonl"
+  [ "$output" = "bypassed" ]
+}
+
+@test "telemetry: a real filename containing -n does not false-bypass" {
+  _enable
+  _send "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m 'add foo-name.js'\"},\"cwd\":\"$D\"}"
+  run jq -r '.outcome' "$D/metrics/telemetry.jsonl"
+  [ "$output" = "fired" ]
+}
+
+@test "report: aggregates usage and bypass rate, with skills distinct from commands" {
   cat > "$D/t.jsonl" <<'EOF'
 {"event":"command","name":"specs","outcome":"invoked","plugin_version":"1"}
 {"event":"command","name":"specs","outcome":"invoked","plugin_version":"1"}
 {"event":"command","name":"build","outcome":"invoked","plugin_version":"1"}
+{"event":"skill","name":"token-efficiency-review","outcome":"invoked","plugin_version":"1"}
+{"event":"skill","name":"token-efficiency-review","outcome":"invoked","plugin_version":"1"}
 {"event":"gate","name":"pre-commit-review","outcome":"fired","plugin_version":"1"}
 {"event":"gate","name":"pre-commit-review","outcome":"bypassed","plugin_version":"1"}
 {"event":"gate","name":"pre-commit-review","outcome":"bypassed","plugin_version":"1"}
@@ -72,6 +96,9 @@ EOF
   run python3 "$REPORT" --log "$D/t.jsonl" --json
   [ "$status" -eq 0 ]
   [ "$(echo "$output" | jq -r '.command_usage.specs')" = "2" ]
+  [ "$(echo "$output" | jq -r '.skill_usage."token-efficiency-review"')" = "2" ]
+  # skills are NOT conflated into command_usage
+  [ "$(echo "$output" | jq -r '.command_usage."token-efficiency-review" // "absent"')" = "absent" ]
   [ "$(echo "$output" | jq -r '.gates."pre-commit-review".bypass_rate')" = "0.6667" ]
 }
 
@@ -86,6 +113,12 @@ EOF
     "$REPO_ROOT/plugins/dev-team/settings.json"
   [ "$status" -eq 0 ]
   run jq -e '.hooks.PreToolUse[] | select(.matcher=="Bash") | .hooks[] | select(.command | contains("telemetry.sh"))' \
+    "$REPO_ROOT/plugins/dev-team/settings.json"
+  [ "$status" -eq 0 ]
+}
+
+@test "settings.json registers telemetry.sh on PreToolUse Skill (#135)" {
+  run jq -e '.hooks.PreToolUse[] | select(.matcher=="Skill") | .hooks[] | select(.command | contains("telemetry.sh"))' \
     "$REPO_ROOT/plugins/dev-team/settings.json"
   [ "$status" -eq 0 ]
 }
