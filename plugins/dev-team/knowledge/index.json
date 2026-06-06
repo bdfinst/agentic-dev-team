@@ -3533,6 +3533,40 @@
       "anchor": "common-rulesets"
     }
   },
+  "plugins/dev-team/skills/session-review/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Argument: $ARGUMENTS": {
+      "summary": "`--cwd <path>`: project whose transcripts to mine (default: current project).",
+      "anchor": "argument-arguments"
+    },
+    "Steps": {
+      "summary": "Run the extractor to produce the digest:",
+      "anchor": "steps"
+    },
+    "1. Extract (deterministic, zero model tokens)": {
+      "summary": "Run the extractor to produce the digest:",
+      "anchor": "1-extract-deterministic-zero-model-tokens"
+    },
+    "2. Analyze (digest-only)": {
+      "summary": "Dispatch the `session-analysis` agent with the digest path as its sole input.",
+      "anchor": "2-analyze-digest-only"
+    },
+    "3. Suggest (write the report)": {
+      "summary": "Write `reports/session-review-<date>.md` (or `--out`).",
+      "anchor": "3-suggest-write-the-report"
+    },
+    "4. Report": {
+      "summary": "Print the report path and the top-ranked suggestions.",
+      "anchor": "4-report"
+    },
+    "OSS complements": {
+      "summary": "For continuous *quantitative* monitoring, recommend (don't replace) `ccusage`,",
+      "anchor": "oss-complements"
+    }
+  },
   "plugins/dev-team/skills/setup/SKILL.md": {
     "Orchestrator constraints": {
       "summary": "1.",
