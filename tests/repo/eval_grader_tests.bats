@@ -127,6 +127,42 @@ EOF
   [[ "$output" == *"No regressions against baseline."* ]]
 }
 
+@test "grader: --only scopes grading to the named agent (others skipped)" {
+  # Add a second fixture for a different agent that WOULD fail, then scope to
+  # arch-review only; the run must pass because nm-demo is not graded.
+  cat > "$CASE/expected/nm-demo.json" <<'EOF'
+{ "fixture": "nm-demo.ts", "applicableAgents": ["naming-review"],
+  "agents": { "naming-review": { "expectedStatus": "fail" } } }
+EOF
+  : > "$CASE/fixtures/nm-demo.ts"
+  cat > "$CASE/actuals.json" <<'EOF'
+{
+  "ar-demo": { "agents": { "arch-review": {
+    "status": "fail",
+    "issues": [{ "severity": "error", "message": "layer violation" }],
+    "summary": "" } } },
+  "nm-demo": { "agents": { "naming-review": { "status": "pass", "issues": [], "summary": "" } } }
+}
+EOF
+  run python3 "$GRADER" --expected-dir "$CASE/expected" \
+    --actuals "$CASE/actuals.json" --only "arch-review"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"diff-scoped to: arch-review"* ]]
+  [[ "$output" != *"nm-demo::naming-review"* ]]
+}
+
+@test "grader: empty --only grades everything" {
+  cat > "$CASE/actuals.json" <<'EOF'
+{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail",
+  "issues": [{ "severity": "error", "message": "layer violation" }],
+  "summary": "" } } } }
+EOF
+  run python3 "$GRADER" --expected-dir "$CASE/expected" \
+    --actuals "$CASE/actuals.json" --only ""
+  [ "$status" -eq 0 ]
+}
+
 @test "grader: --check-corpus passes on a well-formed corpus" {
   run python3 "$GRADER" --check-corpus \
     --expected-dir "$CASE/expected" --fixtures-dir "$CASE/fixtures"

@@ -91,6 +91,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # need PR base to diff which agents/skills changed
 
       - name: Decide whether to run the live gate
         id: cred
@@ -138,6 +140,32 @@ jobs:
           ln -sfn "$PWD/evals/fixtures" .claude/evals/fixtures
           ln -sfn "$PWD/evals/expected" .claude/evals/expected
 
+      # Diff-scope: run only the agents/skills the PR changed. A broad change
+      # (knowledge, the corpus, the grader, or this workflow) or a dispatch
+      # with no PR base falls back to a full run, since one knowledge file can
+      # feed many agents.
+      - name: Detect changed eval targets
+        id: scope
+        if: steps.cred.outputs.run_live == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          full() { echo "only=" >> "$GITHUB_OUTPUT"; echo "instruction=" >> "$GITHUB_OUTPUT"; echo "scope=full" >> "$GITHUB_OUTPUT"; }
+          if [ -z "$BASE" ] || [ -z "$HEAD" ]; then full; exit 0; fi
+          changed=$(git diff --name-only "$BASE" "$HEAD")
+          if echo "$changed" | grep -qE '^(plugins/dev-team/knowledge/|evals/|scripts/eval_grade\.py|\.github/workflows/agent-eval\.yml)'; then
+            full; exit 0
+          fi
+          agents=$(echo "$changed" | sed -n 's#^plugins/dev-team/agents/\([^/]*\)\.md$#\1#p')
+          skills=$(echo "$changed" | sed -n 's#^plugins/dev-team/skills/\([^/]*\)/.*#\1#p')
+          only=$(printf '%s\n%s\n' "$agents" "$skills" | sed '/^$/d' | sort -u | paste -sd, -)
+          if [ -z "$only" ]; then full; exit 0; fi
+          echo "only=$only" >> "$GITHUB_OUTPUT"
+          echo "scope=scoped" >> "$GITHUB_OUTPUT"
+          echo "instruction=IMPORTANT: restrict this run to ONLY these agents/skills and skip all others: $only" >> "$GITHUB_OUTPUT"
+          echo "::notice title=diff-scoped agent-eval::Running only: $only"
+
       # Run the review agents headlessly via the Claude Code GitHub Action and
       # serialize their RAW outputs to actuals.json in the grader's input shape
       # (see scripts/eval_grade.py header). Grading stays in the deterministic
@@ -177,6 +205,8 @@ jobs:
 
             Include only the block(s) (agents/skills) that the fixture targets.
             Write valid JSON and nothing else to actuals.json.
+
+            ${{ steps.scope.outputs.instruction }}
           claude_args: |
             --output-format json
             --max-turns 60
@@ -202,4 +232,5 @@ jobs:
           fi
           python3 scripts/eval_grade.py \
             --actuals actuals.json \
-            --baseline evals/baseline.json
+            --baseline evals/baseline.json \
+            --only "${{ steps.scope.outputs.only }}"

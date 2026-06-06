@@ -24,6 +24,12 @@ deterministic, model-free grader that backs CI.
    GitHub notice is emitted); the structural gate still runs. A `concurrency`
    group cancels superseded runs so rapid pushes don't stack paid runs.
 
+   **Diff-scoped runs.** The live gate runs only the agents/skills the PR
+   changed (derived from the diff and threaded into both the runner prompt and
+   `eval_grade.py --only`). A broad change — `knowledge/`, the corpus, the
+   grader, or the workflow — falls back to a full run, since one knowledge file
+   can feed many agents. This is the main per-run cost lever.
+
    **Note on workflow validation:** `claude-code-action` will *self-skip* (no
    model run) on any PR that adds or modifies this workflow file, because
    GitHub requires the workflow to match the default branch. The live gate

@@ -195,7 +195,8 @@ def check_corpus(expected_dir: Path, fixtures_dir: Path):
 # Run grading against actuals.
 # --------------------------------------------------------------------------
 
-def run_grading(expected_dir: Path, actuals: dict, baseline: dict | None):
+def run_grading(expected_dir: Path, actuals: dict, baseline: dict | None,
+                only: set | None = None):
     baseline_pass = set(baseline.get("passing", [])) if baseline else None
     results = []  # (pair, passed, fails)
     for ef in sorted(expected_dir.glob("*.json")):
@@ -204,6 +205,8 @@ def run_grading(expected_dir: Path, actuals: dict, baseline: dict | None):
         actual_entry = actuals.get(stem, {})
 
         for agent, aspec in spec.get("agents", {}).items():
+            if only and agent not in only:
+                continue  # diff-scoped run: this agent did not change
             pair = f"{stem}::{agent}"
             got = actual_entry.get("agents", {}).get(agent)
             if got is None:
@@ -215,6 +218,8 @@ def run_grading(expected_dir: Path, actuals: dict, baseline: dict | None):
             results.append((pair, not fails, fails))
 
         for skill, sspec in spec.get("skills", {}).items():
+            if only and skill not in only:
+                continue  # diff-scoped run: this skill did not change
             pair = f"{stem}::{skill}"
             got = actual_entry.get("skills", {}).get(skill)
             if got is None:
@@ -233,6 +238,9 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--fixtures-dir", default="evals/fixtures")
     ap.add_argument("--actuals")
     ap.add_argument("--baseline")
+    ap.add_argument("--only", default="",
+                    help="comma-separated agent/skill names to grade "
+                         "(diff-scoped run); empty means all")
     ap.add_argument("--check-corpus", action="store_true")
     args = ap.parse_args(argv)
 
@@ -264,7 +272,10 @@ def main(argv: list[str]) -> int:
     actuals = _load_json(Path(args.actuals))
     baseline = _load_json(Path(args.baseline)) if args.baseline else None
 
-    results, baseline_pass = run_grading(expected_dir, actuals, baseline)
+    only = {s.strip() for s in args.only.split(",") if s.strip()} or None
+    results, baseline_pass = run_grading(expected_dir, actuals, baseline, only)
+    if only:
+        print(f"(diff-scoped to: {', '.join(sorted(only))})\n")
 
     passed = [r for r in results if r[1]]
     failed = [r for r in results if not r[1]]
