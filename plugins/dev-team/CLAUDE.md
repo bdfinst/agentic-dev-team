@@ -55,46 +55,46 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 Teams can create a `REVIEW-CONTEXT.md` file in their project root to provide domain knowledge that code analysis alone cannot discover: related services, known issues, team context, architectural history. When present, `/code-review` reads it and passes the contents to each agent as additional context. This file is optional and project-local.
 
-## Slash Commands Registry
+## Skills Registry
 
-User-invocable workflows in `.claude/commands/`. All review commands are executed under orchestrator direction. Model assignment for every agent flows through the **Resolution Procedure** (`agents/orchestrator.md`), enforced by the PreToolUse hook `hooks/agent-model-resolve.sh`.
+User-invocable workflows in `.claude/skills/`. All review skills are executed under orchestrator direction. Model assignment for every agent flows through the **Resolution Procedure** (`agents/orchestrator.md`), enforced by the PreToolUse hook `hooks/agent-model-resolve.sh`.
 
 | Command | File | Role | What It Does |
 |---------|------|------|--------------|
-| `/code-review` | `commands/code-review.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
-| `/review-agent` | `commands/review-agent.md` | worker | Run a single review agent (used for inline checkpoints) |
-| `/test-design` | `commands/test-design.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, then run test-design-advisor for testability/refactor recommendations (advisory) |
-| `/test-health` | `commands/test-health.md` | orchestrator | Project-wide test-strategy audit: shape vs. architecture fit, quadrant coverage, coverage + mutation health, flaky/automation maturity, ordered plan. Delegates pipeline assessment to cd-test-architecture (advisory) |
-| `/agent-audit` | `commands/agent-audit.md` | orchestrator | Audit agents/commands/hooks for structural compliance |
-| `/agent-eval` | `commands/agent-eval.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
-| `/agent-add` | `commands/agent-add.md` | implementation | Create a new review or team agent following the official schema with token-efficiency budgets |
-| `/agent-remove` | `commands/agent-remove.md` | implementation | Remove an agent and all its registry entries and doc references |
-| `/add-plugin` | `commands/add-plugin.md` | implementation | Install a plugin and register it in settings.json |
-| `/apply-fixes` | `commands/apply-fixes.md` | implementation | Apply correction prompts from `/code-review` output |
-| `/review-summary` | `commands/review-summary.md` | orchestrator | Generate compact session summary for context continuity |
-| `/semgrep-analyze` | `commands/semgrep-analyze.md` | worker | Run Semgrep SAST and return structured findings |
-| `/review` | `commands/review.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
-| `/setup` | `commands/setup.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
-| `/continue` | `commands/continue.md` | orchestrator | Resume work from a prior session using phase progress files |
-| `/plan` | `commands/plan.md` | orchestrator | Create a structured implementation plan with TDD steps |
-| `/build` | `commands/build.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence |
-| `/pr` | `commands/pr.md` | orchestrator | Run quality gates and create a pull request |
-| `/browse` | `commands/browse.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
-| `/careful` | `commands/careful.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
-| `/freeze` | `commands/freeze.md` | worker | Scope-lock editing to a glob pattern; blocks edits outside the pattern |
-| `/unfreeze` | `commands/unfreeze.md` | worker | Lift the scope lock set by `/freeze` |
-| `/guard` | `commands/guard.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
-| `/upgrade` | `commands/upgrade.md` | worker | Check for and apply plugin updates from within a session |
-| `/triage` | `commands/triage.md` | worker | Investigate a bug and write a triage record to `.triage/<slug>.md` with a TDD fix plan |
-| `/explore` | `commands/explore.md` | worker | Charter-driven exploratory testing of a running target (Chaos Specialist mode): structured heuristics + adversarial expansion, auto-triages critical defects, writes an incremental report |
-| `/issues-from-plan` | `commands/issues-from-plan.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
-| `/harness-audit` | `commands/harness-audit.md` | orchestrator | Analyze harness effectiveness and flag stale components |
-| `/version` | `commands/version.md` | worker | Report the installed plugin version |
-| `/benchmark` | `commands/benchmark.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
-| `/semantic-scan` | `commands/semantic-scan.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
-| `/help` | `commands/help.md` | worker | List all available slash commands with descriptions |
-| `/init-dev-team` | `commands/init-dev-team.md` | worker | Install plugin prerequisites (jq, python3, mutation tools). Includes a state-aware CodeGraph offer (install / init / silent-confirm based on `command -v codegraph` and `.codegraph/` presence), an opt-in Anthropic model availability probe that populates `.claude/model-overrides.json` for restricted endpoints, and bootstraps a JS project via `js-project-init` when JS/TS is selected but `package.json` is absent. |
-| `/model-routing-check` | `commands/model-routing-check.md` | worker | Read-only diagnostic for environment-aware model routing. Prints the effective tier → snapshot map, any override file contents, the most recent tier bumps from the resolver log, and probe applicability for the current `ANTHROPIC_BASE_URL`. |
+| `/code-review` | `skills/code-review/SKILL.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
+| `/review-agent` | `skills/review-agent/SKILL.md` | worker | Run a single review agent (used for inline checkpoints) |
+| `/test-design` | `skills/test-design/SKILL.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, then run test-design-advisor for testability/refactor recommendations (advisory) |
+| `/test-health` | `skills/test-health/SKILL.md` | orchestrator | Project-wide test-strategy audit: shape vs. architecture fit, quadrant coverage, coverage + mutation health, flaky/automation maturity, ordered plan. Delegates pipeline assessment to cd-test-architecture (advisory) |
+| `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance |
+| `/agent-eval` | `skills/agent-eval/SKILL.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
+| `/agent-add` | `skills/agent-add/SKILL.md` | implementation | Create a new review or team agent following the official schema with token-efficiency budgets |
+| `/agent-remove` | `skills/agent-remove/SKILL.md` | implementation | Remove an agent and all its registry entries and doc references |
+| `/add-plugin` | `skills/add-plugin/SKILL.md` | implementation | Install a plugin and register it in settings.json |
+| `/apply-fixes` | `skills/apply-fixes/SKILL.md` | implementation | Apply correction prompts from `/code-review` output |
+| `/review-summary` | `skills/review-summary/SKILL.md` | orchestrator | Generate compact session summary for context continuity |
+| `/semgrep-analyze` | `skills/semgrep-analyze/SKILL.md` | worker | Run Semgrep SAST and return structured findings |
+| `/review` | `skills/review/SKILL.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
+| `/setup` | `skills/setup/SKILL.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
+| `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
+| `/plan` | `skills/plan/SKILL.md` | orchestrator | Create a structured implementation plan with TDD steps |
+| `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence |
+| `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request |
+| `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
+| `/careful` | `skills/careful/SKILL.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
+| `/freeze` | `skills/freeze/SKILL.md` | worker | Scope-lock editing to a glob pattern; blocks edits outside the pattern |
+| `/unfreeze` | `skills/unfreeze/SKILL.md` | worker | Lift the scope lock set by `/freeze` |
+| `/guard` | `skills/guard/SKILL.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
+| `/upgrade` | `skills/upgrade/SKILL.md` | worker | Check for and apply plugin updates from within a session |
+| `/triage` | `skills/triage/SKILL.md` | worker | Investigate a bug and write a triage record to `.triage/<slug>.md` with a TDD fix plan |
+| `/explore` | `skills/explore/SKILL.md` | worker | Charter-driven exploratory testing of a running target (Chaos Specialist mode): structured heuristics + adversarial expansion, auto-triages critical defects, writes an incremental report |
+| `/issues-from-plan` | `skills/issues-from-plan/SKILL.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
+| `/harness-audit` | `skills/harness-audit/SKILL.md` | orchestrator | Analyze harness effectiveness and flag stale components |
+| `/version` | `skills/version/SKILL.md` | worker | Report the installed plugin version |
+| `/benchmark` | `skills/benchmark/SKILL.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
+| `/semantic-scan` | `skills/semantic-scan/SKILL.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
+| `/help` | `skills/help/SKILL.md` | worker | List all available slash commands with descriptions |
+| `/init-dev-team` | `skills/init-dev-team/SKILL.md` | worker | Install plugin prerequisites (jq, python3, mutation tools). Includes a state-aware CodeGraph offer (install / init / silent-confirm based on `command -v codegraph` and `.codegraph/` presence), an opt-in Anthropic model availability probe that populates `.claude/model-overrides.json` for restricted endpoints, and bootstraps a JS project via `js-project-init` when JS/TS is selected but `package.json` is absent. |
+| `/model-routing-check` | `skills/model-routing-check/SKILL.md` | worker | Read-only diagnostic for environment-aware model routing. Prints the effective tier → snapshot map, any override file contents, the most recent tier bumps from the resolver log, and probe applicability for the current `ANTHROPIC_BASE_URL`. |
 
 ## Request Processing Flow
 

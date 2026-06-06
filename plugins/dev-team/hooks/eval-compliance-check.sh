@@ -2,7 +2,7 @@
 #
 # eval-compliance-check.sh - Claude Code PostToolUse hook
 #
-# Fires after Write or Edit on any file. Runs structural checks on agent/command
+# Fires after Write or Edit on any file. Runs structural checks on agent/skill
 # files and emits targeted doc-sync reminders for config and general repo changes.
 #
 # Input: JSON on stdin with tool_input.file_path
@@ -17,7 +17,7 @@ FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 # Classify file type for targeted checks
 case "$FILE_PATH" in
   */agents/*.md) FILE_TYPE="agent" ;;
-  */commands/*.md) FILE_TYPE="skill" ;;
+  */skills/*/SKILL.md) FILE_TYPE="skill" ;;
   */.claude/hooks/*.sh|*/.claude/settings.json|*/CLAUDE.md) FILE_TYPE="config" ;;
   *) FILE_TYPE="other" ;;
 esac
@@ -165,7 +165,7 @@ if [ "$FILE_TYPE" = "config" ]; then
       printf "    - docs/agent-architecture.md (Governance section)\n"
       ;;
     */settings.json)
-      printf "    - CLAUDE.md (plugins/commands registry)\n"
+      printf "    - CLAUDE.md (plugins/skills registry)\n"
       printf "    - docs/agent-architecture.md (Governance section)\n"
       ;;
     */CLAUDE.md)

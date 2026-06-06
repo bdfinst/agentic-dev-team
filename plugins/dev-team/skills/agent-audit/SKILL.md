@@ -123,7 +123,7 @@ Include the result in the agent report table under a `Skills-Tool` column.
 
 ### 3. Audit skills
 
-Read each file in `.claude/commands/*.md` and check:
+Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:
 
 1. **Role declaration**: Does the skill declare its role?
    - All skills MUST have a `Role:` line (orchestrator, worker, or

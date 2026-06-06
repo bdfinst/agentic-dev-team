@@ -9,7 +9,7 @@
 #
 # Called by:
 #   - hooks/agent-model-resolve.sh (PreToolUse hook on the Agent matcher)
-#   - commands/model-routing-check.md (via --dump-map)
+#   - skills/model-routing-check/SKILL.md (via --dump-map)
 #
 # Usage:
 #   model-resolve.sh <tier> [--caller <name>]

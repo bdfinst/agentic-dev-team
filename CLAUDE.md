@@ -9,8 +9,7 @@ This is the marketplace repository for the dev-team Claude Code plugin.
 plugins/dev-team/          # The plugin source
 ├── .claude-plugin/plugin.json     # Plugin manifest + version
 ├── agents/                        # Team agents + review agents
-├── commands/                      # Slash command definitions
-├── skills/                        # Reusable knowledge modules
+├── skills/                        # Agent-loaded + user-invocable (slash command) skills
 ├── hooks/                         # PreToolUse and PostToolUse scripts
 ├── knowledge/                     # Progressive disclosure reference files
 ├── templates/                     # Language-specific agent templates
@@ -27,7 +26,7 @@ reports/                           # Review reports (not shipped)
 
 ## Developing the Plugin
 
-Edit files directly in `plugins/dev-team/`. All plugin components (agents, skills, commands, hooks) live there.
+Edit files directly in `plugins/dev-team/`. All plugin components (agents, skills, hooks) live there.
 
 ### Testing locally
 
@@ -39,11 +38,11 @@ claude plugin install --scope project /path/to/dev-team/plugins/dev-team
 # claude plugin install dev-team@bfinster
 ```
 
-### Adding agents, skills, or commands
+### Adding agents, skills, or hooks
 
 - **Agent**: Add a `.md` file to `plugins/dev-team/agents/`
-- **Skill**: Add a `.md` file to `plugins/dev-team/skills/`
-- **Command**: Add a `.md` file to `plugins/dev-team/commands/`
+- **Agent-loaded skill**: Add a `SKILL.md` under `plugins/dev-team/skills/<name>/`
+- **User-invocable skill** (slash command): Add a `SKILL.md` under `plugins/dev-team/skills/<name>/` with `user-invocable: true` in frontmatter
 - **Hook**: Add a `.sh` script to `plugins/dev-team/hooks/` and register it in `plugins/dev-team/settings.json`
 
 After changes, run `/agent-audit` to verify structural compliance.
@@ -51,6 +50,7 @@ After changes, run `/agent-audit` to verify structural compliance.
 ### Releasing
 
 Releases are managed by release-please. Push conventional commits to main:
+
 - `feat:` → minor version bump
 - `fix:` → patch version bump
 - `feat!:` or `BREAKING CHANGE` → major version bump

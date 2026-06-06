@@ -2,7 +2,7 @@
 
 How `/code-review` (and its alias `/review`) works end-to-end: from invocation to final report, including the auto-fix loop and the artifacts it produces.
 
-> **Authoritative source**: the command spec at [`commands/code-review.md`](../commands/code-review.md). This document is a reader-friendly walkthrough that links to the spec, rubric, template, and output format for details.
+> **Authoritative source**: the skill spec at [`skills/code-review/SKILL.md`](../skills/code-review/SKILL.md). This document is a reader-friendly walkthrough that links to the spec, rubric, template, and output format for details.
 
 ## What it does
 
@@ -23,7 +23,7 @@ It follows the [Minimum CD agent configuration](https://migration.minimumcd.org/
 /code-review --force --reason "release freeze"  # skip gates, logged
 ```
 
-See the [command spec](../commands/code-review.md#parse-arguments) for the full argument list.
+See the [skill spec](../skills/code-review/SKILL.md#parse-arguments) for the full argument list.
 
 ## Pipeline
 
@@ -75,7 +75,7 @@ Auto-scope (the default) runs `git diff --name-only` plus `git diff --cached --n
 
 After the target set is known, if **every** file is documentation, `/code-review` short-circuits: it emits `Documentation-only changeset — skipping code review`, writes the `.review-passed` gate file when auto-scoped to uncommitted changes (so the commit isn't blocked), and stops before any gate or agent runs. In `--json` mode it emits `{"status": "skipped", "reason": "documentation-only"}`.
 
-Documentation = `.md`/`.mdx`/`.rst`/`.txt`/`.adoc`, `docs/**`, and root docs (`README*`, `CHANGELOG*`, `LICENSE*`, …) — **except functional Claude-config markdown** (`.claude/**`, `agents/`, `skills/`, `commands/`, `prompts/`, `knowledge/`, `templates/agents/`, `CLAUDE.md`, `AGENTS.md`), which is always reviewed. `--force --reason`, `--agent`, and `--background` bypass the short-circuit.
+Documentation = `.md`/`.mdx`/`.rst`/`.txt`/`.adoc`, `docs/**`, and root docs (`README*`, `CHANGELOG*`, `LICENSE*`, …) — **except functional Claude-config markdown** (`.claude/**`, `agents/`, `skills/`, `prompts/`, `knowledge/`, `templates/agents/`, `CLAUDE.md`, `AGENTS.md`), which is always reviewed. `--force --reason`, `--agent`, and `--background` bypass the short-circuit.
 
 ### 1b. Institutional context
 
@@ -142,7 +142,7 @@ When the target is the full repository (`--all`, `--path`, or clean auto-scope),
 | mid | Sonnet | spec-compliance, test, structure, js-fp, concurrency, a11y, svelte, doc, refactoring, progress-guardian, data-flow-tracer |
 | frontier | Opus | security, domain, arch |
 
-Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summary}`. See [`commands/code-review/output-format.md`](../commands/code-review/output-format.md).
+Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summary}`. See [`skills/code-review/output-format.md`](../skills/code-review/output-format.md).
 
 ### 5. Aggregate results
 
@@ -209,7 +209,7 @@ Remaining issues (not auto-fixed) are tagged `[confidence: none]`, `[auto-fix fa
 
 ### 8. Correction prompts
 
-For every unfixed actionable issue — plus suggestions worth addressing — a correction prompt JSON is written to `corrections/`. Each prompt includes priority, confidence, category, instruction, context, affected files, and `autoFixResult`. These can be addressed manually or with [`/apply-fixes`](../commands/apply-fixes.md).
+For every unfixed actionable issue — plus suggestions worth addressing — a correction prompt JSON is written to `corrections/`. Each prompt includes priority, confidence, category, instruction, context, affected files, and `autoFixResult`. These can be addressed manually or with [`/apply-fixes`](../skills/apply-fixes/SKILL.md).
 
 ### 9. Pre-commit gate file
 
@@ -243,14 +243,14 @@ All three are optional and project-local — they are not part of the plugin.
 ## Relationship to other workflows
 
 - **Inline review checkpoints** (Phase 3 of `/build`) use the same review-fix loop mechanics, but the orchestrator selects a **targeted** subset of agents based on what changed in the unit of work. `/code-review` is the **final gate** before commit and runs the full enabled suite.
-- **[`/review-agent`](../commands/review-agent.md)** runs a single agent — used for targeted checks and as the worker for inline checkpoints.
-- **[`/apply-fixes`](../commands/apply-fixes.md)** consumes the `corrections/` directory produced here.
-- **[`/pr`](../commands/pr.md)** runs `/code-review` as part of its pre-PR quality gate.
+- **[`/review-agent`](../skills/review-agent/SKILL.md)** runs a single agent — used for targeted checks and as the worker for inline checkpoints.
+- **[`/apply-fixes`](../skills/apply-fixes/SKILL.md)** consumes the `corrections/` directory produced here.
+- **[`/pr`](../skills/pr/SKILL.md)** runs `/code-review` as part of its pre-PR quality gate.
 
 ## References
 
-- [Command spec](../commands/code-review.md) — operational detail for the orchestrator
-- [Output format](../commands/code-review/output-format.md) — per-agent JSON, aggregated JSON, correction prompts
+- [Skill spec](../skills/code-review/SKILL.md) — operational detail for the orchestrator
+- [Output format](../skills/code-review/output-format.md) — per-agent JSON, aggregated JSON, correction prompts
 - [Report template](../knowledge/review-template.md) — prose report structure
 - [Scoring rubric](../knowledge/review-rubric.md) — health scoring and severity mapping
 - [Agent catalog](agent_info.md) — list of review agents and what each checks

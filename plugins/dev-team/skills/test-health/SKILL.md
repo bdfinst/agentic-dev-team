@@ -3,6 +3,7 @@ name: test-health
 description: Project-wide test-strategy audit — derive the suite's shape and shape-vs-architecture fit, map coverage to the Agile Testing Quadrants, roll up coverage + mutation health, flag flaky tests and automation maturity, and produce an ordered improvement plan. Delegates CD-determinism + pipeline assessment to cd-test-architecture. Use when the user says "audit our tests", "how healthy is our test suite", "test strategy review", or runs /test-health. Advisory — writes a report, does not edit.
 role: worker
 user-invocable: true
+argument-hint: "[--path <dir>]"
 ---
 
 # Test Health

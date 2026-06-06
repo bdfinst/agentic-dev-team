@@ -24,7 +24,7 @@ Arguments: none.
 
 ### 1. Find all command files
 
-Use Glob to find all `commands/*.md` files.
+Use Glob to find all `skills/*/SKILL.md` files.
 
 ### 2. Extract name and description from each
 

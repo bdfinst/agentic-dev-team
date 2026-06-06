@@ -113,7 +113,7 @@ Remove each matching file with `git rm` (or `rm` if not in git).
 - No routing-table edit required — tier-to-snapshot resolution flows
   through `knowledge/model-routing.json` and the PreToolUse hook;
   removing the agent file is sufficient
-- Remove the agent from the Slash Commands Registry if listed
+- Remove the agent from the Skills Registry if listed
 
 ### 7. Update .claude/agents/orchestrator.md (team agents only)
 

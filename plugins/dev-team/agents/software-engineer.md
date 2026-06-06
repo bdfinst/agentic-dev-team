@@ -31,7 +31,7 @@ model: sonnet
 - [API Design](../skills/api-design/SKILL.md) - invoke when implementing APIs to verify contract compliance
 - [Legacy Code](../skills/legacy-code/SKILL.md) - invoke when modifying or extending code that lacks test coverage or has poor structure
 - [Mutation Testing](../skills/mutation-testing/SKILL.md) - invoke when assessing whether tests for new or modified code are catching meaningful faults
-- [Code Review](../commands/code-review.md) - invoked by orchestrator after each discrete unit of work and before committing; do not invoke independently
+- [Code Review](../skills/code-review/SKILL.md) - invoked by orchestrator after each discrete unit of work and before committing; do not invoke independently
 
 ## Review Feedback Protocol
 

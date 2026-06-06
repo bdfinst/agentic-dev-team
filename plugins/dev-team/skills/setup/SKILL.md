@@ -126,7 +126,7 @@ Only include branches for the detected stack. Verify the formatter tool is insta
 
 ### 6. Generate /pr command
 
-Create a project-specific `commands/pr.md` if one doesn't exist, referencing the project's test/lint/typecheck commands.
+Create a project-specific `skills/pr/SKILL.md` if one doesn't exist, referencing the project's test/lint/typecheck commands.
 
 ### 7. Report
 

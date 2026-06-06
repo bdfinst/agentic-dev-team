@@ -60,7 +60,7 @@ For each agent listed in `knowledge/agent-registry.md` (with model tier from its
 Review the current pipeline for components that may be unnecessary overhead:
 
 1. **Phase count**: Are all three phases (Research, Plan, Implement) needed for the types of tasks being run? If most tasks are simple, suggest a fast path.
-2. **Review checkpoint frequency**: Are inline reviews running on every step? If most steps are trivial, the complexity classification (see `commands/plan.md` § Complexity Classification) should be catching this.
+2. **Review checkpoint frequency**: Are inline reviews running on every step? If most steps are trivial, the complexity classification (see `skills/plan/SKILL.md` § Complexity Classification) should be catching this.
 3. **Unused skills**: Skills loaded but never applied in logged sessions.
 
 ### 5. Produce report

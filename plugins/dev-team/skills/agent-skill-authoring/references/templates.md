@@ -63,9 +63,9 @@ For team agents, also add a node and edges to `plugins/dev-team/docs/team-struct
 3. Add to the appropriate section of `plugins/dev-team/docs/skills.md`
 4. Reference it from each relevant agent's `## Skills` section with invocation context
 
-### For a New Slash Command
+### For a New User-Invocable Skill
 
-1. Add to the **Slash Commands Registry** table in `plugins/dev-team/CLAUDE.md`
+1. Add to the **Skills Registry** table in `plugins/dev-team/CLAUDE.md`
 2. Add to the appropriate section of `plugins/dev-team/docs/skills.md`
 3. Add a row to the relevant table in `README.md` if user-facing
 
@@ -80,7 +80,7 @@ For team agents, also add a node and edges to `plugins/dev-team/docs/team-struct
 | Change type | Source of truth | Must match |
 |---|---|---|
 | Agent files | `plugins/dev-team/CLAUDE.md` agent tables | `plugins/dev-team/docs/agent_info.md` tables + `README.md` |
-| Slash commands | `plugins/dev-team/CLAUDE.md` slash commands table | `plugins/dev-team/docs/skills.md` commands tables + `README.md` |
+| Skills (user-invocable) | `plugins/dev-team/CLAUDE.md` Skills Registry table | `plugins/dev-team/docs/skills.md` User-Invocable Skills Catalog + `README.md` |
 | Model routing | `plugins/dev-team/knowledge/model-routing.json` (tier defaults) + `plugins/dev-team/agents/orchestrator.md` Resolution Procedure | `plugins/dev-team/CLAUDE.md` Model Routing pointer + `plugins/dev-team/docs/agent-architecture.md` Model Routing pointer |
 | Team structure | `plugins/dev-team/docs/team-structure.md` diagrams | Actual agent files in `plugins/dev-team/agents/` |
 | Behavior/workflow | `plugins/dev-team/agents/orchestrator.md` Phase workflow | `README.md` Workflow section |

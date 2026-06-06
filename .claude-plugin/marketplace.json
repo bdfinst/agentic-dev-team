@@ -10,7 +10,7 @@
     {
       "name": "dev-team",
       "source": "./plugins/dev-team",
-      "description": "Persona-driven AI development team: orchestrator, team agents, review agents, skills, slash commands, and advisory hooks for Claude Code. Previously published as agentic-dev-team.",
+      "description": "Persona-driven AI development team: orchestrator, team agents, review agents, skills (agent-loaded and user-invocable slash commands), and advisory hooks for Claude Code. Previously published as agentic-dev-team.",
       "version": "3.3.0",
       "author": {
         "name": "Bryan Finster"

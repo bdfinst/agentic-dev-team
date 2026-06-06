@@ -218,5 +218,5 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 | [`skills/test-design-advisor/SKILL.md`](../skills/test-design-advisor/SKILL.md) | The unit/module design advisor skill |
 | [`skills/legacy-code/SKILL.md`](../skills/legacy-code/SKILL.md) | Characterization testing + dependency-breaking: the baseline-before-refactor procedure |
 | [`skills/domain-driven-design/SKILL.md`](../skills/domain-driven-design/SKILL.md) | Suggests target boundaries/seams for the post-baseline refactor |
-| [`commands/test-design.md`](../commands/test-design.md) | The `/test-design` orchestrator command |
+| [`skills/test-design/SKILL.md`](../skills/test-design/SKILL.md) | The `/test-design` orchestrator skill |
 | [`agents/test-smell-review.md`](../agents/test-smell-review.md) | The smell-detection review agent |

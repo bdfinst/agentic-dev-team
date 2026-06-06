@@ -87,15 +87,15 @@ Whole-file load: each linked SKILL.md is loaded in full when invoked; per-sectio
 - [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) - invoke when creating or editing a skill, or when reviewing the agent-vs-skill separation (for new agent files, prefer `/agent-add` which invokes the `agent-create` skill)
 - [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke to enforce the three-phase quality gate: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3)
 - [Specs](../skills/specs/SKILL.md) - invoke when routing a new feature request; verify the consistency gate passed before loading implementing agents
-- [Code Review](../commands/code-review.md) - invoke after each Phase 3 checkpoint and before committing; runs all relevant review agents with orchestrator-assigned models
-- [Review Agent](../commands/review-agent.md) - invoke for targeted single-agent inline review during Phase 3 checkpoints
-- [Eval Audit](../commands/agent-audit.md) - invoke after adding or modifying any agent or command file
-- [Agent Eval](../commands/agent-eval.md) - invoke to validate review agent accuracy when fixtures are added or changed
-- [Apply Fixes](../commands/apply-fixes.md) - invoke after `/code-review` generates correction prompts; passes corrections to coding agent
-- [Review Summary](../commands/review-summary.md) - invoke at phase transitions to persist review state before context compaction
-- [Agent Add](../commands/agent-add.md) - invoke when a new review capability is needed; runs agent-audit and doc updates automatically
-- [Agent Remove](../commands/agent-remove.md) - invoke when retiring any agent; handles file deletion, registry cleanup, and doc updates
-- [Semgrep Analyze](../commands/semgrep-analyze.md) - invoke as pre-flight context for security-review when SAST findings are needed
+- [Code Review](../skills/code-review/SKILL.md) - invoke after each Phase 3 checkpoint and before committing; runs all relevant review agents with orchestrator-assigned models
+- [Review Agent](../skills/review-agent/SKILL.md) - invoke for targeted single-agent inline review during Phase 3 checkpoints
+- [Eval Audit](../skills/agent-audit/SKILL.md) - invoke after adding or modifying any agent or command file
+- [Agent Eval](../skills/agent-eval/SKILL.md) - invoke to validate review agent accuracy when fixtures are added or changed
+- [Apply Fixes](../skills/apply-fixes/SKILL.md) - invoke after `/code-review` generates correction prompts; passes corrections to coding agent
+- [Review Summary](../skills/review-summary/SKILL.md) - invoke at phase transitions to persist review state before context compaction
+- [Agent Add](../skills/agent-add/SKILL.md) - invoke when a new review capability is needed; runs agent-audit and doc updates automatically
+- [Agent Remove](../skills/agent-remove/SKILL.md) - invoke when retiring any agent; handles file deletion, registry cleanup, and doc updates
+- [Semgrep Analyze](../skills/semgrep-analyze/SKILL.md) - invoke as pre-flight context for security-review when SAST findings are needed
 - [Design Doc](../skills/design-doc/SKILL.md) - invoke during Research phase for non-trivial features; produces a written design document with user approval before planning
 - [Branch Workflow](../skills/branch-workflow/SKILL.md) - invoke after Phase 3 human gate approval to formalize PR creation, merge strategy, and branch cleanup
 

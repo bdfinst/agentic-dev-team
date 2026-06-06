@@ -37,8 +37,8 @@ model: sonnet
 - [Legacy Code](../skills/legacy-code/SKILL.md) - invoke when writing characterization tests to lock down existing legacy behavior before changes
 - [Mutation Testing](../skills/mutation-testing/SKILL.md) - invoke when evaluating test suite effectiveness or validating that tests catch behavioral changes
 - [Test Review](../agents/test-review.md) - delegate test file analysis to this review agent rather than duplicating its checks; invoke via `/review-agent test-review` when reviewing test quality inline
-- [Code Review](../commands/code-review.md) - invoked by orchestrator for peer validation; QA runs `/code-review` when independently validating completed work
-- [Agent Eval](../commands/agent-eval.md) - invoke to validate review agent accuracy when adding or modifying test fixtures in `.claude/evals/`
+- [Code Review](../skills/code-review/SKILL.md) - invoked by orchestrator for peer validation; QA runs `/code-review` when independently validating completed work
+- [Agent Eval](../skills/agent-eval/SKILL.md) - invoke to validate review agent accuracy when adding or modifying test fixtures in `.claude/evals/`
 - [Browser Testing](../skills/browser-testing/SKILL.md) - invoke when e2e visual verification is needed; uses Playwright for navigation, form interaction, and screenshot capture via `/browse`
 - [Test Health](../skills/test-health/SKILL.md) - invoke via `/test-health` for a periodic project-wide test-strategy audit (shape vs. architecture, quadrant coverage, coverage/mutation ROI, automation maturity); delegates pipeline assessment to cd-test-architecture
 - [Exploratory Testing](../skills/exploratory-testing/SKILL.md) - invoke via `/explore` for charter-driven Chaos Specialist probing of a running feature/endpoint; structured heuristics + adversarial expansion, auto-triages critical defects to `/triage`

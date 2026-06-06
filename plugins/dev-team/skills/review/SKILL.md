@@ -29,11 +29,11 @@ Role: orchestrator.
 3. **Be concise.** Defer all output to code-review.md.
 
 This is an alias for `/code-review`. Read and follow
-`commands/code-review.md` with all arguments passed through.
+`skills/code-review/SKILL.md` with all arguments passed through.
 
 > **Keep frontmatter in sync.** This alias delegates the entire `/code-review`
 > flow, so its `allowed-tools` and `argument-hint` MUST mirror
-> `commands/code-review.md`. `allowed-tools` is an allowlist — omitting a tool
+> `skills/code-review/SKILL.md`. `allowed-tools` is an allowlist — omitting a tool
 > the canonical command needs (e.g. `Edit` for the fix loop, `AskUserQuestion`
 > for the fix/report prompt, `Bash(pylint *)` for Python lint) silently breaks
 > that capability under `/review`.
@@ -44,4 +44,4 @@ Arguments: $ARGUMENTS
 
 ### 1. Pass through
 
-Read and follow `commands/code-review.md` with `$ARGUMENTS` unchanged.
+Read and follow `skills/code-review/SKILL.md` with `$ARGUMENTS` unchanged.
