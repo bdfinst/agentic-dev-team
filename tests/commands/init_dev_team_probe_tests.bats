@@ -7,7 +7,7 @@
 # PATH (tests/hooks/fake-bin/curl) and select fixtures via env vars the
 # fake reads at runtime.
 
-INIT_MD="$BATS_TEST_DIRNAME/../../plugins/dev-team/commands/init-dev-team.md"
+INIT_MD="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/init-dev-team/SKILL.md"
 PROBE="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/model-probe.sh"
 FAKE_BIN="$BATS_TEST_DIRNAME/../hooks/fake-bin"
 SENTINEL="" # set in setup

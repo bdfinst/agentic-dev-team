@@ -4,7 +4,7 @@
 # only stable test surface is the literal strings the spec must contain.
 # Each test pins one specific string the implementer must preserve.
 
-CMD="$BATS_TEST_DIRNAME/../../plugins/dev-team/commands/init-dev-team.md"
+CMD="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/init-dev-team/SKILL.md"
 
 _contains() {
   local needle="$1"

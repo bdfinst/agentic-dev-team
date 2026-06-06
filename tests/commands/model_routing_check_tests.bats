@@ -3,7 +3,7 @@
 # AC10 (side-effect-free), AC11 (surfaces bumps), AC11a (tail cap),
 # AC11b (probe-applicability line).
 
-COMMAND_MD="$BATS_TEST_DIRNAME/../../plugins/dev-team/commands/model-routing-check.md"
+COMMAND_MD="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/model-routing-check/SKILL.md"
 RESOLVER="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/model-resolve.sh"
 
 # Helper script that mirrors what the markdown command body invokes. We
