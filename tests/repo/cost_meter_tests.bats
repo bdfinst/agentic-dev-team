@@ -79,6 +79,58 @@ teardown() { rm -rf "$CASE"; }
   [ ! -f "$CASE/metrics/cost-metering.jsonl" ]
 }
 
+@test "meter: attributes spend per command via attributionSkill (#134)" {
+  cat > "$CASE/cmd.jsonl" <<'EOF'
+{"type":"assistant","attributionSkill":"code-review","message":{"model":"claude-opus-4-8","usage":{"input_tokens":10000,"output_tokens":2000}}}
+{"type":"assistant","attributionSkill":"build","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":4000,"output_tokens":500}}}
+{"type":"assistant","message":{"model":"claude-haiku-4-5","usage":{"input_tokens":100,"output_tokens":10}}}
+EOF
+  run python3 "$METER" report --transcript "$CASE/cmd.jsonl" --json
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.by_command."code-review".input_tokens')" = "10000" ]
+  [ "$(echo "$output" | jq -r '.by_command.build.output_tokens')" = "500" ]
+  # records with no skill tag fall into "untagged", not lost
+  [ "$(echo "$output" | jq -r '.by_command.untagged.input_tokens')" = "100" ]
+}
+
+@test "meter: attributes spend per fix-loop iteration (#134)" {
+  cat > "$CASE/iter.jsonl" <<'EOF'
+{"type":"assistant","attributionSkill":"code-review","fixLoopIteration":1,"message":{"model":"claude-opus-4-8","usage":{"input_tokens":10000,"output_tokens":2000}}}
+{"type":"assistant","attributionSkill":"code-review","fixLoopIteration":2,"message":{"model":"claude-opus-4-8","usage":{"input_tokens":6000,"output_tokens":1000}}}
+{"type":"assistant","message":{"model":"claude-opus-4-8","usage":{"input_tokens":500,"output_tokens":50}}}
+EOF
+  run python3 "$METER" report --transcript "$CASE/iter.jsonl" --json
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.by_iteration."1".input_tokens')" = "10000" ]
+  [ "$(echo "$output" | jq -r '.by_iteration."2".input_tokens')" = "6000" ]
+  # un-marked records degrade to "unattributed"
+  [ "$(echo "$output" | jq -r '.by_iteration.unattributed.input_tokens')" = "500" ]
+}
+
+@test "meter: record persists by_command and by_iteration (#134)" {
+  cat > "$CASE/iter.jsonl" <<'EOF'
+{"type":"assistant","attributionSkill":"code-review","fixLoopIteration":1,"message":{"model":"claude-opus-4-8","usage":{"input_tokens":10000,"output_tokens":2000}}}
+EOF
+  run python3 "$METER" record --transcript "$CASE/iter.jsonl" --log "$CASE/log.jsonl"
+  [ "$status" -eq 0 ]
+  run jq -r '.by_command."code-review".input_tokens' "$CASE/log.jsonl"
+  [ "$output" = "10000" ]
+  run jq -r '.by_iteration."1".output_tokens' "$CASE/log.jsonl"
+  [ "$output" = "2000" ]
+}
+
+@test "meter: regression --window uses only recent priors (#134)" {
+  # priors: 1,1,1, then a high 9; latest 5. All-time mean(1,1,1,9)=3 -> limit 4.5
+  # -> 5 regresses. Windowed mean of last 1 prior (9) -> limit 13.5 -> 5 passes.
+  printf '%s\n' '{"total":{"cost_usd":1.0}}' '{"total":{"cost_usd":1.0}}' \
+    '{"total":{"cost_usd":1.0}}' '{"total":{"cost_usd":9.0}}' \
+    '{"total":{"cost_usd":5.0}}' > "$CASE/w.jsonl"
+  run python3 "$METER" regression --log "$CASE/w.jsonl" --tolerance 0.5
+  [ "$status" -eq 1 ]
+  run python3 "$METER" regression --log "$CASE/w.jsonl" --tolerance 0.5 --window 1
+  [ "$status" -eq 0 ]
+}
+
 @test "settings.json registers cost-meter.sh on Stop and SubagentStop" {
   run jq -e '.hooks.Stop[].hooks[] | select(.command | contains("cost-meter.sh"))' \
     "$REPO_ROOT/plugins/dev-team/settings.json"
