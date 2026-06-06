@@ -1,0 +1,76 @@
+# Agent-Readiness Scorecard — scoring config (issue #117 MVP).
+#
+# Externalizes weights, tier thresholds, and per-criterion thresholds so they
+# can be tuned without code changes. The MVP scores a SINGLE LOCAL REPO using
+# file-presence/heuristic analyzers only (criteria with `mvp: true`). Criteria
+# that need CI-platform APIs (coverage, flaky rate, durations, branch policy)
+# are marked `mvp: false` and deferred to a later phase; categories with no MVP
+# criterion are reported as "not scored" and excluded from the renormalized
+# overall (see scanner.py).
+#
+# Rubric source: the Agent-Readiness Scorecard (preserved in issue #117).
+version: "1.0-mvp"
+
+# Category weights (sum to 1.0). Overall score renormalizes across categories
+# that have at least one MVP criterion.
+weights:
+  test_infrastructure: 0.25
+  build_env: 0.20
+  code_quality: 0.20
+  type_safety: 0.15
+  documentation: 0.10
+  vcs_safety: 0.10
+
+tiers:
+  agent_ready: 75
+  agent_assisted: 50
+  agent_limited: 25
+  # below agent_limited => agent_hostile
+
+# Which criteria the MVP scores, by category. mvp:false = deferred (needs CI API).
+criteria:
+  test_infrastructure:
+    T1_coverage: { mvp: false }
+    T2_reliability: { mvp: false }
+    T3_speed: { mvp: false }
+    T4_single_command: { mvp: false }
+    T5_test_types: { mvp: false }
+  build_env:
+    B1_single_command_build: { mvp: false }
+    B2_reproducible_env: { mvp: true }
+    B3_dependency_management: { mvp: true }
+    B4_ci_pipeline: { mvp: false }
+  code_quality:
+    C1_formatting: { mvp: true }
+    C2_linting: { mvp: true }
+    C3_architecture: { mvp: false, manual_review: true }
+    C4_module_size: { mvp: true }
+    C5_naming: { mvp: false }
+  type_safety:
+    S1_type_system: { mvp: false }
+    S2_api_contracts: { mvp: false }
+    S3_interface_design: { mvp: false, manual_review: true }
+    S4_db_schema: { mvp: false }
+  documentation:
+    D1_readme: { mvp: true }
+    D2_ai_instructions: { mvp: true }
+    D3_architecture_docs: { mvp: true }
+    D4_domain_context: { mvp: false, manual_review: true }
+  vcs_safety:
+    V1_branch_protection: { mvp: false }
+    V2_precommit_hooks: { mvp: true }
+    V3_commit_conventions: { mvp: true }
+    V4_dependency_scanning: { mvp: true }
+
+thresholds:
+  file_size_p90_small: 300   # source-file p90 line count <= this -> score 2
+  file_size_p90_large: 500   # <= this -> score 1; above -> score 0
+  readme_min_words: 200      # README word count >= this (with setup/build/test) -> 2
+  ai_instructions_min_words: 100
+
+# File extensions counted as "source" for C4 line-count distribution.
+source_extensions: [".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".java",
+                    ".cs", ".rb", ".php", ".svelte", ".c", ".cpp", ".kt", ".scala"]
+# Directory names excluded from C4 (generated/vendored).
+exclude_dirs: [".git", "node_modules", "vendor", "dist", "build", "__pycache__",
+               ".venv", "venv", "target", "out", ".next", "coverage"]

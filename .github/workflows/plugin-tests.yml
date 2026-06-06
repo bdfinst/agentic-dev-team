@@ -38,7 +38,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install bats + jq
-        run: sudo apt-get update && sudo apt-get install -y bats jq
+        run: sudo apt-get update && sudo apt-get install -y bats jq python3-yaml
 
       # Content-validation suites: repo invariants, knowledge-index shape,
       # agent knowledge-anchor citations (AC19), command/doc registry sync.
