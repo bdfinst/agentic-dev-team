@@ -1,0 +1,1 @@
+app.use(cors({ origin: "*" }));

@@ -1143,6 +1143,20 @@
       "anchor": "9-progress-tracking"
     }
   },
+  "plugins/dev-team/skills/agent-readiness/SKILL.md": {
+    "Scope (MVP — issue #117)": {
+      "summary": "This MVP uses **file-presence/heuristic analyzers only** — no CI-platform APIs.",
+      "anchor": "scope-mvp-issue-117"
+    },
+    "Run": {
+      "summary": "`REPO_PATH` defaults to the current directory.",
+      "anchor": "run"
+    },
+    "Steps": {
+      "summary": "1.",
+      "anchor": "steps"
+    }
+  },
   "plugins/dev-team/skills/agent-remove/SKILL.md": {
     "Implementation constraints": {
       "summary": "1.",
