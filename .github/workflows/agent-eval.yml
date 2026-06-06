@@ -83,6 +83,14 @@ jobs:
     name: Live regression gate (model-dependent)
     runs-on: ubuntu-latest
     needs: structural-gate
+    # anthropics/claude-code-action@v1 authenticates its GitHub operations via
+    # an OIDC token, so id-token: write is required (it is never granted by
+    # default). contents: read to access the repo; pull-requests: write because
+    # the action's post-step buffers inline PR comments.
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
 
