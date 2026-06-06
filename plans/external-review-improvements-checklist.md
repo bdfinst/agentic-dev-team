@@ -19,7 +19,8 @@ These pay for themselves immediately and create the harness the later waves reus
 - [x] **#100 — Prose/Targets slop cleanup + de-buzzword CLAUDE.md** *(Med / Low)*
   - No dependencies. Pure editing; do alongside #99.
   - Establishes the "every quantitative claim names its instrument" rule that #102/#106 later satisfy.
-  - Done: removed "federated learning" + "LSTM-inspired gates" metaphors and the un-instrumented Targets numbers from `plugins/dev-team/CLAUDE.md`; added a "Claims discipline" rule; `tests/docs/prose_honesty_test.bats` is the deterministic sensor that keeps the prose clean.
+  - Done: removed "federated learning" + "LSTM-inspired gates" metaphors and the un-instrumented Targets numbers from `plugins/dev-team/CLAUDE.md`; added a "Claims discipline" rule; `tests/docs/prose_honesty_test.bats` is the deterministic sensor that keeps the prose clean. Post-merge audit (#137) extended the sensor to **all** shipped prose and cleaned the same targets in the `performance-metrics` / `governance-compliance` skill docs.
+  - Follow-up (open): **#141** — the local `pre-push` `eslint` is red on malformed-by-design fixture dirs (`knowledge/rule-fixtures/**`, `tests/fixtures/**/commitlint.config.js`), so the gate is habitually bypassed; add eslint ignores so the local gate is green and meaningful. (Surfaced by #137, out of #100's original scope.)
 - [x] **#104 — `updatedInput` hook-contract conformance test** *(Med / Low)*
   - No dependencies. Isolated bats/integration test protecting model routing.
   - Done: `tests/hooks/updated_input_contract_tests.bats` pins the exact PreToolUse rewrite envelope (incl. 3-hop chain + deny shape), and the model-routing hook tests now run in CI (`plugin-tests.yml`) — previously `tests/hooks/` was excluded.
@@ -39,7 +40,8 @@ Nothing downstream can be evidence-based without these two. Build them before th
 - [x] **#102 — Runtime cost/token metering** *(High / Med)*
   - No hard dependency, but do after #100 (it provides the instrument #100 promised for cost claims).
   - Required by #111 (process eval needs a real cost meter to compare pipelines).
-  - Done: `hooks/lib/cost_meter.py` parses the session transcript (token usage isn't in hook payloads), attributes tokens/$ per agent+model via `knowledge/model-pricing.json`, recorded by the `Stop`/`SubagentStop` hook to `metrics/cost-metering.jsonl`; `/cost-report` skill prints spend + rolling-baseline regression. Tests in `tests/repo/cost_meter_tests.bats`.
+  - Done (core): `hooks/lib/cost_meter.py` parses the session transcript (token usage isn't in hook payloads), attributes tokens/$ per agent+model via `knowledge/model-pricing.json`, recorded by the `Stop`/`SubagentStop` hook to `metrics/cost-metering.jsonl`; `/cost-report` skill prints spend + rolling-baseline regression. Tests in `tests/repo/cost_meter_tests.bats`.
+  - Follow-ups (open): **#139** — add per-fix-loop-iteration & per-phase granularity (landed meter buckets by agent/model/session only); **#140** — wire the existing `regression` subcommand into CI (it runs in no workflow today, so cost regressions can merge unnoticed); **#142** — account-level pace/quota guidance (optional tail of the seed).
 - [x] **#106 — Opt-in privacy-clean telemetry beacon** *(High / Med)*
   - No hard dependency. Reuses the append-only event-log convention.
   - Required by #112 (exposure-based gating) and pairs with #113 (auto-learning signals).
@@ -88,6 +90,26 @@ Sequence after the evidence (Wave 2) and telemetry (Wave 1) exist so these are i
   - Independent hygiene. Do anytime; quick win.
 
 **Wave 3 exit:** trust-topology decided; multiplayer characterized; learning automated; scope honest; best ideas distributed; no orphan specs.
+
+---
+
+## Patch issues — residual scope from partially-landed work
+
+The Wave 0/1 PRs (#122, #126, #137) shipped the **core** of their parent issues but left
+measurable residual scope. Rather than reopen closed issues, the remainder is tracked as
+focused patch issues:
+
+- [ ] **#139 — Cost meter: per-fix-loop-iteration & per-phase granularity** *(refines #102)*
+  - Landed meter is per-agent/model/session; #111 (process eval) needs finer attribution to compare pipelines fairly.
+- [ ] **#140 — Wire cost-regression check into CI** *(refines #102)*
+  - `cost_meter.py regression` exists but runs in no workflow; #102's "CI/regression hook" acceptance is only half-met.
+- [ ] **#141 — eslint-ignore malformed fixture dirs** *(refines #100, surfaced by #137)*
+  - Un-breaks the local `pre-push` gate so it stops being routinely `--no-verify`'d.
+- [ ] **#142 — Account-level cost pace/quota guidance** *(refines #102, optional)*
+  - The explicitly-optional tail of #102's seed; file kept low-priority.
+
+> Note: **#106** remains open on GitHub despite its core landing in #126 — track any remaining
+> telemetry scope on the issue itself rather than as a separate patch.
 
 ---
 
