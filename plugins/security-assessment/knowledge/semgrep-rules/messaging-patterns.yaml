@@ -85,6 +85,7 @@ rules:
     severity: ERROR
     languages: [python, javascript, typescript]
     metadata:
+      semgrep_status: "parse-error"
       cwe: "CWE-74"
       category: "messaging.nats.subject-injection"
       owasp: "A03:2021 - Injection"
@@ -114,6 +115,7 @@ rules:
     severity: ERROR
     languages: [generic]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-306"
       category: "messaging.nats.no-auth"
       owasp: "A07:2021 - Identification and Authentication Failures"
@@ -162,6 +164,7 @@ rules:
     severity: ERROR
     languages: [python, javascript, typescript, go]
     metadata:
+      semgrep_status: "parse-error"
       cwe: "CWE-798"
       category: "messaging.nats.hardcoded-credentials"
       owasp: "A07:2021 - Identification and Authentication Failures"
@@ -233,6 +236,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-306"
       category: "messaging.nats.unauthenticated-subscriber"
       owasp: "A01:2021 - Broken Access Control"
@@ -276,6 +280,7 @@ rules:
     severity: ERROR
     languages: [python, javascript, typescript, java]
     metadata:
+      semgrep_status: "parse-error"
       cwe: "CWE-319"
       category: "messaging.kafka.no-auth-producer"
       owasp: "A02:2021 - Cryptographic Failures"
@@ -360,6 +365,7 @@ rules:
     severity: WARNING
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-841"
       category: "messaging.general.no-idempotency-check"
       owasp: "A04:2021 - Insecure Design"

@@ -33,6 +33,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-754"
       category: "fraud.fail-open"
 
@@ -52,6 +53,7 @@ rules:
     severity: ERROR
     languages: [python, javascript, typescript]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-841"
       category: "fraud.feature-poisoning"
 
@@ -73,6 +75,7 @@ rules:
     severity: WARNING
     languages: [python, javascript, typescript]
     metadata:
+      semgrep_status: "parse-error"
       cwe: "CWE-840"
       category: "fraud.emulation-bypass"
 
@@ -90,5 +93,6 @@ rules:
     severity: ERROR
     languages: [python, javascript, typescript]
     metadata:
+      semgrep_status: "parse-error"
       cwe: "CWE-319"
       category: "fraud.tokenization-skip"

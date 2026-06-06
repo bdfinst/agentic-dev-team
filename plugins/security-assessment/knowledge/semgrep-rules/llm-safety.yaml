@@ -28,6 +28,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-798"
       category: "llm.credential"
 
@@ -50,6 +51,7 @@ rules:
     severity: WARNING
     languages: [python, javascript, typescript]
     metadata:
+      semgrep_status: "parse-error"
       cwe: "CWE-94"
       category: "llm.prompt-injection"
 
@@ -65,6 +67,7 @@ rules:
     severity: WARNING
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-94"
       category: "llm.tool-use"
 
@@ -83,5 +86,6 @@ rules:
     severity: WARNING
     languages: [python]
     metadata:
+      semgrep_status: "no-fire"
       cwe: "CWE-319"
       category: "llm.supply-chain"

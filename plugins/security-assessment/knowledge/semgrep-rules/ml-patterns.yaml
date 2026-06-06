@@ -21,6 +21,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-502"
       category: "ml.model-load"
 
@@ -45,6 +46,7 @@ rules:
     severity: WARNING
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-345"
       category: "ml.integrity"
 
@@ -59,6 +61,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-502"
       category: "ml.model-load"
 
@@ -77,5 +80,6 @@ rules:
     severity: WARNING
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-829"
       category: "ml.supply-chain"
