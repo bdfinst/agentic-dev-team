@@ -241,6 +241,9 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--only", default="",
                     help="comma-separated agent/skill names to grade "
                          "(diff-scoped run); empty means all")
+    ap.add_argument("--write-baseline", metavar="PATH",
+                    help="write a baseline.json of all currently-passing pairs "
+                         "to PATH (use with --actuals; records the pass set)")
     ap.add_argument("--check-corpus", action="store_true")
     args = ap.parse_args(argv)
 
@@ -276,6 +279,20 @@ def main(argv: list[str]) -> int:
     results, baseline_pass = run_grading(expected_dir, actuals, baseline, only)
     if only:
         print(f"(diff-scoped to: {', '.join(sorted(only))})\n")
+
+    if args.write_baseline:
+        passing = sorted(pair for pair, ok, _ in results if ok)
+        from datetime import datetime, timezone
+        Path(args.write_baseline).write_text(json.dumps({
+            "_comment": "Regression baseline for the agent-eval CI gate (#99). "
+                        "Pairs listed here must not regress. Regenerate with "
+                        "eval_grade.py --actuals <f> --write-baseline.",
+            "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "passing": passing,
+        }, indent=2) + "\n")
+        print(f"Wrote baseline with {len(passing)} passing pair(s) to "
+              f"{args.write_baseline}")
+        return 0
 
     passed = [r for r in results if r[1]]
     failed = [r for r in results if not r[1]]

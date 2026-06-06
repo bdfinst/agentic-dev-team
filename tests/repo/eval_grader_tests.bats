@@ -163,6 +163,21 @@ EOF
   [ "$status" -eq 0 ]
 }
 
+@test "grader: --write-baseline records the passing pairs" {
+  cat > "$CASE/actuals.json" <<'EOF'
+{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail",
+  "issues": [{ "severity": "error", "message": "layer violation" }],
+  "summary": "" } } } }
+EOF
+  run python3 "$GRADER" --expected-dir "$CASE/expected" \
+    --actuals "$CASE/actuals.json" --write-baseline "$CASE/baseline.json"
+  [ "$status" -eq 0 ]
+  [ -f "$CASE/baseline.json" ]
+  run jq -r '.passing[0]' "$CASE/baseline.json"
+  [ "$output" = "ar-demo::arch-review" ]
+}
+
 @test "grader: --check-corpus passes on a well-formed corpus" {
   run python3 "$GRADER" --check-corpus \
     --expected-dir "$CASE/expected" --fixtures-dir "$CASE/fixtures"
