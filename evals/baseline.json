@@ -1,7 +1,9 @@
 {
-  "_comment": "Regression baseline for the agent-eval CI gate (#99). Pairs listed here must not regress. Regenerate with eval_grade.py --actuals <f> --write-baseline.",
-  "recorded_at": "2026-06-06T14:39:37Z",
+  "_comment": "Regression baseline for the agent-eval CI gate (#99). Pairs listed here must not regress. Update with eval_grade.py --actuals <f> --write-baseline (merges into this file: passing pairs added, pairs tested-but-failing removed, untested pairs kept).",
+  "recorded_at": "2026-06-06T15:12:33Z",
   "passing": [
+    "ar-clean-arch::arch-review",
+    "ar-layer-violation::arch-review",
     "cs-broken-paths::claude-setup-review",
     "cs-complete-setup::claude-setup-review",
     "cx-callback-hell::complexity-review",
@@ -12,6 +14,8 @@
     "dm-clean-boundaries::domain-review",
     "dm-missing-dtos::domain-review",
     "dm-proper-events::domain-review",
+    "dr-accurate-docs::doc-review",
+    "dr-stale-readme::doc-review",
     "ex-explore-command-missing::claude-setup-review",
     "ex-explore-command-present::claude-setup-review",
     "fp-array-mutations::js-fp-review",
