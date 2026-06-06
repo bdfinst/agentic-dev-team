@@ -69,6 +69,42 @@ setup() { source "$SCRIPT"; }
   [ "$output" = "major" ]
 }
 
+# --- class_to_min_bump: threshold (#136) ----------------------------------
+
+@test "min bump: threshold -> minor (#136)" {
+  [ "$(class_to_min_bump threshold)" = "minor" ]
+}
+
+# --- classify_expected_edit (#136) ----------------------------------------
+
+@test "edit: only a tolerance changed -> threshold" {
+  local base='{"applicableAgents":["a"],"agents":{"a":{"expectedStatus":"pass","issueCount":{"min":0,"max":1}}}}'
+  local head='{"applicableAgents":["a"],"agents":{"a":{"expectedStatus":"pass","issueCount":{"min":0,"max":3}}}}'
+  run bash -c "source '$SCRIPT'; classify_expected_edit '$base' '$head'"
+  [ "$output" = "threshold" ]
+}
+
+@test "edit: a flipped expectedStatus -> flip" {
+  local base='{"applicableAgents":["a"],"agents":{"a":{"expectedStatus":"pass"}}}'
+  local head='{"applicableAgents":["a"],"agents":{"a":{"expectedStatus":"fail"}}}'
+  run bash -c "source '$SCRIPT'; classify_expected_edit '$base' '$head'"
+  [ "$output" = "flip" ]
+}
+
+@test "edit: an added applicable agent -> flip" {
+  local base='{"applicableAgents":["a"],"agents":{"a":{"expectedStatus":"pass"}}}'
+  local head='{"applicableAgents":["a","b"],"agents":{"a":{"expectedStatus":"pass"},"b":{"expectedStatus":"pass"}}}'
+  run bash -c "source '$SCRIPT'; classify_expected_edit '$base' '$head'"
+  [ "$output" = "flip" ]
+}
+
+@test "edit: a prose-only (description) change -> threshold" {
+  local base='{"applicableAgents":["a"],"description":"old","agents":{"a":{"expectedStatus":"pass"}}}'
+  local head='{"applicableAgents":["a"],"description":"new wording","agents":{"a":{"expectedStatus":"pass"}}}'
+  run bash -c "source '$SCRIPT'; classify_expected_edit '$base' '$head'"
+  [ "$output" = "threshold" ]
+}
+
 # --- end-to-end via a throwaway git repo ----------------------------------
 
 _mkrepo() {
@@ -133,6 +169,78 @@ _mkrepo() {
   _mkrepo
   echo "unrelated" > README.md
   git add -A && git commit -q -m "chore: docs"
+  run bash "$SCRIPT" "$BASE" HEAD
+  [ "$status" -eq 0 ]
+  rm -rf "$REPO"
+}
+
+# --- #136: threshold-only edits classify as minor, not major --------------
+
+_mkrepo_thresh() {
+  REPO="$(mktemp -d)"; cd "$REPO" || return 1
+  git init -q; git config user.email t@t.t; git config user.name t
+  git config commit.gpgsign false; git config tag.gpgsign false
+  mkdir -p evals/expected
+  echo '{"fixture":"x.ts","applicableAgents":["a"],"agents":{"a":{"expectedStatus":"pass","issueCount":{"min":0,"max":1}}}}' \
+    > evals/expected/x.json
+  git add -A && git commit -q -m "chore: seed corpus"
+  BASE=$(git rev-parse HEAD)
+}
+
+@test "e2e: a threshold-only edit needs only a minor bump (feat passes)" {
+  _mkrepo_thresh
+  echo '{"fixture":"x.ts","applicableAgents":["a"],"agents":{"a":{"expectedStatus":"pass","issueCount":{"min":0,"max":3}}}}' \
+    > evals/expected/x.json
+  git add -A && git commit -q -m "feat: widen x tolerance"
+  run bash "$SCRIPT" "$BASE" HEAD
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"corpus change:     threshold"* ]]
+  rm -rf "$REPO"
+}
+
+@test "e2e: a threshold-only edit with only fix FAILS (needs minor, not major)" {
+  _mkrepo_thresh
+  echo '{"fixture":"x.ts","applicableAgents":["a"],"agents":{"a":{"expectedStatus":"pass","issueCount":{"min":0,"max":3}}}}' \
+    > evals/expected/x.json
+  git add -A && git commit -q -m "fix: widen x tolerance"
+  run bash "$SCRIPT" "$BASE" HEAD
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"requires a 'minor' bump"* ]]
+  rm -rf "$REPO"
+}
+
+@test "e2e: a threshold-only edit does NOT demand a major bump" {
+  _mkrepo_thresh
+  echo '{"fixture":"x.ts","applicableAgents":["a"],"agents":{"a":{"expectedStatus":"pass","issueCount":{"min":0,"max":3}}}}' \
+    > evals/expected/x.json
+  git add -A && git commit -q -m "feat: widen x tolerance"
+  run bash "$SCRIPT" "$BASE" HEAD
+  [[ "$output" != *"requires a 'major' bump"* ]]
+  rm -rf "$REPO"
+}
+
+# --- #136: new review agent without a fixture is flagged ------------------
+
+@test "e2e: a new *-review agent with no fixture FAILS" {
+  _mkrepo
+  mkdir -p plugins/dev-team/agents
+  printf -- '---\nname: foo-review\nmodel: haiku\n---\n# Foo Review\n' \
+    > plugins/dev-team/agents/foo-review.md
+  git add -A && git commit -q -m "feat: add foo-review agent"
+  run bash "$SCRIPT" "$BASE" HEAD
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"without any eval fixture: foo-review"* ]]
+  rm -rf "$REPO"
+}
+
+@test "e2e: a new *-review agent WITH a covering fixture passes" {
+  _mkrepo
+  mkdir -p plugins/dev-team/agents
+  printf -- '---\nname: foo-review\nmodel: haiku\n---\n# Foo Review\n' \
+    > plugins/dev-team/agents/foo-review.md
+  echo '{"fixture":"f.ts","applicableAgents":["foo-review"],"agents":{"foo-review":{"expectedStatus":"fail"}}}' \
+    > evals/expected/f.json
+  git add -A && git commit -q -m "feat: add foo-review agent + fixture"
   run bash "$SCRIPT" "$BASE" HEAD
   [ "$status" -eq 0 ]
   rm -rf "$REPO"
