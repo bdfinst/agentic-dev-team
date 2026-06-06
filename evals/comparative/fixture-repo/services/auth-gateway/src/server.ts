@@ -14,7 +14,7 @@ app.use(express.json());
 app.use("/admin", adminRoutes);
 
 // Outbound call to upstream — no retry / rate limit, hardcoded URL
-async function forwardToFraudScoring(body: unknown) {
+async function forwardToFraudScoring(body: unknown): Promise<unknown> {
   const upstream = process.env.API_UPSTREAM ?? "https://fraud-scoring.internal:8000";
   // SEED: F020 (scan-04 PII flow) — outbound egress with user-controlled body; response echoed back
   const res = await fetch(`${upstream}/predict`, {
