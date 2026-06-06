@@ -20,23 +20,30 @@ Schema and procedures for capturing performance data in `metrics/`. Metrics enab
 
 ## Metric Categories
 
+> **Targets discipline.** Per CLAUDE.md → "Claims discipline", a numeric target
+> may only ship if an instrument measures it. The instrumented metrics below cite
+> their sensor; the rest read "Aspirational — no sensor yet" until one exists
+> (tracked by #102 cost metering and #106 telemetry). Do not reintroduce bare
+> numeric targets — `tests/docs/prose_honesty_test.bats` enforces this across all
+> shipped prose.
+
 ### Efficiency Metrics
 
 | Metric | Description | Target |
 | --- | --- | --- |
 | Task completion time | Wall-clock time from request to delivery | Track trend, no fixed target |
 | Token usage per task | Total input + output tokens consumed | Minimize for comparable quality |
-| Agent loading overhead | Tokens spent on agent/skill file reads | < 5% of total task tokens |
-| Context summarization frequency | How often summarization triggers per task | < 2 per standard task |
+| Agent loading overhead | Tokens spent on agent/skill file reads | Aspirational — no sensor yet |
+| Context summarization frequency | How often summarization triggers per task | Aspirational — no sensor yet |
 
 ### Quality Metrics
 
 | Metric | Description | Target |
 | --- | --- | --- |
-| First-pass acceptance rate | Tasks accepted without rework | > 80% |
-| Rework count | Number of revision cycles per task | < 2 |
-| Hallucination incidents | Outputs containing fabricated information | < 5% of tasks |
-| Accuracy score | Correctness of structured data extraction | > 95% |
+| First-pass acceptance rate | Tasks accepted without rework | Aspirational — no sensor yet |
+| Rework count | Number of revision cycles per task | Aspirational — no sensor yet |
+| Hallucination incidents | Outputs containing fabricated information | Aspirational — no sensor yet |
+| Accuracy score | Correctness of structured data extraction | Aspirational — no sensor yet |
 | Test coverage | Percentage of code covered by generated tests | Track per project |
 
 ### Cost Metrics
@@ -45,7 +52,7 @@ Schema and procedures for capturing performance data in `metrics/`. Metrics enab
 | --- | --- | --- |
 | Cost per task | Total API cost (input + output tokens at rate) | Track trend |
 | LLM routing ratio | Percentage of tasks routed to each LLM | Track distribution |
-| Selective loading savings | Tokens saved vs. loading all agents | > 50% reduction |
+| Selective loading savings | Tokens saved vs. loading all agents | Aspirational — no sensor yet |
 
 ## Log Format
 

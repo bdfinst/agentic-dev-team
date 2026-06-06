@@ -12,6 +12,7 @@ user-invocable: true
 Requirements and procedures for audit logging, multi-layer quality assurance, and ethical operation of the agent team. Ensures all agent activity is traceable, quality is validated at multiple levels, and ethical principles are maintained.
 
 ## Constraints
+
 - The audit changelog is append-only; never modify or delete existing entries
 - Never log credentials, API keys, or PII in `metrics/` or `memory/` files
 - All agent decisions must be explainable on request — no black-box outputs
@@ -30,6 +31,7 @@ Requirements and procedures for audit logging, multi-layer quality assurance, an
 | Context summarization | `memory/{date}-{task-slug}.md` | 90 days (30 active + 60 archive) |
 
 ### Audit Trail Principles
+
 - **Append-only**: Log entries are never modified or deleted
 - **Timestamped**: Every entry has an ISO 8601 timestamp
 - **Attributed**: Every entry identifies which agent acted and who approved
@@ -38,6 +40,7 @@ Requirements and procedures for audit logging, multi-layer quality assurance, an
 ### Compliance Queries
 
 To answer "why did the system do X?", trace through:
+
 1. Task log: which agents were involved
 2. Config changelog: what configuration was active at the time
 3. Memory summaries: what context the agents were working with
@@ -49,22 +52,27 @@ To answer "why did the system do X?", trace through:
 Quality is enforced at four progressive layers:
 
 #### Layer 1: Agent Self-Validation
+
 - Every agent applies the [Quality Gate Pipeline](../quality-gate-pipeline/SKILL.md) before delivering output
 - Confidence scoring on all major claims
 - Tool-based verification for factual claims (file paths, APIs, data)
 
 #### Layer 2: QA Agent Validation
+
 When applicable (code generation, data analysis, architecture changes):
+
 - QA agent reviews output against acceptance criteria
 - Automated test generation and execution for code
 - Consistency checks against existing codebase
 
 #### Layer 3: Human Spot-Check
+
 - User reviews delivered output
 - Feedback captured via accept/reject/amend
 - Patterns in rejections feed back through [Feedback & Learning](../feedback-learning/SKILL.md)
 
 #### Layer 4: Post-Hoc Monitoring
+
 - Orchestrator reviews task metrics during learning loop
 - Identifies trends: rising rework rate, hallucination frequency, cost outliers
 - Triggers configuration amendments when patterns emerge (minimum 3 occurrences)
@@ -112,6 +120,7 @@ No task output is delivered until it passes applicable quality gates:
 5. Decision is logged with full rationale
 
 ## Output
+
 Compliance checklist results (pass/fail per item) and/or new audit log entries written to `metrics/`. Be concise — report failures and entries written; omit passing items.
 
 ## Compliance Checklist
@@ -122,6 +131,6 @@ For periodic review (monthly recommended):
 - [ ] No gaps in the config changelog
 - [ ] Memory summaries exist for long-running tasks
 - [ ] No sensitive data present in metrics/ or memory/ files
-- [ ] Hallucination rate is within target (< 5%)
+- [ ] Hallucination rate reviewed qualitatively (no sensor yet — see CLAUDE.md "Claims discipline")
 - [ ] Rework rate trend is stable or improving
 - [ ] All human overrides have been reviewed for systemic issues
