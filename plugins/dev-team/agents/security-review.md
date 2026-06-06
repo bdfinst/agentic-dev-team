@@ -55,7 +55,7 @@ This agent is invoked in two distinct contexts:
 
 This agent does NOT do FP-reduction, reachability analysis, business-logic / fraud-domain review, compliance mapping, or executive-report synthesis. Those live in `plugins/security-assessment/`. If deeper analysis is required, escalate from `/code-review` to `/security-assessment`.
 
-When a vulnerability class is pattern-visible (single-line regex, stable AST shape, ≤10% false-positive rate), the authoritative detector is a semgrep rule in `plugins/security-assessment/knowledge/semgrep-rules/*.yaml` — not a grep pattern here. See `docs/rules-vs-prompts-policy.md` for the boundary. This agent's value is judgment on cases that rules cannot reach: logic flaws, authz architecture gaps, business-layer leaks, and exploitability assessment over pre-existing tool findings.
+When a vulnerability class is pattern-visible (single-line regex, stable AST shape, ≤10% false-positive rate), the authoritative detector is a semgrep rule in `plugins/security-assessment/knowledge/semgrep-rules/*.yaml` — not a grep pattern here. The class → surface boundary is encoded in `plugins/dev-team/knowledge/security-review-rule-map.yaml`. This agent's value is judgment on cases that rules cannot reach: logic flaws, authz architecture gaps, business-layer leaks, and exploitability assessment over pre-existing tool findings.
 
 ## Knowledge Files
 

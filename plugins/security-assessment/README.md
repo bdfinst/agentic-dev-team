@@ -12,7 +12,7 @@ This plugin is the **deep layer**. Use it for audits, release gates, milestone r
 
 For **inline checkpoints during active development**, use `/code-review`, which invokes the sibling `security-review` agent from the `dev-team` plugin. That's a single opus pass in seconds, appropriate for every commit. The agent is also what this plugin invokes internally at Phase 1b of `/security-assessment` — so running the agent during development is complementary, not redundant. When a `/code-review` finding warrants deeper analysis (FP-reduction, reachability, compliance mapping, domain-layer review), escalate to `/security-assessment` here.
 
-Pattern-visible vulnerability classes (single-line regex, stable AST shape, ≤10% false-positive rate) are authoritatively detected by the semgrep rules under `knowledge/semgrep-rules/*.yaml` — not by agent prompts. See `docs/rules-vs-prompts-policy.md` for the boundary.
+Pattern-visible vulnerability classes (single-line regex, stable AST shape, ≤10% false-positive rate) are authoritatively detected by the semgrep rules under `knowledge/semgrep-rules/*.yaml` — not by agent prompts. The class → surface boundary is encoded in `plugins/dev-team/knowledge/security-review-rule-map.yaml`.
 
 ## LLM-safety coverage bound
 

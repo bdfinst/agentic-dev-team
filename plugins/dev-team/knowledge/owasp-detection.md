@@ -10,8 +10,8 @@ When a pattern matches, the agent emits a finding with the row's
 the full list mapped to rule_ids.
 
 > **Scope note (post Item 3b):** pattern-visible classes — those detected
-> by semgrep rules with stable AST/regex shape and ≤10% FP rate per
-> `docs/rules-vs-prompts-policy.md` — are NOT listed as agent detection
+> by semgrep rules with stable AST/regex shape and ≤10% FP rate, classified
+> as rule-surface in `security-review-rule-map.yaml` — are NOT listed as agent detection
 > patterns here. They appear as pointer stubs at the top of each OWASP
 > section so the agent knows which classes the rule set covers and can
 > still assess exploitability when a semgrep finding arrives in review
