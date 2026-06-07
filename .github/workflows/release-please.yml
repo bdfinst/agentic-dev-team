@@ -21,9 +21,20 @@ jobs:
       security_tag: ${{ steps.release.outputs['plugins/security-assessment--tag_name'] }}
       security_version: ${{ steps.release.outputs['plugins/security-assessment--version'] }}
     steps:
+      # Mint a short-lived token from the release bot GitHub App. Using an App
+      # identity (not the default GITHUB_TOKEN) is what lets the release PR's
+      # events trigger the pull_request workflows — GITHUB_TOKEN-authored PRs
+      # never start new workflow runs (GitHub's recursion guard).
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
       - uses: googleapis/release-please-action@v4
         id: release
         with:
+          token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
