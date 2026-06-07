@@ -175,8 +175,17 @@ jobs:
       - name: Run agent-eval (records actuals.json)
         if: steps.cred.outputs.run_live == 'true'
         uses: anthropics/claude-code-action@v1
+        # Debugging a launch-time crash of the action's bundled Claude Code
+        # process ("Claude Code process exited with code 1"): by default the
+        # action hides the SDK's output ("full output hidden for security"), so
+        # the real error is invisible. show_full_output surfaces it and
+        # ANTHROPIC_LOG=debug makes the SDK verbose. Revert both once the
+        # underlying failure is identified.
+        env:
+          ANTHROPIC_LOG: debug
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          show_full_output: true
           plugin_marketplaces: ${{ github.workspace }}
           plugins: "dev-team@bfinster"
           prompt: |
