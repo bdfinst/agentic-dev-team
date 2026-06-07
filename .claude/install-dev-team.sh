@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# SessionStart hook (registered in .claude/settings.json): make the dev-team
+# plugin available in CLOUD sessions only.
+#
+# CLOUD-ONLY GATE: this is a no-op unless DEV_TEAM_CLOUD_INSTALL=1 is set. Set
+# that variable in your Claude Code web environment (Environment settings ->
+# Environment variables). Do NOT set it locally — so local sessions, where the
+# plugin is already installed, are never touched by this hook.
+#
+# In a gated (cloud) session it tries to install the plugin if the `claude` CLI
+# is present; if the CLI is absent (cloud VMs may not ship it), it emits guidance
+# to run the plugin's workflows from its skill files instead. Fail-open — never
+# blocks session start.
+set -uo pipefail
+
+# Local (or any session without the cloud flag): do nothing.
+[ "${DEV_TEAM_CLOUD_INSTALL:-}" = "1" ] || exit 0
+
+# Cloud, but no CLI to install with: guide to the skill-file route.
+if ! command -v claude >/dev/null 2>&1; then
+  cat <<'JSON'
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"The dev-team plugin could not be installed in this cloud session (no `claude` CLI here). Run its workflows manually by reading the skill source and following it: plugins/dev-team/skills/<name>/SKILL.md (e.g. plan, code-review, build); agents at plugins/dev-team/agents/<name>.md. See CLAUDE.md -> Cloud sessions."}}
+JSON
+  exit 0
+fi
+
+# Already installed? quiet no-op.
+if claude plugin list 2>/dev/null | grep -qi 'dev-team'; then
+  exit 0
+fi
+
+# Install idempotently, time-boxed so it can never hang session start.
+# (A plugin installed at SessionStart takes effect on the NEXT session.)
+_tmo() {
+  if command -v timeout >/dev/null 2>&1; then timeout 120 "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then gtimeout 120 "$@"
+  else "$@"; fi
+}
+_tmo claude plugin marketplace add bdfinst/agentic-dev-team >/dev/null 2>&1 || true
+_tmo claude plugin install dev-team@bfinster >/dev/null 2>&1 || true
+exit 0

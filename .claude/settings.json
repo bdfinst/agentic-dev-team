@@ -2,5 +2,17 @@
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/install-dev-team.sh\""
+          }
+        ]
+      }
+    ]
   }
 }
