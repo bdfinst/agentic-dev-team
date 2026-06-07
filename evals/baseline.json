@@ -1,7 +1,8 @@
 {
-  "_comment": "Regression baseline for the agent-eval CI gate (#99). Pairs listed here must not regress. `provenance` is 'hand-authored' until a real green live run records it via eval_grade.py --actuals <f> --write-baseline (which stamps provenance='measured' and recorded_at=the run time). `recorded_at` below is the authoring date, NOT a measured-run timestamp (#133).",
-  "provenance": "hand-authored",
-  "recorded_at": "2026-06-06T15:12:33Z",
+  "_comment": "Regression baseline for the agent-eval CI gate (#99). Trust-gated (#230): a pair is removed only when it failed every trial (pass@k <= demote_below) over >= min_trials and is not flaky; a flaky pair is quarantined, not removed; a pair is added only when it passed all trials. Written by eval_variance.py --write-baseline.",
+  "provenance": "measured",
+  "recorded_at": "2026-06-07T22:32:31Z",
+  "trials": 1,
   "passing": [
     "ar-clean-arch::arch-review",
     "ar-layer-violation::arch-review",
@@ -26,10 +27,12 @@
     "nm-clear-names::naming-review",
     "nm-consistent-conventions::naming-review",
     "nm-misleading-names::naming-review",
+    "sec-env-gitignored::security-review",
     "sec-hardcoded-secrets::security-review",
     "sec-safe-auth::security-review",
     "sec-safe-headers::security-review",
     "sec-sql-injection::security-review",
+    "sec-xss-vulnerable::security-review",
     "st-clean-modules::structure-review",
     "st-god-object::structure-review",
     "st-mixed-concerns::structure-review",
@@ -59,5 +62,6 @@
     "tlg-08-email-no-reference::test-design-advisor",
     "tlg-09-critical-single-layer::test-design-advisor",
     "tlg-10-multi-gate::test-design-advisor"
-  ]
+  ],
+  "harvest_id": "20260607-223231"
 }

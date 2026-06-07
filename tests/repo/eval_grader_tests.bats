@@ -182,10 +182,15 @@ EOF
 }
 
 @test "baseline: shipped evals/baseline.json declares its provenance (#133)" {
-  # The seed baseline is honestly marked hand-authored, not a measured run.
+  # Provenance must be honestly DECLARED — 'hand-authored' for the seed, or
+  # 'measured' once a real harvest (eval_variance --write-baseline) has refreshed
+  # it. The invariant is "honestly labelled", not "forever the seed value".
   run jq -r '.provenance' "$BATS_TEST_DIRNAME/../../evals/baseline.json"
   [ "$status" -eq 0 ]
-  [ "$output" = "hand-authored" ]
+  case "$output" in
+    hand-authored|measured) : ;;
+    *) echo "unexpected provenance: $output" >&2; return 1 ;;
+  esac
 }
 
 @test "grader: --write-baseline MERGES, keeping untested pairs and adding new" {
