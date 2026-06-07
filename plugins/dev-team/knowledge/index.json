@@ -1940,13 +1940,13 @@
       "summary": "1.",
       "anchor": "steps"
     },
-    "Attribution dimensions (#134, #139)": {
-      "summary": "`report` breaks spend down by **agent**, **command** (the transcript's",
-      "anchor": "attribution-dimensions-134-139"
+    "Attribution dimensions (#102, #170)": {
+      "summary": "`report` breaks spend down by **model** and by **thread** (main-loop vs",
+      "anchor": "attribution-dimensions-102-170"
     },
-    "Privacy boundary (#134)": {
-      "summary": "The meter persists **only** token counts, dollar amounts, model/agent",
-      "anchor": "privacy-boundary-134"
+    "Privacy boundary": {
+      "summary": "The meter persists **only** token counts, dollar amounts, model identifiers, and",
+      "anchor": "privacy-boundary"
     },
     "Notes": {
       "summary": "Disable the meter with `DEV_TEAM_COST_METER=off`.",

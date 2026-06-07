@@ -8,34 +8,39 @@ so a Stop hook can hand this script the transcript to parse. This converts token
 usage to dollars via the named instrument knowledge/model-pricing.json (#102 is
 why that table exists) and writes an append-only metrics log.
 
-Attribution dimensions (#134)
-------------------------------
-Beyond per-agent and per-model, spend is attributed to:
-  * the invoking COMMAND/skill, read from the transcript's `attributionSkill`
-    field (falls back to "untagged" when a record carries no skill tag), and
-  * the fix-loop ITERATION, read from a `fixLoopIteration` / `reviewIteration`
-    / `iteration` marker on the record. The transcript has no native iteration
-    boundary, so the review->fix cycle is expected to stamp this marker on its
-    dispatches; absent the marker, usage degrades to the "unattributed" bucket
-    rather than being silently lost.
-  * the orchestration PHASE (specs/plan/build/review), from an explicit
-    `orchestrationPhase` marker when present, else derived from the command via
-    a static command->phase map (#139); unmapped commands fall into "other".
+Attribution dimensions (#102, #170)
+-----------------------------------
+Attribution is limited to what the harness actually records on transcript
+records — verified empirically (#170). Spend is attributed to:
+  * the MODEL (`message.model`), and
+  * the THREAD: main-loop vs subagent, from the native top-level `isSidechain`
+    flag (true on subagent/sidechain turns).
+  * plus the session TOTAL.
 
-Privacy boundary (#134, req 6)
-------------------------------
-This meter persists ONLY token counts, dollar amounts, model identifiers, agent
-identifiers, the skill/command tag, and the iteration index. It never reads or
-records prompt text, code, file paths, or tool payloads from the transcript —
-only the `usage`/`model`/attribution fields. The append-only metrics log is a
-metrics-only artifact by construction.
+What is deliberately NOT attributed, and why (#170): per-command, per-phase, and
+per-fix-loop-iteration attribution were attempted via `attributionSkill` /
+`orchestrationPhase` / `fixLoopIteration` markers, but **the Claude Code harness
+authors the transcript and exposes none of those fields** (0/312 in a real
+transcript), and a plugin has no write-path into the transcript. Those buckets
+were therefore always inert ("untagged"/"other"/"unattributed") and have been
+removed rather than ship misleading empty dimensions. Re-deriving them would
+require fragile heuristics (correlating Stop-hook timestamps with command
+boundaries) and is out of scope.
+
+Privacy boundary
+----------------
+This meter persists ONLY token counts, dollar amounts, model identifiers, and
+the main/subagent thread flag. It never reads or records prompt text, code, file
+paths, or tool payloads from the transcript — only the `usage`/`model`/
+`isSidechain` fields. The append-only metrics log is a metrics-only artifact by
+construction.
 
 Subcommands
 -----------
 report   --transcript T [--json]
-         Parse a transcript and print tokens + cost per agent, per model, per
-         command, and per fix-loop iteration, plus the session total. The
-         acceptance command: "after a run, print actual tokens spent."
+         Parse a transcript and print tokens + cost per model and per thread
+         (main vs subagent), plus the session total. The acceptance command:
+         "after a run, print actual tokens spent."
 
 record   --transcript T --log metrics/cost-metering.jsonl
          Append one session-summary line to the append-only metrics log
@@ -117,30 +122,15 @@ def _new_bucket() -> dict:
     return {f: 0 for f in _TOKEN_FIELDS} | {"cost_usd": 0.0, "messages": 0}
 
 
-# Orchestration-phase mapping (#139): which command/skill belongs to which of
-# the specs -> plan -> build -> review phases. Commands not in the map (or
-# untagged records) fall into the "other" phase rather than being lost.
-_PHASE_BY_COMMAND = {
-    "specs": "specs",
-    "plan": "plan", "issues-from-plan": "plan",
-    "build": "build", "apply-fixes": "build", "continue": "build",
-    "code-review": "review", "review": "review", "review-agent": "review",
-    "test-design": "review", "test-health": "review", "agent-eval": "review",
-    "review-summary": "review",
-}
-
-
-def _phase_for(command: str) -> str:
-    return _PHASE_BY_COMMAND.get(command, "other")
-
-
 def parse_transcript(path: Path, pricing: dict) -> dict:
-    """Aggregate usage by agent, model, command, fix-loop iteration, phase."""
-    by_agent: dict[str, dict] = {}
+    """Aggregate transcript usage by model and by thread (main vs subagent).
+
+    Only dimensions the harness actually records are attributed (#170): the
+    model (`message.model`) and the main/subagent split (native top-level
+    `isSidechain`), plus the session total.
+    """
     by_model: dict[str, dict] = {}
-    by_command: dict[str, dict] = {}
-    by_iteration: dict[str, dict] = {}
-    by_phase: dict[str, dict] = {}
+    by_thread: dict[str, dict] = {}
     totals = _new_bucket()
     unpriced_models: set[str] = set()
 
@@ -156,27 +146,17 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
         if not isinstance(usage, dict):
             continue
         model = _dig(rec, "model") or "unknown"
-        # Sub-agent attribution: agent_type/agent_id present for subagents,
-        # else the main orchestrator thread.
-        agent = _dig(rec, "agent_type", "subagent_type", "agent_id") or "orchestrator"
-        # Invoking command/skill (#134): the transcript's attributionSkill tag.
-        command = _dig(rec, "attributionSkill", "attribution_skill") or "untagged"
-        # Fix-loop iteration marker (#134): stamped by the review->fix cycle;
-        # absent markers degrade to "unattributed" rather than being lost.
-        iteration = _dig(rec, "fixLoopIteration", "reviewIteration", "iteration")
-        iteration = str(iteration) if iteration is not None else "unattributed"
-        # Orchestration phase (#139): an explicit phase marker wins; otherwise
-        # derive it from the command -> phase map.
-        phase = _dig(rec, "orchestrationPhase", "phase") or _phase_for(command)
+        # Main-loop vs subagent: the native top-level `isSidechain` flag is true
+        # on sidechain (subagent) turns. This is the only agent-level signal the
+        # harness exposes (#170) — `agent_type`/`agent_id` are never present.
+        thread = "subagent" if rec.get("isSidechain") else "main"
 
         rate = _rate(pricing, model)
         cost = _cost(usage, rate, pricing) if rate else 0.0
         if not rate and model != "unknown":
             unpriced_models.add(model)
 
-        for bucket, key in ((by_agent, agent), (by_model, model),
-                            (by_command, command), (by_iteration, iteration),
-                            (by_phase, phase)):
+        for bucket, key in ((by_model, model), (by_thread, thread)):
             b = bucket.setdefault(key, _new_bucket())
             for f in _TOKEN_FIELDS:
                 b[f] += usage.get(f, 0) or 0
@@ -188,9 +168,7 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
         totals["cost_usd"] = round(totals["cost_usd"] + cost, 6)
         totals["messages"] += 1
 
-    return {"by_agent": by_agent, "by_model": by_model,
-            "by_command": by_command, "by_iteration": by_iteration,
-            "by_phase": by_phase,
+    return {"by_model": by_model, "by_thread": by_thread,
             "totals": totals, "unpriced_models": sorted(unpriced_models)}
 
 
@@ -207,11 +185,8 @@ def _print_dimension(title: str, bucket: dict) -> None:
 def _print_report(summary: dict) -> None:
     t = summary["totals"]
     print(f"# Cost meter — {t['messages']} assistant message(s)")
-    _print_dimension("AGENT", summary["by_agent"])
-    _print_dimension("COMMAND", summary.get("by_command", {}))
-    _print_dimension("ORCHESTRATION PHASE", summary.get("by_phase", {}))
-    # Iteration ordered numerically where possible (1, 2, ... then unattributed).
-    _print_dimension("FIX-LOOP ITERATION", summary.get("by_iteration", {}))
+    _print_dimension("MODEL", summary["by_model"])
+    _print_dimension("THREAD (main/subagent)", summary["by_thread"])
     print("-" * 60)
     print(f"{'TOTAL':<28} {t['input_tokens']:>10} {t['output_tokens']:>10} "
           f"{t['cost_usd']:>10.4f}")
@@ -245,10 +220,8 @@ def cmd_record(args, pricing) -> int:
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "transcript": tpath.name,
         "total": summary["totals"],
-        "by_agent": _slim(summary["by_agent"]),
-        "by_command": _slim(summary["by_command"]),
-        "by_iteration": _slim(summary["by_iteration"]),
-        "by_phase": _slim(summary["by_phase"]),
+        "by_model": _slim(summary["by_model"]),
+        "by_thread": _slim(summary["by_thread"]),
     }
     log = Path(args.log)
     log.parent.mkdir(parents=True, exist_ok=True)

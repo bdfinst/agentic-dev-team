@@ -58,23 +58,27 @@ data.
      --log metrics/cost-metering.jsonl --tolerance 0.5 --window 10
    ```
 
-## Attribution dimensions (#134, #139)
+## Attribution dimensions (#102, #170)
 
-`report` breaks spend down by **agent**, **command** (the transcript's
-`attributionSkill` tag, so you can separate `/code-review` spend from `/build`),
-**orchestration phase** (specs/plan/build/review, from an `orchestrationPhase`
-marker or derived from the command), and **fix-loop iteration** (read from a
-`fixLoopIteration` marker — records without the marker fall into an
-`unattributed` bucket rather than being lost).
+`report` breaks spend down by **model** and by **thread** (main-loop vs
+subagent), plus the session **total**.
 
-## Privacy boundary (#134)
+Attribution is limited to what the Claude Code harness actually records on
+transcript turns. Per-command, per-phase, and per-fix-loop-iteration buckets
+were **removed** (#170): they relied on `attributionSkill` / `orchestrationPhase`
+/ `fixLoopIteration` fields the harness never writes (verified 0/312 in a real
+transcript), and a plugin has no write-path into the transcript — so those
+dimensions were always empty. The main/subagent split uses the native
+`isSidechain` flag, which the harness does provide.
 
-The meter persists **only** token counts, dollar amounts, model/agent
-identifiers, the command tag, and the iteration index — never prompt text, code,
-file paths, or tool payloads. `metrics/cost-metering.jsonl` is a metrics-only
-artifact by construction.
+## Privacy boundary
 
-4. **Account pace (optional, #142).** When the user asks "am I on track for my
+The meter persists **only** token counts, dollar amounts, model identifiers, and
+the main/subagent thread flag — never prompt text, code, file paths, or tool
+payloads. `metrics/cost-metering.jsonl` is a metrics-only artifact by
+construction.
+
+1. **Account pace (optional, #142).** When the user asks "am I on track for my
    budget", "how much have I burned this week", or "which model should I use for
    the rest of the period", report account-level pace: cumulative spend over a
    rolling window, the implied daily rate, and the projected spend for a billing
