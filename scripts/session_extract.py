@@ -597,6 +597,42 @@ def cmd_rollup(args, registry: dict) -> int:
     return 0
 
 
+def cost_log(digests_root: Path) -> list[dict]:
+    """Per-session cost SERIES for the cost-meter regression gate (#171).
+
+    `rollup()` returns one aggregate; the regression check in `cost_meter.py`
+    instead needs a time-ordered list of per-session costs so it can compare the
+    most recent session against the cross-machine rolling baseline. This reads
+    the same `digests/<host>/session-digest.jsonl` union, dedups on session_id
+    (last write wins), orders oldest->newest by `ts`, and emits cost-meter
+    records: `{"ts": ..., "total": {"cost_usd": ...}}` (extra `ts` is ignored by
+    `regression` and used by `pace`)."""
+    by_id: dict[str, dict] = {}
+    for f in sorted(digests_root.glob("*/session-digest.jsonl")):
+        for rec in _iter_records([f]):
+            if rec.get("schema") != "session-sync/v1":
+                continue
+            sid = rec.get("session_id")
+            if sid:
+                by_id[str(sid)] = rec  # last write wins -> dedup on session_id
+    recs = sorted(by_id.values(),
+                  key=lambda r: (r.get("ts") or "", str(r.get("session_id"))))
+    return [{"ts": r.get("ts"),
+             "total": {"cost_usd": r.get("cost_usd", 0.0) or 0.0}}
+            for r in recs]
+
+
+def cmd_cost_log(args) -> int:
+    root = Path(args.cost_log)
+    lines = ("\n".join(json.dumps(rec, sort_keys=True) for rec in cost_log(root))
+             if root.is_dir() else "")
+    if args.out:
+        Path(args.out).write_text(lines + ("\n" if lines else ""))
+    elif lines:
+        print(lines)
+    return 0
+
+
 # --------------------------------------------------------------------------
 # Delta C (#179): frequency -> lever-strength escalation.
 #
@@ -716,6 +752,10 @@ def main(argv=None) -> int:
     ap.add_argument("--rollup", metavar="DIR",
                     help="union read (#178): aggregate all hosts' "
                          "DIR/<host>/session-digest.jsonl into one cross-machine view")
+    ap.add_argument("--cost-log", metavar="DIR",
+                    help="cost-meter baseline (#171): from DIR/<host>/session-digest.jsonl "
+                         "emit a time-ordered per-session cost series "
+                         "({\"total\":{\"cost_usd\":..}}) for `cost_meter.py regression`")
     ap.add_argument("--escalate", metavar="DIR",
                     help="Delta C (#179): rank friction signals from DIR's rollup "
                          "and recommend a lever (hint / instruction-rule / hook)")
@@ -735,6 +775,10 @@ def main(argv=None) -> int:
     # Cross-machine union read (Delta D, #178).
     if args.rollup:
         return cmd_rollup(args, registry)
+
+    # Cross-machine cost baseline for the regression gate (#171).
+    if args.cost_log:
+        return cmd_cost_log(args)
 
     # Frequency -> lever escalation (Delta C, #179).
     if args.escalate:

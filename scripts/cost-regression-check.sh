@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# cost-regression-check.sh — CI wiring for the cost-meter regression gate (#140).
+# cost-regression-check.sh — CI wiring for the cost-meter regression gate
+# (#140 mechanism, #171 real cross-machine baseline).
 #
 # hooks/lib/cost_meter.py ships a `regression` subcommand, but nothing ran it,
 # so a cost regression could merge unnoticed. This wires it into CI with three
@@ -10,13 +11,15 @@
 #      must be flagged (exit 1) and a within-tolerance run must pass (exit 0). If
 #      that breaks, the gate is dishonest and CI fails.
 #
-#   2. COMMITTED BASELINE (warn-only). If a baseline log exists in the repo
-#      (metrics/cost-metering.jsonl), run the real regression check against it.
-#      A non-deterministic meter shouldn't HARD-fail an unrelated code PR, so a
-#      detected regression is surfaced as a warning annotation, not a block.
+#   2. REAL BASELINE (warn-only). If COST_BASELINE_LOG points at a cost series,
+#      run the real regression check against it. In CI that series is built from
+#      the private telemetry repo (the cross-machine per-session costs; #171); a
+#      committed metrics/cost-metering.jsonl works too. A non-deterministic meter
+#      shouldn't HARD-fail an unrelated code PR, so a detected regression is
+#      surfaced as a warning annotation, not a block.
 #
-#   3. NO BASELINE. If no committed log exists (the current state — the log is
-#      written locally by the Stop hook), say so and pass cleanly.
+#   3. NO BASELINE. If no baseline log is available (e.g. a fork PR with no access
+#      to the telemetry repo, or no committed log), say so and pass cleanly.
 #
 # Tolerance and window are configurable via env (COST_TOLERANCE, COST_WINDOW).
 # Exit codes: 0 = ok (incl. warn), 1 = the regression mechanism itself is broken.
@@ -58,10 +61,10 @@ fi
 echo "  ok: spike flagged, within-tolerance passes."
 
 # --- 2/3. real baseline (warn-only) or no baseline ---------------------------
-echo "== cost-regression against committed baseline =="
+echo "== cost-regression against baseline =="
 if [ ! -f "$BASELINE" ]; then
-  echo "  no committed baseline at $BASELINE — the meter records locally via the"
-  echo "  Stop hook. Commit a baseline log to enable PR-time regression warnings."
+  echo "  no baseline log at $BASELINE — point COST_BASELINE_LOG at a cost series"
+  echo "  (CI builds one from the telemetry repo, #171) or commit a local log."
   exit 0
 fi
 

@@ -88,3 +88,42 @@ EOF
   [ "$status" -eq 0 ]
   [ "$(echo "$output" | jq -r '.sessions')" = "0" ]
 }
+
+# ---- #171: --cost-log per-session cost series for the regression gate ----
+_seed_cost_digests() {
+  mkdir -p "$TMP/digests/boxA" "$TMP/digests/boxB"
+  # ts deliberately out of file order; cost-log must sort oldest->newest by ts.
+  cat > "$TMP/digests/boxA/session-digest.jsonl" <<'EOF'
+{"schema":"session-sync/v1","host":"boxA","session_id":"s2","ts":"2026-06-02T00:00:00Z","cost_usd":2.0}
+{"schema":"session-sync/v1","host":"boxA","session_id":"s1","ts":"2026-06-01T00:00:00Z","cost_usd":1.0}
+EOF
+  cat > "$TMP/digests/boxB/session-digest.jsonl" <<'EOF'
+{"schema":"session-sync/v1","host":"boxB","session_id":"s3","ts":"2026-06-03T00:00:00Z","cost_usd":3.0}
+EOF
+}
+
+@test "cost-log: emits a ts-ordered per-session cost series across hosts (#171)" {
+  _seed_cost_digests
+  run python3 "$EXTRACT" --cost-log "$TMP/digests" --plugin-root "$PLUGIN"
+  [ "$status" -eq 0 ]
+  # three records, oldest first, in cost-meter shape
+  [ "$(echo "$output" | wc -l | tr -d ' ')" = "3" ]
+  [ "$(echo "$output" | jq -s 'map(.total.cost_usd) == [1,2,3]')" = "true" ]
+  [ "$(echo "$output" | head -1 | jq -r '.ts')" = "2026-06-01T00:00:00Z" ]
+}
+
+@test "cost-log: dedups a session_id seen twice, last write wins (#171)" {
+  _seed_cost_digests
+  # re-emit s1 with a higher cost -> one record, newest value
+  echo '{"schema":"session-sync/v1","host":"boxB","session_id":"s1","ts":"2026-06-01T00:00:00Z","cost_usd":5.0}' \
+    >> "$TMP/digests/boxB/session-digest.jsonl"
+  run python3 "$EXTRACT" --cost-log "$TMP/digests" --plugin-root "$PLUGIN"
+  [ "$(echo "$output" | wc -l | tr -d ' ')" = "3" ]
+  [ "$(echo "$output" | jq -s 'map(.total.cost_usd) == [5,2,3]')" = "true" ]
+}
+
+@test "cost-log: empty/missing dir yields no records, clean exit (#171)" {
+  run python3 "$EXTRACT" --cost-log "$TMP/nope" --plugin-root "$PLUGIN"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}

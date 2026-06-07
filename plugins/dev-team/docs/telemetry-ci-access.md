@@ -50,31 +50,44 @@ holds both halves where they belong.
 
 ### 4. Consume it in the workflow
 
-The cost-regression job loads the key, clones the data repo read-only, builds the
-rollup, and checks the baseline:
+This wiring is **already in place** — see the `cost-regression` job in
+[`.github/workflows/plugin-tests.yml`](../../../.github/workflows/plugin-tests.yml).
+The job loads the key, clones the data repo read-only, builds a per-session cost
+series from the digests, and runs the regression check against it. The
+credential steps are gated so fork PRs (which have no secret access) skip them
+and fall back to the blocking self-test:
 
 ```yaml
   cost-regression:
     runs-on: ubuntu-latest
-    # Secrets are NOT available to forked-PR runs (see caveat) — gate on that:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
     steps:
-      - uses: actions/checkout@v4
-      - uses: webfactory/ssh-agent@v0.9.0
+      - uses: actions/checkout@v6
+      - name: Install python3 + jq
+        run: sudo apt-get update && sudo apt-get install -y jq python3
+      # Secrets are NOT exposed to forked-PR runs (see caveat) — gate on that:
+      - name: Load telemetry deploy key (read-only)
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.TELEMETRY_DEPLOY_KEY }}
-      - name: Clone telemetry (read-only) and build the baseline rollup
+      - name: Clone telemetry (read-only) and build the cross-machine cost baseline
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         run: |
           git clone --depth 1 git@github.com:bdfinst/agent-telemetry.git /tmp/telemetry
-          python3 scripts/session_extract.py --rollup /tmp/telemetry/digests \
-            -o /tmp/telemetry-rollup.json
-      - name: Cost-regression check against the real baseline
-        run: bash scripts/cost-regression-check.sh   # (wiring tracked in #171)
+          python3 scripts/session_extract.py --cost-log /tmp/telemetry/digests \
+            -o /tmp/telemetry-cost-log.jsonl
+          echo "COST_BASELINE_LOG=/tmp/telemetry-cost-log.jsonl" >> "$GITHUB_ENV"
+      - name: Run cost-regression check
+        run: bash scripts/cost-regression-check.sh
 ```
 
-> The `cost-regression-check.sh` step that *reads* this baseline is intentionally
-> **deferred** until this access exists (per #171). Once you've completed steps
-> 1–3, say so and the wiring will be added.
+> Why `--cost-log` and not `--rollup`? The regression meter
+> (`cost_meter.py regression`) compares the **latest** session against the
+> rolling mean of priors, so it needs a *time-ordered per-session series*, not a
+> single aggregate. `session_extract.py --cost-log <digests>` emits exactly that
+> (`{"total":{"cost_usd":..}}` records, oldest→newest, deduped on `session_id`).
+> The real cross-machine check is **warn-only** — a non-deterministic meter must
+> not hard-fail an unrelated code PR.
 
 ## Alternative: a fine-grained PAT (read-only)
 
