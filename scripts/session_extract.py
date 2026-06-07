@@ -32,6 +32,14 @@ Usage:
   session_extract.py [--transcript F ...] [--project-dir D] [--cwd PATH]
                      [--projects-root R] [--pricing P] [--plugin-root PR]
   (default resolves the current project's transcripts under ~/.claude/projects)
+
+  --all-projects                 aggregate across ALL projects, not just the cwd's.
+  --sync-out FILE [--watermark W] [--host H]
+                                 Delta D (#178): cross-project INCREMENTAL sync —
+                                 append one metrics-only record per new/changed
+                                 session to the host digest FILE; the watermark
+                                 dedups by session_id+size so re-runs only emit
+                                 what changed. project is a basename only.
 """
 
 from __future__ import annotations
@@ -330,6 +338,123 @@ def resolve_transcripts(args) -> list[Path]:
     return sorted(matches, key=lambda x: x.name)
 
 
+def resolve_all_transcripts(args) -> list[Path]:
+    """Every transcript across ALL projects under projects-root (Delta D, #178).
+
+    Cross-project: unlike resolve_transcripts (which matches one project's cwd),
+    this returns one file per session across every project on the machine, so the
+    sync can aggregate all of them.
+    """
+    root = Path(args.projects_root or (Path.home() / ".claude" / "projects"))
+    if not root.is_dir():
+        return []
+    return sorted(root.glob("*/*.jsonl"), key=lambda x: x.name)
+
+
+def _project_and_ts(path: Path) -> tuple[str, str]:
+    """Project label (basename of the recorded cwd) and the latest record
+    timestamp, both from transcript DATA — never wall-clock, never a full path.
+    The basename is the only project identifier emitted (privacy boundary)."""
+    project = ""
+    last_ts = ""
+    for rec in _iter_records([path]):
+        if not project:
+            cwd = rec.get("cwd")
+            if isinstance(cwd, str) and cwd:
+                project = os.path.basename(os.path.normpath(cwd))
+        ts = rec.get("timestamp")
+        if isinstance(ts, str) and ts > last_ts:
+            last_ts = ts
+    return project or "unknown", last_ts
+
+
+def sync_record(digest: dict, host: str, project: str,
+                session_id: str, ts: str) -> dict:
+    """One per-session, metrics-only record for cross-machine aggregation (#178).
+
+    Identity (host / project basename / session_id / ts) plus the slim metric
+    blocks. Carries model ids and the main/subagent split (non-sensitive) but no
+    file names, paths, prompts, or code — same privacy boundary as the digest."""
+    base = slim_record(digest)
+    tok = digest.get("token", {})
+    by_model = {m: dict(sorted(v.items()))
+                for m, v in sorted(tok.get("by_model", {}).items())}
+    return {
+        "schema": "session-sync/v1",
+        "host": host,
+        "project": project,
+        "session_id": session_id,
+        "ts": ts,
+        "synced_at": base["recorded_at"],
+        "sessions": digest.get("sessions", 0),
+        "tokens": base["tokens"],
+        "cost_usd": base["cost_usd"],
+        "cache_hit_ratio": base["cache_hit_ratio"],
+        "by_model": by_model,
+        "by_thread": tok.get("by_subagent", {}),
+        "rework": base["rework"],
+        "accuracy": base["accuracy"],
+        "utilization": base["utilization"],
+    }
+
+
+def _load_watermark(path: Path) -> dict:
+    """Read the sync watermark (session_id -> bytes already synced). Missing or
+    malformed -> a fresh empty watermark (fail-open)."""
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text())
+            if isinstance(data, dict) and isinstance(data.get("synced"), dict):
+                return data
+        except (OSError, json.JSONDecodeError):
+            pass
+    return {"synced": {}}
+
+
+def cmd_sync(args, pricing: dict, registry: dict, host: str) -> int:
+    """Incremental, cross-project sync (#178): emit one metrics-only record per
+    session that is NEW or has grown since the machine's last sync, into the
+    host digest file. The watermark dedups by session_id + byte size, so re-runs
+    re-emit only changed sessions and skip everything else."""
+    out = Path(args.sync_out)
+    wm_path = Path(args.watermark) if args.watermark else (
+        Path.home() / ".claude" / ".dev-team" / "telemetry-sync.json")
+    wm = _load_watermark(wm_path)
+    synced = wm["synced"]
+
+    if args.transcript:
+        paths = [Path(p) for p in args.transcript]
+    elif args.project_dir:
+        paths = sorted(Path(args.project_dir).glob("*.jsonl"), key=lambda x: x.name)
+    else:
+        paths = resolve_all_transcripts(args)
+
+    emitted = 0
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("a") as fh:
+        for path in paths:
+            session_id = path.stem
+            try:
+                size = path.stat().st_size
+            except OSError:
+                continue
+            prev = synced.get(session_id)
+            if isinstance(prev, int) and prev >= size:
+                continue  # already synced and unchanged
+            project, ts = _project_and_ts(path)
+            digest = extract([path], pricing, registry)
+            rec = sync_record(digest, host, project, session_id, ts)
+            fh.write(json.dumps(rec, sort_keys=True) + "\n")
+            synced[session_id] = size
+            emitted += 1
+
+    wm_path.parent.mkdir(parents=True, exist_ok=True)
+    wm_path.write_text(json.dumps(wm, indent=2, sort_keys=True) + "\n")
+    print(f"synced {emitted} new/changed session(s) of {len(paths)} considered "
+          f"-> {out}")
+    return 0
+
+
 def load_registry(plugin_root: Path | None) -> dict:
     """Enumerate shipped skills/agents so we can report never-observed ones."""
     if plugin_root is None:
@@ -358,14 +483,33 @@ def main(argv=None) -> int:
     ap.add_argument("--append", metavar="LOG",
                     help="append one metrics-only summary record to a trend "
                          "stream (append-only JSONL), e.g. metrics/session-digest.jsonl")
+    ap.add_argument("--all-projects", action="store_true",
+                    help="aggregate transcripts across ALL projects, not just the "
+                         "current cwd's project (Delta D, #178)")
+    ap.add_argument("--sync-out", metavar="FILE",
+                    help="cross-project incremental SYNC mode (#178): append one "
+                         "metrics-only record per new/changed session to FILE "
+                         "(the host digest), tracked by --watermark")
+    ap.add_argument("--watermark", metavar="FILE",
+                    help="watermark JSON for incremental sync "
+                         "(default: ~/.claude/.dev-team/telemetry-sync.json)")
+    ap.add_argument("--host", help="host label for sync records (default: hostname)")
     args = ap.parse_args(argv)
 
-    paths = resolve_transcripts(args)
     pricing_path = Path(args.pricing) if args.pricing else (
         Path(__file__).resolve().parent.parent
         / "plugins/dev-team/knowledge/model-pricing.json")
     pricing = _load_pricing(pricing_path)
     registry = load_registry(Path(args.plugin_root) if args.plugin_root else None)
+
+    # Cross-project incremental sync mode (Delta D, #178).
+    if args.sync_out:
+        import socket
+        host = args.host or socket.gethostname()
+        return cmd_sync(args, pricing, registry, host)
+
+    paths = (resolve_all_transcripts(args) if args.all_projects
+             else resolve_transcripts(args))
 
     digest = extract(paths, pricing, registry)
     digest["transcripts"] = len(paths)
