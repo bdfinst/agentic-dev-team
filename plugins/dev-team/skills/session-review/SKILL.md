@@ -109,6 +109,19 @@ Each recommendation carries a `lever`: **hint** (rare — surface only),
 shipping). "Matchable" is the deterministic side of the rules-vs-prompts ≤10% FP
 policy. Use the escalation `lever` to set the hand-off in Step 3.
 
+Optionally compute the **gate correlation** (process eval, #111) — does bypassing
+the pre-commit review gate correlate with more rework across sessions?
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
+  --plugin-root ${CLAUDE_PLUGIN_ROOT} --correlate "$CLONE/digests" \
+  -o memory/gate-correlation.json
+```
+
+This compares mean rework between bypass and non-bypass committing sessions. It is
+correlational, not causal — surface it as evidence for whether the review gate
+earns its place (feeds the ADR-0006 decision, #112), never as proof.
+
 ### 2. Analyze (digest-only)
 
 Dispatch the `session-analysis` agent with the digest path as its sole input.
