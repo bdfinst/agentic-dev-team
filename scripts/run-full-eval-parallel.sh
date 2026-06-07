@@ -95,7 +95,11 @@ root, keyed by fixture stem:
 EOF
 
 # --- the corpus's agents, and which still need dispatching ------------------
-mapfile -t ALL_AGENTS < <(jq -r '.applicableAgents[]?' evals/expected/*.json 2>/dev/null | sort -u)
+# (read loop, not `mapfile` — the latter is bash 4+, absent on macOS's bash 3.2)
+ALL_AGENTS=()
+while IFS= read -r _agent; do
+  [ -n "$_agent" ] && ALL_AGENTS+=("$_agent")
+done < <(jq -r '.applicableAgents[]?' evals/expected/*.json 2>/dev/null | sort -u)
 [ "${#ALL_AGENTS[@]}" -gt 0 ] || { echo "no applicableAgents in evals/expected — nothing to do." >&2; exit 1; }
 
 TODO=()
@@ -160,7 +164,10 @@ if [ "${#TODO[@]}" -gt 0 ]; then
     pids+=("$!")
   done
   fail=0
-  for p in "${pids[@]}"; do wait "$p" || fail=1; done
+  # Guard the expansion: under `set -u`, bash 3.2 errors on "${empty[@]}".
+  if [ "${#pids[@]}" -gt 0 ]; then
+    for p in "${pids[@]}"; do wait "$p" || fail=1; done
+  fi
   [ "$fail" -eq 0 ] || echo "warning: a batch exited non-zero; reconciling whatever landed." >&2
 else
   echo "== all agents already harvested in $RUN_DIR — skipping dispatch, reconciling =="

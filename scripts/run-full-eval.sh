@@ -113,7 +113,12 @@ if [ -z "$ONLY_AGENT" ]; then
     echo "started sweep on '$BRANCH'."
   fi
 
-  mapfile -t ALL_AGENTS < <(jq -r '.applicableAgents[]?' evals/expected/*.json 2>/dev/null | sort -u)
+  # read loop, not `mapfile` — the latter is bash 4+, absent on macOS's bash 3.2
+  ALL_AGENTS=()
+  while IFS= read -r _agent; do
+    [ -n "$_agent" ] && ALL_AGENTS+=("$_agent")
+  done < <(jq -r '.applicableAgents[]?' evals/expected/*.json 2>/dev/null | sort -u)
+  [ "${#ALL_AGENTS[@]}" -gt 0 ] || { echo "no applicableAgents in evals/expected — nothing to do." >&2; exit 1; }
   for agent in "${ALL_AGENTS[@]}"; do
     if jq -e --arg a "$agent" '.done | index($a)' "$CKPT" >/dev/null 2>&1; then
       echo "skip (done): $agent"; continue
