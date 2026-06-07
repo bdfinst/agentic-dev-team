@@ -18,6 +18,9 @@ Beyond per-agent and per-model, spend is attributed to:
     boundary, so the review->fix cycle is expected to stamp this marker on its
     dispatches; absent the marker, usage degrades to the "unattributed" bucket
     rather than being silently lost.
+  * the orchestration PHASE (specs/plan/build/review), from an explicit
+    `orchestrationPhase` marker when present, else derived from the command via
+    a static command->phase map (#139); unmapped commands fall into "other".
 
 Privacy boundary (#134, req 6)
 ------------------------------
@@ -107,12 +110,30 @@ def _new_bucket() -> dict:
     return {f: 0 for f in _TOKEN_FIELDS} | {"cost_usd": 0.0, "messages": 0}
 
 
+# Orchestration-phase mapping (#139): which command/skill belongs to which of
+# the specs -> plan -> build -> review phases. Commands not in the map (or
+# untagged records) fall into the "other" phase rather than being lost.
+_PHASE_BY_COMMAND = {
+    "specs": "specs",
+    "plan": "plan", "issues-from-plan": "plan",
+    "build": "build", "apply-fixes": "build", "continue": "build",
+    "code-review": "review", "review": "review", "review-agent": "review",
+    "test-design": "review", "test-health": "review", "agent-eval": "review",
+    "review-summary": "review",
+}
+
+
+def _phase_for(command: str) -> str:
+    return _PHASE_BY_COMMAND.get(command, "other")
+
+
 def parse_transcript(path: Path, pricing: dict) -> dict:
-    """Aggregate usage by agent, model, command, and fix-loop iteration."""
+    """Aggregate usage by agent, model, command, fix-loop iteration, phase."""
     by_agent: dict[str, dict] = {}
     by_model: dict[str, dict] = {}
     by_command: dict[str, dict] = {}
     by_iteration: dict[str, dict] = {}
+    by_phase: dict[str, dict] = {}
     totals = _new_bucket()
     unpriced_models: set[str] = set()
 
@@ -137,6 +158,9 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
         # absent markers degrade to "unattributed" rather than being lost.
         iteration = _dig(rec, "fixLoopIteration", "reviewIteration", "iteration")
         iteration = str(iteration) if iteration is not None else "unattributed"
+        # Orchestration phase (#139): an explicit phase marker wins; otherwise
+        # derive it from the command -> phase map.
+        phase = _dig(rec, "orchestrationPhase", "phase") or _phase_for(command)
 
         rate = _rate(pricing, model)
         cost = _cost(usage, rate, pricing) if rate else 0.0
@@ -144,7 +168,8 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
             unpriced_models.add(model)
 
         for bucket, key in ((by_agent, agent), (by_model, model),
-                            (by_command, command), (by_iteration, iteration)):
+                            (by_command, command), (by_iteration, iteration),
+                            (by_phase, phase)):
             b = bucket.setdefault(key, _new_bucket())
             for f in _TOKEN_FIELDS:
                 b[f] += usage.get(f, 0) or 0
@@ -158,6 +183,7 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
 
     return {"by_agent": by_agent, "by_model": by_model,
             "by_command": by_command, "by_iteration": by_iteration,
+            "by_phase": by_phase,
             "totals": totals, "unpriced_models": sorted(unpriced_models)}
 
 
@@ -176,6 +202,7 @@ def _print_report(summary: dict) -> None:
     print(f"# Cost meter — {t['messages']} assistant message(s)")
     _print_dimension("AGENT", summary["by_agent"])
     _print_dimension("COMMAND", summary.get("by_command", {}))
+    _print_dimension("ORCHESTRATION PHASE", summary.get("by_phase", {}))
     # Iteration ordered numerically where possible (1, 2, ... then unattributed).
     _print_dimension("FIX-LOOP ITERATION", summary.get("by_iteration", {}))
     print("-" * 60)
@@ -214,6 +241,7 @@ def cmd_record(args, pricing) -> int:
         "by_agent": _slim(summary["by_agent"]),
         "by_command": _slim(summary["by_command"]),
         "by_iteration": _slim(summary["by_iteration"]),
+        "by_phase": _slim(summary["by_phase"]),
     }
     log = Path(args.log)
     log.parent.mkdir(parents=True, exist_ok=True)

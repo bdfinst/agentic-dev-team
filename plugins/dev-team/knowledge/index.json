@@ -1940,9 +1940,9 @@
       "summary": "1.",
       "anchor": "steps"
     },
-    "Attribution dimensions (#134)": {
+    "Attribution dimensions (#134, #139)": {
       "summary": "`report` breaks spend down by **agent**, **command** (the transcript's",
-      "anchor": "attribution-dimensions-134"
+      "anchor": "attribution-dimensions-134-139"
     },
     "Privacy boundary (#134)": {
       "summary": "The meter persists **only** token counts, dollar amounts, model/agent",

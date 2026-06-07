@@ -58,12 +58,14 @@ data.
      --log metrics/cost-metering.jsonl --tolerance 0.5 --window 10
    ```
 
-## Attribution dimensions (#134)
+## Attribution dimensions (#134, #139)
 
 `report` breaks spend down by **agent**, **command** (the transcript's
 `attributionSkill` tag, so you can separate `/code-review` spend from `/build`),
-and **fix-loop iteration** (read from a `fixLoopIteration` marker — records
-without the marker fall into an `unattributed` bucket rather than being lost).
+**orchestration phase** (specs/plan/build/review, from an `orchestrationPhase`
+marker or derived from the command), and **fix-loop iteration** (read from a
+`fixLoopIteration` marker — records without the marker fall into an
+`unattributed` bucket rather than being lost).
 
 ## Privacy boundary (#134)
 
