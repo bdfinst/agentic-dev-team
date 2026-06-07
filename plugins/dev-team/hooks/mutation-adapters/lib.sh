@@ -22,8 +22,11 @@ _timeout() {
   elif command -v gtimeout &>/dev/null; then
     gtimeout "$@"
   else
-    # No timeout command — run unbounded; emit advisory to stdout
-    emit_advisory "MUTATION GATE ADVISORY: timeout command unavailable; mutation run has no time limit"
+    # No timeout command — run unbounded. The diagnostic goes to STDERR: stdout
+    # is the hook's JSON decision channel and must carry exactly one object, so
+    # emitting an advisory here (emit_advisory writes JSON to stdout) corrupts
+    # the protocol with a second object — observed on macOS without coreutils.
+    echo "mutation-gate: timeout unavailable (install coreutils for gtimeout); run is unbounded" >&2
     shift
     "$@"
   fi
