@@ -1,0 +1,10 @@
+{"type":"assistant","sessionId":"s1","cwd":"/proj","attributionSkill":"code-review","message":{"model":"claude-opus-4-8","usage":{"input_tokens":1000,"output_tokens":200,"cache_read_input_tokens":800,"cache_creation_input_tokens":200},"content":[{"type":"tool_use","id":"t1","name":"Edit","input":{"file_path":"/proj/src/a.ts","old_string":"x","new_string":"y"}}]}}
+{"type":"user","sessionId":"s1","cwd":"/proj","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"Error: old_string not found in file"}]}}
+{"type":"assistant","sessionId":"s1","cwd":"/proj","attributionSkill":"code-review","message":{"model":"claude-opus-4-8","usage":{"input_tokens":500,"output_tokens":100},"content":[{"type":"tool_use","id":"t2","name":"Edit","input":{"file_path":"/proj/src/a.ts","old_string":"x2","new_string":"y2"}}]}}
+{"type":"assistant","sessionId":"s1","cwd":"/proj","message":{"model":"claude-opus-4-8","usage":{"input_tokens":300,"output_tokens":50},"content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"npm test"}}]}}
+{"type":"user","sessionId":"s1","cwd":"/proj","message":{"content":[{"type":"tool_result","tool_use_id":"t3","is_error":false,"content":"ok"}]}}
+{"type":"assistant","sessionId":"s1","cwd":"/proj","message":{"model":"claude-opus-4-8","usage":{"input_tokens":300,"output_tokens":50},"content":[{"type":"tool_use","id":"t4","name":"Bash","input":{"command":"npm test"}}]}}
+{"type":"assistant","sessionId":"s1","cwd":"/proj","isSidechain":true,"message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":2000,"output_tokens":300},"content":[{"type":"tool_use","id":"t5","name":"Grep","input":{"pattern":"foo"}}]}}
+{"type":"user","sessionId":"s1","cwd":"/proj","message":{"content":[{"type":"tool_result","tool_use_id":"t5","is_error":true,"content":"permission denied"}]}}
+{"type":"user","sessionId":"s1","cwd":"/proj","message":{"content":"No, actually revert that change"}}
+{"type":"summary","sessionId":"s1","cwd":"/proj","isCompactSummary":true,"summary":"compacted prior context"}

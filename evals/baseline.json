@@ -1,5 +1,6 @@
 {
-  "_comment": "Regression baseline for the agent-eval CI gate (#99). Pairs listed here must not regress. Update with eval_grade.py --actuals <f> --write-baseline (merges into this file: passing pairs added, pairs tested-but-failing removed, untested pairs kept).",
+  "_comment": "Regression baseline for the agent-eval CI gate (#99). Pairs listed here must not regress. `provenance` is 'hand-authored' until a real green live run records it via eval_grade.py --actuals <f> --write-baseline (which stamps provenance='measured' and recorded_at=the run time). `recorded_at` below is the authoring date, NOT a measured-run timestamp (#133).",
+  "provenance": "hand-authored",
   "recorded_at": "2026-06-06T15:12:33Z",
   "passing": [
     "ar-clean-arch::arch-review",

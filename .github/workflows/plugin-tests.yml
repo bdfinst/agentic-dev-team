@@ -72,3 +72,10 @@ jobs:
             tests/hooks/updated_input_contract_tests.bats \
             tests/hooks/agent_model_resolve_hook_tests.bats \
             tests/hooks/model_resolve_tests.bats
+
+      # Cost-regression gate (#140): the cost meter ships a `regression`
+      # subcommand that nothing ran. This self-tests the mechanism (blocking)
+      # and, when a baseline log is committed, runs the real check warn-only —
+      # a non-deterministic meter must not hard-fail an unrelated code PR.
+      - name: Run cost-regression check
+        run: bash scripts/cost-regression-check.sh
