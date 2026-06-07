@@ -22,6 +22,20 @@ JSON schema* with placeholder enums (`"status":"pass or fail"`,
 no example values, "decide every value yourself." The `/agent-eval` skill enforces
 this via its orchestrator constraint #3 ("pass only the fixture file").
 
+## Option 0 — the automated full-run script
+
+```bash
+bash scripts/run-full-eval.sh [TRIALS]   # default 1
+```
+
+Drives the headless `claude -p /agent-eval` dispatch across the **whole** corpus
+(neutral, full-scope), refreshes the tracked `evals/baseline.json` from the result,
+appends the variance trend when `TRIALS>1`, and — if the baseline changed — opens
+an **auto-merge PR** with the diff for review. Needs `claude` + credentials +
+`gh`. A full multi-trial run is expensive; default is a single accuracy pass.
+
+Use Option A/B below when you want manual control or per-agent budget batching.
+
 ## Option A — the native skill (preferred)
 
 ```
