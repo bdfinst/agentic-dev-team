@@ -34,7 +34,34 @@ appends the variance trend when `TRIALS>1`, and — if the baseline changed — 
 an **auto-merge PR** with the diff for review. Needs `claude` + credentials +
 `gh`. A full multi-trial run is expensive; default is a single accuracy pass.
 
-Use Option A/B below when you want manual control or per-agent budget batching.
+### Incremental runs — one agent at a time (not all-or-nothing)
+
+```bash
+bash scripts/run-full-eval.sh 5 --agent security-review   # just this agent, 5 trials
+bash scripts/run-full-eval.sh 5 --agent arch-review       # next time, another agent
+```
+
+`--agent` makes the run **incremental and safe to repeat**. It scopes the dispatch
+to that one agent and grades with `--only`, so the baseline merge **tops up that
+agent's pairs and leaves every other agent untouched** (passing added,
+present-and-failing removed, un-run pairs kept). Run agents one at a time to spread
+cost across sessions — each run accumulates into the same `evals/baseline.json`
+and the same variance trend, and opens its own small auto-merge PR.
+
+Why it doesn't clobber: the grader merges rather than overwrites, and `--only`
+keeps grading to the scope you ran — so partial coverage is the norm, not a risk.
+
+### The other incremental mode — only what changed
+
+```bash
+bash scripts/eval-changed.sh BASE HEAD   # evals only the agents/skills the diff touched
+```
+
+This is the pre-push / CI path: it diff-scopes automatically (a change to one agent
+evals only that agent; a broad change to `knowledge/` or the corpus falls back to a
+full run). Use it to validate a change without re-running everything.
+
+Use Option A/B below when you want manual control or finer per-fixture batching.
 
 ## Option A — the native skill (preferred)
 
