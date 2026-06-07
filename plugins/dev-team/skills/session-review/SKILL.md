@@ -78,6 +78,22 @@ python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
 (Pass `--transcript <file>` or `--cwd <path>` through from `$ARGUMENTS`.) If the
 extractor finds no transcripts, tell the user and stop — nothing to review.
 
+**If a telemetry repo synced in Step 0**, also build the cross-machine rollup
+(the union of every host's digest, #178) and prefer it for analysis — it sees
+all machines and projects, not just this one:
+
+```bash
+CLONE="${DEV_TEAM_TELEMETRY_CLONE:-$HOME/.claude/.dev-team/agent-telemetry}"
+python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
+  --plugin-root ${CLAUDE_PLUGIN_ROOT} --rollup "$CLONE/digests" \
+  -o memory/telemetry-rollup.json
+```
+
+The rollup is metrics-only (`telemetry-rollup/v1`): per-host and per-project
+token/cost, summed rework/accuracy, and skills/agents **never invoked on any
+machine**. Hand the analysis agent the rollup when present, the local digest
+otherwise.
+
 ### 2. Analyze (digest-only)
 
 Dispatch the `session-analysis` agent with the digest path as its sole input.
