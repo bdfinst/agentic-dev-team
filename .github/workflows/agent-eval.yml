@@ -131,6 +131,21 @@ jobs:
         if: steps.cred.outputs.run_live == 'true'
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # The action's bundled installer pulls the NATIVE build of Claude Code,
+      # which currently crashes at launch in the runner ("Claude Code process
+      # exited with code 1" / "directory mismatch ... tsconfig.json"). The npm
+      # (node) build does not hit that crash, and the action accepts a custom
+      # executable via path_to_claude_code_executable. Install the node build
+      # here and point the action at it below.
+      - name: Install Claude Code (node build) to dodge the native-build crash
+        id: install-claude
+        if: steps.cred.outputs.run_live == 'true'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          CLAUDE_BIN="$(command -v claude || echo "$(npm prefix -g)/bin/claude")"
+          echo "path=$CLAUDE_BIN" >> "$GITHUB_OUTPUT"
+          "$CLAUDE_BIN" --version
+
       # The agent-eval skill reads fixtures from .claude/evals/{fixtures,
       # expected}/, but this repo stores them at evals/. Symlink them into
       # place so the skill finds the corpus in CI.
@@ -185,6 +200,8 @@ jobs:
           ANTHROPIC_LOG: debug
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Use the node build installed above, not the action's crashing native build.
+          path_to_claude_code_executable: ${{ steps.install-claude.outputs.path }}
           show_full_output: true
           plugin_marketplaces: ${{ github.workspace }}
           plugins: "dev-team@bfinster"
