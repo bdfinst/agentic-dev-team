@@ -44,6 +44,9 @@ Usage:
                                  host's DIR/<host>/session-digest.jsonl into one
                                  cross-machine view (per-host/per-project spend,
                                  summed rework/accuracy, never-invoked-anywhere).
+  --escalate DIR                 Delta C (#179): rank friction → recommended lever.
+  --correlate DIR                process eval (#111): compare rework between
+                                 review-gate-bypass and non-bypass sessions.
 """
 
 from __future__ import annotations
@@ -67,6 +70,11 @@ _CORRECTION_RE = re.compile(
 _PERMISSION_RE = re.compile(r"permission|denied|not allowed|blocked by", re.I)
 _OLDSTRING_RE = re.compile(r"old_string|not found|no match|string to replace", re.I)
 _EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
+# Gate signal (#111): a `git commit`, and whether it bypassed the pre-commit
+# review gate (--no-verify, or a bare -n in any position) — mirrors the rule in
+# hooks/telemetry.sh so the two agree.
+_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
+_BYPASS_RE = re.compile(r"--no-verify|(^|\s)-n(\s|$)")
 
 
 def _strip_ns(name: str) -> str:
@@ -156,6 +164,8 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
     verify_runs = 0
     permission_denials = 0
     compaction_events = 0
+    commit_attempts = 0            # gate (#111): git commit invocations
+    commit_bypasses = 0            # gate (#111): commits that bypassed review
     tool_errors = Counter()        # by tool name
     tool_calls = Counter()         # by tool name (for ratios)
     correction_turns = 0
@@ -243,6 +253,11 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
                         bash_commands[norm] += 1
                         if _VERIFY_RE.search(cmd):
                             verify_runs += 1
+                        # gate signal (#111): commit + review-gate bypass
+                        if _COMMIT_RE.search(cmd):
+                            commit_attempts += 1
+                            if _BYPASS_RE.search(cmd):
+                                commit_bypasses += 1
                 elif btype == "tool_result":
                     bid = block.get("tool_use_id")
                     tool_name = pending_tool.get(bid, "?")
@@ -309,6 +324,11 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
             "tool_calls": total_calls,
             "tool_error_rate": round(total_errors / total_calls, 4) if total_calls else 0.0,
             "user_correction_turns": correction_turns,
+        },
+        "gate": {
+            "commit_attempts": commit_attempts,
+            "commit_bypasses": commit_bypasses,
+            "bypass_rate": round(commit_bypasses / commit_attempts, 4) if commit_attempts else 0.0,
         },
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),
@@ -421,6 +441,7 @@ def sync_record(digest: dict, host: str, project: str,
         "by_thread": tok.get("by_subagent", {}),
         "rework": base["rework"],
         "accuracy": base["accuracy"],
+        "gate": base["gate"],
         # Utilization carries the invoked NAME maps (registry ids, non-sensitive),
         # not slim counts, so a cross-host rollup can compute which skills/agents
         # were never invoked on ANY machine (#178 union read).
@@ -597,6 +618,85 @@ def cmd_rollup(args, registry: dict) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# Process eval (#111): does bypassing the review gate correlate with rework?
+#
+# Narrowed from "A/B the whole ceremony" to a question the trend stream can
+# already answer: across real sessions, do the ones that bypassed the pre-commit
+# review gate (git commit --no-verify) carry MORE rework than the ones that
+# didn't? Correlation, not causation — but it's the evidence #112 needs to decide
+# whether that gate earns its place.
+# --------------------------------------------------------------------------
+
+_REWORK_KEYS = ("failed_edits", "repeated_file_edits", "retried_bash_commands",
+                "repeated_verify_runs", "permission_denials", "compaction_events")
+
+
+def _session_rework(rec: dict) -> int:
+    rw = rec.get("rework", {}) if isinstance(rec.get("rework"), dict) else {}
+    return sum(int(rw.get(k, 0) or 0) for k in _REWORK_KEYS)
+
+
+def correlate_gate_rework(digests_root: Path) -> dict:
+    """Across all sessions that committed, compare mean rework between those that
+    bypassed the review gate and those that didn't (#111)."""
+    by_id: dict[str, dict] = {}
+    for f in sorted(digests_root.glob("*/session-digest.jsonl")):
+        for rec in _iter_records([f]):
+            if rec.get("schema") != "session-sync/v1":
+                continue
+            sid = rec.get("session_id")
+            if sid:
+                by_id[str(sid)] = rec
+
+    bypass_rework: list[int] = []
+    clean_rework: list[int] = []
+    for rec in by_id.values():
+        gate = rec.get("gate", {}) if isinstance(rec.get("gate"), dict) else {}
+        if int(gate.get("commit_attempts", 0) or 0) <= 0:
+            continue  # only sessions that actually committed are comparable
+        (bypass_rework if int(gate.get("commit_bypasses", 0) or 0) > 0
+         else clean_rework).append(_session_rework(rec))
+
+    def _mean(xs):
+        return round(sum(xs) / len(xs), 4) if xs else 0.0
+
+    mb, mc = _mean(bypass_rework), _mean(clean_rework)
+    if not bypass_rework or not clean_rework:
+        interp = "insufficient data — need committing sessions in BOTH groups"
+    elif mb > mc:
+        interp = ("bypassing the review gate correlates with MORE rework "
+                  f"({mb} vs {mc}) — evidence the gate guards real risk")
+    elif mb < mc:
+        interp = ("bypassing correlates with LESS rework "
+                  f"({mb} vs {mc}) — the gate may be ceremony for these cases")
+    else:
+        interp = "no difference in rework between bypass and non-bypass sessions"
+
+    return {
+        "schema": "gate-correlation/v1",
+        "committing_sessions": len(bypass_rework) + len(clean_rework),
+        "bypass_sessions": len(bypass_rework),
+        "clean_sessions": len(clean_rework),
+        "mean_rework_when_bypassed": mb,
+        "mean_rework_when_gated": mc,
+        "interpretation": interp,
+    }
+
+
+def cmd_correlate(args) -> int:
+    root = Path(args.correlate)
+    result = (correlate_gate_rework(root) if root.is_dir()
+              else {"schema": "gate-correlation/v1", "committing_sessions": 0,
+                    "interpretation": "no digests directory"})
+    out = json.dumps(result, indent=2, sort_keys=True)
+    if args.out:
+        Path(args.out).write_text(out + "\n")
+    else:
+        print(out)
+    return 0
+
+
 def cost_log(digests_root: Path) -> list[dict]:
     """Per-session cost SERIES for the cost-meter regression gate (#171).
 
@@ -759,6 +859,9 @@ def main(argv=None) -> int:
     ap.add_argument("--escalate", metavar="DIR",
                     help="Delta C (#179): rank friction signals from DIR's rollup "
                          "and recommend a lever (hint / instruction-rule / hook)")
+    ap.add_argument("--correlate", metavar="DIR",
+                    help="process eval (#111): from DIR's digests, compare rework "
+                         "between review-gate-bypass and non-bypass sessions")
     ap.add_argument("--rare-rate", type=float, default=0.25,
                     help="per-session rate below which a friction is a hint (default 0.25)")
     ap.add_argument("--frequent-rate", type=float, default=1.0,
@@ -783,6 +886,10 @@ def main(argv=None) -> int:
     # Frequency -> lever escalation (Delta C, #179).
     if args.escalate:
         return cmd_escalate(args, registry)
+
+    # Gate-bypass vs rework correlation (process eval, #111).
+    if args.correlate:
+        return cmd_correlate(args)
 
     # Cross-project incremental sync mode (Delta D, #178).
     if args.sync_out:
@@ -817,6 +924,7 @@ def slim_record(digest: dict) -> dict:
     tok = digest.get("token", {})
     rew = digest.get("rework", {})
     acc = digest.get("accuracy", {})
+    gate = digest.get("gate", {})
     util = digest.get("utilization", {})
     totals = tok.get("totals", {})
     return {
@@ -841,6 +949,11 @@ def slim_record(digest: dict) -> dict:
             "tool_calls": acc.get("tool_calls", 0),
             "tool_error_rate": acc.get("tool_error_rate", 0.0),
             "user_correction_turns": acc.get("user_correction_turns", 0),
+        },
+        "gate": {
+            "commit_attempts": gate.get("commit_attempts", 0),
+            "commit_bypasses": gate.get("commit_bypasses", 0),
+            "bypass_rate": gate.get("bypass_rate", 0.0),
         },
         "utilization": {
             "skills_invoked": len(util.get("skills_invoked", {})),
