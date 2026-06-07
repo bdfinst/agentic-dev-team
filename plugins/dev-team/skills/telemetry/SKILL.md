@@ -23,6 +23,17 @@ Telemetry is **OFF by default**. It activates only when
 `.claude/telemetry.json` contains `{"enabled": true}` or the env var
 `DEV_TEAM_TELEMETRY=on` is set.
 
+## Scope — keep this small (#106)
+
+This beacon is intentionally a **cheap, always-on local counter**: which
+commands/skills run, how often the commit gate is bypassed. It is **not** the
+self-improvement loop and must not grow into one. The loop is `/session-review`,
+whose digest already extracts a superset of these signals (token, rework,
+accuracy, utilization) from transcripts and routes suggestions to governed
+machinery. Cross-machine aggregation also belongs to the **session-digest**
+(Delta D / #178), not this beacon. If you find yourself adding analysis or
+network egress here, that work belongs in `/session-review` instead.
+
 ## Argument: $ARGUMENTS
 
 - `status` (default): report whether telemetry is enabled and what's collected.
@@ -40,17 +51,21 @@ Telemetry is **OFF by default**. It activates only when
    network).
 
 2. **on / off** — write `.claude/telemetry.json`:
+
    ```json
    { "enabled": true }
    ```
+
    For `on`, confirm consent first. Recording is local-only; the event log
    `metrics/telemetry.jsonl` is gitignored so it can never be committed.
 
 3. **report** — summarize the event log:
+
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/telemetry_report.py \
      --log metrics/telemetry.jsonl
    ```
+
    Shows command usage, skill usage (including agent-/auto-invoked skills,
    counted distinctly from user-typed commands), and the pre-commit review
    gate's bypass rate. If the log doesn't exist, the report says telemetry is

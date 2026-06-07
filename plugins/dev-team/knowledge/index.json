@@ -3784,6 +3784,10 @@
     }
   },
   "plugins/dev-team/skills/telemetry/SKILL.md": {
+    "Scope — keep this small (#106)": {
+      "summary": "This beacon is intentionally a **cheap, always-on local counter**: which",
+      "anchor": "scope-keep-this-small-106"
+    },
     "Argument: $ARGUMENTS": {
       "summary": "`status` (default): report whether telemetry is enabled and what's collected.",
       "anchor": "argument-arguments"

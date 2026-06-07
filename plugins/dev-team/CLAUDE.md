@@ -167,15 +167,6 @@ When a task requires multiple agents:
 
 Each agent declares a tier alias (`haiku`, `sonnet`, `opus`) in its `model:` frontmatter. Tier-to-snapshot resolution is enforced by the PreToolUse hook `hooks/agent-model-resolve.sh` (registered in `settings.json` under `matcher: "Agent"`), backed by the resolver helper `hooks/lib/model-resolve.sh`. Defaults ship in `knowledge/model-routing.json`; per-user overrides live in the gitignored `.claude/model-overrides.json`. See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for the contract and troubleshooting, and run `/model-routing-check` for a read-only diagnostic.
 
-## Multi-LLM Routing
-
-| Criteria | Claude | Gemini |
-|----------|--------|--------|
-| Task complexity | Complex tasks | Simple, high-volume |
-| Cost sensitivity | Premium | Cost-optimized |
-| Context requirements | Large context needs | Standard context |
-| Precision requirements | Critical components | Standard components |
-
 ## Context Management
 
 Context management is the Orchestrator's responsibility, governed by two operational skills:

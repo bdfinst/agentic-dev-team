@@ -168,17 +168,6 @@ Agents append to `memory/decisions.md` when making non-obvious decisions during 
 3. The Orchestrator monitors for recurring patterns (3+ occurrences)
 4. System-initiated changes are proposed to the user with rationale
 
-## Multi-LLM Routing
-
-Tasks can be routed to different LLMs based on complexity and cost:
-
-| Criteria | Claude | Gemini |
-| --- | --- | --- |
-| Task complexity | Complex tasks | Simple, high-volume |
-| Cost sensitivity | Premium | Cost-optimized |
-| Context requirements | Large context | Standard context |
-| Precision requirements | Critical components | Standard components |
-
 ## Performance Targets
 
 Two metrics are instrumented today: token budgets (measured by `scripts/measure-tokens.sh`) and per-agent detection accuracy (measured by `/agent-eval` against `evals/expected/*.json`). Other goals — efficiency gains, hallucination rate, extraction accuracy, first-pass acceptance — are aspirational and have **no sensor in this repo**, so no numeric target is published until an instrument exists. See the *Claims discipline* section of [`CLAUDE.md`](../CLAUDE.md) for the full instrumented-vs-aspirational breakdown.
