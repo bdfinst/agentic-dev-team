@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# run-full-eval.sh — run the FULL agent-eval corpus, refresh the tracked eval
+# data, and open an auto-merge PR.
+#
+# What it does:
+#   1. Dispatches the review agents against EVERY fixture, headlessly, via
+#      `claude -p /agent-eval` (same mechanism as scripts/eval-changed.sh, but
+#      always full-scope). With TRIALS>1 it runs that N times for variance.
+#   2. Grades the actuals and rewrites evals/baseline.json (the tracked pass set),
+#      and appends the variance trend to metrics/eval-variance.jsonl (local).
+#   3. If the baseline changed, commits it on a branch and opens an auto-merge PR.
+#
+# This costs API tokens. A full multi-trial run is expensive — default TRIALS=1.
+#
+# Usage:   bash scripts/run-full-eval.sh [TRIALS]   (default 1)
+# Env:     ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN, plus `claude` + `gh`.
+# Exit:    0 ok (PR opened or no change), 2 missing prereq, 1 run produced nothing.
+
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)" || exit 2
+
+TRIALS="${1:-1}"
+STAMP="$(date -u +%Y%m%d-%H%M%S)"
+BRANCH="eval/full-run-${STAMP}"
+TRIALS_DIR="$(mktemp -d)"
+trap 'rm -rf "$TRIALS_DIR"' EXIT
+
+# --- prerequisites ----------------------------------------------------------
+for t in claude gh jq python3 git; do
+  command -v "$t" >/dev/null 2>&1 || { echo "missing required tool: $t" >&2; exit 2; }
+done
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+  echo "no ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN — the live eval needs creds." >&2
+  exit 2
+fi
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "working tree is dirty — commit or stash first." >&2
+  exit 2
+fi
+
+# --- stage fixtures where the skill expects them (mirrors eval-changed.sh) ---
+mkdir -p .claude/evals
+ln -sfn "$PWD/evals/fixtures" .claude/evals/fixtures
+ln -sfn "$PWD/evals/expected" .claude/evals/expected
+
+read -r -d '' PROMPT <<'EOF'
+Run the review agents against EVERY fixture in .claude/evals/fixtures/ whose
+paired .claude/evals/expected/<stem>.json declares an applicableAgents (or
+applicableSkills) target. Use the /review-agent skill for agent fixtures and the
+test-design-advisor skill for skill fixtures.
+
+CRITICAL — do NOT bias the agents: pass each agent ONLY its fixture file. Do not
+tell it the expected status or severity. Let it decide every value itself.
+
+Do NOT grade. Record each agent's/skill's raw output and write valid JSON (and
+nothing else) to actuals.json at the repository root, keyed by fixture stem:
+
+  { "<stem>": { "agents": { "<agent>": { "status": "...",
+        "issues": [{ "severity": "...", "message": "..." }], "summary": "..." } },
+                "skills": { "<skill>": { "report": "...", "gates": ["A"], "layers": ["unit"] } } } }
+
+Include only the block(s) the fixture targets.
+EOF
+
+# --- 1. dispatch: one headless run per trial --------------------------------
+emitted=0
+for n in $(seq 1 "$TRIALS"); do
+  echo "== full-eval trial ${n}/${TRIALS} (dispatching agents; costs tokens) =="
+  rm -f actuals.json
+  claude -p "$PROMPT" \
+    --output-format json --max-turns 200 --model claude-sonnet-4-6 \
+    --allowedTools "Read" "Glob" "Grep" "Write" "Agent" \
+                   "Skill(review-agent *)" "Skill(test-design-advisor *)" \
+    >/dev/null 2>&1 || true
+  if [ -f actuals.json ] && jq -e . actuals.json >/dev/null 2>&1; then
+    cp actuals.json "$TRIALS_DIR/trial-${n}.json"
+    emitted=$((emitted + 1))
+  else
+    echo "  trial ${n}: no parseable actuals.json produced — skipping this trial." >&2
+  fi
+done
+rm -f actuals.json
+if [ "$emitted" -eq 0 ]; then
+  echo "no trials produced results — nothing to update." >&2
+  exit 1
+fi
+
+# --- 2. update eval data ----------------------------------------------------
+# Refresh the tracked baseline (pass set) from the first good trial.
+first_trial="$(find "$TRIALS_DIR" -name 'trial-*.json' | sort | head -1)"
+python3 scripts/eval_grade.py --actuals "$first_trial" \
+  --write-baseline evals/baseline.json || true
+# Append the variance trend (local; metrics/ is gitignored) when multi-trial.
+if [ "$emitted" -gt 1 ]; then
+  python3 scripts/eval_variance.py --trials-dir "$TRIALS_DIR" \
+    --expected-dir evals/expected --append metrics/eval-variance.jsonl \
+    -o memory/eval-variance.json >/dev/null || true
+  echo "variance: $(jq -c '{flaky_count, quarantine}' memory/eval-variance.json 2>/dev/null)"
+fi
+
+# --- 3. commit + auto-merge PR (only if the baseline actually changed) -------
+if git diff --quiet -- evals/baseline.json; then
+  echo "baseline unchanged — no regression/improvement to record. No PR opened."
+  exit 0
+fi
+
+git checkout -b "$BRANCH" >/dev/null 2>&1 || { echo "branch create failed" >&2; exit 2; }
+git add evals/baseline.json
+git commit -q -m "test(evals): refresh baseline from full eval run (${STAMP})
+
+Full-corpus agent-eval run (${emitted} trial(s)); evals/baseline.json updated to
+the current pass set. Generated by scripts/run-full-eval.sh."
+git push -u origin "$BRANCH" >/dev/null 2>&1 || { echo "push failed" >&2; exit 2; }
+
+PR_URL="$(gh pr create \
+  --title "test(evals): refresh baseline from full eval run (${STAMP})" \
+  --body "Automated full agent-eval run via \`scripts/run-full-eval.sh\` (${emitted} trial(s)).
+
+Updates \`evals/baseline.json\` to the current pass set — review the diff for any
+**regressions** (pairs that dropped out) or **improvements** (pairs newly passing).
+Variance/flap data (when multi-trial) is appended to the local \`metrics/eval-variance.jsonl\` trend.
+
+Generated automatically; merge to accept the new baseline." \
+  2>/dev/null)"
+echo "opened: $PR_URL"
+gh pr merge "$(echo "$PR_URL" | grep -oE '[0-9]+$')" --auto --squash --delete-branch \
+  >/dev/null 2>&1 && echo "auto-merge enabled" || echo "could not enable auto-merge (enable manually)"
