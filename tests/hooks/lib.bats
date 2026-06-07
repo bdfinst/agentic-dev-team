@@ -69,8 +69,10 @@ EOF
   " 2>&1
   [ "$status" -eq 0 ]
   [[ "$output" == *"hello_unbounded"* ]]
-  # Also emits advisory on stderr (merged into output via 2>&1)
-  [[ "$output" == *"MUTATION GATE ADVISORY"* ]]
+  # Diagnostic goes to STDERR (merged via 2>&1) — NOT stdout, which is the hook's
+  # single-JSON decision channel. Emitting JSON here corrupted the protocol on
+  # macOS without coreutils.
+  [[ "$output" == *"timeout unavailable"* ]]
 }
 
 # ---------------------------------------------------------------------------
