@@ -73,10 +73,42 @@ jobs:
             tests/hooks/agent_model_resolve_hook_tests.bats \
             tests/hooks/model_resolve_tests.bats
 
-      # Cost-regression gate (#140): the cost meter ships a `regression`
-      # subcommand that nothing ran. This self-tests the mechanism (blocking)
-      # and, when a baseline log is committed, runs the real check warn-only —
-      # a non-deterministic meter must not hard-fail an unrelated code PR.
+  # Cost-regression gate (#140 mechanism, #171 real baseline). Isolated in its
+  # own job so the read-only telemetry deploy key is never in scope for the
+  # broader test jobs. The self-test step always runs (blocking); the telemetry
+  # clone + real cross-machine baseline only run where the secret is available.
+  cost-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install python3 + jq
+        run: sudo apt-get update && sudo apt-get install -y jq python3
+
+      # Secrets are NOT exposed to forked-PR runs, so the deploy key (and thus
+      # the real cross-machine baseline) is only available on branches in this
+      # repo and on internal PRs. Fork PRs skip the next two steps and fall back
+      # to the blocking self-test below. Coverage boundary documented in
+      # plugins/dev-team/docs/telemetry-ci-access.md.
+      - name: Load telemetry deploy key (read-only)
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.TELEMETRY_DEPLOY_KEY }}
+
+      - name: Clone telemetry (read-only) and build the cross-machine cost baseline
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        run: |
+          git clone --depth 1 git@github.com:bdfinst/agent-telemetry.git /tmp/telemetry
+          python3 scripts/session_extract.py --cost-log /tmp/telemetry/digests \
+            -o /tmp/telemetry-cost-log.jsonl
+          echo "COST_BASELINE_LOG=/tmp/telemetry-cost-log.jsonl" >> "$GITHUB_ENV"
+
+      # Self-tests the mechanism (blocking). When the baseline above was built,
+      # the script ALSO runs the real regression of the latest session against
+      # the cross-machine rolling mean — warn-only, since a non-deterministic
+      # meter must not hard-fail an unrelated code PR. Fork PRs reach here with
+      # no baseline and get the self-test only.
       - name: Run cost-regression check
         run: bash scripts/cost-regression-check.sh
 
