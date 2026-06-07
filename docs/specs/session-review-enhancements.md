@@ -76,22 +76,42 @@ rule turning *recurrence* into *response strength*. The peer skill states it cri
 
 This reuses the existing rules-vs-prompts ≤10% FP policy as the "deterministically matchable" test.
 
-## 4. Delta D — cross-machine aggregation (the original stated need)
+## 4. Delta D — cross-machine, cross-project aggregation (the original stated need)
 
-**Gap.** `/session-review` mines `~/.claude/projects/<current-project>/*.jsonl` — **single machine**. The
-stated goal is to learn across *the multiple machines the author uses*.
+**Gap.** `/session-review` mines `~/.claude/projects/<current-project>/*.jsonl` — **one machine, one
+project**. The stated goal is to learn across *all the machines the author uses* and, per the refined
+requirement, *all projects on each machine*, not just whichever project happens to be current.
 
-**Design.** Aggregate the **trend stream** (`metrics/session-digest.jsonl`), not the telemetry beacon and
-not raw logs:
+**Aggregation target (created).** A private repo, **`git@github.com:bdfinst/agent-telemetry.git`**, is
+the concrete remote (the `DEV_TEAM_TELEMETRY_REMOTE` the design referenced). Seeded layout:
 
-- Each machine appends host-suffixed digest records / writes `metrics/session-digest-<host>.jsonl`.
-- A sync step pushes/pulls those files to a **separate private repo** named by env var
-  (e.g. `DEV_TEAM_TELEMETRY_REMOTE`). `metrics/*.jsonl` stays gitignored in *this* repo — the gitignore
-  is untouched; aggregation targets the private repo only.
-- Per-host filenames make the merge **conflict-free by construction** (add-files, never line-merge).
-- `/session-review` (and `/harness-audit`, which already consumes the trend stream) reads the union of
-  host files so recurrence in Delta C is counted **across machines**, not just one.
-- Absent the env var, everything stays local and the loop still runs on one machine's data.
+```
+digests/<host>/session-digest.jsonl   # one append-only file per machine
+README.md  SCHEMA.md                  # purpose + privacy boundary + record schema
+```
+
+**Design.** Aggregate the **derived digest** (metrics only) — never the telemetry beacon and never raw
+logs:
+
+- **Sync is cross-project and incremental.** A sync step scans **all** of
+  `~/.claude/projects/**/*.jsonl` (every project on the machine) and emits digest records for sessions
+  **new since this machine's last sync**, tracked by a local watermark (e.g.
+  `~/.claude/.dev-team/telemetry-sync.json` recording the last-synced session ids / max timestamp). No
+  re-processing; `session_id` is the dedup key on read.
+- **Each record carries a project label** — the project directory **basename** only (low-sensitivity;
+  never a full path), so analysis can slice by project while honoring the metrics-only rule.
+- Each machine appends to its own `digests/<host>/session-digest.jsonl`; the sync `git pull --rebase`s
+  then `git push`es. Per-host files make the merge **conflict-free by construction** (append/add, never
+  line-merge).
+- `metrics/*.jsonl` stays gitignored in *this* repo — the gitignore is untouched; aggregation targets the
+  private repo only.
+- `/session-review` (and `/harness-audit`, which already consumes the trend stream) reads the **union** of
+  `digests/*/session-digest.jsonl`, so recurrence in Delta C is counted across machines **and** projects.
+- Absent `DEV_TEAM_TELEMETRY_REMOTE`, everything stays local and the loop still runs on one machine's data.
+
+**Build note.** `scripts/session_extract.py` currently resolves only the *current project's* transcripts
+(by matching `cwd`). The sync needs an **all-projects** mode plus the watermark — that is the bulk of
+Delta D's implementation work and is deferred (this PR only seeds the repo and records the design).
 
 **Why git over a synced folder/hosted store:** versioned history (recurrence analysis needs time),
 no new secret beyond an SSH key, conflict-free with per-host files, and it reuses the append-only-log
@@ -104,14 +124,20 @@ convention already in the repo.
       Tier 2 output is metrics-only/no-quote.
 - [ ] A `methodology` lens produces human-directed observations with no artifact/hook target.
 - [ ] The analysis step applies the recurrence→lever table, using the cross-machine trend stream for counts.
-- [ ] Each machine writes host-suffixed digest files; a sync command pushes/pulls them to a private repo
-      named by env var; absent the env var, nothing leaves the machine and the loop still runs locally.
+- [ ] Each machine writes host-suffixed digest files; a sync command pushes/pulls them to the private
+      `agent-telemetry` repo (via `DEV_TEAM_TELEMETRY_REMOTE`); absent the env var, nothing leaves the
+      machine and the loop still runs locally.
+- [ ] Sync is **cross-project** (scans all `~/.claude/projects/**`) and **incremental** (only sessions new
+      since the machine's last sync, per a local watermark; `session_id` dedups on read).
+- [ ] Each digest record carries a project **basename** label (never a full path).
 - [ ] No raw prompt/code/path content is ever written to any report or to the aggregation repo.
 
 ## 6. Build order
 
-1. **Delta D (cross-machine aggregation)** — smallest, matches the literal stated need, and makes Delta C
-   meaningful (recurrence across machines). Transport + host-suffixed files + union read.
+1. **Delta D (cross-machine, cross-project aggregation)** — matches the literal stated need and makes
+   Delta C meaningful (recurrence across machines+projects). Repo is **seeded**; remaining work is the
+   `session_extract.py` all-projects + watermark mode, host-suffixed files, the sync command, and the
+   union read. (No longer "smallest" — the cross-project incremental scan is real work.)
 2. **Delta C (escalation rule)** — pure analysis-step logic over the now-aggregated trend stream.
 3. **Delta A + B (raw-log tier + methodology lens)** — the largest and most token-spending; gate it
    behind the digest so cost stays bounded. Do last.
