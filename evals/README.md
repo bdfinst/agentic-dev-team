@@ -7,8 +7,10 @@ deterministic, model-free grader that backs CI.
 
 ## CI gate (issue #99)
 
-`.github/workflows/agent-eval.yml` runs on every PR that touches
-`plugins/dev-team/agents/`, `skills/`, `knowledge/`, or `evals/`:
+`.github/workflows/agent-eval.yml` triggers on every PR that touches
+`plugins/dev-team/agents/`, `skills/`, `knowledge/`, or `evals/`. Triggering
+runs the **structural gate**; the **live gate is opt-in** and does **not**
+enforce on every PR (see below):
 
 1. **Structural gate (always, model-free).** `eval_grade.py --check-corpus`
    asserts every `expected/*.json` is valid, declares an agent/skill target,
@@ -69,12 +71,37 @@ The fixture stem is the `expected/*.json` filename without `.json`
 pass a green live run. The live gate only blocks on **regressions** — a listed
 pair that now fails — so an empty `passing` list never red-lines the gate.
 
-To record/update the baseline:
+To record/update the baseline from a **real** run:
 
 ```bash
-# 1. Run a green live eval to produce actuals.json (Claude Code runner).
-# 2. Grade with no baseline to see the full pass set:
-python3 scripts/eval_grade.py --actuals actuals.json
-# 3. Add the passing "fixture::agent" pairs to baseline.json "passing",
-#    and set "recorded_at" to the run date.
+# 1. Trigger a green live eval to produce actuals.json:
+#    add the `run-eval` label to a PR (post-merge of agent-eval.yml), or
+#    dispatch the workflow with force_live=true. Both require ANTHROPIC_API_KEY.
+# 2. Grade the run and write the baseline in one step — this stamps
+#    provenance="measured" and recorded_at=the run time, and MERGES (passing
+#    pairs added, tested-but-failing removed, untested pairs kept):
+python3 scripts/eval_grade.py --actuals actuals.json --write-baseline evals/baseline.json
 ```
+
+### Provenance (issue #133)
+
+`baseline.json` carries a `provenance` field:
+
+- `hand-authored` — the `passing` set was asserted by hand, **not** measured by
+  a live run. `recorded_at` is then the authoring date, not a run timestamp.
+- `measured` — written by `--write-baseline` from grading a real `actuals.json`.
+  `recorded_at` is the actual run time.
+
+The seed baseline ships as `hand-authored`. Recording a `measured` baseline
+requires the paid `run-eval` path above, so it is done post-merge rather than in
+this repo's hermetic CI.
+
+### Opt-in posture & cost (issues #133, #134)
+
+The live gate is **intentionally opt-in** (the `run-eval` label / `force_live`
+dispatch) to avoid uncontrolled API spend on every PR. This is a deliberate
+cost-control decision, **not** a defect: nothing in shipped prose should claim
+the live gate auto-enforces on every PR. A cost-budgeted default-on run will
+only be reconsidered **after** #134 (runtime cost metering) can produce a
+per-run live-eval cost estimate; until that estimate exists, the gate stays
+opt-in and no default-on change is made.

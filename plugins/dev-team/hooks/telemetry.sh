@@ -6,9 +6,15 @@
 # used and how often the pre-commit review gate is bypassed. It is one hook
 # registered on multiple events; it branches on hook_event_name:
 #
-#   UserPromptSubmit  -> a slash command/skill was invoked: record its NAME only
-#   PreToolUse (Bash) -> a `git commit`: record the review gate as fired, or
-#                        BYPASSED when --no-verify is present
+#   UserPromptSubmit   -> a user-typed slash command was invoked: record its
+#                         NAME only as a "command" event.
+#   PreToolUse (Skill) -> a skill was invoked (by the user OR auto-invoked by an
+#                         agent/the model): record its NAME as a distinct
+#                         "skill" event. This is how agent-/auto-invoked skills
+#                         get counted — they never reach UserPromptSubmit (#135).
+#   PreToolUse (Bash)  -> a `git commit`: record the review gate as fired, or
+#                         BYPASSED when --no-verify (or a bare -n flag in any
+#                         argument position) is present.
 #
 # PRIVACY: records only an event type, a command/gate NAME (matched to the
 # slash-command grammar, never free text), an outcome, and the plugin version.
@@ -68,15 +74,31 @@ case "$event_name" in
     ;;
   PreToolUse)
     tool=$(echo "$input" | jq -r '.tool_name // empty')
-    [ "$tool" = "Bash" ] || exit 0
-    cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
-    if [[ "$cmd" == *"git commit"* ]]; then
-      if [[ "$cmd" == *"--no-verify"* ]] || [[ "$cmd" == *" -n "* ]]; then
-        _emit "gate" "pre-commit-review" "bypassed"
-      else
-        _emit "gate" "pre-commit-review" "fired"
-      fi
-    fi
+    case "$tool" in
+      Skill)
+        # A skill invocation — counts user-invoked AND agent-/auto-invoked
+        # skills alike, since both flow through the Skill tool (#135). The skill
+        # name is grammar-matched, never free text.
+        skill=$(echo "$input" | jq -r '.tool_input.skill // .tool_input.name // empty')
+        if [[ "$skill" =~ ^([a-zA-Z][a-zA-Z0-9_:-]*)$ ]]; then
+          _emit "skill" "${BASH_REMATCH[1]}" "invoked"
+        fi
+        ;;
+      Bash)
+        cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
+        if [[ "$cmd" == *"git commit"* ]]; then
+          # Bypass = --no-verify, or a bare -n flag in ANY argument position
+          # (e.g. `git commit -m msg -n`). The trailing-only match used before
+          # missed -n at end-of-string, undercounting the bypass rate (#135).
+          if [[ "$cmd" == *"--no-verify"* ]] || [[ "$cmd" =~ (^|[[:space:]])-n([[:space:]]|$) ]]; then
+            _emit "gate" "pre-commit-review" "bypassed"
+          else
+            _emit "gate" "pre-commit-review" "fired"
+          fi
+        fi
+        ;;
+      *) exit 0 ;;
+    esac
     ;;
 esac
 

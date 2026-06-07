@@ -57,6 +57,12 @@
         ]
       },
       {
+        "matcher": "Skill",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/telemetry.sh" }
+        ]
+      },
+      {
         "matcher": "Read",
         "hooks": [
           { "type": "command", "command": "bash hooks/codegraph-nudge.sh" }
