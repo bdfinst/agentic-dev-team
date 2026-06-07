@@ -213,7 +213,7 @@ Otherwise present the Review Findings prompt (template: [`output-format.md`](cod
 - "Fix" / "apply" / "yes" → step 6a
 - "Report" / "no" / "don't fix" → step 7 (no code modified)
 
-**Exception — non-interactive mode**: if running inside `/build`, skip this prompt and proceed to the fix loop. The orchestrator's Phase 3 approval is the human gate.
+**Exception — non-interactive mode**: if running inside `/build` or `/pr`, skip this prompt and proceed to the fix loop. The caller owns the human gate (the orchestrator's Phase 3 approval for `/build`; the pre-PR confirmation for `/pr`).
 
 ### 6a. Review-fix loop
 
