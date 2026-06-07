@@ -64,6 +64,27 @@ _run() {
   [[ "$output" != *"/proj/src"* ]]            # absolute paths reduced to basenames
 }
 
+@test "extract: --append writes one metrics-only trend record (#129)" {
+  log="$(mktemp -d)/session-digest.jsonl"
+  python3 "$EXTRACT" --transcript "$FIX" --plugin-root "$REPO_ROOT/plugins/dev-team" \
+    --append "$log" >/dev/null
+  python3 "$EXTRACT" --transcript "$FIX" --plugin-root "$REPO_ROOT/plugins/dev-team" \
+    --append "$log" >/dev/null
+  # appended once per run -> two lines
+  [ "$(wc -l < "$log")" -eq 2 ]
+  run jq -r '.schema' "$log"
+  [ "${lines[0]}" = "session-digest/v1" ]
+  # aggregate counts only: rework.repeated_file_edits is a COUNT, not a map
+  run jq -r '.rework.repeated_file_edits' "$log"
+  [ "${lines[0]}" = "1" ]
+  [ "$(jq -r '.accuracy.user_correction_turns' "$log" | head -1)" = "1" ]
+  # privacy: the trend record carries no file names / commands / paths
+  run cat "$log"
+  [[ "$output" != *"a.ts"* ]]
+  [[ "$output" != *"npm test"* ]]
+  rm -rf "$(dirname "$log")"
+}
+
 @test "extract: empty input yields a well-formed empty digest" {
   empty="$(mktemp)"
   run python3 "$EXTRACT" --transcript "$empty" --plugin-root "$REPO_ROOT/plugins/dev-team"

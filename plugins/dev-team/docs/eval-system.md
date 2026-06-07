@@ -264,3 +264,40 @@ consecutive runs produce identical grades.
    solutions in `evals/expected/`
 
 5. Run `/agent-eval --agent <name>` to validate accuracy
+
+## Session-review trend digest (#129)
+
+`/session-review` (backed by `scripts/session_extract.py`) appends one
+metrics-only record per run to the append-only trend stream
+`metrics/session-digest.jsonl`. This is the real-session counterpart to the
+self-reported `metrics/*-task-log.jsonl` streams.
+
+### Record schema (`session-digest/v1`)
+
+Each line is a JSON object with **aggregate counts only** — no file names,
+prompts, command strings, or code (privacy by construction):
+
+| Field | Meaning |
+|---|---|
+| `recorded_at` | UTC ISO-8601 of the run (the only wall-clock field) |
+| `sessions`, `transcripts` | how many sessions/transcripts the digest covered |
+| `tokens` | input/output/cache token totals |
+| `cost_usd`, `cache_hit_ratio` | session cost and cache-read efficiency |
+| `rework` | counts: `failed_edits`, `repeated_file_edits`, `retried_bash_commands`, `repeated_verify_runs`, `permission_denials`, `compaction_events` |
+| `accuracy` | `tool_calls`, `tool_error_rate`, `user_correction_turns` |
+| `utilization` | counts of `skills_invoked`, `agents_invoked`, `never_observed_skills`, `never_observed_agents` |
+
+### harness-audit consumption (the join)
+
+`/harness-audit` today reads only the self-reported `metrics/*-task-log.jsonl`.
+It can now join real-session data by reading `metrics/session-digest.jsonl`:
+
+- **token / cost trends** → corroborate or contradict self-reported efficiency
+  claims (the audit's blind spot was that it saw only self-reports).
+- **`utilization.never_observed_*`** → flag stale/undiscoverable harness surface
+  for the simplification recommendations harness-audit already makes.
+- **`rework` / `accuracy` trends** → evidence for re-tiering or prompt fixes.
+
+Join key: both streams live under `metrics/`; correlate by `recorded_at` time
+window. The session-digest stream is ground-truth; the task-log stream is
+self-reported — where they disagree, prefer the session digest.

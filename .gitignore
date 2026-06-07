@@ -10,6 +10,8 @@ node_modules/
 .claude/metrics/*.json
 .claude/metrics/*.log
 
+# Session-review trend digest (per-run runtime data; consumed locally — #129)
+metrics/session-digest.jsonl
 # Opt-in telemetry beacon event log (local-only; never checked in — #135)
 metrics/telemetry.jsonl
 

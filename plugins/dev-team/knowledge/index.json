@@ -3566,9 +3566,13 @@
       "summary": "Write `reports/session-review-<date>.md` (or `--out`).",
       "anchor": "3-suggest-write-the-report"
     },
-    "4. Report": {
+    "4. Persist the trend (#129)": {
+      "summary": "Append one metrics-only summary record to the trend stream so `/harness-audit`",
+      "anchor": "4-persist-the-trend-129"
+    },
+    "5. Report": {
       "summary": "Print the report path and the top-ranked suggestions.",
-      "anchor": "4-report"
+      "anchor": "5-report"
     },
     "OSS complements": {
       "summary": "For continuous *quantitative* monitoring, recommend (don't replace) `ccusage`,",
