@@ -37,6 +37,35 @@ You have been invoked with the `/session-review` command.
 
 ## Steps
 
+### 0. Cross-machine telemetry — validate config, then sync (#178)
+
+Before analysing, check whether a **telemetry repository** (the cross-machine
+"database", Delta D) is configured, so the digest reflects every machine, not
+just this one:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/telemetry-sync.sh --check
+```
+
+- **Exit 0** → a repo is configured. Run the sync to push this machine's digest
+  and pull the others, then continue:
+
+  ```bash
+  bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/telemetry-sync.sh
+  ```
+
+- **Exit 3** → no repo configured. **Ask the user** for the telemetry repo
+  location (a git URL), e.g. *"Where should cross-machine telemetry be stored?
+  Paste a private git repo URL, or say 'skip' to review this machine only."*
+  - If they give a URL, write it to `~/.claude/.dev-team/telemetry.json` as
+    `{ "remote": "<url>" }` (create the dir if needed), confirm, then run the
+    sync command above. Point them at
+    [`telemetry-repo-security.md`](../../docs/telemetry-repo-security.md) for the
+    one-time deploy-key/token setup.
+  - If they say skip, proceed local-only — do **not** block the review.
+
+Never invent a URL or enable anything without the user's explicit location.
+
 ### 1. Extract (deterministic, zero model tokens)
 
 Run the extractor to produce the digest:
