@@ -3,29 +3,31 @@
 # and open an auto-merge PR. Supports full, single-agent, and a RESUMABLE sweep.
 #
 # Modes:
-#   (default)        one full-corpus run -> baseline refresh -> auto-merge PR.
-#   --agent NAME     INCREMENTAL: just that agent (merges its pairs, others kept).
-#   --sweep          RESUMABLE: every agent, one at a time, checkpointed. If you
-#                    kill it or run out of tokens, re-run `--sweep` and it picks up
+#   (default)        RESUMABLE SWEEP: every agent, one at a time, checkpointed. If
+#                    you kill it or run out of tokens, just re-run and it picks up
 #                    where it left off (per-agent commits + a checkpoint file are
-#                    the progress). One PR at the end.
+#                    the progress). One auto-merge PR at the end.
+#   --agent NAME     just that agent (incremental; merges its pairs, others kept).
 #
 # This costs API tokens. Default TRIALS=1.
 #
-# Usage:  bash scripts/run-full-eval.sh [TRIALS] [--agent NAME | --sweep]
+# Usage:  bash scripts/run-full-eval.sh [TRIALS] [--agent NAME]
+#         (no flag = resumable full sweep; --sweep accepted as the default alias)
 # Env:    ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN, plus `claude` + `gh`.
 # Exit:   0 ok, 2 missing prereq, 1 run produced nothing.
 
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
-TRIALS=1; ONLY_AGENT=""; SWEEP=0
+# The RESUMABLE SWEEP is the default. --agent NAME scopes to a single agent
+# instead; --sweep is accepted as a (now-default) alias for back-compat.
+TRIALS=1; ONLY_AGENT=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent) ONLY_AGENT="${2:-}"; shift 2 ;;
-    --sweep) SWEEP=1; shift ;;
+    --sweep) shift ;;                 # default behavior; kept for back-compat
     [0-9]*)  TRIALS="$1"; shift ;;
-    *) echo "usage: run-full-eval.sh [TRIALS] [--agent NAME | --sweep]" >&2; exit 2 ;;
+    *) echo "usage: run-full-eval.sh [TRIALS] [--agent NAME]   (default: resumable full sweep)" >&2; exit 2 ;;
   esac
 done
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
@@ -96,8 +98,8 @@ _grade_variance() {
   fi
 }
 
-# ============================ RESUMABLE SWEEP ===============================
-if [ "$SWEEP" -eq 1 ]; then
+# ===================== RESUMABLE SWEEP (default mode) ======================
+if [ -z "$ONLY_AGENT" ]; then
   if [ -f "$CKPT" ]; then
     BRANCH="$(jq -r .branch "$CKPT")"; TRIALS="$(jq -r .trials "$CKPT")"
     echo "resuming sweep on '$BRANCH' — $(jq -r '.done | length' "$CKPT") agent(s) already done."
@@ -149,14 +151,10 @@ Merges per-agent results into \`evals/baseline.json\`. Review the diff for **reg
   exit 0
 fi
 
-# ============================ SINGLE RUN ===================================
+# ==================== SINGLE-AGENT RUN (--agent NAME) ======================
 if ! git diff --quiet || ! git diff --cached --quiet; then echo "working tree is dirty — commit or stash first." >&2; exit 2; fi
-if [ -n "$ONLY_AGENT" ]; then
-  SCOPE_LABEL="agent-${ONLY_AGENT}"; SCOPE_DESC="agent '${ONLY_AGENT}' (incremental)"
-  SCOPE_INSTR="IMPORTANT: restrict this run to ONLY the agent '${ONLY_AGENT}' and the fixtures that target it; skip every other agent and skill."
-else
-  SCOPE_LABEL="full"; SCOPE_DESC="full-corpus"; SCOPE_INSTR=""
-fi
+SCOPE_LABEL="agent-${ONLY_AGENT}"; SCOPE_DESC="agent '${ONLY_AGENT}' (incremental)"
+SCOPE_INSTR="IMPORTANT: restrict this run to ONLY the agent '${ONLY_AGENT}' and the fixtures that target it; skip every other agent and skill."
 TRIALS_DIR="$(mktemp -d)"; trap 'rm -rf "$TRIALS_DIR"' EXIT
 echo "== eval (${SCOPE_LABEL}) — ${TRIALS} trial(s), dispatching (costs tokens) =="
 emitted="$(_dispatch "$SCOPE_INSTR" "$TRIALS_DIR")"

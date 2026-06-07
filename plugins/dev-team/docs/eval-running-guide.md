@@ -22,19 +22,30 @@ JSON schema* with placeholder enums (`"status":"pass or fail"`,
 no example values, "decide every value yourself." The `/agent-eval` skill enforces
 this via its orchestrator constraint #3 ("pass only the fixture file").
 
-## Option 0 — the automated full-run script
+## Option 0 — the automated run script (default: resumable full sweep)
 
 ```bash
-bash scripts/run-full-eval.sh [TRIALS]   # default 1
+bash scripts/run-full-eval.sh [TRIALS]   # default TRIALS=1; default mode = full sweep
+# ...killed / out of tokens? just run it again — it resumes:
+bash scripts/run-full-eval.sh
 ```
 
-Drives the headless `claude -p /agent-eval` dispatch across the **whole** corpus
-(neutral, full-scope), refreshes the tracked `evals/baseline.json` from the result,
-appends the variance trend when `TRIALS>1`, and — if the baseline changed — opens
-an **auto-merge PR** with the diff for review. Needs `claude` + credentials +
-`gh`. A full multi-trial run is expensive; default is a single accuracy pass.
+**By default this runs the resumable full sweep** (see below): every agent, one at
+a time, neutral dispatch, checkpointed. It refreshes the tracked
+`evals/baseline.json`, appends the variance trend when `TRIALS>1`, and opens a
+single **auto-merge PR** at the end. Needs `claude` + credentials + `gh`. Use
+`--agent NAME` to scope to a single agent instead.
 
-### Incremental runs — one agent at a time (not all-or-nothing)
+### Resumable full sweep (the default) — survives a kill or a token cap
+
+A bare `run-full-eval.sh` runs **all** agents incrementally on one branch,
+**committing the baseline after each agent** and tracking progress in a gitignored
+checkpoint (`.eval-sweep-progress.json`). If it's interrupted, the completed agents
+are already committed and recorded — re-running picks up where it left off and
+continues; an interrupted agent is retried. One push, one auto-merge PR at the end.
+(`--sweep` is accepted as an explicit alias for this default.)
+
+### Incremental runs — one agent at a time
 
 ```bash
 bash scripts/run-full-eval.sh 5 --agent security-review   # just this agent, 5 trials
@@ -50,23 +61,6 @@ and the same variance trend, and opens its own small auto-merge PR.
 
 Why it doesn't clobber: the grader merges rather than overwrites, and `--only`
 keeps grading to the scope you ran — so partial coverage is the norm, not a risk.
-
-### Resumable full sweep — survives a kill or a token cap
-
-```bash
-bash scripts/run-full-eval.sh 5 --sweep   # every agent, one at a time, resumable
-# ...killed / ran out of tokens? just run it again:
-bash scripts/run-full-eval.sh --sweep     # picks up where it left off
-```
-
-`--sweep` runs **all** agents incrementally on one branch, **committing the
-baseline after each agent** and tracking progress in a gitignored checkpoint
-(`.eval-sweep-progress.json`). If it's interrupted, the completed agents are
-already committed and recorded — re-running `--sweep` skips them and continues
-with the rest. An interrupted agent (no commit yet) is simply retried. When every
-agent is done it pushes once and opens a single auto-merge PR, then clears the
-checkpoint. This is the way to run the whole corpus without an all-or-nothing
-session.
 
 ### The other incremental mode — only what changed
 
