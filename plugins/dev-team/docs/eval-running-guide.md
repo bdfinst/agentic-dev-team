@@ -51,6 +51,23 @@ and the same variance trend, and opens its own small auto-merge PR.
 Why it doesn't clobber: the grader merges rather than overwrites, and `--only`
 keeps grading to the scope you ran — so partial coverage is the norm, not a risk.
 
+### Resumable full sweep — survives a kill or a token cap
+
+```bash
+bash scripts/run-full-eval.sh 5 --sweep   # every agent, one at a time, resumable
+# ...killed / ran out of tokens? just run it again:
+bash scripts/run-full-eval.sh --sweep     # picks up where it left off
+```
+
+`--sweep` runs **all** agents incrementally on one branch, **committing the
+baseline after each agent** and tracking progress in a gitignored checkpoint
+(`.eval-sweep-progress.json`). If it's interrupted, the completed agents are
+already committed and recorded — re-running `--sweep` skips them and continues
+with the rest. An interrupted agent (no commit yet) is simply retried. When every
+agent is done it pushes once and opens a single auto-merge PR, then clears the
+checkpoint. This is the way to run the whole corpus without an all-or-nothing
+session.
+
 ### The other incremental mode — only what changed
 
 ```bash

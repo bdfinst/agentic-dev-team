@@ -75,3 +75,6 @@ tmp-*.py
 
 # Transient agent-eval run artifact (produced by the live gate / local runs)
 actuals.json
+
+# resumable eval sweep checkpoint
+.eval-sweep-progress.json
