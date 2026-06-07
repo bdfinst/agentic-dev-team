@@ -55,6 +55,21 @@ if [ "${#missing[@]}" -gt 0 ]; then
   exit 2
 fi
 
+# --- python module prerequisites (declared in requirements-dev.txt) ---------
+# Binaries alone aren't enough: several bats suites shell out to Python scripts
+# that import third-party modules. Check them up front so a missing dep fails
+# loudly here instead of as a cryptic ModuleNotFoundError mid-suite.
+py_missing=()
+# shellcheck disable=SC2043  # single entry today; kept as a list for new modules
+for m in yaml; do
+  python3 -c "import $m" >/dev/null 2>&1 || py_missing+=("$m")
+done
+if [ "${#py_missing[@]}" -gt 0 ]; then
+  printf '%s%sMissing required Python modules: %s%s\n' "$bold" "$red" "${py_missing[*]}" "$reset" >&2
+  printf 'Install the dev dependencies: python3 -m pip install -r requirements-dev.txt\n' >&2
+  exit 2
+fi
+
 # --- plugin-tests.yml :: shell-tests --------------------------------------
 run "shellcheck — security-assessment helper scripts" \
   shellcheck -x plugins/security-assessment/scripts/*.sh

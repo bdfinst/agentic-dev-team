@@ -1,0 +1,17 @@
+# Python dependencies required to develop and run the local test/CI gates.
+#
+# Install with:  python3 -m pip install -r requirements-dev.txt
+#
+# These mirror what GitHub CI installs (.github/workflows/plugin-tests.yml:
+# "Install semgrep + pyyaml"). The local pre-push gate (scripts/ci-local.sh)
+# runs the same suites, so the same deps are required on every dev machine.
+
+# Required: parsed by the agent-readiness scanner, the static-analysis adapter,
+# the accepted-risks applier, the eval comparative scorer, and the
+# security-assessment fixture audit. Without it, bats suites fail mid-run with
+# "ModuleNotFoundError: No module named 'yaml'".
+PyYAML>=6.0
+
+# Required for the security-assessment suites (SAST). CI installs it alongside
+# pyyaml; install locally if you run or modify the security-assessment plugin.
+semgrep

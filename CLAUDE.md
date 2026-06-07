@@ -28,6 +28,15 @@ reports/                           # Review reports (not shipped)
 
 Edit files directly in `plugins/dev-team/`. All plugin components (agents, skills, hooks) live there.
 
+### Prerequisites
+
+The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these tools on every dev machine:
+
+- CLI: `shellcheck`, `bats`, `jq`, `python3` (macOS: `brew install shellcheck bats-core jq python3`)
+- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML is required — several bats suites shell out to Python scripts that import it; semgrep for the security-assessment suites).
+
+`ci-local.sh` checks these up front and exits with an actionable message if any are missing.
+
 ### Testing locally
 
 Register the local checkout as a marketplace, then install from it into a test project:
