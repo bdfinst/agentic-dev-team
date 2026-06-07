@@ -10,23 +10,21 @@
 # batch its own cwd, index, and `actuals.json`, so the only *expensive* part (the
 # live `claude -p` dispatch) runs concurrently without collisions.
 #
-# Why the grade is NOT parallelized: `evals/baseline.json` is a flat `passing`
-# pair-list merged as `(existing | passed) - failed`. A batch that never ran agent
-# X still carries X's old passing pairs, so unioning per-batch baselines would
-# RESURRECT pairs another batch correctly removed. The safe design is therefore:
-# parallelize dispatch only; collect each agent's trial actuals into a disjoint
-# per-agent dir; then run ONE deterministic, model-free grade over the union,
-# scoped (`--only`) to the agents that actually produced actuals so a failed
-# dispatch never wipes an agent's baseline.
+# Why the grade is NOT parallelized: only dispatch is. Each agent's k trials land
+# in a disjoint per-agent dir; then ONE deterministic, model-free `eval_variance`
+# pass over all trials writes the TRUST-GATED baseline + variance-report +
+# quarantine (#230/#231), scoped (`--only`) to the agents that produced a complete
+# trial set, so a failed dispatch never wipes an agent's baseline.
 #
 # Partition unit is the AGENT: an agent's trials must be graded together (pass@k /
 # variance), so an agent is never split across batches. Round-robin keeps batches
 # balanced. Real speedup is bounded by your account's API rate/token pace, not by
 # --jobs; burns budget faster too. N=2-4 is the sane range (#142 pace guidance).
 #
-# Resumable: per-agent trials live under .eval-parallel/<agent>/ (gitignored) with
-# a `.done` marker. Re-run to pick up only the agents still missing; --fresh wipes
-# it. Already-done agents still contribute to the final grade on resume.
+# Resumable + hygienic (#232): per-agent trials live under .eval-parallel/<agent>/
+# (gitignored); `.done` means a COMPLETE k-trial set. A manifest pins {base_sha, k}
+# so a resume onto a different commit or k is refused (mixing corrupts pass@k);
+# re-dispatching an agent clears its stale partial trials first. --fresh wipes all.
 #
 # Usage:  bash scripts/run-full-eval-parallel.sh [TRIALS] [--jobs N] [--fresh]
 #         TRIALS default 3 (multi-trial: the trust gate needs >1 to delete), --jobs default 3.
@@ -93,6 +91,33 @@ trap cleanup EXIT
 [ "$FRESH" = 1 ] && rm -rf "$RUN_DIR"
 mkdir -p "$RUN_DIR"
 
+# --- trial-pool hygiene: manifest + staleness guard (#232) ------------------
+# Every trial feeding one harvest must share the same tree state and k, or pass@k
+# is meaningless. The manifest pins them; resuming onto a different base commit or
+# a different k is refused (abort-and-tell — never silently discard an expensive
+# partial harvest). --fresh already wiped the pool + manifest above.
+BASE_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+MANIFEST="$RUN_DIR/manifest.json"
+if [ -f "$MANIFEST" ]; then
+  m_sha="$(jq -r '.base_sha // ""' "$MANIFEST" 2>/dev/null)"
+  m_k="$(jq -r '.k // ""' "$MANIFEST" 2>/dev/null)"
+  if [ "$m_sha" != "$BASE_SHA" ] || [ "$m_k" != "$TRIALS" ]; then
+    echo "stale trial pool in $RUN_DIR — refusing to mix harvests:" >&2
+    [ "$m_sha" != "$BASE_SHA" ] && echo "  base commit changed: $m_sha -> $BASE_SHA" >&2
+    [ "$m_k" != "$TRIALS" ] && echo "  trial count changed: k=$m_k -> k=$TRIALS" >&2
+    echo "  mixing trials across harvests corrupts pass@k. Re-run with --fresh." >&2
+    exit 2
+  fi
+  HARVEST_ID="$(jq -r '.harvest_id // ""' "$MANIFEST" 2>/dev/null)"
+  echo "== resuming harvest ${HARVEST_ID} (base ${BASE_SHA:0:9}, k=$TRIALS) =="
+else
+  HARVEST_ID="$STAMP"
+  jq -n --arg h "$HARVEST_ID" --arg s "$BASE_SHA" --argjson k "$TRIALS" \
+        --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{harvest_id:$h, base_sha:$s, k:$k, started_at:$t}' > "$MANIFEST"
+  echo "== new harvest ${HARVEST_ID} (base ${BASE_SHA:0:9}, k=$TRIALS) =="
+fi
+
 read -r -d '' PROMPT_BASE <<'EOF'
 Run the review agents against the fixtures in .claude/evals/fixtures/ whose paired
 .claude/evals/expected/<stem>.json declares an applicableAgents target, via the
@@ -135,7 +160,10 @@ run_batch() {
     ln -sfn "$wt/evals/expected" .claude/evals/expected
     local agent out prompt n good
     for agent in "$@"; do
-      out="$RUN_DIR/$agent"; mkdir -p "$out"
+      # Clear-before-(re)dispatch (#232): an agent we're dispatching is not .done,
+      # so any trials present are a stale partial set — wipe them so this agent's
+      # pool is exactly this harvest's trial-1..k.
+      out="$RUN_DIR/$agent"; rm -rf "$out"; mkdir -p "$out"
       prompt="${PROMPT_BASE}"$'\n\n'"IMPORTANT: restrict this run to ONLY the agent '${agent}' and the fixtures that target it; skip every other agent and skill."
       good=0
       for n in $(seq 1 "$TRIALS"); do
@@ -149,10 +177,12 @@ run_batch() {
         fi
       done
       rm -f actuals.json
-      if [ "$good" -gt 0 ]; then
+      # .done means a COMPLETE k-trial set (#232) — a partial set is left un-done
+      # so resume re-dispatches it fresh (cleared above), never half-graded.
+      if [ "$good" -eq "$TRIALS" ]; then
         touch "$out/.done"; echo "[batch $bi] done: $agent ($good/$TRIALS trial(s))"
       else
-        echo "[batch $bi] NO actuals: $agent — left un-done for resume" >&2
+        echo "[batch $bi] partial: $agent ($good/$TRIALS) — left un-done for resume" >&2
       fi
     done
   )
@@ -194,18 +224,21 @@ fi
 # trials and isn't flaky — a single noisy trial can never delete), the full
 # variance report, and the quarantine the #99 grader excludes from blocking.
 # SUCCEEDED scopes the run so agents that produced no trials keep their pairs.
+# Only COMPLETE agents (.done == k trials, #232) are graded — a partial set never
+# reaches the trust gate.
 SUCCEEDED=()
 for a in "${ALL_AGENTS[@]}"; do
-  [ -n "$(find "$RUN_DIR/$a" -name 'trial-*.json' 2>/dev/null | head -1)" ] && SUCCEEDED+=("$a")
+  [ -f "$RUN_DIR/$a/.done" ] && SUCCEEDED+=("$a")
 done
 if [ "${#SUCCEEDED[@]}" -eq 0 ]; then
-  echo "no actuals produced by any agent — nothing to grade." >&2; exit 1
+  echo "no complete agents (.done) — nothing to grade. Re-run to finish partials." >&2; exit 1
 fi
 
 ONLY="$(IFS=','; echo "${SUCCEEDED[*]}")"
 echo "== grading ${#SUCCEEDED[@]} agent(s) (${TRIALS} trial(s) each): trust-gated baseline + variance + quarantine =="
 python3 scripts/eval_variance.py --trials-root "$RUN_DIR" --only "$ONLY" \
   --expected-dir evals/expected \
+  --harvest-id "$HARVEST_ID" \
   --write-baseline evals/baseline.json \
   -o evals/variance-report.json \
   --quarantine-out evals/quarantine.json \

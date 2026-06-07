@@ -119,7 +119,7 @@ def _assemble(passes: dict, trials: dict, flap_threshold: float) -> dict:
 
 
 def write_baseline(report: dict, target_path, demote_below: float,
-                   min_trials: int) -> tuple[list, list]:
+                   min_trials: int, harvest_id: str | None = None) -> tuple[list, list]:
     """Trust-gated baseline write (#230). A pair is **added** only when it passed
     every trial (pass@k == 1.0); **removed** only when it failed consistently
     (pass@k <= demote_below) over >= min_trials AND is not flaky. A flaky pair is
@@ -140,7 +140,7 @@ def write_baseline(report: dict, target_path, demote_below: float,
               if d["trials"] >= min_trials and d["pass_at_k"] <= demote_below
               and not d["flap"]}
     merged = (existing | add) - remove
-    target.write_text(json.dumps({
+    record = {
         "_comment": "Regression baseline for the agent-eval CI gate (#99). "
                     "Trust-gated (#230): a pair is removed only when it failed "
                     "every trial (pass@k <= demote_below) over >= min_trials and "
@@ -151,22 +151,28 @@ def write_baseline(report: dict, target_path, demote_below: float,
         "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "trials": report.get("trials", 0),
         "passing": sorted(merged),
-    }, indent=2) + "\n")
+    }
+    if harvest_id:
+        record["harvest_id"] = harvest_id  # provenance: which harvest measured this (#232)
+    target.write_text(json.dumps(record, indent=2) + "\n")
     return sorted(add - existing), sorted(existing & remove)
 
 
-def write_quarantine(report: dict, target_path) -> None:
+def write_quarantine(report: dict, target_path, harvest_id: str | None = None) -> None:
     """Persist the flaky-pair set the #99 grader excludes from blocking (#231)."""
     from datetime import datetime, timezone
     detail = {p: {"pass_at_k": d["pass_at_k"], "trials": d["trials"]}
               for p, d in report["by_pair"].items() if d["flap"]}
-    Path(target_path).write_text(json.dumps({
+    record = {
         "schema": "eval-variance/v1",
         "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "trials": report.get("trials", 0),
         "quarantine": report.get("quarantine", []),
         "detail": detail,
-    }, indent=2, sort_keys=True) + "\n")
+    }
+    if harvest_id:
+        record["harvest_id"] = harvest_id
+    Path(target_path).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
 
 
 def _load_trials(trials_dir: Path) -> list[dict]:
@@ -221,6 +227,8 @@ def main(argv=None) -> int:
                          "guards against deleting on a single noisy sample)")
     ap.add_argument("--quarantine-out", metavar="PATH",
                     help="write the flaky-pair quarantine the grader excludes (#231)")
+    ap.add_argument("--harvest-id",
+                    help="stamp this harvest id into the written artifacts (#232 provenance)")
     args = ap.parse_args(argv)
 
     if args.trials_root:
@@ -234,6 +242,8 @@ def main(argv=None) -> int:
         trials = _load_trials(Path(args.trials_dir))
         report = aggregate_trials(Path(args.expected_dir), trials, args.flap_threshold)
 
+    if args.harvest_id:
+        report["harvest_id"] = args.harvest_id
     out = json.dumps(report, indent=2, sort_keys=True)
     if args.out:
         Path(args.out).write_text(out + "\n")
@@ -247,10 +257,11 @@ def main(argv=None) -> int:
         with log.open("a") as fh:
             fh.write(json.dumps(_slim(report), sort_keys=True) + "\n")
     if args.quarantine_out:
-        write_quarantine(report, args.quarantine_out)
+        write_quarantine(report, args.quarantine_out, args.harvest_id)
     if args.write_baseline:
         added, removed = write_baseline(report, args.write_baseline,
-                                        args.demote_below, args.min_trials)
+                                        args.demote_below, args.min_trials,
+                                        args.harvest_id)
         print(f"Baseline (trust-gated) → {args.write_baseline}: "
               f"+{len(added)} / -{len(removed)} "
               f"(min_trials={args.min_trials}, demote_below={args.demote_below}); "
