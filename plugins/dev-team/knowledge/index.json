@@ -3551,8 +3551,12 @@
       "anchor": "argument-arguments"
     },
     "Steps": {
-      "summary": "Run the extractor to produce the digest:",
+      "summary": "Before analysing, check whether a **telemetry repository** (the cross-machine",
       "anchor": "steps"
+    },
+    "0. Cross-machine telemetry — validate config, then sync (#178)": {
+      "summary": "Before analysing, check whether a **telemetry repository** (the cross-machine",
+      "anchor": "0-cross-machine-telemetry-validate-config-then-sync-178"
     },
     "1. Extract (deterministic, zero model tokens)": {
       "summary": "Run the extractor to produce the digest:",
