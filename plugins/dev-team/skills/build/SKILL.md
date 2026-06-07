@@ -43,7 +43,7 @@ Read the plan file. If the status is not `approved`, ask the user: "This plan ha
 
 ### 3. Verify acceptance criteria (gate)
 
-Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `prompts/spec-reviewer.md` § Pre-build criteria verification mode). Pass the plan's acceptance criteria and per-step test expectations.
+Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `${CLAUDE_PLUGIN_ROOT}/prompts/spec-reviewer.md` § Pre-build criteria verification mode). Pass the plan's acceptance criteria and per-step test expectations.
 
 The reviewer evaluates each criterion for:
 
@@ -60,7 +60,7 @@ If any criteria are flagged:
 
 ### 4. Implement each step
 
-Work the plan slice by slice, in order. For each step within a slice, dispatch implementation following the implementer template (`prompts/implementer.md`). Pass the implementer its step **and the slice's Gherkin scenario(s)** — the scenarios are the behavioral contract the step's test must satisfy.
+Work the plan slice by slice, in order. For each step within a slice, dispatch implementation following the implementer template (`${CLAUDE_PLUGIN_ROOT}/prompts/implementer.md`). Pass the implementer its step **and the slice's Gherkin scenario(s)** — the scenarios are the behavioral contract the step's test must satisfy.
 
 1. **RED** — Write the failing test described in the step, covering the slice scenario it traces to. Run the test suite. **Hard gate: the new test must fail.** Paste the failing output. If the test passes without new code, the behavior already exists — pick a different test. Do NOT proceed to GREEN without pasted failing output.
 2. **GREEN** — Write the minimum implementation to make the failing test pass. Do not add behavior beyond what the test requires. Run the test suite. **Hard gate: all tests must pass.** Paste the passing output. Do NOT proceed without pasted passing output.
