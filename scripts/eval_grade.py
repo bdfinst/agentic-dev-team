@@ -238,6 +238,9 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--fixtures-dir", default="evals/fixtures")
     ap.add_argument("--actuals")
     ap.add_argument("--baseline")
+    ap.add_argument("--quarantine",
+                    help="quarantine.json (#231): flaky pairs that fail but must "
+                         "not block — informs, does not gate")
     ap.add_argument("--only", default="",
                     help="comma-separated agent/skill names to grade "
                          "(diff-scoped run); empty means all")
@@ -274,6 +277,10 @@ def main(argv: list[str]) -> int:
 
     actuals = _load_json(Path(args.actuals))
     baseline = _load_json(Path(args.baseline)) if args.baseline else None
+    quarantined: set = set()
+    if args.quarantine and Path(args.quarantine).exists():
+        q = _load_json(Path(args.quarantine))
+        quarantined = set(q.get("quarantine", []) if isinstance(q, dict) else q)
 
     only = {s.strip() for s in args.only.split(",") if s.strip()} or None
     results, baseline_pass = run_grading(expected_dir, actuals, baseline, only)
@@ -325,14 +332,26 @@ def main(argv: list[str]) -> int:
         print("## Failures")
         for pair, _, fails in failed:
             regressed = baseline_pass is not None and pair in baseline_pass
-            tag = " [REGRESSION]" if regressed else ""
+            if regressed and pair in quarantined:
+                tag = " [QUARANTINED]"
+            elif regressed:
+                tag = " [REGRESSION]"
+            else:
+                tag = ""
             print(f"  ✗ {pair}{tag}")
             for f in fails:
                 print(f"      - {f}")
 
-    # Determine exit: with a baseline, only baseline-passing regressions block.
+    # Determine exit: with a baseline, only baseline-passing regressions block —
+    # and a quarantined (flaky) pair informs but never blocks (#231).
     if baseline_pass is not None:
-        regressions = [p for p, ok, _ in results if not ok and p in baseline_pass]
+        regressions = [p for p, ok, _ in results
+                       if not ok and p in baseline_pass and p not in quarantined]
+        ignored = [p for p, ok, _ in results
+                   if not ok and p in baseline_pass and p in quarantined]
+        if ignored:
+            print(f"\n{len(ignored)} baseline pair(s) failed but are quarantined "
+                  f"(flaky) — not blocking.")
         if regressions:
             print(f"\n{len(regressions)} regression(s) against baseline.")
             return 1

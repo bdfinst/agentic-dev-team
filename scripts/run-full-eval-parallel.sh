@@ -29,7 +29,7 @@
 # it. Already-done agents still contribute to the final grade on resume.
 #
 # Usage:  bash scripts/run-full-eval-parallel.sh [TRIALS] [--jobs N] [--fresh]
-#         TRIALS default 1, --jobs default 3.
+#         TRIALS default 3 (multi-trial: the trust gate needs >1 to delete), --jobs default 3.
 # Env:    ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN, plus `claude` + `gh`.
 # Exit:   0 ok, 2 missing prereq/dirty tree, 1 run produced nothing.
 
@@ -37,7 +37,7 @@ set -uo pipefail
 MAIN_ROOT="$(git rev-parse --show-toplevel)" || exit 2
 cd "$MAIN_ROOT" || exit 2
 
-TRIALS=1; JOBS=3; FRESH=0
+TRIALS=3; JOBS=3; FRESH=0   # multi-trial by default (#230): the trust gate needs >1 trial to delete
 while [ $# -gt 0 ]; do
   case "$1" in
     --jobs)  JOBS="${2:-}"; shift 2 ;;
@@ -188,54 +188,49 @@ else
 fi
 
 # ===================== DETERMINISTIC RECONCILE (serial) =====================
-# Collect each agent's FIRST good trial; union them (disjoint agent keys, so
-# jq's recursive `*` merge loses nothing) into one actuals for a single graded
-# baseline write. SUCCEEDED scopes the grade so absent agents keep their pairs.
-SUCCEEDED=(); FIRST_TRIALS=()
+# Grade ALL of each agent's k trials at once (model-free) via eval_variance, which
+# computes pass@k per pair and writes three TRUST-RATED artifacts: a deletion-
+# guarded baseline (a pair is removed only if it failed every trial over >= 2
+# trials and isn't flaky — a single noisy trial can never delete), the full
+# variance report, and the quarantine the #99 grader excludes from blocking.
+# SUCCEEDED scopes the run so agents that produced no trials keep their pairs.
+SUCCEEDED=()
 for a in "${ALL_AGENTS[@]}"; do
-  ft="$(find "$RUN_DIR/$a" -name 'trial-*.json' 2>/dev/null | sort | head -1)"
-  [ -n "$ft" ] || continue
-  SUCCEEDED+=("$a"); FIRST_TRIALS+=("$ft")
+  [ -n "$(find "$RUN_DIR/$a" -name 'trial-*.json' 2>/dev/null | head -1)" ] && SUCCEEDED+=("$a")
 done
 if [ "${#SUCCEEDED[@]}" -eq 0 ]; then
   echo "no actuals produced by any agent — nothing to grade." >&2; exit 1
 fi
 
-COMBINED="$(mktemp)"
-jq -s 'reduce .[] as $x ({}; . * $x)' "${FIRST_TRIALS[@]}" > "$COMBINED"
 ONLY="$(IFS=','; echo "${SUCCEEDED[*]}")"
-echo "== grading ${#SUCCEEDED[@]} agent(s) into evals/baseline.json =="
-python3 scripts/eval_grade.py --actuals "$COMBINED" --only "$ONLY" \
-  --write-baseline evals/baseline.json || { echo "grade failed" >&2; rm -f "$COMBINED"; exit 1; }
-rm -f "$COMBINED"
-
-# Variance trend (local, like the serial sweep): per agent with >1 trial.
-for a in "${SUCCEEDED[@]}"; do
-  tdir="$RUN_DIR/$a"
-  [ "$(find "$tdir" -name 'trial-*.json' | wc -l)" -gt 1 ] || continue
-  ve="$tdir/expected"; mkdir -p "$ve"
-  for ef in evals/expected/*.json; do
-    jq -e --arg a "$a" '.applicableAgents // [] | index($a)' "$ef" >/dev/null 2>&1 && cp "$ef" "$ve/"
-  done
-  python3 scripts/eval_variance.py --trials-dir "$tdir" --expected-dir "$ve" \
-    --append metrics/eval-variance.jsonl -o memory/eval-variance.json >/dev/null 2>&1 || true
-done
+echo "== grading ${#SUCCEEDED[@]} agent(s) (${TRIALS} trial(s) each): trust-gated baseline + variance + quarantine =="
+python3 scripts/eval_variance.py --trials-root "$RUN_DIR" --only "$ONLY" \
+  --expected-dir evals/expected \
+  --write-baseline evals/baseline.json \
+  -o evals/variance-report.json \
+  --quarantine-out evals/quarantine.json \
+  --append metrics/eval-variance.jsonl \
+  || { echo "reconcile (eval_variance) failed" >&2; exit 1; }
 
 # ===================== COMMIT + AUTO-MERGE PR (one PR) ======================
 # Branch already exists (created up front). The trap restores base + drops it
 # if we never commit below.
-if git diff --quiet -- evals/baseline.json; then
-  echo "== baseline unchanged across the harvest — nothing to commit, no PR. =="
+ARTIFACTS=(evals/baseline.json evals/variance-report.json evals/quarantine.json)
+# Stage first: variance-report/quarantine are untracked on the first harvest, and
+# `git diff` (no --cached) can't see untracked files — so check the index.
+git add "${ARTIFACTS[@]}"
+if git diff --cached --quiet -- "${ARTIFACTS[@]}"; then
+  echo "== eval artifacts unchanged across the harvest — nothing to commit, no PR. =="
   echo "   (trials kept in $RUN_DIR; re-run with --fresh for a clean re-harvest.)"
   exit 0
 fi
+git commit -q -m "test(evals): parallel sweep — trust-gated baseline + variance (${STAMP})
 
-git add evals/baseline.json
-git commit -q -m "test(evals): parallel sweep baseline refresh (${STAMP})
-
-Harvested ${#SUCCEEDED[@]} agent(s) across $JOBS worktree-isolated batch(es) via
-run-full-eval-parallel.sh, then graded once (deterministic) into evals/baseline.json
-scoped to the agents that produced actuals. Variance appended to the local trend."
+Harvested ${#SUCCEEDED[@]} agent(s) across $JOBS worktree-isolated batch(es) at
+${TRIALS} trial(s) each, then graded all trials (deterministic) via eval_variance
+into a deletion-guarded evals/baseline.json plus evals/variance-report.json and
+evals/quarantine.json. Scoped to the agents that produced trials, so a failed
+dispatch can't drop an agent's pairs. Local variance trend appended."
 COMMITTED=1
 echo "== committed baseline on $BRANCH; per-agent trials are in $RUN_DIR =="
 
@@ -245,12 +240,13 @@ echo "== committed baseline on $BRANCH; per-agent trials are in $RUN_DIR =="
 # printed `git push` by hand.
 echo "== pushing $BRANCH (pre-push runs the local CI mirror — can take a minute)… =="
 if git push -u origin "$BRANCH"; then
-  PR_URL="$(gh pr create --title "test(evals): parallel sweep baseline refresh (${STAMP})" \
-    --body "Parallel full-corpus harvest via \`run-full-eval-parallel.sh\` — dispatch ran in
-$JOBS git-worktree-isolated batches, reconciled by a single deterministic grade into
-\`evals/baseline.json\` (scoped to the ${#SUCCEEDED[@]} agent(s) that produced actuals, so a
-failed dispatch can't drop an agent's pairs). Review the diff for **regressions** (pairs
-dropped) or **improvements** (pairs newly passing). Variance appended to the local trend." 2>/dev/null)"
+  PR_URL="$(gh pr create --title "test(evals): trust-gated sweep baseline + variance (${STAMP})" \
+    --body "Parallel full-corpus harvest via \`run-full-eval-parallel.sh\` (${TRIALS} trial(s)/agent) —
+dispatch ran in $JOBS git-worktree-isolated batches, then a single deterministic \`eval_variance\`
+pass over all trials wrote a **trust-gated** \`evals/baseline.json\` (a pair is removed only if it
+failed every trial over >= 2 trials and isn't flaky), plus \`evals/variance-report.json\` and
+\`evals/quarantine.json\`. Scoped to the ${#SUCCEEDED[@]} agent(s) that produced trials. Review the
+baseline diff for **regressions**/**improvements** and the quarantine for newly-flaky pairs." 2>/dev/null)"
   echo "opened: $PR_URL"
   gh pr merge "$(echo "$PR_URL" | grep -oE '[0-9]+$')" --auto --squash --delete-branch >/dev/null 2>&1 \
     && echo "auto-merge enabled" || echo "could not enable auto-merge (enable manually)"
