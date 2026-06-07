@@ -165,6 +165,21 @@ If `--trials` > 1:
 - Consistency: fraction of fixtures with identical results across
   all trials
 
+**Persist the variance signal (#103).** Write each trial's recorded actuals to a
+directory (one JSON per trial — the same `actuals` shape `eval_grade.py` grades),
+then aggregate deterministically and append to the trend so stability is tracked
+over time, not recomputed and lost:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_variance.py \
+  --trials-dir <dir-of-trial-actuals> \
+  --append metrics/eval-variance.jsonl -o memory/eval-variance.json
+```
+
+The report's `quarantine` list names pairs that **flap** (neither always pass nor
+always fail). Flaky fixtures should *inform* the #99 CI gate — exclude them from
+hard-blocking and report them — rather than cause spurious failures.
+
 ### 6. Detect eval saturation
 
 Track the last 3 runs in `.claude/evals/transcripts/`. If the last 3
