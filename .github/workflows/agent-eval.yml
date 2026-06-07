@@ -248,7 +248,12 @@ jobs:
               "wrote no file. The live gate will exercise the agents after merge."
             exit 0
           fi
+          # Honor the quarantine (#233): flaky pairs recorded by a multi-trial
+          # harvest (eval_variance) inform but must NOT block the gate. The grader
+          # treats a missing quarantine.json as an empty set, so this is safe
+          # before the first harvest commits one.
           python3 scripts/eval_grade.py \
             --actuals actuals.json \
             --baseline evals/baseline.json \
+            --quarantine evals/quarantine.json \
             --only "${{ steps.scope.outputs.only }}"
