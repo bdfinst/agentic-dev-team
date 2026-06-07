@@ -1,5 +1,42 @@
 # Changelog
 
+## [6.6.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.5.0...dev-team-v6.6.0) (2026-06-07)
+
+
+### Features
+
+* **agent-eval:** eval variance aggregator — pass@k, flap, quarantine ([#103](https://github.com/bdfinst/agentic-dev-team/issues/103)) ([#196](https://github.com/bdfinst/agentic-dev-team/issues/196)) ([4a2abcb](https://github.com/bdfinst/agentic-dev-team/commit/4a2abcb8fd1caf98865776e355d146b2af3e585f))
+* **evals:** incremental per-agent eval runs (not all-or-nothing) ([#206](https://github.com/bdfinst/agentic-dev-team/issues/206)) ([8d7d9e0](https://github.com/bdfinst/agentic-dev-team/commit/8d7d9e03b3ab50b734d210b71bc34c9fead9e9ab))
+* **evals:** make the resumable sweep the default mode of run-full-eval.sh ([#208](https://github.com/bdfinst/agentic-dev-team/issues/208)) ([bba7734](https://github.com/bdfinst/agentic-dev-team/commit/bba7734a27667c39def7cc12edee49162fba592d))
+* **evals:** resumable --sweep mode for run-full-eval.sh ([#207](https://github.com/bdfinst/agentic-dev-team/issues/207)) ([088adce](https://github.com/bdfinst/agentic-dev-team/commit/088adcef48225de5718c458f7157b0a6489aae59))
+* **evals:** run-full-eval.sh — full corpus run + baseline refresh + auto-merge PR ([#202](https://github.com/bdfinst/agentic-dev-team/issues/202)) ([37e0280](https://github.com/bdfinst/agentic-dev-team/commit/37e028051096723f47112199bd3229d0fec52576))
+* **session-review:** cross-machine union read ([#178](https://github.com/bdfinst/agentic-dev-team/issues/178)) + utilization fix ([#182](https://github.com/bdfinst/agentic-dev-team/issues/182)) ([#188](https://github.com/bdfinst/agentic-dev-team/issues/188)) ([d6280b6](https://github.com/bdfinst/agentic-dev-team/commit/d6280b6019f3e54ac161e29b1612b36d12e66d50))
+* **session-review:** frequency→lever escalation (Delta C, [#179](https://github.com/bdfinst/agentic-dev-team/issues/179)) ([#189](https://github.com/bdfinst/agentic-dev-team/issues/189)) ([3328c81](https://github.com/bdfinst/agentic-dev-team/commit/3328c81333338179c5b9713a7c780026fea74443))
+* **session-review:** per-session gate instrumentation + bypass↔rework correlation ([#111](https://github.com/bdfinst/agentic-dev-team/issues/111)) ([#200](https://github.com/bdfinst/agentic-dev-team/issues/200)) ([384138b](https://github.com/bdfinst/agentic-dev-team/commit/384138b0a6954a9f1516579e4829cf5dce9d616b))
+* **session-review:** telemetry sync transport + config validation + security docs ([#187](https://github.com/bdfinst/agentic-dev-team/issues/187)) ([559cf3d](https://github.com/bdfinst/agentic-dev-team/commit/559cf3d04561f83e68be918928dd47f4fdc412a9))
+* **telemetry:** wire CI cost-regression gate to real cross-machine baseline ([#171](https://github.com/bdfinst/agentic-dev-team/issues/171)) ([#192](https://github.com/bdfinst/agentic-dev-team/issues/192)) ([531a794](https://github.com/bdfinst/agentic-dev-team/commit/531a794f3e9b26e8c7fcc9ea1c28a606e7293784))
+
+
+### Bug Fixes
+
+* **cost-meter:** attribute by model + thread; drop inert buckets ([#170](https://github.com/bdfinst/agentic-dev-team/issues/170)) ([#183](https://github.com/bdfinst/agentic-dev-team/issues/183)) ([c7a2b2a](https://github.com/bdfinst/agentic-dev-team/commit/c7a2b2aaf572f7586f8cff884f76942ce2810280))
+* **mutation-gate:** _timeout fallback must not write to stdout ([#197](https://github.com/bdfinst/agentic-dev-team/issues/197)) ([12b1936](https://github.com/bdfinst/agentic-dev-team/commit/12b19360ae2e38a92a49cac9f2a3255c768081da))
+* **review-gate:** bind .review-passed to staged CONTENT, not paths ([#193](https://github.com/bdfinst/agentic-dev-team/issues/193)) ([#195](https://github.com/bdfinst/agentic-dev-team/issues/195)) ([5733af3](https://github.com/bdfinst/agentic-dev-team/commit/5733af379e38add39e74bbad341eb57802dc5452))
+* **skills:** reference prompt templates by explicit plugin-root path ([#181](https://github.com/bdfinst/agentic-dev-team/issues/181)) ([a2be7cb](https://github.com/bdfinst/agentic-dev-team/commit/a2be7cbe7c17f7a239ebcb41ef3bec931a5e93c2)), closes [#173](https://github.com/bdfinst/agentic-dev-team/issues/173)
+
+
+### Documentation
+
+* adopt North Star + scope the self-improvement loop to /session-review deltas ([#172](https://github.com/bdfinst/agentic-dev-team/issues/172)) ([6003609](https://github.com/bdfinst/agentic-dev-team/commit/600360961a6acb97a4f86abbcd86949872a6b8d8))
+* **concurrent-use:** resolve [#109](https://github.com/bdfinst/agentic-dev-team/issues/109) Phase 2 — one worktree per agent ([#194](https://github.com/bdfinst/agentic-dev-team/issues/194)) ([3751b06](https://github.com/bdfinst/agentic-dev-team/commit/3751b069e281119cba4b6b88f4a52ccc075ee764))
+* eval running guide, maintenance guide, and feature-verification plan ([#201](https://github.com/bdfinst/agentic-dev-team/issues/201)) ([847fd02](https://github.com/bdfinst/agentic-dev-team/commit/847fd02adf5e503704e58ff6b1c02917c2cd37f5))
+* how to give CI read-only access to the telemetry repo ([#171](https://github.com/bdfinst/agentic-dev-team/issues/171) prep) ([#191](https://github.com/bdfinst/agentic-dev-team/issues/191)) ([9fddacd](https://github.com/bdfinst/agentic-dev-team/commit/9fddacdc315440a3c326b18f6c21c56d19feb190))
+
+
+### Miscellaneous
+
+* Wave 1 hygiene — scope honesty + orphan spec + beacon scope ([#185](https://github.com/bdfinst/agentic-dev-team/issues/185)) ([86be934](https://github.com/bdfinst/agentic-dev-team/commit/86be934db259d213d26cdab4c8a5c4e386275e47)), closes [#105](https://github.com/bdfinst/agentic-dev-team/issues/105) [#115](https://github.com/bdfinst/agentic-dev-team/issues/115) [#106](https://github.com/bdfinst/agentic-dev-team/issues/106)
+
 ## [6.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.4.0...dev-team-v6.5.0) (2026-06-07)
 
 
