@@ -19,6 +19,10 @@ BANNED_PHRASES=(
   "federated learning"
   "LSTM-inspired"
   "LSTM inspired"
+  # #105: the Multi-LLM/Gemini routing table promised a capability no code
+  # implements (the stack is Claude-Code-locked). Removed; keep it gone.
+  "Multi-LLM Routing"
+  "Gemini"
 )
 
 @test "no metaphor-as-mechanism buzzwords in shipped plugin prose" {
