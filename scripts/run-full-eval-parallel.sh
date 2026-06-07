@@ -65,6 +65,14 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "working tree is dirty — commit or stash first." >&2; exit 2
 fi
 
+# Isolate everything on a fresh branch as the FIRST step, so a failed push never
+# strands work on your base branch and the run is visible from the start.
+BASE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+BRANCH="eval/sweep-parallel-${STAMP}"
+COMMITTED=0
+git checkout -b "$BRANCH" >/dev/null 2>&1 || { echo "branch create failed: $BRANCH" >&2; exit 2; }
+echo "== branch: $BRANCH (from $BASE_BRANCH) =="
+
 # --- cleanup: always tear down worktrees, even on interrupt -----------------
 cleanup() {
   local wt
@@ -73,6 +81,12 @@ cleanup() {
   done
   git worktree prune >/dev/null 2>&1 || true
   rm -rf "$WT_BASE"
+  # Created the sweep branch but never committed (no baseline change or an early
+  # failure)? Don't strand the user on an empty branch — return to base, drop it.
+  if [ "${COMMITTED:-0}" -eq 0 ] && [ -n "${BRANCH:-}" ]; then
+    git checkout -f "${BASE_BRANCH:-main}" >/dev/null 2>&1 || true
+    git branch -D "$BRANCH" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -208,35 +222,44 @@ for a in "${SUCCEEDED[@]}"; do
 done
 
 # ===================== COMMIT + AUTO-MERGE PR (one PR) ======================
+# Branch already exists (created up front). The trap restores base + drops it
+# if we never commit below.
 if git diff --quiet -- evals/baseline.json; then
-  echo "== baseline unchanged across the harvest — no PR. =="
+  echo "== baseline unchanged across the harvest — nothing to commit, no PR. =="
   echo "   (trials kept in $RUN_DIR; re-run with --fresh for a clean re-harvest.)"
   exit 0
 fi
 
-BRANCH="eval/sweep-parallel-${STAMP}"
-git checkout -b "$BRANCH" >/dev/null 2>&1 || { echo "branch create failed" >&2; exit 2; }
 git add evals/baseline.json
 git commit -q -m "test(evals): parallel sweep baseline refresh (${STAMP})
 
 Harvested ${#SUCCEEDED[@]} agent(s) across $JOBS worktree-isolated batch(es) via
 run-full-eval-parallel.sh, then graded once (deterministic) into evals/baseline.json
 scoped to the agents that produced actuals. Variance appended to the local trend."
+COMMITTED=1
+echo "== committed baseline on $BRANCH; per-agent trials are in $RUN_DIR =="
 
-push_ok=0
-for delay in 0 2 4 8 16; do
-  [ "$delay" -gt 0 ] && sleep "$delay"
-  if git push -u origin "$BRANCH" >/dev/null 2>&1; then push_ok=1; break; fi
-done
-[ "$push_ok" -eq 1 ] || { echo "push failed after retries" >&2; exit 2; }
-
-PR_URL="$(gh pr create --title "test(evals): parallel sweep baseline refresh (${STAMP})" \
-  --body "Parallel full-corpus harvest via \`run-full-eval-parallel.sh\` — dispatch ran in
+# Push with the pre-push hook VISIBLE — it runs scripts/ci-local.sh and BLOCKS
+# the push on failure. A single attempt: the hook is deterministic, so retrying
+# just re-runs the local CI mirror; for a transient network drop, re-run the
+# printed `git push` by hand.
+echo "== pushing $BRANCH (pre-push runs the local CI mirror — can take a minute)… =="
+if git push -u origin "$BRANCH"; then
+  PR_URL="$(gh pr create --title "test(evals): parallel sweep baseline refresh (${STAMP})" \
+    --body "Parallel full-corpus harvest via \`run-full-eval-parallel.sh\` — dispatch ran in
 $JOBS git-worktree-isolated batches, reconciled by a single deterministic grade into
 \`evals/baseline.json\` (scoped to the ${#SUCCEEDED[@]} agent(s) that produced actuals, so a
 failed dispatch can't drop an agent's pairs). Review the diff for **regressions** (pairs
 dropped) or **improvements** (pairs newly passing). Variance appended to the local trend." 2>/dev/null)"
-echo "opened: $PR_URL"
-gh pr merge "$(echo "$PR_URL" | grep -oE '[0-9]+$')" --auto --squash --delete-branch >/dev/null 2>&1 \
-  && echo "auto-merge enabled" || echo "could not enable auto-merge (enable manually)"
-echo "   (trials kept in $RUN_DIR; re-run with --fresh for a clean re-harvest.)"
+  echo "opened: $PR_URL"
+  gh pr merge "$(echo "$PR_URL" | grep -oE '[0-9]+$')" --auto --squash --delete-branch >/dev/null 2>&1 \
+    && echo "auto-merge enabled" || echo "could not enable auto-merge (enable manually)"
+  echo "   (trials kept in $RUN_DIR; re-run with --fresh for a clean re-harvest.)"
+else
+  echo "" >&2
+  echo "push failed — see the pre-push / CI output ABOVE for the actual reason." >&2
+  echo "Your harvest is safe: committed on branch '$BRANCH' (nothing lost)." >&2
+  echo "  • fix the gate, then re-push:  git push -u origin $BRANCH" >&2
+  echo "  • or bypass the local hook:    HUSKY=0 git push -u origin $BRANCH" >&2
+  exit 2
+fi
