@@ -597,6 +597,83 @@ def cmd_rollup(args, registry: dict) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# Delta C (#179): frequency -> lever-strength escalation.
+#
+# Each known friction signal is tagged with whether a deterministic guard could
+# match it (the "hook-matchable" property). Combined with how often the friction
+# recurs (per-session rate across the rollup), this yields the recommended lever:
+#   rare                       -> hint (surface only)
+#   recurring, not matchable   -> instruction-file rule (/feedback-learning)
+#   frequent AND matchable     -> promote to a hook (validate via /agent-eval)
+# "matchable" is the deterministic side of the rules-vs-prompts <=10% FP policy.
+# --------------------------------------------------------------------------
+
+# signal -> (rollup section, key, hook-matchable?, human label)
+_FRICTION_SIGNALS = [
+    ("rework", "permission_denials", True, "permission denials"),
+    ("rework", "retried_bash_commands", True, "retried bash commands"),
+    ("rework", "repeated_verify_runs", True, "repeated verify runs"),
+    ("rework", "failed_edits", False, "failed edits (old_string not found)"),
+    ("rework", "compaction_events", False, "context compaction events"),
+    ("accuracy", "user_correction_turns", False, "user-correction turns"),
+]
+
+
+def _lever_for(rate: float, matchable: bool,
+               rare_rate: float, frequent_rate: float) -> tuple[str, str]:
+    if rate < rare_rate:
+        return "hint", "rare — surface as a hint only"
+    if matchable and rate >= frequent_rate:
+        return "hook", "frequent and deterministically matchable — promote to a hook (validate via /agent-eval)"
+    if matchable:
+        return "instruction-rule", "recurring and matchable but below the hook threshold — an instruction-file rule for now (/feedback-learning)"
+    return "instruction-rule", "recurring but judgment-shaped (no reliable matcher) — an instruction-file rule (/feedback-learning)"
+
+
+def escalate(roll: dict, rare_rate: float = 0.25,
+             frequent_rate: float = 1.0) -> dict:
+    """Turn rollup recurrence into ranked lever recommendations (#179)."""
+    sessions = max(int(roll.get("sessions", 0)), 0)
+    recs = []
+    for section, key, matchable, label in _FRICTION_SIGNALS:
+        count = roll.get(section, {}).get(key, 0) or 0
+        if not count:
+            continue
+        rate = round(count / sessions, 4) if sessions else 0.0
+        lever, rationale = _lever_for(rate, matchable, rare_rate, frequent_rate)
+        recs.append({
+            "signal": key,
+            "label": label,
+            "count": count,
+            "per_session_rate": rate,
+            "matchable": matchable,
+            "lever": lever,
+            "rationale": rationale,
+        })
+    # rank by per-session rate (worst first), then count
+    recs.sort(key=lambda r: (-r["per_session_rate"], -r["count"]))
+    return {
+        "schema": "telemetry-escalation/v1",
+        "sessions": sessions,
+        "thresholds": {"rare_rate": rare_rate, "frequent_rate": frequent_rate},
+        "recommendations": recs,
+    }
+
+
+def cmd_escalate(args, registry: dict) -> int:
+    root = Path(args.escalate)
+    roll = rollup(root, registry) if root.is_dir() else {"sessions": 0}
+    out = json.dumps(
+        escalate(roll, rare_rate=args.rare_rate, frequent_rate=args.frequent_rate),
+        indent=2, sort_keys=True)
+    if args.out:
+        Path(args.out).write_text(out + "\n")
+    else:
+        print(out)
+    return 0
+
+
 def load_registry(plugin_root: Path | None) -> dict:
     """Enumerate shipped skills/agents so we can report never-observed ones."""
     if plugin_root is None:
@@ -639,6 +716,14 @@ def main(argv=None) -> int:
     ap.add_argument("--rollup", metavar="DIR",
                     help="union read (#178): aggregate all hosts' "
                          "DIR/<host>/session-digest.jsonl into one cross-machine view")
+    ap.add_argument("--escalate", metavar="DIR",
+                    help="Delta C (#179): rank friction signals from DIR's rollup "
+                         "and recommend a lever (hint / instruction-rule / hook)")
+    ap.add_argument("--rare-rate", type=float, default=0.25,
+                    help="per-session rate below which a friction is a hint (default 0.25)")
+    ap.add_argument("--frequent-rate", type=float, default=1.0,
+                    help="per-session rate at/above which a matchable friction "
+                         "becomes a hook (default 1.0)")
     args = ap.parse_args(argv)
 
     pricing_path = Path(args.pricing) if args.pricing else (
@@ -650,6 +735,10 @@ def main(argv=None) -> int:
     # Cross-machine union read (Delta D, #178).
     if args.rollup:
         return cmd_rollup(args, registry)
+
+    # Frequency -> lever escalation (Delta C, #179).
+    if args.escalate:
+        return cmd_escalate(args, registry)
 
     # Cross-project incremental sync mode (Delta D, #178).
     if args.sync_out:

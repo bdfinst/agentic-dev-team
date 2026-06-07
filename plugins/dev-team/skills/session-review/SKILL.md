@@ -94,6 +94,21 @@ token/cost, summed rework/accuracy, and skills/agents **never invoked on any
 machine**. Hand the analysis agent the rollup when present, the local digest
 otherwise.
 
+Then compute the **frequency → lever escalation** (Delta C, #179) — recurrence
+decides how strong a response each friction earns:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
+  --plugin-root ${CLAUDE_PLUGIN_ROOT} --escalate "$CLONE/digests" \
+  -o memory/telemetry-escalation.json
+```
+
+Each recommendation carries a `lever`: **hint** (rare — surface only),
+**instruction-rule** (recurring; hand to `/feedback-learning`), or **hook**
+(frequent *and* deterministically matchable; validate via `/agent-eval` before
+shipping). "Matchable" is the deterministic side of the rules-vs-prompts ≤10% FP
+policy. Use the escalation `lever` to set the hand-off in Step 3.
+
 ### 2. Analyze (digest-only)
 
 Dispatch the `session-analysis` agent with the digest path as its sole input.
