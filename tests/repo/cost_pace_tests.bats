@@ -8,7 +8,11 @@ setup() { CASE="$(mktemp -d)"; }
 teardown() { rm -rf "$CASE"; }
 
 # A timestamp N days before now, in the meter's ISO format.
-_ts() { date -u -d "$1 days ago" +%Y-%m-%dT%H:%M:%SZ; }
+# Portable across GNU (date -d) and BSD/macOS (date -v).
+_ts() {
+  date -u -d "$1 days ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+    || date -u -v-"$1"d +%Y-%m-%dT%H:%M:%SZ
+}
 
 @test "pace: no log -> says nothing to pace" {
   run python3 "$METER" pace --log "$CASE/none.jsonl"
