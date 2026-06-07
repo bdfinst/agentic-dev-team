@@ -12,14 +12,6 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
-    outputs:
-      releases_created: ${{ steps.release.outputs.releases_created }}
-      dev_team_released: ${{ steps.release.outputs['plugins/dev-team--release_created'] }}
-      dev_team_tag: ${{ steps.release.outputs['plugins/dev-team--tag_name'] }}
-      dev_team_version: ${{ steps.release.outputs['plugins/dev-team--version'] }}
-      security_released: ${{ steps.release.outputs['plugins/security-assessment--release_created'] }}
-      security_tag: ${{ steps.release.outputs['plugins/security-assessment--tag_name'] }}
-      security_version: ${{ steps.release.outputs['plugins/security-assessment--version'] }}
     steps:
       # Mint a short-lived token from the release bot GitHub App. Using an App
       # identity (not the default GITHUB_TOKEN) is what lets the release PR's
@@ -37,59 +29,10 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-
-  # After a release is tagged, repoint the marketplace catalog at the new tags so
-  # installers receive the tagged tree instead of whatever is ahead on main.
-  pin-marketplace:
-    needs: release-please
-    if: needs.release-please.outputs.releases_created == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-      - name: Pin marketplace.json to released tags
-        env:
-          DEV_TEAM_RELEASED: ${{ needs.release-please.outputs.dev_team_released }}
-          DEV_TEAM_TAG: ${{ needs.release-please.outputs.dev_team_tag }}
-          DEV_TEAM_VERSION: ${{ needs.release-please.outputs.dev_team_version }}
-          SECURITY_RELEASED: ${{ needs.release-please.outputs.security_released }}
-          SECURITY_TAG: ${{ needs.release-please.outputs.security_tag }}
-          SECURITY_VERSION: ${{ needs.release-please.outputs.security_version }}
-        run: |
-          set -euo pipefail
-          MP=.claude-plugin/marketplace.json
-
-          pin() {
-            name="$1"; tag="$2"; version="$3"
-            jq --arg name "$name" --arg tag "$tag" --arg version "$version" '
-              (.plugins[] | select(.name == $name))
-                |= (.source.ref = $tag | .version = $version)
-            ' "$MP" > "$MP.tmp"
-            mv "$MP.tmp" "$MP"
-            echo "Pinned $name -> $tag (version $version)"
-          }
-
-          if [ "${DEV_TEAM_RELEASED:-}" = "true" ]; then
-            pin dev-team "$DEV_TEAM_TAG" "$DEV_TEAM_VERSION"
-          fi
-          if [ "${SECURITY_RELEASED:-}" = "true" ]; then
-            pin security-assessment "$SECURITY_TAG" "$SECURITY_VERSION"
-          fi
-
-          # Fail fast if the result is not valid JSON.
-          jq empty "$MP"
-      - name: Commit and push
-        run: |
-          set -euo pipefail
-          if git diff --quiet .claude-plugin/marketplace.json; then
-            echo "marketplace.json already up to date; nothing to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .claude-plugin/marketplace.json
-          # Use a type outside changelog-sections so this does not pollute changelogs.
-          # Pushes with GITHUB_TOKEN do not re-trigger workflows, so no recursion.
-          git commit -m "ci: pin marketplace catalog to released tags"
-          git push origin main
+          # The marketplace catalog (.claude-plugin/marketplace.json) is kept in
+          # sync by release-please's own `json` extra-files updaters (see
+          # release-please-config.json). Those updates land inside the release
+          # PR's verified commits and merge through branch protection normally.
+          # A previous post-merge job that pushed the catalog directly to main
+          # was removed: protected `main` rejects direct pushes (required status
+          # checks + signed-commits rule), so it could never succeed.

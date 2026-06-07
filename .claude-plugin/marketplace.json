@@ -18,11 +18,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/dev-team",
-        "ref": "dev-team-v6.4.0",
+        "ref": "dev-team-v6.6.0",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "6.4.0"
+      "version": "6.6.0"
     },
     {
       "author": {
@@ -35,11 +35,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/security-assessment",
-        "ref": "security-assessment-v3.1.1",
+        "ref": "security-assessment-v3.2.0",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "3.1.1"
+      "version": "3.2.0"
     },
     {
       "author": {
