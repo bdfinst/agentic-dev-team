@@ -1,69 +1,69 @@
 {
+  "metadata": {
+    "description": "Persona-driven AI development team for Claude Code"
+  },
   "name": "bfinster",
   "owner": {
     "name": "Bryan Finster"
   },
-  "metadata": {
-    "description": "Persona-driven AI development team for Claude Code"
-  },
   "plugins": [
     {
-      "name": "dev-team",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/bdfinst/agentic-dev-team.git",
-        "path": "plugins/dev-team",
-        "ref": "dev-team-v6.4.0"
+      "author": {
+        "name": "Bryan Finster"
       },
       "description": "Persona-driven AI development team: orchestrator, team agents, review agents, skills (agent-loaded and user-invocable slash commands), and advisory hooks for Claude Code. Previously published as agentic-dev-team.",
-      "version": "6.4.0",
-      "author": {
-        "name": "Bryan Finster"
-      },
       "homepage": "https://github.com/bdfinst/agentic-dev-team",
+      "license": "MIT",
+      "name": "dev-team",
       "repository": "https://github.com/bdfinst/agentic-dev-team",
-      "license": "MIT"
+      "source": {
+        "path": "plugins/dev-team",
+        "ref": "dev-team-v6.4.0",
+        "source": "git-subdir",
+        "url": "https://github.com/bdfinst/agentic-dev-team.git"
+      },
+      "version": "6.4.0"
     },
     {
-      "name": "security-assessment",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/bdfinst/agentic-dev-team.git",
-        "path": "plugins/security-assessment",
-        "ref": "security-assessment-v3.1.1"
+      "author": {
+        "name": "Bryan Finster"
       },
       "description": "Deep security assessment + adversarial ML red-team: SARIF-first tool orchestration, narrowly-scoped LLM agents, FP-reduction with fallback banner, compliance mapping, service-comm diagramming, and a self-owned-target red-team harness. Companion plugin to dev-team. Previously published as agentic-security-assessment.",
-      "version": "3.1.1",
+      "homepage": "https://github.com/bdfinst/agentic-dev-team",
+      "license": "MIT",
+      "name": "security-assessment",
+      "repository": "https://github.com/bdfinst/agentic-dev-team",
+      "source": {
+        "path": "plugins/security-assessment",
+        "ref": "security-assessment-v3.1.1",
+        "source": "git-subdir",
+        "url": "https://github.com/bdfinst/agentic-dev-team.git"
+      },
+      "version": "3.1.1"
+    },
+    {
       "author": {
         "name": "Bryan Finster"
       },
-      "homepage": "https://github.com/bdfinst/agentic-dev-team",
-      "repository": "https://github.com/bdfinst/agentic-dev-team",
-      "license": "MIT"
-    },
-    {
-      "name": "agentic-dev-team",
-      "source": "./plugins/agentic-dev-team",
       "description": "DEPRECATED legacy stub — renamed to dev-team@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. A SessionStart banner surfaces the half-migrated state. Scheduled for removal from the catalog no earlier than 2027-06-01.",
-      "version": "6.0.2",
-      "author": {
-        "name": "Bryan Finster"
-      },
       "homepage": "https://github.com/bdfinst/agentic-dev-team",
+      "license": "MIT",
+      "name": "agentic-dev-team",
       "repository": "https://github.com/bdfinst/agentic-dev-team",
-      "license": "MIT"
+      "source": "./plugins/agentic-dev-team",
+      "version": "6.0.2"
     },
     {
-      "name": "agentic-security-assessment",
-      "source": "./plugins/agentic-security-assessment",
-      "description": "DEPRECATED legacy stub — renamed to security-assessment@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. A SessionStart banner surfaces the half-migrated state. Scheduled for removal from the catalog no earlier than 2027-06-01.",
-      "version": "3.0.2",
       "author": {
         "name": "Bryan Finster"
       },
+      "description": "DEPRECATED legacy stub — renamed to security-assessment@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. A SessionStart banner surfaces the half-migrated state. Scheduled for removal from the catalog no earlier than 2027-06-01.",
       "homepage": "https://github.com/bdfinst/agentic-dev-team",
+      "license": "MIT",
+      "name": "agentic-security-assessment",
       "repository": "https://github.com/bdfinst/agentic-dev-team",
-      "license": "MIT"
+      "source": "./plugins/agentic-security-assessment",
+      "version": "3.0.2"
     }
   ]
 }
