@@ -32,7 +32,18 @@ Arguments: $ARGUMENTS
 
 ### 1. Check for metrics data
 
-Read metrics JSONL files from `metrics/`. If no metrics data exists or insufficient data is available (fewer than 10 review runs logged), report:
+Read metrics JSONL files from `metrics/`. Two complementary streams exist:
+
+- `metrics/*-task-log.jsonl` — **self-reported** task logs (whatever the model
+  chose to record about itself).
+- `metrics/session-digest.jsonl` — **ground-truth** real-session digests from
+  `/session-review` (#129): token/cost trends, `rework`/`accuracy` counts, and
+  `utilization.never_observed_*`. Prefer this where it disagrees with the
+  self-reports, and use `never_observed_*` to corroborate stale-component
+  flags. Schema + join: see `docs/eval-system.md` → "Session-review trend
+  digest".
+
+If no metrics data exists or insufficient data is available (fewer than 10 review runs logged), report:
 
 > "Insufficient metrics data for a meaningful audit. Run the system for a period to accumulate review data, then re-run `/harness-audit`. Minimum: 10 logged review runs."
 

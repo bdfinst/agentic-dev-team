@@ -73,6 +73,13 @@ jobs:
             tests/hooks/agent_model_resolve_hook_tests.bats \
             tests/hooks/model_resolve_tests.bats
 
+      # Cost-regression gate (#140): the cost meter ships a `regression`
+      # subcommand that nothing ran. This self-tests the mechanism (blocking)
+      # and, when a baseline log is committed, runs the real check warn-only —
+      # a non-deterministic meter must not hard-fail an unrelated code PR.
+      - name: Run cost-regression check
+        run: bash scripts/cost-regression-check.sh
+
   # Per-rule semgrep fixture measurement (#124): runs semgrep over the
   # positive/negative fixtures of the 36 custom rules to MEASURE real behaviour
   # (not just file presence, which the bats job covers). Heavier than the

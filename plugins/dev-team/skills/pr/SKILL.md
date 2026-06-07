@@ -62,8 +62,10 @@ Run each check sequentially. Stop on first failure:
    - `golangci-lint` available: `golangci-lint run`
 
 4. **Code review** (unless `--skip-review`):
-   - Run `/code-review`
-   - If review returns `fail`, show the results and ask the user whether to proceed or fix
+   - Run `/code-review --json`. `/pr` owns the human gate, so code-review runs non-interactively: it skips its own "fix or report?" prompt and applies its fix loop automatically (up to 5 iterations), then returns an aggregated status.
+   - Read the returned status field. A normal review returns `{"overall": "pass|warn|fail", ...}`; a documentation-only changeset short-circuits with `{"status": "skipped", ...}`:
+     - `overall` of `pass` / `warn`, or `status` of `skipped` → continue to step 3.
+     - `overall` of `fail` → show the remaining findings and ask the user whether to proceed anyway or stop and fix.
 
 Report results as a checklist:
 

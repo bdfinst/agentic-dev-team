@@ -7,12 +7,25 @@
 #
 #   GREEN-preserving  (no expected/*.json changed)        -> patch  (fix/chore/…)
 #   expectation-ADDITIVE (only new expected files added)  -> minor  (feat:)
-#   expectation-EDITING  (existing expected file M/D/R)    -> major  (feat! / BREAKING CHANGE)
+#   threshold-ONLY edit  (M, but only tolerances changed) -> minor  (feat:)
+#   expectation-EDITING  (M flips a verdict, or D/R)       -> major  (feat! / BREAKING CHANGE)
 #
 # The script diffs evals/expected/ across a base..head range, classifies the
 # change, derives the minimum required commit bump, and asserts the strongest
 # commit type in the range meets or exceeds it. A PR that edits an existing
 # expected value without a major-bump commit type fails (exit 1).
+#
+# Threshold-only vs. expectation flip (issue #136): a modified expected file is
+# not automatically breaking. We compare each modified file's *expectation
+# identity* — its `applicableAgents` set and per-agent `expectedStatus` verdicts
+# — across base..head. If that identity is unchanged and only tolerances
+# (issueCount/severities ranges) or prose moved, it is a threshold-only edit
+# (minor); only a verdict flip, a delete, or a rename is breaking (major).
+#
+# New-agent policy (issue #136): a newly-added review agent (a `*-review.md`
+# file under agents/) that no expected fixture references is flagged as a
+# failure — the behavior-defining agent must ship pinned by at least one
+# fixture, not land unpinned as a silent patch.
 #
 # Reconciliation with release-please: release-please reads the same
 # conventional-commit types to compute the version bump. This gate ensures the
@@ -54,10 +67,42 @@ classify_change_class() {
 class_to_min_bump() {
   case "$1" in
     editing) echo "major" ;;
-    additive) echo "minor" ;;
+    additive|threshold) echo "minor" ;;
     none) echo "patch" ;;
     *) echo "patch" ;;
   esac
+}
+
+# Expectation identity of an expected/*.json read on stdin: the canonical
+# (sorted) applicableAgents set plus each agent's expectedStatus verdict. Two
+# files with the same identity assert the same behavioral contract; tolerance
+# ranges (issueCount/severities) and prose (description) are deliberately
+# excluded. Emits a stable string, or "PARSE_ERROR" if jq can't read it.
+expectation_identity() {
+  jq -Sc '{
+    aa: ((.applicableAgents // []) | sort),
+    st: ((.agents // {}) | to_entries
+         | map({key: .key, status: (.value.expectedStatus // null)})
+         | sort_by(.key))
+  }' 2>/dev/null || echo "PARSE_ERROR"
+}
+
+# Classify a modification to an expected file given its base and head content
+# (passed as the two args). Echoes "flip" when the expectation identity changed
+# (a verdict flip or an agent added/removed from the contract) and "threshold"
+# when only tolerances/prose changed. A parse error is treated conservatively
+# as a flip.
+classify_expected_edit() {
+  local base_json="$1" head_json="$2" base_id head_id
+  base_id=$(printf '%s' "$base_json" | expectation_identity)
+  head_id=$(printf '%s' "$head_json" | expectation_identity)
+  if [ "$base_id" = "PARSE_ERROR" ] || [ "$head_id" = "PARSE_ERROR" ]; then
+    echo "flip"
+  elif [ "$base_id" = "$head_id" ]; then
+    echo "threshold"
+  else
+    echo "flip"
+  fi
 }
 
 # Numeric rank for comparison.
@@ -101,19 +146,52 @@ main() {
     return 2
   fi
 
-  local name_status class min_bump commits detected
+  # Content-aware classification: walk each changed expected/*.json and decide
+  # whether a modification flips a verdict (breaking) or only moves a tolerance
+  # (non-breaking). A→additive, D/R→flip(breaking), M→inspect content (#136).
+  local name_status status path saw_add="" saw_threshold="" saw_flip="" class
   name_status=$(git diff --name-status "$base" "$head" -- evals/expected/ 2>/dev/null)
-  class=$(printf '%s\n' "$name_status" | classify_change_class)
+  while IFS=$'\t' read -r status path _rest; do
+    [ -z "$status" ] && continue
+    case "$status" in
+      A) saw_add=1 ;;
+      M)
+        local base_json head_json edit
+        base_json=$(git show "$base:$path" 2>/dev/null)
+        head_json=$(git show "$head:$path" 2>/dev/null)
+        edit=$(classify_expected_edit "$base_json" "$head_json")
+        if [ "$edit" = "threshold" ]; then saw_threshold=1; else saw_flip=1; fi
+        ;;
+      *) saw_flip=1 ;;   # D, R*, C*, unknown: a removed/renamed expectation is breaking
+    esac
+  done < <(printf '%s\n' "$name_status")
+
+  if [ -n "$saw_flip" ]; then
+    class="editing"
+  elif [ -n "$saw_threshold" ]; then
+    class="threshold"
+  elif [ -n "$saw_add" ]; then
+    class="additive"
+  else
+    class="none"
+  fi
+
+  local min_bump commits detected
   min_bump=$(class_to_min_bump "$class")
 
   commits=$(git log --format='%s%n%b' "$base..$head" 2>/dev/null)
   detected=$(printf '%s\n' "$commits" | detect_commit_bump)
 
-  echo "Eval-semver classifier (issue #101)"
+  echo "Eval-semver classifier (issues #101, #136)"
   echo "  base..head:        $base..$head"
   echo "  corpus change:     $class"
   echo "  required min bump: $min_bump"
   echo "  commit type bump:  $detected"
+  # Mechanical reconciliation note: release-please cuts the version from the
+  # same conventional-commit types this gate reads, so the bump it will cut is
+  # exactly the detected bump below — and the gate fails unless that bump
+  # honestly covers the corpus change class.
+  echo "  release-please will cut: $detected (from the same commit types)"
 
   # Informational: behavior-bearing source changed but the corpus did not.
   local src_changed
@@ -123,6 +201,32 @@ main() {
   if [ "$class" = "none" ] && [ -n "$src_changed" ]; then
     echo "  note: agents/skills/knowledge changed but no expected/*.json did —" \
          "consider adding/updating fixtures to pin the new behavior."
+  fi
+
+  # New-agent policy (#136): a newly-added review agent must ship pinned by at
+  # least one eval fixture. A `*-review.md` added under agents/ that no
+  # expected/*.json references is a contract-defining artifact shipped unpinned
+  # — fail rather than let it land as a silent patch.
+  local new_agents agent_path agent_name unpinned=""
+  new_agents=$(git diff --name-status "$base" "$head" -- \
+    'plugins/dev-team/agents/*-review.md' 2>/dev/null \
+    | awk -F'\t' '$1=="A"{print $2}')
+  if [ -n "$new_agents" ]; then
+    while IFS= read -r agent_path; do
+      [ -z "$agent_path" ] && continue
+      agent_name=$(basename "$agent_path" .md)
+      # Covered if its name appears in any expected/*.json at head.
+      if ! git grep -q "\"$agent_name\"" "$head" -- 'evals/expected/*.json' 2>/dev/null; then
+        unpinned="${unpinned}${unpinned:+, }${agent_name}"
+      fi
+    done < <(printf '%s\n' "$new_agents")
+  fi
+  if [ -n "$unpinned" ]; then
+    echo
+    echo "FAIL: new review agent(s) without any eval fixture: $unpinned" >&2
+    echo "  A review agent defines reviewer behavior; ship it pinned by at" >&2
+    echo "  least one evals/expected/*.json that lists it in applicableAgents." >&2
+    return 1
   fi
 
   if [ "$(bump_rank "$detected")" -lt "$(bump_rank "$min_bump")" ]; then

@@ -75,6 +75,10 @@ run "bats — model-routing hook conformance" \
     tests/hooks/agent_model_resolve_hook_tests.bats \
     tests/hooks/model_resolve_tests.bats
 
+# --- plugin-tests.yml :: cost-regression gate (#140) -----------------------
+run "cost-regression check" \
+  bash scripts/cost-regression-check.sh
+
 # --- agent-eval.yml :: structural gate (model-free) ------------------------
 # (eval_grader_tests.bats already ran above as part of tests/repo/.)
 run "eval corpus integrity (eval_grade.py --check-corpus)" \

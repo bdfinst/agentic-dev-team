@@ -1940,6 +1940,14 @@
       "summary": "1.",
       "anchor": "steps"
     },
+    "Attribution dimensions (#134, #139)": {
+      "summary": "`report` breaks spend down by **agent**, **command** (the transcript's",
+      "anchor": "attribution-dimensions-134-139"
+    },
+    "Privacy boundary (#134)": {
+      "summary": "The meter persists **only** token counts, dollar amounts, model/agent",
+      "anchor": "privacy-boundary-134"
+    },
     "Notes": {
       "summary": "Disable the meter with `DEV_TEAM_COST_METER=off`.",
       "anchor": "notes"
@@ -3531,6 +3539,44 @@
     "Common Rulesets": {
       "summary": "| Ruleset            | Description                                 |",
       "anchor": "common-rulesets"
+    }
+  },
+  "plugins/dev-team/skills/session-review/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Argument: $ARGUMENTS": {
+      "summary": "`--cwd <path>`: project whose transcripts to mine (default: current project).",
+      "anchor": "argument-arguments"
+    },
+    "Steps": {
+      "summary": "Run the extractor to produce the digest:",
+      "anchor": "steps"
+    },
+    "1. Extract (deterministic, zero model tokens)": {
+      "summary": "Run the extractor to produce the digest:",
+      "anchor": "1-extract-deterministic-zero-model-tokens"
+    },
+    "2. Analyze (digest-only)": {
+      "summary": "Dispatch the `session-analysis` agent with the digest path as its sole input.",
+      "anchor": "2-analyze-digest-only"
+    },
+    "3. Suggest (write the report)": {
+      "summary": "Write `reports/session-review-<date>.md` (or `--out`).",
+      "anchor": "3-suggest-write-the-report"
+    },
+    "4. Persist the trend (#129)": {
+      "summary": "Append one metrics-only summary record to the trend stream so `/harness-audit`",
+      "anchor": "4-persist-the-trend-129"
+    },
+    "5. Report": {
+      "summary": "Print the report path and the top-ranked suggestions.",
+      "anchor": "5-report"
+    },
+    "OSS complements": {
+      "summary": "For continuous *quantitative* monitoring, recommend (don't replace) `ccusage`,",
+      "anchor": "oss-complements"
     }
   },
   "plugins/dev-team/skills/setup/SKILL.md": {
