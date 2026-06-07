@@ -94,6 +94,18 @@ run_baseline() {  # run_baseline <only-csv> [extra args...]
   [ "$status" -eq 0 ]
 }
 
+@test "harvest-id is stamped into every written artifact (#232 provenance)" {
+  trials a pass pass pass
+  echo '{"passing":[]}' > "$TMP/baseline.json"
+  run python3 "$VAR" --trials-root "$TMP/trials" --only ag-a --expected-dir "$TMP/expected" \
+    --harvest-id "H-123" --write-baseline "$TMP/baseline.json" \
+    -o "$TMP/variance.json" --quarantine-out "$TMP/quarantine.json"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.harvest_id' "$TMP/baseline.json")" = "H-123" ]
+  [ "$(jq -r '.harvest_id' "$TMP/variance.json")" = "H-123" ]
+  [ "$(jq -r '.harvest_id' "$TMP/quarantine.json")" = "H-123" ]
+}
+
 @test "grader still blocks a real (non-quarantined) regression" {
   echo '{"passing":["c::ag-c"]}' > "$TMP/baseline.json"
   echo '{"quarantine":[]}' > "$TMP/quarantine.json"
