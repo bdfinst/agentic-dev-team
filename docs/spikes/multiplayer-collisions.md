@@ -1,8 +1,13 @@
 # Spike: multiplayer / concurrent-use collisions (#109 Phase 1)
 
-> **Phase 1 (reproduce + characterize) — done.** Phase 2 (decide enforce-vs-document
-> and implement) is a separate step and needs a human decision (see the end).
-> Reproductions: `tests/repo/multiplayer_collision_tests.bats`.
+> **Phase 1 (reproduce + characterize) — done.** Reproductions:
+> `tests/repo/multiplayer_collision_tests.bats`.
+>
+> **Phase 2 — resolved (document, don't enforce).** The plugin documents the
+> safe pattern — one git worktree per agent — in
+> [`../../plugins/dev-team/docs/concurrent-use.md`](../../plugins/dev-team/docs/concurrent-use.md),
+> rather than adding locks. The independent single-player gate bug (paths-not-
+> content) is spun off to **#193**.
 
 ## Scope
 
