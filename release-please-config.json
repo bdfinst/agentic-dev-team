@@ -15,13 +15,37 @@
       "release-type": "simple",
       "package-name": "dev-team",
       "component": "dev-team",
-      "extra-files": [".claude-plugin/plugin.json"]
+      "extra-files": [
+        ".claude-plugin/plugin.json",
+        {
+          "type": "json",
+          "path": "/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='dev-team')].version"
+        },
+        {
+          "type": "json",
+          "path": "/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='dev-team')].source.ref"
+        }
+      ]
     },
     "plugins/security-assessment": {
       "release-type": "simple",
       "package-name": "security-assessment",
       "component": "security-assessment",
-      "extra-files": [".claude-plugin/plugin.json"]
+      "extra-files": [
+        ".claude-plugin/plugin.json",
+        {
+          "type": "json",
+          "path": "/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='security-assessment')].version"
+        },
+        {
+          "type": "json",
+          "path": "/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='security-assessment')].source.ref"
+        }
+      ]
     }
   }
 }
