@@ -1,50 +1,35 @@
 #!/usr/bin/env bash
-# run-full-eval.sh — run the FULL agent-eval corpus, refresh the tracked eval
-# data, and open an auto-merge PR.
+# run-full-eval.sh — run the agent-eval corpus, refresh the tracked eval data,
+# and open an auto-merge PR. Supports full, single-agent, and a RESUMABLE sweep.
 #
-# What it does:
-#   1. Dispatches the review agents against EVERY fixture, headlessly, via
-#      `claude -p /agent-eval` (same mechanism as scripts/eval-changed.sh, but
-#      always full-scope). With TRIALS>1 it runs that N times for variance.
-#   2. Grades the actuals and rewrites evals/baseline.json (the tracked pass set),
-#      and appends the variance trend to metrics/eval-variance.jsonl (local).
-#   3. If the baseline changed, commits it on a branch and opens an auto-merge PR.
+# Modes:
+#   (default)        one full-corpus run -> baseline refresh -> auto-merge PR.
+#   --agent NAME     INCREMENTAL: just that agent (merges its pairs, others kept).
+#   --sweep          RESUMABLE: every agent, one at a time, checkpointed. If you
+#                    kill it or run out of tokens, re-run `--sweep` and it picks up
+#                    where it left off (per-agent commits + a checkpoint file are
+#                    the progress). One PR at the end.
 #
-# This costs API tokens. A full multi-trial run is expensive — default TRIALS=1.
+# This costs API tokens. Default TRIALS=1.
 #
-# Usage:   bash scripts/run-full-eval.sh [TRIALS]   (default 1)
-# Env:     ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN, plus `claude` + `gh`.
-# Exit:    0 ok (PR opened or no change), 2 missing prereq, 1 run produced nothing.
+# Usage:  bash scripts/run-full-eval.sh [TRIALS] [--agent NAME | --sweep]
+# Env:    ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN, plus `claude` + `gh`.
+# Exit:   0 ok, 2 missing prereq, 1 run produced nothing.
 
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
-# Args: [TRIALS] [--agent NAME]. --agent makes the run INCREMENTAL — it scopes the
-# dispatch to one agent and grades with --only, so the baseline merge tops up that
-# agent's pairs and leaves every other agent's pairs untouched. Run agents one at
-# a time to spread cost; each run accumulates into the same baseline + trend.
-TRIALS=1
-ONLY_AGENT=""
+TRIALS=1; ONLY_AGENT=""; SWEEP=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent) ONLY_AGENT="${2:-}"; shift 2 ;;
+    --sweep) SWEEP=1; shift ;;
     [0-9]*)  TRIALS="$1"; shift ;;
-    *) echo "usage: run-full-eval.sh [TRIALS] [--agent NAME]" >&2; exit 2 ;;
+    *) echo "usage: run-full-eval.sh [TRIALS] [--agent NAME | --sweep]" >&2; exit 2 ;;
   esac
 done
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
-if [ -n "$ONLY_AGENT" ]; then
-  SCOPE_LABEL="agent-${ONLY_AGENT}"
-  SCOPE_INSTR="IMPORTANT: restrict this run to ONLY the agent '${ONLY_AGENT}' and the fixtures that target it; skip every other agent and skill."
-  GRADE_ONLY=(--only "$ONLY_AGENT")
-else
-  SCOPE_LABEL="full"
-  SCOPE_INSTR=""
-  GRADE_ONLY=()
-fi
-BRANCH="eval/${SCOPE_LABEL}-${STAMP}"
-TRIALS_DIR="$(mktemp -d)"
-trap 'rm -rf "$TRIALS_DIR"' EXIT
+CKPT=".eval-sweep-progress.json"   # gitignored; the resume handle
 
 # --- prerequisites ----------------------------------------------------------
 for t in claude gh jq python3 git; do
@@ -54,93 +39,134 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; the
   echo "no ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN — the live eval needs creds." >&2
   exit 2
 fi
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "working tree is dirty — commit or stash first." >&2
-  exit 2
-fi
 
 # --- stage fixtures where the skill expects them (mirrors eval-changed.sh) ---
 mkdir -p .claude/evals
 ln -sfn "$PWD/evals/fixtures" .claude/evals/fixtures
 ln -sfn "$PWD/evals/expected" .claude/evals/expected
 
-read -r -d '' PROMPT <<'EOF'
-Run the review agents against EVERY fixture in .claude/evals/fixtures/ whose
-paired .claude/evals/expected/<stem>.json declares an applicableAgents (or
-applicableSkills) target. Use the /review-agent skill for agent fixtures and the
-test-design-advisor skill for skill fixtures.
+read -r -d '' PROMPT_BASE <<'EOF'
+Run the review agents against the fixtures in .claude/evals/fixtures/ whose paired
+.claude/evals/expected/<stem>.json declares an applicableAgents target, via the
+/review-agent skill.
 
 CRITICAL — do NOT bias the agents: pass each agent ONLY its fixture file. Do not
 tell it the expected status or severity. Let it decide every value itself.
 
-Do NOT grade. Record each agent's/skill's raw output and write valid JSON (and
-nothing else) to actuals.json at the repository root, keyed by fixture stem:
+Do NOT grade. Write valid JSON (and nothing else) to actuals.json at the repo
+root, keyed by fixture stem:
 
   { "<stem>": { "agents": { "<agent>": { "status": "...",
-        "issues": [{ "severity": "...", "message": "..." }], "summary": "..." } },
-                "skills": { "<skill>": { "report": "...", "gates": ["A"], "layers": ["unit"] } } } }
-
-Include only the block(s) the fixture targets.
+        "issues": [{ "severity": "...", "message": "..." }], "summary": "..." } } } }
 EOF
-[ -n "$SCOPE_INSTR" ] && PROMPT="${PROMPT}"$'\n\n'"${SCOPE_INSTR}"
 
-# --- 1. dispatch: one headless run per trial --------------------------------
-emitted=0
-for n in $(seq 1 "$TRIALS"); do
-  echo "== eval (${SCOPE_LABEL}) trial ${n}/${TRIALS} (dispatching agents; costs tokens) =="
+# _dispatch <scope-instruction> <trials-dir> -> prints the number of good trials
+_dispatch() {
+  local instr="$1" tdir="$2" prompt="$PROMPT_BASE" n cnt=0
+  [ -n "$instr" ] && prompt="${prompt}"$'\n\n'"${instr}"
+  for n in $(seq 1 "$TRIALS"); do
+    rm -f actuals.json
+    claude -p "$prompt" --output-format json --max-turns 200 --model claude-sonnet-4-6 \
+      --allowedTools "Read" "Glob" "Grep" "Write" "Agent" \
+                     "Skill(review-agent *)" "Skill(test-design-advisor *)" \
+      >/dev/null 2>&1 || true
+    if jq -e . actuals.json >/dev/null 2>&1; then cp actuals.json "$tdir/trial-${n}.json"; cnt=$((cnt + 1)); fi
+  done
   rm -f actuals.json
-  claude -p "$PROMPT" \
-    --output-format json --max-turns 200 --model claude-sonnet-4-6 \
-    --allowedTools "Read" "Glob" "Grep" "Write" "Agent" \
-                   "Skill(review-agent *)" "Skill(test-design-advisor *)" \
-    >/dev/null 2>&1 || true
-  if [ -f actuals.json ] && jq -e . actuals.json >/dev/null 2>&1; then
-    cp actuals.json "$TRIALS_DIR/trial-${n}.json"
-    emitted=$((emitted + 1))
+  echo "$cnt"
+}
+
+# _grade_variance <agent-or-empty> <trials-dir> — update baseline.json in the
+# tree (merged; --only when scoped) and append the variance trend.
+_grade_variance() {
+  local agent="$1" tdir="$2" ft only=() ve="evals/expected"
+  ft="$(find "$tdir" -name 'trial-*.json' | sort | head -1)"
+  [ -n "$agent" ] && only=(--only "$agent")
+  python3 scripts/eval_grade.py --actuals "$ft" "${only[@]}" \
+    --write-baseline evals/baseline.json || true
+  if [ "$(find "$tdir" -name 'trial-*.json' | wc -l)" -gt 1 ]; then
+    if [ -n "$agent" ]; then
+      ve="$tdir/expected"; mkdir -p "$ve"
+      for ef in evals/expected/*.json; do
+        jq -e --arg a "$agent" '.applicableAgents // [] | index($a)' "$ef" >/dev/null 2>&1 && cp "$ef" "$ve/"
+      done
+    fi
+    python3 scripts/eval_variance.py --trials-dir "$tdir" --expected-dir "$ve" \
+      --append metrics/eval-variance.jsonl -o memory/eval-variance.json >/dev/null || true
+  fi
+}
+
+# ============================ RESUMABLE SWEEP ===============================
+if [ "$SWEEP" -eq 1 ]; then
+  if [ -f "$CKPT" ]; then
+    BRANCH="$(jq -r .branch "$CKPT")"; TRIALS="$(jq -r .trials "$CKPT")"
+    echo "resuming sweep on '$BRANCH' — $(jq -r '.done | length' "$CKPT") agent(s) already done."
+    git checkout "$BRANCH" >/dev/null 2>&1 || { echo "cannot checkout sweep branch $BRANCH" >&2; exit 2; }
+    git checkout -- evals/baseline.json 2>/dev/null || true   # drop any partial from an interrupted agent
   else
-    echo "  trial ${n}: no parseable actuals.json produced — skipping this trial." >&2
+    if ! git diff --quiet || ! git diff --cached --quiet; then echo "working tree is dirty — commit or stash first." >&2; exit 2; fi
+    BRANCH="eval/sweep-${STAMP}"
+    git checkout -b "$BRANCH" >/dev/null 2>&1 || { echo "branch create failed" >&2; exit 2; }
+    jq -n --arg b "$BRANCH" --argjson t "$TRIALS" '{branch:$b, trials:$t, done:[]}' > "$CKPT"
+    echo "started sweep on '$BRANCH'."
   fi
-done
-rm -f actuals.json
-if [ "$emitted" -eq 0 ]; then
-  echo "no trials produced results — nothing to update." >&2
-  exit 1
-fi
 
-# --- 2. update eval data ----------------------------------------------------
-# Refresh the tracked baseline from the first good trial. With --agent, --only
-# scopes the merge to that agent's pairs (others are kept untouched) — this is
-# what makes incremental runs safe rather than clobbering the baseline.
-first_trial="$(find "$TRIALS_DIR" -name 'trial-*.json' | sort | head -1)"
-python3 scripts/eval_grade.py --actuals "$first_trial" "${GRADE_ONLY[@]}" \
-  --write-baseline evals/baseline.json || true
-# Append the variance trend (local; metrics/ is gitignored) when multi-trial.
-# For a scoped run, aggregate against only that agent's expected files so the
-# trend isn't polluted by un-run pairs.
-if [ "$emitted" -gt 1 ]; then
-  VAR_EXPECTED="evals/expected"
-  if [ -n "$ONLY_AGENT" ]; then
-    VAR_EXPECTED="$TRIALS_DIR/expected"
-    mkdir -p "$VAR_EXPECTED"
-    for ef in evals/expected/*.json; do
-      jq -e --arg a "$ONLY_AGENT" '.applicableAgents // [] | index($a)' "$ef" >/dev/null 2>&1 \
-        && cp "$ef" "$VAR_EXPECTED/"
-    done
+  mapfile -t ALL_AGENTS < <(jq -r '.applicableAgents[]?' evals/expected/*.json 2>/dev/null | sort -u)
+  for agent in "${ALL_AGENTS[@]}"; do
+    if jq -e --arg a "$agent" '.done | index($a)' "$CKPT" >/dev/null 2>&1; then
+      echo "skip (done): $agent"; continue
+    fi
+    echo "== agent: $agent ($TRIALS trial(s)) — dispatching =="
+    tdir="$(mktemp -d)"
+    cnt="$(_dispatch "IMPORTANT: restrict this run to ONLY the agent '${agent}' and the fixtures that target it; skip every other agent and skill." "$tdir")"
+    if [ "$cnt" -eq 0 ]; then
+      echo "  no actuals for $agent — leaving un-done; re-run to retry." >&2; rm -rf "$tdir"; continue
+    fi
+    _grade_variance "$agent" "$tdir"; rm -rf "$tdir"
+    # checkpoint: commit the baseline delta (progress lives in git) + mark done
+    if ! git diff --quiet -- evals/baseline.json; then
+      git add evals/baseline.json
+      git commit -q -m "test(evals): sweep baseline for ${agent} (${STAMP})"
+    fi
+    tmp="$(mktemp)"; jq --arg a "$agent" '.done += [$a]' "$CKPT" > "$tmp" && mv "$tmp" "$CKPT"
+    echo "  done: $agent ($(jq -r '.done | length' "$CKPT")/${#ALL_AGENTS[@]})"
+  done
+
+  echo "== sweep complete: $(jq -r '.done | length' "$CKPT")/${#ALL_AGENTS[@]} agents =="
+  if [ -n "$(git log origin/main..HEAD --oneline 2>/dev/null)" ]; then
+    git push -u origin "$BRANCH" >/dev/null 2>&1 || { echo "push failed" >&2; exit 2; }
+    PR_URL="$(gh pr create --title "test(evals): full sweep baseline refresh (${STAMP})" \
+      --body "Resumable full-corpus sweep via \`run-full-eval.sh --sweep\` — every agent, one per commit.
+
+Merges per-agent results into \`evals/baseline.json\`. Review the diff for **regressions** (pairs dropped) or **improvements** (pairs newly passing). Variance appended to the local trend." 2>/dev/null)"
+    echo "opened: $PR_URL"
+    gh pr merge "$(echo "$PR_URL" | grep -oE '[0-9]+$')" --auto --squash --delete-branch >/dev/null 2>&1 \
+      && echo "auto-merge enabled" || echo "could not enable auto-merge (enable manually)"
+  else
+    echo "no baseline changes across the sweep — no PR."
   fi
-  python3 scripts/eval_variance.py --trials-dir "$TRIALS_DIR" \
-    --expected-dir "$VAR_EXPECTED" --append metrics/eval-variance.jsonl \
-    -o memory/eval-variance.json >/dev/null || true
-  echo "variance: $(jq -c '{flaky_count, quarantine}' memory/eval-variance.json 2>/dev/null)"
-fi
-
-# --- 3. commit + auto-merge PR (only if the baseline actually changed) -------
-if git diff --quiet -- evals/baseline.json; then
-  echo "baseline unchanged — no regression/improvement to record. No PR opened."
+  rm -f "$CKPT"
   exit 0
 fi
 
-SCOPE_DESC="full-corpus"
-[ -n "$ONLY_AGENT" ] && SCOPE_DESC="agent '${ONLY_AGENT}' (incremental)"
+# ============================ SINGLE RUN ===================================
+if ! git diff --quiet || ! git diff --cached --quiet; then echo "working tree is dirty — commit or stash first." >&2; exit 2; fi
+if [ -n "$ONLY_AGENT" ]; then
+  SCOPE_LABEL="agent-${ONLY_AGENT}"; SCOPE_DESC="agent '${ONLY_AGENT}' (incremental)"
+  SCOPE_INSTR="IMPORTANT: restrict this run to ONLY the agent '${ONLY_AGENT}' and the fixtures that target it; skip every other agent and skill."
+else
+  SCOPE_LABEL="full"; SCOPE_DESC="full-corpus"; SCOPE_INSTR=""
+fi
+TRIALS_DIR="$(mktemp -d)"; trap 'rm -rf "$TRIALS_DIR"' EXIT
+echo "== eval (${SCOPE_LABEL}) — ${TRIALS} trial(s), dispatching (costs tokens) =="
+emitted="$(_dispatch "$SCOPE_INSTR" "$TRIALS_DIR")"
+[ "$emitted" -gt 0 ] || { echo "no trials produced results — nothing to update." >&2; exit 1; }
+_grade_variance "$ONLY_AGENT" "$TRIALS_DIR"
+
+if git diff --quiet -- evals/baseline.json; then
+  echo "baseline unchanged — no regression/improvement to record. No PR opened."; exit 0
+fi
+BRANCH="eval/${SCOPE_LABEL}-${STAMP}"
 git checkout -b "$BRANCH" >/dev/null 2>&1 || { echo "branch create failed" >&2; exit 2; }
 git add evals/baseline.json
 git commit -q -m "test(evals): refresh baseline — ${SCOPE_LABEL} run (${STAMP})
@@ -148,18 +174,10 @@ git commit -q -m "test(evals): refresh baseline — ${SCOPE_LABEL} run (${STAMP}
 ${SCOPE_DESC} agent-eval run (${emitted} trial(s)); evals/baseline.json merged
 (this scope's pairs updated, others untouched). Generated by run-full-eval.sh."
 git push -u origin "$BRANCH" >/dev/null 2>&1 || { echo "push failed" >&2; exit 2; }
-
-PR_URL="$(gh pr create \
-  --title "test(evals): refresh baseline — ${SCOPE_LABEL} run (${STAMP})" \
+PR_URL="$(gh pr create --title "test(evals): refresh baseline — ${SCOPE_LABEL} run (${STAMP})" \
   --body "Automated agent-eval run via \`scripts/run-full-eval.sh\` — scope: **${SCOPE_DESC}**, ${emitted} trial(s).
 
-Merges into \`evals/baseline.json\` (this scope's pairs updated, all others left
-untouched — incremental-safe). Review the diff for **regressions** (pairs dropped)
-or **improvements** (pairs newly passing). Variance/flap (when multi-trial) is
-appended to the local \`metrics/eval-variance.jsonl\` trend.
-
-Generated automatically; merge to accept." \
-  2>/dev/null)"
+Merges into \`evals/baseline.json\` (this scope's pairs updated, all others untouched — incremental-safe). Review the diff for **regressions** or **improvements**." 2>/dev/null)"
 echo "opened: $PR_URL"
-gh pr merge "$(echo "$PR_URL" | grep -oE '[0-9]+$')" --auto --squash --delete-branch \
-  >/dev/null 2>&1 && echo "auto-merge enabled" || echo "could not enable auto-merge (enable manually)"
+gh pr merge "$(echo "$PR_URL" | grep -oE '[0-9]+$')" --auto --squash --delete-branch >/dev/null 2>&1 \
+  && echo "auto-merge enabled" || echo "could not enable auto-merge (enable manually)"
