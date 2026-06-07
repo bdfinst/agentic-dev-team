@@ -247,9 +247,17 @@ All three are optional and project-local — they are not part of the plugin.
 - **[`/apply-fixes`](../skills/apply-fixes/SKILL.md)** consumes the `corrections/` directory produced here.
 - **[`/pr`](../skills/pr/SKILL.md)** runs `/code-review --json` as part of its pre-PR quality gate. It runs non-interactively (fix loop auto-applies, no "fix or report?" prompt) and `/pr` branches on the returned status — `overall: pass/warn` or `status: skipped` proceeds, `overall: fail` re-engages the user.
 
+## Concurrent use
+
+The `.review-passed` gate is a single, gitignored file per working tree. Two
+agents sharing **one** checkout will overwrite each other's gate. Run each
+concurrent agent in its own [git worktree](concurrent-use.md) — separate
+checkouts (the normal team workflow) are unaffected.
+
 ## References
 
 - [Skill spec](../skills/code-review/SKILL.md) — operational detail for the orchestrator
+- [Concurrent use](concurrent-use.md) — one worktree per agent; why the gate is per-checkout
 - [Output format](../skills/code-review/output-format.md) — per-agent JSON, aggregated JSON, correction prompts
 - [Report template](../knowledge/review-template.md) — prose report structure
 - [Scoring rubric](../knowledge/review-rubric.md) — health scoring and severity mapping
