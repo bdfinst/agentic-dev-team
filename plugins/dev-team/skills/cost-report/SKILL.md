@@ -44,10 +44,35 @@ data.
      --log metrics/cost-metering.jsonl --tolerance 0.5
    ```
 
-3. Report the per-agent tokens + cost, the session total, and whether a cost
-   regression was detected. Do not invent numbers — print exactly what the
-   meter emits. If `metrics/cost-metering.jsonl` is absent, tell the user the
-   meter hasn't recorded a session yet (the hook records on turn end).
+3. Report the per-agent, per-command, and per-fix-loop-iteration tokens + cost,
+   the session total, and whether a cost regression was detected. Do not invent
+   numbers — print exactly what the meter emits. If `metrics/cost-metering.jsonl`
+   is absent, tell the user the meter hasn't recorded a session yet (the hook
+   records on turn end).
+
+   For a windowed cost-regression baseline (mean of only the N most recent prior
+   sessions instead of all-time), pass `--window N`:
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py regression \
+     --log metrics/cost-metering.jsonl --tolerance 0.5 --window 10
+   ```
+
+## Attribution dimensions (#134, #139)
+
+`report` breaks spend down by **agent**, **command** (the transcript's
+`attributionSkill` tag, so you can separate `/code-review` spend from `/build`),
+**orchestration phase** (specs/plan/build/review, from an `orchestrationPhase`
+marker or derived from the command), and **fix-loop iteration** (read from a
+`fixLoopIteration` marker — records without the marker fall into an
+`unattributed` bucket rather than being lost).
+
+## Privacy boundary (#134)
+
+The meter persists **only** token counts, dollar amounts, model/agent
+identifiers, the command tag, and the iteration index — never prompt text, code,
+file paths, or tool payloads. `metrics/cost-metering.jsonl` is a metrics-only
+artifact by construction.
 
 4. **Account pace (optional, #142).** When the user asks "am I on track for my
    budget", "how much have I burned this week", or "which model should I use for
