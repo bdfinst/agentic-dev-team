@@ -309,7 +309,7 @@ Fully landed: **#99** (agent-eval CI gate), **#100** (prose/Targets cleanup + se
 
 **Closed COMPLETED but functionally inert (verified by inspecting the artifacts, not the issue state — flag for re-open):**
 
-- **#139 — per-fix-loop-iteration granularity is inert.** `cost_meter.py` buckets by a `fixLoopIteration` marker that **no runtime stamps** (it exists only in test fixtures), so real sessions attribute all fix-loop spend to `unattributed`. Per-*phase* works (static command→phase map); per-*iteration* does not. Fix needs a runtime that stamps the marker during the review→fix cycle. **Follow-up: #170.**
+- **#139 — per-iteration AND per-phase granularity were inert (resolved #170).** The #170 spike verified the harness records none of `attributionSkill`/`orchestrationPhase`/`fixLoopIteration` (0/312 in a real transcript) and a plugin can't stamp them — so per-command, per-phase, and per-iteration were all always-empty (the earlier "per-phase works" note was wrong). #170 removed the inert buckets and now attributes by **model** and **thread** (main vs subagent, via native `isSidechain`). **Resolved in #170.**
 - **#140 — cost-regression CI gate self-tests only.** The blocking step verifies the mechanism on synthetic data; the real check is warn-only and dormant because no baseline log is committed (it's gitignored/local). It cannot fail a PR for a real cost regression. A real gate needs a committed/aggregated baseline — which overlaps the session-digest cross-machine aggregation (Delta D below). **Follow-up: #171.**
 
 Lesson worth recording: green tests + closed issue ≠ functional outcome. Both reproduce the reviews' own "a gate that doesn't run is documentation" pattern one layer down.
