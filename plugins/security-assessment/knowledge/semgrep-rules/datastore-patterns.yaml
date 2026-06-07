@@ -49,6 +49,7 @@ rules:
     severity: ERROR
     languages: [java]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-362"
       category: "datastore.consistency-mismatch"
 
@@ -85,6 +86,7 @@ rules:
     severity: ERROR
     languages: [java]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-367"
       category: "datastore.toctou"
 
@@ -125,6 +127,7 @@ rules:
     severity: ERROR
     languages: [python, javascript]
     metadata:
+      semgrep_status: "parse-error"
       cwe: "CWE-943"
       category: "datastore.nosql-injection"
 
@@ -156,6 +159,7 @@ rules:
     severity: WARNING
     languages: [python, javascript]
     metadata:
+      semgrep_status: "parse-error"
       cwe: "CWE-639"
       category: "datastore.key-injection"
 
@@ -175,6 +179,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-89"
       category: "datastore.sql-injection"
       duplicate_of: "semgrep.p/security-audit"

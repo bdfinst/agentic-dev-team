@@ -1,0 +1,23 @@
+# Rules the #124 semgrep measurement found firing on NOTHING — their positive
+# fixture does not fire because semgrep cannot compile the rule (a Python-only
+# pattern declared for `javascript`/`go`/`java`, or a JS template literal in a
+# Python rule) or the pattern is too literal (string-ellipsis "http://..." does
+# not match real URLs in current semgrep).
+#
+# These are pre-existing rule-grammar bugs surfaced by the measurement, NOT
+# fixture problems — every listed rule HAS a correct positive+negative fixture.
+# Fixing the grammar changes detection semantics, so it is tracked as a #124
+# follow-up. This list keeps the audit gate honest in the meantime: every rule
+# NOT listed here must have a firing positive, and removing a rule from this
+# list is required the moment it starts working.
+#
+# One rule id per line. Keep sorted.
+datastore.mongodb.unauthenticated-upsert
+datastore.redis.user-controlled-key
+fraud-domain.emulation-mode-bypass
+fraud-domain.tokenization-skip-under-flag
+llm-safety.insecure-model-download
+llm-safety.prompt-template-string-injection
+messaging.kafka.no-auth-producer
+messaging.nats.hardcoded-credentials
+messaging.nats.subject-injection

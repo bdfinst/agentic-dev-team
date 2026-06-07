@@ -79,3 +79,21 @@ jobs:
       # a non-deterministic meter must not hard-fail an unrelated code PR.
       - name: Run cost-regression check
         run: bash scripts/cost-regression-check.sh
+
+  # Per-rule semgrep fixture measurement (#124): runs semgrep over the
+  # positive/negative fixtures of the 36 custom rules to MEASURE real behaviour
+  # (not just file presence, which the bats job covers). Heavier than the
+  # bats/jq/python gate — semgrep install — so it is its own job.
+  semgrep-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install semgrep + pyyaml
+        run: pip install --quiet semgrep pyyaml
+
+      # Fails if a rule is missing a fixture, a working rule's negative fires
+      # (measured fp_rate > 0.10 — the demotion trigger), a non-known-broken
+      # rule's positive fires on nothing, or a known-broken entry now works.
+      - name: Measure custom semgrep rule fixtures
+        run: python3 plugins/security-assessment/scripts/audit-semgrep-fixtures.py

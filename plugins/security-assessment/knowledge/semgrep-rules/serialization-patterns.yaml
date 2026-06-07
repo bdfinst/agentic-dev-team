@@ -33,6 +33,7 @@ rules:
     severity: ERROR
     languages: [java]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-502"
       category: "serialization.deserialization"
 
@@ -53,6 +54,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-502"
       category: "serialization.deserialization"
 
@@ -97,6 +99,7 @@ rules:
     severity: WARNING
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-20"
       category: "serialization.metadata-injection"
 
@@ -169,6 +172,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-943"
       category: "serialization.nosql-injection"
 
@@ -192,6 +196,7 @@ rules:
     severity: ERROR
     languages: [java]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-502"
       category: "serialization.deserialization"
 
@@ -234,6 +239,7 @@ rules:
     severity: WARNING
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-74"
       category: "serialization.json-injection"
       rule_family: "serialization.general.model-feature-name-injection"
@@ -264,6 +270,7 @@ rules:
     severity: WARNING
     languages: [javascript]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-74"
       category: "serialization.json-injection"
       rule_family: "serialization.general.model-feature-name-injection"

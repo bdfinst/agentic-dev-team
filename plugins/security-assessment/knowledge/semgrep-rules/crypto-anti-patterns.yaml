@@ -23,6 +23,7 @@ rules:
     severity: ERROR
     languages: [javascript, typescript]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-295"
       category: "crypto.tls-disabled"
 
@@ -36,6 +37,7 @@ rules:
     severity: WARNING
     languages: [javascript, typescript, bash, python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-327"
       category: "crypto.deprecated"
 
@@ -51,6 +53,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-295"
       category: "crypto.tls-disabled"
 
@@ -67,6 +70,7 @@ rules:
     severity: ERROR
     languages: [python]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-327"
       category: "crypto.weak-cipher"
 
@@ -78,6 +82,7 @@ rules:
     severity: ERROR
     languages: [bash]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-494"
       category: "crypto.pip-wildcard-host"
 
@@ -93,5 +98,6 @@ rules:
     severity: WARNING
     languages: [python, javascript, typescript]
     metadata:
+      fp_rate: "0.0"
       cwe: "CWE-328"
       category: "crypto.weak-hash"
