@@ -77,3 +77,13 @@ BANNED_PHRASES=(
   run grep -iq "must name the instrument" "$CLAUDE_MD"
   [ "$status" -eq 0 ]
 }
+
+@test "CLAUDE.md states the North Star (reduce friction; a change must name the friction it removes)" {
+  # The North Star is doctrine for every change. This sensor keeps it from
+  # being silently deleted: it must declare the friction goal and the
+  # name-the-friction-or-it-does-not-ship rule.
+  run grep -iq "## North Star" "$CLAUDE_MD"
+  [ "$status" -eq 0 ]
+  run grep -iq "does not ship" "$CLAUDE_MD"
+  [ "$status" -eq 0 ]
+}

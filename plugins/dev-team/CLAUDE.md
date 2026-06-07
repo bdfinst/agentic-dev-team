@@ -4,6 +4,14 @@
 
 This project implements a fully automated development team using persona-driven AI agents orchestrated through an intelligent coordination pipeline. The Orchestrator agent acts as the central dispatcher, routing tasks to specialized agents based on task classification, complexity, and required expertise.
 
+## North Star
+
+Every change must reduce friction for someone trying to get work done with this plugin: **fewer missteps, less rework, lower token cost.** We measure friction, we do not assume it — telemetry and cost metering exist to close a loop where observed friction becomes a concrete improvement: a hint to the user, a new skill, an agent-config change, or a hook that constrains a bad path.
+
+Not goals: reputational novelty, feature breadth, or ceremony for its own sake. A change that cannot name the friction it removes — and the metric that would show the reduction — does not ship. (This applies the same claims-discipline rule as quantitative prose: every claim must name the instrument that measures it.)
+
+When prioritizing or rejecting work, this is the tie-breaker: the option that removes more real, observed friction wins.
+
 ## Architecture
 
 This project uses a layered loading strategy to minimize token usage:
