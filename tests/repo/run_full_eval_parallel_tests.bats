@@ -1,75 +1,59 @@
 #!/usr/bin/env bats
-# run-full-eval-parallel.sh — guards the DETERMINISTIC reconciliation, the only
-# correctness-critical logic the parallel harness adds (dispatch itself needs live
-# models and isn't unit-tested). Two invariants:
-#   1. The jq deep-merge of per-agent FIRST trials is a loss-free union when agents
-#      are disjoint — even when two agents grade the SAME fixture stem.
-#   2. The grade is scoped (--only) to agents that produced actuals, so an agent
-#      that failed to dispatch keeps its existing baseline pairs (no wipe).
+# run-full-eval-parallel.sh — guards the DETERMINISTIC reconciliation the parallel
+# harness performs. Since #230/#231 the reconcile is a single `eval_variance
+# --trials-root` pass over each agent's k trials (the unit rules live in
+# eval_validation_tests.bats); this file asserts the end-to-end harness command
+# produces all three trust-rated artifacts from a synthetic per-agent pool, and
+# that scoping protects un-run agents. Model-free, so it runs in CI.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-GRADE="$REPO_ROOT/scripts/eval_grade.py"
+VAR="$REPO_ROOT/scripts/eval_variance.py"
 
 setup() {
   TMP="$(mktemp -d)"
-}
-teardown() {
-  rm -rf "$TMP"
-}
-
-# The exact merge the script runs to union per-agent first trials.
-merge_actuals() {
-  jq -s 'reduce .[] as $x ({}; . * $x)' "$@"
-}
-
-@test "disjoint-agent trials union without loss (same stem, different agents)" {
-  # Two batches each produced one agent's actuals for the SAME fixture stem.
-  cat > "$TMP/a.json" <<'EOF'
-{"shared":{"agents":{"agent-a":{"status":"pass","issues":[]}}}}
-EOF
-  cat > "$TMP/b.json" <<'EOF'
-{"shared":{"agents":{"agent-b":{"status":"fail","issues":[]}}}}
-EOF
-  merge_actuals "$TMP/a.json" "$TMP/b.json" > "$TMP/out.json"
-  # Both agents survive under the shared stem — recursive merge, not clobber.
-  run jq -r '.shared.agents | keys | join(",")' "$TMP/out.json"
-  [ "$status" -eq 0 ]
-  [ "$output" = "agent-a,agent-b" ]
-  run jq -r '.shared.agents."agent-a".status' "$TMP/out.json"
-  [ "$output" = "pass" ]
-  run jq -r '.shared.agents."agent-b".status' "$TMP/out.json"
-  [ "$output" = "fail" ]
-}
-
-@test "merge of separate stems keeps every stem" {
-  echo '{"s1":{"agents":{"a":{"status":"pass","issues":[]}}}}' > "$TMP/a.json"
-  echo '{"s2":{"agents":{"b":{"status":"pass","issues":[]}}}}' > "$TMP/b.json"
-  merge_actuals "$TMP/a.json" "$TMP/b.json" > "$TMP/out.json"
-  run jq -r 'keys | join(",")' "$TMP/out.json"
-  [ "$output" = "s1,s2" ]
-}
-
-@test "scoped grade leaves an un-dispatched agent's baseline pairs untouched" {
-  # Corpus: two pairs, one per agent.
-  mkdir -p "$TMP/expected"
+  mkdir -p "$TMP/expected" "$TMP/pool/agent-a" "$TMP/pool/agent-b"
   cat > "$TMP/expected/clean.json" <<'EOF'
 {"fixture":"clean.ts","applicableAgents":["agent-a"],"agents":{"agent-a":{"expectedStatus":"pass","issueCount":{"min":0,"max":0}}}}
 EOF
   cat > "$TMP/expected/other.json" <<'EOF'
 {"fixture":"other.ts","applicableAgents":["agent-b"],"agents":{"agent-b":{"expectedStatus":"pass","issueCount":{"min":0,"max":0}}}}
 EOF
-  # Pre-existing baseline says agent-b's pair already passes.
-  cat > "$TMP/baseline.json" <<'EOF'
-{"_comment":"x","provenance":"measured","recorded_at":"2026-01-01T00:00:00Z","passing":["other::agent-b"]}
-EOF
-  # This harvest only produced actuals for agent-a (agent-b failed to dispatch).
-  cat > "$TMP/actuals.json" <<'EOF'
-{"clean":{"agents":{"agent-a":{"status":"pass","issues":[]}}}}
-EOF
-  run python3 "$GRADE" --expected-dir "$TMP/expected" --actuals "$TMP/actuals.json" \
-    --only "agent-a" --write-baseline "$TMP/baseline.json"
+  # agent-a: 3/3 pass on clean; agent-b: 3/3 fail on other (was passing).
+  for n in 1 2 3; do
+    echo '{"clean":{"agents":{"agent-a":{"status":"pass","issues":[]}}}}' > "$TMP/pool/agent-a/trial-$n.json"
+    echo '{"other":{"agents":{"agent-b":{"status":"fail","issues":[]}}}}' > "$TMP/pool/agent-b/trial-$n.json"
+  done
+  echo '{"passing":["other::agent-b"]}' > "$TMP/baseline.json"
+}
+teardown() { rm -rf "$TMP"; }
+
+# The exact reconcile command the harness runs.
+reconcile() {  # reconcile <only-csv>
+  python3 "$VAR" --trials-root "$TMP/pool" --only "$1" --expected-dir "$TMP/expected" \
+    --write-baseline "$TMP/baseline.json" \
+    -o "$TMP/variance-report.json" \
+    --quarantine-out "$TMP/quarantine.json"
+}
+
+@test "reconcile writes all three trust-rated artifacts" {
+  run reconcile "agent-a,agent-b"
   [ "$status" -eq 0 ]
-  # agent-b's pair must SURVIVE (scoped grade never tested it); agent-a's added.
+  [ -f "$TMP/baseline.json" ]
+  [ -f "$TMP/variance-report.json" ]
+  [ -f "$TMP/quarantine.json" ]
+  run jq -r '.schema' "$TMP/variance-report.json"
+  [ "$output" = "eval-variance/v1" ]
+}
+
+@test "reconcile adds a solidly-passing agent and removes a consistently-failing one" {
+  reconcile "agent-a,agent-b"
+  run jq -r '.passing | sort | join(",")' "$TMP/baseline.json"
+  [ "$output" = "clean::agent-a" ]   # agent-a added; other::agent-b removed (0/3)
+}
+
+@test "an un-run agent's baseline pairs survive the reconcile" {
+  # Only agent-a runs; agent-b's prior pair must be left untouched.
+  reconcile "agent-a"
   run jq -r '.passing | sort | join(",")' "$TMP/baseline.json"
   [ "$output" = "clean::agent-a,other::agent-b" ]
 }
