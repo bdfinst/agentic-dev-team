@@ -74,6 +74,21 @@ identifiers, the command tag, and the iteration index — never prompt text, cod
 file paths, or tool payloads. `metrics/cost-metering.jsonl` is a metrics-only
 artifact by construction.
 
+4. **Account pace (optional, #142).** When the user asks "am I on track for my
+   budget", "how much have I burned this week", or "which model should I use for
+   the rest of the period", report account-level pace: cumulative spend over a
+   rolling window, the implied daily rate, and the projected spend for a billing
+   period — flagging when pace would exhaust a stated budget:
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py pace \
+     --log metrics/cost-metering.jsonl --budget 100 --period-days 30 --window-days 7
+   ```
+
+   Without `--budget` it reports pace only (no flag). When it flags an
+   over-budget pace it suggests dropping a model tier (Opus→Sonnet) for the rest
+   of the window.
+
 ## Notes
 
 - Disable the meter with `DEV_TEAM_COST_METER=off`.
