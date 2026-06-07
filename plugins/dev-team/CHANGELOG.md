@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.6.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.6.0...dev-team-v6.6.1) (2026-06-07)
+
+
+### Bug Fixes
+
+* **release:** sync marketplace catalog via release-please extra-files ([#210](https://github.com/bdfinst/agentic-dev-team/issues/210)) ([c84611a](https://github.com/bdfinst/agentic-dev-team/commit/c84611ad559d3a86d884836337a9b7c3eb007772))
+
 ## [6.6.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.5.0...dev-team-v6.6.0) (2026-06-07)
 
 
