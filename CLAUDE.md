@@ -68,4 +68,34 @@ Releases are managed by release-please. Push conventional commits to main:
 
 A release PR is opened automatically. Merging it creates a GitHub Release with a version tag.
 
+## Cloud sessions (claude.ai/code)
+
+Plugins are a **local CLI / IDE** feature. A Claude Code web session runs in a
+fresh managed VM that clones this repo; setup scripts and env vars are set in the
+cloud **UI** (not a repo file) — see
+[Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web).
+
+**Cloud-only auto-install hook.** `.claude/settings.json` registers a
+`SessionStart` hook (`.claude/install-dev-team.sh`) that installs the dev-team
+plugin — but **only when `DEV_TEAM_CLOUD_INSTALL=1`**. Set that variable in your
+cloud environment's *Environment variables* field; leave it unset locally, so the
+hook is a no-op on your machine (where the plugin is already installed). Caveats:
+the hook can only install if the cloud VM ships the `claude` CLI; if it doesn't,
+it falls back to guidance (below). A plugin installed at `SessionStart` takes
+effect on the **next** session, not the current one.
+
+**If the plugin can't load (no CLI), use its files directly.** The skills and
+agents are plain files in this repo; run any workflow manually:
+
+- a skill → `plugins/dev-team/skills/<name>/SKILL.md` (e.g. `/plan` →
+  read `plugins/dev-team/skills/plan/SKILL.md` and follow its steps);
+- a review agent → `plugins/dev-team/agents/<name>.md`;
+- the catalog → `plugins/dev-team/knowledge/agent-registry.md`.
+
+**Test tooling in cloud.** To run this repo's gates in a cloud session, paste the
+body of [`.claude/cloud-setup.sh`](.claude/cloud-setup.sh) into the environment's
+*Setup script* field (installs `jq`, `shellcheck`, `bats`, the Python dev deps,
+and `gh`). There is no dedicated secrets store yet — treat env vars as visible to
+anyone who can edit the environment.
+
 See `plugins/dev-team/CLAUDE.md` for the full orchestration pipeline configuration.
