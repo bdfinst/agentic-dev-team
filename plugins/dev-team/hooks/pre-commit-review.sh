@@ -18,6 +18,8 @@ set -uo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/pre-commit-detect.sh
 source "${HOOK_DIR}/lib/pre-commit-detect.sh"
+# shellcheck source=lib/review-gate-hash.sh
+source "${HOOK_DIR}/lib/review-gate-hash.sh"
 
 # Read the tool input from stdin
 INPUT=$(cat)
@@ -34,9 +36,9 @@ if [ -z "$STAGED" ]; then
   exit 0
 fi
 
-# Compute hash of staged file paths
-HASH=$(echo "$STAGED" | sort | shasum -a 256 2>/dev/null || echo "$STAGED" | sort | sha256sum 2>/dev/null)
-HASH=$(echo "$HASH" | cut -d' ' -f1)
+# Hash the staged CONTENT (#193), not just paths — so an edit after review
+# invalidates the gate. Identical computation to the /code-review write side.
+HASH=$(review_gate_hash)
 
 # Check for .review-passed gate file
 GATE_FILE=".review-passed"

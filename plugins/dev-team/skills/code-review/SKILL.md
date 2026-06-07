@@ -260,16 +260,12 @@ For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), g
 
 ### 9. Write pre-commit gate file
 
-If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` so the pre-commit hook allows the next commit:
+If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
 
 ```bash
-git diff --cached --name-only | sort | shasum -a 256 | cut -d' ' -f1 > .review-passed
+bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review-gate-hash.sh > .review-passed
 ```
 
-If no files are staged (unstaged changes only), hash the actually-reviewed file list:
-
-```bash
-echo "<reviewed-file-list>" | sort | shasum -a 256 | cut -d' ' -f1 > .review-passed
-```
+Stage the exact changes you reviewed (`git add` them) before writing the gate, so the staged content the hook hashes matches what was reviewed. If `git diff --cached` is empty (you reviewed unstaged changes), stage them first — the gate binds to the staged patch by design.
 
 If overall status is `fail`, do **not** write the gate file — the pre-commit hook will keep blocking until issues are resolved and the review re-run.

@@ -1,11 +1,14 @@
 #!/usr/bin/env bats
-# #109 Phase 1 — reproduce the multiplayer collisions on the .review-passed gate.
-# These are DELIBERATE failing-scenario reproductions (the assertions encode the
-# CURRENT buggy behavior), so the findings in docs/spikes/multiplayer-collisions.md
-# are backed by a runnable demonstration, not just prose.
+# #109 Phase 1 — reproduce the multiplayer collision that REMAINS even after the
+# gate is content-bound (#193): two agents sharing ONE working tree share a
+# single `.review-passed` file and clobber each other's gate. The resolution is
+# operational, not a gate change — one git worktree per agent (see
+# plugins/dev-team/docs/concurrent-use.md). The content-binding behavior itself
+# is covered by review_gate_hash_tests.bats.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 HOOK="$REPO_ROOT/plugins/dev-team/hooks/pre-commit-review.sh"
+GATEHASH="$REPO_ROOT/plugins/dev-team/hooks/lib/review-gate-hash.sh"
 
 setup() {
   WORK="$(mktemp -d)"
@@ -16,44 +19,23 @@ setup() {
 }
 teardown() { cd / || true; rm -rf "$WORK"; }
 
-_commit_hook() {  # run the gate as if `git commit` was invoked
-  echo '{"tool_input":{"command":"git commit -m x"}}' | bash "$HOOK"
-}
-_gate_hash() {    # replicate the hook's staged-paths hash
-  git diff --cached --name-only | sort | shasum -a 256 2>/dev/null | cut -d' ' -f1
-}
+_commit_hook() { echo '{"tool_input":{"command":"git commit -m x"}}' | bash "$HOOK"; }
+_write_gate()  { bash "$GATEHASH" > .review-passed; }
 
-@test "baseline: a correct gate for the exact staged paths allows the commit" {
+@test "baseline: a gate written for the current staged content allows the commit" {
   echo v1 > a.ts; git add a.ts
-  _gate_hash > .review-passed
+  _write_gate
   run _commit_hook
   [ "$status" -eq 0 ]
 }
 
 @test "collision: a second agent overwriting .review-passed falsely blocks the first (#109)" {
   echo v1 > a.ts; git add a.ts
-  _gate_hash > .review-passed            # agent A passed review for {a.ts}
-  printf 'a-different-set-hash\n' > .review-passed  # agent B (same tree) overwrote it
-  run _commit_hook                       # A commits its still-staged {a.ts}
+  _write_gate                            # agent A passed review for its staged content
+  printf 'a-different-agents-hash\n' > .review-passed  # agent B (same tree) overwrote it
+  run _commit_hook                       # A commits its still-staged change
   [ "$status" -eq 2 ]                     # ...and is blocked despite having passed
   [[ "$output" == *"BLOCKED"* ]]
-}
-
-@test "gap: gate binds staged PATHS not CONTENT — edited content commits unreviewed (#109)" {
-  echo v1 > a.ts; git add a.ts
-  _gate_hash > .review-passed            # "review passed" for a.ts @ v1
-  echo v2-unreviewed > a.ts; git add a.ts # same path, brand-new content
-  run _commit_hook
-  [ "$status" -eq 0 ]                     # allowed — the path hash still matches
-  [ ! -f .review-passed ]                # gate consumed; v2 was never reviewed
-}
-
-@test "collision: shared gate is content-blind to which agent staged what (#109)" {
-  # Two agents stage the SAME path set; whoever writes the gate last lets EITHER
-  # commit — the gate cannot tell A's reviewed change from B's unreviewed one.
-  echo a > a.ts; git add a.ts
-  _gate_hash > .review-passed            # gate for {a.ts}
-  echo "b unreviewed" >> a.ts; git add a.ts
-  run _commit_hook
-  [ "$status" -eq 0 ]                     # B's change rides A's gate
+  # NOT fixed by content-hashing — two agents in one tree share one gate file.
+  # Fix is operational: one worktree per agent (concurrent-use.md).
 }
