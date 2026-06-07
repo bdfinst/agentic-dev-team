@@ -293,3 +293,56 @@ Worth recording so improvements don't undo strengths:
 - **The agent-readiness scorecard** — a tiered, client-facing "how well can an agent work this repo" rubric (a latent product/consulting angle).
 
 The throughline: the parts touched by a deterministic gate are excellent. Every improvement above is, at bottom, *extend that same discipline to the parts no gate currently reaches — especially the agents, the workflow, and the claims.*
+
+---
+
+## Status & revised plan (updated 2026-06-07)
+
+This section supersedes the original Summary matrix above for *prioritization*. Two things changed since the report was written:
+
+1. **A North Star was adopted** (`plugins/dev-team/CLAUDE.md`): *every change must reduce friction — fewer missteps, less rework, lower token cost; reputational novelty is explicitly not a goal.* This strips "first-mover / conference talk" out of the Impact rating and re-sorts the backlog. Full re-scoring: [`north-star-task-reevaluation.md`](north-star-task-reevaluation.md).
+2. **The self-improvement loop already exists.** `/session-review` (#127, #129, #131 — all closed) mines real Claude Code transcripts (`~/.claude/projects/<slug>/*.jsonl`) via a deterministic, zero-token extractor for `token | rework | accuracy | utilization`, then suggests improvements and hands them to governed machinery (`/feedback-learning`, `/agent-eval`, `/harness-audit`, `token-efficiency-review`). The "automatic learning loop" and "rework metering" the reviews asked for are **shipped**. The only remaining loop work is three deltas: [`specs/session-review-enhancements.md`](specs/session-review-enhancements.md).
+
+### Landed (closed)
+
+Fully landed: **#99** (agent-eval CI gate), **#100** (prose/Targets cleanup + sensor), **#101** (eval-corpus-as-semver), **#102** (cost/token metering — meter + per-agent/model/command/**phase** attribution), **#104** (`updatedInput` conformance), **#141** (eslint-ignore fixtures), **#142** (pace guidance), **#106**'s core beacon, and the loop itself: **#127 / #129 / #131** and **#135**.
+
+**Closed COMPLETED but functionally inert (verified by inspecting the artifacts, not the issue state — flag for re-open):**
+
+- **#139 — per-fix-loop-iteration granularity is inert.** `cost_meter.py` buckets by a `fixLoopIteration` marker that **no runtime stamps** (it exists only in test fixtures), so real sessions attribute all fix-loop spend to `unattributed`. Per-*phase* works (static command→phase map); per-*iteration* does not. Fix needs a runtime that stamps the marker during the review→fix cycle. **Follow-up: #170.**
+- **#140 — cost-regression CI gate self-tests only.** The blocking step verifies the mechanism on synthetic data; the real check is warn-only and dormant because no baseline log is committed (it's gitignored/local). It cannot fail a PR for a real cost regression. A real gate needs a committed/aggregated baseline — which overlaps the session-digest cross-machine aggregation (Delta D below). **Follow-up: #171.**
+
+Lesson worth recording: green tests + closed issue ≠ functional outcome. Both reproduce the reviews' own "a gate that doesn't run is documentation" pattern one layer down.
+
+### Remaining open issues — disposition under the North Star
+
+| Issue | Disposition | Plan |
+|---|---|---|
+| **#113** Automatic post-session learning loop | **CLOSE — already shipped** | Delivered by `/session-review`. Close as done; track only the deltas below. |
+| **#106** Opt-in telemetry beacon | **NARROW** | Keep as the cheap always-on command/skill/gate counter. Do **not** grow it into the loop. Cross-machine aggregation belongs to the session-digest, not the beacon. |
+| **#107** Knowledge ablation testing | **KEEP** | Directly lowers token cost (finds knowledge files that never change a verdict). Reuses the eval harness. |
+| **#109** Concurrency / multiplayer collisions | **KEEP — pull forward** | "Designed for teams" is unfalsified. Phase 1 (reproduce collisions on `memory/*-progress-*.md`, `.review-passed`) is an afternoon; do it early. |
+| **#103** Eval variance & saturation | **KEEP** | Tells you which fixtures to trust/quarantine in the #99 gate → fewer false blocks. |
+| **#105** Multi-LLM/Gemini vestigiality | **KEEP — just delete** | Doc promises an absent capability = misstep generator. Delete the table. Trivial. |
+| **#115** `agent-ast.md` orphan spec | **KEEP — trivial** | Archive or issue-track it. Quick hygiene win. |
+| **#110** Persona-vs-context-boundary | **NARROW** | Keep only as a maintenance/token-cost question (does the persona layer cost tokens without improving detection?). Drop the "deepest structural assumption" framing. |
+| **#111** Process eval (A/B the ceremony) | **NARROW** | Don't build a synthetic A/B. Let `/session-review`'s trend stream answer the friction-relevant version: *which* phases/gates correlate with high rework or bypass? |
+| **#108** Prose/prompt mutation testing | **DEFER (ADR/curiosity)** | Justification is reputational; output is an ambiguous coverage map at real per-ablation cost. Revisit only if a cheap, unambiguous variant appears. |
+| **#112** Per-increment trunk integration topology | **DEFER (ADR only)** | The deepest reframe, but a redesign assuming flag/rollback infra the plugin doesn't own. Write the ADR/spike; don't implement until the loop shows current gates cause friction. |
+| **#114** Component extraction / publication | **REJECT** | Explicitly reputational. Out of scope under the North Star; park indefinitely. |
+
+### The only remaining loop work — `/session-review` deltas
+
+Tracked in [`specs/session-review-enhancements.md`](specs/session-review-enhancements.md); build in this order:
+
+1. **Cross-machine aggregation** of `metrics/session-digest.jsonl` — per-host files pushed to a **separate private repo** (the raw `~/.claude/projects` logs never leave the machine; only the metrics digest aggregates). Matches the original multi-machine need. *May re-scope #106's aggregation intent or get its own issue.*
+2. **Frequency → lever escalation** — make recurrence drive response strength (rare → hint; frequent + deterministically-matchable → promote to a hook, validated via `/agent-eval`).
+3. **Optional raw-log tier + `methodology` lens** — for the top-N worst sessions the digest flags, one agent per raw log catches semantic frictions a metrics digest can't (hallucinated citations, operator habits). Most token-spending; gate it behind the digest; do last.
+
+### Sequencing
+
+`#105 + #115` (trivial hygiene) → `#113` (close as shipped) → **loop deltas 1→2→3** + `#109` Phase 1 (cheap, high-value) → `#107` / `#103` (eval-harness reuse) → `#110` / `#111` (narrowed measurement) → `#108` / `#112` (ADR/spike only). **#114 rejected.** Security epics (#38 family, #60/#62/#63) are tracked separately and out of scope for this document.
+
+### Governing rule
+
+Per the North Star: any remaining or new item ships only if it can name the friction it removes and the metric that would show the reduction. "Would be novel / a good talk / first-mover" is a **REJECT**.

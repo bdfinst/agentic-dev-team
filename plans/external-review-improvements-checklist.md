@@ -6,6 +6,16 @@ Source report: [`docs/proposed-improvements-from-external-reviews.md`](../docs/p
 Ordering principle: **cheap self-tests first → observability spine → measurement-dependent bets → paradigm work.**
 Each wave is gated on the prior wave's infrastructure, not just preference.
 
+> **Re-prioritized under the North Star (2026-06-07).** The wave ordering below predates the
+> North Star (`plugins/dev-team/CLAUDE.md`: *reduce friction, not reputation*). For the current
+> KEEP / MODIFY / REJECT verdict on each item — which strips reputational/novelty justification out
+> of the "Impact" rating — see [`docs/north-star-task-reevaluation.md`](../docs/north-star-task-reevaluation.md).
+> The feedback loop those items feed **already exists** as `/session-review` (#127/#131); the only
+> remaining loop work is the deltas in
+> [`docs/specs/session-review-enhancements.md`](../docs/specs/session-review-enhancements.md).
+> Headlines: #113 closes as shipped; #139 demotes (rework already extracted) and #106 narrows; #114
+> rejected; #108/#112 deferred to ADR scope; #110/#111 narrowed; #140 (+#102) and #99 are the teeth to finish.
+
 ---
 
 ## Wave 0 — Cheap, high-leverage, unblock everything else
