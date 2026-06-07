@@ -173,7 +173,7 @@ If there are zero actionable issues, skip to report generation. Otherwise the or
 - **Fix** → enter the review-fix loop
 - **Report only** → skip to report generation with all findings intact
 
-**Exception — non-interactive mode**: when `/code-review` runs inside `/build` (as an inline checkpoint or final gate), the prompt is skipped and the fix loop runs automatically. The orchestrator's Phase 3 approval already served as the human gate.
+**Exception — non-interactive mode**: when `/code-review` runs inside `/build` or `/pr`, the prompt is skipped and the fix loop runs automatically. The caller already owns the human gate — the orchestrator's Phase 3 approval for `/build`, and the pre-PR confirmation for `/pr`.
 
 ### 6a. Review-fix loop
 
@@ -245,7 +245,7 @@ All three are optional and project-local — they are not part of the plugin.
 - **Inline review checkpoints** (Phase 3 of `/build`) use the same review-fix loop mechanics, but the orchestrator selects a **targeted** subset of agents based on what changed in the unit of work. `/code-review` is the **final gate** before commit and runs the full enabled suite.
 - **[`/review-agent`](../skills/review-agent/SKILL.md)** runs a single agent — used for targeted checks and as the worker for inline checkpoints.
 - **[`/apply-fixes`](../skills/apply-fixes/SKILL.md)** consumes the `corrections/` directory produced here.
-- **[`/pr`](../skills/pr/SKILL.md)** runs `/code-review` as part of its pre-PR quality gate.
+- **[`/pr`](../skills/pr/SKILL.md)** runs `/code-review --json` as part of its pre-PR quality gate. It runs non-interactively (fix loop auto-applies, no "fix or report?" prompt) and `/pr` branches on the returned status — `overall: pass/warn` or `status: skipped` proceeds, `overall: fail` re-engages the user.
 
 ## References
 
