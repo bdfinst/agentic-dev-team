@@ -40,6 +40,10 @@ Usage:
                                  session to the host digest FILE; the watermark
                                  dedups by session_id+size so re-runs only emit
                                  what changed. project is a basename only.
+  --rollup DIR                   Delta D (#178): UNION READ — aggregate every
+                                 host's DIR/<host>/session-digest.jsonl into one
+                                 cross-machine view (per-host/per-project spend,
+                                 summed rework/accuracy, never-invoked-anywhere).
 """
 
 from __future__ import annotations
@@ -63,6 +67,13 @@ _CORRECTION_RE = re.compile(
 _PERMISSION_RE = re.compile(r"permission|denied|not allowed|blocked by", re.I)
 _OLDSTRING_RE = re.compile(r"old_string|not found|no match|string to replace", re.I)
 _EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
+
+
+def _strip_ns(name: str) -> str:
+    """Drop the dev-team plugin namespace so invoked names match the registry
+    (registry entries are bare dir/file stems). `dev-team:plan` -> `plan`;
+    other-plugin or built-in names (`update-config`, `Explore`) pass through."""
+    return name[len("dev-team:"):] if name.startswith("dev-team:") else name
 
 
 def _text_of(content) -> str:
@@ -162,6 +173,10 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
             sessions.add(str(sid))
         rtype = rec.get("type")
         is_sidechain = bool(rec.get("isSidechain"))
+        # attributionSkill is a legacy/secondary tag — the harness does not emit
+        # it on real transcripts (#182), so utilization is driven by the Skill /
+        # Agent tool_use below. Kept here only as a fallback for records that do
+        # carry it (and per-skill token attribution via by_skill).
         skill = rec.get("attributionSkill") or rec.get("attribution_skill")
         if skill:
             skills_invoked[skill] += 1
@@ -208,6 +223,17 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
                     if bid:
                         pending_tool[bid] = name
                     inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
+                    # Utilization (#182): the harness never records attributionSkill,
+                    # so skill/agent invocations are read from the tool_use that
+                    # actually invokes them — the Skill tool and the Agent/Task tool.
+                    if name == "Skill":
+                        s = inp.get("skill") or inp.get("name")
+                        if isinstance(s, str) and s:
+                            skills_invoked[_strip_ns(s)] += 1
+                    elif name in ("Agent", "Task"):
+                        a = inp.get("subagent_type")
+                        if isinstance(a, str) and a:
+                            agents_invoked[_strip_ns(a)] += 1
                     if name in _EDIT_TOOLS and inp.get("file_path"):
                         edits_per_file[os.path.basename(str(inp["file_path"]))] += 1
                     if name == "Bash" and isinstance(inp.get("command"), str):
@@ -377,6 +403,7 @@ def sync_record(digest: dict, host: str, project: str,
     file names, paths, prompts, or code — same privacy boundary as the digest."""
     base = slim_record(digest)
     tok = digest.get("token", {})
+    util = digest.get("utilization", {})
     by_model = {m: dict(sorted(v.items()))
                 for m, v in sorted(tok.get("by_model", {}).items())}
     return {
@@ -394,7 +421,13 @@ def sync_record(digest: dict, host: str, project: str,
         "by_thread": tok.get("by_subagent", {}),
         "rework": base["rework"],
         "accuracy": base["accuracy"],
-        "utilization": base["utilization"],
+        # Utilization carries the invoked NAME maps (registry ids, non-sensitive),
+        # not slim counts, so a cross-host rollup can compute which skills/agents
+        # were never invoked on ANY machine (#178 union read).
+        "utilization": {
+            "skills_invoked": dict(sorted(util.get("skills_invoked", {}).items())),
+            "agents_invoked": dict(sorted(util.get("agents_invoked", {}).items())),
+        },
     }
 
 
@@ -455,6 +488,115 @@ def cmd_sync(args, pricing: dict, registry: dict, host: str) -> int:
     return 0
 
 
+def rollup(digests_root: Path, registry: dict) -> dict:
+    """Union read across machines (#178): aggregate every host's per-session
+    `session-sync/v1` records under `digests/<host>/session-digest.jsonl` into one
+    cross-machine view. Metrics only — sums, ratios, and registry-name maps.
+
+    A session_id seen on multiple host files (or re-emitted after growth) is
+    deduped, keeping the LAST record for that id (newest size/sync)."""
+    by_id: dict[str, dict] = {}
+    for f in sorted(digests_root.glob("*/session-digest.jsonl")):
+        for rec in _iter_records([f]):
+            if rec.get("schema") != "session-sync/v1":
+                continue
+            sid = rec.get("session_id")
+            if sid:
+                by_id[str(sid)] = rec  # last write wins -> dedup on session_id
+
+    records = list(by_id.values())
+    hosts: set[str] = set()
+    projects: set[str] = set()
+    tok = Counter()
+    cost = 0.0
+    cr = cc = 0
+    rew = Counter()
+    tool_calls = 0
+    err_weighted = 0.0
+    corrections = 0
+    skills_invoked = Counter()
+    agents_invoked = Counter()
+    by_host: dict[str, Counter] = defaultdict(Counter)
+    by_project: dict[str, Counter] = defaultdict(Counter)
+
+    for r in records:
+        host = r.get("host", "unknown")
+        project = r.get("project", "unknown")
+        hosts.add(host)
+        projects.add(project)
+        t = r.get("tokens", {}) if isinstance(r.get("tokens"), dict) else {}
+        for k in ("input_tokens", "output_tokens",
+                  "cache_creation_input_tokens", "cache_read_input_tokens"):
+            tok[k] += t.get(k, 0) or 0
+        cr += t.get("cache_read_input_tokens", 0) or 0
+        cc += t.get("cache_creation_input_tokens", 0) or 0
+        c = r.get("cost_usd", 0.0) or 0.0
+        cost += c
+        for hk, agg in ((host, by_host), (project, by_project)):
+            agg[hk]["sessions"] += 1
+            agg[hk]["cost_micro"] += round(c * 1e6)
+            agg[hk]["input_tokens"] += t.get("input_tokens", 0) or 0
+            agg[hk]["output_tokens"] += t.get("output_tokens", 0) or 0
+        rwk = r.get("rework", {}) if isinstance(r.get("rework"), dict) else {}
+        for k, v in rwk.items():
+            if isinstance(v, (int, float)):
+                rew[k] += v
+        acc = r.get("accuracy", {}) if isinstance(r.get("accuracy"), dict) else {}
+        n = acc.get("tool_calls", 0) or 0
+        tool_calls += n
+        err_weighted += (acc.get("tool_error_rate", 0.0) or 0.0) * n
+        corrections += acc.get("user_correction_turns", 0) or 0
+        u = r.get("utilization", {}) if isinstance(r.get("utilization"), dict) else {}
+        for name, k in (u.get("skills_invoked", {}) or {}).items():
+            skills_invoked[name] += k
+        for name, k in (u.get("agents_invoked", {}) or {}).items():
+            agents_invoked[name] += k
+
+    never_skills = sorted(set(registry.get("skills", [])) - set(skills_invoked))
+    never_agents = sorted(set(registry.get("agents", [])) - set(agents_invoked))
+
+    def _hostmap(d: dict) -> dict:
+        return {k: dict(sorted(v.items())) for k, v in sorted(d.items())}
+
+    return {
+        "schema": "telemetry-rollup/v1",
+        "hosts": sorted(hosts),
+        "projects": sorted(projects),
+        "sessions": len(records),
+        "tokens": dict(sorted(tok.items())),
+        "cost_usd": round(cost, 4),
+        "cache_hit_ratio": round(cr / (cr + cc), 4) if (cr + cc) else 0.0,
+        "by_host": _hostmap(by_host),
+        "by_project": _hostmap(by_project),
+        "rework": dict(sorted(rew.items())),
+        "accuracy": {
+            "tool_calls": tool_calls,
+            "tool_error_rate": round(err_weighted / tool_calls, 4) if tool_calls else 0.0,
+            "user_correction_turns": corrections,
+        },
+        "utilization": {
+            "skills_invoked": dict(sorted(skills_invoked.items())),
+            "agents_invoked": dict(sorted(agents_invoked.items())),
+            "never_observed_skills": never_skills,
+            "never_observed_agents": never_agents,
+        },
+    }
+
+
+def cmd_rollup(args, registry: dict) -> int:
+    root = Path(args.rollup)
+    if not root.is_dir():
+        print(json.dumps({"schema": "telemetry-rollup/v1", "sessions": 0,
+                          "hosts": [], "projects": []}, indent=2, sort_keys=True))
+        return 0
+    out = json.dumps(rollup(root, registry), indent=2, sort_keys=True)
+    if args.out:
+        Path(args.out).write_text(out + "\n")
+    else:
+        print(out)
+    return 0
+
+
 def load_registry(plugin_root: Path | None) -> dict:
     """Enumerate shipped skills/agents so we can report never-observed ones."""
     if plugin_root is None:
@@ -494,6 +636,9 @@ def main(argv=None) -> int:
                     help="watermark JSON for incremental sync "
                          "(default: ~/.claude/.dev-team/telemetry-sync.json)")
     ap.add_argument("--host", help="host label for sync records (default: hostname)")
+    ap.add_argument("--rollup", metavar="DIR",
+                    help="union read (#178): aggregate all hosts' "
+                         "DIR/<host>/session-digest.jsonl into one cross-machine view")
     args = ap.parse_args(argv)
 
     pricing_path = Path(args.pricing) if args.pricing else (
@@ -501,6 +646,10 @@ def main(argv=None) -> int:
         / "plugins/dev-team/knowledge/model-pricing.json")
     pricing = _load_pricing(pricing_path)
     registry = load_registry(Path(args.plugin_root) if args.plugin_root else None)
+
+    # Cross-machine union read (Delta D, #178).
+    if args.rollup:
+        return cmd_rollup(args, registry)
 
     # Cross-project incremental sync mode (Delta D, #178).
     if args.sync_out:
