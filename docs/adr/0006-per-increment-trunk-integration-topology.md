@@ -17,7 +17,7 @@ The dev-team workflow is `/specs → /plan → /build → /pr`, with a human
 approval gate between phases. Artifacts flow forward; nothing integrates until
 the end of a build; the unit of integration is the completed plan.
 
-External review (`docs/proposed-improvements-from-external-reviews.md`, #14;
+External review (issue #98 and its children, #14;
 `reports/agentic-dev-team-unknown-unknowns.md`, §1 and the Problem Dissolution)
 named a tension: this is a stage-gated lifecycle, authored by someone whose
 public work argues that stage gates *batch* risk rather than reduce it. The
@@ -129,6 +129,6 @@ proven per-increment, not adopted wholesale.
 - Evidence prerequisite: narrowed **#111** (which phases/gates correlate with
   rework/bypass, answered from the `/session-review` trend stream).
 - Telemetry/observability: the cost meter (#102) and the session-digest.
-- Source: `docs/proposed-improvements-from-external-reviews.md` (#14);
+- Source: issue #98 and its children (#14);
   `reports/agentic-dev-team-unknown-unknowns.md` (§1, Problem Dissolution).
 - Tracking issue: #112.
