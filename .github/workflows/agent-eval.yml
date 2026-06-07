@@ -131,21 +131,6 @@ jobs:
         if: steps.cred.outputs.run_live == 'true'
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # The action's bundled installer pulls the NATIVE build of Claude Code,
-      # which currently crashes at launch in the runner ("Claude Code process
-      # exited with code 1" / "directory mismatch ... tsconfig.json"). The npm
-      # (node) build does not hit that crash, and the action accepts a custom
-      # executable via path_to_claude_code_executable. Install the node build
-      # here and point the action at it below.
-      - name: Install Claude Code (node build) to dodge the native-build crash
-        id: install-claude
-        if: steps.cred.outputs.run_live == 'true'
-        run: |
-          npm install -g @anthropic-ai/claude-code
-          CLAUDE_BIN="$(command -v claude || echo "$(npm prefix -g)/bin/claude")"
-          echo "path=$CLAUDE_BIN" >> "$GITHUB_OUTPUT"
-          "$CLAUDE_BIN" --version
-
       # The agent-eval skill reads fixtures from .claude/evals/{fixtures,
       # expected}/, but this repo stores them at evals/. Symlink them into
       # place so the skill finds the corpus in CI.
@@ -187,22 +172,28 @@ jobs:
       # (see scripts/eval_grade.py header). Grading stays in the deterministic
       # grader below — this step only records, it does not judge. The plugin is
       # installed from the in-repo marketplace so its skills are discoverable.
+      # KNOWN-BROKEN UPSTREAM (do not "fix" with version/native-vs-node pins):
+      # claude-code-action currently crashes at launch in CI with
+      #   "Claude Code process exited with code 1"
+      #   "Internal error: directory mismatch for directory '.../tsconfig.json', fd 4"
+      # before any API call. It is a Bun runtime fd bug in the action, tracked at
+      #   https://github.com/anthropics/claude-code-action/issues/1205
+      #   https://github.com/anthropics/claude-code-action/issues/1295
+      # Reporters confirm it is NOT version-specific (tested multiple versions +
+      # a pinned SHA) and NOT runner-OS-specific. We verified the same: pinning
+      # the CLI version and supplying a custom node-build executable
+      # (path_to_claude_code_executable) both crash identically (PRs #161, #162).
+      # So there is no config knob on our side that fixes it.
+      #
+      # This only affects the OPT-IN live path (run-eval label / force_live). The
+      # required structural + semver gates above are unaffected and still run, so
+      # nothing is blocked. Re-enable / re-test once the upstream issues are
+      # fixed; the Grade step below treats a missing actuals.json as a skip.
       - name: Run agent-eval (records actuals.json)
         if: steps.cred.outputs.run_live == 'true'
         uses: anthropics/claude-code-action@v1
-        # Debugging a launch-time crash of the action's bundled Claude Code
-        # process ("Claude Code process exited with code 1"): by default the
-        # action hides the SDK's output ("full output hidden for security"), so
-        # the real error is invisible. show_full_output surfaces it and
-        # ANTHROPIC_LOG=debug makes the SDK verbose. Revert both once the
-        # underlying failure is identified.
-        env:
-          ANTHROPIC_LOG: debug
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Use the node build installed above, not the action's crashing native build.
-          path_to_claude_code_executable: ${{ steps.install-claude.outputs.path }}
-          show_full_output: true
           plugin_marketplaces: ${{ github.workspace }}
           plugins: "dev-team@bfinster"
           prompt: |
