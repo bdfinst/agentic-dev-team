@@ -1,5 +1,31 @@
 # Changelog
 
+## [6.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.4.0...dev-team-v6.5.0) (2026-06-07)
+
+
+### Features
+
+* **cost-meter:** account-level pace/quota guidance ([#151](https://github.com/bdfinst/agentic-dev-team/issues/151)) ([4ea4dd1](https://github.com/bdfinst/agentic-dev-team/commit/4ea4dd1dc93574f7f0fa09f7138bbfa2c1f76134))
+* **cost-meter:** attribute spend per command and per fix-loop iteration ([#147](https://github.com/bdfinst/agentic-dev-team/issues/147)) ([05203d5](https://github.com/bdfinst/agentic-dev-team/commit/05203d51c0c97f19b8a4a04dba460eb18fc8ec37))
+* **cost-meter:** attribute spend per orchestration phase ([#148](https://github.com/bdfinst/agentic-dev-team/issues/148)) ([522b428](https://github.com/bdfinst/agentic-dev-team/commit/522b42806de6c61c81bea3713a15381ed16a3dcb))
+* **session-review:** /session-review skill + session-analysis agent ([#154](https://github.com/bdfinst/agentic-dev-team/issues/154)) ([bccf6df](https://github.com/bdfinst/agentic-dev-team/commit/bccf6dfee54fd3ff1b1718ac5efa7bca4b796d7a))
+* **session-review:** persist trend digest + harness-audit consumption ([#155](https://github.com/bdfinst/agentic-dev-team/issues/155)) ([833c606](https://github.com/bdfinst/agentic-dev-team/commit/833c6060a2ecb8890a7d1e4890ac1cd7bbc1299d))
+* **telemetry:** capture agent-/auto-invoked skills distinctly; tighten bypass detection ([#145](https://github.com/bdfinst/agentic-dev-team/issues/145)) ([2d025f1](https://github.com/bdfinst/agentic-dev-team/commit/2d025f1b4a59b634492204d6c7a93d98c932155a))
+
+
+### Bug Fixes
+
+* extend prose-honesty gate to sibling docs and clean un-instrumented targets ([#137](https://github.com/bdfinst/agentic-dev-team/issues/137)) ([e537495](https://github.com/bdfinst/agentic-dev-team/commit/e537495ec6389124042163c80011a4a3f9ce2c62))
+* **pr:** make /pr own the human gate for code review ([#160](https://github.com/bdfinst/agentic-dev-team/issues/160)) ([e26175a](https://github.com/bdfinst/agentic-dev-team/commit/e26175a43542e592a11d85838b10f50f68257dfc))
+* **pr:** make /pr own the human gate for code review ([#165](https://github.com/bdfinst/agentic-dev-team/issues/165)) ([26741d5](https://github.com/bdfinst/agentic-dev-team/commit/26741d58cf909b2c21b4f1a10e14bca7bc6f3d49))
+
+
+### Documentation
+
+* remove implemented and issue-converted design docs ([#120](https://github.com/bdfinst/agentic-dev-team/issues/120)) ([11aa734](https://github.com/bdfinst/agentic-dev-team/commit/11aa734efc3fafab1a14e0839891397560f72ff2))
+* **session-review:** document OSS complements (ccusage, OpenTelemetry, claude-code-log) ([#156](https://github.com/bdfinst/agentic-dev-team/issues/156)) ([71e3ed5](https://github.com/bdfinst/agentic-dev-team/commit/71e3ed5efabce0f9dd9906113b38010931364998))
+* **session-review:** umbrella overview tying the harness together ([#158](https://github.com/bdfinst/agentic-dev-team/issues/158)) ([ad3a21d](https://github.com/bdfinst/agentic-dev-team/commit/ad3a21d3251c8eddc11fd18c89af9fdb97aaf727))
+
 ## [6.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.3.0...dev-team-v6.4.0) (2026-06-06)
 
 

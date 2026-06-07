@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.2.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.1.1...security-assessment-v3.2.0) (2026-06-07)
+
+
+### Features
+
+* **security:** per-rule semgrep fixtures + measured fp_rate for the 36 custom rules ([#157](https://github.com/bdfinst/agentic-dev-team/issues/157)) ([e8bc52f](https://github.com/bdfinst/agentic-dev-team/commit/e8bc52faf4ca9b72543d341531844f05bcdc604e))
+
+
+### Documentation
+
+* remove implemented and issue-converted design docs ([#120](https://github.com/bdfinst/agentic-dev-team/issues/120)) ([11aa734](https://github.com/bdfinst/agentic-dev-team/commit/11aa734efc3fafab1a14e0839891397560f72ff2))
+
 ## [3.1.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.1.0...security-assessment-v3.1.1) (2026-06-05)
 
 
