@@ -1755,7 +1755,7 @@
       "anchor": "8-save-correction-prompts-for-remaining-issues"
     },
     "9. Write pre-commit gate file": {
-      "summary": "If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` so the pre-commit hook allows the next commit:",
+      "summary": "If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` so the pre-commit hook allows the next commit.",
       "anchor": "9-write-pre-commit-gate-file"
     }
   },
