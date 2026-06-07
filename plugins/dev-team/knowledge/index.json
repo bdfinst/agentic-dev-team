@@ -1535,7 +1535,7 @@
       "anchor": "2-verify-plan-status"
     },
     "3. Verify acceptance criteria (gate)": {
-      "summary": "Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `prompts/spec-reviewer.md` § Pre-build criteria verification mode).",
+      "summary": "Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `${CLAUDE_PLUGIN_ROOT}/prompts/spec-reviewer.md` § Pre-build criteria verification mode).",
       "anchor": "3-verify-acceptance-criteria-gate"
     },
     "4. Implement each step": {
