@@ -119,7 +119,7 @@ claude plugin marketplace add https://gitlab.example.com/team/agentic-dev-team.g
 claude plugin marketplace add git@gitlab.example.com:team/agentic-dev-team.git
 
 # pin a release tag
-claude plugin marketplace add https://gitlab.example.com/team/agentic-dev-team.git#dev-team-v6.4.0
+claude plugin marketplace add https://gitlab.example.com/team/agentic-dev-team.git#dev-team-v6.6.0
 
 # then, for any of the above:
 claude plugin install dev-team@bfinster
