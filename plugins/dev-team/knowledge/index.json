@@ -2865,7 +2865,7 @@
       "anchor": "1-find-the-plan"
     },
     "2. Analyze the Plan": {
-      "summary": "Read the plan and identify:",
+      "summary": "Read the plan and identify each **slice** (`### Slice <id>:`), its acceptance criteria, and the shared architectural decisions.",
       "anchor": "2-analyze-the-plan"
     },
     "3. Draft Issues": {
@@ -2876,9 +2876,9 @@
       "summary": "Present the issue list as a numbered summary:",
       "anchor": "4-review-with-user"
     },
-    "5. Create Issues": {
-      "summary": "Create each issue using `gh issue create`.",
-      "anchor": "5-create-issues"
+    "5. Create Issues (parent spec, then slice children)": {
+      "summary": "Create the **parent** issue from the spec first, then one **child** issue per slice linked to it, then backfill the sibling `depends on #N` links from the `issue-deps.sh` map:",
+      "anchor": "5-create-issues-parent-spec-then-slice-children"
     },
     "6. Present Results": {
       "summary": "List all created issue URLs with their titles.",
