@@ -16,9 +16,9 @@
 # the core count (portable across Linux + macOS, no bash-4 features). Output is
 # buffered per check and replayed in declared order, so the log stays readable
 # and the pass/fail summary is deterministic — same "run everything, collect all
-# failures" contract as the old serial runner, just faster. When GNU `parallel`
-# is installed, the bats suites additionally parallelize across files internally
-# (--jobs); without it they fall back to serial with no error.
+# failures" contract as the old serial runner, just faster. The bats suites also
+# parallelize across files via scripts/run-bats-parallel.sh, which uses `xargs -P`
+# (built into macOS + Linux) — no GNU `parallel` package required.
 #
 # Exit codes: 0 = all checks passed, 1 = one or more failed, 2 = missing tool.
 
@@ -70,18 +70,9 @@ JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
 case "$JOBS" in ''|*[!0-9]*) JOBS=2 ;; esac
 [ "$JOBS" -ge 1 ] || JOBS=2
 
-# bats parallelizes across files within a single run, but only when GNU
-# `parallel` is on PATH; otherwise it warns and runs serially. Detect it and
-# pass --jobs only when usable. Optional — never a hard requirement (so it does
-# not join the prereq gate above), but recommended: macOS `brew install
-# parallel`, Debian/Ubuntu `apt-get install parallel`.
-BATS_JOBS=()
-if command -v parallel >/dev/null 2>&1; then
-  BATS_JOBS=(--jobs "$JOBS")
-else
-  printf '%s∼ GNU parallel not found — bats suites run serially. Install it for intra-suite parallelism (brew/apt install parallel).%s\n' \
-    "$yellow" "$reset" >&2
-fi
+# bats files are fanned across cores by scripts/run-bats-parallel.sh (xargs -P),
+# which needs no GNU `parallel` package — portable on every macOS + Linux box.
+run_bats() { bash scripts/run-bats-parallel.sh -j "$JOBS" "$@"; }
 
 # --- check definitions -----------------------------------------------------
 # Each gate is a function returning its exit code. They are dispatched
@@ -92,10 +83,10 @@ fi
 chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.sh; }
 chk_shellcheck_tests()   { shellcheck plugins/security-assessment/tests/scripts/*.sh; }
 chk_sa_shell_suite()     { bash plugins/security-assessment/tests/scripts/run-all.sh; }
-chk_bats_repo()          { bats "${BATS_JOBS[@]}" tests/repo/; }
-chk_bats_content_rest()  { bats "${BATS_JOBS[@]}" tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/; }
+chk_bats_repo()          { run_bats tests/repo/; }
+chk_bats_content_rest()  { run_bats tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/; }
 chk_model_routing() {
-  bats "${BATS_JOBS[@]}" \
+  run_bats \
     tests/hooks/updated_input_contract_tests.bats \
     tests/hooks/agent_model_resolve_hook_tests.bats \
     tests/hooks/model_resolve_tests.bats

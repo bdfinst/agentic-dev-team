@@ -36,11 +36,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install bats + jq + GNU parallel
-        # `parallel` enables bats' across-file parallelism (`bats --jobs`);
-        # without it bats warns and runs serially. Job topology is unchanged so
-        # the `bats-tests` required-status-check name stays stable.
-        run: sudo apt-get update && sudo apt-get install -y bats jq python3-yaml parallel
+      - name: Install bats + jq
+        # Across-file parallelism comes from scripts/run-bats-parallel.sh
+        # (xargs -P, built into the runner) — no GNU `parallel` package needed,
+        # so local pre-push and CI use the exact same portable mechanism. Job
+        # topology is unchanged so the `bats-tests` required-status-check name
+        # stays stable.
+        run: sudo apt-get update && sudo apt-get install -y bats jq python3-yaml
 
       # Content-validation suites: repo invariants, knowledge-index shape,
       # agent knowledge-anchor citations (AC19), command/doc registry sync.
@@ -50,9 +52,9 @@ jobs:
       # tests require stryker/pitest and its overhead tests are timing-based,
       # neither of which is portable to a clean CI runner.
       - name: Run dev-team content tests (bats)
-        # --jobs fans the suite's files across the runner's vCPUs (via parallel).
+        # Fans the suite's files across the runner's vCPUs via xargs -P.
         run: |
-          bats --jobs "$(nproc)" \
+          bash scripts/run-bats-parallel.sh \
             tests/repo/ \
             tests/knowledge/ \
             tests/agents/ \
@@ -73,7 +75,7 @@ jobs:
       # run here as a CI gate. See issue #104.
       - name: Run model-routing hook conformance tests (bats)
         run: |
-          bats --jobs "$(nproc)" \
+          bash scripts/run-bats-parallel.sh \
             tests/hooks/updated_input_contract_tests.bats \
             tests/hooks/agent_model_resolve_hook_tests.bats \
             tests/hooks/model_resolve_tests.bats
