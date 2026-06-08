@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -281,6 +282,33 @@ def build_index_text(roots: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Atomic publish — never truncate the live index in place.
+#
+# The index is read by other tooling (and, under parallel test runs, by
+# concurrent readers). A plain truncate-then-stream write exposes a window in
+# which a reader observes an empty or partial file. Writing to a sibling temp
+# file in the same directory and renaming it over the destination makes the
+# publish atomic: every reader sees either the whole old file or the whole new
+# file, never a half-written one. os.replace is an atomic rename on POSIX.
+# ---------------------------------------------------------------------------
+
+
+def _atomic_write(output: Path, text: str) -> None:
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(output.parent), prefix=f".{output.name}.", suffix=".tmp"
+    )
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, output)
+    except BaseException:
+        # Don't leave a partial temp file behind if the write/rename failed.
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+# ---------------------------------------------------------------------------
 # Entry points — write mode and --check.
 # ---------------------------------------------------------------------------
 
@@ -309,7 +337,7 @@ def main(argv: list) -> int:
 
     if mode in ("write", ""):
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(actual, encoding="utf-8")
+        _atomic_write(output, actual)
         return 0
 
     sys.stderr.write(f"Unknown mode: {mode}\n")
