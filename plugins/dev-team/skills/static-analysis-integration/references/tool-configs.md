@@ -26,6 +26,7 @@ semgrep scan \
 gitleaks detect \
   --report-format sarif \
   --report-path - \
+  --no-verify \
   --source <path>
 ```
 
@@ -33,6 +34,7 @@ gitleaks detect \
 - **Install hint**: `gitleaks — secrets detection. install: brew install gitleaks`
 - **Detection**: `command -v gitleaks`
 - **Capability tier**: secrets
+- **Offline posture**: `--no-verify` disables gitleaks' active-credential verification, which would otherwise make outbound API calls (e.g. to AWS/GitHub) to confirm a detected secret is live. Detection is purely pattern-based and runs with zero network egress. Always on — this flag carries no detection cost.
 - **Adapter**: none.
 
 ### trivy
@@ -42,6 +44,8 @@ gitleaks detect \
 trivy config \
   --format sarif \
   --output /dev/stdout \
+  --skip-update \
+  --offline-scan \
   <path>
 
 # Filesystem / supply-chain scanning
@@ -49,6 +53,8 @@ trivy fs \
   --format sarif \
   --output /dev/stdout \
   --scanners vuln,config,secret \
+  --skip-update \
+  --offline-scan \
   <path>
 ```
 
@@ -56,6 +62,13 @@ trivy fs \
 - **Install hint**: `trivy — IaC + supply-chain scanning. install: brew install trivy`
 - **Detection**: `command -v trivy`
 - **Capability tier**: IaC + supply-chain
+- **Offline posture**: both `trivy config` and `trivy fs` run with `--skip-update --offline-scan`. `--skip-update` pins trivy to the local vulnerability DB (no DB refresh over the network); `--offline-scan` suppresses the remote metadata lookups trivy otherwise performs for some package ecosystems. Run the **offline DB preflight** below before dispatch.
+- **Offline DB preflight**: locate the local DB at trivy's cache path (`${TRIVY_CACHE_DIR:-$HOME/.cache/trivy}/db/trivy.db`) and check its `mtime`:
+  - **absent** → skip trivy, warn `trivy local DB missing — run: trivy image --download-db-only`
+  - **mtime age ≤ 7 days** → run normally (fresh)
+  - **mtime age > 7 days** → run anyway, warn `trivy DB is N days old — consider refreshing with: trivy image --download-db-only` (substitute `N` with the integer day count)
+
+  The 7-day boundary is inclusive: exactly 7 days old is still fresh; strictly greater than 7 days is stale. A missing or stale DB is never a hard pipeline failure.
 - **Adapter**: none.
 
 ### hadolint
