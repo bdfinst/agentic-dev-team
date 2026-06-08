@@ -1,8 +1,105 @@
 {
-  "detail": {},
-  "harvest_id": "20260607-223231",
-  "quarantine": [],
-  "recorded_at": "2026-06-07T22:32:31Z",
+  "detail": {
+    "cs-complete-setup::claude-setup-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "cs-missing-sections::claude-setup-review": {
+      "pass_at_k": 0.3333,
+      "trials": 3
+    },
+    "cx-god-function::complexity-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "dm-leaky-abstraction::domain-review": {
+      "pass_at_k": 0.3333,
+      "trials": 3
+    },
+    "dr-accurate-docs::doc-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "ex-explore-command-missing::claude-setup-review": {
+      "pass_at_k": 0.3333,
+      "trials": 3
+    },
+    "fp-array-mutations::js-fp-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "sec-hardcoded-secrets::security-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "sec-safe-headers::security-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "st-god-object::structure-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "st-mixed-concerns::structure-review": {
+      "pass_at_k": 0.3333,
+      "trials": 3
+    },
+    "sv-closure-state-leak.svelte::svelte-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "sv-effect-pitfalls.svelte::svelte-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "te-duplicate-code::token-efficiency-review": {
+      "pass_at_k": 0.3333,
+      "trials": 3
+    },
+    "te-long-functions::token-efficiency-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "test-clean-doubles.test::test-smell-review": {
+      "pass_at_k": 0.3333,
+      "trials": 3
+    },
+    "test-missing-edge-cases.test::test-review": {
+      "pass_at_k": 0.3333,
+      "trials": 3
+    },
+    "test-mystery-guest.test::test-smell-review": {
+      "pass_at_k": 0.6667,
+      "trials": 3
+    },
+    "test-weak-assertions.test::test-review": {
+      "pass_at_k": 0.3333,
+      "trials": 3
+    }
+  },
+  "harvest_id": "20260607-231840",
+  "quarantine": [
+    "cs-complete-setup::claude-setup-review",
+    "cs-missing-sections::claude-setup-review",
+    "cx-god-function::complexity-review",
+    "dm-leaky-abstraction::domain-review",
+    "dr-accurate-docs::doc-review",
+    "ex-explore-command-missing::claude-setup-review",
+    "fp-array-mutations::js-fp-review",
+    "sec-hardcoded-secrets::security-review",
+    "sec-safe-headers::security-review",
+    "st-god-object::structure-review",
+    "st-mixed-concerns::structure-review",
+    "sv-closure-state-leak.svelte::svelte-review",
+    "sv-effect-pitfalls.svelte::svelte-review",
+    "te-duplicate-code::token-efficiency-review",
+    "te-long-functions::token-efficiency-review",
+    "test-clean-doubles.test::test-smell-review",
+    "test-missing-edge-cases.test::test-review",
+    "test-mystery-guest.test::test-smell-review",
+    "test-weak-assertions.test::test-review"
+  ],
+  "recorded_at": "2026-06-08T00:11:07Z",
   "schema": "eval-variance/v1",
-  "trials": 1
+  "trials": 3
 }
