@@ -221,7 +221,7 @@ fix the plan and re-run before the human gate — those defeat safe concurrent b
 
 ### 5. Run plan review personas
 
-Before presenting to the user, dispatch **four plan review personas in parallel** as sub-agents. Each critically challenges the plan from a different perspective:
+Before presenting to the user, dispatch **five plan review personas in parallel** as sub-agents. Each critically challenges the plan from a different perspective:
 
 | Reviewer | Template | Model | Focus |
 |----------|----------|-------|-------|
@@ -229,12 +229,13 @@ Before presenting to the user, dispatch **four plan review personas in parallel*
 | Design & Architecture Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-design.md` | `sonnet` | Coupling, abstractions, structural risks, pattern adherence |
 | UX Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-ux.md` | `sonnet` | User journey, error UX, cognitive load, accessibility |
 | Strategic Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-strategic.md` | `sonnet` | Problem fit, scope, slice boundaries, risk, opportunity cost |
+| Parallelization Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-parallelization.md` | `sonnet` | Same-wave independence: file-overlap collisions (from `plan-waves.sh`), disjoint-file behavioral coupling, residual cycles/mis-layering |
 
-Pass each reviewer the full plan content. Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate.
+Pass each reviewer the full plan content. Also pass the Parallelization Critic the `scripts/plan-waves.sh` JSON for this plan (its `collisions` array is the deterministic input). Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate. A `needs-revision` from the Parallelization Critic triggers plan revision (re-wave the colliding slices) before the human sees the plan.
 
 **If any reviewer returns `needs-revision`**: Address all `blocker` issues by revising the plan. Re-run only the reviewers that flagged blockers. Repeat until all pass (max 2 iterations — escalate to user if still failing).
 
-**After all pass**: Append a `## Plan Review Summary` section to the plan file with the aggregated findings (warnings and observations from all four reviewers).
+**After all pass**: Append a `## Plan Review Summary` section to the plan file with the aggregated findings (warnings and observations from all five reviewers).
 
 ### 6. Present for approval
 

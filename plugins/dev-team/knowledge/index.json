@@ -3241,7 +3241,7 @@
       "anchor": "4-create-the-plans-directory"
     },
     "5. Run plan review personas": {
-      "summary": "Before presenting to the user, dispatch **four plan review personas in parallel** as sub-agents.",
+      "summary": "Before presenting to the user, dispatch **five plan review personas in parallel** as sub-agents.",
       "anchor": "5-run-plan-review-personas"
     },
     "6. Present for approval": {

@@ -74,6 +74,7 @@ Before the human reviews a plan (Phase 2), four critical review personas run **i
 | Design & Architecture Critic | `prompts/plan-review-design.md` | sonnet | Dependency direction, abstraction quality, structural risks, pattern consistency |
 | UX Critic | `prompts/plan-review-ux.md` | sonnet | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
 | Strategic Critic | `prompts/plan-review-strategic.md` | sonnet | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
+| Parallelization Critic | `prompts/plan-review-parallelization.md` | sonnet | Same-wave independence: file-overlap collisions (plan-waves.sh), disjoint-file behavioral coupling, residual cycles |
 
 Each reviewer returns a structured `approve` or `needs-revision` verdict. If any reviewer flags blockers, the plan is revised before the human sees it (max 2 iterations). Warnings from all four are aggregated into a Plan Review Summary appended to the plan file.
 
