@@ -1,5 +1,22 @@
 # Changelog
 
+## [6.7.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.6.1...dev-team-v6.7.0) (2026-06-08)
+
+
+### Features
+
+* **build:** wave-aware concurrent build ([#224](https://github.com/bdfinst/agentic-dev-team/issues/224)) ([#242](https://github.com/bdfinst/agentic-dev-team/issues/242)) ([9137017](https://github.com/bdfinst/agentic-dev-team/commit/913701728da691cb0be09cbd5aeb022946b4fabd))
+* **issues-from-plan:** spec parent + DAG-linked slice children ([#225](https://github.com/bdfinst/agentic-dev-team/issues/225)) ([#243](https://github.com/bdfinst/agentic-dev-team/issues/243)) ([3306499](https://github.com/bdfinst/agentic-dev-team/commit/330649946f10852d19099fe991c1d5c4f4885f82))
+* **plan:** GitHub-origin post-plan issue gate ([#226](https://github.com/bdfinst/agentic-dev-team/issues/226)) ([#244](https://github.com/bdfinst/agentic-dev-team/issues/244)) ([8d10fde](https://github.com/bdfinst/agentic-dev-team/commit/8d10fdef1318d4b4a61a7ff7a239427763b610f7))
+* **plan:** parallelization-review persona ([#223](https://github.com/bdfinst/agentic-dev-team/issues/223)) ([#241](https://github.com/bdfinst/agentic-dev-team/issues/241)) ([3a4a173](https://github.com/bdfinst/agentic-dev-team/commit/3a4a17397a62414993c443fbb6594092377ab694))
+* **plan:** slice dependency metadata + wave computation ([#222](https://github.com/bdfinst/agentic-dev-team/issues/222)) ([#240](https://github.com/bdfinst/agentic-dev-team/issues/240)) ([e8c9aa9](https://github.com/bdfinst/agentic-dev-team/commit/e8c9aa9123c403b3e125f79d960091a02d90ca0d))
+* **session-review:** wire raw-log semantic tier + methodology lens ([#214](https://github.com/bdfinst/agentic-dev-team/issues/214)) ([#239](https://github.com/bdfinst/agentic-dev-team/issues/239)) ([a1dd258](https://github.com/bdfinst/agentic-dev-team/commit/a1dd2582b8e60f63df3cbd16446d181775a4a3a9))
+
+
+### Miscellaneous
+
+* remove issue-tracked specs, spikes, and plans ([#215](https://github.com/bdfinst/agentic-dev-team/issues/215)) ([#216](https://github.com/bdfinst/agentic-dev-team/issues/216)) ([d058860](https://github.com/bdfinst/agentic-dev-team/commit/d05886080c458ec579b58f1f63ea3bf7524f3433))
+
 ## [6.6.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.6.0...dev-team-v6.6.1) (2026-06-07)
 
 
