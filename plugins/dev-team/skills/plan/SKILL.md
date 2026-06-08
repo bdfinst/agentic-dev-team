@@ -243,6 +243,20 @@ Display the plan and the review summary. Ask: "Approve this plan to begin implem
 
 Mark the plan status as `approved` once the user confirms. If the user requests changes, update the plan and re-present.
 
+#### Post-approval: offer GitHub issues (GitHub origin only)
+
+After approval, classify the origin remote — **only** offer issue creation on an actual GitHub host:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/git-origin-host.sh
+```
+
+- **`github`** → prompt **once**, showing the count: *"Open 1 parent issue and N linked slice issues from this plan? [y/N]"* (N = number of slices). The default is **No**. Invoke `/issues-from-plan` **only on explicit `y`**; on No (or anything else), create nothing and continue.
+- **`other`** (non-GitHub host, including lookalikes like `notgithub.example.com`) or **`none`** (no origin) → **no prompt**; continue silently.
+- **Non-interactive** (`/plan` run without a usable TTY) → do **not** prompt or block: log *"skipping the GitHub issue prompt (non-interactive)"* and continue.
+
+Never create issues without an explicit `y` on an interactive GitHub-origin prompt.
+
 ## Integration
 
 - The progress-guardian agent tracks step completion against this plan
