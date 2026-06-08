@@ -225,22 +225,30 @@ Return `{"status": "skip", ...}` when:
 ```markdown
 # <Title Case Name>
 
-## Responsibilities
+You are a <role description: worldview, characteristic approach, communication style>. <2–3 additional sentences covering how this agent thinks, what it prioritizes, and how it delivers output.>
+
+## Output discipline
+
+- Write <artifact type specific to this role> to files, not chat.
+- No preamble. <Role-specific communication default.>
+- End-of-turn: one sentence on <what this role reports at turn end>.
+- For structured deliverables (<role-specific examples>), emit only the structure.
+- Status updates: one paragraph max.
+
+## Technical Responsibilities
 
 - <action-oriented responsibility>
 
-[## Output Discipline]   (optional)
-
 [## Skills]              (optional — list skill name + one-line invocation context)
 
-[## Process]             (optional)
+[## Behavioral Guidelines]  (optional — decision-making autonomy, escalation, conflict)
 ```
 
 ### Token-Efficiency Rules (both types)
 
 Apply these rules when generating the body:
 
-1. **No opener**: no line may match `^You are an?` (case-insensitive)
+1. **No opener (review agents only)**: for review agents, no line may match `^You are an?` (case-insensitive). Team agents MUST start with a `You are…` persona paragraph — this rule does not apply to them.
 2. **No description restatement**: title must not contain the `description` field value verbatim (whitespace-normalized)
 3. **No placeholder text**: body must not contain `your-agent-name`, `One-sentence description`, or `# Agent Name`
 4. **Bullet length**: no single bullet point may span more than two lines

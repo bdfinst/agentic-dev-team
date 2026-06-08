@@ -121,6 +121,28 @@ Include the result in the agent report table under a `Skills-Tool` column.
 
 **Fix (when `--fix` is passed)**: Append `, Skill` to the `tools:` frontmatter line. Report `FIXED: <agent> — Added Skill to tools:`.
 
+### 2c. Audit team agent personas
+
+A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. For each team agent, check:
+
+1. **Persona paragraph**: Is there a `You are…` sentence immediately after the H1 heading and before the first `##` section?
+   - The line must begin with `You are` (case-sensitive).
+   - FAIL if the first non-blank line after the H1 is a `##` heading instead of a persona paragraph.
+   - PASS if a `You are …` paragraph is present between the H1 and the first `##`.
+
+2. **Non-generic Output discipline**: Does the `## Output discipline` section exist and contain role-specific content?
+   - FAIL if the `## Output discipline` section is absent entirely.
+   - WARN if the first bullet still contains the old generic phrase `"plans, designs, ADRs, reports"` — this indicates the shared boilerplate was never personalised.
+   - PASS if the section is present and does not match the generic boilerplate.
+
+Include both results in the agent report table under `Persona` and `Output-Disc` columns.
+
+**Fix (when `--fix` is passed)**:
+
+- Missing persona paragraph: insert a placeholder `You are a <role>. <Add identity, worldview, communication style.>` after the H1. Report `FIXED: <agent> — Added persona placeholder (requires manual completion)`.
+- Missing `## Output discipline`: insert the section with a placeholder bullet. Report `FIXED: <agent> — Added Output discipline placeholder (requires manual completion)`.
+- Generic boilerplate detected: emit `WARN: <agent> — Output discipline still contains generic boilerplate; manual update required` (no auto-fix — content must be role-specific).
+
 ### 3. Audit skills
 
 Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:
