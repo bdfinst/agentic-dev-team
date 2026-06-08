@@ -17,7 +17,7 @@ Defaults:
 - **Editor**: EditorConfig (2-space, UTF-8, LF, trim trailing whitespace, final newline)
 - **Tests**: Vitest
 - **E2E** (frontend only): Playwright
-- **Git hooks**: Husky pre-push (lint + format check + test)
+- **Git hooks**: Husky pre-commit (lint-staged auto-fix of staged files) + pre-push (test)
 - **`.gitignore`**: node_modules, dist, build, coverage, .env, .env.*, OS files
 
 This skill scaffolds the **base tooling layer**. It does not replace framework-specific CLIs (`npx sv create`, `ng new`, `npm create vite@latest`). For a full framework scaffold, run the framework CLI first, then layer on these configs.
@@ -50,16 +50,24 @@ Read the generated `package.json`, then edit to:
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs}": ["prettier --write", "eslint --fix"],
+    "*.{json,md,yaml,yml}": ["prettier --write"]
   }
 }
 ```
+
+`lint-staged` runs Prettier (and ESLint `--fix` on JS) against only the staged
+files on each commit, so formatting/lint drift is corrected automatically before
+it lands — without scanning the whole tree.
 
 Frontend projects also add: `"test:e2e": "playwright test"`.
 
 ### Step 3: Install dependencies
 
 ```bash
-npm install -D eslint prettier vitest @eslint/js eslint-config-prettier husky
+npm install -D eslint prettier vitest @eslint/js eslint-config-prettier husky lint-staged
 ```
 
 `eslint-config-prettier` disables ESLint rules that conflict with Prettier. Do NOT install `eslint-plugin-prettier` — run Prettier as a separate step (`npm run format:check`), not through ESLint.
@@ -98,27 +106,27 @@ git init  # skip if already a git repo
 npx husky init
 ```
 
-Create the pre-push hook (template in `references/configs.md`):
+Create both hooks (templates in `references/configs.md`):
 
 ```bash
-echo 'npm run lint
-npm run format:check
-npm test' > .husky/pre-push
+echo 'npx lint-staged' > .husky/pre-commit
+echo 'npm test' > .husky/pre-push
 ```
 
-Remove Husky's default pre-commit hook (we use pre-push instead):
+`npx husky init` writes a default `pre-commit`; the command above overwrites it.
+
+Frontend projects also run the e2e suite on push:
 
 ```bash
-rm .husky/pre-commit
+echo 'npm test
+npm run test:e2e' > .husky/pre-push
 ```
 
-Frontend projects append e2e:
-
-```bash
-echo 'npm run test:e2e' >> .husky/pre-push
-```
-
-Pre-push gates what goes upstream while keeping the local commit loop fast.
+The pre-commit hook auto-fixes only the staged files (`prettier --write` +
+`eslint --fix`) so the commit loop stays fast and clean; the pre-push hook runs
+the test suite to gate what goes upstream. Because lint-staged formats and lints
+on commit, the redundant `npm run format:check` and `npm run lint` steps are no
+longer needed on pre-push.
 
 ### Step 7: Verify
 
@@ -135,6 +143,7 @@ If any command fails, fix it before reporting success. Show the user the test ou
 After everything passes, give the user:
 - List of files created
 - Available npm scripts
+- Git hooks installed: `pre-commit` (lint-staged auto-fix of staged files) and `pre-push` (test suite; frontend also runs e2e)
 - One-line next-step suggestion (e.g., `npm run test:watch` to develop with live tests)
 
 ## Customization handling

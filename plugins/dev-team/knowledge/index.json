@@ -2915,7 +2915,7 @@
       "anchor": "step-5-create-starter-files"
     },
     "Step 6: Git hooks": {
-      "summary": "Create the pre-push hook (template in `references/configs.md`):",
+      "summary": "Create both hooks (templates in `references/configs.md`):",
       "anchor": "step-6-git-hooks"
     },
     "Step 7: Verify": {
