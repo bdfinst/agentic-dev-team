@@ -86,6 +86,9 @@ Steps are numbered `<slice>.<step>` (1.1, 1.2, 2.1, …).
 
 ### Slice 1: <Slice Name>
 
+**Depends-on:** none
+**Files:** `path/to/file.ts`, `path/to/file.test.ts`
+
 **Behavior:**
 
 ```gherkin
@@ -119,6 +122,9 @@ Feature: <feature name>
 
 ### Slice 2: <Slice Name>
 
+**Depends-on:** 1
+**Files:** `path/to/other.ts`
+
 **Behavior:**
 
 ```gherkin
@@ -130,6 +136,27 @@ Feature: <feature name>
 #### Step 2.1: <Description>
 
 ...
+
+## Parallelization
+
+Each slice declares `Depends-on` (slice ids it must follow, or `none`). The build
+**waves** are derived from those declarations by `scripts/plan-waves.sh` — do not
+hand-maintain them. Independent slices in the same wave can be built concurrently
+(`/build` dispatches them to isolated worktrees).
+
+```mermaid
+graph TD
+  S1[Slice 1] --> S2[Slice 2]
+```
+
+| Wave | Slices (parallel) |
+|------|-------------------|
+| 1 | 1 |
+| 2 | 2 |
+
+If `plan-waves.sh` reports a cycle, a missing `Depends-on`, an unknown reference,
+or a **same-wave file collision** (two slices in one wave declaring the same file),
+fix the plan before the human gate — those break safe concurrent delivery.
 
 ## Complexity Classification
 
@@ -159,11 +186,14 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 
 This section is the machine-parseable recovery handle. `/build` updates checkboxes here via Edit tool so progress survives a `/clear` or session restart. `/continue` reads this section to determine the resume point.
 
-### Slices
+### Slices (grouped by wave)
 
+#### Wave 1
 - [ ] Slice 1: <title>
   - [ ] Step 1.1: <title>
   - [ ] Step 1.2: <title>
+
+#### Wave 2
 - [ ] Slice 2: <title>
   - [ ] Step 2.1: <title>
 
@@ -177,6 +207,17 @@ This section is the machine-parseable recovery handle. `/build` updates checkbox
 ### 4. Create the plans directory
 
 Create `plans/` if it doesn't exist. When writing the plan file, populate the `## Build Progress` section by copying slice and step titles from `## Slices` and criteria from `## Acceptance Criteria`. These are the checkboxes `/build` will update on disk as each step completes — a slice is checked off once all its steps are.
+
+Then derive the waves — never hand-author them:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/plan-waves.sh <plan-file>
+```
+
+Render the `## Parallelization` Mermaid DAG + wave table and the wave-grouped
+`## Build Progress` from its JSON (`waves`, per-slice `wave`). If it exits non-zero
+(cycle, missing `Depends-on`, or unknown reference) or reports a `collisions` entry,
+fix the plan and re-run before the human gate — those defeat safe concurrent build.
 
 ### 5. Run plan review personas
 

@@ -53,7 +53,8 @@ jobs:
             tests/knowledge/ \
             tests/agents/ \
             tests/commands/ \
-            tests/docs/
+            tests/docs/ \
+            tests/scripts/
 
       # Rules-vs-prompts boundary sensor (#118): the security-review-rule-map.yaml
       # policy must stay consistent — no class on two surfaces, every rule-surface
