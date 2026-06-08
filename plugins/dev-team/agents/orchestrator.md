@@ -54,6 +54,16 @@ Each agent's `model:` frontmatter is the authoritative routing input. Below is t
 - `sonnet` — semantic analysis with balanced cost/quality (spec-compliance-review, test-review, structure-review, concurrency-review, doc-review, refactor-opportunity-review, data-flow-tracer, performance-review, orchestrator, software-engineer, qa-engineer, tech-writer, platform-engineer, product-manager, ui-ux-designer, adr).
 - `opus` — cross-file reasoning, high-stakes decisions, design synthesis, threat modeling, broad reconnaissance (security-review, domain-review, arch-review, architect, security-engineer, codebase-recon).
 
+## Wave-Aware Build Dispatch
+
+During `/build`, the orchestrator executes the plan **wave by wave** (the plan's `## Parallelization` schedule from `scripts/plan-waves.sh`):
+
+1. **Resolve** the wave schedule (`build-wave.sh`) and the effective concurrency (`build-jobs.sh` → `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)`).
+2. **Dispatch** each independent slice in the wave to its own git worktree (`isolation: "worktree"`) up to that concurrency — each runs full RED-GREEN-REFACTOR + inline review in isolation.
+3. **Barrier + reconcile** (`build-wave-reconcile.sh`): order-independently merge the wave's slice branches, gate on the full suite, and only then start the next wave. A failing slice or a reconcile conflict halts loudly (names the offender, preserves succeeded worktrees, prints the resume command) and starts no next-wave slice.
+
+Effective concurrency 1 (fully-dependent plan, `--jobs 1`, or `DEV_TEAM_MAX_PARALLEL_BUILDS=1`) degrades to sequential single-worktree build with no fan-out or reconcile.
+
 ## Command Delegation
 
 All review commands are executed under orchestrator direction. When a user triggers a review command, the orchestrator applies model routing and inline review logic before delegating execution.
