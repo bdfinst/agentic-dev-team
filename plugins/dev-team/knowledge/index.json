@@ -3704,6 +3704,10 @@
       "summary": "For each Tier 1 tool, run `command -v <tool>`.",
       "anchor": "1-detect-available-tools"
     },
+    "1b. Offline enforcement (gitleaks, trivy)": {
+      "summary": "These tools default to making network calls; in restricted-egress environments those calls hang or fail and take the pre-pass down with them.",
+      "anchor": "1b-offline-enforcement-gitleaks-trivy"
+    },
     "2. Run available tools in parallel": {
       "summary": "Dispatch each available tool's invocation.",
       "anchor": "2-run-available-tools-in-parallel"

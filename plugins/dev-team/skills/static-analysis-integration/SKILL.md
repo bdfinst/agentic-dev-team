@@ -32,8 +32,8 @@ Maintenance policies for adapters and rulesets live in `maintenance.md` — thos
 | Tool | SARIF invocation | Capability |
 |---|---|---|
 | semgrep | `semgrep scan --sarif --config auto` | SAST |
-| gitleaks | `gitleaks detect --report-format sarif --report-path -` | secrets |
-| trivy | `trivy config --format sarif <path>` + `trivy fs --format sarif <path>` | IaC + supply-chain |
+| gitleaks | `gitleaks detect --report-format sarif --report-path - --no-verify` | secrets |
+| trivy | `trivy config --format sarif --skip-update --offline-scan <path>` + `trivy fs --format sarif --skip-update --offline-scan <path>` | IaC + supply-chain |
 | hadolint | `hadolint --format sarif <Dockerfile>` | IaC (Dockerfile) |
 | actionlint | binary emits JSON; thin adapter maps to SARIF `result` (see `references/tool-configs.md`) | CI/CD |
 
@@ -60,6 +60,22 @@ If no Tier 1 tools are present, return:
 ```json
 { "status": "skip", "tools": [], "findings": [], "summary": "No static analysis tools detected." }
 ```
+
+### 1b. Offline enforcement (gitleaks, trivy)
+
+These tools default to making network calls; in restricted-egress environments those calls hang or fail and take the pre-pass down with them. Both are pinned to local-only operation so the pre-pass never depends on outbound network access.
+
+**gitleaks** runs with `--no-verify`. Verification (confirming a detected secret is a live credential) is the only outbound call gitleaks makes; disabling it keeps detection fully pattern-based and offline. No preflight needed — the flag is always on.
+
+**trivy** runs with `--skip-update --offline-scan` on both `trivy config` and `trivy fs`. Before dispatching trivy, run the **offline DB preflight** against the local cache (`${TRIVY_CACHE_DIR:-$HOME/.cache/trivy}/db/trivy.db`):
+
+| Local DB state | Action | Warning |
+|---|---|---|
+| absent | skip trivy | `trivy local DB missing — run: trivy image --download-db-only` |
+| mtime age ≤ 7 days | run (fresh) | none |
+| mtime age > 7 days | run anyway | `trivy DB is N days old — consider refreshing with: trivy image --download-db-only` |
+
+`N` is the integer day count. The 7-day boundary is inclusive (exactly 7 days = fresh; strictly greater than 7 days = stale). A missing or stale DB is **never a hard pipeline failure** — it degrades to a skip or a warning, consistent with the graceful-degradation constraint.
 
 ### 2. Run available tools in parallel
 
