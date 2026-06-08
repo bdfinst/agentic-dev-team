@@ -29,21 +29,12 @@ As the security engineer, review the authentication flow for the mobile client
 
 Under the hood this dispatches the matching agent persona (the same one the Agent tool addresses as `subagent_type: dev-team:architect`). There is no `/architect` command — the persona is selected by intent, not by a slash.
 
-### Invoke a skill directly
-
-Skills *are* user-invocable as slash commands — use one to apply its procedures to your request:
-
-```text
-/threat-modeling Analyze the new payment API for security risks
-/api-design Define the contract for the notification service
-/specs Specify the user registration feature
-```
-
 ### Use the workflow commands
 
 The structured lifecycle has real slash commands. These are the primary entry points:
 
 ```text
+/specs   Capture intent, architecture, and acceptance criteria (lifecycle entry point)
 /plan    Break a task into an incremental, test-driven plan
 /build   Execute an approved plan with TDD and inline review
 /pr      Run the pre-PR quality gate and open a pull request
@@ -52,6 +43,16 @@ The structured lifecycle has real slash commands. These are the primary entry po
 ```
 
 Run `/help` to see every available command.
+
+### Invoke a skill directly
+
+Beyond the lifecycle commands above, any skill *is* user-invocable as a slash command — use one to apply its procedures to your request:
+
+```text
+/threat-modeling Analyze the new payment API for security risks
+/api-design Define the contract for the notification service
+/specs Specify the user registration feature
+```
 
 ## Common Workflows
 
