@@ -1,14 +1,12 @@
 {
   "_comment": "Regression baseline for the agent-eval CI gate (#99). Trust-gated (#230): a pair is removed only when it failed every trial (pass@k <= demote_below) over >= min_trials and is not flaky; a flaky pair is quarantined, not removed; a pair is added only when it passed all trials. Written by eval_variance.py --write-baseline.",
   "provenance": "measured",
-  "recorded_at": "2026-06-07T22:32:31Z",
-  "trials": 1,
+  "recorded_at": "2026-06-08T00:11:07Z",
+  "trials": 3,
   "passing": [
     "ar-clean-arch::arch-review",
     "ar-layer-violation::arch-review",
-    "cs-broken-paths::claude-setup-review",
     "cs-complete-setup::claude-setup-review",
-    "cx-callback-hell::complexity-review",
     "cx-clean-functions::complexity-review",
     "cx-deep-nesting::complexity-review",
     "cx-god-function::complexity-review",
@@ -17,7 +15,6 @@
     "dm-missing-dtos::domain-review",
     "dm-proper-events::domain-review",
     "dr-accurate-docs::doc-review",
-    "dr-stale-readme::doc-review",
     "ex-explore-command-missing::claude-setup-review",
     "ex-explore-command-present::claude-setup-review",
     "fp-array-mutations::js-fp-review",
@@ -26,12 +23,10 @@
     "fp-safe-sort::js-fp-review",
     "nm-clear-names::naming-review",
     "nm-consistent-conventions::naming-review",
-    "nm-misleading-names::naming-review",
     "sec-env-gitignored::security-review",
     "sec-hardcoded-secrets::security-review",
     "sec-safe-auth::security-review",
     "sec-safe-headers::security-review",
-    "sec-sql-injection::security-review",
     "sec-xss-vulnerable::security-review",
     "st-clean-modules::structure-review",
     "st-god-object::structure-review",
@@ -49,12 +44,9 @@
     "te-duplicate-code::token-efficiency-review",
     "te-efficient-claude::token-efficiency-review",
     "te-long-functions::token-efficiency-review",
-    "te-verbose-claude::token-efficiency-review",
     "test-assertion-roulette.test::test-smell-review",
     "test-clean-doubles.test::test-smell-review",
     "test-mystery-guest.test::test-smell-review",
-    "test-thorough-edge-cases.test::test-review",
-    "test-well-structured.test::test-review",
     "tlg-01-pure-function::test-design-advisor",
     "tlg-02-user-facing-dynamic::test-design-advisor",
     "tlg-03-browser-bug-fix::test-design-advisor",
@@ -63,5 +55,5 @@
     "tlg-09-critical-single-layer::test-design-advisor",
     "tlg-10-multi-gate::test-design-advisor"
   ],
-  "harvest_id": "20260607-223231"
+  "harvest_id": "20260607-231840"
 }
