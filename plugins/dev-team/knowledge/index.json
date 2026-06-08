@@ -1539,7 +1539,7 @@
       "anchor": "3-verify-acceptance-criteria-gate"
     },
     "4. Implement each step": {
-      "summary": "Work the plan slice by slice, in order.",
+      "summary": "Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan-waves.sh`).",
       "anchor": "4-implement-each-step"
     },
     "5. Run full test suite": {
