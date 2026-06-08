@@ -92,6 +92,7 @@ Concrete templates in `prompts/` for reproducible subagent dispatch:
 | Plan Review — Design | [`plan-review-design.md`](../prompts/plan-review-design.md) | Coupling, abstraction quality, structural risks, pattern consistency |
 | Plan Review — UX | [`plan-review-ux.md`](../prompts/plan-review-ux.md) | User journey, error experience, cognitive load, accessibility |
 | Plan Review — Strategic | [`plan-review-strategic.md`](../prompts/plan-review-strategic.md) | Problem-solution fit, scope, risk, opportunity cost |
+| Plan Review — Parallelization | [`plan-review-parallelization.md`](../prompts/plan-review-parallelization.md) | Same-wave independence: file-overlap collisions, disjoint-file behavioral coupling, residual cycles |
 
 ## User-Invocable Skills Catalog
 

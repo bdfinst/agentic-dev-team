@@ -107,6 +107,7 @@ Concrete prompt templates in `prompts/` that the orchestrator and `/code-review`
 | Plan Review — Design | `prompts/plan-review-design.md` | Orchestrator (Phase 2 plan review persona) |
 | Plan Review — UX | `prompts/plan-review-ux.md` | Orchestrator (Phase 2 plan review persona) |
 | Plan Review — Strategic | `prompts/plan-review-strategic.md` | Orchestrator (Phase 2 plan review persona) |
+| Plan Review — Parallelization | `prompts/plan-review-parallelization.md` | Orchestrator (Phase 2 plan review persona) |
 
 ## Knowledge Files
 
