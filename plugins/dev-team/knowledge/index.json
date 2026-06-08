@@ -3566,6 +3566,10 @@
       "summary": "Dispatch the `session-analysis` agent with the digest path as its sole input.",
       "anchor": "2-analyze-digest-only"
     },
+    "2b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)": {
+      "summary": "The digest is quantitative, so it is **blind to frictions with no count-signature**",
+      "anchor": "2b-raw-log-semantic-tier-only-the-worst-sessions-214-delta-ab"
+    },
     "3. Suggest (write the report)": {
       "summary": "Write `reports/session-review-<date>.md` (or `--out`).",
       "anchor": "3-suggest-write-the-report"
