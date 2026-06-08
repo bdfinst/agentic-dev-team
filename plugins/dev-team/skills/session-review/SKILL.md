@@ -23,7 +23,10 @@ You have been invoked with the `/session-review` command.
 
 1. **Never read raw transcripts yourself.** All heavy parsing is the
    deterministic extractor's job; you read only its KB-sized digest. Spending
-   model tokens to study token spend defeats the purpose.
+   model tokens to study token spend defeats the purpose. The one exception is
+   the gated raw-log tier (Step 2b): even there *you* never read a raw log — you
+   dispatch one isolated sub-agent per flagged log and keep only its metrics-only
+   findings.
 2. **Suggest, never apply.** Output a ranked report and hand off; do not edit
    agents, skills, or config. Human gates stay intact.
 3. **Metrics only.** The digest and report contain counts/ratios/names — never
@@ -129,12 +132,56 @@ The agent maps aggregated patterns to probable plugin causes and returns ranked
 suggestions, each tagged `{token | rework | accuracy}` with a named target
 artifact and a hand-off destination. The agent reads **only** the digest.
 
+### 2b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)
+
+The digest is quantitative, so it is **blind to frictions with no count-signature**
+— a hallucinated citation (the AI cited a skill/source that does not exist), or an
+operator habit (deferring decisions with no owner). Surface those with a **bounded**
+second tier: the deterministic digest decides *where* it is worth spending tokens,
+then you read only those few raw logs. This tier needs the cross-machine digests
+(the `$CLONE/digests` from Step 0); if no telemetry repo synced, **skip it**.
+
+1. Flag the worst sessions (deterministic, zero model tokens):
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_rawlog.py \
+     --flag "$CLONE/digests" --top 5 -o memory/worst-sessions.json
+   ```
+
+   If it flags nothing, skip this tier — there is nothing expensive to read.
+
+2. For each flagged `session_id` **only**, locate its raw transcript
+   (`~/.claude/projects/**/<session_id>.jsonl`) and dispatch **one sub-agent per
+   transcript** (one ~1MB log = one agent = one context boundary; fan out in
+   parallel). Each sub-agent reads its single raw log and returns semantic
+   frictions the digest cannot see. **You never read the raw log yourself**
+   (constraint 1); the raw log never leaves the machine. Require each finding in
+   the metrics-only shape the validator enforces — only these keys:
+   `{lens, friction_type, target_artifact, confidence, count}` (plus optional
+   `session_id`/`project`/`host`), with `lens` ∈ `{methodology, harness, devex,
+   accuracy}`. A finding may say *that* a friction occurred and *which* artifact to
+   fix, never a prompt, code, path, or quote.
+
+3. Mechanically verify the privacy boundary before keeping anything — drop (do
+   not report) any finding with violations:
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_rawlog.py \
+     --validate memory/tier2-findings.json
+   ```
+
 ### 3. Suggest (write the report)
 
 Write `reports/session-review-<date>.md` (or `--out`). Rank the suggestions and,
-for each, record: the tag `{token|rework|accuracy}`, the digest evidence
-(metrics only), the concrete target artifact, the proposed change, and the
-hand-off destination from the table below. Nothing is auto-applied.
+for each, record: the tag (`{token|rework|accuracy}` from the digest, or a Tier-2
+lens `{methodology|harness|devex}`), the evidence (metrics only), the concrete
+target artifact, the proposed change, and the hand-off destination from the table
+below. Nothing is auto-applied.
+
+The **`methodology`** lens (from Step 2b only) observes the *operator's own habits*
+(e.g. deferring decisions with no owner). These have **no target artifact and no
+hook** — their hand-off is "to the human, as an observation." Put them under their
+own report heading; never route them to a gate.
 
 | Suggestion kind | Hand off to |
 |---|---|
@@ -142,6 +189,7 @@ hand-off destination from the table below. Nothing is auto-applied.
 | Model re-tiering | `/harness-audit` + `.claude/model-overrides.json` |
 | New / changed detection rule | `/agent-eval` (validate before shipping) |
 | Token-heavy skill / agent | `token-efficiency-review` |
+| Operator methodology observation (`methodology`) | the human, as an observation — no artifact, no hook |
 
 ### 4. Persist the trend (#129)
 
