@@ -146,12 +146,23 @@ export default defineConfig({
 })
 ```
 
+## .husky/pre-commit
+
+```bash
+npx lint-staged
+```
+
 ## .husky/pre-push
 
 ```bash
-npm run lint
-npm run format:check
 npm test
+```
+
+Frontend projects append the e2e suite:
+
+```bash
+npm test
+npm run test:e2e
 ```
 
 ## src/index.js (starter file)
