@@ -82,7 +82,7 @@ run "security-assessment shell test suite (run-all.sh)" \
 
 # --- plugin-tests.yml :: bats-tests ---------------------------------------
 run "bats — dev-team content suites" \
-  bats tests/repo/ tests/knowledge/ tests/agents/ tests/commands/ tests/docs/
+  bats tests/repo/ tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/
 
 run "bats — model-routing hook conformance" \
   bats \
