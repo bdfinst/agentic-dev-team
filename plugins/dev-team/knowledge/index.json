@@ -1530,6 +1530,10 @@
       "summary": "If `--plan` was provided, read that file.",
       "anchor": "1-find-the-plan"
     },
+    "1.5. JS project bootstrap gate": {
+      "summary": "Before any TDD step runs, make sure a JS-flavored plan has a project to build in.",
+      "anchor": "15-js-project-bootstrap-gate"
+    },
     "2. Verify plan status": {
       "summary": "Read the plan file.",
       "anchor": "2-verify-plan-status"
