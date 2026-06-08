@@ -25,6 +25,10 @@ You have been invoked with the `/upgrade` command.
 
 ### 0. Detect and migrate legacy plugin ids
 
+**Version gate**: Before running this step, read the current version from
+`~/.claude/plugins/cache/*/dev-team/*/.claude-plugin/plugin.json`. If the
+installed version is ≥ 6.1.0, skip this step entirely and proceed to Step 1.
+
 The plugins in the `bfinster` marketplace were renamed:
 
 - `agentic-dev-team` → `dev-team`
