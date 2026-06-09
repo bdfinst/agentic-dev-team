@@ -129,25 +129,26 @@ _collect_fs() {
   # prefixes (anywhere in the tree). We implement via `-path`/`-prune`.
   local pruned=()
   local p
-  for p in "${prefixes[@]}"; do
+  # ${arr[@]+"${arr[@]}"} is empty-array-safe under `set -u` (bash 3.2 / macOS).
+  for p in ${prefixes[@]+"${prefixes[@]}"}; do
     pruned+=(-o -path "$ROOT_ABS/$p" -o -path "$ROOT_ABS/*/$p")
   done
   # Pruned filenames at -name level.
   local name_excludes=()
   local n
-  for n in "${filenames[@]}"; do
+  for n in ${filenames[@]+"${filenames[@]}"}; do
     name_excludes+=(-not -name "$n")
   done
 
   # Execute find: prune then print regular files.
   # -false is a sentinel so we can `-o` the prune list uniformly.
   if (( ${#prefixes[@]} )); then
-    find "${find_args[@]}" \( -false "${pruned[@]}" \) -prune -o -type f "${name_excludes[@]}" -print \
+    find "${find_args[@]}" \( -false ${pruned[@]+"${pruned[@]}"} \) -prune -o -type f ${name_excludes[@]+"${name_excludes[@]}"} -print \
       | while IFS= read -r abs; do
           printf '%s\n' "${abs#"$ROOT_ABS/"}"
         done >"$RAW"
   else
-    find "${find_args[@]}" -type f "${name_excludes[@]}" -print \
+    find "${find_args[@]}" -type f ${name_excludes[@]+"${name_excludes[@]}"} -print \
       | while IFS= read -r abs; do
           printf '%s\n' "${abs#"$ROOT_ABS/"}"
         done >"$RAW"

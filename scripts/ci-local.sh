@@ -45,7 +45,8 @@ for t in shellcheck bats jq python3; do
 done
 if [ "${#missing[@]}" -gt 0 ]; then
   printf '%s%sMissing required tools: %s%s\n' "$bold" "$red" "${missing[*]}" "$reset" >&2
-  printf 'Install them (macOS): brew install %s\n' "${missing[*]}" >&2
+  printf 'Install everything the dev gates need: bash scripts/dev-setup.sh\n' >&2
+  printf '  (or, macOS only: brew install %s)\n' "${missing[*]}" >&2
   exit 2
 fi
 
@@ -61,6 +62,7 @@ done
 if [ "${#py_missing[@]}" -gt 0 ]; then
   printf '%s%sMissing required Python modules: %s%s\n' "$bold" "$red" "${py_missing[*]}" "$reset" >&2
   printf 'Install the dev dependencies: python3 -m pip install -r requirements-dev.txt\n' >&2
+  printf '  (or run the one-shot setup: bash scripts/dev-setup.sh)\n' >&2
   exit 2
 fi
 
@@ -81,8 +83,8 @@ run_bats() { bash scripts/run-bats-parallel.sh -j "$JOBS" "$@"; }
 # instead of running after them.
 
 chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.sh; }
-chk_shellcheck_tests()   { shellcheck plugins/security-assessment/tests/scripts/*.sh; }
-chk_sa_shell_suite()     { bash plugins/security-assessment/tests/scripts/run-all.sh; }
+chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh; }
+chk_sa_shell_suite()     { bash tests/security-assessment/scripts/run-all.sh; }
 chk_bats_repo()          { run_bats tests/repo/; }
 chk_bats_content_rest()  { run_bats tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/; }
 chk_model_routing() {

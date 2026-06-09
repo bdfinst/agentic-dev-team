@@ -404,15 +404,15 @@ check_ci_scripts() {
   else
     fail "shellcheck failed on security-assessment helper scripts"
   fi
-  if shellcheck plugins/security-assessment/tests/scripts/*.sh >/dev/null 2>&1; then
+  if shellcheck tests/security-assessment/scripts/*.sh >/dev/null 2>&1; then
     pass "shellcheck passes on security-assessment test scripts"
   else
     fail "shellcheck failed on security-assessment test scripts"
   fi
-  if bash plugins/security-assessment/tests/scripts/run-all.sh >/dev/null 2>&1; then
-    pass "plugins/security-assessment/tests/scripts/run-all.sh exits zero"
+  if bash tests/security-assessment/scripts/run-all.sh >/dev/null 2>&1; then
+    pass "tests/security-assessment/scripts/run-all.sh exits zero"
   else
-    fail "plugins/security-assessment/tests/scripts/run-all.sh failed"
+    fail "tests/security-assessment/scripts/run-all.sh failed"
   fi
 }
 

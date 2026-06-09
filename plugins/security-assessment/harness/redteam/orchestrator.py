@@ -27,12 +27,38 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-# Add current dir to path so probes/* and lib/* resolve
+# Bootstrap: when invoked as a plain script (`python orchestrator.py`) there is
+# no package context, so the package-relative imports below — and the matching
+# `from .. import ...` in lib/ and probes/ — cannot resolve. Re-run ourselves as
+# a module so `redteam` is a real package and every relative import works the
+# same way it does under `python -m redteam.orchestrator`. The grandparent dir
+# (`harness/`) goes on PYTHONPATH so the re-run interpreter can import the
+# `redteam` package regardless of the caller's working directory; sys.path edits
+# do not survive the new process, so PYTHONPATH (which does) carries it across.
+# subprocess (not os.exec*) keeps this portable to Windows, where exec-style
+# process replacement is unreliable; stdio and the exit code pass straight
+# through, so the wrapper is invisible to the caller on every platform.
+if __name__ == "__main__" and __package__ in (None, ""):
+    _harness_dir = str(Path(__file__).resolve().parent.parent)  # .../harness
+    _pkg = Path(__file__).resolve().parent.name                 # redteam
+    _env = dict(os.environ)
+    _env["PYTHONPATH"] = os.pathsep.join(
+        p for p in (_harness_dir, _env.get("PYTHONPATH", "")) if p
+    )
+    sys.exit(
+        subprocess.run(
+            [sys.executable, "-m", f"{_pkg}.orchestrator", *sys.argv[1:]],
+            env=_env,
+        ).returncode
+    )
+
+# Current dir on path so probes/* and lib/* resolve when running as a module.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from . import config  # type: ignore[import-not-found]  # runtime-resolved
@@ -62,13 +88,18 @@ def _import_agent(module_path: str):
     """Dynamic-import a probe module from `probes/<module_path>`.
 
     Filenames start with digits, so normal import syntax does not apply —
-    use importlib.util.spec_from_file_location.
+    use importlib.util.spec_from_file_location. The module is named as a
+    submodule of this package (`<pkg>.probes.<stem>`) and registered in
+    sys.modules before execution so the probe's own package-relative imports
+    (`from .. import config`, `from ..lib import ...`) resolve.
     """
     full = Path(__file__).resolve().parent / "probes" / module_path
-    spec = importlib.util.spec_from_file_location(full.stem, full)
+    mod_name = f"{__package__}.probes.{full.stem}"
+    spec = importlib.util.spec_from_file_location(mod_name, full)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load probe {module_path}")
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[mod_name] = mod
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
@@ -171,12 +202,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # When invoked as a script (not via `python -m`), the relative imports
-    # above fail. Re-invoke ourselves via the package path so imports resolve.
-    pkg = Path(__file__).resolve().parent.name
-    if __package__ is None or __package__ == "":
-        parent = Path(__file__).resolve().parent.parent
-        sys.path.insert(0, str(parent))
-        # Re-exec as module
-        os.execvp(sys.executable, [sys.executable, "-m", f"{pkg}.orchestrator", *sys.argv[1:]])
+    # The no-package case re-execs as a module at import time (see the bootstrap
+    # at the top of this file), so reaching here means we are running as
+    # `redteam.orchestrator` and every relative import has resolved.
     sys.exit(main())

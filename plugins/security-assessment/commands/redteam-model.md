@@ -10,12 +10,12 @@ allowed-tools: Read, Write, Bash, Agent
 
 Orchestrator entry point for the adversarial ML red-team harness. Perform
 scope + consent checks, then dispatch the Python orchestrator at
-`harness/redteam/orchestrator.py`. Interpret probe artifacts via the four
+`${CLAUDE_PLUGIN_ROOT}/harness/redteam/orchestrator.py`. Interpret probe artifacts via the four
 analyzer agents after the Python passes complete.
 
 Full runtime spec — including bash invocations, exact refusal wording,
 flag-interaction matrix, and step output formats — is in
-`harness/redteam/ORCHESTRATION.md`. Read it before dispatching.
+`${CLAUDE_PLUGIN_ROOT}/harness/redteam/ORCHESTRATION.md`. Read it before dispatching.
 
 ## Safety constraints (non-negotiable)
 
@@ -48,12 +48,12 @@ Arguments: $ARGUMENTS
 - `--start <id>`: resume from this probe ID (token from prior run's
   `result_store.resume_message()`).
 
-Flag interactions are in `harness/redteam/ORCHESTRATION.md` § "Flag
+Flag interactions are in `${CLAUDE_PLUGIN_ROOT}/harness/redteam/ORCHESTRATION.md` § "Flag
 interactions".
 
 ## Procedure
 
-Execute the steps in `harness/redteam/ORCHESTRATION.md`:
+Execute the steps in `${CLAUDE_PLUGIN_ROOT}/harness/redteam/ORCHESTRATION.md`:
 
 1. Resolve and validate scope (Step 1)
 2. Validate config (Step 2)
@@ -64,7 +64,7 @@ Execute the steps in `harness/redteam/ORCHESTRATION.md`:
 
 ## Escalation
 
-Stop and ask the user per `harness/redteam/ORCHESTRATION.md` § "Escalation".
+Stop and ask the user per `${CLAUDE_PLUGIN_ROOT}/harness/redteam/ORCHESTRATION.md` § "Escalation".
 
 ## Integration
 

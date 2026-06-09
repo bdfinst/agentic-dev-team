@@ -33,9 +33,19 @@ Edit files directly in `plugins/dev-team/`. All plugin components (agents, skill
 The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these tools on every dev machine:
 
 - CLI: `shellcheck`, `bats`, `jq`, `python3` (macOS: `brew install shellcheck bats-core jq python3`)
-- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML is required — several bats suites shell out to Python scripts that import it; semgrep for the security-assessment suites).
+- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML is required — several bats suites shell out to Python scripts that import it; semgrep for the security-assessment suites; httpx for the red-team harness smoke test).
 
-`ci-local.sh` checks these up front and exits with an actionable message if any are missing.
+**One-shot setup:** `bash scripts/dev-setup.sh` validates this toolchain and installs anything missing (Homebrew on macOS, apt-get on Debian/Ubuntu, then the `requirements-dev.txt` deps). It is idempotent — safe to re-run.
+
+`ci-local.sh` checks these up front and exits with an actionable message (pointing at `dev-setup.sh`) if any are missing.
+
+### Shell-script portability
+
+Every shell script — both the dev/CI scripts and the ones shipped inside the plugins — is `bash` and must run on **macOS, Linux, and Windows**. Conventions:
+
+- **macOS** ships bash 3.2, so stay 3.2-safe: no `mapfile`/`readarray`, `declare -A`, `${var,,}`, or `wait -n`; expand possibly-empty arrays with the empty-safe idiom `${arr[@]+"${arr[@]}"}` (bare `"${arr[@]}"` under `set -u` aborts on 3.2).
+- **BSD vs GNU coreutils**: avoid GNU-only flags (`readlink -f`, `sed -i` semantics, `date +%N`, `stat -c`, `find -printf`, `timeout`) or guard them with a fallback (e.g. `recon-inventory.sh`'s `readlink -f || python3`, `_lib.sh`'s `date +%s%3N || python3`, `mutation-adapters/lib.sh`'s `timeout`→`gtimeout`→unbounded).
+- **Windows = Git Bash.** Native `cmd.exe`/PowerShell are not targets; the plugin's hooks and helper scripts run under [Git Bash](https://git-scm.com/download/win) (the POSIX shell Claude Code uses for its Bash tool on Windows). Each plugin's `install.sh` detects Windows-without-Git-Bash and tells the user to install it; `scripts/dev-setup.sh` does the same for contributors.
 
 ### Testing locally
 

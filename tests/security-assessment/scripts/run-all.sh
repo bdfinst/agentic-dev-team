@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # run-all.sh — shell-test runner for plugins/security-assessment/scripts/.
 #
-# Discovers every *.test.sh under this directory (tests/scripts/) and runs
+# Discovers every *.test.sh under this directory
+# (tests/security-assessment/scripts/) and runs
 # each in a clean subshell. Prints `PASS: <name>` or `FAIL: <name>` per test.
 # Exits 0 only if every test exits 0.
 #
@@ -10,7 +11,7 @@
 # stdout. The self-test is discovered and run like any other test.
 #
 # Usage:
-#   bash tests/scripts/run-all.sh
+#   bash tests/security-assessment/scripts/run-all.sh
 #
 # Exit codes:
 #   0   all discovered tests passed

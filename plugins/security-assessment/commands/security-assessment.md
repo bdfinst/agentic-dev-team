@@ -87,8 +87,8 @@ invocation contract".
 ### 4. Phase timing
 
 Every phase is bracketed with
-`scripts/phase-timer.sh start <phase> <slug>` /
-`scripts/phase-timer.sh end <phase> <slug>`. Writes accumulate in
+`${CLAUDE_PLUGIN_ROOT}/scripts/phase-timer.sh start <phase> <slug>` /
+`${CLAUDE_PLUGIN_ROOT}/scripts/phase-timer.sh end <phase> <slug>`. Writes accumulate in
 `memory/phase-timings-<slug>.jsonl`. The exec-report-generator reads this
 file to compute actual parallelism vs. sequential execution.
 

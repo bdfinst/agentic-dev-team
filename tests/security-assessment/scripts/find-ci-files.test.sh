@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# find-ci-files.test.sh — tests for scripts/find-ci-files.sh.
+# find-ci-files.test.sh — tests for
+# plugins/security-assessment/scripts/find-ci-files.sh.
 #
 # Builds the fixture tree in $TMP at runtime rather than committing it —
 # avoids the commit hazards of nested .git/ dirs and gitignored
@@ -8,7 +9,7 @@
 set -uo pipefail
 
 THIS_DIR="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$THIS_DIR/../../scripts/find-ci-files.sh"
+SCRIPT="$THIS_DIR/../../../plugins/security-assessment/scripts/find-ci-files.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

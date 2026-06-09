@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# apply-severity-floors.test.sh — tests for scripts/apply-severity-floors.sh.
+# apply-severity-floors.test.sh — tests for
+# plugins/security-assessment/scripts/apply-severity-floors.sh.
 #
 # Byte-identical regression target: running the script against the committed
-# fixture (tests/scripts/fixtures/severity-floors/input-disposition-extranetapi.json)
+# fixture (fixtures/severity-floors/input-disposition-extranetapi.json)
 # must produce a log file byte-identical to expected-log-extranetapi.jsonl
 # (the 2026-04-24 reference run).
 
 set -uo pipefail
 
 THIS_DIR="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$THIS_DIR/../../scripts/apply-severity-floors.sh"
+SCRIPT="$THIS_DIR/../../../plugins/security-assessment/scripts/apply-severity-floors.sh"
 FIXTURES="$THIS_DIR/fixtures/severity-floors"
 
 TMP="$(mktemp -d)"
