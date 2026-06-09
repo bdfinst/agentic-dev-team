@@ -55,12 +55,15 @@ Surface any error (likely: missing `TARGET_URL` or invalid
 REDTEAM_AUTHORIZED=1 \
 TARGET_URL=<target-url> \
 <other env vars passed through> \
-PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/harness" \
-python3 -m redteam.orchestrator \
+python3 "${CLAUDE_PLUGIN_ROOT}/harness/redteam/orchestrator.py" \
   [--dry-run] \
   [--agents <ids>] \
   [--start <id>]
 ```
+
+The orchestrator self-bootstraps (it re-execs itself as `redteam.orchestrator`
+so its package-relative imports resolve), so it runs directly from any working
+directory — no `PYTHONPATH` needed.
 
 **Important**: `REDTEAM_AUTHORIZED=1` is set on THIS invocation only. It
 does not persist in the user's shell. The `redteam-guard.sh` PreToolUse
