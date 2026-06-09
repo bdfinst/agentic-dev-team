@@ -110,7 +110,23 @@ ensure_tool() {
 # --- required CLI tools ----------------------------------------------------
 section "CLI tools"
 if [ -z "$PM" ]; then
-  warn "no Homebrew or apt-get detected — will verify tools but cannot auto-install"
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+      # Git Bash on Windows — the supported Windows shell, but it has no native
+      # package manager, so install missing tools with scoop/winget/choco.
+      warn "Git Bash detected (no brew/apt) — will verify tools but cannot auto-install;"
+      warn "  install missing ones with: scoop install <tool>  (or winget/choco)"
+      ;;
+    *)
+      if [ "${OS:-}" = "Windows_NT" ]; then
+        err "Windows without Git Bash — the plugin's bash scripts need a POSIX shell."
+        err "  Install Git for Windows (Git Bash): https://git-scm.com/download/win"
+        note_failure
+      else
+        warn "no Homebrew or apt-get detected — will verify tools but cannot auto-install"
+      fi
+      ;;
+  esac
 fi
 for tool in jq shellcheck bats python3; do
   ensure_tool "$tool" required

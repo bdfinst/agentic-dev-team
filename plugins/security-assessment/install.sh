@@ -76,6 +76,29 @@ opt() {
   fi
 }
 
+# ── 0. platform ───────────────────────────────────────────────────────
+# On Windows the plugin's hooks, helper scripts, and red-team harness wrappers
+# are bash and require Git Bash (the POSIX shell Claude Code uses for its Bash
+# tool on Windows); native cmd.exe / PowerShell cannot run them. `OS=Windows_NT`
+# is set in every Windows shell; Git Bash / MSYS report a MINGW*/MSYS* `uname`.
+# No-op on macOS and Linux.
+if [ "${OS:-}" = "Windows_NT" ]; then
+  section "platform"
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+      printf '  [ok]   %-14s — %s\n' "git-bash" "$(uname -s 2>/dev/null)"
+      PASS=$((PASS + 1))
+      ;;
+    *)
+      echo "  [FAIL] Windows without Git Bash — this plugin's bash hooks and"
+      echo "         harness wrappers need a POSIX shell. Install Git for Windows"
+      echo "         (Git Bash) from https://git-scm.com/download/win and run"
+      echo "         Claude Code from it."
+      FAIL=$((FAIL + 1))
+      ;;
+  esac
+fi
+
 # ── 1. dev-team presence + contract version ───────────────────────────
 
 section "dev-team dependency"

@@ -38,10 +38,35 @@ check_optional() {
   fi
 }
 
+# On Windows the plugin's hooks and helper scripts are bash and require Git Bash
+# (the same POSIX shell Claude Code uses for its Bash tool on Windows) — native
+# cmd.exe / PowerShell cannot run them. `OS=Windows_NT` is set in every Windows
+# shell; Git Bash / MSYS additionally report a MINGW*/MSYS* `uname`. This check
+# only fires on Windows, so it is a no-op on macOS and Linux.
+check_platform() {
+  case "${OS:-}" in
+    Windows_NT) ;;
+    *) return 0 ;;
+  esac
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+      echo "[ok]   Git Bash ($(uname -s 2>/dev/null))"
+      ((PASS++)) || true
+      ;;
+    *)
+      echo "[FAIL] Windows without Git Bash — this plugin's hooks and helper"
+      echo "       scripts need a POSIX bash. Install Git for Windows (Git Bash)"
+      echo "       from https://git-scm.com/download/win and run Claude Code from it."
+      ((FAIL++)) || true
+      ;;
+  esac
+}
+
 echo "Checking dev-team prerequisites..."
 echo ""
 
 echo "--- Required ---"
+check_platform
 check_required "claude" "Install from https://docs.anthropic.com/en/docs/claude-code"
 check_required "jq"     "macOS: brew install jq  |  Linux: apt install jq"
 check_required "gh"     "macOS: brew install gh  |  https://cli.github.com/"
