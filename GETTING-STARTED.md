@@ -103,6 +103,31 @@ Then ask the security engineer to review the authentication flow for the mobile 
 As the platform engineer, design the CI/CD pipeline for the new microservice
 ```
 
+## Diagnostic & Audit Workflows
+
+The commands above support a change in flight. These workflows do the opposite: point them at an **existing codebase** with no feature in progress and they report what to improve. They are read-only and advisory — each produces a report or scored assessment, none of them edit your code. Use them to take stock of a project you've inherited, to set a quality baseline, or as a periodic health check.
+
+| Workflow | What it reports | Run it when |
+|----------|-----------------|-------------|
+| `/test-health` | Project-wide test-strategy audit: suite shape vs. architecture fit, coverage mapped to the testing quadrants, coverage + mutation health, flaky tests, automation maturity — ending in an ordered improvement plan. | "How healthy is our test suite?" — the broad starting point for test work. |
+| `/test-design` | Deep test-design review of the existing suite: a **Farley Score** for all existing tests (quality 1–10 across Dave Farley's 8 properties) plus per-file smells and testability blockers. | You want a quantitative quality score and concrete per-test fixes. |
+| `/mutation-testing` | Whether your existing tests actually catch bugs — runs a real mutation tool on critical modules and triages surviving mutants. | Coverage looks high but you suspect assertions are weak. |
+| `/code-review --all` | The full review-agent suite (architecture, complexity, naming, security, duplication, docs, …) over the **entire repository**, not just a diff. Add `--background` for a no-gates structural drift review. | Auditing code quality across a whole project or after a long period without review. |
+| `/semantic-scan` | Business logic reimplemented in multiple layers — the same domain calculation duplicated across domain services, adapters, and UI — with canonical-location suggestions. | Hunting for hidden duplication and drift in a layered codebase. |
+| `/threat-modeling` | STRIDE security analysis of attack surfaces, trust boundaries, and mitigations. | Reviewing the security posture of an existing service or data flow. |
+| `/docker-image-audit` | Container and Dockerfile security (CVEs), image bloat, and best-practice violations via hadolint, Trivy, and Grype. | Hardening or slimming an existing image. |
+| `/benchmark <url>` | Runtime performance of a running app (Core Web Vitals, resource sizes), compared against saved baselines. | Establishing or checking a performance baseline. |
+| `/explore --charter '<goal>'` | Charter-driven exploratory testing of a **running** target: structured heuristics + adversarial probing, auto-triaging critical defects into a report. | Finding bugs in a live app that the test suite doesn't cover. |
+
+```text
+/test-health                      Audit the whole test suite and get an improvement plan
+/test-design                      Score every existing test (Farley Score) and surface smells
+/code-review --all                Review the entire repository, not just pending changes
+/semantic-scan                    Find duplicated business logic across layers
+```
+
+Two harness-level diagnostics review *how the project is set up to work with the team* rather than the product code: `/harness-audit` flags stale or redundant review agents and orchestration, and `/cost-report` reports token spend and cost regressions for a run. Run `/help` for the complete catalog.
+
 ## Available Agents and Skills
 
 For the full roster of team agents, review agents, skills, and slash commands, see:
