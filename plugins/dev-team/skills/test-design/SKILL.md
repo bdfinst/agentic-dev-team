@@ -63,22 +63,32 @@ Spawn both as sub-agents in one batch:
 - `test-smell-review` — xUnit smells, test-double selection, pyramid-layer placement
 
 Each returns its standard JSON (`status`/`issues`/`summary`). If no test files
-exist, both skip — proceed to Step 3 with `--advise`.
+exist, both skip — proceed to Step 4 with `--advise`.
 
-### 3. Run the advisor (when applicable)
+### 3. Score all existing tests (Farley Score)
+
+A user-requested test review reports a quality score for the whole suite, not
+just the changed slice. Invoke the `test-design-reviewer` skill over **all
+existing test files in the repository** (use the test-file indicators from
+`agents/test-review.md` § Skip) to produce the suite-level Farley Score, rating,
+and distribution. This headline score is independent of `--path` / `--since` —
+those scope the findings below; the score always reflects the full suite. If the
+repository has no test files, skip this step and note it in the report.
+
+### 4. Run the advisor (when applicable)
 
 If `--advise` is set (or auto-triggered), invoke the `test-design-advisor`
 skill on the production code to produce testability assessment, pyramid
 placement, double strategy, and a behavior-preserving refactor sequence for
 any untestable units.
 
-### 4. Aggregate and de-duplicate
+### 5. Aggregate and de-duplicate
 
 Merge findings. Resolve overlaps per constraint 3. Group by file. Rank:
 behavior/project smells and testability blockers first (they undermine the
 whole suite), then fragile/obscure smells, then suggestions.
 
-### 5. Report
+### 6. Report
 
 Produce one report (chat for a small target; `reports/test-design-<date>.md`
 for a module):
@@ -87,6 +97,7 @@ for a module):
 ## Test Design Review — <target>
 
 **Health**: <pass|attention|critical>   **Test files**: N   **Findings**: N
+**Farley Score (all existing tests)**: <score> (<rating>) — Exemplary N · Good N · Adequate N · Poor N
 
 ### Findings (by severity)
 | File:line | Smell / Issue | Severity | Source | Suggested fix |

@@ -71,7 +71,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 |---------|------|------|--------------|
 | `/code-review` | `skills/code-review/SKILL.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
 | `/review-agent` | `skills/review-agent/SKILL.md` | worker | Run a single review agent (used for inline checkpoints) |
-| `/test-design` | `skills/test-design/SKILL.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, then run test-design-advisor for testability/refactor recommendations (advisory) |
+| `/test-design` | `skills/test-design/SKILL.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, score all existing tests (Farley Score), then run test-design-advisor for testability/refactor recommendations (advisory) |
 | `/test-health` | `skills/test-health/SKILL.md` | orchestrator | Project-wide test-strategy audit: shape vs. architecture fit, quadrant coverage, coverage + mutation health, flaky/automation maturity, ordered plan. Delegates pipeline assessment to cd-test-architecture (advisory) |
 | `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance |
 | `/agent-eval` | `skills/agent-eval/SKILL.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
@@ -85,7 +85,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/setup` | `skills/setup/SKILL.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
 | `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
 | `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
-| `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence |
+| `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence; ends with a Farley Score for the branch's tests before prompting for `/pr` |
 | `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request |
 | `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
 | `/careful` | `skills/careful/SKILL.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
