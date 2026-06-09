@@ -81,8 +81,8 @@ run_bats() { bash scripts/run-bats-parallel.sh -j "$JOBS" "$@"; }
 # instead of running after them.
 
 chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.sh; }
-chk_shellcheck_tests()   { shellcheck plugins/security-assessment/tests/scripts/*.sh; }
-chk_sa_shell_suite()     { bash plugins/security-assessment/tests/scripts/run-all.sh; }
+chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh; }
+chk_sa_shell_suite()     { bash tests/security-assessment/scripts/run-all.sh; }
 chk_bats_repo()          { run_bats tests/repo/; }
 chk_bats_content_rest()  { run_bats tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/; }
 chk_model_routing() {

@@ -13,8 +13,8 @@ when dispatching the harness.
 ## Step 1 — Resolve and validate scope
 
 ```bash
-python3 -c "
-from plugins.agentic_security_review.harness.redteam.lib.scope_check import is_self_owned, refusal_message
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/harness" python3 -c "
+from redteam.lib.scope_check import is_self_owned, refusal_message
 import sys
 target = sys.argv[1]
 accepted, reason = is_self_owned(target)
@@ -43,7 +43,7 @@ Outcomes:
 ## Step 2 — Validate config
 
 ```bash
-TARGET_URL=<target-url> python3 -c "from plugins.agentic_security_review.harness.redteam import config; config.validate()"
+TARGET_URL=<target-url> PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/harness" python3 -c "from redteam import config; config.validate()"
 ```
 
 Surface any error (likely: missing `TARGET_URL` or invalid
@@ -55,7 +55,8 @@ Surface any error (likely: missing `TARGET_URL` or invalid
 REDTEAM_AUTHORIZED=1 \
 TARGET_URL=<target-url> \
 <other env vars passed through> \
-python3 -m plugins.agentic_security_review.harness.redteam.orchestrator \
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/harness" \
+python3 -m redteam.orchestrator \
   [--dry-run] \
   [--agents <ids>] \
   [--start <id>]

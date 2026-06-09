@@ -46,7 +46,9 @@ from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent  # plugins/security-assessment
+# This audit lives in the repo-root scripts/ (it is build/test tooling, not
+# shipped with the plugin); the fixtures it measures live in the plugin tree.
+ROOT = Path(__file__).resolve().parent.parent / "plugins" / "security-assessment"
 RULES_DIR = ROOT / "knowledge" / "semgrep-rules"
 FIX_DIR = ROOT / "knowledge" / "rule-fixtures"
 KNOWN_BROKEN = FIX_DIR / "known-broken-rules.txt"

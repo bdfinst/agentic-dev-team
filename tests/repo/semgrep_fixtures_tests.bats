@@ -51,7 +51,7 @@ _rule_ids() {
 }
 
 @test "audit: the semgrep-fixtures audit script exists and is executable-ish" {
-  [ -f "$REPO_ROOT/plugins/security-assessment/scripts/audit-semgrep-fixtures.py" ]
-  run python3 -c "import ast; ast.parse(open('$REPO_ROOT/plugins/security-assessment/scripts/audit-semgrep-fixtures.py').read())"
+  [ -f "$REPO_ROOT/scripts/audit-semgrep-fixtures.py" ]
+  run python3 -c "import ast; ast.parse(open('$REPO_ROOT/scripts/audit-semgrep-fixtures.py').read())"
   [ "$status" -eq 0 ]
 }

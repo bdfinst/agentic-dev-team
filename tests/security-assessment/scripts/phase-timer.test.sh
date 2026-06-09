@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# phase-timer.test.sh — tests for scripts/phase-timer.sh.
+# phase-timer.test.sh — tests for
+# plugins/security-assessment/scripts/phase-timer.sh.
 #
 # Runs seven test cases; exits 0 only if all pass.
 
 set -uo pipefail
 
 THIS_DIR="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$THIS_DIR/../../scripts/phase-timer.sh"
+SCRIPT="$THIS_DIR/../../../plugins/security-assessment/scripts/phase-timer.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

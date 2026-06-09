@@ -115,7 +115,7 @@ Phase 2: FP-reduction (sequential)
   optional:  skipped when --fp-reduce=no
 
 Phase 2b: Domain-class severity floors (sequential, deterministic)
-  script:    scripts/apply-severity-floors.sh
+  script:    ${CLAUDE_PLUGIN_ROOT}/scripts/apply-severity-floors.sh
   produces:  memory/severity-floors-log-<slug>.jsonl; rewrites
              memory/disposition-<slug>.json with floor-adjusted scores
   requires:  Phase 2
@@ -129,8 +129,8 @@ Phase 3: Narrative + compliance (parallel across agents)
   parallelism: dispatched together in one Agent tool message
 
 Phase 4: Service-communication (runs concurrently with Phase 1b-3)
-  tools:     harness/tools/service-comm-parser.py
-             harness/tools/shared-cred-hash-match.py (multi-target only)
+  tools:     ${CLAUDE_PLUGIN_ROOT}/harness/tools/service-comm-parser.py
+             ${CLAUDE_PLUGIN_ROOT}/harness/tools/shared-cred-hash-match.py (multi-target only)
   produces:  memory/service-comm-<slug>.mermaid,
              memory/shared-creds-<slug>.sarif
   requires:  Phase 0 only
@@ -141,13 +141,13 @@ Phase 5: Report generation (sequential)
   requires:  Phase 2b + Phase 3 + Phase 4 (joined)
 
 Phase 5b: Severity-consistency check (multi-target only, deterministic)
-  script:    scripts/check-severity-consistency.sh
+  script:    ${CLAUDE_PLUGIN_ROOT}/scripts/check-severity-consistency.sh
   produces:  memory/severity-consistency-<combined-slug>.txt
   requires:  Phase 5 + Phase 2 disposition registers
   condition: skipped for single-target runs
 
 Phase 5c: Report verification (per target, deterministic)
-  script:    scripts/verify-report.sh
+  script:    ${CLAUDE_PLUGIN_ROOT}/scripts/verify-report.sh
   produces:  memory/verify-report-<slug>.txt
   requires:  Phase 5
   on-fail:   logs to audit trail; does NOT block publication
@@ -163,12 +163,21 @@ Canonical phase names for `phase-timer.sh`: `phase-0-recon`,
 Deterministic phase helpers carry strict ordering requirements. The
 orchestrator must not reorder these invocations:
 
+**Invocation paths (discoverable in an installed plugin).** Every helper
+below ships inside this plugin and MUST be invoked by its plugin-root path so
+it resolves regardless of the caller's working directory — the bare names in
+the table are shorthand for these:
+
+- helper scripts → `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` (e.g.
+  `${CLAUDE_PLUGIN_ROOT}/scripts/phase-timer.sh`)
+- harness tools → `${CLAUDE_PLUGIN_ROOT}/harness/tools/<name>`
+
 | Script | Must run after | Must run before | Artifacts |
 |---|---|---|---|
-| `phase-timer.sh start/end` | any phase boundary | — | `phase-timings-<slug>.jsonl` |
-| `find-ci-files.sh` | phase-0-recon | phase-1-tool-first | stdout (Phase 1 tool fan-out) |
-| `apply-accepted-risks.sh` | phase-1b-judgment | phase-2-fp-reduction | rewrites `findings-<slug>.jsonl`; writes `accepted-risks-<slug>.jsonl` |
-| `apply-severity-floors.sh` | phase-2-fp-reduction | phase-3-narrative-compliance | rewrites `disposition-<slug>.json` in place; writes `severity-floors-log-<slug>.jsonl` |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/phase-timer.sh start/end` | any phase boundary | — | `phase-timings-<slug>.jsonl` |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/find-ci-files.sh` | phase-0-recon | phase-1-tool-first | stdout (Phase 1 tool fan-out) |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/apply-accepted-risks.sh` | phase-1b-judgment | phase-2-fp-reduction | rewrites `findings-<slug>.jsonl`; writes `accepted-risks-<slug>.jsonl` |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/apply-severity-floors.sh` | phase-2-fp-reduction | phase-3-narrative-compliance | rewrites `disposition-<slug>.json` in place; writes `severity-floors-log-<slug>.jsonl` |
 
 **Concurrency**: each script assumes a single writer on its input file.
 `.tmp`+`mv` handles the single-writer-but-crash case. Concurrent writers

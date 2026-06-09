@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# apply-accepted-risks.test.sh — tests for scripts/apply-accepted-risks.sh.
+# apply-accepted-risks.test.sh — tests for
+# plugins/security-assessment/scripts/apply-accepted-risks.sh.
 #
 # Fixtures are built inline; the ACCEPTED-RISKS.md format is a fenced
 # ```json code block (first one wins) so that jq can parse without a
@@ -8,7 +9,7 @@
 set -uo pipefail
 
 THIS_DIR="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$THIS_DIR/../../scripts/apply-accepted-risks.sh"
+SCRIPT="$THIS_DIR/../../../plugins/security-assessment/scripts/apply-accepted-risks.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

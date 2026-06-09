@@ -5,9 +5,9 @@
 set -uo pipefail
 
 THIS_DIR="$(cd "$(dirname "$0")" && pwd)"
-# Repo root is four levels up from tests/scripts/:
-#   plugins/security-assessment/tests/scripts → plugins/... → plugins → <repo>
-REPO_ROOT="$(cd "$THIS_DIR/../../../.." && pwd)"
+# Repo root is three levels up from tests/security-assessment/scripts/:
+#   tests/security-assessment/scripts → tests/security-assessment → tests → <repo>
+REPO_ROOT="$(cd "$THIS_DIR/../../.." && pwd)"
 WORKFLOW="$REPO_ROOT/.github/workflows/plugin-tests.yml"
 
 FAILED=0
@@ -21,9 +21,9 @@ test_workflow_exists() {
 
 test_workflow_runs_tests() {
   [[ -f "$WORKFLOW" ]] || { fail "workflow missing; prerequisite"; return; }
-  grep -q 'tests/scripts/run-all.sh' "$WORKFLOW" \
-    || { fail "workflow does not invoke tests/scripts/run-all.sh"; return; }
-  ok "workflow invokes tests/scripts/run-all.sh"
+  grep -q 'tests/security-assessment/scripts/run-all.sh' "$WORKFLOW" \
+    || { fail "workflow does not invoke tests/security-assessment/scripts/run-all.sh"; return; }
+  ok "workflow invokes tests/security-assessment/scripts/run-all.sh"
 }
 
 test_workflow_runs_shellcheck() {

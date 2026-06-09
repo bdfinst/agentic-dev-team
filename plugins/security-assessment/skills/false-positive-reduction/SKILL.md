@@ -111,7 +111,7 @@ Rationale field is mandatory (min 20 chars per schema). Summarize which factors 
 
 ## Joern integration (when present)
 
-If `joern` is on PATH, invoke via `tools/reachability.sh` (build commands + CPG cache details are in the script). Stage 1 reachability queries the CPG for paths from the finding location back to entry points; cite the entry point path in `reachability.rationale`.
+If `joern` is on PATH, invoke via `${CLAUDE_PLUGIN_ROOT}/skills/false-positive-reduction/tools/reachability.sh` (build commands + CPG cache details are in the script). Stage 1 reachability queries the CPG for paths from the finding location back to entry points; cite the entry point path in `reachability.rationale`.
 
 ## LLM-fallback mode (joern absent)
 

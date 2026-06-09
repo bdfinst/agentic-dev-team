@@ -27,7 +27,8 @@ produces exactly one disposition entry, including `false_positive`.
 ### 1. Detect joern
 
 Run `command -v joern`. Set `register.reachability_tool = "joern-cpg"` if
-present, else `"llm-fallback"`. Joern-present mode invokes `tools/reachability.sh`
+present, else `"llm-fallback"`. Joern-present mode invokes
+`${CLAUDE_PLUGIN_ROOT}/skills/false-positive-reduction/tools/reachability.sh`
 to build/load the CPG.
 
 ### 2. Per finding, apply stages 0–5

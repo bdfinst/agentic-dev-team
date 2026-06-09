@@ -20,14 +20,14 @@ jobs:
 
       - name: Shellcheck test files
         run: |
-          shellcheck plugins/security-assessment/tests/scripts/*.sh
+          shellcheck tests/security-assessment/scripts/*.sh
 
       - name: Shellcheck repo audit scripts
         run: |
           shellcheck scripts/audit-rules-vs-prompts.sh
 
-      - name: Run tests/scripts/run-all.sh
-        run: bash plugins/security-assessment/tests/scripts/run-all.sh
+      - name: Run tests/security-assessment/scripts/run-all.sh
+        run: bash tests/security-assessment/scripts/run-all.sh
 
   bats-tests:
     runs-on: ubuntu-latest
@@ -138,4 +138,4 @@ jobs:
       # (measured fp_rate > 0.10 — the demotion trigger), a non-known-broken
       # rule's positive fires on nothing, or a known-broken entry now works.
       - name: Measure custom semgrep rule fixtures
-        run: python3 plugins/security-assessment/scripts/audit-semgrep-fixtures.py
+        run: python3 scripts/audit-semgrep-fixtures.py

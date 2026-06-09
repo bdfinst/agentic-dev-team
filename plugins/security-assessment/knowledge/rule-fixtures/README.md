@@ -14,7 +14,8 @@ to be detected — so they are excluded from eslint.
 
 ## Measurement, not just presence
 
-`../../scripts/audit-semgrep-fixtures.py` runs semgrep over these fixtures and
+The repo-level dev tool `scripts/audit-semgrep-fixtures.py` (build/test tooling —
+not shipped with the plugin) runs semgrep over these fixtures and
 **measures** each rule's real behaviour (the #118 manifest audit only checked
 file presence). It records the result in each rule's YAML `metadata`:
 
@@ -34,5 +35,5 @@ started working (so the list can't hide a fixed rule).
 To re-measure and re-stamp after editing rules or fixtures:
 
 ```bash
-python3 plugins/security-assessment/scripts/audit-semgrep-fixtures.py --write
+python3 scripts/audit-semgrep-fixtures.py --write
 ```
