@@ -4209,11 +4209,11 @@
       "anchor": "worker-constraints"
     },
     "Steps": {
-      "summary": "The plugins in the `bfinster` marketplace were renamed:",
+      "summary": "**Version gate**: Before running this step, read the current version from",
       "anchor": "steps"
     },
     "0. Detect and migrate legacy plugin ids": {
-      "summary": "The plugins in the `bfinster` marketplace were renamed:",
+      "summary": "**Version gate**: Before running this step, read the current version from",
       "anchor": "0-detect-and-migrate-legacy-plugin-ids"
     },
     "1. Read current version": {
