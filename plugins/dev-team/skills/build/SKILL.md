@@ -76,8 +76,8 @@ Work the plan **wave by wave** (the plan's `## Parallelization` section, derived
 **Resolve the wave schedule and concurrency first:**
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/build-wave.sh <plan-file>          # ordered waves + members
-bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/build-jobs.sh --wave-width <W> [--jobs N]  # effective concurrency
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-wave.sh <plan-file>          # ordered waves + members
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-jobs.sh --wave-width <W> [--jobs N]  # effective concurrency
 ```
 
 `build-jobs.sh` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)` (default max **2**; non-positive/non-integer clamp to 1). **Sequential fallback:** when effective concurrency is **1** (a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).

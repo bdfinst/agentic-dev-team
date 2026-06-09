@@ -40,7 +40,7 @@ If no plan is found, ask the user to point you to one.
 Read the plan and identify each **slice** (`### Slice <id>:`), its acceptance criteria, and the shared architectural decisions. Derive the dependency links from the **DAG, not file order** — do not hand-infer them:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/issue-deps.sh <plan-file>
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/issue-deps.sh <plan-file>
 ```
 
 This returns `{ "<slice>": ["<dep slice>", ...] }` — each slice's direct predecessors. A slice listed earlier in the file carries **no** dependency on a later one unless the DAG says so.

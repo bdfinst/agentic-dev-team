@@ -3,7 +3,7 @@
 # DAG (via plan-waves.sh), not file order. Model-free.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-DEPS="$REPO_ROOT/scripts/issue-deps.sh"
+DEPS="$REPO_ROOT/plugins/dev-team/scripts/issue-deps.sh"
 FIX="$REPO_ROOT/tests/fixtures/plans"
 
 @test "diamond: each slice maps to its direct predecessors" {
