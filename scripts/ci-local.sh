@@ -89,7 +89,8 @@ chk_model_routing() {
   run_bats \
     tests/hooks/updated_input_contract_tests.bats \
     tests/hooks/agent_model_resolve_hook_tests.bats \
-    tests/hooks/model_resolve_tests.bats
+    tests/hooks/model_resolve_tests.bats \
+    tests/hooks/plugin_version_tests.bats
 }
 chk_cost_regression() { bash scripts/cost-regression-check.sh; }
 chk_eval_corpus()     { python3 scripts/eval_grade.py --check-corpus; }

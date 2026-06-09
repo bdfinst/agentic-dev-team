@@ -3,31 +3,39 @@ name: version
 description: >-
   Report the installed version of the dev-team plugin.
 user-invocable: true
-allowed-tools: Read, Bash, Glob
+allowed-tools: Bash
 ---
 
 # Version
 
-Role: worker. This command reports the installed plugin version.
+Role: worker. This command reports the installed plugin version. It is a purely
+mechanical lookup — no reasoning, no file-by-file searching.
 
 You have been invoked with the `/version` command.
 
 Arguments: none.
 
-## Worker constraints
-
-1. Read only; never write or modify files.
-2. Report the first match found; do not aggregate.
-3. **Be concise.** Output only the version line.
-
 ## Steps
 
-Find the installed plugin version by checking these locations in order:
+Run the resolver and report its output verbatim:
 
-1. **Project-level install**: Look for a `plugin.json` under the current project's `.claude/plugins/` directory that contains `"name": "dev-team"`. Use `find` or `Glob` to locate it.
-2. **User-level cache**: List directories under `~/.claude/plugins/cache/bfinster/dev-team/` — each subdirectory name is a cached version. Report the highest version found.
-3. **Marketplace source**: Read `~/.claude/plugins/marketplaces/bfinster/plugins/dev-team/.claude-plugin/plugin.json` and extract the `version` field.
+```bash
+"$CLAUDE_PLUGIN_ROOT/hooks/lib/plugin-version.sh"
+```
 
-Report the **first match found** (project > cache > marketplace).
+The script reads `~/.claude/plugins/installed_plugins.json` (Claude Code's
+install record) and resolves the version deterministically: a project-scoped
+install for the current directory wins; otherwise it falls back to the
+user-scoped install. It prints a single line, e.g.:
 
-Output format: `dev-team@bfinster v{version} (source: {project|cache|marketplace})`
+```
+dev-team@bfinster v6.7.0 (scope: user)
+```
+
+- **Exit 0** — print the line as-is.
+- **Exit 1** — the plugin is not recorded as installed; report exactly:
+  `dev-team is not installed (no record in installed_plugins.json).`
+- **Exit 2** — environment error (no `python3`, or the install record is
+  missing); surface the script's stderr message verbatim.
+
+Do not add commentary beyond the single result line.
