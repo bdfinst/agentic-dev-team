@@ -12,6 +12,14 @@
 # a commit range (the pre-push hook passes the push range). Without them that one
 # check is skipped; everything else always runs.
 #
+# Parallelism: the independent gates run concurrently in a bounded pool capped at
+# the core count (portable across Linux + macOS, no bash-4 features). Output is
+# buffered per check and replayed in declared order, so the log stays readable
+# and the pass/fail summary is deterministic — same "run everything, collect all
+# failures" contract as the old serial runner, just faster. The bats suites also
+# parallelize across files via scripts/run-bats-parallel.sh, which uses `xargs -P`
+# (built into macOS + Linux) — no GNU `parallel` package required.
+#
 # Exit codes: 0 = all checks passed, 1 = one or more failed, 2 = missing tool.
 
 set -uo pipefail
@@ -28,21 +36,7 @@ green=$(tput setaf 2 2>/dev/null || true)
 yellow=$(tput setaf 3 2>/dev/null || true)
 reset=$(tput sgr0 2>/dev/null || true)
 
-FAILURES=()
-
 section() { printf '\n%s== %s ==%s\n' "$bold" "$1" "$reset"; }
-
-# run <label> <command...> — run a check, record failure, keep going.
-run() {
-  local label="$1"; shift
-  section "$label"
-  if "$@"; then
-    printf '%s✓ %s%s\n' "$green" "$label" "$reset"
-  else
-    printf '%s✗ %s%s\n' "$red" "$label" "$reset"
-    FAILURES+=("$label")
-  fi
-}
 
 # --- tool prerequisites (CI installs these; require them locally too) -------
 missing=()
@@ -70,51 +64,102 @@ if [ "${#py_missing[@]}" -gt 0 ]; then
   exit 2
 fi
 
-# --- plugin-tests.yml :: shell-tests --------------------------------------
-run "shellcheck — security-assessment helper scripts" \
-  shellcheck -x plugins/security-assessment/scripts/*.sh
+# --- concurrency setup -----------------------------------------------------
+# Bound the parallel pool to the online core count (portable on Linux + macOS).
+JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
+case "$JOBS" in ''|*[!0-9]*) JOBS=2 ;; esac
+[ "$JOBS" -ge 1 ] || JOBS=2
 
-run "shellcheck — test scripts" \
-  bash -c 'shellcheck plugins/security-assessment/tests/scripts/*.sh'
+# bats files are fanned across cores by scripts/run-bats-parallel.sh (xargs -P),
+# which needs no GNU `parallel` package — portable on every macOS + Linux box.
+run_bats() { bash scripts/run-bats-parallel.sh -j "$JOBS" "$@"; }
 
-run "security-assessment shell test suite (run-all.sh)" \
-  bash plugins/security-assessment/tests/scripts/run-all.sh
+# --- check definitions -----------------------------------------------------
+# Each gate is a function returning its exit code. They are dispatched
+# concurrently (bounded pool below); the dev-team content suite is split into
+# tests/repo (the long pole) + the rest so the pole overlaps the other gates
+# instead of running after them.
 
-# --- plugin-tests.yml :: bats-tests ---------------------------------------
-run "bats — dev-team content suites" \
-  bats tests/repo/ tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/
-
-run "bats — model-routing hook conformance" \
-  bats \
+chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.sh; }
+chk_shellcheck_tests()   { shellcheck plugins/security-assessment/tests/scripts/*.sh; }
+chk_sa_shell_suite()     { bash plugins/security-assessment/tests/scripts/run-all.sh; }
+chk_bats_repo()          { run_bats tests/repo/; }
+chk_bats_content_rest()  { run_bats tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/; }
+chk_model_routing() {
+  run_bats \
     tests/hooks/updated_input_contract_tests.bats \
     tests/hooks/agent_model_resolve_hook_tests.bats \
     tests/hooks/model_resolve_tests.bats
-
-# --- plugin-tests.yml :: cost-regression gate (#140) -----------------------
-run "cost-regression check" \
-  bash scripts/cost-regression-check.sh
-
-# --- agent-eval.yml :: structural gate (model-free) ------------------------
-# (eval_grader_tests.bats already ran above as part of tests/repo/.)
-run "eval corpus integrity (eval_grade.py --check-corpus)" \
-  python3 scripts/eval_grade.py --check-corpus
-
-# --- agent-eval.yml :: semver contract (needs a commit range) --------------
-if [ -n "$BASE" ] && [ -n "$HEAD" ]; then
-  run "eval-corpus semver contract" \
+}
+chk_cost_regression() { bash scripts/cost-regression-check.sh; }
+chk_eval_corpus()     { python3 scripts/eval_grade.py --check-corpus; }
+chk_eval_semver() {
+  if [ -n "$BASE" ] && [ -n "$HEAD" ]; then
     bash scripts/eval_semver_classify.sh "$BASE" "$HEAD"
-else
-  section "eval-corpus semver contract"
-  printf '%s∼ skipped (no BASE/HEAD range supplied)%s\n' "$yellow" "$reset"
-fi
+  else
+    printf '%s∼ skipped (no BASE/HEAD range supplied)%s\n' "$yellow" "$reset"
+  fi
+}
+chk_eslint() {
+  if command -v npx >/dev/null 2>&1; then
+    npx --no-install eslint
+  else
+    printf '%s∼ skipped (npx not found)%s\n' "$yellow" "$reset"
+  fi
+}
 
-# --- ESLint (not yet a CI job; lints the clean TS fixtures + first-party JS)-
-if command -v npx >/dev/null 2>&1; then
-  run "eslint" npx --no-install eslint
-else
-  section "eslint"
-  printf '%s∼ skipped (npx not found)%s\n' "$yellow" "$reset"
-fi
+# Ordered list of "label::function". Order defines both the replay order and the
+# summary order (declared order, independent of completion order).
+CHECKS=(
+  "shellcheck — security-assessment helper scripts::chk_shellcheck_helpers"
+  "shellcheck — test scripts::chk_shellcheck_tests"
+  "security-assessment shell test suite (run-all.sh)::chk_sa_shell_suite"
+  "bats — dev-team tests/repo::chk_bats_repo"
+  "bats — dev-team content (knowledge/agents/commands/docs/scripts)::chk_bats_content_rest"
+  "bats — model-routing hook conformance::chk_model_routing"
+  "cost-regression check::chk_cost_regression"
+  "eval corpus integrity (eval_grade.py --check-corpus)::chk_eval_corpus"
+  "eval-corpus semver contract::chk_eval_semver"
+  "eslint::chk_eslint"
+)
+
+# --- dispatch (bounded FIFO pool; no `wait -n`, so portable to bash 3.2) ----
+RUNDIR="$(mktemp -d)"
+trap 'rm -rf "$RUNDIR"' EXIT
+
+printf '%srunning %d checks, up to %d in parallel…%s\n' "$bold" "${#CHECKS[@]}" "$JOBS" "$reset"
+
+pids=()
+idx=0
+for entry in "${CHECKS[@]}"; do
+  fn="${entry##*::}"
+  ( "$fn" >"$RUNDIR/$idx.out" 2>&1; echo $? >"$RUNDIR/$idx.rc" ) &
+  pids+=("$!")
+  idx=$((idx + 1))
+  # Throttle: once JOBS are in flight, block on the oldest before launching more.
+  if [ "${#pids[@]}" -ge "$JOBS" ]; then
+    wait "${pids[0]}" 2>/dev/null || true
+    pids=("${pids[@]:1}")
+  fi
+done
+wait  # drain the remainder
+
+# --- aggregate in declared order -------------------------------------------
+FAILURES=()
+idx=0
+for entry in "${CHECKS[@]}"; do
+  label="${entry%%::*}"
+  section "$label"
+  cat "$RUNDIR/$idx.out" 2>/dev/null || true
+  rc="$(cat "$RUNDIR/$idx.rc" 2>/dev/null || echo 1)"
+  if [ "$rc" = "0" ]; then
+    printf '%s✓ %s%s\n' "$green" "$label" "$reset"
+  else
+    printf '%s✗ %s%s\n' "$red" "$label" "$reset"
+    FAILURES+=("$label")
+  fi
+  idx=$((idx + 1))
+done
 
 # --- summary ---------------------------------------------------------------
 section "summary"
