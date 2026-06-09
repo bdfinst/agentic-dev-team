@@ -68,17 +68,20 @@ jobs:
       - name: Run rules-vs-prompts audit
         run: bash scripts/audit-rules-vs-prompts.sh
 
-      # Model-routing conformance: the updatedInput PreToolUse rewrite
-      # contract (ADR-0004) is load-bearing and depends on undocumented
-      # harness behavior. These hook tests are toolchain-free (bash + jq),
-      # unlike the rest of tests/hooks/ which needs stryker/pitest — so they
-      # run here as a CI gate. See issue #104.
-      - name: Run model-routing hook conformance tests (bats)
+      # Toolchain-free hook conformance gates. Most of tests/hooks/ needs
+      # stryker/pitest and is excluded above, but these suites are pure
+      # bash + python3 + jq, so they run here as CI gates:
+      #   - model-routing: the updatedInput PreToolUse rewrite contract
+      #     (ADR-0004) is load-bearing and depends on undocumented harness
+      #     behavior (#104).
+      #   - plugin-version: the mechanical /version resolver.
+      - name: Run toolchain-free hook conformance tests (bats)
         run: |
           bash scripts/run-bats-parallel.sh \
             tests/hooks/updated_input_contract_tests.bats \
             tests/hooks/agent_model_resolve_hook_tests.bats \
-            tests/hooks/model_resolve_tests.bats
+            tests/hooks/model_resolve_tests.bats \
+            tests/hooks/plugin_version_tests.bats
 
   # Cost-regression gate (#140 mechanism, #171 real baseline). Isolated in its
   # own job so the read-only telemetry deploy key is never in scope for the
