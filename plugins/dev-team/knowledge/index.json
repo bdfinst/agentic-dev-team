@@ -4246,12 +4246,8 @@
     }
   },
   "plugins/dev-team/skills/version/SKILL.md": {
-    "Worker constraints": {
-      "summary": "1.",
-      "anchor": "worker-constraints"
-    },
     "Steps": {
-      "summary": "Find the installed plugin version by checking these locations in order:",
+      "summary": "Run the resolver and report its output verbatim:",
       "anchor": "steps"
     }
   }
