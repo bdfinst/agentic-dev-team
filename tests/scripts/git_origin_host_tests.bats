@@ -3,7 +3,7 @@
 # github.com + enterprise GHE => github; lookalikes => other; no remote => none.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-HOSTC="$REPO_ROOT/scripts/git-origin-host.sh"
+HOSTC="$REPO_ROOT/plugins/dev-team/scripts/git-origin-host.sh"
 
 @test "github.com over https is github" {
   [ "$("$HOSTC" 'https://github.com/o/r')" = "github" ]

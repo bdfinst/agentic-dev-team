@@ -248,7 +248,7 @@ Mark the plan status as `approved` once the user confirms. If the user requests 
 After approval, classify the origin remote — **only** offer issue creation on an actual GitHub host:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/git-origin-host.sh
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-origin-host.sh
 ```
 
 - **`github`** → prompt **once**, showing the count: *"Open 1 parent issue and N linked slice issues from this plan? [y/N]"* (N = number of slices). The default is **No**. Invoke `/issues-from-plan` **only on explicit `y`**; on No (or anything else), create nothing and continue.
