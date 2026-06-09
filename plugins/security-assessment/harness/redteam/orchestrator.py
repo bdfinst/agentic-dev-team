@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -34,12 +35,15 @@ from pathlib import Path
 
 # Bootstrap: when invoked as a plain script (`python orchestrator.py`) there is
 # no package context, so the package-relative imports below — and the matching
-# `from .. import ...` in lib/ and probes/ — cannot resolve. Re-exec ourselves as
+# `from .. import ...` in lib/ and probes/ — cannot resolve. Re-run ourselves as
 # a module so `redteam` is a real package and every relative import works the
 # same way it does under `python -m redteam.orchestrator`. The grandparent dir
-# (`harness/`) goes on PYTHONPATH so the re-exec'd interpreter can import the
+# (`harness/`) goes on PYTHONPATH so the re-run interpreter can import the
 # `redteam` package regardless of the caller's working directory; sys.path edits
-# do not survive an exec, so PYTHONPATH (which does) is what carries it across.
+# do not survive the new process, so PYTHONPATH (which does) carries it across.
+# subprocess (not os.exec*) keeps this portable to Windows, where exec-style
+# process replacement is unreliable; stdio and the exit code pass straight
+# through, so the wrapper is invisible to the caller on every platform.
 if __name__ == "__main__" and __package__ in (None, ""):
     _harness_dir = str(Path(__file__).resolve().parent.parent)  # .../harness
     _pkg = Path(__file__).resolve().parent.name                 # redteam
@@ -47,10 +51,11 @@ if __name__ == "__main__" and __package__ in (None, ""):
     _env["PYTHONPATH"] = os.pathsep.join(
         p for p in (_harness_dir, _env.get("PYTHONPATH", "")) if p
     )
-    os.execve(
-        sys.executable,
-        [sys.executable, "-m", f"{_pkg}.orchestrator", *sys.argv[1:]],
-        _env,
+    sys.exit(
+        subprocess.run(
+            [sys.executable, "-m", f"{_pkg}.orchestrator", *sys.argv[1:]],
+            env=_env,
+        ).returncode
     )
 
 # Current dir on path so probes/* and lib/* resolve when running as a module.
