@@ -139,3 +139,19 @@ jobs:
       # rule's positive fires on nothing, or a known-broken entry now works.
       - name: Measure custom semgrep rule fixtures
         run: python3 scripts/audit-semgrep-fixtures.py
+
+  # Lightweight smoke test for the red-team harness: guards the orchestrator
+  # self-bootstrap + probe-loader wiring (relative imports must resolve so the
+  # harness can run at all). Exercises only import/dispatch and the zero-HTTP
+  # --dry-run path, so the sole runtime dep is httpx (numpy/scipy/scikit-learn
+  # are used lazily inside probe run() bodies the smoke test never reaches).
+  harness-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install harness runtime dependency (httpx)
+        run: pip install --quiet httpx
+
+      - name: Red-team harness smoke test
+        run: python3 tests/security-assessment/harness/smoke_test.py
