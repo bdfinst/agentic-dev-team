@@ -33,9 +33,11 @@ Edit files directly in `plugins/dev-team/`. All plugin components (agents, skill
 The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these tools on every dev machine:
 
 - CLI: `shellcheck`, `bats`, `jq`, `python3` (macOS: `brew install shellcheck bats-core jq python3`)
-- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML is required — several bats suites shell out to Python scripts that import it; semgrep for the security-assessment suites).
+- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML is required — several bats suites shell out to Python scripts that import it; semgrep for the security-assessment suites; httpx for the red-team harness smoke test).
 
-`ci-local.sh` checks these up front and exits with an actionable message if any are missing.
+**One-shot setup:** `bash scripts/dev-setup.sh` validates this toolchain and installs anything missing (Homebrew on macOS, apt-get on Debian/Ubuntu, then the `requirements-dev.txt` deps). It is idempotent — safe to re-run.
+
+`ci-local.sh` checks these up front and exits with an actionable message (pointing at `dev-setup.sh`) if any are missing.
 
 ### Testing locally
 

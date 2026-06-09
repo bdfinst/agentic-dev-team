@@ -45,7 +45,8 @@ for t in shellcheck bats jq python3; do
 done
 if [ "${#missing[@]}" -gt 0 ]; then
   printf '%s%sMissing required tools: %s%s\n' "$bold" "$red" "${missing[*]}" "$reset" >&2
-  printf 'Install them (macOS): brew install %s\n' "${missing[*]}" >&2
+  printf 'Install everything the dev gates need: bash scripts/dev-setup.sh\n' >&2
+  printf '  (or, macOS only: brew install %s)\n' "${missing[*]}" >&2
   exit 2
 fi
 
@@ -61,6 +62,7 @@ done
 if [ "${#py_missing[@]}" -gt 0 ]; then
   printf '%s%sMissing required Python modules: %s%s\n' "$bold" "$red" "${py_missing[*]}" "$reset" >&2
   printf 'Install the dev dependencies: python3 -m pip install -r requirements-dev.txt\n' >&2
+  printf '  (or run the one-shot setup: bash scripts/dev-setup.sh)\n' >&2
   exit 2
 fi
 
