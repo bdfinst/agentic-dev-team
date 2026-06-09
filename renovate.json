@@ -6,6 +6,18 @@
   "minimumReleaseAge": "7 days",
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__fixtures__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__tests__/**",
+    "evals/**",
+    "plugins/security-assessment/harness/**"
+  ],
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 4am on monday"]
