@@ -54,11 +54,23 @@ if not records:
 
 def project_match(r):
     pp = r.get("projectPath") or ""
-    return r["scope"] == "project" and pp and os.path.realpath(pp) == cwd
+    if r["scope"] != "project" or not pp:
+        return False
+    pp = os.path.realpath(pp)
+    # A project-scoped plugin applies to the whole project tree, so match
+    # when cwd is the project root OR any directory beneath it (e.g. /version
+    # invoked from a subdirectory).
+    return cwd == pp or cwd.startswith(pp + os.sep)
 
-# 1. project install for THIS path  2. user scope  3. anything else.
+# 1. the project install enclosing cwd — most specific (deepest projectPath)
+#    first, for nested projects;  2. user scope;  3. anything else.
+project_matches = sorted(
+    (r for r in records if project_match(r)),
+    key=lambda r: len(os.path.realpath(r["projectPath"])),
+    reverse=True,
+)
 chosen = (
-    next((r for r in records if project_match(r)), None)
+    (project_matches[0] if project_matches else None)
     or next((r for r in records if r["scope"] == "user"), None)
     or records[0]
 )

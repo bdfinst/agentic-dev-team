@@ -35,6 +35,20 @@ EOF
   [[ "$output" == "dev-team@bfinster v9.9.9 (scope: project, this project)" ]]
 }
 
+@test "project-scoped install matches when run from a SUBDIRECTORY of the project root" {
+  proj="$TMP/proj"
+  mkdir -p "$proj/sub/dir"
+  cat > "$JSON" <<EOF
+{"version":2,"plugins":{"dev-team@bfinster":[
+  {"scope":"user","installPath":"/nonexistent","version":"6.7.0"},
+  {"scope":"project","projectPath":"$proj","installPath":"/nonexistent","version":"9.9.9"}
+]}}
+EOF
+  run env UPGRADE_INSTALLED_JSON="$JSON" bash -c "cd '$proj/sub/dir' && bash '$RESOLVER'"
+  [ "$status" -eq 0 ]
+  [[ "$output" == "dev-team@bfinster v9.9.9 (scope: project, this project)" ]]
+}
+
 @test "project install for a DIFFERENT path does not match; falls back to user" {
   cat > "$JSON" <<EOF
 {"version":2,"plugins":{"dev-team@bfinster":[
