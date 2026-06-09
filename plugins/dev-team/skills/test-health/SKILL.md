@@ -12,14 +12,14 @@ argument-hint: "[--path <dir>]"
 
 An **advisory, project-wide** skill: it produces the *strategic-health* view of a test suite that a team needs periodically — the suite's **shape** vs. its architecture, **Agile Testing Quadrant** coverage, **coverage + mutation** health rolled up to ROI, flaky-test management, and **automation maturity** — then an ordered improvement plan. It complements, and does not duplicate, `cd-test-architecture`: that skill owns the CD-determinism + pipeline-placement assessment, which this skill **delegates to** rather than re-deriving.
 
-Grounded in: `knowledge/testing-quadrants.md`, `knowledge/test-pyramid.md` (shapes + shape↔architecture fit), `knowledge/test-automation-maturity.md`, `knowledge/test-smells.md` (project smells / flakiness). It calls the `cd-test-architecture`, `test-design-reviewer`, and `mutation-testing` skills.
+Grounded in: `knowledge/testing-quadrants.md`, `knowledge/test-pyramid.md` (shapes + shape↔architecture fit), `knowledge/test-automation-maturity.md`, `knowledge/test-smells.md` (project smells / flakiness). It calls the `cd-test-architecture`, `/test-design`, and `mutation-testing` skills and folds their results into the strategic rollup.
 
 ## Constraints
 
 - **Advisory only.** Write a report; do not edit code or tests. Hand fixes to `/apply-fixes`, refactors to `/plan` / `/build`.
 - **Delegate, don't re-derive.** The architecture/pipeline section comes from `cd-test-architecture` — summarize its output, never restate or contradict its CD-determinism findings.
 - **Strategic altitude.** This is a suite-level diagnostic. Per-file findings belong to `test-review` / `test-smell-review`; per-unit design belongs to `test-design-advisor`. Point to them; don't reproduce them.
-- **No scoring reinvention.** Quantitative quality scoring comes from `test-design-reviewer` (Farley Score) — consume it.
+- **No scoring reinvention.** Quantitative quality scoring and per-file design findings come from `/test-design` (Farley Score + test-review / test-smell-review) — consume them; summarize the themes and link to its report, don't re-derive or reproduce the per-file table.
 - **Be concise.** One report; findings as tables, each item mapped to a concrete next move. No restating the knowledge files — cite them.
 
 ## Parse Arguments
@@ -48,9 +48,9 @@ Classify coverage across the four quadrants (`testing-quadrants.md`) as strong /
 
 Invoke `cd-test-architecture` on the target. Summarize its findings (which tests can't run in a clean pre-merge gate, target architecture, migration path) in one section — **do not re-derive**.
 
-### 6. Coverage + mutation health (ROI)
+### 6. Test-design + mutation health (ROI)
 
-Invoke `test-design-reviewer` for the Farley-score quality view, and `mutation-testing` on the **critical-logic** modules only (not the whole repo — that's the ROI framing). Roll up: where is coverage high but mutation-weak (assertions that don't catch bugs)? Where is critical logic under-covered? Prioritize by risk, not by raw % .
+Invoke `/test-design` on the target and consume its results: the suite-wide **Farley Score**, the dominant `test-review` / `test-smell-review` themes (weak assertions, non-determinism, fixture/structure smells, testability blockers), and the advisor's testability verdicts. Then invoke `mutation-testing` on the **critical-logic** modules only (not the whole repo — that's the ROI framing). Roll both up: where is coverage high but mutation-weak (assertions that don't catch bugs)? Where do test-design smells concentrate? Where is critical logic under-covered? Prioritize by risk, not by raw %. Both feed the ordered plan (Step 8) — summarize the themes and link to the `/test-design` report for per-file detail; do not reproduce it.
 
 ### 7. Flaky-test + automation maturity
 
@@ -58,7 +58,7 @@ Flag flakiness signals (`test-smells.md` project/behavior smells: order-dependen
 
 ### 8. Ordered improvement plan
 
-Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract), weighted by the pain point from Step 1.
+Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1.
 
 ### 9. Report
 
@@ -77,8 +77,8 @@ Write `reports/test-health-<date>.md`.
 ### Architecture & pipeline (via cd-test-architecture)
 <one-paragraph summary + link to its report>
 
-### Coverage & mutation health
-<Farley score · mutation ROI hotspots · under-covered critical logic>
+### Test-design & mutation health (via /test-design + mutation-testing)
+<Farley score · top test-design themes · mutation ROI hotspots · under-covered critical logic>
 
 ### Flakiness & automation maturity
 <flaky signals + management rec · maturity rung · single-point-of-change metric>
@@ -89,5 +89,5 @@ Write `reports/test-health-<date>.md`.
 
 ## Integration
 
-- **Front door** for periodic test-strategy review; the unified entry point over `cd-test-architecture` + `test-design-reviewer` + `mutation-testing` without collapsing them.
-- For *forward* design of a specific module, use `test-design-advisor`. For per-file findings, run `/test-design` (test-review + test-smell-review). This skill is the strategic rollup above them.
+- **Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.
+- `/test-design` runs inside this flow (Step 6) and also stands alone for a focused per-file review. For *forward* design of a specific module, use `test-design-advisor`. This skill is the strategic rollup that consumes their output.

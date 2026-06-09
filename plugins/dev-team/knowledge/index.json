@@ -1558,9 +1558,13 @@
       "summary": "Run `/code-review` against all files modified during the build.",
       "anchor": "6-run-code-review"
     },
-    "7. Update plan status": {
+    "7. Final test quality score (branch)": {
+      "summary": "Produce a Farley Score for the tests written on this branch — the last quality signal before `/pr`.",
+      "anchor": "7-final-test-quality-score-branch"
+    },
+    "8. Update plan status": {
       "summary": "Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file.",
-      "anchor": "7-update-plan-status"
+      "anchor": "8-update-plan-status"
     },
     "Escalation": {
       "summary": "Stop and ask the user when:",
@@ -3934,17 +3938,21 @@
       "summary": "Spawn both as sub-agents in one batch:",
       "anchor": "2-dispatch-review-agents-parallel"
     },
-    "3. Run the advisor (when applicable)": {
+    "3. Score all existing tests (Farley Score)": {
+      "summary": "A user-requested test review reports a quality score for the whole suite, not",
+      "anchor": "3-score-all-existing-tests-farley-score"
+    },
+    "4. Run the advisor (when applicable)": {
       "summary": "If `--advise` is set (or auto-triggered), invoke the `test-design-advisor`",
-      "anchor": "3-run-the-advisor-when-applicable"
+      "anchor": "4-run-the-advisor-when-applicable"
     },
-    "4. Aggregate and de-duplicate": {
+    "5. Aggregate and de-duplicate": {
       "summary": "Merge findings.",
-      "anchor": "4-aggregate-and-de-duplicate"
+      "anchor": "5-aggregate-and-de-duplicate"
     },
-    "5. Report": {
+    "6. Report": {
       "summary": "Produce one report (chat for a small target; `reports/test-design-<date>.md`",
-      "anchor": "5-report"
+      "anchor": "6-report"
     }
   },
   "plugins/dev-team/skills/test-driven-development/SKILL.md": {
@@ -4042,16 +4050,16 @@
       "summary": "Invoke `cd-test-architecture` on the target.",
       "anchor": "5-delegate-architecture-pipeline"
     },
-    "6. Coverage + mutation health (ROI)": {
-      "summary": "Invoke `test-design-reviewer` for the Farley-score quality view, and `mutation-testing` on the **critical-logic** modules only (not the whole repo — that's the ROI framing).",
-      "anchor": "6-coverage-mutation-health-roi"
+    "6. Test-design + mutation health (ROI)": {
+      "summary": "Invoke `/test-design` on the target and consume its results: the suite-wide **Farley Score**, the dominant `test-review` / `test-smell-review` themes (weak assertions, non-determinism, fixture/structure smells, testability blockers), and the advisor's testability verdicts.",
+      "anchor": "6-test-design-mutation-health-roi"
     },
     "7. Flaky-test + automation maturity": {
       "summary": "Flag flakiness signals (`test-smells.md` project/behavior smells: order-dependence, unstubbed clock/RNG, real I/O at unit level) and a management recommendation (quarantine + fix, don't `retry`).",
       "anchor": "7-flaky-test-automation-maturity"
     },
     "8. Ordered improvement plan": {
-      "summary": "Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract), weighted by the pain point from Step 1.",
+      "summary": "Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1.",
       "anchor": "8-ordered-improvement-plan"
     },
     "9. Report": {
@@ -4059,11 +4067,11 @@
       "anchor": "9-report"
     },
     "Output": {
-      "summary": "**Front door** for periodic test-strategy review; the unified entry point over `cd-test-architecture` + `test-design-reviewer` + `mutation-testing` without collapsing them.",
+      "summary": "**Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.",
       "anchor": "output"
     },
     "Integration": {
-      "summary": "**Front door** for periodic test-strategy review; the unified entry point over `cd-test-architecture` + `test-design-reviewer` + `mutation-testing` without collapsing them.",
+      "summary": "**Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.",
       "anchor": "integration"
     }
   },

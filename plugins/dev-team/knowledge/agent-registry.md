@@ -73,7 +73,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Design Doc | `skills/design-doc/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
 | Branch Workflow | `skills/branch-workflow/SKILL.md` | 450 | Orchestrator, Software Engineer |
 | CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | Platform Engineer, Software Engineer, QA Engineer |
-| Test Design Reviewer | `skills/test-design-reviewer/SKILL.md` | 600 | QA Engineer, test-review |
+| Test Design Reviewer | `skills/test-design-reviewer/SKILL.md` | 600 | QA Engineer, test-review, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~700 | QA Engineer, Software Engineer, `/test-design` command |
 | CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~900 | QA Engineer, Architect, Platform Engineer, Software Engineer |
 | Test Health | `skills/test-health/SKILL.md` | ~900 | QA Engineer, `/test-health` command |
