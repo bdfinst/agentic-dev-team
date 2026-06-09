@@ -72,7 +72,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/code-review` | `skills/code-review/SKILL.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
 | `/review-agent` | `skills/review-agent/SKILL.md` | worker | Run a single review agent (used for inline checkpoints) |
 | `/test-design` | `skills/test-design/SKILL.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, score all existing tests (Farley Score), then run test-design-advisor for testability/refactor recommendations (advisory) |
-| `/test-health` | `skills/test-health/SKILL.md` | orchestrator | Project-wide test-strategy audit: shape vs. architecture fit, quadrant coverage, coverage + mutation health, flaky/automation maturity, ordered plan. Delegates pipeline assessment to cd-test-architecture (advisory) |
+| `/test-health` | `skills/test-health/SKILL.md` | orchestrator | Project-wide test-strategy audit: shape vs. architecture fit, quadrant coverage, flaky/automation maturity, ordered plan. Runs `/test-design` (Farley Score + smell themes) and `mutation-testing` and folds their results in; delegates pipeline assessment to cd-test-architecture (advisory) |
 | `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance |
 | `/agent-eval` | `skills/agent-eval/SKILL.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
 | `/agent-add` | `skills/agent-add/SKILL.md` | implementation | Create a new review or team agent following the official schema with token-efficiency budgets |
