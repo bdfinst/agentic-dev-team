@@ -3,7 +3,7 @@
 # Deterministic and model-free; covers the slice-1 Gherkin scenarios.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-WAVES="$REPO_ROOT/scripts/plan-waves.sh"
+WAVES="$REPO_ROOT/plugins/dev-team/scripts/plan-waves.sh"
 FIX="$REPO_ROOT/tests/fixtures/plans"
 
 @test "diamond dependencies layer into waves (A -> {B,C} -> D)" {

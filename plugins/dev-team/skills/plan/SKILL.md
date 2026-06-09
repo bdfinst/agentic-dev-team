@@ -211,7 +211,7 @@ Create `plans/` if it doesn't exist. When writing the plan file, populate the `#
 Then derive the waves — never hand-author them:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/plan-waves.sh <plan-file>
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/plan-waves.sh <plan-file>
 ```
 
 Render the `## Parallelization` Mermaid DAG + wave table and the wave-grouped

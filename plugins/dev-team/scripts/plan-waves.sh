@@ -16,7 +16,7 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lib/plan-parse.sh
+# shellcheck source=plugins/dev-team/scripts/lib/plan-parse.sh
 . "$HERE/lib/plan-parse.sh"
 
 FILE="${1:-}"
