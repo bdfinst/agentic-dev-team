@@ -990,6 +990,10 @@
       "summary": "Read every file in `.claude/agents/*.md` (team agents and review agents).",
       "anchor": "2b-audit-agent-tool-declarations-all-agents"
     },
+    "2c. Audit team agent personas": {
+      "summary": "A file is a **team agent** when its body contains a `## Behavioral Guidelines` section.",
+      "anchor": "2c-audit-team-agent-personas"
+    },
     "3. Audit skills": {
       "summary": "Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:",
       "anchor": "3-audit-skills"
