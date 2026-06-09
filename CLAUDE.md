@@ -24,6 +24,10 @@ evals/                             # Agent eval fixtures (not shipped)
 reports/                           # Review reports (not shipped)
 ```
 
+Two repo-level guides distill the marketplace conventions:
+- [`docs/marketplace-builder-plugin-playbook.md`](docs/marketplace-builder-plugin-playbook.md) — how to build a plugin that scaffolds/audits/maintains marketplace monorepos (shipping hygiene, portability, testing, release/catalog sync).
+- [`docs/using-plugin-skills-in-the-web-environment.md`](docs/using-plugin-skills-in-the-web-environment.md) — how to use a plugin's skills from a Claude Code web session.
+
 ## Developing the Plugin
 
 Edit files directly in `plugins/dev-team/`. All plugin components (agents, skills, hooks) live there.
@@ -107,5 +111,9 @@ body of [`.claude/cloud-setup.sh`](.claude/cloud-setup.sh) into the environment'
 *Setup script* field (installs `jq`, `shellcheck`, `bats`, the Python dev deps,
 and `gh`). There is no dedicated secrets store yet — treat env vars as visible to
 anyone who can edit the environment.
+
+For the full walkthrough of running a plugin's skills from a web session (both the
+zero-install file route and the gated auto-install hook), see
+[`docs/using-plugin-skills-in-the-web-environment.md`](docs/using-plugin-skills-in-the-web-environment.md).
 
 See `plugins/dev-team/CLAUDE.md` for the full orchestration pipeline configuration.
