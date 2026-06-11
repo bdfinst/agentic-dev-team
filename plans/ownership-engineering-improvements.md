@@ -1,5 +1,17 @@
 # Plan — raising the team's Ownership Engineering scores
 
+## Status — implemented on this branch
+
+All three waves have been applied as prose changes to the agents and skills (see the
+checklist at the foot of each wave; every "Acceptance" item's prose now exists).
+Wave 3.1's parked decision was resolved to **option (b)** — `progress-guardian` stays
+read-only and flags the validation to dispatch rather than gaining an execution tool
+— as recommended, since the human was unavailable. Wave 3.2 (the systematic-debugging
+"Improve" step) was implemented rather than deferred. The
+[scorecard re-score](../evals/ownership-engineering/scorecard.md#re-score-after-implementation-waves-13)
+records the projected post-change scores; a judge run over the fixtures is the
+remaining step to convert those projections to measured results.
+
 **Goal:** move the team agents and workflow skills toward the Ownership
 Engineering posture (deliver outcomes, own results) on the dimensions where the
 [baseline scorecard](../evals/ownership-engineering/scorecard.md) shows them

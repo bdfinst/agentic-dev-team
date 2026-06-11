@@ -150,9 +150,10 @@ Agent → Orchestrator → Human
 ```
 
 1. Agent identifies the issue and flags it to the Orchestrator.
-2. Orchestrator classifies severity:
-   - **Low**: route to another agent with appropriate expertise
-   - **Medium**: present options to human with recommendation
-   - **High**: present to human with full context, no recommendation (avoid anchoring)
-3. Human decides.
-4. Decision logged and fed back to the requesting agent.
+2. **Absorb the uncertainty before escalating it.** Investigate within the codebase, run the relevant check, or dispatch the agent best placed to resolve it. Escalate only what investigation cannot settle — a raw unknown is not yet an escalation.
+3. Orchestrator classifies severity:
+   - **Low**: route to another agent with appropriate expertise; do not involve the human.
+   - **Medium** — reversible, low-blast-radius, and *not* one of the Standard approval gates above: **decide and proceed.** Commit to one path, state the rationale, act, and surface an explicit override — e.g. "Taking X because Y; reply `override` to change course." Do not hand the human a menu for a decision the agent can own and reverse. (The Standard approval gates — new external dependency, schema migration, scope change, deletes, etc. — are never downgraded to Medium; they remain Approve.)
+   - **High** — irreversible or high-blast-radius: present to the human with full context, **no recommendation** (avoid anchoring), and wait. Reserved for genuinely human-only calls: the standard approval gates, ethical concerns, and anything hard to reverse.
+4. Human decides at the High tier (or when a committed Medium decision is overridden).
+5. The decision — or the committed Medium path plus any override — is logged and fed back to the requesting agent.

@@ -132,11 +132,13 @@ Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemente
 
 ## Escalation
 
+A failure is a debugging task first, not a hand-back. Before escalating any test or review failure, run a [Systematic Debugging](../systematic-debugging/SKILL.md) pass — reproduce, find the root cause, state it in one sentence — and escalate **with that diagnosis**, never just an attempt count.
+
 Stop and ask the user when:
 
-- A test fails for an unexpected reason after 3 attempts
+- A test still fails *after systematic debugging has identified the root cause* and the fix needs a decision you can't make (e.g. it requires changing the spec or the architecture)
 - The plan requires architectural decisions not covered by the plan
-- A review checkpoint fails after 2 correction iterations
+- A review checkpoint fails after 2 correction iterations *and* the root cause is understood but unresolvable within scope
 - You discover the plan is incomplete or contradictory
 
 ## Integration

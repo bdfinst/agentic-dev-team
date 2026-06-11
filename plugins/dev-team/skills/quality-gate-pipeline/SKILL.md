@@ -130,7 +130,7 @@ Activated when output is returned for rework, during peer review, or when self-r
 - Max 3 review-correction cycles before escalation
 - Each cycle must reduce total defect count
 - If defects increase or stay flat after 2 cycles, escalate to Orchestrator
-- Exit criteria: all critical and major defects resolved; minor defects logged
+- Exit criteria: all critical and major defects **resolved** (fixed and re-verified). Minor defects may be **deferred** — but deferred ≠ resolved: each must be logged with an owner and a tracking reference and **surfaced in the completion summary**, never folded into "done." A slice carrying deferred items is "complete with known follow-ups," not silently "complete."
 
 **Escalation**: Summarize defect pattern and attempted corrections → escalate to Orchestrator for re-routing → log with `escalation_reason` in task metrics.
 

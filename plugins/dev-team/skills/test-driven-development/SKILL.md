@@ -75,7 +75,6 @@ Stop immediately and restart from RED if you notice:
 - Writing implementation code before tests
 - Adding tests after implementation
 - Tests passing immediately without new implementation (testing existing behavior)
-- Inability to explain why a test failed
 - Tests deferred to "later"
 - Any rationalization beginning with "just this once"
 - Manual testing claims replacing automated verification
@@ -83,6 +82,8 @@ Stop immediately and restart from RED if you notice:
 - Sunk cost justifications for keeping pre-test code
 
 **Response**: Delete the code written without tests. Start over with RED.
+
+**A failing test you can't explain is a debugging task, not a restart.** Do not delete code to escape an unexplained failure. Enter [Systematic Debugging](../systematic-debugging/SKILL.md) (reproduce → root cause); only once you understand *why* it failed do you decide whether the fix is code or a restart from RED.
 
 ## Verification Checklist
 

@@ -270,7 +270,8 @@ Append the entry to `memory/decisions.md` using the Write or Edit tool before mo
 ### Decision Making
 
 - Autonomy level: High for task routing, low for scope changes
-- Escalation criteria: Ambiguous requirements, resource conflicts, scope creep
+- Ambiguity is a **dispatch trigger before it is an escalation trigger**: route product ambiguity to the Product Manager, design ambiguity to the Architect, and factual unknowns to Codebase Recon. Escalate to the human only after that investigation cannot resolve it.
+- Escalation criteria (post-investigation): irreducible requirement ambiguity, resource conflicts, scope creep
 - Human approval requirements: Architecture changes, production deployments, scope modifications
 
 ### Conflict Management
