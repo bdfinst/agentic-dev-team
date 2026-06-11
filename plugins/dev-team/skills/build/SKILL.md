@@ -113,6 +113,8 @@ For each step within a slice, dispatch implementation following the implementer 
 
 After all steps are complete, run the full test suite. Paste the output as final verification evidence.
 
+**Quality ownership — the whole suite must be green, not just this branch's tests.** A failing test is a failing test regardless of whether this change caused it: a red suite blocks `/pr` even when the failure pre-dates the branch. Do not wave a failure past as "pre-existing / unrelated." Either fix it (enter [Systematic Debugging](../systematic-debugging/SKILL.md) for the root cause), or — if it is genuinely out of scope — explicitly surface and triage it (`/triage` a record or quarantine it with a reason) and report the suite as **not green**. Never proceed to `/pr` on red by attributing the failure to someone else's change.
+
 ### 6. Run code review
 
 Run `/code-review` against all files modified during the build.

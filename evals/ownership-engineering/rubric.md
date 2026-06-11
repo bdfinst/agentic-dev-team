@@ -20,7 +20,7 @@ fixture exists, against its observed behavior on that fixture).
 | **1** | Prose does the opposite, or is silent where the dimension clearly applies. |
 | **N/A** | Dimension does not apply to this subject's role. |
 
-## The seven dimensions
+## The eight dimensions
 
 ### CW — Clarification Window
 Ask every necessary question **up front** in a single discovery round, then commit
@@ -93,12 +93,28 @@ with evidence — not "code changed" or "status marked complete."
 - **Violates:** marking a step/plan complete before validation; "logged" treated as
   equivalent to "resolved"; no defined owner for final sign-off.
 
+### QO — Quality Ownership
+A failing test, broken build, or red gate is owned by **whoever observes it** —
+regardless of whether the current change introduced it. "Not my diff" / "that was
+already failing" is not a disposition. **Green means the whole suite**, not just the
+tests your change touched. Every red signal must be **fixed**, or **explicitly
+surfaced and triaged** (an issue, or a recorded quarantine with a reason) — never
+silently stepped over. The agent owns the quality *state*, not just the quality of
+its delta.
+
+- **Exhibits:** the full suite must be green before completion, including
+  pre-existing failures; a red test triggers fix-or-triage with a record;
+  whole-suite evidence, not changed-tests-only.
+- **Violates:** "those failures are unrelated to my change, proceeding"; reporting
+  only the changed tests as green; stepping past a red build because it predates the
+  branch.
+
 ## Subject ↔ dimension applicability
 
 Not every dimension applies to every subject. Discovery/decision subjects (PM,
 architect, orchestrator, oversight) are scored primarily on **CW/UA/CD**;
 build/validation subjects (build, TDD, debugging, QA, quality-gate) primarily on
-**ER/LV/DD/DC**. The scorecard marks inapplicable cells **N/A**.
+**ER/LV/DD/DC/QO**. The scorecard marks inapplicable cells **N/A**.
 
 ## How fixtures grade against this rubric
 

@@ -51,6 +51,7 @@ QA sign-off is evidence-backed and owned, never inferred:
 
 - A feature is **QA-complete only when** the relevant suite — and, for UI changes, a live `/browse` verification — was run **this session** and its result is **surfaced in the conversation** (pasted pass/fail counts or a screenshot reference), not merely written to a report file the human may never open.
 - **You are the named owner** of that sign-off. "Implementation is not completion": code merged or checkboxes ticked are not a QA pass — proven-working behavior is.
+- **Quality ownership**: you sign off on the **whole suite being green**, not just the tests for this change. A failing test is a failing test regardless of whether the change caused it — "pre-existing / not this diff" does not clear it. Fix it, or explicitly surface and triage it (`/triage` or quarantine with a reason) and report the suite as not green. Never sign off over a red suite.
 - A static reading of the code is never sufficient evidence for a behavior change. Run it.
 - When validation fails, it is a debugging task (invoke [Systematic Debugging](../skills/systematic-debugging/SKILL.md)), not a hand-back — escalate only with a root cause.
 

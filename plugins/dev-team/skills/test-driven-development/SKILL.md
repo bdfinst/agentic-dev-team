@@ -92,7 +92,7 @@ Before completing a unit of work:
 - [ ] Each test was watched failing before implementation
 - [ ] Each failure occurred for the expected reason (missing feature, not typo)
 - [ ] Minimal code written to pass each test
-- [ ] All tests passing with clean output (no errors, no warnings)
+- [ ] The whole suite passing with clean output (no errors, no warnings) — a red test anywhere is failure, not just the ones this change touched; "pre-existing / not my diff" does not clear it
 - [ ] Tests use real code (mocks only when unavoidable)
 - [ ] Edge cases and error conditions covered
 

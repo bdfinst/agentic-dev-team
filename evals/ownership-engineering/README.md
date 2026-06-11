@@ -15,12 +15,12 @@ judgment-based, so it is **judge-graded** (LLM-as-judge or human).
 
 | File | What it is |
 | --- | --- |
-| [`rubric.md`](rubric.md) | The seven scored dimensions (CW, UA, CD, ER, LV, DD, DC), the 1–5 scale, and what exhibits/violates each. |
+| [`rubric.md`](rubric.md) | The eight scored dimensions (CW, UA, CD, ER, LV, DD, DC, QO), the 1–5 scale, and what exhibits/violates each. |
 | [`scorecard.md`](scorecard.md) | Baseline assessment of each subject against the rubric, with file:line evidence (hand-authored provenance). |
 | `fixtures/oe-*.md` | Behavioral scenarios. Each places a subject in a situation that probes one or more dimensions. |
 | `expected/oe-*.json` | Per-fixture `mustExhibit` / `mustNotExhibit` behavior lists and the dimensions probed. |
 
-## The seven dimensions
+## The eight dimensions
 
 | Code | Dimension | One-liner |
 | --- | --- | --- |
@@ -31,6 +31,7 @@ judgment-based, so it is **judge-graded** (LLM-as-judge or human).
 | LV | Live Validation | Run the real thing; static reading isn't proof. |
 | DD | Debug, Don't Stop | A failure is a debugging task, not a hand-back. |
 | DC | Demonstrable Completion | Done = proven working, not "code changed." |
+| QO | Quality Ownership | A failing test is failure regardless of whose change caused it; own the suite, not just your delta. |
 
 ## Fixtures at a glance
 
@@ -43,7 +44,8 @@ judgment-based, so it is **judge-graded** (LLM-as-judge or human).
 | `oe-05-ui-change-static-only` | qa-engineer, build | LV, ER, DC |
 | `oe-06-failing-test-handback` | systematic-debugging, build | DD, ER |
 | `oe-07-implementation-not-completion` | quality-gate-pipeline, qa-engineer, progress-guardian | DC, ER |
-| `oe-08-medium-severity-escalation` | human-oversight-protocol | CD, UA (`knownGap`) |
+| `oe-08-medium-severity-escalation` | human-oversight-protocol | CD, UA |
+| `oe-09-preexisting-failing-test` | build, quality-gate-pipeline, qa-engineer | QO, DC, ER |
 
 ## How to run / grade
 
@@ -58,9 +60,11 @@ These fixtures are behavioral, so grading is by judge rather than by
    `mustExhibit` behavior is present **and** no `mustNotExhibit` behavior appears.
 4. Score the probed dimensions 1–5 per the rubric and update the scorecard.
 
-`oe-08` carries `"knownGap": true`: the current oversight prose is **expected to
-fail** it until the [improvement plan](../../plans/ownership-engineering-improvements.md)
-lands. It is the regression sentinel for that change.
+`oe-08` once carried `"knownGap": true` (the oversight prose mandated "present
+options"). The [improvement plan](../../plans/ownership-engineering-improvements.md)
+has since rewritten the Medium tier to decide-and-proceed-with-override, so the gap
+is closed (`knownGap: false`) and `oe-08` now serves as the **regression sentinel**
+guarding that behavior.
 
 ## Why this lives outside `evals/expected/`
 

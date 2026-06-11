@@ -1,32 +1,32 @@
 # Ownership Engineering scorecard — baseline
 
 Baseline assessment of this plugin's team agents and workflow skills against the
-seven [rubric](rubric.md) dimensions. Scores are 1–5 (see rubric); **N/A** marks a
+eight [rubric](rubric.md) dimensions. Scores are 1–5 (see rubric); **N/A** marks a
 dimension outside a subject's role. This baseline is **hand-authored** from a prose
 read of each file (file:line evidence below), analogous to `evals/baseline.json`'s
 `hand-authored` provenance — it is not yet a measured judge run over the fixtures.
 
 Dimensions: **CW** Clarification Window · **UA** Uncertainty Absorption ·
 **CD** Committed Decisions · **ER** Evidence over Reasoning · **LV** Live Validation
-· **DD** Debug-Don't-Stop · **DC** Demonstrable Completion.
+· **DD** Debug-Don't-Stop · **DC** Demonstrable Completion · **QO** Quality Ownership.
 
 ## Scores
 
-| Subject | CW | UA | CD | ER | LV | DD | DC | Notes |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- |
-| orchestrator | 4 | 2 | 4 | 3 | 3 | 2 | 3 | Phases gate well; escalates ambiguity instead of dispatching investigation. |
-| software-engineer | 2 | 4 | 4 | 4 | 3 | 3 | 3 | Owns implementation; no upfront discovery, escalates per-conflict. |
-| product-manager | 1 | 2 | 2 | N/A | N/A | N/A | N/A | No discovery phase; escalates stakeholder conflicts rather than mediating. |
-| architect | 2 | 4 | 3 | N/A | N/A | N/A | 4 | Reasons in trade-offs but "recommends" rather than deciding. |
-| codebase-recon | N/A | 5 | 4 | 4 | N/A | N/A | 4 | Exemplary: absorbs incomplete data, emits a contract-conformant artifact. |
-| human-oversight-protocol | 2 | 1 | 2 | N/A | N/A | N/A | N/A | Medium tier mandates "present options" — the central anti-ownership gap. |
-| design-interrogation | 5 | 4 | 3 | N/A | N/A | N/A | N/A | Excellent batched discovery; surfaces decisions but the user still decides. |
-| build | N/A | N/A | N/A | 5 | 4 | 2 | 4 | Strong paste-output gates; escalates after N attempts with no debug protocol. |
-| quality-gate-pipeline | N/A | N/A | N/A | 5 | 4 | 4 | 4 | "Verify don't assume"; softens DC by letting minor defects be "logged." |
-| test-driven-development | N/A | N/A | N/A | 5 | 4 | 2 | 4 | Iron law + watch-it-fail; red flags say "restart," not "debug." |
-| systematic-debugging | N/A | N/A | N/A | 5 | 5 | 4 | 4 | The model citizen for ER/LV/DD; lacks a cross-bug learning loop. |
-| qa-engineer | N/A | N/A | N/A | 2 | 4 | 2 | 2 | No explicit evidence-paste sign-off gate; ownership of "done" is diffuse. |
-| progress-guardian | N/A | N/A | N/A | 2 | 1 | N/A | 2 | Read-only: detects missing evidence but cannot run anything to verify it. |
+| Subject | CW | UA | CD | ER | LV | DD | DC | QO | Notes |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- |
+| orchestrator | 4 | 2 | 4 | 3 | 3 | 2 | 3 | N/A | Phases gate well; escalates ambiguity instead of dispatching investigation. |
+| software-engineer | 2 | 4 | 4 | 4 | 3 | 3 | 3 | 3 | Owns implementation; no upfront discovery, escalates per-conflict. |
+| product-manager | 1 | 2 | 2 | N/A | N/A | N/A | N/A | N/A | No discovery phase; escalates stakeholder conflicts rather than mediating. |
+| architect | 2 | 4 | 3 | N/A | N/A | N/A | 4 | N/A | Reasons in trade-offs but "recommends" rather than deciding. |
+| codebase-recon | N/A | 5 | 4 | 4 | N/A | N/A | 4 | N/A | Exemplary: absorbs incomplete data, emits a contract-conformant artifact. |
+| human-oversight-protocol | 2 | 1 | 2 | N/A | N/A | N/A | N/A | N/A | Medium tier mandates "present options" — the central anti-ownership gap. |
+| design-interrogation | 5 | 4 | 3 | N/A | N/A | N/A | N/A | N/A | Excellent batched discovery; surfaces decisions but the user still decides. |
+| build | N/A | N/A | N/A | 5 | 4 | 2 | 4 | 3 | Runs the full suite but no "pre-existing failures block too" framing. |
+| quality-gate-pipeline | N/A | N/A | N/A | 5 | 4 | 4 | 4 | 3 | "No regressions = count not decreasing" tolerates a standing red test. |
+| test-driven-development | N/A | N/A | N/A | 5 | 4 | 2 | 4 | 3 | "All tests passing" but silent on failures the change didn't cause. |
+| systematic-debugging | N/A | N/A | N/A | 5 | 5 | 4 | 4 | 3 | Phase 4 gates on full-suite-no-regressions; scoped to the one bug. |
+| qa-engineer | N/A | N/A | N/A | 2 | 4 | 2 | 2 | 2 | Regression testing in scope but no whole-suite-green sign-off gate. |
+| progress-guardian | N/A | N/A | N/A | 2 | 1 | N/A | 2 | 2 | Read-only: detects missing evidence but cannot run anything to verify it. |
 
 ## Evidence (selected, with file:line)
 
@@ -96,21 +96,25 @@ is the projected re-score, **hand-authored from the new prose** (same provenance
 caveat as the baseline — it is not yet a measured judge run over the fixtures).
 Changed cells are **bold**; the citation is the edit that moved them.
 
-| Subject | CW | UA | CD | ER | LV | DD | DC | What changed |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- |
-| orchestrator | 4 | **4** | 4 | 3 | 3 | 2 | 3 | Ambiguity is now a dispatch-to-investigate trigger before escalation (`orchestrator.md` Decision Making). |
-| software-engineer | 2 | 4 | 4 | 4 | 3 | **4** | 3 | Inherits build/TDD's debug-before-escalate rule. |
-| product-manager | **4** | **4** | **3** | N/A | N/A | N/A | N/A | New Discovery (Clarification Window) section; escalation reframed to mediate-first (`product-manager.md`). |
-| architect | 2 | 4 | **5** | N/A | N/A | N/A | 4 | Persona now "commit to a decision"; ADR-with-override for reversible choices (`architect.md`). |
-| codebase-recon | N/A | 5 | 4 | 4 | N/A | N/A | 4 | unchanged (already exemplary). |
-| human-oversight-protocol | 2 | **4** | **5** | N/A | N/A | N/A | N/A | Medium tier rewritten from "present options" to decide-and-proceed-with-override (`human-oversight-protocol.md:155`). |
-| design-interrogation | 5 | 4 | 3 | N/A | N/A | N/A | N/A | unchanged. |
-| build | N/A | N/A | N/A | 5 | 4 | **4** | 4 | Escalation now requires a systematic-debugging root cause first (`build/SKILL.md` Escalation). |
-| quality-gate-pipeline | N/A | N/A | N/A | 5 | 4 | 4 | **5** | Exit criteria: deferred ≠ resolved; follow-ups surfaced, not folded into "done." |
-| test-driven-development | N/A | N/A | N/A | 5 | 4 | **4** | 4 | Unexplained failure routes to debugging, not delete-and-restart. |
-| systematic-debugging | N/A | N/A | N/A | 5 | 5 | **5** | 4 | Added the "Improve" step (capture the pattern) — closes the ownership loop. |
-| qa-engineer | N/A | N/A | N/A | **4** | **5** | **4** | **4** | New evidence-backed Sign-off gate with a named owner. |
-| progress-guardian | N/A | N/A | N/A | **3** | **3** | N/A | **3** | Verify-by-dispatch: flags missing evidence and names the validation to run (stays read-only). |
+| Subject | CW | UA | CD | ER | LV | DD | DC | QO | What changed |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- |
+| orchestrator | 4 | **4** | 4 | 3 | 3 | 2 | 3 | N/A | Ambiguity is now a dispatch-to-investigate trigger before escalation (`orchestrator.md` Decision Making). |
+| software-engineer | 2 | 4 | 4 | 4 | 3 | **4** | 3 | **4** | Inherits build/TDD's debug-before-escalate rule and the whole-suite quality-ownership gate. |
+| product-manager | **4** | **4** | **3** | N/A | N/A | N/A | N/A | N/A | New Discovery (Clarification Window) section; escalation reframed to mediate-first (`product-manager.md`). |
+| architect | 2 | 4 | **5** | N/A | N/A | N/A | 4 | N/A | Persona now "commit to a decision"; ADR-with-override for reversible choices (`architect.md`). |
+| codebase-recon | N/A | 5 | 4 | 4 | N/A | N/A | 4 | N/A | unchanged (already exemplary). |
+| human-oversight-protocol | 2 | **4** | **5** | N/A | N/A | N/A | N/A | N/A | Medium tier rewritten from "present options" to decide-and-proceed-with-override (`human-oversight-protocol.md:155`). |
+| design-interrogation | 5 | 4 | 3 | N/A | N/A | N/A | N/A | N/A | unchanged. |
+| build | N/A | N/A | N/A | 5 | 4 | **4** | 4 | **5** | Escalation now requires a systematic-debugging root cause first; whole-suite-green blocks `/pr` even for pre-existing failures (`build/SKILL.md`). |
+| quality-gate-pipeline | N/A | N/A | N/A | 5 | 4 | 4 | **5** | **5** | Deferred ≠ resolved; whole-suite green required — a red test is failure regardless of whose change caused it (`quality-gate-pipeline.md` Phase 2). |
+| test-driven-development | N/A | N/A | N/A | 5 | 4 | **4** | 4 | **4** | Unexplained failure routes to debugging; checklist now requires the whole suite green, not just touched tests. |
+| systematic-debugging | N/A | N/A | N/A | 5 | 5 | **5** | 4 | 3 | Added the "Improve" step (capture the pattern) — closes the ownership loop. |
+| qa-engineer | N/A | N/A | N/A | **4** | **5** | **4** | **4** | **5** | New evidence-backed Sign-off gate with a named owner; signs off on the whole suite green, not just changed tests. |
+| progress-guardian | N/A | N/A | N/A | **3** | **3** | N/A | **3** | **3** | Verify-by-dispatch: flags missing evidence and names the validation to run (stays read-only). |
+
+Quality Ownership (QO) is enforced cross-cutting in the always-loaded
+`plugins/dev-team/CLAUDE.md` Quality & Accuracy section, so the principle reaches
+every agent, not only the validation skills scored above.
 
 **Result vs. the plan's Definition of Done:** no subject sits below 3 on any in-role
 dimension; the human-oversight, PM, and qa-engineer rows have risen out of the 1–2

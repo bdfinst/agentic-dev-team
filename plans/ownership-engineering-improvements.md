@@ -7,7 +7,10 @@ checklist at the foot of each wave; every "Acceptance" item's prose now exists).
 Wave 3.1's parked decision was resolved to **option (b)** — `progress-guardian` stays
 read-only and flags the validation to dispatch rather than gaining an execution tool
 — as recommended, since the human was unavailable. Wave 3.2 (the systematic-debugging
-"Improve" step) was implemented rather than deferred. The
+"Improve" step) was implemented rather than deferred. A later request added an
+eighth dimension, **Quality Ownership** (Wave 2.4) — a failing test is a failing test
+regardless of whose change caused it — enforced cross-cutting in the always-loaded
+CLAUDE.md and hard-gated in the validation skills. The
 [scorecard re-score](../evals/ownership-engineering/scorecard.md#re-score-after-implementation-waves-13)
 records the projected post-change scores; a judge run over the fixtures is the
 remaining step to convert those projections to measured results.
@@ -107,6 +110,25 @@ explain why a test failed → restart from RED" to "→ enter systematic-debuggi
 find root cause, *then* decide restart vs. fix." Keep the iron laws intact.
 **Acceptance:** `oe-06-failing-test-handback` passes; build/TDD DD ≥4. No change to
 the RED/GREEN paste-output gates.
+
+### 2.4 Quality Ownership — a failing test is a failing test (`QO`, new dimension)
+**Files:** `plugins/dev-team/CLAUDE.md` (Quality & Accuracy, always-loaded);
+`plugins/dev-team/skills/quality-gate-pipeline/SKILL.md` (Phase 2 evidence);
+`plugins/dev-team/skills/build/SKILL.md` (full-suite step);
+`plugins/dev-team/agents/qa-engineer.md` (sign-off gate);
+`plugins/dev-team/skills/test-driven-development/SKILL.md` (verification checklist)
+**Friction removed:** agents narrowing responsibility to their own diff and shipping
+over a red suite by calling failures "pre-existing / not my change" — the user
+inherits a broken build the agent watched go red.
+**Change:** add **Quality Ownership** as the eighth rubric dimension and enforce it:
+green means the **whole suite**, not just the changed tests; a failing test is a
+failing test **regardless of whether the current change caused it**. A red signal
+must be **fixed** or **explicitly surfaced and triaged** (`/triage`/quarantine with a
+recorded reason) and reported as not-green — never stepped over. The principle lives
+in the always-loaded CLAUDE.md so it reaches every agent, with hard enforcement in
+the validation skills.
+**Acceptance:** `oe-09-preexisting-failing-test` passes; build/quality-gate/qa QO
+≥4. No existing evidence/validation gate weakened.
 
 ### 2.2 quality-gate-pipeline — "logged" ≠ "resolved" (`DC`)
 **File:** `plugins/dev-team/skills/quality-gate-pipeline/SKILL.md:133`
