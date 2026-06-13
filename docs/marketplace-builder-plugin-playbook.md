@@ -72,8 +72,10 @@ with the plugin's own `plugin.json` version and its release tag. Do **not** hand
 these — automate them (§6).
 
 ### 2.2 The manifest — `plugins/<name>/.claude-plugin/plugin.json`
-`name`, `version`, `description`, optional `depends-on` (companion plugins) and a
-contract version when plugins share a primitives contract.
+`name`, `version` (this plugin's **own** independent semver — §6), `description`,
+and — when plugins couple — `depends-on` (a per-companion **minimum-version**
+floor) and `required-primitives-contract` (a semver **range** against a shared
+versioned contract). The two dependency knobs are the subject of §7.
 
 ### 2.3 Shipped vs not-shipped (the load-bearing distinction)
 | Ships (under `plugins/<name>/`) | Never ships (repo root) |
@@ -102,7 +104,7 @@ to emit files, run gates, and report — not to narrate.
 | `/cloud-setup` | scaffold | Generate the gated `SessionStart` install hook + `cloud-setup.sh` and the "use skills directly" fallback (see the companion cloud guide). |
 
 Implementation note: model each skill on the matching artifact already in this
-repo (cited in §7) rather than inventing the format.
+repo (cited in §8) rather than inventing the format.
 
 ---
 
@@ -163,11 +165,21 @@ between "a plugin" and "a healthy, tested plugin."
 
 ---
 
-## 6. Release + catalog sync (automate, never hand-edit)
+## 6. Independent versioning + catalog sync (automate, never hand-edit)
 
-`release-please` with one `package` per plugin and `extra-files` that rewrite the
-catalog entry on every release — so `plugin.json`, the tag, and `marketplace.json`
-can never drift (cf. `#210`):
+**Each plugin versions independently.** There is no repo-wide version. Every
+plugin carries its own semver in `plugins/<name>/.claude-plugin/plugin.json` and
+ships on its own cadence. `release-please` models this with **one `package` per
+plugin** — each with its own `component`, `package-name`, tag prefix, and
+`.release-please-manifest.json` entry — so a `fix:` that touches only
+`plugins/dev-team/**` bumps *just* dev-team (→ tag `dev-team-vX.Y.Z`) and leaves
+`security-assessment` at its current version. release-please attributes a commit
+to a plugin by the **path it modifies**; a commit spanning two plugin dirs bumps
+both, so keep commits plugin-scoped when you want independent bumps. (Tags are
+`<component>-v<version>` via `include-component-in-tag` + `include-v-in-tag`.)
+
+`extra-files` then rewrite the catalog entry on every release — so `plugin.json`,
+the release tag, and `marketplace.json` can never drift (cf. `#210`):
 
 ```jsonc
 "plugins/<name>": {
@@ -189,7 +201,90 @@ can never drift (cf. `#210`):
 
 ---
 
-## 7. Building the plugin itself (step by step)
+## 7. Cross-plugin dependencies (plugin A consumes plugin B at a pinned version)
+
+Once plugins version independently (§6), the question is how plugin **A** says
+"I need plugin **B**, and not just any B." The naive answer — pin A to an exact
+release of B — is the wrong one: B's version bumps for reasons that don't touch
+A (internal refactors, unrelated features), so an exact pin forces needless
+churn and tells you nothing about *what* A actually relies on. This repo uses
+two complementary, coarse-to-fine mechanisms, both declared in A's
+`plugin.json`:
+
+### 7.1 `depends-on` — a presence + floor declaration (coarse)
+
+A names the companion it needs and the **minimum** version that carries the
+capability it relies on:
+
+```json
+"depends-on": [
+  { "name": "dev-team", "minimum-version": "3.3.0" }
+]
+```
+
+Use a **floor, never an exact pin**, so B can ship patches and additive features
+without breaking A. This answers "is B installed, and is it new enough?" — it
+does **not** describe the actual data/behavior A consumes. That's §7.2's job.
+
+### 7.2 A versioned shared contract — the real coupling (fine; preferred)
+
+Pin A to the *contract B publishes*, not to B's release number. The contract is
+a **standalone versioned document** describing the exact surface the two plugins
+exchange — data envelopes, JSON schemas, agent IDs, skill IDs — with its own
+semver and its own semver *policy*. In this repo that's
+`plugins/dev-team/knowledge/security-primitives-contract.md` (`version:` in
+frontmatter). Consumers declare a semver **range**, not a point:
+
+```json
+"required-primitives-contract": "^1.0.0"
+```
+
+`^1.0.0` = "any `1.x`": accept PATCH (clarifications) and MINOR (additive — new
+optional fields, new enum values, new agent/skill IDs) automatically; reject
+MAJOR (renamed/removed fields, new required fields, changed semantics). The
+contract's frontmatter spells out exactly what each level means so producers and
+consumers share one rule.
+
+Why this beats pinning to B's version: the contract **decouples the dependency
+from B's release cadence**. B can refactor internals and ship unrelated features
+freely; A only has to react when the *shared surface* changes — and a MAJOR bump
+is the unambiguous, machine-checkable signal that it did. The contract is
+versioned **independently** of either plugin: it does not ride dev-team's or
+security-assessment's release number, even though it physically lives in the
+producer's `knowledge/` tree.
+
+### 7.3 Enforcement (make drift unmergeable)
+
+- **Contract can't change silently.** A PreToolUse hook
+  (`hooks/contract-version-guard.sh`) blocks any *body* change to the contract
+  file that doesn't also bump `version:` in its frontmatter, with a bypass only
+  for release-please commits (and an audit-log entry on bypass). "Changed the
+  shared surface but forgot to version it" therefore can't land by hand.
+- **`/add-plugin`** writes a `depends-on` floor when a companion is named, and a
+  `required-primitives-contract` range when the new plugin consumes a shared
+  contract.
+- **`/audit-plugin`** verifies, as blocker-level findings: (a) every
+  `depends-on` names a plugin that exists in the catalog at a version `>=` the
+  floor; (b) every `required-primitives-contract` range is **satisfiable by the
+  contract's current `version:`** — a consumer stuck on `^1.0.0` after the
+  contract moved to `2.0.0` is a hard failure that must be resolved by updating
+  the consumer (and, if its behavior changed, bumping the consumer's own
+  version per §6).
+
+### 7.4 Which knob, when
+
+| Need | Mechanism | Form |
+|---|---|---|
+| "B must be installed, and recent enough to have feature X" | `depends-on` | `minimum-version` floor |
+| "A and B exchange data/IDs and must agree on its shape" | shared contract | `required-primitives-contract` semver **range** (`^1.x`) |
+| "A relies on a specific B *release* artifact" | (avoid) — extract the shared surface into a contract instead | — |
+
+Use them together: the `depends-on` floor guarantees B is present and roughly
+current; the contract range guarantees the two actually agree on the wire.
+
+---
+
+## 8. Building the plugin itself (step by step)
 
 1. **Bootstrap with your own conventions.** The marketplace-builder plugin is a
    plugin — so it must pass its own sensor. Lay it out as `plugins/marketplace-builder/`
@@ -220,13 +315,16 @@ can never drift (cf. `#210`):
 | Git-Bash `install.sh` guard | `plugins/dev-team/install.sh`, `plugins/security-assessment/install.sh` |
 | Toolchain installer | `scripts/dev-setup.sh` |
 | Smoke test + CI job | `tests/security-assessment/harness/smoke_test.py`, `.github/workflows/plugin-tests.yml` (`harness-smoke`) |
-| Release + catalog sync | `release-please-config.json`, `.release-please-manifest.json` |
+| Release + per-plugin packages | `release-please-config.json`, `.release-please-manifest.json` |
+| Manifest dependency declaration | `plugins/security-assessment/.claude-plugin/plugin.json` (`depends-on`, `required-primitives-contract`) |
+| Versioned cross-plugin contract | `plugins/dev-team/knowledge/security-primitives-contract.md` |
+| Contract version-bump guard | `plugins/dev-team/hooks/contract-version-guard.sh` |
 | Cloud install hook | `.claude/install-dev-team.sh`, `.claude/settings.json` |
 | CI gate layout | `.github/workflows/plugin-tests.yml`, `scripts/ci-local.sh` |
 
 ---
 
-## 8. Acceptance checklist for the plugin you build
+## 9. Acceptance checklist for the plugin you build
 
 A marketplace produced (or audited-clean) by your plugin must pass all of:
 
@@ -235,5 +333,7 @@ A marketplace produced (or audited-clean) by your plugin must pass all of:
 - [ ] `shellcheck -x` clean (warning severity) over shipped + dev scripts; all shebangs `env bash`.
 - [ ] Each `install.sh` has the Git-Bash-on-Windows guard; `scripts/dev-setup.sh` provisions the toolchain.
 - [ ] CI runs structural + portability + bats gates; a local pre-push gate mirrors them.
-- [ ] `release-please` wired with per-plugin packages + catalog `extra-files` sync.
+- [ ] Each plugin versions **independently**: one `release-please` package per plugin (own component/tag/manifest entry) + catalog `extra-files` sync (§6).
+- [ ] Every `depends-on` floor names a catalog plugin at a version `>=` the floor; every `required-primitives-contract` range is satisfiable by the contract's current `version:` (§7).
+- [ ] Any shared cross-plugin contract is independently versioned and guarded against body-without-bump edits (§7).
 - [ ] A gated `SessionStart` cloud hook + skill-file fallback exist.
