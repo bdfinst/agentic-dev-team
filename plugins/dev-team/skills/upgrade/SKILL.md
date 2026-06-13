@@ -231,6 +231,12 @@ Where `{scope}` is the detected install scope (e.g., `project`) and `{marketplac
 
 If the command succeeds with a version change, proceed to step 4.
 
+**Before concluding the update is broken or unnecessary, verify the catalog is current.** An "already up to date" result or a failed update is often a *stale marketplace catalog* pinned behind the latest release — not a broken update mechanism. Diff the marketplace's pinned version against the latest published release before drawing a conclusion:
+
+- Compare the version in the marketplace source's `.claude-plugin/marketplace.json` (and the plugin's `.claude-plugin/plugin.json`) against the latest release tag/commit of the marketplace repo.
+- If the catalog is behind the release, the root cause is the stale catalog, not `claude plugin update`. Refresh the marketplace (re-add it, or wait for its catalog to update) and re-run `/upgrade`.
+- If the plugin id was renamed (see Step 0), migrate to the new id rather than updating the deprecated stub in place — see `knowledge/decision-defaults.md` (migrate vs. edit a stub).
+
 If the output indicates already up to date:
 > Already running the latest version (v{version}).
 

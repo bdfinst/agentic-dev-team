@@ -3320,9 +3320,13 @@
       "summary": "Use the structured template:",
       "anchor": "4-create-the-pr"
     },
-    "5. Report": {
+    "5. Enable auto-merge (default)": {
+      "summary": "Unless `--no-auto-merge` or `--draft` was given, enable auto-merge so the PR lands automatically once checks pass and any required reviews are in — rather than merging directly to trunk.",
+      "anchor": "5-enable-auto-merge-default"
+    },
+    "6. Report": {
       "summary": "Display the PR URL and a summary of the quality gate results.",
-      "anchor": "5-report"
+      "anchor": "6-report"
     }
   },
   "plugins/dev-team/skills/quality-gate-pipeline/SKILL.md": {
@@ -3665,6 +3669,52 @@
     "7. Report": {
       "summary": "Display a summary of everything created:",
       "anchor": "7-report"
+    }
+  },
+  "plugins/dev-team/skills/ship/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Screen the request against `knowledge/decision-defaults.md`.",
+      "anchor": "steps"
+    },
+    "1. Approach contract": {
+      "summary": "Screen the request against `knowledge/decision-defaults.md`.",
+      "anchor": "1-approach-contract"
+    },
+    "2. Spec (unless `--skip-spec`)": {
+      "summary": "Invoke `/specs` for the feature.",
+      "anchor": "2-spec-unless-skip-spec"
+    },
+    "3. Plan": {
+      "summary": "Invoke `/plan` with the (approved) spec.",
+      "anchor": "3-plan"
+    },
+    "4. Build": {
+      "summary": "Invoke `/build` to execute the approved plan with RED-GREEN-REFACTOR, inline review",
+      "anchor": "4-build"
+    },
+    "5. Review": {
+      "summary": "Invoke `/code-review` over the changes and let its fix loop converge.",
+      "anchor": "5-review"
+    },
+    "6. PR": {
+      "summary": "Invoke `/pr` (passing `--no-auto-merge` only if it was given to `/ship`).",
+      "anchor": "6-pr"
+    },
+    "7. Report": {
+      "summary": "Report the PR URL, the quality-gate result, and whether auto-merge is armed.",
+      "anchor": "7-report"
+    },
+    "Notes": {
+      "summary": "`/ship` is sequencing only: every gate, fix loop, and evidence requirement comes from",
+      "anchor": "notes"
     }
   },
   "plugins/dev-team/skills/specs/SKILL.md": {

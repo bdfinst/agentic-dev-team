@@ -86,7 +86,8 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
 | `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
 | `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence; ends with a Farley Score for the branch's tests before prompting for `/pr` |
-| `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request |
+| `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request (enables auto-merge by default) |
+| `/ship` | `skills/ship/SKILL.md` | orchestrator | Run the full spec→plan→TDD build→code-review→PR(auto-merge) pipeline as one command, pausing at the existing human gates |
 | `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
 | `/careful` | `skills/careful/SKILL.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
 | `/freeze` | `skills/freeze/SKILL.md` | worker | Scope-lock editing to a glob pattern; blocks edits outside the pattern |

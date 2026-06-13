@@ -57,13 +57,27 @@ report's "fun ending").
 - Run `/agent-audit`; keep within token budgets and claims discipline (no bare
   numeric targets, no metaphor-as-mechanism buzzwords in shipped prose).
 
+### 3. `/upgrade` marketplace pre-flight (implemented)
+**Friction removed:** two upgrade sessions stalled by trusting the update mechanism
+instead of checking the catalog against the release.
+**Change:** `skills/upgrade/SKILL.md` Step 3 now diffs the marketplace's pinned
+version against the latest release before concluding the mechanism is broken or the
+plugin is up to date; a stale catalog is named as the root cause. Renamed ids migrate
+rather than edit a stub in place (cross-links `knowledge/decision-defaults.md`).
+
+### 4. `/ship` pipeline skill + auto-merge default (implemented)
+**Friction removed:** the spec→plan→TDD→PR flow re-assembled by hand every session.
+**Change:**
+- New `skills/ship/SKILL.md` — a thin orchestrator chaining `/specs → /plan → /build
+  → /code-review → /pr` with the existing human gates and an upfront approach-contract
+  screen. It only sequences; every gate/fix-loop/evidence rule comes from the
+  underlying skills. Registered in `CLAUDE.md` and `docs/skills.md`; `/help`
+  auto-discovers it via Glob.
+- `skills/pr/SKILL.md` now enables auto-merge by default (new Step 5), with
+  `--no-auto-merge` to opt out — the auto-merge-vs-direct default from decision-defaults.
+
 ## Follow-ups (not this branch)
 
-- **#3 `/upgrade` marketplace pre-flight** — diff `marketplace.json` pinned version
-  vs latest release before assuming the mechanism is broken; migrate renamed stubs.
-- **#4 `/ship` pipeline skill** — thin orchestrator chaining `/specs → /plan →
-  /build → /code-review → /pr` with auto-merge and the existing human gates; default
-  `/pr` to auto-merge.
 - **Judge-graded OE fixtures** `oe-10-replace-vs-merge`, `oe-11-no-instruction-yet`
   — added to the OE eval suite once PR #266 merges (the suite lives there, not on main).
 
