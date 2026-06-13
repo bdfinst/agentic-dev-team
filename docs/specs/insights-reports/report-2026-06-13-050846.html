@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Claude Code Insights</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; color: #334155; line-height: 1.65; padding: 48px 24px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 32px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+    h2 { font-size: 20px; font-weight: 600; color: #0f172a; margin-top: 48px; margin-bottom: 16px; }
+    .subtitle { color: #64748b; font-size: 15px; margin-bottom: 32px; }
+    .nav-toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 32px 0; padding: 16px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .nav-toc a { font-size: 12px; color: #64748b; text-decoration: none; padding: 6px 12px; border-radius: 6px; background: #f1f5f9; transition: all 0.15s; }
+    .nav-toc a:hover { background: #e2e8f0; color: #334155; }
+    .stats-row { display: flex; gap: 24px; margin-bottom: 40px; padding: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+    .stat { text-align: center; }
+    .stat-value { font-size: 24px; font-weight: 700; color: #0f172a; }
+    .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+    .at-a-glance { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 12px; padding: 20px 24px; margin-bottom: 32px; }
+    .glance-title { font-size: 16px; font-weight: 700; color: #92400e; margin-bottom: 16px; }
+    .glance-sections { display: flex; flex-direction: column; gap: 12px; }
+    .glance-section { font-size: 14px; color: #78350f; line-height: 1.6; }
+    .glance-section strong { color: #92400e; }
+    .see-more { color: #b45309; text-decoration: none; font-size: 13px; white-space: nowrap; }
+    .see-more:hover { text-decoration: underline; }
+    .project-areas { display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
+    .project-area { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+    .area-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .area-name { font-weight: 600; font-size: 15px; color: #0f172a; }
+    .area-count { font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; }
+    .area-desc { font-size: 14px; color: #475569; line-height: 1.5; }
+    .narrative { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+    .narrative p { margin-bottom: 12px; font-size: 14px; color: #475569; line-height: 1.7; }
+    .key-insight { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; margin-top: 12px; font-size: 14px; color: #166534; }
+    .section-intro { font-size: 14px; color: #64748b; margin-bottom: 16px; }
+    .big-wins { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+    .big-win { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; }
+    .big-win-title { font-weight: 600; font-size: 15px; color: #166534; margin-bottom: 8px; }
+    .big-win-desc { font-size: 14px; color: #15803d; line-height: 1.5; }
+    .friction-categories { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+    .friction-category { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 16px; }
+    .friction-title { font-weight: 600; font-size: 15px; color: #991b1b; margin-bottom: 6px; }
+    .friction-desc { font-size: 13px; color: #7f1d1d; margin-bottom: 10px; }
+    .friction-examples { margin: 0 0 0 20px; font-size: 13px; color: #334155; }
+    .friction-examples li { margin-bottom: 4px; }
+    .claude-md-section { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+    .claude-md-section h3 { font-size: 14px; font-weight: 600; color: #1e40af; margin: 0 0 12px 0; }
+    .claude-md-actions { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #dbeafe; }
+    .copy-all-btn { background: #2563eb; color: white; border: none; border-radius: 4px; padding: 6px 12px; font-size: 12px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+    .copy-all-btn:hover { background: #1d4ed8; }
+    .copy-all-btn.copied { background: #16a34a; }
+    .claude-md-item { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 10px 0; border-bottom: 1px solid #dbeafe; }
+    .claude-md-item:last-child { border-bottom: none; }
+    .cmd-checkbox { margin-top: 2px; }
+    .cmd-code { background: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #1e40af; border: 1px solid #bfdbfe; font-family: monospace; display: block; white-space: pre-wrap; word-break: break-word; flex: 1; }
+    .cmd-why { font-size: 12px; color: #64748b; width: 100%; padding-left: 24px; margin-top: 4px; }
+    .features-section, .patterns-section { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+    .feature-card { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; }
+    .pattern-card { background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 8px; padding: 16px; }
+    .feature-title, .pattern-title { font-weight: 600; font-size: 15px; color: #0f172a; margin-bottom: 6px; }
+    .feature-oneliner { font-size: 14px; color: #475569; margin-bottom: 8px; }
+    .pattern-summary { font-size: 14px; color: #475569; margin-bottom: 8px; }
+    .feature-why, .pattern-detail { font-size: 13px; color: #334155; line-height: 1.5; }
+    .feature-examples { margin-top: 12px; }
+    .feature-example { padding: 8px 0; border-top: 1px solid #d1fae5; }
+    .feature-example:first-child { border-top: none; }
+    .example-desc { font-size: 13px; color: #334155; margin-bottom: 6px; }
+    .example-code-row { display: flex; align-items: flex-start; gap: 8px; }
+    .example-code { flex: 1; background: #f1f5f9; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #334155; overflow-x: auto; white-space: pre-wrap; }
+    .copyable-prompt-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+    .copyable-prompt-row { display: flex; align-items: flex-start; gap: 8px; }
+    .copyable-prompt { flex: 1; background: #f8fafc; padding: 10px 12px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #334155; border: 1px solid #e2e8f0; white-space: pre-wrap; line-height: 1.5; }
+    .feature-code { background: #f8fafc; padding: 12px; border-radius: 6px; margin-top: 12px; border: 1px solid #e2e8f0; display: flex; align-items: flex-start; gap: 8px; }
+    .feature-code code { flex: 1; font-family: monospace; font-size: 12px; color: #334155; white-space: pre-wrap; }
+    .pattern-prompt { background: #f8fafc; padding: 12px; border-radius: 6px; margin-top: 12px; border: 1px solid #e2e8f0; }
+    .pattern-prompt code { font-family: monospace; font-size: 12px; color: #334155; display: block; white-space: pre-wrap; margin-bottom: 8px; }
+    .prompt-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
+    .copy-btn { background: #e2e8f0; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; color: #475569; flex-shrink: 0; }
+    .copy-btn:hover { background: #cbd5e1; }
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0; }
+    .chart-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+    .chart-title { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 12px; }
+    .bar-row { display: flex; align-items: center; margin-bottom: 6px; }
+    .bar-label { width: 100px; font-size: 11px; color: #475569; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { flex: 1; height: 6px; background: #f1f5f9; border-radius: 3px; margin: 0 8px; }
+    .bar-fill { height: 100%; border-radius: 3px; }
+    .bar-value { width: 28px; font-size: 11px; font-weight: 500; color: #64748b; text-align: right; }
+    .empty { color: #94a3b8; font-size: 13px; }
+    .horizon-section { display: flex; flex-direction: column; gap: 16px; }
+    .horizon-card { background: linear-gradient(135deg, #faf5ff 0%, #f5f3ff 100%); border: 1px solid #c4b5fd; border-radius: 8px; padding: 16px; }
+    .horizon-title { font-weight: 600; font-size: 15px; color: #5b21b6; margin-bottom: 8px; }
+    .horizon-possible { font-size: 14px; color: #334155; margin-bottom: 10px; line-height: 1.5; }
+    .horizon-tip { font-size: 13px; color: #6b21a8; background: rgba(255,255,255,0.6); padding: 8px 12px; border-radius: 4px; }
+    .feedback-header { margin-top: 48px; color: #64748b; font-size: 16px; }
+    .feedback-intro { font-size: 13px; color: #94a3b8; margin-bottom: 16px; }
+    .feedback-section { margin-top: 16px; }
+    .feedback-section h3 { font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 12px; }
+    .feedback-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+    .feedback-card.team-card { background: #eff6ff; border-color: #bfdbfe; }
+    .feedback-card.model-card { background: #faf5ff; border-color: #e9d5ff; }
+    .feedback-title { font-weight: 600; font-size: 14px; color: #0f172a; margin-bottom: 6px; }
+    .feedback-detail { font-size: 13px; color: #475569; line-height: 1.5; }
+    .feedback-evidence { font-size: 12px; color: #64748b; margin-top: 8px; }
+    .fun-ending { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #fbbf24; border-radius: 12px; padding: 24px; margin-top: 40px; text-align: center; }
+    .fun-headline { font-size: 18px; font-weight: 600; color: #78350f; margin-bottom: 8px; }
+    .fun-detail { font-size: 14px; color: #92400e; }
+    .collapsible-section { margin-top: 16px; }
+    .collapsible-header { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+    .collapsible-header h3 { margin: 0; font-size: 14px; font-weight: 600; color: #475569; }
+    .collapsible-arrow { font-size: 12px; color: #94a3b8; transition: transform 0.2s; }
+    .collapsible-content { display: none; padding-top: 16px; }
+    .collapsible-content.open { display: block; }
+    .collapsible-header.open .collapsible-arrow { transform: rotate(90deg); }
+    @media (max-width: 640px) { .charts-row { grid-template-columns: 1fr; } .stats-row { justify-content: center; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Claude Code Insights</h1>
+    <p class="subtitle">1,530 messages across 128 sessions (223 total) | 2026-05-18 to 2026-06-12</p>
+
+    
+    <div class="at-a-glance">
+      <div class="glance-title">At a Glance</div>
+      <div class="glance-sections">
+        <div class="glance-section"><strong>What's working:</strong> You run a disciplined spec→plan→TDD→PR→merge pipeline and demand real root causes rather than band-aids, which shows up in wins like the CI write-race fix and the auto-merge tooling shipping with full test coverage. You also push beyond one-off fixes into durable infrastructure—your cross-machine config sync and the 53-deck SQLite presentation knowledge base are standout examples of treating recurring work as systems to build, not chores to repeat. <a href="#section-wins" class="see-more">Impressive Things You Did →</a></div>
+        <div class="glance-section"><strong>What's hindering you:</strong> On Claude&apos;s side, the most common snag is choosing an initial approach that conflicts with your intent—merge-vs-replace, PNG-vs-SVG, or updating a stub in place instead of migrating—which forces you to interrupt and redirect. On your side, environment and platform constraints (free-plan limits, managed/cloud sessions, stale plugin catalogs, already-installed tools) tend to surface late and occasionally trigger full reverts; flagging those boundaries early would save wasted cycles. <a href="#section-friction" class="see-more">Where Things Go Wrong →</a></div>
+        <div class="glance-section"><strong>Quick wins to try:</strong> Codify your spec→plan→TDD→PR pipeline as a custom Skill so your best workflow becomes a single repeatable command instead of being reassembled each session. Add Hooks for your recurring guardrails (branch/directory/push rules) and a pre-flight version-catalog check to catch the stale-pinning issues that stalled two plugin upgrades. <a href="#section-features" class="see-more">Features to Try →</a></div>
+        <div class="glance-section"><strong>Ambitious workflows:</strong> As models improve, your fleet maintenance becomes a scheduled, self-healing pipeline: one agent sweeps every repo under ~/_git*, diagnoses CI gaps, stale Brewfiles, and packaging bugs, and opens grounded PRs in parallel—so you wake up to green sweeps rather than fixing one stuck check at a time. Similarly, your spec→merge loop can close fully, with the agent iterating autonomously against failing tests and pinging you only at approved review gates, shifting you from driving to steering. <a href="#section-horizon" class="see-more">On the Horizon →</a></div>
+      </div>
+    </div>
+    
+
+    <nav class="nav-toc">
+      <a href="#section-work">What You Work On</a>
+      <a href="#section-usage">How You Use CC</a>
+      <a href="#section-wins">Impressive Things</a>
+      <a href="#section-friction">Where Things Go Wrong</a>
+      <a href="#section-features">Features to Try</a>
+      <a href="#section-patterns">New Usage Patterns</a>
+      <a href="#section-horizon">On the Horizon</a>
+      <a href="#section-feedback">Team Feedback</a>
+    </nav>
+
+    <div class="stats-row">
+      <div class="stat"><div class="stat-value">1,530</div><div class="stat-label">Messages</div></div>
+      <div class="stat"><div class="stat-value">+62,358/-6,064</div><div class="stat-label">Lines</div></div>
+      <div class="stat"><div class="stat-value">794</div><div class="stat-label">Files</div></div>
+      <div class="stat"><div class="stat-value">21</div><div class="stat-label">Days</div></div>
+      <div class="stat"><div class="stat-value">72.9</div><div class="stat-label">Msgs/Day</div></div>
+    </div>
+
+    
+    <h2 id="section-work">What You Work On</h2>
+    <div class="project-areas">
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">Git &amp; Repository Management</span>
+            <span class="area-count">~14 sessions</span>
+          </div>
+          <div class="area-desc">Extensive work on cloning, mirroring, and organizing repositories across machines, including bulk-cloning 46 missing repos and setting up move-and-symlink scripts for ~/_git. Claude handled default-branch switching to main, remote configuration (HTTPS/SSH), and diagnosed transient network and empty-branch push failures. Heavy reliance on Bash for git operations and verification.</div>
+        </div>
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">Claude Code Plugin &amp; Dev-Team Tooling</span>
+            <span class="area-count">~11 sessions</span>
+          </div>
+          <div class="area-desc">Development and upgrades of the dev-team/agentic-dev-team plugin ecosystem, including diagnosing packaging bugs, marketplace version-pinning issues, and stub-vs-rename migrations. Claude built eval-run tooling, auto-merge scripts with full TDD test coverage, and wave-script restructuring. Work often followed a spec-then-plan-then-build workflow with PRs and referential-integrity sensors.</div>
+        </div>
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">Presentation Generation &amp; Knowledge Base</span>
+            <span class="area-count">~8 sessions</span>
+          </div>
+          <div class="area-desc">Iterative redesign of PowerPoint/PPTX decks including SVG slide embeds, equation corrections, template adaptation (side_image, comparison layouts), and narrative-flow reviews. Claude built a queryable SQLite knowledge base ingesting 53 decks with voice artifacts to support drafting future talks. Validation was done visually via LibreOffice with fixes shipped as PRs.</div>
+        </div>
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">CI/CD &amp; Branch Protection Configuration</span>
+            <span class="area-count">~8 sessions</span>
+          </div>
+          <div class="area-desc">Setup of Netlify deploy previews, quality gates, branch protection rulesets, and cost-regression CI jobs wired with deploy keys. Claude triaged failing CI checks, root-causing issues like GITHUB_TOKEN security limitations, non-atomic write races, and portable tooling needs (xargs over GNU parallel). Some efforts hit hard limits on free-plan repos, requiring reverts.</div>
+        </div>
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">Config Sync &amp; System Cleanup</span>
+            <span class="area-count">~6 sessions</span>
+          </div>
+          <div class="area-desc">Implementation of cross-machine .claude/dotfiles sync with deny-by-default gitignore, LaunchAgent watchers, and adopt helpers, plus permission/guardrail hooks for branch and directory rules. Claude cleaned up Homebrew Brewfiles, enhanced install scripts, and removed orphaned VS Code extensions and stubborn login-item remnants. Work involved careful course-correction on merge-vs-replace behaviors.</div>
+        </div>
+      
+    </div>
+    
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">What You Wanted</div>
+        <div class="bar-row">
+        <div class="bar-label">Git Operations</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#2563eb"></div></div>
+        <div class="bar-value">12</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Debugging</div>
+        <div class="bar-track"><div class="bar-fill" style="width:75%;background:#2563eb"></div></div>
+        <div class="bar-value">9</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Bug Fixing</div>
+        <div class="bar-track"><div class="bar-fill" style="width:75%;background:#2563eb"></div></div>
+        <div class="bar-value">9</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Documentation</div>
+        <div class="bar-track"><div class="bar-fill" style="width:66.66666666666666%;background:#2563eb"></div></div>
+        <div class="bar-value">8</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Config Permission Changes</div>
+        <div class="bar-track"><div class="bar-fill" style="width:66.66666666666666%;background:#2563eb"></div></div>
+        <div class="bar-value">8</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Feature Implementation</div>
+        <div class="bar-track"><div class="bar-fill" style="width:50%;background:#2563eb"></div></div>
+        <div class="bar-value">6</div>
+      </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Top Tools Used</div>
+        <div class="bar-row">
+        <div class="bar-label">Bash</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#0891b2"></div></div>
+        <div class="bar-value">4093</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Edit</div>
+        <div class="bar-track"><div class="bar-fill" style="width:58.46567310041534%;background:#0891b2"></div></div>
+        <div class="bar-value">2393</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Read</div>
+        <div class="bar-track"><div class="bar-fill" style="width:38.50476423161495%;background:#0891b2"></div></div>
+        <div class="bar-value">1576</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Write</div>
+        <div class="bar-track"><div class="bar-fill" style="width:13.608600048863915%;background:#0891b2"></div></div>
+        <div class="bar-value">557</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Agent</div>
+        <div class="bar-track"><div class="bar-fill" style="width:8.551184949914488%;background:#0891b2"></div></div>
+        <div class="bar-value">350</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">TaskUpdate</div>
+        <div class="bar-track"><div class="bar-fill" style="width:4.813095528951869%;background:#0891b2"></div></div>
+        <div class="bar-value">197</div>
+      </div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Languages</div>
+        <div class="bar-row">
+        <div class="bar-label">Markdown</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#10b981"></div></div>
+        <div class="bar-value">2761</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Shell</div>
+        <div class="bar-track"><div class="bar-fill" style="width:12.459253893516841%;background:#10b981"></div></div>
+        <div class="bar-value">344</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Python</div>
+        <div class="bar-track"><div class="bar-fill" style="width:11.408909815284316%;background:#10b981"></div></div>
+        <div class="bar-value">315</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">JSON</div>
+        <div class="bar-track"><div class="bar-fill" style="width:6.302064469395146%;background:#10b981"></div></div>
+        <div class="bar-value">174</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">TypeScript</div>
+        <div class="bar-track"><div class="bar-fill" style="width:6.048533140166606%;background:#10b981"></div></div>
+        <div class="bar-value">167</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">JavaScript</div>
+        <div class="bar-track"><div class="bar-fill" style="width:4.672220210068816%;background:#10b981"></div></div>
+        <div class="bar-value">129</div>
+      </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Session Types</div>
+        <div class="bar-row">
+        <div class="bar-label">Multi Task</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#8b5cf6"></div></div>
+        <div class="bar-value">32</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Single Task</div>
+        <div class="bar-track"><div class="bar-fill" style="width:21.875%;background:#8b5cf6"></div></div>
+        <div class="bar-value">7</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Iterative Refinement</div>
+        <div class="bar-track"><div class="bar-fill" style="width:18.75%;background:#8b5cf6"></div></div>
+        <div class="bar-value">6</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Quick Question</div>
+        <div class="bar-track"><div class="bar-fill" style="width:3.125%;background:#8b5cf6"></div></div>
+        <div class="bar-value">1</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Exploration</div>
+        <div class="bar-track"><div class="bar-fill" style="width:3.125%;background:#8b5cf6"></div></div>
+        <div class="bar-value">1</div>
+      </div>
+      </div>
+    </div>
+
+    
+    <h2 id="section-usage">How You Use Claude Code</h2>
+    <div class="narrative">
+      <p>You operate as a power user running an extensive, infrastructure-heavy workflow—<strong>621 hours across 128 sessions with 229 commits</strong>—and you trust Claude to execute end-to-end rather than babysitting every step. Your sessions are dominated by Bash (4093 calls), Edit, and Read, painting the picture of someone deep in DevOps, git plumbing, CI/CD wiring, and tooling automation. You routinely hand Claude ambitious multi-part runbooks (&apos;set up deploy keys, wire the cost-regression job, write a report, and merge the PR&apos;) and let it run to completion, evidenced by your high rate of fully-achieved outcomes and &apos;essential&apos; ratings. You favor <strong>spec-then-build workflows</strong>, frequently asking Claude to draft a spec, regenerate a plan, build via TDD, then merge to trunk—you think in pipelines, not one-off edits.</p>
+<p>That said, you stay engaged enough to course-correct precisely when Claude drifts. You <strong>interrupt to refocus</strong> when it wanders off task, and you catch subtle scope or design errors fast—correcting a merge-vs-replace installer behavior, redirecting from a deprecated stub to the renamed plugin, insisting on true SVG embeds instead of PNG conversion, and pointing out LibreOffice was already installed. These corrections are surgical rather than frustrated; you rarely express dissatisfaction, instead nudging Claude back with terse signals like &apos;That doesn&apos;t work.&apos; You also <strong>revise your own instructions mid-flight</strong> (HTTPS to SSH remote, /upgrade to /version), expecting Claude to adapt instantly.</p>
+<p>You are pragmatic and outcome-focused: when a goal proves impossible (enforcing rulesets on a private repo without a Pro plan), you cleanly reverted all changes rather than fighting it. You value thorough verification—your praise patterns cluster around &apos;good debugging&apos; and &apos;multi-file changes&apos;—and you delegate methodical root-cause investigations (EPERM crashes, MobX duplication, non-atomic write races) with confidence that Claude will trace and confirm fixes before declaring victory.</p>
+      <div class="key-insight"><strong>Key pattern:</strong> You delegate ambitious, multi-step infrastructure runbooks for end-to-end autonomous execution, intervening only with quick, surgical course-corrections when Claude&apos;s scope or approach drifts.</div>
+    </div>
+    
+
+    <!-- Response Time Distribution -->
+    <div class="chart-card" style="margin: 24px 0;">
+      <div class="chart-title">User Response Time Distribution</div>
+      <div class="bar-row">
+        <div class="bar-label">2-10s</div>
+        <div class="bar-track"><div class="bar-fill" style="width:33.46303501945525%;background:#6366f1"></div></div>
+        <div class="bar-value">86</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">10-30s</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#6366f1"></div></div>
+        <div class="bar-value">257</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">30s-1m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:69.64980544747081%;background:#6366f1"></div></div>
+        <div class="bar-value">179</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">1-2m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:75.4863813229572%;background:#6366f1"></div></div>
+        <div class="bar-value">194</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">2-5m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:78.21011673151752%;background:#6366f1"></div></div>
+        <div class="bar-value">201</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">5-15m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:59.53307392996109%;background:#6366f1"></div></div>
+        <div class="bar-value">153</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">>15m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:33.85214007782101%;background:#6366f1"></div></div>
+        <div class="bar-value">87</div>
+      </div>
+      <div style="font-size: 12px; color: #64748b; margin-top: 8px;">
+        Median: 72.0s &bull; Average: 252.7s
+      </div>
+    </div>
+
+    <!-- Multi-clauding Section (matching Python reference) -->
+    <div class="chart-card" style="margin: 24px 0;">
+      <div class="chart-title">Multi-Clauding (Parallel Sessions)</div>
+      
+        <div style="display: flex; gap: 24px; margin: 12px 0;">
+          <div style="text-align: center;">
+            <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">36</div>
+            <div style="font-size: 11px; color: #64748b; text-transform: uppercase;">Overlap Events</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">52</div>
+            <div style="font-size: 11px; color: #64748b; text-transform: uppercase;">Sessions Involved</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">13%</div>
+            <div style="font-size: 11px; color: #64748b; text-transform: uppercase;">Of Messages</div>
+          </div>
+        </div>
+        <p style="font-size: 13px; color: #475569; margin-top: 12px;">
+          You run multiple Claude Code sessions simultaneously. Multi-clauding is detected when sessions
+          overlap in time, suggesting parallel workflows.
+        </p>
+      
+    </div>
+
+    <!-- Time of Day & Tool Errors -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title" style="display: flex; align-items: center; gap: 12px;">
+          User Messages by Time of Day
+          <select id="timezone-select" style="font-size: 12px; padding: 4px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">
+            <option value="0">PT (UTC-8)</option>
+            <option value="3">ET (UTC-5)</option>
+            <option value="8">London (UTC)</option>
+            <option value="9">CET (UTC+1)</option>
+            <option value="17">Tokyo (UTC+9)</option>
+            <option value="custom">Custom offset...</option>
+          </select>
+          <input type="number" id="custom-offset" placeholder="UTC offset" style="display: none; width: 80px; font-size: 12px; padding: 4px; border-radius: 4px; border: 1px solid #e2e8f0;">
+        </div>
+        <div id="hour-histogram">
+      <div class="bar-row">
+        <div class="bar-label">Morning (6-12)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#8b5cf6"></div></div>
+        <div class="bar-value">635</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">Afternoon (12-18)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:68.66141732283465%;background:#8b5cf6"></div></div>
+        <div class="bar-value">436</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">Evening (18-24)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:62.519685039370074%;background:#8b5cf6"></div></div>
+        <div class="bar-value">397</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">Night (0-6)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:9.763779527559056%;background:#8b5cf6"></div></div>
+        <div class="bar-value">62</div>
+      </div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Tool Errors Encountered</div>
+        <div class="bar-row">
+        <div class="bar-label">Other</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#dc2626"></div></div>
+        <div class="bar-value">272</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Command Failed</div>
+        <div class="bar-track"><div class="bar-fill" style="width:45.955882352941174%;background:#dc2626"></div></div>
+        <div class="bar-value">125</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">File Changed</div>
+        <div class="bar-track"><div class="bar-fill" style="width:17.647058823529413%;background:#dc2626"></div></div>
+        <div class="bar-value">48</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">User Rejected</div>
+        <div class="bar-track"><div class="bar-fill" style="width:15.441176470588236%;background:#dc2626"></div></div>
+        <div class="bar-value">42</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Edit Failed</div>
+        <div class="bar-track"><div class="bar-fill" style="width:8.455882352941178%;background:#dc2626"></div></div>
+        <div class="bar-value">23</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">File Not Found</div>
+        <div class="bar-track"><div class="bar-fill" style="width:4.411764705882353%;background:#dc2626"></div></div>
+        <div class="bar-value">12</div>
+      </div>
+      </div>
+    </div>
+
+    
+    <h2 id="section-wins">Impressive Things You Did</h2>
+    <p class="section-intro">Over 128 sessions across nearly a month, you&apos;ve leaned on Claude Code as a power tool for git operations, infrastructure automation, and an unusually sophisticated presentation-generation pipeline.</p>
+    <div class="big-wins">
+      
+        <div class="big-win">
+          <div class="big-win-title">Spec-driven TDD feature builds</div>
+          <div class="big-win-desc">You consistently drive features from spec to plan to implementation using test-driven development before merging to trunk. Your /doctor and PR auto-merge work shipped with 30/30 passing tests, and you regularly convert spec and plan artifacts directly into linked parent/child GitHub issues for parallel slice builds. This disciplined pipeline keeps quality high while moving fast.</div>
+        </div>
+      
+        <div class="big-win">
+          <div class="big-win-title">Root-cause CI and infra debugging</div>
+          <div class="big-win-desc">You task Claude with triaging gnarly failures and demand real root causes, not band-aids. You&apos;ve uncovered non-atomic write races fixed with os.replace, GITHUB_TOKEN security limitations requiring App-token fixes, packaging bugs masquerading as missing files, and pre-push hook blocks — then iterated until PRs went fully green. This methodical, evidence-grounded debugging shows up across nearly 20 sessions.</div>
+        </div>
+      
+        <div class="big-win">
+          <div class="big-win-title">Automated presentation knowledge base</div>
+          <div class="big-win-desc">You built a remarkable PPTX generation pipeline, ingesting 53 decks into a queryable SQLite knowledge base with voice artifacts to draft future talks. You iteratively refined templates, layouts, SVG embeds, and narrative flow, validating each change visually via LibreOffice and shipping clean PRs. This blends content design with serious engineering rigor.</div>
+        </div>
+      
+    </div>
+    
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">What Helped Most (Claude's Capabilities)</div>
+        <div class="bar-row">
+        <div class="bar-label">Good Debugging</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#16a34a"></div></div>
+        <div class="bar-value">19</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Multi-file Changes</div>
+        <div class="bar-track"><div class="bar-fill" style="width:63.1578947368421%;background:#16a34a"></div></div>
+        <div class="bar-value">12</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Proactive Help</div>
+        <div class="bar-track"><div class="bar-fill" style="width:31.57894736842105%;background:#16a34a"></div></div>
+        <div class="bar-value">6</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Correct Code Edits</div>
+        <div class="bar-track"><div class="bar-fill" style="width:31.57894736842105%;background:#16a34a"></div></div>
+        <div class="bar-value">6</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Good Explanations</div>
+        <div class="bar-track"><div class="bar-fill" style="width:21.052631578947366%;background:#16a34a"></div></div>
+        <div class="bar-value">4</div>
+      </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Outcomes</div>
+        <div class="bar-row">
+        <div class="bar-label">Not Achieved</div>
+        <div class="bar-track"><div class="bar-fill" style="width:6.0606060606060606%;background:#8b5cf6"></div></div>
+        <div class="bar-value">2</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Partially Achieved</div>
+        <div class="bar-track"><div class="bar-fill" style="width:9.090909090909092%;background:#8b5cf6"></div></div>
+        <div class="bar-value">3</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Mostly Achieved</div>
+        <div class="bar-track"><div class="bar-fill" style="width:27.27272727272727%;background:#8b5cf6"></div></div>
+        <div class="bar-value">9</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Fully Achieved</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#8b5cf6"></div></div>
+        <div class="bar-value">33</div>
+      </div>
+      </div>
+    </div>
+
+    
+    <h2 id="section-friction">Where Things Go Wrong</h2>
+    <p class="section-intro">Your sessions are largely successful, but friction clusters around Claude assuming the wrong approach before confirming, premature actions that need interrupting, and tooling/environment mismatches that force reversals and rework.</p>
+    <div class="friction-categories">
+      
+        <div class="friction-category">
+          <div class="friction-title">Wrong Initial Approach Requiring Course-Correction</div>
+          <div class="friction-desc">Claude frequently picks an approach or assumption that conflicts with your actual intent, forcing you to interrupt and redirect. Stating constraints upfront (e.g., &apos;replace, don&apos;t merge&apos;, &apos;use auto-merge&apos;, &apos;true SVG not PNG&apos;) in your initial request would reduce these reversals.</div>
+          <ul class="friction-examples"><li>Claude built the installer to merge existing settings when you wanted a clean replace, requiring an interrupt and rework.</li><li>Claude planned PNG conversion when you wanted true SVG embeds and scoped beyond the requested slides, causing extra cleanup.</li></ul>
+        </div>
+      
+        <div class="friction-category">
+          <div class="friction-title">Premature Actions Before Clarifying the Task</div>
+          <div class="friction-desc">Claude sometimes starts reading files, verifying code, or executing steps before you&apos;ve fully specified what you want, leading to interruptions. A brief confirmation of the plan before acting would keep work aligned with your goal.</div>
+          <ul class="friction-examples"><li>After a failed Ultraplan session, Claude proactively started reading files and was interrupted before you specified a task.</li><li>Claude began verifying code citations on its own and was interrupted before you gave any actual instructions.</li></ul>
+        </div>
+      
+        <div class="friction-category">
+          <div class="friction-title">Environment and Tooling Mismatches</div>
+          <div class="friction-desc">Recommendations and tooling sometimes fail in your specific managed, cloud, or constrained environments, or get blocked by platform limits discovered late. Surfacing environment constraints (free-plan limits, installed tools, managed-session restrictions) earlier would avoid wasted work and full reverts.</div>
+          <ul class="friction-examples"><li>Claude&apos;s recommended /plugin install commands didn&apos;t work in your managed/cloud environment, and earlier a change landed on the wrong branch requiring orphan-branch cleanup.</li><li>A private-repo-on-free-plan limit made ruleset/auto-merge enforcement impossible, and you ultimately reverted all session changes.</li></ul>
+        </div>
+      
+    </div>
+    
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Primary Friction Types</div>
+        <div class="bar-row">
+        <div class="bar-label">Buggy Code</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#dc2626"></div></div>
+        <div class="bar-value">8</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Wrong Approach</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#dc2626"></div></div>
+        <div class="bar-value">8</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Misunderstood Request</div>
+        <div class="bar-track"><div class="bar-fill" style="width:62.5%;background:#dc2626"></div></div>
+        <div class="bar-value">5</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">User Rejected Action</div>
+        <div class="bar-track"><div class="bar-fill" style="width:25%;background:#dc2626"></div></div>
+        <div class="bar-value">2</div>
+      </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Inferred Satisfaction (model-estimated)</div>
+        <div class="bar-row">
+        <div class="bar-label">Dissatisfied</div>
+        <div class="bar-track"><div class="bar-fill" style="width:2.5%;background:#eab308"></div></div>
+        <div class="bar-value">4</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Likely Satisfied</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#eab308"></div></div>
+        <div class="bar-value">160</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Satisfied</div>
+        <div class="bar-track"><div class="bar-fill" style="width:2.5%;background:#eab308"></div></div>
+        <div class="bar-value">4</div>
+      </div>
+      </div>
+    </div>
+
+    
+    
+    <h2 id="section-features">Existing CC Features to Try</h2>
+    <div class="claude-md-section">
+      <h3>Suggested CLAUDE.md Additions</h3>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">Just copy this into Claude Code to add it to your CLAUDE.md.</p>
+      <div class="claude-md-actions">
+        <button class="copy-all-btn" onclick="copyAllCheckedClaudeMd()">Copy All Checked</button>
+      </div>
+      
+        <div class="claude-md-item">
+          <input type="checkbox" id="cmd-0" class="cmd-checkbox" checked data-text="Add under a ## Git Conventions section\n\nDefault to SSH (not HTTPS) for git remotes, and use &apos;main&apos; as the default branch for new repos.">
+          <label for="cmd-0">
+            <code class="cmd-code">Default to SSH (not HTTPS) for git remotes, and use &apos;main&apos; as the default branch for new repos.</code>
+            <button class="copy-btn" onclick="copyCmdItem(0)">Copy</button>
+          </label>
+          <div class="cmd-why">Multiple sessions involved correcting HTTPS to SSH and explicitly switching/configuring default branches to main.</div>
+        </div>
+      
+        <div class="claude-md-item">
+          <input type="checkbox" id="cmd-1" class="cmd-checkbox" checked data-text="Add under a ## Plugin Management section\n\nWhen upgrading or installing plugins, verify the marketplace.json/catalog version matches the actual release commit before assuming the update mechanism is broken, and migrate renamed plugins rather than updating deprecated stubs in place.">
+          <label for="cmd-1">
+            <code class="cmd-code">When upgrading or installing plugins, verify the marketplace.json/catalog version matches the actual release commit before assuming the update mechanism is broken, and migrate renamed plugins rather than updating deprecated stubs in place.</code>
+            <button class="copy-btn" onclick="copyCmdItem(1)">Copy</button>
+          </label>
+          <div class="cmd-why">Two separate sessions failed because Claude updated stubs in place or the catalog pinned an old version, requiring user correction.</div>
+        </div>
+      
+        <div class="claude-md-item">
+          <input type="checkbox" id="cmd-2" class="cmd-checkbox" checked data-text="Add under a ## Config &amp; Installers section\n\nFor installers and config sync, default to clean-replace behavior (not merge) unless explicitly told to merge, and store permission/guardrail rules only in local config (settings.local.json excluded from sync).">
+          <label for="cmd-2">
+            <code class="cmd-code">For installers and config sync, default to clean-replace behavior (not merge) unless explicitly told to merge, and store permission/guardrail rules only in local config (settings.local.json excluded from sync).</code>
+            <button class="copy-btn" onclick="copyCmdItem(2)">Copy</button>
+          </label>
+          <div class="cmd-why">Multiple sessions required reworking installers that merged settings when the user wanted a clean replace, and several involved local-only permission rules.</div>
+        </div>
+      
+        <div class="claude-md-item">
+          <input type="checkbox" id="cmd-3" class="cmd-checkbox" checked data-text="Add under a ## Git Conventions section\n\nUse auto-merge for PRs rather than merging directly to trunk.">
+          <label for="cmd-3">
+            <code class="cmd-code">Use auto-merge for PRs rather than merging directly to trunk.</code>
+            <button class="copy-btn" onclick="copyCmdItem(3)">Copy</button>
+          </label>
+          <div class="cmd-why">Sessions repeatedly showed the user preferring auto-merge, and one direct merge lost work requiring restructuring.</div>
+        </div>
+      
+        <div class="claude-md-item">
+          <input type="checkbox" id="cmd-4" class="cmd-checkbox" checked data-text="Add under a ## Shell Scripting section\n\nPrefer portable POSIX tooling (xargs -P over GNU parallel, os.replace for atomic writes) for cross-machine scripts.">
+          <label for="cmd-4">
+            <code class="cmd-code">Prefer portable POSIX tooling (xargs -P over GNU parallel, os.replace for atomic writes) for cross-machine scripts.</code>
+            <button class="copy-btn" onclick="copyCmdItem(4)">Copy</button>
+          </label>
+          <div class="cmd-why">CI fixes repeatedly hinged on replacing non-portable tooling and fixing race conditions to make scripts work across machines.</div>
+        </div>
+      
+    </div>
+    
+    
+    <p style="font-size: 13px; color: #64748b; margin-bottom: 12px;">Just copy this into Claude Code and it'll set it up for you.</p>
+    <div class="features-section">
+      
+        <div class="feature-card">
+          <div class="feature-title">Custom Skills</div>
+          <div class="feature-oneliner">Reusable /commands defined as markdown that run multi-step workflows.</div>
+          <div class="feature-why"><strong>Why for you:</strong> You repeatedly do spec→plan→TDD build→PR→auto-merge flows and git cleanup; codifying these as skills removes repetition across your 128 sessions.</div>
+          
+          <div class="feature-examples">
+            <div class="feature-example">
+              <div class="example-code-row">
+                <code class="example-code">Create .claude/skills/ship/SKILL.md with: &apos;Run tests, commit with conventional message, open PR, enable auto-merge, monitor checks to green.&apos; Then type /ship</code>
+                <button class="copy-btn" onclick="copyText(this)">Copy</button>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      
+        <div class="feature-card">
+          <div class="feature-title">Hooks</div>
+          <div class="feature-oneliner">Shell commands that auto-run at lifecycle events.</div>
+          <div class="feature-why"><strong>Why for you:</strong> You enforce branch/directory/push guardrails and want portable, consistent commits; hooks can auto-format, run type checks, and block bad pushes automatically.</div>
+          
+          <div class="feature-examples">
+            <div class="feature-example">
+              <div class="example-code-row">
+                <code class="example-code">In .claude/settings.json: {&quot;hooks&quot;: {&quot;PreToolUse&quot;: [{&quot;matcher&quot;: &quot;Bash(git push*)&quot;, &quot;command&quot;: &quot;./scripts/guardrail-check.sh&quot;}]}}</code>
+                <button class="copy-btn" onclick="copyText(this)">Copy</button>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      
+        <div class="feature-card">
+          <div class="feature-title">MCP Servers</div>
+          <div class="feature-oneliner">Connect Claude to external tools like GitHub via Model Context Protocol.</div>
+          <div class="feature-why"><strong>Why for you:</strong> Many sessions involve PR review, issue creation, CI triage, and check monitoring—a GitHub MCP server gives Claude native access instead of shelling out to gh repeatedly.</div>
+          
+          <div class="feature-examples">
+            <div class="feature-example">
+              <div class="example-code-row">
+                <code class="example-code">claude mcp add github -- npx -y @modelcontextprotocol/server-github</code>
+                <button class="copy-btn" onclick="copyText(this)">Copy</button>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      
+    </div>
+    
+    
+    <h2 id="section-patterns">New Ways to Use Claude Code</h2>
+    <p style="font-size: 13px; color: #64748b; margin-bottom: 12px;">Just copy this into Claude Code and it'll walk you through it.</p>
+    <div class="patterns-section">
+      
+        <div class="pattern-card">
+          <div class="pattern-title">Codify your spec→build→ship pipeline</div>
+          <div class="pattern-summary">Your most successful sessions follow a spec→plan→TDD→PR→auto-merge pattern; turn it into a single skill.</div>
+          <div class="pattern-detail">Sessions like the /version fix, nesting algorithm, and auto-merge script all succeeded with this disciplined flow. You&apos;re manually re-establishing it each time, costing setup overhead across 128 sessions. A /feature skill encoding the steps would standardize quality and speed. It also reduces the wrong-approach friction seen when Claude merged directly or scoped beyond the request.</div>
+          
+          <div class="copyable-prompt-section">
+            <div class="prompt-label">Paste into Claude Code:</div>
+            <div class="copyable-prompt-row">
+              <code class="copyable-prompt">Create a /feature skill that: writes a spec, generates a plan, gets my approval, builds via TDD, opens a PR, enables auto-merge, and monitors CI to green—pausing for approval before each phase.</code>
+              <button class="copy-btn" onclick="copyText(this)">Copy</button>
+            </div>
+          </div>
+          
+        </div>
+      
+        <div class="pattern-card">
+          <div class="pattern-title">Batch repo maintenance via headless mode</div>
+          <div class="pattern-summary">Your ~/_git fleet operations (clean-branches, brew sync, validation) are perfect for non-interactive runs.</div>
+          <div class="pattern-detail">You ran clean-branches.sh across all ~/_git* repos and built cross-machine validation scripts. These are deterministic and repeatable. Running them headless in a scheduled script avoids re-prompting Claude each time. This matches your existing LaunchAgent/sync automation habits.</div>
+          
+          <div class="copyable-prompt-section">
+            <div class="prompt-label">Paste into Claude Code:</div>
+            <div class="copyable-prompt-row">
+              <code class="copyable-prompt">Write a headless command using &apos;claude -p&apos; that runs clean-branches across all ~/_git* repos, reports problem repos, and exits—suitable for a LaunchAgent cron.</code>
+              <button class="copy-btn" onclick="copyText(this)">Copy</button>
+            </div>
+          </div>
+          
+        </div>
+      
+        <div class="pattern-card">
+          <div class="pattern-title">Pre-flight version/catalog checks for plugin work</div>
+          <div class="pattern-summary">Two plugin upgrades failed on stale catalog versions or stub-in-place updates; add a verification step.</div>
+          <div class="pattern-detail">The dev-team 6.6.0 and agentic-dev-team migration sessions both stalled because Claude trusted the update mechanism instead of checking the actual release vs marketplace.json. Always diff the catalog against the latest release commit first. This turns a not_achieved outcome into a quick fix.</div>
+          
+          <div class="copyable-prompt-section">
+            <div class="prompt-label">Paste into Claude Code:</div>
+            <div class="copyable-prompt-row">
+              <code class="copyable-prompt">Before upgrading any plugin, compare marketplace.json&apos;s pinned version against the latest release tag/commit and tell me if they diverge before attempting the upgrade.</code>
+              <button class="copy-btn" onclick="copyText(this)">Copy</button>
+            </div>
+          </div>
+          
+        </div>
+      
+    </div>
+    
+    
+
+    
+    <h2 id="section-horizon">On the Horizon</h2>
+    <p class="section-intro">AI-assisted development is shifting from single-session pair programming toward autonomous, spec-driven workflows where agents plan, build via TDD, and self-verify across entire repository fleets.</p>
+    <div class="horizon-section">
+      
+        <div class="horizon-card">
+          <div class="horizon-title">Fleet-Wide Repo Health Orchestration</div>
+          <div class="horizon-possible">Run a single agent that sweeps every repo under ~/_git*, auto-diagnoses CI failures, branch protection gaps, stale Brewfile packages, and packaging bugs, then opens grounded PRs for each fix in parallel. Instead of fixing one broken script or one stuck PR check at a time, you&apos;d wake up to a dashboard of green sweeps and ready-to-merge fixes across your entire machine. This turns your recurring git_operations and config-cleanup work into a scheduled, self-healing pipeline.</div>
+          <div class="horizon-tip"><strong>Getting started:</strong> Use subagents (Task tool) to fan out across repos in parallel, combined with a referential-integrity sensor and your existing clean-branches.sh and validation scripts wired into a LaunchAgent.</div>
+          <div class="pattern-prompt"><div class="prompt-label">Paste into Claude Code:</div><code>Build an autonomous repo-health orchestrator. For every repo under ~/_git*, spawn a parallel subagent that: (1) runs CI/lint/tests locally and captures failures, (2) checks branch protection, default-branch=main, and deploy-preview config, (3) audits the Brewfile and gitignore for stale or oversized artifacts, (4) verifies referential integrity of any script/plugin references. For each issue found, root-cause it, apply a portable fix, run tests to confirm green, and open an auto-merge PR with a grounded summary. Produce a final consolidated report ranking repos by health, and wire the whole thing into a LaunchAgent so it runs nightly.</code><button class="copy-btn" onclick="copyText(this)">Copy</button></div>
+        </div>
+      
+        <div class="horizon-card">
+          <div class="horizon-title">Spec-to-Merged-Feature TDD Pipeline</div>
+          <div class="horizon-possible">Take a one-line feature request and have an agent generate a reviewed spec, decompose it into a parallel-slice plan, convert slices into linked GitHub issues, then build each slice via strict TDD until tests pass and auto-merge to trunk. Your sessions already chain spec→plan→TDD→merge manually with human gates; this closes the loop so the agent iterates against failing tests autonomously and only pings you at the approved review checkpoints. The result is shipped features with passing test suites and clean PR trails, with you steering rather than driving.</div>
+          <div class="horizon-tip"><strong>Getting started:</strong> Combine your existing spec/plan skills with Task subagents per slice, TaskCreate/TaskUpdate for tracking, and an iterate-until-green test loop using Bash plus auto-merge PR tooling.</div>
+          <div class="pattern-prompt"><div class="prompt-label">Paste into Claude Code:</div><code>Drive a feature end-to-end autonomously: starting from this one-paragraph request, write a reviewed spec and a parallel-slice implementation plan, then create linked parent/child GitHub issues. For each slice, spawn a subagent that builds strictly via TDD—write failing tests first, implement, and loop running the suite until fully green, fixing any race conditions or portability issues (prefer os.replace and xargs -P over GNU parallel). Use auto-merge rather than direct merges, recover gracefully from any misplaced-commit situations via cherry-pick, and pause only at the spec-approval and plan-approval gates to ask me. Deliver merged PRs with 100% passing tests and a handoff summary.</code><button class="copy-btn" onclick="copyText(this)">Copy</button></div>
+        </div>
+      
+        <div class="horizon-card">
+          <div class="horizon-title">Knowledge-Grounded Presentation Generation Engine</div>
+          <div class="horizon-possible">Maintain a queryable SQLite index of all your past decks and voice artifacts, then have an agent draft new presentations that pull grounded content, auto-apply your approved style rules and template layouts, and self-verify visual output via LibreOffice rendering. Rather than iteratively fixing placement, naming, and image-fitting bugs each session, the agent runs a visual smoke-test loop, catches recolor and layout regressions itself, and ships a verified PR with comparison variants. Drafting a talk becomes a query plus a review of finished options.</div>
+          <div class="horizon-tip"><strong>Getting started:</strong> Extend your 53-deck SQLite knowledge base with a PPTX generator that emits true SVG embeds, then add a LibreOffice-based visual verification loop driven by the Agent and Bash tools.</div>
+          <div class="pattern-prompt"><div class="prompt-label">Paste into Claude Code:</div><code>Build a grounded presentation pipeline on top of my SQLite deck index. Given a talk topic, query the index for relevant prior content and voice artifacts, then generate a PPTX using my approved style rules and template (side_image type, notes placeholder, comparison layout) with true SVG embeds rather than PNG conversions. Run a visual smoke-test loop: render each slide via LibreOffice, verify placement, naming, image-fitting, and color correctness, and auto-fix any regressions you detect during verification. Produce two narrative-flow variants (B and C) for comparison, validate both, and ship a single reviewed PR.</code><button class="copy-btn" onclick="copyText(this)">Copy</button></div>
+        </div>
+      
+    </div>
+    
+
+    
+    <div class="fun-ending">
+      <div class="fun-headline">"Claude got so eager it started reading files and verifying code citations before the user had even told it what to do—twice—prompting confused interrupts."</div>
+      <div class="fun-detail">In two separate sessions (including one right after a failed Ultraplan run), Claude proactively jumped into action and began investigating files before any task was given, only to be interrupted by the user who hadn&apos;t actually issued an instruction yet.</div>
+    </div>
+    
+
+    
+  </div>
+  <script>
+    function toggleCollapsible(header) {
+      header.classList.toggle('open');
+      const content = header.nextElementSibling;
+      content.classList.toggle('open');
+    }
+    function copyText(btn) {
+      const code = btn.previousElementSibling;
+      navigator.clipboard.writeText(code.textContent).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      });
+    }
+    function copyCmdItem(idx) {
+      const checkbox = document.getElementById('cmd-' + idx);
+      if (checkbox) {
+        const text = checkbox.dataset.text;
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = checkbox.nextElementSibling.querySelector('.copy-btn');
+          if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }
+        });
+      }
+    }
+    function copyAllCheckedClaudeMd() {
+      const checkboxes = document.querySelectorAll('.cmd-checkbox:checked');
+      const texts = [];
+      checkboxes.forEach(cb => {
+        if (cb.dataset.text) { texts.push(cb.dataset.text); }
+      });
+      const combined = texts.join('\n');
+      const btn = document.querySelector('.copy-all-btn');
+      if (btn) {
+        navigator.clipboard.writeText(combined).then(() => {
+          btn.textContent = 'Copied ' + texts.length + ' items!';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = 'Copy All Checked'; btn.classList.remove('copied'); }, 2000);
+        });
+      }
+    }
+    // Timezone selector for time of day chart (data is from our own analytics, not user input)
+    const rawHourCounts = {"0":8,"5":54,"6":115,"7":74,"8":137,"9":97,"10":103,"11":109,"12":84,"13":80,"14":84,"15":67,"16":77,"17":44,"18":83,"19":55,"20":78,"21":71,"22":56,"23":54};
+    function updateHourHistogram(offsetFromPT) {
+      const periods = [
+        { label: "Morning (6-12)", range: [6,7,8,9,10,11] },
+        { label: "Afternoon (12-18)", range: [12,13,14,15,16,17] },
+        { label: "Evening (18-24)", range: [18,19,20,21,22,23] },
+        { label: "Night (0-6)", range: [0,1,2,3,4,5] }
+      ];
+      const adjustedCounts = {};
+      for (const [hour, count] of Object.entries(rawHourCounts)) {
+        const newHour = (parseInt(hour) + offsetFromPT + 24) % 24;
+        adjustedCounts[newHour] = (adjustedCounts[newHour] || 0) + count;
+      }
+      const periodCounts = periods.map(p => ({
+        label: p.label,
+        count: p.range.reduce((sum, h) => sum + (adjustedCounts[h] || 0), 0)
+      }));
+      const maxCount = Math.max(...periodCounts.map(p => p.count)) || 1;
+      const container = document.getElementById('hour-histogram');
+      container.textContent = '';
+      periodCounts.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        const label = document.createElement('div');
+        label.className = 'bar-label';
+        label.textContent = p.label;
+        const track = document.createElement('div');
+        track.className = 'bar-track';
+        const fill = document.createElement('div');
+        fill.className = 'bar-fill';
+        fill.style.width = (p.count / maxCount) * 100 + '%';
+        fill.style.background = '#8b5cf6';
+        track.appendChild(fill);
+        const value = document.createElement('div');
+        value.className = 'bar-value';
+        value.textContent = p.count;
+        row.appendChild(label);
+        row.appendChild(track);
+        row.appendChild(value);
+        container.appendChild(row);
+      });
+    }
+    document.getElementById('timezone-select').addEventListener('change', function() {
+      const customInput = document.getElementById('custom-offset');
+      if (this.value === 'custom') {
+        customInput.style.display = 'inline-block';
+        customInput.focus();
+      } else {
+        customInput.style.display = 'none';
+        updateHourHistogram(parseInt(this.value));
+      }
+    });
+    document.getElementById('custom-offset').addEventListener('change', function() {
+      const parsed = parseInt(this.value, 10);
+      if (isNaN(parsed)) return;
+      updateHourHistogram(parsed + 8);
+    });
+  </script>
+</body>
+</html>
