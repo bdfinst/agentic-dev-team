@@ -265,6 +265,28 @@
       "anchor": "quick-reference-isolation-strategy-by-pattern"
     }
   },
+  "plugins/dev-team/knowledge/decision-defaults.md": {
+    "Destructive shape: replace vs. merge": {
+      "summary": "Trigger: a request writes config, settings, dotfiles, or installer output where prior",
+      "anchor": "destructive-shape-replace-vs-merge"
+    },
+    "Format fidelity: preserve the native format": {
+      "summary": "Trigger: handling a vector or structured asset (SVG, source diagram, lossless data).",
+      "anchor": "format-fidelity-preserve-the-native-format"
+    },
+    "Evolution: migrate vs. edit a stub in place": {
+      "summary": "Trigger: a target has been renamed, deprecated, or replaced by a successor (a plugin,",
+      "anchor": "evolution-migrate-vs-edit-a-stub-in-place"
+    },
+    "Integration: auto-merge vs. direct-to-trunk": {
+      "summary": "Trigger: landing changes on a shared branch.",
+      "anchor": "integration-auto-merge-vs-direct-to-trunk"
+    },
+    "Scope: touch only what was requested": {
+      "summary": "Trigger: a request names specific files, slides, or targets.",
+      "anchor": "scope-touch-only-what-was-requested"
+    }
+  },
   "plugins/dev-team/knowledge/design-smells.md": {
     "Design Smells → Pattern Mapping": {
       "summary": "| Smell | Signature in code | Remediation pattern |",
@@ -1819,8 +1841,12 @@
       "anchor": "constraints"
     },
     "Loading Decision Procedure": {
-      "summary": "| Profile | Description | Example |",
+      "summary": "Before loading anything or reading files, confirm an actionable instruction exists.",
       "anchor": "loading-decision-procedure"
+    },
+    "Step 0: Confirm there is a task": {
+      "summary": "Before loading anything or reading files, confirm an actionable instruction exists.",
+      "anchor": "step-0-confirm-there-is-a-task"
     },
     "Step 1: Classify the task": {
       "summary": "| Profile | Description | Example |",
