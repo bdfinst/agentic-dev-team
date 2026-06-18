@@ -3943,7 +3943,7 @@
       "anchor": "3-score-all-existing-tests-farley-score"
     },
     "4. Run the advisor (when applicable)": {
-      "summary": "If `--advise` is set (or auto-triggered), invoke the `test-design-advisor`",
+      "summary": "If `--advise` is set (or auto-triggered), use the Skill tool (`Skill(test-design-advisor ...)`) on the production code to produce testability assessment, pyramid",
       "anchor": "4-run-the-advisor-when-applicable"
     },
     "5. Aggregate and de-duplicate": {
