@@ -80,3 +80,4 @@ actuals.json
 .eval-sweep-progress.json
 # parallel eval harvest: per-agent trials + resume markers (run-full-eval-parallel.sh)
 .eval-parallel/
+docs/specs/
