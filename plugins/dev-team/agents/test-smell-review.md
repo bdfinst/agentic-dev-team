@@ -76,9 +76,9 @@ Test double misuse (load `test-doubles.md`):
 
 - Mock where a Stub + state assertion would do; mocking value objects/pure functions; mocking the type under test; asserting call order/count that doesn't matter; mocking concrete classes instead of ports
 
-Pyramid placement (load `test-pyramid.md`):
+Pyramid placement (load `test-pyramid.md`; use the MinimumCD six test types from `knowledge/cd-test-architecture.md#the-six-test-types` — static analysis / unit / component / contract / integration / E2E. Prefer "contract test" over "narrow integration test"; gloss once if the alias is needed: `contract test (also called narrow integration test)`):
 
-- Unit test doing real I/O (mis-layered → Slow Tests); E2E asserting a single edge case (belongs at unit); suite-level ice-cream-cone / hourglass / cupcake shape
+- Unit test doing real I/O (mis-layered → Slow Tests); E2E asserting a single edge case (belongs at unit); suite-level ice-cream-cone / hourglass / cupcake shape (name the pathology and the behaviors it harms — never propose a numeric per-layer redistribution; the pyramid is a cost heuristic, not a target shape).
 
 ## Self-Challenge
 
