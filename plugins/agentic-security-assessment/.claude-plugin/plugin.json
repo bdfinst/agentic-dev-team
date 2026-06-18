@@ -1,9 +1,0 @@
-{
-  "name": "agentic-security-assessment",
-  "version": "3.0.2",
-  "description": "DEPRECATED — renamed to security-assessment@bfinster. This stub auto-migrates legacy installs on /upgrade and surfaces a SessionStart banner so the half-migrated state is impossible to miss. Will be removed from the marketplace catalog no earlier than 2027-06-01.",
-  "author": {
-    "name": "finsterb",
-    "email": ""
-  }
-}

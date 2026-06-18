@@ -57,11 +57,6 @@ setup() {
   grep -qE 'Restart Claude Code' "$UPGRADE"
 }
 
-@test "security-assessment /upgrade references the legacy deprecation stub" {
-  # Documents the migration path for users coming from the pre-rename name.
-  grep -qE 'agentic-security-assessment' "$UPGRADE"
-}
-
 @test "security-assessment /upgrade is registered in CLAUDE.md dispatch table" {
   local claude_md="$REPO_ROOT/plugins/security-assessment/CLAUDE.md"
   # Must appear in the dispatch registry table.

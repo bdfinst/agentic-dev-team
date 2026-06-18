@@ -1,9 +1,0 @@
-{
-  "name": "agentic-dev-team",
-  "version": "6.0.2",
-  "description": "DEPRECATED — renamed to dev-team@bfinster. This stub auto-migrates legacy installs on /upgrade and surfaces a SessionStart banner so the half-migrated state is impossible to miss. Will be removed from the marketplace catalog no earlier than 2027-06-01.",
-  "author": {
-    "name": "finsterb",
-    "email": ""
-  }
-}
