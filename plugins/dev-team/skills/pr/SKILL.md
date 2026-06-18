@@ -29,6 +29,7 @@ Arguments: $ARGUMENTS
 - `--skip-review`: Skip the `/code-review` step (not recommended)
 - `--draft`: Create a draft PR
 - `--base <branch>`: Target branch (default: `main`)
+- `--no-auto-merge`: Do not enable auto-merge (the default is to enable it; see Step 5)
 
 ## Steps
 
@@ -109,7 +110,17 @@ Use the structured template:
 - [ ] <verification step 2>
 ```
 
-### 5. Report
+### 5. Enable auto-merge (default)
+
+Unless `--no-auto-merge` or `--draft` was given, enable auto-merge so the PR lands automatically once checks pass and any required reviews are in — rather than merging directly to trunk. This is the default integration stance in `knowledge/decision-defaults.md` (auto-merge vs. direct-to-trunk).
+
+```bash
+gh pr merge --auto --squash
+```
+
+If the repository does not have auto-merge enabled (the command errors), report that and leave the PR open for manual merge — do **not** merge directly to trunk to work around it.
+
+### 6. Report
 
 Display the PR URL and a summary of the quality gate results.
 

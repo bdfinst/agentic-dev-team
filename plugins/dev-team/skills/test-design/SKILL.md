@@ -36,6 +36,19 @@ Resolution Procedure in `agents/orchestrator.md`.
    framing and drop the duplicate.
 4. **Be concise.** One aggregated report. Issue messages one sentence;
    recommendations map to a concrete next edit.
+5. **MinimumCD vocabulary.** Layer labels in the aggregated report use the
+   MinimumCD six test types (static analysis / unit / component / contract /
+   integration / E2E) from `knowledge/cd-test-architecture.md`. Prefer
+   "contract test" over "narrow integration test"; if you must use the
+   alias, gloss it once: `contract test (also called narrow integration
+   test)`. Define each test type on first use (one-line gloss inline or
+   a "Test type definitions used in this report" block at the top).
+6. **No target-shape tables.** Do not emit "current shape vs recommended
+   shape" tables or per-layer target counts. The pyramid is a cost
+   heuristic; the aggregated report carries the advisor's per-behavior
+   placement table, not a silhouette target.
+7. **E2E justification gate.** Forward the advisor's four-condition E2E
+   verdict verbatim. Never recommend E2E in the rollup without it.
 
 ## Parse Arguments
 
@@ -68,7 +81,7 @@ exist, both skip — proceed to Step 4 with `--advise`.
 ### 3. Score all existing tests (Farley Score)
 
 A user-requested test review reports a quality score for the whole suite, not
-just the changed slice. Invoke the `test-design-reviewer` skill over **all
+just the changed slice. Use the Skill tool (`Skill(test-design-reviewer ...)`) over **all
 existing test files in the repository** (use the test-file indicators from
 `agents/test-review.md` § Skip) to produce the suite-level Farley Score, rating,
 and distribution. This headline score is independent of `--path` / `--since` —
@@ -77,8 +90,7 @@ repository has no test files, skip this step and note it in the report.
 
 ### 4. Run the advisor (when applicable)
 
-If `--advise` is set (or auto-triggered), invoke the `test-design-advisor`
-skill on the production code to produce testability assessment, pyramid
+If `--advise` is set (or auto-triggered), use the Skill tool (`Skill(test-design-advisor ...)`) on the production code to produce testability assessment, pyramid
 placement, double strategy, and a behavior-preserving refactor sequence for
 any untestable units.
 
@@ -99,11 +111,18 @@ for a module):
 **Health**: <pass|attention|critical>   **Test files**: N   **Findings**: N
 **Farley Score (all existing tests)**: <score> (<rating>) — Exemplary N · Good N · Adequate N · Poor N
 
+### Test type definitions used in this report
+<one-line glosses for MinimumCD terms appearing below; verbatim from
+`knowledge/cd-test-architecture.md` § The Six Test Types — at minimum
+the terms actually used in the report>
+
 ### Findings (by severity)
 | File:line | Smell / Issue | Severity | Source | Suggested fix |
 
 ### Design recommendations (advisor)
-<testability table · pyramid placement · double strategy · refactor sequence>
+<testability table · pyramid placement (per-behavior, two-direction
+justification, NO target counts) · double strategy · refactor sequence ·
+E2E justification (only when E2E is recommended)>
 
 ### Next steps
 - Mechanical fixes → /apply-fixes
@@ -111,3 +130,5 @@ for a module):
 ```
 
 Surface only what's actionable. If everything is clean, say so in one line.
+Do NOT include a "current shape vs recommended shape" table — see Orchestrator
+constraint #6.

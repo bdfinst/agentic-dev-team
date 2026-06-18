@@ -130,7 +130,8 @@ User-invocable skills are invoked as slash commands (e.g., `/code-review`) and e
 | --- | --- | --- |
 | `/plan` | [`plan/SKILL.md`](../skills/plan/SKILL.md) | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
 | `/build` | [`build/SKILL.md`](../skills/build/SKILL.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
-| `/pr` | [`pr/SKILL.md`](../skills/pr/SKILL.md) | Run quality gates and create a pull request |
+| `/pr` | [`pr/SKILL.md`](../skills/pr/SKILL.md) | Run quality gates and create a pull request (enables auto-merge by default) |
+| `/ship` | [`ship/SKILL.md`](../skills/ship/SKILL.md) | Run the full spec→plan→build→review→PR pipeline as one command, pausing at the human gates |
 | `/setup` | [`setup/SKILL.md`](../skills/setup/SKILL.md) | Detect tech stack, generate project-level config and hooks |
 | `/init-dev-team` | [`init-dev-team/SKILL.md`](../skills/init-dev-team/SKILL.md) | Install plugin prerequisites (jq, python3, mutation tools), offer CodeGraph, and optionally probe Anthropic model availability for restricted endpoints |
 | `/continue` | [`continue/SKILL.md`](../skills/continue/SKILL.md) | Resume work from a prior session using phase progress files |

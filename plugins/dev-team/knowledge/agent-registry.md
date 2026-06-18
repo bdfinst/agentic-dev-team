@@ -116,6 +116,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Name | File | ~Tokens | Used By |
 |------|------|---------|---------|
 | Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
+| Decision Defaults | `knowledge/decision-defaults.md` | ~350 | Orchestrator, Product Manager, `/plan` (approach contract) |
 | Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
 | Review Rubric | `knowledge/review-rubric.md` | 300 | `/code-review` (health scoring) |
 | OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |

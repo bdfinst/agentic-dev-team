@@ -55,7 +55,7 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Subagent prompt templates** (9): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`, `prompts/plan-review-parallelization.md`
 
-**Knowledge files** (25 + 3 collections): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, exploratory-testing-field-guide, adversarial-review-protocol, design-smells, object-calisthenics, testability-patterns, test-smells, test-doubles, test-pyramid, test-strategy, fixture-construction, result-verification, test-organization, test-refactoring, microservice-testing, cd-test-architecture, component-test-patterns, test-layer-gates, testing-quadrants, test-automation-maturity; collections: `test-matrix-examples/`, `testing-techniques/`, `test-stack-profiles/`
+**Knowledge files** (26 + 3 collections): agent-registry, decision-defaults, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, exploratory-testing-field-guide, adversarial-review-protocol, design-smells, object-calisthenics, testability-patterns, test-smells, test-doubles, test-pyramid, test-strategy, fixture-construction, result-verification, test-organization, test-refactoring, microservice-testing, cd-test-architecture, component-test-patterns, test-layer-gates, testing-quadrants, test-automation-maturity; collections: `test-matrix-examples/`, `testing-techniques/`, `test-stack-profiles/`
 
 **Agent templates** (9): ts-enforcer, esm-enforcer, react-testing, front-end-testing, twelve-factor-audit, python-quality, go-quality, csharp-quality, angular-testing (in `templates/agents/`, scaffolded by `/setup`)
 
@@ -86,7 +86,8 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
 | `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
 | `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence; ends with a Farley Score for the branch's tests before prompting for `/pr` |
-| `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request |
+| `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request (enables auto-merge by default) |
+| `/ship` | `skills/ship/SKILL.md` | orchestrator | Run the full spec→plan→TDD build→code-review→PR(auto-merge) pipeline as one command, pausing at the existing human gates |
 | `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
 | `/careful` | `skills/careful/SKILL.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
 | `/freeze` | `skills/freeze/SKILL.md` | worker | Scope-lock editing to a glob pattern; blocks edits outside the pattern |

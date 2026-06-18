@@ -83,6 +83,29 @@ All review commands are executed under orchestrator direction. When a user trigg
 | `/semgrep-analyze` | Static analysis | As pre-flight context for security-review |
 | `/harness-audit` | Harness effectiveness analysis | Periodically to review harness staleness |
 
+### Test-review request routing
+
+Strategic and design-altitude test requests route to the `qa-engineer`
+agent, which dispatches the right skill rather than synthesizing the
+review itself. Do not dispatch per-file `test-review` / `test-smell-review`
+agents directly when the request is strategic — they belong inside the
+`/test-design` rollup that `qa-engineer` (or `/test-design` itself) drives.
+
+| Request shape | Route to |
+|---|---|
+| "review the overall test design" / "test strategy review" / "audit our tests" / "is our testing healthy" | `qa-engineer` → `test-health` skill (delegates to `cd-test-architecture`, `/test-design`, `mutation-testing`) |
+| "review my tests" / per-file test quality | `/test-design` (dispatches `test-review` + `test-smell-review`; produces Farley Score via `test-design-reviewer`) |
+| "how should I test this" / "is this testable" / "design tests for X" | `qa-engineer` → `test-design-advisor` skill |
+| "align tests for CD" / pre-merge gate determinism / app-wide test types | `qa-engineer` → `cd-test-architecture` skill |
+| "are tests catching real bugs" / assertion strength | `qa-engineer` → `mutation-testing` skill |
+| Slice acceptance criteria → Gherkin scenarios | Author in `/plan`; `qa-engineer` owns the shape |
+
+When two routes plausibly apply, prefer the higher-altitude skill
+(`test-health` > `cd-test-architecture` > `test-design-advisor`) and let
+it delegate down. Never split a strategic test request across direct
+review-agent dispatches and a separate `qa-engineer` summary — that
+double-counts the work and leaves the two synthesis paths disconnected.
+
 ## Knowledge index — consumer usage pattern
 
 Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. `/model-routing-check` is the analogous diagnostic command; for routing, `/model-routing-check`; for knowledge freshness, `bash plugins/dev-team/hooks/lib/build-knowledge-index.sh --check`.
@@ -270,6 +293,8 @@ Append the entry to `memory/decisions.md` using the Write or Edit tool before mo
 ### Decision Making
 
 - Autonomy level: High for task routing, low for scope changes
+- **No task, no action**: if no actionable instruction has been given yet, do not read files, run commands, or load agents — wait for the task. Investigation begins once a task exists, not before.
+- **Approach contract**: before committing to an approach, screen the request against `knowledge/decision-defaults.md`. Whole-file load: the screen walks all five high-reversal-cost axes (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope) on every non-trivial request, so the agent needs the full axis list and each axis's trigger / default / confirm clause. Any axis the request leaves ambiguous is confirmed in a single upfront batch before work begins.
 - Ambiguity is a **dispatch trigger before it is an escalation trigger**: route product ambiguity to the Product Manager, design ambiguity to the Architect, and factual unknowns to Codebase Recon. Escalate to the human only after that investigation cannot resolve it.
 - Escalation criteria (post-investigation): irreducible requirement ambiguity, resource conflicts, scope creep
 - Human approval requirements: Architecture changes, production deployments, scope modifications
