@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 1080" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 1180" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">/test-modernize five-phase workflow</title>
-  <desc id="desc">Vertical flowchart of the /test-modernize orchestrator. Approach contract resolves the sink (tracker CLI or local files). Phase 1 invokes /cd-test-architecture then /issues-from-assessment. Phase 2 invokes /gherkin-public. Phase 3 invokes /test-audit-disable then /coverage-baseline. Phase 4 invokes /build then /coverage-delta per Story. Phase 5 invokes /build, /mutation-testing, and /quality-targets-converge per Story until the four quality targets are met or waived. A human-gate diamond sits between every phase. The dev-team:test-modernization-review agent reviews each phase deliverable.</desc>
+  <desc id="desc">Vertical flowchart of the /test-modernize orchestrator. Phase 0 approach contract resolves the tracker CLI (or local files) and the test-binding mode (bdd-runner or xunit-with-annotations). Phase 1 invokes /cd-test-architecture then /issues-from-assessment, but does NOT create Component tests Stories. Phase 2 runs in two passes around the human gate: Pass A authors .feature files; the operator signs off; Pass B creates Component tests Stories bound to specific approved scenarios. Phase 3 disables cannot-fail tests and records baseline coverage. Phase 4 invokes /build then /coverage-delta per Story; /build binds each Component tests Story's tests to the cited scenarios. Phase 5 invokes /build, /mutation-testing, and /quality-targets-converge per Story until the four quality targets are met or waived; new component tests required by Phase 5 must extend approved Gherkin or open a Phase-2 amendment. A human-gate diamond sits between every phase. The dev-team:test-modernization-review agent reviews each phase deliverable and in Phases 2 and 4 verifies Gherkin binding integrity.</desc>
   <defs>
     <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
       <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.07"/>
@@ -11,6 +11,9 @@
     <marker id="arrow-amber" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
       <path d="M0,0 L10,4 L0,8 Z" fill="#F59E0B"/>
     </marker>
+    <marker id="arrow-emerald" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#10B981"/>
+    </marker>
   </defs>
 
   <!-- Title -->
@@ -19,101 +22,120 @@
 
   <!-- Phase 0 -->
   <g filter="url(#shadow)">
-    <rect x="340" y="68" width="300" height="58" rx="10" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
+    <rect x="280" y="68" width="420" height="76" rx="10" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
     <text x="490" y="90" text-anchor="middle" font-size="13" font-weight="600" fill="#0F172A">Phase 0 — Approach contract</text>
-    <text x="490" y="108" text-anchor="middle" font-size="11" fill="#475569">Parent URL → tracker CLI probe</text>
-    <text x="490" y="122" text-anchor="middle" font-size="11" fill="#475569">(fallback: local files in ./plans/test-modernize/)</text>
+    <text x="490" y="108" text-anchor="middle" font-size="11" fill="#475569">Parent URL → tracker CLI probe (fallback: local files)</text>
+    <text x="490" y="126" text-anchor="middle" font-size="11" fill="#475569">Test-binding mode: bdd-runner or xunit-with-annotations (default)</text>
   </g>
 
   <!-- Phase 1 -->
   <g filter="url(#shadow)">
-    <rect x="100" y="156" width="780" height="84" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
-    <text x="490" y="178" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 1 — Analyze</text>
-    <text x="490" y="198" text-anchor="middle" font-size="11" fill="#1E40AF">/cd-test-architecture → assessment report (components, gaps, seam-reachability, target architecture)</text>
-    <text x="490" y="216" text-anchor="middle" font-size="11" fill="#1E40AF">/issues-from-assessment → parent + Phase-tagged children via gh / az / glab / acli</text>
-    <text x="490" y="234" text-anchor="middle" font-size="11" fill="#1E40AF">dev-team:test-modernization-review --phase 1</text>
+    <rect x="100" y="172" width="780" height="92" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+    <text x="490" y="194" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 1 — Analyze</text>
+    <text x="490" y="214" text-anchor="middle" font-size="11" fill="#1E40AF">/cd-test-architecture → assessment report (components, gaps, seam-reachability, target architecture)</text>
+    <text x="490" y="232" text-anchor="middle" font-size="11" fill="#1E40AF">/issues-from-assessment → [Gap] / [Baseline] / [Refactor-for-testability] / non-component Stories</text>
+    <text x="490" y="250" text-anchor="middle" font-size="11" font-style="italic" fill="#1E40AF">[Component tests] Stories are NOT created here — they bind to approved Gherkin in Phase 2 Pass B</text>
   </g>
 
   <!-- Gate 1 -->
   <g filter="url(#shadow)">
-    <polygon points="490,258 600,290 490,322 380,290" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
-    <text x="490" y="287" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
-    <text x="490" y="302" text-anchor="middle" font-size="10" fill="#92400E">backlog review</text>
+    <polygon points="490,286 600,318 490,350 380,318" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
+    <text x="490" y="315" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
+    <text x="490" y="330" text-anchor="middle" font-size="10" fill="#92400E">backlog review</text>
   </g>
 
-  <!-- Phase 2 -->
+  <!-- Phase 2 Pass A -->
   <g filter="url(#shadow)">
-    <rect x="100" y="338" width="780" height="68" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
-    <text x="490" y="360" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 2 — Specify public interface</text>
-    <text x="490" y="380" text-anchor="middle" font-size="11" fill="#1E40AF">/gherkin-public → .feature files at every public boundary</text>
-    <text x="490" y="398" text-anchor="middle" font-size="11" fill="#1E40AF">(API endpoint · UI flow · batch-job entry point · CLI · library export · event type)</text>
+    <rect x="100" y="366" width="780" height="62" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+    <text x="490" y="388" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 2 Pass A — author scenarios</text>
+    <text x="490" y="408" text-anchor="middle" font-size="11" fill="#1E40AF">/gherkin-public → .feature files at every public boundary (API · UI · batch entry · CLI · library · event)</text>
+    <text x="490" y="421" text-anchor="middle" font-size="10" font-style="italic" fill="#1E40AF">No Stories created yet — review-agent pass-A verifies gherkin-bindings.json does not yet exist</text>
   </g>
 
   <!-- Gate 2 -->
   <g filter="url(#shadow)">
-    <polygon points="490,422 600,454 490,486 380,454" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
-    <text x="490" y="451" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
-    <text x="490" y="466" text-anchor="middle" font-size="10" fill="#92400E">Gherkin sign-off</text>
+    <polygon points="490,444 600,476 490,508 380,476" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
+    <text x="490" y="473" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
+    <text x="490" y="488" text-anchor="middle" font-size="10" fill="#92400E">Gherkin sign-off (hard stop)</text>
+  </g>
+
+  <!-- Phase 2 Pass B -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="524" width="780" height="78" rx="10" fill="#ECFDF5" stroke="#34D399" stroke-width="1.5"/>
+    <text x="490" y="546" text-anchor="middle" font-size="13" font-weight="600" fill="#065F46">Phase 2 Pass B — bind Stories to approved scenarios</text>
+    <text x="490" y="566" text-anchor="middle" font-size="11" fill="#047857">/gherkin-public --create-stories → one [Component tests] &lt;component&gt; · &lt;surface&gt; per approved surface</text>
+    <text x="490" y="584" text-anchor="middle" font-size="11" fill="#047857">Each Story body cites &lt;feature-file&gt;::&lt;scenario-name&gt; pairs → gherkin-bindings.json (the binding contract)</text>
   </g>
 
   <!-- Phase 3 -->
   <g filter="url(#shadow)">
-    <rect x="100" y="502" width="780" height="84" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
-    <text x="490" y="524" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 3 — Audit + baseline coverage</text>
-    <text x="490" y="544" text-anchor="middle" font-size="11" fill="#1E40AF">/test-audit-disable → disable cannot-fail tests (skip + tag, never delete)</text>
-    <text x="490" y="562" text-anchor="middle" font-size="11" fill="#1E40AF">/coverage-baseline → record line+branch %, post to parent / FEATURE.md</text>
-    <text x="490" y="580" text-anchor="middle" font-size="11" fill="#1E40AF">dev-team:test-modernization-review --phase 3</text>
+    <rect x="100" y="618" width="780" height="84" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+    <text x="490" y="640" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 3 — Audit + baseline coverage</text>
+    <text x="490" y="660" text-anchor="middle" font-size="11" fill="#1E40AF">/test-audit-disable → disable cannot-fail tests (skip + tag, never delete)</text>
+    <text x="490" y="678" text-anchor="middle" font-size="11" fill="#1E40AF">/coverage-baseline → record line+branch %, post to parent / FEATURE.md</text>
+    <text x="490" y="696" text-anchor="middle" font-size="11" fill="#1E40AF">dev-team:test-modernization-review --phase 3</text>
   </g>
 
   <!-- Gate 3 -->
   <g filter="url(#shadow)">
-    <polygon points="490,602 600,634 490,666 380,634" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
-    <text x="490" y="631" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
-    <text x="490" y="646" text-anchor="middle" font-size="10" fill="#92400E">baseline accepted</text>
+    <polygon points="490,718 600,750 490,782 380,750" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
+    <text x="490" y="747" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
+    <text x="490" y="762" text-anchor="middle" font-size="10" fill="#92400E">baseline accepted</text>
   </g>
 
   <!-- Phase 4 -->
   <g filter="url(#shadow)">
-    <rect x="100" y="682" width="780" height="84" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
-    <text x="490" y="704" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 4 — No-refactor adds</text>
-    <text x="490" y="724" text-anchor="middle" font-size="11" fill="#1E40AF">For each Phase-4 Story → /build (TDD + /code-review)</text>
-    <text x="490" y="742" text-anchor="middle" font-size="11" fill="#1E40AF">/coverage-delta after each Story → Δ vs. baseline (no production-code diffs allowed)</text>
-    <text x="490" y="760" text-anchor="middle" font-size="11" fill="#1E40AF">dev-team:test-modernization-review --phase 4</text>
+    <rect x="100" y="798" width="780" height="100" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+    <text x="490" y="820" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 4 — No-refactor adds</text>
+    <text x="490" y="840" text-anchor="middle" font-size="11" fill="#1E40AF">For each Phase-4 Story → /build (TDD + /code-review)</text>
+    <text x="490" y="858" text-anchor="middle" font-size="11" font-weight="600" fill="#047857">  ↳ [Component tests] Stories bind tests to cited scenarios (binding mode from Phase 0)</text>
+    <text x="490" y="876" text-anchor="middle" font-size="11" fill="#1E40AF">/coverage-delta → Δ vs. baseline · review-agent --phase 4 verifies binding integrity</text>
+    <text x="490" y="892" text-anchor="middle" font-size="10" font-style="italic" fill="#1E40AF">No production-code diffs allowed in Phase 4</text>
   </g>
 
   <!-- Gate 4 -->
   <g filter="url(#shadow)">
-    <polygon points="490,782 600,814 490,846 380,814" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
-    <text x="490" y="811" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
-    <text x="490" y="826" text-anchor="middle" font-size="10" fill="#92400E">Δ-coverage accepted</text>
+    <polygon points="490,914 600,946 490,978 380,946" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
+    <text x="490" y="943" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
+    <text x="490" y="958" text-anchor="middle" font-size="10" fill="#92400E">Δ-coverage accepted</text>
   </g>
 
   <!-- Phase 5 -->
   <g filter="url(#shadow)">
-    <rect x="100" y="862" width="780" height="104" rx="10" fill="#FEF3F2" stroke="#FCA5A5" stroke-width="1.5"/>
-    <text x="490" y="886" text-anchor="middle" font-size="13" font-weight="600" fill="#991B1B">Phase 5 — Refactor-for-testability + converge on quality targets</text>
-    <text x="490" y="906" text-anchor="middle" font-size="11" fill="#9F1239">For each Phase-5 Story (baseline-green-first) → /build (minimum behavior-preserving refactor + new test)</text>
-    <text x="490" y="924" text-anchor="middle" font-size="11" fill="#9F1239">/mutation-testing + /quality-targets-converge per Story</text>
-    <text x="490" y="942" text-anchor="middle" font-size="11" font-weight="600" fill="#9F1239">Targets: line+branch ≥ 90% · zero surviving mutants · 100% deterministic · fastest pre-merge wall-clock</text>
-    <text x="490" y="960" text-anchor="middle" font-size="11" fill="#9F1239">dev-team:test-modernization-review --phase 5</text>
+    <rect x="100" y="994" width="780" height="118" rx="10" fill="#FEF3F2" stroke="#FCA5A5" stroke-width="1.5"/>
+    <text x="490" y="1016" text-anchor="middle" font-size="13" font-weight="600" fill="#991B1B">Phase 5 — Refactor-for-testability + converge on quality targets</text>
+    <text x="490" y="1036" text-anchor="middle" font-size="11" fill="#9F1239">For each Phase-5 Story (baseline-green-first) → /build (minimum behavior-preserving refactor + new test)</text>
+    <text x="490" y="1054" text-anchor="middle" font-size="11" fill="#9F1239">/mutation-testing + /quality-targets-converge per Story</text>
+    <text x="490" y="1072" text-anchor="middle" font-size="11" font-style="italic" fill="#9F1239">New behavior found here → [Phase-2 amendment] Story (operator authors intent; never invented mid-loop)</text>
+    <text x="490" y="1090" text-anchor="middle" font-size="11" font-weight="600" fill="#9F1239">Targets: line+branch ≥ 90% · zero surviving mutants · 100% deterministic · fastest pre-merge wall-clock</text>
   </g>
 
   <!-- Gate 5 -->
   <g filter="url(#shadow)">
-    <polygon points="490,982 620,1018 490,1054 360,1018" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
-    <text x="490" y="1015" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
-    <text x="490" y="1030" text-anchor="middle" font-size="10" fill="#92400E">targets met (or each waived with reason)</text>
+    <polygon points="490,1128 620,1156 490,1184 360,1156" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5" transform="translate(0,-22)"/>
+    <text x="490" y="1135" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
+    <text x="490" y="1150" text-anchor="middle" font-size="10" fill="#92400E">targets met (or each waived with reason)</text>
   </g>
 
   <!-- Arrows main column -->
-  <line x1="490" y1="126" x2="490" y2="156" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <line x1="490" y1="240" x2="490" y2="258" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
-  <line x1="490" y1="322" x2="490" y2="338" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <line x1="490" y1="406" x2="490" y2="422" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
-  <line x1="490" y1="486" x2="490" y2="502" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <line x1="490" y1="586" x2="490" y2="602" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
-  <line x1="490" y1="666" x2="490" y2="682" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <line x1="490" y1="766" x2="490" y2="782" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
-  <line x1="490" y1="846" x2="490" y2="862" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <line x1="490" y1="966" x2="490" y2="982" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+  <line x1="490" y1="144" x2="490" y2="172" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="490" y1="264" x2="490" y2="286" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+  <line x1="490" y1="350" x2="490" y2="366" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="490" y1="428" x2="490" y2="444" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+  <line x1="490" y1="508" x2="490" y2="524" stroke="#10B981" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+  <line x1="490" y1="602" x2="490" y2="618" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="490" y1="702" x2="490" y2="718" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+  <line x1="490" y1="782" x2="490" y2="798" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="490" y1="898" x2="490" y2="914" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+  <line x1="490" y1="978" x2="490" y2="994" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="490" y1="1112" x2="490" y2="1128" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+
+  <!-- Gherkin binding callout (right rail) -->
+  <g>
+    <path d="M 880 563 Q 935 563 935 720 Q 935 855 880 855" fill="none" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <text x="942" y="710" font-size="10" fill="#047857" font-weight="600">Gherkin</text>
+    <text x="942" y="724" font-size="10" fill="#047857" font-weight="600">binding</text>
+    <text x="942" y="738" font-size="10" fill="#047857">→ Phase 4</text>
+    <text x="942" y="752" font-size="10" fill="#047857">+ Phase 5</text>
+  </g>
 </svg>

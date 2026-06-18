@@ -61,13 +61,15 @@ Parse the assessment file's sections per `/cd-test-architecture`'s contract:
 - **Duplicate-coverage table** → Phase-5 `[De-duplicate]` Stories.
 - **CD-fitness gaps** → Phase-1 `[Gap]` Stories.
 - **Seam-reachability table per component** → Phase-4 `[Baseline]` Stories + Phase-5 `[Refactor-for-testability]` Stories.
-- **Target architecture (per component)** → Phase-5 `[<Layer>]` Stories per (component, layer).
+- **Target architecture (per component)** → Phase-5 Stories per (component, layer) **EXCLUDING `[Component tests]`** — those Stories are created by `/gherkin-public` at the end of Phase 2, bound to the approved Gherkin scenarios.
+
+`[Component tests]` Stories are intentionally NOT created from the assessment. Creating them here would bind the test code to the *recommended* behavior in the assessment rather than the *approved* behavior in the Gherkin — and the Phase-2 human gate exists precisely to let the operator sharpen, add to, or correct the inferred behaviors before any test binds to them. `/gherkin-public --create-stories` produces them after the gate.
 
 For each derived child, build the title + body + phase-tag + predecessor list per the prompt's "ADO mapping" section in `reports/legacy-test-modernization-prompt.md`. The phase tags are `Phase-1` through `Phase-5`. Predecessor links follow the rules:
 
 - Every `[Baseline]` blocked by `[Audit]` (created in Phase 3, referenced by ID).
 - Every `[Refactor-for-testability]` blocked by the matching `[Baseline]`.
-- Every contract / integration / E2E / resilience Story blocked by the same component's `[Component tests]`.
+- Every contract / integration / E2E / resilience Story blocked by the same component's `[Component tests]` (those IDs are filled in by `/gherkin-public` in Phase 2; this skill leaves a placeholder `Depends on: [Component tests] for <component> (created in Phase 2)` and the orchestrator backfills the link after Phase 2).
 - Every `[De-duplicate]` blocked by the Story that adds the kept-layer test.
 - Every `[Re-scope]` blocked by the Story that lands the test at the correct layer.
 

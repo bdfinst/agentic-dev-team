@@ -52,7 +52,9 @@ Flag as **error** any missing section, any gap without evidence, any component m
 
 ### Phase 2 — Specify public interface
 
-Read `memory/test-modernize/<slug>/phase-2.md` and the `.feature` files it points at.
+This phase runs in two passes around the human gate. The check set differs per pass — read `phase-2.md` to determine which.
+
+**Pass A — scenarios authored (pre-gate).** Read `memory/test-modernize/<slug>/phase-2.md` and the `.feature` files it points at.
 
 Verify:
 
@@ -62,8 +64,21 @@ Verify:
 - Every Scenario has at least one Then assertion.
 - Every component has at least one success Scenario AND at least one failure Scenario.
 - For batch jobs, the Feature's entry point is the scheduled trigger / `main`, not an internal step.
+- No `[Component tests]` Stories have been created yet (`gherkin-bindings.json` should not exist on Pass A; if it does, the operator-gate was bypassed).
 
-Flag as **error** any missing component, any internal-step assertion, any Scenario without a Then, any pattern violation.
+Flag as **error** any missing component, any internal-step assertion, any Scenario without a Then, any pattern violation, or any pre-gate Story binding.
+
+**Pass B — Stories created (post-gate).** Read `memory/test-modernize/<slug>/gherkin-bindings.json` and verify it covers the `.feature` files exhaustively.
+
+Verify:
+
+- Every `(file, Scenario)` pair across all `.feature` files appears in `gherkin-bindings.json` mapping to a created tracker-id.
+- No entry maps to a stub / TODO Scenario (filter by header — stubs are intentionally un-bound until the operator hand-authors them).
+- Each `[Component tests]` Story's body explicitly cites the source `.feature` file path and the scenario names it must satisfy.
+- The binding mode recorded in `phase-0.md` (`bdd-runner` or `xunit-with-annotations`) is reflected in each Story's Testing approach section.
+- Phase-1 predecessor placeholders ("Depends on: `[Component tests]` for `<component>`") have been backfilled with the real Story IDs.
+
+Flag as **error** any orphan Scenario (no Story citing it), any Story without a scenario citation, or any predecessor placeholder still unresolved.
 
 ### Phase 3 — Audit + baseline
 
@@ -81,15 +96,19 @@ Flag as **error** any deleted test, any tool mismatch, any out-of-order timestam
 
 ### Phase 4 — No-refactor adds
 
-Read `memory/test-modernize/<slug>/phase-4.md` and the `coverage-history.json`.
+Read `memory/test-modernize/<slug>/phase-4.md`, `coverage-history.json`, and `gherkin-bindings.json`.
 
 Verify:
 
 - Every Phase-4 Story closed by `/build` has a corresponding entry in `coverage-history.json`.
 - The cumulative line delta is positive (≥ +5 percentage points over the baseline, or the operator flagged this as expected-flat).
 - No production-code diff was introduced by a Phase-4 Story — Phase 4's contract is tests-only.
+- **Gherkin binding integrity.** For every `[Component tests]` Story closed in Phase 4, the submitted test code under the Story's PR/commit cites the scenarios from `gherkin-bindings.json`:
+  - `bdd-runner` mode → each cited Scenario has a matching `Scenario:` line in a `.feature` file the runner discovers, AND the runner reports it executed and passed.
+  - `xunit-with-annotations` mode → each cited Scenario has a corresponding test function whose name mirrors the Scenario name (case-and-punctuation tolerant: snake_case / PascalCase / camelCase variants accepted), AND the function body's leading comment cites the source `.feature` file path.
+- No Scenario from `gherkin-bindings.json` is left without a test (count of unbound scenarios = 0).
 
-Flag as **error** any production-code change attributed to a Phase-4 Story.
+Flag as **error** any production-code change attributed to a Phase-4 Story, any unbound approved Scenario, any test method that names itself after a Scenario that does not exist in the approved Gherkin (drift in the other direction — code claiming to test a scenario that isn't real).
 
 Flag as **warning** a negative or near-zero coverage delta (a Story made coverage worse, or didn't move it — surface for operator decision).
 

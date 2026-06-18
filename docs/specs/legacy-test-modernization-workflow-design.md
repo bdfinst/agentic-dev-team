@@ -105,15 +105,33 @@ Step skeleton (each step is one delegated call + one gate):
 
 1. **Approach contract** — confirm repo path, **parent issue URL (ADO / GitHub / Jira / GitLab — or empty for local files)**, external tests location, CI config, quality targets (defaults: 90% / 0 / 100% / fastest). One-batch question to operator if any is ambiguous. The sink adapter is resolved from the URL host (`dev.azure.com` → ADO, `github.com` → GitHub Issues, `*.atlassian.net` → Jira, `gitlab.com` / self-hosted GitLab → GitLab Issues, empty → local-files).
 2. **Phase 1** — `Skill("cd-test-architecture", "<repo> --ci ... --external-tests ...")` → `Skill("issues-from-assessment", "<assessment> --parent <url-or-empty>")` → dispatch `dev-team:test-modernization-review` with `--phase 1`. Human gate.
-3. **Phase 2** — `Skill("gherkin-public", "<repo>")` → dispatch the review agent with `--phase 2`. Human gate.
+3. **Phase 2** — Pass A: `Skill("gherkin-public", "<repo>")` writes `.feature` files only → dispatch the review agent with `--phase 2` (pass-A checks). Human gate. Pass B: `Skill("gherkin-public", "<repo> --create-stories --parent <url>")` creates one `[Component tests]` Story per approved (component, surface), each Story body binding its tests to the specific `<feature-file>::<scenario-name>` pairs it must satisfy. Backfill the Phase-1 predecessor placeholders for `[Component tests]` with the new IDs.
 4. **Phase 3** — `Skill("test-audit-disable", "<repo>")` → `Skill("coverage-baseline", "<repo>")` → ADO Feature description updated. Human gate.
-5. **Phase 4** — for each Phase-4 ADO Story in dependency order: `Skill("build", "<story-id>")` (which runs TDD + `/code-review`) → `Skill("coverage-delta", "<repo>")` → review agent `--phase 4`. Human gate.
+5. **Phase 4** — for each Phase-4 Story in dependency order: `Skill("build", "<story-id>")` (TDD + `/code-review`). For `[Component tests]` Stories, `/build` binds tests to the scenarios cited in the Story body using the binding mode recorded in `phase-0.md` (`bdd-runner` or `xunit-with-annotations`). `Skill("coverage-delta", "<repo>")` → review agent `--phase 4` (cross-checks scenario → Story-id map against the actually-submitted test code). Human gate.
 6. **Phase 5** — for each Phase-5 ADO Story in dependency order: `Skill("build", "<story-id>")` → after every Story, `Skill("mutation-testing", ...)` and `Skill("quality-targets-converge", ...)` until targets are met. Final gate: human accepts metrics or waives a target with reason.
 7. **Report** — final metrics, ADO Feature URL, PR list, what (if anything) was waived.
 
 ## State / resume
 
 Each phase emits a single progress file under `memory/test-modernize/<repo>/phase-<n>.md` with: phase number, ADO Story IDs touched, deliverable paths, metric snapshot, gate status. `/continue` already reads `memory/` — `/test-modernize --from-phase <n>` keys off these files so a partial run resumes without re-doing the analysis.
+
+## Gherkin binding — the approved scenarios drive the component tests
+
+The Phase-2 Gherkin is not advisory. It is the **executable specification of intended behavior**, and every component test in the suite ends up bound to a specific approved Scenario.
+
+The contract:
+
+1. **Phase 1 does not create `[Component tests]` Stories.** `/issues-from-assessment` creates `[Gap]`, `[Baseline]`, `[Refactor-for-testability]`, `[De-duplicate]`, `[Re-scope]`, and non-component target-architecture Stories — never `[Component tests]`. Phase-1 Stories that would depend on a component-test Story (contract / integration / E2E / resilience) leave a placeholder predecessor (`Depends on: [Component tests] for <component>`) that Phase 2 backfills.
+2. **Phase 2 Pass A — author scenarios only.** `/gherkin-public` writes `.feature` files per public surface. No Stories are created yet. The Phase-2 review-agent pass-A checks confirm `gherkin-bindings.json` does not yet exist (the operator-gate has not been bypassed).
+3. **Human gate.** The operator reviews and may edit `.feature` files in place. This is the only point where the team decides what behavior the system intends.
+4. **Phase 2 Pass B — bind Stories.** `/gherkin-public --create-stories` creates one `[Component tests] <component> · <surface>` Story per approved (component, surface). Each Story's Acceptance Criteria cites the specific `<feature-file>::<scenario-name>` pairs its tests must satisfy. The scenario → Story-id map is written to `memory/test-modernize/<slug>/gherkin-bindings.json`. Pass-B review-agent checks verify every Scenario has a Story citing it and every Story cites at least one Scenario.
+5. **Phases 4 + 5 bind tests to scenarios.** When `/build` works a `[Component tests]` Story, it reads the Story body's scenario list + the binding mode the operator chose in Phase 0 (`bdd-runner` or `xunit-with-annotations`) and authors tests that mirror each Scenario by name (xUnit) or generate step definitions (BDD runner). Acceptance Criteria checkboxes (one per Scenario) all turn green before the Story closes.
+6. **Phase-4 review verifies binding integrity.** The review agent cross-checks `gherkin-bindings.json` against the submitted test code and flags every unbound Scenario AND every test method that names a Scenario the approved Gherkin does not contain (drift in both directions).
+7. **Phase 5 may not invent Scenarios.** If `/quality-targets-converge` discovers a coverage gap or surviving mutant that no approved Scenario covers, it opens a `[Phase-2 amendment]` Story and pauses convergence until the operator approves the new Scenario via the standard Phase-2 sign-off. The Phase-5 component-test Story then binds to the now-approved Scenario. The operator remains the only author of intent.
+
+This is what keeps the workflow honest: the assessment proposes coverage gaps, the Gherkin specifies intended behavior, and the tests are written to the Gherkin — not to the assessment. The operator's Phase-2 review is the only place behavior is decided.
+
+The binding mode (`bdd-runner` vs `xunit-with-annotations`) is a per-repo choice recorded once in `memory/test-modernize/<slug>/phase-0.md`. Both modes carry the same binding contract (each test cites the Scenario it exists to satisfy); they differ only in whether the runner executes the `.feature` file directly or whether the test name + leading comments serve as the citation. The default is `xunit-with-annotations` because it adds no new runtime dependency and works in every test framework the plugin already targets.
 
 ## Issue sink — direct CLI dispatch (no adapter library)
 

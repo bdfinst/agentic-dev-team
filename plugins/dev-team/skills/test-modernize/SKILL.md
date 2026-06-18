@@ -53,7 +53,11 @@ Resolve the sink and the inputs in a single batch:
 4. Probe the chosen CLI with `command -v <cli> >/dev/null 2>&1`. If missing, inform the operator with the exact install command and **fall back to local-files mode** for the rest of the workflow.
 5. Confirm CI config path and external test sources (if any). Defaults: none.
 6. Quality targets — defaults `coverage ≥ 90%`, `surviving mutants = 0`, `determinism = 100%`, `pre-merge wall-clock = fastest achievable`. Mention that `.dev-team/quality-targets.json` can override them per-repo; load it if present.
-7. Generate a `<repo-slug>` (last path segment, lowercased, non-alphanumerics → `-`). All progress files live under `memory/test-modernize/<repo-slug>/`.
+7. **Test-binding mode for the approved Gherkin** — ask the operator which to use, defaulting to `xunit-with-annotations`:
+   - `bdd-runner` — generate step definitions in the project's BDD runner (cucumber-js, pytest-bdd, behave, cucumber-jvm, SpecFlow, godog) so each Scenario executes its Given/When/Then steps directly.
+   - `xunit-with-annotations` (default) — one xUnit-style test method per Scenario; the test method name mirrors the Scenario name, and the Given/When/Then become structured comments at the top of the test body citing the source `.feature` file.
+   Record the choice in `memory/test-modernize/<slug>/phase-0.md`; `/gherkin-public` reads it to populate the `[Component tests]` Story bodies.
+8. Generate a `<repo-slug>` (last path segment, lowercased, non-alphanumerics → `-`). All progress files live under `memory/test-modernize/<repo-slug>/`.
 
 Print the resolved inputs (sink, CLI, fallback decision, targets, `<repo-slug>`) and proceed. If `--from-phase <n>` was given, jump to that phase.
 
@@ -65,12 +69,21 @@ Print the resolved inputs (sink, CLI, fallback decision, targets, `<repo-slug>`)
 
 **Human gate** — wait for approval before specifying the public interface.
 
-### 2. Specify public interface — `/gherkin-public`
+### 2. Specify public interface — `/gherkin-public` (two-pass)
 
-1. Invoke `/gherkin-public <repo-path> --repo-slug <slug>`. It reads the component map from `memory/test-modernize/<slug>/phase-1.md` and writes `.feature` files per public surface (API endpoint, UI flow, batch-job entry point, library export, event type) to `features/test-modernize/` (or `./specs/test-modernize/` if no `features/` dir exists).
+Phase 2 runs in two passes around the human gate so Stories never bind to un-reviewed scenarios.
+
+**Pass A — author scenarios.**
+
+1. Invoke `/gherkin-public <repo-path> --repo-slug <slug>`. It reads the component map from `memory/test-modernize/<slug>/phase-1.md` and writes `.feature` files per public surface (API endpoint, UI flow, batch-job entry point, library export, event type) to `features/test-modernize/` (or `./specs/test-modernize/` if no `features/` dir exists). It does NOT create Stories on this pass.
 2. Dispatch `dev-team:test-modernization-review --phase 2`.
 
-**Human gate** — operator validates the Gherkin scenarios before any test changes land. This is a hard stop.
+**Human gate** — operator validates the Gherkin scenarios. This is a hard stop. The operator may edit `.feature` files in place before approving.
+
+**Pass B — bind Stories to approved scenarios.**
+
+1. Once approved, invoke `/gherkin-public <repo-path> --repo-slug <slug> --parent <url-or-empty> --create-stories`. This pass creates one `[Component tests] <component> · <surface>` Story per approved public surface via the resolved tracker CLI. Each Story's Acceptance Criteria cites the specific `<feature-file>::<scenario-name>` pairs its tests must satisfy. The scenario → Story-id map is written to `memory/test-modernize/<slug>/gherkin-bindings.json`.
+2. Backfill the predecessor placeholders the Phase-1 Stories left for `[Component tests]` (contract / integration / E2E / resilience Stories blocked by the new Story IDs).
 
 ### 3. Audit + baseline coverage — `/test-audit-disable` + `/coverage-baseline`
 
@@ -82,11 +95,13 @@ Print the resolved inputs (sink, CLI, fallback decision, targets, `<repo-slug>`)
 
 ### 4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta`
 
-For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md`):
+For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):
 
 1. Invoke `/build <issue-id-or-path>` — drives RED-GREEN-REFACTOR with inline `/code-review`.
+   - For `[Component tests]` Stories created in Phase 2, `/build` is told to bind each test to the specific `<feature-file>::<scenario-name>` pairs cited in the Story's Acceptance Criteria using the binding mode recorded in `phase-0.md` (`bdd-runner` or `xunit-with-annotations`). The Acceptance Criteria checkboxes (one per scenario) must all turn green before the Story closes.
+   - For `[Baseline]` Stories (created in Phase 1), tests lock in current behavior at existing seams — no Gherkin binding required.
 2. After every Story closes, invoke `/coverage-delta <repo-path> --parent <url-or-empty> --repo-slug <slug>`. Posts Δ vs. baseline to the parent issue / `FEATURE.md`.
-3. After all Phase-4 Stories are Done, dispatch `dev-team:test-modernization-review --phase 4`.
+3. After all Phase-4 Stories are Done, dispatch `dev-team:test-modernization-review --phase 4` — it cross-checks the scenario → Story-id map against the actually-submitted test code to verify every Scenario has a test citing it.
 
 **Human gate** — Δ-coverage accepted before any production-code refactor.
 
@@ -96,6 +111,7 @@ For each Phase-5 child issue in dependency order:
 
 1. Confirm the matching `[Baseline]` Story is closed and green (precondition). If not, halt and report.
 2. Invoke `/build <issue-id-or-path>` — minimum behavior-preserving refactor + the test that needed the new seam.
+   - For `[Component tests]` Stories that landed in Phase 5 (i.e. the surface needed a `[Refactor-for-testability]` first), `/build` binds tests to the cited scenarios using the same binding mode from `phase-0.md`. The matching `[Refactor-for-testability]` Story must be closed and green before any of its dependent `[Component tests]` work starts.
 3. After every Story closes, invoke `/mutation-testing <repo-path>` and `/quality-targets-converge <repo-path> --parent <url-or-empty> --repo-slug <slug>`.
 4. `/quality-targets-converge` loops until all four targets are met or a target is explicitly waived by the operator with the reason recorded on the parent issue / `FEATURE.md`.
 5. Dispatch `dev-team:test-modernization-review --phase 5`.
