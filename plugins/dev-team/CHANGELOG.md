@@ -1,5 +1,33 @@
 # Changelog
 
+## [6.8.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.7.0...dev-team-v6.8.0) (2026-06-18)
+
+
+### Features
+
+* **agents:** add identity personas to all 11 team agents ([#253](https://github.com/bdfinst/agentic-dev-team/issues/253)) ([cd751d9](https://github.com/bdfinst/agentic-dev-team/commit/cd751d921c1ecc515f71eee222047058d15027ec))
+* **build:** JS project bootstrap gate — invoke js-project-init when package.json missing ([#257](https://github.com/bdfinst/agentic-dev-team/issues/257)) ([4b6ff4e](https://github.com/bdfinst/agentic-dev-team/commit/4b6ff4ee1ca3450639346089952015f264703442))
+* **js-project-init:** add lint-staged with pre-commit auto-fix ([#256](https://github.com/bdfinst/agentic-dev-team/issues/256)) ([d6d3c64](https://github.com/bdfinst/agentic-dev-team/commit/d6d3c6412005b1235f2b369e979c01869712a53b))
+* **qa-engineer,test-design:** rewrite qa-engineer as Senior SDET; lock test-design vocabulary to MinimumCD ([#270](https://github.com/bdfinst/agentic-dev-team/issues/270)) ([f189ebf](https://github.com/bdfinst/agentic-dev-team/commit/f189ebf29a509e67ab6fe7198a0655897088e187))
+* **version:** make /version a mechanical, deterministic lookup ([#259](https://github.com/bdfinst/agentic-dev-team/issues/259)) ([a553754](https://github.com/bdfinst/agentic-dev-team/commit/a553754be97325cdfd7c08aea97e2f7c0a17dcd1))
+
+
+### Bug Fixes
+
+* **build:** ship the parallel-build wave scripts inside the plugin ([#261](https://github.com/bdfinst/agentic-dev-team/issues/261)) ([77d9e39](https://github.com/bdfinst/agentic-dev-team/commit/77d9e39761ea115a3c475dc99142c02c2f51c5ab))
+* **security-assessment:** stop shipping build/test scripts; make runtime scripts discoverable ([#263](https://github.com/bdfinst/agentic-dev-team/issues/263)) ([5ae7afc](https://github.com/bdfinst/agentic-dev-team/commit/5ae7afc4a90d60e6a231bec462a17dc77dd31a1d))
+* **upgrade:** skip legacy-id migration when version &gt;= 6.1.0 ([#249](https://github.com/bdfinst/agentic-dev-team/issues/249)) ([770c413](https://github.com/bdfinst/agentic-dev-team/commit/770c41354680275784e4a04890db8e6564972138))
+
+
+### Performance Improvements
+
+* **ci:** parallelize local pre-push gates and bats suites ([#247](https://github.com/bdfinst/agentic-dev-team/issues/247)) ([836be51](https://github.com/bdfinst/agentic-dev-team/commit/836be51bb8b026b9e2afe4f9af4c17c7834fe552))
+
+
+### Documentation
+
+* fix duplicate examples in GETTING-STARTED.md skill invocation section ([#269](https://github.com/bdfinst/agentic-dev-team/issues/269)) ([0cc0c6a](https://github.com/bdfinst/agentic-dev-team/commit/0cc0c6a684f0baa7c47910978284c9d6da730989))
+
 ## [6.7.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.6.1...dev-team-v6.7.0) (2026-06-08)
 
 

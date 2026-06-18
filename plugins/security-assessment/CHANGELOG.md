@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.2.0...security-assessment-v3.2.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* **security-assessment:** stop shipping build/test scripts; make runtime scripts discoverable ([#263](https://github.com/bdfinst/agentic-dev-team/issues/263)) ([5ae7afc](https://github.com/bdfinst/agentic-dev-team/commit/5ae7afc4a90d60e6a231bec462a17dc77dd31a1d))
+
 ## [3.2.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.1.1...security-assessment-v3.2.0) (2026-06-07)
 
 
