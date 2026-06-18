@@ -117,3 +117,4 @@ Report:
 - Resume mid-workflow with `/continue` (which scans `memory/test-modernize/<slug>/phase-<n>.md`) or `/test-modernize <repo> --from-phase <n>`.
 - For Phase-1-only analysis without committing to the full workflow, invoke `/cd-test-architecture` directly.
 - The workflow is identical whether the operator has a tracker CLI installed or not — only the destination of the issues changes (tracker vs. `./plans/test-modernize/`).
+- **Design:** see `docs/specs/legacy-test-modernization-workflow-design.md` for the rationale behind the five-phase order of operations, the *baseline-before-refactor* invariant, the *airplane test*, and the direct-CLI-dispatch decision (no shell-adapter library). The operator-facing diagram lives at `plugins/dev-team/docs/diagrams/test-modernize-flow.svg` and is embedded in `docs/agent-architecture.md`.

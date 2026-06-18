@@ -1,5 +1,7 @@
 # Design — `/test-modernize` orchestrator workflow
 
+> **Implementation:** the `/test-modernize` skill at [`plugins/dev-team/skills/test-modernize/SKILL.md`](../../plugins/dev-team/skills/test-modernize/SKILL.md). For the operator-facing workflow overview with the rendered phase diagram, see [Architecture → Test modernization workflow](../../plugins/dev-team/docs/agent-architecture.md#test-modernization-workflow); for how it composes with the rest of the test-evaluation tools, see [Test Evaluation and Architecture](../../plugins/dev-team/docs/test-evaluation.md). This document is the design rationale — *why* the workflow has the shape it does.
+
 A repeatable replacement for the legacy-test-modernization prompt, modeled on `/ship`. `/test-modernize` doesn't implement anything itself — it sequences existing skills/agents through the five-phase order of operations, holds the human gates, and writes its deliverables to whichever issue tracker the operator points at (ADO, GitHub, Jira, …) — or to local `plans/` and `specs/` files when no tracker is given.
 
 ## Why a skill, not a prompt
@@ -12,15 +14,15 @@ The prompt works once. A skill makes the procedure:
 - **Observable** — metrics (coverage, mutants, determinism, wall-clock) land in `metrics/` and on the ADO Feature description automatically.
 - **Resumable** — `/continue` already resumes phase progress files from `memory/`; phase-keyed progress means a multi-day modernization survives session boundaries.
 
-## Pattern: orchestrator + per-phase worker skills + pluggable issue sink
+## Pattern: orchestrator + per-phase worker skills + direct tracker-CLI dispatch
 
 ```
 /test-modernize  (orchestrator skill, role: orchestrator)
 │
 ├── Phase 0 — Resolve sink
 │   └── Ask: "Parent issue URL? (ADO / GitHub / Jira / GitLab — or empty for local files)"
-│       → Detect tracker from URL host; load matching sink adapter.
-│       → If empty: sink = local-files (writes to ./plans/ and ./specs/).
+│       → Detect tracker from URL host; probe the matching CLI (gh / az / glab / acli).
+│       → If empty (or the CLI is missing): sink = local-files (writes to ./plans/ and ./specs/).
 │
 ├── Phase 1 — Analyze
 │   └── /cd-test-architecture (existing worker)
@@ -67,7 +69,7 @@ New, single-purpose workers (each ~80–150 lines):
 
 | Skill | Role | Inputs | Outputs |
 |---|---|---|---|
-| `/issues-from-assessment` | worker | `/cd-test-architecture` report + parent-URL (or empty) | Issues written via the resolved sink adapter — ADO Feature+Stories+Tasks, GitHub Issues with parent linkage, Jira Epic+Stories+Subtasks, or local `./plans/*.md` + `./specs/*.md` files when no URL given |
+| `/issues-from-assessment` | worker | `/cd-test-architecture` report + parent-URL (or empty) | Issues written via the resolved tracker CLI — ADO Feature+Stories+Tasks via `az boards`, GitHub Issues via `gh`, Jira Epic+Stories+Subtasks via `acli`, GitLab Issues via `glab`, or local `./plans/*.md` + `./specs/*.md` files when no URL is given or the matching CLI is missing |
 | `/gherkin-public` | worker | repo + component pattern map | `.feature` files at the public boundary per component (API endpoints, UI flows, batch entry points, library exports, event types) |
 | `/test-audit-disable` | worker | repo's test suite | tests with no real assertions disabled (skip + tag), reasons recorded |
 | `/coverage-baseline` | worker | repo's test suite | coverage report + number posted to Feature description |
