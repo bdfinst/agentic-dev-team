@@ -45,6 +45,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | progress-guardian | `agents/progress-guardian.md` | mid | Plan adherence, commit discipline, scope creep detection |
 | refactor-opportunity-review | `agents/refactor-opportunity-review.md` | mid | Post-GREEN refactoring opportunities, semantic vs structural duplication |
 | data-flow-tracer | `agents/data-flow-tracer.md` | mid | Data flow tracing through architecture layers (analysis-only) |
+| test-modernization-review | `agents/test-modernization-review.md` | mid | Gate-keeper for `/test-modernize` — verifies each phase's deliverable matches its acceptance criteria before the workflow advances |
 
 ## Skills Registry
 
@@ -92,6 +93,13 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | ADR Tools | `skills/adr-tools/SKILL.md` | ~1,350 | Orchestrator, adr-author, Software Engineer, Architect |
 | Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~400 | Architect, Software Engineer, Tech Writer |
 | Ubiquitous Language | `skills/ubiquitous-language/SKILL.md` | ~800 | Architect, domain-review, Product Manager |
+| Test Modernize | `skills/test-modernize/SKILL.md` | ~900 | Orchestrator, QA Engineer, `/test-modernize` command |
+| Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~750 | `/test-modernize` (Phase 1), QA Engineer |
+| Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | `/test-modernize` (Phase 2), QA Engineer, Product Manager |
+| Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~650 | `/test-modernize` (Phase 3), QA Engineer |
+| Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~600 | `/test-modernize` (Phase 3), QA Engineer, Platform Engineer |
+| Coverage Delta | `skills/coverage-delta/SKILL.md` | ~450 | `/test-modernize` (Phases 4–5), QA Engineer |
+| Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~750 | `/test-modernize` (Phase 5), QA Engineer, Software Engineer |
 
 ## Subagent Prompt Templates
 

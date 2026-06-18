@@ -45,10 +45,18 @@ Enforce rigorous development practices:
 | Test Design Reviewer | [`test-design-reviewer.md`](../skills/test-design-reviewer/SKILL.md) | Test quality patterns and anti-patterns |
 | Test Design Advisor | [`test-design-advisor.md`](../skills/test-design-advisor/SKILL.md) | Advise on testability, pyramid layer, double strategy, and behavior-preserving refactor sequences |
 | CD Test Architecture | [`cd-test-architecture.md`](../skills/cd-test-architecture/SKILL.md) | Evaluate an app's tests and recommend a CD-aligned architecture: deterministic, config-free CI gate with UI/service/batch patterns |
+| Issues from Assessment | [`issues-from-assessment/SKILL.md`](../skills/issues-from-assessment/SKILL.md) | Worker for `/test-modernize` Phase 1 — convert a `/cd-test-architecture` assessment into parent + Phase-tagged child issues via the tracker CLI matching the parent URL (gh / az / glab / acli), or to local plan files if no URL/CLI is available |
+| Gherkin Public | [`gherkin-public/SKILL.md`](../skills/gherkin-public/SKILL.md) | Worker for `/test-modernize` Phase 2 — author Gherkin scenarios for the entire public interface (API endpoints, UI flows, batch-job entry points, library exports, event types) at the observable boundary |
+| Test Audit + Disable | [`test-audit-disable/SKILL.md`](../skills/test-audit-disable/SKILL.md) | Worker for `/test-modernize` Phase 3 — detect tests that cannot fail (no assertions, tautologies, swallowed exceptions, self-equality) and disable each with skip-and-tag plus reason; never deletes |
+| Coverage Baseline | [`coverage-baseline/SKILL.md`](../skills/coverage-baseline/SKILL.md) | Worker for `/test-modernize` Phase 3 — detect the repo's coverage tool, capture post-audit line+branch percentages, and post the baseline to the parent issue or local `FEATURE.md` |
+| Coverage Delta | [`coverage-delta/SKILL.md`](../skills/coverage-delta/SKILL.md) | Worker for `/test-modernize` Phase 4 — re-run coverage after each Story and post Δ vs. baseline; never overwrites history |
+| Quality Targets Converge | [`quality-targets-converge/SKILL.md`](../skills/quality-targets-converge/SKILL.md) | Worker for `/test-modernize` Phase 5 — loop that picks the largest gap to the four quality targets (coverage ≥ 90%, zero surviving mutants, 100% determinism, fastest pre-merge wall-clock) and dispatches the smallest action to close it |
 | Browser Testing | [`browser-testing.md`](../skills/browser-testing/SKILL.md) | Playwright-based browser QA for visual verification |
 | Feature File Validation | [`feature-file-validation.md`](../skills/feature-file-validation/SKILL.md) | Gherkin quality, determinism, implementation independence, test automation coverage |
 
 > For the full test evaluation workflow — how Test Design Advisor, CD Test Architecture, `/test-design`, and `test-smell-review` relate, the out-of-repo anti-pattern, and sample invocations — see [Test Evaluation and Architecture](test-evaluation.md).
+
+> For the *remediation* workflow that consumes a `/cd-test-architecture` assessment and drives a legacy repository to ≥ 90% coverage, zero surviving mutants, full determinism, and the fastest achievable pre-merge wall-clock, see `/test-modernize` (under Workflow Skills above) and the design rationale at [`docs/specs/legacy-test-modernization-workflow-design.md`](../../../docs/specs/legacy-test-modernization-workflow-design.md).
 
 ### Research & Design Skills
 
@@ -131,7 +139,8 @@ User-invocable skills are invoked as slash commands (e.g., `/code-review`) and e
 | `/plan` | [`plan/SKILL.md`](../skills/plan/SKILL.md) | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
 | `/build` | [`build/SKILL.md`](../skills/build/SKILL.md) | Execute an approved plan with TDD, inline reviews, and verification evidence |
 | `/pr` | [`pr/SKILL.md`](../skills/pr/SKILL.md) | Run quality gates and create a pull request (enables auto-merge by default) |
-| `/ship` | [`ship/SKILL.md`](../skills/ship/SKILL.md) | Run the full spec→plan→build→review→PR pipeline as one command, pausing at the human gates |
+| `/ship` | [`ship/SKILL.md`](../skills/ship/SKILL.md) | Run the full spec-to-merge pipeline as one command (spec, plan, TDD build, code review, PR with auto-merge), pausing at the existing human gates |
+| `/test-modernize` | [`test-modernize/SKILL.md`](../skills/test-modernize/SKILL.md) | Modernize a legacy repository's tests for CD as one orchestrated workflow — five phases from assessment to quality-target convergence, with human gates between phases and tracker-CLI issue dispatch (falls back to local files) |
 | `/setup` | [`setup/SKILL.md`](../skills/setup/SKILL.md) | Detect tech stack, generate project-level config and hooks |
 | `/init-dev-team` | [`init-dev-team/SKILL.md`](../skills/init-dev-team/SKILL.md) | Install plugin prerequisites (jq, python3, mutation tools), offer CodeGraph, and optionally probe Anthropic model availability for restricted endpoints |
 | `/continue` | [`continue/SKILL.md`](../skills/continue/SKILL.md) | Resume work from a prior session using phase progress files |

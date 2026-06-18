@@ -22,6 +22,26 @@ Both inline review checkpoints (Phase 3) and `/code-review` use the same review-
 
 For the full pipeline — targeting, pre-flight gates, static analysis pre-pass, ACCEPTED-RISKS suppression, fix-loop exit conditions, report generation, and the `.review-passed` gate file — see [Code Review Process](code-review-process.md).
 
+## Test modernization workflow
+
+`/test-modernize` is a long-running orchestrator that sequences a five-phase remediation of a legacy repository's tests. Like `/ship`, it delegates each phase to the owning worker and stops at every human gate; unlike `/ship`, the deliverable is not a single PR but a tracker-managed backlog plus the gradual convergence of four quality targets: ≥ 90% line+branch coverage, zero surviving mutants, 100% determinism, and the fastest achievable pre-merge wall-clock with no off-machine dependencies (the *airplane test*).
+
+![/test-modernize five-phase workflow with human gates between each phase](diagrams/test-modernize-flow.svg)
+
+The five phases:
+
+1. **Analyze** — `/cd-test-architecture` produces the assessment; `/issues-from-assessment` converts it into a parent + Phase-tagged child issues via the tracker CLI that matches the parent URL host (`gh` for `github.com`, `az boards` for `dev.azure.com`, `glab` for GitLab, `acli` for `*.atlassian.net`). When no parent URL is given, or the matching CLI is not installed, the worker informs the operator and falls back to local plan files under `./plans/test-modernize/`.
+2. **Specify public interface** — `/gherkin-public` writes `.feature` files at every public boundary (API endpoint, UI flow, batch-job entry point, CLI command, library export, event type). The human gate here is a hard stop — no test or production-code change lands until the operator signs off on the scenarios.
+3. **Audit + baseline coverage** — `/test-audit-disable` disables every test that cannot fail (skip + tag with reason; never deletes — Phase 4 repairs them); `/coverage-baseline` records line+branch percentages after the audit as the floor every later phase must improve on.
+4. **No-refactor adds** — for each Phase-4 Story (in dependency order from the issue map), `/build` drives RED-GREEN-REFACTOR with inline `/code-review`. `/coverage-delta` posts Δ vs. baseline to the parent after every Story. Production code MUST NOT change in Phase 4.
+5. **Refactor-for-testability + converge** — for each Phase-5 Story (predecessor: its `[Baseline]` Story must be green first), `/build` lands the minimum behavior-preserving refactor plus the test that needed the new seam. `/mutation-testing` and `/quality-targets-converge` run after every Story; the loop picks the largest gap to the four targets and dispatches the smallest action to close it, until the targets are met or each remaining gap is explicitly waived with a recorded reason.
+
+Between phases, `dev-team:test-modernization-review` reads the just-completed phase's deliverable from `memory/test-modernize/<repo>/phase-<n>.md` and either approves the advance or returns blocker findings. This agent is **outside the standard review-dispatch fan-out** — it gates process, not code.
+
+`/continue` resumes the workflow from any phase boundary by scanning `memory/test-modernize/<repo>/phase-<n>.md`; `/test-modernize <repo> --from-phase <n>` does the same explicitly.
+
+For the design rationale and the full prompt-to-skill evolution, see [`docs/specs/legacy-test-modernization-workflow-design.md`](../../../docs/specs/legacy-test-modernization-workflow-design.md). For how `/test-modernize` composes with the rest of the test-evaluation tools, see [Test Evaluation and Architecture](test-evaluation.md).
+
 ## Context Management
 
 The Orchestrator manages context utilization using two operational skills.
