@@ -10,19 +10,24 @@ The test evaluation workflow answers two questions: "how well is this applicatio
 
 ## Tools and Their Altitudes
 
-Three tools operate at different scopes. Use the one that matches what you need.
+Four tools operate at different scopes. Use the one that matches what you need.
 
-| What you want | Tool | Altitude |
-|---|---|---|
-| Review test files in a changeset for smells and quality | `/test-design` | Per-file / changeset |
-| Advise on how to test a specific module or hard-to-test unit | `test-design-advisor` skill | Unit / module |
-| Assess the whole application's test strategy and pipeline alignment | `cd-test-architecture` skill | Whole application |
+| What you want | Tool | Altitude | Direction |
+|---|---|---|---|
+| Advise on how to test a specific module or hard-to-test unit | `test-design-advisor` skill | Unit / module | Forward (design) |
+| Review test files in a changeset for smells, quality, and a suite-wide Farley Score | `/test-design` | Per-file / changeset | Backward (review) |
+| Audit the whole test suite's strategy, quadrant coverage, and automation maturity | `test-health` skill | Whole suite | Strategic rollup |
+| Assess the application's test strategy against CD: per-component types, pre-merge gate determinism | `cd-test-architecture` skill | Whole application | Architecture |
 
-**`/test-design`** is the orchestrator command for the changeset-level workflow. It dispatches `test-review` (tactical quality: missing assertions, non-determinism mechanics, mock hygiene) and `test-smell-review` (design-level smells: xUnit smell taxonomy, double selection, pyramid placement) in parallel, then optionally runs `test-design-advisor` for production code that has no tests or hard-to-test units.
+**`test-design-advisor`** works at the module level: assess testability blockers, place each behavior on the pyramid, choose the right test double, and produce a behavior-preserving refactor sequence to introduce seams. It does not write tests. **Vocabulary is locked to MinimumCD** (static analysis / unit / component / contract / integration / E2E); prefer "contract test" over "narrow integration test" and gloss the alias once if it must be used. **The pyramid is a cost heuristic, not a target shape** — the advisor never emits "current shape vs recommended shape" tables or per-layer target counts; placements are per-behavior with a two-direction justification (why not the layer above or below). **E2E justification gate**: E2E is recommended only when (1) a contract test cannot pin the boundary, (2) a component test with doubles cannot exercise the behavior, (3) a resilience test cannot cover the failure mode, AND (4) the behavior is a critical multi-component user journey. E2E is never pre-merge.
 
-**`test-design-advisor`** works at the module level: assess testability blockers, place each behavior on the pyramid, choose the right test double, and produce a behavior-preserving refactor sequence to introduce seams. It does not write tests.
+**`/test-design`** is the orchestrator command for the changeset-level workflow. It dispatches `test-review` (tactical quality: missing assertions, non-determinism mechanics, mock hygiene) and `test-smell-review` (design-level smells: xUnit smell taxonomy, double selection, pyramid placement) in parallel, scores **every existing test in the suite** with the **Farley Score** (via the `test-design-reviewer` skill — 8 properties, weighted 1–10), then optionally runs `test-design-advisor` for production code that has no tests or hard-to-test units. The aggregated report carries the headline Farley score independent of the changeset scope.
 
-**`cd-test-architecture`** works at the application level: inventory components and test suites, classify against the six MinimumCD test types, identify CD-fitness gaps, recommend a per-component target architecture, and produce a migration path. It does not write tests or edit code.
+**`test-health`** is the **strategic-altitude** rollup over the whole repository. It maps coverage to the Agile Testing Quadrants, evaluates the suite's shape against the architecture, rolls up automation maturity and flaky-test signals, and produces an ordered improvement plan. It **delegates rather than re-derives**: CD-determinism + pipeline placement come from `cd-test-architecture`, per-file findings + Farley Score come from `/test-design`, assertion strength on critical-logic modules comes from `mutation-testing`. Use this for "audit our tests" / "test strategy review" / "is our testing healthy?".
+
+**`cd-test-architecture`** works at the application level: inventory components and test suites, classify against the six MinimumCD test types, identify CD-fitness gaps, recommend a per-component target architecture (with the four-condition **E2E justification gate** applied to every E2E recommendation), and produce a migration path. It does not write tests or edit code.
+
+**How they compose.** Start at the altitude that matches the question. `test-health` calls `/test-design`, `cd-test-architecture`, and `mutation-testing` internally — when the question is strategic, do not dispatch the lower-altitude tools yourself. `/test-design` calls `test-design-advisor` internally when `--advise` applies. When two altitudes plausibly fit, prefer the higher one and let it delegate down.
 
 ---
 
@@ -72,6 +77,8 @@ Flag, with evidence:
 ### Step 4: Recommend the target architecture
 
 Per component: which test types cover which layers, what to double to run pre-merge without configuration, which success scenarios and failure modes to cover, the double-validation loop, and the pipeline stage for each test type (pre-merge gate, Stage 1/2, out-of-band, or post-deploy).
+
+The recommendation applies the **E2E justification gate**: every E2E test must document that (1) a contract test cannot pin the boundary, (2) a component test with doubles cannot exercise the behavior, (3) a resilience test cannot cover the failure mode, AND (4) the behavior is a critical multi-component user journey. E2E recommendations that fail any of (1)–(3) are replaced with the cheaper layer that *can* cover them. The pyramid is treated as a cost heuristic — no per-layer target counts are recommended; if the shape is pathological (ice-cream cone, hourglass, cupcake), the pathology and the behaviors that suffer from it are named, not a numeric redistribution.
 
 ### Step 5: Produce a migration path
 
@@ -132,6 +139,8 @@ If in-repo tests are sparse but no `--external-tests` location is given, the ski
 
 The gate that blocks a merge may contain **only** static analysis, unit, component, and contract tests. These are deterministic and need nothing configured. Integration and end-to-end tests are non-deterministic by nature and never gate a merge. A test that needs a database URL, broker, downstream service, or environment secrets to run is mis-typed — re-classify or convert it.
 
+The corollary is that E2E is the last resort, not a quota. The four-condition E2E justification gate (Step 4) ensures recommendations don't propose E2E "for completeness" or "to round out the pyramid" — if a contract, component, or resilience test can cover a behavior, that's where it goes.
+
 ### Run CI without configuring dependencies
 
 The component test is the workhorse of a CD gate. The pattern is consistent across every component type:
@@ -189,7 +198,7 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 # Application tested in another repo
 /cd-test-architecture ./src --external-tests "../qa-repo/e2e/payment-service"
 
-# Per-file / changeset review (current working tree or staged changes)
+# Per-file / changeset review + suite-wide Farley Score (current working tree or staged changes)
 /test-design
 
 # Per-file review scoped to a directory
@@ -198,8 +207,18 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 # Per-file review of changes since a branch
 /test-design --since main
 
+# Force the advisor to run (also auto-triggers when production code has few/no tests)
+/test-design --advise
+
 # Unit/module design advice (advisory — does not write tests)
 /test-design-advisor src/payments/PaymentProcessor.ts
+
+# Strategic suite-wide audit — delegates to cd-test-architecture, /test-design, and mutation-testing
+/test-health
+/test-health --path src/payments
+
+# Assertion strength on critical-logic modules
+/mutation-testing
 ```
 
 ---
@@ -214,9 +233,17 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 | [`knowledge/test-doubles.md`](../knowledge/test-doubles.md) | Dummy / stub / spy / mock / fake selection and state-vs-behavior verification |
 | [`knowledge/test-pyramid.md`](../knowledge/test-pyramid.md) | Pyramid layer responsibilities and shape anti-patterns |
 | [`knowledge/microservice-testing.md`](../knowledge/microservice-testing.md) | Contract and CDC testing across independently-deployable services |
+| [`knowledge/testing-quadrants.md`](../knowledge/testing-quadrants.md) | Agile Testing Quadrants — what each quadrant protects; consumed by `test-health` |
+| [`knowledge/test-automation-maturity.md`](../knowledge/test-automation-maturity.md) | Maturity ladder consumed by `test-health` for the strategic rollup |
+| [`knowledge/test-matrix-examples/`](../knowledge/test-matrix-examples/) | Worked, stack-specific placement matrices the advisor adapts (Spring Boot, Django batch, React/Node SPA, SSR + HTMX, .NET API fronting gRPC) |
 | [`skills/cd-test-architecture/SKILL.md`](../skills/cd-test-architecture/SKILL.md) | The application-level assessment skill |
 | [`skills/test-design-advisor/SKILL.md`](../skills/test-design-advisor/SKILL.md) | The unit/module design advisor skill |
+| [`skills/test-design/SKILL.md`](../skills/test-design/SKILL.md) | The `/test-design` orchestrator skill — dispatches review agents, scores with Farley, optionally invokes the advisor |
+| [`skills/test-design-reviewer/SKILL.md`](../skills/test-design-reviewer/SKILL.md) | Farley Score — Dave Farley's 8 properties scored 1–10, called by `/test-design` Step 3 |
+| [`skills/test-health/SKILL.md`](../skills/test-health/SKILL.md) | Strategic suite-wide rollup; delegates to `cd-test-architecture`, `/test-design`, `mutation-testing` |
+| [`skills/mutation-testing/SKILL.md`](../skills/mutation-testing/SKILL.md) | Assertion-strength check (do tests catch real bugs?); folded into `test-health` |
 | [`skills/legacy-code/SKILL.md`](../skills/legacy-code/SKILL.md) | Characterization testing + dependency-breaking: the baseline-before-refactor procedure |
 | [`skills/domain-driven-design/SKILL.md`](../skills/domain-driven-design/SKILL.md) | Suggests target boundaries/seams for the post-baseline refactor |
-| [`skills/test-design/SKILL.md`](../skills/test-design/SKILL.md) | The `/test-design` orchestrator skill |
 | [`agents/test-smell-review.md`](../agents/test-smell-review.md) | The smell-detection review agent |
+| [`agents/test-review.md`](../agents/test-review.md) | The tactical per-file test-quality review agent |
+| [`agents/qa-engineer.md`](../agents/qa-engineer.md) | The Senior SDET agent that routes strategic test requests to these skills |
