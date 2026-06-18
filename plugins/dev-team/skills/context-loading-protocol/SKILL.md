@@ -18,6 +18,10 @@ Token-budget reference (CLAUDE.md baseline, full-load ceiling, per-agent and per
 
 ## Loading Decision Procedure
 
+### Step 0: Confirm there is a task
+
+Before loading anything or reading files, confirm an actionable instruction exists. If the user has not yet said what they want, wait — do not speculatively read files, verify code, or load agents. Premature investigation before a task is given wastes context and is a common interrupt trigger. Once a task exists, proceed to Step 1.
+
 ### Step 1: Classify the task
 
 | Profile | Description | Example |
