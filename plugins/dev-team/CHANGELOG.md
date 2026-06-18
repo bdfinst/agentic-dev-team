@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.10.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.9.0...dev-team-v6.10.0) (2026-06-18)
+
+
+### Features
+
+* **test-modernize:** bind component tests to approved Gherkin scenarios ([#273](https://github.com/bdfinst/agentic-dev-team/issues/273)) ([aa6bef7](https://github.com/bdfinst/agentic-dev-team/commit/aa6bef722da8d518c7ccfbf1e17ef08b7a38b087))
+
 ## [6.9.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.8.0...dev-team-v6.9.0) (2026-06-18)
 
 
