@@ -2644,12 +2644,20 @@
       "summary": "Write `memory/test-modernize/<slug>/phase-2.md` with:",
       "anchor": "5-persist-phase-2-progress"
     },
-    "6. Report": {
+    "6. STOP for human sign-off": {
+      "summary": "This is the Phase-2 human gate the orchestrator (`/test-modernize`) enforces.",
+      "anchor": "6-stop-for-human-sign-off"
+    },
+    "7. Create `[Component tests]` Stories bound to the approved scenarios": {
+      "summary": "Once the operator has approved the scenarios (orchestrator passes `--create-stories` or `/gherkin-public` is re-invoked after approval), create one `[Component tests]` Story per (component, surface) pair via the resolved tracker CLI from…",
+      "anchor": "7-create-component-tests-stories-bound-to-the-approved-scenarios"
+    },
+    "8. Report": {
       "summary": "Print:",
-      "anchor": "6-report"
+      "anchor": "8-report"
     },
     "Notes": {
-      "summary": "Scenarios describe **intent**, not yet a passing test.",
+      "summary": "This skill runs in **two passes**, separated by the Phase-2 human gate:",
       "anchor": "notes"
     }
   },
@@ -4420,16 +4428,16 @@
       "summary": "1.",
       "anchor": "1-analyze-cd-test-architecture-issues-from-assessment"
     },
-    "2. Specify public interface — `/gherkin-public`": {
-      "summary": "1.",
-      "anchor": "2-specify-public-interface-gherkin-public"
+    "2. Specify public interface — `/gherkin-public` (two-pass)": {
+      "summary": "Phase 2 runs in two passes around the human gate so Stories never bind to un-reviewed scenarios.",
+      "anchor": "2-specify-public-interface-gherkin-public-two-pass"
     },
     "3. Audit + baseline coverage — `/test-audit-disable` + `/coverage-baseline`": {
       "summary": "1.",
       "anchor": "3-audit-baseline-coverage-test-audit-disable-coverage-baseline"
     },
     "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta`": {
-      "summary": "For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md`):",
+      "summary": "For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):",
       "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta"
     },
     "5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`": {
