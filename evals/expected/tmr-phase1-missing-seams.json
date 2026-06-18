@@ -1,0 +1,21 @@
+{
+  "fixture": "tmr-phase1-missing-seams",
+  "description": "Phase-1 deliverable missing the seam-reachability table and missing file-level evidence on a CD-fitness gap row — both are blockers the test-modernization-review gate must catch.",
+  "applicableAgents": ["test-modernization-review"],
+  "agents": {
+    "test-modernization-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 2 },
+      "expectedIssues": [
+        {
+          "severity": "error",
+          "messageContains": "seam-reachability"
+        },
+        {
+          "severity": "error",
+          "messageContains": "evidence"
+        }
+      ]
+    }
+  }
+}

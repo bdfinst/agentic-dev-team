@@ -1,0 +1,151 @@
+---
+name: quality-targets-converge
+description: >-
+  Phase-5 worker for `/test-modernize`. Closes the gap between the current
+  test suite and the four quality targets (line+branch coverage ≥ 90%, zero
+  surviving mutants, 100% deterministic, fastest pre-merge wall-clock
+  achievable on-machine). Each iteration reads the latest measurements,
+  picks the largest gap, and dispatches the smallest action that moves it.
+  Stops only when all four targets are green or each gap is explicitly
+  waived by the operator with a recorded reason.
+argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--max-iterations <n>]"
+user-invocable: true
+allowed-tools: Read, Glob, Grep, Bash, Write, Skill(coverage-delta *), Skill(mutation-testing *)
+---
+
+# Quality Targets Converge
+
+Role: worker. The Phase-5 close-out loop. Reads coverage, mutation, determinism, and wall-clock measurements; picks the largest gap; dispatches the smallest action that moves it; re-measures; repeats. The operator gates the loop and can waive any individual target.
+
+You have been invoked with the `/quality-targets-converge` command.
+
+## Parse Arguments
+
+Arguments: $ARGUMENTS
+
+- Positional: `<repo-path>`.
+- `--parent <issue-url>` — parent issue URL (or empty).
+- `--repo-slug <slug>` — `memory/test-modernize/` namespace.
+- `--max-iterations <n>` — safety cap. Default 10. The operator can extend mid-run.
+
+## Steps
+
+### 1. Load targets
+
+Read `.dev-team/quality-targets.json` if it exists; otherwise use defaults:
+
+```json
+{
+  "line_pct_min": 90,
+  "branch_pct_min": 90,
+  "surviving_mutants_max": 0,
+  "determinism_runs": 5,
+  "determinism_required_pass_rate": 1.0,
+  "wall_clock_target_seconds": null
+}
+```
+
+`wall_clock_target_seconds = null` means "fastest achievable" — the loop tracks it but does not gate on a number.
+
+### 2. Measure all four dimensions
+
+In one pass before the loop body:
+
+- **Coverage** — invoke `/coverage-delta <repo>` (no `--story`). Result lives in `memory/test-modernize/<slug>/coverage-history.json`.
+- **Mutation** — invoke `/mutation-testing <repo>`. Parse the surviving-mutant list from its output. Capture file + line + mutant operator for each survivor.
+- **Determinism** — re-run the test suite `determinism_runs` times. Capture: pass rate, the names of any test that failed in some runs but passed in others, the total wall-clock per run (lowest = current baseline).
+- **Wall-clock** — already captured as part of determinism. Take the median.
+
+Write the snapshot to `memory/test-modernize/<slug>/converge-<iteration>.json`:
+
+```json
+{
+  "iteration": <n>,
+  "captured_at": "<ISO-8601>",
+  "line_pct": …, "branch_pct": …,
+  "surviving_mutants": [ { "file":…, "line":…, "op":… }, … ],
+  "determinism_pass_rate": …, "flaky_tests": [ … ],
+  "wall_clock_median_sec": …, "wall_clock_runs": [ …, … ]
+}
+```
+
+### 3. Compute the gap to each target
+
+For each of the four, compute "distance to target":
+
+- Line: `target - current` (clamped at 0).
+- Branch: `target - current`.
+- Mutants: count of survivors.
+- Determinism: `determinism_runs - passes`.
+- Wall-clock: tracked, not gated unless the operator set a number.
+
+### 4. Pick the largest gap + dispatch the smallest action
+
+Use this priority order (matches the spec's order of operations) when two gaps tie:
+
+1. Determinism (a flaky suite invalidates every other metric).
+2. Surviving mutants (coverage you can't trust isn't coverage).
+3. Line + branch coverage.
+4. Wall-clock (only if the operator set a target).
+
+For the picked gap, dispatch the smallest action — by emitting a recommendation, not by editing code (the actual edit happens via `/build` against a Phase-5 Story):
+
+| Gap | Smallest action |
+|---|---|
+| Flaky test | Identify the source of non-determinism (real clock, RNG, sleep, shared state, order dependence). Propose a Phase-5 Story to remove it. |
+| Surviving mutant on a covered line | The test asserts coverage but not behavior; propose a Phase-5 Story to add the specific assertion that kills this mutant. |
+| Surviving mutant on an uncovered line | Propose a Phase-5 Story to add a test that hits the line *and* asserts the behavior. |
+| Coverage gap on a single file | Propose a Phase-5 Story to add a component test for the uncovered branch at the existing seam. If none exists, propose a paired `[Refactor-for-testability]`. |
+| Wall-clock regression | Identify the slowest tests (top 10). Propose a Story to swap a local container for an in-memory double where both prove the behavior. |
+
+Each recommendation lands as a new child issue on the parent (via the same CLI dispatch convention as `/issues-from-assessment`) or as a new file under `./plans/test-modernize/phase-5/`. The orchestrator (`/test-modernize`) then drives `/build` against each.
+
+### 5. Re-measure + decide whether to loop
+
+After `/build` closes the dispatched Story:
+
+- Re-measure (Step 2).
+- If all four targets met → exit loop, mark Phase-5 close-out Story Done.
+- If `--max-iterations` reached → halt, print current state, ask the operator to waive remaining gaps or extend.
+- Otherwise → next iteration.
+
+### 6. Post the converge history
+
+Append a markdown block to the parent (or `FEATURE.md`):
+
+```markdown
+### Convergence iteration <n> (<ISO-8601>)
+- Coverage: line <pct>% (target 90%) · branch <pct>% (target 90%)
+- Surviving mutants: <n> (target 0)
+- Determinism: <passes>/<runs> (target <runs>/<runs>)
+- Wall-clock median: <sec>s (target: fastest achievable / <n>s if set)
+- Largest gap: <dimension>
+- Dispatched: <story title / id>
+```
+
+Same CLI pattern as `/coverage-baseline` and `/coverage-delta`.
+
+### 7. Waiver handling
+
+If the operator chooses to waive a target:
+
+- Capture the reason verbatim.
+- Record it in `memory/test-modernize/<slug>/waivers.json`.
+- Append a `**Waived**: <target> — <reason> (<ISO-8601>)` line to the parent issue / `FEATURE.md`.
+
+A waiver counts as "met" for the loop's exit condition but is surfaced in the orchestrator's final Report.
+
+### 8. Report
+
+Print:
+
+- Current state of all four dimensions.
+- Whether the loop converged, halted, or is mid-iteration.
+- Any waivers recorded.
+- The path to `converge-<iteration>.json` and to `waivers.json` (if any).
+
+## Notes
+
+- This worker does not write tests or edit production code. Its output is recommendations + dispatched Stories that `/build` then implements. That keeps the test-modernization workflow's "every change goes through a Story with Acceptance Criteria" invariant intact.
+- The 10-iteration default is a backstop, not a target. Most repos should converge in 3–5; persistent failure to converge means the dispatched actions aren't the smallest — surface the loop to the operator for a strategy decision.
+- Wall-clock is measured but only gated when the operator sets a number; the spec's "fastest achievable" phrasing is reported as the trend across iterations.
