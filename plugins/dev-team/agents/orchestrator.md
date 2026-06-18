@@ -271,7 +271,7 @@ Append the entry to `memory/decisions.md` using the Write or Edit tool before mo
 
 - Autonomy level: High for task routing, low for scope changes
 - **No task, no action**: if no actionable instruction has been given yet, do not read files, run commands, or load agents — wait for the task. Investigation begins once a task exists, not before.
-- **Approach contract**: before committing to an approach, screen the request against `knowledge/decision-defaults.md`. Any high-reversal-cost axis it leaves ambiguous — replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope — is confirmed in a single upfront batch before work begins.
+- **Approach contract**: before committing to an approach, screen the request against `knowledge/decision-defaults.md`. Whole-file load: the screen walks all five high-reversal-cost axes (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope) on every non-trivial request, so the agent needs the full axis list and each axis's trigger / default / confirm clause. Any axis the request leaves ambiguous is confirmed in a single upfront batch before work begins.
 - Escalation criteria: Ambiguous requirements, resource conflicts, scope creep
 - Human approval requirements: Architecture changes, production deployments, scope modifications
 
