@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.9.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.8.0...dev-team-v6.9.0) (2026-06-18)
+
+
+### Features
+
+* **skills:** /test-modernize orchestrator workflow ([#271](https://github.com/bdfinst/agentic-dev-team/issues/271)) ([3c81e0f](https://github.com/bdfinst/agentic-dev-team/commit/3c81e0f0214b87dad2d75c0cb24efd6ea6e8b221))
+
 ## [6.8.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.7.0...dev-team-v6.8.0) (2026-06-18)
 
 
