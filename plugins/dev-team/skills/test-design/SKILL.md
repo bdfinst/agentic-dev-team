@@ -68,7 +68,7 @@ exist, both skip — proceed to Step 4 with `--advise`.
 ### 3. Score all existing tests (Farley Score)
 
 A user-requested test review reports a quality score for the whole suite, not
-just the changed slice. Invoke the `test-design-reviewer` skill over **all
+just the changed slice. Use the Skill tool (`Skill(test-design-reviewer ...)`) over **all
 existing test files in the repository** (use the test-file indicators from
 `agents/test-review.md` § Skip) to produce the suite-level Farley Score, rating,
 and distribution. This headline score is independent of `--path` / `--since` —
@@ -77,8 +77,7 @@ repository has no test files, skip this step and note it in the report.
 
 ### 4. Run the advisor (when applicable)
 
-If `--advise` is set (or auto-triggered), invoke the `test-design-advisor`
-skill on the production code to produce testability assessment, pyramid
+If `--advise` is set (or auto-triggered), use the Skill tool (`Skill(test-design-advisor ...)`) on the production code to produce testability assessment, pyramid
 placement, double strategy, and a behavior-preserving refactor sequence for
 any untestable units.
 
