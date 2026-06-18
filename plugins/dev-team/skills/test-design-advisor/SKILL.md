@@ -21,7 +21,10 @@ Grounded in these knowledge references: `knowledge/test-smells.md`, `knowledge/t
 - Refactor sequences must be behavior-preserving and start with characterization tests when the code is currently untested.
 - Be concise: tables and ordered steps, not prose. No restating the source material — cite the knowledge file.
 - **Altitude boundary.** When a gate mandates application-level E2E/browser architecture, flag the seam (`→ cd-test-architecture`) and defer the harness/pipeline design to the `cd-test-architecture` skill — do not design the E2E harness here.
-- **Terminology.** Layer labels (unit / integration / component / contract / E2E) map to `cd-test-architecture.md`'s six test types; keep them consistent (see its *Terminology Reconciliation* section).
+- **Vocabulary (MinimumCD).** Use the six MinimumCD test types defined in `knowledge/cd-test-architecture.md` § *The Six Test Types*: **static analysis / unit / component / contract / integration / E2E**. **"Contract test"** is the primary term — use it. When the codebase or external context calls it a **"narrow integration test"**, gloss it once in the same sentence: `contract test (also called narrow integration test)`. Never use "narrow integration" alone. When the codebase uses different names for layers (e.g. "service test", "API test", "scenario test"), emit a **Terminology mapping** table at the top of the report and then use the MinimumCD term consistently from that point.
+- **Test type definitions.** When the report mentions any of {unit, component, contract, integration, E2E, static analysis, sociable unit, solitary unit, resilience}, define each term on first use — either inline as a one-line gloss or in a small **Test type definitions used in this report** block at the top. Definitions come verbatim from `knowledge/cd-test-architecture.md` § *The Six Test Types*.
+- **The pyramid is a cost heuristic, not a target shape.** Do not produce "current shape vs recommended shape" tables. Do not recommend target test *counts* per layer. Do not score the suite by silhouette. The pyramid expresses that tests get more expensive (slower, more flaky, longer-feedback) as scope grows; the goal is to verify each behavior at the lowest layer that can verify it, not to match a silhouette. If the suite shape is genuinely pathological (ice-cream cone, hourglass, cupcake — see `knowledge/test-pyramid.md` § Anti-patterns), name the pathology and the behaviors that suffer from it. Do not propose a numeric redistribution.
+- **E2E justification gate.** Never recommend an E2E test "for completeness" or "to round out the pyramid." Before recommending E2E for any behavior, document that **all four** conditions hold: (1) a **contract test** cannot pin the boundary that catches this behavior, (2) a **component test** with doubles cannot exercise it via the component's public interface, (3) a **resilience test** (timeout / retry / circuit-breaker / malformed response) cannot cover the failure mode, AND (4) the behavior is a critical user journey across multiple real components that cannot be decomposed. If (1)–(3) can cover it, recommend that test instead and record one sentence per behavior on why E2E was *not* chosen. If only (4) applies, the recommendation must name the user journey, why contract+component+resilience together are insufficient, the pipeline stage (post-deploy smoke, never pre-merge), and that E2E is non-deterministic per MinimumCD.
 
 ## Parse Arguments
 
@@ -46,7 +49,11 @@ If dynamic-ness is ambiguous, state your assumption and ask **once** (batch ambi
 
 ### 2. Place each behavior on the pyramid
 
-Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / integration / component / contract / E2E). Flag anything currently mis-layered. For service boundaries, apply contract testing per `knowledge/microservice-testing.md` instead of E2E.
+Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / component / contract / integration / E2E — MinimumCD names per the Vocabulary constraint). Flag anything currently mis-layered. For service boundaries, apply contract testing per `knowledge/microservice-testing.md` instead of E2E. For any behavior placed at integration or E2E, the E2E justification gate (Constraints) MUST be satisfied and the four-condition verdict surfaced in the report.
+
+**Two-direction justification.** The placement table's *Why this layer* column carries a two-direction justification: when the pick is unit or component, explain why a higher layer would be redundant or cupcake-shaped duplication; when the pick is integration or E2E, explain why a contract or component test cannot cover the behavior. The advisor must articulate the trade-off rather than pattern-match a layer.
+
+**No target counts.** Do NOT emit a "current shape vs recommended shape" table or any per-layer target count. Per-behavior placement is the only valid output for layer recommendations (see the Constraints: *The pyramid is a cost heuristic, not a target shape*).
 
 **Redundancy check (business-critical only).** After placement, for any behavior determined business-critical (labelled, or confirm by asking), if it is covered at only one layer, flag it and name a second layer with a different failure mode (catches/misses table in `test-layer-gates.md`) plus a concrete recommendation.
 
@@ -111,13 +118,26 @@ A concise advisory report (to chat for a single unit, or to `reports/test-design
 ```markdown
 ## Test Design — <target>
 
+### Test type definitions used in this report
+<one-line glosses for every MinimumCD term used below; verbatim from
+`knowledge/cd-test-architecture.md` § The Six Test Types>
+
+### Terminology mapping (only if the codebase uses non-MinimumCD names)
+| Local name | MinimumCD term |
+
 ### Testability
 | Unit | Testable as-is? | Blocker | Seam (testability-patterns.md) |
 
 ### Pyramid placement
-| Behavior | Layer | Gate | Tool | Why this layer |
+| Behavior | Layer | Gate | Tool | Why this layer (not the one above or below) |
 
-(`Tool` from the stack profile, or `—` / "no profile: <stack>" when none matches.)
+(`Tool` from the stack profile, or `—` / "no profile: <stack>" when none matches.
+*Why this layer* MUST be two-direction: unit/component picks justify why higher
+would be redundant; integration/E2E picks justify why contract/component
+cannot cover the behavior.)
+
+### E2E justification (only when a behavior is placed at E2E)
+| Behavior | (1) Contract test ruled out — why | (2) Component test ruled out — why | (3) Resilience test ruled out — why | (4) User journey + multi-component rationale | Pipeline stage |
 
 ### Technique overlay (only if a trigger fired)
 | Behavior | Technique | Cost note |
@@ -131,6 +151,8 @@ A concise advisory report (to chat for a single unit, or to `reports/test-design
 ### Next edit
 <the single concrete first action>
 ```
+
+**Do NOT emit a "current shape vs recommended shape" table or any per-layer target count.** The pyramid is a cost heuristic; per-behavior placement is the only valid layer output. See Constraints.
 
 ## Integration
 

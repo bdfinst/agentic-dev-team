@@ -3847,7 +3847,7 @@
       "anchor": "1b-behavior-pre-gates-escalate-the-layer-by-failure-mode"
     },
     "2. Place each behavior on the pyramid": {
-      "summary": "Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / integration / component / contract / E2E).",
+      "summary": "Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / component / contract / integration / E2E — MinimumCD names per the Vocabulary constraint).",
       "anchor": "2-place-each-behavior-on-the-pyramid"
     },
     "2b. Specialized technique overlay (on trigger match)": {
