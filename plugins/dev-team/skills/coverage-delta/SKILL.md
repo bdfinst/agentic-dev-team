@@ -43,6 +43,8 @@ If the run fails, surface the first error and stop. Do not post a delta from a b
 
 **Worker boundary.** This worker measures and reports; it does NOT halt the workflow on net-new survivors. Policy enforcement is the orchestrator's job (`/test-modernize` Phase 4 reads the structured `status` field this step emits and decides whether to pause Story close).
 
+**Implementation detail** — baseline-of-record lookup, equivalent-mutant filter, classification table, atomic-write idiom: [`references/mutation-gate.md`](references/mutation-gate.md). This section pins the contract (flags, status enum, exit-code rule, schema keys); the reference holds the mechanics.
+
 Gating: skip this whole step unless BOTH `--story <id>` AND a non-empty `--story-files <files>` are supplied. `--story` alone (the call path `/quality-targets-converge` uses) triggers no mutation run and no `mutation-history.json` write — the result block on stdout carries `"mutation": null`.
 
 When the gate fires:

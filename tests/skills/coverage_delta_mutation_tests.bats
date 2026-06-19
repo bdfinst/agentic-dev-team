@@ -14,6 +14,13 @@
 
 SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/coverage-delta/SKILL.md"
 
+# Extract the Step 2b body — from the `### 2b.` heading up to the next
+# `### N.` step heading or the next `##` section. Mirrors the step2()
+# helper pattern in tests/skills/quality_targets_converge_mutation_reuse_tests.bats.
+step2b() {
+  awk '/^### 2b\./{f=1;next} /^### [0-9]+\b|^## /{ if(f==1){f=2} } f==1' "$SKILL"
+}
+
 # --- Flag surface -----------------------------------------------------------
 
 @test "SKILL: ## Parse Arguments names --story-files" {
@@ -37,17 +44,14 @@ SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/coverage-delta/SKILL.md"
 }
 
 @test "SKILL: Step 2b body names both --story and --story-files as gating conditions" {
-  # Extract Step 2b through the next sibling step (### Step or ## )
-  run awk '/^### 2b\./{f=1;next} /^### [0-9]+\b|^## /{ if(f==1){f=2} } f==1' "$SKILL"
-  [ "$status" -eq 0 ]
-  echo "$output" | grep -q -- '--story-files'
-  echo "$output" | grep -q -- '--story\b'
+  body=$(step2b)
+  echo "$body" | grep -q -- '--story-files'
+  echo "$body" | grep -q -- '--story\b'
 }
 
 @test "SKILL: Step 2b invokes /mutation-testing with --workflow-managed-approval" {
-  run awk '/^### 2b\./{f=1;next} /^### [0-9]+\b|^## /{ if(f==1){f=2} } f==1' "$SKILL"
-  [ "$status" -eq 0 ]
-  echo "$output" | grep -q -- '--workflow-managed-approval'
+  body=$(step2b)
+  echo "$body" | grep -q -- '--workflow-managed-approval'
 }
 
 # --- Worker policy: measurement only, never halts ---------------------------

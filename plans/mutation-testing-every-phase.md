@@ -23,7 +23,7 @@ The `/test-modernize` workflow only runs mutation testing in Phase 5 (convergenc
 ## Acceptance Criteria
 
 - [ ] AC-1: `/mutation-testing` accepts `--scope <files-or-globs>`, `--emit-json <path>`, and `--workflow-managed-approval`. The last flag bypasses the time-estimate prompt **and** documents in the skill's Constraints that any caller passing it must hold workflow-level operator approval at a higher boundary.
-- [ ] AC-2: `/coverage-delta` accepts `--story <id>` and `--story-files <glob-or-comma-list>`. When both are present, it runs `/mutation-testing` scoped to those files, appends a per-file entry to `memory/test-modernize/<slug>/mutation-history.json`, and emits a structured result block (JSON to stdout + markdown row to the parent issue / `FEATURE.md`) carrying `status: ok | net_new_survivors | first_measurement | tool_unavailable`.
+- [ ] AC-2: `/coverage-delta` accepts `--story <id>` and `--story-files <glob-or-comma-list>`. When both are present, it runs `/mutation-testing` scoped to those files, appends a per-file entry to `memory/test-modernize/<slug>/mutation-history.json`, and emits a structured result block (JSON to stdout + markdown row to the parent issue / `FEATURE.md`) carrying `status: ok | net_new_survivors | first_measurement | tool_unavailable | skipped_empty_scope`.
 - [ ] AC-3: `/coverage-delta` **never halts** the orchestrator on its own. Its exit code is non-zero only on tool execution failure (not on net-new survivors). Policy enforcement is the orchestrator's job.
 - [ ] AC-4: `/test-modernize` Phase 4 invokes `/coverage-delta --story <id> --story-files <files>` after every `[Component tests]` Story closes. On `status: net_new_survivors`, it displays the documented halt prompt (three operator actions: strengthen / follow-up / waive) and pauses Story close. `--story-files` is populated from `/build`'s commit diff — there is no tracker-CLI extraction path.
 - [ ] AC-5: `/quality-targets-converge` reads `mutation-history.json` before its measurement pass. For files present in history, it uses the latest `survivors_after` as the current count and skips a fresh mutation run. For files absent from history (typically production code never touched by a Phase-4 Story), it runs `/mutation-testing` scoped to those files. This removes the 3× mutation cost the unrevised plan paid.
@@ -484,7 +484,7 @@ graph TD
 | 3    | 3, 4              |
 | 4    | 5                 |
 
-Confirm with `bash /Users/finsterb/.claude/plugins/cache/bfinster/dev-team/6.9.0/scripts/plan-waves.sh plans/mutation-testing-every-phase.md` before the human gate. Slices 3 and 4 touch disjoint SKILL.md files (`test-modernize/SKILL.md` vs `quality-targets-converge/SKILL.md`) and disjoint eval files, so wave 3 is safe.
+Confirm with `bash scripts/plan-waves.sh plans/mutation-testing-every-phase.md` (or its equivalent in the installed dev-team plugin) before the human gate. Slices 3 and 4 touch disjoint SKILL.md files (`test-modernize/SKILL.md` vs `quality-targets-converge/SKILL.md`) and disjoint eval files, so wave 3 is safe.
 
 ## Complexity Classification
 
@@ -555,12 +555,12 @@ This is the metric the North Star asks for. The plan ships unmeasured because no
 ### Acceptance Criteria
 
 - [x] AC-1: `/mutation-testing` accepts `--scope`, `--emit-json`, `--workflow-managed-approval` with documented caller allowlist (Slice 1)
-- [x] AC-2: `/coverage-delta` emits `status: ok | net_new_survivors | first_measurement | tool_unavailable` and writes `mutation-history.json` atomically (Slice 2)
+- [x] AC-2: `/coverage-delta` emits `status: ok | net_new_survivors | first_measurement | tool_unavailable | skipped_empty_scope` and writes `mutation-history.json` atomically (Slice 2)
 - [x] AC-3: `/coverage-delta` never halts; exit code 0 except on tool execution failure (Slice 2)
 - [x] AC-4: `/test-modernize` Phase 4 surfaces the documented halt prompt + three operator actions; `--story-files` derived from `/build` commit diff (Slice 3)
 - [x] AC-5: `/quality-targets-converge` reuses `mutation-history.json` per file vs. mtime (Slice 4)
 - [x] AC-6: `status: tool_unavailable` degrades downstream gates to advisory with `/init-dev-team` install path (Slices 2, 3)
-- [ ] AC-7: No new skills/agents/diagrams; deferrals documented; probe exit criteria specified (this plan)
+- [x] AC-7: No new skills/agents/diagrams; deferrals documented; probe exit criteria specified (this plan). NOTE: docs/workflows.md and docs/agent-architecture.md WERE updated post-review at the user's direction (originally deferred); see the post-review fix-up commit.
 - [x] AC-8: At the end of Phase 4 and Phase 5, `/test-modernize` dispatches `/test-design` AND `/code-review` scoped to the phase diff; on findings, the loop runs `/apply-fixes` up to 2 iterations before escalating to the operator. Review evidence persisted to `phase-<n>-review.json`. (Slice 5)
 
 ## Plan Review Summary
