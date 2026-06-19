@@ -40,7 +40,7 @@ Between phases, `dev-team:test-modernization-review` reads the just-completed ph
 
 `/continue` resumes the workflow from any phase boundary by scanning `memory/test-modernize/<repo>/phase-<n>.md`; `/test-modernize <repo> --from-phase <n>` does the same explicitly.
 
-For the design rationale and the full prompt-to-skill evolution, see [`docs/specs/legacy-test-modernization-workflow-design.md`](../../../docs/specs/legacy-test-modernization-workflow-design.md). For how `/test-modernize` composes with the rest of the test-evaluation tools, see [Test Evaluation and Architecture](test-evaluation.md).
+For how `/test-modernize` composes with the rest of the test-evaluation tools, see [Test Evaluation and Architecture](test-evaluation.md).
 
 ## Context Management
 
@@ -92,9 +92,9 @@ Before the human reviews a plan (Phase 2), four critical review personas run **i
 | --- | --- | --- | --- |
 | Acceptance Test Critic | `prompts/plan-review-acceptance.md` | sonnet | Per-slice Gherkin quality (determinism, isolation, completeness), criteria verifiability, error-path coverage, TDD step traceability |
 | Design & Architecture Critic | `prompts/plan-review-design.md` | sonnet | Dependency direction, abstraction quality, structural risks, pattern consistency |
-| UX Critic | `prompts/plan-review-ux.md` | sonnet | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
-| Strategic Critic | `prompts/plan-review-strategic.md` | sonnet | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
 | Parallelization Critic | `prompts/plan-review-parallelization.md` | sonnet | Same-wave independence: file-overlap collisions (plan-waves.sh), disjoint-file behavioral coupling, residual cycles |
+| Strategic Critic | `prompts/plan-review-strategic.md` | sonnet | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
+| UX Critic | `prompts/plan-review-ux.md` | sonnet | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
 
 Each reviewer returns a structured `approve` or `needs-revision` verdict. If any reviewer flags blockers, the plan is revised before the human sees it (max 2 iterations). Warnings from all four are aggregated into a Plan Review Summary appended to the plan file.
 
