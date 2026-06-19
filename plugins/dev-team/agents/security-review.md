@@ -3,6 +3,7 @@ name: security-review
 description: Injection, auth/authz, data exposure, security headers, crypto
 tools: Read, Grep, Glob
 model: opus
+cites: [owasp-detection, accepted-risks-schema, adversarial-review-protocol]
 ---
 
 # Security Review

@@ -3,6 +3,7 @@ name: domain-review
 description: Domain boundaries, abstraction leaks, business logic placement
 tools: Read, Grep, Glob, Skill
 model: opus
+cites: [domain-modeling, ubiquitous-language, adversarial-review-protocol]
 ---
 
 # Domain Review
