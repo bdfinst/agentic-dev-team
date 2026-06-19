@@ -5,10 +5,11 @@ description: >-
   adding or modifying a review agent, to validate detection accuracy, or
   when the user says "run the evals", "test the agents", "check for
   regressions", or "how accurate is the agent".
-argument-hint: "[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--verbose]"
+argument-hint: "[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--verbose]"
 user-invocable: true
 allowed-tools: >-
-  Read, Grep, Glob, Bash(readlink *, ls *, date *, mkdir *),
+  Read, Grep, Glob,
+  Bash(readlink *, ls *, date *, mkdir *, command -v claude, claude -p *),
   Skill(review-agent *), Skill(test-design-advisor *)
 ---
 
@@ -48,8 +49,41 @@ Arguments: $ARGUMENTS
   (e.g., `fp-array-mutations.ts`)
 - `--trials <n>`: Run each fixture N times (default: 1). Enables
   pass@k scoring.
+- `--in-session`: Dispatch agents in this session instead of a fresh
+  subprocess (see *Dispatch mode* below). Faster, but evaluates the
+  agent definitions as already loaded — use only for cheap re-grades
+  when no agent/skill file has been edited since they were loaded.
 - `--verbose`: Show full agent output for each fixture
 - No arguments: run all agents against all applicable fixtures
+
+## Dispatch mode
+
+The agent and skill definitions under eval are **plain files on disk**. An
+eval is only honest if it grades what is *currently on disk*, not a copy that
+was loaded into this session before you started editing.
+
+- **Default — fresh subprocess (disk is authoritative).** Each fixture/agent
+  pair is dispatched via a fresh `claude -p` subprocess (Step 3). The
+  subprocess loads the agent/skill definitions from disk on every run, so a
+  definition you edited a moment ago is reflected immediately. This is the
+  correct mode after any edit and the default for that reason.
+- **`--in-session` — fast path (no fresh load).** Dispatches via the
+  in-session `/review-agent` and skill invocations. This reuses whatever was
+  already loaded, so it is cheaper and quicker, but it can evaluate a **stale**
+  definition if the file changed mid-session. Use it only for repeated grading
+  when you have not touched the agent/skill/knowledge files.
+
+**No silent fallback.** Default mode requires the `claude` CLI on `PATH`. If
+`command -v claude` finds nothing, **stop with a clear error** — do not quietly
+run in-session, because that would grade a stale definition without the user
+knowing:
+
+```text
+error: /agent-eval default (fresh-subprocess) mode needs the `claude` CLI on
+PATH, which was not found. Install it, or re-run with --in-session to dispatch
+in this session (warning: --in-session can grade a stale, already-loaded
+definition if you have edited agent/skill files this session).
+```
 
 ## Steps
 
@@ -82,10 +116,24 @@ If `--fixture` is specified, filter to that fixture only.
 
 ### 3. Run agents against fixtures
 
+First resolve the dispatch mode (see *Dispatch mode* above):
+
+- **Default (fresh subprocess).** Run `command -v claude`. If it is missing,
+  STOP with the error in *Dispatch mode* — do not fall back to in-session.
+  Otherwise dispatch each pair through a fresh subprocess so the definition is
+  re-read from disk every run.
+- **`--in-session`.** Skip the `claude` check and use the in-session
+  invocations described under each pair below.
+
 For each fixture/agent pair (agent fixtures):
 
-1. Invoke `/review-agent <agent-name>` with the fixture
-   file/directory as the target
+1. Dispatch the named review agent against the fixture file/directory:
+   - **Default:** a fresh subprocess that reads the agent from disk —
+     `claude -p "/review-agent <agent-name> <fixture-path>" --output-format json`
+     (add `--model` per the agent's tier when known). Pass **only** the
+     fixture path, never the expected JSON.
+   - **`--in-session`:** invoke `/review-agent <agent-name>` with the
+     fixture file/directory as the target.
 2. Parse the agent's JSON output to extract: `status`, `issues[]`,
    `summary`
 3. If running multiple trials (`--trials`), repeat and collect all
@@ -93,10 +141,12 @@ For each fixture/agent pair (agent fixtures):
 
 For each fixture/skill pair (skill fixtures, e.g. `tlg-*`):
 
-1. Invoke the skill (e.g. `test-design-advisor`) with the fixture file
-   as the target — the fixture is a behavior description the advisor
-   designs tests for. Pass **only** the fixture file, never the
-   expected JSON.
+1. Dispatch the skill (e.g. `test-design-advisor`) against the fixture file —
+   the fixture is a behavior description the advisor designs tests for. Pass
+   **only** the fixture file, never the expected JSON.
+   - **Default:** a fresh subprocess —
+     `claude -p "/test-design-advisor <fixture-path>" --output-format json`.
+   - **`--in-session`:** invoke the skill in this session.
 2. Capture the advisor's report text — specifically the *Pyramid
    placement* table (the `Gate` column and recommended `Layer`(s)) and
    the surrounding rationale.
