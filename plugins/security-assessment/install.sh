@@ -8,6 +8,9 @@
 #   3. Tier-1 tool presence, grouped by capability tier. Required tools are
 #      shown with [REQUIRED] prefix; absence is hard failure. Optional tools
 #      absence emits warnings.
+#   3b. joern C# reachability check (optional). Verifies joern can build a C#
+#      CPG via scripts/verify-joern-csharp.sh. Minimum tested joern version:
+#      2.0.0. Absence/failure is WARN only — it never blocks the install.
 #   4. Prints the exact settings.local.json opt-out snippet for hooks.
 #
 # Exit codes:
@@ -180,6 +183,26 @@ opt weasyprint   "PDF export (fallback)"           "pip install weasyprint"
 # Python packages can't use command -v — check via import.
 printf "  [info] python harness packages checked at /redteam-model invocation time;\n"
 printf "         see plugins/security-assessment/harness/redteam/requirements.txt\n"
+
+# ── 3b. joern C# reachability (optional; powers fp-reduction on .NET) ─────────
+# joern is optional: it enables deterministic call-graph reachability for the
+# .NET/C# FP-reduction path. Absence or a broken C# frontend degrades that
+# single path to LLM-fallback — never a hard install failure. Min tested
+# joern version: 2.0.0 (bundles the csharpsrc2cpg frontend).
+
+section "joern C# reachability (optional — powers fp-reduction on .NET targets)"
+JOERN_VERIFY="$SCRIPT_DIR/scripts/verify-joern-csharp.sh"
+if [ -x "$JOERN_VERIFY" ]; then
+  if "$JOERN_VERIFY"; then
+    PASS=$((PASS + 1))
+  else
+    # verify-joern-csharp.sh already printed an actionable [warn] line.
+    WARN=$((WARN + 1))
+  fi
+else
+  echo "  [warn] verify-joern-csharp.sh not found or not executable; skipping joern check" >&2
+  WARN=$((WARN + 1))
+fi
 
 # ── 4. Hook opt-out snippet ───────────────────────────────────────────────────
 
