@@ -5,11 +5,13 @@ description: >-
   adding or modifying a review agent, to validate detection accuracy, or
   when the user says "run the evals", "test the agents", "check for
   regressions", or "how accurate is the agent".
-argument-hint: "[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--verbose]"
+argument-hint: "[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--integration] [--no-cache] [--verbose]"
 user-invocable: true
 allowed-tools: >-
   Read, Grep, Glob,
-  Bash(readlink *, ls *, date *, mkdir *, command -v claude, claude -p *),
+  Bash(readlink *, ls *, date *, mkdir *, command -v claude, claude -p *,
+       python3 scripts/eval_cache.py *, python3 scripts/run_integration_eval.py *,
+       python3 scripts/citation_lint.py *),
   Skill(review-agent *), Skill(test-design-advisor *)
 ---
 
@@ -53,8 +55,92 @@ Arguments: $ARGUMENTS
   subprocess (see *Dispatch mode* below). Faster, but evaluates the
   agent definitions as already loaded — use only for cheap re-grades
   when no agent/skill file has been edited since they were loaded.
+- `--integration`: Dispatch the **integration tier** instead of the unit
+  tier (see *Confidence pyramid* below). Routes fixtures that declare an
+  `integration` block in their expected JSON through
+  `scripts/run_integration_eval.py` (orchestrator dispatched against a
+  spec in an ephemeral worktree, then the fixture's `testCommands` are
+  graded by the `integration` grader). Cannot be combined with `--agent`
+  or `--skill` — integration fixtures target the orchestrator, not a
+  single reviewer.
+- `--no-cache`: Bypass the fingerprint replay cache (see *Cache*
+  below). Default is cache-on, so a pair whose transitive inputs are
+  unchanged replays from `evals/.eval-cache.json` at zero token cost.
+  Use `--no-cache` when you suspect cache corruption or want a clean
+  cost baseline.
 - `--verbose`: Show full agent output for each fixture
 - No arguments: run all agents against all applicable fixtures
+
+## Confidence pyramid
+
+`/agent-eval` dispatches at one of three tiers, in increasing confidence and
+cost. See [ADR 0007](../../../docs/adr/0007-eval-confidence-pyramid-tier-vocabulary.md)
+for the full vocabulary; this skill is responsible for selecting the tier and
+routing to the right runner.
+
+- **Unit** (default) — one reviewer or one advisory skill against one fixture,
+  graded by the `verdict` or `skill_gate` grader. Cheap, deterministic, used
+  for every reviewer change. This is what runs when neither `--integration`
+  nor any tier-specific flag is set.
+- **Integration** (`--integration`) — the orchestrator builds against a
+  golden-repo spec in an ephemeral worktree; the fixture's `testCommands` must
+  all exit 0 (graded by the `integration` grader). Validates that a plan
+  produces code that compiles and passes tests, not just that a reviewer
+  flagged the right thing. Opt-in, costs orchestrator + builder tokens.
+- **Acceptance** — production-style runs over real PRs / merged code,
+  scheduled outside this skill (the live regression gate in CI).
+  `/agent-eval` does not dispatch acceptance directly; mention it for
+  context only.
+
+When the operator does not specify a tier, run **unit** and report in the
+final table how many fixtures would have routed to integration (the count of
+expected JSON files whose `integration` block is non-empty). That nudge keeps
+integration coverage visible without forcing every run to pay for it.
+
+## Cache (fingerprint replay)
+
+`scripts/eval_cache.py` SHAs each `fixture::target` over the target's
+definition + the **transitive closure** of files it reaches (knowledge/,
+skills/) + the fixture + expected JSON + grader version. An unchanged SHA
+with a stored PASS replays at zero token cost; any changed input busts the
+cache.
+
+Default behaviour (cache-on):
+
+1. Before dispatch, run `python3 scripts/eval_cache.py --plan
+   --replay-out replay.json` over the resolved fixture/target pair list.
+   This produces the **hit/miss** split.
+2. Dispatch ONLY the misses through Step 3.
+3. After grading, run `python3 scripts/eval_cache.py --store --actuals
+   actuals.json` to memoize the new passes.
+4. Report `cache: <hits>/<total> replayed at $0` in the summary.
+
+`--no-cache` skips steps 1-3 and dispatches everything. Use it only when you
+suspect the cache is wrong; the cache busts automatically on any input
+change, so there is normally no operator decision to make.
+
+## Cites: enforcement (drift prevention for the evals themselves)
+
+This skill grades reviewers; if a reviewer carries thresholds with no
+`cites:` declaration, `/agent-eval` is grading drift it cannot detect. Before
+dispatching a `--agent <name>` run:
+
+1. Probe `python3 scripts/citation_lint.py --plugin-root plugins/dev-team
+   plugins/dev-team/agents/<name>.md`.
+2. If it emits an `advisory — states N normative token(s) ... declares no
+   cites:` warning, surface that **once** above the run report:
+
+   ```text
+   ⚠ agent <name> states N numeric threshold(s) on RFC-2119 lines but has no
+     cites: frontmatter. Eval results will not catch drift in those
+     thresholds. Add a cites: list naming the canonical sources.
+   ```
+
+3. Continue with dispatch — the warning is advisory, never blocking (matches
+   the Phase-1 lint contract).
+
+This makes the eval skill itself a regression guard against threshold drift,
+not just a grader for it.
 
 ## Dispatch mode
 
@@ -116,7 +202,19 @@ If `--fixture` is specified, filter to that fixture only.
 
 ### 3. Run agents against fixtures
 
-First resolve the dispatch mode (see *Dispatch mode* above):
+If `--integration` is set, skip the rest of this section and dispatch
+through `python3 scripts/run_integration_eval.py` for every fixture whose
+expected JSON declares an `integration` block. The runner builds the
+ephemeral worktree from the fixture's `goldenRepo` tarball, dispatches the
+orchestrator against the spec, runs the `testCommands`, records exit codes,
+and tears the worktree down unconditionally. Pass the actuals it writes
+directly to Step 4 — the `integration` grader will pick them up from the
+expected JSON's `integration` block. Skip the cache pre-flight in this
+branch for now (cache wiring for the integration tier is tracked separately
+to keep the rollout small).
+
+For unit-tier runs, first resolve the dispatch mode (see *Dispatch mode*
+above) and consult the cache (see *Cache* above):
 
 - **Default (fresh subprocess).** Run `command -v claude`. If it is missing,
   STOP with the error in *Dispatch mode* — do not fall back to in-session.

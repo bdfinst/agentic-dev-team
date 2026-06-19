@@ -1132,6 +1132,18 @@
       "summary": "Arguments: $ARGUMENTS",
       "anchor": "parse-arguments"
     },
+    "Confidence pyramid": {
+      "summary": "`/agent-eval` dispatches at one of three tiers, in increasing confidence and",
+      "anchor": "confidence-pyramid"
+    },
+    "Cache (fingerprint replay)": {
+      "summary": "`scripts/eval_cache.py` SHAs each `fixture::target` over the target's",
+      "anchor": "cache-fingerprint-replay"
+    },
+    "Cites: enforcement (drift prevention for the evals themselves)": {
+      "summary": "This skill grades reviewers; if a reviewer carries thresholds with no",
+      "anchor": "cites-enforcement-drift-prevention-for-the-evals-themselves"
+    },
     "Dispatch mode": {
       "summary": "The agent and skill definitions under eval are **plain files on disk**.",
       "anchor": "dispatch-mode"
@@ -1149,7 +1161,7 @@
       "anchor": "2-load-fixtures-and-expected-results"
     },
     "3. Run agents against fixtures": {
-      "summary": "First resolve the dispatch mode (see *Dispatch mode* above):",
+      "summary": "If `--integration` is set, skip the rest of this section and dispatch",
       "anchor": "3-run-agents-against-fixtures"
     },
     "4. Grade each result": {
