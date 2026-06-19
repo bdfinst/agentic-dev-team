@@ -22,6 +22,7 @@ byte-for-byte identically without declaring a ``grader`` field.
 
 from __future__ import annotations
 
+from .integration import grade_integration
 from .skill_gate import grade_skill_gate
 from .verdict import grade_verdict
 
@@ -29,10 +30,18 @@ from .verdict import grade_verdict
 REGISTRY = {
     "verdict": grade_verdict,
     "skill_gate": grade_skill_gate,
+    "integration": grade_integration,
 }
 
 # Default grader per expected-JSON block, preserving pre-registry behaviour.
-DEFAULT_GRADERS = {"agents": "verdict", "skills": "skill_gate"}
+# `agents` entries grade as verdicts, `skills` as skill gates, and entries in an
+# `integration` block grade as integration runs (issue #313). Insertion order is
+# the grading order, so output stays stable as new block types are added.
+DEFAULT_GRADERS = {
+    "agents": "verdict",
+    "skills": "skill_gate",
+    "integration": "integration",
+}
 
 
 def get_grader(name: str):

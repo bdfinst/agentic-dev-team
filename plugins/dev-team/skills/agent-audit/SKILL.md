@@ -8,7 +8,7 @@ description: >-
   correct", or any time agent/skill files change.
 argument-hint: "[file-path | --all] [--fix]"
 user-invocable: true
-allowed-tools: Read, Edit, Grep, Glob, Bash(python3 *)
+allowed-tools: Read, Edit, Grep, Glob
 ---
 
 # Agent Audit
@@ -153,25 +153,31 @@ declares its sources in a `cites:` frontmatter list, and every numeric threshold
 the agent states on an RFC-2119 line (MUST/SHOULD/SHALL/REQUIRED/NEVER/ALWAYS)
 must also appear in a cited source.
 
-Run the deterministic lint and fold its output into the report:
+Perform the check by reading (the same mechanical, deterministic style as the
+other audits — no judgment):
 
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/citation_lint.py \
-  --all --plugin-root ${CLAUDE_PLUGIN_ROOT}
-```
+1. Read each agent's frontmatter and look for a `cites:` list. Each entry names
+   a skill (`skills/<name>/SKILL.md`) or knowledge file (`knowledge/<name>.md`).
+2. In the agent body, find every line carrying an RFC-2119 keyword
+   (MUST/MUST NOT/SHOULD/SHALL/REQUIRED/NEVER/ALWAYS). Ignore lines inside code
+   fences (```` ``` ````/`~~~`) and blockquotes (`>`). On each such line, collect
+   the **numeric thresholds** (`50`, `80%`, `40.5`); ignore issue refs like `#99`.
+3. Read each cited source and check the threshold appears in it.
 
-Classify each line:
+Classify:
 
-- `Citation lint OK` → all agents clean; report `PASS` in the Citation column.
-- `normative token … possible drift` → WARN: the agent cites a source but states
-  a threshold absent from it (drift). Report the token + line.
-- `advisory — … declares no cites:` → WARN (advisory): the agent states
-  thresholds but cites nothing; recommend adding a `cites:` list.
-- `cites unknown source` → WARN: the cited skill/knowledge file does not exist.
+- `cites:` present and every threshold backed → PASS in the Citation column.
+- `cites:` present but a threshold absent from every cited source → WARN
+  (possible drift): report the token + line number.
+- no `cites:` but the agent states thresholds → WARN (advisory): recommend
+  adding a `cites:` list.
+- no `cites:` and no thresholds → PASS (nothing to verify).
+- `cites:` an unknown source (no matching skill/knowledge file) → WARN.
 
-**Phase 1 is non-blocking** — the lint always exits 0 and these are warnings,
-not failures. Do not red-line the audit on a citation warning; surface it as an
-action item so drift is visible while the corpus of `cites:` adoption grows.
+**Phase 1 is non-blocking** — these are warnings, never failures. Do not
+red-line the audit on a citation warning; surface it as an action item so drift
+is visible while `cites:` adoption grows. CI runs the deterministic counterpart,
+`scripts/citation_lint.py` (also advisory, exit 0), on every PR.
 
 ### 3. Audit skills
 

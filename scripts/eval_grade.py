@@ -128,11 +128,29 @@ def check_corpus(expected_dir: Path, fixtures_dir: Path):
             problems.append(f"{ef.name}: missing 'fixture' key")
         has_agents = "applicableAgents" in spec or "agents" in spec
         has_skills = "applicableSkills" in spec or "skills" in spec
-        if not (has_agents or has_skills):
+        has_integration = "integration" in spec
+        if not (has_agents or has_skills or has_integration):
             problems.append(
-                f"{ef.name}: declares neither applicableAgents nor "
-                f"applicableSkills"
+                f"{ef.name}: declares neither applicableAgents, "
+                f"applicableSkills, nor an integration block"
             )
+        # Integration fixture manifests (#313): each integration entry must name
+        # a frozen spec, a golden-repo snapshot, and a non-empty test-command
+        # list — the runner needs all three to build and grade the worktree.
+        for name, ispec in spec.get("integration", {}).items():
+            if not isinstance(ispec, dict):
+                problems.append(
+                    f"{ef.name}: integration.{name} is not an object")
+                continue
+            for field in ("spec", "goldenRepo"):
+                if not ispec.get(field):
+                    problems.append(
+                        f"{ef.name}: integration.{name} missing {field!r}")
+            cmds = ispec.get("testCommands")
+            if not isinstance(cmds, list) or not cmds:
+                problems.append(
+                    f"{ef.name}: integration.{name} needs a non-empty "
+                    f"testCommands list")
         # Cross-check: agents block keys should match applicableAgents.
         for agent in spec.get("agents", {}):
             if agent not in spec.get("applicableAgents", []):
@@ -172,10 +190,11 @@ def run_grading(expected_dir: Path, actuals: dict, baseline: dict | None,
         stem = ef.stem  # canonical stem (matches --check-corpus pairing)
         actual_entry = actuals.get(stem, {})
 
-        # Grade agents then skills (order preserved from the pre-registry
-        # monolith). Each entry's grader is resolved from the registry; an
-        # explicit `grader` field overrides the per-block default.
-        for block in ("agents", "skills"):
+        # Grade each block in registry order (agents, skills, integration).
+        # Each entry's grader is resolved from the registry; an explicit
+        # `grader` field overrides the per-block default. Adding a block type is
+        # a DEFAULT_GRADERS entry — no new branch here.
+        for block in DEFAULT_GRADERS:
             for name, espec in spec.get(block, {}).items():
                 if only and name not in only:
                     continue  # diff-scoped run: this target did not change

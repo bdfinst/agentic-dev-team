@@ -34,6 +34,10 @@ on:
         description: "Run the live agent-eval gate for this run (needs ANTHROPIC_API_KEY)"
         type: boolean
         default: false
+      force_integration:
+        description: "Run the integration eval tier for this run (needs ANTHROPIC_API_KEY)"
+        type: boolean
+        default: false
 
 # Cancel superseded runs on the same ref so rapid pushes don't stack paid runs.
 concurrency:
@@ -53,8 +57,17 @@ jobs:
       - name: Eval corpus integrity check
         run: python3 scripts/eval_grade.py --check-corpus
 
-      - name: Grader unit tests
-        run: bats tests/repo/eval_grader_tests.bats
+      - name: Grader, cache & integration-tier unit tests
+        run: |
+          bats tests/repo/eval_grader_tests.bats \
+               tests/repo/eval_cache_tests.bats \
+               tests/repo/integration_tier_tests.bats \
+               tests/repo/citation_lint_tests.bats
+
+      # Citation drift lint (#312). Advisory in Phase 1 — always exits 0, so it
+      # surfaces drift warnings in the log without blocking the gate.
+      - name: Citation drift lint (advisory)
+        run: python3 scripts/citation_lint.py --all
 
   semver-contract:
     # Job name is a REQUIRED status-check context (renovate-require-tests
@@ -335,3 +348,86 @@ jobs:
           path: evals/.eval-cache.json
           if-no-files-found: ignore
           retention-days: 7
+
+  integration-gate:
+    name: Integration eval tier (golden-repo, opt-in)
+    runs-on: ubuntu-latest
+    needs: structural-gate
+    # Opt-in tier (#313): dispatches the orchestrator in an ephemeral worktree
+    # for each integration fixture, runs the fixture's test commands, and grades
+    # on exit codes. NEVER in the default PR suite — it pays full orchestrator
+    # cost — so it runs only with the 'run-integration' label or a force_integration
+    # dispatch, and only when ANTHROPIC_API_KEY is present.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to run the integration tier
+        id: gate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'run-integration') }}
+          FORCE_INTEGRATION: ${{ github.event.inputs.force_integration }}
+        run: |
+          if { [ "$HAS_LABEL" = "true" ] || [ "$FORCE_INTEGRATION" = "true" ]; } \
+             && [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "run_integration=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_integration=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Integration tier not triggered — notice
+        if: steps.gate.outputs.run_integration != 'true'
+        run: |
+          echo "::notice title=integration tier not triggered::" \
+            "Add the 'run-integration' label (or dispatch with force_integration)" \
+            "and configure ANTHROPIC_API_KEY to run the golden-repo integration" \
+            "tier. See issue #313 and evals/README.md."
+
+      - name: Install tooling
+        if: steps.gate.outputs.run_integration == 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          # The runner dispatches the orchestrator via the `claude` CLI. Install
+          # it; the runner errors clearly (naming the component) if it is absent.
+          npm install -g @anthropic-ai/claude-code || true
+
+      # Restore the replay cache (#311) so unchanged integration pairs replay
+      # instead of paying full orchestrator cost.
+      - name: Restore eval replay cache
+        if: steps.gate.outputs.run_integration == 'true'
+        uses: actions/cache@v4
+        with:
+          path: evals/.eval-cache.json
+          key: eval-cache-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            eval-cache-${{ github.head_ref || github.ref_name }}-
+
+      - name: Run integration tier (records actuals.json)
+        if: steps.gate.outputs.run_integration == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 scripts/run_integration_eval.py \
+            --expected-dir evals/expected \
+            --fixtures-dir evals/fixtures \
+            --out integration-actuals.json
+
+      - name: Grade integration results
+        if: steps.gate.outputs.run_integration == 'true'
+        run: |
+          python3 scripts/eval_grade.py \
+            --actuals integration-actuals.json \
+            --baseline evals/baseline.json \
+            --quarantine evals/quarantine.json
+
+      - name: Store passing integration pairs to replay cache
+        if: steps.gate.outputs.run_integration == 'true' && always()
+        run: |
+          [ -s integration-actuals.json ] || exit 0
+          python3 scripts/eval_cache.py --store \
+            --actuals integration-actuals.json \
+            --baseline evals/baseline.json || true
