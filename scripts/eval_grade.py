@@ -51,6 +51,17 @@ import json
 import sys
 from pathlib import Path
 
+# Make the grader registry importable whether this module is run as a script
+# (sys.path[0] is scripts/) or imported by a sibling (eval_variance/eval_ablation
+# already insert scripts/ first, but this keeps the import robust either way).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from eval_graders import (  # noqa: E402
+    DEFAULT_GRADERS,
+    get_grader,
+    is_registered,
+    registered_graders,
+)
+
 
 def _load_json(path: Path):
     try:
@@ -59,76 +70,22 @@ def _load_json(path: Path):
         raise SystemExit(f"error: cannot read {path}: {exc}")
 
 
-def _in_range(n: int, rng: dict) -> bool:
-    lo = rng.get("min", 0)
-    hi = rng.get("max", float("inf"))
-    return lo <= n <= hi
-
-
-def _mentions(haystack: str, needle: str) -> bool:
-    return needle.lower() in haystack.lower()
-
-
 # --------------------------------------------------------------------------
-# Grading — mirrors SKILL.md Step 4, deterministically.
+# Grading — dispatched through the pluggable grader registry (issue #309).
+# The `verdict` grader carries the original agent-verdict rules; `skill_gate`
+# carries the advisory-skill (tlg-*) rules. New genres register a module in
+# scripts/eval_graders/ — no edits here. See eval_graders/__init__.py.
 # --------------------------------------------------------------------------
 
-def grade_agent(spec: dict, actual: dict) -> list[str]:
-    """Return a list of check-failure strings; empty list == PASS."""
-    fails: list[str] = []
 
-    exp_status = spec.get("expectedStatus")
-    got_status = actual.get("status")
-    if exp_status is not None and got_status != exp_status:
-        fails.append(f"status: expected {exp_status!r}, got {got_status!r}")
+def _entry_grader(block: str, espec: dict) -> str:
+    """Resolve the grader name for one expected entry.
 
-    issues = actual.get("issues", []) or []
-    if "issueCount" in spec and not _in_range(len(issues), spec["issueCount"]):
-        rng = spec["issueCount"]
-        fails.append(
-            f"issueCount: expected {rng.get('min', 0)}-{rng.get('max', '∞')}, "
-            f"got {len(issues)}"
-        )
-
-    for sev, rng in spec.get("severities", {}).items():
-        count = sum(1 for i in issues if i.get("severity") == sev)
-        if not _in_range(count, rng):
-            fails.append(
-                f"severities.{sev}: expected {rng.get('min', 0)}-"
-                f"{rng.get('max', '∞')}, got {count}"
-            )
-
-    text = " ".join(str(i.get("message", "")) for i in issues)
-    text += " " + str(actual.get("summary", ""))
-    for kw in spec.get("mustMention", []):
-        if not _mentions(text, kw):
-            fails.append(f"mustMention: missing {kw!r}")
-    for kw in spec.get("mustNotMention", []):
-        if _mentions(text, kw):
-            fails.append(f"mustNotMention: found forbidden {kw!r}")
-
-    return fails
-
-
-def grade_skill(spec: dict, actual: dict) -> list[str]:
-    fails: list[str] = []
-    got_gates = set(actual.get("gates", []) or [])
-    for g in spec.get("expectedGates", []):
-        if g not in got_gates:
-            fails.append(f"gate: expected gate {g!r} to fire")
-    got_layers = set(actual.get("layers", []) or [])
-    for layer in spec.get("expectedLayers", []):
-        if layer not in got_layers:
-            fails.append(f"layer: expected layer {layer!r}")
-
-    report = str(actual.get("report", ""))
-    for kw in spec.get("mustMention", []):
-        if not _mentions(report, kw):
-            fails.append(f"mustMention: missing {kw!r}")
-    for kw in spec.get("mustNotMention", []):
-        if _mentions(report, kw):
-            fails.append(f"mustNotMention: found forbidden {kw!r}")
-    return fails
+    An explicit ``grader`` field wins; otherwise fall back to the block default
+    (agents -> verdict, skills -> skill_gate) so pre-registry fixtures are
+    unchanged.
+    """
+    return espec.get("grader", DEFAULT_GRADERS.get(block, "verdict"))
 
 
 # --------------------------------------------------------------------------
@@ -183,6 +140,17 @@ def check_corpus(expected_dir: Path, fixtures_dir: Path):
                     f"{ef.name}: agents block has {agent!r} not in "
                     f"applicableAgents"
                 )
+        # Registry contract (#309): any explicit `grader` must be registered.
+        for block in ("agents", "skills"):
+            for name, espec in spec.get(block, {}).items():
+                if not isinstance(espec, dict):
+                    continue
+                g = espec.get("grader")
+                if g is not None and not is_registered(g):
+                    problems.append(
+                        f"{ef.name}: {block}.{name} declares unknown grader "
+                        f"{g!r} (known: {', '.join(registered_graders())})"
+                    )
         if fixture_stems and stem not in fixture_stems:
             warnings.append(
                 f"{ef.name}: no fixture file/dir with stem {stem!r} in "
@@ -204,30 +172,31 @@ def run_grading(expected_dir: Path, actuals: dict, baseline: dict | None,
         stem = ef.stem  # canonical stem (matches --check-corpus pairing)
         actual_entry = actuals.get(stem, {})
 
-        for agent, aspec in spec.get("agents", {}).items():
-            if only and agent not in only:
-                continue  # diff-scoped run: this agent did not change
-            pair = f"{stem}::{agent}"
-            got = actual_entry.get("agents", {}).get(agent)
-            if got is None:
-                # No recorded output. Only a failure if baseline expected it.
-                if baseline_pass is None or pair in baseline_pass:
-                    results.append((pair, False, ["no actual output recorded"]))
-                continue
-            fails = grade_agent(aspec, got)
-            results.append((pair, not fails, fails))
-
-        for skill, sspec in spec.get("skills", {}).items():
-            if only and skill not in only:
-                continue  # diff-scoped run: this skill did not change
-            pair = f"{stem}::{skill}"
-            got = actual_entry.get("skills", {}).get(skill)
-            if got is None:
-                if baseline_pass is None or pair in baseline_pass:
-                    results.append((pair, False, ["no actual output recorded"]))
-                continue
-            fails = grade_skill(sspec, got)
-            results.append((pair, not fails, fails))
+        # Grade agents then skills (order preserved from the pre-registry
+        # monolith). Each entry's grader is resolved from the registry; an
+        # explicit `grader` field overrides the per-block default.
+        for block in ("agents", "skills"):
+            for name, espec in spec.get(block, {}).items():
+                if only and name not in only:
+                    continue  # diff-scoped run: this target did not change
+                pair = f"{stem}::{name}"
+                got = actual_entry.get(block, {}).get(name)
+                if got is None:
+                    # No recorded output. Only a failure if baseline expected it.
+                    if baseline_pass is None or pair in baseline_pass:
+                        results.append(
+                            (pair, False, ["no actual output recorded"]))
+                    continue
+                grader_name = _entry_grader(block, espec)
+                grader = get_grader(grader_name)
+                if grader is None:
+                    results.append(
+                        (pair, False,
+                         [f"unknown grader {grader_name!r} (known: "
+                          f"{', '.join(registered_graders())})"]))
+                    continue
+                fails = grader(espec, got)
+                results.append((pair, not fails, fails))
 
     return results, baseline_pass
 
