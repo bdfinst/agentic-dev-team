@@ -66,6 +66,8 @@ Install these if you work with the ecosystems they cover.
 
 **Joern is a special case**: ~400 MB install but enables deterministic call-graph reachability in FP-reduction. Without it, the agent falls back to LLM reasoning and the exec report carries a banner noting the fallback. Install if you run assessments routinely; skip if you try the plugin occasionally.
 
+**.NET / C# targets** need joern ≥ 2.0.0 plus the `dotnetastgen` C# frontend; the reachability wrapper auto-detects C# and passes `joern-parse --language csharp`. `install-macos.sh --all` installs both and `install.sh` verifies the C# path against a committed fixture (`scripts/verify-joern-csharp.sh`); if either is missing, .NET scans degrade to LLM-fallback rather than failing.
+
 ### How to check what's installed
 
 ```bash

@@ -111,7 +111,7 @@ Rationale field is mandatory (min 20 chars per schema). Summarize which factors 
 
 ## Joern integration (when present)
 
-If `joern` is on PATH, invoke via `${CLAUDE_PLUGIN_ROOT}/skills/false-positive-reduction/tools/reachability.sh` (build commands + CPG cache details are in the script). Stage 1 reachability queries the CPG for paths from the finding location back to entry points; cite the entry point path in `reachability.rationale`.
+If `joern` is on PATH, invoke via `${CLAUDE_PLUGIN_ROOT}/skills/false-positive-reduction/tools/reachability.sh` (build commands + CPG cache details are in the script). The wrapper detects the target's primary language (C#/.NET, JS/TS, Python, Java, Go — first match wins) and passes the matching `joern-parse --language`, so non-default frontends like C# build a CPG instead of silently degrading to LLM-fallback; the CPG cache is keyed `<sha>.<language>.cpg`. The C# frontend needs joern ≥ 2.0.0 plus the `dotnetastgen` tool — the install scripts provision and verify it (`scripts/verify-joern-csharp.sh`). Stage 1 reachability queries the CPG for paths from the finding location back to entry points; cite the entry point path in `reachability.rationale`.
 
 ## LLM-fallback mode (joern absent)
 

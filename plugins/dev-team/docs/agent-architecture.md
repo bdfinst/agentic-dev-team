@@ -22,6 +22,26 @@ Both inline review checkpoints (Phase 3) and `/code-review` use the same review-
 
 For the full pipeline — targeting, pre-flight gates, static analysis pre-pass, ACCEPTED-RISKS suppression, fix-loop exit conditions, report generation, and the `.review-passed` gate file — see [Code Review Process](code-review-process.md).
 
+## Test modernization workflow
+
+`/test-modernize` is a long-running orchestrator that sequences a five-phase remediation of a legacy repository's tests. Like `/ship`, it delegates each phase to the owning worker and stops at every human gate; unlike `/ship`, the deliverable is not a single PR but a tracker-managed backlog plus the gradual convergence of four quality targets: ≥ 90% line+branch coverage, zero surviving mutants, 100% determinism, and the fastest achievable pre-merge wall-clock with no off-machine dependencies (the *airplane test*).
+
+![/test-modernize five-phase workflow with human gates between each phase](diagrams/test-modernize-flow.svg)
+
+The five phases:
+
+1. **Analyze** — `/cd-test-architecture` produces the assessment; `/issues-from-assessment` converts it into a parent + Phase-tagged child issues via the tracker CLI that matches the parent URL host (`gh` for `github.com`, `az boards` for `dev.azure.com`, `glab` for GitLab, `acli` for `*.atlassian.net`). When no parent URL is given, or the matching CLI is not installed, the worker informs the operator and falls back to local plan files under `./plans/test-modernize/`.
+2. **Specify public interface** — `/gherkin-public` runs in two passes around the human gate. Pass A writes `.feature` files at every public boundary (API endpoint, UI flow, batch-job entry point, CLI command, library export, event type) and stops. The human gate here is a hard stop — no Stories bind to un-reviewed scenarios. After the operator signs off, Pass B creates one `[Component tests] <component> · <surface>` Story per approved (component, surface), each Story body citing the specific `<feature-file>::<scenario-name>` pairs it must satisfy. The scenario → Story-id map (`gherkin-bindings.json`) becomes the binding contract Phases 4 + 5 consume.
+3. **Audit + baseline coverage** — `/test-audit-disable` disables every test that cannot fail (skip + tag with reason; never deletes — Phase 4 repairs them); `/coverage-baseline` records line+branch percentages after the audit as the floor every later phase must improve on.
+4. **No-refactor adds** — for each Phase-4 Story (in dependency order), `/build` drives RED-GREEN-REFACTOR with inline `/code-review`. For `[Component tests]` Stories, `/build` binds tests to the scenarios cited in the Story body using the binding mode chosen in Phase 0 (`bdd-runner` or `xunit-with-annotations`); for `[Baseline]` Stories, tests lock in current behavior at existing seams (no Gherkin binding needed). `/coverage-delta` posts Δ vs. baseline to the parent after every Story. Production code MUST NOT change in Phase 4.
+5. **Refactor-for-testability + converge** — for each Phase-5 Story (predecessor: its `[Baseline]` Story must be green first), `/build` lands the minimum behavior-preserving refactor plus the test that needed the new seam. Phase-5 `[Component tests]` Stories also bind to approved Scenarios. `/mutation-testing` and `/quality-targets-converge` run after every Story; the loop picks the largest gap to the four targets and dispatches the smallest action to close it. When the action is "add a component test for a new behavior", the loop opens a `[Phase-2 amendment]` Story rather than inventing a Scenario — the operator remains the only author of intent. Targets are met or each remaining gap is explicitly waived with a recorded reason.
+
+Between phases, `dev-team:test-modernization-review` reads the just-completed phase's deliverable from `memory/test-modernize/<repo>/phase-<n>.md` and either approves the advance or returns blocker findings. This agent is **outside the standard review-dispatch fan-out** — it gates process, not code. In Phases 2 and 4 it also verifies **Gherkin binding integrity**: every approved Scenario has a `[Component tests]` Story citing it, and every submitted test in those Stories cites the Scenario it exists to satisfy (drift in either direction is a blocker).
+
+`/continue` resumes the workflow from any phase boundary by scanning `memory/test-modernize/<repo>/phase-<n>.md`; `/test-modernize <repo> --from-phase <n>` does the same explicitly.
+
+For how `/test-modernize` composes with the rest of the test-evaluation tools, see [Test Evaluation and Architecture](test-evaluation.md).
+
 ## Context Management
 
 The Orchestrator manages context utilization using two operational skills.
@@ -72,9 +92,9 @@ Before the human reviews a plan (Phase 2), four critical review personas run **i
 | --- | --- | --- | --- |
 | Acceptance Test Critic | `prompts/plan-review-acceptance.md` | sonnet | Per-slice Gherkin quality (determinism, isolation, completeness), criteria verifiability, error-path coverage, TDD step traceability |
 | Design & Architecture Critic | `prompts/plan-review-design.md` | sonnet | Dependency direction, abstraction quality, structural risks, pattern consistency |
-| UX Critic | `prompts/plan-review-ux.md` | sonnet | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
-| Strategic Critic | `prompts/plan-review-strategic.md` | sonnet | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
 | Parallelization Critic | `prompts/plan-review-parallelization.md` | sonnet | Same-wave independence: file-overlap collisions (plan-waves.sh), disjoint-file behavioral coupling, residual cycles |
+| Strategic Critic | `prompts/plan-review-strategic.md` | sonnet | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
+| UX Critic | `prompts/plan-review-ux.md` | sonnet | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
 
 Each reviewer returns a structured `approve` or `needs-revision` verdict. If any reviewer flags blockers, the plan is revised before the human sees it (max 2 iterations). Warnings from all four are aggregated into a Plan Review Summary appended to the plan file.
 

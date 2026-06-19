@@ -31,10 +31,6 @@ KNOWLEDGE="$PLUGIN/knowledge/decision-defaults.md"
   grep -q "Step 0" "$PLUGIN/skills/context-loading-protocol/SKILL.md"
 }
 
-@test "/upgrade references decision-defaults (migrate vs stub)" {
-  grep -q "knowledge/decision-defaults.md" "$PLUGIN/skills/upgrade/SKILL.md"
-}
-
 @test "/pr enables auto-merge by default" {
   grep -q "gh pr merge --auto" "$PLUGIN/skills/pr/SKILL.md"
 }

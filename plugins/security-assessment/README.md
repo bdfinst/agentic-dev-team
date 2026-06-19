@@ -116,8 +116,6 @@ Run `/upgrade` from any Claude Code session with this plugin loaded. It:
 4. Warns if the companion `dev-team` plugin is not installed (it provides primitives this plugin depends on).
 5. Reports the previous and new version, and prompts a restart.
 
-Migration from the pre-rename `agentic-security-assessment@bfinster` id is handled by the legacy deprecation stub published in the marketplace catalog — install or `/upgrade` from that stub and it will install `security-assessment@bfinster` then remove itself.
-
 Manual fallback when `/upgrade` is unavailable:
 
 ```bash

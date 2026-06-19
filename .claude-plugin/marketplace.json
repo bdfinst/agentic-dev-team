@@ -18,11 +18,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/dev-team",
-        "ref": "dev-team-v6.7.0",
+        "ref": "dev-team-v6.10.1",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "6.7.0"
+      "version": "6.10.1"
     },
     {
       "author": {
@@ -35,35 +35,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/security-assessment",
-        "ref": "security-assessment-v3.2.0",
+        "ref": "security-assessment-v3.3.0",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "3.2.0"
-    },
-    {
-      "author": {
-        "name": "Bryan Finster"
-      },
-      "description": "DEPRECATED legacy stub — renamed to dev-team@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. A SessionStart banner surfaces the half-migrated state. Scheduled for removal from the catalog no earlier than 2027-06-01.",
-      "homepage": "https://github.com/bdfinst/agentic-dev-team",
-      "license": "MIT",
-      "name": "agentic-dev-team",
-      "repository": "https://github.com/bdfinst/agentic-dev-team",
-      "source": "./plugins/agentic-dev-team",
-      "version": "6.0.2"
-    },
-    {
-      "author": {
-        "name": "Bryan Finster"
-      },
-      "description": "DEPRECATED legacy stub — renamed to security-assessment@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. A SessionStart banner surfaces the half-migrated state. Scheduled for removal from the catalog no earlier than 2027-06-01.",
-      "homepage": "https://github.com/bdfinst/agentic-dev-team",
-      "license": "MIT",
-      "name": "agentic-security-assessment",
-      "repository": "https://github.com/bdfinst/agentic-dev-team",
-      "source": "./plugins/agentic-security-assessment",
-      "version": "3.0.2"
+      "version": "3.3.0"
     }
   ]
 }
