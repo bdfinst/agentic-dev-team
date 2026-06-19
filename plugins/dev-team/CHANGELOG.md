@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.11.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.10.1...dev-team-v6.11.0) (2026-06-19)
+
+
+### Features
+
+* **eval:** confidence-pyramid improvements (registry, dispatch, cache, citation lint, integration tier) ([#315](https://github.com/bdfinst/agentic-dev-team/issues/315)) ([b560880](https://github.com/bdfinst/agentic-dev-team/commit/b56088082f4952bd51178bb1d66843e61788b8ed))
+* **evals:** backfill cites: frontmatter on reviewer agents ([#319](https://github.com/bdfinst/agentic-dev-team/issues/319)) ([e37c627](https://github.com/bdfinst/agentic-dev-team/commit/e37c62774990207981565ad111fe04d3ca905e29))
+* **evals:** wire cache + integration tier + cites enforcement into /agent-eval and /agent-create ([#322](https://github.com/bdfinst/agentic-dev-team/issues/322)) ([a3c623c](https://github.com/bdfinst/agentic-dev-team/commit/a3c623c84616fa84d46d85fa34f9a2873458fd8a))
+* **test-modernize:** make Phase-3 disabled-test resolution a Phase-4 contract ([#318](https://github.com/bdfinst/agentic-dev-team/issues/318)) ([e30ecba](https://github.com/bdfinst/agentic-dev-team/commit/e30ecba9824776be4b9a2b371d90e7dc8e5ad032))
+* **test-modernize:** per-Story mutation testing in Phase 4 + end-of-phase test review loop (MVP probe) ([#316](https://github.com/bdfinst/agentic-dev-team/issues/316)) ([df30551](https://github.com/bdfinst/agentic-dev-team/commit/df3055178e0a137a173ec8ff099d59159f8cbc73))
+
 ## [6.10.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.10.0...dev-team-v6.10.1) (2026-06-19)
 
 
