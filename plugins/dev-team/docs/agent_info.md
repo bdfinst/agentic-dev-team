@@ -8,17 +8,17 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 
 | Agent | File | Purpose |
 | --- | --- | --- |
-| Orchestrator | [`orchestrator.md`](../agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
-| Software Engineer | [`software-engineer.md`](../agents/software-engineer.md) | Code generation, implementation, applies review corrections |
-| QA/SQA Engineer | [`qa-engineer.md`](../agents/qa-engineer.md) | Test generation, automated testing, quality gates |
-| UI/UX Designer | [`ui-ux-designer.md`](../agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
-| Architect | [`architect.md`](../agents/architect.md) | System design, tech decisions, scalability planning |
-| Product Manager | [`product-manager.md`](../agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
-| Technical Writer | [`tech-writer.md`](../agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
-| Security Engineer | [`security-engineer.md`](../agents/security-engineer.md) | Security analysis, threat modeling, compliance |
-| Platform Engineer | [`platform-engineer.md`](../agents/platform-engineer.md) | Pipeline, deployment, reliability, observability |
 | ADR Author | [`adr-author.md`](../agents/adr-author.md) | Creates and manages Architecture Decision Records |
+| Architect | [`architect.md`](../agents/architect.md) | System design, tech decisions, scalability planning |
 | Codebase Recon | [`codebase-recon.md`](../agents/codebase-recon.md) | Surveys a codebase's structure, entry points, dependencies, security surface, and git history; produces a RECON artifact in `memory/` that other agents consume |
+| Orchestrator | [`orchestrator.md`](../agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
+| Platform Engineer | [`platform-engineer.md`](../agents/platform-engineer.md) | Pipeline, deployment, reliability, observability |
+| Product Manager | [`product-manager.md`](../agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
+| QA/SQA Engineer | [`qa-engineer.md`](../agents/qa-engineer.md) | Test generation, automated testing, quality gates |
+| Security Engineer | [`security-engineer.md`](../agents/security-engineer.md) | Security analysis, threat modeling, compliance |
+| Software Engineer | [`software-engineer.md`](../agents/software-engineer.md) | Code generation, implementation, applies review corrections |
+| Technical Writer | [`tech-writer.md`](../agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
+| UI/UX Designer | [`ui-ux-designer.md`](../agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
 
 ## Review Agents
 
@@ -26,26 +26,26 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
-| `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
-| `test-review` | [`test-review.md`](../agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
-| `test-smell-review` | [`test-smell-review.md`](../agents/test-smell-review.md) | sonnet | xUnit test smells, test-double selection, pyramid placement |
-| `security-review` | [`security-review.md`](../agents/security-review.md) | opus | Injection, auth, data exposure |
-| `domain-review` | [`domain-review.md`](../agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
-| `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
-| `complexity-review` | [`complexity-review.md`](../agents/complexity-review.md) | haiku | Function size, cyclomatic complexity, nesting |
-| `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
-| `js-fp-review` | [`js-fp-review.md`](../agents/js-fp-review.md) | sonnet | Array mutations, impure patterns (JS/TS) |
-| `concurrency-review` | [`concurrency-review.md`](../agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
 | `a11y-review` | [`a11y-review.md`](../agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
-| `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
-| `token-efficiency-review` | [`token-efficiency-review.md`](../agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
-| `claude-setup-review` | [`claude-setup-review.md`](../agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
-| `doc-review` | [`doc-review.md`](../agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
 | `arch-review` | [`arch-review.md`](../agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
-| `svelte-review` | [`svelte-review.md`](../agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
+| `claude-setup-review` | [`claude-setup-review.md`](../agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
+| `complexity-review` | [`complexity-review.md`](../agents/complexity-review.md) | haiku | Function size, cyclomatic complexity, nesting |
+| `concurrency-review` | [`concurrency-review.md`](../agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
+| `data-flow-tracer` | [`data-flow-tracer.md`](../agents/data-flow-tracer.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
+| `doc-review` | [`doc-review.md`](../agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
+| `domain-review` | [`domain-review.md`](../agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
+| `js-fp-review` | [`js-fp-review.md`](../agents/js-fp-review.md) | sonnet | Array mutations, impure patterns (JS/TS) |
+| `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
+| `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
 | `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
 | `refactor-opportunity-review` | [`refactor-opportunity-review.md`](../agents/refactor-opportunity-review.md) | sonnet | Post-GREEN refactoring opportunities |
-| `data-flow-tracer` | [`data-flow-tracer.md`](../agents/data-flow-tracer.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
+| `security-review` | [`security-review.md`](../agents/security-review.md) | opus | Injection, auth, data exposure |
+| `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
+| `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
+| `svelte-review` | [`svelte-review.md`](../agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
+| `test-review` | [`test-review.md`](../agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
+| `test-smell-review` | [`test-smell-review.md`](../agents/test-smell-review.md) | sonnet | xUnit test smells, test-double selection, pyramid placement |
+| `token-efficiency-review` | [`token-efficiency-review.md`](../agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
 
 To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.
 

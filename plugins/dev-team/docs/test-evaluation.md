@@ -28,7 +28,7 @@ Four tools operate at different scopes. Use the one that matches what you need.
 
 **`cd-test-architecture`** works at the application level: inventory components and test suites, classify against the six MinimumCD test types, identify CD-fitness gaps, recommend a per-component target architecture (with the four-condition **E2E justification gate** applied to every E2E recommendation), and produce a migration path. It does not write tests or edit code.
 
-**`/test-modernize`** is the *remediation* altitude — what to do with a `cd-test-architecture` assessment. It sequences five gated phases (analysis → public-interface Gherkin → audit + baseline coverage → no-refactor tests added → minimum refactor and converge on quality targets), holds the human gate between each phase, and writes Phase-tagged Stories to the tracker the parent issue URL points at (GitHub, ADO, GitLab, Jira — or local plan files when no URL or CLI is available). It does not invent its own assessment; Phase 1 invokes `/cd-test-architecture` directly. See the design rationale at [`docs/specs/legacy-test-modernization-workflow-design.md`](../../../docs/specs/legacy-test-modernization-workflow-design.md) and the workflow diagram in [Architecture](agent-architecture.md#test-modernization-workflow).
+**`/test-modernize`** is the *remediation* altitude — what to do with a `cd-test-architecture` assessment. It sequences five gated phases (analysis → public-interface Gherkin → audit + baseline coverage → no-refactor tests added → minimum refactor and converge on quality targets), holds the human gate between each phase, and writes Phase-tagged Stories to the tracker the parent issue URL points at (GitHub, ADO, GitLab, Jira — or local plan files when no URL or CLI is available). It does not invent its own assessment; Phase 1 invokes `/cd-test-architecture` directly. See the workflow diagram in [Architecture](agent-architecture.md#test-modernization-workflow).
 
 **How they compose.** Start at the altitude that matches the question. `test-health` calls `/test-design`, `cd-test-architecture`, and `mutation-testing` internally — when the question is strategic, do not dispatch the lower-altitude tools yourself. `/test-design` calls `test-design-advisor` internally when `--advise` applies. `/test-modernize` calls `/cd-test-architecture` as its Phase 1 — when the question is "how do we get from this assessment to passing CD gates?", start with `/test-modernize` and let it dispatch the assessment itself. When two altitudes plausibly fit, prefer the higher one and let it delegate down.
 
@@ -230,23 +230,23 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 
 | File | What it defines |
 |---|---|
+| [`agents/qa-engineer.md`](../agents/qa-engineer.md) | The Senior SDET agent that routes strategic test requests to these skills |
+| [`agents/test-review.md`](../agents/test-review.md) | The tactical per-file test-quality review agent |
+| [`agents/test-smell-review.md`](../agents/test-smell-review.md) | The smell-detection review agent |
 | [`knowledge/cd-test-architecture.md`](../knowledge/cd-test-architecture.md) | Six MinimumCD test types, the pre-merge gate rule, out-of-repo anti-pattern, component test pattern, adapter rule, double validation, determinism techniques |
 | [`knowledge/component-test-patterns.md`](../knowledge/component-test-patterns.md) | Per-component patterns: UI, API Provider, API Consumer, Event Consumer, Event Producer, Stateful Service, CLI/Library, Scheduled Job |
-| [`knowledge/test-smells.md`](../knowledge/test-smells.md) | xUnit smell taxonomy: code, behavior, and project smells |
-| [`knowledge/test-doubles.md`](../knowledge/test-doubles.md) | Dummy / stub / spy / mock / fake selection and state-vs-behavior verification |
-| [`knowledge/test-pyramid.md`](../knowledge/test-pyramid.md) | Pyramid layer responsibilities and shape anti-patterns |
 | [`knowledge/microservice-testing.md`](../knowledge/microservice-testing.md) | Contract and CDC testing across independently-deployable services |
-| [`knowledge/testing-quadrants.md`](../knowledge/testing-quadrants.md) | Agile Testing Quadrants — what each quadrant protects; consumed by `test-health` |
 | [`knowledge/test-automation-maturity.md`](../knowledge/test-automation-maturity.md) | Maturity ladder consumed by `test-health` for the strategic rollup |
+| [`knowledge/test-doubles.md`](../knowledge/test-doubles.md) | Dummy / stub / spy / mock / fake selection and state-vs-behavior verification |
 | [`knowledge/test-matrix-examples/`](../knowledge/test-matrix-examples/) | Worked, stack-specific placement matrices the advisor adapts (Spring Boot, Django batch, React/Node SPA, SSR + HTMX, .NET API fronting gRPC) |
+| [`knowledge/test-pyramid.md`](../knowledge/test-pyramid.md) | Pyramid layer responsibilities and shape anti-patterns |
+| [`knowledge/test-smells.md`](../knowledge/test-smells.md) | xUnit smell taxonomy: code, behavior, and project smells |
+| [`knowledge/testing-quadrants.md`](../knowledge/testing-quadrants.md) | Agile Testing Quadrants — what each quadrant protects; consumed by `test-health` |
 | [`skills/cd-test-architecture/SKILL.md`](../skills/cd-test-architecture/SKILL.md) | The application-level assessment skill |
-| [`skills/test-design-advisor/SKILL.md`](../skills/test-design-advisor/SKILL.md) | The unit/module design advisor skill |
+| [`skills/domain-driven-design/SKILL.md`](../skills/domain-driven-design/SKILL.md) | Suggests target boundaries/seams for the post-baseline refactor |
+| [`skills/legacy-code/SKILL.md`](../skills/legacy-code/SKILL.md) | Characterization testing + dependency-breaking: the baseline-before-refactor procedure |
+| [`skills/mutation-testing/SKILL.md`](../skills/mutation-testing/SKILL.md) | Assertion-strength check (do tests catch real bugs?); folded into `test-health` |
 | [`skills/test-design/SKILL.md`](../skills/test-design/SKILL.md) | The `/test-design` orchestrator skill — dispatches review agents, scores with Farley, optionally invokes the advisor |
+| [`skills/test-design-advisor/SKILL.md`](../skills/test-design-advisor/SKILL.md) | The unit/module design advisor skill |
 | [`skills/test-design-reviewer/SKILL.md`](../skills/test-design-reviewer/SKILL.md) | Farley Score — Dave Farley's 8 properties scored 1–10, called by `/test-design` Step 3 |
 | [`skills/test-health/SKILL.md`](../skills/test-health/SKILL.md) | Strategic suite-wide rollup; delegates to `cd-test-architecture`, `/test-design`, `mutation-testing` |
-| [`skills/mutation-testing/SKILL.md`](../skills/mutation-testing/SKILL.md) | Assertion-strength check (do tests catch real bugs?); folded into `test-health` |
-| [`skills/legacy-code/SKILL.md`](../skills/legacy-code/SKILL.md) | Characterization testing + dependency-breaking: the baseline-before-refactor procedure |
-| [`skills/domain-driven-design/SKILL.md`](../skills/domain-driven-design/SKILL.md) | Suggests target boundaries/seams for the post-baseline refactor |
-| [`agents/test-smell-review.md`](../agents/test-smell-review.md) | The smell-detection review agent |
-| [`agents/test-review.md`](../agents/test-review.md) | The tactical per-file test-quality review agent |
-| [`agents/qa-engineer.md`](../agents/qa-engineer.md) | The Senior SDET agent that routes strategic test requests to these skills |
