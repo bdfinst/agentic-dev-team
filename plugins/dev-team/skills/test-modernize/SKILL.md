@@ -153,11 +153,19 @@ The phase's human gate reads this file before firing — without it (escape hatc
 
 ### 4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate
 
-For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):
+**Pre-flight — resolve Phase-3 disabled tests.** Before any Phase-4 child issue runs, read `memory/test-modernize/<slug>/disabled-tests.json` and walk it entry-by-entry. For each disabled test, the orchestrator must choose one outcome and record it in `memory/test-modernize/<slug>/disabled-tests-resolution.json`:
+
+- **`repair`** — the test can be made meaningful **without changing production code** (e.g. add a real assertion, replace `expect(true).toBeTruthy()` with the actual observable behavior, remove the swallowed-exception catch). Dispatch `/build` against a `[Repair disabled test] <file>::<test>` work item that unskips the test, lands the assertion, and proves it can fail (kill the production line under test or mutate it and confirm the test goes red). The `cannot-fail:` skip tag is removed.
+- **`defer-to-phase-5`** — repairing the test requires a production-code refactor (no seam to assert against, hidden collaborator, untestable side effect). Do NOT touch the test in Phase 4. Draft a Phase-5 `[Repair disabled test] <file>::<test>` defect Story into `memory/test-modernize/<slug>/phase-5.md` that cites `file:line:reason` from `disabled-tests.json` and names the production-code seam the refactor must introduce. Leave the `cannot-fail:` skip tag in place so the source-of-truth audit trail stays intact.
+
+The Phase-4 gate refuses to fire while any entry in `disabled-tests.json` is still in the default `pending` state — every entry must resolve to `repair` (done + unskipped) or `defer-to-phase-5` (Story drafted) before the gate is evaluated.
+
+Then, for each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):
 
 1. Invoke `/build <issue-id-or-path>` — drives RED-GREEN-REFACTOR with inline `/code-review`.
    - For `[Component tests]` Stories created in Phase 2, `/build` is told to bind each test to the specific `<feature-file>::<scenario-name>` pairs cited in the Story's Acceptance Criteria using the binding mode recorded in `phase-0.md` (`bdd-runner` or `xunit-with-annotations`). The Acceptance Criteria checkboxes (one per scenario) must all turn green before the Story closes.
    - For `[Baseline]` Stories (created in Phase 1), tests lock in current behavior at existing seams — no Gherkin binding required.
+   - For `[Repair disabled test]` Stories drafted in the pre-flight, `/build` removes the skip tag, lands a real assertion against the cited public-interface behavior, and proves the new assertion can fail.
 2. After every Story closes, **extract the Story's production-code file list from `/build`'s commit diff** (`git diff --name-only <story-base-sha>..<story-head-sha>` filtered to production code — test files dropped). The orchestrator MUST NOT consult a tracker CLI for this list; the commit diff is the only source of truth so a tracker JSON-shape change can never silently break the gate.
 3. Invoke `/coverage-delta <repo-path> --parent <url-or-empty> --repo-slug <slug> --story <id> --story-files <files-from-step-2>`. The worker measures and reports; it never halts. Read its stdout result block and act on the `status` field:
 
@@ -204,7 +212,7 @@ For each Phase-4 child issue in dependency order (from `memory/test-modernize/<s
    - On findings, dispatch `/apply-fixes corrections/`; re-run `/code-review`; loop body capped at **max 2 iterations** before the operator escalation prompt fires.
    - Write the resulting evidence to `memory/test-modernize/<slug>/phase-4-review.json` per the schema in 3a.
 
-**Human gate** — Δ-coverage AND Phase-4 mutation results AND `phase-4-review.json` (any waivers explicit) accepted before any production-code refactor.
+**Human gate** — Δ-coverage AND Phase-4 mutation results AND `phase-4-review.json` (any waivers explicit) AND `disabled-tests-resolution.json` (every Phase-3-disabled test resolved to `repair` or `defer-to-phase-5`) accepted before any production-code refactor.
 
 ### 5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`
 

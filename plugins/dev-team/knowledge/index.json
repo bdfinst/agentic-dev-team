@@ -4457,7 +4457,7 @@
       "anchor": "3a-review-the-phase-loop-phase-4-phase-5-use-this-identically"
     },
     "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate": {
-      "summary": "For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):",
+      "summary": "**Pre-flight — resolve Phase-3 disabled tests.** Before any Phase-4 child issue runs, read `memory/test-modernize/<slug>/disabled-tests.json` and walk it entry-by-entry.",
       "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta-mutation-gate"
     },
     "5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`": {
