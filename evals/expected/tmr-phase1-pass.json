@@ -1,0 +1,11 @@
+{
+  "fixture": "tmr-phase1-pass",
+  "description": "Complete Phase-1 deliverable from /test-modernize — all six required sections (components & patterns, current-vs-correct classification, duplicate-coverage, CD-fitness gaps, seam-reachability per component, target architecture) present with file-level evidence and a resolved sink — should pass the test-modernization-review gate.",
+  "applicableAgents": ["test-modernization-review"],
+  "agents": {
+    "test-modernization-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

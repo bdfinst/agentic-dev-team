@@ -265,6 +265,28 @@
       "anchor": "quick-reference-isolation-strategy-by-pattern"
     }
   },
+  "plugins/dev-team/knowledge/decision-defaults.md": {
+    "Destructive shape: replace vs. merge": {
+      "summary": "Trigger: a request writes config, settings, dotfiles, or installer output where prior",
+      "anchor": "destructive-shape-replace-vs-merge"
+    },
+    "Format fidelity: preserve the native format": {
+      "summary": "Trigger: handling a vector or structured asset (SVG, source diagram, lossless data).",
+      "anchor": "format-fidelity-preserve-the-native-format"
+    },
+    "Evolution: migrate vs. edit a stub in place": {
+      "summary": "Trigger: a target has been renamed, deprecated, or replaced by a successor (a plugin,",
+      "anchor": "evolution-migrate-vs-edit-a-stub-in-place"
+    },
+    "Integration: auto-merge vs. direct-to-trunk": {
+      "summary": "Trigger: landing changes on a shared branch.",
+      "anchor": "integration-auto-merge-vs-direct-to-trunk"
+    },
+    "Scope: touch only what was requested": {
+      "summary": "Trigger: a request names specific files, slides, or targets.",
+      "anchor": "scope-touch-only-what-was-requested"
+    }
+  },
   "plugins/dev-team/knowledge/design-smells.md": {
     "Design Smells → Pattern Mapping": {
       "summary": "| Smell | Signature in code | Remediation pattern |",
@@ -1819,8 +1841,12 @@
       "anchor": "constraints"
     },
     "Loading Decision Procedure": {
-      "summary": "| Profile | Description | Example |",
+      "summary": "Before loading anything or reading files, confirm an actionable instruction exists.",
       "anchor": "loading-decision-procedure"
+    },
+    "Step 0: Confirm there is a task": {
+      "summary": "Before loading anything or reading files, confirm an actionable instruction exists.",
+      "anchor": "step-0-confirm-there-is-a-task"
     },
     "Step 1: Classify the task": {
       "summary": "| Profile | Description | Example |",
@@ -1962,6 +1988,82 @@
     },
     "Notes": {
       "summary": "Disable the meter with `DEV_TEAM_COST_METER=off`.",
+      "anchor": "notes"
+    }
+  },
+  "plugins/dev-team/skills/coverage-baseline/SKILL.md": {
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Require `memory/test-modernize/<slug>/disabled-tests.json` to exist.",
+      "anchor": "steps"
+    },
+    "1. Confirm Phase 3's audit has run": {
+      "summary": "Require `memory/test-modernize/<slug>/disabled-tests.json` to exist.",
+      "anchor": "1-confirm-phase-3s-audit-has-run"
+    },
+    "2. Detect the coverage tool": {
+      "summary": "Read the build manifest at the repo root and pick the appropriate command:",
+      "anchor": "2-detect-the-coverage-tool"
+    },
+    "3. Run coverage": {
+      "summary": "Run the chosen command from `<repo-path>`.",
+      "anchor": "3-run-coverage"
+    },
+    "4. Parse line + branch percentages": {
+      "summary": "For each tool, parse the report into `{ \"line\": <pct>, \"branch\": <pct>, \"tool\": \"<name>\", \"raw_path\": \"<file>\" }`:",
+      "anchor": "4-parse-line-branch-percentages"
+    },
+    "5. Persist the baseline": {
+      "summary": "Write `memory/test-modernize/<slug>/baseline-coverage.json`:",
+      "anchor": "5-persist-the-baseline"
+    },
+    "6. Post to the parent": {
+      "summary": "**Tracker mode** — append a markdown block to the parent issue's description (the resolved CLI was recorded in Phase 1):",
+      "anchor": "6-post-to-the-parent"
+    },
+    "7. Report": {
+      "summary": "Print:",
+      "anchor": "7-report"
+    },
+    "Notes": {
+      "summary": "Coverage tools may legitimately differ by repo; never replace the repo's own script with a generic one unless detection fails.",
+      "anchor": "notes"
+    }
+  },
+  "plugins/dev-team/skills/coverage-delta/SKILL.md": {
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Read `memory/test-modernize/<slug>/baseline-coverage.json`.",
+      "anchor": "steps"
+    },
+    "1. Load the baseline": {
+      "summary": "Read `memory/test-modernize/<slug>/baseline-coverage.json`.",
+      "anchor": "1-load-the-baseline"
+    },
+    "2. Re-run coverage": {
+      "summary": "Use the same `tool` and command that `/coverage-baseline` recorded — DO NOT switch tools mid-workflow or the delta is meaningless.",
+      "anchor": "2-re-run-coverage"
+    },
+    "3. Parse + compute the delta": {
+      "summary": "Parse line + branch percentages with the same logic `/coverage-baseline` used.",
+      "anchor": "3-parse-compute-the-delta"
+    },
+    "4. Post the snapshot": {
+      "summary": "Append a markdown row to the parent's `## Metrics history` section (tracker mode) or to `./plans/test-modernize/FEATURE.md` (local-files mode):",
+      "anchor": "4-post-the-snapshot"
+    },
+    "5. Report": {
+      "summary": "Print:",
+      "anchor": "5-report"
+    },
+    "Notes": {
+      "summary": "This worker is read-only on the repo's source — it runs the coverage command and parses the report.",
       "anchor": "notes"
     }
   },
@@ -2513,6 +2615,52 @@
       "anchor": "notes"
     }
   },
+  "plugins/dev-team/skills/gherkin-public/SKILL.md": {
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Read `memory/test-modernize/<slug>/phase-1.md` for the components & patterns table.",
+      "anchor": "steps"
+    },
+    "1. Load the component map": {
+      "summary": "Read `memory/test-modernize/<slug>/phase-1.md` for the components & patterns table.",
+      "anchor": "1-load-the-component-map"
+    },
+    "2. Pick the output directory": {
+      "summary": "Prefer `features/test-modernize/` if `<repo>/features/` already exists (matches the repo's existing Gherkin layout).",
+      "anchor": "2-pick-the-output-directory"
+    },
+    "3. Author scenarios per public surface": {
+      "summary": "For each component in the map, generate one `.feature` file per public surface using the pattern's template.",
+      "anchor": "3-author-scenarios-per-public-surface"
+    },
+    "4. Cite the assessment": {
+      "summary": "In every `.feature` file's header, include:",
+      "anchor": "4-cite-the-assessment"
+    },
+    "5. Persist phase-2 progress": {
+      "summary": "Write `memory/test-modernize/<slug>/phase-2.md` with:",
+      "anchor": "5-persist-phase-2-progress"
+    },
+    "6. STOP for human sign-off": {
+      "summary": "This is the Phase-2 human gate the orchestrator (`/test-modernize`) enforces.",
+      "anchor": "6-stop-for-human-sign-off"
+    },
+    "7. Create `[Component tests]` Stories bound to the approved scenarios": {
+      "summary": "Once the operator has approved the scenarios (orchestrator passes `--create-stories` or `/gherkin-public` is re-invoked after approval), create one `[Component tests]` Story per (component, surface) pair via the resolved tracker CLI from…",
+      "anchor": "7-create-component-tests-stories-bound-to-the-approved-scenarios"
+    },
+    "8. Report": {
+      "summary": "Print:",
+      "anchor": "8-report"
+    },
+    "Notes": {
+      "summary": "This skill runs in **two passes**, separated by the Phase-2 human gate:",
+      "anchor": "notes"
+    }
+  },
   "plugins/dev-team/skills/governance-compliance/SKILL.md": {
     "Overview": {
       "summary": "Requirements and procedures for audit logging, multi-layer quality assurance, and ethical operation of the agent team.",
@@ -2861,6 +3009,52 @@
     "Step 5 — Summary": {
       "summary": "Print a summary of what was installed:",
       "anchor": "step-5-summary"
+    }
+  },
+  "plugins/dev-team/skills/issues-from-assessment/SKILL.md": {
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Parse the `--parent` URL host.",
+      "anchor": "steps"
+    },
+    "1. Resolve sink (host-based dispatch + CLI probe)": {
+      "summary": "Parse the `--parent` URL host.",
+      "anchor": "1-resolve-sink-host-based-dispatch-cli-probe"
+    },
+    "2. Read the assessment + derive children": {
+      "summary": "Parse the assessment file's sections per `/cd-test-architecture`'s contract:",
+      "anchor": "2-read-the-assessment-derive-children"
+    },
+    "3. Preview + confirm": {
+      "summary": "Print the full list (titles, types, predecessors, one-line acceptance summary) — grouped by phase.",
+      "anchor": "3-preview-confirm"
+    },
+    "4. Create the parent (tracker mode only)": {
+      "summary": "If `--parent <url>` was provided, the parent already exists — capture its ID/number from the URL.",
+      "anchor": "4-create-the-parent-tracker-mode-only"
+    },
+    "5. Create the children — partial-failure safe": {
+      "summary": "Two modes share the same control flow; only the create-call differs.",
+      "anchor": "5-create-the-children-partial-failure-safe"
+    },
+    "6. Backfill predecessor links": {
+      "summary": "For tracker mode, after every child exists, walk the child-slug → tracker-id map and add the predecessor links:",
+      "anchor": "6-backfill-predecessor-links"
+    },
+    "7. Persist phase-1 progress": {
+      "summary": "Write `memory/test-modernize/<slug>/phase-1.md` with:",
+      "anchor": "7-persist-phase-1-progress"
+    },
+    "8. Report": {
+      "summary": "Print:",
+      "anchor": "8-report"
+    },
+    "Notes": {
+      "summary": "This worker is the only place tracker-CLI knowledge sits.",
+      "anchor": "notes"
     }
   },
   "plugins/dev-team/skills/issues-from-plan/SKILL.md": {
@@ -3294,9 +3488,13 @@
       "summary": "Use the structured template:",
       "anchor": "4-create-the-pr"
     },
-    "5. Report": {
+    "5. Enable auto-merge (default)": {
+      "summary": "Unless `--no-auto-merge` or `--draft` was given, enable auto-merge so the PR lands automatically once checks pass and any required reviews are in — rather than merging directly to trunk.",
+      "anchor": "5-enable-auto-merge-default"
+    },
+    "6. Report": {
       "summary": "Display the PR URL and a summary of the quality gate results.",
-      "anchor": "5-report"
+      "anchor": "6-report"
     }
   },
   "plugins/dev-team/skills/quality-gate-pipeline/SKILL.md": {
@@ -3335,6 +3533,52 @@
     "Integration": {
       "summary": "**Performance Metrics**: Log `hallucination_detected`, `rework_cycles`, `defects_found` on task completion",
       "anchor": "integration"
+    }
+  },
+  "plugins/dev-team/skills/quality-targets-converge/SKILL.md": {
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Read `.dev-team/quality-targets.json` if it exists; otherwise use defaults:",
+      "anchor": "steps"
+    },
+    "1. Load targets": {
+      "summary": "Read `.dev-team/quality-targets.json` if it exists; otherwise use defaults:",
+      "anchor": "1-load-targets"
+    },
+    "2. Measure all four dimensions": {
+      "summary": "In one pass before the loop body:",
+      "anchor": "2-measure-all-four-dimensions"
+    },
+    "3. Compute the gap to each target": {
+      "summary": "For each of the four, compute \"distance to target\":",
+      "anchor": "3-compute-the-gap-to-each-target"
+    },
+    "4. Pick the largest gap + dispatch the smallest action": {
+      "summary": "Use this priority order (matches the spec's order of operations) when two gaps tie:",
+      "anchor": "4-pick-the-largest-gap-dispatch-the-smallest-action"
+    },
+    "5. Re-measure + decide whether to loop": {
+      "summary": "After `/build` closes the dispatched Story:",
+      "anchor": "5-re-measure-decide-whether-to-loop"
+    },
+    "6. Post the converge history": {
+      "summary": "Append a markdown block to the parent (or `FEATURE.md`):",
+      "anchor": "6-post-the-converge-history"
+    },
+    "7. Waiver handling": {
+      "summary": "If the operator chooses to waive a target:",
+      "anchor": "7-waiver-handling"
+    },
+    "8. Report": {
+      "summary": "Print:",
+      "anchor": "8-report"
+    },
+    "Notes": {
+      "summary": "This worker does not write tests or edit production code.",
+      "anchor": "notes"
     }
   },
   "plugins/dev-team/skills/review-agent/SKILL.md": {
@@ -3641,6 +3885,52 @@
       "anchor": "7-report"
     }
   },
+  "plugins/dev-team/skills/ship/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Screen the request against `knowledge/decision-defaults.md`.",
+      "anchor": "steps"
+    },
+    "1. Approach contract": {
+      "summary": "Screen the request against `knowledge/decision-defaults.md`.",
+      "anchor": "1-approach-contract"
+    },
+    "2. Spec (unless `--skip-spec`)": {
+      "summary": "Invoke `/specs` for the feature.",
+      "anchor": "2-spec-unless-skip-spec"
+    },
+    "3. Plan": {
+      "summary": "Invoke `/plan` with the (approved) spec.",
+      "anchor": "3-plan"
+    },
+    "4. Build": {
+      "summary": "Invoke `/build` to execute the approved plan with RED-GREEN-REFACTOR, inline review",
+      "anchor": "4-build"
+    },
+    "5. Review": {
+      "summary": "Invoke `/code-review` over the changes and let its fix loop converge.",
+      "anchor": "5-review"
+    },
+    "6. PR": {
+      "summary": "Invoke `/pr` (passing `--no-auto-merge` only if it was given to `/ship`).",
+      "anchor": "6-pr"
+    },
+    "7. Report": {
+      "summary": "Report the PR URL, the quality-gate result, and whether auto-merge is armed.",
+      "anchor": "7-report"
+    },
+    "Notes": {
+      "summary": "`/ship` is sequencing only: every gate, fix loop, and evidence requirement comes from",
+      "anchor": "notes"
+    }
+  },
   "plugins/dev-team/skills/specs/SKILL.md": {
     "Rules": {
       "summary": "1.",
@@ -3821,6 +4111,48 @@
       "anchor": "steps"
     }
   },
+  "plugins/dev-team/skills/test-audit-disable/SKILL.md": {
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Probe the repo root for the test stack.",
+      "anchor": "steps"
+    },
+    "1. Detect language + test framework": {
+      "summary": "Probe the repo root for the test stack.",
+      "anchor": "1-detect-language-test-framework"
+    },
+    "2. Detect cannot-fail tests": {
+      "summary": "For each test file, search for the cannot-fail patterns.",
+      "anchor": "2-detect-cannot-fail-tests"
+    },
+    "3. Build the cannot-fail list": {
+      "summary": "Collect all findings into a JSON array:",
+      "anchor": "3-build-the-cannot-fail-list"
+    },
+    "4. Preview + confirm": {
+      "summary": "Print the count by reason and the first ~20 entries.",
+      "anchor": "4-preview-confirm"
+    },
+    "5. Disable in place": {
+      "summary": "For each finding, use `Edit` to insert the framework's skip helper at the matching test boundary, with the reason as the skip message:",
+      "anchor": "5-disable-in-place"
+    },
+    "6. Persist phase-3 progress + the disabled-tests log": {
+      "summary": "Write:",
+      "anchor": "6-persist-phase-3-progress-the-disabled-tests-log"
+    },
+    "7. Report": {
+      "summary": "Print:",
+      "anchor": "7-report"
+    },
+    "Notes": {
+      "summary": "The disabled tag carries the reason and the \"repair in Phase 4\" hint so the operator can see the audit history in source control, not only in `memory/`.",
+      "anchor": "notes"
+    }
+  },
   "plugins/dev-team/skills/test-design-advisor/SKILL.md": {
     "Overview": {
       "summary": "An **advisory** skill: it recommends how to test code and how to make untestable code testable.",
@@ -3847,7 +4179,7 @@
       "anchor": "1b-behavior-pre-gates-escalate-the-layer-by-failure-mode"
     },
     "2. Place each behavior on the pyramid": {
-      "summary": "Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / integration / component / contract / E2E).",
+      "summary": "Using `knowledge/test-pyramid.md`, assign each behavior to the lowest layer that can meaningfully verify it (unit / component / contract / integration / E2E — MinimumCD names per the Vocabulary constraint).",
       "anchor": "2-place-each-behavior-on-the-pyramid"
     },
     "2b. Specialized technique overlay (on trigger match)": {
@@ -3943,7 +4275,7 @@
       "anchor": "3-score-all-existing-tests-farley-score"
     },
     "4. Run the advisor (when applicable)": {
-      "summary": "If `--advise` is set (or auto-triggered), invoke the `test-design-advisor`",
+      "summary": "If `--advise` is set (or auto-triggered), use the Skill tool (`Skill(test-design-advisor ...)`) on the production code to produce testability assessment, pyramid",
       "anchor": "4-run-the-advisor-when-applicable"
     },
     "5. Aggregate and de-duplicate": {
@@ -4073,6 +4405,52 @@
     "Integration": {
       "summary": "**Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.",
       "anchor": "integration"
+    }
+  },
+  "plugins/dev-team/skills/test-modernize/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Resolve the sink and the inputs in a single batch:",
+      "anchor": "steps"
+    },
+    "0. Approach contract": {
+      "summary": "Resolve the sink and the inputs in a single batch:",
+      "anchor": "0-approach-contract"
+    },
+    "1. Analyze — `/cd-test-architecture` + `/issues-from-assessment`": {
+      "summary": "1.",
+      "anchor": "1-analyze-cd-test-architecture-issues-from-assessment"
+    },
+    "2. Specify public interface — `/gherkin-public` (two-pass)": {
+      "summary": "Phase 2 runs in two passes around the human gate so Stories never bind to un-reviewed scenarios.",
+      "anchor": "2-specify-public-interface-gherkin-public-two-pass"
+    },
+    "3. Audit + baseline coverage — `/test-audit-disable` + `/coverage-baseline`": {
+      "summary": "1.",
+      "anchor": "3-audit-baseline-coverage-test-audit-disable-coverage-baseline"
+    },
+    "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta`": {
+      "summary": "For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):",
+      "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta"
+    },
+    "5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`": {
+      "summary": "For each Phase-5 child issue in dependency order:",
+      "anchor": "5-refactor-for-testability-converge-build-mutation-testing-quality-targets-converge"
+    },
+    "6. Report": {
+      "summary": "Report:",
+      "anchor": "6-report"
+    },
+    "Notes": {
+      "summary": "`/test-modernize` is sequencing only — every gate, fix loop, and evidence requirement comes from the underlying skills.",
+      "anchor": "notes"
     }
   },
   "plugins/dev-team/skills/threat-modeling/SKILL.md": {
@@ -4225,12 +4603,8 @@
       "anchor": "worker-constraints"
     },
     "Steps": {
-      "summary": "**Version gate**: Before running this step, read the current version from",
+      "summary": "Read the installed plugin's `plugin.json` to get the current version:",
       "anchor": "steps"
-    },
-    "0. Detect and migrate legacy plugin ids": {
-      "summary": "**Version gate**: Before running this step, read the current version from",
-      "anchor": "0-detect-and-migrate-legacy-plugin-ids"
     },
     "1. Read current version": {
       "summary": "Read the installed plugin's `plugin.json` to get the current version:",

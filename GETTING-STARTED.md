@@ -49,9 +49,9 @@ Run `/help` to see every available command.
 Beyond the lifecycle commands above, any skill *is* user-invocable as a slash command — use one to apply its procedures to your request:
 
 ```text
-/threat-modeling Analyze the new payment API for security risks
-/api-design Define the contract for the notification service
-/specs Specify the user registration feature
+/ubiquitous-language Review the domain model for naming inconsistencies
+/design-doc          Draft the technical design for the analytics pipeline
+/hexagonal-architecture Apply ports-and-adapters to the payment module
 ```
 
 ## Common Workflows

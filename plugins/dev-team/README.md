@@ -26,6 +26,11 @@ For the workflow overview, team philosophy, and three-phase (Research → Plan �
 | `semgrep` | `/semgrep-analyze`, static analysis pre-pass in `/code-review` | See below |
 | `playwright` | `/browse` (browser-based QA) | See below |
 | `hadolint`, `trivy`, `grype` | `/docker-image-audit` | See below |
+| `az` (with `az boards` extension) | `/test-modernize` when the parent issue lives on Azure DevOps | `brew install azure-cli` (macOS) or [Azure CLI install docs](https://learn.microsoft.com/cli/azure/install-azure-cli); then `az extension add --name azure-devops` and `az login` |
+| `glab` | `/test-modernize` when the parent issue lives on GitLab | `brew install glab` (macOS) or [GitLab CLI install docs](https://gitlab.com/gitlab-org/cli#installation); then `glab auth login` |
+| `acli` | `/test-modernize` when the parent issue lives on Jira (Atlassian Cloud) | See [Atlassian CLI install docs](https://developer.atlassian.com/cloud/acli/); REST + `JIRA_TOKEN` is the fallback |
+
+`/test-modernize` falls back to local plan files under `./plans/test-modernize/` whenever the tracker CLI for the given parent URL is missing — the workflow continues uninterrupted, only the destination of the issues changes.
 
 **Optional — auto-formatting (detected per language):**
 

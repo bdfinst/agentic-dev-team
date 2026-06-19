@@ -23,69 +23,6 @@ You have been invoked with the `/upgrade` command.
 
 ## Steps
 
-### 0. Detect and migrate legacy plugin ids
-
-**Version gate**: Before running this step, read the current version from
-`~/.claude/plugins/cache/*/dev-team/*/.claude-plugin/plugin.json`. If the
-installed version is ≥ 6.1.0, skip this step entirely and proceed to Step 1.
-
-The plugins in the `bfinster` marketplace were renamed:
-
-- `agentic-dev-team` → `dev-team`
-- `agentic-security-assessment` → `security-assessment`
-
-This step detects users still installed under the old ids and migrates
-them. **Ordering matters**: install the new plugin FIRST, then uninstall
-the old one only after the install succeeds. A failed install must leave
-the user with the still-working old plugin and a clear retry command —
-never with no plugin at all.
-
-The migration logic lives at `evals/upgrade-migration/migrate.py`. Invoke
-it directly so the embedded body and the file cannot drift; the eval
-runner in the same directory exercises four fixtures (legacy dev-team,
-legacy security-assessment, both legacy, already-migrated) plus an
-install-first-then-uninstall ordering check.
-
-```bash
-python3 evals/upgrade-migration/migrate.py
-```
-
-Behavior:
-
-- Reads `~/.claude/plugins/installed_plugins.json` (path overridable via
-  the `UPGRADE_INSTALLED_JSON` env var for testability).
-- For each plugin id matching a legacy name, derives the install scope
-  from `claude plugin list` (default: `user`) and schedules:
-  `claude plugin install --scope <scope> <new>@<marketplace>` then,
-  ONLY on success, `claude plugin uninstall --scope <scope> <old>@<marketplace>`.
-- On install failure: prints `MIGRATION FAILED — old plugin still
-  installed.` plus the exact retry command and exits non-zero.
-- On no legacy ids found: prints `No legacy plugin ids found` and falls
-  through to Step 1.
-- On successful migration: prints a summary block listing the old → new
-  pairs, then an `ACTION REQUIRED` line telling the user to restart
-  Claude Code and re-run `/upgrade` for auto-update opt-in.
-
-**If a migration occurred (exit zero with summary), STOP `/upgrade`
-here.** `migrate.py` exits zero and prints the summary; `/upgrade` (the
-command-layer flow) must treat that as a terminal condition and not
-proceed to Step 1. Do NOT continue into Step 1 (Read current version)
-or Step 2 (Auto-update status check) in the same invocation — Step 2's
-Python block hard-codes `PLUGIN = "dev-team"` and would re-prompt about
-auto-update against a plugin the user just installed seconds ago.
-Restart-first, then they can opt into auto-update on the next run.
-
-**If exit code is non-zero**, surface the migration failure to the user
-verbatim and stop. Do not continue.
-
-**If no legacy ids were found** (the steady-state case), continue to
-Step 1.
-
-**Sunset**: remove this Step 0 (and the `evals/upgrade-migration/`
-directory) after both `dev-team` and `security-assessment` reach v2.0.0
-or 2027-06-01, whichever comes first. The tracking note lives in
-`docs/decisions/upgrade-step-0-sunset.md`.
-
 ### 1. Read current version
 
 Read the installed plugin's `plugin.json` to get the current version:
@@ -230,6 +167,11 @@ claude plugin update --scope {scope} dev-team@{marketplace}
 Where `{scope}` is the detected install scope (e.g., `project`) and `{marketplace}` is the marketplace name (e.g., `bfinster`). The `--scope` flag is required — the CLI defaults to `user`, which will fail if the plugin is installed at a different scope.
 
 If the command succeeds with a version change, proceed to step 4.
+
+**Before concluding the update is broken or unnecessary, verify the catalog is current.** An "already up to date" result or a failed update is often a *stale marketplace catalog* pinned behind the latest release — not a broken update mechanism. Diff the marketplace's pinned version against the latest published release before drawing a conclusion:
+
+- Compare the version in the marketplace source's `.claude-plugin/marketplace.json` (and the plugin's `.claude-plugin/plugin.json`) against the latest release tag/commit of the marketplace repo.
+- If the catalog is behind the release, the root cause is the stale catalog, not `claude plugin update`. Refresh the marketplace (re-add it, or wait for its catalog to update) and re-run `/upgrade`.
 
 If the output indicates already up to date:
 > Already running the latest version (v{version}).

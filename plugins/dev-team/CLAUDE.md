@@ -49,13 +49,13 @@ Full registry tables with token counts, model tiers, and used-by mappings are in
 
 **Team agents** (11): Orchestrator, Software Engineer, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, Platform Engineer, ADR Author, Codebase Recon (~4,510 tokens total)
 
-**Review agents** (20): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review, refactor-opportunity-review, progress-guardian, data-flow-tracer
+**Review agents** (21): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review, refactor-opportunity-review, progress-guardian, data-flow-tracer, test-modernization-review
 
-**Skills** (38): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Test Design Advisor, CD Test Architecture, Test Health, Browser Testing, Exploratory Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming, Ubiquitous Language
+**Skills** (45): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Test Design Reviewer, Test Design Advisor, CD Test Architecture, Test Health, Browser Testing, Exploratory Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming, Ubiquitous Language, Test Modernize, Issues from Assessment, Gherkin Public, Test Audit + Disable, Coverage Baseline, Coverage Delta, Quality Targets Converge
 
 **Subagent prompt templates** (9): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`, `prompts/plan-review-parallelization.md`
 
-**Knowledge files** (25 + 3 collections): agent-registry, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, exploratory-testing-field-guide, adversarial-review-protocol, design-smells, object-calisthenics, testability-patterns, test-smells, test-doubles, test-pyramid, test-strategy, fixture-construction, result-verification, test-organization, test-refactoring, microservice-testing, cd-test-architecture, component-test-patterns, test-layer-gates, testing-quadrants, test-automation-maturity; collections: `test-matrix-examples/`, `testing-techniques/`, `test-stack-profiles/`
+**Knowledge files** (26 + 3 collections): agent-registry, decision-defaults, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, exploratory-testing-field-guide, adversarial-review-protocol, design-smells, object-calisthenics, testability-patterns, test-smells, test-doubles, test-pyramid, test-strategy, fixture-construction, result-verification, test-organization, test-refactoring, microservice-testing, cd-test-architecture, component-test-patterns, test-layer-gates, testing-quadrants, test-automation-maturity; collections: `test-matrix-examples/`, `testing-techniques/`, `test-stack-profiles/`
 
 **Agent templates** (9): ts-enforcer, esm-enforcer, react-testing, front-end-testing, twelve-factor-audit, python-quality, go-quality, csharp-quality, angular-testing (in `templates/agents/`, scaffolded by `/setup`)
 
@@ -69,41 +69,49 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 
 | Command | File | Role | What It Does |
 |---------|------|------|--------------|
-| `/code-review` | `skills/code-review/SKILL.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
-| `/review-agent` | `skills/review-agent/SKILL.md` | worker | Run a single review agent (used for inline checkpoints) |
-| `/test-design` | `skills/test-design/SKILL.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, score all existing tests (Farley Score), then run test-design-advisor for testability/refactor recommendations (advisory) |
-| `/test-health` | `skills/test-health/SKILL.md` | orchestrator | Project-wide test-strategy audit: shape vs. architecture fit, quadrant coverage, flaky/automation maturity, ordered plan. Runs `/test-design` (Farley Score + smell themes) and `mutation-testing` and folds their results in; delegates pipeline assessment to cd-test-architecture (advisory) |
+| `/add-plugin` | `skills/add-plugin/SKILL.md` | implementation | Install a plugin and register it in settings.json |
+| `/agent-add` | `skills/agent-add/SKILL.md` | implementation | Create a new review or team agent following the official schema with token-efficiency budgets |
 | `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance |
 | `/agent-eval` | `skills/agent-eval/SKILL.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
-| `/agent-add` | `skills/agent-add/SKILL.md` | implementation | Create a new review or team agent following the official schema with token-efficiency budgets |
 | `/agent-remove` | `skills/agent-remove/SKILL.md` | implementation | Remove an agent and all its registry entries and doc references |
-| `/add-plugin` | `skills/add-plugin/SKILL.md` | implementation | Install a plugin and register it in settings.json |
 | `/apply-fixes` | `skills/apply-fixes/SKILL.md` | implementation | Apply correction prompts from `/code-review` output |
-| `/review-summary` | `skills/review-summary/SKILL.md` | orchestrator | Generate compact session summary for context continuity |
-| `/semgrep-analyze` | `skills/semgrep-analyze/SKILL.md` | worker | Run Semgrep SAST and return structured findings |
-| `/review` | `skills/review/SKILL.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
-| `/setup` | `skills/setup/SKILL.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
-| `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
-| `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
-| `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence; ends with a Farley Score for the branch's tests before prompting for `/pr` |
-| `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request |
-| `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
-| `/careful` | `skills/careful/SKILL.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
-| `/freeze` | `skills/freeze/SKILL.md` | worker | Scope-lock editing to a glob pattern; blocks edits outside the pattern |
-| `/unfreeze` | `skills/unfreeze/SKILL.md` | worker | Lift the scope lock set by `/freeze` |
-| `/guard` | `skills/guard/SKILL.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
-| `/upgrade` | `skills/upgrade/SKILL.md` | worker | Check for and apply plugin updates from within a session |
-| `/triage` | `skills/triage/SKILL.md` | worker | Investigate a bug and write a triage record to `.triage/<slug>.md` with a TDD fix plan |
-| `/explore` | `skills/explore/SKILL.md` | worker | Charter-driven exploratory testing of a running target (Chaos Specialist mode): structured heuristics + adversarial expansion, auto-triages critical defects, writes an incremental report |
-| `/issues-from-plan` | `skills/issues-from-plan/SKILL.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
-| `/harness-audit` | `skills/harness-audit/SKILL.md` | orchestrator | Analyze harness effectiveness and flag stale components |
-| `/session-review` | `skills/session-review/SKILL.md` | orchestrator | Mine real session transcripts (via the deterministic `session_extract.py`) and dispatch `session-analysis` to suggest token/rework/accuracy improvements; suggests, never auto-applies |
-| `/version` | `skills/version/SKILL.md` | worker | Report the installed plugin version |
 | `/benchmark` | `skills/benchmark/SKILL.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
-| `/semantic-scan` | `skills/semantic-scan/SKILL.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
+| `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
+| `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence; ends with a Farley Score for the branch's tests before prompting for `/pr` |
+| `/careful` | `skills/careful/SKILL.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
+| `/code-review` | `skills/code-review/SKILL.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
+| `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
+| `/coverage-baseline` | `skills/coverage-baseline/SKILL.md` | worker | Phase-3 of `/test-modernize` — detect the repo's coverage tool, capture line+branch percentages as the post-audit baseline, post to the parent issue or local FEATURE.md |
+| `/coverage-delta` | `skills/coverage-delta/SKILL.md` | worker | Phase-4 of `/test-modernize` — re-run coverage and post Δ vs. baseline after each Story closes; never overwrites history |
+| `/explore` | `skills/explore/SKILL.md` | worker | Charter-driven exploratory testing of a running target (Chaos Specialist mode): structured heuristics + adversarial expansion, auto-triages critical defects, writes an incremental report |
+| `/freeze` | `skills/freeze/SKILL.md` | worker | Scope-lock editing to a glob pattern; blocks edits outside the pattern |
+| `/gherkin-public` | `skills/gherkin-public/SKILL.md` | worker | Phase-2 of `/test-modernize` — author Gherkin scenarios for the entire public interface (API endpoints, UI flows, batch-job entry points, library exports, event types) at the observable boundary |
+| `/guard` | `skills/guard/SKILL.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
+| `/harness-audit` | `skills/harness-audit/SKILL.md` | orchestrator | Analyze harness effectiveness and flag stale components |
 | `/help` | `skills/help/SKILL.md` | worker | List all available slash commands with descriptions |
 | `/init-dev-team` | `skills/init-dev-team/SKILL.md` | worker | Install plugin prerequisites (jq, python3, mutation tools). Includes a state-aware CodeGraph offer (install / init / silent-confirm based on `command -v codegraph` and `.codegraph/` presence), an opt-in Anthropic model availability probe that populates `.claude/model-overrides.json` for restricted endpoints, and bootstraps a JS project via `js-project-init` when JS/TS is selected but `package.json` is absent. |
+| `/issues-from-assessment` | `skills/issues-from-assessment/SKILL.md` | worker | Convert a `/cd-test-architecture` assessment into a parent + Phase-tagged child issues via the tracker CLI resolved from the parent URL host (gh / az / glab / acli). Falls back to local plan files when no URL is given or the CLI is missing |
+| `/issues-from-plan` | `skills/issues-from-plan/SKILL.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
 | `/model-routing-check` | `skills/model-routing-check/SKILL.md` | worker | Read-only diagnostic for environment-aware model routing. Prints the effective tier → snapshot map, any override file contents, the most recent tier bumps from the resolver log, and probe applicability for the current `ANTHROPIC_BASE_URL`. |
+| `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
+| `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request (enables auto-merge by default) |
+| `/quality-targets-converge` | `skills/quality-targets-converge/SKILL.md` | worker | Phase-5 of `/test-modernize` — loop that picks the largest gap to the four quality targets (coverage / mutants / determinism / speed) and dispatches the smallest action to close it |
+| `/review` | `skills/review/SKILL.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
+| `/review-agent` | `skills/review-agent/SKILL.md` | worker | Run a single review agent (used for inline checkpoints) |
+| `/review-summary` | `skills/review-summary/SKILL.md` | orchestrator | Generate compact session summary for context continuity |
+| `/semantic-scan` | `skills/semantic-scan/SKILL.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
+| `/semgrep-analyze` | `skills/semgrep-analyze/SKILL.md` | worker | Run Semgrep SAST and return structured findings |
+| `/session-review` | `skills/session-review/SKILL.md` | orchestrator | Mine real session transcripts (via the deterministic `session_extract.py`) and dispatch `session-analysis` to suggest token/rework/accuracy improvements; suggests, never auto-applies |
+| `/setup` | `skills/setup/SKILL.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
+| `/ship` | `skills/ship/SKILL.md` | orchestrator | Run the full spec→plan→TDD build→code-review→PR(auto-merge) pipeline as one command, pausing at the existing human gates |
+| `/test-audit-disable` | `skills/test-audit-disable/SKILL.md` | worker | Phase-3 of `/test-modernize` — detect tests that cannot fail (no assertions, tautologies, self-equality, swallowed exceptions) and disable each by skip-and-tag with the reason; never deletes |
+| `/test-design` | `skills/test-design/SKILL.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, score all existing tests (Farley Score), then run test-design-advisor for testability/refactor recommendations (advisory) |
+| `/test-health` | `skills/test-health/SKILL.md` | orchestrator | Project-wide test-strategy audit: shape vs. architecture fit, quadrant coverage, flaky/automation maturity, ordered plan. Runs `/test-design` (Farley Score + smell themes) and `mutation-testing` and folds their results in; delegates pipeline assessment to cd-test-architecture (advisory) |
+| `/test-modernize` | `skills/test-modernize/SKILL.md` | orchestrator | Modernize a legacy repository's tests for CD as one sequenced workflow — assessment → public-interface Gherkin → audit + baseline coverage → no-refactor adds → minimum refactor + converge on coverage/mutation/determinism/speed targets. Outputs phase issues to ADO, GitHub, GitLab, Jira, or local plans/specs files via the parent issue URL |
+| `/triage` | `skills/triage/SKILL.md` | worker | Investigate a bug and write a triage record to `.triage/<slug>.md` with a TDD fix plan |
+| `/unfreeze` | `skills/unfreeze/SKILL.md` | worker | Lift the scope lock set by `/freeze` |
+| `/upgrade` | `skills/upgrade/SKILL.md` | worker | Check for and apply plugin updates from within a session |
+| `/version` | `skills/version/SKILL.md` | worker | Report the installed plugin version |
 
 ## Request Processing Flow
 

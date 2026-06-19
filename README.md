@@ -1,23 +1,5 @@
 # Agentic Dev Team
 
-> ## Renamed plugins
->
-> The marketplace plugin ids dropped the `agentic-` prefix in June 2026:
->
-> - `agentic-dev-team` → `dev-team`
-> - `agentic-security-assessment` → `security-assessment`
->
-> **Already installed?** Run `/upgrade` from your existing dev-team install; Step 0 detects the legacy ids and migrates them in-place using install-first-then-uninstall so a failed install never leaves you without a plugin.
->
-> **Fresh install?** Use the new ids:
->
-> ```bash
-> claude plugin install dev-team@bfinster
-> claude plugin install security-assessment@bfinster   # optional companion
-> ```
->
-> The GitHub repository name (`bdfinst/agentic-dev-team`) was **not** changed; only the published plugin ids in the `bfinster` marketplace.
-
 Two Claude Code plugins for engineering workflows. Install one or both.
 
 - **`dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
@@ -73,12 +55,9 @@ For a self-hosted git host, see the [plugin install guide](plugins/dev-team/READ
 
 Run `/upgrade` from any Claude Code session with `dev-team` installed. It:
 
-1. Detects legacy plugin ids (`agentic-dev-team@*`, `agentic-security-assessment@*`) and migrates them in place using install-first-then-uninstall, so a failed install never leaves you without a working plugin.
-2. Reads the current installed scope from `claude plugin list` and passes `--scope <scope>` to `claude plugin update`, so project- and local-scope installs upgrade correctly rather than silently failing against the `user` default.
-3. Asks before enabling marketplace-level auto-update (the same `extraKnownMarketplaces.<marketplace>.autoUpdate` flag the `/plugin` UI toggles); decline to keep manual control.
-4. Reports the previous and new version, and prompts you to restart Claude Code so the new code loads.
-
-Migration-only runs (post-rename) exit after Step 0 with an `ACTION REQUIRED` line — restart Claude Code first, then re-run `/upgrade` if you want the auto-update prompt.
+1. Reads the current installed scope from `claude plugin list` and passes `--scope <scope>` to `claude plugin update`, so project- and local-scope installs upgrade correctly rather than silently failing against the `user` default.
+2. Asks before enabling marketplace-level auto-update (the same `extraKnownMarketplaces.<marketplace>.autoUpdate` flag the `/plugin` UI toggles); decline to keep manual control.
+3. Reports the previous and new version, and prompts you to restart Claude Code so the new code loads.
 
 Manual fallback when `/upgrade` is unavailable:
 
