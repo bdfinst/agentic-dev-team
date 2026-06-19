@@ -6,3 +6,4 @@
 * [4. Pre-dispatch model tier resolution enforced by a PreToolUse hook](0004-pre-dispatch-model-resolution.md)
 * [5. On-demand knowledge indexing](0005-on-demand-knowledge-indexing.md)
 * [6. Per-increment trunk integration topology for agent work](0006-per-increment-trunk-integration-topology.md) — _Review_
+* [7. Eval confidence-pyramid tier vocabulary](0007-eval-confidence-pyramid-tier-vocabulary.md)
