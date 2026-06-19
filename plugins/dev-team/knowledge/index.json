@@ -4452,9 +4452,9 @@
       "summary": "1.",
       "anchor": "3-audit-baseline-coverage-test-audit-disable-coverage-baseline"
     },
-    "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta`": {
+    "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate": {
       "summary": "For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):",
-      "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta"
+      "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta-mutation-gate"
     },
     "5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`": {
       "summary": "For each Phase-5 child issue in dependency order:",

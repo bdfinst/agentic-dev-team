@@ -451,19 +451,19 @@ This is the metric the North Star asks for. The plan ships unmeasured because no
 
 #### Wave 3
 
-- [ ] Slice 3: `/test-modernize` Phase 4 invokes scoped mutation and owns the halt
-  - [ ] Step 3.1: Update Phase 4 step text in `test-modernize`
-- [ ] Slice 4: `/quality-targets-converge` reuses `mutation-history.json`
-  - [ ] Step 4.1: Insert reuse logic before the Phase-5 mutation step
+- [x] Slice 3: `/test-modernize` Phase 4 invokes scoped mutation and owns the halt
+  - [x] Step 3.1: Update Phase 4 step text in `test-modernize`
+- [x] Slice 4: `/quality-targets-converge` reuses `mutation-history.json`
+  - [x] Step 4.1: Insert reuse logic before the Phase-5 mutation step
 
 ### Acceptance Criteria
 
 - [x] AC-1: `/mutation-testing` accepts `--scope`, `--emit-json`, `--workflow-managed-approval` with documented caller allowlist (Slice 1)
 - [x] AC-2: `/coverage-delta` emits `status: ok | net_new_survivors | first_measurement | tool_unavailable` and writes `mutation-history.json` atomically (Slice 2)
 - [x] AC-3: `/coverage-delta` never halts; exit code 0 except on tool execution failure (Slice 2)
-- [ ] AC-4: `/test-modernize` Phase 4 surfaces the documented halt prompt + three operator actions; `--story-files` derived from `/build` commit diff (Slice 3)
-- [ ] AC-5: `/quality-targets-converge` reuses `mutation-history.json` per file vs. mtime (Slice 4)
-- [ ] AC-6: `status: tool_unavailable` degrades downstream gates to advisory with `/init-dev-team` install path (Slices 2, 3)
+- [x] AC-4: `/test-modernize` Phase 4 surfaces the documented halt prompt + three operator actions; `--story-files` derived from `/build` commit diff (Slice 3)
+- [x] AC-5: `/quality-targets-converge` reuses `mutation-history.json` per file vs. mtime (Slice 4)
+- [x] AC-6: `status: tool_unavailable` degrades downstream gates to advisory with `/init-dev-team` install path (Slices 2, 3)
 - [ ] AC-7: No new skills/agents/diagrams; deferrals documented; probe exit criteria specified (this plan)
 
 ## Plan Review Summary

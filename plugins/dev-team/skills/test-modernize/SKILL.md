@@ -93,17 +93,56 @@ Phase 2 runs in two passes around the human gate so Stories never bind to un-rev
 
 **Human gate** — baseline accepted before adding tests.
 
-### 4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta`
+### 4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate
 
 For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):
 
 1. Invoke `/build <issue-id-or-path>` — drives RED-GREEN-REFACTOR with inline `/code-review`.
    - For `[Component tests]` Stories created in Phase 2, `/build` is told to bind each test to the specific `<feature-file>::<scenario-name>` pairs cited in the Story's Acceptance Criteria using the binding mode recorded in `phase-0.md` (`bdd-runner` or `xunit-with-annotations`). The Acceptance Criteria checkboxes (one per scenario) must all turn green before the Story closes.
    - For `[Baseline]` Stories (created in Phase 1), tests lock in current behavior at existing seams — no Gherkin binding required.
-2. After every Story closes, invoke `/coverage-delta <repo-path> --parent <url-or-empty> --repo-slug <slug>`. Posts Δ vs. baseline to the parent issue / `FEATURE.md`.
-3. After all Phase-4 Stories are Done, dispatch `dev-team:test-modernization-review --phase 4` — it cross-checks the scenario → Story-id map against the actually-submitted test code to verify every Scenario has a test citing it.
+2. After every Story closes, **extract the Story's production-code file list from `/build`'s commit diff** (`git diff --name-only <story-base-sha>..<story-head-sha>` filtered to production code — test files dropped). The orchestrator MUST NOT consult a tracker CLI for this list; the commit diff is the only source of truth so a tracker JSON-shape change can never silently break the gate.
+3. Invoke `/coverage-delta <repo-path> --parent <url-or-empty> --repo-slug <slug> --story <id> --story-files <files-from-step-2>`. The worker measures and reports; it never halts. Read its stdout result block and act on the `status` field:
 
-**Human gate** — Δ-coverage accepted before any production-code refactor.
+   **`status: "ok"` or `"first_measurement"`** — Story closes; advance to the next.
+
+   **`status: "net_new_survivors"`** — pause Story close and surface the halt prompt verbatim:
+
+   ```text
+   ⚠ Phase-4 Story <id> close halted — net-new surviving mutants on cited files
+
+   Files this Story claims to test:
+     - <file>:<line>  <operator>   <original>  →  <mutated>
+     ...
+
+   Actions:
+     [s] strengthen — add assertions, then re-run /coverage-delta --story <id> --story-files <files>
+     [f] follow-up — open a Phase-5 [Strengthen assertions] Story citing these survivors
+     [w] waive    — record reason; survivors carry into Phase 5
+
+   Choose [s/f/w]:
+   ```
+
+   - **`s`** — exit the gate; the workflow waits. `/continue` (or re-invoking the same `/coverage-delta` call after the operator strengthens assertions) re-enters at this exact point.
+   - **`f`** — draft a Phase-5 `[Strengthen assertions]` Story into `memory/test-modernize/<slug>/phase-5.md`, citing each `file:line:operator` from the result block. Close the current Story and advance.
+   - **`w`** — read the operator's reason and append a Phase-4 waiver to `memory/test-modernize/<slug>/waivers.json` tagged with the survivor list. Close the current Story and advance.
+
+   **`status: "tool_unavailable"`** — surface the triage prompt:
+
+   ```text
+   Mutation tool unavailable for <language>. Install via /init-dev-team,
+   or skip mutation gating for this run.
+
+     [i] install — invoke /init-dev-team and retry the Story close
+     [k] skip   — proceed advisory; the rest of Phase 4 runs without
+                  mutation gating and Phase 5 is notified
+     [q] quit   — halt the workflow
+
+   Choose [i/k/q]:
+   ```
+
+4. After all Phase-4 Stories are Done, dispatch `dev-team:test-modernization-review --phase 4` — it cross-checks the scenario → Story-id map against the actually-submitted test code to verify every Scenario has a test citing it.
+
+**Human gate** — Δ-coverage AND Phase-4 mutation results (any waivers explicit) accepted before any production-code refactor.
 
 ### 5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`
 
@@ -112,7 +151,7 @@ For each Phase-5 child issue in dependency order:
 1. Confirm the matching `[Baseline]` Story is closed and green (precondition). If not, halt and report.
 2. Invoke `/build <issue-id-or-path>` — minimum behavior-preserving refactor + the test that needed the new seam.
    - For `[Component tests]` Stories that landed in Phase 5 (i.e. the surface needed a `[Refactor-for-testability]` first), `/build` binds tests to the cited scenarios using the same binding mode from `phase-0.md`. The matching `[Refactor-for-testability]` Story must be closed and green before any of its dependent `[Component tests]` work starts.
-3. After every Story closes, invoke `/mutation-testing <repo-path>` and `/quality-targets-converge <repo-path> --parent <url-or-empty> --repo-slug <slug>`.
+3. After every Story closes, invoke `/mutation-testing <repo-path>` and `/quality-targets-converge <repo-path> --parent <url-or-empty> --repo-slug <slug>`. `/quality-targets-converge` reads `memory/test-modernize/<slug>/mutation-history.json` (written by Phase 4) to avoid re-measuring files Phase 4 already exercised — see that skill's reuse rule.
 4. `/quality-targets-converge` loops until all four targets are met or a target is explicitly waived by the operator with the reason recorded on the parent issue / `FEATURE.md`.
 5. Dispatch `dev-team:test-modernization-review --phase 5`.
 
