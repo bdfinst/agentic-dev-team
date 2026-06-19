@@ -8,7 +8,7 @@ description: >-
   correct", or any time agent/skill files change.
 argument-hint: "[file-path | --all] [--fix]"
 user-invocable: true
-allowed-tools: Read, Edit, Grep, Glob
+allowed-tools: Read, Edit, Grep, Glob, Bash(python3 *)
 ---
 
 # Agent Audit
@@ -143,6 +143,36 @@ Include both results in the agent report table under `Persona` and `Output-Disc`
 - Missing `## Output discipline`: insert the section with a placeholder bullet. Report `FIXED: <agent> — Added Output discipline placeholder (requires manual completion)`.
 - Generic boilerplate detected: emit `WARN: <agent> — Output discipline still contains generic boilerplate; manual update required` (no auto-fix — content must be role-specific).
 
+### 2d. Citation drift lint (preventive)
+
+Reviewer agents sometimes inline normative rules — numeric thresholds like
+"under 50 lines" or "80% coverage" — independently of the canonical skill or
+knowledge file. When that source changes, the agent silently keeps enforcing
+the stale value. The citation lint makes the dependency explicit: an agent
+declares its sources in a `cites:` frontmatter list, and every numeric threshold
+the agent states on an RFC-2119 line (MUST/SHOULD/SHALL/REQUIRED/NEVER/ALWAYS)
+must also appear in a cited source.
+
+Run the deterministic lint and fold its output into the report:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/citation_lint.py \
+  --all --plugin-root ${CLAUDE_PLUGIN_ROOT}
+```
+
+Classify each line:
+
+- `Citation lint OK` → all agents clean; report `PASS` in the Citation column.
+- `normative token … possible drift` → WARN: the agent cites a source but states
+  a threshold absent from it (drift). Report the token + line.
+- `advisory — … declares no cites:` → WARN (advisory): the agent states
+  thresholds but cites nothing; recommend adding a `cites:` list.
+- `cites unknown source` → WARN: the cited skill/knowledge file does not exist.
+
+**Phase 1 is non-blocking** — the lint always exits 0 and these are warnings,
+not failures. Do not red-line the audit on a citation warning; surface it as an
+action item so drift is visible while the corpus of `cites:` adoption grows.
+
 ### 3. Audit skills
 
 Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:
@@ -236,10 +266,18 @@ Read each file in `.claude/hooks/*.sh` and check:
 | token-efficiency-review.sh | PASS | PASS | PASS | OK |
 | ... | | | | |
 
+## Citation drift (Phase 1 — advisory)
+| Agent | cites | Drift / Advisory | Status |
+| --- | --- | --- | --- |
+| complexity-review | yes | — | PASS |
+| naming-review | no | states 1 threshold, no cites: | WARN |
+| ... | | | |
+
 ## Summary
 - Agents: N OK, N WARN, N FAIL
 - Skills: N OK, N WARN, N FAIL
 - Hooks: N OK, N WARN, N FAIL
+- Citation drift: N PASS, N WARN (advisory, non-blocking)
 - Action items: [list of things to fix]
 ```
 
