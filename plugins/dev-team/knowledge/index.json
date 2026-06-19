@@ -2050,6 +2050,10 @@
       "summary": "Use the same `tool` and command that `/coverage-baseline` recorded — DO NOT switch tools mid-workflow or the delta is meaningless.",
       "anchor": "2-re-run-coverage"
     },
+    "2b. Measure scoped mutation (only when both `--story` AND `--story-files` are present)": {
+      "summary": "**Worker boundary.** This worker measures and reports; it does NOT halt the workflow on net-new survivors.",
+      "anchor": "2b-measure-scoped-mutation-only-when-both-story-and-story-files-are-present"
+    },
     "3. Parse + compute the delta": {
       "summary": "Parse line + branch percentages with the same logic `/coverage-baseline` used.",
       "anchor": "3-parse-compute-the-delta"
@@ -3268,9 +3272,17 @@
       "summary": "**Always ask the user before running.** Present the time estimate and scope; get explicit approval.",
       "anchor": "constraints"
     },
+    "Parse Arguments": {
+      "summary": "The skill accepts free-form natural-language arguments AND the following named flags for workflow callers:",
+      "anchor": "parse-arguments"
+    },
     "Time estimation": {
       "summary": "Use the heuristics in `references/tool-setup.md`.",
       "anchor": "time-estimation"
+    },
+    "Step 0: Confirmation gate": {
+      "summary": "Before any mutation run, present the estimated time and the scope, then block on stdin for explicit approval.",
+      "anchor": "step-0-confirmation-gate"
     },
     "Step 1: Detect or set up tooling": {
       "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#).",
@@ -3301,8 +3313,12 @@
       "anchor": "step-5-fix-and-verify"
     },
     "Output format": {
-      "summary": "No tests exist yet → write tests first.",
+      "summary": "When `--emit-json <path>` is set, write a structured result document to `<path>`.",
       "anchor": "output-format"
+    },
+    "Machine-readable output": {
+      "summary": "When `--emit-json <path>` is set, write a structured result document to `<path>`.",
+      "anchor": "machine-readable-output"
     },
     "When not to apply": {
       "summary": "No tests exist yet → write tests first.",
@@ -4436,9 +4452,13 @@
       "summary": "1.",
       "anchor": "3-audit-baseline-coverage-test-audit-disable-coverage-baseline"
     },
-    "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta`": {
+    "3a. Review-the-phase loop (Phase 4 + Phase 5 use this identically)": {
+      "summary": "This is the shared end-of-phase review the orchestrator runs at the close of Phase 4 and Phase 5.",
+      "anchor": "3a-review-the-phase-loop-phase-4-phase-5-use-this-identically"
+    },
+    "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate": {
       "summary": "For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):",
-      "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta"
+      "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta-mutation-gate"
     },
     "5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`": {
       "summary": "For each Phase-5 child issue in dependency order:",
