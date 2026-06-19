@@ -446,8 +446,8 @@ This is the metric the North Star asks for. The plan ships unmeasured because no
 
 #### Wave 2
 
-- [ ] Slice 2: `/coverage-delta` gains scoped mutation as a measurement-only worker
-  - [ ] Step 2.1: Add `--story-files`-gated mutation delta to `coverage-delta`, no policy
+- [x] Slice 2: `/coverage-delta` gains scoped mutation as a measurement-only worker
+  - [x] Step 2.1: Add `--story-files`-gated mutation delta to `coverage-delta`, no policy
 
 #### Wave 3
 
@@ -459,8 +459,8 @@ This is the metric the North Star asks for. The plan ships unmeasured because no
 ### Acceptance Criteria
 
 - [x] AC-1: `/mutation-testing` accepts `--scope`, `--emit-json`, `--workflow-managed-approval` with documented caller allowlist (Slice 1)
-- [ ] AC-2: `/coverage-delta` emits `status: ok | net_new_survivors | first_measurement | tool_unavailable` and writes `mutation-history.json` atomically (Slice 2)
-- [ ] AC-3: `/coverage-delta` never halts; exit code 0 except on tool execution failure (Slice 2)
+- [x] AC-2: `/coverage-delta` emits `status: ok | net_new_survivors | first_measurement | tool_unavailable` and writes `mutation-history.json` atomically (Slice 2)
+- [x] AC-3: `/coverage-delta` never halts; exit code 0 except on tool execution failure (Slice 2)
 - [ ] AC-4: `/test-modernize` Phase 4 surfaces the documented halt prompt + three operator actions; `--story-files` derived from `/build` commit diff (Slice 3)
 - [ ] AC-5: `/quality-targets-converge` reuses `mutation-history.json` per file vs. mtime (Slice 4)
 - [ ] AC-6: `status: tool_unavailable` degrades downstream gates to advisory with `/init-dev-team` install path (Slices 2, 3)
