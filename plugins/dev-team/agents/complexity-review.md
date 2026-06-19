@@ -3,6 +3,7 @@ name: complexity-review
 description: Cyclomatic complexity, nesting depth, function size, parameter count
 tools: Read, Grep, Glob
 model: haiku
+cites: [object-calisthenics]
 ---
 
 # Complexity Review

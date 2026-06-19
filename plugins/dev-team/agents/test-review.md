@@ -3,6 +3,7 @@ name: test-review
 description: Test quality, coverage gaps, assertion quality, and test hygiene
 tools: Read, Grep, Glob, Skill
 model: sonnet
+cites: [testability-patterns, result-verification, test-automation-maturity, adversarial-review-protocol]
 ---
 
 # Test Review
