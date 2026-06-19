@@ -3268,9 +3268,17 @@
       "summary": "**Always ask the user before running.** Present the time estimate and scope; get explicit approval.",
       "anchor": "constraints"
     },
+    "Parse Arguments": {
+      "summary": "The skill accepts free-form natural-language arguments AND the following named flags for workflow callers:",
+      "anchor": "parse-arguments"
+    },
     "Time estimation": {
       "summary": "Use the heuristics in `references/tool-setup.md`.",
       "anchor": "time-estimation"
+    },
+    "Step 0: Confirmation gate": {
+      "summary": "Before any mutation run, present the estimated time and the scope, then block on stdin for explicit approval.",
+      "anchor": "step-0-confirmation-gate"
     },
     "Step 1: Detect or set up tooling": {
       "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#).",
@@ -3301,8 +3309,12 @@
       "anchor": "step-5-fix-and-verify"
     },
     "Output format": {
-      "summary": "No tests exist yet → write tests first.",
+      "summary": "When `--emit-json <path>` is set, write a structured result document to `<path>`.",
       "anchor": "output-format"
+    },
+    "Machine-readable output": {
+      "summary": "When `--emit-json <path>` is set, write a structured result document to `<path>`.",
+      "anchor": "machine-readable-output"
     },
     "When not to apply": {
       "summary": "No tests exist yet → write tests first.",
