@@ -143,6 +143,42 @@ Include both results in the agent report table under `Persona` and `Output-Disc`
 - Missing `## Output discipline`: insert the section with a placeholder bullet. Report `FIXED: <agent> — Added Output discipline placeholder (requires manual completion)`.
 - Generic boilerplate detected: emit `WARN: <agent> — Output discipline still contains generic boilerplate; manual update required` (no auto-fix — content must be role-specific).
 
+### 2d. Citation drift lint (preventive)
+
+Reviewer agents sometimes inline normative rules — numeric thresholds like
+"under 50 lines" or "80% coverage" — independently of the canonical skill or
+knowledge file. When that source changes, the agent silently keeps enforcing
+the stale value. The citation lint makes the dependency explicit: an agent
+declares its sources in a `cites:` frontmatter list, and every numeric threshold
+the agent states on an RFC-2119 line (MUST/SHOULD/SHALL/REQUIRED/NEVER/ALWAYS)
+must also appear in a cited source.
+
+Perform the check by reading (the same mechanical, deterministic style as the
+other audits — no judgment):
+
+1. Read each agent's frontmatter and look for a `cites:` list. Each entry names
+   a skill (`skills/<name>/SKILL.md`) or knowledge file (`knowledge/<name>.md`).
+2. In the agent body, find every line carrying an RFC-2119 keyword
+   (MUST/MUST NOT/SHOULD/SHALL/REQUIRED/NEVER/ALWAYS). Ignore lines inside code
+   fences (```` ``` ````/`~~~`) and blockquotes (`>`). On each such line, collect
+   the **numeric thresholds** (`50`, `80%`, `40.5`); ignore issue refs like `#99`.
+3. Read each cited source and check the threshold appears in it.
+
+Classify:
+
+- `cites:` present and every threshold backed → PASS in the Citation column.
+- `cites:` present but a threshold absent from every cited source → WARN
+  (possible drift): report the token + line number.
+- no `cites:` but the agent states thresholds → WARN (advisory): recommend
+  adding a `cites:` list.
+- no `cites:` and no thresholds → PASS (nothing to verify).
+- `cites:` an unknown source (no matching skill/knowledge file) → WARN.
+
+**Phase 1 is non-blocking** — these are warnings, never failures. Do not
+red-line the audit on a citation warning; surface it as an action item so drift
+is visible while `cites:` adoption grows. CI runs the deterministic counterpart,
+`scripts/citation_lint.py` (also advisory, exit 0), on every PR.
+
 ### 3. Audit skills
 
 Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:
@@ -236,10 +272,18 @@ Read each file in `.claude/hooks/*.sh` and check:
 | token-efficiency-review.sh | PASS | PASS | PASS | OK |
 | ... | | | | |
 
+## Citation drift (Phase 1 — advisory)
+| Agent | cites | Drift / Advisory | Status |
+| --- | --- | --- | --- |
+| complexity-review | yes | — | PASS |
+| naming-review | no | states 1 threshold, no cites: | WARN |
+| ... | | | |
+
 ## Summary
 - Agents: N OK, N WARN, N FAIL
 - Skills: N OK, N WARN, N FAIL
 - Hooks: N OK, N WARN, N FAIL
+- Citation drift: N PASS, N WARN (advisory, non-blocking)
 - Action items: [list of things to fix]
 ```
 

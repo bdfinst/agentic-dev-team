@@ -404,11 +404,13 @@ EOF
   bash "$BUILDER"
   local summary
   summary=$(jq -r '.["plugins/dev-team/knowledge/foo.md"]["Bar"].summary' "$KNOWLEDGE_INDEX_OUTPUT")
-  # The summary must end in a terminator (the truncation ellipsis applies
-  # when no terminator is on the captured line).
-  [[ "$summary" =~ [.!?…]$ ]]
-  # The captured body should contain content from the first line.
-  [[ "$summary" == *"This is a sentence that wraps onto"* ]] || [[ "$summary" == *"…" ]]
+  # The body boundary is the line wrap: the first non-blank line is captured
+  # verbatim and the second line is NOT pulled in. A first line under the
+  # MAX_SUMMARY_LEN truncation threshold is kept as-is — no terminator is
+  # forced and no ellipsis is appended (verbatim fragments are the norm; the
+  # ellipsis only marks length truncation > MAX_SUMMARY_LEN).
+  [ "$summary" = "This is a sentence that wraps onto" ]
+  [[ "$summary" != *"second line"* ]]
 }
 
 # ---------------------------------------------------------------------------

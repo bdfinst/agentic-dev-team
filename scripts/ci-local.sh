@@ -96,6 +96,7 @@ chk_model_routing() {
 }
 chk_cost_regression() { bash scripts/cost-regression-check.sh; }
 chk_eval_corpus()     { python3 scripts/eval_grade.py --check-corpus; }
+chk_citation_lint()   { python3 scripts/citation_lint.py --all; }  # advisory (#312)
 chk_eval_semver() {
   if [ -n "$BASE" ] && [ -n "$HEAD" ]; then
     bash scripts/eval_semver_classify.sh "$BASE" "$HEAD"
@@ -122,6 +123,7 @@ CHECKS=(
   "bats — model-routing hook conformance::chk_model_routing"
   "cost-regression check::chk_cost_regression"
   "eval corpus integrity (eval_grade.py --check-corpus)::chk_eval_corpus"
+  "citation drift lint (citation_lint.py, advisory)::chk_citation_lint"
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"
 )

@@ -174,6 +174,22 @@ model: <model>
 Do not include `hooks`, `mcpServers`, or `permissionMode` unless the user
 confirmed their inclusion in Step 8.
 
+#### Optional: `cites:` (citation drift defense, #312)
+
+When a review agent inlines normative **numeric thresholds** (e.g. "functions
+MUST be under 50 lines", "coverage SHOULD reach 80%") that are owned by a
+canonical skill or knowledge file, declare those sources with a `cites:` list so
+`/agent-audit`'s citation lint can detect drift between the agent and its source:
+
+```yaml
+cites: [complexity, object-calisthenics]   # skill names or knowledge file stems
+```
+
+Each entry resolves to `skills/<name>/SKILL.md` or `knowledge/<name>.md`. The lint
+(`scripts/citation_lint.py`) flags any threshold the agent states on an RFC-2119
+line that is absent from every cited source. Omit `cites:` for agents that state
+no numeric thresholds; the lint is advisory (Phase 1, non-blocking) either way.
+
 ---
 
 ## Step 10 — Generate Body

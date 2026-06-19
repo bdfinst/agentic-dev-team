@@ -1016,6 +1016,10 @@
       "summary": "A file is a **team agent** when its body contains a `## Behavioral Guidelines` section.",
       "anchor": "2c-audit-team-agent-personas"
     },
+    "2d. Citation drift lint (preventive)": {
+      "summary": "Reviewer agents sometimes inline normative rules — numeric thresholds like",
+      "anchor": "2d-citation-drift-lint-preventive"
+    },
     "3. Audit skills": {
       "summary": "Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:",
       "anchor": "3-audit-skills"
@@ -1128,6 +1132,10 @@
       "summary": "Arguments: $ARGUMENTS",
       "anchor": "parse-arguments"
     },
+    "Dispatch mode": {
+      "summary": "The agent and skill definitions under eval are **plain files on disk**.",
+      "anchor": "dispatch-mode"
+    },
     "Steps": {
       "summary": "Verify `.claude/evals/fixtures/` exists.",
       "anchor": "steps"
@@ -1141,7 +1149,7 @@
       "anchor": "2-load-fixtures-and-expected-results"
     },
     "3. Run agents against fixtures": {
-      "summary": "For each fixture/agent pair (agent fixtures):",
+      "summary": "First resolve the dispatch mode (see *Dispatch mode* above):",
       "anchor": "3-run-agents-against-fixtures"
     },
     "4. Grade each result": {

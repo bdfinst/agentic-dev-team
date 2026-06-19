@@ -24,6 +24,10 @@ UPDATE.md
 
 sync-to-aci.sh
 
+# Per-pair fingerprint replay cache for the live eval gate (#311). Generated at
+# runtime; restored/uploaded as a CI workflow artifact per branch, never checked in.
+evals/.eval-cache.json
+
 # Pre-commit review gate file (generated at runtime)
 .review-passed
 feature-file-validation-workspace/

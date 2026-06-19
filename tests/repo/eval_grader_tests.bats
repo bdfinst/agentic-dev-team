@@ -254,3 +254,75 @@ EOF
   [ "$status" -eq 2 ]
   [[ "$output" == *"not in applicableAgents"* ]]
 }
+
+# --- Pluggable grader registry (#309) ---------------------------------------
+
+@test "registry: explicit grader: verdict grades identically to the default" {
+  # Declaring the default grader explicitly must not change the verdict.
+  cat > "$CASE/expected/ar-demo.json" <<'EOF'
+{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": {
+    "arch-review": {
+      "grader": "verdict",
+      "expectedStatus": "fail",
+      "mustMention": ["layer"]
+    }
+  }
+}
+EOF
+  cat > "$CASE/actuals.json" <<'EOF'
+{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail",
+  "issues": [{ "severity": "error", "message": "domain imports infra layer" }],
+  "summary": "" } } } }
+EOF
+  run python3 "$GRADER" --expected-dir "$CASE/expected" --actuals "$CASE/actuals.json"
+  [ "$status" -eq 0 ]
+}
+
+@test "registry: unknown grader fails grading with a readable diff (exit 1)" {
+  cat > "$CASE/expected/ar-demo.json" <<'EOF'
+{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": { "arch-review": { "grader": "made-up", "expectedStatus": "fail" } }
+}
+EOF
+  cat > "$CASE/actuals.json" <<'EOF'
+{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail", "issues": [], "summary": "" } } } }
+EOF
+  run python3 "$GRADER" --expected-dir "$CASE/expected" --actuals "$CASE/actuals.json"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unknown grader 'made-up'"* ]]
+}
+
+@test "registry: --check-corpus rejects an unknown grader value (exit 2)" {
+  cat > "$CASE/expected/ar-demo.json" <<'EOF'
+{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": { "arch-review": { "grader": "nope", "expectedStatus": "fail" } }
+}
+EOF
+  run python3 "$GRADER" --check-corpus \
+    --expected-dir "$CASE/expected" --fixtures-dir "$CASE/fixtures"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"unknown grader 'nope'"* ]]
+}
+
+@test "registry: --check-corpus accepts a registered grader value (exit 0)" {
+  cat > "$CASE/expected/ar-demo.json" <<'EOF'
+{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": { "arch-review": { "grader": "verdict", "expectedStatus": "fail" } }
+}
+EOF
+  run python3 "$GRADER" --check-corpus \
+    --expected-dir "$CASE/expected" --fixtures-dir "$CASE/fixtures"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Eval corpus OK"* ]]
+}
