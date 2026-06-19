@@ -379,6 +379,93 @@ Feature: /quality-targets-converge avoids re-measuring files Phase 4 already cov
 **Files**: `plugins/dev-team/skills/quality-targets-converge/SKILL.md`, `tests/skills/quality_targets_converge_mutation_reuse_tests.bats`, `tests/fixtures/quality-targets-converge-steps-4-5.snapshot.md`
 **Commit**: `feat(quality-targets-converge): reuse Phase-4 mutation-history.json before re-measuring`
 
+---
+
+### Slice 5: End-of-phase test review + fix-errors loop in Phase 4 and Phase 5
+
+**Depends-on:** 3, 4
+**Files:** `plugins/dev-team/skills/test-modernize/SKILL.md`, `tests/skills/test_modernize_phase_review_loop_tests.bats`
+
+**Why this exists.** Slices 3 and 4 catch *mutation* regressions per Story, but the modernization workflow still has no end-of-phase quality pass over the tests it just wrote. `test-modernization-review` checks the **contract** (every Scenario has a binding, every Story closed with a delta entry); it doesn't read the test code's quality. This slice fills the gap: at the end of Phase 4 and Phase 5, dispatch `/test-design` (Farley Score + smells) **and** `/code-review` (full review-agent suite) scoped to the phase's diff. On findings, loop through `/apply-fixes` up to 2 times before escalating to the operator. Same review-fix-loop pattern the orchestrator uses inline during `/build` (CLAUDE.md → Phase 3 inline review checkpoints).
+
+**Behavior:**
+
+```gherkin
+Feature: /test-modernize runs an end-of-phase test review with a bounded fix loop
+
+  Scenario: Phase 4 closes clean — review passes, workflow advances to human gate
+    Given every Phase-4 Story has closed green AND the Phase-4 mutation gate accepted
+    When /test-modernize reaches the end-of-phase review step
+    Then it dispatches /test-design --since <phase-4-base-sha>
+    And it dispatches /code-review --since <phase-4-base-sha>
+    And both return zero error/warning findings
+    And the workflow proceeds to the human gate ("Δ-coverage AND Phase-4 mutation results accepted")
+
+  Scenario: Phase 4 review finds fixable errors — fix loop converges in one iteration
+    Given /code-review returns 3 error-severity findings (high confidence)
+    When /test-modernize enters the fix loop
+    Then it dispatches /apply-fixes against the corrections/ directory /code-review produced
+    And it re-runs /code-review --since <phase-4-base-sha>
+    And the re-run returns zero errors
+    And the workflow proceeds to the human gate with the loop summary
+
+  Scenario: Phase 4 review fix loop hits the 2-iteration cap — escalate to operator
+    Given the fix loop has run twice
+    And /code-review still returns at least one error-severity finding
+    When /test-modernize enters its third iteration
+    Then it halts the workflow and surfaces the remaining findings to the operator
+    And the operator chooses: [r] revise manually then /continue · [w] waive · [q] quit
+    And no third /apply-fixes is dispatched automatically
+
+  Scenario: Phase 4 review finds only suggestions — workflow advances with the report
+    Given /test-design returns a Farley Score and per-file recommendations (advisory only)
+    And /code-review returns zero error/warning findings (only suggestions)
+    When the review step finishes
+    Then the workflow proceeds to the human gate
+    And the human-gate prompt surfaces the Farley Score and the suggestion count
+
+  Scenario: Phase 5 mirrors Phase 4's review loop
+    Given Phase 5 has closed all dispatched Stories and /quality-targets-converge has converged
+    When /test-modernize reaches the end-of-phase review step
+    Then it dispatches /test-design AND /code-review scoped to the Phase-5 diff
+    And the same fix loop applies (max 2 iterations before escalation)
+
+  Scenario: review is scoped to the phase's diff, not the whole repo
+    When /test-design or /code-review is dispatched at end-of-phase
+    Then both are invoked with --since <phase-base-sha> where the base is the merge-base of the phase's first Story branch and main
+    And the review does not analyze files outside that diff
+
+  Scenario: tool-unavailable degrades the review to advisory
+    Given /test-design or /code-review cannot run (tool unavailable, dependency missing)
+    When the review step is reached
+    Then the workflow surfaces the unavailability to the operator
+    And offers [i] install via /init-dev-team, [k] skip — proceed advisory, [q] quit
+    And on [k] the human gate fires without review evidence
+
+  Scenario: review evidence is persisted for the human gate
+    When end-of-phase review completes (clean OR after loop convergence)
+    Then memory/test-modernize/<slug>/phase-<n>-review.json is written with
+      {captured_at, base_sha, head_sha, farley_score, smells, code_review:{errors, warnings, suggestions}, iterations: <n>, escalated: <bool>}
+    And the human-gate prompt references this file by path
+```
+
+**Steps:**
+
+#### Step 5.1: Insert end-of-phase review step into Phase 4 and Phase 5
+
+**Complexity**: standard
+**RED**: Add `tests/skills/test_modernize_phase_review_loop_tests.bats` with awk/grep `@test`s on `plugins/dev-team/skills/test-modernize/SKILL.md`. Assertions: (a) Phase 4 contains a "review" subsection that invokes `/test-design --since` AND `/code-review --since`; (b) the section names `/apply-fixes` and an explicit "max 2 iterations" cap; (c) escalation prompt offers `[r]` revise, `[w]` waive, `[q]` quit; (d) tool-unavailable triage names `/init-dev-team`; (e) `memory/test-modernize/<slug>/phase-<n>-review.json` is named with schema keys (`farley_score`, `code_review`, `iterations`, `escalated`); (f) Phase 5 mirrors the same subsection. The snapshot fixtures for Phase 1-3 (Slice 3) and Steps 4-5 in `quality-targets-converge` (Slice 4) MUST remain byte-identical — this slice is additive to Phase 4 and Phase 5 of `test-modernize` only.
+**GREEN**: Edit `plugins/dev-team/skills/test-modernize/SKILL.md`:
+
+- Append a new sub-step at the end of Phase 4 (after the per-Story loop, before the human gate) named **"Review the phase"**. Step content: capture `phase-4-base-sha` (the merge-base of the Phase-4 work and `main`); dispatch `/test-design --since <phase-4-base-sha>`; dispatch `/code-review --since <phase-4-base-sha>`; on any error/warning findings, dispatch `/apply-fixes <corrections-dir>`; re-run `/code-review`. Loop body capped at **2 iterations**. After iteration 2 (if still failing), surface the escalation prompt: `[r] revise manually then /continue`, `[w] waive (record reason)`, `[q] quit`. Tool-unavailable triage mirrors Phase 4's mutation-tool prompt (`[i] install via /init-dev-team`, `[k] skip — proceed advisory`, `[q] quit`). Write the structured result to `memory/test-modernize/<slug>/phase-4-review.json`.
+- Append the identical sub-step at the end of Phase 5 (after `/quality-targets-converge` has converged), substituting `phase-5-base-sha` and writing `phase-5-review.json`.
+- Update Phase 4's existing "Human gate" line to reference both the mutation results AND `phase-4-review.json`; same for Phase 5.
+**REFACTOR**: Extract the shared step body to a brief "Review-the-phase loop (Phase 4 + Phase 5 use this identically)" subsection BEFORE Phase 4, then both phases cross-reference it. This avoids byte-for-byte duplication of a 30-line block; one place to edit if the loop's iteration cap or escalation prompt changes.
+**Files**: `plugins/dev-team/skills/test-modernize/SKILL.md`, `tests/skills/test_modernize_phase_review_loop_tests.bats`
+**Commit**: `feat(test-modernize): end-of-phase /test-design + /code-review with bounded fix loop (Phases 4, 5)`
+
+---
+
 ## Parallelization
 
 ```mermaid
@@ -386,6 +473,8 @@ graph TD
   S1[Slice 1: mutation-testing flags + schema] --> S2[Slice 2: coverage-delta measures, never gates]
   S2 --> S3[Slice 3: test-modernize Phase 4 owns halt]
   S2 --> S4[Slice 4: quality-targets-converge reuses history]
+  S3 --> S5[Slice 5: end-of-phase test review + fix loop]
+  S4 --> S5
 ```
 
 | Wave | Slices (parallel) |
@@ -393,6 +482,7 @@ graph TD
 | 1    | 1                 |
 | 2    | 2                 |
 | 3    | 3, 4              |
+| 4    | 5                 |
 
 Confirm with `bash /Users/finsterb/.claude/plugins/cache/bfinster/dev-team/6.9.0/scripts/plan-waves.sh plans/mutation-testing-every-phase.md` before the human gate. Slices 3 and 4 touch disjoint SKILL.md files (`test-modernize/SKILL.md` vs `quality-targets-converge/SKILL.md`) and disjoint eval files, so wave 3 is safe.
 
@@ -405,6 +495,7 @@ Confirm with `bash /Users/finsterb/.claude/plugins/cache/bfinster/dev-team/6.9.0
 | 2.1 | standard | New step in a phased workflow; introduces a structured-status output contract; atomic-write semantics. |
 | 3.1 | standard | Orchestrator step-text changes with operator-facing halt prompt + four action paths. |
 | 4.1 | standard | Reuse logic with mtime comparison; backward-compat fallback. |
+| 5.1 | standard | Orchestrator step text plus a bounded fix loop with operator escalation; touches Phase 4 + Phase 5. |
 
 ## Pre-PR Quality Gate
 
@@ -456,6 +547,11 @@ This is the metric the North Star asks for. The plan ships unmeasured because no
 - [x] Slice 4: `/quality-targets-converge` reuses `mutation-history.json`
   - [x] Step 4.1: Insert reuse logic before the Phase-5 mutation step
 
+#### Wave 4
+
+- [x] Slice 5: End-of-phase test review + fix-errors loop in Phase 4 and Phase 5
+  - [x] Step 5.1: Insert end-of-phase review step into Phase 4 and Phase 5
+
 ### Acceptance Criteria
 
 - [x] AC-1: `/mutation-testing` accepts `--scope`, `--emit-json`, `--workflow-managed-approval` with documented caller allowlist (Slice 1)
@@ -465,6 +561,7 @@ This is the metric the North Star asks for. The plan ships unmeasured because no
 - [x] AC-5: `/quality-targets-converge` reuses `mutation-history.json` per file vs. mtime (Slice 4)
 - [x] AC-6: `status: tool_unavailable` degrades downstream gates to advisory with `/init-dev-team` install path (Slices 2, 3)
 - [ ] AC-7: No new skills/agents/diagrams; deferrals documented; probe exit criteria specified (this plan)
+- [x] AC-8: At the end of Phase 4 and Phase 5, `/test-modernize` dispatches `/test-design` AND `/code-review` scoped to the phase diff; on findings, the loop runs `/apply-fixes` up to 2 iterations before escalating to the operator. Review evidence persisted to `phase-<n>-review.json`. (Slice 5)
 
 ## Plan Review Summary
 

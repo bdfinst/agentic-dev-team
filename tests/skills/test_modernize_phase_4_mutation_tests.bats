@@ -124,10 +124,16 @@ phase4() {
 # --- Phase 1, 2, 3 step text byte-identical to snapshot fixture ----------
 
 @test "Phase 1-3: step text byte-identical to tests/fixtures/test-modernize-phase-1-3.snapshot.md" {
-  # Re-extract Phase 1-3 from the current SKILL and diff against the
-  # snapshot captured at slice start. Any drift here is a contract
-  # violation — Phase 1-3 are explicitly out of scope for this slice.
-  current=$(awk '/^### 1\./{f=1} /^### 4\./{f=0} f' "$SKILL")
+  # Re-extract Phase 1, 2, 3 from the current SKILL and diff against the
+  # snapshot captured at slice start. Phase 1-3 step text is explicitly out
+  # of scope for this slice; this guards against accidental edits there.
+  #
+  # The extraction stops at EITHER `### 4.` OR `### 3a.` (a shared sub-step
+  # introduced by Slice 5 between Phase 3 and Phase 4). Slice 5's section
+  # is legitimately new content and does NOT live inside Phase 3 — so the
+  # snapshot range ends where Phase 3 ends (its human-gate line), regardless
+  # of what comes next.
+  current=$(awk '/^### 1\./{f=1} /^### 3a\.|^### 4\./{f=0} f' "$SKILL")
   expected=$(cat "$SNAPSHOT")
   [ "$current" = "$expected" ]
 }

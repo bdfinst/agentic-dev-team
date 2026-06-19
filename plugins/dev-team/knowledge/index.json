@@ -4452,6 +4452,10 @@
       "summary": "1.",
       "anchor": "3-audit-baseline-coverage-test-audit-disable-coverage-baseline"
     },
+    "3a. Review-the-phase loop (Phase 4 + Phase 5 use this identically)": {
+      "summary": "This is the shared end-of-phase review the orchestrator runs at the close of Phase 4 and Phase 5.",
+      "anchor": "3a-review-the-phase-loop-phase-4-phase-5-use-this-identically"
+    },
     "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate": {
       "summary": "For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):",
       "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta-mutation-gate"

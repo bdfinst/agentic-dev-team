@@ -93,6 +93,64 @@ Phase 2 runs in two passes around the human gate so Stories never bind to un-rev
 
 **Human gate** — baseline accepted before adding tests.
 
+### 3a. Review-the-phase loop (Phase 4 + Phase 5 use this identically)
+
+This is the shared end-of-phase review the orchestrator runs at the close of Phase 4 and Phase 5. Both phases cross-reference this block rather than duplicating it. The loop converges quickly when the phase's tests are clean and escalates to the operator when they aren't — same review-fix-loop pattern `/build` uses inline, but scoped to the phase's diff.
+
+1. Resolve the phase's base sha: the merge-base of the phase's first Story branch and `main` (`git merge-base <phase-base-ref> main`). Record it as `<phase-base-sha>` for the rest of this loop.
+2. Dispatch `/test-design --since <phase-base-sha>` — produces the phase's Farley Score, test-review findings, and test-smell findings. Advisory: its output is recorded, never auto-fixed (test design is an operator-judgment call).
+3. Dispatch `/code-review --since <phase-base-sha>` — runs the full review-agent suite over the phase's diff and writes correction prompts to `corrections/` for any error/warning findings.
+4. **Fix loop, max 2 iterations.** If `/code-review` returned any error- or warning-severity findings with high or medium confidence:
+   a. Dispatch `/apply-fixes corrections/` to land the auto-fixable corrections.
+   b. Re-run `/code-review --since <phase-base-sha>`.
+   c. If clean, exit the loop and continue to step 5.
+   d. If still failing AND iteration count < 2, repeat (a).
+   e. **After iteration 2** (still failing), halt the loop and surface the escalation prompt:
+
+      ```text
+      ⚠ Phase-<n> review fix loop did not converge after 2 iterations
+        Remaining error/warning findings: <count>
+        See: corrections/<latest>/
+
+      Actions:
+        [r] revise manually — apply fixes by hand, then /continue
+        [w] waive          — record reason; remaining findings carry forward
+        [q] quit           — halt the workflow
+
+      Choose [r/w/q]:
+      ```
+
+      On `[w]`, append a Phase-`<n>` review waiver to `memory/test-modernize/<slug>/waivers.json` tagged with the finding list (same waivers file Phase-4 mutation halts use). On `[r]`, exit the gate and wait; `/continue` re-enters at this step. On `[q]`, halt the workflow.
+5. **Tool-unavailable triage.** If `/test-design` or `/code-review` cannot run (dependency missing, plugin unavailable), surface:
+
+   ```text
+   Review tool unavailable for Phase <n>. Install via /init-dev-team,
+   or skip end-of-phase review for this run.
+
+     [i] install — invoke /init-dev-team and retry the review
+     [k] skip   — proceed advisory; human gate fires without review evidence
+     [q] quit   — halt the workflow
+
+   Choose [i/k/q]:
+   ```
+
+6. Persist the review evidence to `memory/test-modernize/<slug>/phase-<n>-review.json`:
+
+   ```json
+   {
+     "captured_at": "<ISO-8601>",
+     "base_sha":   "<phase-base-sha>",
+     "head_sha":   "<HEAD-at-loop-exit>",
+     "farley_score":  { "rating": "...", "score": ... },
+     "smells":        [ { "rule": ..., "file": ..., "line": ... } ],
+     "code_review":   { "errors": <n>, "warnings": <n>, "suggestions": <n> },
+     "iterations":    <n>,
+     "escalated":     <true|false>
+   }
+   ```
+
+The phase's human gate reads this file before firing — without it (escape hatch `[k]` chosen, tool unavailable), the gate surfaces "review evidence: advisory only" so the operator knows what was skipped.
+
 ### 4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate
 
 For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):
@@ -141,8 +199,12 @@ For each Phase-4 child issue in dependency order (from `memory/test-modernize/<s
    ```
 
 4. After all Phase-4 Stories are Done, dispatch `dev-team:test-modernization-review --phase 4` — it cross-checks the scenario → Story-id map against the actually-submitted test code to verify every Scenario has a test citing it.
+5. **Review the phase.** Run the loop in `### 3a. Review-the-phase loop`. Specifically:
+   - Dispatch `/test-design --since <phase-4-base-sha>` and `/code-review --since <phase-4-base-sha>`.
+   - On findings, dispatch `/apply-fixes corrections/`; re-run `/code-review`; loop body capped at **max 2 iterations** before the operator escalation prompt fires.
+   - Write the resulting evidence to `memory/test-modernize/<slug>/phase-4-review.json` per the schema in 3a.
 
-**Human gate** — Δ-coverage AND Phase-4 mutation results (any waivers explicit) accepted before any production-code refactor.
+**Human gate** — Δ-coverage AND Phase-4 mutation results AND `phase-4-review.json` (any waivers explicit) accepted before any production-code refactor.
 
 ### 5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`
 
@@ -154,8 +216,12 @@ For each Phase-5 child issue in dependency order:
 3. After every Story closes, invoke `/mutation-testing <repo-path>` and `/quality-targets-converge <repo-path> --parent <url-or-empty> --repo-slug <slug>`. `/quality-targets-converge` reads `memory/test-modernize/<slug>/mutation-history.json` (written by Phase 4) to avoid re-measuring files Phase 4 already exercised — see that skill's reuse rule.
 4. `/quality-targets-converge` loops until all four targets are met or a target is explicitly waived by the operator with the reason recorded on the parent issue / `FEATURE.md`.
 5. Dispatch `dev-team:test-modernization-review --phase 5`.
+6. **Review the phase.** Run the loop in `### 3a. Review-the-phase loop`. Specifically:
+   - Dispatch `/test-design --since <phase-5-base-sha>` and `/code-review --since <phase-5-base-sha>`.
+   - On findings, dispatch `/apply-fixes corrections/`; re-run `/code-review`; loop body capped at **max 2 iterations** before the operator escalation prompt fires.
+   - Write the resulting evidence to `memory/test-modernize/<slug>/phase-5-review.json` per the schema in 3a.
 
-**Human gate** — final metrics accepted (or each gap waived with reason).
+**Human gate** — final metrics AND `phase-5-review.json` accepted (or each gap waived with reason).
 
 ### 6. Report
 
