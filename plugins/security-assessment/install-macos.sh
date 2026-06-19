@@ -13,6 +13,11 @@
 # Safe to re-run: each step checks presence first and skips when already
 # installed. Homebrew self-update is suppressed (HOMEBREW_NO_AUTO_UPDATE=1).
 #
+# joern (C# reachability for fp-reduction) is optional and large (~400 MB):
+# --all installs joern + the dotnetastgen C# frontend; the default mode only
+# warns when joern is absent. Either way the install never fails on joern.
+# Minimum tested joern version: 2.0.0 (bundles the csharpsrc2cpg frontend).
+#
 # Exit codes:
 #   0  — all requested installs succeeded (or were already present)
 #   1  — missing prerequisite (brew, python3) or one install failed
@@ -191,6 +196,50 @@ if [[ "$MODE" == "all" ]]; then
   section "Red-team / PDF export deps"
   brew_install pandoc
   pip_install weasyprint
+fi
+
+# ── joern — C# / .NET reachability for fp-reduction (optional) ──────────────
+# Minimum tested joern version: 2.0.0 (bundles the csharpsrc2cpg C# frontend,
+# which parses via the external 'dotnetastgen' .NET global tool). joern is
+# optional and never fails the run: --all installs it; default mode warns.
+
+JOERN_DOCS="https://docs.joern.io/installation/"
+JOERN_VERIFY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts/verify-joern-csharp.sh"
+
+section "joern — C# / .NET reachability for fp-reduction (optional, ~400 MB)"
+if [[ "$MODE" == "all" ]]; then
+  if command -v joern-parse &>/dev/null; then
+    printf '  [skip] %-16s — already installed\n' joern
+    SKIPPED=$((SKIPPED + 1))
+  elif run brew install --quiet joern; then
+    INSTALLED=$((INSTALLED + 1))
+  else
+    echo "  [warn] could not install joern via brew — .NET targets will use LLM-fallback ($JOERN_DOCS)"
+  fi
+  # joern's C# frontend parses through the external dotnetastgen .NET tool.
+  if command -v dotnet &>/dev/null; then
+    if command -v dotnetastgen &>/dev/null; then
+      printf '  [skip] %-16s — already installed\n' dotnetastgen
+      SKIPPED=$((SKIPPED + 1))
+    elif run dotnet tool install --global dotnetastgen; then
+      INSTALLED=$((INSTALLED + 1))
+    else
+      echo "  [warn] dotnetastgen install failed; C# CPGs may be incomplete ($JOERN_DOCS)"
+    fi
+  else
+    echo "  [warn] .NET SDK not found — joern's C# frontend needs 'dotnetastgen'."
+    echo "         Install the .NET SDK, then: dotnet tool install --global dotnetastgen"
+  fi
+elif command -v joern-parse &>/dev/null; then
+  printf '  [skip] %-16s — already installed\n' joern
+  SKIPPED=$((SKIPPED + 1))
+else
+  echo "  [warn] joern not installed — fp-reduction will use LLM-fallback for .NET/C# targets."
+  echo "         Re-run with --all (or install manually: $JOERN_DOCS) to enable joern-cpg reachability."
+fi
+# Verify the C# path end-to-end against the committed fixture (non-fatal).
+if (( DRY_RUN == 0 )) && command -v joern-parse &>/dev/null && [[ -x "$JOERN_VERIFY" ]]; then
+  "$JOERN_VERIFY" || echo "  (C# verification did not pass — .NET targets use LLM-fallback; see warning above)"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────
