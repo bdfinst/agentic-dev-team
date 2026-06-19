@@ -40,30 +40,6 @@
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
       "version": "3.2.1"
-    },
-    {
-      "author": {
-        "name": "Bryan Finster"
-      },
-      "description": "DEPRECATED legacy stub — renamed to dev-team@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. A SessionStart banner surfaces the half-migrated state. Scheduled for removal from the catalog no earlier than 2027-06-01.",
-      "homepage": "https://github.com/bdfinst/agentic-dev-team",
-      "license": "MIT",
-      "name": "agentic-dev-team",
-      "repository": "https://github.com/bdfinst/agentic-dev-team",
-      "source": "./plugins/agentic-dev-team",
-      "version": "6.0.2"
-    },
-    {
-      "author": {
-        "name": "Bryan Finster"
-      },
-      "description": "DEPRECATED legacy stub — renamed to security-assessment@bfinster. Run /upgrade to migrate; the stub installs the new plugin then removes itself. A SessionStart banner surfaces the half-migrated state. Scheduled for removal from the catalog no earlier than 2027-06-01.",
-      "homepage": "https://github.com/bdfinst/agentic-dev-team",
-      "license": "MIT",
-      "name": "agentic-security-assessment",
-      "repository": "https://github.com/bdfinst/agentic-dev-team",
-      "source": "./plugins/agentic-security-assessment",
-      "version": "3.0.2"
     }
   ]
 }

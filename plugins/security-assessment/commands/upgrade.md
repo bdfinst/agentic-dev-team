@@ -234,8 +234,3 @@ Restart Claude Code to apply the update.
   `settings.json` — the same flag the `/plugin` UI toggles. With it on,
   routine releases for **both** plugins in the marketplace (`dev-team`
   and `security-assessment`) land without running `/upgrade` again.
-- For migrating from the pre-rename `agentic-security-assessment@bfinster`
-  id, the legacy deprecation stub (`agentic-security-assessment` v3.0.1
-  in the marketplace catalog) has its own `/upgrade` that installs
-  `security-assessment@bfinster` then removes itself. This command is
-  the steady-state upgrade for users already on the new id.

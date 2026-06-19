@@ -103,22 +103,9 @@ fi
 
 section "dev-team dependency"
 DEV_TEAM_PATH="$REPO_ROOT/plugins/dev-team"
-LEGACY_DEV_TEAM_PATH="$REPO_ROOT/plugins/agentic-dev-team"
 CONTRACT_PATH="$DEV_TEAM_PATH/knowledge/security-primitives-contract.md"
 
-# Legacy-detection: if dev-team is absent but agentic-dev-team is present,
-# the user is on the pre-rename install. Surface the migration command
-# instead of a silent path-not-found failure.
-if [ -n "$REPO_ROOT" ] && [ ! -d "$DEV_TEAM_PATH" ] && [ -d "$LEGACY_DEV_TEAM_PATH" ]; then
-  echo "  [FAIL] dev-team not found, but the legacy 'agentic-dev-team' directory is present."
-  echo "         The plugin was renamed (agentic-dev-team → dev-team)."
-  echo "         If you installed via the marketplace, migrate with:"
-  echo "           /upgrade   (from any session with the old plugin loaded)"
-  echo "         Or manually:"
-  echo "           claude plugin install dev-team@bfinster"
-  echo "           claude plugin uninstall agentic-dev-team@bfinster"
-  FAIL=$((FAIL + 1))
-elif [ -z "$REPO_ROOT" ] || [ ! -d "$DEV_TEAM_PATH" ]; then
+if [ -z "$REPO_ROOT" ] || [ ! -d "$DEV_TEAM_PATH" ]; then
   echo "  [FAIL] dev-team not found at expected path"
   echo "         install it first: claude plugin install dev-team@bfinster"
   FAIL=$((FAIL + 1))
