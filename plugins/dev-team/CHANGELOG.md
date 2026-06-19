@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.10.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.10.0...dev-team-v6.10.1) (2026-06-19)
+
+
+### Documentation
+
+* add /ship + /test-modernize workflow doc; alphabetize skill/agent tables ([#277](https://github.com/bdfinst/agentic-dev-team/issues/277)) ([4eb563d](https://github.com/bdfinst/agentic-dev-team/commit/4eb563d56d9aff832860af35295302c2ba7d4b0c))
+
+
+### Miscellaneous
+
+* **plugins:** remove deprecated legacy stubs and rename-migration upgrade path ([#275](https://github.com/bdfinst/agentic-dev-team/issues/275)) ([2048687](https://github.com/bdfinst/agentic-dev-team/commit/2048687a1f2b3dad14de9b8538191a8f4fdd6893))
+
 ## [6.10.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.9.0...dev-team-v6.10.0) (2026-06-18)
 
 

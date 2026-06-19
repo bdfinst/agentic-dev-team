@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.3.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.2.1...security-assessment-v3.3.0) (2026-06-19)
+
+
+### Features
+
+* **security-assessment:** build joern C# CPGs for .NET targets ([#278](https://github.com/bdfinst/agentic-dev-team/issues/278)) ([9ba5153](https://github.com/bdfinst/agentic-dev-team/commit/9ba5153a7d164fd9b16e3d20f46da9bf31152247))
+
+
+### Documentation
+
+* fp-reduction SKILL.md + security-assessment user guide. ([9ba5153](https://github.com/bdfinst/agentic-dev-team/commit/9ba5153a7d164fd9b16e3d20f46da9bf31152247))
+
+
+### Miscellaneous
+
+* **plugins:** remove deprecated legacy stubs and rename-migration upgrade path ([#275](https://github.com/bdfinst/agentic-dev-team/issues/275)) ([2048687](https://github.com/bdfinst/agentic-dev-team/commit/2048687a1f2b3dad14de9b8538191a8f4fdd6893))
+
 ## [3.2.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.2.0...security-assessment-v3.2.1) (2026-06-18)
 
 
