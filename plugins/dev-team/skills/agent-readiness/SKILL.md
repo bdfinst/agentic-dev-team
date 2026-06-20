@@ -4,7 +4,8 @@ description: >-
   Score how ready the current repository is for AI-assisted development against
   the Agent-Readiness Scorecard. Use when the user asks "how agent-ready is this
   repo", "score this repo for agents", "agent readiness", or wants a tiered
-  readiness report.
+  readiness report. Scores YOUR project repo's readiness — not the dev-team
+  plugin's own review agents and routing (for that, use /harness-audit).
 argument-hint: "[repo-path] [--json <file>] [--markdown <file>]"
 user-invocable: true
 allowed-tools: >-
@@ -16,6 +17,12 @@ allowed-tools: >-
 Role: worker. Scores a **single local repository** against the Agent-Readiness
 Scorecard and reports a tier (Agent-Ready / Assisted / Limited / Hostile) with
 per-criterion evidence.
+
+> **Not `/harness-audit`.** This scores the **subject repository** (your
+> project's build, code quality, docs, and version-control hygiene) from a
+> static checkout. `/harness-audit` audits the **dev-team plugin's own harness**
+> (review-agent effectiveness, model tiers, orchestration) from accumulated
+> runtime metrics. Different subject, different input, different output.
 
 ## Scope (MVP — issue #117)
 
