@@ -209,6 +209,14 @@
     "Boundaries": {
       "summary": "\"Minimal tooling\" means prefer in-memory doubles + a real browser + testcontainers for adapter checks — not a sprawl of test frameworks.",
       "anchor": "boundaries"
+    },
+    "The Pyramid Is a Cost Heuristic, Not a Target Shape": {
+      "summary": "The pyramid expresses that tests get more expensive — slower, flakier, longer",
+      "anchor": "the-pyramid-is-a-cost-heuristic-not-a-target-shape"
+    },
+    "The E2E Justification Gate": {
+      "summary": "E2E tests are non-deterministic and never gate a pre-merge build (see",
+      "anchor": "the-e2e-justification-gate"
     }
   },
   "plugins/dev-team/knowledge/component-test-patterns.md": {
@@ -679,7 +687,7 @@
       "anchor": "graduated-disclosure-dont-over-build"
     },
     "Boundaries": {
-      "summary": "Maturity is about **maintainability under change**, not coverage or correctness — those are `test-design-reviewer` and `test-review`.",
+      "summary": "Maturity is about **maintainability under change**, not coverage or correctness — those are `farley-score` and `test-review`.",
       "anchor": "boundaries"
     }
   },
@@ -707,6 +715,12 @@
     "Boundaries": {
       "summary": "Don't flag a Fake (in-memory repo/DB) as \"not testing the real thing\" — at unit/integration level a Fake is a legitimate, often *better*, choice than a heavily-stubbed real dependency.",
       "anchor": "boundaries"
+    }
+  },
+  "plugins/dev-team/knowledge/test-file-indicators.md": {
+    "Indicators by language": {
+      "summary": "| Language | A file is a test when it… |",
+      "anchor": "indicators-by-language"
     }
   },
   "plugins/dev-team/knowledge/test-layer-gates.md": {
@@ -791,6 +805,20 @@
     "How this connects to the rest of the toolkit": {
       "summary": "**`test-smells.md`** — the smells each refactoring removes.",
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/test-review-division-of-labor.md": {
+    "The two roles": {
+      "summary": "**`test-review`** owns the **tactical per-file gate**: an assertion is missing",
+      "anchor": "the-two-roles"
+    },
+    "Shared signals — who reports when both run": {
+      "summary": "Several signals are detectable by both agents.",
+      "anchor": "shared-signals-who-reports-when-both-run"
+    },
+    "The rule in one line": {
+      "summary": "When both agents run, `test-smell-review` defers the pure mechanics (missing",
+      "anchor": "the-rule-in-one-line"
     }
   },
   "plugins/dev-team/knowledge/test-smells.md": {
@@ -2537,6 +2565,40 @@
       "anchor": "steps"
     }
   },
+  "plugins/dev-team/skills/farley-score/SKILL.md": {
+    "Overview": {
+      "summary": "Evaluates test quality using the 8 properties of good tests as described by Andrea Laforgia, based on Dave Farley's testing principles.",
+      "anchor": "overview"
+    },
+    "The 8 Properties": {
+      "summary": "Each property is scored 1-10:",
+      "anchor": "the-8-properties"
+    },
+    "Scoring": {
+      "summary": "Total weight: 9.0.",
+      "anchor": "scoring"
+    },
+    "Per-test score": {
+      "summary": "Total weight: 9.0.",
+      "anchor": "per-test-score"
+    },
+    "Score interpretation": {
+      "summary": "| Range | Rating | Action |",
+      "anchor": "score-interpretation"
+    },
+    "Suite-level score": {
+      "summary": "Average the per-test scores.",
+      "anchor": "suite-level-score"
+    },
+    "Output Format": {
+      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "anchor": "output-format"
+    },
+    "Integration": {
+      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "anchor": "integration"
+    }
+  },
   "plugins/dev-team/skills/feature-file-validation/SKILL.md": {
     "When to Run": {
       "summary": "During `/code-review` when `.feature` or step definition files are in the changeset",
@@ -4247,41 +4309,7 @@
       "anchor": "output"
     },
     "Integration": {
-      "summary": "Pairs with the `test-smell-review` agent (which *detects* smells) and the `test-design-reviewer` skill (which *scores* an existing suite).",
-      "anchor": "integration"
-    }
-  },
-  "plugins/dev-team/skills/test-design-reviewer/SKILL.md": {
-    "Overview": {
-      "summary": "Evaluates test quality using the 8 properties of good tests as described by Andrea Laforgia, based on Dave Farley's testing principles.",
-      "anchor": "overview"
-    },
-    "The 8 Properties": {
-      "summary": "Each property is scored 1-10:",
-      "anchor": "the-8-properties"
-    },
-    "Scoring": {
-      "summary": "Total weight: 9.0.",
-      "anchor": "scoring"
-    },
-    "Per-test score": {
-      "summary": "Total weight: 9.0.",
-      "anchor": "per-test-score"
-    },
-    "Score interpretation": {
-      "summary": "| Range | Rating | Action |",
-      "anchor": "score-interpretation"
-    },
-    "Suite-level score": {
-      "summary": "Average the per-test scores.",
-      "anchor": "suite-level-score"
-    },
-    "Output Format": {
-      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
-      "anchor": "output-format"
-    },
-    "Integration": {
-      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "summary": "Pairs with the `test-smell-review` agent (which *detects* smells) and the `farley-score` skill (which *scores* an existing suite).",
       "anchor": "integration"
     }
   },

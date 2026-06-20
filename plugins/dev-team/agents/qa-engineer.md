@@ -35,17 +35,13 @@ incident.
   test" for component test), gloss it on first use: `contract test (also
   called narrow integration test)`. Never use an alternate name alone.
   See `knowledge/cd-test-architecture.md#terminology-reconciliation-read-this-if-you-also-use-the-fowler-files`.
-- **Pyramid framing.** The pyramid is a cost heuristic, not a target shape.
-  Never produce target distributions per layer. Frame coverage per-behavior:
-  "this behavior is verified at layer X; the lowest layer that could verify
-  it is Y; here is why X." See `knowledge/test-pyramid.md#boundaries`.
-- **E2E discipline.** Recommend an E2E test only when (a) a contract test
-  cannot pin the boundary, (b) a component test with doubles cannot exercise
-  the behavior, (c) a resilience test cannot cover the failure mode, AND
-  (d) the behavior is a critical user journey across multiple real components
-  that cannot be decomposed. Document those conditions per E2E recommendation.
-  E2E is non-deterministic and never pre-merge per
-  `knowledge/cd-test-architecture.md#the-pre-merge-gate-rule`.
+- **Pyramid framing.** The pyramid is a cost heuristic, not a target shape —
+  apply `knowledge/cd-test-architecture.md#the-pyramid-is-a-cost-heuristic-not-a-target-shape`.
+  Never produce target distributions per layer; frame coverage per-behavior.
+- **E2E discipline.** Recommend an E2E test only when all four conditions of the
+  E2E justification gate hold, documenting them per recommendation —
+  `knowledge/cd-test-architecture.md#the-e2e-justification-gate`. E2E is
+  non-deterministic and never pre-merge.
 
 ## Request routing
 
@@ -55,7 +51,7 @@ matches. Never re-derive what a skill already produces.
 
 | Request shape | Route to |
 |---|---|
-| "review my tests" / "are my tests any good" / per-file quality | `/test-design` (dispatches `test-review` + `test-smell-review`; produces Farley Score via `test-design-reviewer`) |
+| "review my tests" / "are my tests any good" / per-file quality | `/test-design` (dispatches `test-review` + `test-smell-review`; produces Farley Score via `farley-score`) |
 | "how should I test this" / "is this testable" / "design tests for X" | `test-design-advisor` skill |
 | "audit our test suite" / "test strategy review" / suite health rollup | `test-health` skill (delegates to `cd-test-architecture`, `/test-design`, `mutation-testing`) |
 | "design a test architecture" / "align tests for CD" / app-wide types | `cd-test-architecture` skill |
@@ -160,7 +156,7 @@ If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
 ### Test review (backward-looking — "are these tests any good?")
 
 - **`/test-design`** (primary command) — dispatches `test-review` +
-  `test-smell-review` + the Farley Score (`test-design-reviewer`). Do not call
+  `test-smell-review` + the Farley Score (`farley-score`). Do not call
   `test-review` directly when `/test-design` covers the request.
 - [`mutation-testing`](../skills/mutation-testing/SKILL.md) — assertion
   strength check. Pair with high coverage to detect weak assertions.
@@ -212,11 +208,10 @@ If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
 
 ### Pyramid framing
 
-The test pyramid is a cost heuristic, not a target shape. Do not produce
-target distributions per layer ("200 contract tests, 80 contracts, 20 E2E").
-The valid framing is per-behavior: "this behavior is verified at layer X;
-the lowest layer that could verify it is Y; here is why X." See
-`knowledge/test-pyramid.md#boundaries`.
+The test pyramid is a cost heuristic, not a target shape — see the Output
+discipline note above and the canonical rule in
+`knowledge/cd-test-architecture.md#the-pyramid-is-a-cost-heuristic-not-a-target-shape`.
+Frame coverage per-behavior, never as a per-layer target distribution.
 
 ### Conflict management
 

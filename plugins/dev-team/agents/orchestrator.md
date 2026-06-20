@@ -94,7 +94,7 @@ agents directly when the request is strategic — they belong inside the
 | Request shape | Route to |
 |---|---|
 | "review the overall test design" / "test strategy review" / "audit our tests" / "is our testing healthy" | `qa-engineer` → `test-health` skill (delegates to `cd-test-architecture`, `/test-design`, `mutation-testing`) |
-| "review my tests" / per-file test quality | `/test-design` (dispatches `test-review` + `test-smell-review`; produces Farley Score via `test-design-reviewer`) |
+| "review my tests" / per-file test quality | `/test-design` (dispatches `test-review` + `test-smell-review`; produces Farley Score via `farley-score`) |
 | "how should I test this" / "is this testable" / "design tests for X" | `qa-engineer` → `test-design-advisor` skill |
 | "align tests for CD" / pre-merge gate determinism / app-wide test types | `qa-engineer` → `cd-test-architecture` skill |
 | "are tests catching real bugs" / assertion strength | `qa-engineer` → `mutation-testing` skill |

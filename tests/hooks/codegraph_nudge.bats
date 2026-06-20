@@ -372,21 +372,27 @@ _setup_codegraph_project() {
   # Hot path: codegraph present, single-file Read → hook exits 0 silently
   # right after parsing CWD and TOOL_NAME. This is the most common path
   # the hook will take across a session.
-  local samples=()
-  local i start end ms
-  for ((i=0; i<20; i++)); do
-    start=$(python3 -c "import time; print(time.perf_counter())")
-    echo "$input" | bash "$HOOK" >/dev/null 2>&1
-    end=$(python3 -c "import time; print(time.perf_counter())")
-    ms=$(python3 -c "print(int(($end - $start) * 1000))")
-    samples+=("$ms")
-  done
-
-  # Median: sort numerically, pick the 10th of 20 (lower median).
+  # Time the hook from inside a single python process so that interpreter
+  # cold-start is NOT charged to the hook. Spawning `python3 -c` per sample
+  # to read the clock added ~20-40ms of interpreter startup to each reading,
+  # which swamped the sub-30ms hook and made the budget flaky. Here we time
+  # only the `bash "$HOOK"` subprocess and report the lower median of 20.
   local sorted
-  sorted=$(printf '%s\n' "${samples[@]}" | sort -n | sed -n '10p')
+  sorted=$(HOOK="$HOOK" INPUT="$input" python3 - <<'PY'
+import os, subprocess, time
+hook = os.environ["HOOK"]
+data = os.environ["INPUT"].encode()
+samples = []
+for _ in range(20):
+    t0 = time.perf_counter()
+    subprocess.run(["bash", hook], input=data,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    samples.append((time.perf_counter() - t0) * 1000)
+samples.sort()
+print(int(samples[9]))  # lower median of 20
+PY
+)
 
-  echo "# samples ms: ${samples[*]}" >&2
   echo "# median ms: $sorted" >&2
   [ "$sorted" -lt 50 ]
 }
