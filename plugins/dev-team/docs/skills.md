@@ -51,7 +51,7 @@ Enforce rigorous development practices:
 | Systematic Debugging | [`systematic-debugging.md`](../skills/systematic-debugging/SKILL.md) | 4-phase debugging protocol (reproduce, investigate, root-cause, fix) |
 | Test Audit + Disable | [`test-audit-disable/SKILL.md`](../skills/test-audit-disable/SKILL.md) | Worker for `/test-modernize` Phase 3 — detect tests that cannot fail (no assertions, tautologies, swallowed exceptions, self-equality) and disable each with skip-and-tag plus reason; never deletes |
 | Test Design Advisor | [`test-design-advisor.md`](../skills/test-design-advisor/SKILL.md) | Advise on testability, pyramid layer, double strategy, and behavior-preserving refactor sequences |
-| Test Design Reviewer | [`test-design-reviewer.md`](../skills/test-design-reviewer/SKILL.md) | Test quality patterns and anti-patterns |
+| Farley Score | [`farley-score.md`](../skills/farley-score/SKILL.md) | Test quality scoring — Dave Farley's 8 properties, weighted Farley Score |
 | Test-Driven Development | [`test-driven-development.md`](../skills/test-driven-development/SKILL.md) | RED-GREEN-REFACTOR cycle with hard gates, rationalization prevention |
 
 > For the full test evaluation workflow — how Test Design Advisor, CD Test Architecture, `/test-design`, and `test-smell-review` relate, the out-of-repo anti-pattern, and sample invocations — see [Test Evaluation and Architecture](test-evaluation.md).
@@ -164,7 +164,7 @@ Team agent personas (orchestrator, architect, software-engineer, qa-engineer, se
 
 ### Skill Invocation
 
-Skills are user-invocable directly as `/<skill-name>` — there are no per-skill command wrappers. The available skills (specs, threat-modeling, hexagonal-architecture, domain-driven-design, domain-analysis, api-design, legacy-code, mutation-testing, governance-compliance, feedback-learning, context-loading-protocol, context-summarization, performance-metrics, quality-gate-pipeline, human-oversight-protocol, agent-skill-authoring, competitive-analysis, design-doc, branch-workflow, browser-testing, ci-debugging, design-interrogation, design-it-twice, feature-file-validation, performance-benchmark, static-analysis-integration, systematic-debugging, test-design-reviewer, test-design-advisor, cd-test-architecture, test-driven-development, docker-image-audit, docker-image-create, js-project-init) load their `SKILL.md` content into the current context and apply it to the task. See [`skills/`](../skills/) for full definitions.
+Skills are user-invocable directly as `/<skill-name>` — there are no per-skill command wrappers. The available skills (specs, threat-modeling, hexagonal-architecture, domain-driven-design, domain-analysis, api-design, legacy-code, mutation-testing, governance-compliance, feedback-learning, context-loading-protocol, context-summarization, performance-metrics, quality-gate-pipeline, human-oversight-protocol, agent-skill-authoring, competitive-analysis, design-doc, branch-workflow, browser-testing, ci-debugging, design-interrogation, design-it-twice, feature-file-validation, performance-benchmark, static-analysis-integration, systematic-debugging, farley-score, test-design-advisor, cd-test-architecture, test-driven-development, docker-image-audit, docker-image-create, js-project-init) load their `SKILL.md` content into the current context and apply it to the task. See [`skills/`](../skills/) for full definitions.
 
 ### Utility Skills
 

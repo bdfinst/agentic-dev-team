@@ -53,4 +53,4 @@ Scale abstraction to suite size, not aspiration:
 
 ## Boundaries
 
-Maturity is about **maintainability under change**, not coverage or correctness — those are `test-design-reviewer` and `test-review`. A small suite at rung 1 is fine; flag low maturity only when suite size makes the single-point-of-change cost real.
+Maturity is about **maintainability under change**, not coverage or correctness — those are `farley-score` and `test-review`. A small suite at rung 1 is fine; flag low maturity only when suite size makes the single-point-of-change cost real.
