@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.11.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.11.0...dev-team-v6.11.1) (2026-06-20)
+
+
+### Code Refactoring
+
+* **test-review:** consolidate overlaps, rename Farley scorer, dedupe shared prose ([#324](https://github.com/bdfinst/agentic-dev-team/issues/324)) ([dd2d1da](https://github.com/bdfinst/agentic-dev-team/commit/dd2d1daf317272b2c11b6488c32c865147d0c038))
+
+
+### Documentation
+
+* **skills:** disambiguate /agent-readiness from /harness-audit ([#325](https://github.com/bdfinst/agentic-dev-team/issues/325)) ([f647247](https://github.com/bdfinst/agentic-dev-team/commit/f6472472bdc24c4bc9aeec12ff19fc20c3732ebc))
+
 ## [6.11.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.10.1...dev-team-v6.11.0) (2026-06-19)
 
 
