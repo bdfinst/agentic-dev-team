@@ -17,10 +17,14 @@ jobs:
       # identity (not the default GITHUB_TOKEN) is what lets the release PR's
       # events trigger the pull_request workflows — GITHUB_TOKEN-authored PRs
       # never start new workflow runs (GitHub's recursion guard).
+      #
+      # `client-id` supersedes the deprecated `app-id` input. The
+      # RELEASE_BOT_APP_ID secret holds the App's Client ID (e.g. Iv23li…),
+      # not the legacy numeric App ID.
       - uses: actions/create-github-app-token@v3
         id: app-token
         with:
-          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          client-id: ${{ secrets.RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
       - uses: googleapis/release-please-action@v5
