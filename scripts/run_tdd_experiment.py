@@ -81,10 +81,12 @@ ARM_PROMPTS = {
         + PYTEST_RULE
     ),
     "build-pipeline": (
+        "You are operating FULLY AUTONOMOUSLY with no human reviewer present. "
         "Use the dev-team plugin's TDD pipeline to implement the spec in {spec}: "
-        "run the /plan skill to produce a plan, then the /build skill to "
-        "implement it with RED-GREEN-REFACTOR. Work autonomously; do not wait "
-        "for human approval. Make the acceptance behavior correct." + PYTEST_RULE
+        "run /plan, then IMMEDIATELY approve your own plan yourself and run "
+        "/build to implement it with RED-GREEN-REFACTOR. NEVER stop to ask for "
+        "approval or confirmation -- approve and proceed every time. Make the "
+        "acceptance behavior correct." + PYTEST_RULE
     ),
 }
 
@@ -95,10 +97,12 @@ CHANGE_PROMPTS = {
         "test suite green; it is your safety net." + PYTEST_RULE
     ),
     "build-pipeline": (
+        "You are operating FULLY AUTONOMOUSLY with no human reviewer present. "
         "This is an existing feature in the working directory. Use the dev-team "
         "/plan -> /build pipeline to apply the change described in {change} with "
-        "TDD. Keep the existing test suite green. Work autonomously; do not wait "
-        "for human approval." + PYTEST_RULE
+        "TDD. Keep the existing test suite green. Run /plan, then IMMEDIATELY "
+        "approve your own plan yourself and run /build. NEVER stop to ask for "
+        "approval -- approve and proceed every time." + PYTEST_RULE
     ),
 }
 CHANGE_PROMPTS["test-after"] = CHANGE_PROMPTS["test-first"]
@@ -240,6 +244,16 @@ def measure_coverage(workdir: Path, env: dict, prod: list[Path]) -> dict:
          "-m", "pytest", "-q"],
         cwd=str(workdir), env=cov_env, capture_output=True, text=True)
     out["tests_passed"] = (run.returncode == 0)
+    if run.returncode == 5:  # pytest collected nothing -> run test files directly
+        for t in sorted(set(list(workdir.glob("test_*.py"))
+                            + list(workdir.rglob("*_test.py")))):
+            if "__pycache__" in t.parts:
+                continue
+            subprocess.run(["python3", "-m", "coverage", "run", "--branch",
+                            "--append", "--source=.", str(t)],
+                           cwd=str(workdir), env=cov_env,
+                           capture_output=True, text=True)
+        out["tests_passed"] = (_pytest_rc(workdir, env) == 0)
     subprocess.run(
         ["python3", "-m", "coverage", "json", "-o", str(workdir / "cov.json")],
         cwd=str(workdir), env=cov_env, capture_output=True, text=True)
@@ -262,10 +276,42 @@ def measure_coverage(workdir: Path, env: dict, prod: list[Path]) -> dict:
 # AST-level mutation operators. Operating on the parse tree (not text) reliably
 # catches operators regardless of whitespace and never mutates strings/comments.
 _BINOP = {ast.Add: ast.Sub, ast.Sub: ast.Add, ast.Mult: ast.Div,
-          ast.Div: ast.Mult}
-_CMPOP = {ast.Lt: ast.LtE, ast.LtE: ast.Lt, ast.Gt: ast.GtE, ast.GtE: ast.Gt,
-          ast.Eq: ast.NotEq, ast.NotEq: ast.Eq}
+          ast.Div: ast.Mult, ast.Mod: ast.Mult, ast.FloorDiv: ast.Div,
+          ast.Pow: ast.Mult}
+_CMPOP = {ast.Lt: ast.GtE, ast.LtE: ast.Gt, ast.Gt: ast.LtE, ast.GtE: ast.Lt,
+          ast.Eq: ast.NotEq, ast.NotEq: ast.Eq, ast.Is: ast.IsNot,
+          ast.IsNot: ast.Is, ast.In: ast.NotIn, ast.NotIn: ast.In}
 _BOOLOP = {ast.And: ast.Or, ast.Or: ast.And}
+
+
+def _is_int_const(node) -> bool:
+    return (isinstance(node, ast.Constant) and isinstance(node.value, int)
+            and not isinstance(node.value, bool))
+
+
+def _pytest_rc(workdir: Path, env: dict) -> int:
+    """Return a normalized test result: 0 = green, non-zero = a test failed.
+
+    Falls back to executing test files directly when pytest collects nothing
+    (exit 5) -- this is what made the earlier 'un-measurable' cells: the agent's
+    tests were plain assert scripts pytest does not collect.
+    """
+    r = subprocess.run(["python3", "-m", "pytest", "-q"], cwd=str(workdir),
+                       env=env, capture_output=True, text=True)
+    if r.returncode != 5:
+        return r.returncode
+    test_files = sorted(set(list(workdir.glob("test_*.py"))
+                            + list(workdir.rglob("*_test.py"))))
+    ran = False
+    for t in test_files:
+        if "__pycache__" in t.parts:
+            continue
+        rr = subprocess.run(["python3", str(t)], cwd=str(workdir), env=env,
+                            capture_output=True, text=True)
+        ran = True
+        if rr.returncode != 0:
+            return 1
+    return 0 if ran else 5  # 5 still means "no runnable tests found"
 
 
 def _mutation_sites(tree: ast.AST) -> int:
@@ -273,11 +319,15 @@ def _mutation_sites(tree: ast.AST) -> int:
     for node in ast.walk(tree):
         if isinstance(node, ast.BinOp) and type(node.op) in _BINOP:
             n += 1
+        elif isinstance(node, (ast.AugAssign,)) and type(node.op) in _BINOP:
+            n += 1
         elif isinstance(node, ast.Compare):
             n += sum(type(o) in _CMPOP for o in node.ops)
         elif isinstance(node, ast.BoolOp) and type(node.op) in _BOOLOP:
             n += 1
         elif isinstance(node, ast.Constant) and isinstance(node.value, bool):
+            n += 1
+        elif _is_int_const(node):
             n += 1
     return n
 
@@ -290,6 +340,11 @@ def _apply_mutation(src: str, k: int) -> str | None:
     def flip(node) -> bool:
         i = counter["i"]
         if isinstance(node, ast.BinOp) and type(node.op) in _BINOP:
+            if i == k:
+                node.op = _BINOP[type(node.op)]()
+                return True
+            counter["i"] += 1
+        elif isinstance(node, ast.AugAssign) and type(node.op) in _BINOP:
             if i == k:
                 node.op = _BINOP[type(node.op)]()
                 return True
@@ -311,6 +366,11 @@ def _apply_mutation(src: str, k: int) -> str | None:
                 node.value = not node.value
                 return True
             counter["i"] += 1
+        elif _is_int_const(node):
+            if i == k:
+                node.value = node.value + 1  # off-by-one
+                return True
+            counter["i"] += 1
         return False
 
     for node in ast.walk(tree):
@@ -329,9 +389,7 @@ def measure_mutation(workdir: Path, env: dict, prod: list[Path],
     """
     out = {"killed": 0, "total": 0, "score": None, "baseline_green": None,
            "survivors": []}
-    base = subprocess.run(["python3", "-m", "pytest", "-q"], cwd=str(workdir),
-                          env=env, capture_output=True, text=True)
-    out["baseline_green"] = (base.returncode == 0)
+    out["baseline_green"] = (_pytest_rc(workdir, env) == 0)
     if not out["baseline_green"]:
         return out
 
@@ -354,12 +412,10 @@ def measure_mutation(workdir: Path, env: dict, prod: list[Path],
             if mutated is None or mutated == src:
                 continue
             p.write_text(mutated)
-            r = subprocess.run(["python3", "-m", "pytest", "-q"],
-                               cwd=str(workdir), env=env,
-                               capture_output=True, text=True)
+            rc = _pytest_rc(workdir, env)
             p.write_text(src)
             out["total"] += 1
-            if r.returncode != 0:
+            if rc != 0:
                 out["killed"] += 1
             elif len(out["survivors"]) < 8:
                 out["survivors"].append({"file": p.name, "site": k})
