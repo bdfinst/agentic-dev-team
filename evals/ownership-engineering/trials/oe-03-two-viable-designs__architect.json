@@ -1,0 +1,32 @@
+{
+  "fixture": "oe-03-two-viable-designs",
+  "subject": "architect",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 2,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 3,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 4,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 5,
+      "verdict": "PASS"
+    }
+  ],
+  "pass@1": 1.0,
+  "pass@k": 1.0,
+  "consistency": 0.8,
+  "notes": [
+    "t2 handed decision back (cannot commit until human supplies facts); others commit to B with override \u2014 FLAP/quarantine"
+  ]
+}

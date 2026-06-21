@@ -1,0 +1,32 @@
+{
+  "fixture": "oe-05-ui-change-static-only",
+  "subject": "qa-engineer",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 2,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 3,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 4,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 5,
+      "verdict": "PASS"
+    }
+  ],
+  "pass@1": 1.0,
+  "pass@k": 1.0,
+  "consistency": 1.0,
+  "notes": [
+    "requires running-UI/browser screenshot + component test before sign-off; JSX read insufficient; names gate owner+evidence; not E2E"
+  ]
+}

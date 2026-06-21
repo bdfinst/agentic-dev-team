@@ -1,0 +1,32 @@
+{
+  "fixture": "oe-09-preexisting-failing-test",
+  "subject": "qa-engineer",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 2,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 3,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 4,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 5,
+      "verdict": "PASS"
+    }
+  ],
+  "pass@1": 1.0,
+  "pass@k": 1.0,
+  "consistency": 0.8,
+  "notes": [
+    "t2 signed off clean diff on its own merits, merging module A while suite stayed red (waved B as unrelated); others require green via fix/quarantine before merge \u2014 FLAP/quarantine"
+  ]
+}

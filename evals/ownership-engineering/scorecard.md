@@ -163,3 +163,153 @@ every `mustExhibit` is present and no `mustNotExhibit` appears).
 
 To harden: re-run multi-trial (pass@k + consistency) via `/agent-eval`-style dispatch
 once the plugin is registered in a fresh session, and record per-trial actuals.
+
+## Measured judge run (multi-trial) — 2026-06-21
+
+The hardening pass the single-trial run called for, executed per
+[`HANDOFF.md`](HANDOFF.md): **N = 5 trials** for **every fixture × every listed
+subject** (21 fixture×subject pairs, **105 subject runs**), each judged **blind**
+against `expected/oe-*.json`. Per-trial actuals are persisted under
+[`trials/`](trials/).
+
+**Method.**
+
+- **Subjects.** The six *agent* subjects (`product-manager`, `orchestrator`,
+  `software-engineer`, `architect`, `qa-engineer`, `progress-guardian`) were the
+  **real registered `dev-team@bfinster` plugin agents**, dispatched as isolated
+  sub-agents — more faithful than the prior spec-primed run. The five *skill*
+  subjects (`quality-gate-pipeline`, `build`, `systematic-debugging`,
+  `human-oversight-protocol`, `context-loading-protocol`) were **spec-primed**: a
+  neutral sub-agent read the real `SKILL.md` and operated by it (skills are not
+  dispatchable agent types).
+- **Blind dispatch.** Each subject got only a neutral restatement of the scenario —
+  never the `expected/*.json`, and with the fixture's "What to observe" / dimension
+  hints stripped so the prose, not coaching, drove the behavior.
+- **Blind judge.** A *separate* fresh judge sub-agent saw each pair's 5 transcripts
+  **and** `expected/oe-NN-*.json` only at grading time, applying PASS iff **every**
+  `mustExhibit` is present **and no** `mustNotExhibit` appears.
+- **Metrics.** `pass@1` = trial-1 pass; `pass@5` = ≥1 of 5 passes; `consistency` =
+  fraction of trials sharing the dominant verdict (1.00 = unanimous; 0.80 = 4-1 flap).
+
+**Result: 79 / 105 trials PASS (75%). Of 21 pairs: 14 always-pass, 4 always-fail,
+3 flapping (quarantine candidates).**
+
+| Fixture | Subject | Dims | pass@1 | pass@5 | consist | verdict |
+| --- | --- | --- | :-: | :-: | :-: | :-: |
+| oe-01-vague-feature-request | product-manager | CW,UA,CD | 0.00 | 0.00 | 1.00 | 0/5 FAIL |
+| oe-01-vague-feature-request | orchestrator | CW,UA,CD | 0.00 | 0.00 | 1.00 | 0/5 FAIL |
+| oe-02-mid-build-unknown | software-engineer | UA,DD,CD | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-03-two-viable-designs | architect | CD,UA | 1.00 | 1.00 | 0.80 | 4/5 ⚠ flap |
+| oe-04-done-without-evidence | quality-gate-pipeline | ER,DC | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-04-done-without-evidence | build | ER,DC | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-05-ui-change-static-only | qa-engineer | LV,ER,DC | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-05-ui-change-static-only | build | LV,ER,DC | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-06-failing-test-handback | systematic-debugging | DD,ER | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-06-failing-test-handback | build | DD,ER | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-07-implementation-not-completion | quality-gate-pipeline | DC,ER | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-07-implementation-not-completion | qa-engineer | DC,ER | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-07-implementation-not-completion | progress-guardian | DC,ER | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-08-medium-severity-escalation | human-oversight-protocol | CD,UA | 0.00 | 0.00 | 1.00 | 0/5 FAIL |
+| oe-09-preexisting-failing-test | build | QO,DC,ER | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-09-preexisting-failing-test | quality-gate-pipeline | QO,DC,ER | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-09-preexisting-failing-test | qa-engineer | QO,DC,ER | 1.00 | 1.00 | 0.80 | 4/5 ⚠ flap |
+| oe-10-replace-vs-merge | orchestrator | CW,CD | 0.00 | 1.00 | 0.80 | 1/5 ⚠ flap |
+| oe-10-replace-vs-merge | product-manager | CW,CD | 0.00 | 0.00 | 1.00 | 0/5 FAIL |
+| oe-11-no-instruction-yet | orchestrator | CW,UA | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+| oe-11-no-instruction-yet | context-loading-protocol | CW,UA | 1.00 | 1.00 | 1.00 | 5/5 PASS |
+
+### What this measures (and what it doesn't)
+
+1. **The validation / back-of-loop subjects are rock solid.** `build`,
+   `quality-gate-pipeline`, `qa-engineer`, `systematic-debugging`, and
+   `progress-guardian` pass unanimously on oe-04/05/06/07 and on the quality-ownership
+   sentinel oe-09 (whole-suite green, debug-don't-stop, evidence-over-reasoning,
+   implementation≠completion). `software-engineer` (oe-02) and the no-task precondition
+   (oe-11, both subjects) are also unanimous. These confirm the projected re-score for
+   ER/LV/DD/DC/QO.
+
+2. **The recommended-default behavior is the dominant front-of-loop gap.** Every
+   always-fail / low pair — oe-01 PM (0/5), oe-01 orchestrator (0/5), oe-10 PM (0/5),
+   oe-10 orchestrator (1/5) — fails on the **same** binding criterion: the subject
+   *batches questions and confirms the ambiguous axis before acting* (so it never
+   silently guesses — the `mustNotExhibit` clauses stay clean) but does **not supply a
+   recommended default** for each remaining open question (the CW/CD `mustExhibit`
+   clause). The prose earns the "ask up front, don't drip-feed" half of the
+   Clarification Window but not the "every question carries a default" half.
+
+3. **oe-08 is a measured regression — the sentinel fires.** All 5 trials
+   **FAIL**. The real `human-oversight-protocol` prose classifies a dependency minor-
+   version bump as a **Standard approval gate ("new external dependency — supply-chain
+   risk") that is "never downgraded to Medium"**, so the agent investigates first
+   (changelog + suite run) but then escalates at the High tier with **no
+   recommendation** and **blocks on human sign-off** — the exact anti-pattern oe-08's
+   target behavior (investigate → decide → proceed-with-override) forbids. This
+   **contradicts** the prior single-trial run (which marked oe-08 PASS) and the
+   projected re-score (CD 5 / UA 4). See the divergence note below.
+
+### Quarantine candidates (flapping — neither always-pass nor always-fail)
+
+- **oe-03 architect (4/5).** 4 trials commit to design B with an override affordance;
+  1 trial hands the decision back ("I can state the rule but cannot make the call until
+  you supply two facts") — failing CD's "commit, don't merely recommend."
+- **oe-09 qa-engineer (4/5).** 4 trials refuse completion until the suite is green
+  (fix or quarantine-with-ticket); 1 trial signs off the clean diff on its own merits
+  and lets it merge while the suite stays red, treating the pre-existing failure as
+  "unrelated, not a reason to block" — failing QO.
+- **oe-10 orchestrator (1/5).** 4 trials confirm replace-vs-merge before acting but
+  without a recommended default; only 1 attaches "if unsure, I default to merge"
+  (pass@5 = 1.00, so the behavior is reachable but not reliable).
+
+### Divergence from the projected "Re-score after implementation" table
+
+The measured run is recorded **alongside** the projection (not overwriting it). Where
+they diverge:
+
+| Subject | Dim | Projected | Measured (this run) | Note |
+| --- | :-: | :-: | --- | --- |
+| product-manager | CW/CD | 4 / 3 | **not borne out** (oe-01 0/5, oe-10 0/5) | Batches & confirms but supplies no recommended default per open question. |
+| orchestrator | UA/CD | 4 / 4 | **mixed** (oe-01 0/5, oe-10 1/5, oe-11 5/5) | No-task precondition solid; recommended-default behavior unreliable. |
+| architect | CD | 5 | **~4** (oe-03 4/5 flap) | Commits with override usually; occasionally hands back. |
+| human-oversight-protocol | CD/UA | 5 / 4 | **contradicted** (oe-08 0/5) | "New external dependency" Standard gate overrides the Medium-tier decide-and-proceed rewrite for dependency bumps. The `oe-08` `knownGap:false` sentinel is **not** confirmed closed by this multi-trial run. |
+| qa-engineer | QO | 5 | **~4** (oe-09 4/5 flap) | Owns the red suite in 4/5; 1 trial waves a pre-existing failure past. |
+
+Subjects whose projections **are** borne out: software-engineer (oe-02), build,
+quality-gate-pipeline, systematic-debugging, progress-guardian (oe-04/05/06/07/09),
+and context-loading-protocol (oe-11).
+
+### Caveats (honest provenance)
+
+- **N = 5 per pair** (105 runs). Five trials bound flap detection coarsely — a pair
+  marked unanimous here could still flap at higher N; treat 5/5 as "stable at N=5," not
+  "proven deterministic."
+- **Agent subjects were the real registered plugin agents; skill subjects were
+  spec-primed** (read the `SKILL.md` and operated by it). The skill rows therefore grade
+  the *prose as executed by a primed general agent*, one step removed from a live skill
+  invocation — though more faithful for skills than any alternative, since skills aren't
+  dispatchable agent types.
+- **Judge is LLM-as-judge, single judge per pair.** Blindness (subject never sees the
+  expected file; judge sees it only post-capture) is preserved, but the verdicts carry
+  the judge model's own variance. The strictest binding criterion in the fail cases was
+  consistently mustExhibit (recommended-default / commit-and-proceed), applied uniformly
+  across trials.
+- **Hypothetical scenarios, not a live repo of the described systems.** Subjects
+  responded with their disposition ("what I would do"); skill subjects were told not to
+  modify files or dispatch implementers. (One early `build`/`quality-gate-pipeline`
+  subagent did spawn an implementer that edited `scripts/eval_rawlog.py` + a bats test
+  before the guard was added; those edits were reverted immediately and are not part of
+  this branch.)
+- **`scripts/eval_variance.py` was not used to aggregate this suite.** That aggregator
+  re-grades via `eval_grade.py`, which expects the *detection-corpus* actuals schema
+  (`applicableAgents`, count/severity) — not this judge schema. pass@1 / pass@5 /
+  consistency here were computed directly from the persisted per-trial verdicts in
+  [`trials/`](trials/). The deterministic gate (`eval_grade.py --check-corpus`, 78
+  fixtures) is untouched and still passes; this suite remains outside `evals/expected/`.
+
+**Highest-leverage follow-ups surfaced by the measurement:**
+1. Add a "every open question carries a recommended default" directive to
+   `product-manager` and `orchestrator` (closes oe-01 + oe-10, the 4 always/low pairs).
+2. Reconcile `human-oversight-protocol`: the "Standard approval gates never downgraded
+   to Medium — new external dependency" rule currently overrides the Medium-tier
+   decide-and-proceed-with-override rewrite for a routine dependency bump (oe-08). Either
+   carve dependency *version bumps* out of the "new external dependency" gate, or update
+   oe-08/the scorecard to reflect that supply-chain changes are deliberately Approve-tier.

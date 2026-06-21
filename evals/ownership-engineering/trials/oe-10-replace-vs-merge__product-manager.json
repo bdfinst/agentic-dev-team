@@ -1,0 +1,32 @@
+{
+  "fixture": "oe-10-replace-vs-merge",
+  "subject": "product-manager",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 2,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 3,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 4,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 5,
+      "verdict": "FAIL"
+    }
+  ],
+  "pass@1": 0.0,
+  "pass@k": 0.0,
+  "consistency": 1.0,
+  "notes": [
+    "all confirm before acting but none commit a recommended default for the merge/replace axis (mustExhibit#2); some explicitly refuse to recommend"
+  ]
+}

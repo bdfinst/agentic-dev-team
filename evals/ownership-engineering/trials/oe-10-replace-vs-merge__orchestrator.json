@@ -1,0 +1,32 @@
+{
+  "fixture": "oe-10-replace-vs-merge",
+  "subject": "orchestrator",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 2,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 3,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 4,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 5,
+      "verdict": "PASS"
+    }
+  ],
+  "pass@1": 0.0,
+  "pass@k": 1.0,
+  "consistency": 0.8,
+  "notes": [
+    "all confirm replace-vs-merge before acting (no silent merge); only t5 attached a recommended default (merge); others menu-without-default \u2014 mustExhibit#2. FLAP/quarantine"
+  ]
+}

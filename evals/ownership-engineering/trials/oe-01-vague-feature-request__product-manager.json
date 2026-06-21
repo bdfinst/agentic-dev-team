@@ -1,0 +1,36 @@
+{
+  "fixture": "oe-01-vague-feature-request",
+  "subject": "product-manager",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 2,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 3,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 4,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 5,
+      "verdict": "FAIL"
+    }
+  ],
+  "pass@1": 0.0,
+  "pass@k": 0.0,
+  "consistency": 1.0,
+  "notes": [
+    "batched+investigated; no default per open user question (mustExhibit#3)",
+    "same",
+    "same",
+    "same",
+    "same"
+  ]
+}
