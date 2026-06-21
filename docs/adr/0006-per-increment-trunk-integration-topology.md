@@ -10,6 +10,13 @@ Review
 > consideration*, not an accepted decision. It is deliberately written before
 > implementation so the thesis can be argued on its merits. Do not build from
 > it until it is moved to **Accepted**.
+>
+> **Progress since first draft:** the flagging-method blocker (how to pick a
+> flag mechanism across many stacks) is **resolved in principle** — see the
+> Flag Capability Contract in *Required infrastructure*. The friction
+> evidence prerequisite (#111) returned its first signal: bypassing the
+> review gate correlated with ~2.6× the rework. Moving to **Accepted** still
+> needs the cross-repo validation spike (see *Migration path*, step 3).
 
 ## Context
 
@@ -65,8 +72,7 @@ the workflow — incrementally, behind evidence — from *gating plans* toward
    not only as pre-merge gates with a fix loop. When merging is dark and
    reversible, a failing monitor reverts the increment instead of blocking a
    human's merge. Which agents stay pre-merge gates vs. become post-merge
-   monitors is itself a decision this ADR must enumerate (correctness/security
-   likely stay gates; advisory/quality likely become monitors).
+   monitors is enumerated in *Gate-vs-monitor split* below.
 3. **The human approves *exposures* (flag flips), not *plans*.** The reviewable
    artifact becomes *running software per increment* — the third artifact the
    reviews note is more trustworthy than either 200 lines of plan or 2,000 lines
@@ -75,16 +81,106 @@ the workflow — incrementally, behind evidence — from *gating plans* toward
 This is a topology, not a switch: it coexists with the current gates and is
 proven per-increment, not adopted wholesale.
 
+### Gate-vs-monitor split
+
+The decision item above promises an enumeration of which review agents stay
+**pre-merge gates** and which become **post-merge monitors**. The criterion is
+*cost of a wrong merge when the increment lands dark*:
+
+- **Stay a pre-merge gate** when a defect is unsafe or expensive to ship even
+  behind an off-by-default flag — it touches an irreversible/security surface,
+  corrupts shared state regardless of the flag, lands the *wrong behavior*, or
+  removes the safety net the monitors themselves depend on.
+- **Become a post-merge monitor** (run after the dark merge; revert the
+  increment on failure) when the concern is advisory or quality-oriented and a
+  per-increment revert is a cheap, complete remedy — especially where a runtime
+  signal post-merge is *more* meaningful than a static pre-merge guess.
+
+| Review agent | Disposition | Why |
+|---|---|---|
+| `security-review` | **Pre-merge gate** | Injection/auth/data-exposure and secrets in history are irreversible even behind a flag. |
+| `concurrency-review` | **Pre-merge gate** | Races and shared-state corruption can bite via shared code paths the flag doesn't guard. |
+| `spec-compliance-review` | **Pre-merge gate** | A wrong-behavior increment wastes the exposure; already gates before quality agents run. |
+| `test-review` | **Pre-merge gate** | The test safety net is what makes a monitor's auto-revert signal trustworthy; it cannot itself be a monitor. |
+| `arch-review` | **Post-merge monitor** | ADR/layer-boundary drift is structural and reversible per-increment; *borderline* — compounding drift may argue for keeping it a gate in repos without strong tests. |
+| `performance-review` | **Post-merge monitor** | Resource/algorithmic regressions are best measured against the runtime observability the topology already assumes, not guessed statically. |
+| `complexity-review` | **Post-merge monitor** | Advisory; cheap to revert. |
+| `structure-review` | **Post-merge monitor** | Advisory; cheap to revert. |
+| `naming-review` | **Post-merge monitor** | Advisory; cheap to revert. |
+| `domain-review` | **Post-merge monitor** | Advisory; cheap to revert. |
+| `refactor-opportunity-review` | **Post-merge monitor** | Advisory by definition (runs in the REFACTOR phase). |
+| `js-fp-review` | **Post-merge monitor** | Style/quality; cheap to revert. |
+| `svelte-review` | **Post-merge monitor** | Framework-quality; cheap to revert. |
+| `a11y-review` | **Post-merge monitor** | Quality; reversible and observable post-exposure. |
+| `test-smell-review` | **Post-merge monitor** | Test-quality advisory; cheap to revert. |
+| `doc-review` | **Post-merge monitor** | Documentation drift; never blocks behavior. |
+| `token-efficiency-review` | **Post-merge monitor** | Efficiency advisory; cheap to revert. |
+
+Two agents fall **outside this topology** because they gate *workflow phases*
+or *repo metadata*, not per-increment trunk merges: `test-modernization-review`
+(gate-keeps `/test-modernize` phase boundaries) and `claude-setup-review`
+(audits CLAUDE.md and agent-frontmatter schema). They keep their current roles.
+
+This split is itself a hypothesis to validate per-increment, not a frozen
+assignment; `arch-review` in particular should be re-evaluated against the #111
+trend data (step 4 of the migration path).
+
 ## Required infrastructure (assumed or provided)
 
 - **Feature-flag mechanism** the plugin can assume in a target repo (or scaffold
-  via `/setup`), so each increment can integrate dark.
+  via `/setup`), so each increment can integrate dark. Resolved via the **Flag
+  Capability Contract**, below — the plugin standardizes on an abstraction, not
+  a vendor.
 - **Rollback / auto-revert authority** for review monitors (revert a commit/PR
   by SHA), with an audit trail.
 - **Runtime observability** to make post-merge monitoring meaningful — overlaps
   with the cost meter and `/session-review` digest.
 - A decision on **what stays gate-based** (irreversible actions, schema/security
-  surfaces) vs. what moves to monitor-and-revert.
+  surfaces) vs. what moves to monitor-and-revert — enumerated in
+  *Gate-vs-monitor split*, above.
+
+### Flag Capability Contract (resolves the flagging-method blocker)
+
+The original blocker — *"how do we pick a flag method when users have many
+technologies and runtime environments?"* — assumed the plugin must choose a
+vendor. It should not. It standardizes on a thin **contract** and detects/falls
+back to a provider, mirroring the pattern the plugin already uses for test
+stacks (`knowledge/test-stack-profiles/`) and security primitives
+(`knowledge/security-primitives-contract.md`). The topology needs only four
+operations:
+
+- `is_enabled(flag, context) -> bool`
+- `create(flag, default=off)`
+- `flip(flag, exposure)` — the human-approved *exposure* gesture
+- `remove(flag)` — flag-debt cleanup
+
+`/setup` selects a provider in four tiers (priority order):
+
+| Tier | Provider | When |
+|---|---|---|
+| 1 | Existing repo flag system (LaunchDarkly, Unleash, OpenFeature SDK, Flagsmith) | Detected from deps/imports — **adopt, don't replace** |
+| 2 | **OpenFeature** as the default neutral adapter | No flags, but wants vendor-neutral infra |
+| 3 | Scaffolded minimal flag (committed `flags.json`) | Wants dark integration, zero new infra |
+| 4 | No-flag / degraded mode | Nothing, won't scaffold — topology falls back to today's phase gates (a first-class supported state) |
+
+Targeting **OpenFeature** (CNCF, vendor-neutral) as the default dissolves the
+"multiple technologies" problem instead of betting on a vendor: the plugin
+programs against one API; the repo binds any backend.
+
+**Lightest 100%-OSS default (collapses tiers 2–3):** the OpenFeature SDK plus
+**flagd's in-process provider reading a committed `flags.json`** — no daemon, no
+SaaS, no network; all Apache-2.0/CNCF. Its decisive fit with this ADR is that
+**flip = commit**: toggling a flag edits `flags.json` and commits it, which is
+git-auditable, PR-reviewable, and *is itself* the "human approves the exposure"
+artifact — no separate audit-trail system required. A `/build` step integrates
+dark by guarding its code behind `is_enabled(flag)` with `defaultVariant: off`;
+the exposure is a later, human-approved commit flipping it `on`. Adopting
+flagd-as-daemon or a vendor later changes only the provider binding.
+
+> Version caveat for the spike: OpenFeature/flagd contrib package names and the
+> file-resolver config have drifted across SDK releases — pin the SDK + flagd
+> contrib versions per language and verify the file-source config against the
+> pinned release before scaffolding.
 
 ## Consequences
 
@@ -115,14 +211,20 @@ proven per-increment, not adopted wholesale.
 
 1. Keep `/specs → /plan → /build → /pr` as-is.
 2. Add optional flag-guarded integration for individual `/build` steps in repos
-   that have flag infra.
-3. Pilot one review agent as a post-merge monitor (advisory first, then with
+   that have flag infra, programming against the Flag Capability Contract.
+3. **Validate the contract across three repos** — one with an existing vendor
+   (e.g. LaunchDarkly/Unleash), one greenfield OpenFeature + flagd-file, one
+   no-flag degraded — pinning the OpenFeature/flagd versions. This spike is what
+   turns the blocker from resolved-in-principle into evidenced and is the gate
+   for moving this ADR to **Accepted**.
+4. Pilot one review agent as a post-merge monitor (advisory first, then with
    revert authority) and compare friction/escape rates against the pre-merge
-   path.
-4. Use `/session-review` evidence (which gates correlate with rework/bypass —
-   the narrowed #111) to decide which gates are worth keeping pre-merge.
-5. Revisit this ADR's status once there is evidence the current gates actually
-   cause friction.
+   path; re-evaluate the borderline `arch-review` disposition here.
+5. Use `/session-review` evidence (which gates correlate with rework/bypass —
+   the narrowed #111, which has already returned a first signal) to confirm the
+   gate-vs-monitor split.
+6. Revisit this ADR's status once the spike (step 3) lands and the per-increment
+   pilot (step 4) shows the topology reduces real friction.
 
 ## Dependencies and references
 
