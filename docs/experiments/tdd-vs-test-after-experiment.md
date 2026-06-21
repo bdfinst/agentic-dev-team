@@ -66,33 +66,40 @@ not a strawman. Hold these constant across both arms:
 - **Same frozen spec and same frozen plan** (planning happens once, shared).
 - **Same review-agent configuration** and same auto-fix loop cap.
 - **Same starting golden repo** (identical worktree seed).
-- **Same definition of done:** Stage passes only when all acceptance test
-  commands exit 0 **and** code review is clean. Arm B is *required* to reach the
-  same coverage target at the end — otherwise we are comparing "tested" vs
-  "untested," not "test-first" vs "test-after."
-- **Randomize task order** per trial to avoid ordering effects.
+- **Same definition of done (harness gate):** a stage **passes** only when all
+  acceptance `testCommands` exit 0. This gate is **model-free** — code-review
+  cleanliness, coverage, mutation, and Farley are **post-run sensors** (§6), not
+  pass/fail gates.
+- **Same coverage target (≥ 90% line + branch):** both arms' prompts instruct
+  them to reach it; it is **measured and reported** per stage. This keeps the
+  comparison "test-first vs test-after" rather than "tested vs untested," but a
+  miss does not fail the harness gate — it is recorded as an outcome.
+- **Execution order is immaterial.** Because every cell is fully isolated
+  (§10 — own worktree + `$HOME`, fresh dispatch), there are no ordering effects
+  to randomize away; cells may run in any order or in parallel.
 
 Arm B definition (write it down so it is reproducible):
 > Implement the complete feature to satisfy the spec with **zero** test files.
 > Only after the implementation is complete, author a test suite targeting the
 > same acceptance criteria and the same coverage target as Arm A.
 
-## 5. Harness — reuse what already exists
+## 5. Harness
 
-This slots directly into the **integration-eval tier** (ADR 0007), which already
-gives isolation, deterministic grading, and pass@k variance:
+A standalone experiment runner, `scripts/run_tdd_experiment.py`, **borrows the
+worktree primitives** from the integration-eval tier (`extract_golden_repo`,
+`init_worktree`, `run_commands`) but does **not** use the `integration` grader or
+`eval_variance` — those are tuned for the plugin's own CI pyramid, not a
+workflow A/B. The runner owns its own isolation, two-stage protocol, `--arm` /
+`--trials` loops, and JSONL output.
 
-- **Fixtures:** add `evals/fixtures/exp-tdd-<task>/` integration fixtures, each
-  with `spec.md` (Stage 1), `change.md` (withheld Stage 2), `golden-repo.tar.gz`,
-  and `testCommands[]`. The existing `int-string-calculator` fixture is a model.
-- **Isolation + grading:** `scripts/run_integration_eval.py` builds an ephemeral
-  worktree, dispatches the workflow, runs `testCommands`, records exit codes, and
-  tears down. The `integration` grader passes only when every command exits 0.
-- **Variance:** run with `--trials N`; `scripts/eval_variance.py` records
-  **pass@1, pass@k, consistency** to `metrics/eval-variance.jsonl`.
-- **Two arms:** parameterize the run script with `--arm {test-first|test-after}`
-  selecting the Arm-B prompt; or register a second grader genre. Either way it is
-  one new module + one REGISTRY entry, no edits to existing graders.
+- **Fixtures:** `evals/experiments/exp-tdd-<task>.json` (an `experiment` block) +
+  `evals/fixtures/exp-tdd-<task>/` with `spec.md` (Stage 1), `change.md`
+  (withheld Stage 2), `golden-repo.tar.gz`, `testCommands[]`,
+  `changeTestCommands[]`. Kept out of `evals/expected/` so the unit grader and
+  integration runner ignore them.
+- **Pass/fail:** model-free — a stage passes when its declared commands exit 0.
+- **Variance:** the runner records every trial; analysis aggregates per task per
+  arm (§7, §11). It does not reuse `eval_variance.py`.
 
 ### Instrumentation gaps to close first
 
@@ -120,12 +127,20 @@ are defensible (repo "claims discipline"):
 ## 7. Pre-registered decision rule
 
 Report **median across trials** per (task × arm) and the per-arm distribution.
-Arm A ("TDD wins") is declared superior **only if**, aggregated across tasks:
+Arm A ("TDD wins") is declared superior **only if** all four clauses hold,
+aggregated across tasks (operators are explicit; the conjunction is **AND**):
 
-- Stage-1 + Stage-2 **total tokens** are **≤** Arm B (no cost penalty), **and**
-- **mutation score** is **≥** Arm B at **≥** Arm B coverage, **and**
-- **Stage-2 (change) cost or rework** is **strictly lower**, **and**
-- **rework_cycles** is **≤** Arm B.
+- Stage-1 + Stage-2 **total tokens**: Arm A **≤** Arm B (no cost penalty), **and**
+- **mutation score**: Arm A **≥** Arm B, at coverage Arm A **≥** Arm B, **and**
+- **Stage-2 (change) total tokens** Arm A **<** Arm B **and** Stage-2
+  **rework_cycles** Arm A **<** Arm B (both, not either), **and**
+- overall **rework_cycles**: Arm A **≤** Arm B.
+
+**Failure / censoring policy.** A cell whose Stage 1 never reaches green is
+recorded as `passed:false`, its Stage 2 is **skipped**, and it is **excluded from
+the cost/rework medians**; the per-arm **failure rate** is reported separately as
+its own outcome. **Stopping rule:** fixed, pre-registered N — no early stop, no
+peek-and-add.
 
 If TDD is more expensive up front but materially cheaper/safer to change
 (Stage 2), report that **trade-off explicitly** rather than forcing a single
@@ -141,10 +156,9 @@ the model id in the writeup.
   suite and an obvious follow-up change (String Calculator, a small parser, a
   pricing-rules function, a stateful cart, etc.). Keep them small so a feature is
   one session.
-- **Trials:** ≥ 5 per (task × arm) to see through model variance; report
-  consistency from the variance harness.
-- **Total runs:** 8 tasks × 2 arms × 5 trials × 2 stages ≈ 160 sessions — batch
-  via the integration harness.
+- **Trials:** set N from the §11 pilot (typically 5–10); report consistency.
+- **Total runs:** see §11 for the worked scale (~8 tasks × 2 arms × ~6 trials ×
+  2 stages ≈ 190 sessions). §8 and §11 must quote the same number.
 
 ## 9. Threats to validity
 
@@ -224,5 +238,13 @@ across-task paired test.
 3. **Next** — author the real sized-task corpus (golden repos + `spec.md` +
    withheld `change.md`) per §8/§11, run the pilot to set N, then the full
    campaign.
-4. **Next** — a results report aggregating cost-meter, coverage, mutation, and
+4. **Next** — wire the post-run sensors (`/coverage-*`, `/mutation-testing`,
+   `/farley-score`) into each cell so §6's "fully tested" metrics land in the
+   result row, and **verify the cost-meter output path** populates on a real
+   dispatch before the campaign (the primary metric depends on it).
+5. **Next** — a results report aggregating cost-meter, coverage, mutation, and
    rework **per task per arm** with the §7 decision rule applied.
+
+> **Scope note.** This is an *experiment that uses the plugin*, not a permanent
+> plugin feature. The runner and fixtures are throwaway measurement scaffolding;
+> nothing here changes the shipped plugin's agents, skills, or hooks.
