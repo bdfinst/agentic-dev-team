@@ -542,9 +542,9 @@ Per step. Summary: 4 complex (1.4, 1.5, 2.2, 3.1), 2 trivial (1.6, 2.3), the res
   - [x] Step 2.1: Replace overrides-banner.sh; capture + persist the session model
   - [x] Step 2.2: Render the banner incl. degenerate + absent-model cases
   - [x] Step 2.3: Gitignore the persisted session model
-- [ ] Slice 4: Remove the `/v1/models` probe
+- [x] Slice 4: Remove the `/v1/models` probe
   - [x] Step 4.1: Delete the probe and all its tests
-  - [ ] Step 4.2: Strip the probe step from init flows
+  - [x] Step 4.2: Strip the probe step from init flows
 - [ ] Slice 5: Authoring tooling — effort vocabulary
   - [ ] Step 5.1: Switch create/add to effort bands with legacy-aware rejection
   - [ ] Step 5.2: Audit enforces bands and warns on legacy tiers

@@ -25,3 +25,17 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 @test "the fake curl shim no longer exists" {
   [ ! -e "$REPO_ROOT/tests/hooks/fake-bin/curl" ]
 }
+
+# ---------------------------------------------------------------------------
+# Step 4.2 — init flows no longer reference the probe
+# ---------------------------------------------------------------------------
+
+@test "init-dev-team SKILL.md does not reference the model probe" {
+  run grep -nE 'model-probe|/v1/models' "$REPO_ROOT/plugins/dev-team/skills/init-dev-team/SKILL.md"
+  [ "$status" -ne 0 ]
+}
+
+@test "init-dev-team-linux.sh does not reference the model probe" {
+  run grep -nE 'model-probe|/v1/models|SKIP_PROBE' "$REPO_ROOT/init-dev-team-linux.sh"
+  [ "$status" -ne 0 ]
+}

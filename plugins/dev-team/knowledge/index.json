@@ -3088,10 +3088,6 @@
       "summary": "**Prerequisites check:**",
       "anchor": "c-net-strykernet"
     },
-    "Step 4.5 — Probe model availability (opt-in)": {
-      "summary": "Present the following prompt **verbatim** to the user and read a single",
-      "anchor": "step-45-probe-model-availability-opt-in"
-    },
     "Step 5 — Summary": {
       "summary": "Print a summary of what was installed:",
       "anchor": "step-5-summary"

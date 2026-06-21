@@ -9,17 +9,14 @@
 #       JS/TS  -> Stryker        (needs node/npm + package.json)
 #       Java   -> pitest         (needs mvn/gradle + build file)
 #       C#     -> Stryker.NET    (needs dotnet)
-#   * Anthropic model-availability probe (auto-runs if PLUGIN_ROOT is set)
 #
 # Mirrors plugins/dev-team/skills/init-dev-team/SKILL.md, Linux paths only.
 # WSL reports "Linux" and is handled here. macOS/Windows are out of scope.
 #
 # Usage:
 #   ./init-dev-team-linux.sh
-#   PLUGIN_ROOT=/path/to/plugins/dev-team ./init-dev-team-linux.sh
 #
 # Env toggles:
-#   SKIP_PROBE=1   never run the model probe
 #   NO_CODEGRAPH=1 never auto-init CodeGraph
 #
 set -uo pipefail
@@ -213,22 +210,6 @@ else
   else
     SUMMARY_CS="✗ failed (install error)"
   fi
-fi
-
-# --- Step 4.5: model availability probe -------------------------------------
-
-PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}"
-PROBE="${PLUGIN_ROOT:+$PLUGIN_ROOT/hooks/lib/model-probe.sh}"
-
-say ""
-say "=== Model probe ==="
-if [ "${SKIP_PROBE:-0}" = "1" ]; then
-  say "Model probe: skipped (SKIP_PROBE=1)."
-elif [ -n "$PROBE" ] && [ -f "$PROBE" ]; then
-  say "Probing Anthropic model availability..."
-  bash "$PROBE" <<<"y" || say "Model probe failed — continuing."
-else
-  say "Model probe: skipped (set PLUGIN_ROOT to the installed plugin dir to enable)."
 fi
 
 # --- Step 5: summary --------------------------------------------------------
