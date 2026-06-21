@@ -66,3 +66,34 @@ FILES=(
   grep -qi 'effort' "$REPO_ROOT/plugins/dev-team/docs/model-routing.md"
   grep -qi 'ladder' "$REPO_ROOT/plugins/dev-team/docs/model-routing.md"
 }
+
+# ---------------------------------------------------------------------------
+# Step 6.3 — the override authoring guide + README TOC entry
+# ---------------------------------------------------------------------------
+
+@test "the model-routing override guide exists" {
+  [ -f "$REPO_ROOT/plugins/dev-team/docs/model-routing-overrides.md" ]
+}
+
+@test "the override guide documents the ladder schema and resolution precedence" {
+  local g="$REPO_ROOT/plugins/dev-team/docs/model-routing-overrides.md"
+  grep -q '.claude/model-ladder.json' "$g"
+  grep -qi 'precedence' "$g"
+  grep -qi 'default map' "$g"
+  grep -qi 'session' "$g"
+}
+
+@test "the override guide shows worked ladders (restricted, single-model, Bedrock/Vertex)" {
+  local g="$REPO_ROOT/plugins/dev-team/docs/model-routing-overrides.md"
+  grep -qi 'single-model' "$g"
+  grep -qiE 'bedrock|vertex' "$g"
+}
+
+@test "the override guide states the migration guarantee" {
+  grep -qiE 'migrat|no ladder.*default|default map.*identical|identical.*default' \
+    "$REPO_ROOT/plugins/dev-team/docs/model-routing-overrides.md"
+}
+
+@test "README links the override guide in the docs TOC" {
+  grep -q 'docs/model-routing-overrides.md' "$REPO_ROOT/README.md"
+}

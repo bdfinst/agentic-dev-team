@@ -181,6 +181,7 @@ Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUT
 | Doc | Covers |
 | --- | --- |
 | [Model Routing](plugins/dev-team/docs/model-routing.md) | Environment-aware effort-band → model resolution, defaults, ladder, troubleshooting |
+| [Model Routing — Overrides](plugins/dev-team/docs/model-routing-overrides.md) | Authoring `.claude/model-ladder.json`: schema, precedence, worked ladders, migration guarantee |
 
 ### dev-team — evaluation & quality
 
