@@ -1,5 +1,10 @@
 # Ownership Engineering scorecard — baseline
 
+> **Is this scorecard current?** Run `python3 scripts/oe_scoring_staleness.py` — it
+> flags any fixture×subject pair whose subject prose, fixture, or expected file changed
+> (or was added) since the scores were last snapshotted in `scoring-manifest.json`. See
+> the [README staleness-alert section](README.md#keeping-the-scorecard-current--staleness-alert).
+
 Baseline assessment of this plugin's team agents and workflow skills against the
 eight [rubric](rubric.md) dimensions. Scores are 1–5 (see rubric); **N/A** marks a
 dimension outside a subject's role. This baseline is **hand-authored** from a prose

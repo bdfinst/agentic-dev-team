@@ -106,6 +106,30 @@ has since rewritten the Medium tier to decide-and-proceed-with-override, so the 
 is closed (`knownGap: false`) and `oe-08` now serves as the **regression sentinel**
 guarding that behavior.
 
+## Keeping the scorecard current — staleness alert
+
+Because these fixtures are judge-scored by hand, the scorecard is only as current as
+the inputs it was scored against. When a subject's prose, a fixture, or an
+`expected/*.json` changes — or a new fixture/subject is added — the recorded scores
+silently go stale. [`scripts/oe_scoring_staleness.py`](../../scripts/oe_scoring_staleness.py)
+makes that visible (model-free, SHA-256 of the scored inputs):
+
+```bash
+# After a scoring pass, snapshot what was scored:
+python3 scripts/oe_scoring_staleness.py --write     # writes scoring-manifest.json
+
+# Any time, check whether scores are stale:
+python3 scripts/oe_scoring_staleness.py             # exit 1 + lists stale/new pairs
+```
+
+It maps each subject to its spec file(s) via [`subjects.json`](subjects.json) and each
+fixture to its subjects via the `subjects` field of `expected/*.json`, so a changed
+`product-manager.md` (or the `decision-defaults.md` it depends on) flags every fixture
+that lists `product-manager` as a re-score candidate, and a brand-new `oe-12-*` fixture
+shows up as never-scored. `scripts/ci-local.sh` runs it in **advisory** mode
+(`--warn-only`, never fails the gate); drop the flag to make staleness blocking. Refresh
+the manifest with `--write` once the flagged pairs have been re-scored.
+
 ## Why this lives outside `evals/expected/`
 
 The CI structural gate runs `eval_grade.py --check-corpus`, which globs

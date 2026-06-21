@@ -96,6 +96,7 @@ chk_model_routing() {
 }
 chk_cost_regression() { bash scripts/cost-regression-check.sh; }
 chk_eval_corpus()     { python3 scripts/eval_grade.py --check-corpus; }
+chk_oe_staleness()    { python3 scripts/oe_scoring_staleness.py --warn-only; }
 chk_eval_semver() {
   if [ -n "$BASE" ] && [ -n "$HEAD" ]; then
     bash scripts/eval_semver_classify.sh "$BASE" "$HEAD"
@@ -122,6 +123,7 @@ CHECKS=(
   "bats — model-routing hook conformance::chk_model_routing"
   "cost-regression check::chk_cost_regression"
   "eval corpus integrity (eval_grade.py --check-corpus)::chk_eval_corpus"
+  "OE scoring staleness (advisory; oe_scoring_staleness.py)::chk_oe_staleness"
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"
 )
