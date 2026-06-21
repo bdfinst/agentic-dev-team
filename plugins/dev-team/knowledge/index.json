@@ -3333,7 +3333,7 @@
       "anchor": "what-it-shows"
     },
     "How to fix common findings": {
-      "summary": "**Bumps appearing in the log** — the resolver is silently rerouting a",
+      "summary": "**Bumps appearing in the log** — the ladder or a session fallback is",
       "anchor": "how-to-fix-common-findings"
     },
     "Execution": {
