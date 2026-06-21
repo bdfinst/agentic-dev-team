@@ -523,6 +523,7 @@ def main(argv: list[str]) -> int:
                     for row in rows:
                         fh.write(json.dumps(row) + "\n")
                         rows_written += 1
+                    fh.flush()  # persist incrementally; a kill mustn't lose cells
 
     print(f"experiment runner: {rows_written} row(s) → {out_path}",
           file=sys.stderr)
