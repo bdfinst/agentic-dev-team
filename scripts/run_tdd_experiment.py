@@ -50,9 +50,14 @@ from run_integration_eval import (  # noqa: E402
     run_commands,
 )
 
-ARMS = ("test-first", "test-after")
+# test-first / test-after are instruction-level arms (no plugin). build-pipeline
+# runs the REAL dev-team plugin /plan -> /build workflow; it needs a plugin-
+# enabled HOME (--build-home-template) seeded per cell.
+ARMS = ("test-first", "test-after")          # default pair
+ALL_ARMS = ("test-first", "test-after", "build-pipeline")
+PLUGIN_ARMS = ("build-pipeline",)
 
-# A constraint applied EQUALLY to both arms so the coverage/mutation sensors can
+# A constraint applied EQUALLY to all arms so the coverage/mutation sensors can
 # run on whatever tests the agent wrote. It does not bias the when-to-test
 # variable; it only standardizes how tests are invoked.
 PYTEST_RULE = (
@@ -61,9 +66,8 @@ PYTEST_RULE = (
     "spec."
 )
 
-# Arm-specific dispatch instructions. Everything else (spec, plan, reviews,
-# model, golden repo) is held constant so the only variable is *when* tests are
-# written -- see the fairness rules in the experiment doc.
+# Arm-specific dispatch instructions. Everything else (spec, model, golden repo)
+# is held constant so the only variable is *how/when* tests are written.
 ARM_PROMPTS = {
     "test-first": (
         "Implement the spec in {spec} using strict TDD: every change is RED "
@@ -76,13 +80,28 @@ ARM_PROMPTS = {
         "suite covering the same behavior. Make the acceptance behavior correct."
         + PYTEST_RULE
     ),
+    "build-pipeline": (
+        "Use the dev-team plugin's TDD pipeline to implement the spec in {spec}: "
+        "run the /plan skill to produce a plan, then the /build skill to "
+        "implement it with RED-GREEN-REFACTOR. Work autonomously; do not wait "
+        "for human approval. Make the acceptance behavior correct." + PYTEST_RULE
+    ),
 }
 
-CHANGE_PROMPT = (
-    "This is an existing, already-implemented feature in the working directory. "
-    "Apply the change described in {change}. Keep the existing test suite green; "
-    "it is your safety net." + PYTEST_RULE
-)
+CHANGE_PROMPTS = {
+    "test-first": (
+        "This is an existing, already-implemented feature in the working "
+        "directory. Apply the change described in {change}. Keep the existing "
+        "test suite green; it is your safety net." + PYTEST_RULE
+    ),
+    "build-pipeline": (
+        "This is an existing feature in the working directory. Use the dev-team "
+        "/plan -> /build pipeline to apply the change described in {change} with "
+        "TDD. Keep the existing test suite green. Work autonomously; do not wait "
+        "for human approval." + PYTEST_RULE
+    ),
+}
+CHANGE_PROMPTS["test-after"] = CHANGE_PROMPTS["test-first"]
 
 def _utc() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -105,17 +124,20 @@ def contamination_flags(home: Path, cost: dict) -> list[str]:
     return flags
 
 
-def make_cell_home(run_root: Path, cell_id: str) -> Path:
+def make_cell_home(run_root: Path, cell_id: str,
+                   plugin_template: Path | None = None) -> Path:
     """Create an isolated HOME/config/metrics root for one cell.
 
-    Pointing HOME, CLAUDE_CONFIG_DIR, and the metrics/memory dirs at a fresh,
-    empty tree is what prevents context/cost corruption across cells: the plugin
-    writes session cost to <root>/metrics/cost-metering.jsonl, so a private root
-    means the session total *is* this cell's cost with no interleaving.
+    A fresh per-cell HOME keeps cells from sharing a config or memory/ dir. When
+    plugin_template is given (build-pipeline arm) its `.claude` is copied in so
+    the dev-team plugin loads; otherwise the HOME is empty (instruction arms).
     """
     home = run_root / "homes" / cell_id
     (home / "metrics").mkdir(parents=True, exist_ok=True)
     (home / "memory").mkdir(parents=True, exist_ok=True)
+    if plugin_template is not None and (plugin_template / ".claude").is_dir():
+        shutil.copytree(plugin_template / ".claude", home / ".claude",
+                        dirs_exist_ok=True)
     return home
 
 
@@ -366,10 +388,11 @@ def inject_grade_files(fixture_dir: Path, workdir: Path,
 def run_stage(stem: str, stage: str, prompt: str, fixture_dir: Path,
               espec: dict, run_root: Path, arm: str, trial: int,
               model: str, skip_dispatch: bool, capture: bool,
-              seed_worktree: Path | None) -> dict:
+              seed_worktree: Path | None,
+              plugin_template: Path | None = None) -> dict:
     """Run one stage of one cell in full isolation; return a result row."""
     cell_id = f"{stem}__{arm}__t{trial}__{stage}"
-    home = make_cell_home(run_root, cell_id)
+    home = make_cell_home(run_root, cell_id, plugin_template)
     env = cell_env(home)
     raw_out = (run_root / "raw" / f"{cell_id}.json") if capture else None
 
@@ -426,18 +449,20 @@ def run_stage(stem: str, stage: str, prompt: str, fixture_dir: Path,
 
 def run_cell(stem: str, espec: dict, fixture_dir: Path, run_root: Path,
              arm: str, trial: int, model: str, skip_dispatch: bool,
-             capture: bool, two_stage: bool) -> list[dict]:
+             capture: bool, two_stage: bool,
+             plugin_template: Path | None = None) -> list[dict]:
     rows = []
     build = run_stage(stem, "build", ARM_PROMPTS[arm], fixture_dir, espec,
                       run_root, arm, trial, model, skip_dispatch, capture,
-                      seed_worktree=None)
+                      seed_worktree=None, plugin_template=plugin_template)
     seed = Path(build.pop("_worktree")) if build.get("_worktree") else None
     rows.append(build)
     try:
         if two_stage and espec.get("change"):
-            change = run_stage(stem, "change", CHANGE_PROMPT, fixture_dir, espec,
-                               run_root, arm, trial, model, skip_dispatch,
-                               capture, seed_worktree=seed)
+            change = run_stage(stem, "change", CHANGE_PROMPTS[arm], fixture_dir,
+                               espec, run_root, arm, trial, model, skip_dispatch,
+                               capture, seed_worktree=seed,
+                               plugin_template=plugin_template)
             change.pop("_worktree", None)
             rows.append(change)
     finally:
@@ -463,8 +488,12 @@ def load_experiments(exp_dir: Path, only: set[str] | None) -> list[tuple[str, di
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--arm", choices=ARMS, action="append",
-                    help="arm(s) to run; repeat for both (default: both)")
+    ap.add_argument("--arm", choices=ALL_ARMS, action="append",
+                    help="arm(s) to run; repeat (default: test-first,test-after)")
+    ap.add_argument("--build-home-template", default="",
+                    help="path whose .claude/ is copied into each build-pipeline "
+                         "cell HOME so the dev-team plugin loads (required for "
+                         "the build-pipeline arm)")
     ap.add_argument("--trials", type=int, default=1,
                     help="trials per (task x arm); pilot then power-calc this up")
     ap.add_argument("--experiments-dir", default="evals/experiments")
@@ -489,6 +518,13 @@ def main(argv: list[str]) -> int:
         return 2
 
     arms = tuple(dict.fromkeys(args.arm)) if args.arm else ARMS
+    plugin_template = Path(args.build_home_template) if args.build_home_template \
+        else None
+    if any(a in PLUGIN_ARMS for a in arms) and not args.skip_dispatch:
+        if plugin_template is None or not (plugin_template / ".claude").is_dir():
+            print("error: build-pipeline arm needs --build-home-template pointing "
+                  "at a dir containing a plugin-enabled .claude/", file=sys.stderr)
+            return 2
     exp_dir = Path(args.experiments_dir)
     fixtures_dir = Path(args.fixtures_dir)
     if not exp_dir.is_dir():
@@ -516,10 +552,12 @@ def main(argv: list[str]) -> int:
                     print(f"· {stem} :: {arm} :: trial {trial}"
                           f"{' (no-dispatch)' if args.skip_dispatch else ''}",
                           file=sys.stderr)
+                    tpl = plugin_template if arm in PLUGIN_ARMS else None
                     rows = run_cell(stem, espec, fixture_dir, run_root, arm,
                                     trial, args.model, args.skip_dispatch,
                                     capture=not args.no_capture,
-                                    two_stage=not args.one_stage)
+                                    two_stage=not args.one_stage,
+                                    plugin_template=tpl)
                     for row in rows:
                         fh.write(json.dumps(row) + "\n")
                         rows_written += 1
