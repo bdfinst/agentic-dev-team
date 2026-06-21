@@ -62,6 +62,44 @@ These fixtures are behavioral, so grading is by judge rather than by
    `mustExhibit` behavior is present **and** no `mustNotExhibit` behavior appears.
 4. Score the probed dimensions 1–5 per the rubric and update the scorecard.
 
+### Measuring with Claude Code (no API key)
+
+The steps above are *what* to grade; this is *how*, in a Claude Code session — using
+your normal Claude Code auth, **no `ANTHROPIC_API_KEY` and no API code**.
+
+**Prerequisite — make the plugin available** (either route):
+
+- **Install it** (needs the `claude` CLI): `claude plugin marketplace add
+  bdfinst/agentic-dev-team` then `claude plugin install dev-team@bfinster`. In a
+  Claude Code **web** session, instead set `DEV_TEAM_CLOUD_INSTALL=1` in the
+  environment's *Environment variables* — the `SessionStart` hook installs it, and it
+  takes effect on the **next** session.
+- **Or zero-install** — skip installation and drive the subjects straight from their
+  source files (`plugins/dev-team/agents/<name>.md`,
+  `plugins/dev-team/skills/<name>/SKILL.md`). See
+  [the web-environment guide](../../docs/using-plugin-skills-in-the-web-environment.md).
+
+**Per fixture:**
+
+1. In a fresh session (or a dispatched sub-agent, for context isolation), hand the
+   subject **only** the scenario from `fixtures/oe-NN-*.md` — never the
+   `expected/*.json`. Dispatch an agent subject as a sub-agent (the `/agent-eval`
+   pattern); drive a skill subject on the scenario.
+2. Capture the behavior transcript.
+3. Grade with a **separate** judge that only now sees `expected/oe-NN-*.json`: PASS
+   iff every `mustExhibit` is present **and** no `mustNotExhibit` appears. Use an
+   LLM-judge sub-agent or a human, kept blind to the expected file until the behavior
+   is captured, so it cannot leak into the run.
+4. Record the per-dimension 1–5 score in [`scorecard.md`](scorecard.md); once a full
+   pass is measured this way, flip that row's provenance from *projection* to
+   *measured*.
+
+`/agent-eval` automates dispatch + grading for the **deterministic** corpus only; it
+does not grade this judge-based suite, so the judge step here is manual (LLM-as-judge
+or human) by design. An `ANTHROPIC_API_KEY` is needed *only* to script the judge pass
+headlessly (e.g. wiring it into the opt-in `run-eval` CI gate) — the interactive
+Claude Code route above needs no key.
+
 `oe-08` once carried `"knownGap": true` (the oversight prose mandated "present
 options"). The [improvement plan](../../plans/ownership-engineering-improvements.md)
 has since rewritten the Medium tier to decide-and-proceed-with-override, so the gap
