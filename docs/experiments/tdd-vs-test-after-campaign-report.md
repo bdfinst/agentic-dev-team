@@ -1,6 +1,9 @@
 # Campaign Report: Test-First (TDD) vs. Test-After Workflow
 
-**Status:** Complete — 6-task campaign with test-quality sensors
+**Status:** Folded into
+[`tdd-vs-test-after-consolidated-report.md`](tdd-vs-test-after-consolidated-report.md)
+(adds the third `/build`-pipeline arm). Kept for the 2-arm detail.
+**Original status:** Complete — 6-task campaign with test-quality sensors
 **Date:** 2026-06-21
 **Supersedes:** [`tdd-vs-test-after-pilot-report.md`](tdd-vs-test-after-pilot-report.md) (2-task pilot)
 **Design:** [`tdd-vs-test-after-experiment.md`](tdd-vs-test-after-experiment.md)
