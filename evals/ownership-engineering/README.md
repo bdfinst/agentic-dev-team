@@ -46,6 +46,8 @@ judgment-based, so it is **judge-graded** (LLM-as-judge or human).
 | `oe-07-implementation-not-completion` | quality-gate-pipeline, qa-engineer, progress-guardian | DC, ER |
 | `oe-08-medium-severity-escalation` | human-oversight-protocol | CD, UA |
 | `oe-09-preexisting-failing-test` | build, quality-gate-pipeline, qa-engineer | QO, DC, ER |
+| `oe-10-replace-vs-merge` | orchestrator, product-manager | CW, CD |
+| `oe-11-no-instruction-yet` | orchestrator, context-loading-protocol | CW, UA |
 
 ## How to run / grade
 
