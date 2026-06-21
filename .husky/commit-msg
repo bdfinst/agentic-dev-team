@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# commit-msg — lint the commit message against Conventional Commits
+# (commitlint.config.js). Keeps `feat:`/`fix:`/etc. types valid so release-please
+# can derive versions. The full eslint/CI gate stays in pre-commit + pre-push.
+npx --no-install commitlint --edit "$1"
