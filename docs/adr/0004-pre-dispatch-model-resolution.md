@@ -6,6 +6,8 @@ Date: 2026-06-01
 
 Accepted
 
+Amended by [8. Use effort bands instead of model names in agent frontmatter](0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md)
+
 ## Context
 
 The plugin's agents declare a tier alias (`haiku`, `sonnet`, `opus`) in their
