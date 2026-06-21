@@ -17,7 +17,7 @@ Status: pass=clean Python, warn=improvements needed, fail=unsafe patterns
 Severity: error=bare except or type safety issue, warning=missing types or anti-pattern, suggestion=modern idiom
 Confidence: high=mechanical (add type hint, use f-string); medium=design choice; none=domain context needed
 
-Model tier: small
+Effort: low
 Context needs: diff-only
 File scope: `*.py`
 

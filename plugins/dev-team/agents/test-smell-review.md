@@ -18,7 +18,7 @@ Status: pass=no smells, warn=minor smells, fail=behavior/project smell that unde
 Severity: error=smell that makes the suite untrustworthy or unmaintainable (flaky, buggy test, false confidence), warning=should fix (fragile, obscure, overspecified), suggestion=improvement
 Confidence: high=named smell with a mechanical fix (add assertion message, inline mystery guest, downgrade mock to stub); medium=smell is clear but the redesign has options (split strategy, layer choice); none=requires human judgment (intended test level, whether a behavior is worth testing)
 
-Model tier: mid
+Effort: medium
 Context needs: full-file
 
 ## Scope

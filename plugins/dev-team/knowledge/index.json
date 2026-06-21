@@ -1033,7 +1033,7 @@
       "anchor": "1-parse-arguments"
     },
     "2. Audit agents": {
-      "summary": "Read each file in `.claude/agents/*.md` that declares `Model tier:` (these are",
+      "summary": "Read each file in `.claude/agents/*.md` whose body contains a structured JSON",
       "anchor": "2-audit-agents"
     },
     "2b. Audit agent tool declarations (all agents)": {

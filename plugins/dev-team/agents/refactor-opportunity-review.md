@@ -17,7 +17,7 @@ Status: pass=code is clean, warn=refactoring opportunities exist, fail=critical 
 Severity: error=semantic duplication (real DRY violation), warning=high-value refactor opportunity, suggestion=nice-to-have cleanup
 Confidence: high=mechanical (extract method, rename); medium=judgment call (is this duplication semantic or structural?); none=requires domain knowledge
 
-Model tier: mid
+Effort: medium
 Context needs: full-file
 
 ## Skip

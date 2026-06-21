@@ -44,7 +44,7 @@ well-formed-but-unmapped category (e.g. `A99.new-class`) when the class
 is legitimate but not yet in the mapping; the adapter will mint a
 `security-review.*` rule_id and warn.
 
-Model tier: frontier
+Effort: high
 Context needs: full-file
 
 ## Trigger context

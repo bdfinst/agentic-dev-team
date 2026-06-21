@@ -7,7 +7,7 @@ effort: medium
 
 # Spec Compliance Review
 
-Model tier: mid
+Effort: medium
 Context needs: full-file
 File scope: All changed files
 

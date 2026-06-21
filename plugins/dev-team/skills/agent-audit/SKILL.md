@@ -48,8 +48,9 @@ Arguments: $ARGUMENTS
 
 ### 2. Audit agents
 
-Read each file in `.claude/agents/*.md` that declares `Model tier:` (these are
-review agents). Check:
+Read each file in `.claude/agents/*.md` whose body contains a structured JSON
+output schema (a line with `"status": "pass|warn|fail|skip"`) — these are
+review agents. Check:
 
 1. **Structured output format**: Does the agent specify a JSON output
    schema?
@@ -91,11 +92,15 @@ review agents). Check:
    - MUST show the skip JSON response format
    - WARN if skip section is missing
 
-8. **Model tier**: Does the agent declare
-   `Model tier: small|mid|frontier`?
-   - All agents MUST declare which model tier they require
-   - Valid values: `small`, `mid`, `frontier`
-   - WARN if missing
+8. **Effort band**: Does the agent declare `effort: low|medium|high` in
+   its YAML frontmatter?
+   - All agents MUST declare the reasoning-effort band their task needs
+   - Valid values: `low`, `medium`, `high`
+   - WARN if missing or outside the valid set
+   - **Deprecation (warn, never error this release)**: if the agent still
+     declares a legacy `model: haiku|sonnet|opus` tier in frontmatter, WARN
+     that the tier name is deprecated and name the band to use
+     (`haiku` → `low`, `sonnet` → `medium`, `opus` → `high`)
 
 9. **Context needs**: Does the agent declare
    `Context needs: diff-only|full-file|project-structure`?

@@ -17,7 +17,7 @@ Status: pass=docs accurate, warn=minor drift, fail=misleading or missing critica
 Severity: error=documentation actively misleads (wrong behavior, removed feature still documented); warning=documentation is stale or incomplete; suggestion=docs could be clearer or more complete
 Confidence: high=mechanical update (update version, remove reference to deleted thing); medium=content direction clear, exact wording requires context; none=requires human judgment (architectural narrative, ADR decision rationale)
 
-Model tier: mid
+Effort: medium
 Context needs: project-structure
 
 ## Skip
