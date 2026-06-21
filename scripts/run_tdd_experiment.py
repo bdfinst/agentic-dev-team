@@ -75,18 +75,25 @@ CHANGE_PROMPT = (
     "it is your safety net. Make the declared test commands pass."
 )
 
-# Markers used to estimate rework from a transcript when one is captured. These
-# are best-effort heuristics, NOT an instrumented sensor -- the experiment doc
-# flags rework_cycles as un-sensored and this is how we approximate it.
-REWORK_MARKERS = (
-    re.compile(r"review-fix loop|auto-fix iteration|re-?review", re.I),
-    re.compile(r"\bRED\b.*restart|restart from RED", re.I),
-    re.compile(r"tests? failed|FAILED|exit code [1-9]", re.I),
-)
-
-
 def _utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def contamination_flags(home: Path, cost: dict) -> list[str]:
+    """Cheap checks that isolation/dispatch were sane for this cell.
+
+    With nested dispatch the rework signal we get for free is num_turns; a wildly
+    high count flags thrash worth inspecting. is_error flags a dispatch that did
+    not complete cleanly. Filesystem isolation is structural (private worktree +
+    HOME), so there is no shared meter to cross-check here.
+    """
+    flags: list[str] = []
+    if cost.get("is_error"):
+        flags.append("dispatch_error")
+    turns = cost.get("num_turns")
+    if isinstance(turns, int) and turns >= 40:
+        flags.append(f"high_turn_count={turns}")
+    return flags
 
 
 def make_cell_home(run_root: Path, cell_id: str) -> Path:
@@ -109,87 +116,82 @@ def cell_env(home: Path) -> dict:
     env["CLAUDE_CONFIG_DIR"] = str(home / ".claude")
     # Keep the opt-in telemetry beacon from bleeding state across cells.
     env.setdefault("DEV_TEAM_TELEMETRY", "off")
+    # Each cell is a throwaway temp worktree; mark it a sandbox so headless
+    # --dangerously-skip-permissions is allowed (the CLI blocks it under root
+    # otherwise). Safe because the dispatch can only touch its own worktree.
+    env["IS_SANDBOX"] = "1"
     return env
 
 
 def dispatch(workdir: Path, prompt: str, model: str, env: dict,
-             transcript: Path | None) -> None:
-    """Fresh, isolated `claude -p` dispatch. No session resume == no carryover."""
-    cmd = ["claude", "-p", prompt, "--model", model]
-    out = open(transcript, "w") if transcript else subprocess.DEVNULL
-    try:
-        subprocess.run(cmd, cwd=str(workdir), env=env, check=False,
-                       stdout=out, stderr=subprocess.STDOUT)
-    finally:
-        if transcript:
-            out.close()
+             raw_out: Path | None) -> dict:
+    """Fresh, isolated `claude -p` dispatch. No session resume == no carryover.
 
-
-def read_cost(home: Path) -> dict:
-    """Best-effort: sum tokens/usd from this cell's private cost meter.
-
-    Reads <home>/metrics/cost-metering.jsonl. The exact file the deployed
-    cost-meter hook writes may differ; this scans the private root so whatever it
-    writes there is attributed to this cell and nothing else.
+    Uses --output-format json: the result object carries the VERIFIED cost and
+    token usage for this dispatch (the plugin cost-meter hook does not fire in a
+    nested dispatch, so we read the native result instead). Returns a normalized
+    cost dict.
     """
-    total = {"tokens_total": 0, "cost_usd": 0.0, "found": False}
-    meter = home / "metrics" / "cost-metering.jsonl"
-    if not meter.exists():
-        return total
-    for line in meter.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            rec = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        total["found"] = True
-        tok = rec.get("tokens") or {}
-        total["tokens_total"] += int(tok.get("total", 0) or 0)
-        total["cost_usd"] += float(rec.get("cost_usd", 0) or 0)
-    return total
-
-
-def parse_rework(transcript: Path | None) -> dict:
-    """Approximate rework signals from a captured transcript (best-effort)."""
-    flags = {"review_fix_loops": 0, "red_restarts": 0, "failed_runs": 0,
-             "transcript": False}
-    if not transcript or not transcript.exists():
-        return flags
-    flags["transcript"] = True
-    text = transcript.read_text(errors="ignore")
-    flags["review_fix_loops"] = len(REWORK_MARKERS[0].findall(text))
-    flags["red_restarts"] = len(REWORK_MARKERS[1].findall(text))
-    flags["failed_runs"] = len(REWORK_MARKERS[2].findall(text))
-    return flags
-
-
-def contamination_flags(home: Path, transcript: Path | None) -> list[str]:
-    """Cheap checks that isolation actually held for this cell."""
-    flags: list[str] = []
-    # A summarization means the window filled -> the run is a confound.
-    if transcript and transcript.exists():
-        if re.search(r"context.{0,12}summariz", transcript.read_text(errors="ignore"), re.I):
-            flags.append("context_summarization_detected")
-    # The private metrics file should contain only THIS cell's session(s).
-    meter = home / "metrics" / "cost-metering.jsonl"
-    if meter.exists():
-        sessions = {json.loads(ln).get("session_id")
-                    for ln in meter.read_text().splitlines()
-                    if ln.strip() and _is_json(ln)}
-        sessions.discard(None)
-        if len(sessions) > 2:  # stage1 + stage2 at most per home reuse
-            flags.append(f"unexpected_session_count={len(sessions)}")
-    return flags
-
-
-def _is_json(line: str) -> bool:
+    # Each cell is a throwaway temp worktree, so headless edits are safe here.
+    cmd = ["claude", "-p", prompt, "--model", model, "--output-format", "json",
+           "--dangerously-skip-permissions"]
+    proc = subprocess.run(cmd, cwd=str(workdir), env=env, check=False,
+                          capture_output=True, text=True)
+    if raw_out:
+        raw_out.parent.mkdir(parents=True, exist_ok=True)
+        raw_out.write_text(proc.stdout or "")
+    cost = {"cost_usd": None, "tokens_total": None, "input_tokens": None,
+            "output_tokens": None, "num_turns": None, "duration_ms": None,
+            "is_error": True, "parsed": False}
     try:
-        json.loads(line)
-        return True
-    except json.JSONDecodeError:
-        return False
+        d = json.loads(proc.stdout)
+        u = d.get("usage", {}) or {}
+        inp = (int(u.get("input_tokens", 0) or 0)
+               + int(u.get("cache_creation_input_tokens", 0) or 0)
+               + int(u.get("cache_read_input_tokens", 0) or 0))
+        out = int(u.get("output_tokens", 0) or 0)
+        cost.update(cost_usd=d.get("total_cost_usd"), input_tokens=inp,
+                    output_tokens=out, tokens_total=inp + out,
+                    num_turns=d.get("num_turns"), duration_ms=d.get("duration_ms"),
+                    is_error=bool(d.get("is_error")), parsed=True)
+    except (json.JSONDecodeError, ValueError, TypeError):
+        pass
+    return cost
+
+
+# A file is "a test the agent wrote" if its name looks like a test and it was not
+# one of the hidden acceptance files we inject at grading time.
+TEST_NAME = re.compile(r"(^test_|_test\.|\.test\.|(^|/)tests?/|_spec\.|\.spec\.)", re.I)
+
+
+def count_agent_tests(workdir: Path, injected: set[str]) -> int:
+    """Manipulation check: how many test files exist that the AGENT authored."""
+    n = 0
+    for p in workdir.rglob("*"):
+        if not p.is_file() or ".git" in p.parts:
+            continue
+        if p.name in injected:
+            continue
+        if TEST_NAME.search(p.name) or TEST_NAME.search(str(p.relative_to(workdir))):
+            n += 1
+    return n
+
+
+def inject_grade_files(fixture_dir: Path, workdir: Path,
+                       files: list[str]) -> set[str]:
+    """Copy hidden acceptance files into the worktree AFTER dispatch.
+
+    Acceptance tests must never be present during the build, or both arms would
+    just make the given tests pass and the 'did they write good tests' signal
+    would be destroyed. They are injected only at grading time.
+    """
+    injected: set[str] = set()
+    for f in files:
+        src = fixture_dir / f
+        if src.exists():
+            shutil.copy2(src, workdir / Path(f).name)
+            injected.add(Path(f).name)
+    return injected
 
 
 def run_stage(stem: str, stage: str, prompt: str, fixture_dir: Path,
@@ -200,9 +202,7 @@ def run_stage(stem: str, stage: str, prompt: str, fixture_dir: Path,
     cell_id = f"{stem}__{arm}__t{trial}__{stage}"
     home = make_cell_home(run_root, cell_id)
     env = cell_env(home)
-    transcript = (run_root / "transcripts" / f"{cell_id}.log") if capture else None
-    if transcript:
-        transcript.parent.mkdir(parents=True, exist_ok=True)
+    raw_out = (run_root / "raw" / f"{cell_id}.json") if capture else None
 
     workdir = Path(tempfile.mkdtemp(prefix=f"exp-{cell_id}-"))
     try:
@@ -215,14 +215,21 @@ def run_stage(stem: str, stage: str, prompt: str, fixture_dir: Path,
 
         commands_key = "changeTestCommands" if stage == "change" else "testCommands"
         commands = espec.get(commands_key, [])
+        grade_key = "changeGradeFiles" if stage == "change" else "gradeFiles"
+        grade_files = espec.get(grade_key, [])
 
+        cost = {"parsed": False}
         if not skip_dispatch:
             doc = espec["change"] if stage == "change" else espec["spec"]
             if (fixture_dir / doc).exists():
-                shutil.copy2(fixture_dir / doc, workdir / doc)
-            dispatch(workdir, prompt.format(spec=espec.get("spec", ""),
-                                            change=espec.get("change", "")),
-                     model, env, transcript)
+                shutil.copy2(fixture_dir / doc, workdir / Path(doc).name)
+            cost = dispatch(workdir, prompt.format(spec=espec.get("spec", ""),
+                                                   change=espec.get("change", "")),
+                            model, env, raw_out)
+
+        # Count agent-authored tests BEFORE injecting hidden acceptance files.
+        agent_tests = count_agent_tests(workdir, injected=set())
+        inject_grade_files(fixture_dir, workdir, grade_files)
 
         results = run_commands(workdir, commands)
         passed = all(r["exit_code"] == 0 for r in results) and bool(results)
@@ -230,9 +237,9 @@ def run_stage(stem: str, stage: str, prompt: str, fixture_dir: Path,
             "ts": _utc(), "task": stem, "arm": arm, "trial": trial,
             "stage": stage, "model": model, "passed": passed,
             "results": results,
-            "cost": read_cost(home),
-            "rework": parse_rework(transcript),
-            "contamination": contamination_flags(home, transcript),
+            "cost": cost,
+            "agent_test_files": agent_tests,
+            "contamination": contamination_flags(home, cost),
         }
         # Stage 1 keeps its worktree so Stage 2 can seed from it.
         row["_worktree"] = str(workdir) if stage == "build" else None
