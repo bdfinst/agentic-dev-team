@@ -60,6 +60,12 @@ _session_start_input() {
   [ "$status" -eq 0 ]
 }
 
+@test "Security: a session model with unsafe characters is not persisted" {
+  run bash -c "echo '$(_session_start_input "evil; rm -rf /")' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ ! -s "$SESSION_MODEL_FILE" ]
+}
+
 @test "the retired overrides-banner.sh no longer exists" {
   [ ! -e "$OLD_HOOK" ]
 }

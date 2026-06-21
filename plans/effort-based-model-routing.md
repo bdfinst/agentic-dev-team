@@ -510,7 +510,7 @@ Per step. Summary: 4 complex (1.4, 1.5, 2.2, 3.1), 2 trivial (1.6, 2.3), the res
 
 - [x] All bats suites pass
 - [x] `shellcheck` clean on changed shell scripts
-- [ ] `/code-review` passes
+- [x] `/code-review` passes (focused review of the hook logic; 2 security/correctness findings fixed)
 - [x] `scripts/ci-local.sh` green
 - [x] Documentation + spec reconciled (Slice 6)
 - [ ] Version bumped as `feat!` (major) with migration note

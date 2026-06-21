@@ -138,12 +138,20 @@ _log_bump() {
 # Args: input new_model
 # ---------------------------------------------------------------------------
 _emit_rewrite() {
-  echo "$1" | jq -c --arg new_model "$2" '{
+  # Fail open: if the rewrite cannot be built (e.g. tool_input absent or a jq
+  # error), emit pass-through rather than a partial line — never block dispatch.
+  local out
+  out=$(echo "$1" | jq -c --arg new_model "$2" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       updatedInput: (.tool_input | .model = $new_model)
     }
-  }'
+  }' 2>/dev/null)
+  if [[ -n "$out" ]]; then
+    echo "$out"
+  else
+    echo '{}'
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -172,11 +180,14 @@ main() {
 
   # Strip any "<plugin>:" prefix (dev-team:security-review → security-review).
   local agent_name="${subagent_type#*:}"
-  local agent_file
-  agent_file="$(_agents_dir)/${agent_name}.md"
 
-  local effort
-  effort="$(_read_effort "$agent_file")"
+  # The subagent_type is fully untrusted. Only read an agent file when the
+  # name is a safe stem — never let "../" or path separators escape the agents
+  # directory. An unsafe name is treated as "no effort declared".
+  local effort=""
+  if [[ "$agent_name" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    effort="$(_read_effort "$(_agents_dir)/${agent_name}.md")"
+  fi
 
   local band="" reason="" explicit_snapshot=""
   if [[ -n "$effort" ]]; then

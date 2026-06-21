@@ -147,6 +147,15 @@ EOF
   [ -z "$output" ]
 }
 
+@test "Security: a traversal subagent_type cannot read an agent file outside the agents dir" {
+  # Plant an effort agent OUTSIDE the agents dir, then try to reach it via "../".
+  printf -- '---\nname: evil\neffort: high\n---\nbody\n' > "$BATS_TMPDIR_CASE/evil.md"
+  run bash -c "echo '$(_agent_input ../evil)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  # Must NOT resolve to opus via the planted file — pass-through instead.
+  [ "$output" = "{}" ]
+}
+
 # ---------------------------------------------------------------------------
 # Slice 3 — session-model fallback, no ceiling, silent-but-logged
 # ---------------------------------------------------------------------------

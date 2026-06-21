@@ -82,6 +82,12 @@ main() {
   model=$(echo "$input" | jq -r '(.model // empty) as $m
     | if ($m | type) == "object" then ($m.id // empty) else $m end' 2>/dev/null)
 
+  # The payload is untrusted. A model ID is a constrained token; reject anything
+  # else so an arbitrary string is never persisted and later served as a model.
+  if [[ -n "$model" && ! "$model" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    model=""
+  fi
+
   local file
   file="$(_session_model_file)"
 
