@@ -174,6 +174,46 @@ model: <model>
 Do not include `hooks`, `mcpServers`, or `permissionMode` unless the user
 confirmed their inclusion in Step 8.
 
+#### `cites:` (citation drift defense, #312)
+
+When a review agent inlines normative **numeric thresholds** (e.g. "functions
+MUST be under 50 lines", "coverage SHOULD reach 80%") that are owned by a
+canonical skill or knowledge file, declare those sources with a `cites:` list so
+`/agent-audit`'s citation lint can detect drift between the agent and its source:
+
+```yaml
+cites: [complexity, object-calisthenics]   # skill names or knowledge file stems
+```
+
+Each entry resolves to `skills/<name>/SKILL.md` or `knowledge/<name>.md`. The lint
+(`scripts/citation_lint.py`) flags any threshold the agent states on an RFC-2119
+line that is absent from every cited source. The lint is advisory (Phase 1,
+non-blocking) either way.
+
+**Pre-write check.** After Step 10 generates the body, before Step 11 writes
+the file:
+
+1. Scan the generated body for **threshold-bearing RFC-2119 lines** — any
+   line carrying `MUST|SHOULD|SHALL|REQUIRED|NEVER|ALWAYS` AND a numeric
+   token (`\d+(\.\d+)?%?`), outside code fences and blockquotes.
+2. If any are found AND no `cites:` field was set, emit exactly:
+
+   ```text
+   ⚠ Agent body states N numeric threshold(s) on RFC-2119 lines but no
+     cites: was declared. Eval drift defense will be blind on this agent.
+
+     (a) add cites:  (b) proceed without
+   ```
+
+3. On `(a)`: prompt for a comma-separated list, validate each entry resolves
+   to a real `skills/<name>/SKILL.md` or `knowledge/<name>.md`, insert
+   `cites: [<list>]` into the frontmatter, and continue to Step 11.
+4. On `(b)`: continue to Step 11 with no `cites:` — the lint will flag the
+   agent as `advisory` going forward, which is the correct deferred state.
+
+Omit the check entirely when the body states no thresholds; nothing for the
+lint to verify means the field is genuinely optional.
+
 ---
 
 ## Step 10 — Generate Body

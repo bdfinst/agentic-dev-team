@@ -1,0 +1,13 @@
+{
+  "fixture": "int-string-calculator",
+  "description": "Integration tier (#313): orchestrator implements the String Calculator kata from a frozen spec in an ephemeral worktree; the acceptance test must exit 0.",
+  "applicableSkills": ["orchestrator"],
+  "integration": {
+    "orchestrator": {
+      "grader": "integration",
+      "spec": "spec.md",
+      "goldenRepo": "golden-repo.tar.gz",
+      "testCommands": ["python3 test_string_calc.py"]
+    }
+  }
+}

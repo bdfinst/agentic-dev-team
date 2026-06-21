@@ -105,3 +105,97 @@ the live gate auto-enforces on every PR. A cost-budgeted default-on run will
 only be reconsidered **after** #134 (runtime cost metering) can produce a
 per-run live-eval cost estimate; until that estimate exists, the gate stays
 opt-in and no default-on change is made.
+
+The **fingerprint replay cache** (below, #311) is the other half of that
+calculus: it removes the proximate reason every run was full-cost, so a
+cost-budgeted default-on posture becomes affordable once the metering exists.
+
+## Grader registry (issue #309)
+
+Grading is dispatched through a pluggable registry in `scripts/eval_graders/`
+rather than a monolith. Each grader is a module exposing
+`grade(spec, actual) -> list[str]` (empty list == PASS) registered in
+`eval_graders/__init__.py`:
+
+| grader | default for block | grades |
+| --- | --- | --- |
+| `verdict` | `agents` | a review agent's status / issue counts / severities / keywords |
+| `skill_gate` | `skills` | an advisory skill's gates + pyramid layers + report keywords |
+| `integration` | `integration` | recorded test-command exit codes (#313) |
+
+An expected entry may set `"grader": "<name>"` to override its block default.
+`--check-corpus` rejects an unknown grader value. Adding a fixture genre is one
+module + one `REGISTRY` entry — no edits to existing graders.
+
+## Dispatch mode (issue #310)
+
+`/agent-eval` dispatches each pair through a **fresh `claude -p` subprocess by
+default**, so the agent/skill definition is re-read from disk every run and a
+just-edited definition is graded immediately. `--in-session` is an opt-in fast
+path that reuses the already-loaded definitions for cheap re-grades when nothing
+has been edited. Missing `claude` on `PATH` is a hard error in default mode —
+never a silent fallback to the (possibly stale) in-session path.
+
+## Fingerprint replay cache (issue #311)
+
+`scripts/eval_cache.py` makes the live gate economical. Before dispatching a
+`fixture::target` pair it computes a SHA-256 over the target's definition, the
+**transitive closure** of files it reaches (`knowledge/*.md`, `skills/*`), the
+fixture file(s), the expected JSON, and the grader version. An unchanged SHA
+with a stored PASS replays from `evals/.eval-cache.json` at **zero token cost**;
+any changed input busts the cache and forces a live dispatch.
+
+```bash
+python3 scripts/eval_cache.py --fingerprint "ar-layer-violation::arch-review"
+python3 scripts/eval_cache.py --plan --replay-out replay.json   # hits vs misses
+python3 scripts/eval_cache.py --store --actuals actuals.json    # memoize passes
+```
+
+The cache file is gitignored. Corruption is silently ignored (degrades to a
+full dispatch, never errors). CI restores the per-branch cache before dispatch,
+merges replayed hits into `actuals.json`, grades, stores new passes, and uploads
+the cache as a workflow artifact.
+
+## Citation drift lint (issue #312)
+
+`scripts/citation_lint.py` is a preventive guard against reviewer agents
+enforcing stale thresholds. An agent declares its canonical sources in a
+`cites:` frontmatter list; every numeric threshold the agent states on an
+RFC-2119 line (MUST/SHOULD/SHALL/REQUIRED/NEVER/ALWAYS) must appear in a cited
+skill/knowledge file, else it is flagged as drift with token + line number. It
+runs in `/agent-audit` and in CI. **Phase 1 is advisory** (always exit 0) to
+collect signal before hardening. Code fences and blockquotes are excluded.
+
+## Integration tier — golden repo (issue #313)
+
+The unit graders score a single agent's output in isolation. The integration
+tier asks the validation question instead: *does a plan from the orchestrator
+yield code that compiles and whose tests pass?* An integration fixture's
+expected JSON carries an `integration` block naming a frozen `spec`, a
+`goldenRepo` tarball, and a non-empty `testCommands` list:
+
+```json
+{
+  "integration": {
+    "orchestrator": {
+      "grader": "integration",
+      "spec": "spec.md",
+      "goldenRepo": "golden-repo.tar.gz",
+      "testCommands": ["python3 test_string_calc.py"]
+    }
+  }
+}
+```
+
+`scripts/run_integration_eval.py` builds an **ephemeral git worktree** from the
+tarball, dispatches the orchestrator against the spec, runs the test commands,
+records exit codes, and tears the worktree down unconditionally. The
+`integration` grader passes only when every command exits 0. The tier is
+**opt-in** (`run-integration` label / `force_integration`), never in the default
+PR suite, and depends on the grader registry (#309) and the replay cache (#311).
+Use `--skip-dispatch` to exercise the harness without a model (commands run
+against the golden repo as-is). The first shipped fixture is
+`int-string-calculator` (the String Calculator kata: plan → implement → review).
+
+See [ADR 0007](../docs/adr/0007-eval-confidence-pyramid-tier-vocabulary.md) for
+the tier vocabulary (unit → integration → acceptance).

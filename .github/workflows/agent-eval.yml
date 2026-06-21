@@ -34,6 +34,10 @@ on:
         description: "Run the live agent-eval gate for this run (needs ANTHROPIC_API_KEY)"
         type: boolean
         default: false
+      force_integration:
+        description: "Run the integration eval tier for this run (needs ANTHROPIC_API_KEY)"
+        type: boolean
+        default: false
 
 # Cancel superseded runs on the same ref so rapid pushes don't stack paid runs.
 concurrency:
@@ -53,8 +57,17 @@ jobs:
       - name: Eval corpus integrity check
         run: python3 scripts/eval_grade.py --check-corpus
 
-      - name: Grader unit tests
-        run: bats tests/repo/eval_grader_tests.bats
+      - name: Grader, cache & integration-tier unit tests
+        run: |
+          bats tests/repo/eval_grader_tests.bats \
+               tests/repo/eval_cache_tests.bats \
+               tests/repo/integration_tier_tests.bats \
+               tests/repo/citation_lint_tests.bats
+
+      # Citation drift lint (#312). Advisory in Phase 1 — always exits 0, so it
+      # surfaces drift warnings in the log without blocking the gate.
+      - name: Citation drift lint (advisory)
+        run: python3 scripts/citation_lint.py --all
 
   semver-contract:
     # Job name is a REQUIRED status-check context (renovate-require-tests
@@ -141,6 +154,19 @@ jobs:
           ln -sfn "$PWD/evals/fixtures" .claude/evals/fixtures
           ln -sfn "$PWD/evals/expected" .claude/evals/expected
 
+      # Per-pair fingerprint replay cache (#311). Restore the branch's cache
+      # BEFORE dispatch so unchanged pairs replay at zero token cost. Keyed per
+      # branch with a rolling suffix; restore-keys fall back to the latest cache
+      # for the same branch. A miss here just means a full live dispatch.
+      - name: Restore eval replay cache
+        if: steps.cred.outputs.run_live == 'true'
+        uses: actions/cache@v4
+        with:
+          path: evals/.eval-cache.json
+          key: eval-cache-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            eval-cache-${{ github.head_ref || github.ref_name }}-
+
       # Diff-scope: run only the agents/skills the PR changed. A broad change
       # (knowledge, the corpus, the grader, or this workflow) or a dispatch
       # with no PR base falls back to a full run, since one knowledge file can
@@ -155,7 +181,7 @@ jobs:
           full() { echo "only=" >> "$GITHUB_OUTPUT"; echo "instruction=" >> "$GITHUB_OUTPUT"; echo "scope=full" >> "$GITHUB_OUTPUT"; }
           if [ -z "$BASE" ] || [ -z "$HEAD" ]; then full; exit 0; fi
           changed=$(git diff --name-only "$BASE" "$HEAD")
-          if echo "$changed" | grep -qE '^(plugins/dev-team/knowledge/|evals/|scripts/eval_grade\.py|\.github/workflows/agent-eval\.yml)'; then
+          if echo "$changed" | grep -qE '^(plugins/dev-team/knowledge/|evals/|scripts/eval_grade\.py|scripts/eval_graders/|scripts/eval_cache\.py|\.github/workflows/agent-eval\.yml)'; then
             full; exit 0
           fi
           agents=$(echo "$changed" | sed -n 's#^plugins/dev-team/agents/\([^/]*\)\.md$#\1#p')
@@ -166,6 +192,26 @@ jobs:
           echo "scope=scoped" >> "$GITHUB_OUTPUT"
           echo "instruction=IMPORTANT: restrict this run to ONLY these agents/skills and skip all others: $only" >> "$GITHUB_OUTPUT"
           echo "::notice title=diff-scoped agent-eval::Running only: $only"
+
+      # Classify pairs against the restored cache (#311): cache hits replay from
+      # evals/.eval-cache.json (written to replay.json) and are skipped during
+      # dispatch; only misses pay token cost. Resilient — a missing/corrupt cache
+      # yields all-misses (full dispatch), never an error.
+      - name: Plan cache replay (skip unchanged pairs)
+        id: cacheplan
+        if: steps.cred.outputs.run_live == 'true'
+        run: |
+          python3 scripts/eval_cache.py --plan \
+            --only "${{ steps.scope.outputs.only }}" \
+            --plan-out plan.json --replay-out replay.json
+          hits=$(jq -r '.hits | join(", ")' plan.json 2>/dev/null || echo "")
+          nhits=$(jq -r '.hits | length' plan.json 2>/dev/null || echo 0)
+          nmiss=$(jq -r '.misses | length' plan.json 2>/dev/null || echo 0)
+          if [ -n "$hits" ]; then
+            printf 'cache_skip=NOTE: these fixture::target pairs are unchanged since the last green run and are replayed from cache — DO NOT dispatch them, skip them entirely: %s\n' \
+              "$hits" >> "$GITHUB_OUTPUT"
+          fi
+          echo "::notice title=eval replay cache::${nhits} hit(s) replayed, ${nmiss} miss(es) dispatched"
 
       # Run the review agents headlessly via the Claude Code GitHub Action and
       # serialize their RAW outputs to actuals.json in the grader's input shape
@@ -225,11 +271,29 @@ jobs:
             Write valid JSON and nothing else to actuals.json.
 
             ${{ steps.scope.outputs.instruction }}
+            ${{ steps.cacheplan.outputs.cache_skip }}
           claude_args: |
             --output-format json
             --max-turns 60
             --model claude-sonnet-4-6
             --allowedTools "Read" "Glob" "Grep" "Write" "Agent" "Skill(review-agent *)" "Skill(test-design-advisor *)"
+
+      # Merge the cache-replayed pairs (replay.json, #311) into whatever the
+      # dispatch recorded, so the grader sees the full pair set — replayed
+      # passes plus freshly-dispatched misses. Dispatched actuals win on any
+      # key collision (a freshly-run pair supersedes its cached copy).
+      - name: Merge replayed cache hits into actuals
+        if: steps.cred.outputs.run_live == 'true'
+        run: |
+          [ -f replay.json ] || echo '{}' > replay.json
+          [ -f actuals.json ] && jq -e . actuals.json >/dev/null 2>&1 || echo '{}' > actuals.json
+          # jq's `*` recursively merges objects (RHS wins): union stems and
+          # agents/skills blocks, with freshly-dispatched values overriding the
+          # replayed cache copies on any collision.
+          jq -s '.[0] * .[1]' replay.json actuals.json > merged-actuals.json
+          mv merged-actuals.json actuals.json
+          echo "merged actuals (replay ∪ dispatched):"
+          jq -r 'keys[]' actuals.json | sed 's/^/  · /' || true
 
       - name: Grade against baseline (or skip if the action did not run)
         if: steps.cred.outputs.run_live == 'true'
@@ -239,13 +303,16 @@ jobs:
           # validation requires the file to match the default branch. In that
           # case no actuals.json is produced; treat it as a skip, not a
           # failure, so it does not red-line PRs. The gate exercises the agents
-          # once this workflow is merged to the default branch.
-          if [ ! -f actuals.json ] || ! jq -e . actuals.json >/dev/null 2>&1; then
+          # once this workflow is merged to the default branch. With the replay
+          # cache (#311), an all-hits run still produces a populated actuals.json
+          # from replay.json, so grading proceeds with zero dispatch.
+          if [ ! -s actuals.json ] || ! jq -e 'keys|length>0' actuals.json >/dev/null 2>&1; then
             echo "::warning title=live eval did not run::No parseable" \
-              "actuals.json was produced. This is expected on a PR that adds or" \
-              "modifies this workflow (claude-code-action only runs once the" \
-              "workflow is unchanged on the default branch), or if the runner" \
-              "wrote no file. The live gate will exercise the agents after merge."
+              "actuals.json was produced and the replay cache was empty. This is" \
+              "expected on a PR that adds or modifies this workflow" \
+              "(claude-code-action only runs once the workflow is unchanged on" \
+              "the default branch), or if the runner wrote no file. The live gate" \
+              "will exercise the agents after merge."
             exit 0
           fi
           # Honor the quarantine (#233): flaky pairs recorded by a multi-trial
@@ -257,3 +324,110 @@ jobs:
             --baseline evals/baseline.json \
             --quarantine evals/quarantine.json \
             --only "${{ steps.scope.outputs.only }}"
+
+      # Write freshly-PASSed pairs back to the replay cache (#311). Runs even if
+      # grading found a regression (if: always) so green pairs from this run are
+      # still memoized; the gate's pass/fail is decided by the grade step above.
+      - name: Store passing pairs to replay cache
+        if: steps.cred.outputs.run_live == 'true' && always()
+        run: |
+          [ -s actuals.json ] && jq -e 'keys|length>0' actuals.json >/dev/null 2>&1 || exit 0
+          python3 scripts/eval_cache.py --store \
+            --actuals actuals.json \
+            --baseline evals/baseline.json \
+            --only "${{ steps.scope.outputs.only }}" || true
+
+      # Upload the updated cache as a workflow artifact for inspection. The
+      # functional restore/save across runs is handled by actions/cache above;
+      # this makes the per-run cache state downloadable.
+      - name: Upload eval replay cache artifact
+        if: steps.cred.outputs.run_live == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-replay-cache-${{ github.run_id }}
+          path: evals/.eval-cache.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  integration-gate:
+    name: Integration eval tier (golden-repo, opt-in)
+    runs-on: ubuntu-latest
+    needs: structural-gate
+    # Opt-in tier (#313): dispatches the orchestrator in an ephemeral worktree
+    # for each integration fixture, runs the fixture's test commands, and grades
+    # on exit codes. NEVER in the default PR suite — it pays full orchestrator
+    # cost — so it runs only with the 'run-integration' label or a force_integration
+    # dispatch, and only when ANTHROPIC_API_KEY is present.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to run the integration tier
+        id: gate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'run-integration') }}
+          FORCE_INTEGRATION: ${{ github.event.inputs.force_integration }}
+        run: |
+          if { [ "$HAS_LABEL" = "true" ] || [ "$FORCE_INTEGRATION" = "true" ]; } \
+             && [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "run_integration=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_integration=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Integration tier not triggered — notice
+        if: steps.gate.outputs.run_integration != 'true'
+        run: |
+          echo "::notice title=integration tier not triggered::" \
+            "Add the 'run-integration' label (or dispatch with force_integration)" \
+            "and configure ANTHROPIC_API_KEY to run the golden-repo integration" \
+            "tier. See issue #313 and evals/README.md."
+
+      - name: Install tooling
+        if: steps.gate.outputs.run_integration == 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          # The runner dispatches the orchestrator via the `claude` CLI. Install
+          # it; the runner errors clearly (naming the component) if it is absent.
+          npm install -g @anthropic-ai/claude-code || true
+
+      # Restore the replay cache (#311) so unchanged integration pairs replay
+      # instead of paying full orchestrator cost.
+      - name: Restore eval replay cache
+        if: steps.gate.outputs.run_integration == 'true'
+        uses: actions/cache@v4
+        with:
+          path: evals/.eval-cache.json
+          key: eval-cache-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            eval-cache-${{ github.head_ref || github.ref_name }}-
+
+      - name: Run integration tier (records actuals.json)
+        if: steps.gate.outputs.run_integration == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 scripts/run_integration_eval.py \
+            --expected-dir evals/expected \
+            --fixtures-dir evals/fixtures \
+            --out integration-actuals.json
+
+      - name: Grade integration results
+        if: steps.gate.outputs.run_integration == 'true'
+        run: |
+          python3 scripts/eval_grade.py \
+            --actuals integration-actuals.json \
+            --baseline evals/baseline.json \
+            --quarantine evals/quarantine.json
+
+      - name: Store passing integration pairs to replay cache
+        if: steps.gate.outputs.run_integration == 'true' && always()
+        run: |
+          [ -s integration-actuals.json ] || exit 0
+          python3 scripts/eval_cache.py --store \
+            --actuals integration-actuals.json \
+            --baseline evals/baseline.json || true

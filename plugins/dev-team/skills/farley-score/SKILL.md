@@ -1,11 +1,11 @@
 ---
-name: test-design-reviewer
+name: farley-score
 description: Evaluate test quality using Dave Farley's 8 properties with a weighted Farley Score. Use when reviewing test suites, after writing tests, or when the user says "score my tests", "test quality", "Farley score", or "how good are my tests".
 role: worker
 user-invocable: true
 ---
 
-# Test Design Reviewer
+# Farley Score
 
 ## Overview
 

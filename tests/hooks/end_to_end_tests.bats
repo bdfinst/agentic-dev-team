@@ -179,8 +179,10 @@ assert 'MUTATION GATE ADVISORY' in ctx
 @test "prefix token: blocking output starts with MUTATION GATE BLOCKED" {
   run_e2e "$FIXTURES/stryker/mutation-zero-kill.json"
   [ "$status" -eq 0 ]
-  # Extract the reason and check first word
-  first=$(echo "$output" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('reason','')[:20])")
+  # Extract the reason prefix and check the token. The slice must be at least as
+  # long as "MUTATION GATE BLOCKED" (21 chars) — a shorter slice truncated the
+  # trailing 'D' and never matched.
+  first=$(echo "$output" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('reason','')[:21])")
   [[ "$first" == *"MUTATION GATE BLOCKED"* ]] || [[ "$first" == "MUTATION GATE BLOCKED"* ]]
   echo "$output" | python3 -c "
 import json,sys

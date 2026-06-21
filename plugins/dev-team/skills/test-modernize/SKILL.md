@@ -93,17 +93,126 @@ Phase 2 runs in two passes around the human gate so Stories never bind to un-rev
 
 **Human gate** — baseline accepted before adding tests.
 
-### 4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta`
+### 3a. Review-the-phase loop (Phase 4 + Phase 5 use this identically)
 
-For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):
+This is the shared end-of-phase review the orchestrator runs at the close of Phase 4 and Phase 5. Both phases cross-reference this block rather than duplicating it. The loop converges quickly when the phase's tests are clean and escalates to the operator when they aren't — same review-fix-loop pattern `/build` uses inline, but scoped to the phase's diff.
+
+1. Resolve the phase's base sha: the merge-base of the phase's first Story branch and `main` (`git merge-base <phase-base-ref> main`). Record it as `<phase-base-sha>` for the rest of this loop.
+2. Dispatch `/test-design --since <phase-base-sha>` — produces the phase's Farley Score, test-review findings, and test-smell findings. Advisory: its output is recorded, never auto-fixed (test design is an operator-judgment call).
+3. Dispatch `/code-review --since <phase-base-sha>` — runs the full review-agent suite over the phase's diff and writes correction prompts to `corrections/` for any error/warning findings.
+4. **Fix loop, max 2 iterations.** If `/code-review` returned any error- or warning-severity findings with high or medium confidence:
+   a. Dispatch `/apply-fixes corrections/` to land the auto-fixable corrections.
+   b. Re-run `/code-review --since <phase-base-sha>`.
+   c. If clean, exit the loop and continue to step 5.
+   d. If still failing AND iteration count < 2, repeat (a).
+   e. **After iteration 2** (still failing), halt the loop and surface the escalation prompt:
+
+      ```text
+      ⚠ Phase-<n> review fix loop did not converge after 2 iterations
+        Remaining error/warning findings: <count>
+        See: corrections/<latest>/
+
+      Actions:
+        [r] revise manually — apply fixes by hand, then /continue
+        [w] waive          — record reason; remaining findings carry forward
+        [q] quit           — halt the workflow
+
+      Choose [r/w/q]:
+      ```
+
+      On `[w]`, append a Phase-`<n>` review waiver to `memory/test-modernize/<slug>/waivers.json` tagged with the finding list (same waivers file Phase-4 mutation halts use). On `[r]`, exit the gate and wait; `/continue` re-enters at this step. On `[q]`, halt the workflow.
+5. **Tool-unavailable triage.** If `/test-design` or `/code-review` cannot run (dependency missing, plugin unavailable), surface:
+
+   ```text
+   Review tool unavailable for Phase <n>. Install via /init-dev-team,
+   or skip end-of-phase review for this run.
+
+     [i] install — invoke /init-dev-team and retry the review
+     [k] skip   — proceed advisory; human gate fires without review evidence
+     [q] quit   — halt the workflow
+
+   Choose [i/k/q]:
+   ```
+
+6. Persist the review evidence to `memory/test-modernize/<slug>/phase-<n>-review.json`:
+
+   ```json
+   {
+     "captured_at": "<ISO-8601>",
+     "base_sha":   "<phase-base-sha>",
+     "head_sha":   "<HEAD-at-loop-exit>",
+     "farley_score":  { "rating": "...", "score": ... },
+     "smells":        [ { "rule": ..., "file": ..., "line": ... } ],
+     "code_review":   { "errors": <n>, "warnings": <n>, "suggestions": <n> },
+     "iterations":    <n>,
+     "escalated":     <true|false>
+   }
+   ```
+
+The phase's human gate reads this file before firing — without it (escape hatch `[k]` chosen, tool unavailable), the gate surfaces "review evidence: advisory only" so the operator knows what was skipped.
+
+### 4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate
+
+**Pre-flight — resolve Phase-3 disabled tests.** Before any Phase-4 child issue runs, read `memory/test-modernize/<slug>/disabled-tests.json` and walk it entry-by-entry. For each disabled test, the orchestrator must choose one outcome and record it in `memory/test-modernize/<slug>/disabled-tests-resolution.json`:
+
+- **`repair`** — the test can be made meaningful **without changing production code** (e.g. add a real assertion, replace `expect(true).toBeTruthy()` with the actual observable behavior, remove the swallowed-exception catch). Dispatch `/build` against a `[Repair disabled test] <file>::<test>` work item that unskips the test, lands the assertion, and proves it can fail (kill the production line under test or mutate it and confirm the test goes red). The `cannot-fail:` skip tag is removed.
+- **`defer-to-phase-5`** — repairing the test requires a production-code refactor (no seam to assert against, hidden collaborator, untestable side effect). Do NOT touch the test in Phase 4. Draft a Phase-5 `[Repair disabled test] <file>::<test>` defect Story into `memory/test-modernize/<slug>/phase-5.md` that cites `file:line:reason` from `disabled-tests.json` and names the production-code seam the refactor must introduce. Leave the `cannot-fail:` skip tag in place so the source-of-truth audit trail stays intact.
+
+The Phase-4 gate refuses to fire while any entry in `disabled-tests.json` is still in the default `pending` state — every entry must resolve to `repair` (done + unskipped) or `defer-to-phase-5` (Story drafted) before the gate is evaluated.
+
+Then, for each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):
 
 1. Invoke `/build <issue-id-or-path>` — drives RED-GREEN-REFACTOR with inline `/code-review`.
    - For `[Component tests]` Stories created in Phase 2, `/build` is told to bind each test to the specific `<feature-file>::<scenario-name>` pairs cited in the Story's Acceptance Criteria using the binding mode recorded in `phase-0.md` (`bdd-runner` or `xunit-with-annotations`). The Acceptance Criteria checkboxes (one per scenario) must all turn green before the Story closes.
    - For `[Baseline]` Stories (created in Phase 1), tests lock in current behavior at existing seams — no Gherkin binding required.
-2. After every Story closes, invoke `/coverage-delta <repo-path> --parent <url-or-empty> --repo-slug <slug>`. Posts Δ vs. baseline to the parent issue / `FEATURE.md`.
-3. After all Phase-4 Stories are Done, dispatch `dev-team:test-modernization-review --phase 4` — it cross-checks the scenario → Story-id map against the actually-submitted test code to verify every Scenario has a test citing it.
+   - For `[Repair disabled test]` Stories drafted in the pre-flight, `/build` removes the skip tag, lands a real assertion against the cited public-interface behavior, and proves the new assertion can fail.
+2. After every Story closes, **extract the Story's production-code file list from `/build`'s commit diff** (`git diff --name-only <story-base-sha>..<story-head-sha>` filtered to production code — test files dropped). The orchestrator MUST NOT consult a tracker CLI for this list; the commit diff is the only source of truth so a tracker JSON-shape change can never silently break the gate.
+3. Invoke `/coverage-delta <repo-path> --parent <url-or-empty> --repo-slug <slug> --story <id> --story-files <files-from-step-2>`. The worker measures and reports; it never halts. Read its stdout result block and act on the `status` field:
 
-**Human gate** — Δ-coverage accepted before any production-code refactor.
+   **`status: "ok"` or `"first_measurement"`** — Story closes; advance to the next.
+
+   **`status: "net_new_survivors"`** — pause Story close and surface the halt prompt verbatim:
+
+   ```text
+   ⚠ Phase-4 Story <id> close halted — net-new surviving mutants on cited files
+
+   Files this Story claims to test:
+     - <file>:<line>  <operator>   <original>  →  <mutated>
+     ...
+
+   Actions:
+     [s] strengthen — add assertions, then re-run /coverage-delta --story <id> --story-files <files>
+     [f] follow-up — open a Phase-5 [Strengthen assertions] Story citing these survivors
+     [w] waive    — record reason; survivors carry into Phase 5
+
+   Choose [s/f/w]:
+   ```
+
+   - **`s`** — exit the gate; the workflow waits. `/continue` (or re-invoking the same `/coverage-delta` call after the operator strengthens assertions) re-enters at this exact point.
+   - **`f`** — draft a Phase-5 `[Strengthen assertions]` Story into `memory/test-modernize/<slug>/phase-5.md`, citing each `file:line:operator` from the result block. Close the current Story and advance.
+   - **`w`** — read the operator's reason and append a Phase-4 waiver to `memory/test-modernize/<slug>/waivers.json` tagged with the survivor list. Close the current Story and advance.
+
+   **`status: "tool_unavailable"`** — surface the triage prompt:
+
+   ```text
+   Mutation tool unavailable for <language>. Install via /init-dev-team,
+   or skip mutation gating for this run.
+
+     [i] install — invoke /init-dev-team and retry the Story close
+     [k] skip   — proceed advisory; the rest of Phase 4 runs without
+                  mutation gating and Phase 5 is notified
+     [q] quit   — halt the workflow
+
+   Choose [i/k/q]:
+   ```
+
+4. After all Phase-4 Stories are Done, dispatch `dev-team:test-modernization-review --phase 4` — it cross-checks the scenario → Story-id map against the actually-submitted test code to verify every Scenario has a test citing it.
+5. **Review the phase.** Run the loop in `### 3a. Review-the-phase loop`. Specifically:
+   - Dispatch `/test-design --since <phase-4-base-sha>` and `/code-review --since <phase-4-base-sha>`.
+   - On findings, dispatch `/apply-fixes corrections/`; re-run `/code-review`; loop body capped at **max 2 iterations** before the operator escalation prompt fires.
+   - Write the resulting evidence to `memory/test-modernize/<slug>/phase-4-review.json` per the schema in 3a.
+
+**Human gate** — Δ-coverage AND Phase-4 mutation results AND `phase-4-review.json` (any waivers explicit) AND `disabled-tests-resolution.json` (every Phase-3-disabled test resolved to `repair` or `defer-to-phase-5`) accepted before any production-code refactor.
 
 ### 5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`
 
@@ -112,11 +221,15 @@ For each Phase-5 child issue in dependency order:
 1. Confirm the matching `[Baseline]` Story is closed and green (precondition). If not, halt and report.
 2. Invoke `/build <issue-id-or-path>` — minimum behavior-preserving refactor + the test that needed the new seam.
    - For `[Component tests]` Stories that landed in Phase 5 (i.e. the surface needed a `[Refactor-for-testability]` first), `/build` binds tests to the cited scenarios using the same binding mode from `phase-0.md`. The matching `[Refactor-for-testability]` Story must be closed and green before any of its dependent `[Component tests]` work starts.
-3. After every Story closes, invoke `/mutation-testing <repo-path>` and `/quality-targets-converge <repo-path> --parent <url-or-empty> --repo-slug <slug>`.
+3. After every Story closes, invoke `/mutation-testing <repo-path>` and `/quality-targets-converge <repo-path> --parent <url-or-empty> --repo-slug <slug>`. `/quality-targets-converge` reads `memory/test-modernize/<slug>/mutation-history.json` (written by Phase 4) to avoid re-measuring files Phase 4 already exercised — see that skill's reuse rule.
 4. `/quality-targets-converge` loops until all four targets are met or a target is explicitly waived by the operator with the reason recorded on the parent issue / `FEATURE.md`.
 5. Dispatch `dev-team:test-modernization-review --phase 5`.
+6. **Review the phase.** Run the loop in `### 3a. Review-the-phase loop`. Specifically:
+   - Dispatch `/test-design --since <phase-5-base-sha>` and `/code-review --since <phase-5-base-sha>`.
+   - On findings, dispatch `/apply-fixes corrections/`; re-run `/code-review`; loop body capped at **max 2 iterations** before the operator escalation prompt fires.
+   - Write the resulting evidence to `memory/test-modernize/<slug>/phase-5-review.json` per the schema in 3a.
 
-**Human gate** — final metrics accepted (or each gap waived with reason).
+**Human gate** — final metrics AND `phase-5-review.json` accepted (or each gap waived with reason).
 
 ### 6. Report
 

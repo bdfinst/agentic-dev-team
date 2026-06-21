@@ -209,6 +209,14 @@
     "Boundaries": {
       "summary": "\"Minimal tooling\" means prefer in-memory doubles + a real browser + testcontainers for adapter checks — not a sprawl of test frameworks.",
       "anchor": "boundaries"
+    },
+    "The Pyramid Is a Cost Heuristic, Not a Target Shape": {
+      "summary": "The pyramid expresses that tests get more expensive — slower, flakier, longer",
+      "anchor": "the-pyramid-is-a-cost-heuristic-not-a-target-shape"
+    },
+    "The E2E Justification Gate": {
+      "summary": "E2E tests are non-deterministic and never gate a pre-merge build (see",
+      "anchor": "the-e2e-justification-gate"
     }
   },
   "plugins/dev-team/knowledge/component-test-patterns.md": {
@@ -679,7 +687,7 @@
       "anchor": "graduated-disclosure-dont-over-build"
     },
     "Boundaries": {
-      "summary": "Maturity is about **maintainability under change**, not coverage or correctness — those are `test-design-reviewer` and `test-review`.",
+      "summary": "Maturity is about **maintainability under change**, not coverage or correctness — those are `farley-score` and `test-review`.",
       "anchor": "boundaries"
     }
   },
@@ -707,6 +715,12 @@
     "Boundaries": {
       "summary": "Don't flag a Fake (in-memory repo/DB) as \"not testing the real thing\" — at unit/integration level a Fake is a legitimate, often *better*, choice than a heavily-stubbed real dependency.",
       "anchor": "boundaries"
+    }
+  },
+  "plugins/dev-team/knowledge/test-file-indicators.md": {
+    "Indicators by language": {
+      "summary": "| Language | A file is a test when it… |",
+      "anchor": "indicators-by-language"
     }
   },
   "plugins/dev-team/knowledge/test-layer-gates.md": {
@@ -791,6 +805,20 @@
     "How this connects to the rest of the toolkit": {
       "summary": "**`test-smells.md`** — the smells each refactoring removes.",
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/test-review-division-of-labor.md": {
+    "The two roles": {
+      "summary": "**`test-review`** owns the **tactical per-file gate**: an assertion is missing",
+      "anchor": "the-two-roles"
+    },
+    "Shared signals — who reports when both run": {
+      "summary": "Several signals are detectable by both agents.",
+      "anchor": "shared-signals-who-reports-when-both-run"
+    },
+    "The rule in one line": {
+      "summary": "When both agents run, `test-smell-review` defers the pure mechanics (missing",
+      "anchor": "the-rule-in-one-line"
     }
   },
   "plugins/dev-team/knowledge/test-smells.md": {
@@ -1016,6 +1044,10 @@
       "summary": "A file is a **team agent** when its body contains a `## Behavioral Guidelines` section.",
       "anchor": "2c-audit-team-agent-personas"
     },
+    "2d. Citation drift lint (preventive)": {
+      "summary": "Reviewer agents sometimes inline normative rules — numeric thresholds like",
+      "anchor": "2d-citation-drift-lint-preventive"
+    },
     "3. Audit skills": {
       "summary": "Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:",
       "anchor": "3-audit-skills"
@@ -1128,6 +1160,22 @@
       "summary": "Arguments: $ARGUMENTS",
       "anchor": "parse-arguments"
     },
+    "Confidence pyramid": {
+      "summary": "`/agent-eval` dispatches at one of three tiers, in increasing confidence and",
+      "anchor": "confidence-pyramid"
+    },
+    "Cache (fingerprint replay)": {
+      "summary": "`scripts/eval_cache.py` SHAs each `fixture::target` over the target's",
+      "anchor": "cache-fingerprint-replay"
+    },
+    "Cites: enforcement (drift prevention for the evals themselves)": {
+      "summary": "This skill grades reviewers; if a reviewer carries thresholds with no",
+      "anchor": "cites-enforcement-drift-prevention-for-the-evals-themselves"
+    },
+    "Dispatch mode": {
+      "summary": "The agent and skill definitions under eval are **plain files on disk**.",
+      "anchor": "dispatch-mode"
+    },
     "Steps": {
       "summary": "Verify `.claude/evals/fixtures/` exists.",
       "anchor": "steps"
@@ -1141,7 +1189,7 @@
       "anchor": "2-load-fixtures-and-expected-results"
     },
     "3. Run agents against fixtures": {
-      "summary": "For each fixture/agent pair (agent fixtures):",
+      "summary": "If `--integration` is set, skip the rest of this section and dispatch",
       "anchor": "3-run-agents-against-fixtures"
     },
     "4. Grade each result": {
@@ -2050,6 +2098,10 @@
       "summary": "Use the same `tool` and command that `/coverage-baseline` recorded — DO NOT switch tools mid-workflow or the delta is meaningless.",
       "anchor": "2-re-run-coverage"
     },
+    "2b. Measure scoped mutation (only when both `--story` AND `--story-files` are present)": {
+      "summary": "**Worker boundary.** This worker measures and reports; it does NOT halt the workflow on net-new survivors.",
+      "anchor": "2b-measure-scoped-mutation-only-when-both-story-and-story-files-are-present"
+    },
     "3. Parse + compute the delta": {
       "summary": "Parse line + branch percentages with the same logic `/coverage-baseline` used.",
       "anchor": "3-parse-compute-the-delta"
@@ -2511,6 +2563,40 @@
     "Steps": {
       "summary": "1.",
       "anchor": "steps"
+    }
+  },
+  "plugins/dev-team/skills/farley-score/SKILL.md": {
+    "Overview": {
+      "summary": "Evaluates test quality using the 8 properties of good tests as described by Andrea Laforgia, based on Dave Farley's testing principles.",
+      "anchor": "overview"
+    },
+    "The 8 Properties": {
+      "summary": "Each property is scored 1-10:",
+      "anchor": "the-8-properties"
+    },
+    "Scoring": {
+      "summary": "Total weight: 9.0.",
+      "anchor": "scoring"
+    },
+    "Per-test score": {
+      "summary": "Total weight: 9.0.",
+      "anchor": "per-test-score"
+    },
+    "Score interpretation": {
+      "summary": "| Range | Rating | Action |",
+      "anchor": "score-interpretation"
+    },
+    "Suite-level score": {
+      "summary": "Average the per-test scores.",
+      "anchor": "suite-level-score"
+    },
+    "Output Format": {
+      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "anchor": "output-format"
+    },
+    "Integration": {
+      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "anchor": "integration"
     }
   },
   "plugins/dev-team/skills/feature-file-validation/SKILL.md": {
@@ -3268,9 +3354,17 @@
       "summary": "**Always ask the user before running.** Present the time estimate and scope; get explicit approval.",
       "anchor": "constraints"
     },
+    "Parse Arguments": {
+      "summary": "The skill accepts free-form natural-language arguments AND the following named flags for workflow callers:",
+      "anchor": "parse-arguments"
+    },
     "Time estimation": {
       "summary": "Use the heuristics in `references/tool-setup.md`.",
       "anchor": "time-estimation"
+    },
+    "Step 0: Confirmation gate": {
+      "summary": "Before any mutation run, present the estimated time and the scope, then block on stdin for explicit approval.",
+      "anchor": "step-0-confirmation-gate"
     },
     "Step 1: Detect or set up tooling": {
       "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#).",
@@ -3301,8 +3395,12 @@
       "anchor": "step-5-fix-and-verify"
     },
     "Output format": {
-      "summary": "No tests exist yet → write tests first.",
+      "summary": "When `--emit-json <path>` is set, write a structured result document to `<path>`.",
       "anchor": "output-format"
+    },
+    "Machine-readable output": {
+      "summary": "When `--emit-json <path>` is set, write a structured result document to `<path>`.",
+      "anchor": "machine-readable-output"
     },
     "When not to apply": {
       "summary": "No tests exist yet → write tests first.",
@@ -4215,41 +4313,7 @@
       "anchor": "output"
     },
     "Integration": {
-      "summary": "Pairs with the `test-smell-review` agent (which *detects* smells) and the `test-design-reviewer` skill (which *scores* an existing suite).",
-      "anchor": "integration"
-    }
-  },
-  "plugins/dev-team/skills/test-design-reviewer/SKILL.md": {
-    "Overview": {
-      "summary": "Evaluates test quality using the 8 properties of good tests as described by Andrea Laforgia, based on Dave Farley's testing principles.",
-      "anchor": "overview"
-    },
-    "The 8 Properties": {
-      "summary": "Each property is scored 1-10:",
-      "anchor": "the-8-properties"
-    },
-    "Scoring": {
-      "summary": "Total weight: 9.0.",
-      "anchor": "scoring"
-    },
-    "Per-test score": {
-      "summary": "Total weight: 9.0.",
-      "anchor": "per-test-score"
-    },
-    "Score interpretation": {
-      "summary": "| Range | Rating | Action |",
-      "anchor": "score-interpretation"
-    },
-    "Suite-level score": {
-      "summary": "Average the per-test scores.",
-      "anchor": "suite-level-score"
-    },
-    "Output Format": {
-      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
-      "anchor": "output-format"
-    },
-    "Integration": {
-      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "summary": "Pairs with the `test-smell-review` agent (which *detects* smells) and the `farley-score` skill (which *scores* an existing suite).",
       "anchor": "integration"
     }
   },
@@ -4440,9 +4504,13 @@
       "summary": "1.",
       "anchor": "3-audit-baseline-coverage-test-audit-disable-coverage-baseline"
     },
-    "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta`": {
-      "summary": "For each Phase-4 child issue in dependency order (from `memory/test-modernize/<slug>/phase-1.md` and `phase-2.md`):",
-      "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta"
+    "3a. Review-the-phase loop (Phase 4 + Phase 5 use this identically)": {
+      "summary": "This is the shared end-of-phase review the orchestrator runs at the close of Phase 4 and Phase 5.",
+      "anchor": "3a-review-the-phase-loop-phase-4-phase-5-use-this-identically"
+    },
+    "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate": {
+      "summary": "**Pre-flight — resolve Phase-3 disabled tests.** Before any Phase-4 child issue runs, read `memory/test-modernize/<slug>/disabled-tests.json` and walk it entry-by-entry.",
+      "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta-mutation-gate"
     },
     "5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`": {
       "summary": "For each Phase-5 child issue in dependency order:",

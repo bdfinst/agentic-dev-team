@@ -31,9 +31,13 @@ Resolution Procedure in `agents/orchestrator.md`.
 2. **Dispatch in parallel.** `test-review` and `test-smell-review` are
    independent — spawn them in one batch for context isolation; each returns
    structured JSON, not file dumps.
-3. **No double-reporting.** `test-smell-review` defers tactical mechanics to
-   `test-review`. When the same line appears in both, keep the design-level
-   framing and drop the duplicate.
+3. **No double-reporting.** Apply `knowledge/test-review-division-of-labor.md`:
+   when the same line appears in both `test-review` and `test-smell-review`,
+   keep the design-level framing and drop the duplicate. The same rule covers
+   remedy overlap between `test-smell-review` and `test-design-advisor` — both
+   name fixture/verification/organization patterns from the same knowledge set;
+   report each remedy once, preferring the advisor's forward-looking sequence
+   when it subsumes the smell-review note.
 4. **Be concise.** One aggregated report. Issue messages one sentence;
    recommendations map to a concrete next edit.
 5. **MinimumCD vocabulary.** Layer labels in the aggregated report use the
@@ -43,12 +47,15 @@ Resolution Procedure in `agents/orchestrator.md`.
    alias, gloss it once: `contract test (also called narrow integration
    test)`. Define each test type on first use (one-line gloss inline or
    a "Test type definitions used in this report" block at the top).
-6. **No target-shape tables.** Do not emit "current shape vs recommended
-   shape" tables or per-layer target counts. The pyramid is a cost
-   heuristic; the aggregated report carries the advisor's per-behavior
-   placement table, not a silhouette target.
-7. **E2E justification gate.** Forward the advisor's four-condition E2E
-   verdict verbatim. Never recommend E2E in the rollup without it.
+6. **No target-shape tables.** Per
+   `knowledge/cd-test-architecture.md#the-pyramid-is-a-cost-heuristic-not-a-target-shape`,
+   do not emit "current shape vs recommended shape" tables or per-layer target
+   counts; the aggregated report carries the advisor's per-behavior placement
+   table, not a silhouette target.
+7. **E2E justification gate.** Forward the advisor's four-condition E2E verdict
+   verbatim (the gate is canonical in
+   `knowledge/cd-test-architecture.md#the-e2e-justification-gate`). Never
+   recommend E2E in the rollup without it.
 
 ## Parse Arguments
 
@@ -81,9 +88,9 @@ exist, both skip — proceed to Step 4 with `--advise`.
 ### 3. Score all existing tests (Farley Score)
 
 A user-requested test review reports a quality score for the whole suite, not
-just the changed slice. Use the Skill tool (`Skill(test-design-reviewer ...)`) over **all
-existing test files in the repository** (use the test-file indicators from
-`agents/test-review.md` § Skip) to produce the suite-level Farley Score, rating,
+just the changed slice. Use the Skill tool (`Skill(farley-score ...)`) over **all
+existing test files in the repository** (use the test-file indicators in
+`knowledge/test-file-indicators.md`) to produce the suite-level Farley Score, rating,
 and distribution. This headline score is independent of `--path` / `--since` —
 those scope the findings below; the score always reflects the full suite. If the
 repository has no test files, skip this step and note it in the report.

@@ -1,5 +1,28 @@
 # Changelog
 
+## [6.11.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.11.0...dev-team-v6.11.1) (2026-06-20)
+
+
+### Code Refactoring
+
+* **test-review:** consolidate overlaps, rename Farley scorer, dedupe shared prose ([#324](https://github.com/bdfinst/agentic-dev-team/issues/324)) ([dd2d1da](https://github.com/bdfinst/agentic-dev-team/commit/dd2d1daf317272b2c11b6488c32c865147d0c038))
+
+
+### Documentation
+
+* **skills:** disambiguate /agent-readiness from /harness-audit ([#325](https://github.com/bdfinst/agentic-dev-team/issues/325)) ([f647247](https://github.com/bdfinst/agentic-dev-team/commit/f6472472bdc24c4bc9aeec12ff19fc20c3732ebc))
+
+## [6.11.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.10.1...dev-team-v6.11.0) (2026-06-19)
+
+
+### Features
+
+* **eval:** confidence-pyramid improvements (registry, dispatch, cache, citation lint, integration tier) ([#315](https://github.com/bdfinst/agentic-dev-team/issues/315)) ([b560880](https://github.com/bdfinst/agentic-dev-team/commit/b56088082f4952bd51178bb1d66843e61788b8ed))
+* **evals:** backfill cites: frontmatter on reviewer agents ([#319](https://github.com/bdfinst/agentic-dev-team/issues/319)) ([e37c627](https://github.com/bdfinst/agentic-dev-team/commit/e37c62774990207981565ad111fe04d3ca905e29))
+* **evals:** wire cache + integration tier + cites enforcement into /agent-eval and /agent-create ([#322](https://github.com/bdfinst/agentic-dev-team/issues/322)) ([a3c623c](https://github.com/bdfinst/agentic-dev-team/commit/a3c623c84616fa84d46d85fa34f9a2873458fd8a))
+* **test-modernize:** make Phase-3 disabled-test resolution a Phase-4 contract ([#318](https://github.com/bdfinst/agentic-dev-team/issues/318)) ([e30ecba](https://github.com/bdfinst/agentic-dev-team/commit/e30ecba9824776be4b9a2b371d90e7dc8e5ad032))
+* **test-modernize:** per-Story mutation testing in Phase 4 + end-of-phase test review loop (MVP probe) ([#316](https://github.com/bdfinst/agentic-dev-team/issues/316)) ([df30551](https://github.com/bdfinst/agentic-dev-team/commit/df3055178e0a137a173ec8ff099d59159f8cbc73))
+
 ## [6.10.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.10.0...dev-team-v6.10.1) (2026-06-19)
 
 

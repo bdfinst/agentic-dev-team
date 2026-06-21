@@ -3,6 +3,7 @@ name: naming-review
 description: Naming clarity, conventions, magic values, and consistency
 tools: Read, Grep, Glob
 model: haiku
+cites: [design-smells]
 ---
 
 # Naming Review

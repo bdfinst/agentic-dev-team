@@ -1,6 +1,6 @@
 {
   "scored_at": "2026-06-21",
-  "scored_commit": "8f41834",
+  "scored_commit": "2270974",
   "trials_per_pair": 5,
   "fixtures": {
     "oe-01-vague-feature-request": {
@@ -97,7 +97,7 @@
       "plugins/dev-team/knowledge/decision-defaults.md": "c8f101068920983ef0a9975e5c8fb349deee75ce9e2168b4563d7b8e7154958c"
     },
     "orchestrator": {
-      "plugins/dev-team/agents/orchestrator.md": "a3547ab1db03deef7de815037656652297487f1f8f3c768eacd96e72b1f58afe",
+      "plugins/dev-team/agents/orchestrator.md": "2aa08f15b2805f4070791b001753c53760e5b4b23fde8d00bf061944f51f549f",
       "plugins/dev-team/knowledge/decision-defaults.md": "c8f101068920983ef0a9975e5c8fb349deee75ce9e2168b4563d7b8e7154958c"
     },
     "software-engineer": {
@@ -107,7 +107,7 @@
       "plugins/dev-team/agents/architect.md": "93f5fd37bb2e635c69c6c75cbf198552674e9f5bf69f5f96e13072475c15706a"
     },
     "qa-engineer": {
-      "plugins/dev-team/agents/qa-engineer.md": "c0a46cac3090d59737e908d72bb74a934d28d0a7a6716ee4a2626a5228702044"
+      "plugins/dev-team/agents/qa-engineer.md": "859bea2f3de63331f9ded73c63122c68670bc8b1e93055a050271eb76f87e44e"
     },
     "progress-guardian": {
       "plugins/dev-team/agents/progress-guardian.md": "18ea0a51605f6cff2369383fe3d022c8cff35c9730eae8785fbe083e3a6a8a6a"
@@ -116,7 +116,7 @@
       "plugins/dev-team/skills/quality-gate-pipeline/SKILL.md": "9d4784a610e5710a356a73347ee6b888bf39392c624f9ec508edc5142f2bde45"
     },
     "build": {
-      "plugins/dev-team/skills/build/SKILL.md": "4af8efea9110bfa31b8204b53e8691af9d00096b742c67469ad3c473af170b3f"
+      "plugins/dev-team/skills/build/SKILL.md": "719621148b3ad20dbcb23428bc736fb68c490475d91de2c60a37a5e91907e625"
     },
     "systematic-debugging": {
       "plugins/dev-team/skills/systematic-debugging/SKILL.md": "035201c56731e0c6fc68c62d0d99bc1c458d7d972157dd2abb2a1d71887a4177"

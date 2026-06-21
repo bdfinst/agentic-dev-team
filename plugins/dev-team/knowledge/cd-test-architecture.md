@@ -146,3 +146,46 @@ When advising for a CD pipeline, **prefer this file's framing** — the determin
 - "Minimal tooling" means prefer in-memory doubles + a real browser + testcontainers for adapter checks — not a sprawl of test frameworks. Don't recommend heavyweight orchestration (full docker-compose of the system) for the gate; that's exactly the configured-dependency dependency this architecture removes.
 - These are starting points, not mandates. Real components have details these layers don't capture; drop items that don't apply and add what a component clearly needs.
 - This file defines the *architecture*. Per-component specifics (what to double, which failure modes) are in `component-test-patterns.md`.
+
+## The Pyramid Is a Cost Heuristic, Not a Target Shape
+
+The pyramid expresses that tests get more expensive — slower, flakier, longer
+feedback — as scope grows. It is not a silhouette to match.
+
+- **Never** produce "current shape vs recommended shape" tables or per-layer
+  target counts ("200 unit, 80 contract, 20 E2E"). The pyramid is not a quota.
+- The only valid framing is **per-behavior**: "this behavior is verified at
+  layer X; the lowest layer that could verify it is Y; here is why X." Justify
+  in both directions — a unit/component pick states why a higher layer would be
+  redundant; an integration/E2E pick states why a contract or component test
+  cannot cover the behavior.
+- If a suite shape is genuinely pathological (ice-cream cone, hourglass,
+  cupcake — see `test-pyramid.md#anti-patterns`), name the pathology and the
+  behaviors it harms. Do not propose a numeric redistribution.
+
+This is the canonical statement of the rule. Agents and skills cite this
+section rather than restating it.
+
+## The E2E Justification Gate
+
+E2E tests are non-deterministic and never gate a pre-merge build (see
+[The Pre-Merge Gate Rule](#the-pre-merge-gate-rule)). Never recommend an E2E
+test "for completeness" or "to round out the pyramid." Before recommending E2E
+for any behavior, document that **all four** conditions hold:
+
+1. A **contract test** cannot pin the boundary that catches this behavior.
+2. A **component test** with doubles cannot exercise it via the component's
+   public interface.
+3. A **resilience test** (timeout / retry / circuit-breaker / malformed
+   response) cannot cover the failure mode.
+4. The behavior is a **critical user journey across multiple real components**
+   that cannot be decomposed.
+
+If conditions 1–3 can cover the behavior, recommend that test instead and record
+one sentence on why E2E was *not* chosen. If only condition 4 applies, the
+recommendation must name the user journey, why contract + component + resilience
+together are insufficient, and the pipeline stage (post-deploy smoke, **never**
+pre-merge).
+
+This is the canonical statement of the gate. Agents and skills cite this section
+rather than restating the four conditions.

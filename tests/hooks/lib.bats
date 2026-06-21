@@ -47,10 +47,13 @@ EOF
   chmod +x "$FAKE_BIN/gtimeout"
   rm -f "$FAKE_BIN/timeout"
 
-  # Prepend fake-bin to PATH so gtimeout is found; real 'timeout' is not on
-  # the basic macOS path (/usr/bin, /bin) so command -v timeout returns 1.
+  # PATH is JUST the fake-bin so the host's real 'timeout' (present at
+  # /usr/bin/timeout on Linux, absent on a basic macOS path) can never be found
+  # — that is the condition under test. The wrapped `echo` is a shell builtin
+  # and the fake gtimeout has an absolute `/bin/sh` shebang, so neither needs a
+  # system PATH.
   run bash -c "
-    export PATH=\"$FAKE_BIN:/usr/bin:/bin\"
+    export PATH=\"$FAKE_BIN\"
     source '$HOOK_LIB'
     _timeout 5 echo hello
   "
@@ -62,8 +65,11 @@ EOF
   # Empty fake-bin — no timeout, no gtimeout
   rm -f "$FAKE_BIN/timeout" "$FAKE_BIN/gtimeout"
 
+  # PATH is JUST the fake-bin (now empty) so neither timeout nor gtimeout
+  # resolves on any host; `echo` is a builtin so the unbounded fallback still
+  # runs the command.
   run bash -c "
-    export PATH=\"$FAKE_BIN:/usr/bin:/bin\"
+    export PATH=\"$FAKE_BIN\"
     source '$HOOK_LIB'
     _timeout 5 echo hello_unbounded
   " 2>&1

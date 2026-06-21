@@ -2,6 +2,13 @@
 # SessionStart hook (registered in .claude/settings.json): make the dev-team
 # plugin available in CLOUD sessions only.
 #
+# FALLBACK PATH, NOT THE PRIMARY ONE. This hook runs AFTER Claude has booted and
+# enumerated its skills/agents/commands, so a plugin it installs cannot load into
+# the CURRENT session — it only takes effect on the NEXT one. To load the plugin
+# in the same session, install it from the environment Setup script instead (it
+# runs pre-boot); see docs/cloud-setup.md. Keep this hook for environments where
+# editing the Setup script isn't possible.
+#
 # CLOUD-ONLY GATE: this is a no-op unless DEV_TEAM_CLOUD_INSTALL=1 is set. Set
 # that variable in your Claude Code web environment (Environment settings ->
 # Environment variables). Do NOT set it locally — so local sessions, where the

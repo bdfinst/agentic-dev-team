@@ -74,6 +74,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Domain Analysis | `skills/domain-analysis/SKILL.md` | 650 | Architect, Product Manager, Orchestrator |
 | Domain-Driven Design | `skills/domain-driven-design/SKILL.md` | 710 | Architect, Software Engineer, Product Manager |
 | Exploratory Testing | `skills/exploratory-testing/SKILL.md` | ~900 | QA Engineer, `/explore` command |
+| Farley Score | `skills/farley-score/SKILL.md` | 600 | QA Engineer, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
 | Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,010 | Orchestrator |
 | Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | `/test-modernize` (Phase 2), QA Engineer, Product Manager |
@@ -94,7 +95,6 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 600 | Software Engineer, QA Engineer |
 | Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~650 | `/test-modernize` (Phase 3), QA Engineer |
 | Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~700 | QA Engineer, Software Engineer, `/test-design` command |
-| Test Design Reviewer | `skills/test-design-reviewer/SKILL.md` | 600 | QA Engineer, test-review, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Test Health | `skills/test-health/SKILL.md` | ~900 | QA Engineer, `/test-health` command |
 | Test Modernize | `skills/test-modernize/SKILL.md` | ~900 | Orchestrator, QA Engineer, `/test-modernize` command |
 | Test-Driven Development | `skills/test-driven-development/SKILL.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
@@ -141,11 +141,13 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
 | Test Automation Maturity | `knowledge/test-automation-maturity.md` | ~450 | test-review, test-health |
 | Test Doubles | `knowledge/test-doubles.md` | ~700 | test-smell-review, test-design-advisor |
+| Test File Indicators | `knowledge/test-file-indicators.md` | ~200 | test-review, test-smell-review, `/test-design`, `/build` |
 | Test Layer Gates | `knowledge/test-layer-gates.md` | ~480 | test-design-advisor |
 | Test Matrix Examples | `knowledge/test-matrix-examples/*.md` | ~950 | test-design-advisor (few-shot templates) |
 | Test Organization | `knowledge/test-organization.md` | ~750 | test-design-advisor, test-smell-review |
 | Test Pyramid | `knowledge/test-pyramid.md` | ~800 | test-smell-review, test-review, test-design-advisor, test-health |
 | Test Refactoring | `knowledge/test-refactoring.md` | ~750 | test-design-advisor, test-smell-review |
+| Test Review Division of Labor | `knowledge/test-review-division-of-labor.md` | ~300 | test-review, test-smell-review, `/test-design` |
 | Test Smells | `knowledge/test-smells.md` | ~900 | test-smell-review, test-review, test-design-advisor |
 | Test Stack Profiles | `knowledge/test-stack-profiles/*.md` | ~1,400 | test-design-advisor (tool resolution by detected stack) |
 | Test Strategy | `knowledge/test-strategy.md` | ~900 | test-design-advisor, test-smell-review, test-review |

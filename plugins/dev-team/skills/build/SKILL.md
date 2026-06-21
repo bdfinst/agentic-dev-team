@@ -124,9 +124,9 @@ Run `/code-review` against all files modified during the build.
 Produce a Farley Score for the tests written on this branch — the last quality signal before `/pr`.
 
 1. Resolve the branch base: `git merge-base HEAD origin/HEAD` (fall back to `origin/main`, then `main`, `master`, `develop`).
-2. List the branch's changed test files: `git diff --name-only <base>...HEAD`, keeping only test files (indicators in `agents/test-review.md` § Skip — `*.test.*` / `*.spec.*` / `__tests__/`, xUnit/JUnit attributes, `.feature` files).
+2. List the branch's changed test files: `git diff --name-only <base>...HEAD`, keeping only test files (indicators in `knowledge/test-file-indicators.md` — `*.test.*` / `*.spec.*` / `__tests__/`, xUnit/JUnit attributes, `.feature` files).
 3. If no test files changed on the branch, print one line — `No tests written on this branch — skipping Farley Score.` — and continue to Step 8.
-4. Otherwise invoke the `test-design-reviewer` skill scoped to those files. Present the suite-level Farley Score, rating, and distribution as the final pre-PR signal. This is **informational** — a low score does not block `/pr`, but surface it so the user can decide whether to revise before opening the PR.
+4. Otherwise invoke the `farley-score` skill scoped to those files. Present the suite-level Farley Score, rating, and distribution as the final pre-PR signal. This is **informational** — a low score does not block `/pr`, but surface it so the user can decide whether to revise before opening the PR.
 
 ### 8. Update plan status
 
@@ -148,7 +148,7 @@ Stop and ask the user when:
 - `/specs` produces the intent, architecture, and acceptance-criteria artifacts that inform the plan
 - `/plan` decomposes the feature into slices, authors each slice's Gherkin, and produces the plan this command executes
 - `/code-review` runs the full review suite after implementation
-- `test-design-reviewer` scores the branch's tests (Farley Score) as the final pre-PR quality signal
+- `farley-score` scores the branch's tests (Farley Score) as the final pre-PR quality signal
 - `/pr` creates the pull request after a successful build
 - `/continue` can resume a partially completed build across sessions
 - The progress-guardian agent tracks step completion against the plan
