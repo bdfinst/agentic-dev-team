@@ -49,7 +49,7 @@ jobs:
     name: Structural gate (model-free)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install bats + jq
         run: sudo apt-get update && sudo apt-get install -y bats jq
@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -104,7 +104,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # need PR base to diff which agents/skills changed
 
@@ -160,7 +160,7 @@ jobs:
       # for the same branch. A miss here just means a full live dispatch.
       - name: Restore eval replay cache
         if: steps.cred.outputs.run_live == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: evals/.eval-cache.json
           key: eval-cache-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}
@@ -342,7 +342,7 @@ jobs:
       # this makes the per-run cache state downloadable.
       - name: Upload eval replay cache artifact
         if: steps.cred.outputs.run_live == 'true' && always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: eval-replay-cache-${{ github.run_id }}
           path: evals/.eval-cache.json
@@ -361,7 +361,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -399,7 +399,7 @@ jobs:
       # instead of paying full orchestrator cost.
       - name: Restore eval replay cache
         if: steps.gate.outputs.run_integration == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: evals/.eval-cache.json
           key: eval-cache-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}
