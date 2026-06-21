@@ -95,14 +95,17 @@ fresh managed VM that clones this repo; setup scripts and env vars are set in th
 cloud **UI** (not a repo file) — see
 [Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web).
 
-**Cloud-only auto-install hook.** `.claude/settings.json` registers a
-`SessionStart` hook (`.claude/install-dev-team.sh`) that installs the dev-team
-plugin — but **only when `DEV_TEAM_CLOUD_INSTALL=1`**. Set that variable in your
-cloud environment's *Environment variables* field; leave it unset locally, so the
-hook is a no-op on your machine (where the plugin is already installed). Caveats:
-the hook can only install if the cloud VM ships the `claude` CLI; if it doesn't,
-it falls back to guidance (below). A plugin installed at `SessionStart` takes
-effect on the **next** session, not the current one.
+**Ephemeral auto-install hook.** `.claude/settings.json` registers a single
+`SessionStart` hook (`.claude/hooks/session-start.sh`) that prepares an ephemeral
+environment: it installs npm deps (if any), installs the dev-team plugin, and
+runs the plugin's init setup (`init-dev-team-linux.sh` — jq, python3, Stryker,
+CodeGraph). It runs **only in an ephemeral session** — when `CLAUDE_CODE_REMOTE=true`
+(set automatically by Claude Code on the web) **or** `DEV_TEAM_CLOUD_INSTALL=1`
+(manual opt-in, kept for back-compat). It is a no-op on local machines (where the
+plugin is already installed). Caveats: it can only install if the cloud VM ships
+the `claude` CLI; if it doesn't, it falls back to guidance (below). A plugin
+installed at `SessionStart` takes effect on the **next** session, not the current
+one.
 
 **If the plugin can't load (no CLI), use its files directly.** The skills and
 agents are plain files in this repo; run any workflow manually:

@@ -46,6 +46,7 @@ Concretely, just ask the agent in your web session:
 > "Read `plugins/dev-team/skills/plan/SKILL.md` and run that workflow on `<task>`."
 
 Notes:
+
 - **User-invocable skills** (the slash commands) have `user-invocable: true` in
   their `SKILL.md` frontmatter — those are the ones meant to be driven this way.
   Other `SKILL.md` files are agent-loaded references the procedure will pull in as
@@ -62,24 +63,29 @@ loading — it's "read the recipe and cook."
 
 ## 3. Option B — auto-install via a gated SessionStart hook
 
-This repo ships a **cloud-only** install hook so that, when the web VM *does* have
-the `claude` CLI, the plugin is installed for the next session automatically.
+This repo ships an **ephemeral-only** install hook so that, when the web VM *does*
+have the `claude` CLI, the plugin is installed for the next session automatically.
 
-How it's wired (`.claude/settings.json` → `.claude/install-dev-team.sh`):
+How it's wired (`.claude/settings.json` → `.claude/hooks/session-start.sh`):
 
-- It is a **no-op unless `DEV_TEAM_CLOUD_INSTALL=1`** is set. Set that variable in
-  your web environment's **Environment variables** field. Leave it unset locally,
-  so your laptop (where the plugin is already installed) is never touched.
-- In a gated cloud session it:
+- It runs **only in an ephemeral session** — when `CLAUDE_CODE_REMOTE=true` (set
+  automatically by Claude Code on the web) **or** `DEV_TEAM_CLOUD_INSTALL=1` (a
+  manual opt-in kept for back-compat). It is a no-op locally, so your laptop
+  (where the plugin is already installed) is never touched.
+- In an ephemeral session it:
+  - installs npm deps (if a `package.json` is present);
   - installs the plugin if `claude` is present (`marketplace add` + `install`,
-    time-boxed so it can never hang session start); **effect lands next session.**
+    skipped when already installed, time-boxed so it can never hang session
+    start); **effect lands next session.**
+  - runs the plugin's init setup (`init-dev-team-linux.sh` — jq, python3, Stryker,
+    CodeGraph);
   - if `claude` is **absent**, emits `additionalContext` telling the agent to fall
     back to Option A (run skills from their files).
 - It's **fail-open** — it never blocks a session from starting.
 
-Adapting this for your own plugin: copy `.claude/install-dev-team.sh` and
-`.claude/settings.json`, rename the env-var gate and the
-`marketplace add`/`install` targets, and keep the no-CLI fallback message.
+Adapting this for your own plugin: copy `.claude/hooks/session-start.sh` and
+`.claude/settings.json`, rename the `marketplace add`/`install` targets, and keep
+the gate and the no-CLI fallback message.
 
 ---
 
@@ -113,7 +119,8 @@ equivalent.
 - Slash command → file: `/<name>` ⇒ `plugins/<plugin>/skills/<name>/SKILL.md`.
 - Find what's available: `plugins/<plugin>/CLAUDE.md` (registry tables) or
   `plugins/<plugin>/knowledge/agent-registry.md`.
-- Enable auto-install (next session): set `DEV_TEAM_CLOUD_INSTALL=1` in the web
+- Auto-install (next session): runs automatically when `CLAUDE_CODE_REMOTE=true`
+  (set by the web). To force it elsewhere, set `DEV_TEAM_CLOUD_INSTALL=1` in the
   environment's Environment variables.
 - Provision tools: paste `.claude/cloud-setup.sh` into the Setup script field.
 - Authoritative summary: `CLAUDE.md` → *Cloud sessions (claude.ai/code)*.
