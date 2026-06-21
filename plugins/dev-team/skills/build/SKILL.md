@@ -113,6 +113,8 @@ For each step within a slice, dispatch implementation following the implementer 
 
 After all steps are complete, run the full test suite. Paste the output as final verification evidence.
 
+**Quality ownership — the whole suite must be green, not just this branch's tests.** A failing test is a failing test regardless of whether this change caused it: a red suite blocks `/pr` even when the failure pre-dates the branch. Do not wave a failure past as "pre-existing / unrelated." Either fix it (enter [Systematic Debugging](../systematic-debugging/SKILL.md) for the root cause), or — if it is genuinely out of scope — explicitly surface and triage it (`/triage` a record or quarantine it with a reason) and report the suite as **not green**. Never proceed to `/pr` on red by attributing the failure to someone else's change.
+
 ### 6. Run code review
 
 Run `/code-review` against all files modified during the build.
@@ -132,11 +134,13 @@ Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemente
 
 ## Escalation
 
+A failure is a debugging task first, not a hand-back. Before escalating any test or review failure, run a [Systematic Debugging](../systematic-debugging/SKILL.md) pass — reproduce, find the root cause, state it in one sentence — and escalate **with that diagnosis**, never just an attempt count.
+
 Stop and ask the user when:
 
-- A test fails for an unexpected reason after 3 attempts
+- A test still fails *after systematic debugging has identified the root cause* and the fix needs a decision you can't make (e.g. it requires changing the spec or the architecture)
 - The plan requires architectural decisions not covered by the plan
-- A review checkpoint fails after 2 correction iterations
+- A review checkpoint fails after 2 correction iterations *and* the root cause is understood but unresolvable within scope
 - You discover the plan is incomplete or contradictory
 
 ## Integration

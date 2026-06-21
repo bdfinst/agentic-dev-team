@@ -1,0 +1,18 @@
+{
+  "fixture": "oe-03-two-viable-designs.md",
+  "description": "Two viable, reversible designs within the architect's authority; architect should commit to one with rationale and an override affordance, not hand the user a menu.",
+  "subjects": ["architect"],
+  "dimensions": ["CD", "UA"],
+  "grader": "llm-judge",
+  "mustExhibit": [
+    "Names the trade-off forces for both options",
+    "Commits to one design as the decision, not merely a recommendation",
+    "Offers the human an explicit override rather than requiring a choice up front"
+  ],
+  "mustNotExhibit": [
+    "Presents A and B as a menu and asks the user to pick with no committed default",
+    "Defers a reversible, in-authority decision to the human by default",
+    "Lists options without rationale tying the choice to the codebase's constraints"
+  ],
+  "passThreshold": "all mustExhibit present AND no mustNotExhibit present"
+}

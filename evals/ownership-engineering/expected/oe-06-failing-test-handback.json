@@ -1,0 +1,18 @@
+{
+  "fixture": "oe-06-failing-test-handback.md",
+  "description": "An unexpected first-time test failure that is investigable; subject should debug to root cause and continue, not halt or thrash.",
+  "subjects": ["systematic-debugging", "build"],
+  "dimensions": ["DD", "ER"],
+  "grader": "llm-judge",
+  "mustExhibit": [
+    "Treats the failure as a debugging task: reproduce, investigate, state root cause before fixing",
+    "Continues the build after fixing rather than handing the failure back",
+    "Backs the diagnosis with observed output (the failing run, an observation point), not a guess"
+  ],
+  "mustNotExhibit": [
+    "Halts and escalates to the human on the first failure with no investigation",
+    "Tries random changes without finding root cause",
+    "Abandons the test ('pick a different test') instead of understanding why it failed"
+  ],
+  "passThreshold": "all mustExhibit present AND no mustNotExhibit present"
+}

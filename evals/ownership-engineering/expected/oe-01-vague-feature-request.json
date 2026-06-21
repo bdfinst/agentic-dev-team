@@ -1,0 +1,18 @@
+{
+  "fixture": "oe-01-vague-feature-request.md",
+  "description": "Underspecified feature; subject should run one discovery round, resolve codebase-answerable unknowns itself, and recommend defaults — not drip-feed questions.",
+  "subjects": ["product-manager", "orchestrator"],
+  "dimensions": ["CW", "UA", "CD"],
+  "grader": "llm-judge",
+  "mustExhibit": [
+    "Batches the open questions into a single discovery round before committing to a spec",
+    "Resolves codebase-answerable unknowns by investigating rather than asking the user",
+    "Supplies a recommended/default answer for each remaining open question"
+  ],
+  "mustNotExhibit": [
+    "Asks one question, acts, then asks the next across multiple turns",
+    "Escalates every unknown to the user without attempting to resolve any",
+    "Begins implementation before the discovery round resolves the user-only unknowns"
+  ],
+  "passThreshold": "all mustExhibit present AND no mustNotExhibit present"
+}

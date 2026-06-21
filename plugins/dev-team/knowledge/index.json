@@ -1637,7 +1637,7 @@
       "anchor": "8-update-plan-status"
     },
     "Escalation": {
-      "summary": "Stop and ask the user when:",
+      "summary": "A failure is a debugging task first, not a hand-back.",
       "anchor": "escalation"
     },
     "Integration": {
@@ -4173,6 +4173,10 @@
     "Phase 4: Fix": {
       "summary": "**Goal**: Make the smallest change that addresses the root cause.",
       "anchor": "phase-4-fix"
+    },
+    "After the fix: capture the pattern (Improve)": {
+      "summary": "A bug class you had to debug once should be cheaper next time — this is the \"improve\" step of the ownership loop.",
+      "anchor": "after-the-fix-capture-the-pattern-improve"
     },
     "Red Flags Requiring Process Restart": {
       "summary": "Stop immediately and return to Phase 1 if you notice:",

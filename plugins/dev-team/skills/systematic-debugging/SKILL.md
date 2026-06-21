@@ -73,6 +73,10 @@ When LLMs hit failures, they tend to guess at fixes — changing code, re-runnin
 
 **If the fix doesn't work**: Stop and reassess. After fewer than 3 attempts, return to Phase 1. After 3+ failures, question the architecture itself — when each fix reveals new problems elsewhere, the bug is architectural, not local. Discuss fundamentals with the human before attempting more fixes.
 
+### After the fix: capture the pattern (Improve)
+
+A bug class you had to debug once should be cheaper next time — this is the "improve" step of the ownership loop. When a root cause reflects a recurring pattern (a timezone helper, a boundary off-by-one, a shared-state leak), leave the loop better than you found it: the regression test from Phase 4 pins it, and if the pattern is likely to recur, note it where the next engineer will see it — a comment at the fault site, or a `learn:`/`remember:` via [Feedback & Learning](../feedback-learning/SKILL.md). Skipping this means re-discovering the same bug.
+
 ## Red Flags Requiring Process Restart
 
 Stop immediately and return to Phase 1 if you notice:

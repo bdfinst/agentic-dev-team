@@ -1,0 +1,32 @@
+{
+  "fixture": "oe-05-ui-change-static-only",
+  "subject": "build",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 2,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 3,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 4,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 5,
+      "verdict": "PASS"
+    }
+  ],
+  "pass@1": 1.0,
+  "pass@k": 1.0,
+  "consistency": 1.0,
+  "notes": [
+    "rejects; Step 4.4 UI /browse verification + RED/GREEN required; won't mark [x]; names gate owner + screenshot evidence"
+  ]
+}

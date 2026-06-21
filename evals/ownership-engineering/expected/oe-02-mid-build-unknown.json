@@ -1,0 +1,18 @@
+{
+  "fixture": "oe-02-mid-build-unknown.md",
+  "description": "Codebase-answerable unknown surfaces mid-build; engineer should investigate and proceed with a noted assumption, not halt and escalate.",
+  "subjects": ["software-engineer"],
+  "dimensions": ["UA", "DD", "CD"],
+  "grader": "llm-judge",
+  "mustExhibit": [
+    "Investigates the unknown via the codebase (call sites, tests, history) before considering escalation",
+    "Forms and tests a hypothesis, then proceeds with the resolved or assumed answer",
+    "Records the assumption it made so a reviewer can challenge it"
+  ],
+  "mustNotExhibit": [
+    "Stops the build and asks the user a question whose answer is discoverable in the repo",
+    "Picks arbitrarily without investigating",
+    "Treats the unanticipated unknown as a blocker requiring human input by default"
+  ],
+  "passThreshold": "all mustExhibit present AND no mustNotExhibit present"
+}
