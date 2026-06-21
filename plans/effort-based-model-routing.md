@@ -51,15 +51,15 @@ The hook's old hardcoded `haiku|sonnet|opus` matcher gate is replaced by "resolv
 
 ## Acceptance Criteria
 
-- [ ] AC0 (migration safety): With no `.claude/model-ladder.json`, every effort band resolves to the **exact same snapshot** as the corresponding tier did before the rename (`low→claude-haiku-4-5-20251001`, `medium→claude-sonnet-4-6`, `high→claude-opus-4-8`). A test asserts this snapshot-for-snapshot equivalence.
-- [ ] AC1: Every shipped agent and template declares a valid `effort:` band (count verified: 33 agents + 10 templates); no `model:` tier alias and no `complexity:` key remain in shipped agents/templates; `agent_effort_frontmatter_tests.bats` is green.
-- [ ] AC2: The hook resolves an agent's `effort` band (looked up by `subagent_type`) to a model. With **no ladder file**, resolution uses the shipped default map (= current mapping). With a **valid ladder**, it maps via `index = round_half_up(weight·(N−1))`, with the spec worked-examples table (N=1,2,3,4) as the binary contract. A **malformed ladder** degrades to the shipped default map and never aborts dispatch.
-- [ ] AC3: Legacy `model: haiku|sonnet|opus` agents still resolve (tier→band) for this release and emit a deprecation marker `/agent-audit` surfaces as a warning; release N **warns, never errors** (erroring is deferred to N+1).
-- [ ] AC4: A single SessionStart hook captures the session model, persists it (gitignored), and emits a banner enumerating the band→model table, flagging any band above the session model. Degenerate cases are communicative: no-ladder → the shipped default map (low→haiku, medium→sonnet, high→opus) with the ladder path as the override hint; N=1 → single collapsed line; session-at-top → no upgrade flags. Absent session model: reuse last persisted value if present; otherwise emit a one-line note that the session model is unknown so upgrade flags and session fallback are unavailable this session (effort routing still applies via the default map/ladder). The retired `overrides-banner.sh` is removed (no second SessionStart hook).
-- [ ] AC5: The hook always writes `updatedInput.model` for an effort-bearing agent (the harness has no `model:` to fall back on). When a band cannot be mapped at all (e.g. an explicit out-of-ladder snapshot), dispatch falls back to the session model; a `high` agent runs above a lower session model (no ceiling). Per-dispatch resolution emits **no user-visible message**; a JSONL line is appended to `.claude/metrics/model-routing.log` **only when the resolved model differs from the shipped default for that band** (ladder override, upgrade, or downgrade). A resolution that equals the shipped default writes the model but logs no bump.
-- [ ] AC6: `hooks/lib/model-probe.sh` and all probe tests (`tests/hooks/model_probe_tests.bats`, `tests/commands/init_dev_team_probe_tests.bats`, the curl shim) are deleted; `/init-dev-team` (SKILL + `init-dev-team-linux.sh`) no longer reference the probe.
-- [ ] AC7: `/agent-create`, `/agent-add`, `/agent-audit` use the `effort` vocabulary, reject invalid bands, and map a recognized legacy token in the rejection message (e.g. "frontier → high").
-- [ ] AC8: `/model-routing-check`, `docs/model-routing.md`, the orchestrator Resolution Procedure, root `CLAUDE.md`, and the **spec** reflect the ladder/effort model; a stale-reference guard (explicit pattern + allowlist) passes; `.gitignore` ignores `.claude/model-ladder.json` and `.claude/session-model` and drops the retired `model-overrides.json` entry.
+- [x] AC0 (migration safety): With no `.claude/model-ladder.json`, every effort band resolves to the **exact same snapshot** as the corresponding tier did before the rename (`low→claude-haiku-4-5-20251001`, `medium→claude-sonnet-4-6`, `high→claude-opus-4-8`). A test asserts this snapshot-for-snapshot equivalence.
+- [x] AC1: Every shipped agent and template declares a valid `effort:` band (count verified: 33 agents + 10 templates); no `model:` tier alias and no `complexity:` key remain in shipped agents/templates; `agent_effort_frontmatter_tests.bats` is green.
+- [x] AC2: The hook resolves an agent's `effort` band (looked up by `subagent_type`) to a model. With **no ladder file**, resolution uses the shipped default map (= current mapping). With a **valid ladder**, it maps via `index = round_half_up(weight·(N−1))`, with the spec worked-examples table (N=1,2,3,4) as the binary contract. A **malformed ladder** degrades to the shipped default map and never aborts dispatch.
+- [x] AC3: Legacy `model: haiku|sonnet|opus` agents still resolve (tier→band) for this release and emit a deprecation marker `/agent-audit` surfaces as a warning; release N **warns, never errors** (erroring is deferred to N+1).
+- [x] AC4: A single SessionStart hook captures the session model, persists it (gitignored), and emits a banner enumerating the band→model table, flagging any band above the session model. Degenerate cases are communicative: no-ladder → the shipped default map (low→haiku, medium→sonnet, high→opus) with the ladder path as the override hint; N=1 → single collapsed line; session-at-top → no upgrade flags. Absent session model: reuse last persisted value if present; otherwise emit a one-line note that the session model is unknown so upgrade flags and session fallback are unavailable this session (effort routing still applies via the default map/ladder). The retired `overrides-banner.sh` is removed (no second SessionStart hook).
+- [x] AC5: The hook always writes `updatedInput.model` for an effort-bearing agent (the harness has no `model:` to fall back on). When a band cannot be mapped at all (e.g. an explicit out-of-ladder snapshot), dispatch falls back to the session model; a `high` agent runs above a lower session model (no ceiling). Per-dispatch resolution emits **no user-visible message**; a JSONL line is appended to `.claude/metrics/model-routing.log` **only when the resolved model differs from the shipped default for that band** (ladder override, upgrade, or downgrade). A resolution that equals the shipped default writes the model but logs no bump.
+- [x] AC6: `hooks/lib/model-probe.sh` and all probe tests (`tests/hooks/model_probe_tests.bats`, `tests/commands/init_dev_team_probe_tests.bats`, the curl shim) are deleted; `/init-dev-team` (SKILL + `init-dev-team-linux.sh`) no longer reference the probe.
+- [x] AC7: `/agent-create`, `/agent-add`, `/agent-audit` use the `effort` vocabulary, reject invalid bands, and map a recognized legacy token in the rejection message (e.g. "frontier → high").
+- [x] AC8: `/model-routing-check`, `docs/model-routing.md`, the orchestrator Resolution Procedure, root `CLAUDE.md`, and the **spec** reflect the ladder/effort model; a stale-reference guard (explicit pattern + allowlist) passes; `.gitignore` ignores `.claude/model-ladder.json` and `.claude/session-model` and drops the retired `model-overrides.json` entry.
 
 ## Slices
 
@@ -508,11 +508,11 @@ Per step. Summary: 4 complex (1.4, 1.5, 2.2, 3.1), 2 trivial (1.6, 2.3), the res
 
 ## Pre-PR Quality Gate
 
-- [ ] All bats suites pass
-- [ ] `shellcheck` clean on changed shell scripts
+- [x] All bats suites pass
+- [x] `shellcheck` clean on changed shell scripts
 - [ ] `/code-review` passes
-- [ ] `scripts/ci-local.sh` green
-- [ ] Documentation + spec reconciled (Slice 6)
+- [x] `scripts/ci-local.sh` green
+- [x] Documentation + spec reconciled (Slice 6)
 - [ ] Version bumped as `feat!` (major) with migration note
 
 ## Risks & Open Questions
@@ -564,15 +564,15 @@ Per step. Summary: 4 complex (1.4, 1.5, 2.2, 3.1), 2 trivial (1.6, 2.3), the res
 
 ### Acceptance Criteria
 
-- [ ] AC0: no-ladder resolves to the exact pre-migration snapshots (migration safety)
-- [ ] AC1: agents/templates on `effort:` (count verified); no `model:`/`complexity:`; gate green
-- [ ] AC2: effort→ladder (round_half_up); no-ladder + malformed-ladder safe
-- [ ] AC3: legacy tier acceptance + audit warning (warns, never errors this release)
-- [ ] AC4: single SessionStart hook; capture + banner; degenerate + absent-model cases; overrides-banner.sh retired
-- [ ] AC5: session-model fallback; no ceiling; silent dispatch; upgrade+downgrade logged; clean = pass-through
-- [ ] AC6: probe + all probe tests deleted; init flows clean
-- [ ] AC7: authoring tooling uses effort; legacy-token-aware rejection
-- [ ] AC8: diagnostics + docs + spec reconciled; stale-ref guard; gitignore updated
+- [x] AC0: no-ladder resolves to the exact pre-migration snapshots (migration safety)
+- [x] AC1: agents/templates on `effort:` (count verified); no `model:`/`complexity:`; gate green
+- [x] AC2: effort→ladder (round_half_up); no-ladder + malformed-ladder safe
+- [x] AC3: legacy tier acceptance + audit warning (warns, never errors this release)
+- [x] AC4: single SessionStart hook; capture + banner; degenerate + absent-model cases; overrides-banner.sh retired
+- [x] AC5: session-model fallback; no ceiling; silent dispatch; upgrade+downgrade logged; clean = pass-through
+- [x] AC6: probe + all probe tests deleted; init flows clean
+- [x] AC7: authoring tooling uses effort; legacy-token-aware rejection
+- [x] AC8: diagnostics + docs + spec reconciled; stale-ref guard; gitignore updated
 
 ## Plan Review Summary
 
