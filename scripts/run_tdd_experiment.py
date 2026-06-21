@@ -29,6 +29,7 @@ plumbing is exercised. Grading stays model-free downstream.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -51,28 +52,36 @@ from run_integration_eval import (  # noqa: E402
 
 ARMS = ("test-first", "test-after")
 
+# A constraint applied EQUALLY to both arms so the coverage/mutation sensors can
+# run on whatever tests the agent wrote. It does not bias the when-to-test
+# variable; it only standardizes how tests are invoked.
+PYTEST_RULE = (
+    " Write your tests as pytest tests in a file named test_*.py so they run "
+    "with `python -m pytest -q`. Put production code in the module named in the "
+    "spec."
+)
+
 # Arm-specific dispatch instructions. Everything else (spec, plan, reviews,
 # model, golden repo) is held constant so the only variable is *when* tests are
 # written -- see the fairness rules in the experiment doc.
 ARM_PROMPTS = {
     "test-first": (
-        "Implement the spec in {spec} using the full plan -> build -> review "
-        "pipeline with strict TDD: every change is RED (failing test first) -> "
-        "GREEN (minimum code) -> REFACTOR. Make the declared test commands pass."
+        "Implement the spec in {spec} using strict TDD: every change is RED "
+        "(write a failing test first) -> GREEN (minimum code to pass) -> "
+        "REFACTOR. Make the acceptance behavior correct." + PYTEST_RULE
     ),
     "test-after": (
-        "Implement the spec in {spec} using the full plan -> build -> review "
-        "pipeline. Write ALL production code first with NO test files. Only once "
-        "the implementation is complete, author a test suite covering the same "
-        "acceptance criteria to the same coverage target. Make the declared test "
-        "commands pass."
+        "Implement the spec in {spec}. Write ALL production code first with NO "
+        "test files. Only once the implementation is complete, author a test "
+        "suite covering the same behavior. Make the acceptance behavior correct."
+        + PYTEST_RULE
     ),
 }
 
 CHANGE_PROMPT = (
     "This is an existing, already-implemented feature in the working directory. "
     "Apply the change described in {change}. Keep the existing test suite green; "
-    "it is your safety net. Make the declared test commands pass."
+    "it is your safety net." + PYTEST_RULE
 )
 
 def _utc() -> str:
@@ -177,6 +186,166 @@ def count_agent_tests(workdir: Path, injected: set[str]) -> int:
     return n
 
 
+def split_py_files(workdir: Path) -> tuple[list[Path], list[Path]]:
+    """Return (production_files, test_files) the agent authored in the worktree."""
+    prod, tests = [], []
+    for p in sorted(workdir.rglob("*.py")):
+        if ".git" in p.parts or "__pycache__" in p.parts:
+            continue
+        rel = str(p.relative_to(workdir))
+        (tests if (TEST_NAME.search(p.name) or TEST_NAME.search(rel)) else prod).append(p)
+    return prod, tests
+
+
+def measure_coverage(workdir: Path, env: dict, prod: list[Path]) -> dict:
+    """Branch coverage of the AGENT's production code by the AGENT's own tests.
+
+    Runs `coverage run --branch -m pytest`, writes a JSON report, and averages
+    percent_covered over the production files only (test files are excluded).
+    Self-coverage is one half of the 'fully tested' axis; mutation score is the
+    other (coverage can be high with weak assertions).
+    """
+    out = {"percent": None, "tests_passed": None}
+    if not prod:
+        return out
+    cov_env = dict(env)
+    cov_env["COVERAGE_FILE"] = str(workdir / ".coverage")
+    run = subprocess.run(
+        ["python3", "-m", "coverage", "run", "--branch", "--source=.",
+         "-m", "pytest", "-q"],
+        cwd=str(workdir), env=cov_env, capture_output=True, text=True)
+    out["tests_passed"] = (run.returncode == 0)
+    subprocess.run(
+        ["python3", "-m", "coverage", "json", "-o", str(workdir / "cov.json")],
+        cwd=str(workdir), env=cov_env, capture_output=True, text=True)
+    try:
+        data = json.loads((workdir / "cov.json").read_text())
+        prod_names = {str(p.relative_to(workdir)) for p in prod}
+        pcts = [f["summary"]["percent_covered"]
+                for name, f in data["files"].items()
+                if name in prod_names or Path(name).name in
+                {p.name for p in prod}]
+        if pcts:
+            out["percent"] = round(sum(pcts) / len(pcts), 1)
+    except (json.JSONDecodeError, KeyError, ValueError, FileNotFoundError):
+        pass
+    (workdir / "cov.json").unlink(missing_ok=True)
+    (workdir / ".coverage").unlink(missing_ok=True)
+    return out
+
+
+# AST-level mutation operators. Operating on the parse tree (not text) reliably
+# catches operators regardless of whitespace and never mutates strings/comments.
+_BINOP = {ast.Add: ast.Sub, ast.Sub: ast.Add, ast.Mult: ast.Div,
+          ast.Div: ast.Mult}
+_CMPOP = {ast.Lt: ast.LtE, ast.LtE: ast.Lt, ast.Gt: ast.GtE, ast.GtE: ast.Gt,
+          ast.Eq: ast.NotEq, ast.NotEq: ast.Eq}
+_BOOLOP = {ast.And: ast.Or, ast.Or: ast.And}
+
+
+def _mutation_sites(tree: ast.AST) -> int:
+    n = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP:
+            n += 1
+        elif isinstance(node, ast.Compare):
+            n += sum(type(o) in _CMPOP for o in node.ops)
+        elif isinstance(node, ast.BoolOp) and type(node.op) in _BOOLOP:
+            n += 1
+        elif isinstance(node, ast.Constant) and isinstance(node.value, bool):
+            n += 1
+    return n
+
+
+def _apply_mutation(src: str, k: int) -> str | None:
+    """Return source with the k-th mutation site flipped, or None if invalid."""
+    tree = ast.parse(src)
+    counter = {"i": 0}
+
+    def flip(node) -> bool:
+        i = counter["i"]
+        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP:
+            if i == k:
+                node.op = _BINOP[type(node.op)]()
+                return True
+            counter["i"] += 1
+        elif isinstance(node, ast.Compare):
+            for j, o in enumerate(node.ops):
+                if type(o) in _CMPOP:
+                    if counter["i"] == k:
+                        node.ops[j] = _CMPOP[type(o)]()
+                        return True
+                    counter["i"] += 1
+        elif isinstance(node, ast.BoolOp) and type(node.op) in _BOOLOP:
+            if i == k:
+                node.op = _BOOLOP[type(node.op)]()
+                return True
+            counter["i"] += 1
+        elif isinstance(node, ast.Constant) and isinstance(node.value, bool):
+            if i == k:
+                node.value = not node.value
+                return True
+            counter["i"] += 1
+        return False
+
+    for node in ast.walk(tree):
+        if flip(node):
+            return ast.unparse(tree)
+    return None
+
+
+def measure_mutation(workdir: Path, env: dict, prod: list[Path],
+                     cap: int = 40) -> dict:
+    """Built-in AST mutation check on the agent's production code.
+
+    For each mutation, re-run the agent's tests; non-zero exit == killed. A
+    survivor is direct evidence of a weak/missing assertion. Capped for speed;
+    requires the baseline suite to be green first.
+    """
+    out = {"killed": 0, "total": 0, "score": None, "baseline_green": None,
+           "survivors": []}
+    base = subprocess.run(["python3", "-m", "pytest", "-q"], cwd=str(workdir),
+                          env=env, capture_output=True, text=True)
+    out["baseline_green"] = (base.returncode == 0)
+    if not out["baseline_green"]:
+        return out
+
+    jobs: list[tuple[Path, str, int]] = []
+    originals = {p: p.read_text() for p in prod}
+    for p, src in originals.items():
+        try:
+            sites = _mutation_sites(ast.parse(src))
+        except SyntaxError:
+            continue
+        for k in range(sites):
+            jobs.append((p, src, k))
+    if len(jobs) > cap:  # deterministic even sample across files/sites
+        step = len(jobs) / cap
+        jobs = [jobs[int(i * step)] for i in range(cap)]
+
+    try:
+        for p, src, k in jobs:
+            mutated = _apply_mutation(src, k)
+            if mutated is None or mutated == src:
+                continue
+            p.write_text(mutated)
+            r = subprocess.run(["python3", "-m", "pytest", "-q"],
+                               cwd=str(workdir), env=env,
+                               capture_output=True, text=True)
+            p.write_text(src)
+            out["total"] += 1
+            if r.returncode != 0:
+                out["killed"] += 1
+            elif len(out["survivors"]) < 8:
+                out["survivors"].append({"file": p.name, "site": k})
+    finally:
+        for p, src in originals.items():
+            p.write_text(src)
+    if out["total"]:
+        out["score"] = round(out["killed"] / out["total"], 3)
+    return out
+
+
 def inject_grade_files(fixture_dir: Path, workdir: Path,
                        files: list[str]) -> set[str]:
     """Copy hidden acceptance files into the worktree AFTER dispatch.
@@ -227,10 +396,14 @@ def run_stage(stem: str, stage: str, prompt: str, fixture_dir: Path,
                                                    change=espec.get("change", "")),
                             model, env, raw_out)
 
-        # Count agent-authored tests BEFORE injecting hidden acceptance files.
+        # Measure the AGENT's OWN tests BEFORE injecting hidden acceptance files
+        # (coverage/mutation must judge the agent's suite, not the graded one).
         agent_tests = count_agent_tests(workdir, injected=set())
-        inject_grade_files(fixture_dir, workdir, grade_files)
+        prod, _tests = ([], []) if skip_dispatch else split_py_files(workdir)
+        coverage = measure_coverage(workdir, env, prod) if prod else {"percent": None}
+        mutation = measure_mutation(workdir, env, prod) if prod else {"score": None}
 
+        inject_grade_files(fixture_dir, workdir, grade_files)
         results = run_commands(workdir, commands)
         passed = all(r["exit_code"] == 0 for r in results) and bool(results)
         row = {
@@ -239,6 +412,8 @@ def run_stage(stem: str, stage: str, prompt: str, fixture_dir: Path,
             "results": results,
             "cost": cost,
             "agent_test_files": agent_tests,
+            "self_coverage": coverage,
+            "mutation": mutation,
             "contamination": contamination_flags(home, cost),
         }
         # Stage 1 keeps its worktree so Stage 2 can seed from it.
