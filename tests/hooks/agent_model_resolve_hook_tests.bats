@@ -35,12 +35,13 @@ EOF
   export MODEL_ROUTING_JSON="$BATS_TMPDIR_CASE/knowledge/model-routing.json"
   export MODEL_AGENTS_DIR="$BATS_TMPDIR_CASE/agents"
   export MODEL_LADDER_JSON="$BATS_TMPDIR_CASE/.claude/model-ladder.json"  # absent by default
+  export SESSION_MODEL_FILE="$BATS_TMPDIR_CASE/.claude/session-model"     # absent by default
   export MODEL_BUMP_LOG="$BATS_TMPDIR_CASE/.claude/metrics/model-routing.log"
 }
 
 teardown() {
   rm -rf "$BATS_TMPDIR_CASE"
-  unset MODEL_ROUTING_JSON MODEL_AGENTS_DIR MODEL_LADDER_JSON MODEL_BUMP_LOG
+  unset MODEL_ROUTING_JSON MODEL_AGENTS_DIR MODEL_LADDER_JSON SESSION_MODEL_FILE MODEL_BUMP_LOG
 }
 
 # Build PreToolUse Agent input. Omits model when "$2" is empty.
@@ -144,6 +145,80 @@ EOF
   run bash -c "echo 'not json' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
+}
+
+# ---------------------------------------------------------------------------
+# Slice 3 — session-model fallback, no ceiling, silent-but-logged
+# ---------------------------------------------------------------------------
+
+@test "Step 3.1: no ladder + effort band resolves to the default map, not the session model" {
+  mkdir -p "$(dirname "$SESSION_MODEL_FILE")"
+  printf 'claude-haiku-4-5-20251001\n' > "$SESSION_MODEL_FILE"  # session = haiku
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  # high → opus (default map), NOT the session model (haiku).
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opus-4-8" ]
+}
+
+@test "Step 3.1: explicit snapshot absent from the ladder falls back to the session model" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")" "$(dirname "$SESSION_MODEL_FILE")"
+  echo '["claude-sonnet-4-6", "claude-opus-4-8"]' > "$MODEL_LADDER_JSON"
+  printf 'claude-sonnet-4-6\n' > "$SESSION_MODEL_FILE"
+  # Dispatch an unknown agent with an explicit snapshot NOT in the ladder.
+  run bash -c "echo '$(_agent_input some-agent claude-opusmax-9)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-sonnet-4-6" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.reason')" = "session-fallback" ]
+}
+
+@test "Step 3.1: explicit snapshot present in the ladder is passed through" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")" "$(dirname "$SESSION_MODEL_FILE")"
+  echo '["claude-sonnet-4-6", "claude-opus-4-8"]' > "$MODEL_LADDER_JSON"
+  printf 'claude-sonnet-4-6\n' > "$SESSION_MODEL_FILE"
+  run bash -c "echo '$(_agent_input some-agent claude-opus-4-8)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ "$output" = "{}" ]
+}
+
+@test "Step 3.1: explicit snapshot with no ladder is passed through" {
+  run bash -c "echo '$(_agent_input some-agent claude-opusmax-9)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ "$output" = "{}" ]
+}
+
+@test "Step 3.2: high agent runs above a lower session model (no ceiling, no message)" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")" "$(dirname "$SESSION_MODEL_FILE")"
+  echo '["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-8"]' > "$MODEL_LADDER_JSON"
+  printf 'claude-sonnet-4-6\n' > "$SESSION_MODEL_FILE"  # session = sonnet (middle)
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  # high → top of ladder (opus), above the session model.
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opus-4-8" ]
+  # Silent: no deny / permissionDecision / systemMessage.
+  ! echo "$output" | jq -e '.hookSpecificOutput.permissionDecision' >/dev/null 2>&1
+  ! echo "$output" | jq -e '.systemMessage' >/dev/null 2>&1
+}
+
+@test "Step 3.2: an upgrade logs exactly one line carrying the session model" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")" "$(dirname "$SESSION_MODEL_FILE")"
+  echo '["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-8", "claude-opusmax-9"]' > "$MODEL_LADDER_JSON"
+  printf 'claude-opus-4-8\n' > "$SESSION_MODEL_FILE"
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  # high → max (≠ opus default) = upgrade
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opusmax-9" ]
+  [ "$(wc -l < "$MODEL_BUMP_LOG" | tr -d ' ')" = "1" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.served')" = "claude-opusmax-9" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.session')" = "claude-opus-4-8" ]
+}
+
+@test "Step 3.2: a downgrade logs exactly one line" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")"
+  echo '["claude-haiku-4-5-20251001", "claude-sonnet-4-6"]' > "$MODEL_LADDER_JSON"
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  # high → sonnet (≠ opus default) = downgrade
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-sonnet-4-6" ]
+  [ "$(wc -l < "$MODEL_BUMP_LOG" | tr -d ' ')" = "1" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.served')" = "claude-sonnet-4-6" ]
 }
 
 # ---------------------------------------------------------------------------

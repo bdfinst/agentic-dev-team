@@ -551,9 +551,9 @@ Per step. Summary: 4 complex (1.4, 1.5, 2.2, 3.1), 2 trivial (1.6, 2.3), the res
 
 #### Wave 3
 
-- [ ] Slice 3: Session-model fallback, no ceiling, silent-but-logged
-  - [ ] Step 3.1: Session-model fallback for unmappable bands/snapshots
-  - [ ] Step 3.2: No ceiling; silent dispatch; log upgrades and downgrades
+- [x] Slice 3: Session-model fallback, no ceiling, silent-but-logged
+  - [x] Step 3.1: Session-model fallback for unmappable bands/snapshots
+  - [x] Step 3.2: No ceiling; silent dispatch; log upgrades and downgrades
 
 #### Wave 4
 
