@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
-# AC12: docs/model-routing.md contains the eight required H2 sections
-# with at least one paragraph each, links to the ADR, and documents the
-# env-var classification (test-only seams vs. user-facing knobs).
+# docs/model-routing.md documents the effort-band + ladder model: the core
+# sections, links to the ADRs, and the env-var classification (test-only seams
+# vs. user-facing knobs). The retired probe/overrides knobs must be gone.
 
 DOC="$BATS_TEST_DIRNAME/../../plugins/dev-team/docs/model-routing.md"
 
@@ -13,50 +13,49 @@ DOC="$BATS_TEST_DIRNAME/../../plugins/dev-team/docs/model-routing.md"
   grep -qE "^## Contract" "$DOC"
 }
 
-@test "AC12: section 'When the fallback fires' is present" {
-  grep -qE "^## When the fallback fires" "$DOC"
+@test "AC12: documents the resolution precedence" {
+  grep -qiE "^###? Resolution precedence" "$DOC"
 }
 
-@test "AC12: section 'Interpreting the override file' is present" {
-  grep -qE "^## Interpreting the override file" "$DOC"
+@test "AC12: documents the exit-code taxonomy" {
+  grep -qiE "exit.code" "$DOC"
 }
 
-@test "AC12: section 'Adding a new tier' is present" {
-  grep -qE "^## Adding a new tier" "$DOC"
+@test "AC12: documents legacy tier acceptance (deprecation window)" {
+  grep -qiE "^## Legacy tier acceptance" "$DOC"
 }
 
-@test "AC12: section 'Troubleshooting: Bedrock' is present" {
-  grep -qE "^## Troubleshooting: Bedrock" "$DOC"
+@test "AC12: documents the bump log" {
+  grep -qiE "^## The bump log" "$DOC"
 }
 
-@test "AC12: section 'Troubleshooting: Vertex' is present" {
-  grep -qE "^## Troubleshooting: Vertex" "$DOC"
+@test "AC12: documents authoring a ladder for restricted endpoints" {
+  grep -qiE "^## Authoring a ladder" "$DOC"
+  grep -qiE "bedrock|vertex|proxy" "$DOC"
 }
 
-@test "AC12: section 'Troubleshooting: corporate proxy' is present" {
-  grep -qE "^## Troubleshooting: corporate proxy" "$DOC"
-}
-
-@test "AC12: section 'Hand-writing the override file' is present" {
-  grep -qE "^## Hand-writing the override file" "$DOC"
-}
-
-@test "AC12: doc links to ADR 0004" {
+@test "AC12: links to ADR 0008 and ADR 0004" {
+  grep -q "0008-use-effort-bands" "$DOC"
   grep -q "0004-pre-dispatch-model-resolution" "$DOC"
 }
 
-@test "AC12: doc documents user-facing env vars" {
-  grep -q "ANTHROPIC_BASE_URL" "$DOC"
-  grep -q "MODEL_PROBE_TIMEOUT" "$DOC"
-  grep -q "MODEL_BUMP_TAIL" "$DOC"
-  grep -q "MODEL_PROBE_FORCE" "$DOC"
+@test "AC12: links to the override authoring guide" {
+  grep -q "model-routing-overrides.md" "$DOC"
 }
 
-@test "AC12: doc marks test-only env vars as test-only" {
-  # Should mention MODEL_ROUTING_JSON, MODEL_OVERRIDES_JSON, MODEL_BUMP_LOG
-  # and identify them as test-only seams (not user-facing).
+@test "AC12: documents user-facing env vars" {
+  grep -q "ANTHROPIC_BASE_URL" "$DOC"
+  grep -q "MODEL_BUMP_TAIL" "$DOC"
+}
+
+@test "AC12: marks the routing seams as test-only" {
   grep -q "MODEL_ROUTING_JSON" "$DOC"
-  grep -q "MODEL_OVERRIDES_JSON" "$DOC"
+  grep -q "MODEL_LADDER_JSON" "$DOC"
+  grep -q "SESSION_MODEL_FILE" "$DOC"
   grep -q "MODEL_BUMP_LOG" "$DOC"
   grep -qi "test-only" "$DOC"
+}
+
+@test "AC12: no retired probe/overrides env vars remain" {
+  ! grep -qE "MODEL_PROBE_TIMEOUT|MODEL_PROBE_FORCE|MODEL_OVERRIDES_JSON" "$DOC"
 }
