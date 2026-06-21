@@ -2,7 +2,7 @@
 name: ts-enforcer
 description: TypeScript strict mode enforcement — no any types, schema-first at trust boundaries, type vs interface discipline, strict tsconfig audit
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # TypeScript Enforcer
@@ -17,7 +17,7 @@ Status: pass=strict TypeScript, warn=improvements needed, fail=type safety viola
 Severity: error=`any` type or missing validation at boundary, warning=loose type, suggestion=style
 Confidence: high=mechanical (replace any, add type annotation); medium=judgment call (type vs interface); none=requires domain context
 
-Model tier: small
+Effort: low
 Context needs: diff-only
 File scope: `*.ts`, `*.tsx`
 

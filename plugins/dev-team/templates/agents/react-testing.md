@@ -2,7 +2,7 @@
 name: react-testing
 description: React component testing with Testing Library — anti-patterns, hook testing, behavior-first assertions
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # React Testing
@@ -17,7 +17,7 @@ Status: pass=good test practices, warn=anti-patterns detected, fail=tests give f
 Severity: error=test doesn't verify behavior, warning=anti-pattern, suggestion=improvement opportunity
 Confidence: high=mechanical (remove unnecessary act(), use getByRole); medium=test design judgment; none=requires domain context
 
-Model tier: mid
+Effort: medium
 Context needs: full-file
 File scope: `*.test.ts`, `*.test.tsx`, `*.spec.ts`, `*.spec.tsx`
 

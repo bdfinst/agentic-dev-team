@@ -43,7 +43,7 @@ See @docs/team-structure.md for the full team org chart (Mermaid diagram).
 
 ## Agent & Skill Registry
 
-Full registry tables with token counts, model tiers, and used-by mappings are in [`knowledge/agent-registry.md`](knowledge/agent-registry.md). The orchestrator reads this file when routing decisions require the full catalog.
+Full registry tables with token counts, effort bands, and used-by mappings are in [`knowledge/agent-registry.md`](knowledge/agent-registry.md). The orchestrator reads this file when routing decisions require the full catalog.
 
 ### Quick Reference
 
@@ -89,10 +89,10 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/guard` | `skills/guard/SKILL.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
 | `/harness-audit` | `skills/harness-audit/SKILL.md` | orchestrator | Analyze harness effectiveness and flag stale components |
 | `/help` | `skills/help/SKILL.md` | worker | List all available slash commands with descriptions |
-| `/init-dev-team` | `skills/init-dev-team/SKILL.md` | worker | Install plugin prerequisites (jq, python3, mutation tools). Includes a state-aware CodeGraph offer (install / init / silent-confirm based on `command -v codegraph` and `.codegraph/` presence), an opt-in Anthropic model availability probe that populates `.claude/model-overrides.json` for restricted endpoints, and bootstraps a JS project via `js-project-init` when JS/TS is selected but `package.json` is absent. |
+| `/init-dev-team` | `skills/init-dev-team/SKILL.md` | worker | Install plugin prerequisites (jq, python3, mutation tools). Includes a state-aware CodeGraph offer (install / init / silent-confirm based on `command -v codegraph` and `.codegraph/` presence), and bootstraps a JS project via `js-project-init` when JS/TS is selected but `package.json` is absent. |
 | `/issues-from-assessment` | `skills/issues-from-assessment/SKILL.md` | worker | Convert a `/cd-test-architecture` assessment into a parent + Phase-tagged child issues via the tracker CLI resolved from the parent URL host (gh / az / glab / acli). Falls back to local plan files when no URL is given or the CLI is missing |
 | `/issues-from-plan` | `skills/issues-from-plan/SKILL.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
-| `/model-routing-check` | `skills/model-routing-check/SKILL.md` | worker | Read-only diagnostic for environment-aware model routing. Prints the effective tier → snapshot map, any override file contents, the most recent tier bumps from the resolver log, and probe applicability for the current `ANTHROPIC_BASE_URL`. |
+| `/model-routing-check` | `skills/model-routing-check/SKILL.md` | worker | Read-only diagnostic for effort-band model routing. Prints the effective band → model map, the ladder (or a ready-to-edit starter), the captured session model, and the most recent routing bumps from the resolver log. |
 | `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
 | `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request (enables auto-merge by default) |
 | `/quality-targets-converge` | `skills/quality-targets-converge/SKILL.md` | worker | Phase-5 of `/test-modernize` — loop that picks the largest gap to the four quality targets (coverage / mutants / determinism / speed) and dispatches the smallest action to close it |
@@ -173,7 +173,7 @@ When a task requires multiple agents:
 
 ## Model Routing
 
-Each agent declares a tier alias (`haiku`, `sonnet`, `opus`) in its `model:` frontmatter. Tier-to-snapshot resolution is enforced by the PreToolUse hook `hooks/agent-model-resolve.sh` (registered in `settings.json` under `matcher: "Agent"`), backed by the resolver helper `hooks/lib/model-resolve.sh`. Defaults ship in `knowledge/model-routing.json`; per-user overrides live in the gitignored `.claude/model-overrides.json`. See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for the contract and troubleshooting, and run `/model-routing-check` for a read-only diagnostic.
+Each agent declares an effort band (`effort: low|medium|high`) in its frontmatter. Band-to-model resolution is enforced by the PreToolUse hook `hooks/agent-model-resolve.sh` (registered in `settings.json` under `matcher: "Agent"`), backed by the resolver helper `hooks/lib/model-resolve.sh`: it reads the band by `subagent_type` and maps it via the shipped default map in `knowledge/model-routing.json` or, when present, a per-environment ladder `.claude/model-ladder.json` (gitignored). The session model (captured at SessionStart) is the fallback for an unmappable model, never a ceiling. See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for the contract and `docs/model-routing-overrides.md` for ladder authoring, and run `/model-routing-check` for a read-only diagnostic.
 
 ## Context Management
 

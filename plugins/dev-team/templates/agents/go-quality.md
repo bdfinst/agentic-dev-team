@@ -2,7 +2,7 @@
 name: go-quality
 description: Go code quality — error handling discipline, interface segregation, no naked returns, struct embedding patterns
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # Go Quality
@@ -17,7 +17,7 @@ Status: pass=idiomatic Go, warn=improvements needed, fail=error handling gaps
 Severity: error=ignored error or unsafe pattern, warning=non-idiomatic, suggestion=style
 Confidence: high=mechanical (handle error, remove naked return); medium=design choice; none=domain context
 
-Model tier: small
+Effort: low
 Context needs: diff-only
 File scope: `*.go`
 

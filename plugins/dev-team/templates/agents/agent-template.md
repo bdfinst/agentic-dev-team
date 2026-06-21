@@ -38,7 +38,7 @@ tools: Read, Grep, Glob
 #   haiku  — high-volume, structured extraction, simple classification
 #   sonnet — balanced capability and speed; most agents
 #   opus   — frontier reasoning, security analysis, architectural judgment
-model: sonnet
+effort: medium
 
 # OPTIONAL — permission mode
 # WARNING: Ignored for plugin agents (silently has no effect).

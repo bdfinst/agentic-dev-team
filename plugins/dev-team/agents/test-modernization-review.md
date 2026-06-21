@@ -2,7 +2,7 @@
 name: test-modernization-review
 description: Gate-keeper for `/test-modernize` phase boundaries — verifies the phase's deliverable matches its acceptance criteria before the workflow advances
 tools: Read, Grep, Glob
-model: mid
+effort: low
 ---
 
 # Test Modernization Review
@@ -19,7 +19,7 @@ Status: pass=phase deliverable accepted, warn=advance with caveats, fail=phase i
 Severity: error=blocker (workflow must not advance), warning=advance only with operator acknowledgement, suggestion=optional follow-up.
 Confidence: high=mechanical check, medium=judgment call, none=requires human input.
 
-Model tier: mid.
+Effort: low
 Context needs: read the phase progress file + the deliverable artifacts it points at.
 
 ## Invocation

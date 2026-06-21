@@ -2,7 +2,7 @@
 name: structure-review
 description: SRP violations, DRY, coupling, nesting depth, file organization
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 cites: [design-smells, object-calisthenics, adversarial-review-protocol]
 ---
 
@@ -18,7 +18,7 @@ Status: pass=clean, warn=minor issues, fail=architectural problems
 Severity: error=breaks maintainability, warning=tech debt, suggestion=improvement
 Confidence: high=mechanical extraction (duplicate block → shared function); medium=SRP split direction clear but interface design may vary; none=requires human judgment (module boundary decisions, coupling tradeoffs)
 
-Model tier: mid
+Effort: medium
 Context needs: full-file
 
 ## Knowledge Files

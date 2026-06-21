@@ -2,7 +2,7 @@
 name: token-efficiency-review
 description: Token usage optimization, file length, CLAUDE.md size, LLM anti-patterns
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # Token Efficiency Review
@@ -17,7 +17,7 @@ Status: pass=efficient, warn=optimization opportunities, fail=major waste
 Severity: error=critical waste, warning=significant, suggestion=minor
 Confidence: high=mechanical (trim verbose rule, extract procedure to skill); medium=verbosity identified, rewrite depends on intent; none=requires human judgment (what detail level is appropriate)
 
-Model tier: small
+Effort: low
 Context needs: full-file
 
 ## Skip

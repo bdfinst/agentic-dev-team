@@ -2,7 +2,7 @@
 name: twelve-factor-audit
 description: Twelve-factor app methodology audit — checks all 12 factors with language-appropriate examples
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # Twelve-Factor Audit
@@ -17,7 +17,7 @@ Status: pass=12-factor compliant, warn=violations detected, fail=critical anti-p
 Severity: error=security or reliability risk, warning=operational concern, suggestion=best practice
 Confidence: high=mechanical (hardcoded config, missing health check); medium=design judgment; none=infrastructure context needed
 
-Model tier: mid
+Effort: medium
 Context needs: project-structure
 
 ## Activates when

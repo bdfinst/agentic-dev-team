@@ -2,12 +2,12 @@
 name: spec-compliance-review
 description: Verify implementation matches specification before quality review agents run
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # Spec Compliance Review
 
-Model tier: mid
+Effort: medium
 Context needs: full-file
 File scope: All changed files
 

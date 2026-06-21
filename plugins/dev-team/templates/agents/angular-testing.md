@@ -2,7 +2,7 @@
 name: angular-testing
 description: Angular component testing — TestBed setup, component harnesses, OnPush testing, RxJS marble testing, no direct DOM queries
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # Angular Testing
@@ -17,7 +17,7 @@ Status: pass=good Angular testing, warn=anti-patterns, fail=unreliable tests
 Severity: error=test won't catch regressions, warning=anti-pattern, suggestion=improvement
 Confidence: high=mechanical (use harness, fix TestBed); medium=test design; none=domain context
 
-Model tier: mid
+Effort: medium
 Context needs: full-file
 File scope: `*.spec.ts`
 

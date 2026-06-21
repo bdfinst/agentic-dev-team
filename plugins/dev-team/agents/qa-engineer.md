@@ -2,7 +2,7 @@
 name: qa-engineer
 description: Senior SDET — partner on acceptance criteria, coach teams on test design and CD-aligned test architecture, dispatch test-health and test-design skills; non-gatekeeping. Champions pipeline-as-product and DORA-driven feedback.
 tools: Read, Grep, Glob, Edit, Write, Bash, Bash(npx playwright *), Skill
-model: sonnet
+effort: medium
 ---
 
 # QA / SDET Agent

@@ -186,7 +186,7 @@ own report heading; never route them to a gate.
 | Suggestion kind | Hand off to |
 |---|---|
 | Config / prompt / convention fix | `/feedback-learning` |
-| Model re-tiering | `/harness-audit` + `.claude/model-overrides.json` |
+| Effort re-banding | `/harness-audit` + `.claude/model-ladder.json` |
 | New / changed detection rule | `/agent-eval` (validate before shipping) |
 | Token-heavy skill / agent | `token-efficiency-review` |
 | Operator methodology observation (`methodology`) | the human, as an observation — no artifact, no hook |

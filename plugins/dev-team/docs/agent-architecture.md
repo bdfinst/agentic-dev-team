@@ -10,7 +10,7 @@ The Orchestrator receives every request, classifies it by type and complexity, s
 
 ## Model Routing
 
-Each agent declares a tier alias (`haiku`, `sonnet`, `opus`) in its `model:` frontmatter. Tier-to-snapshot resolution is **enforced by a PreToolUse hook** (`hooks/agent-model-resolve.sh`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper `hooks/lib/model-resolve.sh`. Defaults ship in `knowledge/model-routing.json`; per-user overrides live in the gitignored `.claude/model-overrides.json` (populated by the `/init-dev-team` probe or hand-written for restricted endpoints). See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for contract and Bedrock/Vertex/proxy troubleshooting, and `/model-routing-check` for a read-only diagnostic.
+Each agent declares an effort band (`effort: low|medium|high`) in its frontmatter. Band-to-model resolution is **enforced by a PreToolUse hook** (`hooks/agent-model-resolve.sh`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper `hooks/lib/model-resolve.sh`: it reads the band by `subagent_type` and maps it via the shipped default map in `knowledge/model-routing.json` or, when present, a per-environment ladder `.claude/model-ladder.json` (gitignored, hand-written for restricted endpoints). The session model captured at SessionStart is the fallback for an unmappable model, never a ceiling. See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for the contract and `docs/model-routing-overrides.md` for ladder authoring, and `/model-routing-check` for a read-only diagnostic.
 
 ## Knowledge Index
 

@@ -2,7 +2,7 @@
 name: software-engineer
 description: Full-stack development, code generation, implementation, and refactoring
 tools: Read, Grep, Glob, Edit, Write, Bash, Skill
-model: sonnet
+effort: medium
 ---
 
 # Software Engineer Agent

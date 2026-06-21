@@ -22,13 +22,14 @@ ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/model-routing.
   grep -q "hooks/lib/model-resolve.sh" "$ORCH"
 }
 
-@test "orchestrator: Resolution Procedure names routing.json and overrides.json" {
+@test "orchestrator: Resolution Procedure names routing.json and the ladder" {
   grep -q "knowledge/model-routing.json" "$ORCH"
-  grep -q ".claude/model-overrides.json" "$ORCH"
+  grep -q ".claude/model-ladder.json" "$ORCH"
 }
 
-@test "orchestrator: cites the haiku→sonnet→opus cascade in plain language" {
-  grep -qE "haiku.*sonnet.*opus" "$ORCH"
+@test "orchestrator: Resolution Procedure describes effort bands" {
+  grep -qE "effort:? *(band|low\|medium\|high|low, medium, high)" "$ORCH" \
+    || grep -qi "effort band" "$ORCH"
 }
 
 @test "orchestrator: inline review table no longer encodes tier parentheses" {

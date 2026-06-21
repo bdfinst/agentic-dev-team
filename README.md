@@ -148,16 +148,77 @@ Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUT
 
 ## Documentation
 
-| Guide | Description |
+### Start here
+
+| Doc | Covers |
 | --- | --- |
-| [Getting Started](GETTING-STARTED.md) | User tutorial — the workflow, suggested skills, and worked examples |
+| [Getting Started](GETTING-STARTED.md) | User tutorial — the workflow, suggested skills, worked examples |
 | [Contributing](CONTRIBUTING.md) | Local development, testing, adding agents/skills, releasing |
-| [Architecture](plugins/dev-team/docs/agent-architecture.md) | Context management, quality assurance, governance, multi-LLM routing |
+| [Plugin Development Guide](CLAUDE.md) | Project North Star, repo structure, working rules |
+
+### dev-team — architecture
+
+| Doc | Covers |
+| --- | --- |
+| [Plugin README](plugins/dev-team/README.md) | Install, prerequisites, optional tools, quality gates |
+| [Orchestration Pipeline](plugins/dev-team/CLAUDE.md) | Three-phase workflow, registries, context management |
+| [Architecture](plugins/dev-team/docs/agent-architecture.md) | Context management, quality assurance, governance, model routing |
+| [Team Structure](plugins/dev-team/docs/team-structure.md) | Org chart, team + review-agent dispatch diagrams |
 | [Agents](plugins/dev-team/docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
-| [Skills & Commands](plugins/dev-team/docs/skills.md) | Skills catalog, slash-commands catalog |
+
+### dev-team — workflows & skills
+
+| Doc | Covers |
+| --- | --- |
+| [Workflows](plugins/dev-team/docs/workflows.md) | `/ship` and `/test-modernize` orchestration with human gates |
+| [Code Review Process](plugins/dev-team/docs/code-review-process.md) | `/code-review` end-to-end flow and the agents it dispatches |
+| [Skills & Commands](plugins/dev-team/docs/skills.md) | Skills catalog and slash-command reference |
+| [Session Review](plugins/dev-team/docs/session-review.md) | Mining session transcripts for improvement suggestions |
+| [Session Review — OSS complements](plugins/dev-team/docs/session-review-oss-complements.md) | OSS tools that complement the session-review loop |
+
+### dev-team — model routing
+
+| Doc | Covers |
+| --- | --- |
+| [Model Routing](plugins/dev-team/docs/model-routing.md) | Environment-aware effort-band → model resolution, defaults, ladder, troubleshooting |
+| [Model Routing — Overrides](plugins/dev-team/docs/model-routing-overrides.md) | Authoring `.claude/model-ladder.json`: schema, precedence, worked ladders, migration guarantee |
+
+### dev-team — evaluation & quality
+
+| Doc | Covers |
+| --- | --- |
 | [Eval System](plugins/dev-team/docs/eval-system.md) | How review-agent accuracy is measured and graded |
-| [Security Assessment User Guide](plugins/security-assessment/docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool install matrix |
+| [Eval Running Guide](plugins/dev-team/docs/eval-running-guide.md) | Running the eval fixtures |
+| [Eval Maintenance](plugins/dev-team/docs/eval-maintenance.md) | Maintaining fixtures, catching regressions, tracking accuracy |
+| [Test Evaluation](plugins/dev-team/docs/test-evaluation.md) | Test-evaluation procedures |
+
+### dev-team — operations & observability
+
+| Doc | Covers |
+| --- | --- |
+| [Concurrent Use](plugins/dev-team/docs/concurrent-use.md) | Worktree isolation and concurrent build strategy |
+| [CodeGraph Nudge](plugins/dev-team/docs/codegraph-nudge.md) | The hook that nudges CodeGraph over multi-file Read/Grep |
+| [Telemetry — CI access](plugins/dev-team/docs/telemetry-ci-access.md) | Giving CI read-only access to the telemetry repo |
+| [Telemetry — repo security](plugins/dev-team/docs/telemetry-repo-security.md) | How machines write digests to the telemetry repo |
+
+### security-assessment plugin
+
+| Doc | Covers |
+| --- | --- |
+| [Plugin README](plugins/security-assessment/README.md) | Design philosophy, install, when to use vs. `/code-review` |
+| [Plugin Architecture](plugins/security-assessment/CLAUDE.md) | Hooks, SARIF orchestration, LLM-safety bounds, red-team targets |
+| [User Guide](plugins/security-assessment/docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool matrix |
+| [Accepted Risks Format](plugins/security-assessment/docs/accepted-risks-format.md) | `ACCEPTED-RISKS.md` schema and format |
 | [Comparative Testing](plugins/security-assessment/docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |
+
+### Repo-level guides & decision records
+
+| Doc | Covers |
+| --- | --- |
+| [Marketplace Builder Playbook](docs/marketplace-builder-plugin-playbook.md) | Building a plugin that scaffolds/audits marketplace monorepos |
+| [Plugin Skills in the Web Environment](docs/using-plugin-skills-in-the-web-environment.md) | Running a plugin's skills from a Claude Code web session |
+| [Architecture Decision Records](docs/adr/README.md) | Indexed ADRs — model routing, knowledge indexing, eval tiers, integration topology |
+| [Design Specs](docs/specs/model-complexity-routing.md) | Effort-band model routing design specification |
 
 ## CodeGraph
 

@@ -2,7 +2,7 @@
 name: front-end-testing
 description: Behavior-driven UI testing — query priority, browser-mode preference, HTTP interceptors, framework-agnostic
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # Front-End Testing
@@ -17,7 +17,7 @@ Status: pass=good testing practices, warn=anti-patterns, fail=tests unreliable o
 Severity: error=unreliable test pattern, warning=anti-pattern, suggestion=improvement
 Confidence: high=mechanical (fix query priority); medium=test design; none=requires domain context
 
-Model tier: mid
+Effort: medium
 Context needs: full-file
 File scope: `*.test.ts`, `*.test.tsx`, `*.spec.ts`, `*.spec.tsx`, `*.test.js`, `*.test.jsx`
 

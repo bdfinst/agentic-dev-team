@@ -1,5 +1,11 @@
 {
+  "low": "claude-haiku-4-5-20251001",
+  "medium": "claude-sonnet-4-6",
+  "high": "claude-opus-4-8",
+
   "haiku": "claude-haiku-4-5-20251001",
   "sonnet": "claude-sonnet-4-6",
-  "opus": "claude-opus-4-8"
+  "opus": "claude-opus-4-8",
+
+  "rounding": "round_half_up"
 }

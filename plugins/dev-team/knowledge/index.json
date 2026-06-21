@@ -1033,7 +1033,7 @@
       "anchor": "1-parse-arguments"
     },
     "2. Audit agents": {
-      "summary": "Read each file in `.claude/agents/*.md` that declares `Model tier:` (these are",
+      "summary": "Read each file in `.claude/agents/*.md` whose body contains a structured JSON",
       "anchor": "2-audit-agents"
     },
     "2b. Audit agent tool declarations (all agents)": {
@@ -3088,10 +3088,6 @@
       "summary": "**Prerequisites check:**",
       "anchor": "c-net-strykernet"
     },
-    "Step 4.5 — Probe model availability (opt-in)": {
-      "summary": "Present the following prompt **verbatim** to the user and read a single",
-      "anchor": "step-45-probe-model-availability-opt-in"
-    },
     "Step 5 — Summary": {
       "summary": "Print a summary of what was installed:",
       "anchor": "step-5-summary"
@@ -3337,7 +3333,7 @@
       "anchor": "what-it-shows"
     },
     "How to fix common findings": {
-      "summary": "**Bumps appearing in the log** — the resolver is silently rerouting a",
+      "summary": "**Bumps appearing in the log** — the ladder or a session fallback is",
       "anchor": "how-to-fix-common-findings"
     },
     "Execution": {

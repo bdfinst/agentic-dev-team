@@ -2,7 +2,7 @@
 name: esm-enforcer
 description: ES Modules enforcement — import/export only, no require/module.exports, no __dirname/__filename
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # ESM Enforcer
@@ -17,7 +17,7 @@ Status: pass=ESM compliant, warn=minor CJS remnants, fail=CJS patterns in new co
 Severity: error=require() or module.exports in source, warning=__dirname/__filename usage, suggestion=dynamic import opportunity
 Confidence: high=mechanical (replace require with import); medium=judgment call (dynamic require); none=third-party constraint
 
-Model tier: small
+Effort: low
 Context needs: diff-only
 File scope: `*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.mjs`
 
