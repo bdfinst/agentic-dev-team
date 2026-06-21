@@ -8,70 +8,59 @@
 # that contract, model routing breaks silently with nothing to catch it.
 #
 # This test pins the EXACT envelope shape the hook emits, so the contract is
-# a deterministic gate, not a tribal assumption. It is intentionally narrow
-# and toolchain-free (bash + jq only) so it runs in CI.
+# a deterministic gate, not a tribal assumption. Under the effort model the
+# hook emits one of exactly two shapes: a rewrite (with updatedInput) or a
+# pass-through ({}). The legacy deny envelope is gone — a missing routing.json
+# now fails open, never denies.
 
 HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/agent-model-resolve.sh"
 
 setup() {
   BATS_TMPDIR_CASE="$(mktemp -d)"
-  mkdir -p "$BATS_TMPDIR_CASE/knowledge"
+  mkdir -p "$BATS_TMPDIR_CASE/knowledge" "$BATS_TMPDIR_CASE/agents"
   cat > "$BATS_TMPDIR_CASE/knowledge/model-routing.json" <<'EOF'
 {
+  "low": "claude-haiku-4-5-20251001",
+  "medium": "claude-sonnet-4-6",
+  "high": "claude-opus-4-8",
   "haiku": "claude-haiku-4-5-20251001",
   "sonnet": "claude-sonnet-4-6",
-  "opus": "claude-opus-4-8"
+  "opus": "claude-opus-4-8",
+  "rounding": "round_half_up"
 }
 EOF
+  printf -- '---\nname: high-agent\neffort: high\n---\nbody\n' > "$BATS_TMPDIR_CASE/agents/high-agent.md"
   export MODEL_ROUTING_JSON="$BATS_TMPDIR_CASE/knowledge/model-routing.json"
-  export MODEL_OVERRIDES_JSON="$BATS_TMPDIR_CASE/.claude/model-overrides.json"
+  export MODEL_AGENTS_DIR="$BATS_TMPDIR_CASE/agents"
+  export MODEL_LADDER_JSON="$BATS_TMPDIR_CASE/.claude/model-ladder.json"
   export MODEL_BUMP_LOG="$BATS_TMPDIR_CASE/.claude/metrics/model-routing.log"
-  mkdir -p "$(dirname "$MODEL_OVERRIDES_JSON")"
 }
 
 teardown() {
   rm -rf "$BATS_TMPDIR_CASE"
-  unset MODEL_ROUTING_JSON MODEL_OVERRIDES_JSON MODEL_BUMP_LOG
+  unset MODEL_ROUTING_JSON MODEL_AGENTS_DIR MODEL_LADDER_JSON MODEL_BUMP_LOG
 }
 
 _agent_input() {
-  local model="$1" subagent_type="${2:-naming-review}"
-  jq -nc \
-    --arg model "$model" \
-    --arg subagent_type "$subagent_type" \
-    --arg cwd "$BATS_TMPDIR_CASE" \
-    '{
-      tool_name: "Agent",
-      cwd: $cwd,
-      tool_input: {
-        model: $model,
-        subagent_type: $subagent_type,
-        description: "test",
-        prompt: "test"
-      }
-    }'
+  local subagent_type="${1:-high-agent}"
+  jq -nc --arg s "$subagent_type" \
+    '{tool_name:"Agent", tool_input:{subagent_type:$s, description:"test", prompt:"test"}}'
 }
 
 # --------------------------------------------------------------------------
-# Contract shape — the bump envelope
+# Contract shape — the rewrite envelope
 # --------------------------------------------------------------------------
 
-@test "contract: bump envelope's only top-level key is hookSpecificOutput" {
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "haiku": "sonnet" } }
-EOF
-  run bash -c "echo '$(_agent_input haiku)' | bash '$HOOK'"
+@test "contract: rewrite envelope's only top-level key is hookSpecificOutput" {
+  run bash -c "echo '$(_agent_input)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   local keys
   keys=$(echo "$output" | jq -rc 'keys')
   [ "$keys" = '["hookSpecificOutput"]' ]
 }
 
-@test "contract: hookSpecificOutput carries exactly hookEventName + updatedInput on a bump" {
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "haiku": "sonnet" } }
-EOF
-  run bash -c "echo '$(_agent_input haiku)' | bash '$HOOK'"
+@test "contract: hookSpecificOutput carries exactly hookEventName + updatedInput on a rewrite" {
+  run bash -c "echo '$(_agent_input)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   local keys
   keys=$(echo "$output" | jq -rc '.hookSpecificOutput | keys')
@@ -79,69 +68,36 @@ EOF
   [ "$(echo "$output" | jq -r '.hookSpecificOutput.hookEventName')" = "PreToolUse" ]
 }
 
-@test "contract: updatedInput preserves the tool_input key-set exactly (only model value changes)" {
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "haiku": "sonnet" } }
-EOF
+@test "contract: updatedInput preserves every tool_input field and sets model" {
   local input
-  input=$(_agent_input haiku)
+  input=$(_agent_input)
   run bash -c "echo '$input' | bash '$HOOK'"
   [ "$status" -eq 0 ]
-  # Key-set of updatedInput must equal key-set of the original tool_input —
-  # no fields dropped, none invented.
-  local in_keys out_keys
-  in_keys=$(echo "$input" | jq -rc '.tool_input | keys')
-  out_keys=$(echo "$output" | jq -rc '.hookSpecificOutput.updatedInput | keys')
-  [ "$in_keys" = "$out_keys" ]
-  # Every non-model field is byte-identical; only model is rewritten.
-  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-sonnet-4-6" ]
+  # The resolved model is set.
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opus-4-8" ]
+  # Every non-model field of the original tool_input is byte-identical.
   local non_model_in non_model_out
   non_model_in=$(echo "$input" | jq -Sc '.tool_input | del(.model)')
   non_model_out=$(echo "$output" | jq -Sc '.hookSpecificOutput.updatedInput | del(.model)')
   [ "$non_model_in" = "$non_model_out" ]
-}
-
-@test "contract: 3-hop alias chain haiku->sonnet->opus resolves to the opus snapshot" {
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "haiku": "sonnet", "sonnet": "opus" } }
-EOF
-  run bash -c "echo '$(_agent_input haiku)' | bash '$HOOK'"
-  [ "$status" -eq 0 ]
-  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opus-4-8" ]
+  # updatedInput = original keys ∪ {model}.
+  local out_keys
+  out_keys=$(echo "$output" | jq -rc '.hookSpecificOutput.updatedInput | keys')
+  [ "$out_keys" = '["description","model","prompt","subagent_type"]' ]
 }
 
 # --------------------------------------------------------------------------
-# Contract shape — the deny envelope (unresolvable states MUST deny)
+# Harness-change tripwire: every output is one of the two sanctioned shapes
+# (rewrite-with-updatedInput / pass-through {}); never a deny.
 # --------------------------------------------------------------------------
 
-@test "contract: deny envelope carries exactly the three deny keys" {
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "opus": "unavailable" } }
-EOF
-  run bash -c "echo '$(_agent_input opus security-review)' | bash '$HOOK'"
-  [ "$status" -eq 0 ]
-  local keys
-  keys=$(echo "$output" | jq -rc '.hookSpecificOutput | keys')
-  [ "$keys" = '["hookEventName","permissionDecision","permissionDecisionReason"]' ]
-  [ "$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')" = "deny" ]
-}
-
-# --------------------------------------------------------------------------
-# Harness-change tripwire: if the emitted envelope ever stops being one of
-# the three sanctioned shapes (bump / pass-through {} / deny), fail loudly.
-# --------------------------------------------------------------------------
-
-@test "contract: every output is one of {bump-with-updatedInput, '{}', deny}" {
-  # Pass-through case.
-  run bash -c "echo '$(_agent_input haiku)' | bash '$HOOK'"
-  [ "$output" = "{}" ]
-
-  # Bump case carries updatedInput, never permissionDecision.
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "haiku": "sonnet" } }
-EOF
-  run bash -c "echo '$(_agent_input haiku)' | bash '$HOOK'"
+@test "contract: rewrite case carries updatedInput, never permissionDecision" {
+  run bash -c "echo '$(_agent_input)' | bash '$HOOK'"
   echo "$output" | jq -e '.hookSpecificOutput.updatedInput' >/dev/null
-  run bash -c "echo '$(_agent_input haiku)' | bash '$HOOK'"
   echo "$output" | jq -e 'has("hookSpecificOutput") and (.hookSpecificOutput | has("permissionDecision") | not)' >/dev/null
+}
+
+@test "contract: unknown agent with no model yields exactly {}" {
+  run bash -c "echo '$(_agent_input does-not-exist)' | bash '$HOOK'"
+  [ "$output" = "{}" ]
 }
