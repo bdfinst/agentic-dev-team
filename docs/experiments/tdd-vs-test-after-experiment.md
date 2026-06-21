@@ -162,12 +162,67 @@ the model id in the writeup.
 - **Grader gaming** → grading is deterministic and model-free (exit codes), so no
   judge bias; coverage/mutation targets are identical across arms.
 
-## 10. Deliverables
+## 10. Isolation — no cross-run context corruption
 
-1. New integration fixtures under `evals/fixtures/exp-tdd-*/` (spec + withheld
-   change + golden repo + test commands).
-2. A `--arm` parameter (or second grader genre) on the integration run script,
-   plus a small transcript parser that emits `rework_cycles` into the
-   `performance-metrics` JSONL schema.
-3. A results notebook/report aggregating cost-meter, coverage, mutation, and
-   rework per arm with the §7 decision applied.
+Three layers can leak; all three must be isolated. Worktree isolation alone is
+not enough. The runner (`scripts/run_tdd_experiment.py`) enforces this per cell
+(`task × arm × trial × stage`):
+
+- **Filesystem** — each cell gets its own ephemeral git worktree (reused from the
+  integration harness) **and** its own scratch `$HOME` / `CLAUDE_CONFIG_DIR` /
+  `metrics/` / `memory/`. The cost-meter appends to
+  `<root>/metrics/cost-metering.jsonl`; a private root means the session total
+  *is* that cell's cost and parallel cells can't interleave-corrupt the JSONL.
+- **Context window** — a cell is a **fresh `claude -p` dispatch**, never a session
+  resume, so no reasoning carries across cells. **Stage 2 is dispatched as a new
+  session seeded with the Stage-1 _files only_** — it sees the code but none of
+  the build's reasoning, so changeability is measured, not memory.
+- **Concurrency** — because every cell owns its worktree + `$HOME`, cells are safe
+  to parallelize; within a cell, Stage 1 → Stage 2 run sequentially. For maximum
+  independence, dispatch cells in separate containers.
+
+**Contamination checks (verify isolation held).** Each row carries a
+`contamination[]` field. A run is flagged/excluded if: a context **summarization**
+fired (window filled → confound), or the private cost meter shows an unexpected
+session count (state bled in). The Farley **First** property plus presence/absence
+of test files at Stage-1-impl-complete is the **manipulation check** that each arm
+actually followed its protocol.
+
+## 11. Statistical validity — large enough, run enough
+
+Two independent knobs:
+
+- **Task size** (so the arms can diverge): ≥ 5–8 acceptance scenarios; a Stage-2
+  change that **modifies** existing behavior (not just appends); small enough to
+  finish in one context window (~1–3 dev-hours) so summarization never fires. Too
+  small → no room for rework/changeability to differ; too big → summarization
+  confound.
+- **Trial count** (so model stochasticity is seen through): driven by a **pilot**,
+  not a guess.
+  1. **Pilot:** 1–2 tasks × ~10 trials/arm; measure the coefficient of variation
+     (token cost is heavy-tailed) and the per-task paired effect size.
+  2. **Power calc:** SE of a cell median ≈ sd/√n — halving the CI costs 4× trials;
+     set N so the CI is well inside the pilot's effect (typically 5–10).
+  3. **Unit of inference = the task.** Per task, take the median of N trials per
+     arm, form the paired difference, then test **across tasks** (Wilcoxon
+     signed-rank needs ≥ ~6 tasks; below that report effect sizes + bootstrap CIs,
+     not a p-value). Trials estimate the cell; tasks give the verdict.
+  4. **Pre-register** corpus, N, and stopping rule before collecting — no
+     peek-and-add-trials until significant.
+
+Defensible scale: **~8 tasks × 2 arms × 2 stages × ~6 trials ≈ 190 sessions**,
+reported per-task (so one easy task can't swing the aggregate) plus the
+across-task paired test.
+
+## 12. Deliverables
+
+1. **Scaffolded** — `scripts/run_tdd_experiment.py`: per-cell worktree + `$HOME`
+   isolation, the two-stage protocol, `--arm`/`--trials` loops, best-effort
+   rework parsing, and contamination checks. Self-tests with `--skip-dispatch`.
+2. **Scaffolded** — experiment fixture layout under `evals/experiments/`
+   (template + README + a minimal worked example exercising the plumbing).
+3. **Next** — author the real sized-task corpus (golden repos + `spec.md` +
+   withheld `change.md`) per §8/§11, run the pilot to set N, then the full
+   campaign.
+4. **Next** — a results report aggregating cost-meter, coverage, mutation, and
+   rework **per task per arm** with the §7 decision rule applied.

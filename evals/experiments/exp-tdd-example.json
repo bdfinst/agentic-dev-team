@@ -1,0 +1,10 @@
+{
+  "description": "Minimal worked example exercising the two-stage isolation plumbing. Not a real corpus task — replace with sized tasks per the README.",
+  "experiment": {
+    "goldenRepo": "golden-repo.tar.gz",
+    "spec": "spec.md",
+    "change": "change.md",
+    "testCommands": ["python3 test_feature.py"],
+    "changeTestCommands": ["python3 test_feature.py", "python3 test_change.py"]
+  }
+}
