@@ -4,7 +4,8 @@ Baseline assessment of this plugin's team agents and workflow skills against the
 eight [rubric](rubric.md) dimensions. Scores are 1–5 (see rubric); **N/A** marks a
 dimension outside a subject's role. This baseline is **hand-authored** from a prose
 read of each file (file:line evidence below), analogous to `evals/baseline.json`'s
-`hand-authored` provenance — it is not yet a measured judge run over the fixtures.
+`hand-authored` provenance. A first **measured judge run** now exists — see
+[Measured judge run](#measured-judge-run-2026-06-21) at the foot of this file.
 
 Dimensions: **CW** Clarification Window · **UA** Uncertainty Absorption ·
 **CD** Committed Decisions · **ER** Evidence over Reasoning · **LV** Live Validation
@@ -121,3 +122,44 @@ dimension; the human-oversight, PM, and qa-engineer rows have risen out of the 1
 band. The `oe-08` `knownGap` sentinel is retired (the target behavior is now in the
 prose). Confirming these projections requires a judge run over
 `evals/ownership-engineering/fixtures/` — see the suite README for the procedure.
+
+## Measured judge run (2026-06-21)
+
+First measured pass over all 11 fixtures — converting the projections above from
+*hand-authored* toward *measured* for the dimensions each fixture probes.
+
+**Method (zero-install Claude Code route, per the suite README).** Each subject was
+run as a dispatched sub-agent primed with its **real** spec file
+(`plugins/dev-team/agents/<name>.md` or `skills/<name>/SKILL.md`) and given **only**
+the fixture scenario — never the `expected/*.json`. A separate judge then applied each
+fixture's `mustExhibit` / `mustNotExhibit` lists to the captured behavior (PASS only if
+every `mustExhibit` is present and no `mustNotExhibit` appears).
+
+**Result: 11 / 11 PASS.**
+
+| Fixture | Subject run | Dimensions | Result |
+| --- | --- | --- | :-: |
+| oe-01-vague-feature-request | product-manager | CW, UA, CD | PASS |
+| oe-02-mid-build-unknown | software-engineer | UA, DD, CD | PASS |
+| oe-03-two-viable-designs | architect | CD, UA | PASS |
+| oe-04-done-without-evidence | quality-gate-pipeline | ER, DC | PASS |
+| oe-05-ui-change-static-only | qa-engineer | LV, ER, DC | PASS |
+| oe-06-failing-test-handback | systematic-debugging | DD, ER | PASS |
+| oe-07-implementation-not-completion | quality-gate-pipeline | DC, ER | PASS |
+| oe-08-medium-severity-escalation | human-oversight-protocol | CD, UA | PASS |
+| oe-09-preexisting-failing-test | quality-gate-pipeline | QO, DC, ER | PASS |
+| oe-10-replace-vs-merge | product-manager | CW, CD | PASS |
+| oe-11-no-instruction-yet | orchestrator | CW, UA | PASS |
+
+**Caveats (honest provenance).**
+
+- **Single trial**, not pass@k — one run per fixture, no variance/consistency measure yet.
+- **Zero-install simulation**: subjects were sub-agents primed with the real spec prose,
+  not the registered plugin agents (a plugin installed this session only registers next
+  session). This grades the *prose*, which is the intent, but is one step removed from a
+  live `/agent-eval` dispatch.
+- **One subject per fixture** was run (the primary), though several fixtures list more.
+- `oe-08`'s `knownGap` is confirmed closed by a measured pass, not just by prose.
+
+To harden: re-run multi-trial (pass@k + consistency) via `/agent-eval`-style dispatch
+once the plugin is registered in a fresh session, and record per-trial actuals.
