@@ -538,10 +538,10 @@ Per step. Summary: 4 complex (1.4, 1.5, 2.2, 3.1), 2 trivial (1.6, 2.3), the res
 
 #### Wave 2
 
-- [ ] Slice 2: SessionStart banner — capture session model, replace overrides-banner.sh
+- [x] Slice 2: SessionStart banner — capture session model, replace overrides-banner.sh
   - [x] Step 2.1: Replace overrides-banner.sh; capture + persist the session model
   - [x] Step 2.2: Render the banner incl. degenerate + absent-model cases
-  - [ ] Step 2.3: Gitignore the persisted session model
+  - [x] Step 2.3: Gitignore the persisted session model
 - [ ] Slice 4: Remove the `/v1/models` probe
   - [ ] Step 4.1: Delete the probe and all its tests
   - [ ] Step 4.2: Strip the probe step from init flows

@@ -12,6 +12,12 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
   [ "$status" -eq 0 ]
 }
 
+@test ".claude/session-model is gitignored" {
+  cd "$REPO_ROOT"
+  run git check-ignore .claude/session-model
+  [ "$status" -eq 0 ]
+}
+
 @test ".claude/metrics/model-routing.log is gitignored" {
   cd "$REPO_ROOT"
   run git check-ignore .claude/metrics/model-routing.log
