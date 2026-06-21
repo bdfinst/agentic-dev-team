@@ -1,6 +1,9 @@
 # Pilot Report: Test-First (TDD) vs. Test-After Workflow
 
-**Status:** Pilot complete — directional only, not statistically powered
+**Status:** Superseded by
+[`tdd-vs-test-after-campaign-report.md`](tdd-vs-test-after-campaign-report.md)
+(6-task campaign with test-quality sensors). Kept for history.
+**Original status:** Pilot complete — directional only, not statistically powered
 **Date:** 2026-06-21
 **Design:** [`tdd-vs-test-after-experiment.md`](tdd-vs-test-after-experiment.md)
 **Raw data:** [`data/tdd-pilot-2026-06-21.jsonl`](data/tdd-pilot-2026-06-21.jsonl)
