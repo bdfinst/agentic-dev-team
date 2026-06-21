@@ -559,7 +559,7 @@ Per step. Summary: 4 complex (1.4, 1.5, 2.2, 3.1), 2 trivial (1.6, 2.3), the res
 
 - [ ] Slice 6: Diagnostics + docs + spec reconcile
   - [x] Step 6.1: Update `/model-routing-check`
-  - [ ] Step 6.2: Reconcile docs + orchestrator + CLAUDE.md + spec
+  - [x] Step 6.2: Reconcile docs + orchestrator + CLAUDE.md + spec
   - [ ] Step 6.3: Author the model-routing override guide + README TOC entry
 
 ### Acceptance Criteria

@@ -18,10 +18,10 @@ Two coupled limitations in today's model routing:
    path that says "this model isn't here — use the model the user is already
    running this session."
 
-The probe (`hooks/lib/model-probe.sh`) was the prior answer to (2): query
-`/v1/models` and pre-write a `tier_aliases` override. It only works on
-Anthropic-shape endpoints, adds a network dependency, and still resolves to a
-fixed tier rather than the session's actual model.
+A network model-availability probe was the prior answer to (2): query the
+provider's model list and pre-write a tier override. It only worked on
+Anthropic-shape endpoints, added a network dependency, and still resolved to a
+fixed tier rather than the session's actual model. It is removed in this change.
 
 ### The abstraction is already half-leaked (and inconsistent)
 
@@ -37,19 +37,19 @@ itself — a clean rename fixes this rather than introducing it:
   The resolver rejects `mid`; the PreToolUse hook fail-opens, so that agent
   dispatches the literal string `"mid"` as a model ID. **This is a latent bug
   today** — a direct symptom of the half-leaked abstraction. The clean rename
-  to `complexity:` bands resolves it as a side effect.
+  to `effort:` bands resolves it as a side effect.
 
 ## Decision summary
 
 | Decision | Choice |
 | --- | --- |
-| Agent frontmatter | Relative **complexity band** (`low \| medium \| high`), not a vendor tier |
-| Availability source | A **hand-written ladder** (`.claude/model-ladder.json`). No probe. If absent, routing is a no-op. |
+| Agent frontmatter | Relative **effort band** (`low \| medium \| high`), not a vendor tier |
+| Availability source | The **shipped default map** (`knowledge/model-routing.json`) by default; a **hand-written ladder** (`.claude/model-ladder.json`) overrides it when present. No probe. If the ladder is absent, the default map resolves (zero-config = today's mapping). |
 | Session model role | **Fallback** when a target isn't resolvable, and the **reference** for upgrade flags. **Not a ceiling.** |
 | Agent above session model | **Allowed.** A `high` agent runs on opus even when the session started on sonnet. |
 | User communication | **SessionStart banner only.** Enumerates the full band→model table and flags upgrades. Per-dispatch bumps are silent but logged. |
-| Vocabulary | **`low \| medium \| high`** — task-complexity framing ("this task is simple"), not model-capability framing ("this model is small"). The agent describes *its own need*, decoupled from any model. |
-| Migration | **Clean rename of everything we ship** to `complexity:` bands, with the resolver accepting legacy tier names for **one deprecation release** (warned by `/agent-audit`, not silent), then removed at the next major. Breaking for downstream agent authors → `feat!` / major bump + migration note. |
+| Vocabulary | **`low \| medium \| high`** — task-effort framing ("this task needs little reasoning"), not model-capability framing ("this model is small"). The agent describes *its own need*, decoupled from any model. |
+| Migration | **Clean rename of everything we ship** to `effort:` bands, with the resolver accepting legacy tier names for **one deprecation release** (warned by `/agent-audit`, not silent), then removed at the next major. Breaking for downstream agent authors → `feat!` / major bump + migration note. |
 
 ## The model ladder
 
@@ -58,14 +58,16 @@ this environment, cheapest → most capable:
 
 ```json
 // .claude/model-ladder.json   (per-environment, gitignored)
-{ "ladder": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-8"] }
+["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-8"]
 ```
 
-- This file is the **single source of truth for what is available.** It replaces
-  `.claude/model-overrides.json` and the probe.
-- **If the file is absent, the resolver is a no-op** — every agent dispatches on
-  the harness default (the session model). No network call, no remapping. This
-  is the "no list → no probe" case.
+- When present, this file is the **single source of truth for what is
+  available** — no network probe and no per-user override cache.
+- **If the file is absent, the resolver uses the shipped default map** in
+  `knowledge/model-routing.json` (`low→haiku, medium→sonnet, high→opus`) — the
+  identical mapping to before the rename. No network call, no remapping, and
+  **not** the session model. The session model is only a fallback for an
+  explicit out-of-ladder snapshot (below).
 - Works for any provider (Bedrock, Vertex, proxies): the user lists whatever
   model IDs their environment serves, in capability order.
 
@@ -109,16 +111,18 @@ available; the session pick is just a default for the main loop, not a cap.
 
 ### The session-model fallback
 
-Because complexity bands only ever resolve to ladder members, a band can never
+Because effort bands only ever resolve to a ladder member (when a ladder is
+present) or a shipped-default snapshot (when it is not), a band can never
 request a nonexistent model — the original "use the session model if the
 requested model doesn't exist" requirement is satisfied **structurally**.
 
-The explicit fallback to the session model fires only for:
+The explicit fallback to the session model fires only for one case:
 
-- a legacy/explicit `model: <concrete-snapshot>` in frontmatter whose snapshot
-  is not in the ladder, or
-- no ladder file at all (in which case "fall back to the session model" is a
-  no-op — the harness already uses it).
+- a legacy/explicit `model: <concrete-snapshot>` whose snapshot is not in a
+  present ladder (the requested model is unavailable in this environment).
+
+It does **not** fire for the no-ladder case: with no ladder, a band resolves to
+the shipped default map, not the session model.
 
 ## Communication: the SessionStart banner
 
@@ -146,20 +150,22 @@ carries it. The SessionStart hook persists it (e.g. `.claude/session-model`) so
 the PreToolUse resolver can read it at dispatch time.
 
 > The SessionStart `model` field can be absent after `/clear`, resume, or
-> compact. When absent, reuse the last persisted value; if none, skip the banner
-> and treat routing as no-op for the session.
+> compact. When absent, reuse the last persisted value; if none, emit a one-line
+> note that the session model is unknown (so upgrade flags and the session
+> fallback are unavailable this session) — effort routing still applies via the
+> default map/ladder.
 
 ## Components touched
 
 | Component | Change |
 | --- | --- |
-| `agents/*.md` (33) | `model: <tier>` → `complexity: <band>` (all at once; fixes `model: mid` in `test-modernization-review.md`) |
+| `agents/*.md` (33) | `model: <tier>` → `effort: <band>` (all at once; fixes `model: mid` in `test-modernization-review.md`) |
 | `templates/agents/*` (10) | same swap in the scaffolds |
 | `agents/orchestrator.md` | Resolution Procedure rewritten around bands + ladder |
 | `hooks/lib/model-resolve.sh` | band → ladder-position resolution; drop `tier_aliases` cascade; **accept legacy `haiku/sonnet/opus` for one deprecation release**, then remove |
-| `hooks/agent-model-resolve.sh` | unchanged contract (rewrite `updatedInput` / pass-through); reads session-model fallback |
-| `hooks/<sessionstart>.sh` | new/extended: capture session model, render banner via `systemMessage`, persist model |
-| `hooks/lib/model-probe.sh` | **deleted** |
+| `hooks/agent-model-resolve.sh` | resolves effort by `subagent_type`; always rewrites `updatedInput.model`; session-model fallback; fail-open (no deny branch) |
+| `hooks/session-model-banner.sh` | the single SessionStart hook: capture + persist session model, render the band→model banner on stderr |
+| network model-availability probe | removed; availability comes from the ladder |
 | `skills/agent-create`, `skills/agent-add`, `skills/agent-audit` | replace `small/mid/frontier` and `haiku/sonnet/opus` with `low/medium/high`; enforce the band list |
 | `skills/init-dev-team/SKILL.md` + Linux script | remove the probe step (Step 4.5) |
 | `skills/model-routing-check/SKILL.md` | show ladder, band→model table, session model, recent bumps |
@@ -181,7 +187,7 @@ the PreToolUse resolver can read it at dispatch time.
 
 | Release | Resolver accepts | Agents/templates ship | `/agent-audit` on legacy |
 | --- | --- | --- | --- |
-| N (this change, `feat!`) | `low/medium/high` **+** `haiku/sonnet/opus` | `low/medium/high` | warns: "legacy tier name; migrate to complexity band" |
+| N (this change, `feat!`) | `low/medium/high` **+** `haiku/sonnet/opus` | `low/medium/high` | warns: "legacy tier name; migrate to effort band" |
 | N+1 (next major) | `low/medium/high` only | `low/medium/high` | errors |
 
 Legacy acceptance maps `haiku→low`, `sonnet→medium`, `opus→high` at resolve

@@ -1,12 +1,16 @@
 # Model Routing
 
-Environment-aware tier-to-snapshot resolution for the dev-team plugin.
-Same code works on a personal Anthropic API key, a corporate proxy with a
-restricted model allowlist, and Bedrock or Vertex deployments — with zero
-environment-specific config in the repo.
+Effort-band → model resolution for the dev-team plugin. An agent declares the
+reasoning **effort** its task needs (`effort: low|medium|high`); the plugin
+maps that band to a concrete model at dispatch. The same code works on a
+personal Anthropic API key, a corporate proxy with a restricted model
+allowlist, and Bedrock or Vertex deployments — with zero environment-specific
+config in the repo.
 
 For the design rationale see
-[ADR 0004 — Pre-dispatch model tier resolution enforced by a PreToolUse hook](../../../docs/adr/0004-pre-dispatch-model-resolution.md).
+[ADR 0008 — Use effort bands instead of model names in agent frontmatter](../../../docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md),
+which amends [ADR 0004 — Pre-dispatch model resolution enforced by a PreToolUse hook](../../../docs/adr/0004-pre-dispatch-model-resolution.md).
+For operator-facing ladder authoring, see [model-routing-overrides.md](model-routing-overrides.md).
 
 ## Architecture at a glance
 
@@ -14,7 +18,7 @@ For the design rationale see
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e0f2fe', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#2563eb', 'clusterBkg': '#eff6ff', 'clusterBorder': '#bfdbfe', 'titleColor': '#1e3a5f', 'edgeLabelBackground': '#f8fafc'}}}%%
 flowchart LR
     subgraph caller[Caller layer]
-        AF[Agent frontmatter<br/>model: tier]
+        AF[Agent frontmatter<br/>effort: band]
     end
 
     subgraph harness[Claude Code harness]
@@ -27,31 +31,33 @@ flowchart LR
     end
 
     subgraph state[Routing state]
-        RJ[(knowledge/<br/>model-routing.json<br/>defaults, shipped)]
-        OV[(.claude/<br/>model-overrides.json<br/>per-user, gitignored)]
+        RJ[(knowledge/<br/>model-routing.json<br/>default map, shipped)]
+        LD[(.claude/<br/>model-ladder.json<br/>per-env, gitignored)]
+        SM[(.claude/<br/>session-model<br/>captured, gitignored)]
         BL[(.claude/metrics/<br/>model-routing.log<br/>bump events, JSONL)]
     end
 
     subgraph diag[Diagnostics]
         MRC["/model-routing-check"]
-        SB["hooks/overrides-banner.sh<br/>SessionStart"]
-        PR["hooks/lib/model-probe.sh<br/>via /init-dev-team"]
+        SB["hooks/session-model-banner.sh<br/>SessionStart"]
     end
 
     AF --> AT
     AT -.intercepted by.-> HK
     HK --> RS
     RS --> RJ
-    RS --> OV
-    RS -- bump --> BL
-    HK -- updatedInput<br/>or deny --> AT
+    RS --> LD
+    HK -. session fallback .-> SM
+    HK -- bump --> BL
+    HK -- updatedInput --> AT
     MRC --> RS
     MRC -. tail .-> BL
-    SB -. read .-> OV
-    PR -- write --> OV
+    SB -- write --> SM
 ```
 
-The hook is the only file the harness touches at dispatch time. Everything else is either input (routing.json, overrides.json), output (bump log), or read-only diagnostics.
+The hook is the only file the harness touches at dispatch time. Everything
+else is either input (routing.json, ladder), context (session-model), output
+(bump log), or read-only diagnostics.
 
 ## Dispatch flow
 
@@ -62,241 +68,163 @@ sequenceDiagram
     participant LLM as Orchestrator LLM
     participant H as PreToolUse hook
     participant R as model-resolve.sh
-    participant FS as routing.json + overrides
+    participant FS as routing.json + ladder
     participant Log as bump log
     participant CC as Claude Code harness
 
-    LLM->>CC: Agent(model: haiku, subagent_type: x)
+    LLM->>CC: Agent(subagent_type: x)
     CC->>H: stdin: tool_input
-    H->>R: model-resolve.sh haiku --caller x
-    R->>FS: read routing.json
-    R->>FS: read overrides.json (if present)
-    alt clean install (no overrides)
-        R-->>H: stdout: claude-haiku-4-5-...
-        H-->>CC: {} (pass-through)
-        CC->>CC: dispatch with original model
-    else override applies, resolves to a snapshot
-        R->>Log: append JSONL bump event
-        R-->>H: stdout: claude-sonnet-4-6
-        H-->>CC: hookSpecificOutput.updatedInput<br/>model=claude-sonnet-4-6
-        CC->>CC: dispatch with rewritten model
-    else exhausted / cycle / missing routing / malformed
-        R-->>H: stderr + exit 3/4/5
-        H-->>CC: hookSpecificOutput.permissionDecision=deny<br/>reason=resolver stderr
-        CC->>LLM: deny + reason
+    H->>H: read effort band from agents/x.md
+    H->>R: model-resolve.sh <band>
+    R->>FS: read routing.json (+ ladder if present)
+    alt no ladder (default map)
+        R-->>H: stdout: default snapshot for the band
+        H-->>CC: updatedInput.model = snapshot (no bump logged)
+    else ladder maps the band to a non-default model
+        R-->>H: stdout: ladder model
+        H->>Log: append JSONL bump event
+        H-->>CC: updatedInput.model = ladder model
+    else explicit out-of-ladder snapshot
+        H->>Log: append session-fallback event
+        H-->>CC: updatedInput.model = session model
     end
+    CC->>CC: dispatch with the resolved model
 ```
 
-The deny branch is the only path that surfaces to the LLM — pass-through and bump are invisible to the calling agent (bump is logged to disk for `/model-routing-check`).
+There is no deny branch. The hook **always** rewrites `tool_input.model` for
+an effort-bearing agent (migrated agents carry no `model:` of their own) and
+**fails open** (pass-through) on any error — a missing routing.json or an
+unreadable agent file never blocks dispatch. Per-dispatch resolution is
+silent; bumps are logged to disk for `/model-routing-check`.
 
 ## Contract
 
-Each agent's `model:` frontmatter declares a tier alias: `haiku`, `sonnet`, or
-`opus`. The PreToolUse hook `hooks/agent-model-resolve.sh`, registered in
-`settings.json` under `matcher: "Agent"`, intercepts every sub-agent dispatch
-and resolves the tier to a concrete Anthropic snapshot ID before the harness
-sees the call.
+Each agent declares `effort: low|medium|high` in its YAML frontmatter. The
+PreToolUse hook `hooks/agent-model-resolve.sh`, registered in `settings.json`
+under `matcher: "Agent"`, intercepts every sub-agent dispatch, strips any
+`<plugin>:` prefix from `subagent_type`, reads the agent's effort band, and
+resolves it to a concrete model before the harness sees the call.
 
 Resolution inputs:
 
-- `knowledge/model-routing.json` (shipped with the plugin): the single source
-  of truth for default tier → snapshot mappings.
-- `.claude/model-overrides.json` (per-user, gitignored): optional alias map
-  populated by the opt-in `/init-dev-team` probe or hand-written for
-  restricted endpoints.
+- `knowledge/model-routing.json` (shipped): the band → snapshot **default
+  map** (`low/medium/high`) plus legacy `haiku/sonnet/opus` keys retained for
+  the deprecation window, and the pinned ladder `rounding` convention. The
+  default map equals the pre-migration tier mapping, so zero-config behavior
+  is unchanged.
+- `.claude/model-ladder.json` (per-environment, gitignored): an optional,
+  capability-ascending JSON array of the models that environment has. When
+  present and valid it **overrides** the default map.
+- `.claude/session-model` (captured at session start, gitignored): the model
+  the session began on. Used as the fallback when a requested explicit
+  snapshot is unavailable, and as the reference for the SessionStart banner's
+  upgrade flags. Never a ceiling.
 
-The bump log `.claude/metrics/model-routing.log` records one JSONL event per
-resolver invocation where the resolved tier differs from the requested one.
-The diagnostic command `/model-routing-check` prints the effective state and
-recent bumps; it is read-only.
+### Resolution precedence
 
-Exit-code taxonomy on the resolver helper `hooks/lib/model-resolve.sh`:
+1. **Valid ladder** → `index = round_half_up(weight·(N−1))` with weights
+   `low=0`, `medium=0.5`, `high=1`, indexing into the ladder array.
+2. **Shipped default map** → `routing.json[band]` (used when there is no
+   ladder, or the ladder is malformed/empty — a bad ladder never aborts
+   dispatch).
+3. **Session-model fallback** → only for an explicit snapshot a present ladder
+   does not contain (the requested model is unavailable in this environment).
+
+Worked examples (`round_half_up`, so N=4 medium lands on index 2):
+
+| Ladder | low | medium | high |
+| --- | --- | --- | --- |
+| `[haiku, sonnet, opus]` (N=3) | haiku | sonnet | opus |
+| `[sonnet, opus]` (N=2) | sonnet | opus | opus |
+| `[sonnet]` (N=1) | sonnet | sonnet | sonnet |
+| `[haiku, sonnet, opus, ultra]` (N=4) | haiku | opus | ultra |
+
+The N=3 case reproduces today's haiku/sonnet/opus mapping exactly.
+
+### Exit-code taxonomy
+
+The resolver helper `hooks/lib/model-resolve.sh`:
 
 | Code | Meaning |
 | ---- | ------- |
 | 0    | Resolved successfully |
-| 2    | Unknown tier or missing argument |
-| 3    | Exhausted alias chain or cycle detected |
+| 2    | Unknown band/tier or missing argument (caller error) |
 | 4    | `knowledge/model-routing.json` missing |
-| 5    | Override file is not valid JSON |
 
-The PreToolUse hook maps codes 3, 4, and 5 to `permissionDecision: "deny"`
-with `permissionDecisionReason` containing the resolver's stderr.
+The legacy deny-relevant codes (3 exhausted/cycle, 5 malformed overrides) are
+no longer reachable: a band always resolves once routing.json is present, and a
+bad ladder degrades to the default map. The hook maps any non-zero resolver
+exit to **pass-through** (fail-open), never deny.
 
-## When the fallback fires
+## Legacy tier acceptance (deprecation window)
 
-The fallback fires in three observable ways.
+An agent that still declares a legacy `model: haiku|sonnet|opus` (or passes one
+as `tool_input.model`) resolves tier → band (`haiku→low`, `sonnet→medium`,
+`opus→high`) for this release and is logged with `reason=legacy-tier`.
+`/agent-audit` warns on the deprecated tier and names the band to use. This
+release **warns, never errors**; the next major removes legacy acceptance.
 
-**Silent bump.** When `.claude/model-overrides.json` maps a tier to another
-tier (for example, `{"tier_aliases": {"haiku": "sonnet"}}`), the resolver
-walks the alias chain and serves the substituted snapshot. The original
-dispatch sees a rewritten `tool_input.model`; the bump log records the
-event with the originally-requested tier and the final served tier.
+## The bump log
 
-**Refused dispatch.** When the cascade terminates at the sentinel
-`"unavailable"` or detects a cycle, the resolver exits 3 and the hook emits
-`permissionDecision: "deny"`. The dispatch never reaches the harness; the
-calling agent sees a deny reason explaining the routing state.
-
-**Probe-time override write.** The opt-in `/init-dev-team` probe queries
-`$ANTHROPIC_BASE_URL/v1/models`. If a default tier's snapshot is missing
-from the response, the probe writes `.claude/model-overrides.json` so all
-future dispatches transparently route around the missing tier.
-
-## Interpreting the override file
-
-The schema:
+`.claude/metrics/model-routing.log` records one JSONL event per dispatch where
+the resolved model differs from the band's shipped default (a ladder override,
+upgrade, or downgrade), always for a legacy-tier dispatch, and for a
+session-model fallback. A resolution equal to the default rewrites the model
+but logs nothing. Schema:
 
 ```json
-{
-  "tier_aliases":     { "haiku": "sonnet" },
-  "generated_at":     "2026-06-01T12:00:00Z",
-  "available_models": ["claude-sonnet-4-6", "claude-opus-4-8"],
-  "reason":           "haiku snapshot not in /v1/models response"
-}
+{"ts": "2026-06-21T12:00:00Z", "band": "high", "served": "claude-sonnet-4-6", "reason": "effort", "caller": "security-review", "session": "claude-opus-4-8"}
 ```
 
-`tier_aliases` is the only field the resolver reads. The other fields are
-metadata: `generated_at` is an ISO-8601 timestamp set by the probe;
-`available_models` is the verbatim `data[].id` list returned by the probe
-endpoint; `reason` is a human-readable summary of why the alias was added.
+`/model-routing-check` tails this log (read-only). `reason` is one of
+`effort` (ladder bump), `legacy-tier`, or `session-fallback`.
 
-Sentinel values for `tier_aliases` targets:
+## Authoring a ladder (restricted endpoints)
 
-- Another tier name (`"haiku"`, `"sonnet"`, `"opus"`) — chains to that tier.
-- The literal string `"unavailable"` — refuses dispatch when reached.
-- Any other value — treated as `"unavailable"` (refuses dispatch).
-
-The resolver follows alias chains up to 3 hops (haiku → sonnet → opus is the
-longest legitimate chain). Cycles are detected and reported via exit 3.
-
-To revert: delete the file. Default routing resumes immediately.
-
-## Adding a new tier
-
-When Anthropic ships a new tier (for example, a hypothetical `nano`):
-
-1. Add the key to `knowledge/model-routing.json`:
-
-   ```json
-   { "haiku": "...", "sonnet": "...", "opus": "...", "nano": "claude-nano-X-Y" }
-   ```
-
-2. Add the new alias to the `_is_valid_tier` allowlist in
-   `hooks/lib/model-resolve.sh` and update the cascade order in `_MAX_HOPS`
-   commentary if the new tier sits below `haiku`.
-
-3. Update the agent frontmatter conventions in
-   `agents/orchestrator.md` § Tier guidance.
-
-4. Bump the bats fixtures in `tests/knowledge/model_routing_defaults.bats`
-   and `tests/hooks/model_resolve_tests.bats`.
-
-5. Document the new tier in this file (§ Contract).
-
-Removing a tier follows the inverse procedure.
-
-## Troubleshooting: Bedrock
-
-AWS Bedrock exposes Claude models under a different API shape than
-`api.anthropic.com`. The probe in `/init-dev-team` recognises Bedrock hosts
-(`*.amazonaws.com`) by hostname and skips the `/v1/models` request — the
-shape would not match anyway.
-
-For Bedrock users:
-
-- The resolver still enforces tier → snapshot resolution; it just relies on
-  the default `knowledge/model-routing.json` mappings rather than a probe
-  result.
-- If the default snapshot IDs are not available in your Bedrock deployment,
-  hand-write `.claude/model-overrides.json` (see § Hand-writing the override
-  file).
-- `/model-routing-check` shows the probe applicability line as
-  `non-Anthropic endpoint (probe skipped)`.
-
-## Troubleshooting: Vertex
-
-Google Cloud Vertex AI exposes Claude models under
-`*.googleapis.com` hosts. The same gating logic applies: the probe is
-auto-skipped, and the resolver falls back to the defaults plus any
-hand-written overrides.
-
-For Vertex users, the workflow is identical to Bedrock — hand-write the
-override file if a default tier's snapshot is not available.
-
-## Troubleshooting: corporate proxy
-
-Corporate proxies typically present as `https://proxy.example.com` (or a
-private IP). The probe's auto-skip allowlist matches `api.anthropic.com` and
-`*.anthropic.com`; any other host is treated as non-Anthropic and the probe
-is skipped.
-
-Two sub-cases.
-
-**Proxy speaks the Anthropic API shape.** Some corporate proxies forward to
-Anthropic and return the same `/v1/models` shape. Force the probe to run by
-setting `MODEL_PROBE_FORCE=1` before running `/init-dev-team`:
-
-```bash
-MODEL_PROBE_FORCE=1 ANTHROPIC_BASE_URL=https://proxy.corp.example.com claude /init-dev-team
-```
-
-The probe writes `.claude/model-overrides.json` with the available-model
-diff just like on `api.anthropic.com`.
-
-**Proxy speaks a different shape (Bedrock-style, etc.).** Hand-write the
-override file (next section).
-
-If the probe fails (timeout, 5xx, malformed JSON), `/init-dev-team` exit
-status is unaffected — the resolver still works with whatever defaults or
-hand-written overrides are in place. The probe is a convenience, not a gate.
-
-## Hand-writing the override file
-
-Create `.claude/model-overrides.json` with at minimum the `tier_aliases`
-field:
+When an environment (Bedrock, Vertex, a corporate proxy) offers only a subset
+of models, hand-write `.claude/model-ladder.json` as a capability-ascending
+array of the model IDs that environment has:
 
 ```json
-{
-  "tier_aliases": {
-    "haiku": "sonnet"
-  }
-}
+["claude-sonnet-4-6", "claude-opus-4-8"]
 ```
 
-Optional fields (`generated_at`, `available_models`, `reason`) are not read
-by the resolver — they exist only to make probe-generated files
-human-readable. You may include or omit them.
+With this ladder, `low` → sonnet, `medium`/`high` → opus. Verify with
+`/model-routing-check` — its "Effective band → model map" reflects the ladder,
+and when no ladder exists it prints a ready-to-edit starter seeded from the
+defaults. Delete the file to restore the shipped default map. There is no
+"disable" flag — absence of the ladder is the disabled state. For the full
+schema and more worked ladders, see
+[model-routing-overrides.md](model-routing-overrides.md).
 
-To verify the file is picked up:
+## Adding a new effort band
 
-1. Run `/model-routing-check`. The `Overrides:` section should show your
-   file's contents.
-2. Trigger any sub-agent dispatch. The bump log
-   (`.claude/metrics/model-routing.log`) should append a JSONL line.
+The three bands (`low/medium/high`) and their weights are the single source of
+truth. If a fourth band is ever warranted (e.g. a common 4+ model ladder), add
+it in lockstep:
 
-To restore default routing, delete the file. There is no "disable" flag —
-absence of the file is the disabled state.
+1. Extend `ALLOWED_BANDS` in `tests/agents/agent_effort_frontmatter_tests.bats`
+   and the weight table in `hooks/lib/model-resolve.sh` (`_band_weight`) and
+   `hooks/agent-model-resolve.sh` (`_normalize_band`).
+2. Add the band key to `knowledge/model-routing.json`.
+3. Update the band → model dump in `_dump_map`, this file, and the spec.
 
 ## Environment variables
 
 **User-facing**:
 
-- `ANTHROPIC_BASE_URL` — standard Claude Code variable. The probe checks
-  its host against the Anthropic-shape allowlist.
-- `MODEL_PROBE_TIMEOUT` — seconds before the probe gives up (default `5`).
-  Raise on slow networks.
+- `ANTHROPIC_BASE_URL` — standard Claude Code variable (Bedrock/Vertex/proxy
+  detection is no longer needed for routing; the ladder is endpoint-agnostic).
 - `MODEL_BUMP_TAIL` — how many bump events `/model-routing-check` prints
   (default `10`).
-- `MODEL_PROBE_FORCE` — set to `1` to bypass the host allowlist and force
-  the probe to run. For corporate-proxy users on Anthropic-shape proxies
-  outside `*.anthropic.com`.
 
 **Test-only injection seams** — do not set these in normal use:
 
-- `MODEL_ROUTING_JSON` — override the path to the shipped routing defaults.
-- `MODEL_OVERRIDES_JSON` — override the override-cache path.
-- `MODEL_BUMP_LOG` — override the bump-log path.
+- `MODEL_ROUTING_JSON` — path to the shipped routing defaults.
+- `MODEL_LADDER_JSON` — path to the per-environment ladder.
+- `SESSION_MODEL_FILE` — path to the captured session model.
+- `MODEL_BUMP_LOG` — path to the bump log.
+- `MODEL_AGENTS_DIR` — path to the agents directory the hook reads.
 
 These exist so bats tests can isolate filesystem state without touching the
 real `.claude/` directory. Setting them at runtime is not supported.

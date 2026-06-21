@@ -33,8 +33,8 @@ dispatch. The enforcement topology works. The **vocabulary** does not.
 3. **The fallback target was a fixed tier, not the user's actual session.** When
    a requested model is unavailable, the right fallback is the model the user is
    already running this session — not a hardcoded `haiku → sonnet → opus`
-   cascade, and not a network probe of `/v1/models` (which only works on
-   Anthropic-shape endpoints).
+   cascade, and not a network probe of the provider's model list (which only
+   worked on Anthropic-shape endpoints).
 
 What an agent actually wants to express is **how much reasoning effort its task
 needs** — a relative, vendor-neutral property of the task — and let the
@@ -54,13 +54,15 @@ band** in agent frontmatter.
   task's reasoning demand, not about any model.
 - A per-environment, capability-ordered **model ladder**
   (`.claude/model-ladder.json`, hand-written) maps effort bands to the concrete
-  models that exist in that environment. Absent a ladder, routing is a no-op and
-  agents run on the harness's session model.
+  models that exist in that environment. Absent a ladder, effort bands resolve
+  via the shipped default map in `knowledge/model-routing.json`
+  (`low→haiku, medium→sonnet, high→opus`) — the identical mapping to before the
+  rename, **not** the session model.
 - The model the user selected at session start is the fallback when an effort
   band cannot be mapped, and the reference point for flagging upgrades. It is
   **not** a ceiling: a `high` agent runs on the top of the ladder even when the
   session started lower, and the SessionStart banner announces that.
-- The opt-in `/v1/models` probe is removed; availability comes from the ladder.
+- The opt-in network model-availability probe is removed; availability comes from the ladder.
 - The resolver accepts the legacy `haiku/sonnet/opus` names for **one
   deprecation release** (mapped `haiku→low`, `sonnet→medium`, `opus→high`,
   warned by `/agent-audit`), then drops them at the next major. Everything the

@@ -36,25 +36,25 @@ You are the coordination center for this dev team: a neutral dispatcher who rout
 
 ## Resolution Procedure
 
-Each agent's `model:` frontmatter encodes the tier alias (`haiku`, `sonnet`, `opus`) appropriate for its task. Tier-to-snapshot resolution is **enforced by a PreToolUse hook** (`hooks/agent-model-resolve.sh`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper (`hooks/lib/model-resolve.sh`). The LLM cannot bypass it.
+Each agent declares an **effort band** (`effort: low|medium|high`) in its frontmatter — the reasoning effort its task needs, not a vendor model name. Band-to-model resolution is **enforced by a PreToolUse hook** (`hooks/agent-model-resolve.sh`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper (`hooks/lib/model-resolve.sh`). The LLM cannot bypass it.
 
-When the orchestrator (or any caller) spawns a subagent via the Agent tool with `model: <tier>`, the hook:
+When the orchestrator (or any caller) spawns a subagent via the Agent tool, the hook:
 
-1. Reads `knowledge/model-routing.json` — the single source of truth for tier → snapshot mapping.
-2. Reads `.claude/model-overrides.json` if present (per-user, gitignored, populated by the `/init-dev-team` probe or by hand for restricted endpoints).
-3. Walks the alias chain up to 3 hops along the `haiku → sonnet → opus` cascade. Each tier alias resolves to either another tier (bumped) or the literal `"unavailable"` sentinel (refusal).
-4. On any bump, rewrites `tool_input.model` via `hookSpecificOutput.updatedInput` and appends one JSONL event to `.claude/metrics/model-routing.log`.
-5. On exhaustion, cycle, missing routing.json, or malformed overrides, emits `permissionDecision: "deny"` with an actionable `permissionDecisionReason`. The dispatch never reaches the harness.
+1. Strips any `<plugin>:` prefix from `subagent_type` and reads the effort band from `agents/<name>.md` frontmatter.
+2. Resolves the band → model via `knowledge/model-routing.json` — the shipped **default map** (`low/medium/high → snapshot`) — or, when `.claude/model-ladder.json` is present and valid, via `index = round_half_up(weight·(N−1))` into that ladder (a malformed ladder degrades to the default map).
+3. **Always** rewrites `tool_input.model` via `hookSpecificOutput.updatedInput` (migrated agents carry no `model:` of their own). The session model is never a ceiling.
+4. Appends one JSONL event to `.claude/metrics/model-routing.log` only when the resolved model differs from the band's shipped default (a ladder bump), always for a legacy-tier dispatch, and for a session-model fallback.
+5. **Fails open** (pass-through) on any error — a missing routing.json or an unreadable agent file never blocks dispatch. There is no deny branch.
 
-For triage, run `/model-routing-check` — read-only diagnostic that prints the effective map, overrides, recent bumps, and probe applicability. See `docs/model-routing.md` for contract, fallback firing, hand-writing overrides, and Bedrock/Vertex/proxy troubleshooting. See [ADR 0004](../../../docs/adr/0004-pre-dispatch-model-resolution.md) for the design rationale (pre-dispatch vs. runtime retry; hook vs. orchestrator instruction).
+Legacy `model: haiku|sonnet|opus` agents still resolve (tier→band) for this deprecation release; `/agent-audit` warns. For triage, run `/model-routing-check` — read-only diagnostic that prints the effective band→model map, the ladder (or a starter), the session model, and recent bumps. See `docs/model-routing.md` for the contract and `docs/model-routing-overrides.md` for ladder authoring. See [ADR 0008](../../../docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md) (effort bands) and [ADR 0004](../../../docs/adr/0004-pre-dispatch-model-resolution.md) (pre-dispatch enforcement) for rationale.
 
-### Tier guidance (informational)
+### Effort-band guidance (informational)
 
-Each agent's `model:` frontmatter is the authoritative routing input. Below is the rationale by tier class, so new agents have a guide for which tier to declare:
+Each agent's `effort:` band is the authoritative routing input. Below is the rationale by band, so new agents have a guide for which band to declare:
 
-- `haiku` — lexical/structural pattern matching, checklist-style verification (naming-review, complexity-review, claude-setup-review, token-efficiency-review, a11y-review, svelte-review, js-fp-review, progress-guardian).
-- `sonnet` — semantic analysis with balanced cost/quality (spec-compliance-review, test-review, structure-review, concurrency-review, doc-review, refactor-opportunity-review, data-flow-tracer, performance-review, orchestrator, software-engineer, qa-engineer, tech-writer, platform-engineer, product-manager, ui-ux-designer, adr).
-- `opus` — cross-file reasoning, high-stakes decisions, design synthesis, threat modeling, broad reconnaissance (security-review, domain-review, arch-review, architect, security-engineer, codebase-recon).
+- `low` — lexical/structural pattern matching, checklist-style verification (naming-review, complexity-review, claude-setup-review, token-efficiency-review, a11y-review, svelte-review, js-fp-review, progress-guardian).
+- `medium` — semantic analysis with balanced cost/quality (spec-compliance-review, test-review, structure-review, concurrency-review, doc-review, refactor-opportunity-review, data-flow-tracer, performance-review, orchestrator, software-engineer, qa-engineer, tech-writer, platform-engineer, product-manager, ui-ux-designer, adr).
+- `high` — cross-file reasoning, high-stakes decisions, design synthesis, threat modeling, broad reconnaissance (security-review, domain-review, arch-review, architect, security-engineer, codebase-recon).
 
 ## Wave-Aware Build Dispatch
 
@@ -200,7 +200,7 @@ Each plan step includes a **Complexity** classification that controls review dep
 |------------|----------------------|
 | `trivial` | Skip inline review entirely. The final `/code-review` covers all files. |
 | `standard` | Run spec-compliance + quality agents relevant to the change type (see table below). |
-| `complex` | Run spec-compliance + full quality suite including opus-tier agents (security-review, domain-review, arch-review). |
+| `complex` | Run spec-compliance + full quality suite including high-effort agents (security-review, domain-review, arch-review). |
 
 If a step has no complexity annotation, default to `standard`.
 
@@ -224,7 +224,7 @@ After each discrete unit of work classified as **standard** or **complex** (a fu
 | All changes | structure-review as a baseline |
 | All changes (before quality review) | spec-compliance-review as first gate |
 
-**Step 2 — Run selected agents in parallel** using the Agent tool. Pass each agent's tier alias as `model:` — the PreToolUse hook resolves it to the right snapshot per the Resolution Procedure above.
+**Step 2 — Run selected agents in parallel** using the Agent tool by `subagent_type` — the PreToolUse hook reads each agent's `effort:` band and resolves it to the right model per the Resolution Procedure above.
 
 **Step 3 — Aggregate findings and apply Review Loop:**
 
