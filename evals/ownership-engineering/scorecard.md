@@ -313,3 +313,48 @@ and context-loading-protocol (oe-11).
    decide-and-proceed-with-override rewrite for a routine dependency bump (oe-08). Either
    carve dependency *version bumps* out of the "new external dependency" gate, or update
    oe-08/the scorecard to reflect that supply-chain changes are deliberately Approve-tier.
+
+## Improvement pass — re-measured after prose fixes (2026-06-21)
+
+Both highest-leverage follow-ups above were **applied** and the affected pairs
+**re-measured** (same N=5, same blind-judge method). All five moved to 5/5.
+
+**Changes applied:**
+
+1. **Recommended-default rule made an unmissable hard rule.** `product-manager.md`
+   Discovery now states "each question **must** carry a recommended default … a question
+   with no recommended default is incomplete; do not send it"; `orchestrator.md`'s
+   approach-contract line and `knowledge/decision-defaults.md` now require each surfaced
+   axis to carry its default — and the **replace-vs-merge axis was given a committed
+   default (merge, the reversible option)** instead of "ask which is wanted."
+2. **Dependency version bumps carved out of the oversight Approve gate.**
+   `human-oversight-protocol.md` now routes a **reversible minor/patch bump of an
+   existing dependency** to the Medium tier (investigate → decide → proceed with an
+   override affordance); *adding a new package*, a major bump, a new transitive package,
+   or a security-sensitive path stays Approve.
+
+**Re-measured result (5 affected pairs):**
+
+| Fixture | Subject | Dims | Before | After |
+| --- | --- | --- | :-: | :-: |
+| oe-01-vague-feature-request | product-manager | CW,UA,CD | 0/5 | **5/5** |
+| oe-01-vague-feature-request | orchestrator | CW,UA,CD | 0/5 | **5/5** |
+| oe-10-replace-vs-merge | orchestrator | CW,CD | 1/5 | **5/5** |
+| oe-10-replace-vs-merge | product-manager | CW,CD | 0/5 | **5/5** |
+| oe-08-medium-severity-escalation | human-oversight-protocol | CD,UA | 0/5 | **5/5** |
+
+**Suite total after the improvement pass: 20 / 21 pairs always-pass at N=5** (the lone
+remaining flap is oe-03 architect 4/5; oe-09 qa-engineer's flap is unaffected by these
+edits and stands at 4/5 pending a separate Quality-Ownership clarification). Updated
+post-improvement actuals are in the `post_improvement` block of each affected
+[`trials/`](trials/) file.
+
+**Method caveat (important).** The re-measure **spec-primes** every subject from the
+**edited working-tree files** — including the agent subjects (PM, orchestrator), which in
+the baseline run were the *registered* plugin agents. A working-tree edit only reaches
+the registered `dev-team@bfinster` agents on reinstall / next session, so spec-priming
+the edited files is the only way to validate the prose change in-session. These 5/5s
+therefore measure **the edited prose as executed by a primed general agent**, one step
+removed from a live registered-agent dispatch; expect a confirming re-run once the plugin
+is reinstalled. The baseline rows above (registered agents) are left intact for honest
+before/after comparison — they are not overwritten.
