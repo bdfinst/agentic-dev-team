@@ -173,8 +173,16 @@ def dispatch(workdir: Path, prompt: str, model: str, env: dict,
     # Each cell is a throwaway temp worktree, so headless edits are safe here.
     cmd = ["claude", "-p", prompt, "--model", model, "--output-format", "json",
            "--dangerously-skip-permissions"]
-    proc = subprocess.run(cmd, cwd=str(workdir), env=env, check=False,
-                          capture_output=True, text=True)
+    try:
+        proc = subprocess.run(cmd, cwd=str(workdir), env=env, check=False,
+                              capture_output=True, text=True, timeout=900)
+    except subprocess.TimeoutExpired:
+        if raw_out:
+            raw_out.parent.mkdir(parents=True, exist_ok=True)
+            raw_out.write_text('{"is_error": true, "subtype": "timeout"}')
+        return {"cost_usd": None, "tokens_total": None, "input_tokens": None,
+                "output_tokens": None, "num_turns": None, "duration_ms": None,
+                "is_error": True, "parsed": False, "timeout": True}
     if raw_out:
         raw_out.parent.mkdir(parents=True, exist_ok=True)
         raw_out.write_text(proc.stdout or "")
