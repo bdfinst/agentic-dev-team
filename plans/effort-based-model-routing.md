@@ -530,8 +530,7 @@ Per step. Summary: 4 complex (1.4, 1.5, 2.2, 3.1), 2 trivial (1.6, 2.3), the res
 
 - [ ] Slice 1: Atomic core — effort contract, resolver/ladder, dispatch data flow
   - [x] Step 1.1: Lock the contract test (missing + invalid + count) — RED gate committed
-
-  - [ ] Step 1.2: Migrate all agents and templates
+  - [x] Step 1.2: Migrate all agents and templates
   - [ ] Step 1.3: Re-key routing defaults; pin rounding convention
   - [ ] Step 1.4: Effort band → ladder position in the resolver
   - [ ] Step 1.5: Hook looks up effort by subagent_type; legacy tier fallback
