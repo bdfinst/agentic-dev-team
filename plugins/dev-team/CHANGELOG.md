@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.11.1...dev-team-v7.0.0) (2026-06-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **routing:** agent frontmatter uses effort: bands, not model: tiers. The resolver accepts legacy model: tiers for one deprecation release.
+
+### Features
+
+* **dev-team:** release ownership-engineering improvements; add commitlint guard ([#339](https://github.com/bdfinst/agentic-dev-team/issues/339)) ([a689677](https://github.com/bdfinst/agentic-dev-team/commit/a68967749d6222b72f9372047628194b8cf5b3dd))
+* **routing:** effort-band model routing (replaces model: tiers) ([#337](https://github.com/bdfinst/agentic-dev-team/issues/337)) ([2fda3c1](https://github.com/bdfinst/agentic-dev-team/commit/2fda3c1ef292410b0bb060a09892564eedd3fb32))
+
 ## [6.11.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.11.0...dev-team-v6.11.1) (2026-06-20)
 
 
