@@ -528,13 +528,13 @@ Per step. Summary: 4 complex (1.4, 1.5, 2.2, 3.1), 2 trivial (1.6, 2.3), the res
 
 #### Wave 1
 
-- [ ] Slice 1: Atomic core — effort contract, resolver/ladder, dispatch data flow
+- [x] Slice 1: Atomic core — effort contract, resolver/ladder, dispatch data flow
   - [x] Step 1.1: Lock the contract test (missing + invalid + count) — RED gate committed
   - [x] Step 1.2: Migrate all agents and templates
   - [x] Step 1.3: Re-key routing defaults; pin rounding convention
   - [x] Step 1.4: Effort band → ladder position in the resolver
   - [x] Step 1.5: Hook looks up effort by subagent_type; legacy tier fallback
-  - [ ] Step 1.6: Gitignore the ladder; retire overrides
+  - [x] Step 1.6: Gitignore the ladder; retire overrides
 
 #### Wave 2
 
