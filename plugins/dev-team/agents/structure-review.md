@@ -2,7 +2,7 @@
 name: structure-review
 description: SRP violations, DRY, coupling, nesting depth, file organization
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 cites: [design-smells, object-calisthenics, adversarial-review-protocol]
 ---
 

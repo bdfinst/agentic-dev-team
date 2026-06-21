@@ -2,7 +2,7 @@
 name: ts-enforcer
 description: TypeScript strict mode enforcement — no any types, schema-first at trust boundaries, type vs interface discipline, strict tsconfig audit
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # TypeScript Enforcer

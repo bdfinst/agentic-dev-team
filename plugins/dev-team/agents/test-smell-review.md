@@ -2,7 +2,7 @@
 name: test-smell-review
 description: xUnit test smells, test double selection, and test-pyramid layer placement
 tools: Read, Grep, Glob, Skill
-model: sonnet
+effort: medium
 cites: [test-smells, test-doubles, test-pyramid, fixture-construction, test-organization, test-refactoring, testability-patterns, result-verification, cd-test-architecture, microservice-testing, adversarial-review-protocol]
 ---
 

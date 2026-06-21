@@ -2,7 +2,7 @@
 name: security-review
 description: Injection, auth/authz, data exposure, security headers, crypto
 tools: Read, Grep, Glob
-model: opus
+effort: high
 cites: [owasp-detection, accepted-risks-schema, adversarial-review-protocol]
 ---
 

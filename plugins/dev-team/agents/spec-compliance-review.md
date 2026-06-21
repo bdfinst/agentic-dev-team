@@ -2,7 +2,7 @@
 name: spec-compliance-review
 description: Verify implementation matches specification before quality review agents run
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # Spec Compliance Review

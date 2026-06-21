@@ -2,7 +2,7 @@
 name: python-quality
 description: Python code quality — type hints, exception handling, modern idioms, dataclass/Pydantic patterns
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # Python Quality

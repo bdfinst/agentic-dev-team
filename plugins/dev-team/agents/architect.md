@@ -2,7 +2,7 @@
 name: architect
 description: System design, architecture definition, and technical decision oversight
 tools: Read, Grep, Glob, Bash, Skill
-model: opus
+effort: high
 ---
 
 # Architect Agent

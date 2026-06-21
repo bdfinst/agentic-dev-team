@@ -2,7 +2,7 @@
 name: esm-enforcer
 description: ES Modules enforcement — import/export only, no require/module.exports, no __dirname/__filename
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # ESM Enforcer

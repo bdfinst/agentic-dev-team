@@ -2,7 +2,7 @@
 name: ui-ux-designer
 description: User interface design, UX optimization, and accessibility compliance
 tools: Read, Grep, Glob, Skill
-model: sonnet
+effort: medium
 ---
 
 # UI/UX Designer Agent

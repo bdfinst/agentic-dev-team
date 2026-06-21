@@ -2,7 +2,7 @@
 name: front-end-testing
 description: Behavior-driven UI testing — query priority, browser-mode preference, HTTP interceptors, framework-agnostic
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # Front-End Testing

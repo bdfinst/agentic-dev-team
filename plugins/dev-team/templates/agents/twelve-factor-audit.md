@@ -2,7 +2,7 @@
 name: twelve-factor-audit
 description: Twelve-factor app methodology audit — checks all 12 factors with language-appropriate examples
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # Twelve-Factor Audit

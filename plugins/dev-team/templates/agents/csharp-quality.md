@@ -2,7 +2,7 @@
 name: csharp-quality
 description: "C# code quality — nullable reference types, async/await discipline, record types for DTOs, dependency injection patterns"
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # C# Quality

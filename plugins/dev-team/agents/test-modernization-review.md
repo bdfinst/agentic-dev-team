@@ -2,7 +2,7 @@
 name: test-modernization-review
 description: Gate-keeper for `/test-modernize` phase boundaries — verifies the phase's deliverable matches its acceptance criteria before the workflow advances
 tools: Read, Grep, Glob
-model: mid
+effort: low
 ---
 
 # Test Modernization Review

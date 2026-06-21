@@ -2,7 +2,7 @@
 name: js-fp-review
 description: Array mutations, parameter mutations, global state, impure patterns in JS/TS
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # JS FP Review

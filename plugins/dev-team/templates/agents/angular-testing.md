@@ -2,7 +2,7 @@
 name: angular-testing
 description: Angular component testing — TestBed setup, component harnesses, OnPush testing, RxJS marble testing, no direct DOM queries
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # Angular Testing

@@ -2,7 +2,7 @@
 name: react-testing
 description: React component testing with Testing Library — anti-patterns, hook testing, behavior-first assertions
 tools: Read, Grep, Glob
-model: sonnet
+effort: medium
 ---
 
 # React Testing

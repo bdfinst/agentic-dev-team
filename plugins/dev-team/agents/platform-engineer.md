@@ -2,7 +2,7 @@
 name: platform-engineer
 description: Pipeline design, deployment strategy, observability, and reliability planning
 tools: Read, Grep, Glob, Bash, Skill
-model: sonnet
+effort: medium
 ---
 
 # Platform Engineer Agent

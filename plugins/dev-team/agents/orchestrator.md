@@ -2,7 +2,7 @@
 name: orchestrator
 description: Central dispatcher that routes tasks to specialized agents and coordinates multi-agent collaboration
 tools: Read, Grep, Glob, Agent, Skill
-model: sonnet
+effort: medium
 ---
 
 # Orchestrator Agent

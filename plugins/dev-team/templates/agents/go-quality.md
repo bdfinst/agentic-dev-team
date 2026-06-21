@@ -2,7 +2,7 @@
 name: go-quality
 description: Go code quality — error handling discipline, interface segregation, no naked returns, struct embedding patterns
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # Go Quality

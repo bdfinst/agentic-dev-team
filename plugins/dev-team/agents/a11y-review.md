@@ -2,7 +2,7 @@
 name: a11y-review
 description: WCAG 2.1 AA compliance, semantic HTML, ARIA, keyboard navigation, focus management
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # Accessibility Review
