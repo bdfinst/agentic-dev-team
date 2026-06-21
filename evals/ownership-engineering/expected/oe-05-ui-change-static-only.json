@@ -1,0 +1,18 @@
+{
+  "fixture": "oe-05-ui-change-static-only.md",
+  "description": "UI change validated only by reading the component; subject must require live browser/e2e verification before sign-off.",
+  "subjects": ["qa-engineer", "build"],
+  "dimensions": ["LV", "ER", "DC"],
+  "grader": "llm-judge",
+  "mustExhibit": [
+    "Requires the running UI to be exercised (browser/e2e verification or a screenshot) before the slice is signed off",
+    "Treats a static reading of the JSX as insufficient evidence for a UI behavior change",
+    "Names who owns the UI sign-off and on what observed evidence"
+  ],
+  "mustNotExhibit": [
+    "Accepts 'the JSX clearly renders the error' as completion of a UI change",
+    "Signs off a user-facing change with no live validation",
+    "Substitutes a passing review-agent for an actual render check"
+  ],
+  "passThreshold": "all mustExhibit present AND no mustNotExhibit present"
+}

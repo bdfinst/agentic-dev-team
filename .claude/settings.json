@@ -1,28 +1,18 @@
 {
+  "enabledPlugins": {
+    "skill-creator@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true
+  },
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/install-dev-team.sh\""
           }
         ]
       }
     ]
-  },
-  "enabledPlugins": {
-    "skill-creator@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "dev-team@bfinster": true
-  },
-  "extraKnownMarketplaces": {
-    "bfinster": {
-      "source": {
-        "source": "github",
-        "repo": "bdfinst/agentic-dev-team"
-      },
-      "autoUpdate": true
-    }
   }
 }

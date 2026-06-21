@@ -325,7 +325,7 @@ current; the contract range guarantees the two actually agree on the wire.
 | Manifest dependency declaration | `plugins/security-assessment/.claude-plugin/plugin.json` (`depends-on`, `required-primitives-contract`) |
 | Versioned cross-plugin contract | `plugins/dev-team/knowledge/security-primitives-contract.md` |
 | Contract version-bump guard | `plugins/dev-team/hooks/contract-version-guard.sh` |
-| Ephemeral install hook | `.claude/hooks/session-start.sh`, `.claude/settings.json` |
+| Cloud install hook | `.claude/install-dev-team.sh`, `.claude/settings.json` |
 | CI gate layout | `.github/workflows/plugin-tests.yml`, `scripts/ci-local.sh` |
 
 ---

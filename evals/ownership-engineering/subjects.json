@@ -1,0 +1,14 @@
+{
+  "_comment": "Subject -> the spec file(s) whose prose drives that subject's behavior in the Ownership Engineering judge suite. A change to any listed file makes every fixture that lists the subject a re-score candidate (see scripts/oe_scoring_staleness.py). PM/orchestrator include decision-defaults.md because their approach-contract behavior is driven by it, not only by the agent file.",
+  "product-manager": ["plugins/dev-team/agents/product-manager.md", "plugins/dev-team/knowledge/decision-defaults.md"],
+  "orchestrator": ["plugins/dev-team/agents/orchestrator.md", "plugins/dev-team/knowledge/decision-defaults.md"],
+  "software-engineer": ["plugins/dev-team/agents/software-engineer.md"],
+  "architect": ["plugins/dev-team/agents/architect.md"],
+  "qa-engineer": ["plugins/dev-team/agents/qa-engineer.md"],
+  "progress-guardian": ["plugins/dev-team/agents/progress-guardian.md"],
+  "quality-gate-pipeline": ["plugins/dev-team/skills/quality-gate-pipeline/SKILL.md"],
+  "build": ["plugins/dev-team/skills/build/SKILL.md"],
+  "systematic-debugging": ["plugins/dev-team/skills/systematic-debugging/SKILL.md"],
+  "human-oversight-protocol": ["plugins/dev-team/skills/human-oversight-protocol/SKILL.md"],
+  "context-loading-protocol": ["plugins/dev-team/skills/context-loading-protocol/SKILL.md"]
+}

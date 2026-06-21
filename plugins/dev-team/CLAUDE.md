@@ -217,6 +217,8 @@ Intervention commands: `amend`, `learn`, `remember`, `forget`, `override`, `paus
 
 All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKILL.md)** before delivering output: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3). The QA agent performs peer validation when applicable.
 
+**Quality ownership.** A failing test is a failing test regardless of whether the current change caused it. Agents own the quality *state* they observe, not just their delta: green means the whole suite, and a red signal must be fixed or explicitly triaged (`/triage`/quarantine with a reason) — never stepped over as "pre-existing" or "not my diff" on the way to claiming completion.
+
 Audit logging, quality gates, and ethics principles are defined in **[Governance & Compliance](skills/governance-compliance/SKILL.md)**.
 
 A `PreToolUse` hook (`hooks/pre-tool-guard.sh`) blocks writes to sensitive paths (credentials, keys, secrets) before they execute. Protected path patterns are configurable via `hooks/guards.json`. A second `PreToolUse` hook (`hooks/destructive-guard.sh`) detects destructive Bash commands (rm -rf, force-push, DROP TABLE, etc.) and warns by default. Use `/careful` to escalate warnings to blocks, `/freeze` to scope-lock edits, or `/guard` for both.

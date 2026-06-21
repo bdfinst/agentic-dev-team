@@ -1,37 +1,83 @@
 # Using a plugin's skills in the Claude Code web environment
 
-Claude Code **plugins are a local CLI / IDE feature.** A Claude Code *web* session
-(claude.ai/code) runs in a fresh managed VM that clones your repo but does **not**
-load installed plugins the way your laptop does. This guide explains how to use a
-plugin's skills (and agents) from inside a web session anyway — both the
-zero-install path and the auto-install path — using this repo's `dev-team` plugin
-as the worked example.
+Claude Code **plugins are a local CLI / IDE feature**, but you *can* get a
+plugin's skills, agents, and slash commands working inside a Claude Code **web**
+session (claude.ai/code). The reliable way is to install the plugin from the
+environment's **Setup script**, which runs *before* Claude boots — so the plugin
+is on disk in time to be enumerated and loads in the **same** session. This guide
+explains why that works, and gives a file-based fallback for restrictive
+environments. It uses this repo's `dev-team` plugin as the worked example.
 
-> TL;DR: a plugin skill is just a file. `/<skill>` ≡ "read
-> `plugins/<plugin>/skills/<skill>/SKILL.md` and follow it." You can always run a
-> skill manually; the install hook is an optional convenience for the *next*
-> session.
-
----
-
-## 1. Why plugins don't "just work" in a web session
-
-- Plugins install via the `claude` CLI (`claude plugin install …`). A web VM may
-  not even ship that CLI.
-- The VM is **ephemeral and per-session**: anything installed during a session is
-  gone at the end, and a plugin installed at `SessionStart` only takes effect on
-  the **next** session (the slash commands aren't registered mid-session).
-- Setup (env vars, the Setup script) is configured in the **cloud UI**, not from a
-  repo file — see [Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web).
-
-So in a web session you have two reliable options, below. Option A always works.
+> TL;DR: install the plugin in the **Setup script** (cloud UI) → it loads this
+> session. The `claude` CLI *is* available in cloud environments. If a network
+> policy blocks the install, fall back to running each skill from its file:
+> `/<skill>` ≡ "read `plugins/<plugin>/skills/<skill>/SKILL.md` and follow it."
+>
+> See [`docs/cloud-setup.md`](cloud-setup.md) for the focused, copy-paste setup
+> recipe and the verification probe.
 
 ---
 
-## 2. Option A — run the skill from its files (no install)
+## 1. Why a plugin must be installed *before* Claude boots
 
-Every skill, agent, and knowledge file is plain text in the repo. To "run" a slash
-command, read its source and follow the procedure:
+Claude enumerates the skills, agents, and slash commands available to it **once,
+at process boot.** Anything that lands on disk *after* boot is invisible to the
+running session. That single fact drives everything below:
+
+- The environment **Setup script** (configured in the cloud UI) runs **before**
+  Claude launches, and its filesystem is snapshotted and reused by later
+  sessions. A plugin installed there is on disk in time to be enumerated → it
+  loads in the **same** session. This is the supported equivalent of a custom
+  image (replacing the base image itself is *not* supported).
+- A **`SessionStart` hook** runs **after** Claude has already launched. A plugin
+  it installs is on disk too late for *this* session's enumeration, so it only
+  takes effect on the **next** session — the "next-session effect." Useful as a
+  fallback, but it is **not** the way to load the plugin into the current
+  session.
+- The `claude` CLI **is** available in cloud environments, so
+  `claude plugin marketplace add …` and `claude plugin install …` run fine from
+  the Setup script.
+
+So the recommended path is **Option A** (install via the Setup script). **Option
+B** (run skills from their files) is the always-works fallback when a network
+policy blocks the install.
+
+---
+
+## 2. Option A (recommended) — install via the Setup script
+
+Paste a self-contained, existence-guarded, always-`exit 0` snippet into your
+environment's **Setup script** field (claude.ai/code → Environment → Setup
+script). It installs the repo's toolchain **and** the `dev-team` plugin before
+Claude boots, so the plugin's ~86 skills (including `/ship`) are available in the
+session that starts.
+
+The body of [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) is exactly that
+script — it installs `jq`, `shellcheck`, `bats`, the Python dev deps
+(`requirements-dev.txt`), `gh`, and then the plugin
+(`claude plugin marketplace add bdfinst/agentic-dev-team` +
+`claude plugin install dev-team@bfinster`). Every step is best-effort and the
+script ends with `exit 0` so it can never fail session startup.
+
+For the minimal, self-contained snippet and the why/how, see
+[`docs/cloud-setup.md`](cloud-setup.md). Verify it worked with the headless
+probe:
+
+```bash
+claude -p "List the names of every skill available to you, one per line." \
+  --max-turns 1 | grep -c '^dev-team:'
+```
+
+A non-zero count (≈86) means the plugin loaded this session.
+
+---
+
+## 3. Option B (fallback) — run the skill from its files (no install)
+
+If a restrictive network policy blocks `marketplace add` / `install`, you don't
+need the plugin loaded at all: every skill, agent, and knowledge file is plain
+text in the repo. To "run" a slash command, read its source and follow the
+procedure:
 
 | You'd normally type | Do this instead |
 |---|---|
@@ -46,7 +92,6 @@ Concretely, just ask the agent in your web session:
 > "Read `plugins/dev-team/skills/plan/SKILL.md` and run that workflow on `<task>`."
 
 Notes:
-
 - **User-invocable skills** (the slash commands) have `user-invocable: true` in
   their `SKILL.md` frontmatter — those are the ones meant to be driven this way.
   Other `SKILL.md` files are agent-loaded references the procedure will pull in as
@@ -54,61 +99,48 @@ Notes:
 - A skill may reference helper scripts as `${CLAUDE_PLUGIN_ROOT}/scripts/…`. When
   you run it from files, that variable isn't set — substitute the in-repo path
   (`plugins/dev-team/scripts/…`) instead.
-- Helper scripts need their toolchain (`jq`, `bats`, `python3`, …); see §4.
+- Helper scripts need their toolchain (`jq`, `bats`, `python3`, …); the Setup
+  script installs these regardless of which option you use.
 
-This path is robust precisely because it has no dependency on the CLI or on plugin
-loading — it's "read the recipe and cook."
-
----
-
-## 3. Option B — auto-install via a gated SessionStart hook
-
-This repo ships an **ephemeral-only** install hook so that, when the web VM *does*
-have the `claude` CLI, the plugin is installed for the next session automatically.
-
-How it's wired (`.claude/settings.json` → `.claude/hooks/session-start.sh`):
-
-- It runs **only in an ephemeral session** — when `CLAUDE_CODE_REMOTE=true` (set
-  automatically by Claude Code on the web) **or** `DEV_TEAM_CLOUD_INSTALL=1` (a
-  manual opt-in kept for back-compat). It is a no-op locally, so your laptop
-  (where the plugin is already installed) is never touched.
-- In an ephemeral session it:
-  - installs npm deps (if a `package.json` is present);
-  - installs the plugin if `claude` is present (`marketplace add` + `install`,
-    skipped when already installed, time-boxed so it can never hang session
-    start); **effect lands next session.**
-  - runs the plugin's init setup (`init-dev-team-linux.sh` — jq, python3, Stryker,
-    CodeGraph);
-  - if `claude` is **absent**, emits `additionalContext` telling the agent to fall
-    back to Option A (run skills from their files).
-- It's **fail-open** — it never blocks a session from starting.
-
-Adapting this for your own plugin: copy `.claude/hooks/session-start.sh` and
-`.claude/settings.json`, rename the `marketplace add`/`install` targets, and keep
-the gate and the no-CLI fallback message.
+This path is robust precisely because it has no dependency on plugin loading —
+it's "read the recipe and cook."
 
 ---
 
-## 4. Make the toolchain available (for skills that run scripts)
+## 4. The `SessionStart` hook — a documented fallback, not the primary path
 
-Some skills shell out to `jq`, `shellcheck`, `bats`, or `python3`. In a web
-session, install them up front via the environment's **Setup script** field
-(cloud UI), not a repo file. Paste the body of [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh)
-— it installs `jq`, `shellcheck`, `bats`, the Python dev deps
-(`requirements-dev.txt`), and `gh`. Locally, `bash scripts/dev-setup.sh` does the
-equivalent.
+This repo also ships a **cloud-only** install hook
+(`.claude/install-dev-team.sh`, registered in `.claude/settings.json`). It is a
+**no-op unless `DEV_TEAM_CLOUD_INSTALL=1`** is set, installs the plugin when the
+`claude` CLI is present, and falls back to Option-A guidance otherwise.
+
+**It cannot load the plugin into the current session.** Because the hook runs
+*after* boot, its install only takes effect on the **next** session (see §1). It
+is retained for environments where editing the Setup script isn't possible — but
+for same-session availability, use the Setup script (Option A).
+
+Adapting this for your own plugin: copy `.claude/install-dev-team.sh` and
+`.claude/settings.json`, rename the env-var gate and the
+`marketplace add`/`install` targets, and keep the no-CLI fallback message.
 
 ---
 
 ## 5. Caveats specific to the web environment
 
-- **Next-session effect.** A plugin installed at `SessionStart` is available the
-  *next* session, not the current one. For the current session, use Option A.
+- **Boot enumeration.** Skills/agents/commands are enumerated once at boot.
+  Install the plugin *before* boot (Setup script) to use it this session; a
+  post-boot install (`SessionStart` hook) only lands next session.
+- **Setup-script budget & exit code.** The Setup script has a few-minute budget
+  and **must exit 0** — a non-zero exit fails session startup. Guard every
+  optional step with `|| true` and end with `exit 0`.
+- **Snapshot rebuild.** The Setup-script filesystem is snapshotted and reused;
+  editing the Setup script (or other environment config) triggers a rebuild on
+  the next session.
 - **Ephemeral VM.** Commit and push anything you want to keep before the session
   ends; the container is reclaimed afterward.
 - **Network policy.** Outbound access is governed by the environment's network
   policy chosen in the cloud UI; an install or `pip` step can fail under a
-  restrictive policy — fall back to Option A.
+  restrictive policy — fall back to Option B.
 - **No secrets store yet.** Treat environment variables as visible to anyone who
   can edit the environment; don't put secrets there.
 
@@ -116,11 +148,12 @@ equivalent.
 
 ## 6. Quick reference
 
-- Slash command → file: `/<name>` ⇒ `plugins/<plugin>/skills/<name>/SKILL.md`.
+- Install the plugin (this session): paste `.claude/cloud-setup.sh` into the
+  **Setup script** field; see [`docs/cloud-setup.md`](cloud-setup.md).
+- Verify: `claude -p "List the names of every skill available to you, one per line." --max-turns 1 | grep -c '^dev-team:'` → ≈86.
+- Slash command → file (fallback): `/<name>` ⇒ `plugins/<plugin>/skills/<name>/SKILL.md`.
 - Find what's available: `plugins/<plugin>/CLAUDE.md` (registry tables) or
   `plugins/<plugin>/knowledge/agent-registry.md`.
-- Auto-install (next session): runs automatically when `CLAUDE_CODE_REMOTE=true`
-  (set by the web). To force it elsewhere, set `DEV_TEAM_CLOUD_INSTALL=1` in the
-  environment's Environment variables.
-- Provision tools: paste `.claude/cloud-setup.sh` into the Setup script field.
+- Next-session fallback only: set `DEV_TEAM_CLOUD_INSTALL=1` to enable the
+  `SessionStart` hook.
 - Authoritative summary: `CLAUDE.md` → *Cloud sessions (claude.ai/code)*.

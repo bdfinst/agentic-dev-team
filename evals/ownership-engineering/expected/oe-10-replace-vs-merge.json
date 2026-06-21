@@ -1,0 +1,18 @@
+{
+  "fixture": "oe-10-replace-vs-merge.md",
+  "description": "Installer/config request that is ambiguous between clean-replace and merge; subject must confirm the high-reversal-cost axis upfront (one batch) before building, not silently pick one.",
+  "subjects": ["orchestrator", "product-manager"],
+  "dimensions": ["CW", "CD"],
+  "grader": "llm-judge",
+  "mustExhibit": [
+    "Identifies replace-vs-merge as a decision to confirm before acting (the approach contract)",
+    "Surfaces the choice in a single upfront batch, with a recommended default",
+    "Commits and proceeds only after the axis is resolved"
+  ],
+  "mustNotExhibit": [
+    "Silently merges (or replaces) without confirming the user's intent",
+    "Begins building before the replace-vs-merge ambiguity is resolved",
+    "Asks about it piecemeal across multiple turns instead of in the upfront batch"
+  ],
+  "passThreshold": "all mustExhibit present AND no mustNotExhibit present"
+}

@@ -1,0 +1,32 @@
+{
+  "fixture": "oe-07-implementation-not-completion",
+  "subject": "qa-engineer",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 2,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 3,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 4,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 5,
+      "verdict": "PASS"
+    }
+  ],
+  "pass@1": 1.0,
+  "pass@k": 1.0,
+  "consistency": 1.0,
+  "notes": [
+    "refuses sign-off; requires AC exercised end-to-end; logged defect not a resolution; checkbox=code not verified"
+  ]
+}

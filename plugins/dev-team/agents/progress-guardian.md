@@ -54,6 +54,10 @@ Pre-PR gate:
 - Quality gate checklist items unchecked
 - Missing test evidence for completed steps
 
+## Verify by dispatch (read-only)
+
+This agent is read-only — it cannot run tests itself, so it must never *infer* that a completion claim is sound. When it detects a step `[x]` whose acceptance criteria are unverified, or missing test evidence for completed work, it emits a `fail` issue whose `suggestedFix` names the validation to run — e.g. "dispatch `quality-gate-pipeline` Phase 2 (or re-run the slice's `/build` verification) to produce fresh test output for Step N." The orchestrator owns running it; the guardian owns flagging that proven evidence is absent. "Marked complete" is not "demonstrated complete."
+
 ## Ignore
 
 Code quality, naming, architecture (handled by other review agents). This agent tracks process, not code.

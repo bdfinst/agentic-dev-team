@@ -1,0 +1,131 @@
+{
+  "scored_at": "2026-06-21",
+  "scored_commit": "2270974",
+  "trials_per_pair": 5,
+  "fixtures": {
+    "oe-01-vague-feature-request": {
+      "expected_sha": "c2a30935a965f5d50cb237287b08389d16338b3bb2c73876afb898b992d8b39e",
+      "fixture_sha": "101abca362972602ff1aeb682745c815ed58d287f899e6afdcbab0e4e6e624a3",
+      "subjects": [
+        "product-manager",
+        "orchestrator"
+      ]
+    },
+    "oe-02-mid-build-unknown": {
+      "expected_sha": "180bc295bdf9175c73bb8e4f7903a879dd231a9cdb6f3122b6e876c9c1b94e9c",
+      "fixture_sha": "36c718ddcb616e21689bacf494615f63608d2c44f9b40cee6b13a25c819cb30c",
+      "subjects": [
+        "software-engineer"
+      ]
+    },
+    "oe-03-two-viable-designs": {
+      "expected_sha": "4b017a208e7ec48f202fb7cf4731c70fa2502e69ea1b6fb3ff9e6bc024319ec5",
+      "fixture_sha": "6c758f29aafb71ce88cda94ebd6fa4fba15a418d1089fad891c9ba9398b04c89",
+      "subjects": [
+        "architect"
+      ]
+    },
+    "oe-04-done-without-evidence": {
+      "expected_sha": "c4054db373ab5113ef66e7cc59824b61b6af15566d8c9f1bb947a795ba2bccda",
+      "fixture_sha": "517b43345cf2d9d1eb43435c726fbf040acbb7e7b9933fda89fcdd620285726b",
+      "subjects": [
+        "quality-gate-pipeline",
+        "build"
+      ]
+    },
+    "oe-05-ui-change-static-only": {
+      "expected_sha": "be0527b2a1056372a57284366163d2267483ab10fabdddea73f46e26ab73264d",
+      "fixture_sha": "ba18aece11fb0c7e6bf5309269cfebed41ca66217b3ed2a0e9f9c801ff72e05b",
+      "subjects": [
+        "qa-engineer",
+        "build"
+      ]
+    },
+    "oe-06-failing-test-handback": {
+      "expected_sha": "d56c408ef858c312909819003faa4a929c53ad15eb5ba9ef7ffc7f84fae08b59",
+      "fixture_sha": "21f3d336c5c745de11afcf59faa756d0eee775f9f007c4f53ca78ed599079066",
+      "subjects": [
+        "systematic-debugging",
+        "build"
+      ]
+    },
+    "oe-07-implementation-not-completion": {
+      "expected_sha": "52442e82061061a6e0f0217410b15fe18701301be7f3819ca614095e98d8cee5",
+      "fixture_sha": "0ec191240ad4b4018e14af5722cd3c9c9ff680a98d217732b963a0361d29ff25",
+      "subjects": [
+        "quality-gate-pipeline",
+        "qa-engineer",
+        "progress-guardian"
+      ]
+    },
+    "oe-08-medium-severity-escalation": {
+      "expected_sha": "3d24aeeab4a00bbd798fce4986c9ee0aa45d31322783fe3d6147ffea2b83d3a9",
+      "fixture_sha": "f4905f35eea8d9580dadc67b537aa6b501934cc4298eadf57657df1a6ffd7199",
+      "subjects": [
+        "human-oversight-protocol"
+      ]
+    },
+    "oe-09-preexisting-failing-test": {
+      "expected_sha": "50f8acf9386df7f872f039db3eb618916e9cf98168c760d3d3c3074098859a6e",
+      "fixture_sha": "95e44e20b941511155deeabd3e1f27066e0f1b71f7befcbc5256b55372aa54ac",
+      "subjects": [
+        "build",
+        "quality-gate-pipeline",
+        "qa-engineer"
+      ]
+    },
+    "oe-10-replace-vs-merge": {
+      "expected_sha": "5cbe4416e2dd4eb81c592a249ca90a1e1b53debec26218969570ba0ac3879485",
+      "fixture_sha": "39763ba3ecc405ee685df82918df9ef90a28ce60a81d225a509edc7405ae4c80",
+      "subjects": [
+        "orchestrator",
+        "product-manager"
+      ]
+    },
+    "oe-11-no-instruction-yet": {
+      "expected_sha": "f49046862d9ae9b96d5b520aade11aa8c716f7066d1a395ac8290fa0b5c898f3",
+      "fixture_sha": "39c030b9af71c8a36b270e9f9c400f20fd2c4944946e34f50c8189b952b8af51",
+      "subjects": [
+        "orchestrator",
+        "context-loading-protocol"
+      ]
+    }
+  },
+  "subjects": {
+    "product-manager": {
+      "plugins/dev-team/agents/product-manager.md": "e3ef74d31c7eca0eb87a5b36479b27374f25621a5de9d7dab275bb29b34e484b",
+      "plugins/dev-team/knowledge/decision-defaults.md": "c8f101068920983ef0a9975e5c8fb349deee75ce9e2168b4563d7b8e7154958c"
+    },
+    "orchestrator": {
+      "plugins/dev-team/agents/orchestrator.md": "2aa08f15b2805f4070791b001753c53760e5b4b23fde8d00bf061944f51f549f",
+      "plugins/dev-team/knowledge/decision-defaults.md": "c8f101068920983ef0a9975e5c8fb349deee75ce9e2168b4563d7b8e7154958c"
+    },
+    "software-engineer": {
+      "plugins/dev-team/agents/software-engineer.md": "bd6586571b7c67c904c72a73abddd2cf9456675cf364ea39bc705a14a380be4b"
+    },
+    "architect": {
+      "plugins/dev-team/agents/architect.md": "93f5fd37bb2e635c69c6c75cbf198552674e9f5bf69f5f96e13072475c15706a"
+    },
+    "qa-engineer": {
+      "plugins/dev-team/agents/qa-engineer.md": "859bea2f3de63331f9ded73c63122c68670bc8b1e93055a050271eb76f87e44e"
+    },
+    "progress-guardian": {
+      "plugins/dev-team/agents/progress-guardian.md": "18ea0a51605f6cff2369383fe3d022c8cff35c9730eae8785fbe083e3a6a8a6a"
+    },
+    "quality-gate-pipeline": {
+      "plugins/dev-team/skills/quality-gate-pipeline/SKILL.md": "9d4784a610e5710a356a73347ee6b888bf39392c624f9ec508edc5142f2bde45"
+    },
+    "build": {
+      "plugins/dev-team/skills/build/SKILL.md": "719621148b3ad20dbcb23428bc736fb68c490475d91de2c60a37a5e91907e625"
+    },
+    "systematic-debugging": {
+      "plugins/dev-team/skills/systematic-debugging/SKILL.md": "035201c56731e0c6fc68c62d0d99bc1c458d7d972157dd2abb2a1d71887a4177"
+    },
+    "human-oversight-protocol": {
+      "plugins/dev-team/skills/human-oversight-protocol/SKILL.md": "8194414f914d880b9fe82cff530f9d970dc4ae10ce4bc9492bcff7eb703f4ecb"
+    },
+    "context-loading-protocol": {
+      "plugins/dev-team/skills/context-loading-protocol/SKILL.md": "fc50492364dc78f135f4f0f46f5f1535c5a9d81bab1b37b573d60c86d1b4b240"
+    }
+  }
+}

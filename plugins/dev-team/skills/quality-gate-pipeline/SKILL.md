@@ -72,10 +72,18 @@ When a signal fires: **Pause** → **Verify** (use tools) → **Correct** → **
 5. **ONLY THEN** — Make the claim, with supporting evidence pasted.
 
 **Required Evidence (all tasks)**:
-1. **Tests pass**: Run the test suite. Paste output with pass/fail counts.
+1. **Tests pass**: Run the **whole** test suite. Paste output with pass/fail counts.
 2. **Build succeeds**: If the project has a build step, run it. Paste output.
 3. **Lint clean**: If the project has a linter, run it. Paste output.
 4. **No regressions**: Test count should not decrease.
+
+**Quality Ownership**: green means the **entire suite**, not just the tests your
+change touched. A failing test is a failing test **regardless of whether this change
+caused it** — "already broken" / "not my diff" is not a pass. A red signal you
+observe must be **fixed**, or **explicitly surfaced and triaged** (file an issue, or
+record a quarantine with a reason via `/triage`) and reported as **not green**.
+Never claim completion over a red suite by attributing the failure to someone else's
+change. You own the quality state you can see, not just your delta.
 
 **Additional Evidence by task type**:
 
@@ -130,7 +138,7 @@ Activated when output is returned for rework, during peer review, or when self-r
 - Max 3 review-correction cycles before escalation
 - Each cycle must reduce total defect count
 - If defects increase or stay flat after 2 cycles, escalate to Orchestrator
-- Exit criteria: all critical and major defects resolved; minor defects logged
+- Exit criteria: all critical and major defects **resolved** (fixed and re-verified). Minor defects may be **deferred** — but deferred ≠ resolved: each must be logged with an owner and a tracking reference and **surfaced in the completion summary**, never folded into "done." A slice carrying deferred items is "complete with known follow-ups," not silently "complete."
 
 **Escalation**: Summarize defect pattern and attempted corrections → escalate to Orchestrator for re-routing → log with `escalation_reason` in task metrics.
 

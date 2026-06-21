@@ -58,7 +58,7 @@ These actions always require human approval:
 | Database schema migration | Data integrity risk |
 | Security-sensitive code | Vulnerability risk |
 | Scope change | May affect timeline/budget |
-| New external dependency | Supply chain risk |
+| Add a *new* external dependency (a package not already in the project) | Supply chain risk — a genuinely new package. A reversible minor/patch version **bump of an existing** dependency is **Medium** (decide-and-proceed), not this gate — see Escalation Paths. |
 | Delete files or data | Potentially irreversible |
 | Team structure change | Affects all agents |
 
@@ -150,9 +150,10 @@ Agent → Orchestrator → Human
 ```
 
 1. Agent identifies the issue and flags it to the Orchestrator.
-2. Orchestrator classifies severity:
-   - **Low**: route to another agent with appropriate expertise
-   - **Medium**: present options to human with recommendation
-   - **High**: present to human with full context, no recommendation (avoid anchoring)
-3. Human decides.
-4. Decision logged and fed back to the requesting agent.
+2. **Absorb the uncertainty before escalating it.** Investigate within the codebase, run the relevant check, or dispatch the agent best placed to resolve it. Escalate only what investigation cannot settle — a raw unknown is not yet an escalation.
+3. Orchestrator classifies severity:
+   - **Low**: route to another agent with appropriate expertise; do not involve the human.
+   - **Medium** — reversible, low-blast-radius, and *not* one of the Standard approval gates above: **decide and proceed.** Commit to one path, state the rationale, act, and surface an explicit override — e.g. "Taking X because Y; reply `override` to change course." Do not hand the human a menu for a decision the agent can own and reverse. A **reversible minor/patch version bump of an existing dependency** (e.g. to pull a bug fix) is Medium: absorb the uncertainty first (read the changelog delta, run the suite against the bump), then **decide and proceed with an override affordance** — do not escalate it as a no-recommendation menu. It is distinct from *adding* a new package, which is the Standard gate below. (The Standard approval gates — *adding* a new external dependency, schema migration, scope change, deletes, etc. — are never downgraded to Medium; they remain Approve. A major-version bump, or one that pulls a genuinely new transitive package, leans Approve too.)
+   - **High** — irreversible or high-blast-radius: present to the human with full context, **no recommendation** (avoid anchoring), and wait. Reserved for genuinely human-only calls: the standard approval gates, ethical concerns, and anything hard to reverse.
+4. Human decides at the High tier (or when a committed Medium decision is overridden).
+5. The decision — or the committed Medium path plus any override — is logged and fed back to the requesting agent.

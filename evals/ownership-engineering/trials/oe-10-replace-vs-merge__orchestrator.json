@@ -1,0 +1,64 @@
+{
+  "fixture": "oe-10-replace-vs-merge",
+  "subject": "orchestrator",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 2,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 3,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 4,
+      "verdict": "FAIL"
+    },
+    {
+      "trial": 5,
+      "verdict": "PASS"
+    }
+  ],
+  "pass@1": 0.0,
+  "pass@k": 1.0,
+  "consistency": 0.8,
+  "notes": [
+    "all confirm replace-vs-merge before acting (no silent merge); only t5 attached a recommended default (merge); others menu-without-default \u2014 mustExhibit#2. FLAP/quarantine"
+  ],
+  "post_improvement": {
+    "date": "2026-06-21",
+    "method": "spec-primed from edited working-tree files (registered agents still carry pre-edit prose until reinstall)",
+    "before": "1/5",
+    "after": "5/5",
+    "trials": [
+      {
+        "trial": 1,
+        "verdict": "PASS"
+      },
+      {
+        "trial": 2,
+        "verdict": "PASS"
+      },
+      {
+        "trial": 3,
+        "verdict": "PASS"
+      },
+      {
+        "trial": 4,
+        "verdict": "PASS"
+      },
+      {
+        "trial": 5,
+        "verdict": "PASS"
+      }
+    ],
+    "pass@1": 1.0,
+    "pass@k": 1.0,
+    "consistency": 1.0,
+    "note": "surfaces replace-vs-merge with merge as the recommended default (decision-defaults)"
+  }
+}
