@@ -136,8 +136,11 @@ def make_cell_home(run_root: Path, cell_id: str,
     (home / "metrics").mkdir(parents=True, exist_ok=True)
     (home / "memory").mkdir(parents=True, exist_ok=True)
     if plugin_template is not None and (plugin_template / ".claude").is_dir():
+        # symlinks=True + ignore_dangling: the marketplace clone contains symlinks
+        # (some dangling) that would otherwise abort the copy.
         shutil.copytree(plugin_template / ".claude", home / ".claude",
-                        dirs_exist_ok=True)
+                        dirs_exist_ok=True, symlinks=True,
+                        ignore_dangling_symlinks=True)
     return home
 
 
