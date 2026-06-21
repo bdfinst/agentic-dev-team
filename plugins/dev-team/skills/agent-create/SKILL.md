@@ -40,13 +40,14 @@ Accept these inputs (from arguments or interactive prompts):
 | `type` | yes | `review` or `team` |
 | `description` | yes | one-line summary for frontmatter |
 | `tools` | no | comma-separated tool list |
-| `model` | no | haiku \| sonnet \| opus \| inherit |
-| `--tier small\|mid\|frontier` | no | maps to model: small→haiku, mid→sonnet, frontier→opus |
+| `--effort low\|medium\|high` | no | the reasoning-effort band the agent's task needs; defaults review→low, team→medium |
 | `--context diff-only\|full-file\|project-structure` | no | sets `Context needs:` field in review body |
 | `--lang <exts>` | no | adds language scope line to review body (e.g. `Scope: .ts, .tsx files only`) |
 | `--dry` | no | display generated content without writing file or updating registry |
 
-If `--tier` was provided, map to model: `small` → `haiku`, `mid` → `sonnet`, `frontier` → `opus`. This overrides any explicit `model` argument.
+Agents declare a vendor-neutral **effort band** (`effort: low|medium|high`), not a model name — the PreToolUse hook maps the band to a concrete model at dispatch (see `docs/model-routing.md`).
+
+**Reject an invalid band.** If `--effort` is not one of `low`, `medium`, `high`, stop and emit the valid bands. Map a recognized legacy token in the message so the fix is obvious: `small`/`haiku` → `low`, `mid`/`sonnet` → `medium`, `frontier`/`opus` → `high`. Example: `Invalid effort 'frontier'. Valid bands: low, medium, high. (frontier → high)`.
 
 ---
 
@@ -102,7 +103,7 @@ as a warning (not an error — custom tools are allowed).
 | Setting | Review default | Team default |
 |---------|---------------|-------------|
 | `tools` | `Read, Grep, Glob` | (whatever user specified) |
-| `model` | `haiku` | `sonnet` |
+| `effort` | `low` | `medium` |
 
 Only apply a default when the value was not specified by the user.
 
@@ -166,7 +167,7 @@ Emit only official fields with non-empty values. Use this structure:
 name: <name>
 description: <description>
 tools: <comma-separated tool list>
-model: <model>
+effort: <band>
 [any additional fields the user requested and confirmed]
 ---
 ```
@@ -239,7 +240,7 @@ Status: pass=<condition>, warn=<condition>, fail=<condition>
 Severity: error=<condition>, warning=<condition>, suggestion=<condition>
 Confidence: high=<condition>, medium=<condition>, none=<condition>
 
-Model tier: <small|mid|frontier>
+Effort: <low|medium|high>
 Context needs: <diff-only|full-file|project-structure>
 
 ## Skip
@@ -370,12 +371,12 @@ If the heading is not found: emit
 `Cannot update knowledge/agent-registry.md: heading containing '<type> Agents' not found. Update manually.`
 and stop without modifying the file.
 
-Map model to tier label: `haiku` → `small`, `sonnet` → `mid`, `opus` → `frontier`, `inherit` → `mid`.
+Use the agent's effort band directly as the registry's band column.
 
 Append a row to the correct table:
 
 ```
-| <name> | agents/<name>.md | <tier-label> | <description> |
+| <name> | agents/<name>.md | <band> | <description> |
 ```
 
 ---
@@ -407,7 +408,7 @@ Confirm both updates in the completion report.
 ```
 Agent created: plugins/dev-team/agents/<name>.md
 Type: <review|team>
-Model: <model> (<tier-label>)
+Effort: <band>
 Body: <N> lines
 Validation: PASS (/agent-audit)
 Registry updated: knowledge/agent-registry.md (<type> Agents table)
