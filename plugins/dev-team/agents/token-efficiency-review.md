@@ -108,7 +108,15 @@ CLAUDE.md, rules, and skills must follow LLM-native patterns. Flag violations:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#token-efficiency-review` (token-efficiency-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these token-efficiency-review-specific challenges:
+
+- Did you measure the actual char/line counts against the thresholds, or estimate "looks long"?
+- For each LLM-anti-pattern finding (role preamble, filler, hedging), did you quote the offending text?
+- Did you check whether a multi-step procedure in CLAUDE.md or rules should be a skill, not just flag its length?
+- Are there duplicate or repetitive sections across files you missed by reviewing each file alone?
+- For each "should be terser" suggestion, did you confirm trimming wouldn't drop a load-bearing instruction?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

@@ -85,7 +85,15 @@ Resource ordering:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#concurrency-review` (concurrency-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these concurrency-review-specific challenges:
+
+- Did you trace EVERY shared-mutable-state access across all async paths, or stop at the first guard you saw?
+- For each race-condition finding, did you confirm the two accesses can actually interleave (same instance, concurrent entry), not just look risky?
+- Is there async code (Promise/Task/Thread) with zero concurrency findings — a suspicious absence to justify or fill?
+- Did you check error-path cleanup (finally/dispose) AND unhandled rejection on every awaited call?
+- For each "should be parallel" suggestion, did you verify the awaits are genuinely independent (no data dependency)?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

@@ -82,7 +82,15 @@ Focus management:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#a11y-review` (a11y-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these a11y-review-specific challenges:
+
+- Did you examine every component/template file in scope, not just the most obviously interactive one?
+- For each contrast finding, did you cite the actual color values and the computed WCAG ratio rather than estimate "looks low"?
+- Did you check keyboard operability for EVERY custom interactive element (handler + focusability + visible focus), not just buttons?
+- Are there dynamic regions (live updates, route changes, modal open/close) with no announcement/focus-management finding — a suspicious absence?
+- For each "missing label" finding, did you verify there's no `aria-labelledby` or visible-text association before flagging?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

@@ -94,7 +94,15 @@ Flag as **suggestion** any top-level frontmatter key that is not in the official
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#claude-setup-review` (claude-setup-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these claude-setup-review-specific challenges:
+
+- Did you check EVERY `.md` file under `agents/` for frontmatter schema compliance, not just a sample?
+- For each "referenced path doesn't exist" finding, did you resolve the path against the actual tree rather than assume?
+- Did you distinguish a required-field violation (error) from a plugin-unsupported field (warning) per the schema rules?
+- Are there unknown frontmatter keys you walked past that should be flagged as suggestions?
+- For each "command doesn't work" finding, did you confirm it against the actual manifest (package.json/Makefile), not infer from the name?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

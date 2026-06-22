@@ -132,7 +132,16 @@ Testability blockers:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#test-review` (test-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these test-review-specific challenges:
+
+- For every class below 90% effective coverage, did you identify the SPECIFIC uncovered behavior?
+- For each "can't test because of static coupling" — did you verify there's no injectable constructor or interface available?
+- Are there tests with no assertion (just "didn't crash")? These provide zero regression protection.
+- Are there tests that verify test infrastructure instead of business logic (CanBeMocked, ImplementsInterface, ConstructorSetsField)?
+- Did you check for shared mutable state between tests (static fields, module-level singletons)?
+- Are there non-determinism sources (unstubbed clock, real network, file I/O) that weren't flagged as flakiness risks?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

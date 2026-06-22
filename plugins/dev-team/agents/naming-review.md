@@ -83,7 +83,15 @@ Consistency:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#naming-review` (naming-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these naming-review-specific challenges:
+
+- Did you complete Phase 1 enumeration for EVERY identifier in the diff before classifying, or skip to the obvious offenders?
+- For each misleading-name (error) finding, did you confirm the name signals the opposite of its value/behavior, with the code quoted?
+- For each magic-value finding, did you verify there is no existing named constant for it already?
+- Did you mark domain terminology you can't verify as confidence `none` rather than imposing a generic rename?
+- Are there inconsistent names for the same concept across files that you missed by reviewing files in isolation?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

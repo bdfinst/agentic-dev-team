@@ -62,4 +62,12 @@ numbers and never quote prompt or code content (the digest contains none).
 
 ## Self-Challenge
 
-After producing the ranked suggestion list, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#session-analysis` (session-analysis challenge questions). Append the `Challenge:` line to the list's closing summary sentence.
+After producing the ranked suggestion list, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these session-analysis-specific challenges:
+
+- Is every suggestion backed by a specific digest field and value, or did any rest on an assumed pattern?
+- Did you weigh all three problem classes (token / rework / accuracy), not over-index on the loudest one?
+- For each suggestion, does the `target` name a concrete artifact and the `handoff` a valid route?
+- Did you avoid inventing numbers or quoting prompt/code content the digest does not contain?
+- Are there strong digest signals (never-observed agents, low cache-hit ratio) you left without a suggestion?
+
+Append the `Challenge:` line to the list's closing summary sentence.

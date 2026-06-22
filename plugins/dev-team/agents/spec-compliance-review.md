@@ -82,4 +82,12 @@ Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` 
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#spec-compliance-review` (spec-compliance-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these spec-compliance-review-specific challenges:
+
+- Did you load EVERY spec artifact (spec, plan, design doc, all `.feature` files), or stop at the first one found?
+- For each acceptance criterion, did you locate BOTH the implementation and its test — not assume a test exists because the criterion "looks covered"?
+- For every scope-violation finding, did you confirm the change maps to no criterion, including criteria in linked or related slices?
+- Did you check for planned changes that were NOT made (missing files), not just unplanned files that were added?
+- Is every `error` (unmet criterion, uncovered scenario) backed by the specific criterion/scenario text, not a paraphrase?
+
+Append confidence level (High/Medium/Low) to the `summary` field.

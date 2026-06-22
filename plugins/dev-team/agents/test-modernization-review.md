@@ -135,7 +135,15 @@ Return JSON matching the schema above. The orchestrator (`/test-modernize`) trea
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#test-modernization-review` (test-modernization-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these test-modernization-review-specific challenges:
+
+- Did you run EVERY check in the phase-specific list, or stop at the first failure?
+- For each verification, did you open the cited artifact (feature file, coverage JSON, resolution JSON) rather than trust the progress file's summary?
+- For a `pass`, did you confirm the next phase actually has the inputs it needs, not just that this phase's deliverable exists?
+- Is every `error` tied to a specific invariant violation with file/row evidence, not a general impression?
+- Did you check the integrity cross-references (disabled-tests ↔ resolution, scenarios ↔ bindings) exhaustively, with orphan count = 0?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

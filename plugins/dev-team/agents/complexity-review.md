@@ -67,7 +67,15 @@ Cognitive load:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#complexity-review` (complexity-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these complexity-review-specific challenges:
+
+- Did you check ALL methods and functions, not just the visibly large ones?
+- For each nesting-depth finding, did you count the actual levels rather than estimating by appearance?
+- Are there methods just under the threshold (19 lines, 3 levels) that warrant a warning?
+- Did you distinguish between genuine cognitive complexity (multiple concepts) and mechanical repetition (defensive null checks)?
+- For async findings, did you verify the pattern is actually problematic in context (library vs. application code)?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

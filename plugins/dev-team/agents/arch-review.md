@@ -95,7 +95,15 @@ Grep for patterns that architecture documentation explicitly bans:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#arch-review` (arch-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these arch-review-specific challenges:
+
+- Did you read the ADRs before reviewing? Every finding should reference whether it contradicts an ADR.
+- Did you check cross-boundary imports in BOTH directions (not just infrastructure → domain)?
+- For each "inconsistent pattern" finding, did you verify the established pattern exists in at least 2 other locations?
+- Did you check for circular dependencies introduced by the changeset?
+- Are there new abstractions that duplicate existing ones?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

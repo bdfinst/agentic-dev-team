@@ -65,7 +65,15 @@ Algorithmic:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#performance-review` (performance-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these performance-review-specific challenges:
+
+- Did you check every loop and I/O site for N+1 / unbounded growth, not just the largest function?
+- For each resource-leak finding, did you confirm there is no cleanup (finally/using/defer/dispose) anywhere on the path?
+- For each algorithmic finding, did you verify it's on a hot path with realistic input size, not one-off init?
+- Is there a long-lived cache or collection with no eviction-bound finding — a suspicious absence?
+- For each "missing timeout" finding, did you check for a timeout configured at the client/global level before flagging the call site?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

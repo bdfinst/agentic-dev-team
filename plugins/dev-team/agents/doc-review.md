@@ -64,7 +64,15 @@ Return `{"status": "skip", "issues": [], "summary": "No documentation files foun
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#doc-review` (doc-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these doc-review-specific challenges:
+
+- Did you compare EVERY changed public signature against its doc comment, not just the ones with obvious drift?
+- For each "README describes removed feature" finding, did you confirm the feature is actually gone from source (grep), not assume?
+- Did you check whether agent/skill changes require a CLAUDE.md registry-table update — a common silent omission?
+- Are there new architectural patterns or dependencies with no ADR-trigger finding — a suspicious absence?
+- For each finding, did you distinguish a doc that is WRONG (flag) from one that merely differs in style (do not flag)?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

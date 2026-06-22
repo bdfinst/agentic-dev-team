@@ -170,7 +170,16 @@ When a finding is an untrusted-input or declared-schema boundary, a `suggestedFi
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#security-review` (security-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these security-review-specific challenges:
+
+- Did you check EVERY source file, not just files with suspicious names?
+- Did you trace user-controlled input all the way to its sink (query, shell, template, redirect)?
+- Did you distinguish between `throw` (error handling) and silent swallow?
+- Are hardcoded secrets in `.env` files actually committed (check `git ls-files`)? If not, do NOT flag them.
+- Did you check CI/CD workflow files and Dockerfiles, which are in scope even for small changesets?
+- Is every "missing auth check" finding verified against the actual middleware chain, not just the handler?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

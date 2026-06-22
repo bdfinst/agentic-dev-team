@@ -84,7 +84,15 @@ Lifecycle issues:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#svelte-review` (svelte-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these svelte-review-specific challenges:
+
+- Did you examine every `.svelte`/`.svelte.ts`/`.svelte.js` file in scope, not just the most stateful component?
+- For each reactivity finding, did you confirm the Svelte version (4 vs 5) and that the pattern actually breaks tracking in that version?
+- Did you check every manual `.subscribe()` for a matching `unsubscribe`/`onDestroy` cleanup?
+- For each `$state` finding, did you verify the mutation/destructure/spread actually escapes the proxy (`$store` auto-subscription is safe)?
+- Is there an `$effect`/`$:` block with hidden dependencies or self-writes you walked past?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

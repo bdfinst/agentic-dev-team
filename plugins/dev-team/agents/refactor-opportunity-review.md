@@ -62,7 +62,15 @@ Before flagging duplication, ask: "If the business rule changes, would both copi
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#refactor-opportunity-review` (refactor-opportunity-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these refactor-opportunity-review-specific challenges:
+
+- For every duplication finding, did you apply the semantic-vs-structural test ("if the business rule changes, must both copies change?") before flagging?
+- Did you check method length and nesting on every changed function, not just the first long one?
+- For each extract-method finding, did you confirm a comment or block boundary marks a genuine separate responsibility?
+- Did you defer naming-only and architecture-only issues to their owning agents instead of double-reporting?
+- Are there feature-envy or primitive-obsession opportunities you walked past as "just how the code is"?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

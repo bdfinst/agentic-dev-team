@@ -60,7 +60,15 @@ This agent is read-only — it cannot run tests itself, so it must never *infer*
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#progress-guardian` (progress-guardian challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these progress-guardian-specific challenges:
+
+- Did you check EVERY plan step's status against actual git state, not just the most recent one?
+- For each "step complete" claim, did you confirm fresh test evidence exists rather than trust the `[x]` mark? ("Marked complete" is not "demonstrated complete.")
+- Did you trace every modified file to a plan step, flagging scope creep for any that map to none?
+- For commit-discipline findings, did you count actual commits between completed steps rather than estimate?
+- Is there a `fail` you should raise (unverified criteria) that you softened to `warning` without justification?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 
