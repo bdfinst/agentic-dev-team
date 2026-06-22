@@ -1,0 +1,57 @@
+{
+  "generated_from": ["data/tdd-campaign-2026-06-21.jsonl", "data/tdd-buildpipeline-2026-06-21.jsonl", "data/tdd-largetask-sonnet-2026-06-21.json"],
+  "sizes": {
+    "small": {
+      "description": "Single-function katas (Campaign A: caesar, fizzbuzz, rle, roman, rpn, word-tally)",
+      "model": "claude-haiku-4-5-20251001",
+      "characteristics": { "files_changed": 1, "functions_changed_median": 1, "loc_delta_median": 30 },
+      "arms": {
+        "test_first":      { "cost_usd_median": 0.1171, "turns_median": 9.5 },
+        "test_after":      { "cost_usd_median": 0.1315, "turns_median": 8.5 },
+        "build_pipeline":  { "cost_usd_median": 0.3412, "turns_median": 29.0 }
+      },
+      "pipeline_overhead_ratio": 2.91,
+      "plan_turns_overhead": 16
+    },
+    "medium": {
+      "description": "Multi-behavior tasks (Campaign B: stats, intervals, timeparse, money, matrix, csvlite)",
+      "model": "claude-sonnet-4-6",
+      "characteristics": { "files_changed_median": 3, "functions_changed_median": 5, "loc_delta_median": 200 },
+      "arms": {
+        "test_first":      { "cost_usd_median": 0.334, "turns_median": 17.0 },
+        "test_after":      { "cost_usd_median": 0.215, "turns_median": 8.0 },
+        "build_pipeline":  { "cost_usd_median": 0.552, "turns_median": 14.5 }
+      },
+      "pipeline_overhead_ratio": 2.57,
+      "plan_turns_overhead": 15
+    },
+    "large": {
+      "description": "Complex multi-file features — unmeasured; build-pipeline design value (planning, review) expected to earn out here",
+      "characteristics": { "files_changed_min": 6, "functions_changed_min": 6, "loc_delta_min": 300 },
+      "arms": null,
+      "note": "Corpus does not cover this tier; no data. This is where the pipeline overhead is expected to pay off."
+    }
+  },
+  "classifier_thresholds": {
+    "trivial": {
+      "max_files_changed": 1,
+      "max_loc_delta": 50,
+      "max_slice_count": 1,
+      "max_wave_count": 1,
+      "requires_no_complex_step": true,
+      "requires_no_decision_axis": true,
+      "rationale": "Maps to 'small' size tier. Pipeline overhead ~2.9× at this size with no quality benefit; fast path saves ~65% turns."
+    },
+    "complex": {
+      "min_files_changed": 6,
+      "min_loc_delta": 300,
+      "min_wave_count": 2,
+      "or_has_complex_step": true,
+      "or_has_decision_axis": true,
+      "rationale": "Pipeline overhead earns out on cross-cutting, security-sensitive, or multi-wave work."
+    },
+    "standard": {
+      "rationale": "Everything between trivial and complex. Pipeline runs normally."
+    }
+  }
+}

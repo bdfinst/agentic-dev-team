@@ -130,6 +130,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | CD Test Architecture | `knowledge/cd-test-architecture.md` | ~1,100 | cd-test-architecture, test-design-advisor |
 | Component Test Patterns | `knowledge/component-test-patterns.md` | ~1,600 | cd-test-architecture |
 | Decision Defaults | `knowledge/decision-defaults.md` | ~350 | Orchestrator, Product Manager, `/plan` (approach contract) |
+| Task Size Classifier | `knowledge/task-size-classifier.md` | ~400 | Orchestrator (Task Size Gate, no-plan fast path routing) |
 | Design Smells | `knowledge/design-smells.md` | ~600 | structure-review, complexity-review, naming-review |
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
 | Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~900 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
