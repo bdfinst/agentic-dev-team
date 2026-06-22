@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.0.0...dev-team-v7.1.0) (2026-06-22)
+
+
+### Documentation
+
+* **dev-team:** note registry-completeness gate; release v7.1.0 ([#352](https://github.com/bdfinst/agentic-dev-team/issues/352)) ([3630676](https://github.com/bdfinst/agentic-dev-team/commit/36306761ab36786408d95aa46aee43a76ab3e05c))
+
 ## [7.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.11.1...dev-team-v7.0.0) (2026-06-21)
 
 
