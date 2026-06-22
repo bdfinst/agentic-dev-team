@@ -3,6 +3,7 @@ name: concurrency-review
 description: Race conditions, async pitfalls, idempotency, shared state safety
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Concurrency Review
@@ -81,6 +82,18 @@ Resource ordering:
 - Nested locks or resource acquisition in inconsistent order (deadlock risk)
 - Connection pool exhaustion from unawaited async operations
 - Missing cleanup in error paths (finally/dispose)
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these concurrency-review-specific challenges:
+
+- Did you trace EVERY shared-mutable-state access across all async paths, or stop at the first guard you saw?
+- For each race-condition finding, did you confirm the two accesses can actually interleave (same instance, concurrent entry), not just look risky?
+- Is there async code (Promise/Task/Thread) with zero concurrency findings — a suspicious absence to justify or fill?
+- Did you check error-path cleanup (finally/dispose) AND unhandled rejection on every awaited call?
+- For each "should be parallel" suggestion, did you verify the awaits are genuinely independent (no data dependency)?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

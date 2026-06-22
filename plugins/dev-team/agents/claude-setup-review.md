@@ -3,6 +3,7 @@ name: claude-setup-review
 description: CLAUDE.md completeness, rules, skills, path accuracy, and agent frontmatter schema compliance
 tools: Read, Grep, Glob
 effort: low
+cites: [adversarial-review-protocol]
 ---
 
 # Claude Setup Review
@@ -90,6 +91,18 @@ Suggested fix for each: "This field is ignored for plugin agents. Move the agent
 ### Unknown frontmatter fields
 
 Flag as **suggestion** any top-level frontmatter key that is not in the official field list (`name`, `description`, `tools`, `disallowedTools`, `model`, `permissionMode`, `maxTurns`, `skills`, `mcpServers`, `hooks`, `memory`, `background`, `effort`, `isolation`, `color`, `initialPrompt`). These fields are ignored by Claude Code and may indicate a typo or a skill field accidentally placed in an agent file.
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these claude-setup-review-specific challenges:
+
+- Did you check EVERY `.md` file under `agents/` for frontmatter schema compliance, not just a sample?
+- For each "referenced path doesn't exist" finding, did you resolve the path against the actual tree rather than assume?
+- Did you distinguish a required-field violation (error) from a plugin-unsupported field (warning) per the schema rules?
+- Are there unknown frontmatter keys you walked past that should be flagged as suggestions?
+- For each "command doesn't work" finding, did you confirm it against the actual manifest (package.json/Makefile), not infer from the name?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

@@ -3,6 +3,7 @@ name: refactor-opportunity-review
 description: Assesses refactoring opportunities after tests pass (TDD REFACTOR phase), distinguishing semantic duplication from structural similarity
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Refactor Opportunity Review
@@ -58,6 +59,18 @@ Return `{"status": "skip", "issues": [], "summary": "No refactoring candidates i
 ## Semantic vs Structural Duplication Test
 
 Before flagging duplication, ask: "If the business rule changes, would both copies need to change?" If yes → semantic duplication (flag it). If no → structural similarity (leave it alone).
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these refactor-opportunity-review-specific challenges:
+
+- For every duplication finding, did you apply the semantic-vs-structural test ("if the business rule changes, must both copies change?") before flagging?
+- Did you check method length and nesting on every changed function, not just the first long one?
+- For each extract-method finding, did you confirm a comment or block boundary marks a genuine separate responsibility?
+- Did you defer naming-only and architecture-only issues to their owning agents instead of double-reporting?
+- Are there feature-envy or primitive-obsession opportunities you walked past as "just how the code is"?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

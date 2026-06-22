@@ -3,6 +3,7 @@ name: performance-review
 description: Resource leaks, N+1 queries, unbounded growth, timeouts, algorithmic issues
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Performance Review
@@ -61,6 +62,18 @@ Algorithmic:
 - Repeated computation that could be memoized
 - Large object cloning where partial updates suffice (deep clone in loops)
 - String concatenation in loops — use `join`/`StringBuilder` (Java/C#) or `Array.join` (JS/TS)
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these performance-review-specific challenges:
+
+- Did you check every loop and I/O site for N+1 / unbounded growth, not just the largest function?
+- For each resource-leak finding, did you confirm there is no cleanup (finally/using/defer/dispose) anywhere on the path?
+- For each algorithmic finding, did you verify it's on a hot path with realistic input size, not one-off init?
+- Is there a long-lived cache or collection with no eviction-bound finding — a suspicious absence?
+- For each "missing timeout" finding, did you check for a timeout configured at the client/global level before flagging the call site?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

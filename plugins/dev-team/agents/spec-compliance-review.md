@@ -3,6 +3,7 @@ name: spec-compliance-review
 description: Verify implementation matches specification before quality review agents run
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Spec Compliance Review
@@ -78,3 +79,15 @@ Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` 
 - Scope violation → `warning` (may be intentional)
 - Plan deviation → `warning` (may be justified)
 - Cosmetic divergence from the plan that meets every criterion (naming, file placement, ordering) → `suggestion`
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these spec-compliance-review-specific challenges:
+
+- Did you load EVERY spec artifact (spec, plan, design doc, all `.feature` files), or stop at the first one found?
+- For each acceptance criterion, did you locate BOTH the implementation and its test — not assume a test exists because the criterion "looks covered"?
+- For every scope-violation finding, did you confirm the change maps to no criterion, including criteria in linked or related slices?
+- Did you check for planned changes that were NOT made (missing files), not just unplanned files that were added?
+- Is every `error` (unmet criterion, uncovered scenario) backed by the specific criterion/scenario text, not a paraphrase?
+
+Append confidence level (High/Medium/Low) to the `summary` field.

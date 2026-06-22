@@ -86,7 +86,15 @@ Whole-file load: each linked SKILL.md is loaded in full when invoked.
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#domain-review` (domain-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these domain-review-specific challenges:
+
+- Did you check every entity/aggregate for anemic domain model patterns (data bags with all behavior in services)?
+- For each "business logic in wrong layer" finding, did you quote the specific rule and its location?
+- Did you check for ubiquitous language drift: same concept with 3+ different names across modules?
+- Are domain objects leaking persistence annotations, HTTP concerns, or infrastructure types?
+- Did you check aggregate boundary enforcement — are child entities accessed directly by external callers?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

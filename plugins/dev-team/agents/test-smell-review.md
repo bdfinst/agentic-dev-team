@@ -75,7 +75,16 @@ Pyramid placement (load `test-pyramid.md`; use the MinimumCD six test types from
 
 ## Self-Challenge
 
-After producing findings, run the test-review challenge pass in `knowledge/adversarial-review-protocol.md#test-smell-review`. Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these test-smell-review-specific challenges:
+
+- For every smell flagged, did you name the specific xUnit smell (not just "this test is bad")?
+- For each "Slow Tests" or "Erratic Test" finding, did you confirm the test's *intended* level — integration/E2E tests touch real resources by design?
+- For each mock-related finding, did you verify a Stub + state assertion couldn't replace it, rather than assuming all mocking is a smell?
+- Did you distinguish Test Code Duplication (extractable) from two tests covering genuinely different boundary conditions?
+- For smells rooted in untestable production code, did you recommend the production-code change (per testability-patterns.md), not a test workaround?
+- Did you defer tactical mechanics (missing assertion, missing await) to test-review instead of double-reporting them?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

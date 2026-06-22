@@ -3,6 +3,7 @@ name: test-modernization-review
 description: Gate-keeper for `/test-modernize` phase boundaries — verifies the phase's deliverable matches its acceptance criteria before the workflow advances
 tools: Read, Grep, Glob
 effort: low
+cites: [adversarial-review-protocol]
 ---
 
 # Test Modernization Review
@@ -131,6 +132,18 @@ Flag as **error** any refactor without a green baseline, any behavior change pai
 ## Output format
 
 Return JSON matching the schema above. The orchestrator (`/test-modernize`) treats any `status: "fail"` as a hard block on the human gate.
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these test-modernization-review-specific challenges:
+
+- Did you run EVERY check in the phase-specific list, or stop at the first failure?
+- For each verification, did you open the cited artifact (feature file, coverage JSON, resolution JSON) rather than trust the progress file's summary?
+- For a `pass`, did you confirm the next phase actually has the inputs it needs, not just that this phase's deliverable exists?
+- Is every `error` tied to a specific invariant violation with file/row evidence, not a general impression?
+- Did you check the integrity cross-references (disabled-tests ↔ resolution, scenarios ↔ bindings) exhaustively, with orphan count = 0?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

@@ -64,38 +64,6 @@
       "summary": "After the initial review pass, re-examine findings with the following questions.",
       "anchor": "the-loop"
     },
-    "Challenge Questions by Agent": {
-      "summary": "Did you check EVERY source file, not just files with suspicious names?",
-      "anchor": "challenge-questions-by-agent"
-    },
-    "security-review": {
-      "summary": "Did you check EVERY source file, not just files with suspicious names?",
-      "anchor": "security-review"
-    },
-    "test-review": {
-      "summary": "For every class below 90% effective coverage, did you identify the SPECIFIC uncovered behavior?",
-      "anchor": "test-review"
-    },
-    "test-smell-review": {
-      "summary": "For every smell flagged, did you name the specific xUnit smell (not just \"this test is bad\")?",
-      "anchor": "test-smell-review"
-    },
-    "structure-review": {
-      "summary": "Did you check every module/class for SRP violations, including small ones?",
-      "anchor": "structure-review"
-    },
-    "complexity-review": {
-      "summary": "Did you check ALL methods and functions, not just the visibly large ones?",
-      "anchor": "complexity-review"
-    },
-    "arch-review": {
-      "summary": "Did you read the ADRs before reviewing?",
-      "anchor": "arch-review"
-    },
-    "domain-review": {
-      "summary": "Did you check every entity/aggregate for anemic domain model patterns (data bags with all behavior in services)?",
-      "anchor": "domain-review"
-    },
     "Output": {
       "summary": "After the challenger pass, append to the `summary` field in your JSON output:",
       "anchor": "output"

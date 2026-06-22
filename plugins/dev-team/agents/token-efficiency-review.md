@@ -3,6 +3,7 @@ name: token-efficiency-review
 description: Token usage optimization, file length, CLAUDE.md size, LLM anti-patterns
 tools: Read, Grep, Glob
 effort: low
+cites: [adversarial-review-protocol]
 ---
 
 # Token Efficiency Review
@@ -104,6 +105,18 @@ CLAUDE.md, rules, and skills must follow LLM-native patterns. Flag violations:
 - error: Role preambles, verbose explanations before action items
 - warning: Conversational filler, redundant context, deep nesting
 - suggestion: Minor verbosity, could be more terse
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these token-efficiency-review-specific challenges:
+
+- Did you measure the actual char/line counts against the thresholds, or estimate "looks long"?
+- For each LLM-anti-pattern finding (role preamble, filler, hedging), did you quote the offending text?
+- Did you check whether a multi-step procedure in CLAUDE.md or rules should be a skill, not just flag its length?
+- Are there duplicate or repetitive sections across files you missed by reviewing each file alone?
+- For each "should be terser" suggestion, did you confirm trimming wouldn't drop a load-bearing instruction?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

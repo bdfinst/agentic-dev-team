@@ -3,6 +3,7 @@ name: data-flow-tracer
 description: Traces a use case through all architecture layers, mapping data access patterns, caching, external integrations, and identifying gaps. Analysis-only agent (read-only).
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Data Flow Tracer
@@ -91,6 +92,18 @@ Present findings with code locations (`file:line`) for each data access point.
 - **Primary collaborators**: Architect, Software Engineer, Performance Review agent
 - **Communication style**: Structured, visual — use tables and flow diagrams
 - **Integration**: Complements domain-review (boundaries) and arch-review (layer violations)
+
+## Self-Challenge
+
+After producing the trace report, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these data-flow-tracer-specific challenges:
+
+- Did you trace the ACTUAL code path for every step, or assume a conventional path you didn't open?
+- Is every layer in the trace table backed by a concrete `file:line`, with no row left as "probably handled here"?
+- Did you check every external call for timeout/retry/fallback and every write for a transaction boundary, or leave gaps unexamined?
+- Are there branches of the use case (error paths, alternate flows) you walked past by tracing only the happy path?
+- Did you report gaps without sliding into prescribing fixes (out of scope for this agent)?
+
+Append the `Challenge:` line to the report's closing summary sentence.
 
 ## Behavioral Guidelines
 

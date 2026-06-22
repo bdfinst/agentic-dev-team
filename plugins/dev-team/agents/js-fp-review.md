@@ -3,6 +3,7 @@ name: js-fp-review
 description: Array mutations, parameter mutations, global state, impure patterns in JS/TS
 tools: Read, Grep, Glob
 effort: low
+cites: [adversarial-review-protocol]
 ---
 
 # JS FP Review
@@ -68,6 +69,18 @@ Impure patterns:
 - Functions modifying parameters
 - Functions depending on/modifying external state
 - `++`/`--` outside loop counters
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these js-fp-review-specific challenges:
+
+- Did you enumerate every declaration and call site in the diff, or stop after the first few mutations?
+- For each array-mutation finding, did you verify it mutates a shared/external reference, not a locally-constructed spread copy (`[...arr].sort()` is allowed)?
+- Did you respect the documented exceptions (`mut`/`mutable`/`_` prefixes, `this.property` in class methods) before flagging?
+- For each `let`→`const` finding, did you confirm the binding is never reassigned anywhere in scope?
+- Is there parameter or global mutation you walked past because it "looked intentional" without an exception marker?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

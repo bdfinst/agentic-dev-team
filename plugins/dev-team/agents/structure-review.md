@@ -72,7 +72,16 @@ Design smells:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#structure-review` (structure-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these structure-review-specific challenges:
+
+- Did you check every module/class for SRP violations, including small ones?
+- Did you trace dependency direction? Does business logic depend on infrastructure (not just vice versa)?
+- Are there hidden static singletons or global state that aren't injected?
+- For every "duplicate code" finding, did you verify it's semantic duplication and not just structural similarity?
+- Did you check constructor parameter counts? >5 parameters usually signals SRP violation.
+- Are there God objects/Megaclasses you walked past because they're "just how the code is"?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

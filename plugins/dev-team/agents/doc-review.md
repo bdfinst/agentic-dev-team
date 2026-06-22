@@ -3,6 +3,7 @@ name: doc-review
 description: Documentation accuracy, README staleness, API doc alignment, inline comment drift, ADR update triggers
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Documentation Review
@@ -60,6 +61,18 @@ Return `{"status": "skip", "issues": [], "summary": "No documentation files foun
 - `README.md` workflow section describes a workflow that differs from current implementation
 - `docs/agent-architecture.md` references a configuration or governance detail that is no longer current
 - Agent or skill files changed without corresponding update to `CLAUDE.md` registry tables
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these doc-review-specific challenges:
+
+- Did you compare EVERY changed public signature against its doc comment, not just the ones with obvious drift?
+- For each "README describes removed feature" finding, did you confirm the feature is actually gone from source (grep), not assume?
+- Did you check whether agent/skill changes require a CLAUDE.md registry-table update — a common silent omission?
+- Are there new architectural patterns or dependencies with no ADR-trigger finding — a suspicious absence?
+- For each finding, did you distinguish a doc that is WRONG (flag) from one that merely differs in style (do not flag)?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

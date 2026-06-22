@@ -3,6 +3,7 @@ name: progress-guardian
 description: Tracks plan step completion, enforces commit discipline, and gates plan changes through human approval
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Progress Guardian
@@ -56,6 +57,18 @@ Pre-PR gate:
 ## Verify by dispatch (read-only)
 
 This agent is read-only — it cannot run tests itself, so it must never *infer* that a completion claim is sound. When it detects a step `[x]` whose acceptance criteria are unverified, or missing test evidence for completed work, it emits a `fail` issue whose `suggestedFix` names the validation to run — e.g. "dispatch `quality-gate-pipeline` Phase 2 (or re-run the slice's `/build` verification) to produce fresh test output for Step N." The orchestrator owns running it; the guardian owns flagging that proven evidence is absent. "Marked complete" is not "demonstrated complete."
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these progress-guardian-specific challenges:
+
+- Did you check EVERY plan step's status against actual git state, not just the most recent one?
+- For each "step complete" claim, did you confirm fresh test evidence exists rather than trust the `[x]` mark? ("Marked complete" is not "demonstrated complete.")
+- Did you trace every modified file to a plan step, flagging scope creep for any that map to none?
+- For commit-discipline findings, did you count actual commits between completed steps rather than estimate?
+- Is there a `fail` you should raise (unverified criteria) that you softened to `warning` without justification?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

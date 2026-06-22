@@ -3,6 +3,7 @@ name: svelte-review
 description: Svelte reactivity pitfalls, closure state leaks, $state proxy issues, store subscription leaks
 tools: Read, Grep, Glob
 effort: low
+cites: [adversarial-review-protocol]
 ---
 
 # Svelte Review
@@ -80,6 +81,18 @@ Lifecycle issues:
 - DOM access (querySelector, bindings) before `onMount` / outside `$effect`
 - Missing cleanup in `onDestroy` / `$effect` return for timers, listeners, observers
 - Accessing `$state` during SSR when it requires browser APIs
+
+## Self-Challenge
+
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these svelte-review-specific challenges:
+
+- Did you examine every `.svelte`/`.svelte.ts`/`.svelte.js` file in scope, not just the most stateful component?
+- For each reactivity finding, did you confirm the Svelte version (4 vs 5) and that the pattern actually breaks tracking in that version?
+- Did you check every manual `.subscribe()` for a matching `unsubscribe`/`onDestroy` cleanup?
+- For each `$state` finding, did you verify the mutation/destructure/spread actually escapes the proxy (`$store` auto-subscription is safe)?
+- Is there an `$effect`/`$:` block with hidden dependencies or self-writes you walked past?
+
+Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 
