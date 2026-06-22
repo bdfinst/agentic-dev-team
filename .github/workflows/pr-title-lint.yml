@@ -8,8 +8,12 @@ name: PR title lint
 # (PR #350 shipped a feat under a non-conventional title and skipped v7.1.0.)
 
 on:
+  # `synchronize` (a push to the PR) is required: branch protection evaluates the
+  # required check against the PR's head SHA, so the check must re-report on every
+  # new commit — otherwise an updated PR is blocked waiting for a status that never
+  # re-runs (compounded here by strict "require branches up to date").
   pull_request:
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, synchronize]
 
 permissions:
   contents: read
@@ -20,6 +24,10 @@ concurrency:
 
 jobs:
   lint-pr-title:
+    # The job name IS the status-check context branch protection matches on.
+    # It must equal the required check configured in the ruleset ("PR title lint"),
+    # not the workflow name — otherwise the requirement is never satisfied.
+    name: PR title lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
