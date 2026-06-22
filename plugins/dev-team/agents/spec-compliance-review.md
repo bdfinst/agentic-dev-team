@@ -3,6 +3,7 @@ name: spec-compliance-review
 description: Verify implementation matches specification before quality review agents run
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Spec Compliance Review
@@ -78,3 +79,7 @@ Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` 
 - Scope violation → `warning` (may be intentional)
 - Plan deviation → `warning` (may be justified)
 - Cosmetic divergence from the plan that meets every criterion (naming, file placement, ordering) → `suggestion`
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#spec-compliance-review` (spec-compliance-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.

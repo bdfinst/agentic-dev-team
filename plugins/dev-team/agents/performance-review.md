@@ -3,6 +3,7 @@ name: performance-review
 description: Resource leaks, N+1 queries, unbounded growth, timeouts, algorithmic issues
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Performance Review
@@ -61,6 +62,10 @@ Algorithmic:
 - Repeated computation that could be memoized
 - Large object cloning where partial updates suffice (deep clone in loops)
 - String concatenation in loops — use `join`/`StringBuilder` (Java/C#) or `Array.join` (JS/TS)
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#performance-review` (performance-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

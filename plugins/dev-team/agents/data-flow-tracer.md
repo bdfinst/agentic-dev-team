@@ -3,6 +3,7 @@ name: data-flow-tracer
 description: Traces a use case through all architecture layers, mapping data access patterns, caching, external integrations, and identifying gaps. Analysis-only agent (read-only).
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Data Flow Tracer
@@ -91,6 +92,10 @@ Present findings with code locations (`file:line`) for each data access point.
 - **Primary collaborators**: Architect, Software Engineer, Performance Review agent
 - **Communication style**: Structured, visual — use tables and flow diagrams
 - **Integration**: Complements domain-review (boundaries) and arch-review (layer violations)
+
+## Self-Challenge
+
+After producing the trace report, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#data-flow-tracer` (data-flow-tracer challenge questions). Append the `Challenge:` line to the report's closing summary sentence.
 
 ## Behavioral Guidelines
 

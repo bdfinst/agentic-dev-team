@@ -3,6 +3,7 @@ name: doc-review
 description: Documentation accuracy, README staleness, API doc alignment, inline comment drift, ADR update triggers
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Documentation Review
@@ -60,6 +61,10 @@ Return `{"status": "skip", "issues": [], "summary": "No documentation files foun
 - `README.md` workflow section describes a workflow that differs from current implementation
 - `docs/agent-architecture.md` references a configuration or governance detail that is no longer current
 - Agent or skill files changed without corresponding update to `CLAUDE.md` registry tables
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#doc-review` (doc-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

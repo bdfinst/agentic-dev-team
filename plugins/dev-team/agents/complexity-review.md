@@ -3,7 +3,7 @@ name: complexity-review
 description: Cyclomatic complexity, nesting depth, function size, parameter count
 tools: Read, Grep, Glob
 effort: medium
-cites: [object-calisthenics]
+cites: [object-calisthenics, adversarial-review-protocol]
 ---
 
 # Complexity Review
@@ -67,7 +67,7 @@ Cognitive load:
 
 ## Self-Challenge
 
-After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#structure-review`. Use the structure-review challenge questions (the nearest applicable section — no complexity-specific section exists). Append confidence level (High/Medium/Low) to the `summary` field.
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#complexity-review` (complexity-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

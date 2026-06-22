@@ -3,6 +3,7 @@ name: a11y-review
 description: WCAG 2.1 AA compliance, semantic HTML, ARIA, keyboard navigation, focus management
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Accessibility Review
@@ -78,6 +79,10 @@ Focus management:
 - Focus not returned after modal close
 - Dynamic content insertion without focus management
 - Route changes not announcing new content
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#a11y-review` (a11y-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

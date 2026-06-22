@@ -3,6 +3,7 @@ name: concurrency-review
 description: Race conditions, async pitfalls, idempotency, shared state safety
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Concurrency Review
@@ -81,6 +82,10 @@ Resource ordering:
 - Nested locks or resource acquisition in inconsistent order (deadlock risk)
 - Connection pool exhaustion from unawaited async operations
 - Missing cleanup in error paths (finally/dispose)
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#concurrency-review` (concurrency-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

@@ -3,6 +3,7 @@ name: progress-guardian
 description: Tracks plan step completion, enforces commit discipline, and gates plan changes through human approval
 tools: Read, Grep, Glob
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Progress Guardian
@@ -56,6 +57,10 @@ Pre-PR gate:
 ## Verify by dispatch (read-only)
 
 This agent is read-only — it cannot run tests itself, so it must never *infer* that a completion claim is sound. When it detects a step `[x]` whose acceptance criteria are unverified, or missing test evidence for completed work, it emits a `fail` issue whose `suggestedFix` names the validation to run — e.g. "dispatch `quality-gate-pipeline` Phase 2 (or re-run the slice's `/build` verification) to produce fresh test output for Step N." The orchestrator owns running it; the guardian owns flagging that proven evidence is absent. "Marked complete" is not "demonstrated complete."
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#progress-guardian` (progress-guardian challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

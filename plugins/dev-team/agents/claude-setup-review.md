@@ -3,6 +3,7 @@ name: claude-setup-review
 description: CLAUDE.md completeness, rules, skills, path accuracy, and agent frontmatter schema compliance
 tools: Read, Grep, Glob
 effort: low
+cites: [adversarial-review-protocol]
 ---
 
 # Claude Setup Review
@@ -90,6 +91,10 @@ Suggested fix for each: "This field is ignored for plugin agents. Move the agent
 ### Unknown frontmatter fields
 
 Flag as **suggestion** any top-level frontmatter key that is not in the official field list (`name`, `description`, `tools`, `disallowedTools`, `model`, `permissionMode`, `maxTurns`, `skills`, `mcpServers`, `hooks`, `memory`, `background`, `effort`, `isolation`, `color`, `initialPrompt`). These fields are ignored by Claude Code and may indicate a typo or a skill field accidentally placed in an agent file.
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#claude-setup-review` (claude-setup-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

@@ -3,6 +3,7 @@ name: svelte-review
 description: Svelte reactivity pitfalls, closure state leaks, $state proxy issues, store subscription leaks
 tools: Read, Grep, Glob
 effort: low
+cites: [adversarial-review-protocol]
 ---
 
 # Svelte Review
@@ -80,6 +81,10 @@ Lifecycle issues:
 - DOM access (querySelector, bindings) before `onMount` / outside `$effect`
 - Missing cleanup in `onDestroy` / `$effect` return for timers, listeners, observers
 - Accessing `$state` during SSR when it requires browser APIs
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#svelte-review` (svelte-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

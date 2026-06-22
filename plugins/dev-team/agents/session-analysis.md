@@ -3,6 +3,7 @@ name: session-analysis
 description: Map an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions
 tools: Read
 effort: medium
+cites: [adversarial-review-protocol]
 ---
 
 # Session Analysis
@@ -58,3 +59,7 @@ Produce a ranked list of suggestions. For each, emit exactly:
 
 Suggest, never apply. Cite only digest metrics as evidence — never invent
 numbers and never quote prompt or code content (the digest contains none).
+
+## Self-Challenge
+
+After producing the ranked suggestion list, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#session-analysis` (session-analysis challenge questions). Append the `Challenge:` line to the list's closing summary sentence.

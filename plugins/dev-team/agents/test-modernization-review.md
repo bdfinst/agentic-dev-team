@@ -3,6 +3,7 @@ name: test-modernization-review
 description: Gate-keeper for `/test-modernize` phase boundaries — verifies the phase's deliverable matches its acceptance criteria before the workflow advances
 tools: Read, Grep, Glob
 effort: low
+cites: [adversarial-review-protocol]
 ---
 
 # Test Modernization Review
@@ -131,6 +132,10 @@ Flag as **error** any refactor without a green baseline, any behavior change pai
 ## Output format
 
 Return JSON matching the schema above. The orchestrator (`/test-modernize`) treats any `status: "fail"` as a hard block on the human gate.
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#test-modernization-review` (test-modernization-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

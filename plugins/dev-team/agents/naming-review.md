@@ -3,7 +3,7 @@ name: naming-review
 description: Naming clarity, conventions, magic values, and consistency
 tools: Read, Grep, Glob
 effort: medium
-cites: [design-smells]
+cites: [design-smells, adversarial-review-protocol]
 ---
 
 # Naming Review
@@ -80,6 +80,10 @@ Consistency:
 
 - Same concept named differently across codebase
 - Non-standard abbreviations
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#naming-review` (naming-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 

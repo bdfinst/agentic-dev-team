@@ -3,6 +3,7 @@ name: js-fp-review
 description: Array mutations, parameter mutations, global state, impure patterns in JS/TS
 tools: Read, Grep, Glob
 effort: low
+cites: [adversarial-review-protocol]
 ---
 
 # JS FP Review
@@ -68,6 +69,10 @@ Impure patterns:
 - Functions modifying parameters
 - Functions depending on/modifying external state
 - `++`/`--` outside loop counters
+
+## Self-Challenge
+
+After producing findings, run the adversarial challenge pass from `knowledge/adversarial-review-protocol.md#js-fp-review` (js-fp-review challenge questions). Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 
