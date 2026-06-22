@@ -27,10 +27,14 @@ isolated and graded by acceptance tests hidden during the build.
 
 ## Answer in one line
 
-**No.** At a fixed strong model, TDD is **never cheaper** than test-after, is
-**significantly more expensive on mid-sized tasks**, and produces code that is
-**equally correct** and **equally (or marginally less) well-tested and clean**.
-The differences are all in cost and process, not in the resulting product.
+**No — given clear, complete requirements.** At a fixed strong model, TDD is
+**never cheaper** than test-after, is **significantly more expensive on mid-sized
+tasks**, and produces code that is **equally correct** and **equally (or
+marginally less) well-tested and clean**. The differences are all in cost and
+process, not in the resulting product. This holds **under an unambiguous spec and
+an objective correctness oracle** — a scope condition that, by design, excludes
+TDD's most-claimed benefit (surfacing ambiguity before coding); see Limitations
+and the planned follow-up.
 
 ---
 
@@ -133,6 +137,17 @@ indistinguishable except that TDD costs the same or more.**
 
 ## Limitations
 
+- **Assumes clear, complete, frozen requirements — the key scope condition.** Both
+  arms code against an unambiguous `spec.md` (≥8 concrete scenarios with exact
+  types/ordering/error behavior) with **hidden acceptance tests as an objective
+  correctness oracle**. This deliberately controls away the regime TDD advocates
+  care most about — vague, incomplete, or evolving requirements — where writing a
+  failing test first is claimed to surface gaps and edge cases *before*
+  implementation. When the behavior is already fully specified, that "red test as
+  a thinking tool" benefit has nothing to discover, so it cannot appear in these
+  numbers. **The headline result is conditional on this assumption.** Whether TDD
+  diverges under *under-specified* requirements is the explicit subject of a
+  planned follow-up: [`ambiguous-requirements-experiment.md`](ambiguous-requirements-experiment.md).
 - **n = 6 tasks per size**; exact paired tests bottom out near p≈0.03. Single-size
   results are directional; the cross-size *pattern* (TDD penalty peaks at medium,
   vanishes at large) is the durable signal.
@@ -165,8 +180,11 @@ python3 scripts/analyze_tdd_experiment.py \
 ## Recommendation
 
 - **Do not adopt strict test-first expecting cheaper, more-correct, or
-  better-tested code at this model strength** — it delivers none of those here and
-  costs the same or more (notably +55% on mid-sized tasks).
+  better-tested code at this model strength *when requirements are already
+  clear*** — it delivers none of those here and costs the same or more (notably
+  +55% on mid-sized tasks). The verdict is explicitly scoped to unambiguous
+  requirements; the messy-requirements case is untested and is where TDD's
+  payoff, if any, is expected (see the follow-up below).
 - **If you use TDD, use it for its process discipline**, not its output: the
   executable-spec-first habit and protection against implementation-first drift.
 - **Strengthen the REFACTOR step.** TDD's only measurable output gap was *worse*
