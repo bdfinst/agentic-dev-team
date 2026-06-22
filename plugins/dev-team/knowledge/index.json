@@ -1048,6 +1048,10 @@
       "summary": "Reviewer agents sometimes inline normative rules — numeric thresholds like",
       "anchor": "2d-citation-drift-lint-preventive"
     },
+    "2e. Registry completeness (preventive)": {
+      "summary": "The catalog tables (`knowledge/agent-registry.md` for agents and agent-loaded",
+      "anchor": "2e-registry-completeness-preventive"
+    },
     "3. Audit skills": {
       "summary": "Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:",
       "anchor": "3-audit-skills"
