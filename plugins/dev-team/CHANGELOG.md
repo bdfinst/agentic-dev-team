@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.2.0...dev-team-v7.3.0) (2026-06-22)
+
+
+### Features
+
+* objective task-size classifier, no-plan fast path, and mutation timeout hardening ([#379](https://github.com/bdfinst/agentic-dev-team/issues/379)) ([ae1e99c](https://github.com/bdfinst/agentic-dev-team/commit/ae1e99cc49af92ce7a0996c400ecd9c29dbbb72d))
+* **quality-gate,harness-audit:** trust review signals over saturating coverage metrics ([#377](https://github.com/bdfinst/agentic-dev-team/issues/377)) ([9d22233](https://github.com/bdfinst/agentic-dev-team/commit/9d22233de3b5f1e7ddc8aec64fd79551f2e4d294))
+* wire REFACTOR review loop, harden review agent determinism, add consistency evals (epic [#362](https://github.com/bdfinst/agentic-dev-team/issues/362)) ([#378](https://github.com/bdfinst/agentic-dev-team/issues/378)) ([ec091a8](https://github.com/bdfinst/agentic-dev-team/commit/ec091a8cedd22b41325a2a7b66f419f57c88c857))
+
 ## [7.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.1.0...dev-team-v7.2.0) (2026-06-22)
 
 
