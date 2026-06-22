@@ -1,0 +1,21 @@
+{
+  "fixture": "nm-consistency-canonical",
+  "description": "Canonical naming fixture for consistency eval. Contains exactly 3 error/warning violations and 1 suggestion — each maps to a single named detect rule. Run with --trials 2 to verify finding counts stay within ±1 across runs.",
+  "applicableAgents": ["naming-review"],
+  "consistencyTolerance": {
+    "maxFindingDelta": 1,
+    "trialCount": 2,
+    "scope": "issueCount"
+  },
+  "agents": {
+    "naming-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 2, "max": 5 },
+      "severities": {
+        "error": { "min": 1, "max": 2 },
+        "warning": { "min": 1, "max": 3 }
+      },
+      "mustMention": ["boolean", "flag"]
+    }
+  }
+}
