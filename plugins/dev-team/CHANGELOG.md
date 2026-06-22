@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.1.0...dev-team-v7.2.0) (2026-06-22)
+
+
+### Features
+
+* **plan,build:** tier plan review, batch inline review, headless approval gates ([#355](https://github.com/bdfinst/agentic-dev-team/issues/355)) ([48c44e3](https://github.com/bdfinst/agentic-dev-team/commit/48c44e394803f81ca3370b48e212e9875da1f2a1))
+
 ## [7.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.0.0...dev-team-v7.1.0) (2026-06-22)
 
 
