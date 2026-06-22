@@ -68,7 +68,41 @@ For each review agent in the registry (`knowledge/agent-registry.md`):
 3. **False positive rate**: If correction data exists (from `/apply-fixes`), check how often findings were dismissed vs. applied. Agents with >50% dismissed findings have a high false positive rate.
 4. **Finding severity distribution**: Is the agent producing mostly minor findings? If >80% of findings are minor severity, consider whether the agent justifies its token cost.
 
-### 3. Analyze model routing
+### 3. Analyze review-value fix rates
+
+Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `performance-metrics`). If the file is absent, note it and continue — this section is skippable.
+
+For each **checkpoint type** (the `checkpoint` field: `step` or `slice`) and each **agent combination** (`agents_run` list, treated as a set-key), compute:
+
+```bash
+[ -f metrics/review-value.jsonl ] && jq -s '
+  group_by(.checkpoint + "|" + (.agents_run | sort | join(",")))
+  | map({
+      checkpoint:    .[0].checkpoint,
+      agents:        (.[0].agents_run | sort | join(", ")),
+      total:         length,
+      no_op:         (map(select(.outcome=="no-op"))    | length),
+      fixed:         (map(select(.outcome=="fixed"))     | length),
+      escalated:     (map(select(.outcome=="escalated")) | length),
+      fix_rate:      ((map(select(.outcome=="fixed")) | length) / length * 100 | round),
+      issues_found:  (map(.issues_found)  | add // 0),
+      issues_fixed:  (map(.issues_fixed)  | add // 0),
+      fix_iterations:(map(.fix_iterations)| add // 0)
+    })' \
+  metrics/review-value.jsonl
+```
+
+Flag **drop candidates**: any checkpoint+agents combination with `fix_rate == 0` across **N ≥ 5** logged runs is a drop candidate — it consistently adds overhead without catching defects.
+
+Flag **high-value checkpoints**: `fix_rate ≥ 50%` — these are earning their cost and should be retained.
+
+**Drop-candidate recommendations** (P2-S3):
+For each drop candidate emit a recommendation in this form:
+> `<checkpoint>/<agents>` fixed 0/<N> runs (fix rate 0%) — candidate to drop. To act: remove this checkpoint type from the relevant `/build` step-complexity tier or exclude these agents from the checkpoint's dispatch list. Do not auto-edit skills; present for human decision.
+
+Do not modify any skill or agent file. The report is the only artifact.
+
+### 4. Analyze model routing
 
 For each agent listed in `knowledge/agent-registry.md` (with model tier from its `model:` frontmatter, resolved via the PreToolUse hook per `agents/orchestrator.md` → Resolution Procedure):
 
@@ -76,7 +110,7 @@ For each agent listed in `knowledge/agent-registry.md` (with model tier from its
 2. **Under-tiered agents**: Agents on haiku that frequently miss issues caught by human review may need a higher tier.
 3. **Cost distribution**: Which agents consume the most tokens? Are the most expensive agents also the most valuable?
 
-### 4. Analyze orchestration complexity
+### 5. Analyze orchestration complexity
 
 Review the current pipeline for components that may be unnecessary overhead:
 
@@ -84,7 +118,7 @@ Review the current pipeline for components that may be unnecessary overhead:
 2. **Review checkpoint frequency**: Are inline reviews running on every step? If most steps are trivial, the complexity classification (see `skills/plan/SKILL.md` § Complexity Classification) should be catching this.
 3. **Unused skills**: Skills loaded but never applied in logged sessions.
 
-### 5. Produce report
+### 6. Produce report
 
 Write the report to the output path using this structure:
 
@@ -109,6 +143,26 @@ Write the report to the output path using this structure:
 | Agent | Findings | Minor % | Recommendation |
 |-------|----------|---------|----------------|
 
+## Review-Value Fix Rates (inline checkpoint ROI)
+
+> Source: `metrics/review-value.jsonl`. Absent = no `/build` runs logged yet.
+
+### Per-Checkpoint-Type Fix Rates
+| Checkpoint | Agents | Runs | No-op | Fixed | Escalated | Fix rate |
+|------------|--------|------|-------|-------|-----------|----------|
+
+### Drop Candidates (fix rate 0%, N ≥ 5 runs)
+| Checkpoint | Agents | Runs | Recommendation |
+|------------|--------|------|----------------|
+
+> To act on a drop candidate: remove the checkpoint type from the relevant `/build`
+> step-complexity tier or exclude the agents from that checkpoint's dispatch list.
+> Requires human decision — do not auto-edit skills.
+
+### High-Value Checkpoints (fix rate ≥ 50%)
+| Checkpoint | Agents | Runs | Fix rate | Issues fixed |
+|------------|--------|------|----------|--------------|
+
 ## Model Routing Recommendations
 
 | Agent | Current tier | Suggested tier | Rationale |
@@ -123,13 +177,15 @@ Write the report to the output path using this structure:
 - Agents to consider removing: <count>
 - Model tier changes suggested: <count>
 - Orchestration simplifications: <count>
+- Review-value drop candidates: <count>
+- Review-value high-value checkpoints: <count>
 
 ## Next Steps
 
 <Actionable recommendations prioritized by impact>
 ```
 
-### 6. Present results
+### 7. Present results
 
 Display a summary of the report and the file path. Do not repeat the full report in chat — the file is the artifact.
 
