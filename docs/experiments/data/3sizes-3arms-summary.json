@@ -32,6 +32,21 @@
       "note": "Corpus does not cover this tier; no data. This is where the pipeline overhead is expected to pay off."
     }
   },
+  "complexity_baseline": {
+    "description": "Offline complexity-review measurement on test-first solutions from Campaign B (6 medium tasks, sonnet-4-6), run before P1-S1 wired the REFACTOR review loop. Used as AC2 reference for issue #366.",
+    "arm": "test-first",
+    "tasks": ["stats", "intervals", "timeparse", "money", "matrix", "csvlite"],
+    "mean_findings_per_solution": 5.3,
+    "findings_per_solution": {
+      "stats": 2,
+      "intervals": 4,
+      "timeparse": 5,
+      "money": 7,
+      "matrix": 3,
+      "csvlite": 11
+    },
+    "note": "Per-task breakdown reconstructed from session logs; mean 5.3 is the instrumentable figure cited in epic #362. csvlite dominates (nested state-machine parse() triggers depth + branch + line-count violations). Re-run with scripts/complexity-regression-check.sh after any REFACTOR-loop change to verify AC2."
+  },
   "classifier_thresholds": {
     "trivial": {
       "max_files_changed": 1,
