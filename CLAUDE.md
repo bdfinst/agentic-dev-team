@@ -88,6 +88,8 @@ Releases are managed by release-please. Push conventional commits to main:
 
 A release PR is opened automatically. Merging it creates a GitHub Release with a version tag.
 
+**Squash-merge titles must be conventional.** This repo squash-merges PRs, so the **PR title becomes the commit subject** that release-please reads — and `release-type: simple` classifies off the *subject*, not the body. A PR titled `Add X` (no `feat:`/`fix:` prefix) is invisible to release-please and silently skips the version bump, even when its squashed body contains conventional commits. Title every PR conventionally. To recover a release that was missed this way, land a follow-up commit carrying a `Release-As: X.Y.Z` footer.
+
 ## Cloud sessions (claude.ai/code)
 
 Plugins are a **local CLI / IDE** feature. A Claude Code web session runs in a
