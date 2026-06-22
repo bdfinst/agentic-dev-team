@@ -3,6 +3,17 @@
 ## [7.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.0.0...dev-team-v7.1.0) (2026-06-22)
 
 
+### Features
+
+* **audit:** add a registry-completeness sensor (`scripts/check_registry_sync.py`, surfaced as `/agent-audit` step 2e) that fails when an agent or skill on disk is missing from — or orphaned in — the registry tables ([#350](https://github.com/bdfinst/agentic-dev-team/issues/350)) ([6a08144](https://github.com/bdfinst/agentic-dev-team/commit/6a081443ba1610ce462adafe4806aabeb9fe8dd3))
+
+
+### Code Refactoring
+
+* **agents:** make the `effort:` frontmatter the single source of truth — remove the duplicate body `Effort:` line from every review agent and template, drop the hand-maintained Model Tier column from `agent-registry.md`, and have `/agent-audit` warn if the band is restated ([#350](https://github.com/bdfinst/agentic-dev-team/issues/350)) ([6a08144](https://github.com/bdfinst/agentic-dev-team/commit/6a081443ba1610ce462adafe4806aabeb9fe8dd3))
+* **agents:** raise the four judgment-driven reviewers (a11y, naming, complexity, progress-guardian) to `effort: medium` and reconcile the registry tier drift this surfaced ([#350](https://github.com/bdfinst/agentic-dev-team/issues/350)) ([6a08144](https://github.com/bdfinst/agentic-dev-team/commit/6a081443ba1610ce462adafe4806aabeb9fe8dd3))
+
+
 ### Documentation
 
 * **dev-team:** note registry-completeness gate; release v7.1.0 ([#352](https://github.com/bdfinst/agentic-dev-team/issues/352)) ([3630676](https://github.com/bdfinst/agentic-dev-team/commit/36306761ab36786408d95aa46aee43a76ab3e05c))
