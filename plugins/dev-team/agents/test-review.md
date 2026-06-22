@@ -48,6 +48,30 @@ magic literals, mis-layering — to it, per
 mechanics (missing assertion, missing `await`, mock-reset, testability blockers,
 coverage gaps) and detects the deferred signals only when running solo.
 
+## Protocol
+
+Run in two phases — enumerate first, classify second. This stabilizes finding counts across runs by forcing a full pass before applying judgment.
+
+**Phase 1 — Enumerate**: List every test case in scope with:
+- Test name / description string
+- Assertion method(s) used (or explicit note that no assertion is present)
+- Observable setup tier (unit / integration / e2e)
+
+**Phase 2 — Classify**: For each listed test, apply the Detect rules below. Assign severity if flagged.
+
+## Severity Anchors
+
+Calibrate against these worked examples before flagging real code:
+
+| Severity | Pattern | Violation | Fix |
+|---|---|---|---|
+| `error` | `it('renders', () => { render(<Comp />) })` | No assertion — zero regression protection | Add `expect(screen.getByRole('heading')).toBeInTheDocument()` |
+| `error` | `expect(result).toBeTruthy()` | Truthiness-only check; passes on any non-null value | `expect(result).toEqual({ id: 1, name: 'Alice' })` |
+| `warning` | `const now = new Date()` inside test body | Unstubbed clock — flaky on midnight, DST transitions | `jest.useFakeTimers()` or inject a clock dependency |
+| `warning` | Three tests asserting `expect(output).toContain('success')` identically | No boundary condition distinguishes them — redundant coverage | Collapse or add boundary cases |
+| `suggestion` | Copy-pasted arrange block across 4 tests | Duplication above extraction threshold | Extract to `beforeEach` |
+| `suggestion` | `it('test 1', ...)` | Description reveals nothing about behavior | Rename to describe the scenario and expected outcome |
+
 ## Skip
 
 Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` when no test files are found in the target. Use the test-file indicators in `knowledge/test-file-indicators.md#indicators-by-language` (JS/TS, C#, Java, BDD/Gherkin). Note: `.feature` files count as test files — if feature files are present, do not skip; run [Feature File Validation](../skills/feature-file-validation/SKILL.md) on them.

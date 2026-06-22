@@ -4392,9 +4392,9 @@
       "summary": "Write the minimum implementation to make the failing test pass",
       "anchor": "2-green-make-it-pass"
     },
-    "3. REFACTOR — Clean up": {
-      "summary": "Improve structure, naming, duplication — without changing behavior",
-      "anchor": "3-refactor-clean-up"
+    "3. REFACTOR — Review then clean up": {
+      "summary": "After GREEN, dispatch review agents **before** making any structural changes.",
+      "anchor": "3-refactor-review-then-clean-up"
     },
     "Rationalization Prevention": {
       "summary": "LLMs generate plausible excuses for skipping TDD.",
