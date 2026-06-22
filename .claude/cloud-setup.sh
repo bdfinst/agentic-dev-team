@@ -36,7 +36,9 @@ command -v gh >/dev/null 2>&1 || apt-get install -y gh || true
 # cloud session, so commits/pushes skip the local gates. Needs Node 24+
 # (the repo's engines floor); do NOT set HUSKY=0 — that would skip the hooks.
 if ! command -v npm >/dev/null 2>&1; then
-  curl -fsSL https://deb.nodesource.com/setup_24.x | bash - >/dev/null 2>&1 || true
+  # Single source of truth for the Node version: .nvmrc (fallback 24).
+  node_major="$(tr -dc '0-9.' < .nvmrc 2>/dev/null | cut -d. -f1)"
+  curl -fsSL "https://deb.nodesource.com/setup_${node_major:-24}.x" | bash - >/dev/null 2>&1 || true
   apt-get install -y nodejs || true
 fi
 if command -v npm >/dev/null 2>&1; then
