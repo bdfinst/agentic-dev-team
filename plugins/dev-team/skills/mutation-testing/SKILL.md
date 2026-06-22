@@ -16,6 +16,7 @@ Wraps a real mutation tool (Stryker, pitest, mutmut, Stryker.NET) and adds AI tr
 - Do not chase 100% mutation score; equivalent mutants are noise.
 - Scope to changed files by default; full-codebase runs are periodic audits.
 - Surviving mutants in critical paths require action; in trivial code they may be acceptable.
+- **Per-mutant wall-clock timeout.** Every mutant run is capped at a wall-clock timeout. A run that exceeds the timeout counts as a **killed** mutant (matching the experiment-harness fix). Default: `timeout_seconds = max(60, suite_time_seconds × 10)`. Never run without a timeout — an infinite-loop mutant will hang the harness indefinitely.
 - **`--workflow-managed-approval` carve-out.** When this flag is set, the `Step 0` confirmation prompt is skipped — but the "always ask the user before running" invariant still holds at a higher boundary. The flag is reserved for orchestrated workflows that capture operator approval once for the whole run, then propagate the consent down to each scoped invocation. The authoritative caller registry is [`references/workflow-callers.md`](references/workflow-callers.md). Today's allowed callers are `/coverage-delta` (Phase 4 of `/test-modernize`) and `/quality-targets-converge` (Phase 5); both inherit the workflow-level approval obtained at `/test-modernize` Phase 0. Any new caller must document where its workflow-level approval is captured before adopting the flag — see the registry file for the full process.
 
 ## Parse Arguments
@@ -37,6 +38,31 @@ Before any mutation run, present the estimated time and the scope, then block on
 ## Step 1: Detect or set up tooling
 
 Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#). Per-language detection and installation: `references/tool-setup.md`. **Do not proceed without a working tool.**
+
+## Step 1b: Configure per-mutant timeout
+
+Set a per-mutant wall-clock timeout before running. A timed-out mutant is **killed**
+(counts toward the mutation score as a non-survivor). This matches the experiment-harness
+fix in `docs/experiments/`.
+
+Derive the timeout:
+
+```
+suite_time_seconds = time the baseline test suite (from Step 1 output, or measure: `time <test-command>`)
+timeout_seconds    = max(60, suite_time_seconds × 10)
+```
+
+Per-tool configuration:
+
+| Tool | Config | Default shipped |
+|------|--------|-----------------|
+| **Stryker (JS/TS)** | `stryker.config.js`: `timeoutMS: <ms>`, `timeoutFactor: 2.5` | 60 000 ms |
+| **pitest (Java/Kotlin)** | CLI: `--timeoutConst 60 --timeoutFactor 2.5` | 60 s const |
+| **mutmut (Python)** | CLI: `--timeout <seconds>` (passed to subprocess) | 60 s |
+| **Stryker.NET (C#)** | `stryker-config.yaml`: `timeout: 60000` | 60 000 ms |
+
+Set the tool timeout to `timeout_seconds` (converting to ms for Stryker / Stryker.NET)
+before running Step 2. Document the chosen timeout in the output summary.
 
 ## Step 2: Run the tool (scoped to target)
 
@@ -122,7 +148,7 @@ expect(db.save).toHaveBeenCalledWith(order);  // catches removed save()
 ```markdown
 ## Mutation Testing Results
 
-**Tool:** Stryker 8.x | **Scope:** src/calculator.ts | **Duration:** 45s
+**Tool:** Stryker 8.x | **Scope:** src/calculator.ts | **Duration:** 45s | **Per-mutant timeout:** 60s
 **Score:** 82% (41 killed / 50 total, 3 equivalent, 6 survived)
 
 ### Surviving Mutants

@@ -66,6 +66,65 @@ During `/build`, the orchestrator executes the plan **wave by wave** (the plan's
 
 Effective concurrency 1 (fully-dependent plan, `--jobs 1`, or `DEV_TEAM_MAX_PARALLEL_BUILDS=1`) degrades to sequential single-worktree build with no fan-out or reconcile.
 
+## Task Size Gate
+
+Before routing any non-trivial task to the Three-Phase Workflow, classify its size
+using `knowledge/task-size-classifier.md`. Whole-file load: all signal definitions, ordered classification rules, the bias rule, and the decision-log format are needed to run the gate correctly. The classification uses **objective signals only** — never a fresh LLM judgement.
+
+### Gate procedure
+
+1. **Screen decision axes first (AC5 guardrail).** Read `knowledge/decision-defaults.md`. Whole-file load: all five axis definitions (triggers, defaults, confirm clauses) are needed to check the request against every axis. Check whether the task touches any high-reversal-cost axis (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope). If any axis is triggered → `decision_axis_triggered = true` → the task **cannot be trivial**, regardless of other signals.
+
+2. **Collect objective signals.** Gather `files_changed`, `loc_delta`, `slice_count`,
+   `wave_count`, `has_complex_step` per the classifier spec.
+
+3. **Classify.** Apply the rules in `knowledge/task-size-classifier.md`. Whole-file load: the ordered classification rules and bias rule. First match wins; bias to classify up when signals are ambiguous.
+
+4. **Log the decision** to `memory/decisions.md` (format in classifier spec).
+
+5. **Route:**
+
+| Classification | Route |
+|---|---|
+| `trivial` | **No-plan fast path** (see below) |
+| `standard` | Full Three-Phase Workflow |
+| `complex` | Full Three-Phase Workflow |
+
+### No-plan fast path (trivial only)
+
+Skips the Research and Plan phases. The task goes directly to implementation:
+
+1. **Load**: Software Engineer + relevant skill(s) only. No Architect, no plan review personas.
+2. **Implement** with TDD (RED-GREEN-REFACTOR) — same rules as Phase 3 of the full workflow.
+3. **Inline review**: standard three-stage inline review (spec-compliance → quality agents → browser for UI).
+4. **Final gate**: run `/code-review` on all modified files. Same pass/warn/fail handling as Phase 3.
+5. **Branch Workflow**: create PR as normal.
+
+The no-plan fast path **does not remove any correctness or quality gate** — it only removes
+planning ceremony (design doc, three plan review personas, wave scheduling, human plan gate).
+
+Log the fast-path routing decision explicitly:
+
+```
+Fast path: task classified trivial. Skipping /plan.
+Inputs: files_changed=<N>, loc_delta=<N>, decision_axis_triggered=false.
+Expected saving: ~65% fewer turns vs full pipeline (see docs/experiments/data/3sizes-3arms-summary.json).
+```
+
+### Demonstration of saving (AC3)
+
+From `docs/experiments/data/3sizes-3arms-summary.json` (small-kata tier, haiku-4.5):
+
+| Path | Median turns | Median cost |
+|------|-------------|-------------|
+| Full pipeline (`/plan`→`/build`) | 29 | $0.341 |
+| Fast path (TDD + `/code-review`) | ~9 | ~$0.117 |
+| **Saving** | **~65%** | **~45%** |
+
+The fast path still runs the final `/code-review` gate — no correctness or quality
+gate is removed. The saving comes entirely from eliminating planning ceremony on
+tasks too small to justify it.
+
 ## Command Delegation
 
 All review commands are executed under orchestrator direction. When a user triggers a review command, the orchestrator applies model routing and inline review logic before delegating execution.

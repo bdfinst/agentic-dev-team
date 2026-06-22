@@ -665,6 +665,36 @@
       "anchor": "100-2026-04-21"
     }
   },
+  "plugins/dev-team/knowledge/task-size-classifier.md": {
+    "Inputs": {
+      "summary": "Collect these signals before classifying.",
+      "anchor": "inputs"
+    },
+    "Classification Rules": {
+      "summary": "Apply in order; the first match wins.",
+      "anchor": "classification-rules"
+    },
+    "Trivial (no-plan fast path eligible)": {
+      "summary": "**ALL** of the following must hold:",
+      "anchor": "trivial-no-plan-fast-path-eligible"
+    },
+    "Complex": {
+      "summary": "**ANY** of the following:",
+      "anchor": "complex"
+    },
+    "Standard": {
+      "summary": "Everything between trivial and complex.",
+      "anchor": "standard"
+    },
+    "Bias rule": {
+      "summary": "When signals are ambiguous or a signal is missing, **classify up** (standard rather",
+      "anchor": "bias-rule"
+    },
+    "Decision log entry": {
+      "summary": "After classifying, append to `memory/decisions.md`:",
+      "anchor": "decision-log-entry"
+    }
+  },
   "plugins/dev-team/knowledge/test-automation-maturity.md": {
     "Maturity scale (diagnose from evidence, lowest rung first)": {
       "summary": "| Rung | Signal in the suite | Risk |",
@@ -3377,6 +3407,10 @@
     "Step 1: Detect or set up tooling": {
       "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#).",
       "anchor": "step-1-detect-or-set-up-tooling"
+    },
+    "Step 1b: Configure per-mutant timeout": {
+      "summary": "Set a per-mutant wall-clock timeout before running.",
+      "anchor": "step-1b-configure-per-mutant-timeout"
     },
     "Step 2: Run the tool (scoped to target)": {
       "summary": "Run scoped to user-specified files or changed files.",
