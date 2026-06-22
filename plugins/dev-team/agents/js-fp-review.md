@@ -19,7 +19,6 @@ Output JSON:
 Severity: error=external state mutation, warning=local mutation, suggestion=style
 Confidence: high=mechanical substitution (push→spread, let→const); medium=pattern clear but spread vs clone depends on usage; none=requires human judgment (intentional mutation for performance)
 
-Effort: low
 Context needs: diff-only
 
 ## Skip

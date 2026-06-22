@@ -17,7 +17,6 @@ Status: pass=good testing practices, warn=anti-patterns, fail=tests unreliable o
 Severity: error=unreliable test pattern, warning=anti-pattern, suggestion=improvement
 Confidence: high=mechanical (fix query priority); medium=test design; none=requires domain context
 
-Effort: medium
 Context needs: full-file
 File scope: `*.test.ts`, `*.test.tsx`, `*.spec.ts`, `*.spec.tsx`, `*.test.js`, `*.test.jsx`
 

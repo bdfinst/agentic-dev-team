@@ -17,7 +17,6 @@ Status: pass=good Angular testing, warn=anti-patterns, fail=unreliable tests
 Severity: error=test won't catch regressions, warning=anti-pattern, suggestion=improvement
 Confidence: high=mechanical (use harness, fix TestBed); medium=test design; none=domain context
 
-Effort: medium
 Context needs: full-file
 File scope: `*.spec.ts`
 

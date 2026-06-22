@@ -17,7 +17,6 @@ Status: pass=12-factor compliant, warn=violations detected, fail=critical anti-p
 Severity: error=security or reliability risk, warning=operational concern, suggestion=best practice
 Confidence: high=mechanical (hardcoded config, missing health check); medium=design judgment; none=infrastructure context needed
 
-Effort: medium
 Context needs: project-structure
 
 ## Activates when

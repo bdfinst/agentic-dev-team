@@ -17,7 +17,6 @@ Status: pass=no concurrency issues, warn=potential concerns, fail=likely race co
 Severity: error=race condition or data corruption risk, warning=potential concurrency concern, suggestion=defensive improvement
 Confidence: high=mechanical pattern fix (add await, add finally); medium=fix direction clear but requires understanding shared state; none=requires human judgment (architectural concurrency design)
 
-Effort: medium
 Context needs: full-file
 
 ## Skip

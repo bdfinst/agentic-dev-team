@@ -17,7 +17,6 @@ Status: pass=ESM compliant, warn=minor CJS remnants, fail=CJS patterns in new co
 Severity: error=require() or module.exports in source, warning=__dirname/__filename usage, suggestion=dynamic import opportunity
 Confidence: high=mechanical (replace require with import); medium=judgment call (dynamic require); none=third-party constraint
 
-Effort: low
 Context needs: diff-only
 File scope: `*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.mjs`
 

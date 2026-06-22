@@ -17,7 +17,6 @@ Status: pass=good test practices, warn=anti-patterns detected, fail=tests give f
 Severity: error=test doesn't verify behavior, warning=anti-pattern, suggestion=improvement opportunity
 Confidence: high=mechanical (remove unnecessary act(), use getByRole); medium=test design judgment; none=requires domain context
 
-Effort: medium
 Context needs: full-file
 File scope: `*.test.ts`, `*.test.tsx`, `*.spec.ts`, `*.spec.tsx`
 

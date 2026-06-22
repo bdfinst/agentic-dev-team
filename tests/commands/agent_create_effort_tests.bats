@@ -45,9 +45,12 @@ ADD="$REPO_ROOT/plugins/dev-team/skills/agent-add/SKILL.md"
   [ "$status" -eq 0 ]
 }
 
-@test "agent-create body template uses an Effort line, not Model tier" {
+@test "agent-create body template omits the Effort line (effort is frontmatter-only)" {
+  # Single source of truth: effort lives in the frontmatter template only (see
+  # the frontmatter test above). The body skeleton must not restate it as an
+  # `Effort: <low|medium|high>` line, and must not use the retired Model tier.
   run grep -qE 'Effort: <low\|medium\|high>' "$CREATE"
-  [ "$status" -eq 0 ]
+  [ "$status" -ne 0 ]
   run grep -q 'Model tier:' "$CREATE"
   [ "$status" -ne 0 ]
 }

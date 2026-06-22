@@ -17,7 +17,6 @@ Status: pass=no performance issues, warn=potential bottlenecks, fail=critical pe
 Severity: error=resource leak or unbounded growth, warning=likely bottleneck, suggestion=optimization opportunity
 Confidence: high=mechanical fix (add finally, add size limit, move query out of loop); medium=pattern identified but optimal solution depends on data volume; none=requires human judgment (caching strategy, algorithm selection)
 
-Effort: medium
 Context needs: full-file
 
 ## Skip

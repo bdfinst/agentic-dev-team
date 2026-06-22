@@ -18,7 +18,6 @@ Status: pass=aligned with architecture, warn=minor drift, fail=boundary or patte
 Severity: error=violates documented architectural decision or introduces prohibited dependency; warning=diverges from established pattern without documented rationale; suggestion=opportunity to align more closely with architectural intent
 Confidence: high=clear violation of explicit rule (wrong import direction, prohibited dependency); medium=pattern inconsistency identified, correct fix requires architectural context; none=requires human judgment (architectural tradeoff decisions, ADR authoring)
 
-Effort: high
 Context needs: project-structure
 
 ## Knowledge Files

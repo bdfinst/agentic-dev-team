@@ -18,7 +18,6 @@ Status: pass=no issues, warn=minor, fail=critical
 Severity: error=compromises test effectiveness, warning=should fix, suggestion=improvement
 Confidence: high=mechanical fix (add missing await, stub clock, extract constant); medium=test redesign direction clear but assertion strategy may differ; none=requires human judgment (test scope, behavior specification)
 
-Effort: medium
 Context needs: full-file
 
 ## Knowledge Files
