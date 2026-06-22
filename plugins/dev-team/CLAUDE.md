@@ -43,7 +43,7 @@ See @docs/team-structure.md for the full team org chart (Mermaid diagram).
 
 ## Agent & Skill Registry
 
-Full registry tables with token counts, effort bands, and used-by mappings are in [`knowledge/agent-registry.md`](knowledge/agent-registry.md). The orchestrator reads this file when routing decisions require the full catalog.
+Full registry tables with token counts, effort bands, and used-by mappings are in [`knowledge/agent-registry.md`](knowledge/agent-registry.md). The orchestrator reads this file when routing decisions require the full catalog. A registry-completeness gate (`scripts/check_registry_sync.py`, surfaced as `/agent-audit` step 2e) fails CI when an agent or skill on disk is missing from — or orphaned in — these tables.
 
 ### Quick Reference
 
