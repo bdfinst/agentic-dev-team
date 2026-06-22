@@ -28,21 +28,21 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | a11y-review | `agents/a11y-review.md` | mid | WCAG 2.1 AA, ARIA, keyboard nav, focus management |
 | arch-review | `agents/arch-review.md` | frontier | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
 | claude-setup-review | `agents/claude-setup-review.md` | small | CLAUDE.md completeness, rules, skills, path accuracy |
-| complexity-review | `agents/complexity-review.md` | small | Function size, cyclomatic complexity, nesting, parameters |
+| complexity-review | `agents/complexity-review.md` | mid | Function size, cyclomatic complexity, nesting, parameters |
 | concurrency-review | `agents/concurrency-review.md` | mid | Race conditions, async pitfalls, shared state |
 | data-flow-tracer | `agents/data-flow-tracer.md` | mid | Data flow tracing through architecture layers (analysis-only) |
 | doc-review | `agents/doc-review.md` | mid | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
 | domain-review | `agents/domain-review.md` | frontier | Domain boundaries, abstraction leaks, entity/DTO confusion |
-| js-fp-review | `agents/js-fp-review.md` | mid | Array mutations, impure patterns, global state |
-| naming-review | `agents/naming-review.md` | small | Intent-revealing names, boolean prefixes, magic values |
-| performance-review | `agents/performance-review.md` | small | Resource leaks, N+1 queries, unbounded growth |
+| js-fp-review | `agents/js-fp-review.md` | small | Array mutations, impure patterns, global state |
+| naming-review | `agents/naming-review.md` | mid | Intent-revealing names, boolean prefixes, magic values |
+| performance-review | `agents/performance-review.md` | mid | Resource leaks, N+1 queries, unbounded growth |
 | progress-guardian | `agents/progress-guardian.md` | mid | Plan adherence, commit discipline, scope creep detection |
 | refactor-opportunity-review | `agents/refactor-opportunity-review.md` | mid | Post-GREEN refactoring opportunities, semantic vs structural duplication |
 | security-review | `agents/security-review.md` | frontier | Injection, auth/authz, data exposure, crypto |
 | spec-compliance-review | `agents/spec-compliance-review.md` | mid | Spec-to-code matching — first gate before quality review |
 | structure-review | `agents/structure-review.md` | mid | SRP violations, DRY, coupling, file organization |
-| svelte-review | `agents/svelte-review.md` | mid | Svelte reactivity pitfalls, closure state leaks |
-| test-modernization-review | `agents/test-modernization-review.md` | mid | Gate-keeper for `/test-modernize` — verifies each phase's deliverable matches its acceptance criteria before the workflow advances |
+| svelte-review | `agents/svelte-review.md` | small | Svelte reactivity pitfalls, closure state leaks |
+| test-modernization-review | `agents/test-modernization-review.md` | small | Gate-keeper for `/test-modernize` — verifies each phase's deliverable matches its acceptance criteria before the workflow advances |
 | test-review | `agents/test-review.md` | mid | Coverage gaps, assertion quality, test hygiene |
 | test-smell-review | `agents/test-smell-review.md` | mid | xUnit test smells, test-double selection, test-pyramid layer placement |
 | token-efficiency-review | `agents/token-efficiency-review.md` | small | File/function size, LLM anti-patterns, token usage |
