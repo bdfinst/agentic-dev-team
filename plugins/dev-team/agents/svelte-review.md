@@ -2,7 +2,7 @@
 name: svelte-review
 description: Svelte reactivity pitfalls, closure state leaks, $state proxy issues, store subscription leaks
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # Svelte Review
@@ -21,7 +21,6 @@ Status: pass=no reactivity issues, warn=potential concerns, fail=likely silent r
 Severity: error=silent reactivity breakage, warning=potential reactivity concern, suggestion=defensive improvement
 Confidence: high=mechanical Svelte fix (wrap in $state, add unsubscribe, change to $derived); medium=reactivity pattern identified but component design may affect the fix; none=requires human judgment (state architecture decisions)
 
-Model tier: mid
 Context needs: full-file
 
 ## Skip

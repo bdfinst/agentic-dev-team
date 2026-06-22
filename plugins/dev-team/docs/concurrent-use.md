@@ -14,7 +14,7 @@ The plugin's local coordination state is per-checkout, not shared:
 | State | Where | Shared across checkouts? |
 |---|---|---|
 | Review gate `.review-passed` | repo root, **gitignored** | No — local to each working tree |
-| `.claude/model-overrides.json` | **gitignored** | No — local to each working tree |
+| `.claude/session-model` / `.claude/model-ladder.json` | **gitignored** | No — local to each working tree |
 | Plan / build progress | `plans/<name>.md` (**tracked**) | Merges through normal git |
 
 So two developers, each with their **own clone**, never collide on these — and
@@ -29,7 +29,7 @@ state files. That is where collisions occur (reproduced in
 [`../../../tests/repo/multiplayer_collision_tests.bats`](../../../tests/repo/multiplayer_collision_tests.bats),
 characterized in issue #109):
 the shared `.review-passed` gets overwritten (false blocks), the staged set
-interleaves, and `model-overrides.json` writes race.
+interleaves, and `.claude/session-model` / routing-bump-log writes race.
 
 ## The rule: one worktree per agent
 

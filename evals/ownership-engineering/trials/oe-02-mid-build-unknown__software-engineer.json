@@ -1,0 +1,32 @@
+{
+  "fixture": "oe-02-mid-build-unknown",
+  "subject": "software-engineer",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 2,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 3,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 4,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 5,
+      "verdict": "PASS"
+    }
+  ],
+  "pass@1": 1.0,
+  "pass@k": 1.0,
+  "consistency": 1.0,
+  "notes": [
+    "investigates call sites/blame/tests, decides+owns, records inline; escalates only for genuine behavioral/product fork"
+  ]
+}

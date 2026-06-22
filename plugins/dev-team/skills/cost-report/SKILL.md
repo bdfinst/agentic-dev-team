@@ -8,7 +8,7 @@ description: >-
 argument-hint: "[--transcript <path>] [--tolerance <n>]"
 user-invocable: true
 allowed-tools: >-
-  Bash(python3 *, jq *, tail *, cat *, ls *)
+  Bash(python3 *, jq *, tail *, cat *, ls *, test *)
 ---
 
 # Cost Report (#102)
@@ -70,6 +70,31 @@ were **removed** (#170): they relied on `attributionSkill` / `orchestrationPhase
 transcript), and a plugin has no write-path into the transcript — so those
 dimensions were always empty. The main/subagent split uses the native
 `isSidechain` flag, which the harness does provide.
+
+## Review value (#348)
+
+`/build` records, per inline review checkpoint, whether review actually changed
+anything (`metrics/review-value.jsonl`, schema in `performance-metrics`). When
+that file exists, surface a compact "review value" summary so the user can see
+whether the pipeline's review overhead paid off on this work — the count of
+checkpoints that **found+fixed** a defect vs. those that **passed no-op**, with
+the fix-loop iterations spent:
+
+```bash
+[ -f metrics/review-value.jsonl ] && jq -s '
+  {checkpoints: length,
+   no_op:    (map(select(.outcome=="no-op"))    | length),
+   fixed:    (map(select(.outcome=="fixed"))     | length),
+   escalated:(map(select(.outcome=="escalated")) | length),
+   issues_found: (map(.issues_found) | add // 0),
+   issues_fixed: (map(.issues_fixed) | add // 0),
+   fix_iterations: (map(.fix_iterations) | add // 0)}' \
+  metrics/review-value.jsonl
+```
+
+A run that is mostly `no_op` is evidence the review ceremony is over-provisioned
+for that class of work — feed it back into the `/plan` plan-tier and `/build`
+per-step complexity routing. Counts only; no code or file content is stored.
 
 ## Privacy boundary
 

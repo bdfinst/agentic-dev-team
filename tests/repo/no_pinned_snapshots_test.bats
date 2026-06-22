@@ -4,9 +4,10 @@
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 
-# The three plugin-source files allowed to contain a pinned snapshot ID:
+# The plugin-source files allowed to contain a pinned snapshot ID:
 #   knowledge/model-routing.json — single source of truth (the whole point)
 #   docs/model-routing.md       — contract doc; illustrative examples
+#   docs/model-routing-overrides.md — override guide; worked ladder examples
 #   templates/agents/agent-template.md — commented documentation block
 #
 # Out-of-scope (legitimate references the AC does not police):
@@ -19,6 +20,7 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 ALLOWED_PATHS=(
   "plugins/dev-team/knowledge/model-routing.json"
   "plugins/dev-team/docs/model-routing.md"
+  "plugins/dev-team/docs/model-routing-overrides.md"
   "plugins/dev-team/templates/agents/agent-template.md"
   "plugins/dev-team/knowledge/model-pricing.json"
 )
@@ -30,6 +32,7 @@ ALLOWED_PATHS=(
     'plugins/' \
     ':!plugins/dev-team/knowledge/model-routing.json' \
     ':!plugins/dev-team/docs/model-routing.md' \
+    ':!plugins/dev-team/docs/model-routing-overrides.md' \
     ':!plugins/dev-team/templates/agents/agent-template.md' \
     ':!plugins/dev-team/knowledge/model-pricing.json' \
     2>/dev/null || true)

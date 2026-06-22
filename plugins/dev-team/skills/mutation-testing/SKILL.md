@@ -16,10 +16,23 @@ Wraps a real mutation tool (Stryker, pitest, mutmut, Stryker.NET) and adds AI tr
 - Do not chase 100% mutation score; equivalent mutants are noise.
 - Scope to changed files by default; full-codebase runs are periodic audits.
 - Surviving mutants in critical paths require action; in trivial code they may be acceptable.
+- **`--workflow-managed-approval` carve-out.** When this flag is set, the `Step 0` confirmation prompt is skipped — but the "always ask the user before running" invariant still holds at a higher boundary. The flag is reserved for orchestrated workflows that capture operator approval once for the whole run, then propagate the consent down to each scoped invocation. The authoritative caller registry is [`references/workflow-callers.md`](references/workflow-callers.md). Today's allowed callers are `/coverage-delta` (Phase 4 of `/test-modernize`) and `/quality-targets-converge` (Phase 5); both inherit the workflow-level approval obtained at `/test-modernize` Phase 0. Any new caller must document where its workflow-level approval is captured before adopting the flag — see the registry file for the full process.
+
+## Parse Arguments
+
+The skill accepts free-form natural-language arguments AND the following named flags for workflow callers:
+
+- `--scope <files-or-globs>` — restrict the mutation run to the listed files or shell globs. Comma-separated lists and quoted globs both accepted. When omitted, the skill scopes to changed files by default.
+- `--emit-json <path>` — write the structured result to `<path>` (see `## Machine-readable output` below) in addition to any human-readable output. The path's parent directory must be writable; failure writes to stderr and exits non-zero.
+- `--workflow-managed-approval` — skip the `Step 0` confirmation gate because the calling workflow captured approval at a higher boundary. Restricted to the allowlist in `## Constraints`.
 
 ## Time estimation
 
 Use the heuristics in `references/tool-setup.md`. Present the estimate to the user; if > 5 minutes, suggest scoping down.
+
+## Step 0: Confirmation gate
+
+Before any mutation run, present the estimated time and the scope, then block on stdin for explicit approval. The prompt is observable: stdout contains the literal string `Estimated time:` followed by the scope summary. This gate is **skipped when `--workflow-managed-approval` is set** — see the carve-out in `## Constraints`.
 
 ## Step 1: Detect or set up tooling
 
@@ -66,6 +79,7 @@ For each survivor, classify and act:
 Most survivors come from tests that execute code without meaningfully asserting on behavior:
 
 **Arithmetic operators** — beware identity values (`0` for `+/-`, `1` for `*//`, `""` for concat):
+
 ```js
 // WEAK: 0 is identity for addition — a + 0 === a - 0
 expect(calculate(5, 0)).toBe(5);  // passes with + or -
@@ -75,12 +89,14 @@ expect(calculate(5, 3)).toBe(8);  // fails if + becomes -
 ```
 
 **Conditional boundaries** — test both sides:
+
 ```js
 expect(isAdult(18)).toBe(true);   // exactly at boundary
 expect(isAdult(17)).toBe(false);  // one below
 ```
 
 **Return values** — assert on the actual return, not truthiness:
+
 ```js
 // WEAK: passes if return value changes from obj to true
 expect(getUser(1)).toBeTruthy();
@@ -89,6 +105,7 @@ expect(getUser(1)).toEqual({ id: 1, name: "Alice" });
 ```
 
 **Statement deletion** — verify side effects:
+
 ```js
 processOrder(order);
 expect(db.save).toHaveBeenCalledWith(order);  // catches removed save()
@@ -123,6 +140,42 @@ expect(db.save).toHaveBeenCalledWith(order);  // catches removed save()
 ### Recommended Test Additions
 (Specific test code for each non-equivalent survivor)
 ```
+
+## Machine-readable output
+
+When `--emit-json <path>` is set, write a structured result document to `<path>`. Workflow callers (`/coverage-delta`, `/quality-targets-converge`) read this document to compute deltas; downstream readers depend on the schema staying stable, so it is versioned.
+
+**Success envelope (`schema_version: 1`):**
+
+```json
+{
+  "schema_version": 1,
+  "tool": "stryker",
+  "scope": ["src/calculator.ts"],
+  "captured_at": "2026-06-19T14:22:08Z",
+  "total": 50,
+  "killed": 41,
+  "survived": 6,
+  "equivalent": 3,
+  "survivors": [
+    { "file": "src/calculator.ts", "line": 42, "operator": "ConditionalBoundary", "status": "survived" },
+    { "file": "src/calculator.ts", "line": 67, "operator": "ReturnValue",        "status": "equivalent" }
+  ]
+}
+```
+
+Each entry in `survivors` carries `file`, `line`, `operator`, and `status` where `status` is `"survived"` or `"equivalent"`. Callers MUST filter `status: "equivalent"` before computing deltas so reclassifications between runs don't show up as regressions.
+
+**Error envelopes (exit code non-zero, `<path>` still written for caller diagnostics):**
+
+```json
+{ "schema_version": 1, "tool": null, "error": "no_tool_installed", "language": "javascript" }
+{ "schema_version": 1, "tool": "stryker", "error": "empty_scope", "scope_glob": "src/does-not-exist/*.ts" }
+```
+
+When `<path>` itself is unwritable (read-only directory, permission denied), the skill writes nothing to disk, prints the offending path to stderr, and exits non-zero. No partial JSON is left behind.
+
+Per-tool worked examples (Stryker, pitest, mutmut, Stryker.NET) live in `references/tool-setup.md` under `## Machine-readable output schema`.
 
 ## When not to apply
 

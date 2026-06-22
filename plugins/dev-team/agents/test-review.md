@@ -2,7 +2,8 @@
 name: test-review
 description: Test quality, coverage gaps, assertion quality, and test hygiene
 tools: Read, Grep, Glob, Skill
-model: sonnet
+effort: medium
+cites: [testability-patterns, result-verification, test-automation-maturity, adversarial-review-protocol]
 ---
 
 # Test Review
@@ -17,7 +18,6 @@ Status: pass=no issues, warn=minor, fail=critical
 Severity: error=compromises test effectiveness, warning=should fix, suggestion=improvement
 Confidence: high=mechanical fix (add missing await, stub clock, extract constant); medium=test redesign direction clear but assertion strategy may differ; none=requires human judgment (test scope, behavior specification)
 
-Model tier: mid
 Context needs: full-file
 
 ## Knowledge Files
@@ -33,18 +33,24 @@ For assertion-quality findings, consult `knowledge/result-verification.md`. Whol
 Whole-file load: each linked SKILL.md is loaded in full when invoked.
 
 - [Feature File Validation](../skills/feature-file-validation/SKILL.md) - invoke when `.feature` files or step definition files are in the target; validates Gherkin quality, determinism, implementation independence, and test automation coverage
-- [Test Design Reviewer](../skills/test-design-reviewer/SKILL.md) - invoke only when the caller requests a Farley Score: the `/build` final test-quality step (scoped to the branch's test changes) or a user-requested test review (`/test-design`, scoped to all existing tests). Do **not** score on per-unit inline checkpoints — that runs once per slice and is noise. Apply Dave Farley's 8 properties (Andrea Laforgia framing) to produce the weighted Farley Score. Fold the result into this agent's JSON: emit each test scoring Poor (<5.0) as a `suggestion` issue naming its weakest property, and report the suite-level Farley Score and rating in the `summary`. The score contextualizes the mechanical findings above — do not restate them as separate score-driven issues.
+
+**Farley Score is not produced here.** Suite scoring (the `farley-score` skill)
+is owned by the orchestrator-level steps — `/test-design` (all existing tests)
+and `/build` Step 7 (branch tests). Do not invoke it from this agent: it would
+double-score (both steps already call it directly) and add per-checkpoint noise.
+
+## Division of labor with test-smell-review
+
+When `test-smell-review` also runs (e.g. under `/test-design`), defer the
+named-smell signals — non-determinism, weak assertions, copy-pasted blocks,
+magic literals, mis-layering — to it, per
+`knowledge/test-review-division-of-labor.md#the-rule-in-one-line`. This agent keeps the tactical
+mechanics (missing assertion, missing `await`, mock-reset, testability blockers,
+coverage gaps) and detects the deferred signals only when running solo.
 
 ## Skip
 
-Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` when no test files are found in the target. Note: `.feature` files count as test files — if feature files are present, do not skip; run [Feature File Validation](../skills/feature-file-validation/SKILL.md) on them.
-
-Test file indicators by language:
-
-- **JS/TS**: files matching `*.test.*`, `*.spec.*`, or inside `__tests__/`
-- **C#**: `.cs` files containing `[Fact]`, `[Theory]`, `[Test]`, `[TestCase]`, `[TestMethod]`, or `[TestClass]`
-- **Java**: `.java` files containing `@Test`, `@ParameterizedTest`, `@TestFactory`, or class names ending in `Test`, `Tests`, `TestCase`, or `Spec`
-- **BDD/Gherkin**: `.feature` files, step definition files (`*.steps.*`, `*StepDefinitions.*`, `*Steps.*`)
+Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` when no test files are found in the target. Use the test-file indicators in `knowledge/test-file-indicators.md#indicators-by-language` (JS/TS, C#, Java, BDD/Gherkin). Note: `.feature` files count as test files — if feature files are present, do not skip; run [Feature File Validation](../skills/feature-file-validation/SKILL.md) on them.
 
 ## Detect
 

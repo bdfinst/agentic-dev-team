@@ -48,8 +48,9 @@ Arguments: $ARGUMENTS
 
 ### 2. Audit agents
 
-Read each file in `.claude/agents/*.md` that declares `Model tier:` (these are
-review agents). Check:
+Read each file in `.claude/agents/*.md` whose body contains a structured JSON
+output schema (a line with `"status": "pass|warn|fail|skip"`) — these are
+review agents. Check:
 
 1. **Structured output format**: Does the agent specify a JSON output
    schema?
@@ -91,11 +92,19 @@ review agents). Check:
    - MUST show the skip JSON response format
    - WARN if skip section is missing
 
-8. **Model tier**: Does the agent declare
-   `Model tier: small|mid|frontier`?
-   - All agents MUST declare which model tier they require
-   - Valid values: `small`, `mid`, `frontier`
-   - WARN if missing
+8. **Effort band**: Does the agent declare `effort: low|medium|high` in
+   its YAML frontmatter?
+   - All agents MUST declare the reasoning-effort band their task needs
+   - Valid values: `low`, `medium`, `high`
+   - WARN if missing or outside the valid set
+   - **Single source**: the band MUST be declared only in frontmatter — it is
+     the only value the resolver reads. WARN if a body `Effort:` line (or other
+     prose) restates the band; that duplicate is a drift source and must be
+     removed.
+   - **Deprecation (warn, never error this release)**: if the agent still
+     declares a legacy `model: haiku|sonnet|opus` tier in frontmatter, WARN
+     that the tier name is deprecated and name the band to use
+     (`haiku` → `low`, `sonnet` → `medium`, `opus` → `high`)
 
 9. **Context needs**: Does the agent declare
    `Context needs: diff-only|full-file|project-structure`?
@@ -178,6 +187,28 @@ Classify:
 red-line the audit on a citation warning; surface it as an action item so drift
 is visible while `cites:` adoption grows. CI runs the deterministic counterpart,
 `scripts/citation_lint.py` (also advisory, exit 0), on every PR.
+
+### 2e. Registry completeness (preventive)
+
+The catalog tables (`knowledge/agent-registry.md` for agents and agent-loaded
+skills; the plugin `CLAUDE.md` slash-command table for user-invocable skills) are
+hand-maintained. When an agent or skill is added or removed without updating the
+matching table, the catalog drifts and the orchestrator routes against a roster
+that no longer matches the filesystem.
+
+Run the deterministic sensor:
+
+```
+python3 scripts/check_registry_sync.py
+```
+
+It asserts a bijection between `plugins/dev-team/agents/*.md` +
+`plugins/dev-team/skills/*/SKILL.md` and the registry rows, reporting `MISSING`
+(file with no row) and `ORPHAN` (row with no file). Unlike the citation lint this
+is a **hard gate** — exit 1 on any discrepancy. Fix it by adding or removing the
+catalog row (or via `/agent-create` / `/agent-remove`, which maintain the tables).
+Effort bands are deliberately not checked — they live only in frontmatter. The
+bats suite `tests/repo/registry_sync_tests.bats` runs this on every PR.
 
 ### 3. Audit skills
 

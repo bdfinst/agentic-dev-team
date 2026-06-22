@@ -11,8 +11,8 @@ SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/test-design/SKILL.md"
   [ "$output" -gt 0 ]
 }
 
-@test "test-design-reviewer is dispatched with Skill tool, not Agent" {
-  run grep -c "Skill(test-design-reviewer" "$SKILL"
+@test "farley-score is dispatched with Skill tool, not Agent" {
+  run grep -c "Skill(farley-score" "$SKILL"
   [ "$status" -eq 0 ]
   [ "$output" -gt 0 ]
 }
@@ -23,7 +23,7 @@ SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/test-design/SKILL.md"
   [ "$output" -eq 0 ]
 }
 
-@test "test-design-reviewer is not dispatched with bare invoke wording" {
-  run grep -ci "invoke the \`test-design-reviewer\`" "$SKILL"
+@test "farley-score is not dispatched with bare invoke wording" {
+  run grep -ci "invoke the \`farley-score\`" "$SKILL"
   [ "$output" -eq 0 ]
 }

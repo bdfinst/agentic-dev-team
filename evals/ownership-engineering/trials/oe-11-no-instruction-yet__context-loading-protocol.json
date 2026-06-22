@@ -1,0 +1,32 @@
+{
+  "fixture": "oe-11-no-instruction-yet",
+  "subject": "context-loading-protocol",
+  "trials": [
+    {
+      "trial": 1,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 2,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 3,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 4,
+      "verdict": "PASS"
+    },
+    {
+      "trial": 5,
+      "verdict": "PASS"
+    }
+  ],
+  "pass@1": 1.0,
+  "pass@k": 1.0,
+  "consistency": 1.0,
+  "notes": [
+    "cites Step 0 'confirm there is a task', loads nothing, invites user to state the task"
+  ]
+}

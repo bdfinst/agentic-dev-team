@@ -9,7 +9,7 @@ description: >-
   coding standard that should become a review agent.
 argument-hint: >-
   <description-or-url> [--name <name>] [--type review|team]
-  [--tier small|mid|frontier] [--context diff-only|full-file|project-structure]
+  [--effort low|medium|high] [--context diff-only|full-file|project-structure]
   [--lang <exts>] [--dry]
 user-invocable: true
 allowed-tools: Read, Write, Edit, Grep, Glob, WebFetch, Skill(agent-audit *)
@@ -50,7 +50,7 @@ Pass these flags through to the skill as context:
 
 - `--name <name>` → set agent name (skips name prompt)
 - `--type review|team` → set agent type (skips type prompt)
-- `--tier small|mid|frontier` → maps to model: small→haiku, mid→sonnet, frontier→opus
+- `--effort low|medium|high` → sets the agent's effort band (invalid values rejected; legacy tokens mapped, e.g. frontier → high)
 - `--context diff-only|full-file|project-structure` → sets `Context needs:` field
 - `--lang <exts>` → adds language scope declaration to the body
 - `--dry` → show generated content without writing to disk or updating registry

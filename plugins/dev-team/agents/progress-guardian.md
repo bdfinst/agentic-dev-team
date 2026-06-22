@@ -2,7 +2,7 @@
 name: progress-guardian
 description: Tracks plan step completion, enforces commit discipline, and gates plan changes through human approval
 tools: Read, Grep, Glob
-model: haiku
+effort: medium
 ---
 
 # Progress Guardian
@@ -17,7 +17,6 @@ Status: pass=on track, warn=drift detected, fail=plan violation or scope creep
 Severity: error=skipped step or plan deviation, warning=uncommitted work accumulating, suggestion=consider committing
 Confidence: high=mechanical (step skipped, test missing); medium=judgment call (scope boundary); none=requires human input
 
-Model tier: mid
 Context needs: full-file (reads plan + git state)
 
 ## Skip
@@ -53,6 +52,10 @@ Pre-PR gate:
 - Plan steps marked complete but acceptance criteria not verified
 - Quality gate checklist items unchecked
 - Missing test evidence for completed steps
+
+## Verify by dispatch (read-only)
+
+This agent is read-only — it cannot run tests itself, so it must never *infer* that a completion claim is sound. When it detects a step `[x]` whose acceptance criteria are unverified, or missing test evidence for completed work, it emits a `fail` issue whose `suggestedFix` names the validation to run — e.g. "dispatch `quality-gate-pipeline` Phase 2 (or re-run the slice's `/build` verification) to produce fresh test output for Step N." The orchestrator owns running it; the guardian owns flagging that proven evidence is absent. "Marked complete" is not "demonstrated complete."
 
 ## Ignore
 

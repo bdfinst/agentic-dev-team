@@ -29,7 +29,7 @@ does.
 | Suggestion | Handed to |
 |---|---|
 | Config / prompt / convention fix | `/feedback-learning` |
-| Model re-tiering | `/harness-audit` + `.claude/model-overrides.json` |
+| Effort re-banding | `/harness-audit` + `.claude/model-ladder.json` |
 | New / changed detection rule | `/agent-eval` |
 | Token-heavy skill / agent | `token-efficiency-review` |
 

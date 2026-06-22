@@ -1,0 +1,45 @@
+name: PR title lint
+
+# release-please derives the version bump from the commit subject on main.
+# Because this repo squash-merges, that subject is the PR *title* — which the
+# .husky/commit-msg commitlint hook never sees (it only lints local commit
+# messages). Lint the PR title here with the SAME commitlint ruleset so a
+# non-conventional title fails at PR time instead of silently dropping a release.
+# (PR #350 shipped a feat under a non-conventional title and skipped v7.1.0.)
+
+on:
+  # `synchronize` (a push to the PR) is required: branch protection evaluates the
+  # required check against the PR's head SHA, so the check must re-report on every
+  # new commit — otherwise an updated PR is blocked waiting for a status that never
+  # re-runs (compounded here by strict "require branches up to date").
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint-pr-title:
+    # The job name IS the status-check context branch protection matches on.
+    # It must equal the required check configured in the ruleset ("PR title lint"),
+    # not the workflow name — otherwise the requirement is never satisfied.
+    name: PR title lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          # Single source of truth for the Node version — read from .nvmrc.
+          node-version-file: .nvmrc
+      - run: npm ci
+        env:
+          HUSKY: 0
+      - name: Lint PR title against commitlint.config.js
+        env:
+          # Pass via env, never interpolate untrusted PR input into the shell.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s' "$PR_TITLE" | npx commitlint --verbose

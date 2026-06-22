@@ -2,7 +2,7 @@
 name: test-modernization-review
 description: Gate-keeper for `/test-modernize` phase boundaries — verifies the phase's deliverable matches its acceptance criteria before the workflow advances
 tools: Read, Grep, Glob
-model: mid
+effort: low
 ---
 
 # Test Modernization Review
@@ -19,7 +19,6 @@ Status: pass=phase deliverable accepted, warn=advance with caveats, fail=phase i
 Severity: error=blocker (workflow must not advance), warning=advance only with operator acknowledgement, suggestion=optional follow-up.
 Confidence: high=mechanical check, medium=judgment call, none=requires human input.
 
-Model tier: mid.
 Context needs: read the phase progress file + the deliverable artifacts it points at.
 
 ## Invocation
@@ -96,19 +95,22 @@ Flag as **error** any deleted test, any tool mismatch, any out-of-order timestam
 
 ### Phase 4 — No-refactor adds
 
-Read `memory/test-modernize/<slug>/phase-4.md`, `coverage-history.json`, and `gherkin-bindings.json`.
+Read `memory/test-modernize/<slug>/phase-4.md`, `coverage-history.json`, `gherkin-bindings.json`, `disabled-tests.json`, and `disabled-tests-resolution.json`.
 
 Verify:
 
 - Every Phase-4 Story closed by `/build` has a corresponding entry in `coverage-history.json`.
 - The cumulative line delta is positive (≥ +5 percentage points over the baseline, or the operator flagged this as expected-flat).
-- No production-code diff was introduced by a Phase-4 Story — Phase 4's contract is tests-only.
+- No production-code diff was introduced by a Phase-4 Story — Phase 4's contract is tests-only. `[Repair disabled test]` Stories MUST touch only test files; any production-code change in such a Story is a contract violation (defer-to-Phase-5 was the wrong resolution).
+- **Disabled-test resolution integrity.** Every entry in `disabled-tests.json` has a matching record in `disabled-tests-resolution.json` with `outcome: "repair"` or `outcome: "defer-to-phase-5"` — no entries left in `pending`.
+  - For each `repair` entry, the cited test in source no longer carries a `cannot-fail:` skip tag, has at least one real assertion, AND a `[Repair disabled test]` Story closed against it in this phase.
+  - For each `defer-to-phase-5` entry, a corresponding `[Repair disabled test]` defect Story exists in `memory/test-modernize/<slug>/phase-5.md` citing `file:line:reason` from `disabled-tests.json` and naming the production-code seam the refactor must introduce. The original skip tag is still present in source (deferral preserves the audit trail).
 - **Gherkin binding integrity.** For every `[Component tests]` Story closed in Phase 4, the submitted test code under the Story's PR/commit cites the scenarios from `gherkin-bindings.json`:
   - `bdd-runner` mode → each cited Scenario has a matching `Scenario:` line in a `.feature` file the runner discovers, AND the runner reports it executed and passed.
   - `xunit-with-annotations` mode → each cited Scenario has a corresponding test function whose name mirrors the Scenario name (case-and-punctuation tolerant: snake_case / PascalCase / camelCase variants accepted), AND the function body's leading comment cites the source `.feature` file path.
 - No Scenario from `gherkin-bindings.json` is left without a test (count of unbound scenarios = 0).
 
-Flag as **error** any production-code change attributed to a Phase-4 Story, any unbound approved Scenario, any test method that names itself after a Scenario that does not exist in the approved Gherkin (drift in the other direction — code claiming to test a scenario that isn't real).
+Flag as **error** any production-code change attributed to a Phase-4 Story (including a `[Repair disabled test]` Story), any unbound approved Scenario, any test method that names itself after a Scenario that does not exist in the approved Gherkin (drift in the other direction — code claiming to test a scenario that isn't real), any `disabled-tests.json` entry left in `pending`, any `repair` entry whose source still carries a `cannot-fail:` tag, or any `defer-to-phase-5` entry without a corresponding Phase-5 Story.
 
 Flag as **warning** a negative or near-zero coverage delta (a Story made coverage worse, or didn't move it — surface for operator decision).
 
@@ -120,10 +122,11 @@ Verify:
 
 - For every `[Refactor-for-testability]` Story closed by `/build`, the matching `[Baseline]` Story was closed and green BEFORE it.
 - The refactor was behavior-preserving (the baseline still passes after the refactor).
+- For every `[Repair disabled test]` Story deferred from Phase 4, the Story closed in Phase 5 with: (a) the production-code refactor that introduced the seam, (b) the previously-disabled test unskipped with a real assertion against that seam, and (c) the `cannot-fail:` tag removed from source.
 - The four quality targets are either met or explicitly waived with reason.
 - Mutation-testing was run after every Phase-5 Story closed.
 
-Flag as **error** any refactor without a green baseline, any behavior change paired with a structural change in the same Story, any silent (un-recorded) waiver.
+Flag as **error** any refactor without a green baseline, any behavior change paired with a structural change in the same Story, any silent (un-recorded) waiver, any deferred `[Repair disabled test]` Story closed without removing the `cannot-fail:` tag, or any deferred entry from `disabled-tests-resolution.json` with no closed Phase-5 Story.
 
 ## Output format
 

@@ -118,10 +118,12 @@ For each Phase-4 child issue in dependency order:
 | Step | Delegates to |
 | --- | --- |
 | 4.1 Drive RED-GREEN-REFACTOR per Story. `[Component tests]` Stories bind tests to the cited `<feature-file>::<scenario-name>` pairs using the Phase-0 binding mode; `[Baseline]` Stories lock in current behavior at existing seams. | [`/build`](../skills/build/SKILL.md) |
-| 4.2 After each Story closes, post Δ vs. baseline | [`/coverage-delta`](../skills/coverage-delta/SKILL.md) |
+| 4.2 After each Story closes, post Δ vs. baseline AND run scoped mutation against the Story's `--story-files` (production-code files from `/build`'s commit diff; tests filtered) | [`/coverage-delta`](../skills/coverage-delta/SKILL.md) `--story <id> --story-files <files>` |
+| 4.2b On `status: net_new_survivors`, surface halt prompt with three operator actions (`[s]` strengthen / `[f]` follow-up — drafts Phase-5 `[Strengthen assertions]` Story / `[w]` waive). On `status: tool_unavailable`, triage with `[i]` install via `/init-dev-team` / `[k]` skip — proceed advisory / `[q]` quit. | (orchestrator — owns the halt; worker exit code is always 0) |
 | 4.3 After all Phase-4 Stories close, verify scenario→Story-id map against submitted test code | Agent [`dev-team:test-modernization-review`](../agents/test-modernization-review.md) with `--phase 4` |
+| 4.4 End-of-phase test review: dispatch `/test-design --since <phase-4-base-sha>` AND `/code-review --since <phase-4-base-sha>`. On error/warning findings, dispatch `/apply-fixes`; re-run `/code-review`; loop max 2 iterations before escalating with `[r]`/`[w]`/`[q]`. Evidence persisted to `phase-4-review.json`. | [`/test-design`](../skills/test-design/SKILL.md) + [`/code-review`](../skills/code-review/SKILL.md) + [`/apply-fixes`](../skills/apply-fixes/SKILL.md) |
 
-**Human gate** — Δ-coverage accepted before any production-code refactor.
+**Human gate** — Δ-coverage AND Phase-4 mutation results AND `phase-4-review.json` (any waivers explicit) accepted before any production-code refactor.
 
 #### 5. Refactor-for-testability + converge
 
@@ -131,11 +133,11 @@ For each Phase-5 child issue in dependency order:
 | --- | --- |
 | 5.1 Confirm matching `[Baseline]` Story is closed and green (precondition) | (orchestrator only) |
 | 5.2 Minimum behavior-preserving refactor + the test the new seam unblocks | [`/build`](../skills/build/SKILL.md) |
-| 5.3 After each Story closes, run mutation testing | [`/mutation-testing`](../skills/mutation-testing/SKILL.md) |
-| 5.4 Loop until coverage / mutants / determinism / pre-merge wall-clock targets are met (or explicitly waived with reason recorded) | [`/quality-targets-converge`](../skills/quality-targets-converge/SKILL.md) |
-| 5.5 Phase gate review | Agent [`dev-team:test-modernization-review`](../agents/test-modernization-review.md) with `--phase 5` |
+| 5.3 Loop until coverage / mutants / determinism / pre-merge wall-clock targets are met (or explicitly waived with reason recorded). Reads `mutation-history.json` (written by Phase 4) and reuses per-file survivor counts when the file's last commit pre-dates the history entry — re-measures only the gaps. | [`/quality-targets-converge`](../skills/quality-targets-converge/SKILL.md) |
+| 5.4 Phase gate review | Agent [`dev-team:test-modernization-review`](../agents/test-modernization-review.md) with `--phase 5` |
+| 5.5 End-of-phase test review: same loop as 4.4, scoped to `<phase-5-base-sha>`. Evidence persisted to `phase-5-review.json`. | [`/test-design`](../skills/test-design/SKILL.md) + [`/code-review`](../skills/code-review/SKILL.md) + [`/apply-fixes`](../skills/apply-fixes/SKILL.md) |
 
-**Human gate** — final metrics accepted (or each gap waived with reason).
+**Human gate** — final metrics AND `phase-5-review.json` accepted (or each gap waived with reason).
 
 #### 6. Report
 

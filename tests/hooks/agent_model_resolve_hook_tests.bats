@@ -1,216 +1,237 @@
 #!/usr/bin/env bats
-# Tests for hooks/agent-model-resolve.sh — PreToolUse hook registered on
-# the "Agent" matcher. The hook reads Claude Code PreToolUse-shaped JSON
-# from stdin, shells out to hooks/lib/model-resolve.sh, and emits the
-# appropriate hookSpecificOutput:
-#   - on bump:        updatedInput rewrites tool_input.model
-#   - on pass-through (no override): empty object {} (no change)
-#   - on refusal (resolver exit 3/4/5): permissionDecision="deny" with the
-#                                       resolver's stderr as the reason
+# Tests for hooks/agent-model-resolve.sh — PreToolUse hook registered on the
+# "Agent" matcher. The hook reads PreToolUse-shaped JSON from stdin, looks up
+# the dispatched agent's effort band from agents/<subagent_type>.md, resolves
+# it via hooks/lib/model-resolve.sh, and rewrites tool_input.model:
+#   - effort agent:    updatedInput sets model to the resolved snapshot (always)
+#   - legacy tier:     tool_input.model tier → band → snapshot + deprecation marker
+#   - unknown agent:   pass-through {} when no usable band is found
+#   - resolver error:  fail-open {} (incl. missing routing.json — never deny)
 #
-# AC16, AC17, AC18.
+# AC2, AC3, AC5.
 
 HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/agent-model-resolve.sh"
-RESOLVER="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/model-resolve.sh"
 SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
 
 setup() {
   BATS_TMPDIR_CASE="$(mktemp -d)"
-  # Fixture routing.json mirrors plugin defaults.
-  mkdir -p "$BATS_TMPDIR_CASE/knowledge"
+  mkdir -p "$BATS_TMPDIR_CASE/knowledge" "$BATS_TMPDIR_CASE/agents"
   cat > "$BATS_TMPDIR_CASE/knowledge/model-routing.json" <<'EOF'
 {
+  "low": "claude-haiku-4-5-20251001",
+  "medium": "claude-sonnet-4-6",
+  "high": "claude-opus-4-8",
   "haiku": "claude-haiku-4-5-20251001",
   "sonnet": "claude-sonnet-4-6",
-  "opus": "claude-opus-4-8"
+  "opus": "claude-opus-4-8",
+  "rounding": "round_half_up"
 }
 EOF
+  # Stub agents declaring effort bands.
+  printf -- '---\nname: high-agent\neffort: high\n---\nbody\n' > "$BATS_TMPDIR_CASE/agents/high-agent.md"
+  printf -- '---\nname: low-agent\neffort: low\n---\nbody\n' > "$BATS_TMPDIR_CASE/agents/low-agent.md"
+  printf -- '---\nname: security-review\neffort: high\n---\nbody\n' > "$BATS_TMPDIR_CASE/agents/security-review.md"
+
   export MODEL_ROUTING_JSON="$BATS_TMPDIR_CASE/knowledge/model-routing.json"
-  export MODEL_OVERRIDES_JSON="$BATS_TMPDIR_CASE/.claude/model-overrides.json"
+  export MODEL_AGENTS_DIR="$BATS_TMPDIR_CASE/agents"
+  export MODEL_LADDER_JSON="$BATS_TMPDIR_CASE/.claude/model-ladder.json"  # absent by default
+  export SESSION_MODEL_FILE="$BATS_TMPDIR_CASE/.claude/session-model"     # absent by default
   export MODEL_BUMP_LOG="$BATS_TMPDIR_CASE/.claude/metrics/model-routing.log"
-  mkdir -p "$(dirname "$MODEL_OVERRIDES_JSON")"
 }
 
 teardown() {
   rm -rf "$BATS_TMPDIR_CASE"
-  unset MODEL_ROUTING_JSON MODEL_OVERRIDES_JSON MODEL_BUMP_LOG
+  unset MODEL_ROUTING_JSON MODEL_AGENTS_DIR MODEL_LADDER_JSON SESSION_MODEL_FILE MODEL_BUMP_LOG
 }
 
-# Helper: build a PreToolUse-shaped JSON for the Agent tool.
-_pretooluse_agent_input() {
-  local model="$1" subagent_type="${2:-naming-review}"
-  jq -nc \
-    --arg model "$model" \
-    --arg subagent_type "$subagent_type" \
-    --arg cwd "$BATS_TMPDIR_CASE" \
-    '{
-      tool_name: "Agent",
-      cwd: $cwd,
-      tool_input: {
-        model: $model,
-        subagent_type: $subagent_type,
-        description: "test",
-        prompt: "test"
-      }
-    }'
+# Build PreToolUse Agent input. Omits model when "$2" is empty.
+_agent_input() {
+  local subagent_type="$1" model="${2:-}"
+  if [[ -n "$model" ]]; then
+    jq -nc --arg s "$subagent_type" --arg m "$model" \
+      '{tool_name:"Agent", tool_input:{subagent_type:$s, model:$m, description:"test", prompt:"test"}}'
+  else
+    jq -nc --arg s "$subagent_type" \
+      '{tool_name:"Agent", tool_input:{subagent_type:$s, description:"test", prompt:"test"}}'
+  fi
 }
 
 # ---------------------------------------------------------------------------
-# Step 8 — AC16: rewrite tool_input.model when an override applies
+# Effort-band resolution (the primary path)
 # ---------------------------------------------------------------------------
 
-@test "hook: AC16 override haiku→sonnet rewrites model to claude-sonnet-4-6" {
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "haiku": "sonnet" } }
-EOF
-  local input
-  input=$(_pretooluse_agent_input "haiku" "naming-review")
-  run bash -c "echo '$input' | bash '$HOOK'"
+@test "effort high, no ladder → rewrites model to opus, logs no bump (AC5)" {
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
-  # Output must be valid JSON
   echo "$output" | jq -e . >/dev/null
-  # updatedInput.model rewritten
-  local new_model
-  new_model=$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')
-  [ "$new_model" = "claude-sonnet-4-6" ]
-  # hookEventName is set
-  local event
-  event=$(echo "$output" | jq -r '.hookSpecificOutput.hookEventName')
-  [ "$event" = "PreToolUse" ]
-  # All other tool_input fields are preserved (only model is rewritten).
-  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.subagent_type')" = "naming-review" ]
-  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.description')" = "test" ]
-  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.prompt')" = "test" ]
-}
-
-@test "hook: bump on rewrite appends one log line with caller=subagent_type" {
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "haiku": "sonnet" } }
-EOF
-  local input
-  input=$(_pretooluse_agent_input "haiku" "naming-review")
-  echo "$input" | bash "$HOOK" >/dev/null
-  [ -f "$MODEL_BUMP_LOG" ]
-  local caller
-  caller=$(head -n 1 "$MODEL_BUMP_LOG" | jq -r '.caller')
-  [ "$caller" = "naming-review" ]
-}
-
-@test "hook: pass-through (no overrides) emits exactly {}" {
-  # No overrides file
-  local input
-  input=$(_pretooluse_agent_input "haiku" "naming-review")
-  run bash -c "echo '$input' | bash '$HOOK'"
-  [ "$status" -eq 0 ]
-  [ "$output" = "{}" ]
-}
-
-@test "hook: pass-through writes no bump log" {
-  local input
-  input=$(_pretooluse_agent_input "haiku" "naming-review")
-  echo "$input" | bash "$HOOK" >/dev/null
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opus-4-8" ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.hookEventName')" = "PreToolUse" ]
+  # Equal to the band default → no bump line.
   [ ! -e "$MODEL_BUMP_LOG" ]
 }
 
-@test "hook: non-Agent tool name is a no-op (empty stdout, exit 0)" {
+@test "effort agent always rewrites model even when equal to default (AC5, not pass-through)" {
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ "$output" != "{}" ]
+  echo "$output" | jq -e '.hookSpecificOutput.updatedInput.model' >/dev/null
+}
+
+@test "effort high WITH ladder that changes the result → ladder model + one bump" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")"
+  cat > "$MODEL_LADDER_JSON" <<'EOF'
+["claude-haiku-4-5-20251001", "claude-sonnet-4-6"]
+EOF
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  # N=2, high → index 1 → sonnet
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-sonnet-4-6" ]
+  [ -f "$MODEL_BUMP_LOG" ]
+  [ "$(wc -l < "$MODEL_BUMP_LOG" | tr -d ' ')" = "1" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.band')" = "high" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.served')" = "claude-sonnet-4-6" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.reason')" = "effort" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.caller')" = "high-agent" ]
+}
+
+@test "plugin-qualified subagent_type resolves the right agent file" {
+  run bash -c "echo '$(_agent_input dev-team:security-review)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opus-4-8" ]
+}
+
+# ---------------------------------------------------------------------------
+# Legacy tier fallback + deprecation marker (AC3)
+# ---------------------------------------------------------------------------
+
+@test "legacy model: sonnet (no effort agent) → medium snapshot + deprecation marker" {
+  run bash -c "echo '$(_agent_input legacy-agent sonnet)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-sonnet-4-6" ]
+  [ -f "$MODEL_BUMP_LOG" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.reason')" = "legacy-tier" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.band')" = "medium" ]
+}
+
+# ---------------------------------------------------------------------------
+# Pass-through and fail-open cases
+# ---------------------------------------------------------------------------
+
+@test "unknown subagent_type with no model → pass-through {}" {
+  run bash -c "echo '$(_agent_input does-not-exist)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ "$output" = "{}" ]
+  [ ! -e "$MODEL_BUMP_LOG" ]
+}
+
+@test "missing routing.json (resolver exit 4) → pass-through, not deny (fail-open)" {
+  export MODEL_ROUTING_JSON="$BATS_TMPDIR_CASE/missing.json"
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ "$output" = "{}" ]
+  # Never emits a deny envelope.
+  ! echo "$output" | jq -e '.hookSpecificOutput.permissionDecision' >/dev/null 2>&1
+}
+
+@test "non-Agent tool name is a no-op (empty stdout, exit 0)" {
   local input
-  input=$(jq -nc '{tool_name: "Bash", tool_input: {command: "ls"}}')
+  input=$(jq -nc '{tool_name:"Bash", tool_input:{command:"ls"}}')
   run bash -c "echo '$input' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
-@test "hook: missing tool_input.model is a no-op" {
-  local input
-  input=$(jq -nc '{tool_name: "Agent", tool_input: {description: "x"}}')
-  run bash -c "echo '$input' | bash '$HOOK'"
-  [ "$status" -eq 0 ]
-  [ "$output" = "{}" ]
-}
-
-@test "hook: malformed stdin JSON fails open (empty stdout, exit 0)" {
+@test "malformed stdin JSON fails open (empty stdout, exit 0)" {
   run bash -c "echo 'not json' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
-@test "hook: tool_input.model that is already a snapshot ID is left alone" {
-  # When the model field is already a full snapshot (passed-through), no
-  # rewrite is necessary. Treat snapshot IDs as opaque pass-through.
-  local input
-  input=$(_pretooluse_agent_input "claude-sonnet-4-6" "naming-review")
-  run bash -c "echo '$input' | bash '$HOOK'"
+@test "Security: a traversal subagent_type cannot read an agent file outside the agents dir" {
+  # Plant an effort agent OUTSIDE the agents dir, then try to reach it via "../".
+  printf -- '---\nname: evil\neffort: high\n---\nbody\n' > "$BATS_TMPDIR_CASE/evil.md"
+  run bash -c "echo '$(_agent_input ../evil)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
+  # Must NOT resolve to opus via the planted file — pass-through instead.
   [ "$output" = "{}" ]
 }
 
 # ---------------------------------------------------------------------------
-# Step 9 — AC17: refusal on resolver exit 3/4/5
+# Slice 3 — session-model fallback, no ceiling, silent-but-logged
 # ---------------------------------------------------------------------------
 
-@test "hook: AC17 exhausted opus emits permissionDecision=deny" {
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "opus": "unavailable" } }
-EOF
-  local input
-  input=$(_pretooluse_agent_input "opus" "security-review")
-  run bash -c "echo '$input' | bash '$HOOK'"
+@test "Step 3.1: no ladder + effort band resolves to the default map, not the session model" {
+  mkdir -p "$(dirname "$SESSION_MODEL_FILE")"
+  printf 'claude-haiku-4-5-20251001\n' > "$SESSION_MODEL_FILE"  # session = haiku
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
-  local decision
-  decision=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')
-  [ "$decision" = "deny" ]
-  local reason
-  reason=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason')
-  [[ "$reason" == *"All model tiers exhausted for requested tier 'opus'."* ]]
-  [[ "$reason" == *"/model-routing-check"* ]]
+  # high → opus (default map), NOT the session model (haiku).
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opus-4-8" ]
 }
 
-@test "hook: AC17 cycle emits permissionDecision=deny with cycle message" {
-  cat > "$MODEL_OVERRIDES_JSON" <<'EOF'
-{ "tier_aliases": { "haiku": "sonnet", "sonnet": "haiku" } }
-EOF
-  local input
-  input=$(_pretooluse_agent_input "haiku" "naming-review")
-  run bash -c "echo '$input' | bash '$HOOK'"
+@test "Step 3.1: explicit snapshot absent from the ladder falls back to the session model" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")" "$(dirname "$SESSION_MODEL_FILE")"
+  echo '["claude-sonnet-4-6", "claude-opus-4-8"]' > "$MODEL_LADDER_JSON"
+  printf 'claude-sonnet-4-6\n' > "$SESSION_MODEL_FILE"
+  # Dispatch an unknown agent with an explicit snapshot NOT in the ladder.
+  run bash -c "echo '$(_agent_input some-agent claude-opusmax-9)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
-  local decision
-  decision=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')
-  [ "$decision" = "deny" ]
-  local reason
-  reason=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason')
-  [[ "$reason" == *"Cycle detected in tier aliases:"* ]]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-sonnet-4-6" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.reason')" = "session-fallback" ]
 }
 
-@test "hook: AC17 missing routing.json emits permissionDecision=deny" {
-  export MODEL_ROUTING_JSON="$BATS_TMPDIR_CASE/missing.json"
-  local input
-  input=$(_pretooluse_agent_input "haiku" "naming-review")
-  run bash -c "echo '$input' | bash '$HOOK'"
+@test "Step 3.1: explicit snapshot present in the ladder is passed through" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")" "$(dirname "$SESSION_MODEL_FILE")"
+  echo '["claude-sonnet-4-6", "claude-opus-4-8"]' > "$MODEL_LADDER_JSON"
+  printf 'claude-sonnet-4-6\n' > "$SESSION_MODEL_FILE"
+  run bash -c "echo '$(_agent_input some-agent claude-opus-4-8)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
-  local decision
-  decision=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')
-  [ "$decision" = "deny" ]
-  local reason
-  reason=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason')
-  [[ "$reason" == *"Model routing file missing:"* ]]
+  [ "$output" = "{}" ]
 }
 
-@test "hook: AC17 malformed overrides emits permissionDecision=deny" {
-  echo '{not json' > "$MODEL_OVERRIDES_JSON"
-  local input
-  input=$(_pretooluse_agent_input "haiku" "naming-review")
-  run bash -c "echo '$input' | bash '$HOOK'"
+@test "Step 3.1: explicit snapshot with no ladder is passed through" {
+  run bash -c "echo '$(_agent_input some-agent claude-opusmax-9)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
-  local decision
-  decision=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')
-  [ "$decision" = "deny" ]
-  local reason
-  reason=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason')
-  [[ "$reason" == *"Override file is not valid JSON:"* ]]
+  [ "$output" = "{}" ]
+}
+
+@test "Step 3.2: high agent runs above a lower session model (no ceiling, no message)" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")" "$(dirname "$SESSION_MODEL_FILE")"
+  echo '["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-8"]' > "$MODEL_LADDER_JSON"
+  printf 'claude-sonnet-4-6\n' > "$SESSION_MODEL_FILE"  # session = sonnet (middle)
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  # high → top of ladder (opus), above the session model.
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opus-4-8" ]
+  # Silent: no deny / permissionDecision / systemMessage.
+  ! echo "$output" | jq -e '.hookSpecificOutput.permissionDecision' >/dev/null 2>&1
+  ! echo "$output" | jq -e '.systemMessage' >/dev/null 2>&1
+}
+
+@test "Step 3.2: an upgrade logs exactly one line carrying the session model" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")" "$(dirname "$SESSION_MODEL_FILE")"
+  echo '["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-8", "claude-opusmax-9"]' > "$MODEL_LADDER_JSON"
+  printf 'claude-opus-4-8\n' > "$SESSION_MODEL_FILE"
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  # high → max (≠ opus default) = upgrade
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-opusmax-9" ]
+  [ "$(wc -l < "$MODEL_BUMP_LOG" | tr -d ' ')" = "1" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.served')" = "claude-opusmax-9" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.session')" = "claude-opus-4-8" ]
+}
+
+@test "Step 3.2: a downgrade logs exactly one line" {
+  mkdir -p "$(dirname "$MODEL_LADDER_JSON")"
+  echo '["claude-haiku-4-5-20251001", "claude-sonnet-4-6"]' > "$MODEL_LADDER_JSON"
+  run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
+  # high → sonnet (≠ opus default) = downgrade
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.updatedInput.model')" = "claude-sonnet-4-6" ]
+  [ "$(wc -l < "$MODEL_BUMP_LOG" | tr -d ' ')" = "1" ]
+  [ "$(head -n1 "$MODEL_BUMP_LOG" | jq -r '.served')" = "claude-sonnet-4-6" ]
 }
 
 # ---------------------------------------------------------------------------
-# AC18 — settings.json registration
+# AC18 — settings.json registration (unchanged filename)
 # ---------------------------------------------------------------------------
 
 @test "AC18: settings.json registers agent-model-resolve.sh under PreToolUse Agent matcher" {

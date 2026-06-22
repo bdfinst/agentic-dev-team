@@ -52,8 +52,19 @@ Read `.dev-team/quality-targets.json` if it exists; otherwise use defaults:
 In one pass before the loop body:
 
 - **Coverage** — invoke `/coverage-delta <repo>` (no `--story`). Result lives in `memory/test-modernize/<slug>/coverage-history.json`.
-- **Mutation** — invoke `/mutation-testing <repo>`. Parse the surviving-mutant list from its output. Capture file + line + mutant operator for each survivor.
+- **Mutation — reuse rule (applied BEFORE the fresh `/mutation-testing` invocation below).** Phase 4 already measured mutation per `[Component tests]` Story; that evidence is in `memory/test-modernize/<slug>/mutation-history.json`. Use it instead of re-running mutation against files Phase 4 already exercised:
+
+  1. For each in-scope file, look up the most recent entry in `mutation-history.json`.
+  2. Compare the entry's `captured_at` to the file's last committer date: `git log -1 --format=%cI -- <file>` (committer date — not file mtime. Uncommitted edits intentionally won't trigger re-measure; convergence runs over committed code).
+  3. If the entry post-dates the file's last commit AND `status != "tool_unavailable"`, **reuse** the entry's `survivors_after` as the current count. Drop the file from the `--scope` glob passed to the fresh `/mutation-testing` run below.
+  4. Otherwise (no entry, stale entry, or prior `status: "tool_unavailable"`) — measure the file fresh in the next bullet. The fresh result is written back to `mutation-history.json` as a **synthetic entry** with `story: "converge-<iteration>"` so within-iteration reuse works and so the next iteration sees the same evidence Phase 4 would have.
+
+  **Backward compatibility — `mutation-history.json` absent.** Workflows that pre-date this contract have no Phase-4 mutation evidence. When the file is absent, fall through to the prior behavior: the next bullet runs `/mutation-testing` scoped to the full in-scope component list, exactly as before. The reuse rule is opportunistic, not required.
+
+- **Mutation (fresh measurement on files the reuse rule didn't cover).** Invoke `/mutation-testing <repo> --scope <remaining-files> --workflow-managed-approval --emit-json <tmp>`. Parse the surviving-mutant list from its JSON output (filter `status: "equivalent"`). Capture file + line + mutant operator for each survivor. Write back each freshly-measured file as a synthetic entry in `mutation-history.json` (see reuse rule above).
+
 - **Determinism** — re-run the test suite `determinism_runs` times. Capture: pass rate, the names of any test that failed in some runs but passed in others, the total wall-clock per run (lowest = current baseline).
+
 - **Wall-clock** — already captured as part of determinism. Take the median.
 
 Write the snapshot to `memory/test-modernize/<slug>/converge-<iteration>.json`:
@@ -64,10 +75,17 @@ Write the snapshot to `memory/test-modernize/<slug>/converge-<iteration>.json`:
   "captured_at": "<ISO-8601>",
   "line_pct": …, "branch_pct": …,
   "surviving_mutants": [ { "file":…, "line":…, "op":… }, … ],
+  "mutation_reuse": {
+    "reused_from_history": <count>,
+    "measured_fresh":      <count>,
+    "total_files":         <count>
+  },
   "determinism_pass_rate": …, "flaky_tests": [ … ],
   "wall_clock_median_sec": …, "wall_clock_runs": [ …, … ]
 }
 ```
+
+The operator-visible iteration report (Step 6) names the cost saving directly: `mutation: reused N, measured M` — without that line, the reuse rule is invisible and the operator can't tell whether Phase-4 evidence actually paid off.
 
 ### 3. Compute the gap to each target
 
@@ -123,7 +141,7 @@ Append a markdown block to the parent (or `FEATURE.md`):
 ```markdown
 ### Convergence iteration <n> (<ISO-8601>)
 - Coverage: line <pct>% (target 90%) · branch <pct>% (target 90%)
-- Surviving mutants: <n> (target 0)
+- Surviving mutants: <n> (target 0)  ·  mutation: reused <N>, measured <M>
 - Determinism: <passes>/<runs> (target <runs>/<runs>)
 - Wall-clock median: <sec>s (target: fastest achievable / <n>s if set)
 - Largest gap: <dimension>

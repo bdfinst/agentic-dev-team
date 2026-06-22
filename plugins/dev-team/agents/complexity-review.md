@@ -2,7 +2,8 @@
 name: complexity-review
 description: Cyclomatic complexity, nesting depth, function size, parameter count
 tools: Read, Grep, Glob
-model: haiku
+effort: medium
+cites: [object-calisthenics]
 ---
 
 # Complexity Review
@@ -17,7 +18,6 @@ Status: pass=manageable, warn=hotspots, fail=critical issues
 Severity: error=unmaintainable, warning=high complexity, suggestion=could simplify
 Confidence: high=threshold violation (function >N lines, nesting >N levels); medium=extraction direction clear, exact split requires context; none=requires human judgment (algorithm design)
 
-Model tier: small
 Context needs: full-file
 
 ## Knowledge Files

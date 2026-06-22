@@ -1,6 +1,6 @@
 {
   "name": "dev-team",
-  "version": "6.10.1",
+  "version": "7.2.0",
   "description": "Persona-driven AI development team: orchestrator, team agents, review agents, skills (agent-loaded and user-invocable slash commands), and advisory hooks for Claude Code",
   "author": {
     "name": "finsterb",

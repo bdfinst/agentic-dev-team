@@ -2,7 +2,7 @@
 name: csharp-quality
 description: "C# code quality — nullable reference types, async/await discipline, record types for DTOs, dependency injection patterns"
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # C# Quality
@@ -17,7 +17,6 @@ Status: pass=modern C#, warn=improvements needed, fail=unsafe patterns
 Severity: error=null safety issue or async misuse, warning=non-modern pattern, suggestion=style
 Confidence: high=mechanical (enable nullable, use record); medium=design choice; none=domain context
 
-Model tier: small
 Context needs: diff-only
 File scope: `*.cs`
 

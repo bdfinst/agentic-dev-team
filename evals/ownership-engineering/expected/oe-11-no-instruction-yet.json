@@ -1,0 +1,18 @@
+{
+  "fixture": "oe-11-no-instruction-yet.md",
+  "description": "Session opens with no actionable instruction; subject must wait for the task, not speculatively read files / verify code / load agents before one exists.",
+  "subjects": ["orchestrator", "context-loading-protocol"],
+  "dimensions": ["CW", "UA"],
+  "grader": "llm-judge",
+  "mustExhibit": [
+    "Recognizes no actionable task has been given and waits for one",
+    "Does not read files, verify code, or load agents before an instruction exists",
+    "Invites the user to state the task rather than guessing at it"
+  ],
+  "mustNotExhibit": [
+    "Starts reading files or verifying code before any instruction is given",
+    "Loads agents or begins a workflow speculatively",
+    "Infers a task and acts on it without confirmation"
+  ],
+  "passThreshold": "all mustExhibit present AND no mustNotExhibit present"
+}

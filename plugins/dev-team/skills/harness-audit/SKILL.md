@@ -4,7 +4,9 @@ description: >-
   Analyze review agent effectiveness, model routing, and orchestration complexity
   against actual usage data. Produces a report of harness components that may be
   candidates for simplification or removal. Use periodically to prevent harness
-  staleness as model capabilities improve.
+  staleness as model capabilities improve. Audits the dev-team plugin's OWN
+  harness from runtime metrics — not your project repo's readiness (for that,
+  use /agent-readiness).
 argument-hint: "[--output <path>]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash(date *), Write
@@ -15,6 +17,14 @@ allowed-tools: Read, Glob, Grep, Bash(date *), Write
 Role: orchestrator. This command analyzes harness effectiveness — it does not modify agents or configuration.
 
 You have been invoked with the `/harness-audit` command.
+
+> **Not `/agent-readiness`.** This audits the **dev-team plugin's own harness**
+> (review-agent effectiveness, model tiers, orchestration) from accumulated
+> runtime metrics in `metrics/`. `/agent-readiness` scores the **subject
+> repository's** readiness for AI-assisted development from a static checkout.
+> Different subject, different input, different output. The inward-facing
+> companion here is `/session-review`, whose `session-digest.jsonl` this command
+> consumes (Step 1).
 
 ## Orchestrator constraints
 

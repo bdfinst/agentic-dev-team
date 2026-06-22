@@ -2,7 +2,8 @@
 name: naming-review
 description: Naming clarity, conventions, magic values, and consistency
 tools: Read, Grep, Glob
-model: haiku
+effort: medium
+cites: [design-smells]
 ---
 
 # Naming Review
@@ -17,7 +18,6 @@ Status: pass=clear names, warn=improvements needed, fail=harms readability
 Severity: error=misleading names, warning=unclear, suggestion=style
 Confidence: high=mechanical (add is/has prefix, extract magic value to constant); medium=better name suggested but domain context may differ; none=requires human judgment (domain terminology choices)
 
-Model tier: small
 Context needs: diff-only
 
 ## Knowledge Files

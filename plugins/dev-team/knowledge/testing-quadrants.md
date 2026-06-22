@@ -41,4 +41,4 @@ Leaning on manual exploratory/UAT (Q3) as the *primary* safety net — instead o
 ## Boundaries
 
 - A suite need not fill every quadrant equally — weight by risk. A pure library leans Q1/Q4; a user-facing app needs Q2/Q3. Flag *empty* quadrants where the product's risk clearly demands coverage, not arithmetic imbalance.
-- This file classifies; it does not score. Quantitative suite scoring stays in `test-design-reviewer`.
+- This file classifies; it does not score. Quantitative suite scoring stays in `farley-score`.

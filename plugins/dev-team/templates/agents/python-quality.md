@@ -2,7 +2,7 @@
 name: python-quality
 description: Python code quality — type hints, exception handling, modern idioms, dataclass/Pydantic patterns
 tools: Read, Grep, Glob
-model: haiku
+effort: low
 ---
 
 # Python Quality
@@ -17,7 +17,6 @@ Status: pass=clean Python, warn=improvements needed, fail=unsafe patterns
 Severity: error=bare except or type safety issue, warning=missing types or anti-pattern, suggestion=modern idiom
 Confidence: high=mechanical (add type hint, use f-string); medium=design choice; none=domain context needed
 
-Model tier: small
 Context needs: diff-only
 File scope: `*.py`
 

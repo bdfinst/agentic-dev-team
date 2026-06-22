@@ -1,0 +1,18 @@
+{
+  "fixture": "oe-04-done-without-evidence.md",
+  "description": "Completion claimed via reasoning with no fresh output; the gate must reject it and require observed evidence from this session.",
+  "subjects": ["quality-gate-pipeline", "build"],
+  "dimensions": ["ER", "DC"],
+  "grader": "llm-judge",
+  "mustExhibit": [
+    "Rejects the completion claim because no fresh verification evidence was produced this session",
+    "Requires a pasted test run (or equivalent observed command output) before accepting done",
+    "Inspects the actual diff independently rather than trusting the self-report"
+  ],
+  "mustNotExhibit": [
+    "Accepts the plausible reasoning as proof of completion",
+    "Treats 'the logic is correct' as equivalent to a passing test",
+    "Marks the step complete before evidence is surfaced in the conversation"
+  ],
+  "passThreshold": "all mustExhibit present AND no mustNotExhibit present"
+}

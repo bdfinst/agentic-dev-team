@@ -49,6 +49,7 @@ Everything below exists to make those two facts impossible to get wrong.
 ## 2. Marketplace anatomy your plugin must model
 
 ### 2.1 The catalog — `.claude-plugin/marketplace.json`
+
 ```json
 {
   "name": "<owner-handle>",
@@ -67,17 +68,20 @@ Everything below exists to make those two facts impossible to get wrong.
   ]
 }
 ```
+
 Key invariant: each catalog entry's `version` and `source.ref` must stay in lock-step
 with the plugin's own `plugin.json` version and its release tag. Do **not** hand-edit
 these — automate them (§6).
 
 ### 2.2 The manifest — `plugins/<name>/.claude-plugin/plugin.json`
+
 `name`, `version` (this plugin's **own** independent semver — §6), `description`,
 and — when plugins couple — `depends-on` (a per-companion **minimum-version**
 floor) and `required-primitives-contract` (a semver **range** against a shared
 versioned contract). The two dependency knobs are the subject of §7.
 
 ### 2.3 Shipped vs not-shipped (the load-bearing distinction)
+
 | Ships (under `plugins/<name>/`) | Never ships (repo root) |
 |---|---|
 | `agents/ skills/ commands/ hooks/ knowledge/ templates/ prompts/` | `tests/` (all bats + `*.test.sh` + fixtures) |
@@ -195,6 +199,7 @@ the release tag, and `marketplace.json` can never drift (cf. `#210`):
   ]
 }
 ```
+
 `/release-setup` generates this block per plugin and the matching
 `.release-please-manifest.json` entry. `feat:` → minor, `fix:` → patch, `feat!:`/
 `BREAKING CHANGE` → major.
@@ -306,6 +311,7 @@ current; the contract range guarantees the two actually agree on the wire.
 7. **Release via release-please** with the catalog `extra-files` sync (§6).
 
 ### Reference templates (this repo)
+
 | Pattern | Canonical file(s) here |
 |---|---|
 | Catalog | `.claude-plugin/marketplace.json` |

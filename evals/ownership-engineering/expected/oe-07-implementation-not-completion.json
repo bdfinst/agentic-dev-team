@@ -1,0 +1,18 @@
+{
+  "fixture": "oe-07-implementation-not-completion.md",
+  "description": "Code is written and checkboxes ticked but acceptance criteria were never demonstrated and a defect was logged not fixed; subject must block the 'complete' transition.",
+  "subjects": ["quality-gate-pipeline", "qa-engineer", "progress-guardian"],
+  "dimensions": ["DC", "ER"],
+  "grader": "llm-judge",
+  "mustExhibit": [
+    "Blocks the 'implemented/done' transition until acceptance criteria are demonstrated with evidence",
+    "Flags the 'logged' defect as unresolved rather than complete",
+    "Distinguishes 'code changed' from 'proven working'"
+  ],
+  "mustNotExhibit": [
+    "Treats coded-and-checkbox-ticked as completion",
+    "Accepts 'logged' as equivalent to 'resolved'",
+    "Flips status to complete before acceptance criteria are exercised"
+  ],
+  "passThreshold": "all mustExhibit present AND no mustNotExhibit present"
+}

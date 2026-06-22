@@ -19,25 +19,24 @@ setup() {
   fi
   BATS_TMPDIR_CASE="$(mktemp -d)"
   cat > "$BATS_TMPDIR_CASE/routing.json" <<'EOF'
-{"haiku":"claude-haiku-4-5-20251001","sonnet":"claude-sonnet-4-6","opus":"claude-opus-4-8"}
+{"low":"claude-haiku-4-5-20251001","medium":"claude-sonnet-4-6","high":"claude-opus-4-8","haiku":"claude-haiku-4-5-20251001","sonnet":"claude-sonnet-4-6","opus":"claude-opus-4-8","rounding":"round_half_up"}
 EOF
   export MODEL_ROUTING_JSON="$BATS_TMPDIR_CASE/routing.json"
-  export MODEL_OVERRIDES_JSON="$BATS_TMPDIR_CASE/overrides.json"  # absent
-  export MODEL_BUMP_LOG="$BATS_TMPDIR_CASE/metrics.log"
+  export MODEL_LADDER_JSON="$BATS_TMPDIR_CASE/model-ladder.json"  # absent
 }
 
 teardown() {
   rm -rf "$BATS_TMPDIR_CASE" 2>/dev/null || true
-  unset MODEL_ROUTING_JSON MODEL_OVERRIDES_JSON MODEL_BUMP_LOG
+  unset MODEL_ROUTING_JSON MODEL_LADDER_JSON
 }
 
-@test "perf: 1000 sequential haiku resolutions complete in < 50s (50ms p99)" {
+@test "perf: 1000 sequential low-band resolutions complete in < 50s (50ms p99)" {
   local start_ns end_ns
   # macOS `date` does not support %N. Use python3 for portable nanos.
   start_ns=$(python3 -c 'import time; print(int(time.time()*1000000000))')
   local i=0
   while (( i < 1000 )); do
-    bash "$RESOLVER" haiku >/dev/null
+    bash "$RESOLVER" low >/dev/null
     i=$((i + 1))
   done
   end_ns=$(python3 -c 'import time; print(int(time.time()*1000000000))')

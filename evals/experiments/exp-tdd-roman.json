@@ -1,0 +1,12 @@
+{
+  "description": "Pilot task: integer->Roman numeral with a follow-up from_roman round-trip. Acceptance tests hidden (gradeFiles), injected at grading.",
+  "experiment": {
+    "goldenRepo": "golden-repo.tar.gz",
+    "spec": "spec.md",
+    "change": "change.md",
+    "gradeFiles": ["acceptance_roman.py"],
+    "changeGradeFiles": ["acceptance_roman.py", "acceptance_roman_change.py"],
+    "testCommands": ["python3 acceptance_roman.py"],
+    "changeTestCommands": ["python3 acceptance_roman.py", "python3 acceptance_roman_change.py"]
+  }
+}

@@ -4,7 +4,10 @@ High-reversal-cost decision axes that recur across tasks and, when guessed wrong
 force an interrupt and rework. For each axis: the trigger that raises it, the default
 stance, and what to confirm before committing. Screen every non-trivial request
 against this list during discovery; surface any ambiguous axis in a single upfront
-batch rather than guessing and being corrected later.
+batch — **each with its recommended default attached** — rather than guessing and
+being corrected later. A surfaced axis with no recommended default is incomplete: it
+makes the user do the deciding from a blank, which is the menu anti-pattern this list
+exists to prevent. State your best answer for each axis and let the user override it.
 
 These are defaults, not laws — an explicit user instruction always wins. The point is
 to resolve the axis *before* building, not to relitigate it mid-stream.
@@ -12,10 +15,13 @@ to resolve the axis *before* building, not to relitigate it mid-stream.
 ## Destructive shape: replace vs. merge
 
 Trigger: a request writes config, settings, dotfiles, or installer output where prior
-content may exist. Default: ask which is wanted before acting — a clean replace and an
-in-place merge are different operations with different blast radii. Confirm: does the
-user want existing content preserved (merge) or overwritten (replace)? When unstated
-and the target is non-trivial, ask; do not silently merge.
+content may exist. Default: **recommend merge — preserve existing content** — because
+it is the reversible option; a clean replace discards prior settings and is hard to
+undo. Surface the choice before acting, but always with that merge default attached —
+never a bare "merge or replace?". Confirm: does the user want existing content
+preserved (merge, the recommended default) or overwritten (replace)? When unstated and
+the target is non-trivial, surface the choice with the merge default and proceed once
+it is resolved; do not silently act in either direction.
 
 ## Format fidelity: preserve the native format
 

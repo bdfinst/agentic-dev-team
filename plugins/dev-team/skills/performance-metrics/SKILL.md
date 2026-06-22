@@ -116,11 +116,52 @@ Logged at the end of each task:
 | `hallucination_detected` | boolean | Whether a hallucination was flagged |
 | `duration_seconds` | number | Wall-clock seconds from start to delivery |
 
+### Review Value Entry (#348)
+
+`/build` appends one entry per **inline review checkpoint** to
+`metrics/review-value.jsonl` so the pipeline's review overhead becomes
+*measurable* — distinguishing a build where review caught and fixed a real defect
+from one where every loop passed no-op. This is the sensor that lets the plan/step
+tiering (the `/plan` plan-tier and `/build` per-step complexity routing) be
+right-sized with evidence rather than guessed.
+
+```json
+{
+  "timestamp": "2026-06-22T14:30:00Z",
+  "plan": "plans/add-auth.md",
+  "slice": "2",
+  "step": "all",
+  "checkpoint": "slice",
+  "complexity": "standard",
+  "agents_run": ["spec-compliance-review", "security-review"],
+  "issues_found": 1,
+  "issues_fixed": 1,
+  "fix_iterations": 1,
+  "outcome": "fixed"
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `checkpoint` | string | `step` (per-step `complex` review) or `slice` (batched slice-boundary review) |
+| `step` | string | `N.M` for a per-step checkpoint; `all` for a batched slice checkpoint |
+| `agents_run` | string[] | Review agents dispatched at this checkpoint |
+| `issues_found` | number | Actionable issues the checkpoint surfaced |
+| `issues_fixed` | number | Of those, how many were auto-fixed |
+| `fix_iterations` | number | Review-fix loop iterations consumed |
+| `outcome` | string | `no-op` (passed clean), `fixed` (found + fixed), `escalated` (loop didn't converge) |
+
+**Privacy:** counts and outcomes only — never prompt text, code, or file content,
+consistent with the cost meter's privacy boundary. Disable with
+`DEV_TEAM_REVIEW_VALUE=off`. Report it with `/cost-report` (its "review value"
+section).
+
 ## When to Log
 
 | Event | Action |
 | --- | --- |
 | Task completed | Log full task completion entry |
+| `/build` inline review checkpoint | Append a Review Value entry to `metrics/review-value.jsonl` (#348) |
 | Configuration change | Log in `metrics/config-changelog.jsonl` (see Feedback & Learning skill) |
 | Hallucination detected | Flag in task entry + log separately if correction applied |
 | Context summarization triggered | Increment counter in current task entry |

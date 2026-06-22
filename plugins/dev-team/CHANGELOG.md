@@ -1,5 +1,65 @@
 # Changelog
 
+## [7.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.1.0...dev-team-v7.2.0) (2026-06-22)
+
+
+### Features
+
+* **plan,build:** tier plan review, batch inline review, headless approval gates ([#355](https://github.com/bdfinst/agentic-dev-team/issues/355)) ([48c44e3](https://github.com/bdfinst/agentic-dev-team/commit/48c44e394803f81ca3370b48e212e9875da1f2a1))
+
+## [7.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.0.0...dev-team-v7.1.0) (2026-06-22)
+
+
+### Features
+
+* **audit:** add a registry-completeness sensor (`scripts/check_registry_sync.py`, surfaced as `/agent-audit` step 2e) that fails when an agent or skill on disk is missing from — or orphaned in — the registry tables ([#350](https://github.com/bdfinst/agentic-dev-team/issues/350)) ([6a08144](https://github.com/bdfinst/agentic-dev-team/commit/6a081443ba1610ce462adafe4806aabeb9fe8dd3))
+
+
+### Code Refactoring
+
+* **agents:** make the `effort:` frontmatter the single source of truth — remove the duplicate body `Effort:` line from every review agent and template, drop the hand-maintained Model Tier column from `agent-registry.md`, and have `/agent-audit` warn if the band is restated ([#350](https://github.com/bdfinst/agentic-dev-team/issues/350)) ([6a08144](https://github.com/bdfinst/agentic-dev-team/commit/6a081443ba1610ce462adafe4806aabeb9fe8dd3))
+* **agents:** raise the four judgment-driven reviewers (a11y, naming, complexity, progress-guardian) to `effort: medium` and reconcile the registry tier drift this surfaced ([#350](https://github.com/bdfinst/agentic-dev-team/issues/350)) ([6a08144](https://github.com/bdfinst/agentic-dev-team/commit/6a081443ba1610ce462adafe4806aabeb9fe8dd3))
+
+
+### Documentation
+
+* **dev-team:** note registry-completeness gate; release v7.1.0 ([#352](https://github.com/bdfinst/agentic-dev-team/issues/352)) ([3630676](https://github.com/bdfinst/agentic-dev-team/commit/36306761ab36786408d95aa46aee43a76ab3e05c))
+
+## [7.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.11.1...dev-team-v7.0.0) (2026-06-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **routing:** agent frontmatter uses effort: bands, not model: tiers. The resolver accepts legacy model: tiers for one deprecation release.
+
+### Features
+
+* **dev-team:** release ownership-engineering improvements; add commitlint guard ([#339](https://github.com/bdfinst/agentic-dev-team/issues/339)) ([a689677](https://github.com/bdfinst/agentic-dev-team/commit/a68967749d6222b72f9372047628194b8cf5b3dd))
+* **routing:** effort-band model routing (replaces model: tiers) ([#337](https://github.com/bdfinst/agentic-dev-team/issues/337)) ([2fda3c1](https://github.com/bdfinst/agentic-dev-team/commit/2fda3c1ef292410b0bb060a09892564eedd3fb32))
+
+## [6.11.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.11.0...dev-team-v6.11.1) (2026-06-20)
+
+
+### Code Refactoring
+
+* **test-review:** consolidate overlaps, rename Farley scorer, dedupe shared prose ([#324](https://github.com/bdfinst/agentic-dev-team/issues/324)) ([dd2d1da](https://github.com/bdfinst/agentic-dev-team/commit/dd2d1daf317272b2c11b6488c32c865147d0c038))
+
+
+### Documentation
+
+* **skills:** disambiguate /agent-readiness from /harness-audit ([#325](https://github.com/bdfinst/agentic-dev-team/issues/325)) ([f647247](https://github.com/bdfinst/agentic-dev-team/commit/f6472472bdc24c4bc9aeec12ff19fc20c3732ebc))
+
+## [6.11.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.10.1...dev-team-v6.11.0) (2026-06-19)
+
+
+### Features
+
+* **eval:** confidence-pyramid improvements (registry, dispatch, cache, citation lint, integration tier) ([#315](https://github.com/bdfinst/agentic-dev-team/issues/315)) ([b560880](https://github.com/bdfinst/agentic-dev-team/commit/b56088082f4952bd51178bb1d66843e61788b8ed))
+* **evals:** backfill cites: frontmatter on reviewer agents ([#319](https://github.com/bdfinst/agentic-dev-team/issues/319)) ([e37c627](https://github.com/bdfinst/agentic-dev-team/commit/e37c62774990207981565ad111fe04d3ca905e29))
+* **evals:** wire cache + integration tier + cites enforcement into /agent-eval and /agent-create ([#322](https://github.com/bdfinst/agentic-dev-team/issues/322)) ([a3c623c](https://github.com/bdfinst/agentic-dev-team/commit/a3c623c84616fa84d46d85fa34f9a2873458fd8a))
+* **test-modernize:** make Phase-3 disabled-test resolution a Phase-4 contract ([#318](https://github.com/bdfinst/agentic-dev-team/issues/318)) ([e30ecba](https://github.com/bdfinst/agentic-dev-team/commit/e30ecba9824776be4b9a2b371d90e7dc8e5ad032))
+* **test-modernize:** per-Story mutation testing in Phase 4 + end-of-phase test review loop (MVP probe) ([#316](https://github.com/bdfinst/agentic-dev-team/issues/316)) ([df30551](https://github.com/bdfinst/agentic-dev-team/commit/df3055178e0a137a173ec8ff099d59159f8cbc73))
+
 ## [6.10.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v6.10.0...dev-team-v6.10.1) (2026-06-19)
 
 

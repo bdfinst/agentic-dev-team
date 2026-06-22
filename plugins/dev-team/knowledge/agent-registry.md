@@ -21,31 +21,32 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 
 ## Review Agents
 
-Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Each agent declares a tier alias in its `model:` frontmatter; the PreToolUse hook `hooks/agent-model-resolve.sh` resolves it to the active snapshot per the **Resolution Procedure** in `agents/orchestrator.md`.
+Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Each agent declares its reasoning-effort band (`effort: low|medium|high`) in frontmatter; the PreToolUse hook `hooks/agent-model-resolve.sh` resolves the band to the active model per the **Resolution Procedure** in `agents/orchestrator.md`. The band is the single source of truth — run `/model-routing-check` for the live band→model map rather than mirroring tiers here.
 
-| Agent | File | Model Tier | What It Checks |
-|-------|------|------------|----------------|
-| a11y-review | `agents/a11y-review.md` | mid | WCAG 2.1 AA, ARIA, keyboard nav, focus management |
-| arch-review | `agents/arch-review.md` | frontier | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
-| claude-setup-review | `agents/claude-setup-review.md` | small | CLAUDE.md completeness, rules, skills, path accuracy |
-| complexity-review | `agents/complexity-review.md` | small | Function size, cyclomatic complexity, nesting, parameters |
-| concurrency-review | `agents/concurrency-review.md` | mid | Race conditions, async pitfalls, shared state |
-| data-flow-tracer | `agents/data-flow-tracer.md` | mid | Data flow tracing through architecture layers (analysis-only) |
-| doc-review | `agents/doc-review.md` | mid | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
-| domain-review | `agents/domain-review.md` | frontier | Domain boundaries, abstraction leaks, entity/DTO confusion |
-| js-fp-review | `agents/js-fp-review.md` | mid | Array mutations, impure patterns, global state |
-| naming-review | `agents/naming-review.md` | small | Intent-revealing names, boolean prefixes, magic values |
-| performance-review | `agents/performance-review.md` | small | Resource leaks, N+1 queries, unbounded growth |
-| progress-guardian | `agents/progress-guardian.md` | mid | Plan adherence, commit discipline, scope creep detection |
-| refactor-opportunity-review | `agents/refactor-opportunity-review.md` | mid | Post-GREEN refactoring opportunities, semantic vs structural duplication |
-| security-review | `agents/security-review.md` | frontier | Injection, auth/authz, data exposure, crypto |
-| spec-compliance-review | `agents/spec-compliance-review.md` | mid | Spec-to-code matching — first gate before quality review |
-| structure-review | `agents/structure-review.md` | mid | SRP violations, DRY, coupling, file organization |
-| svelte-review | `agents/svelte-review.md` | mid | Svelte reactivity pitfalls, closure state leaks |
-| test-modernization-review | `agents/test-modernization-review.md` | mid | Gate-keeper for `/test-modernize` — verifies each phase's deliverable matches its acceptance criteria before the workflow advances |
-| test-review | `agents/test-review.md` | mid | Coverage gaps, assertion quality, test hygiene |
-| test-smell-review | `agents/test-smell-review.md` | mid | xUnit test smells, test-double selection, test-pyramid layer placement |
-| token-efficiency-review | `agents/token-efficiency-review.md` | small | File/function size, LLM anti-patterns, token usage |
+| Agent | File | What It Checks |
+|-------|------|----------------|
+| a11y-review | `agents/a11y-review.md` | WCAG 2.1 AA, ARIA, keyboard nav, focus management |
+| arch-review | `agents/arch-review.md` | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
+| claude-setup-review | `agents/claude-setup-review.md` | CLAUDE.md completeness, rules, skills, path accuracy |
+| complexity-review | `agents/complexity-review.md` | Function size, cyclomatic complexity, nesting, parameters |
+| concurrency-review | `agents/concurrency-review.md` | Race conditions, async pitfalls, shared state |
+| data-flow-tracer | `agents/data-flow-tracer.md` | Data flow tracing through architecture layers (analysis-only) |
+| doc-review | `agents/doc-review.md` | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
+| domain-review | `agents/domain-review.md` | Domain boundaries, abstraction leaks, entity/DTO confusion |
+| js-fp-review | `agents/js-fp-review.md` | Array mutations, impure patterns, global state |
+| naming-review | `agents/naming-review.md` | Intent-revealing names, boolean prefixes, magic values |
+| performance-review | `agents/performance-review.md` | Resource leaks, N+1 queries, unbounded growth |
+| progress-guardian | `agents/progress-guardian.md` | Plan adherence, commit discipline, scope creep detection |
+| refactor-opportunity-review | `agents/refactor-opportunity-review.md` | Post-GREEN refactoring opportunities, semantic vs structural duplication |
+| security-review | `agents/security-review.md` | Injection, auth/authz, data exposure, crypto |
+| session-analysis | `agents/session-analysis.md` | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
+| spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — first gate before quality review |
+| structure-review | `agents/structure-review.md` | SRP violations, DRY, coupling, file organization |
+| svelte-review | `agents/svelte-review.md` | Svelte reactivity pitfalls, closure state leaks |
+| test-modernization-review | `agents/test-modernization-review.md` | Gate-keeper for `/test-modernize` — verifies each phase's deliverable matches its acceptance criteria before the workflow advances |
+| test-review | `agents/test-review.md` | Coverage gaps, assertion quality, test hygiene |
+| test-smell-review | `agents/test-smell-review.md` | xUnit test smells, test-double selection, test-pyramid layer placement |
+| token-efficiency-review | `agents/token-efficiency-review.md` | File/function size, LLM anti-patterns, token usage |
 
 ## Skills Registry
 
@@ -74,6 +75,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Domain Analysis | `skills/domain-analysis/SKILL.md` | 650 | Architect, Product Manager, Orchestrator |
 | Domain-Driven Design | `skills/domain-driven-design/SKILL.md` | 710 | Architect, Software Engineer, Product Manager |
 | Exploratory Testing | `skills/exploratory-testing/SKILL.md` | ~900 | QA Engineer, `/explore` command |
+| Farley Score | `skills/farley-score/SKILL.md` | 600 | QA Engineer, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
 | Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,010 | Orchestrator |
 | Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | `/test-modernize` (Phase 2), QA Engineer, Product Manager |
@@ -94,7 +96,6 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 600 | Software Engineer, QA Engineer |
 | Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~650 | `/test-modernize` (Phase 3), QA Engineer |
 | Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~700 | QA Engineer, Software Engineer, `/test-design` command |
-| Test Design Reviewer | `skills/test-design-reviewer/SKILL.md` | 600 | QA Engineer, test-review, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Test Health | `skills/test-health/SKILL.md` | ~900 | QA Engineer, `/test-health` command |
 | Test Modernize | `skills/test-modernize/SKILL.md` | ~900 | Orchestrator, QA Engineer, `/test-modernize` command |
 | Test-Driven Development | `skills/test-driven-development/SKILL.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
@@ -141,11 +142,13 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
 | Test Automation Maturity | `knowledge/test-automation-maturity.md` | ~450 | test-review, test-health |
 | Test Doubles | `knowledge/test-doubles.md` | ~700 | test-smell-review, test-design-advisor |
+| Test File Indicators | `knowledge/test-file-indicators.md` | ~200 | test-review, test-smell-review, `/test-design`, `/build` |
 | Test Layer Gates | `knowledge/test-layer-gates.md` | ~480 | test-design-advisor |
 | Test Matrix Examples | `knowledge/test-matrix-examples/*.md` | ~950 | test-design-advisor (few-shot templates) |
 | Test Organization | `knowledge/test-organization.md` | ~750 | test-design-advisor, test-smell-review |
 | Test Pyramid | `knowledge/test-pyramid.md` | ~800 | test-smell-review, test-review, test-design-advisor, test-health |
 | Test Refactoring | `knowledge/test-refactoring.md` | ~750 | test-design-advisor, test-smell-review |
+| Test Review Division of Labor | `knowledge/test-review-division-of-labor.md` | ~300 | test-review, test-smell-review, `/test-design` |
 | Test Smells | `knowledge/test-smells.md` | ~900 | test-smell-review, test-review, test-design-advisor |
 | Test Stack Profiles | `knowledge/test-stack-profiles/*.md` | ~1,400 | test-design-advisor (tool resolution by detected stack) |
 | Test Strategy | `knowledge/test-strategy.md` | ~900 | test-design-advisor, test-smell-review, test-review |

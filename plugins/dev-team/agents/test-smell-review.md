@@ -2,7 +2,8 @@
 name: test-smell-review
 description: xUnit test smells, test double selection, and test-pyramid layer placement
 tools: Read, Grep, Glob, Skill
-model: sonnet
+effort: medium
+cites: [test-smells, test-doubles, test-pyramid, fixture-construction, test-organization, test-refactoring, testability-patterns, result-verification, cd-test-architecture, microservice-testing, adversarial-review-protocol]
 ---
 
 # Test Smell Review
@@ -17,12 +18,11 @@ Status: pass=no smells, warn=minor smells, fail=behavior/project smell that unde
 Severity: error=smell that makes the suite untrustworthy or unmaintainable (flaky, buggy test, false confidence), warning=should fix (fragile, obscure, overspecified), suggestion=improvement
 Confidence: high=named smell with a mechanical fix (add assertion message, inline mystery guest, downgrade mock to stub); medium=smell is clear but the redesign has options (split strategy, layer choice); none=requires human judgment (intended test level, whether a behavior is worth testing)
 
-Model tier: mid
 Context needs: full-file
 
 ## Scope
 
-The design-level companion to test-review. This agent names xUnit test smells, judges test-double choice, and checks pyramid-layer placement. `test-review` owns the tactical per-file gate (missing assertions, missing await, mock-reset hygiene). When both run, defer mechanical findings to test-review and report the design smell here. Some overlap on non-determinism is expected — frame it as the **Erratic Test** smell with its root cause.
+The design-level companion to test-review. This agent names xUnit test smells, judges test-double choice, and checks pyramid-layer placement. The division of labor with `test-review` is defined in `knowledge/test-review-division-of-labor.md#the-two-roles`: this agent owns the named-smell signals (including non-determinism, framed as the **Erratic Test** smell with its root cause), and defers the pure tactical mechanics (missing assertion, missing `await`, mock-reset) to `test-review`.
 
 ## Knowledge Files
 
@@ -40,14 +40,7 @@ Load on demand by finding type — do not load all four unless the target needs 
 
 ## Skip
 
-Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` when no test files are found. `.feature` files count as tests — do not skip if present.
-
-Test file indicators by language:
-
-- **JS/TS**: `*.test.*`, `*.spec.*`, or files inside `__tests__/`
-- **C#**: `.cs` files with `[Fact]`, `[Theory]`, `[Test]`, `[TestCase]`, `[TestMethod]`, `[TestClass]`
-- **Java**: `.java` files with `@Test`, `@ParameterizedTest`, `@TestFactory`, or class names ending `Test`, `Tests`, `TestCase`, `Spec`
-- **BDD/Gherkin**: `.feature` files, step definition files
+Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` when no test files are found. Use the test-file indicators in `knowledge/test-file-indicators.md#indicators-by-language` (JS/TS, C#, Java, BDD/Gherkin). `.feature` files count as tests — do not skip if present.
 
 ## Detect
 
@@ -86,7 +79,7 @@ After producing findings, run the test-review challenge pass in `knowledge/adver
 
 ## Ignore
 
-Tactical mechanics owned by test-review (missing assertion entirely, missing await, mock-reset calls) — defer those there.
+Tactical mechanics owned by test-review (missing assertion entirely, missing await, mock-reset calls) — defer those there, per `knowledge/test-review-division-of-labor.md#the-rule-in-one-line`.
 Code style, naming, complexity of production code (handled by other agents).
 Integration/E2E tests touching real resources by design — confirm the intended test level before flagging Slow Tests or Erratic Test.
 A single Mock at a true side-effect boundary, or a Fake in-memory dependency — these are correct, not smells.

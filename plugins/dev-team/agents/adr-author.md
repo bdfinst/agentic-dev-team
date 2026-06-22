@@ -2,7 +2,7 @@
 name: adr-author
 description: Creates and manages Architecture Decision Records (ADRs) with a decision framework for when to create one
 tools: Read, Write, Glob, Grep
-model: sonnet
+effort: medium
 ---
 
 # ADR Author Agent

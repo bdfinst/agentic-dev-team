@@ -129,9 +129,14 @@ EOF
 }
 
 @test "runner: missing claude (no --skip-dispatch) errors naming the component" {
-  # Restrict PATH so python3 + git resolve but claude does not.
-  py="$(dirname "$(command -v python3)")"
-  run env PATH="$py:/usr/bin:/bin" python3 "$RUNNER" \
+  # Build a clean bin dir holding only python3 + git so claude is genuinely
+  # absent. Restricting PATH to python3's own bindir leaks claude on setups
+  # where they share a directory (e.g. Homebrew's /opt/homebrew/bin).
+  clean="$T/clean-bin"
+  mkdir -p "$clean"
+  ln -s "$(command -v python3)" "$clean/python3"
+  ln -s "$(command -v git)" "$clean/git"
+  run env PATH="$clean" python3 "$RUNNER" \
     --expected-dir "$T/expected" --fixtures-dir "$T/fixtures" --out "$T/actuals.json"
   [ "$status" -eq 2 ]
   [[ "$output" == *"claude"* ]]

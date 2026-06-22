@@ -9,7 +9,7 @@ jobs:
   shell-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install shellcheck + jq
         run: sudo apt-get update && sudo apt-get install -y shellcheck jq
@@ -32,7 +32,7 @@ jobs:
   bats-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -90,7 +90,7 @@ jobs:
   cost-regression:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install python3 + jq
         run: sudo apt-get update && sudo apt-get install -y jq python3
@@ -102,7 +102,7 @@ jobs:
       # plugins/dev-team/docs/telemetry-ci-access.md.
       - name: Load telemetry deploy key (read-only)
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.TELEMETRY_DEPLOY_KEY }}
 
@@ -129,7 +129,7 @@ jobs:
   semgrep-fixtures:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install semgrep + pyyaml
         run: pip install --quiet semgrep pyyaml
@@ -148,7 +148,7 @@ jobs:
   harness-smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install harness runtime dependency (httpx)
         run: pip install --quiet httpx

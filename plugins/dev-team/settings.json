@@ -13,7 +13,10 @@
       "NotebookEdit",
       "mcp__*"
     ],
-    "deny": ["Bash(rm *)", "Bash(git push *)"]
+    "deny": [
+      "Bash(rm *)",
+      "Bash(git push *)"
+    ]
   },
   "hooks": {
     "SessionStart": [
@@ -21,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/overrides-banner.sh"
+            "command": "bash hooks/session-model-banner.sh"
           }
         ]
       }
@@ -29,7 +32,10 @@
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "bash hooks/telemetry.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/telemetry.sh"
+          }
         ]
       }
     ],
@@ -37,7 +43,10 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "bash hooks/pre-tool-guard.sh" },
+          {
+            "type": "command",
+            "command": "bash hooks/pre-tool-guard.sh"
+          },
           {
             "type": "command",
             "command": "bash hooks/contract-version-guard.sh"
@@ -47,37 +56,58 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "bash hooks/destructive-guard.sh" },
-          { "type": "command", "command": "bash hooks/pre-commit-review.sh" },
+          {
+            "type": "command",
+            "command": "bash hooks/destructive-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/pre-commit-review.sh"
+          },
           {
             "type": "command",
             "command": "bash hooks/pre-commit-knowledge-index.sh"
           },
-          { "type": "command", "command": "bash hooks/telemetry.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/telemetry.sh"
+          }
         ]
       },
       {
         "matcher": "Skill",
         "hooks": [
-          { "type": "command", "command": "bash hooks/telemetry.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/telemetry.sh"
+          }
         ]
       },
       {
         "matcher": "Read",
         "hooks": [
-          { "type": "command", "command": "bash hooks/codegraph-nudge.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/codegraph-nudge.sh"
+          }
         ]
       },
       {
         "matcher": "Grep",
         "hooks": [
-          { "type": "command", "command": "bash hooks/codegraph-nudge.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/codegraph-nudge.sh"
+          }
         ]
       },
       {
         "matcher": "Glob",
         "hooks": [
-          { "type": "command", "command": "bash hooks/codegraph-nudge.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/codegraph-nudge.sh"
+          }
         ]
       },
       {
@@ -94,7 +124,10 @@
       {
         "matcher": "Edit|Write",
         "hooks": [
-          { "type": "command", "command": "bash hooks/js-fp-review.sh" },
+          {
+            "type": "command",
+            "command": "bash hooks/js-fp-review.sh"
+          },
           {
             "type": "command",
             "command": "bash hooks/token-efficiency-review.sh"
@@ -103,26 +136,41 @@
             "type": "command",
             "command": "bash hooks/eval-compliance-check.sh"
           },
-          { "type": "command", "command": "bash hooks/tdd-guard.sh" },
-          { "type": "command", "command": "bash hooks/knowledge-index.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/tdd-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/knowledge-index.sh"
+          }
         ]
       },
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "bash hooks/mutation-gate.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/mutation-gate.sh"
+          }
         ]
       },
       {
         "matcher": "Read",
         "hooks": [
-          { "type": "command", "command": "bash hooks/version-check.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/version-check.sh"
+          }
         ]
       },
       {
         "matcher": "mcp__codegraph__.*",
         "hooks": [
-          { "type": "command", "command": "bash hooks/codegraph-turn-mark.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/codegraph-turn-mark.sh"
+          }
         ]
       }
     ],
@@ -130,7 +178,10 @@
       {
         "matcher": null,
         "hooks": [
-          { "type": "command", "command": "bash hooks/cost-meter.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/cost-meter.sh"
+          }
         ]
       }
     ],
@@ -138,7 +189,10 @@
       {
         "matcher": null,
         "hooks": [
-          { "type": "command", "command": "bash hooks/cost-meter.sh" }
+          {
+            "type": "command",
+            "command": "bash hooks/cost-meter.sh"
+          }
         ]
       }
     ]

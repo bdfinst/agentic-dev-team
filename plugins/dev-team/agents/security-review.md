@@ -2,7 +2,8 @@
 name: security-review
 description: Injection, auth/authz, data exposure, security headers, crypto
 tools: Read, Grep, Glob
-model: opus
+effort: high
+cites: [owasp-detection, accepted-risks-schema, adversarial-review-protocol]
 ---
 
 # Security Review
@@ -43,7 +44,6 @@ well-formed-but-unmapped category (e.g. `A99.new-class`) when the class
 is legitimate but not yet in the mapping; the adapter will mint a
 `security-review.*` rule_id and warn.
 
-Model tier: frontier
 Context needs: full-file
 
 ## Trigger context
