@@ -33,10 +33,10 @@ command -v gh >/dev/null 2>&1 || apt-get install -y gh || true
 # pre-commit / pre-push / commit-msg hooks into .husky/_ and points
 # core.hooksPath at them — and installs the tools those hooks invoke
 # (lint-staged, commitlint, eslint). Without it the hooks are absent in the
-# cloud session, so commits/pushes skip the local gates. Needs Node 20+
-# (commitlint@21); do NOT set HUSKY=0 — that would skip embedding the hooks.
+# cloud session, so commits/pushes skip the local gates. Needs Node 24+
+# (the repo's engines floor); do NOT set HUSKY=0 — that would skip the hooks.
 if ! command -v npm >/dev/null 2>&1; then
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1 || true
+  curl -fsSL https://deb.nodesource.com/setup_24.x | bash - >/dev/null 2>&1 || true
   apt-get install -y nodejs || true
 fi
 if command -v npm >/dev/null 2>&1; then

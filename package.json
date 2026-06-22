@@ -5,11 +5,11 @@
   "description": "Tooling for the dev-team Claude Code plugin marketplace (lint config for TypeScript eval fixtures).",
   "type": "module",
   "scripts": {
+    "eval:changed": "bash scripts/eval-changed.sh",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "test:ci": "bash scripts/ci-local.sh",
-    "eval:changed": "bash scripts/eval-changed.sh",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:ci": "bash scripts/ci-local.sh"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": "eslint --fix"
@@ -23,5 +23,8 @@
     "lint-staged": "^17.0.7",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
