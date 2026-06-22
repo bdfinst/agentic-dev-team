@@ -41,10 +41,33 @@ Each unit of work follows three phases with hard gates between them:
 - Do not add behavior beyond what the test requires
 - Do not refactor yet
 
-### 3. REFACTOR — Clean up
-- Improve structure, naming, duplication — without changing behavior
-- Run the test suite — **all tests must still pass**
-- If tests break during refactor, undo and try a smaller change
+### 3. REFACTOR — Review then clean up
+
+After GREEN, dispatch review agents **before** making any structural changes.
+
+#### 3a. Post-GREEN review
+
+1. **Always** — run `refactor-opportunity-review` on all changed files
+2. **When non-trivial** (any changed function exceeds 20 lines, nesting exceeds 4 levels, or more than one function was modified) — also run `complexity-review` on the changed files
+3. Collect all `error` and `warning` findings from both agents — these are the refactor candidates for this cycle
+
+#### 3b. Bounded fix loop (max 3 iterations)
+
+Repeat until no `error`/`warning` findings remain, or 3 iterations have elapsed:
+
+1. Apply the highest-severity finding — smallest behavior-preserving change possible
+2. Run the test suite — **all tests must still pass**
+3. If tests break: undo the change immediately; mark the finding as untouchable; move to the next finding
+4. If tests pass: accept the change; move to the next finding
+
+After 3 iterations, stop. Remaining findings are noted for the next cycle or escalated to the human.
+
+#### 3c. Verify green
+
+Run the full test suite one final time after the fix loop:
+
+- **All tests must still pass** before leaving REFACTOR
+- Do not proceed to the next RED cycle with any test red
 
 Then return to RED for the next behavior.
 

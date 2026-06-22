@@ -2894,21 +2894,25 @@
       "summary": "For each review agent in the registry (`knowledge/agent-registry.md`):",
       "anchor": "2-analyze-review-agent-effectiveness"
     },
-    "3. Analyze model routing": {
+    "3. Analyze review-value fix rates": {
+      "summary": "Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `performance-metrics`).",
+      "anchor": "3-analyze-review-value-fix-rates"
+    },
+    "4. Analyze model routing": {
       "summary": "For each agent listed in `knowledge/agent-registry.md` (with model tier from its `model:` frontmatter, resolved via the PreToolUse hook per `agents/orchestrator.md` → Resolution Procedure):",
-      "anchor": "3-analyze-model-routing"
+      "anchor": "4-analyze-model-routing"
     },
-    "4. Analyze orchestration complexity": {
+    "5. Analyze orchestration complexity": {
       "summary": "Review the current pipeline for components that may be unnecessary overhead:",
-      "anchor": "4-analyze-orchestration-complexity"
+      "anchor": "5-analyze-orchestration-complexity"
     },
-    "5. Produce report": {
+    "6. Produce report": {
       "summary": "Write the report to the output path using this structure:",
-      "anchor": "5-produce-report"
+      "anchor": "6-produce-report"
     },
-    "6. Present results": {
+    "7. Present results": {
       "summary": "Display a summary of the report and the file path.",
-      "anchor": "6-present-results"
+      "anchor": "7-present-results"
     },
     "Error Handling": {
       "summary": "Missing metrics files: Report what's missing, suggest how to generate data",
@@ -4422,9 +4426,9 @@
       "summary": "Write the minimum implementation to make the failing test pass",
       "anchor": "2-green-make-it-pass"
     },
-    "3. REFACTOR — Clean up": {
-      "summary": "Improve structure, naming, duplication — without changing behavior",
-      "anchor": "3-refactor-clean-up"
+    "3. REFACTOR — Review then clean up": {
+      "summary": "After GREEN, dispatch review agents **before** making any structural changes.",
+      "anchor": "3-refactor-review-then-clean-up"
     },
     "Rationalization Prevention": {
       "summary": "LLMs generate plausible excuses for skipping TDD.",

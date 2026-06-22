@@ -31,6 +31,32 @@ Return `{"status": "skip", "issues": [], "summary": "No code files with nameable
 - Target contains only binary files, images, or generated code
 - No files with variable/function/class declarations
 
+## Protocol
+
+Run in two phases — enumerate first, classify second. This prevents selective attention (stopping after the first issue) and anchors findings to concrete identifiers before applying judgment.
+
+**Phase 1 — Enumerate**: List every identifier visible in the diff:
+- Function and method names
+- Parameter names
+- Variable and constant names (including loop variables)
+- Class, interface, and type names
+- Enum members and object keys
+
+**Phase 2 — Classify**: For each listed identifier, apply the Detect rules below. Assign severity if flagged.
+
+## Severity Anchors
+
+Calibrate against these worked examples before flagging real code:
+
+| Severity | Identifier | Violation | Fix |
+|---|---|---|---|
+| `error` | `function data(items)` | Noun used as function name; callers expect a verb | `sumPrices`, `calculateTotal` |
+| `error` | `const active = users.filter(u => !u.active)` | Name signals the opposite of the value it holds | `const inactiveUsers` |
+| `warning` | `function processItems(list, flag)` | `flag: boolean` reveals nothing about its purpose | `includeZeroPriced: boolean` |
+| `warning` | `const cfg = loadConfig()` | Non-standard abbreviation with no precedent in this file | `const config` |
+| `suggestion` | `const val = formatPrice(item)` | Generic placeholder-style name | `const formattedPrice` |
+| `suggestion` | `const data2 = [...data]` | Sequential suffix where a concept name fits | `const deduplicated` |
+
 ## Detect
 
 Intent:
