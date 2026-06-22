@@ -196,13 +196,15 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 
 Each plan step includes a **Complexity** classification that controls review depth:
 
-| Complexity | Inline review behavior |
-|------------|----------------------|
-| `trivial` | Skip inline review entirely. The final `/code-review` covers all files. |
-| `standard` | Run spec-compliance + quality agents relevant to the change type (see table below). |
-| `complex` | Run spec-compliance + full quality suite including high-effort agents (security-review, domain-review, arch-review). |
+| Complexity | Inline review behavior | Granularity |
+|------------|----------------------|-------------|
+| `trivial` | Skip inline review entirely. The final `/code-review` covers all files. | — |
+| `standard` | Run spec-compliance + quality agents relevant to the change type (see table below). | **Batched at the slice boundary** — one pass over the slice's accumulated `standard`/`trivial` changes once all its steps are green, not per step. |
+| `complex` | Run spec-compliance + full quality suite including high-effort agents (security-review, domain-review, arch-review). | **Per step** — smaller blast radius per fix. |
 
 If a step has no complexity annotation, default to `standard`.
+
+Each checkpoint that runs records a find/fix/no-op outcome to `metrics/review-value.jsonl` (#348) so the review overhead is measurable and the tiering can be evidence-based.
 
 #### Inline Review Checkpoint
 

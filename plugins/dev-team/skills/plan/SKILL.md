@@ -6,9 +6,9 @@ description: >-
   need a plan but not the full three-phase orchestration, or when the user
   says "plan this", "make a plan", "break this down", or "how should I
   implement this".
-argument-hint: "<task-description> [--output <path>]"
+argument-hint: "<task-description> [--output <path>] [--yes]"
 user-invocable: true
-allowed-tools: Read, Write, Glob, Grep, Bash(mkdir *), Bash(date *), Bash(git branch *), AskUserQuestion
+allowed-tools: Read, Write, Glob, Grep, Bash(mkdir *), Bash(date *), Bash(git branch *), Bash(test *), AskUserQuestion
 ---
 
 # Plan
@@ -32,6 +32,7 @@ Arguments: $ARGUMENTS
 
 - Positional: task description (required)
 - `--output <path>`: Write plan to a specific path. Default: `plans/<slugified-task>.md`
+- `--yes`: Auto-approve the plan without prompting (non-interactive opt-in; see step 6).
 
 ## Steps
 
@@ -222,7 +223,23 @@ fix the plan and re-run before the human gate — those defeat safe concurrent b
 
 ### 5. Run plan review personas
 
-Before presenting to the user, dispatch **five plan review personas in parallel** as sub-agents. Each critically challenges the plan from a different perspective:
+Before presenting to the user, dispatch the plan review personas in parallel as sub-agents. Each critically challenges the plan from a different perspective. **The reviewer set scales to plan complexity** — a one-function plan does not pay the same review ceremony as a complex feature (the fixed-overhead cost the TDD experiment surfaced; see `docs/experiments/tdd-vs-test-after-consolidated-report.md`).
+
+#### 5a. Classify the plan tier
+
+Derive a **plan tier** from objective signals already on hand — the same `trivial | standard | complex` vocabulary `/build` uses for per-step review depth, so the concept is consistent across the pipeline. Inputs: the slice count and wave structure from the `plan-waves.sh` JSON, the file count, the per-step Complexity ratings, and whether the plan takes a stance on any high-reversal-cost axis in `knowledge/decision-defaults.md`.
+
+| Tier | Signals | Reviewers |
+|------|---------|-----------|
+| `trivial` | 1 slice, ≤ 2 files, no `complex` step, touches no high-reversal-cost decision axis | **Acceptance Test Critic only** (1) |
+| `standard` | anything between — e.g. a single slice with a few files, or a small multi-slice plan within existing patterns | **Acceptance Test Critic + Design & Architecture Critic**, plus **UX Critic** if the plan has a user-facing/UI surface, plus **Parallelization Critic** if slice count > 1 (2–4) |
+| `complex` | > 1 wave, ≥ 4 slices, any `complex` step, a security-sensitive/cross-cutting change, or a stance on a high-reversal-cost decision axis | **all 5** |
+
+When in doubt, classify up (standard rather than trivial, complex rather than standard).
+
+**Parallelization Critic gate (all tiers):** the Parallelization Critic only finds same-wave file collisions and disjoint-file coupling — a **single-slice plan has no waves to parallelize and no same-wave collisions by construction**, so it is a guaranteed no-op there. Run it **only when slice count > 1**, regardless of tier, and log the skip (`Parallelization Critic skipped — single-slice plan`) when it is omitted.
+
+#### 5b. Dispatch the selected reviewers
 
 | Reviewer | Template | Model | Focus |
 |----------|----------|-------|-------|
@@ -232,17 +249,18 @@ Before presenting to the user, dispatch **five plan review personas in parallel*
 | Strategic Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-strategic.md` | `sonnet` | Problem fit, scope, slice boundaries, risk, opportunity cost |
 | Parallelization Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-parallelization.md` | `sonnet` | Same-wave independence: file-overlap collisions (from `plan-waves.sh`), disjoint-file behavioral coupling, residual cycles/mis-layering |
 
-Pass each reviewer the full plan content. Also pass the Parallelization Critic the `scripts/plan-waves.sh` JSON for this plan (its `collisions` array is the deterministic input). Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate. A `needs-revision` from the Parallelization Critic triggers plan revision (re-wave the colliding slices) before the human sees the plan.
+Pass each reviewer the full plan content. Also pass the Parallelization Critic the `scripts/plan-waves.sh` JSON for this plan (its `collisions` array is the deterministic input). Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate. It is the one reviewer that always runs (every tier). A `needs-revision` from the Parallelization Critic triggers plan revision (re-wave the colliding slices) before the human sees the plan.
 
 **If any reviewer returns `needs-revision`**: Address all `blocker` issues by revising the plan. Re-run only the reviewers that flagged blockers. Repeat until all pass (max 2 iterations — escalate to user if still failing).
 
-**After all pass**: Append a `## Plan Review Summary` section to the plan file with the aggregated findings (warnings and observations from all five reviewers).
+**After all pass**: Append a `## Plan Review Summary` section to the plan file with the aggregated findings (warnings and observations from the dispatched reviewers). **Record the chosen tier and the reviewer set at the top of that section** (e.g. `Plan tier: standard — reviewers: Acceptance, Design, Parallelization (UX skipped — no UI surface)`) so the scaling decision is visible and auditable.
 
 ### 6. Present for approval
 
-Display the plan and the review summary. Ask: "Approve this plan to begin implementation, or suggest changes?"
+**First determine interactivity.** The run is **non-interactive** when any of these hold: `--yes` was passed, `DEV_TEAM_AUTO_APPROVE=1` is set in the environment, or stdin is not a usable TTY (`test -t 0` is false — the headless/CI/automation case). Otherwise it is **interactive**. This is the same non-interactive principle the GitHub-issue prompt below already follows; the approval gate now follows it too, so a headless `/plan`→`/build` run never hangs waiting for input.
 
-Mark the plan status as `approved` once the user confirms. If the user requests changes, update the plan and re-present.
+- **Interactive** (unchanged from prior behavior) → Display the plan and the review summary. Ask: "Approve this plan to begin implementation, or suggest changes?" Mark the plan status as `approved` once the user confirms. If the user requests changes, update the plan and re-present.
+- **Non-interactive** → do **not** prompt or block. Auto-approve: set `**Status**: approved` and append an explicit audit record to the plan so the bypass is **never silent** — add an `## Approval` section reading: `Auto-approved (non-interactive) at <date> — no human review gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.` Then continue.
 
 #### Post-approval: offer GitHub issues (GitHub origin only)
 

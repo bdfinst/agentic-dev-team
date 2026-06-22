@@ -92,6 +92,26 @@ worktree primitives** from the integration-eval tier (`extract_golden_repo`,
 workflow A/B. The runner owns its own isolation, two-stage protocol, `--arm` /
 `--trials` loops, and JSONL output.
 
+### `batched-red` spike arm (#349)
+
+The consolidated report found that on **larger tasks with a stronger model**,
+strict per-behavior test-first cost **more** than test-after (sign test p=0.031)
+at **equal** test quality — the cost driver was the many RED-GREEN turns (median
+17 vs 8). The runner exposes a third instruction-level arm, **`batched-red`**, to
+test whether writing a slice's failing tests in **one batch** and then
+implementing them to green recovers that cost without degrading
+coverage/mutation:
+
+```bash
+python3 scripts/run_tdd_experiment.py --arm test-first --arm batched-red \
+  --trials 5 --model claude-opus-4-8 --experiments-dir evals/experiments
+```
+
+This arm is a **research probe, not a pipeline change**: a favorable result here
+does **not** authorize relaxing the `test-driven-development` skill's
+no-horizontal-slicing rule. That decision is gated on this arm's data over a
+genuinely large, multi-file corpus (keep / change / reject with numbers).
+
 - **Fixtures:** `evals/experiments/exp-tdd-<task>.json` (an `experiment` block) +
   `evals/fixtures/exp-tdd-<task>/` with `spec.md` (Stage 1), `change.md`
   (withheld Stage 2), `golden-repo.tar.gz`, `testCommands[]`,
