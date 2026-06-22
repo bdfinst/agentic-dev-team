@@ -370,13 +370,22 @@ If the heading is not found: emit
 `Cannot update knowledge/agent-registry.md: heading containing '<type> Agents' not found. Update manually.`
 and stop without modifying the file.
 
-Use the agent's effort band directly as the registry's band column.
+Append a row matching that table's columns:
 
-Append a row to the correct table:
+- **Review Agents** (`| Agent | File | What It Checks |`):
 
-```
-| <name> | agents/<name>.md | <band> | <description> |
-```
+  ```
+  | <name> | agents/<name>.md | <description> |
+  ```
+
+- **Team Agents** (`| Agent | File | ~Tokens | Primary Focus |`):
+
+  ```
+  | <name> | agents/<name>.md | <~token-estimate> | <primary focus> |
+  ```
+
+The effort band is **not** mirrored in the registry — it lives only in the
+agent's `effort:` frontmatter (read live via `/model-routing-check`).
 
 ---
 
