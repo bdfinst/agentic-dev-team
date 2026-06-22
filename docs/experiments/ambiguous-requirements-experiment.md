@@ -88,6 +88,66 @@ total contract is unchanged — it is only re-partitioned.
 5. **Assumption surfacing** (exploratory) — count explicit "I'm assuming X"
    statements or self-authored tests that target an unstated edge. A mechanism
    probe for *why* any H1 effect occurs.
+6. **Review-grade defect density** (see *Final step* below) — the **average number
+   of problems the review agents find per solution**, reported separately for the
+   **code-review** panel and the **test-review** agent, per arm. Tests whether
+   ambiguity changes the structure/test-quality gap (the parent study found
+   test-after marginally cleaner under *clear* requirements).
+
+## Final step: code- and test-review pass (average problems per arm)
+
+After the build cells finish, run the dev-team review agents over each arm's
+produced code and **report the average number of problems found per solution** for
+both the code-review panel and the test-review agent — the same review-grade lens
+used in [`3sizes-3arms-report.md`](3sizes-3arms-report.md), now under ambiguous
+requirements.
+
+**Mechanics** (reuse the parent study's approach):
+
+1. The harness deletes worktrees, so **regenerate and keep one build-stage
+   solution per (arm × task)** under the **vague** spec (one trial; the harness's
+   exact arm prompt). Keep the production package files and the `test_*.py` the
+   agent wrote.
+2. Over each solution run two groups of read-only review agents:
+   - **Code-review panel** → `structure-review`, `complexity-review`,
+     `naming-review`, `performance-review`, `security-review` on the **production
+     modules**.
+   - **Test-review** → `test-review` (and optionally `test-smell-review`) on the
+     **`test_*.py`** the agent authored.
+   Each agent returns findings counted by severity (critical/high/medium/low).
+3. **Report, per arm:**
+   - **Average problems per solution — code review** = (total code-panel findings
+     across the N task solutions) ÷ N. Report both a raw count and a
+     severity-weighted score (critical=4, high=3, medium=2, low=1), with the
+     per-severity breakdown.
+   - **Average problems per solution — test review** = (total test-review findings)
+     ÷ N, same raw + weighted form.
+   - A combined **average problems per solution (overall)**.
+   Tabulate **test-first vs test-after** side by side, and pair across tasks
+   (sign + Wilcoxon) exactly as the cost endpoint does.
+
+**Read the result against the clear-requirements baseline.** The parent study
+(clear spec, large tier; see `data/3sizes-review-findings.json`) gave these
+per-solution averages:
+
+| Lens | test-first (TDD) | test-after (non-TDD) |
+|---|---|---|
+| code-review panel (raw / weighted) | 4.8 / 10.7 | 5.2 / 12.2 |
+| test-review (raw / weighted) | 4.0 / 7.3 | 2.3 / 3.0 |
+
+i.e. under clear requirements the arms were **~tied on production-code findings**,
+but **test-after wrote notably cleaner tests** (≈2.3 vs 4.0 problems/solution).
+The question here: does **ambiguity widen, close, or flip** those gaps — in
+particular, when the spec no longer tells the agent *what* to test, does
+test-first's up-front test discipline now produce **better** tests (closing or
+reversing the test-review gap), or do both arms' tests degrade together?
+
+**Caveats (carry over from the parent study).** Review agents show real run-to-run
+variance, so average over **≥2 review passes per solution** (or ≥2 regenerated
+solutions per cell) before comparing arms; report the spread, not just the mean.
+All graded solutions must still pass `acc_core` (only correct code is reviewed, so
+findings are style/structure, not "it's broken"). The averages are descriptive
+companions to the EDGE-pass primary endpoint, not a second primary.
 
 ## Optional third arm — TDD with a clarification oracle
 
@@ -171,5 +231,9 @@ No change to isolation, cost capture, or the timeout fix already landed.
 - Raw JSONL under `docs/experiments/data/`, analyzed into a `clarity × workflow`
   grid with the EDGE-pass primary endpoint and the interpretation-variance
   secondary.
+- A **review-findings artifact** (per the *Final step*) reporting, per arm, the
+  **average problems found per solution** for the code-review panel and the
+  test-review agent (raw + severity-weighted, paired across tasks), comparable to
+  the clear-requirements baseline in `data/3sizes-review-findings.json`.
 - A report: does test-first’s value appear once requirements stop being handed to
   it on a plate?
