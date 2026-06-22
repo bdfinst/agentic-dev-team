@@ -11,7 +11,8 @@
 **Raw data:** [`data/3sizes-small-sonnet-2026-06-22.jsonl`](data/3sizes-small-sonnet-2026-06-22.jsonl) (small),
 [`data/tdd-largetask-sonnet-2026-06-21.json`](data/tdd-largetask-sonnet-2026-06-21.json) (medium, folded in),
 [`data/3sizes-large-sonnet-2026-06-22.jsonl`](data/3sizes-large-sonnet-2026-06-22.jsonl) (large),
-[`data/3sizes-3arms-summary.json`](data/3sizes-3arms-summary.json) (machine summary)
+[`data/3sizes-3arms-summary.json`](data/3sizes-3arms-summary.json) (cost/quality summary),
+[`data/3sizes-review-findings.json`](data/3sizes-review-findings.json) (review-agent findings, large tier)
 
 ---
 
@@ -49,22 +50,37 @@ graded by **hidden** acceptance tests, model held fixed at `claude-sonnet-4-6`.
    **did not generalize** to either smaller or larger work.
 
 3. **The large tier did what it was added to do: it broke the quality-sensor
-   saturation — and *still* found no workflow makes better-tested code.** Small
-   and medium katas pin every arm at 100% coverage / 1.0 mutation (no signal). On
-   the large multi-file packages coverage fell to **96.6–98.2%** and mutation to
-   **0.911–0.924** — finally a measurable spread — yet the three arms land on top
-   of each other (≤1.6 pp coverage, ≤0.013 mutation apart). The test-quality axis
-   is real now, and it says **the workflow does not move it.**
+   saturation — and the *coverage/mutation* axis still found no workflow makes
+   better-tested code.** Small and medium katas pin every arm at 100% coverage /
+   1.0 mutation (no signal). On the large multi-file packages coverage fell to
+   **96.6–98.2%** and mutation to **0.911–0.924** — finally a measurable spread —
+   yet the three arms land on top of each other (≤1.6 pp coverage, ≤0.013 mutation
+   apart). On *that* axis, the workflow does not move it.
 
-**Bottom line.** At a fixed strong model, **the workflow you choose changes cost,
-not correctness or test quality.** test-after is the cheapest everywhere but only
-decisively so on mid-sized work; strict test-first buys no measurable quality and
-costs the same or a little more; the `/plan`→`/build` pipeline is the most
-expensive but its premium **shrinks toward parity as task complexity grows**,
-which is exactly the regime its planning/review was designed for. The large tier
-is where the pipeline's economics finally make sense — and also where, with N=6,
-the cost differences stop being statistically distinguishable from the
-instruction arms.
+4. **A third quality lens — running the dev-team review agents over each arm's
+   produced code — *does* separate them, and it favors the pipeline.** Coverage
+   and mutation are blind to structure/complexity/duplication; the review agents
+   are not. Re-generating one solution per arm for the 6 large tasks and running a
+   6-agent panel (structure, complexity, naming, performance, security, test)
+   over each, the **build-pipeline produced the fewest review-grade findings
+   (weighted 67, median 10.5/task) — cleaner than test-first (108, 19.0) and
+   test-after (91, 15.0) — and cleaner on 5 of 6 tasks** than either hand-driven
+   arm (vs test-first sign p=0.06; vs test-after p=0.22). Its inline `/build`
+   review step is the plausible cause. This is **directional, not conclusive**
+   (n=6; the review agents show real run-to-run variance — see the section
+   below), but it is the first quality signal in this whole line of experiments
+   that points anywhere, and it points at the pipeline.
+
+**Bottom line.** At a fixed strong model, **the workflow you choose changes cost
+and review-grade structure, but not correctness or coverage/mutation test
+quality.** test-after is the cheapest everywhere (decisively only on mid-sized
+work); strict test-first is never cheaper and drew the most review findings; the
+`/plan`→`/build` pipeline is the most expensive but its premium **shrinks toward
+parity as task complexity grows** (4.7×→2.6×→1.3×) *and* its code is the cleanest
+on review (5/6 large tasks). The large tier is where the pipeline's economics
+finally make sense — a ~1.3× premium that now buys a directional but consistent
+structural-quality edge — even though, with N=6, the cost differences there are
+no longer statistically distinguishable from the instruction arms.
 
 ---
 
@@ -174,10 +190,14 @@ peaks at medium and is negligible at both ends.
   11/12, test-after 17/18) — but with 1–3 failures per 18 cells this is noise, not
   a workflow effect, and notably it is **test-first**, not test-after, that
   logged the most large-tier change failures.
-- **Test quality does not separate the arms.** Where the sensors have any
-  resolution (the large tier) the three arms sit within 1.6 pp of coverage and
-  0.013 of mutation score. There is no "test-first writes stronger tests" signal
-  anywhere in the data.
+- **Coverage/mutation test quality does not separate the arms.** Where those
+  sensors have any resolution (the large tier) the three arms sit within 1.6 pp of
+  coverage and 0.013 of mutation score. There is no "test-first writes stronger
+  tests" signal in the coverage/mutation data.
+- **Review-grade quality *does* separate them (see the dedicated section).** The
+  dev-team review agents find the build-pipeline's code cleanest (fewest weighted
+  findings on 5/6 large tasks vs both hand-driven arms) — a signal coverage and
+  mutation are structurally blind to. Directional at n=6, but consistent.
 - **Cost separates the arms, and only cost.** build-pipeline is the most expensive
   in all three sizes; test-after is the cheapest in all three. The *interesting*
   structure is in the magnitudes: the pipeline premium amortizes with task size,
@@ -187,6 +207,48 @@ peaks at medium and is negligible at both ends.
   pipeline runs 14.5–16 turns of planning+review overhead regardless of size,
   which is why it dominates cost on tiny tasks and amortizes on big ones.
 
+## Third quality lens: review-grade defect density (large tier)
+
+Coverage and mutation measure whether the *tests* pin the behavior; they are
+blind to how the *production code* is structured. To probe that, one build-stage
+solution per arm was **regenerated for the 6 large tasks** (kept on disk; the
+experiment deletes its worktrees) using the harness's exact arm prompts, and a
+fixed **6-agent review panel** — `structure-review`, `complexity-review`,
+`naming-review`, `performance-review`, `security-review`, `test-review` — was run
+over each. Findings are weighted **critical=4, high=3, medium=2, low=1**.
+
+| Arm | Critical | High | Medium | Low | Findings | Weighted | Median/task |
+|---|---|---|---|---|---|---|---|
+| **build-pipeline** | 1 | 9 | 12 | 12 | **34** | **67** | **10.5** |
+| test-after | 4 | 10 | 14 | 17 | 45 | 91 | 15.0 |
+| test-first | 3 | 14 | 18 | 18 | 53 | 108 | 19.0 |
+
+**Paired across the 6 tasks** (weighted findings; +Δ ⇒ first arm has *more*/worse findings):
+
+| Pair | Median Δ | Cleaner arm wins | Sign p |
+|---|---|---|---|
+| build-pipeline vs test-first | −6.5 | build-pipeline in **5/6** | 0.0625 |
+| build-pipeline vs test-after | −5.0 | build-pipeline in **5/6** | 0.219 |
+| test-first vs test-after | +3.5 | test-after in 4/6 | 0.375 |
+
+**Reading it:** the build-pipeline's code carried the lowest review-grade defect
+density on 5 of 6 tasks against *both* hand-driven arms — the inline review step
+inside `/build` is the obvious mechanism. test-after edged test-first (test-first
+drew the most findings overall, largely from `complexity-review` — strict
+RED-GREEN-REFACTOR left more long/deeply-nested functions on the
+spreadsheet/template/router parsers). This is the **only quality axis in this
+whole experiment line that points anywhere.**
+
+**Trust it cautiously.** The review agents show real **run-to-run variance** on
+near-identical code: `naming-review` scored the three arms 0 / 19 / 4 (weighted)
+when the same magic-string token types exist in all three, and `test-review`
+scored test-first's tests far harder (44) than the others (18 / 19), partly for
+one over-specified assertion. Per-agent noise is large; the *aggregate* direction
+(build-pipeline lowest on structure, complexity, performance, and test agents) is
+what carries the signal, and at n=6 the sign tests are p≈0.06–0.4 — directional,
+not conclusive. All 18 solutions were correct (they pass the hidden acceptance),
+so these are *style/structure* findings, not bugs.
+
 ## Why the pipeline premium shrinks (mechanism)
 
 The `/plan`→`/build` pipeline pays a roughly **fixed** overhead per task: a
@@ -195,8 +257,9 @@ across all sizes). On a one-function kata that fixed cost is 4–5× the entire
 hand-written solution; on a six-scenario multi-file package it is a third again
 on top of work that was already substantial. Same surcharge, very different
 denominator. This is the regime the pipeline was designed for, and the large tier
-is the first place its economics are defensible — though even here it buys no
-measurable correctness or quality over just writing the code.
+is the first place its economics are defensible — a ~1.3× premium that, per the
+review lens above, also buys directionally cleaner structure (it buys no
+correctness or coverage/mutation edge, but the review agents do favor it).
 
 ## Limitations
 
@@ -213,6 +276,13 @@ measurable correctness or quality over just writing the code.
 - **Quality is build-stage only.** The change-stage coverage/mutation sensors had
   a uniform-across-arms artifact in the prior run (its Limitation 4); they are
   excluded here.
+- **The review lens is a separate, smaller study.** It regenerates **one**
+  solution per (arm × large task) — N=1, not the 2–3 trials of the cost data — and
+  grades it with review agents that have measurable run-to-run variance. Its 5/6
+  build-pipeline result is the most interesting finding here and the least
+  statistically settled; treat it as a hypothesis worth a powered follow-up
+  (more trials per cell, multiple review passes averaged), not a conclusion.
+  Findings are also self-graded by the same model family that wrote the code.
 - **Mutation is the built-in AST sampler (cap 40), not a full tool.** It now runs
   under a 30 s per-test timeout (added this run — see below); an infinite-loop
   mutant counts as killed.
@@ -226,6 +296,13 @@ cost/tokens/turns; no session resume). Stage 2 applied the withheld change seede
 from the Stage-1 **files only**. Acceptance tests were hidden during the build and
 injected only at grading. Cost is read from the native JSON result. The
 build-pipeline arm got a plugin-enabled `$HOME` per cell.
+
+**Review lens (separate pass):** because the experiment deletes each cell's
+worktree, the produced code is not retained. For the review-grade lens, one
+build-stage solution per (arm × large task) was **regenerated and kept** with the
+harness's exact arm prompts (`/tmp/gen_solutions.py`), then graded by the 6-agent
+review panel; results are in
+[`data/3sizes-review-findings.json`](data/3sizes-review-findings.json).
 
 **Fix landed:** the mutation/coverage test runs had no wall-clock cap, so a
 mutation that turned a roman-numeral subtractive loop infinite hung pytest
@@ -257,20 +334,27 @@ python3 scripts/analyze_tdd_experiment.py \
 
 ## Recommendation
 
-- **Default to writing the code and testing it — the workflow is a cost lever,
-  not a quality lever.** Across 18 tasks and a fixed strong model, no workflow
-  produced more-correct or better-tested code; they differed only in price.
-- **Reserve the `/plan`→`/build` pipeline for large, multi-file work.** Its
-  overhead is a 4–5× tax on katas but only ~1.3× on real packages, where its
-  planning/review is plausibly worth a third more for reasons this cost/quality
-  harness cannot see (human review burden, design coherence, regression safety on
-  changes that touch several files). On small/medium tasks the pipeline is hard to
-  justify on these metrics alone.
-- **Do not adopt strict test-first for cost reasons.** It is never cheaper than
-  test-after here and is significantly more expensive on mid-sized tasks, at equal
-  quality. If TDD is used, use it for its design/iteration benefits, not an
-  expectation of cheaper or better-tested output at this model strength.
-- **Next:** the quality axis only became measurable on the large tier; to actually
-  *separate* workflows on quality would need either harder tasks (where coverage
-  drops further) or a longer change-chain that stresses the suite as a regression
-  net. That, not more katas, is where a difference — if one exists — will show up.
+- **For cost and correctness, the workflow is a cost lever, not a quality lever.**
+  Across 18 tasks and a fixed strong model, no workflow produced more-correct or
+  better-*covered*/mutation-tested code; on those axes they differed only in price.
+- **But review-grade quality is the exception, and it favors the pipeline.** On
+  the large tier the `/plan`→`/build` pipeline's code carried the lowest
+  review-grade defect density (cleaner on 5/6 tasks vs both hand-driven arms).
+  Combined with its premium shrinking to ~1.3× on large work, this **strengthens
+  the case for the pipeline on large, multi-file features**: you pay a third more
+  and get measurably cleaner structure (directionally; n=6) at equal correctness.
+  On small/medium katas the pipeline is still a 2.6–4.7× tax for code the review
+  agents barely fault either way — hard to justify there.
+- **Default to writing the code and testing it for small/medium work.** test-after
+  is the cheapest arm everywhere and its code is no worse than test-first's on
+  review (slightly better, in fact). Strict test-first is never cheaper and drew
+  the most review findings here — use it for its design/iteration discipline, not
+  an expectation of cheaper, better-tested, or cleaner output at this model
+  strength.
+- **Next:** the most interesting and least-settled result is the review-grade
+  edge for the pipeline. A powered follow-up — multiple trials per (arm × task),
+  several review passes averaged to beat reviewer variance, and ideally a
+  human-graded subset — would confirm or kill it. The coverage/mutation axis, by
+  contrast, needs *harder* tasks (where coverage drops further) or a longer
+  change-chain to separate the arms at all; that, not more katas, is where any
+  test-quality difference would surface.
