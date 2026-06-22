@@ -18,7 +18,6 @@ Status: pass=manageable, warn=hotspots, fail=critical issues
 Severity: error=unmaintainable, warning=high complexity, suggestion=could simplify
 Confidence: high=threshold violation (function >N lines, nesting >N levels); medium=extraction direction clear, exact split requires context; none=requires human judgment (algorithm design)
 
-Effort: medium
 Context needs: full-file
 
 ## Knowledge Files

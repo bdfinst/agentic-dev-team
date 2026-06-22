@@ -17,7 +17,6 @@ Status: pass=efficient, warn=optimization opportunities, fail=major waste
 Severity: error=critical waste, warning=significant, suggestion=minor
 Confidence: high=mechanical (trim verbose rule, extract procedure to skill); medium=verbosity identified, rewrite depends on intent; none=requires human judgment (what detail level is appropriate)
 
-Effort: low
 Context needs: full-file
 
 ## Skip

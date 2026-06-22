@@ -240,7 +240,6 @@ Status: pass=<condition>, warn=<condition>, fail=<condition>
 Severity: error=<condition>, warning=<condition>, suggestion=<condition>
 Confidence: high=<condition>, medium=<condition>, none=<condition>
 
-Effort: <low|medium|high>
 Context needs: <diff-only|full-file|project-structure>
 
 ## Skip

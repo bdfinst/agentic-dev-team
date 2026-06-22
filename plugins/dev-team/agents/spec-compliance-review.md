@@ -7,7 +7,6 @@ effort: medium
 
 # Spec Compliance Review
 
-Effort: medium
 Context needs: full-file
 File scope: All changed files
 

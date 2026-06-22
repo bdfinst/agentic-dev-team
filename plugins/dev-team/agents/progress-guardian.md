@@ -17,7 +17,6 @@ Status: pass=on track, warn=drift detected, fail=plan violation or scope creep
 Severity: error=skipped step or plan deviation, warning=uncommitted work accumulating, suggestion=consider committing
 Confidence: high=mechanical (step skipped, test missing); medium=judgment call (scope boundary); none=requires human input
 
-Effort: medium
 Context needs: full-file (reads plan + git state)
 
 ## Skip

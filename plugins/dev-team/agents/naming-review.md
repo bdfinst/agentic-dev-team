@@ -18,7 +18,6 @@ Status: pass=clear names, warn=improvements needed, fail=harms readability
 Severity: error=misleading names, warning=unclear, suggestion=style
 Confidence: high=mechanical (add is/has prefix, extract magic value to constant); medium=better name suggested but domain context may differ; none=requires human judgment (domain terminology choices)
 
-Effort: medium
 Context needs: diff-only
 
 ## Knowledge Files

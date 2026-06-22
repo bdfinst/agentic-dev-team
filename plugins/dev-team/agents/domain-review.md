@@ -18,7 +18,6 @@ Status: pass=clean model, warn=minor issues, fail=boundary violations
 Severity: error=violation that causes data exposure, cross-context coupling, or untestable code; warning=misplaced logic or missing abstraction that adds friction; suggestion=modeling improvement with no immediate harm
 Confidence: high=mechanical (add missing DTO, rename to domain term); medium=direction clear, entity/service split may have tradeoffs; none=requires human judgment (aggregate boundary decisions, bounded context design)
 
-Effort: high
 Context needs: project-structure
 
 ## Knowledge Files

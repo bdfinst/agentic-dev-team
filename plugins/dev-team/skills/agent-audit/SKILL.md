@@ -97,6 +97,10 @@ review agents. Check:
    - All agents MUST declare the reasoning-effort band their task needs
    - Valid values: `low`, `medium`, `high`
    - WARN if missing or outside the valid set
+   - **Single source**: the band MUST be declared only in frontmatter — it is
+     the only value the resolver reads. WARN if a body `Effort:` line (or other
+     prose) restates the band; that duplicate is a drift source and must be
+     removed.
    - **Deprecation (warn, never error this release)**: if the agent still
      declares a legacy `model: haiku|sonnet|opus` tier in frontmatter, WARN
      that the tier name is deprecated and name the band to use

@@ -17,7 +17,6 @@ Status: pass=strict TypeScript, warn=improvements needed, fail=type safety viola
 Severity: error=`any` type or missing validation at boundary, warning=loose type, suggestion=style
 Confidence: high=mechanical (replace any, add type annotation); medium=judgment call (type vs interface); none=requires domain context
 
-Effort: low
 Context needs: diff-only
 File scope: `*.ts`, `*.tsx`
 
