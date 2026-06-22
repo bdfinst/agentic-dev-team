@@ -88,13 +88,15 @@ A typical task loads 1 agent + 1-2 skills: roughly 1,000-2,000 tokens of configu
 
 Before the human reviews a plan (Phase 2), four critical review personas run **in parallel** as sub-agents. Each challenges the plan from a distinct perspective:
 
-| Persona | Template | Model | What It Challenges |
+| Persona | Template | Effort | What It Challenges |
 | --- | --- | --- | --- |
-| Acceptance Test Critic | `prompts/plan-review-acceptance.md` | sonnet | Per-slice Gherkin quality (determinism, isolation, completeness), criteria verifiability, error-path coverage, TDD step traceability |
-| Design & Architecture Critic | `prompts/plan-review-design.md` | sonnet | Dependency direction, abstraction quality, structural risks, pattern consistency |
-| Parallelization Critic | `prompts/plan-review-parallelization.md` | sonnet | Same-wave independence: file-overlap collisions (plan-waves.sh), disjoint-file behavioral coupling, residual cycles |
-| Strategic Critic | `prompts/plan-review-strategic.md` | sonnet | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
-| UX Critic | `prompts/plan-review-ux.md` | sonnet | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
+| Acceptance Test Critic | `prompts/plan-review-acceptance.md` | medium | Per-slice Gherkin quality (determinism, isolation, completeness), criteria verifiability, error-path coverage, TDD step traceability |
+| Design & Architecture Critic | `prompts/plan-review-design.md` | medium | Dependency direction, abstraction quality, structural risks, pattern consistency |
+| Parallelization Critic | `prompts/plan-review-parallelization.md` | medium | Same-wave independence: file-overlap collisions (plan-waves.sh), disjoint-file behavioral coupling, residual cycles |
+| Strategic Critic | `prompts/plan-review-strategic.md` | medium | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
+| UX Critic | `prompts/plan-review-ux.md` | medium | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
+
+Because these personas are prompt templates with **no frontmatter**, the PreToolUse model-resolve hook (which keys on `subagent_type`) cannot route them. `/plan` step 5b resolves the `medium` band to a model via `hooks/lib/model-resolve.sh` before dispatch and passes it as the `model` override, so the personas honor the same ladder and per-environment overrides as every registered agent rather than a hard-coded model.
 
 Each reviewer returns a structured `approve` or `needs-revision` verdict. If any reviewer flags blockers, the plan is revised before the human sees it (max 2 iterations). Warnings from all four are aggregated into a Plan Review Summary appended to the plan file.
 

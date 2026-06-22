@@ -50,11 +50,21 @@ from run_integration_eval import (  # noqa: E402
     run_commands,
 )
 
-# test-first / test-after are instruction-level arms (no plugin). build-pipeline
-# runs the REAL dev-team plugin /plan -> /build workflow; it needs a plugin-
-# enabled HOME (--build-home-template) seeded per cell.
+# test-first / test-after / batched-red are instruction-level arms (no plugin).
+# build-pipeline runs the REAL dev-team plugin /plan -> /build workflow; it needs
+# a plugin-enabled HOME (--build-home-template) seeded per cell.
+#
+# batched-red (#349, spike): a TDD variant that writes ALL of a slice's failing
+# tests up front, then implements them to green in one pass, instead of strict
+# per-behavior RED-GREEN cycling. The experiment showed strict test-first cost
+# MORE than test-after on larger tasks (many RED-GREEN turns) at equal test
+# quality; this arm exists to measure whether batched-RED recovers that cost
+# WITHOUT degrading coverage/mutation. It is research only — running it does not
+# authorize relaxing the test-driven-development skill's no-horizontal-slicing
+# rule; that change is gated on this arm's data (see the issue's acceptance
+# criteria).
 ARMS = ("test-first", "test-after")          # default pair
-ALL_ARMS = ("test-first", "test-after", "build-pipeline")
+ALL_ARMS = ("test-first", "test-after", "build-pipeline", "batched-red")
 PLUGIN_ARMS = ("build-pipeline",)
 
 # A constraint applied EQUALLY to all arms so the coverage/mutation sensors can
@@ -88,6 +98,13 @@ ARM_PROMPTS = {
         "approval or confirmation -- approve and proceed every time. Make the "
         "acceptance behavior correct." + PYTEST_RULE
     ),
+    "batched-red": (
+        "Implement the spec in {spec} using batched-RED TDD: FIRST write ALL the "
+        "failing tests for the spec's behavior up front (one batch, no production "
+        "code yet) and confirm they fail, THEN implement the production code to "
+        "make the whole batch pass at once. Do not cycle one test at a time. Make "
+        "the acceptance behavior correct." + PYTEST_RULE
+    ),
 }
 
 CHANGE_PROMPTS = {
@@ -106,6 +123,13 @@ CHANGE_PROMPTS = {
     ),
 }
 CHANGE_PROMPTS["test-after"] = CHANGE_PROMPTS["test-first"]
+CHANGE_PROMPTS["batched-red"] = (
+    "This is an existing, already-implemented feature in the working directory. "
+    "Apply the change described in {change} using batched-RED TDD: FIRST write "
+    "ALL the failing tests for the new behavior up front and confirm they fail, "
+    "THEN implement the change to make the whole batch pass at once. Keep the "
+    "existing test suite green; it is your safety net." + PYTEST_RULE
+)
 
 def _utc() -> str:
     return datetime.now(timezone.utc).isoformat()

@@ -2034,6 +2034,10 @@
       "summary": "`report` breaks spend down by **model** and by **thread** (main-loop vs",
       "anchor": "attribution-dimensions-102-170"
     },
+    "Review value (#348)": {
+      "summary": "`/build` records, per inline review checkpoint, whether review actually changed",
+      "anchor": "review-value-348"
+    },
     "Privacy boundary": {
       "summary": "The meter persists **only** token counts, dollar amounts, model identifiers, and",
       "anchor": "privacy-boundary"
@@ -3502,6 +3506,10 @@
       "summary": "| Field | Type | Description |",
       "anchor": "field-reference"
     },
+    "Review Value Entry (#348)": {
+      "summary": "`/build` appends one entry per **inline review checkpoint** to",
+      "anchor": "review-value-entry-348"
+    },
     "When to Log": {
       "summary": "| Event | Action |",
       "anchor": "when-to-log"
@@ -3545,11 +3553,11 @@
       "anchor": "4-create-the-plans-directory"
     },
     "5. Run plan review personas": {
-      "summary": "Before presenting to the user, dispatch **five plan review personas in parallel** as sub-agents.",
+      "summary": "Before presenting to the user, dispatch the plan review personas in parallel as sub-agents.",
       "anchor": "5-run-plan-review-personas"
     },
     "6. Present for approval": {
-      "summary": "Display the plan and the review summary.",
+      "summary": "**First determine interactivity.** The run is **non-interactive** when any of these hold: `--yes` was passed, `DEV_TEAM_AUTO_APPROVE=1` is set in the environment, or stdin is not a usable TTY (`test -t 0` is false — the headless/CI/automation case).",
       "anchor": "6-present-for-approval"
     },
     "Integration": {
