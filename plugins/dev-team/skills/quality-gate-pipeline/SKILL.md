@@ -76,6 +76,11 @@ When a signal fires: **Pause** → **Verify** (use tools) → **Correct** → **
 2. **Build succeeds**: If the project has a build step, run it. Paste output.
 3. **Lint clean**: If the project has a linter, run it. Paste output.
 4. **No regressions**: Test count should not decrease.
+5. **Coverage & Mutation (necessary-not-sufficient)**: Coverage thresholds and mutation score gate entry but do not alone gate exit. Saturating at 100% line coverage and 1.0 mutation score on small slices is expected and does not indicate structural quality. They are required to pass but are not the final signal.
+6. **Structural Quality gate**: Before claiming "done", the work must carry a clean-or-triaged `structure-review` + `complexity-review` signal. Options:
+   - **Clean**: Both agents produced no `error`/`warning` findings on the latest diff.
+   - **Triaged**: Every `error`/`warning` finding is logged as a deferred item (with owner + tracking reference) per the Phase 3 exit criteria — and surfaced in the completion summary.
+   - **Waiver**: For hotfixes, documentation-only changes, or work pre-approved by the Orchestrator as out-of-scope for structural review, include a waiver statement: `structural-review-waiver: <reason>` in the completion summary. Waivers are surfaced, not hidden.
 
 **Quality Ownership**: green means the **entire suite**, not just the tests your
 change touched. A failing test is a failing test **regardless of whether this change
