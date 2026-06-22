@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.3.0...dev-team-v7.4.0) (2026-06-22)
+
+
+### Features
+
+* run adversarial self-challenge in all 22 review agents ([#382](https://github.com/bdfinst/agentic-dev-team/issues/382)) ([bd1a203](https://github.com/bdfinst/agentic-dev-team/commit/bd1a2032ab317016fa8b1409a9be87329b11019e))
+
 ## [7.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.2.0...dev-team-v7.3.0) (2026-06-22)
 
 
