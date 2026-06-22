@@ -69,22 +69,16 @@ Effective concurrency 1 (fully-dependent plan, `--jobs 1`, or `DEV_TEAM_MAX_PARA
 ## Task Size Gate
 
 Before routing any non-trivial task to the Three-Phase Workflow, classify its size
-using `knowledge/task-size-classifier.md`. The classification uses **objective signals
-only** — never a fresh LLM judgement.
+using `knowledge/task-size-classifier.md`. Whole-file load: all signal definitions, ordered classification rules, the bias rule, and the decision-log format are needed to run the gate correctly. The classification uses **objective signals only** — never a fresh LLM judgement.
 
 ### Gate procedure
 
-1. **Screen decision axes first (AC5 guardrail).** Read `knowledge/decision-defaults.md`
-   and check whether the task touches any high-reversal-cost axis (replace-vs-merge,
-   format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope). If any axis is
-   triggered → `decision_axis_triggered = true` → the task **cannot be trivial**,
-   regardless of other signals.
+1. **Screen decision axes first (AC5 guardrail).** Read `knowledge/decision-defaults.md`. Whole-file load: all five axis definitions (triggers, defaults, confirm clauses) are needed to check the request against every axis. Check whether the task touches any high-reversal-cost axis (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope). If any axis is triggered → `decision_axis_triggered = true` → the task **cannot be trivial**, regardless of other signals.
 
 2. **Collect objective signals.** Gather `files_changed`, `loc_delta`, `slice_count`,
    `wave_count`, `has_complex_step` per the classifier spec.
 
-3. **Classify.** Apply the rules in `knowledge/task-size-classifier.md` (first match wins;
-   bias to classify up when signals are ambiguous).
+3. **Classify.** Apply the rules in `knowledge/task-size-classifier.md`. Whole-file load: the ordered classification rules and bias rule. First match wins; bias to classify up when signals are ambiguous.
 
 4. **Log the decision** to `memory/decisions.md` (format in classifier spec).
 
