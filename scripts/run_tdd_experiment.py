@@ -325,8 +325,9 @@ def _is_int_const(node) -> bool:
 # turns a loop into an infinite loop (e.g. flipping a roman-numeral subtractive
 # `while n >= v`) hangs pytest forever and the whole cell stalls. A timed-out run
 # is treated as a FAILED run (rc=124): a healthy suite finishes well under this,
-# and an infinite-loop mutant SHOULD count as killed.
-PYTEST_TIMEOUT = 120
+# and an infinite-loop mutant SHOULD count as killed. Kept low so a handful of
+# loop-breaking mutants in one cell cannot dominate wall-clock.
+PYTEST_TIMEOUT = 30
 
 
 def _run_timed(cmd: list[str], **kw):

@@ -1,72 +1,527 @@
-{
-  "generated_from": ["data/tdd-campaign-2026-06-21.jsonl", "data/tdd-buildpipeline-2026-06-21.jsonl", "data/tdd-largetask-sonnet-2026-06-21.json"],
-  "sizes": {
-    "small": {
-      "description": "Single-function katas (Campaign A: caesar, fizzbuzz, rle, roman, rpn, word-tally)",
-      "model": "claude-haiku-4-5-20251001",
-      "characteristics": { "files_changed": 1, "functions_changed_median": 1, "loc_delta_median": 30 },
-      "arms": {
-        "test_first":      { "cost_usd_median": 0.1171, "turns_median": 9.5 },
-        "test_after":      { "cost_usd_median": 0.1315, "turns_median": 8.5 },
-        "build_pipeline":  { "cost_usd_median": 0.3412, "turns_median": 29.0 }
+[
+  {
+    "size": "small",
+    "arms": [
+      "build-pipeline",
+      "test-first",
+      "test-after"
+    ],
+    "arm_median_total_cost": {
+      "build-pipeline": 0.9396,
+      "test-first": 0.2169,
+      "test-after": 0.1984
+    },
+    "arm_median_cov": {
+      "build-pipeline": 100.0,
+      "test-first": 100.0,
+      "test-after": 100.0
+    },
+    "arm_median_mut": {
+      "build-pipeline": 0.988,
+      "test-first": 1.0,
+      "test-after": 1.0
+    },
+    "arm_median_turns": {
+      "build-pipeline": 15.5,
+      "test-first": 8.0,
+      "test-after": 8.0
+    },
+    "pass_build": {
+      "build-pipeline": "12/12",
+      "test-first": "18/18",
+      "test-after": "18/18"
+    },
+    "pass_change": {
+      "build-pipeline": "12/12",
+      "test-first": "17/18",
+      "test-after": "17/18"
+    },
+    "per_task_cost": {
+      "exp-tdd-word-tally": {
+        "build-pipeline": 0.7504,
+        "test-first": 0.2177,
+        "test-after": 0.1979
       },
-      "pipeline_overhead_ratio": 2.91,
-      "plan_turns_overhead": 16
-    },
-    "medium": {
-      "description": "Multi-behavior tasks (Campaign B: stats, intervals, timeparse, money, matrix, csvlite)",
-      "model": "claude-sonnet-4-6",
-      "characteristics": { "files_changed_median": 3, "functions_changed_median": 5, "loc_delta_median": 200 },
-      "arms": {
-        "test_first":      { "cost_usd_median": 0.334, "turns_median": 17.0 },
-        "test_after":      { "cost_usd_median": 0.215, "turns_median": 8.0 },
-        "build_pipeline":  { "cost_usd_median": 0.552, "turns_median": 14.5 }
+      "exp-tdd-roman": {
+        "build-pipeline": 1.1287,
+        "test-first": 0.2295,
+        "test-after": 0.2505
       },
-      "pipeline_overhead_ratio": 2.57,
-      "plan_turns_overhead": 15
+      "exp-tdd-fizzbuzz": {
+        "build-pipeline": 2.006,
+        "test-first": 0.2511,
+        "test-after": 0.2377
+      },
+      "exp-tdd-rpn": {
+        "build-pipeline": 0.6663,
+        "test-first": 0.2098,
+        "test-after": 0.1988
+      },
+      "exp-tdd-rle": {
+        "build-pipeline": 1.2903,
+        "test-first": 0.216,
+        "test-after": 0.1968
+      },
+      "exp-tdd-caesar": {
+        "build-pipeline": 0.6607,
+        "test-first": 0.1996,
+        "test-after": 0.1911
+      }
     },
-    "large": {
-      "description": "Complex multi-file features — unmeasured; build-pipeline design value (planning, review) expected to earn out here",
-      "characteristics": { "files_changed_min": 6, "functions_changed_min": 6, "loc_delta_min": 300 },
-      "arms": null,
-      "note": "Corpus does not cover this tier; no data. This is where the pipeline overhead is expected to pay off."
-    }
+    "pairs": {
+      "build-pipeline__vs__test-first": {
+        "tasks": [
+          "exp-tdd-word-tally",
+          "exp-tdd-roman",
+          "exp-tdd-fizzbuzz",
+          "exp-tdd-rpn",
+          "exp-tdd-rle",
+          "exp-tdd-caesar"
+        ],
+        "diffs": [
+          0.5327,
+          0.8992,
+          1.7549,
+          0.4565,
+          1.0743,
+          0.4611
+        ],
+        "median_diff": 0.7159,
+        "a1_higher_in": 6,
+        "a2_higher_in": 0,
+        "sign_test": {
+          "n": 6,
+          "pos": 6,
+          "neg": 0,
+          "p": 0.0312
+        },
+        "wilcoxon": {
+          "n": 6,
+          "W": 0,
+          "w_pos": 21.0,
+          "w_neg": 0,
+          "p": 0.0312
+        }
+      },
+      "build-pipeline__vs__test-after": {
+        "tasks": [
+          "exp-tdd-word-tally",
+          "exp-tdd-roman",
+          "exp-tdd-fizzbuzz",
+          "exp-tdd-rpn",
+          "exp-tdd-rle",
+          "exp-tdd-caesar"
+        ],
+        "diffs": [
+          0.5525,
+          0.8782,
+          1.7683,
+          0.4675,
+          1.0935,
+          0.4696
+        ],
+        "median_diff": 0.7153,
+        "a1_higher_in": 6,
+        "a2_higher_in": 0,
+        "sign_test": {
+          "n": 6,
+          "pos": 6,
+          "neg": 0,
+          "p": 0.0312
+        },
+        "wilcoxon": {
+          "n": 6,
+          "W": 0,
+          "w_pos": 21.0,
+          "w_neg": 0,
+          "p": 0.0312
+        }
+      },
+      "test-first__vs__test-after": {
+        "tasks": [
+          "exp-tdd-word-tally",
+          "exp-tdd-roman",
+          "exp-tdd-fizzbuzz",
+          "exp-tdd-rpn",
+          "exp-tdd-rle",
+          "exp-tdd-caesar"
+        ],
+        "diffs": [
+          0.0197,
+          -0.021,
+          0.0134,
+          0.011,
+          0.0192,
+          0.0085
+        ],
+        "median_diff": 0.0122,
+        "a1_higher_in": 5,
+        "a2_higher_in": 1,
+        "sign_test": {
+          "n": 6,
+          "pos": 5,
+          "neg": 1,
+          "p": 0.2188
+        },
+        "wilcoxon": {
+          "n": 6,
+          "W": 6.0,
+          "w_pos": 15.0,
+          "w_neg": 6.0,
+          "p": 0.4375
+        }
+      }
+    },
+    "n_tasks_with_data": 6
   },
-  "complexity_baseline": {
-    "description": "Offline complexity-review measurement on test-first solutions from Campaign B (6 medium tasks, sonnet-4-6), run before P1-S1 wired the REFACTOR review loop. Used as AC2 reference for issue #366.",
-    "arm": "test-first",
-    "tasks": ["stats", "intervals", "timeparse", "money", "matrix", "csvlite"],
-    "mean_findings_per_solution": 5.3,
-    "findings_per_solution": {
-      "stats": 2,
-      "intervals": 4,
-      "timeparse": 5,
-      "money": 7,
-      "matrix": 3,
-      "csvlite": 11
+  {
+    "size": "medium",
+    "arms": [
+      "build-pipeline",
+      "test-first",
+      "test-after"
+    ],
+    "arm_median_total_cost": {
+      "build-pipeline": 0.5515,
+      "test-first": 0.3335,
+      "test-after": 0.2147
     },
-    "note": "Per-task breakdown reconstructed from session logs; mean 5.3 is the instrumentable figure cited in epic #362. csvlite dominates (nested state-machine parse() triggers depth + branch + line-count violations). Re-run with scripts/complexity-regression-check.sh after any REFACTOR-loop change to verify AC2."
+    "arm_median_cov": {
+      "build-pipeline": 100.0,
+      "test-first": 100.0,
+      "test-after": 100.0
+    },
+    "arm_median_mut": {
+      "build-pipeline": 1.0,
+      "test-first": 1.0,
+      "test-after": 1.0
+    },
+    "arm_median_turns": {
+      "build-pipeline": 14.5,
+      "test-first": 17.0,
+      "test-after": 8.0
+    },
+    "pass_build": {
+      "build-pipeline": "6/6",
+      "test-first": "6/6",
+      "test-after": "6/6"
+    },
+    "pass_change": {
+      "build-pipeline": "6/6",
+      "test-first": "6/6",
+      "test-after": "6/6"
+    },
+    "per_task_cost": {
+      "exp-tdd-stats": {
+        "build-pipeline": 0.369,
+        "test-first": 0.2359,
+        "test-after": 0.2181
+      },
+      "exp-tdd-intervals": {
+        "build-pipeline": 0.6938,
+        "test-first": 0.4312,
+        "test-after": 0.197
+      },
+      "exp-tdd-timeparse": {
+        "build-pipeline": 0.4093,
+        "test-first": 0.4867,
+        "test-after": 0.2336
+      },
+      "exp-tdd-money": {
+        "build-pipeline": 0.9955,
+        "test-first": 0.2066,
+        "test-after": 0.2043
+      },
+      "exp-tdd-matrix": {
+        "build-pipeline": 0.2643,
+        "test-first": 0.2213,
+        "test-after": 0.2113
+      },
+      "exp-tdd-csvlite": {
+        "build-pipeline": 1.1083,
+        "test-first": 0.4432,
+        "test-after": 0.2419
+      }
+    },
+    "pairs": {
+      "build-pipeline__vs__test-first": {
+        "tasks": [
+          "exp-tdd-stats",
+          "exp-tdd-intervals",
+          "exp-tdd-timeparse",
+          "exp-tdd-money",
+          "exp-tdd-matrix",
+          "exp-tdd-csvlite"
+        ],
+        "diffs": [
+          0.1332,
+          0.2626,
+          -0.0775,
+          0.7889,
+          0.0429,
+          0.6651
+        ],
+        "median_diff": 0.1979,
+        "a1_higher_in": 5,
+        "a2_higher_in": 1,
+        "sign_test": {
+          "n": 6,
+          "pos": 5,
+          "neg": 1,
+          "p": 0.2188
+        },
+        "wilcoxon": {
+          "n": 6,
+          "W": 2.0,
+          "w_pos": 19.0,
+          "w_neg": 2.0,
+          "p": 0.0938
+        }
+      },
+      "build-pipeline__vs__test-after": {
+        "tasks": [
+          "exp-tdd-stats",
+          "exp-tdd-intervals",
+          "exp-tdd-timeparse",
+          "exp-tdd-money",
+          "exp-tdd-matrix",
+          "exp-tdd-csvlite"
+        ],
+        "diffs": [
+          0.1509,
+          0.4968,
+          0.1757,
+          0.7911,
+          0.053,
+          0.8664
+        ],
+        "median_diff": 0.3362,
+        "a1_higher_in": 6,
+        "a2_higher_in": 0,
+        "sign_test": {
+          "n": 6,
+          "pos": 6,
+          "neg": 0,
+          "p": 0.0312
+        },
+        "wilcoxon": {
+          "n": 6,
+          "W": 0,
+          "w_pos": 21.0,
+          "w_neg": 0,
+          "p": 0.0312
+        }
+      },
+      "test-first__vs__test-after": {
+        "tasks": [
+          "exp-tdd-stats",
+          "exp-tdd-intervals",
+          "exp-tdd-timeparse",
+          "exp-tdd-money",
+          "exp-tdd-matrix",
+          "exp-tdd-csvlite"
+        ],
+        "diffs": [
+          0.0177,
+          0.2342,
+          0.2531,
+          0.0023,
+          0.0101,
+          0.2013
+        ],
+        "median_diff": 0.1095,
+        "a1_higher_in": 6,
+        "a2_higher_in": 0,
+        "sign_test": {
+          "n": 6,
+          "pos": 6,
+          "neg": 0,
+          "p": 0.0312
+        },
+        "wilcoxon": {
+          "n": 6,
+          "W": 0,
+          "w_pos": 21.0,
+          "w_neg": 0,
+          "p": 0.0312
+        }
+      }
+    },
+    "n_tasks_with_data": 6
   },
-  "classifier_thresholds": {
-    "trivial": {
-      "max_files_changed": 1,
-      "max_loc_delta": 50,
-      "max_slice_count": 1,
-      "max_wave_count": 1,
-      "requires_no_complex_step": true,
-      "requires_no_decision_axis": true,
-      "rationale": "Maps to 'small' size tier. Pipeline overhead ~2.9× at this size with no quality benefit; fast path saves ~65% turns."
+  {
+    "size": "large",
+    "arms": [
+      "build-pipeline",
+      "test-first",
+      "test-after"
+    ],
+    "arm_median_total_cost": {
+      "build-pipeline": 0.8179,
+      "test-first": 0.6645,
+      "test-after": 0.6128
     },
-    "complex": {
-      "min_files_changed": 6,
-      "min_loc_delta": 300,
-      "min_wave_count": 2,
-      "or_has_complex_step": true,
-      "or_has_decision_axis": true,
-      "rationale": "Pipeline overhead earns out on cross-cutting, security-sensitive, or multi-wave work."
+    "arm_median_cov": {
+      "build-pipeline": 96.6,
+      "test-first": 98.2,
+      "test-after": 97.8
     },
-    "standard": {
-      "rationale": "Everything between trivial and complex. Pipeline runs normally."
-    }
+    "arm_median_mut": {
+      "build-pipeline": 0.924,
+      "test-first": 0.923,
+      "test-after": 0.911
+    },
+    "arm_median_turns": {
+      "build-pipeline": 16.25,
+      "test-first": 14.0,
+      "test-after": 12.0
+    },
+    "pass_build": {
+      "build-pipeline": "12/12",
+      "test-first": "18/18",
+      "test-after": "18/18"
+    },
+    "pass_change": {
+      "build-pipeline": "11/12",
+      "test-first": "15/18",
+      "test-after": "17/18"
+    },
+    "per_task_cost": {
+      "exp-tdd-spreadsheet": {
+        "build-pipeline": 0.8355,
+        "test-first": 0.7016,
+        "test-after": 0.7122
+      },
+      "exp-tdd-jsonptr": {
+        "build-pipeline": 0.8002,
+        "test-first": 0.6275,
+        "test-after": 0.63
+      },
+      "exp-tdd-scheduler": {
+        "build-pipeline": 0.5979,
+        "test-first": 0.7507,
+        "test-after": 0.5171
+      },
+      "exp-tdd-template-engine": {
+        "build-pipeline": 2.2172,
+        "test-first": 0.6219,
+        "test-after": 0.5956
+      },
+      "exp-tdd-ledger": {
+        "build-pipeline": 0.7054,
+        "test-first": 0.5209,
+        "test-after": 0.5035
+      },
+      "exp-tdd-router": {
+        "build-pipeline": 1.0403,
+        "test-first": 0.7485,
+        "test-after": 0.858
+      }
+    },
+    "pairs": {
+      "build-pipeline__vs__test-first": {
+        "tasks": [
+          "exp-tdd-spreadsheet",
+          "exp-tdd-jsonptr",
+          "exp-tdd-scheduler",
+          "exp-tdd-template-engine",
+          "exp-tdd-ledger",
+          "exp-tdd-router"
+        ],
+        "diffs": [
+          0.134,
+          0.1727,
+          -0.1528,
+          1.5953,
+          0.1845,
+          0.2918
+        ],
+        "median_diff": 0.1786,
+        "a1_higher_in": 5,
+        "a2_higher_in": 1,
+        "sign_test": {
+          "n": 6,
+          "pos": 5,
+          "neg": 1,
+          "p": 0.2188
+        },
+        "wilcoxon": {
+          "n": 6,
+          "W": 2.0,
+          "w_pos": 19.0,
+          "w_neg": 2.0,
+          "p": 0.0938
+        }
+      },
+      "build-pipeline__vs__test-after": {
+        "tasks": [
+          "exp-tdd-spreadsheet",
+          "exp-tdd-jsonptr",
+          "exp-tdd-scheduler",
+          "exp-tdd-template-engine",
+          "exp-tdd-ledger",
+          "exp-tdd-router"
+        ],
+        "diffs": [
+          0.1234,
+          0.1703,
+          0.0809,
+          1.6217,
+          0.202,
+          0.1823
+        ],
+        "median_diff": 0.1763,
+        "a1_higher_in": 6,
+        "a2_higher_in": 0,
+        "sign_test": {
+          "n": 6,
+          "pos": 6,
+          "neg": 0,
+          "p": 0.0312
+        },
+        "wilcoxon": {
+          "n": 6,
+          "W": 0,
+          "w_pos": 21.0,
+          "w_neg": 0,
+          "p": 0.0312
+        }
+      },
+      "test-first__vs__test-after": {
+        "tasks": [
+          "exp-tdd-spreadsheet",
+          "exp-tdd-jsonptr",
+          "exp-tdd-scheduler",
+          "exp-tdd-template-engine",
+          "exp-tdd-ledger",
+          "exp-tdd-router"
+        ],
+        "diffs": [
+          -0.0106,
+          -0.0024,
+          0.2337,
+          0.0264,
+          0.0175,
+          -0.1095
+        ],
+        "median_diff": 0.0075,
+        "a1_higher_in": 3,
+        "a2_higher_in": 3,
+        "sign_test": {
+          "n": 6,
+          "pos": 3,
+          "neg": 3,
+          "p": 1.0
+        },
+        "wilcoxon": {
+          "n": 6,
+          "W": 8.0,
+          "w_pos": 13.0,
+          "w_neg": 8.0,
+          "p": 0.6875
+        }
+      }
+    },
+    "n_tasks_with_data": 6
   }
-}
+]
