@@ -95,7 +95,7 @@ Present findings with code locations (`file:line`) for each data access point.
 
 ## Self-Challenge
 
-After producing the trace report, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these data-flow-tracer-specific challenges:
+After producing the trace report, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these data-flow-tracer-specific challenges:
 
 - Did you trace the ACTUAL code path for every step, or assume a conventional path you didn't open?
 - Is every layer in the trace table backed by a concrete `file:line`, with no row left as "probably handled here"?

@@ -170,7 +170,7 @@ When a finding is an untrusted-input or declared-schema boundary, a `suggestedFi
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these security-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these security-review-specific challenges:
 
 - Did you check EVERY source file, not just files with suspicious names?
 - Did you trace user-controlled input all the way to its sink (query, shell, template, redirect)?

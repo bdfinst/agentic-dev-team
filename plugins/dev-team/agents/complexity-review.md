@@ -67,7 +67,7 @@ Cognitive load:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these complexity-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these complexity-review-specific challenges:
 
 - Did you check ALL methods and functions, not just the visibly large ones?
 - For each nesting-depth finding, did you count the actual levels rather than estimating by appearance?

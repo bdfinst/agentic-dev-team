@@ -86,7 +86,7 @@ Whole-file load: each linked SKILL.md is loaded in full when invoked.
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these domain-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these domain-review-specific challenges:
 
 - Did you check every entity/aggregate for anemic domain model patterns (data bags with all behavior in services)?
 - For each "business logic in wrong layer" finding, did you quote the specific rule and its location?

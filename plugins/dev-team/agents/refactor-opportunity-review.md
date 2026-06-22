@@ -62,7 +62,7 @@ Before flagging duplication, ask: "If the business rule changes, would both copi
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these refactor-opportunity-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these refactor-opportunity-review-specific challenges:
 
 - For every duplication finding, did you apply the semantic-vs-structural test ("if the business rule changes, must both copies change?") before flagging?
 - Did you check method length and nesting on every changed function, not just the first long one?

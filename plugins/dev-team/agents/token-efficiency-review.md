@@ -108,7 +108,7 @@ CLAUDE.md, rules, and skills must follow LLM-native patterns. Flag violations:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these token-efficiency-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these token-efficiency-review-specific challenges:
 
 - Did you measure the actual char/line counts against the thresholds, or estimate "looks long"?
 - For each LLM-anti-pattern finding (role preamble, filler, hedging), did you quote the offending text?

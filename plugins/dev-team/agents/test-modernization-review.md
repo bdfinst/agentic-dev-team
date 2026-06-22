@@ -135,7 +135,7 @@ Return JSON matching the schema above. The orchestrator (`/test-modernize`) trea
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these test-modernization-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these test-modernization-review-specific challenges:
 
 - Did you run EVERY check in the phase-specific list, or stop at the first failure?
 - For each verification, did you open the cited artifact (feature file, coverage JSON, resolution JSON) rather than trust the progress file's summary?

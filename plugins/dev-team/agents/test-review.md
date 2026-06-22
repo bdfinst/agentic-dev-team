@@ -132,7 +132,7 @@ Testability blockers:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these test-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these test-review-specific challenges:
 
 - For every class below 90% effective coverage, did you identify the SPECIFIC uncovered behavior?
 - For each "can't test because of static coupling" — did you verify there's no injectable constructor or interface available?

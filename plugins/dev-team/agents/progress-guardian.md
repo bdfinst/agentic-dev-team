@@ -60,7 +60,7 @@ This agent is read-only — it cannot run tests itself, so it must never *infer*
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these progress-guardian-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these progress-guardian-specific challenges:
 
 - Did you check EVERY plan step's status against actual git state, not just the most recent one?
 - For each "step complete" claim, did you confirm fresh test evidence exists rather than trust the `[x]` mark? ("Marked complete" is not "demonstrated complete.")

@@ -62,7 +62,7 @@ numbers and never quote prompt or code content (the digest contains none).
 
 ## Self-Challenge
 
-After producing the ranked suggestion list, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these session-analysis-specific challenges:
+After producing the ranked suggestion list, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these session-analysis-specific challenges:
 
 - Is every suggestion backed by a specific digest field and value, or did any rest on an assumed pattern?
 - Did you weigh all three problem classes (token / rework / accuracy), not over-index on the loudest one?

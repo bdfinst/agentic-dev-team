@@ -95,7 +95,7 @@ Grep for patterns that architecture documentation explicitly bans:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these arch-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these arch-review-specific challenges:
 
 - Did you read the ADRs before reviewing? Every finding should reference whether it contradicts an ADR.
 - Did you check cross-boundary imports in BOTH directions (not just infrastructure → domain)?

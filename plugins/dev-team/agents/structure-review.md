@@ -72,7 +72,7 @@ Design smells:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these structure-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these structure-review-specific challenges:
 
 - Did you check every module/class for SRP violations, including small ones?
 - Did you trace dependency direction? Does business logic depend on infrastructure (not just vice versa)?

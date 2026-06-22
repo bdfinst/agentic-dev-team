@@ -65,7 +65,7 @@ Algorithmic:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these performance-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these performance-review-specific challenges:
 
 - Did you check every loop and I/O site for N+1 / unbounded growth, not just the largest function?
 - For each resource-leak finding, did you confirm there is no cleanup (finally/using/defer/dispose) anywhere on the path?

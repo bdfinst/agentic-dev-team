@@ -82,7 +82,7 @@ Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` 
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these spec-compliance-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these spec-compliance-review-specific challenges:
 
 - Did you load EVERY spec artifact (spec, plan, design doc, all `.feature` files), or stop at the first one found?
 - For each acceptance criterion, did you locate BOTH the implementation and its test — not assume a test exists because the criterion "looks covered"?

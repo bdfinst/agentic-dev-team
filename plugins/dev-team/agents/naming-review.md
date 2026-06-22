@@ -83,7 +83,7 @@ Consistency:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these naming-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these naming-review-specific challenges:
 
 - Did you complete Phase 1 enumeration for EVERY identifier in the diff before classifying, or skip to the obvious offenders?
 - For each misleading-name (error) finding, did you confirm the name signals the opposite of its value/behavior, with the code quoted?

@@ -75,7 +75,7 @@ Pyramid placement (load `test-pyramid.md`; use the MinimumCD six test types from
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (The Loop + Output format), then work these test-smell-review-specific challenges:
+After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these test-smell-review-specific challenges:
 
 - For every smell flagged, did you name the specific xUnit smell (not just "this test is bad")?
 - For each "Slow Tests" or "Erratic Test" finding, did you confirm the test's *intended* level — integration/E2E tests touch real resources by design?
