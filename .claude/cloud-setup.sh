@@ -28,6 +28,24 @@ python3 -m pip install --quiet -r requirements-dev.txt \
 # gh CLI (PR operations), if the image doesn't already ship it.
 command -v gh >/dev/null 2>&1 || apt-get install -y gh || true
 
+# --- Node + git hooks (husky) ----------------------------------------------
+# `npm ci` runs the package.json `prepare: husky` script, which writes the
+# pre-commit / pre-push / commit-msg hooks into .husky/_ and points
+# core.hooksPath at them — and installs the tools those hooks invoke
+# (lint-staged, commitlint, eslint). Without it the hooks are absent in the
+# cloud session, so commits/pushes skip the local gates. Needs Node 20+
+# (commitlint@21); do NOT set HUSKY=0 — that would skip embedding the hooks.
+if ! command -v npm >/dev/null 2>&1; then
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1 || true
+  apt-get install -y nodejs || true
+fi
+if command -v npm >/dev/null 2>&1; then
+  npm ci || true
+  echo "cloud setup: npm ci done — husky hooks embedded (pre-commit, pre-push, commit-msg)."
+else
+  echo "cloud setup: npm unavailable — husky hooks NOT embedded; commits/pushes skip local gates."
+fi
+
 # --- Install the dev-team plugin (loads THIS session) ----------------------
 # The plugin must be on disk before Claude boots to be enumerated. This setup
 # script runs pre-boot, so installing here is the supported way to get the
@@ -39,5 +57,5 @@ else
   echo "cloud setup: claude CLI not found — skipping plugin install (run skills from files)."
 fi
 
-echo "agentic-dev-team cloud setup complete: jq shellcheck bats python-deps gh dev-team-plugin"
+echo "agentic-dev-team cloud setup complete: jq shellcheck bats python-deps gh node+husky-hooks dev-team-plugin"
 exit 0

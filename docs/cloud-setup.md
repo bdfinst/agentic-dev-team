@@ -57,7 +57,11 @@ exit 0
 If you also want this repo's test/gate toolchain (`jq`, `shellcheck`, `bats`,
 the Python dev deps, `gh`) in the same step, paste the body of
 [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) instead — it installs the
-toolchain *and* the plugin, and follows the same exit-0 discipline.
+toolchain *and* the plugin, and follows the same exit-0 discipline. It also
+installs Node 20+ and runs `npm ci`, which embeds the husky git hooks
+(`pre-commit`, `pre-push`, `commit-msg`) so commits and pushes in the cloud
+session run the same local gates as a workstation. (Skip this only if you don't
+intend to commit from the session — it adds a minute to setup.)
 
 ## Verify it worked
 
