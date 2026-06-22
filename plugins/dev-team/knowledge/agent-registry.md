@@ -39,6 +39,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | progress-guardian | `agents/progress-guardian.md` | Plan adherence, commit discipline, scope creep detection |
 | refactor-opportunity-review | `agents/refactor-opportunity-review.md` | Post-GREEN refactoring opportunities, semantic vs structural duplication |
 | security-review | `agents/security-review.md` | Injection, auth/authz, data exposure, crypto |
+| session-analysis | `agents/session-analysis.md` | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
 | spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — first gate before quality review |
 | structure-review | `agents/structure-review.md` | SRP violations, DRY, coupling, file organization |
 | svelte-review | `agents/svelte-review.md` | Svelte reactivity pitfalls, closure state leaks |
