@@ -42,7 +42,7 @@ Arguments: $ARGUMENTS
 
 ### 1. Check for metrics data
 
-Read metrics JSONL files from `metrics/`. Two complementary streams exist:
+Read metrics JSONL files from `metrics/`. Three complementary streams exist:
 
 - `metrics/*-task-log.jsonl` — **self-reported** task logs (whatever the model
   chose to record about itself).
@@ -52,6 +52,12 @@ Read metrics JSONL files from `metrics/`. Two complementary streams exist:
   self-reports, and use `never_observed_*` to corroborate stale-component
   flags. Schema + join: see `docs/eval-system.md` → "Session-review trend
   digest".
+- `metrics/artifact-usage.json` — **per-artifact usage index** written by the
+  telemetry hook on each Skill invocation. Use `last_used_at` to identify
+  artifacts that have never been observed (absent from the index) or are stale
+  (absent or `last_used_at` > 30 days ago). Cross-reference with
+  `never_observed_*` in `session-digest.jsonl` for corroboration. See
+  `knowledge/artifact-lifecycle.md` for the lifecycle threshold definitions.
 
 If no metrics data exists or insufficient data is available (fewer than 10 review runs logged), report:
 

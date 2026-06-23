@@ -145,6 +145,57 @@ The orchestrator also watches for patterns across tasks:
 
 When a pattern is detected (minimum 3 occurrences), propose the change with rationale. User approves or rejects. If approved, apply and log with `trigger: "system"`.
 
+## Pending-Review Queue Disposition
+
+When `/session-review` surfaces entries from `metrics/pending-review.jsonl`, this
+skill handles the approve or reject decision for each finding.
+
+### Matching
+
+Identify the queue entry by `source` + `queued_at` combination (handles duplicate-
+content entries safely).
+
+### Approval path
+
+1. Apply the proposed change (following the standard Processing Flow above).
+2. Append to `metrics/config-changelog.jsonl` as usual.
+3. Write `reviewed_at` (ISO-8601 UTC) and `approved_by` (the user identifier from
+   `approved_by` in the existing audit schema) back into the matching entry in
+   `metrics/pending-review.jsonl`.
+
+### Rejection path
+
+1. Do **not** apply the proposed change.
+2. Do **not** write to `metrics/config-changelog.jsonl`.
+3. Write `rejected_at` (ISO-8601 UTC) and `rejected_by` (same format as
+   `approved_by`) into the matching entry in `metrics/pending-review.jsonl`.
+
+### Queue entry schema (reference)
+
+```json
+{
+  "queued_at":   "2026-06-01T12:00:00Z",
+  "source":      "session-learning-trigger",
+  "session_id":  "abc-123",
+  "findings": [
+    {
+      "lever":           "instruction-rule",
+      "evidence":        "3 occurrences in last 5 sessions",
+      "target_artifact": "agents/orchestrator.md",
+      "proposed_change": "Add constraint",
+      "route":           "feedback-learning"
+    }
+  ],
+  "reviewed_at": "2026-06-02T09:00:00Z",
+  "approved_by": "user",
+  "rejected_at": "2026-06-02T09:00:00Z",
+  "rejected_by": "user"
+}
+```
+
+`reviewed_at` and `approved_by` are added on approval; `rejected_at` and
+`rejected_by` are added on rejection. A finding gains exactly one disposition.
+
 ## Constraints
 
 - Never edit plugin cache files — all changes go to project-local files

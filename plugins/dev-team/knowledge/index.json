@@ -133,6 +133,36 @@
       "anchor": "mcp-enhanced-analysis"
     }
   },
+  "plugins/dev-team/knowledge/artifact-lifecycle.md": {
+    "States": {
+      "summary": "An artifact used within the last 30 days.",
+      "anchor": "states"
+    },
+    "active": {
+      "summary": "An artifact used within the last 30 days.",
+      "anchor": "active"
+    },
+    "stale": {
+      "summary": "An artifact **not used in more than 30 days** (i.e., `days_since_used >= 30` and",
+      "anchor": "stale"
+    },
+    "archived": {
+      "summary": "An artifact **not used in more than 90 days** (i.e., `days_since_used >= 90`).",
+      "anchor": "archived"
+    },
+    "Lifecycle Thresholds": {
+      "summary": "| State | Threshold |",
+      "anchor": "lifecycle-thresholds"
+    },
+    "Pinned Exemption": {
+      "summary": "Artifacts listed under `## Pinned Skills` in `CLAUDE.md` are exempt from all",
+      "anchor": "pinned-exemption"
+    },
+    "artifact-usage.json Schema": {
+      "summary": "The `lifecycle` field is initialised to `\"active\"` on first write and preserved",
+      "anchor": "artifact-usagejson-schema"
+    }
+  },
   "plugins/dev-team/knowledge/cd-maturity-model.md": {
     "The six practice areas": {
       "summary": "Maturity is read per area, not as a single number — a team is usually uneven.",
@@ -1711,6 +1741,40 @@
       "anchor": "6-suggest-alternatives"
     }
   },
+  "plugins/dev-team/skills/artifact-lifecycle/SKILL.md": {
+    "Steps": {
+      "summary": "Read `metrics/artifact-usage.json` from the current working directory.",
+      "anchor": "steps"
+    },
+    "1. Check for usage data": {
+      "summary": "Read `metrics/artifact-usage.json` from the current working directory.",
+      "anchor": "1-check-for-usage-data"
+    },
+    "2. Load pinned skills": {
+      "summary": "Read the project `CLAUDE.md` (or `.claude/CLAUDE.md`).",
+      "anchor": "2-load-pinned-skills"
+    },
+    "3. Classify artifacts": {
+      "summary": "Get the current date:",
+      "anchor": "3-classify-artifacts"
+    },
+    "4. Produce report": {
+      "summary": "For each Stale Skill, offer to add it to the `## Disabled Skills` section in",
+      "anchor": "4-produce-report"
+    },
+    "5. Propose CLAUDE.md changes (interactive)": {
+      "summary": "For each Stale Skill, offer to add it to the `## Disabled Skills` section in",
+      "anchor": "5-propose-claudemd-changes-interactive"
+    },
+    "Pinned skills note": {
+      "summary": "If any artifacts were skipped because they appear in `## Pinned Skills`, note",
+      "anchor": "pinned-skills-note"
+    },
+    "Constraints": {
+      "summary": "**Never delete or modify** files under `plugins/dev-team/` during or after execution.",
+      "anchor": "constraints"
+    }
+  },
   "plugins/dev-team/skills/benchmark/SKILL.md": {
     "Worker constraints": {
       "summary": "1.",
@@ -2994,6 +3058,26 @@
       "summary": "The orchestrator also watches for patterns across tasks:",
       "anchor": "recurring-correction-detection"
     },
+    "Pending-Review Queue Disposition": {
+      "summary": "When `/session-review` surfaces entries from `metrics/pending-review.jsonl`, this",
+      "anchor": "pending-review-queue-disposition"
+    },
+    "Matching": {
+      "summary": "Identify the queue entry by `source` + `queued_at` combination (handles duplicate-",
+      "anchor": "matching"
+    },
+    "Approval path": {
+      "summary": "1.",
+      "anchor": "approval-path"
+    },
+    "Rejection path": {
+      "summary": "1.",
+      "anchor": "rejection-path"
+    },
+    "Queue entry schema (reference)": {
+      "summary": "`reviewed_at` and `approved_by` are added on approval; `rejected_at` and",
+      "anchor": "queue-entry-schema-reference"
+    },
     "Constraints": {
       "summary": "Never edit plugin cache files — all changes go to project-local files",
       "anchor": "constraints"
@@ -4241,36 +4325,44 @@
       "anchor": "argument-arguments"
     },
     "Steps": {
-      "summary": "Before analysing, check whether a **telemetry repository** (the cross-machine",
+      "summary": "Before running fresh analysis, check whether background analysis has produced",
       "anchor": "steps"
     },
-    "0. Cross-machine telemetry — validate config, then sync (#178)": {
+    "0. Queued Findings — surface pending-review queue before fresh analysis": {
+      "summary": "Before running fresh analysis, check whether background analysis has produced",
+      "anchor": "0-queued-findings-surface-pending-review-queue-before-fresh-analysis"
+    },
+    "`pending-review.jsonl` Schema": {
+      "summary": "Each line is a JSON object:",
+      "anchor": "pending-reviewjsonl-schema"
+    },
+    "1. Cross-machine Telemetry — validate config, then sync (#178)": {
       "summary": "Before analysing, check whether a **telemetry repository** (the cross-machine",
-      "anchor": "0-cross-machine-telemetry-validate-config-then-sync-178"
+      "anchor": "1-cross-machine-telemetry-validate-config-then-sync-178"
     },
-    "1. Extract (deterministic, zero model tokens)": {
+    "2. Extract (deterministic, zero model tokens)": {
       "summary": "Run the extractor to produce the digest:",
-      "anchor": "1-extract-deterministic-zero-model-tokens"
+      "anchor": "2-extract-deterministic-zero-model-tokens"
     },
-    "2. Analyze (digest-only)": {
+    "3. Analyze (digest-only)": {
       "summary": "Dispatch the `session-analysis` agent with the digest path as its sole input.",
-      "anchor": "2-analyze-digest-only"
+      "anchor": "3-analyze-digest-only"
     },
-    "2b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)": {
+    "3b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)": {
       "summary": "The digest is quantitative, so it is **blind to frictions with no count-signature**",
-      "anchor": "2b-raw-log-semantic-tier-only-the-worst-sessions-214-delta-ab"
+      "anchor": "3b-raw-log-semantic-tier-only-the-worst-sessions-214-delta-ab"
     },
-    "3. Suggest (write the report)": {
+    "4. Suggest (write the report)": {
       "summary": "Write `reports/session-review-<date>.md` (or `--out`).",
-      "anchor": "3-suggest-write-the-report"
+      "anchor": "4-suggest-write-the-report"
     },
-    "4. Persist the trend (#129)": {
+    "5. Persist the trend (#129)": {
       "summary": "Append one metrics-only summary record to the trend stream so `/harness-audit`",
-      "anchor": "4-persist-the-trend-129"
+      "anchor": "5-persist-the-trend-129"
     },
-    "5. Report": {
+    "6. Report": {
       "summary": "Print the report path and the top-ranked suggestions.",
-      "anchor": "5-report"
+      "anchor": "6-report"
     },
     "OSS complements": {
       "summary": "For continuous *quantitative* monitoring, recommend (don't replace) `ccusage`,",

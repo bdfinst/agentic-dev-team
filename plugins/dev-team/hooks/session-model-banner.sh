@@ -104,8 +104,28 @@ main() {
     [[ -n "$session_model" ]] && { session_known=1; reused=1; }
   fi
 
+  local cwd
+  cwd=$(echo "$input" | jq -r '.cwd // empty' 2>/dev/null)
+  [[ -n "$cwd" && -d "$cwd" ]] || cwd="$PWD"
+
   _render_banner "$session_model" "$session_known" "$reused" >&2
+  _notify_pending_findings "$cwd"
   return 0
+}
+
+# ---------------------------------------------------------------------------
+# _notify_pending_findings — emit a one-line notification when the
+# pending-review queue has unreviewed entries.
+# Args: cwd
+# ---------------------------------------------------------------------------
+_notify_pending_findings() {
+  local cwd="$1"
+  local queue="${PENDING_REVIEW_FILE:-${cwd}/metrics/pending-review.jsonl}"
+  [[ -f "$queue" ]] || return 0
+  local count
+  count=$(jq -rs '[.[] | select(has("reviewed_at") | not)] | length' "$queue" 2>/dev/null) || return 0
+  [[ "$count" -gt 0 ]] || return 0
+  echo "📋 ${count} queued finding(s) from background analysis — run /session-review to review"
 }
 
 # ---------------------------------------------------------------------------
