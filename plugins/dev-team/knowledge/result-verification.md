@@ -29,6 +29,7 @@ Prefer state verification; reach for behavior verification only when there is no
 | **Verification Method** | A named sequence of assertions reused across tests | A multi-assertion check repeats with the same meaning | Test Code Duplication in the Verify phase |
 | **Guard Assertion** | Assert a precondition **before** the main assertion, so a missing precondition fails clearly | The main assertion would otherwise throw a cryptic null/empty error | misleading failures |
 | **Delta Assertion** | Assert the *change* relative to a captured baseline, not an absolute value | Working against a Shared/persistent fixture whose absolute state you don't control | brittle absolute assertions on shared fixtures |
+| **Unfinished Test Assertion** | A deliberate `fail("not yet implemented")` placeholder that keeps a stubbed-out test **red** until it's written | You've named a test condition you intend to cover but haven't implemented it yet | a silently-passing empty test that masquerades as coverage (a Buggy Test) |
 
 ---
 

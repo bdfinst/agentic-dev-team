@@ -241,6 +241,32 @@
       "anchor": "quick-reference-isolation-strategy-by-pattern"
     }
   },
+  "plugins/dev-team/knowledge/database-test-patterns.md": {
+    "First question: does this test need a real database at all?": {
+      "summary": "Most logic that *uses* data does not need to test the *database engine*.",
+      "anchor": "first-question-does-this-test-need-a-real-database-at-all"
+    },
+    "Isolation: keep test runs from colliding": {
+      "summary": "| Pattern | What it does | Trade-off |",
+      "anchor": "isolation-keep-test-runs-from-colliding"
+    },
+    "Teardown: undo what the test did": {
+      "summary": "Pick the cheapest teardown that fully restores state.",
+      "anchor": "teardown-undo-what-the-test-did"
+    },
+    "Stored Procedure Test": {
+      "summary": "When logic lives in the database (procedures, triggers, functions), it still deserves a test: arrange inputs in tables/parameters, invoke the procedure, verify the returned result set or the resulting table state, then tear down (rollback or truncation).",
+      "anchor": "stored-procedure-test"
+    },
+    "CD pipeline placement": {
+      "summary": "A real database makes a test roughly **an order of magnitude slower** than an in-memory equivalent — Meszaros cites ~50× for round-trips.",
+      "anchor": "cd-pipeline-placement"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`cd-test-architecture.md`** — owns the determinism→pipeline-stage decision; this file supplies the persistence-specific isolation/teardown that makes a DB test gate-eligible.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/decision-defaults.md": {
     "Destructive shape: replace vs. merge": {
       "summary": "Trigger: a request writes config, settings, dotfiles, or installer output where prior",
@@ -261,6 +287,48 @@
     "Scope: touch only what was requested": {
       "summary": "Trigger: a request names specific files, slides, or targets.",
       "anchor": "scope-touch-only-what-was-requested"
+    }
+  },
+  "plugins/dev-team/knowledge/dependency-breaking-techniques.md": {
+    "How to choose": {
+      "summary": "---",
+      "anchor": "how-to-choose"
+    },
+    "The catalog": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "the-catalog"
+    },
+    "Add behavior without touching the untested code (Ch. 6)": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "add-behavior-without-touching-the-untested-code-ch-6"
+    },
+    "Break a created/obtained collaborator": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "break-a-createdobtained-collaborator"
+    },
+    "Substitute a type": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "substitute-a-type"
+    },
+    "Tame globals, singletons, and statics": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "tame-globals-singletons-and-statics"
+    },
+    "Work around hard parameters and big methods": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "work-around-hard-parameters-and-big-methods"
+    },
+    "Non-OO / compiled / interpreted seams": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "non-oo-compiled-interpreted-seams"
+    },
+    "Most common in practice": {
+      "summary": "The legacy-code skill keeps a shortlist for the day-to-day cases; the rest of the catalog is here when those don't fit.",
+      "anchor": "most-common-in-practice"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`legacy-code` skill** — owns the procedure (Change Algorithm, seam types, characterization tests); this file is its technique reference.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/knowledge/design-smells.md": {
@@ -384,6 +452,32 @@
     },
     "How this connects to the rest of the toolkit": {
       "summary": "**`test-strategy.md`** — *which* fixture (lifecycle/design); this file is *how* it's constructed.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/legacy-test-strategy.md": {
+    "1. Reason about effects": {
+      "summary": "Every functional change has a chain of effects that propagates outward — through the methods that call the changed code — until it reaches a place you can observe, or stops because nothing downstream depends on it.",
+      "anchor": "1-reason-about-effects"
+    },
+    "2. Draw an effect sketch": {
+      "summary": "An **effect sketch** is a small directed graph: bubbles for data and methods, arrows from a cause to what it affects.",
+      "anchor": "2-draw-an-effect-sketch"
+    },
+    "3. Find interception & pinch points": {
+      "summary": "**Interception point** — any point where you can detect the effect of a change.",
+      "anchor": "3-find-interception-pinch-points"
+    },
+    "4. Write the characterization tests": {
+      "summary": "A characterization test documents what the code **actually does**, not what it *should* do.",
+      "anchor": "4-write-the-characterization-tests"
+    },
+    "5. Edit safely while getting there (Ch. 23)": {
+      "summary": "Before tests are in place, these habits keep behavior intact:",
+      "anchor": "5-edit-safely-while-getting-there-ch-23"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`dependency-breaking-techniques.md`** — once effect reasoning tells you *where* to intercept, those techniques create the seam to put a test there.",
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
@@ -689,6 +783,24 @@
       "anchor": "boundaries"
     }
   },
+  "plugins/dev-team/knowledge/test-automation-principles.md": {
+    "Goals — what the suite is *for*": {
+      "summary": "A test is worth its maintenance cost only if it advances these.",
+      "anchor": "goals-what-the-suite-is-for"
+    },
+    "The Principles — how to honor the goals": {
+      "summary": "The named principles, each with the test it should pass and the smell it prevents.",
+      "anchor": "the-principles-how-to-honor-the-goals"
+    },
+    "Using this as a rubric (evaluation)": {
+      "summary": "For a given test or suite:",
+      "anchor": "using-this-as-a-rubric-evaluation"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`test-smells.md`** — each smell is the negative image of a principle here; that file is the detection layer, this is the *why*.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/test-doubles.md": {
     "The Five Doubles": {
       "summary": "| Double | What it does | Verification style | Use when |",
@@ -701,6 +813,14 @@
     "Choosing a Double (decision flow)": {
       "summary": "---",
       "anchor": "choosing-a-double-decision-flow"
+    },
+    "How the double is built: Configurable vs. Hard-Coded": {
+      "summary": "The five doubles above are *roles*; this is the orthogonal question of *how the double gets its canned answers*.",
+      "anchor": "how-the-double-is-built-configurable-vs-hard-coded"
+    },
+    "Test-Specific Subclass": {
+      "summary": "When you can't substitute a collaborator from outside — the dependency is created internally, or the thing you need to control is a *method of the SUT itself* — subclass the real class **in the test** and override just the seam method to inject an indirect input or null out an unwanted side effect.",
+      "anchor": "test-specific-subclass"
     },
     "Common Misuses (flag these)": {
       "summary": "| Misuse | Why it's wrong | Fix |",
@@ -865,7 +985,7 @@
   },
   "plugins/dev-team/knowledge/testability-patterns.md": {
     "\"I Can't Test This Class\" Decision Flow": {
-      "summary": "---",
+      "summary": "> **Legacy code (no tests yet)?** Don't make the design change cold.",
       "anchor": "i-cant-test-this-class-decision-flow"
     },
     "Pattern 1: Constructor Injection (Replace Static Factories / Singletons)": {
@@ -883,6 +1003,22 @@
     "Pattern 4: Fake Data Generators (Test Data with Variation)": {
       "summary": "**Problem**: Tests need realistic but controlled test data across many scenarios.",
       "anchor": "pattern-4-fake-data-generators-test-data-with-variation"
+    },
+    "The Design-for-Testability seam family": {
+      "summary": "Constructor Injection (Pattern 1) is the common case, but it is one of a named family of seams from *xUnit Test Patterns* Ch.",
+      "anchor": "the-design-for-testability-seam-family"
+    },
+    "Pattern 5: Dependency Lookup (retrofit seam for legacy)": {
+      "summary": "**Problem**: A collaborator is constructed deep inside the system and there's no clean path to pass a test double down from the test — wiring DI through every intermediate layer would be invasive.",
+      "anchor": "pattern-5-dependency-lookup-retrofit-seam-for-legacy"
+    },
+    "Pattern 6: Humble Object (rescue logic from untestable shells)": {
+      "summary": "**Problem**: Meaningful logic lives inside an object that's expensive or impossible to instantiate in a unit test — a GUI control, a framework callback, an async worker/thread, a transaction-managing controller.",
+      "anchor": "pattern-6-humble-object-rescue-logic-from-untestable-shells"
+    },
+    "Pattern 7: Test Hook (last resort — prefer any seam above)": {
+      "summary": "**Problem**: None of the above seams can be introduced (e.g.",
+      "anchor": "pattern-7-test-hook-last-resort-prefer-any-seam-above"
     },
     "Anti-Patterns Table": {
       "summary": "| Anti-Pattern | Why It's Wrong | Correct Alternative |",
@@ -909,6 +1045,24 @@
     "Boundaries": {
       "summary": "A suite need not fill every quadrant equally — weight by risk.",
       "anchor": "boundaries"
+    }
+  },
+  "plugins/dev-team/knowledge/value-patterns.md": {
+    "The four value sources": {
+      "summary": "| Pattern | What it is | Use when | Risk if misused |",
+      "anchor": "the-four-value-sources"
+    },
+    "Choosing a value source (decision flow)": {
+      "summary": "---",
+      "anchor": "choosing-a-value-source-decision-flow"
+    },
+    "Notes that matter when evaluating tests": {
+      "summary": "**Derived vs. Literal trade-off.** Derived Values make a requirement's *relationship* explicit and survive legitimate change (raise the tax rate, the test follows).",
+      "anchor": "notes-that-matter-when-evaluating-tests"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`test-smells.md`** — Hard-Coded Values, Irrelevant Information, Erratic Test (from random values) are the smells these patterns prevent or, misused, cause.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/skills/add-plugin/SKILL.md": {
@@ -3262,8 +3416,12 @@
       "summary": "1.",
       "anchor": "characterization-test-procedure"
     },
+    "Finding Test Points (effect reasoning)": {
+      "summary": "Step 2 of the algorithm — *where can you observe the effects of the change?* — is its own skill in tangled code.",
+      "anchor": "finding-test-points-effect-reasoning"
+    },
     "Dependency Breaking Techniques": {
-      "summary": "| Technique | When to Use | Risk |",
+      "summary": "The everyday shortlist below covers most cases.",
       "anchor": "dependency-breaking-techniques"
     },
     "Sprout vs. Wrap Decision": {

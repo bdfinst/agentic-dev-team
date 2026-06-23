@@ -50,6 +50,7 @@ xUnit Test Patterns groups smells into three levels. Detect at all three:
 | → Overspecified Software (mock-heavy) | Test asserts exact internal call sequences via mocks | Tests the implementation, not the outcome | Prefer state verification; mock only true boundaries (see `test-doubles.md`) |
 | → Context/Data Sensitivity | Breaks when run in a different timezone, locale, or with different seed data | Hidden environmental coupling | Pin locale/timezone; control all inputs explicitly |
 | **Slow Tests** | Unit-level tests taking seconds; real I/O (DB, network, disk) in unit tests | Feedback loop collapses; tests get skipped | Replace boundaries with doubles; push slow checks down the pyramid (see `test-pyramid.md`) |
+| **Frequent Debugging** | Most test *failures* need an interactive debugger or print statements to locate the cause; failure messages don't tell you what broke | The suite has lost Defect Localization — a red bar that doesn't point at the defect is barely better than no test | Add the missing fine-grained unit/component tests; improve Assertion Messages; run tests after every small change so you remember what you touched (see `test-automation-principles.md` → Defect Localization) |
 
 ---
 
@@ -61,6 +62,7 @@ xUnit Test Patterns groups smells into three levels. Detect at all three:
 | **High Test Maintenance Cost** | Every feature change forces large test rewrites | Accumulated Fragile/Obscure smells | Address the underlying code & behavior smells; introduce builders & custom assertions |
 | **Manual Intervention** | A human must edit config, seed data, or run a step for tests to pass | Tests aren't repeatable or CI-able | Automate setup; make the suite hermetic |
 | **Buggy Tests** | Tests pass when the code is broken (or fail when it's correct) | Negative confidence — worse than no test | Verify the test fails for the right reason (mutation testing surfaces these — see `mutation-testing` skill) |
+| **Developers Not Writing Tests** | Code lands without tests; test count flat or falling while code grows; "no time to test" | The safety net never forms; the rest of the suite's value erodes as untested code accumulates | Address the *root cause*, not the symptom: schedule pressure (make testing part of "done"), missing skills (coach/pair), or Hard-to-Test Code (fix testability — `testability-patterns.md`). Often paired with Lost Tests (tests silently disabled) |
 
 ---
 
