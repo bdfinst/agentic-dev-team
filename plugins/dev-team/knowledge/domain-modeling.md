@@ -81,6 +81,38 @@ contain all behavior. Signs:
 | Cross-context coupling | Direct imports between bounded contexts instead of events/shared kernel |
 | Aggregate boundary bypass | Reaching into an aggregate's child entities directly |
 
+### Implicit Concepts (missing Specification / Policy)
+
+A named business rule hiding inside scattered conditionals. Surface it as a Specification or Policy object.
+
+| Signal | What it implies |
+|--------|-----------------|
+| The same multi-clause boolean (`if a && b && !c`) duplicated in 2+ places | A domain rule with a name the experts already use — extract to a specification/policy object |
+| A rule expressed as a comment (`// orders over $X to a new address need review`) but enforced ad hoc | The concept exists in language but not in the model |
+| A boolean-returning method on a service that inspects another object's fields | Tell-don't-ask + a candidate specification owned by the domain |
+
+Only flag duplication or comment-encoded rules you can point to. A single, local condition is not a missing specification.
+
+### Construction Without Invariants (missing Factory)
+
+| Signal | What it implies |
+|--------|-----------------|
+| Public constructor / object literal that lets a caller build an invalid aggregate (required field unset, two fields that must agree set independently) | Construction invariant is unenforced — a factory or a guarding constructor should make the object valid-on-creation |
+| The same multi-step assembly of an aggregate repeated across call sites | Creation logic belongs in one factory, not copied into clients |
+
+Do not flag simple objects that are valid by plain construction — a factory there is overhead.
+
+### Supple Design Smells (domain model only)
+
+Scope these to **domain entities, value objects, and domain services** — general purity/coupling elsewhere belongs to `js-fp-review` and `structure-review`, not here.
+
+| Smell | Signal | Fix direction |
+|-------|--------|---------------|
+| Not intention-revealing | A domain method named for *how* not *what* (`recalc`, `doProcess`), or a boolean flag parameter that switches behavior (`price(true)`) | Rename to the domain verb; split the two behaviors |
+| Side effect in a query | A method on a value object or entity that both mutates state and returns a value (violates command-query separation) | Separate the command from the query; value objects expose only side-effect-free operations |
+| Mutable value object | A type used as a value (money, range, coordinate) with public setters or in-place mutation | Make it immutable; return new instances |
+| Unenforced invariant | An entity/aggregate whose invariant is asserted by callers rather than guarded internally | Move the invariant into the type (constructor, factory, or guarded mutator) |
+
 ### Ubiquitous Language Drift
 
 Flag only internal inconsistency observable in code:

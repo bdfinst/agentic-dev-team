@@ -410,6 +410,18 @@
       "summary": "| Violation | Signal |",
       "anchor": "boundary-violations"
     },
+    "Implicit Concepts (missing Specification / Policy)": {
+      "summary": "A named business rule hiding inside scattered conditionals.",
+      "anchor": "implicit-concepts-missing-specification-policy"
+    },
+    "Construction Without Invariants (missing Factory)": {
+      "summary": "| Signal | What it implies |",
+      "anchor": "construction-without-invariants-missing-factory"
+    },
+    "Supple Design Smells (domain model only)": {
+      "summary": "Scope these to **domain entities, value objects, and domain services** — general purity/coupling elsewhere belongs to `js-fp-review` and `structure-review`, not here.",
+      "anchor": "supple-design-smells-domain-model-only"
+    },
     "Ubiquitous Language Drift": {
       "summary": "Flag only internal inconsistency observable in code:",
       "anchor": "ubiquitous-language-drift"
@@ -2530,6 +2542,10 @@
       "summary": "Identify feedback loops and cascading-change risks — the architectural patterns that make every deploy a coordination exercise.",
       "anchor": "5-coupling-trap-detection"
     },
+    "6. Core Domain Distillation": {
+      "summary": "Where is the team's modeling effort actually going, and does that match where the value is?",
+      "anchor": "6-core-domain-distillation"
+    },
     "Steps": {
       "summary": "1.",
       "anchor": "steps"
@@ -2557,6 +2573,10 @@
     "Value Stream": {
       "summary": "State the entrypoint (file and function/command).",
       "anchor": "value-stream"
+    },
+    "Subdomain Classification": {
+      "summary": "Table: context name, class (Core / Supporting / Generic), evidence for the class, confidence tier.",
+      "anchor": "subdomain-classification"
     },
     "Friction Report": {
       "summary": "Each item: category tag, specific files/components involved, confidence tier, and a concrete fix direction.",
@@ -2592,6 +2612,10 @@
       "summary": "Define explicit relationships between bounded contexts:",
       "anchor": "context-mapping"
     },
+    "Distillation — Find the Core Domain": {
+      "summary": "Not all of the model is equally valuable.",
+      "anchor": "distillation-find-the-core-domain"
+    },
     "Tactical Patterns": {
       "summary": "Cluster of entities and value objects with a single **aggregate root**",
       "anchor": "tactical-patterns"
@@ -2620,6 +2644,26 @@
       "summary": "Domain-level abstraction for aggregate persistence",
       "anchor": "repositories"
     },
+    "Factories": {
+      "summary": "Encapsulate complex creation of an aggregate or value object so the result is **valid and whole** the moment it exists",
+      "anchor": "factories"
+    },
+    "Specifications": {
+      "summary": "Encapsulate a business rule as a first-class predicate object (`OverdueInvoiceSpecification`, `EligibleForDiscountSpecification`)",
+      "anchor": "specifications"
+    },
+    "Making Implicit Concepts Explicit": {
+      "summary": "When a constraint, process, or policy is buried in conditionals and scattered across methods, the model is hiding a concept the domain expert already has a word for.",
+      "anchor": "making-implicit-concepts-explicit"
+    },
+    "Supple Design": {
+      "summary": "The craft of refactoring toward deeper insight — design that is safe to change because it reveals intent and contains side effects.",
+      "anchor": "supple-design"
+    },
+    "Knowledge Crunching & Model-Driven Design": {
+      "summary": "The model is not designed up front and frozen — it emerges from **continuous collaboration with domain experts**, distilling messy reality into sharp abstractions.",
+      "anchor": "knowledge-crunching-model-driven-design"
+    },
     "When to Apply": {
       "summary": "| Situation | Approach |",
       "anchor": "when-to-apply"
@@ -2636,13 +2680,17 @@
       "summary": "Map each distinct model to its own context with clear boundaries",
       "anchor": "2-define-bounded-contexts"
     },
-    "3. Select Tactical Patterns": {
-      "summary": "Determine whether the domain complexity warrants aggregates, entities, value objects, and domain events",
-      "anchor": "3-select-tactical-patterns"
+    "3. Distill the Core": {
+      "summary": "Classify each subdomain as Core, Supporting, or Generic; write a one-paragraph Domain Vision Statement for the Core",
+      "anchor": "3-distill-the-core"
     },
-    "4. Validate Model": {
+    "4. Select Tactical Patterns": {
+      "summary": "Determine whether the domain complexity warrants aggregates, entities, value objects, factories, specifications, and domain events",
+      "anchor": "4-select-tactical-patterns"
+    },
+    "5. Validate Model": {
       "summary": "Confirm aggregates enforce consistency boundaries (one transaction = one aggregate)",
-      "anchor": "4-validate-model"
+      "anchor": "5-validate-model"
     },
     "Output": {
       "summary": "Report modeling decisions: bounded contexts identified, aggregate boundaries, context map relationships, and any violations of DDD constraints found in existing code.",
