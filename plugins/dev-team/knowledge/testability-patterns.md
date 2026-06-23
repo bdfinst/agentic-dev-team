@@ -135,6 +135,87 @@ orders = OrderFaker.generateBatch(100)
 
 ---
 
+## The Design-for-Testability seam family
+
+Constructor Injection (Pattern 1) is the common case, but it is one of a named family of seams from *xUnit Test Patterns* Ch. 26. Pick by *how* the dependency reaches the SUT and *why* it's hard to test.
+
+| Seam | The change | Use when | Cost |
+|------|-----------|----------|------|
+| **Dependency Injection** (Pattern 1) | Pass collaborators in (constructor/setter) | You control construction and can thread the dependency through | Low; the default |
+| **Dependency Lookup** | SUT asks a broker/service-locator for the collaborator; the test configures the broker | The DOC is buried deep and threading it through every caller would be messy (e.g. a Fake DB behind a service facade) | Medium; hides the dependency, but far easier to **retrofit onto legacy** code than DI |
+| **Humble Object** | Extract logic out of a hard-to-instantiate shell into a plain, synchronously-testable object | Logic is trapped in a UI control, framework callback, thread, or transaction boundary | Medium; the shell becomes a thin adapter |
+| **Test Hook** | Conditional `if (testing)` behavior baked into production code | **Last resort only** — nothing else can break the dependency | High; it *is* the Test Logic in Production smell |
+
+---
+
+## Pattern 5: Dependency Lookup (retrofit seam for legacy)
+
+**Problem**: A collaborator is constructed deep inside the system and there's no clean path to pass a test double down from the test — wiring DI through every intermediate layer would be invasive.
+
+**Solution**: The SUT requests its collaborator from a **component broker / service locator** instead of `new`-ing it. The test (or a Setup Decorator) configures the broker to hand back a double.
+
+```
+// Production wiring registers the real implementation
+ServiceRegistry.register(IClock, SystemClock)
+
+// SUT looks up rather than receiving
+class ExpiryService:
+  def isExpired(token):
+    clock = ServiceRegistry.get(IClock)   // broker, not `new`
+    ...
+
+// Test reconfigures the broker, no constructor threading needed
+ServiceRegistry.register(IClock, FakeClock(at="2026-01-01"))
+```
+
+**When to apply**: retrofitting tests onto legacy code where DI would touch too many call sites; a deep DOC (data-access layer, facade-backed service) you want to replace with a Fake for a whole test run. **Trade-off**: the dependency is no longer visible in the signature, and the broker is global state that each test must reset — keep DI the default and reach for lookup when threading is genuinely impractical.
+
+---
+
+## Pattern 6: Humble Object (rescue logic from untestable shells)
+
+**Problem**: Meaningful logic lives inside an object that's expensive or impossible to instantiate in a unit test — a GUI control, a framework callback, an async worker/thread, a transaction-managing controller. The asynchronicity or framework coupling forces slow, nondeterministic tests, so the logic ends up untested.
+
+**Solution**: Extract **all** the logic into a separate, plain object that's testable through synchronous calls. The original shell becomes a *humble* adapter that holds no logic — it just forwards framework calls to the testable object. The shell is so thin it needs no tests of its own.
+
+```
+// BEFORE — logic trapped in a UI/framework/thread shell
+class OrderView(FrameworkWidget):
+  def onSubmit():           // framework-invoked, hard to test
+    ...validation + pricing + state transitions...
+
+// AFTER — Humble shell + testable presenter
+class OrderPresenter:       // plain object, fully unit-testable
+  def submit(input) -> ViewModel: ...the real logic...
+
+class OrderView(FrameworkWidget):
+  def onSubmit():           // humble: no logic, just delegation
+    self.render(self.presenter.submit(self.readInput()))
+```
+
+Named variations: **Humble Dialog** (UI logic → presenter), **Humble Executable** (logic out of a thread/active object), **Humble Transaction Controller** (the business method takes no responsibility for begin/commit, so a test can wrap it in a transaction and roll back — the prerequisite for Transaction Rollback Teardown in `database-test-patterns.md`).
+
+**When to apply**: nontrivial logic in any component that's problematic to instantiate because it depends on a framework, a UI toolkit, a thread, or a transaction. This is the production-code answer to the *Minimize Untestable Code* principle.
+
+---
+
+## Pattern 7: Test Hook (last resort — prefer any seam above)
+
+**Problem**: None of the above seams can be introduced (e.g. a closed dependency that can't be injected, looked up, or subclassed), yet the code must be brought under test.
+
+**Solution**: A conditional in production code that alters behavior under test. **This is deliberately listed last because it *is* the Test Logic in Production smell** (`test-smells.md`): the tested path no longer equals the shipped path, and the hook can fail in production. Use only when no structural seam is possible, isolate the hook tightly, and treat its removal (by refactoring to a real seam) as outstanding debt.
+
+```
+// AVOID unless nothing else works — and plan to delete it
+def charge(amount):
+  if TEST_MODE: return FakeGatewayResult.ok()   // test logic in production
+  return realGateway.charge(amount)
+```
+
+Prefer, in order: Dependency Injection → Dependency Lookup → Test-Specific Subclass (override the seam method in a test subclass; see `test-doubles.md`) → Humble Object. A Test Hook is an admission that the design resisted all of them.
+
+---
+
 ## Anti-Patterns Table
 
 | Anti-Pattern | Why It's Wrong | Correct Alternative |
