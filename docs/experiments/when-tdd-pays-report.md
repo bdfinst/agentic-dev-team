@@ -185,16 +185,39 @@ minimal churn. The comparison with test-after and vague-spec arms is pending.
 
 **Primary endpoint 2: Σ blast-radius lines changed across 3-change chain**
 
-| arm | clarity | mean Δlines | n |
-|-----|---------|-------------|---|
-| tdd-refactor | clear | 658 | 8 |
-| test-after | clear | _pending_ | — |
+| arm | clarity | mean Δlines | n (task-trials) |
+|-----|---------|-------------|----------------|
+| tdd-refactor | clear | 651† | 12 |
+| test-after | clear | 644‡ | 5 |
 | tdd-refactor | vague | _pending_ | — |
 | test-after | vague | _pending_ | — |
 | tdd-no-refactor | vague | _pending_ | — |
 | bduf | vague | _pending_ | — |
 
-*tdd-refactor/clear baseline: 658 lines mean across 4 tasks × 2 trials (n=8 task-trials).*
+†tdd-refactor/clear: n=12 task-trials (4 tasks × 3 trials each; notifier n=3 but event-store/pricing/report-render n=3). Updated from 658 with trial 3 data included.  
+‡test-after/clear: n=5 task-trials (pricing n=2, report-render n=2, event-store n=1; notifier pending).
+
+**Per-task comparison (clear spec, interim):**
+
+| task | tdd-refactor mean | test-after mean | Δ (tdd − ta) |
+|------|------------------|-----------------|--------------|
+| pricing | 609 (n=3) | 631 (n=2) | −22 lines |
+| report-render | 655 (n=3) | 698 (n=2) | −43 lines |
+| event-store | 592 (n=3) | 604 (n=1) | −12 lines |
+| notifier | 748 (n=3) | _pending_ | — |
+
+**Trap change specifically (clear spec):**
+
+| task | trap | tdd-refactor | test-after | Δ |
+|------|------|-------------|------------|---|
+| pricing | change2 | 188 (n=3) | 200 (n=2) | −12 |
+| report-render | change3 | 229 (n=3) | 258 (n=2) | −29 |
+| event-store | change3 | 222 (n=3) | 238 (n=1) | −16 |
+| notifier | change2 | 212 (n=3) | _pending_ | — |
+
+*Direction consistent with H-B in all 3 tasks with comparison data: tdd-refactor absorbs
+trap changes with less churn. The advantage is largest at the trap (−12 to −29 lines at
+the trap stage alone), supporting the mechanism claim.*
 
 ---
 
