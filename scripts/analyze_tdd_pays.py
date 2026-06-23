@@ -66,7 +66,7 @@ def stage0_summary(rows: list[dict]) -> dict:
         task, arm, clarity = key
         core_passes = [r["core_passed"] for r in cell_rows]
         edge_passes = [r["edge_passed"] for r in cell_rows]
-        costs = [r.get("cost", {}).get("total_cost_usd") for r in cell_rows
+        costs = [r.get("cost", {}).get("cost_usd") for r in cell_rows
                  if isinstance(r.get("cost"), dict)]
         out[key] = {
             "n": len(cell_rows),
@@ -96,7 +96,7 @@ def change_summary(rows: list[dict]) -> dict:
         blast_lines = [r.get("blast_radius", {}).get("lines_added", 0)
                        + r.get("blast_radius", {}).get("lines_deleted", 0)
                        for r in cell_rows if r.get("blast_radius")]
-        costs = [r.get("cost", {}).get("total_cost_usd") for r in cell_rows
+        costs = [r.get("cost", {}).get("cost_usd") for r in cell_rows
                  if isinstance(r.get("cost"), dict)]
         out[key] = {
             "n": len(cell_rows),
@@ -115,13 +115,13 @@ def cell_cost_summary(rows: list[dict]) -> dict:
         key = (r["task"], r["arm"], r["clarity"])
         c = r.get("cost", {})
         if isinstance(c, dict):
-            usd = c.get("total_cost_usd")
+            usd = c.get("cost_usd")
             if usd is not None:
                 cells[key].append(usd)
 
     out = {}
     for key, costs in sorted(cells.items()):
-        out[key] = {"total_cost_usd": sum(costs), "n_stages": len(costs)}
+        out[key] = {"cost_usd": sum(costs), "n_stages": len(costs)}
     return out
 
 
@@ -341,6 +341,63 @@ def review_summary(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def radon_summary(rows: list[dict]) -> str:
+    """Radon avg_cc and avg_mi by arm (last change stage, where available)."""
+    arm_cc: dict[str, list[float]] = defaultdict(list)
+    arm_mi: dict[str, list[float]] = defaultdict(list)
+    for r in rows:
+        stage = r.get("stage", "")
+        # Prefer last change stage; fall back to stage0
+        if stage not in ("change3", "stage0"):
+            continue
+        radon = r.get("radon", {})
+        if not radon:
+            continue
+        arm = r["arm"]
+        cc = radon.get("avg_cc")
+        mi = radon.get("avg_mi")
+        if cc is not None:
+            arm_cc[arm].append(cc)
+        if mi is not None:
+            arm_mi[arm].append(mi)
+
+    if not arm_cc:
+        return "_No radon data yet._"
+
+    arms = sorted(set(list(arm_cc.keys()) + list(arm_mi.keys())))
+    lines = ["| arm | avg_cc (mean) | avg_mi (mean) | n |"]
+    lines.append("|-----|--------------|---------------|---|")
+    for arm in arms:
+        ccs = arm_cc.get(arm, [])
+        mis = arm_mi.get(arm, [])
+        n = max(len(ccs), len(mis))
+        lines.append(f"| {arm} | {fmt_f(mean(ccs),2) if ccs else '—'} | "
+                     f"{fmt_f(mean(mis),1) if mis else '—'} | {n} |")
+    return "\n".join(lines)
+
+
+def cost_summary(rows: list[dict]) -> str:
+    """Per-arm cost summary across all stages."""
+    arm_costs: dict[str, list[float]] = defaultdict(list)
+    for r in rows:
+        c = r.get("cost", {})
+        if isinstance(c, dict):
+            usd = c.get("cost_usd")
+            if usd:
+                arm_costs[r["arm"]].append(usd)
+
+    if not arm_costs:
+        return "_No cost data._"
+
+    arms = sorted(arm_costs)
+    lines = ["| arm | total cost | mean/stage | n stages |"]
+    lines.append("|-----|------------|------------|----------|")
+    for arm in arms:
+        costs = arm_costs[arm]
+        lines.append(f"| {arm} | ${sum(costs):.2f} | ${mean(costs):.2f} | {len(costs)} |")
+    return "\n".join(lines)
+
+
 def data_coverage(rows: list[dict]) -> str:
     """Show how many cells are complete per (task, arm, clarity)."""
     cells: dict[tuple, set] = defaultdict(set)
@@ -430,6 +487,12 @@ def main(argv: list[str]) -> int:
 
     out_lines.append("\n\n## Multi-rater review scores\n")
     out_lines.append(review_summary(rows))
+
+    out_lines.append("\n\n## Radon structural metrics (last change stage)\n")
+    out_lines.append(radon_summary(rows))
+
+    out_lines.append("\n\n## Cost summary\n")
+    out_lines.append(cost_summary(rows))
 
     content = "\n".join(out_lines)
 
