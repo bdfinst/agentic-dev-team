@@ -9,6 +9,41 @@
 
 ---
 
+## Executive Summary
+
+This experiment crossed **requirement clarity** (clear vs vague spec) with **coding workflow** (TDD with refactoring, TDD without refactoring, test-after, big-design-up-front) on four open-design tasks, each containing a deliberate design trap. 288 graded dispatches across 72 cells, 3 trials per cell.
+
+**Bottom line in one sentence:** TDD with disciplined refactoring produces the most changeable code, but no coding workflow compensates for a vague spec — that is a communication problem, and the solution is a conversation, not a methodology.
+
+### Findings at a glance
+
+| Question | Finding |
+|----------|---------|
+| Does TDD produce better edge-case coverage under vague spec? | **No — the opposite.** test-after: 67%, tdd-refactor: 33% (H-A rejected, reversed) |
+| Does TDD produce more changeable code? | **Yes.** tdd-refactor: 664 mean Δlines vs 700–770 for all other arms (H-B confirmed) |
+| Is refactoring the mechanism, or test-first ordering? | **Refactoring.** tdd-no-refactor (701) ≈ test-after (700); removing the refactor step erases the advantage (H-B2 confirmed) |
+| Is TDD's advantage largest under vague spec? | **No.** The gap is consistent across clarity conditions (H-C not confirmed) |
+| What about vague requirements? | **Fix the spec first.** The notifier task — where the spec omitted per-channel retry semantics — produced EDGE=0% for every workflow. No amount of TDD or upfront design recovers information that was never stated. |
+
+### Workflow decision guide
+
+| Situation | Recommended workflow |
+|-----------|---------------------|
+| Vague requirements | **Stop and clarify first.** Then: write code, write tests against it, show the test contract to the stakeholder for review |
+| Clear requirements, long-lived codebase, expected changes | **TDD with refactoring** (−5–12% blast radius over a 3-change chain) |
+| Clear requirements, one-shot delivery | **test-after** (same quality, 2.3× cheaper than TDD) |
+| Speed-first, throwaway code | **tdd-no-refactor or test-after** (same changeability, lower cost) |
+
+### Key numbers
+
+- **tdd-refactor blast radius:** 664 mean Δlines (lowest)
+- **test-after EDGE under vague:** 67% (highest; tdd-refactor: 33%)
+- **Cost:** tdd-refactor $0.44/stage vs test-after $0.19/stage
+- **Refactoring matters:** tdd-no-refactor (no refactor step) = 701 lines, indistinguishable from test-after (700) — the green→refactor cycle is load-bearing
+- **Spec-gap is irreducible:** notifier EDGE=0% for all four workflows under vague spec
+
+---
+
 ## Pre-registration (recorded before any graded result was seen)
 
 **Timestamp:** 2026-06-23T15:31:59Z  
@@ -64,10 +99,18 @@ minimal surgery.
 
 ### Grading
 
-- **Stage 0:** `acc_core.py` (happy-path — always passable under vague spec) +
-  `acc_edge.py` (omitted decisions — sometimes missed under vague).
-- **Change stages 1–3:** cumulative grade files (all prior + new) injected at
-  grading time only; never present during the build.
+Each stage is graded against two acceptance test suites:
+
+- **CORE** (`acc_core.py`): happy-path assertions covering the behaviour explicitly
+  stated in the spec. Always passable under a vague spec — a baseline for "did the
+  agent build the right module at all."
+- **EDGE** (`acc_edge.py`): assertions covering behaviours the spec *omitted* —
+  edge cases, error handling, and boundary decisions the agent had to infer or choose.
+  Under a vague spec, EDGE pass rate measures how well the agent filled the gaps.
+  This is the primary discriminator for RQ-A.
+
+Stage 0 grades both. Change stages 1–3 use cumulative grade files (all prior + new),
+injected at grading time only; never present during the build.
 
 ---
 
@@ -434,23 +477,31 @@ edge-case decisions early, producing better contract inference under ambiguity.
 The data shows the opposite: writing tests _after_ building a working system
 produces higher EDGE pass rates under vague spec.
 
-Two mechanisms are compatible with this finding:
+**The most important finding first — vague requirements are a communication problem,
+not a technical one.** The notifier task makes this unavoidable: its vague spec omitted
+per-channel retry semantics that are not inferrable from context. Every workflow —
+TDD, test-after, BDUF — scored 0% EDGE. No methodology compensates for information
+that was never stated. The correct response to a vague spec is a conversation with the
+stakeholder, not a choice of coding workflow.
 
-1. **Anchoring effect:** TDD's red tests commit the agent to a specific interpretation
-   of the vague spec before any implementation feedback is available. That commitment
-   may be systematically incomplete (missing the decisions the EDGE tests care about).
-   test-after sees a full working implementation and can write tests that cover its
-   actual behaviour — including emergent edge handling.
+For the ambiguities that *are* recoverable from context (pricing, event-store), two
+mechanisms explain why test-after outperforms TDD:
 
-2. **Spec-gap vs workflow-gap:** The notifier result (0% EDGE for ALL arms) establishes
-   that some ambiguities are irreducible: no workflow recovers information that simply
-   isn't in the spec. The event-store and pricing results show that where information IS
-   recoverable from context, test-after recovers more of it than tdd-refactor.
+1. **Anchoring effect:** TDD's red tests commit to a specific interpretation of the
+   vague spec before any implementation feedback is available. That commitment may be
+   systematically incomplete — missing the edge decisions the EDGE tests care about.
+   test-after sees a full working implementation first, then writes tests that capture
+   its actual behaviour, including emergent edge handling that the spec didn't specify.
+
+2. **Spec-gap vs workflow-gap:** The notifier result (0% EDGE for all arms) establishes
+   a ceiling: some ambiguities are irreducible. The event-store and pricing results
+   show that where information IS recoverable from context, test-after recovers more of
+   it. TDD's anchoring effect is a liability exactly where you'd hope it would help.
 
 The tdd-no-refactor arm provides a further clue: it collapses entirely on event-store
 (0/3 CORE, 0/3 change stages), while test-after passes 3/3. Both arms write tests,
-but tdd-no-refactor writes them _before_ seeing a working system — and in the absence
-of a clear spec, those tests do not constrain the design enough to produce a valid
+but tdd-no-refactor writes them _before_ seeing a working system — and under a vague
+spec, those early tests do not constrain the design enough to produce a valid
 implementation. The order of seeing-code-then-writing-tests appears protective.
 
 ### The H-B/H-B2 result: refactoring is the changeability driver
@@ -534,34 +585,55 @@ which provided the cleanest RQ-A signal.
 
 ## Recommendation
 
-**For changeability (H-B/H-B2 confirmed):** Use TDD with disciplined refactoring when
-the codebase will undergo a multi-stage change chain and the initial design space is
-open. The blast-radius advantage (~5–12% fewer lines across 3 changes) compounds with
-code longevity. Skip the refactoring step and the advantage disappears entirely.
+### On vague requirements: this is a communication problem
 
-**For contract inference under vague spec (H-A rejected, reversed):** The data does
-_not_ support using TDD to resolve ambiguity — test-after outperforms tdd-refactor on
-EDGE pass rate under vague spec. Two practical interpretations:
+The notifier result is the clearest finding in the entire dataset: when the spec omits
+information that is not inferrable from context, every workflow scores 0% on the
+behavioural assertions that depend on it. TDD, test-after, and BDUF are indistinguishable
+at the floor. **No coding methodology compensates for information that was never stated.**
 
-1. When the spec is vague, write the code first (however loosely), then write tests
-   against the working implementation. This produces more complete edge-case coverage
-   than committing to red tests up front.
-2. Fix the spec. The notifier result is the clearest finding in the dataset: when
-   information is absent, no workflow recovers it. Asking for clarification before
-   building is more effective than any coding workflow.
+The practical response to a vague spec is not a workflow choice — it is a conversation.
+Before building, identify what the spec leaves unstated and ask. The cost of a
+clarifying question is minutes; the cost of building the wrong contract is discovered
+later, and measured in the blast-radius numbers in this report.
 
-**Cost-adjusted recommendation:** test-after is the cheapest arm ($0.19/stage) AND
-achieves the best EDGE pass rate under vague spec. tdd-refactor is the most expensive
-($0.44/stage, 2.3×) AND achieves the best changeability. The choice is context-dependent:
-- Vague requirements, one-shot delivery → test-after
-- Clear requirements, long-lived codebase with expected changes → tdd-refactor
-- Neither (just getting it working quickly) → tdd-no-refactor (same blast radius as
-  test-after, slightly cheaper)
+For the ambiguities that *are* contextually recoverable, test-after (67% EDGE under
+vague) outperforms TDD (33%) because it defers commitment until after a working
+implementation exists. The workflow that follows from the data:
+
+1. Identify what is missing from the spec and ask the stakeholder
+2. Build something working
+3. Write tests against what you built — not what you imagined
+4. Show the test contract to the stakeholder as a precise statement of assumed behaviour
+
+This surfaces decisions that were implicit and turns them into an explicit conversation,
+which is what the spec should have contained in the first place.
+
+### On changeability: TDD with refactoring works, but only the refactoring step matters
+
+**For long-lived codebases with expected changes:** Use TDD with disciplined refactoring.
+The blast-radius advantage (~5–12% fewer lines across a 3-change chain) is consistent
+across all 4 tasks and both clarity conditions. It compounds with code longevity.
+
+**The refactoring step is load-bearing.** tdd-no-refactor (701 mean Δlines) ≈ test-after
+(700) — removing the green→refactor cycle eliminates the changeability advantage entirely.
+Teams doing test-first without disciplined refactoring pay the cost premium of TDD
+(2.3× per stage) with none of the benefit.
+
+### Cost-adjusted decision guide
+
+| Situation | Recommended workflow | Why |
+|-----------|---------------------|-----|
+| Vague requirements | **Clarify first, then test-after** | No workflow beats a conversation; test-after then captures the contract you actually built |
+| Clear requirements, long-lived codebase | **TDD with refactoring** | −5–12% blast radius over a change chain |
+| Clear requirements, one-shot delivery | **test-after** | Same quality, 2.3× cheaper than TDD |
+| Speed-first / throwaway | **test-after or tdd-no-refactor** | Same changeability as each other, lower cost |
 
 **What this adds to the prior null results:** The prior two studies found no TDD
-advantage under clear specs with no change chain. This experiment confirms that the
-advantage is real — but only for changeability under a change chain, not for
-ambiguity resolution. TDD pays off, but not for the reason most commonly claimed.
+advantage under clear specs with no change chain. This experiment confirms the advantage
+is real — but only for changeability under a change chain, not for ambiguity resolution.
+TDD pays off, but not for the reason most commonly claimed, and only when the refactoring
+step is taken seriously.
 
 ---
 
