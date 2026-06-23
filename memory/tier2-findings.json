@@ -1,0 +1,272 @@
+[
+  {
+    "session_id": "ea1f1644-ec0a-485b-9b92-d3db0474e9cd",
+    "project": "agentic-dev-team",
+    "lens": "harness",
+    "friction_type": "wrong-tool-hook-trigger",
+    "target_artifact": "post-format.sh",
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "ea1f1644-ec0a-485b-9b92-d3db0474e9cd",
+    "project": "agentic-dev-team",
+    "lens": "harness",
+    "friction_type": "codegraph-nudge-ignored",
+    "target_artifact": "codegraph-nudge.sh",
+    "confidence": "high",
+    "count": 8
+  },
+  {
+    "session_id": "ea1f1644-ec0a-485b-9b92-d3db0474e9cd",
+    "project": "agentic-dev-team",
+    "lens": "accuracy",
+    "friction_type": "spec-contradicts-harness-reality",
+    "target_artifact": "specs",
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "ea1f1644-ec0a-485b-9b92-d3db0474e9cd",
+    "project": "agentic-dev-team",
+    "lens": "methodology",
+    "friction_type": "agent-self-closes-consistency-gate",
+    "target_artifact": null,
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "ea1f1644-ec0a-485b-9b92-d3db0474e9cd",
+    "project": "agentic-dev-team",
+    "lens": "devex",
+    "friction_type": "parallel-codebase-read-paths",
+    "target_artifact": "specs",
+    "confidence": "medium",
+    "count": 3
+  },
+  {
+    "session_id": "ea1f1644-ec0a-485b-9b92-d3db0474e9cd",
+    "project": "agentic-dev-team",
+    "lens": "accuracy",
+    "friction_type": "stale-snapshot-id-in-spec-artifact",
+    "target_artifact": "specs",
+    "confidence": "medium",
+    "count": 1
+  },
+  {
+    "session_id": "ea1f1644-ec0a-485b-9b92-d3db0474e9cd",
+    "project": "agentic-dev-team",
+    "lens": "harness",
+    "friction_type": "bash-path-assumption-error",
+    "target_artifact": "specs",
+    "confidence": "medium",
+    "count": 2
+  },
+  {
+    "session_id": "b1248be2-62ef-40e9-b2f0-f70f409b48a6",
+    "project": "my_tools",
+    "lens": "harness",
+    "friction_type": "missing-artifact-path",
+    "target_artifact": "dev-team:upgrade",
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "b1248be2-62ef-40e9-b2f0-f70f409b48a6",
+    "project": "my_tools",
+    "lens": "accuracy",
+    "friction_type": "hook-instruction-ignored",
+    "target_artifact": "aci-devops-task",
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "b1248be2-62ef-40e9-b2f0-f70f409b48a6",
+    "project": "my_tools",
+    "lens": "accuracy",
+    "friction_type": "stale-artifact-not-self-detected",
+    "target_artifact": "dev-team:specs",
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "b1248be2-62ef-40e9-b2f0-f70f409b48a6",
+    "project": "my_tools",
+    "lens": "harness",
+    "friction_type": "cross-plugin-hook-false-positive",
+    "target_artifact": "pre-publish.sh",
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "b1248be2-62ef-40e9-b2f0-f70f409b48a6",
+    "project": "my_tools",
+    "lens": "devex",
+    "friction_type": "lint-errors-silently-ignored",
+    "target_artifact": "post-markdownlint.sh",
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "b1248be2-62ef-40e9-b2f0-f70f409b48a6",
+    "project": "my_tools",
+    "lens": "methodology",
+    "friction_type": "implicit-phase-escalation-without-user-gate",
+    "target_artifact": null,
+    "confidence": "medium",
+    "count": 1
+  },
+  {
+    "session_id": "caf816cf-81a5-46cf-890b-09d5ace4a153",
+    "project": "sppe-renovatebot",
+    "lens": "harness",
+    "friction_type": "codegraph-hint-ignored-on-every-read",
+    "target_artifact": "PreToolUse-Read-hook",
+    "confidence": "high",
+    "count": 4
+  },
+  {
+    "session_id": "caf816cf-81a5-46cf-890b-09d5ace4a153",
+    "project": "sppe-renovatebot",
+    "lens": "accuracy",
+    "friction_type": "repeated-decision-deferral-on-same-slice",
+    "target_artifact": "dev-team:specs",
+    "confidence": "high",
+    "count": 3
+  },
+  {
+    "session_id": "caf816cf-81a5-46cf-890b-09d5ace4a153",
+    "project": "sppe-renovatebot",
+    "lens": "harness",
+    "friction_type": "markdownlint-post-write-noise-not-actioned",
+    "target_artifact": "PostToolUse-Write-hook",
+    "confidence": "medium",
+    "count": 1
+  },
+  {
+    "session_id": "caf816cf-81a5-46cf-890b-09d5ace4a153",
+    "project": "sppe-renovatebot",
+    "lens": "methodology",
+    "friction_type": "aci-task-creation-routed-to-wrong-layer",
+    "target_artifact": null,
+    "confidence": "medium",
+    "count": 5
+  },
+  {
+    "session_id": "caf816cf-81a5-46cf-890b-09d5ace4a153",
+    "project": "sppe-renovatebot",
+    "lens": "devex",
+    "friction_type": "scope-split-protocol-overridden-by-user-increasing-rework",
+    "target_artifact": "dev-team:specs",
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "caf816cf-81a5-46cf-890b-09d5ace4a153",
+    "project": "sppe-renovatebot",
+    "lens": "accuracy",
+    "friction_type": "architectural-risk-deferred-into-spec-rather-than-surfaced-before-gate",
+    "target_artifact": "dev-team:specs",
+    "confidence": "medium",
+    "count": 2
+  },
+  {
+    "session_id": "caf816cf-81a5-46cf-890b-09d5ace4a153",
+    "project": "sppe-renovatebot",
+    "lens": "devex",
+    "friction_type": "session-start-hook-interrupts-primary-skill-before-parent-wi-known",
+    "target_artifact": "aci-devops-task",
+    "confidence": "medium",
+    "count": 1
+  },
+  {
+    "session_id": "7231ee2e-7346-4ff5-9b45-5f14670c7722",
+    "project": "nextgen-internetapi",
+    "lens": "harness",
+    "friction_type": "codegraph-bypassed",
+    "target_artifact": "code-review",
+    "confidence": "high",
+    "count": 8
+  },
+  {
+    "session_id": "7231ee2e-7346-4ff5-9b45-5f14670c7722",
+    "project": "nextgen-internetapi",
+    "lens": "methodology",
+    "friction_type": "duplicate-discovery-pass",
+    "target_artifact": null,
+    "confidence": "high",
+    "count": 2
+  },
+  {
+    "session_id": "7231ee2e-7346-4ff5-9b45-5f14670c7722",
+    "project": "nextgen-internetapi",
+    "lens": "devex",
+    "friction_type": "sessionstart-hook-ignored",
+    "target_artifact": "aci-devops-task",
+    "confidence": "medium",
+    "count": 1
+  },
+  {
+    "session_id": "7231ee2e-7346-4ff5-9b45-5f14670c7722",
+    "project": "nextgen-internetapi",
+    "lens": "methodology",
+    "friction_type": "sequential-sampling-before-parallel-dispatch",
+    "target_artifact": null,
+    "confidence": "high",
+    "count": 6
+  },
+  {
+    "session_id": "7231ee2e-7346-4ff5-9b45-5f14670c7722",
+    "project": "nextgen-internetapi",
+    "lens": "harness",
+    "friction_type": "review-alias-double-skill-load",
+    "target_artifact": "dev-team:review",
+    "confidence": "medium",
+    "count": 1
+  },
+  {
+    "session_id": "7231ee2e-7346-4ff5-9b45-5f14670c7722",
+    "project": "nextgen-internetapi",
+    "lens": "accuracy",
+    "friction_type": "test-scope-underspecified-to-review-agents",
+    "target_artifact": "dev-team:test-review",
+    "confidence": "medium",
+    "count": 1
+  },
+  {
+    "session_id": "777e0e2d-6985-4d0f-8e4f-6c495a10a716",
+    "project": "sppe-backstage",
+    "lens": "harness",
+    "friction_type": "hook-false-positive",
+    "target_artifact": "pre-publish.sh",
+    "confidence": "high",
+    "count": 5
+  },
+  {
+    "session_id": "777e0e2d-6985-4d0f-8e4f-6c495a10a716",
+    "project": "sppe-backstage",
+    "lens": "accuracy",
+    "friction_type": "wrong-skill-invoked",
+    "target_artifact": "writing-core:specs",
+    "confidence": "high",
+    "count": 1
+  },
+  {
+    "session_id": "777e0e2d-6985-4d0f-8e4f-6c495a10a716",
+    "project": "sppe-backstage",
+    "lens": "devex",
+    "friction_type": "missing-skill-invocation",
+    "target_artifact": "agentic-dev-team:design-doc",
+    "confidence": "medium",
+    "count": 1
+  },
+  {
+    "session_id": "777e0e2d-6985-4d0f-8e4f-6c495a10a716",
+    "project": "sppe-backstage",
+    "lens": "methodology",
+    "friction_type": "prose-spec-framing-applied-to-technical-spec",
+    "target_artifact": null,
+    "confidence": "medium",
+    "count": 1
+  }
+]

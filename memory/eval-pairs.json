@@ -1,0 +1,500 @@
+[
+  {
+    "stem": "ar-clean-arch",
+    "target": "arch-review",
+    "fixture": "evals/fixtures/ar-clean-arch.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "ar-layer-violation",
+    "target": "arch-review",
+    "fixture": "evals/fixtures/ar-layer-violation.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "cs-broken-paths",
+    "target": "claude-setup-review",
+    "fixture": "evals/fixtures/cs-broken-paths",
+    "type": "agent"
+  },
+  {
+    "stem": "cs-complete-setup",
+    "target": "claude-setup-review",
+    "fixture": "evals/fixtures/cs-complete-setup",
+    "type": "agent"
+  },
+  {
+    "stem": "cs-minimal-valid",
+    "target": "claude-setup-review",
+    "fixture": "evals/fixtures/cs-minimal-valid",
+    "type": "agent"
+  },
+  {
+    "stem": "cs-missing-sections",
+    "target": "claude-setup-review",
+    "fixture": "evals/fixtures/cs-missing-sections",
+    "type": "agent"
+  },
+  {
+    "stem": "cx-callback-hell",
+    "target": "complexity-review",
+    "fixture": "evals/fixtures/cx-callback-hell.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "cx-clean-functions",
+    "target": "complexity-review",
+    "fixture": "evals/fixtures/cx-clean-functions.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "cx-deep-nesting",
+    "target": "complexity-review",
+    "fixture": "evals/fixtures/cx-deep-nesting.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "cx-god-function",
+    "target": "complexity-review",
+    "fixture": "evals/fixtures/cx-god-function.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "cx-refactor-after",
+    "target": "complexity-review",
+    "fixture": "evals/fixtures/cx-refactor-after",
+    "type": "agent"
+  },
+  {
+    "stem": "cx-refactor-before",
+    "target": "complexity-review",
+    "fixture": "evals/fixtures/cx-refactor-before",
+    "type": "agent"
+  },
+  {
+    "stem": "cx-simple-logic",
+    "target": "complexity-review",
+    "fixture": "evals/fixtures/cx-simple-logic.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "dm-clean-boundaries",
+    "target": "domain-review",
+    "fixture": "evals/fixtures/dm-clean-boundaries.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "dm-leaky-abstraction",
+    "target": "domain-review",
+    "fixture": "evals/fixtures/dm-leaky-abstraction.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "dm-logic-in-ui",
+    "target": "domain-review",
+    "fixture": "evals/fixtures/dm-logic-in-ui.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "dm-missing-dtos",
+    "target": "domain-review",
+    "fixture": "evals/fixtures/dm-missing-dtos.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "dm-proper-events",
+    "target": "domain-review",
+    "fixture": "evals/fixtures/dm-proper-events.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "dr-accurate-docs",
+    "target": "doc-review",
+    "fixture": "evals/fixtures/dr-accurate-docs.md",
+    "type": "agent"
+  },
+  {
+    "stem": "dr-stale-readme",
+    "target": "doc-review",
+    "fixture": "evals/fixtures/dr-stale-readme.md",
+    "type": "agent"
+  },
+  {
+    "stem": "ex-explore-command-missing",
+    "target": "claude-setup-review",
+    "fixture": "evals/fixtures/ex-explore-command-missing",
+    "type": "agent"
+  },
+  {
+    "stem": "ex-explore-command-present",
+    "target": "claude-setup-review",
+    "fixture": "evals/fixtures/ex-explore-command-present",
+    "type": "agent"
+  },
+  {
+    "stem": "fp-array-mutations",
+    "target": "js-fp-review",
+    "fixture": "evals/fixtures/fp-array-mutations.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "fp-global-state",
+    "target": "js-fp-review",
+    "fixture": "evals/fixtures/fp-global-state.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "fp-immutable-state",
+    "target": "js-fp-review",
+    "fixture": "evals/fixtures/fp-immutable-state.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "fp-object-mutations",
+    "target": "js-fp-review",
+    "fixture": "evals/fixtures/fp-object-mutations.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "fp-pure-transforms",
+    "target": "js-fp-review",
+    "fixture": "evals/fixtures/fp-pure-transforms.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "fp-safe-sort",
+    "target": "js-fp-review",
+    "fixture": "evals/fixtures/fp-safe-sort.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "int-string-calculator",
+    "target": "orchestrator",
+    "fixture": "evals/fixtures/int-string-calculator",
+    "type": "skill"
+  },
+  {
+    "stem": "nm-clear-names",
+    "target": "naming-review",
+    "fixture": "evals/fixtures/nm-clear-names.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "nm-consistency-canonical",
+    "target": "naming-review",
+    "fixture": "evals/fixtures/nm-consistency-canonical.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "nm-consistent-conventions",
+    "target": "naming-review",
+    "fixture": "evals/fixtures/nm-consistent-conventions.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "nm-inconsistent-naming",
+    "target": "naming-review",
+    "fixture": "evals/fixtures/nm-inconsistent-naming.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "nm-magic-values",
+    "target": "naming-review",
+    "fixture": "evals/fixtures/nm-magic-values.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "nm-misleading-names",
+    "target": "naming-review",
+    "fixture": "evals/fixtures/nm-misleading-names.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sec-env-gitignored",
+    "target": "security-review",
+    "fixture": "evals/fixtures/sec-env-gitignored",
+    "type": "agent"
+  },
+  {
+    "stem": "sec-hardcoded-secrets",
+    "target": "security-review",
+    "fixture": "evals/fixtures/sec-hardcoded-secrets.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sec-safe-auth",
+    "target": "security-review",
+    "fixture": "evals/fixtures/sec-safe-auth.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sec-safe-headers",
+    "target": "security-review",
+    "fixture": "evals/fixtures/sec-safe-headers.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sec-sql-injection",
+    "target": "security-review",
+    "fixture": "evals/fixtures/sec-sql-injection.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sec-xss-vulnerable",
+    "target": "security-review",
+    "fixture": "evals/fixtures/sec-xss-vulnerable.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "st-clean-modules",
+    "target": "structure-review",
+    "fixture": "evals/fixtures/st-clean-modules.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "st-duplicate-code",
+    "target": "structure-review",
+    "fixture": "evals/fixtures/st-duplicate-code.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "st-god-object",
+    "target": "structure-review",
+    "fixture": "evals/fixtures/st-god-object.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "st-mixed-concerns",
+    "target": "structure-review",
+    "fixture": "evals/fixtures/st-mixed-concerns.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "st-organized-exports",
+    "target": "structure-review",
+    "fixture": "evals/fixtures/st-organized-exports.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sv-clean-lifecycle.svelte",
+    "target": "svelte-review",
+    "fixture": "evals/fixtures/sv-clean-lifecycle.svelte.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sv-closure-state-leak.svelte",
+    "target": "svelte-review",
+    "fixture": "evals/fixtures/sv-closure-state-leak.svelte.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sv-effect-pitfalls.svelte",
+    "target": "svelte-review",
+    "fixture": "evals/fixtures/sv-effect-pitfalls.svelte.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sv-lifecycle-issues.svelte",
+    "target": "svelte-review",
+    "fixture": "evals/fixtures/sv-lifecycle-issues.svelte.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sv-proper-reactive.svelte",
+    "target": "svelte-review",
+    "fixture": "evals/fixtures/sv-proper-reactive.svelte.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sv-safe-stores.svelte",
+    "target": "svelte-review",
+    "fixture": "evals/fixtures/sv-safe-stores.svelte.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sv-state-proxy-pitfalls.svelte",
+    "target": "svelte-review",
+    "fixture": "evals/fixtures/sv-state-proxy-pitfalls.svelte.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "sv-store-subscription-leak.svelte",
+    "target": "svelte-review",
+    "fixture": "evals/fixtures/sv-store-subscription-leak.svelte.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "te-clean-code",
+    "target": "token-efficiency-review",
+    "fixture": "evals/fixtures/te-clean-code.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "te-duplicate-code",
+    "target": "token-efficiency-review",
+    "fixture": "evals/fixtures/te-duplicate-code.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "te-efficient-claude",
+    "target": "token-efficiency-review",
+    "fixture": "evals/fixtures/te-efficient-claude.md",
+    "type": "agent"
+  },
+  {
+    "stem": "te-long-functions",
+    "target": "token-efficiency-review",
+    "fixture": "evals/fixtures/te-long-functions.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "te-verbose-claude",
+    "target": "token-efficiency-review",
+    "fixture": "evals/fixtures/te-verbose-claude.md",
+    "type": "agent"
+  },
+  {
+    "stem": "test-assertion-roulette.test",
+    "target": "test-smell-review",
+    "fixture": "evals/fixtures/test-assertion-roulette.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "test-clean-doubles.test",
+    "target": "test-smell-review",
+    "fixture": "evals/fixtures/test-clean-doubles.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "test-missing-edge-cases.test",
+    "target": "test-review",
+    "fixture": "evals/fixtures/test-missing-edge-cases.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "test-mystery-guest.test",
+    "target": "test-smell-review",
+    "fixture": "evals/fixtures/test-mystery-guest.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "test-no-assertions.test",
+    "target": "test-review",
+    "fixture": "evals/fixtures/test-no-assertions.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "test-overspecified-mocks.test",
+    "target": "test-smell-review",
+    "fixture": "evals/fixtures/test-overspecified-mocks.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "test-shared-state.test",
+    "target": "test-review",
+    "fixture": "evals/fixtures/test-shared-state.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "test-thorough-edge-cases.test",
+    "target": "test-review",
+    "fixture": "evals/fixtures/test-thorough-edge-cases.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "test-weak-assertions.test",
+    "target": "test-review",
+    "fixture": "evals/fixtures/test-weak-assertions.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "test-well-structured.test",
+    "target": "test-review",
+    "fixture": "evals/fixtures/test-well-structured.test.ts",
+    "type": "agent"
+  },
+  {
+    "stem": "tlg-01-pure-function",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-01-pure-function.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-02-user-facing-dynamic",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-02-user-facing-dynamic.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-03-browser-bug-fix",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-03-browser-bug-fix.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-04-unit-bug-fix",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-04-unit-bug-fix.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-05-htmx-swap-mutation",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-05-htmx-swap-mutation.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-06-alpine-toggle",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-06-alpine-toggle.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-07-pdf-with-reference",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-07-pdf-with-reference.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-08-email-no-reference",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-08-email-no-reference.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-09-critical-single-layer",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-09-critical-single-layer.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-10-multi-gate",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-10-multi-gate.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tlg-11-ambiguous",
+    "target": "test-design-advisor",
+    "fixture": "evals/fixtures/tlg-11-ambiguous.md",
+    "type": "skill"
+  },
+  {
+    "stem": "tmr-phase1-missing-seams",
+    "target": "test-modernization-review",
+    "fixture": "evals/fixtures/tmr-phase1-missing-seams",
+    "type": "agent"
+  },
+  {
+    "stem": "tmr-phase1-pass",
+    "target": "test-modernization-review",
+    "fixture": "evals/fixtures/tmr-phase1-pass",
+    "type": "agent"
+  },
+  {
+    "stem": "tr-consistency-canonical",
+    "target": "test-review",
+    "fixture": "evals/fixtures/tr-consistency-canonical.ts",
+    "type": "agent"
+  }
+]
