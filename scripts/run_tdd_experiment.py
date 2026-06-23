@@ -271,7 +271,7 @@ def measure_coverage(workdir: Path, env: dict, prod: list[Path]) -> dict:
         return out
     cov_env = dict(env)
     cov_env["COVERAGE_FILE"] = str(workdir / ".coverage")
-    run = subprocess.run(
+    run = _run_timed(
         ["python3", "-m", "coverage", "run", "--branch", "--source=.",
          "-m", "pytest", "-q"],
         cwd=str(workdir), env=cov_env, capture_output=True, text=True)
@@ -281,10 +281,10 @@ def measure_coverage(workdir: Path, env: dict, prod: list[Path]) -> dict:
                             + list(workdir.rglob("*_test.py")))):
             if "__pycache__" in t.parts:
                 continue
-            subprocess.run(["python3", "-m", "coverage", "run", "--branch",
-                            "--append", "--source=.", str(t)],
-                           cwd=str(workdir), env=cov_env,
-                           capture_output=True, text=True)
+            _run_timed(["python3", "-m", "coverage", "run", "--branch",
+                        "--append", "--source=.", str(t)],
+                       cwd=str(workdir), env=cov_env,
+                       capture_output=True, text=True)
         out["tests_passed"] = (_pytest_rc(workdir, env) == 0)
     subprocess.run(
         ["python3", "-m", "coverage", "json", "-o", str(workdir / "cov.json")],
@@ -321,6 +321,23 @@ def _is_int_const(node) -> bool:
             and not isinstance(node.value, bool))
 
 
+# A wall-clock cap on every agent/mutant test run. Without it, a mutation that
+# turns a loop into an infinite loop (e.g. flipping a roman-numeral subtractive
+# `while n >= v`) hangs pytest forever and the whole cell stalls. A timed-out run
+# is treated as a FAILED run (rc=124): a healthy suite finishes well under this,
+# and an infinite-loop mutant SHOULD count as killed. Kept low so a handful of
+# loop-breaking mutants in one cell cannot dominate wall-clock.
+PYTEST_TIMEOUT = 30
+
+
+def _run_timed(cmd: list[str], **kw):
+    """subprocess.run with PYTEST_TIMEOUT; on timeout return rc=124."""
+    try:
+        return subprocess.run(cmd, timeout=PYTEST_TIMEOUT, **kw)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, 124, "", "timeout")
+
+
 def _pytest_rc(workdir: Path, env: dict) -> int:
     """Return a normalized test result: 0 = green, non-zero = a test failed.
 
@@ -328,8 +345,8 @@ def _pytest_rc(workdir: Path, env: dict) -> int:
     (exit 5) -- this is what made the earlier 'un-measurable' cells: the agent's
     tests were plain assert scripts pytest does not collect.
     """
-    r = subprocess.run(["python3", "-m", "pytest", "-q"], cwd=str(workdir),
-                       env=env, capture_output=True, text=True)
+    r = _run_timed(["python3", "-m", "pytest", "-q"], cwd=str(workdir),
+                   env=env, capture_output=True, text=True)
     if r.returncode != 5:
         return r.returncode
     test_files = sorted(set(list(workdir.glob("test_*.py"))
@@ -338,8 +355,8 @@ def _pytest_rc(workdir: Path, env: dict) -> int:
     for t in test_files:
         if "__pycache__" in t.parts:
             continue
-        rr = subprocess.run(["python3", str(t)], cwd=str(workdir), env=env,
-                            capture_output=True, text=True)
+        rr = _run_timed(["python3", str(t)], cwd=str(workdir), env=env,
+                        capture_output=True, text=True)
         ran = True
         if rr.returncode != 0:
             return 1
