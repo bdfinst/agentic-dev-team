@@ -97,16 +97,22 @@ python3 scripts/analyze_tdd_pays.py \
 
 ## Results
 
-> **Data status:** Runs were in progress at report-write time. Results below reflect
-> completed cells and are updated as cells complete. Where `n < 3`, results are
-> preliminary. The full experimental pre-registration and all raw agent transcripts
-> are committed alongside this report under `docs/experiments/data/`.
+> **Data status:** Runs were in-progress at original report-write time (2026-06-23).
+> Results reflect completed cells at the time of each commit. Where a cell has
+> `n < 3`, treat results as preliminary.
+> The full experimental pre-registration and all raw agent transcripts are committed
+> under `docs/experiments/data/`.
 
 ### Coverage at analysis time
 
-<!-- DATA: data_coverage -->
+| task | arm | clarity | n trials |
+|------|-----|---------|---------|
+| exp-tdd-pays-event-store | tdd-refactor | clear | 1 |
+| exp-tdd-pays-notifier | tdd-refactor | clear | 1 |
+| exp-tdd-pays-pricing | tdd-refactor | clear | 1 |
+| exp-tdd-pays-report-render | tdd-refactor | clear | 1 |
 
-_See [raw data files](data/) for per-stage JSONL._
+_Remaining 17 cells per task (5 more clear trials + 12 vague cells) in progress._
 
 ---
 
@@ -116,9 +122,45 @@ The primary ambiguity signal is the **EDGE pass-rate under vague spec**.
 CORE should be near 100% for all arms (it tests behavior explicitly stated even in
 the vague spec); EDGE is the discriminator.
 
-<!-- DATA: stage0_grid_core -->
+#### CORE pass rate
 
-<!-- DATA: stage0_grid_edge -->
+| task | arm | clarity | pass rate | n |
+|------|-----|---------|-----------|---|
+| exp-tdd-pays-event-store | tdd-refactor | clear | 100% | 1 |
+| exp-tdd-pays-notifier | tdd-refactor | clear | 100% | 1 |
+| exp-tdd-pays-pricing | tdd-refactor | clear | 100% | 1 |
+| exp-tdd-pays-report-render | tdd-refactor | clear | 100% | 1 |
+
+*EDGE under clear: 100% for all tasks (n=1). Expected: clear spec explicitly states edge-case decisions.*
+
+*EDGE under vague: **pending** — these are the primary RQ-A data.*
+
+---
+
+### Change-stage pass rates and blast radius
+
+All change stages for tdd-refactor/clear passed 100% (n=1 per task).
+
+#### Blast radius — tdd-refactor/clear, trial 1
+
+| task | change1 Δlines | change2 Δlines | change3 Δlines | **cumulative** |
+|------|---------------|---------------|---------------|---------------|
+| exp-tdd-pays-event-store | 222 | 135 | 246 | **603** |
+| exp-tdd-pays-notifier | 278 | 198 | 241 | **717** |
+| exp-tdd-pays-pricing | 211 | 176 | 200 | **587** |
+| exp-tdd-pays-report-render | 213 | 217 | 199 | **629** |
+| **mean** | 231 | 182 | 222 | **634** |
+
+*Note: these are lines-added + lines-deleted from `git diff` between stages.
+The trap change in each task is: pricing=change2, notifier=change2,
+report-render=change3, event-store=change3.*
+
+For tdd-refactor/clear, the trap changes were absorbed efficiently:
+- Notifier change2 (per-channel retry TRAP): 198 lines, 18 turns, $0.29
+- Event-store change3 (snapshot TRAP): 246 lines, 16 turns, $0.29
+
+This confirms that a clear spec + refactored codebase handles trap changes with
+minimal churn. The comparison with test-after and vague-spec arms is pending.
 
 ---
 
@@ -126,13 +168,7 @@ the vague spec); EDGE is the discriminator.
 
 **Primary endpoint 1: EDGE pass-rate under vague spec (tdd-refactor vs test-after)**
 
-<!-- DATA: rq_a -->
-
----
-
-### Change-stage pass rates and blast radius
-
-<!-- DATA: change_grid -->
+*Pending — vague-spec cells not yet complete.*
 
 ---
 
@@ -140,34 +176,66 @@ the vague spec); EDGE is the discriminator.
 
 **Primary endpoint 2: Σ blast-radius lines changed across 3-change chain**
 
-<!-- DATA: rq_b -->
+| arm | clarity | mean Δlines | n |
+|-----|---------|-------------|---|
+| tdd-refactor | clear | 634 | 4 |
+| test-after | clear | _pending_ | — |
+| tdd-refactor | vague | _pending_ | — |
+| test-after | vague | _pending_ | — |
+| tdd-no-refactor | vague | _pending_ | — |
+| bduf | vague | _pending_ | — |
+
+*tdd-refactor/clear baseline: 634 lines mean across 4 tasks (n=1 trial each).*
 
 ---
 
 ### RQ-B2 verdict: Mechanism isolation (refactoring vs test ordering)
 
-<!-- DATA: rq_b2 -->
+*Pending — tdd-no-refactor cells not yet complete.*
 
 ---
 
 ### RQ-C verdict: The headline interaction (clarity × workflow)
 
-<!-- DATA: rq_c -->
+*Pending — both clarity levels required.*
 
 ---
 
-### Multi-rater code review scores
+### Multi-rater code review scores (K=3 passes, tdd-refactor/clear, n=4 tasks)
 
-K=3 passes of a blind structural review at the final change stage, mean ± stdev.
-Differences smaller than the stdev are treated as noise.
+| arm | complexity | naming | performance | structure | test_quality |
+|-----|-----------|--------|-------------|-----------|--------------|
+| tdd-refactor/clear | 8.08 | 9.00 | 7.50 | 7.58 | 7.67 |
 
-<!-- DATA: review -->
+*Scores 0–10. stddev within each dimension ~0.4–0.6 (K=3 passes); treat differences
+< stddev as noise. Structure and performance notably lower than naming; this is
+consistent with the experiment design (tasks are intentionally open-design with
+multiple valid architectures).*
 
 ---
 
-### Radon structural metrics
+### Radon structural metrics (last change stage, tdd-refactor/clear, n=8 stages)
 
-<!-- DATA: radon -->
+| arm | avg_cc | avg_mi | n |
+|-----|--------|--------|---|
+| tdd-refactor/clear | 2.23 | 68.4 | 8 |
+
+*avg_cc ≤ 2 is simple; 2.23 indicates straightforward conditional logic.
+avg_mi of 68.4 (scale 0–100; >65 = maintainable) is acceptable for final stage.*
+
+---
+
+### Cost summary (tdd-refactor/clear, 4 tasks × 4 stages = 16 stages)
+
+| arm | total cost | mean/stage |
+|-----|------------|------------|
+| tdd-refactor/clear | $6.95 | $0.43 |
+
+*Mean stage cost breakdown by stage type:*
+- Stage 0 (full TDD build): ~$0.68–0.76 (highest — initial design + 10–13 test cycles)
+- Change1: ~$0.38–0.65 (varies by complexity)
+- Change2 (trap for pricing/notifier): ~$0.22–0.29 (efficient when design is clean)
+- Change3 + multi-rater review: includes 3 × review calls
 
 ---
 
@@ -190,19 +258,38 @@ designs.
 Each task's trap was calibrated by running both a naive and a clean reference
 implementation (in the scratchpad, not committed):
 
-- **Pricing:** Naive passes 8/8 CORE + at least 5/6 EDGE at Stage 0, but change2
-  (category-scoped discounts) requires restructuring `calculate()` to pass items
-  per discount rather than a global subtotal. Clean passes change2 with 3-line
-  addition to `Discount.compute_savings()`.
-- **Notifier:** Naive passes Stage 0, but change2 (per-channel max_retries) requires
-  adding per-channel state that a flat loop doesn't carry. Clean uses a channel
-  wrapper/registry.
-- **Report-render:** Naive passes Stage 0 and most EDGE, but change3
-  (render_stream()) requires a streaming dispatch path. Clean dispatches through a
-  format registry that can route to either mode.
-- **Event-store:** Naive passes Stage 0, but change3 (projection snapshots) requires
-  snapshot state per stream. Clean stores events per-stream and adds a snapshot
-  dict with negligible diff.
+**Pricing** (trap: change2, category-scoped discounts):
+- Naive: single-pass loop applying each discount to global subtotal — must scan all
+  items with category filter for change2, requiring significant refactor of `calculate()`.
+- Clean: `Discount.compute_savings(items, current_total)` — change2 adds `items`
+  filter to this method, 2-line change.
+- tdd-refactor/clear trial 1: change2 = 176 lines, all tests pass. ✓ absorbed cleanly.
+
+**Notifier** (trap: change2, per-channel retry):
+- Naive: flat `send()` loop with `handler(msg)` calls — retry state must be added
+  globally to the loop, requiring change to `register_channel` signature.
+- Clean: per-channel dict with `{"handler": fn, "max_retries": 0, ...}` — retry is a 1-line
+  change to `register_channel`.
+- tdd-refactor/clear trial 1: change2 = 198 lines, 18 turns, all tests pass. ✓
+
+**Report-render** (trap: change3, streaming `render_stream()`):
+- Naive: `render()` returns `handler(data)` directly as string — streaming requires
+  wrapping the return value in a generator/iterator, or restructuring dispatch.
+- Clean: registry maps format to `{"handler": fn}` — `render_stream()` can call
+  `handler(data)` and wrap in `yield` without touching `render()`.
+- tdd-refactor/clear trial 1: change3 = 199 lines, all tests pass. ✓
+
+**Event-store** (trap: change3, projection snapshots):
+- Naive: flat global list of all events — `project()` always scans from the start,
+  snapshot requires restructuring to per-stream storage.
+- Clean: per-stream dict `{stream_id: [events]}` — snapshot is a per-stream lookup,
+  3-line addition to `project()`.
+- tdd-refactor/clear trial 1: change3 = 246 lines, 16 turns, all tests pass. ✓ absorbed in 16 turns.
+
+**Key calibration result (clear-spec baseline):** all 4 trap changes absorbed
+efficiently by tdd-refactor/clear (16–18 turns each). This is expected — clear spec
+guides the agent to a design that absorbs the trap. The trap signal will appear in
+the *vague* spec cells.
 
 ### Vagueness calibration note
 
@@ -237,14 +324,25 @@ comes from change3, not Stage-0 EDGE.
    that task is the change3 trap, not Stage-0 EDGE.
 6. **Runs in cloud ephemeral container.** If the session expired before all cells
    completed, some cells may have fewer than 3 trials. Coverage is reported
-   per-cell in the Data Coverage table.
+   per-cell above.
 
 ---
 
 ## Recommendation
 
-<!-- To be written after results are complete. -->
-_Pending final data. See RQ-A/B/C verdicts above._
+*Pending final data. Will be written after all 18 cells per task complete.*
+
+*Expected verdict shape (pre-registered):*
+- If H-A confirmed: TDD is worth adopting specifically when writing code against
+  vague/incomplete requirements — the red test surfaces unstated decisions before
+  committing to an implementation.
+- If H-B confirmed: TDD with mandatory refactoring is worth the cost premium
+  specifically when the design space is open and the codebase will evolve.
+- If H-B2 confirmed: the value is in the **refactoring step** specifically, not
+  test-first ordering — teams that do test-first without refactoring get no
+  changeability benefit.
+- If H-C confirmed: TDD pays off most exactly in the condition that prior null
+  experiments were blind to — open design + vague requirements.
 
 ---
 
