@@ -235,13 +235,18 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 | [`agents/test-smell-review.md`](../agents/test-smell-review.md) | The smell-detection review agent |
 | [`knowledge/cd-test-architecture.md`](../knowledge/cd-test-architecture.md) | Six MinimumCD test types, the pre-merge gate rule, out-of-repo anti-pattern, component test pattern, adapter rule, double validation, determinism techniques |
 | [`knowledge/component-test-patterns.md`](../knowledge/component-test-patterns.md) | Per-component patterns: UI, API Provider, API Consumer, Event Consumer, Event Producer, Stateful Service, CLI/Library, Scheduled Job |
+| [`knowledge/database-test-patterns.md`](../knowledge/database-test-patterns.md) | Database test isolation + teardown: Database Sandbox, Transaction Rollback / Table Truncation Teardown, Fake-first rule for data-logic tests |
+| [`knowledge/dependency-breaking-techniques.md`](../knowledge/dependency-breaking-techniques.md) | Feathers' full 24-technique catalog for getting legacy code under test (behavior-preserving seams, seam type + risk) |
+| [`knowledge/legacy-test-strategy.md`](../knowledge/legacy-test-strategy.md) | Where to test legacy code: effect reasoning, effect sketches, interception/pinch points; plus editing-safety techniques |
 | [`knowledge/microservice-testing.md`](../knowledge/microservice-testing.md) | Contract and CDC testing across independently-deployable services |
 | [`knowledge/test-automation-maturity.md`](../knowledge/test-automation-maturity.md) | Maturity ladder consumed by `test-health` for the strategic rollup |
-| [`knowledge/test-doubles.md`](../knowledge/test-doubles.md) | Dummy / stub / spy / mock / fake selection and state-vs-behavior verification |
+| [`knowledge/test-automation-principles.md`](../knowledge/test-automation-principles.md) | Goals + named Principles of Test Automation — the rubric for *why* a test is good or bad; grounds smell severity |
+| [`knowledge/test-doubles.md`](../knowledge/test-doubles.md) | Dummy / stub / spy / mock / fake selection, Configurable vs. Hard-Coded form, Test-Specific Subclass, state-vs-behavior verification |
 | [`knowledge/test-matrix-examples/`](../knowledge/test-matrix-examples/) | Worked, stack-specific placement matrices the advisor adapts (Spring Boot, Django batch, React/Node SPA, SSR + HTMX, .NET API fronting gRPC) |
 | [`knowledge/test-pyramid.md`](../knowledge/test-pyramid.md) | Pyramid layer responsibilities and shape anti-patterns |
 | [`knowledge/test-smells.md`](../knowledge/test-smells.md) | xUnit smell taxonomy: code, behavior, and project smells |
 | [`knowledge/testing-quadrants.md`](../knowledge/testing-quadrants.md) | Agile Testing Quadrants — what each quadrant protects; consumed by `test-health` |
+| [`knowledge/value-patterns.md`](../knowledge/value-patterns.md) | Test-data sourcing: Literal / Derived / Generated Value + Dummy Object |
 | [`skills/cd-test-architecture/SKILL.md`](../skills/cd-test-architecture/SKILL.md) | The application-level assessment skill |
 | [`skills/domain-driven-design/SKILL.md`](../skills/domain-driven-design/SKILL.md) | Suggests target boundaries/seams for the post-baseline refactor |
 | [`skills/legacy-code/SKILL.md`](../skills/legacy-code/SKILL.md) | Characterization testing + dependency-breaking: the baseline-before-refactor procedure |

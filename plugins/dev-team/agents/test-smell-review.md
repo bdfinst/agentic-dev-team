@@ -3,7 +3,7 @@ name: test-smell-review
 description: xUnit test smells, test double selection, and test-pyramid layer placement
 tools: Read, Grep, Glob, Skill
 effort: medium
-cites: [test-smells, test-doubles, test-pyramid, fixture-construction, test-organization, test-refactoring, testability-patterns, result-verification, cd-test-architecture, microservice-testing, adversarial-review-protocol]
+cites: [test-smells, test-automation-principles, test-doubles, value-patterns, test-pyramid, fixture-construction, test-organization, test-refactoring, testability-patterns, result-verification, database-test-patterns, cd-test-architecture, microservice-testing, adversarial-review-protocol]
 ---
 
 # Test Smell Review
@@ -26,10 +26,12 @@ The design-level companion to test-review. This agent names xUnit test smells, j
 
 ## Knowledge Files
 
-Load on demand by finding type — do not load all four unless the target needs them:
+Load on demand by finding type — do not load them all unless the target needs them:
 
 - `knowledge/test-smells.md` — the canonical xUnit smell taxonomy (code/behavior/project smells). Primary reference; load for every run. Whole-file load: scan the full taxonomy to name each finding.
-- `knowledge/test-doubles.md` — dummy/stub/spy/mock/fake selection and state-vs-behavior verification. Load when the target uses mocking.
+- `knowledge/test-automation-principles.md` — the goals/principles each smell violates; load to ground a finding in the principle it breaks (e.g. Fragile Test → *Isolate the SUT*) and to set finding severity by which goal is at risk.
+- `knowledge/test-doubles.md` — dummy/stub/spy/mock/fake selection, Configurable vs. Hard-Coded form, Test-Specific Subclass, and state-vs-behavior verification. Load when the target uses mocking.
+- `knowledge/value-patterns.md` — Literal/Derived/Generated Value + Dummy Object. Load for Hard-Coded Values, Irrelevant Information, or random-value (Erratic Test) findings.
 - `knowledge/test-pyramid.md` — layer responsibilities and shape anti-patterns. Load when judging test level.
 - `knowledge/microservice-testing.md` — contract/CDC testing. Load only when the target spans independently-deployable services.
 - `knowledge/testability-patterns.md` — load when a smell's root cause is untestable production code (recommend the production-code change, never a test workaround).
@@ -37,6 +39,7 @@ Load on demand by finding type — do not load all four unless the target needs 
 - `knowledge/result-verification.md` — the named remedy for assertion smells (Assertion Roulette, Hard-Coded Values, fragile/overspecified asserts): Expected Object, Custom Assertion, Guard Assertion, Delta Assertion.
 - `knowledge/test-organization.md` — the named remedy for structure smells (Obscure Test, Test Code Duplication, High Test Maintenance Cost): Four-Phase Test, Testcase Class per Fixture, Test Utility Method, Parameterized Test.
 - `knowledge/test-refactoring.md` — the goals/principles a smell violates and the behavior-preserving move toward the target pattern. Cite a **named refactoring**, not prose, for each remedy.
+- `knowledge/database-test-patterns.md` — the named remedy for DB-backed Erratic/Slow tests (Database Sandbox, Transaction Rollback / Table Truncation Teardown). Load when the target hits a real database.
 
 ## Skip
 
@@ -57,13 +60,14 @@ Code smells (single test):
 
 Behavior smells (only visible on run):
 
-- **Erratic Test** (flaky) — non-deterministic; sub-types: interacting tests (order-dependent shared state), test run war (shared external resource), nondeterministic timing (clock/RNG/sleep/real timers), resource leakage
+- **Erratic Test** (flaky) — non-deterministic; sub-types: interacting tests (order-dependent shared state), test run war (shared external resource), nondeterministic timing (clock/RNG/sleep/real timers), resource leakage. *DB-rooted remedy:* `database-test-patterns.md` (Sandbox + rollback/truncation teardown)
 - **Fragile Test** — breaks on changes unrelated to the behavior; **Overspecified Software** — mock-heavy tests asserting exact internal call sequences instead of outcomes
 - **Slow Tests** — real I/O (DB, network, disk, sleep) at the unit level
+- **Frequent Debugging** — failures need a debugger because messages/structure don't localize the defect (missing fine-grained tests, weak Assertion Messages). *Remedy:* add the missing unit/component tests; improve messages (`result-verification.md`)
 
 Project smells (suite-wide):
 
-- **Buggy Tests** (pass when code is broken — recommend mutation testing), **Manual Intervention** (human step needed to run), **High Test Maintenance Cost** (*remedy:* Test Utility Method / Parameterized Test / Testcase Class per Fixture — `test-organization.md`), **Production Bugs** slipping a green suite
+- **Buggy Tests** (pass when code is broken — recommend mutation testing), **Manual Intervention** (human step needed to run), **High Test Maintenance Cost** (*remedy:* Test Utility Method / Parameterized Test / Testcase Class per Fixture — `test-organization.md`), **Developers Not Writing Tests** (code lands untested / test count flat — name the root cause: schedule pressure, missing skill, or Hard-to-Test Code), **Production Bugs** slipping a green suite
 
 Test double misuse (load `test-doubles.md`):
 
