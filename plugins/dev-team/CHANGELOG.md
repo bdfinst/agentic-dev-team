@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.6.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.5.0...dev-team-v7.6.0) (2026-06-23)
+
+
+### Features
+
+* add Continuous Delivery knowledge from Humble & Farley (pipeline, release, data, maturity) ([#390](https://github.com/bdfinst/agentic-dev-team/issues/390)) ([a91b7ed](https://github.com/bdfinst/agentic-dev-team/commit/a91b7edc929c284820f47799fffa0a1e62ebeb54))
+* extend DDD skills with supple design, distillation, and implicit-concept patterns from Evans ([#388](https://github.com/bdfinst/agentic-dev-team/issues/388)) ([971f1d6](https://github.com/bdfinst/agentic-dev-team/commit/971f1d6ed0787c719b984959240b63776fde7389))
+
 ## [7.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.4.0...dev-team-v7.5.0) (2026-06-23)
 
 
