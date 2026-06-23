@@ -18,6 +18,7 @@
     "@commitlint/cli": "^21.0.2",
     "@commitlint/config-conventional": "^21.0.2",
     "@eslint/js": "^9.0.0",
+    "commitlint": "^21.1.0",
     "eslint": "^9.0.0",
     "husky": "^9.1.0",
     "lint-staged": "^17.0.7",
