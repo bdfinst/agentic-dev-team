@@ -27,7 +27,7 @@ wants the spec → plan → build → PR flow without re-assembling it each time
 | --- | --- | --- | --- |
 | 1 | **Approach contract** — screen request against [`knowledge/decision-defaults.md`](../knowledge/decision-defaults.md); resolve ambiguous high-reversal-cost axes in one batch. | (orchestrator only) | yes, if a blocker remains |
 | 2 | **Spec** *(skipped with `--skip-spec`)* — produce Intent, Architecture, Acceptance Criteria. | [`/specs`](../skills/specs/SKILL.md) | **yes** — operator approves the spec |
-| 3 | **Plan** — decompose into vertical slices with Gherkin scenarios; the five plan-review personas run in parallel before the gate. | [`/plan`](../skills/plan/SKILL.md) | **yes** — operator approves the plan |
+| 3 | **Plan** — decompose into vertical slices with Gherkin scenarios; a tier-scaled set of plan-review personas (1–5, by plan complexity) runs in parallel before the gate. | [`/plan`](../skills/plan/SKILL.md) | **yes** — operator approves the plan |
 | 4 | **Build** — RED-GREEN-REFACTOR per slice, inline review checkpoints, verification evidence. Do not proceed until the suite is green. | [`/build`](../skills/build/SKILL.md) | no |
 | 5 | **Review** — run quality-review agents and let the auto-fix loop converge. Only judgment-call findings escalate to the operator. | [`/code-review`](../skills/code-review/SKILL.md) | no |
 | 6 | **PR** — pre-PR quality gate, open PR, arm auto-merge by default (`--no-auto-merge` to opt out). | [`/pr`](../skills/pr/SKILL.md) | **yes** — the PR is the final review artifact |
@@ -37,8 +37,10 @@ wants the spec → plan → build → PR flow without re-assembling it each time
 
 `/build`'s inline review checkpoints dispatch the review agents listed in
 [`team-structure.md` → Review Agent Dispatch](team-structure.md#review-agent-dispatch-phase-3-inline-checkpoints).
-`/plan` dispatches the five plan-review personas
-([`prompts/plan-review-*.md`](../prompts/)) and the
+`/plan` dispatches a tier-scaled subset of the five plan-review personas
+([`prompts/plan-review-*.md`](../prompts/)) — the Acceptance Test Critic always
+runs; the rest are added as the plan's tier (`trivial`/`standard`/`complex`)
+warrants — and the
 [`progress-guardian`](../agents/progress-guardian.md) gate-keeper.
 `/code-review` re-runs the same review agents over the full changeset.
 

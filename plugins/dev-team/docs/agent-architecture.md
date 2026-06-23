@@ -86,7 +86,7 @@ A typical task loads 1 agent + 1-2 skills: roughly 1,000-2,000 tokens of configu
 
 ## Plan Review Personas
 
-Before the human reviews a plan (Phase 2), four critical review personas run **in parallel** as sub-agents. Each challenges the plan from a distinct perspective:
+Before the human reviews a plan (Phase 2), a tier-scaled set of critical review personas runs **in parallel** as sub-agents. The reviewer set scales to a **plan tier** (`trivial`/`standard`/`complex`, derived from slice count, file count, per-step complexity, and whether the plan takes a stance on any high-reversal-cost decision axis) so a one-function plan does not pay a complex feature's review ceremony: `trivial` runs the Acceptance Test Critic alone, `standard` adds the Design & Architecture Critic (plus the UX Critic for user-facing plans and the Parallelization Critic when the slice count > 1), and `complex` runs all five. The Acceptance Test Critic always runs; the Parallelization Critic runs only when slice count > 1. Each persona challenges the plan from a distinct perspective:
 
 | Persona | Template | Effort | What It Challenges |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ Before the human reviews a plan (Phase 2), four critical review personas run **i
 
 Because these personas are prompt templates with **no frontmatter**, the PreToolUse model-resolve hook (which keys on `subagent_type`) cannot route them. `/plan` step 5b resolves the `medium` band to a model via `hooks/lib/model-resolve.sh` before dispatch and passes it as the `model` override, so the personas honor the same ladder and per-environment overrides as every registered agent rather than a hard-coded model.
 
-Each reviewer returns a structured `approve` or `needs-revision` verdict. If any reviewer flags blockers, the plan is revised before the human sees it (max 2 iterations). Warnings from all four are aggregated into a Plan Review Summary appended to the plan file.
+Each reviewer returns a structured `approve` or `needs-revision` verdict. If any reviewer flags blockers, the plan is revised before the human sees it (max 2 iterations). Warnings from the dispatched reviewers are aggregated into a Plan Review Summary appended to the plan file, which also records the chosen tier and reviewer set so the scaling decision is auditable.
 
 This gate catches problems when they cost minutes to fix (in a plan), not hours (in code).
 
