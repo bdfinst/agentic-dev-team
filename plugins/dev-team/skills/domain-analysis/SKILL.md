@@ -16,6 +16,7 @@ This skill is analytical, not prescriptive. It describes what *is*, not what sho
 ## Scope
 
 Before starting, determine scope from the user's request:
+
 - **Single repo**: analyze folder structure, package boundaries, shared models
 - **Multi-repo / microservices**: analyze service boundaries, shared libraries, event contracts, API dependencies
 
@@ -24,6 +25,7 @@ Before starting, determine scope from the user's request:
 Every finding must be grounded in something you actually read. When reporting a God Object, a missing ACL, a coupling trap, or a friction item, cite the specific `file:line` or `file` where the evidence was observed. Do not assert that a pattern exists based on naming conventions alone — open the file and confirm it.
 
 Classify each finding by confidence:
+
 - **observed** — directly visible in a file you read (an import statement, a shared type, a method call)
 - **inferred** — visible at folder or module level without reading implementation (directory name, package dependency in package.json)
 - **suspected** — requires runtime knowledge or cannot be confirmed from static analysis alone
@@ -50,6 +52,7 @@ For each inter-context relationship, classify the integration pattern. This matt
 | **Customer/Supplier** | Downstream negotiates with upstream via contracts or versioned APIs |
 | **Conformist** | Downstream uses upstream's model with no translation |
 | **Open Host Service** | Published protocol (REST, gRPC, event schema) consumed by many |
+| **Separate Ways** | No code path between two contexts that a naive reading would expect to integrate — sometimes deliberate and correct, not always a gap |
 
 Flag missing ACLs: direct dependencies between contexts that pass domain objects across boundaries without translation. These are the highest-risk coupling points — a schema change in one context silently breaks another.
 
@@ -78,6 +81,24 @@ Identify feedback loops and cascading-change risks — the architectural pattern
 - **Coupling traps**: a change to one component's domain model forces breaking changes in others — signals missing abstraction or a misplaced boundary
 - **Shared mutable state**: two contexts writing to the same tables or caches without clear ownership
 
+### 6. Core Domain Distillation
+
+Where is the team's modeling effort actually going, and does that match where the value is? This is the strategic prioritization lens — it tells you where deeper design pays off and where it is waste.
+
+Classify each bounded context:
+
+| Class | Signal | What it means |
+| --- | --- | --- |
+| **Core** | Bespoke, frequently-changed business logic central to why the product exists | Invest the best design here |
+| **Supporting** | Business-specific but not differentiating | Build simply; adequate is fine |
+| **Generic** | Solved problems — auth, notifications, currency, scheduling, file storage | Buy/adopt; custom code here is usually waste |
+
+Flag **effort misallocation** — the friction this lens exists to find:
+
+- **Over-built generic**: an elaborate custom model in a Generic subdomain (a hand-rolled auth/permissions engine, a bespoke job scheduler) — candidates to replace with a library or service
+- **Neglected Core**: the context most central to the business is the most anemic or tangled — the strongest design investment is going to the wrong place
+- Classification is a judgment call; mark it `suspected` unless commit frequency or bespoke complexity makes it `observed`
+
 ## Steps
 
 1. Map bounded contexts from directory structure and naming conventions
@@ -87,7 +108,8 @@ Identify feedback loops and cascading-change risks — the architectural pattern
 5. Run the event storm: list events, emitters, and consumers
 6. Identify the value stream entrypoint in code; trace the happy path step by step
 7. Identify coupling traps and circular dependencies
-8. Write the Friction Report
+8. Classify each context as Core / Supporting / Generic; flag effort misallocation
+9. Write the Friction Report
 
 ## Output
 
@@ -111,6 +133,10 @@ Table: event name, emitting context, consuming contexts, sync/async. If no domai
 
 State the entrypoint (file and function/command). Then list the ordered handoffs with coupling severity (low / medium / high) and confidence tier.
 
+### Subdomain Classification
+
+Table: context name, class (Core / Supporting / Generic), evidence for the class, confidence tier. Add a one-line Domain Vision for the context judged Core. Flag any over-built Generic or neglected Core as a Friction Report item with the `effort-misallocation` category.
+
 ### Friction Report
 
 Each item: category tag, specific files/components involved, confidence tier, and a concrete fix direction. Use this format:
@@ -121,9 +147,10 @@ Description of the coupling or gap.
 Fix: <specific action, e.g., "introduce ACL", "extract context", "replace sync call with domain event">
 ```
 
-Categories: `deployment-coupling` | `data-coupling` | `semantic-coupling` | `event-gap`
+Categories: `deployment-coupling` | `data-coupling` | `semantic-coupling` | `event-gap` | `effort-misallocation`
 
 **Example:**
+
 ```
 [semantic-coupling] output.ts → enricher.ts (confidence: observed, output.ts:3)
 output.ts imports classifyDDD() from enricher.ts — business logic that runs at render time

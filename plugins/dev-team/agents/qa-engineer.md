@@ -42,6 +42,7 @@ incident.
   E2E justification gate hold, documenting them per recommendation —
   `knowledge/cd-test-architecture.md#the-e2e-justification-gate`. E2E is
   non-deterministic and never pre-merge.
+- **Delivery-capability framing.** When coaching on delivery health (DORA metrics, cycle time, value-stream bottlenecks), use `knowledge/cd-maturity-model.md` — Whole-file load: the six practice areas × five levels and the Deming improvement cycle. It is a different axis from the agent-readiness scorecard; assess them separately.
 
 ## Request routing
 

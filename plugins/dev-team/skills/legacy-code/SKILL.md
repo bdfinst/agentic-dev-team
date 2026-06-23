@@ -54,18 +54,26 @@ Tests that document what the code *actually does*, not what it *should do*. They
 4. Repeat until the change area and its immediate dependencies are covered
 5. Use these tests as a safety net — any behavioral change will now show as a test failure
 
+### Finding Test Points (effect reasoning)
+
+Step 2 of the algorithm — *where can you observe the effects of the change?* — is its own skill in tangled code. Before writing tests, reason about effects and place verification where it has leverage. The full method (effect sketches, interception points, pinch points, and the editing-safety techniques — Lean on the Compiler, Preserve Signatures, Single-Goal Editing) is in [`knowledge/legacy-test-strategy.md`](../../knowledge/legacy-test-strategy.md). In brief:
+
+- Trace effects outward from each change point; every place you can detect an effect is an **interception point**.
+- Prefer a **pinch point** — a narrowing where one or two tests sense changes across many methods — to anchor characterization tests, then push verification down to narrow units once the area is malleable (don't let pinch-point tests calcify into mini-integration tests).
+- Ask of any candidate: *"If I break this method, will I sense it here?"*
+
 ### Dependency Breaking Techniques
+
+The everyday shortlist below covers most cases. The **full 24-technique catalog** (globals/singletons, non-OO seams, hard parameters, monster methods, with seam type and risk for each) lives in [`knowledge/dependency-breaking-techniques.md`](../../knowledge/dependency-breaking-techniques.md) — read it when a break here doesn't present a seam.
 
 | Technique | When to Use | Risk |
 | --- | --- | --- |
-| Extract Interface | Class has many dependencies you need to substitute | Low |
-| Extract Method | Long method with embedded logic you need to isolate | Low |
+| Extract Interface | Class has a concrete dependency you need to substitute | Low |
+| Extract Method | Long method with embedded logic you need to isolate (safest starting point) | Low |
 | Parameterize Constructor | Class creates its own dependencies internally | Low |
+| Extract and Override Call / Factory Method | A specific call or `new` in a constructor blocks the test | Low–Med |
 | Subclass and Override Method | Need to neutralize or replace specific behavior in tests | Medium |
-| Wrap Method | Adding behavior before/after existing method without modifying it | Low |
-| Wrap Class (Decorator) | Adding behavior transparently to callers of existing class | Medium |
-| Sprout Method | New behavior is clearly separable from existing method | Low |
-| Sprout Class | New behavior requires its own state or complex logic | Medium |
+| Sprout / Wrap Method or Class | Adding new behavior to untested code (see decision below) | Low–Med |
 | Adapt Parameter | Method depends on a type you can't use in tests | Medium |
 
 ### Sprout vs. Wrap Decision
@@ -114,4 +122,6 @@ Report the legacy code analysis: identified change points, test points, dependen
 - **[Hexagonal Architecture](../hexagonal-architecture/SKILL.md)** — dependency breaking techniques move legacy code toward port/adapter separation incrementally
 - **[Quality Gate Pipeline](../quality-gate-pipeline/SKILL.md)** — verify characterization tests match observed behavior (Phase 1); legacy code changes have higher defect risk, apply review-correction with increased scrutiny (Phase 3)
 - **[Mutation Testing](../mutation-testing/SKILL.md)** — after writing characterization tests, use mutation testing to verify those tests catch behavioral changes
-- **[Testability Patterns](../../knowledge/testability-patterns.md)** — constructor injection, Test Data Builder, interface extraction, and the "I Can't Test This Class" decision flow complement the dependency-breaking techniques here; read it when the dependency break needed is a design change (extract interface, add constructor) rather than a seam insertion
+- **[Dependency-Breaking Techniques](../../knowledge/dependency-breaking-techniques.md)** — the full 24-technique catalog (Feathers Part III) behind the shortlist above; consult for globals/singletons, non-OO seams, hard parameters, and monster methods
+- **[Legacy Test Strategy](../../knowledge/legacy-test-strategy.md)** — effect reasoning, effect sketches, interception/pinch points (where to test) and editing-safety techniques (how to edit before tests exist)
+- **[Testability Patterns](../../knowledge/testability-patterns.md)** — constructor injection, Test Data Builder, interface extraction, the Design-for-Testability seam family (Humble Object, Dependency Lookup), and the "I Can't Test This Class" decision flow are the *target design* the dependency breaks scaffold toward; read it when the break needed is a design change rather than a temporary seam insertion

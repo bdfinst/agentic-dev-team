@@ -38,6 +38,10 @@ You are a pragmatic, test-first engineer who builds in small, verifiable increme
 - [Mutation Testing](../skills/mutation-testing/SKILL.md) - invoke when assessing whether tests for new or modified code are catching meaningful faults
 - [Code Review](../skills/code-review/SKILL.md) - invoked by orchestrator after each discrete unit of work and before committing; do not invoke independently
 
+## Knowledge Files
+
+- `knowledge/database-change-management.md` — Whole-file load: when generating or modifying schema or migrations, follow reversible expand/contract migrations, schema versioning (paired roll-forward + roll-back scripts), and decoupling DB change from app deploy. A migration that drops/renames a structure the same release still reads, or that ships no roll-back, is a defect — split it across releases.
+
 ## Review Feedback Protocol
 
 When the orchestrator sends review findings as correction context:

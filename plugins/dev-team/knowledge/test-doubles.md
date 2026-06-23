@@ -54,6 +54,33 @@ Is per-call stub/mock setup so heavy it obscures the test?
 
 ---
 
+## How the double is built: Configurable vs. Hard-Coded
+
+The five doubles above are *roles*; this is the orthogonal question of *how the double gets its canned answers*. Both forms are legitimate — the choice is about reuse vs. transparency.
+
+| Form | What it is | Use when | Watch for |
+|------|-----------|----------|-----------|
+| **Configurable Test Double** | A reusable double the test programs at run time with the values to return / calls to expect (what Mockito/JMock/NSubstitute/Sinon generate) | The same collaborator is doubled across many tests with different canned values; you want one mechanism, configured per test | Configuration becomes so verbose it obscures the test — a sign to extract a builder or downgrade a Mock to a Stub |
+| **Hard-Coded Test Double** | A purpose-built class (or *Inner Test Double* — a nested/anonymous class, or a Test-Specific Subclass) with the canned values **baked into its code** | The behavior is specific to one or a few tests; a framework can't express it; or you want a named, self-documenting stand-in | Proliferation of one-off double classes; if it recurs with varying data, switch to a Configurable form |
+
+Neither is "better." Reach for a **Configurable** double when one collaborator is stubbed many ways across the suite; reach for a **Hard-Coded** double when a specific, named behavior reads more clearly than per-test configuration (or the framework can't produce it).
+
+---
+
+## Test-Specific Subclass
+
+When you can't substitute a collaborator from outside — the dependency is created internally, or the thing you need to control is a *method of the SUT itself* — subclass the real class **in the test** and override just the seam method to inject an indirect input or null out an unwanted side effect.
+
+```
+// Override only the narrow seam; inherit everything else real
+class TestableOrderService extends OrderService:
+  override fetchRate(): return 1.25   // control one indirect input
+```
+
+Use it to: gain control of an indirect input without a full injection refactor; expose a protected hook for the test; or stand up a Hard-Coded double by subclassing a real collaborator. **Constraints** (from *Don't Modify the SUT*, `test-automation-principles.md`): override **only** what the test must control — never a method whose behavior this test is verifying, or you're testing the override, not the code. Treat it as a bridge toward a real seam (`testability-patterns.md`), not a permanent design.
+
+---
+
 ## Common Misuses (flag these)
 
 | Misuse | Why it's wrong | Fix |
