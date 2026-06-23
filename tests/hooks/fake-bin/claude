@@ -1,0 +1,6 @@
+#!/bin/sh
+# Fake claude shim for session-learning-trigger tests.
+# Records invocation args to $FAKE_CLAUDE_ARGS_FILE; exits $FAKE_CLAUDE_EXIT.
+ARGS_FILE="${FAKE_CLAUDE_ARGS_FILE:-/tmp/fake-claude-args.txt}"
+echo "$0 $*" >> "$ARGS_FILE"
+exit "${FAKE_CLAUDE_EXIT:-0}"
