@@ -3,7 +3,7 @@
 Questions and answers about the TDD experiment findings. See the reports for
 detail: [`3sizes-3arms-report.md`](3sizes-3arms-report.md) (three-arm study),
 [`tdd-vs-nontdd-report.md`](tdd-vs-nontdd-report.md) (TDD vs non-TDD), and the
-follow-up design [`ambiguous-requirements-experiment.md`](ambiguous-requirements-experiment.md).
+unified follow-up design [`experiment-prompt-when-tdd-pays.md`](experiment-prompt-when-tdd-pays.md).
 
 ---
 
@@ -64,7 +64,7 @@ read: test-first *as run here* did not deliver design discovery, the experiment
 cannot refute the claim for a human on open-ended design, and it points at both
 *why* (the refactor/insight step was missing) and *how* to make TDD produce it.
 
-An experiment designed to actually test this claim — open-design tasks, a
-refactor-enforced arm, and a withheld change chain measuring *changeability* — is
-specified in
-[`experiment-prompt-design-discovery.md`](experiment-prompt-design-discovery.md).
+An experiment designed to actually test this claim — crossing requirement clarity
+with workflow (a refactor-enforced arm) on open-design tasks, graded by a withheld
+change chain measuring *changeability* — is specified in
+[`experiment-prompt-when-tdd-pays.md`](experiment-prompt-when-tdd-pays.md).
