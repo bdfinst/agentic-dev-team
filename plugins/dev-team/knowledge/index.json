@@ -4044,6 +4044,10 @@
     }
   },
   "plugins/dev-team/skills/specs/SKILL.md": {
+    "Step 0 — Existing-spec version check": {
+      "summary": "Before drafting or updating a spec, check whether a spec file already exists for",
+      "anchor": "step-0-existing-spec-version-check"
+    },
     "Rules": {
       "summary": "1.",
       "anchor": "rules"

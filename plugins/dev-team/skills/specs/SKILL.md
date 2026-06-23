@@ -7,6 +7,18 @@ user-invocable: true
 
 # Agent-Assisted Specification
 
+## Step 0 — Existing-spec version check
+
+Before drafting or updating a spec, check whether a spec file already exists for
+this feature:
+
+- If no spec file exists: proceed directly to Step 1.
+- If a spec file exists: read its opening lines and check for a `<!-- spec-version: -->` comment or a `**Format:**` header field.
+  - If the marker is absent or predates the current skill version (see frontmatter `version:`): surface this to the user — *"An existing spec was found but appears to use an older format. Regenerate from scratch, or confirm you want to update in place?"* — and wait for explicit direction before proceeding.
+  - If the marker matches the current version: proceed to Step 1 with the existing file as base.
+
+This prevents silently overwriting a current spec and catches format drift before
+the plan phase consumes stale artifacts.
 Produce three specification artifacts collaboratively with the human before any implementation begins. The spec describes the change and its goals; it does **not** define Gherkin scenarios — those are authored per slice during `/plan`. The consistency gate is a hard stop; do not proceed to planning until it passes.
 
 ## Rules

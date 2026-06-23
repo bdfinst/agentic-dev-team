@@ -78,10 +78,13 @@ _BYPASS_RE = re.compile(r"--no-verify|(^|\s)-n(\s|$)")
 
 
 def _strip_ns(name: str) -> str:
-    """Drop the dev-team plugin namespace so invoked names match the registry
+    """Drop known plugin namespace prefixes so invoked names match the registry
     (registry entries are bare dir/file stems). `dev-team:plan` -> `plan`;
-    other-plugin or built-in names (`update-config`, `Explore`) pass through."""
-    return name[len("dev-team:"):] if name.startswith("dev-team:") else name
+    `agentic-dev-team:plan` -> `plan`; other names pass through."""
+    for prefix in ("agentic-dev-team:", "dev-team:"):
+        if name.startswith(prefix):
+            return name[len(prefix):]
+    return name
 
 
 def _text_of(content) -> str:
