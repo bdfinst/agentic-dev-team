@@ -236,6 +236,8 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 | [`knowledge/cd-test-architecture.md`](../knowledge/cd-test-architecture.md) | Six MinimumCD test types, the pre-merge gate rule, out-of-repo anti-pattern, component test pattern, adapter rule, double validation, determinism techniques |
 | [`knowledge/component-test-patterns.md`](../knowledge/component-test-patterns.md) | Per-component patterns: UI, API Provider, API Consumer, Event Consumer, Event Producer, Stateful Service, CLI/Library, Scheduled Job |
 | [`knowledge/database-test-patterns.md`](../knowledge/database-test-patterns.md) | Database test isolation + teardown: Database Sandbox, Transaction Rollback / Table Truncation Teardown, Fake-first rule for data-logic tests |
+| [`knowledge/dependency-breaking-techniques.md`](../knowledge/dependency-breaking-techniques.md) | Feathers' full 24-technique catalog for getting legacy code under test (behavior-preserving seams, seam type + risk) |
+| [`knowledge/legacy-test-strategy.md`](../knowledge/legacy-test-strategy.md) | Where to test legacy code: effect reasoning, effect sketches, interception/pinch points; plus editing-safety techniques |
 | [`knowledge/microservice-testing.md`](../knowledge/microservice-testing.md) | Contract and CDC testing across independently-deployable services |
 | [`knowledge/test-automation-maturity.md`](../knowledge/test-automation-maturity.md) | Maturity ladder consumed by `test-health` for the strategic rollup |
 | [`knowledge/test-automation-principles.md`](../knowledge/test-automation-principles.md) | Goals + named Principles of Test Automation — the rubric for *why* a test is good or bad; grounds smell severity |

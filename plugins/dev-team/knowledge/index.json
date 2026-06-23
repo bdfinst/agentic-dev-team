@@ -289,6 +289,48 @@
       "anchor": "scope-touch-only-what-was-requested"
     }
   },
+  "plugins/dev-team/knowledge/dependency-breaking-techniques.md": {
+    "How to choose": {
+      "summary": "---",
+      "anchor": "how-to-choose"
+    },
+    "The catalog": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "the-catalog"
+    },
+    "Add behavior without touching the untested code (Ch. 6)": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "add-behavior-without-touching-the-untested-code-ch-6"
+    },
+    "Break a created/obtained collaborator": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "break-a-createdobtained-collaborator"
+    },
+    "Substitute a type": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "substitute-a-type"
+    },
+    "Tame globals, singletons, and statics": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "tame-globals-singletons-and-statics"
+    },
+    "Work around hard parameters and big methods": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "work-around-hard-parameters-and-big-methods"
+    },
+    "Non-OO / compiled / interpreted seams": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "non-oo-compiled-interpreted-seams"
+    },
+    "Most common in practice": {
+      "summary": "The legacy-code skill keeps a shortlist for the day-to-day cases; the rest of the catalog is here when those don't fit.",
+      "anchor": "most-common-in-practice"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`legacy-code` skill** — owns the procedure (Change Algorithm, seam types, characterization tests); this file is its technique reference.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/design-smells.md": {
     "Design Smells → Pattern Mapping": {
       "summary": "| Smell | Signature in code | Remediation pattern |",
@@ -410,6 +452,32 @@
     },
     "How this connects to the rest of the toolkit": {
       "summary": "**`test-strategy.md`** — *which* fixture (lifecycle/design); this file is *how* it's constructed.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/legacy-test-strategy.md": {
+    "1. Reason about effects": {
+      "summary": "Every functional change has a chain of effects that propagates outward — through the methods that call the changed code — until it reaches a place you can observe, or stops because nothing downstream depends on it.",
+      "anchor": "1-reason-about-effects"
+    },
+    "2. Draw an effect sketch": {
+      "summary": "An **effect sketch** is a small directed graph: bubbles for data and methods, arrows from a cause to what it affects.",
+      "anchor": "2-draw-an-effect-sketch"
+    },
+    "3. Find interception & pinch points": {
+      "summary": "**Interception point** — any point where you can detect the effect of a change.",
+      "anchor": "3-find-interception-pinch-points"
+    },
+    "4. Write the characterization tests": {
+      "summary": "A characterization test documents what the code **actually does**, not what it *should* do.",
+      "anchor": "4-write-the-characterization-tests"
+    },
+    "5. Edit safely while getting there (Ch. 23)": {
+      "summary": "Before tests are in place, these habits keep behavior intact:",
+      "anchor": "5-edit-safely-while-getting-there-ch-23"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`dependency-breaking-techniques.md`** — once effect reasoning tells you *where* to intercept, those techniques create the seam to put a test there.",
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
@@ -917,7 +985,7 @@
   },
   "plugins/dev-team/knowledge/testability-patterns.md": {
     "\"I Can't Test This Class\" Decision Flow": {
-      "summary": "---",
+      "summary": "> **Legacy code (no tests yet)?** Don't make the design change cold.",
       "anchor": "i-cant-test-this-class-decision-flow"
     },
     "Pattern 1: Constructor Injection (Replace Static Factories / Singletons)": {
@@ -3348,8 +3416,12 @@
       "summary": "1.",
       "anchor": "characterization-test-procedure"
     },
+    "Finding Test Points (effect reasoning)": {
+      "summary": "Step 2 of the algorithm — *where can you observe the effects of the change?* — is its own skill in tangled code.",
+      "anchor": "finding-test-points-effect-reasoning"
+    },
     "Dependency Breaking Techniques": {
-      "summary": "| Technique | When to Use | Risk |",
+      "summary": "The everyday shortlist below covers most cases.",
       "anchor": "dependency-breaking-techniques"
     },
     "Sprout vs. Wrap Decision": {

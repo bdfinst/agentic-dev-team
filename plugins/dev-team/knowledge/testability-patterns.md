@@ -32,6 +32,8 @@ Can I construct the object with the values I need for the test?
 Each NO branch requires a production code change. That IS the work.
 ```
 
+> **Legacy code (no tests yet)?** Don't make the design change cold. First get the code under characterization tests using a *behavior-preserving* seam from [`dependency-breaking-techniques.md`](dependency-breaking-techniques.md), guided by effect/pinch reasoning in [`legacy-test-strategy.md`](legacy-test-strategy.md) — then refactor toward the target patterns below. The patterns here are the destination; those techniques are how you get there safely.
+
 ---
 
 ## Pattern 1: Constructor Injection (Replace Static Factories / Singletons)
