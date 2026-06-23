@@ -23,7 +23,7 @@ This experiment crossed **requirement clarity** (clear vs vague spec) with **cod
 | Does TDD produce more changeable code? | **Yes.** tdd-refactor: 664 mean Δlines vs 700–770 for all other arms (H-B confirmed) |
 | Is refactoring the mechanism, or test-first ordering? | **Refactoring.** tdd-no-refactor (701) ≈ test-after (700); removing the refactor step erases the advantage (H-B2 confirmed) |
 | Is TDD's advantage largest under vague spec? | **No.** The gap is consistent across clarity conditions (H-C not confirmed) |
-| What about vague requirements? | **Fix the spec first.** The notifier task — where the spec omitted per-channel retry semantics — produced EDGE=0% for every workflow. No amount of TDD or upfront design recovers information that was never stated. |
+| What about vague requirements? | **Fix the spec first.** The notifier task — where the spec omitted per-channel retry semantics — produced 0% on EDGE assertions (behavioural tests for decisions the spec left unstated) for every workflow. No amount of TDD or upfront design recovers information that was never stated. |
 
 ### Workflow decision guide
 
@@ -37,10 +37,10 @@ This experiment crossed **requirement clarity** (clear vs vague spec) with **cod
 ### Key numbers
 
 - **tdd-refactor blast radius:** 664 mean Δlines (lowest)
-- **test-after EDGE under vague:** 67% (highest; tdd-refactor: 33%)
+- **test-after EDGE (omitted-decision) pass rate under vague spec:** 67% (highest; tdd-refactor: 33%)
 - **Cost:** tdd-refactor $0.44/stage vs test-after $0.19/stage
 - **Refactoring matters:** tdd-no-refactor (no refactor step) = 701 lines, indistinguishable from test-after (700) — the green→refactor cycle is load-bearing
-- **Spec-gap is irreducible:** notifier EDGE=0% for all four workflows under vague spec
+- **Spec-gap is irreducible:** notifier EDGE pass rate = 0% for all four workflows under vague spec
 
 ---
 
@@ -52,13 +52,13 @@ This experiment crossed **requirement clarity** (clear vs vague spec) with **cod
 | Item | Value |
 |------|-------|
 | N per cell | 3 trials |
-| Primary endpoint 1 | EDGE pass-rate under `vague` spec (tdd-refactor vs test-after) |
+| Primary endpoint 1 | EDGE (omitted-decision assertions) pass-rate under `vague` spec (tdd-refactor vs test-after) |
 | Primary endpoint 2 | Cumulative changeability = Σ blast-radius lines changed across 3-change chain |
 | RQ-C interaction | Is tdd-refactor's advantage on EDGE *and* changeability **largest in the vague+open-design cell**? |
 
 **Hypotheses (pre-registered):**
 
-- **H-A (ambiguity):** under `vague`, `tdd-refactor` passes more EDGE assertions
+- **H-A (ambiguity):** under `vague`, `tdd-refactor` passes more EDGE (omitted-decision) assertions
   than `test-after`. Under `clear` there is no gap. Null: vagueness degrades all
   arms equally.
 - **H-B (changeability):** `tdd-refactor` absorbs the 3-change chain at lower
