@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.4.0...dev-team-v7.5.0) (2026-06-23)
+
+
+### Features
+
+* extend dev-team test tooling from xUnit Test Patterns + Working Effectively with Legacy Code ([#386](https://github.com/bdfinst/agentic-dev-team/issues/386)) ([b5e2c27](https://github.com/bdfinst/agentic-dev-team/commit/b5e2c27f91038d823f2b79246bea2915c6d6403c))
+
 ## [7.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.3.0...dev-team-v7.4.0) (2026-06-22)
 
 
