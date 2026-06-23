@@ -128,10 +128,15 @@ the vague spec); EDGE is the discriminator.
 |------|-----|---------|-----------|---|
 | exp-tdd-pays-event-store | tdd-refactor | clear | 100% | 2 |
 | exp-tdd-pays-notifier | tdd-refactor | clear | 100% | 2 |
-| exp-tdd-pays-pricing | tdd-refactor | clear | 100% | 2 |
-| exp-tdd-pays-report-render | tdd-refactor | clear | 100% | 2 |
+| exp-tdd-pays-pricing | tdd-refactor | clear | 100%† | 2 |
+| exp-tdd-pays-report-render | tdd-refactor | clear | 100% | 3 |
 
-*EDGE under clear: 100% for all tasks (n=2). Expected: clear spec explicitly states edge-case decisions.*
+†Pricing trial 3 (of 3 completed so far) hit the 40-turn limit at stage0 and CORE failed; its
+change stages all passed. This row reflects n=2 passing trials. Trial 3 is flagged
+`contamination: high_turn_count=40` and is excluded from the CORE pass-rate denominator
+for the clear-arm baseline (n=2 valid, 1 turn-limited).
+
+*EDGE under clear: 100% for all tasks (valid trials). Expected: clear spec explicitly states edge-case decisions.*
 
 *EDGE under vague: **pending** — these are the primary RQ-A data.*
 
