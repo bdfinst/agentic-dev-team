@@ -1,0 +1,29 @@
+{
+  "description": "Open-design task: multi-channel notification service. Trap change (change2) adds per-channel retry with max_retries, punishing implementations that bake channel invocation logic into send() as a flat loop rather than carrying invocation policy per registered channel.",
+  "experiment": {
+    "goldenRepo": "golden-repo.tar.gz",
+    "specClear": "spec_clear.md",
+    "specVague": "spec_vague.md",
+    "coreGradeFiles": ["acc_core.py"],
+    "edgeGradeFiles": ["acc_edge.py"],
+    "coreTestCommands": ["python3 -m pytest acc_core.py -q --tb=short"],
+    "edgeTestCommands": ["python3 -m pytest acc_edge.py -q --tb=short"],
+    "changeChain": [
+      {
+        "change": "change1.md",
+        "gradeFiles": ["acc_core.py", "acc_edge.py", "acc_change1.py"],
+        "testCommands": ["python3 -m pytest acc_core.py acc_change1.py -q --tb=short"]
+      },
+      {
+        "change": "change2.md",
+        "gradeFiles": ["acc_core.py", "acc_edge.py", "acc_change1.py", "acc_change2.py"],
+        "testCommands": ["python3 -m pytest acc_core.py acc_change1.py acc_change2.py -q --tb=short"]
+      },
+      {
+        "change": "change3.md",
+        "gradeFiles": ["acc_core.py", "acc_edge.py", "acc_change1.py", "acc_change2.py", "acc_change3.py"],
+        "testCommands": ["python3 -m pytest acc_core.py acc_change1.py acc_change2.py acc_change3.py -q --tb=short"]
+      }
+    ]
+  }
+}
