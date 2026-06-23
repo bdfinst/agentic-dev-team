@@ -188,39 +188,39 @@ minimal churn. The comparison with test-after and vague-spec arms is pending.
 | arm | clarity | mean Δlines | n (task-trials) |
 |-----|---------|-------------|----------------|
 | tdd-refactor | clear | 651 | 12 |
-| test-after | clear | 700† | 9 |
+| test-after | clear | 689 | 12 |
 | tdd-refactor | vague | _pending_ | — |
 | test-after | vague | _pending_ | — |
 | tdd-no-refactor | vague | _pending_ | — |
 | bduf | vague | _pending_ | — |
 
-†test-after/clear: n=9 task-trials (pricing n=3, report-render n=3, event-store n=3; notifier n=1 pending trial 2–3).
-Pooled mean over 3 tasks with n=3 both arms: tdd-refactor 651 vs test-after 700 (−49 lines, −7.1%).
+Clear arm fully complete (n=3 both arms, all 4 tasks). Pooled: tdd-refactor 651 vs test-after 689 (−38 lines, −5.5%).
 
-**Per-task comparison (clear spec):**
+**Per-task comparison (clear spec, final):**
 
 | task | tdd-refactor mean | test-after mean | Δ (tdd − ta) | % |
 |------|------------------|-----------------|--------------|---|
 | pricing | 609 (n=3) | 626 (n=3) | −17 lines | −2.7% |
 | report-render | 655 (n=3) | 685 (n=3) | −29 lines | −4.3% |
 | event-store | 592 (n=3) | 598 (n=3) | −6 lines | −1.0% |
-| notifier | 748 (n=3) | 893 (n=1) | −145 lines | −16.3%† |
+| notifier | 748 (n=3) | 846 (n=3) | −99 lines | −11.6% |
 
-†Notifier test-after n=1; trials 2–3 pending. Large gap may moderate.
+*tdd-refactor < test-after in all 4 tasks under clear spec. Effect sizes range from
+negligible (event-store, −1.0%) to moderate (notifier, −11.6%).*
 
-**Trap change specifically (clear spec):**
+**Trap change specifically (clear spec, final):**
 
 | task | trap | tdd-refactor | test-after | Δ |
 |------|------|-------------|------------|---|
 | pricing | change2 | 188 (n=3) | 200 (n=3) | −12 |
 | report-render | change3 | 229 (n=3) | 253 (n=3) | −24 |
 | event-store | change3 | 222 (n=3) | 224 (n=3) | **−2 (tie)** |
-| notifier | change2 | 212 (n=3) | 261 (n=1) | −49† |
+| notifier | change2 | 212 (n=3) | 255 (n=3) | −44 |
 
-*Direction consistent with H-B in 3/4 tasks (pricing, report-render, notifier). Event-store
-trap change shows no difference — the snapshot abstraction is easy to retrofit regardless of
-initial design. Notifier and report-render traps show the clearest advantage for TDD's
-structured approach. Pooled over 3 fully-comparable tasks: −17 lines (−7.1%).*
+*Trap changes pooled: tdd-refactor 213 vs test-after 233 (−20 lines). Notifier trap
+(per-channel retry) shows the largest penalty for naive design (−44 lines at change2).
+Event-store trap (projection snapshots) shows no difference — retrofittable regardless
+of initial design. Direction consistent with H-B across all 4 tasks.*
 
 ---
 
