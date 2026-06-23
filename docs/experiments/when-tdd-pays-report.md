@@ -107,12 +107,12 @@ python3 scripts/analyze_tdd_pays.py \
 
 | task | arm | clarity | n trials |
 |------|-----|---------|---------|
-| exp-tdd-pays-event-store | tdd-refactor | clear | 1 |
-| exp-tdd-pays-notifier | tdd-refactor | clear | 1 |
-| exp-tdd-pays-pricing | tdd-refactor | clear | 1 |
-| exp-tdd-pays-report-render | tdd-refactor | clear | 1 |
+| exp-tdd-pays-event-store | tdd-refactor | clear | 2 |
+| exp-tdd-pays-notifier | tdd-refactor | clear | 2 |
+| exp-tdd-pays-pricing | tdd-refactor | clear | 2 |
+| exp-tdd-pays-report-render | tdd-refactor | clear | 2 |
 
-_Remaining 17 cells per task (5 more clear trials + 12 vague cells) in progress._
+_Remaining 16 cells per task (1 more clear trial + 12 vague cells + 3 test-after/clear trials) in progress._
 
 ---
 
@@ -126,12 +126,12 @@ the vague spec); EDGE is the discriminator.
 
 | task | arm | clarity | pass rate | n |
 |------|-----|---------|-----------|---|
-| exp-tdd-pays-event-store | tdd-refactor | clear | 100% | 1 |
-| exp-tdd-pays-notifier | tdd-refactor | clear | 100% | 1 |
-| exp-tdd-pays-pricing | tdd-refactor | clear | 100% | 1 |
-| exp-tdd-pays-report-render | tdd-refactor | clear | 100% | 1 |
+| exp-tdd-pays-event-store | tdd-refactor | clear | 100% | 2 |
+| exp-tdd-pays-notifier | tdd-refactor | clear | 100% | 2 |
+| exp-tdd-pays-pricing | tdd-refactor | clear | 100% | 2 |
+| exp-tdd-pays-report-render | tdd-refactor | clear | 100% | 2 |
 
-*EDGE under clear: 100% for all tasks (n=1). Expected: clear spec explicitly states edge-case decisions.*
+*EDGE under clear: 100% for all tasks (n=2). Expected: clear spec explicitly states edge-case decisions.*
 
 *EDGE under vague: **pending** — these are the primary RQ-A data.*
 
@@ -139,25 +139,29 @@ the vague spec); EDGE is the discriminator.
 
 ### Change-stage pass rates and blast radius
 
-All change stages for tdd-refactor/clear passed 100% (n=1 per task).
+All change stages for tdd-refactor/clear passed 100% (n=2 per task, 24 stages total).
 
-#### Blast radius — tdd-refactor/clear, trial 1
+#### Blast radius — tdd-refactor/clear, n=2 trials per task
 
-| task | change1 Δlines | change2 Δlines | change3 Δlines | **cumulative** |
-|------|---------------|---------------|---------------|---------------|
-| exp-tdd-pays-event-store | 222 | 135 | 246 | **603** |
-| exp-tdd-pays-notifier | 278 | 198 | 241 | **717** |
-| exp-tdd-pays-pricing | 211 | 176 | 200 | **587** |
-| exp-tdd-pays-report-render | 213 | 217 | 199 | **629** |
-| **mean** | 231 | 182 | 222 | **634** |
+| task | trial | change1 Δlines | change2 Δlines | change3 Δlines | **cumulative** |
+|------|-------|---------------|---------------|---------------|---------------|
+| exp-tdd-pays-event-store | 1 | 222 | 135 | 246 | **603** |
+| exp-tdd-pays-event-store | 2 | 242 | 145 | 213 | **600** |
+| exp-tdd-pays-notifier | 1 | 278 | 198 | 241 | **717** |
+| exp-tdd-pays-notifier | 2 | 285 | 235 | 284 | **804** |
+| exp-tdd-pays-pricing | 1 | 211 | 176 | 200 | **587** |
+| exp-tdd-pays-pricing | 2 | 222 | 202 | 218 | **642** |
+| exp-tdd-pays-report-render | 1 | 213 | 217 | 199 | **629** |
+| exp-tdd-pays-report-render | 2 | 220 | 224 | 234 | **678** |
+| **mean (n=8 task-trials)** | | 237 | 189 | 231 | **658** |
 
 *Note: these are lines-added + lines-deleted from `git diff` between stages.
 The trap change in each task is: pricing=change2, notifier=change2,
 report-render=change3, event-store=change3.*
 
-For tdd-refactor/clear, the trap changes were absorbed efficiently:
-- Notifier change2 (per-channel retry TRAP): 198 lines, 18 turns, $0.29
-- Event-store change3 (snapshot TRAP): 246 lines, 16 turns, $0.29
+Trap changes absorbed efficiently in both trials:
+- Notifier change2 (per-channel retry TRAP): 198 / 235 lines (t1/t2)
+- Event-store change3 (snapshot TRAP): 246 / 213 lines (t1/t2)
 
 This confirms that a clear spec + refactored codebase handles trap changes with
 minimal churn. The comparison with test-after and vague-spec arms is pending.
@@ -178,14 +182,14 @@ minimal churn. The comparison with test-after and vague-spec arms is pending.
 
 | arm | clarity | mean Δlines | n |
 |-----|---------|-------------|---|
-| tdd-refactor | clear | 634 | 4 |
+| tdd-refactor | clear | 658 | 8 |
 | test-after | clear | _pending_ | — |
 | tdd-refactor | vague | _pending_ | — |
 | test-after | vague | _pending_ | — |
 | tdd-no-refactor | vague | _pending_ | — |
 | bduf | vague | _pending_ | — |
 
-*tdd-refactor/clear baseline: 634 lines mean across 4 tasks (n=1 trial each).*
+*tdd-refactor/clear baseline: 658 lines mean across 4 tasks × 2 trials (n=8 task-trials).*
 
 ---
 
@@ -201,35 +205,36 @@ minimal churn. The comparison with test-after and vague-spec arms is pending.
 
 ---
 
-### Multi-rater code review scores (K=3 passes, tdd-refactor/clear, n=4 tasks)
+### Multi-rater code review scores (K=3 passes, tdd-refactor/clear, n=8 task-trials)
 
 | arm | complexity | naming | performance | structure | test_quality |
 |-----|-----------|--------|-------------|-----------|--------------|
-| tdd-refactor/clear | 8.08 | 9.00 | 7.50 | 7.58 | 7.67 |
+| tdd-refactor/clear | 8.08 | 8.88 | 7.71 | 7.58 | 7.42 |
 
-*Scores 0–10. stddev within each dimension ~0.4–0.6 (K=3 passes); treat differences
-< stddev as noise. Structure and performance notably lower than naming; this is
-consistent with the experiment design (tasks are intentionally open-design with
-multiple valid architectures).*
+*Scores 0–10. K=3 passes per task-trial, n=8 task-trials (4 tasks × 2 trials). Naming
+still highest; performance and test_quality stable across trials. Structure and
+performance notably lower than naming; this is consistent with the experiment design
+(tasks are intentionally open-design with multiple valid architectures).*
 
 ---
 
-### Radon structural metrics (last change stage, tdd-refactor/clear, n=8 stages)
+### Radon structural metrics (last change stage, tdd-refactor/clear, n=8 task-trials)
 
 | arm | avg_cc | avg_mi | n |
 |-----|--------|--------|---|
-| tdd-refactor/clear | 2.23 | 68.4 | 8 |
+| tdd-refactor/clear | 2.44 | 62.3 | 8 |
 
-*avg_cc ≤ 2 is simple; 2.23 indicates straightforward conditional logic.
-avg_mi of 68.4 (scale 0–100; >65 = maintainable) is acceptable for final stage.*
+*avg_cc ≤ 2 is simple; 2.44 indicates modest conditional logic (acceptable).
+avg_mi of 62.3 (scale 0–100; >65 = maintainable) is slightly below the maintainable
+threshold — driven by larger module sizes in trial 2 implementations.*
 
 ---
 
-### Cost summary (tdd-refactor/clear, 4 tasks × 4 stages = 16 stages)
+### Cost summary (tdd-refactor/clear, 4 tasks × 2 trials × 4 stages = 32 stages)
 
 | arm | total cost | mean/stage |
 |-----|------------|------------|
-| tdd-refactor/clear | $6.95 | $0.43 |
+| tdd-refactor/clear | $14.00 | $0.44 |
 
 *Mean stage cost breakdown by stage type:*
 - Stage 0 (full TDD build): ~$0.68–0.76 (highest — initial design + 10–13 test cycles)
