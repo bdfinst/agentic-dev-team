@@ -78,6 +78,25 @@ Anemic domain model:
 - Entities or aggregates that are pure data holders (only getters/setters, no behavior) while all logic lives in services — suggest moving invariant enforcement and state transitions onto the entity
 - Entities that allow external callers to set internal state directly instead of through intention-revealing methods (e.g., setting a status field directly rather than calling a method like `markPaid()` or `Submit()`)
 
+Implicit concepts (missing specification/policy):
+
+- The same multi-clause business condition duplicated across 2+ places — a named domain rule wearing a disguise; suggest extracting a specification/policy object
+- A rule stated in a comment but enforced ad hoc — the concept lives in language, not in the model
+- Flag only duplication or comment-encoded rules you can cite; a single local condition is not a missing specification
+
+Construction without invariants (missing factory):
+
+- Public constructors / object literals that let callers build an invalid aggregate (required field unset, interdependent fields set independently)
+- The same multi-step aggregate assembly repeated across call sites — creation belongs in one factory
+- Do not flag simple objects that are valid by plain construction
+
+Supple design smells (domain model only — defer general purity/coupling to js-fp-review and structure-review):
+
+- Domain methods named for *how* not *what* (`recalc`, `doProcess`), or boolean flag parameters that switch behavior — not intention-revealing
+- A method on a value object or entity that both mutates and returns (command-query separation); value objects should expose only side-effect-free operations
+- Value-typed concepts (money, range, coordinate) that are mutable (public setters / in-place mutation)
+- Invariants asserted by callers instead of guarded inside the entity/aggregate
+
 ## Skills
 
 Whole-file load: each linked SKILL.md is loaded in full when invoked.
@@ -93,6 +112,9 @@ After producing findings, run the shared challenger loop in `knowledge/adversari
 - Did you check for ubiquitous language drift: same concept with 3+ different names across modules?
 - Are domain objects leaking persistence annotations, HTTP concerns, or infrastructure types?
 - Did you check aggregate boundary enforcement — are child entities accessed directly by external callers?
+- For each "missing specification" finding, did you cite the 2+ locations where the same condition is duplicated (not a single local `if`)?
+- For supple-design smells, did you stay scoped to domain types (entities/value objects/domain services) and not re-report general FP-purity or coupling that js-fp-review / structure-review own?
+- Did you confirm each "mutable value object" is genuinely used as a value (not an entity with identity)?
 
 Append confidence level (High/Medium/Low) to the `summary` field.
 
