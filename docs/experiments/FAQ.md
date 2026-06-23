@@ -63,3 +63,8 @@ That gap is exactly what **Epic P1** (GitHub #362) targets — wiring
 read: test-first *as run here* did not deliver design discovery, the experiment
 cannot refute the claim for a human on open-ended design, and it points at both
 *why* (the refactor/insight step was missing) and *how* to make TDD produce it.
+
+An experiment designed to actually test this claim — open-design tasks, a
+refactor-enforced arm, and a withheld change chain measuring *changeability* — is
+specified in
+[`experiment-prompt-design-discovery.md`](experiment-prompt-design-discovery.md).
