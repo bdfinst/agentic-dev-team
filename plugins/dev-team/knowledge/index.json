@@ -1873,8 +1873,12 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "If `--plan` was provided, read that file.",
+      "summary": "Invoke the [Context Loading Protocol](../context-loading-protocol/SKILL.md) at the start of this task.",
       "anchor": "steps"
+    },
+    "0. Context loading": {
+      "summary": "Invoke the [Context Loading Protocol](../context-loading-protocol/SKILL.md) at the start of this task.",
+      "anchor": "0-context-loading"
     },
     "1. Find the plan": {
       "summary": "If `--plan` was provided, read that file.",
@@ -1911,6 +1915,10 @@
     "8. Update plan status": {
       "summary": "Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file.",
       "anchor": "8-update-plan-status"
+    },
+    "9. Learning loop": {
+      "summary": "Invoke the [Feedback & Learning](../feedback-learning/SKILL.md) skill at task completion to capture any correction turns from this session.",
+      "anchor": "9-learning-loop"
     },
     "Escalation": {
       "summary": "A failure is a debugging task first, not a hand-back.",
@@ -4358,6 +4366,10 @@
     }
   },
   "plugins/dev-team/skills/specs/SKILL.md": {
+    "Step 0 — Existing-spec version check": {
+      "summary": "Before drafting or updating a spec, check whether a spec file already exists for",
+      "anchor": "step-0-existing-spec-version-check"
+    },
     "Rules": {
       "summary": "1.",
       "anchor": "rules"

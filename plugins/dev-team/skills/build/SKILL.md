@@ -36,6 +36,10 @@ Arguments: $ARGUMENTS
 
 ## Steps
 
+### 0. Context loading
+
+Invoke the [Context Loading Protocol](../context-loading-protocol/SKILL.md) at the start of this task. It decides which agents and skills to load for the current phase, and sets the context budget before any implementation work begins. This is a lightweight read — it does not add agents to context; it decides the load order so context stays under the 40% ceiling throughout the build.
+
 ### 1. Find the plan
 
 If `--plan` was provided, read that file. Otherwise, search `plans/` for `.md` files and find the most recently modified one with `**Status**: approved`. If no approved plan is found, tell the user: "No approved plan found. Run `/plan` first, then approve it."
@@ -146,6 +150,10 @@ Produce a Farley Score for the tests written on this branch — the last quality
 ### 8. Update plan status
 
 Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file. Briefly confirm completion, report the branch Farley Score, and direct the user to `/pr`.
+
+### 9. Learning loop
+
+Invoke the [Feedback & Learning](../feedback-learning/SKILL.md) skill at task completion to capture any correction turns from this session. If the user used correction language during the build (e.g. "no, actually", "revert", "that's wrong", "stop doing X"), record the pattern so it can become an instruction rule. If no corrections occurred, this step is a no-op — invoke and it will report nothing to capture.
 
 ## Escalation
 
