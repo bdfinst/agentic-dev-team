@@ -68,6 +68,20 @@ Grep for patterns that architecture docs explicitly ban:
 | Direct `fetch`/`axios`/`HttpClient` outside adapter layer | If docs mandate HTTP abstraction |
 | Direct DB client calls outside repository layer | If docs mandate repository pattern |
 
+## Database Change Safety
+
+When the changeset includes schema migrations or DDL, a change must keep every release deployable and reversible. Fuller treatment: `knowledge/database-change-management.md`.
+
+| Signal | Risk | Fix direction |
+|--------|------|---------------|
+| `DROP`/`RENAME` of a column/table the same release's app still reads or writes | Breaks running instances mid-rollout; blocks rollback | Split into expand/contract across releases (add new, dual-write, switch reads, drop later) |
+| Roll-forward migration with no paired roll-back script | The release cannot be rolled back | Author and test the reversal |
+| New `NOT NULL` column or constraint added without a backfill step | Migration fails or long-locks on real data | Add nullable → backfill → enforce in a later release |
+| App code and schema assumed to deploy atomically | Old app instances error mid-rollout | Make the change backward-compatible (expand first) |
+| Manual SQL in a runbook instead of a versioned migration script | No audit trail; not reproducible; drifts across environments | Move into a versioned migration in version control |
+
+Flag the migration file and the coupled application code. Scope to migration/DDL changes only; ordinary data-access code is out of scope here.
+
 ## MCP-Enhanced Analysis
 
 If a code knowledge graph MCP is available (e.g., GitNexus):

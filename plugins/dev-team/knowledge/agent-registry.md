@@ -55,6 +55,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Skill | File | ~Tokens | Used By |
 |-------|------|---------|---------|
 | ADR Tools | `skills/adr-tools/SKILL.md` | ~1,350 | Orchestrator, adr-author, Software Engineer, Architect |
+| Artifact Lifecycle | `skills/artifact-lifecycle/SKILL.md` | ~600 | Orchestrator, `/artifact-lifecycle` command |
 | Agent & Skill Authoring | `skills/agent-skill-authoring/SKILL.md` | 1,300 | Orchestrator, Technical Writer |
 | Agent Create | `skills/agent-create/SKILL.md` | ~2,100 | Orchestrator, Software Engineer, all team agents |
 | API Design | `skills/api-design/SKILL.md` | 600 | Architect, Software Engineer |
@@ -127,9 +128,12 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 22 review agents (a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-modernization-review, test-review, test-smell-review, token-efficiency-review) |
 | Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
+| CD Maturity Model | `knowledge/cd-maturity-model.md` | ~870 | Platform Engineer, QA Engineer |
 | CD Test Architecture | `knowledge/cd-test-architecture.md` | ~1,100 | cd-test-architecture, test-design-advisor |
 | Component Test Patterns | `knowledge/component-test-patterns.md` | ~1,600 | cd-test-architecture |
+| Database Change Management | `knowledge/database-change-management.md` | ~1,000 | Software Engineer, Architect, arch-review, `/plan` |
 | Decision Defaults | `knowledge/decision-defaults.md` | ~350 | Orchestrator, Product Manager, `/plan` (approach contract) |
+| Deployment Pipeline | `knowledge/deployment-pipeline.md` | ~1,000 | Platform Engineer |
 | Task Size Classifier | `knowledge/task-size-classifier.md` | ~400 | Orchestrator (Task Size Gate, no-plan fast path routing) |
 | Design Smells | `knowledge/design-smells.md` | ~600 | structure-review, complexity-review, naming-review |
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
@@ -138,6 +142,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |
 | Object Calisthenics | `knowledge/object-calisthenics.md` | ~400 | structure-review, complexity-review |
 | OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |
+| Release Strategies | `knowledge/release-strategies.md` | ~910 | Platform Engineer, Architect, `/plan` |
 | Result Verification | `knowledge/result-verification.md` | ~700 | test-design-advisor, test-review, test-smell-review |
 | Review Rubric | `knowledge/review-rubric.md` | 300 | `/code-review` (health scoring) |
 | Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |

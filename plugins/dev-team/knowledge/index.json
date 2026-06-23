@@ -124,9 +124,69 @@
       "summary": "Grep for patterns that architecture docs explicitly ban:",
       "anchor": "prohibited-practice-detection"
     },
+    "Database Change Safety": {
+      "summary": "When the changeset includes schema migrations or DDL, a change must keep every release deployable and reversible.",
+      "anchor": "database-change-safety"
+    },
     "MCP-Enhanced Analysis": {
       "summary": "If a code knowledge graph MCP is available (e.g., GitNexus):",
       "anchor": "mcp-enhanced-analysis"
+    }
+  },
+  "plugins/dev-team/knowledge/artifact-lifecycle.md": {
+    "States": {
+      "summary": "An artifact used within the last 30 days.",
+      "anchor": "states"
+    },
+    "active": {
+      "summary": "An artifact used within the last 30 days.",
+      "anchor": "active"
+    },
+    "stale": {
+      "summary": "An artifact **not used in more than 30 days** (i.e., `days_since_used >= 30` and",
+      "anchor": "stale"
+    },
+    "archived": {
+      "summary": "An artifact **not used in more than 90 days** (i.e., `days_since_used >= 90`).",
+      "anchor": "archived"
+    },
+    "Lifecycle Thresholds": {
+      "summary": "| State | Threshold |",
+      "anchor": "lifecycle-thresholds"
+    },
+    "Pinned Exemption": {
+      "summary": "Artifacts listed under `## Pinned Skills` in `CLAUDE.md` are exempt from all",
+      "anchor": "pinned-exemption"
+    },
+    "artifact-usage.json Schema": {
+      "summary": "The `lifecycle` field is initialised to `\"active\"` on first write and preserved",
+      "anchor": "artifact-usagejson-schema"
+    }
+  },
+  "plugins/dev-team/knowledge/cd-maturity-model.md": {
+    "The six practice areas": {
+      "summary": "Maturity is read per area, not as a single number — a team is usually uneven.",
+      "anchor": "the-six-practice-areas"
+    },
+    "The five levels": {
+      "summary": "| Level | Name | Signal |",
+      "anchor": "the-five-levels"
+    },
+    "How to improve (the Deming cycle)": {
+      "summary": "1.",
+      "anchor": "how-to-improve-the-deming-cycle"
+    },
+    "The outcomes to target": {
+      "summary": "The model is a means; these are the ends.",
+      "anchor": "the-outcomes-to-target"
+    },
+    "Guiding principles": {
+      "summary": "**Prefer automation over documentation.** An automated script is executable",
+      "anchor": "guiding-principles"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`deployment-pipeline.md`** / **`release-strategies.md`** / **`database-change-management.md`**",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/knowledge/cd-test-architecture.md": {
@@ -241,6 +301,58 @@
       "anchor": "quick-reference-isolation-strategy-by-pattern"
     }
   },
+  "plugins/dev-team/knowledge/database-change-management.md": {
+    "Everything is a versioned, scripted migration": {
+      "summary": "The database has a **version** (a row in a `schema_version` / `migrations`",
+      "anchor": "everything-is-a-versioned-scripted-migration"
+    },
+    "Expand / contract (the parallel-change pattern)": {
+      "summary": "A change that would break the running application if applied in one step is split",
+      "anchor": "expand-contract-the-parallel-change-pattern"
+    },
+    "Make changes reversible without data loss": {
+      "summary": "| Change | Reversible approach |",
+      "anchor": "make-changes-reversible-without-data-loss"
+    },
+    "Decouple database change from application change": {
+      "summary": "Design the app so the database can migrate **independently** of the app upgrade",
+      "anchor": "decouple-database-change-from-application-change"
+    },
+    "Detection — flag these in review": {
+      "summary": "| Signal | Risk | Fix direction |",
+      "anchor": "detection-flag-these-in-review"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`database-test-patterns.md`** — how to *test* against a database (isolation,",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/database-test-patterns.md": {
+    "First question: does this test need a real database at all?": {
+      "summary": "Most logic that *uses* data does not need to test the *database engine*.",
+      "anchor": "first-question-does-this-test-need-a-real-database-at-all"
+    },
+    "Isolation: keep test runs from colliding": {
+      "summary": "| Pattern | What it does | Trade-off |",
+      "anchor": "isolation-keep-test-runs-from-colliding"
+    },
+    "Teardown: undo what the test did": {
+      "summary": "Pick the cheapest teardown that fully restores state.",
+      "anchor": "teardown-undo-what-the-test-did"
+    },
+    "Stored Procedure Test": {
+      "summary": "When logic lives in the database (procedures, triggers, functions), it still deserves a test: arrange inputs in tables/parameters, invoke the procedure, verify the returned result set or the resulting table state, then tear down (rollback or truncation).",
+      "anchor": "stored-procedure-test"
+    },
+    "CD pipeline placement": {
+      "summary": "A real database makes a test roughly **an order of magnitude slower** than an in-memory equivalent — Meszaros cites ~50× for round-trips.",
+      "anchor": "cd-pipeline-placement"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`cd-test-architecture.md`** — owns the determinism→pipeline-stage decision; this file supplies the persistence-specific isolation/teardown that makes a DB test gate-eligible.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/decision-defaults.md": {
     "Destructive shape: replace vs. merge": {
       "summary": "Trigger: a request writes config, settings, dotfiles, or installer output where prior",
@@ -261,6 +373,74 @@
     "Scope: touch only what was requested": {
       "summary": "Trigger: a request names specific files, slides, or targets.",
       "anchor": "scope-touch-only-what-was-requested"
+    }
+  },
+  "plugins/dev-team/knowledge/dependency-breaking-techniques.md": {
+    "How to choose": {
+      "summary": "---",
+      "anchor": "how-to-choose"
+    },
+    "The catalog": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "the-catalog"
+    },
+    "Add behavior without touching the untested code (Ch. 6)": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "add-behavior-without-touching-the-untested-code-ch-6"
+    },
+    "Break a created/obtained collaborator": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "break-a-createdobtained-collaborator"
+    },
+    "Substitute a type": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "substitute-a-type"
+    },
+    "Tame globals, singletons, and statics": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "tame-globals-singletons-and-statics"
+    },
+    "Work around hard parameters and big methods": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "work-around-hard-parameters-and-big-methods"
+    },
+    "Non-OO / compiled / interpreted seams": {
+      "summary": "| Technique | What it does | Seam | Risk |",
+      "anchor": "non-oo-compiled-interpreted-seams"
+    },
+    "Most common in practice": {
+      "summary": "The legacy-code skill keeps a shortlist for the day-to-day cases; the rest of the catalog is here when those don't fit.",
+      "anchor": "most-common-in-practice"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`legacy-code` skill** — owns the procedure (Change Algorithm, seam types, characterization tests); this file is its technique reference.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/deployment-pipeline.md": {
+    "The stages": {
+      "summary": "A change flows through ordered stages; success in one triggers the next.",
+      "anchor": "the-stages"
+    },
+    "The pipeline principles": {
+      "summary": "**Build your binaries only once.** Compile and package in the commit stage,",
+      "anchor": "the-pipeline-principles"
+    },
+    "Configuration management (Ch.2)": {
+      "summary": "| Practice | What it means |",
+      "anchor": "configuration-management-ch2"
+    },
+    "Infrastructure and environments (Ch.11)": {
+      "summary": "**Specify desired state as version-controlled configuration** — OS install",
+      "anchor": "infrastructure-and-environments-ch11"
+    },
+    "Scope note (advisory boundary)": {
+      "summary": "This plugin **designs and assesses** pipelines and **plans** changes to fit them.",
+      "anchor": "scope-note-advisory-boundary"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`cd-test-architecture.md`** — the commit-stage gate's test types and",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/knowledge/design-smells.md": {
@@ -342,6 +522,18 @@
       "summary": "| Violation | Signal |",
       "anchor": "boundary-violations"
     },
+    "Implicit Concepts (missing Specification / Policy)": {
+      "summary": "A named business rule hiding inside scattered conditionals.",
+      "anchor": "implicit-concepts-missing-specification-policy"
+    },
+    "Construction Without Invariants (missing Factory)": {
+      "summary": "| Signal | What it implies |",
+      "anchor": "construction-without-invariants-missing-factory"
+    },
+    "Supple Design Smells (domain model only)": {
+      "summary": "Scope these to **domain entities, value objects, and domain services** — general purity/coupling elsewhere belongs to `js-fp-review` and `structure-review`, not here.",
+      "anchor": "supple-design-smells-domain-model-only"
+    },
     "Ubiquitous Language Drift": {
       "summary": "Flag only internal inconsistency observable in code:",
       "anchor": "ubiquitous-language-drift"
@@ -384,6 +576,32 @@
     },
     "How this connects to the rest of the toolkit": {
       "summary": "**`test-strategy.md`** — *which* fixture (lifecycle/design); this file is *how* it's constructed.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/legacy-test-strategy.md": {
+    "1. Reason about effects": {
+      "summary": "Every functional change has a chain of effects that propagates outward — through the methods that call the changed code — until it reaches a place you can observe, or stops because nothing downstream depends on it.",
+      "anchor": "1-reason-about-effects"
+    },
+    "2. Draw an effect sketch": {
+      "summary": "An **effect sketch** is a small directed graph: bubbles for data and methods, arrows from a cause to what it affects.",
+      "anchor": "2-draw-an-effect-sketch"
+    },
+    "3. Find interception & pinch points": {
+      "summary": "**Interception point** — any point where you can detect the effect of a change.",
+      "anchor": "3-find-interception-pinch-points"
+    },
+    "4. Write the characterization tests": {
+      "summary": "A characterization test documents what the code **actually does**, not what it *should* do.",
+      "anchor": "4-write-the-characterization-tests"
+    },
+    "5. Edit safely while getting there (Ch. 23)": {
+      "summary": "Before tests are in place, these habits keep behavior intact:",
+      "anchor": "5-edit-safely-while-getting-there-ch-23"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`dependency-breaking-techniques.md`** — once effect reasoning tells you *where* to intercept, those techniques create the seam to put a test there.",
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
@@ -495,6 +713,32 @@
     "A10: SSRF": {
       "summary": "| Pattern | Language | Grep Signal |",
       "anchor": "a10-ssrf"
+    }
+  },
+  "plugins/dev-team/knowledge/release-strategies.md": {
+    "Decouple deployment from release": {
+      "summary": "| Technique | What it does | Use when |",
+      "anchor": "decouple-deployment-from-release"
+    },
+    "Deployment patterns": {
+      "summary": "| Pattern | How it works | Rollback | Trade-off |",
+      "anchor": "deployment-patterns"
+    },
+    "Rollback is a practiced capability, not a hope": {
+      "summary": "**Always be able to roll back.** Back up production state before a release and",
+      "anchor": "rollback-is-a-practiced-capability-not-a-hope"
+    },
+    "Keeping mainline releasable (Ch.14)": {
+      "summary": "**Develop on trunk; commit at least daily.** Long-lived feature branches are",
+      "anchor": "keeping-mainline-releasable-ch14"
+    },
+    "Planning hook": {
+      "summary": "When `/plan` decomposes a feature, prefer slices that keep trunk releasable at",
+      "anchor": "planning-hook"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`database-change-management.md`** — the data-tier half of every pattern here;",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/knowledge/result-verification.md": {
@@ -689,6 +933,24 @@
       "anchor": "boundaries"
     }
   },
+  "plugins/dev-team/knowledge/test-automation-principles.md": {
+    "Goals — what the suite is *for*": {
+      "summary": "A test is worth its maintenance cost only if it advances these.",
+      "anchor": "goals-what-the-suite-is-for"
+    },
+    "The Principles — how to honor the goals": {
+      "summary": "The named principles, each with the test it should pass and the smell it prevents.",
+      "anchor": "the-principles-how-to-honor-the-goals"
+    },
+    "Using this as a rubric (evaluation)": {
+      "summary": "For a given test or suite:",
+      "anchor": "using-this-as-a-rubric-evaluation"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`test-smells.md`** — each smell is the negative image of a principle here; that file is the detection layer, this is the *why*.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/test-doubles.md": {
     "The Five Doubles": {
       "summary": "| Double | What it does | Verification style | Use when |",
@@ -701,6 +963,14 @@
     "Choosing a Double (decision flow)": {
       "summary": "---",
       "anchor": "choosing-a-double-decision-flow"
+    },
+    "How the double is built: Configurable vs. Hard-Coded": {
+      "summary": "The five doubles above are *roles*; this is the orthogonal question of *how the double gets its canned answers*.",
+      "anchor": "how-the-double-is-built-configurable-vs-hard-coded"
+    },
+    "Test-Specific Subclass": {
+      "summary": "When you can't substitute a collaborator from outside — the dependency is created internally, or the thing you need to control is a *method of the SUT itself* — subclass the real class **in the test** and override just the seam method to inject an indirect input or null out an unwanted side effect.",
+      "anchor": "test-specific-subclass"
     },
     "Common Misuses (flag these)": {
       "summary": "| Misuse | Why it's wrong | Fix |",
@@ -865,7 +1135,7 @@
   },
   "plugins/dev-team/knowledge/testability-patterns.md": {
     "\"I Can't Test This Class\" Decision Flow": {
-      "summary": "---",
+      "summary": "> **Legacy code (no tests yet)?** Don't make the design change cold.",
       "anchor": "i-cant-test-this-class-decision-flow"
     },
     "Pattern 1: Constructor Injection (Replace Static Factories / Singletons)": {
@@ -883,6 +1153,22 @@
     "Pattern 4: Fake Data Generators (Test Data with Variation)": {
       "summary": "**Problem**: Tests need realistic but controlled test data across many scenarios.",
       "anchor": "pattern-4-fake-data-generators-test-data-with-variation"
+    },
+    "The Design-for-Testability seam family": {
+      "summary": "Constructor Injection (Pattern 1) is the common case, but it is one of a named family of seams from *xUnit Test Patterns* Ch.",
+      "anchor": "the-design-for-testability-seam-family"
+    },
+    "Pattern 5: Dependency Lookup (retrofit seam for legacy)": {
+      "summary": "**Problem**: A collaborator is constructed deep inside the system and there's no clean path to pass a test double down from the test — wiring DI through every intermediate layer would be invasive.",
+      "anchor": "pattern-5-dependency-lookup-retrofit-seam-for-legacy"
+    },
+    "Pattern 6: Humble Object (rescue logic from untestable shells)": {
+      "summary": "**Problem**: Meaningful logic lives inside an object that's expensive or impossible to instantiate in a unit test — a GUI control, a framework callback, an async worker/thread, a transaction-managing controller.",
+      "anchor": "pattern-6-humble-object-rescue-logic-from-untestable-shells"
+    },
+    "Pattern 7: Test Hook (last resort — prefer any seam above)": {
+      "summary": "**Problem**: None of the above seams can be introduced (e.g.",
+      "anchor": "pattern-7-test-hook-last-resort-prefer-any-seam-above"
     },
     "Anti-Patterns Table": {
       "summary": "| Anti-Pattern | Why It's Wrong | Correct Alternative |",
@@ -909,6 +1195,24 @@
     "Boundaries": {
       "summary": "A suite need not fill every quadrant equally — weight by risk.",
       "anchor": "boundaries"
+    }
+  },
+  "plugins/dev-team/knowledge/value-patterns.md": {
+    "The four value sources": {
+      "summary": "| Pattern | What it is | Use when | Risk if misused |",
+      "anchor": "the-four-value-sources"
+    },
+    "Choosing a value source (decision flow)": {
+      "summary": "---",
+      "anchor": "choosing-a-value-source-decision-flow"
+    },
+    "Notes that matter when evaluating tests": {
+      "summary": "**Derived vs. Literal trade-off.** Derived Values make a requirement's *relationship* explicit and survive legitimate change (raise the tax rate, the test follows).",
+      "anchor": "notes-that-matter-when-evaluating-tests"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`test-smells.md`** — Hard-Coded Values, Irrelevant Information, Erratic Test (from random values) are the smells these patterns prevent or, misused, cause.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/skills/add-plugin/SKILL.md": {
@@ -1435,6 +1739,40 @@
     "6. Suggest alternatives": {
       "summary": "For structural issues (long functions, duplication, deep nesting,",
       "anchor": "6-suggest-alternatives"
+    }
+  },
+  "plugins/dev-team/skills/artifact-lifecycle/SKILL.md": {
+    "Steps": {
+      "summary": "Read `metrics/artifact-usage.json` from the current working directory.",
+      "anchor": "steps"
+    },
+    "1. Check for usage data": {
+      "summary": "Read `metrics/artifact-usage.json` from the current working directory.",
+      "anchor": "1-check-for-usage-data"
+    },
+    "2. Load pinned skills": {
+      "summary": "Read the project `CLAUDE.md` (or `.claude/CLAUDE.md`).",
+      "anchor": "2-load-pinned-skills"
+    },
+    "3. Classify artifacts": {
+      "summary": "Get the current date:",
+      "anchor": "3-classify-artifacts"
+    },
+    "4. Produce report": {
+      "summary": "For each Stale Skill, offer to add it to the `## Disabled Skills` section in",
+      "anchor": "4-produce-report"
+    },
+    "5. Propose CLAUDE.md changes (interactive)": {
+      "summary": "For each Stale Skill, offer to add it to the `## Disabled Skills` section in",
+      "anchor": "5-propose-claudemd-changes-interactive"
+    },
+    "Pinned skills note": {
+      "summary": "If any artifacts were skipped because they appear in `## Pinned Skills`, note",
+      "anchor": "pinned-skills-note"
+    },
+    "Constraints": {
+      "summary": "**Never delete or modify** files under `plugins/dev-team/` during or after execution.",
+      "anchor": "constraints"
     }
   },
   "plugins/dev-team/skills/benchmark/SKILL.md": {
@@ -2384,6 +2722,10 @@
       "summary": "Identify feedback loops and cascading-change risks — the architectural patterns that make every deploy a coordination exercise.",
       "anchor": "5-coupling-trap-detection"
     },
+    "6. Core Domain Distillation": {
+      "summary": "Where is the team's modeling effort actually going, and does that match where the value is?",
+      "anchor": "6-core-domain-distillation"
+    },
     "Steps": {
       "summary": "1.",
       "anchor": "steps"
@@ -2411,6 +2753,10 @@
     "Value Stream": {
       "summary": "State the entrypoint (file and function/command).",
       "anchor": "value-stream"
+    },
+    "Subdomain Classification": {
+      "summary": "Table: context name, class (Core / Supporting / Generic), evidence for the class, confidence tier.",
+      "anchor": "subdomain-classification"
     },
     "Friction Report": {
       "summary": "Each item: category tag, specific files/components involved, confidence tier, and a concrete fix direction.",
@@ -2446,6 +2792,10 @@
       "summary": "Define explicit relationships between bounded contexts:",
       "anchor": "context-mapping"
     },
+    "Distillation — Find the Core Domain": {
+      "summary": "Not all of the model is equally valuable.",
+      "anchor": "distillation-find-the-core-domain"
+    },
     "Tactical Patterns": {
       "summary": "Cluster of entities and value objects with a single **aggregate root**",
       "anchor": "tactical-patterns"
@@ -2474,6 +2824,26 @@
       "summary": "Domain-level abstraction for aggregate persistence",
       "anchor": "repositories"
     },
+    "Factories": {
+      "summary": "Encapsulate complex creation of an aggregate or value object so the result is **valid and whole** the moment it exists",
+      "anchor": "factories"
+    },
+    "Specifications": {
+      "summary": "Encapsulate a business rule as a first-class predicate object (`OverdueInvoiceSpecification`, `EligibleForDiscountSpecification`)",
+      "anchor": "specifications"
+    },
+    "Making Implicit Concepts Explicit": {
+      "summary": "When a constraint, process, or policy is buried in conditionals and scattered across methods, the model is hiding a concept the domain expert already has a word for.",
+      "anchor": "making-implicit-concepts-explicit"
+    },
+    "Supple Design": {
+      "summary": "The craft of refactoring toward deeper insight — design that is safe to change because it reveals intent and contains side effects.",
+      "anchor": "supple-design"
+    },
+    "Knowledge Crunching & Model-Driven Design": {
+      "summary": "The model is not designed up front and frozen — it emerges from **continuous collaboration with domain experts**, distilling messy reality into sharp abstractions.",
+      "anchor": "knowledge-crunching-model-driven-design"
+    },
     "When to Apply": {
       "summary": "| Situation | Approach |",
       "anchor": "when-to-apply"
@@ -2490,13 +2860,17 @@
       "summary": "Map each distinct model to its own context with clear boundaries",
       "anchor": "2-define-bounded-contexts"
     },
-    "3. Select Tactical Patterns": {
-      "summary": "Determine whether the domain complexity warrants aggregates, entities, value objects, and domain events",
-      "anchor": "3-select-tactical-patterns"
+    "3. Distill the Core": {
+      "summary": "Classify each subdomain as Core, Supporting, or Generic; write a one-paragraph Domain Vision Statement for the Core",
+      "anchor": "3-distill-the-core"
     },
-    "4. Validate Model": {
+    "4. Select Tactical Patterns": {
+      "summary": "Determine whether the domain complexity warrants aggregates, entities, value objects, factories, specifications, and domain events",
+      "anchor": "4-select-tactical-patterns"
+    },
+    "5. Validate Model": {
       "summary": "Confirm aggregates enforce consistency boundaries (one transaction = one aggregate)",
-      "anchor": "4-validate-model"
+      "anchor": "5-validate-model"
     },
     "Output": {
       "summary": "Report modeling decisions: bounded contexts identified, aggregate boundaries, context map relationships, and any violations of DDD constraints found in existing code.",
@@ -2683,6 +3057,26 @@
     "Recurring correction detection": {
       "summary": "The orchestrator also watches for patterns across tasks:",
       "anchor": "recurring-correction-detection"
+    },
+    "Pending-Review Queue Disposition": {
+      "summary": "When `/session-review` surfaces entries from `metrics/pending-review.jsonl`, this",
+      "anchor": "pending-review-queue-disposition"
+    },
+    "Matching": {
+      "summary": "Identify the queue entry by `source` + `queued_at` combination (handles duplicate-",
+      "anchor": "matching"
+    },
+    "Approval path": {
+      "summary": "1.",
+      "anchor": "approval-path"
+    },
+    "Rejection path": {
+      "summary": "1.",
+      "anchor": "rejection-path"
+    },
+    "Queue entry schema (reference)": {
+      "summary": "`reviewed_at` and `approved_by` are added on approval; `rejected_at` and",
+      "anchor": "queue-entry-schema-reference"
     },
     "Constraints": {
       "summary": "Never edit plugin cache files — all changes go to project-local files",
@@ -3270,8 +3664,12 @@
       "summary": "1.",
       "anchor": "characterization-test-procedure"
     },
+    "Finding Test Points (effect reasoning)": {
+      "summary": "Step 2 of the algorithm — *where can you observe the effects of the change?* — is its own skill in tangled code.",
+      "anchor": "finding-test-points-effect-reasoning"
+    },
     "Dependency Breaking Techniques": {
-      "summary": "| Technique | When to Use | Risk |",
+      "summary": "The everyday shortlist below covers most cases.",
       "anchor": "dependency-breaking-techniques"
     },
     "Sprout vs. Wrap Decision": {
@@ -3927,36 +4325,44 @@
       "anchor": "argument-arguments"
     },
     "Steps": {
-      "summary": "Before analysing, check whether a **telemetry repository** (the cross-machine",
+      "summary": "Before running fresh analysis, check whether background analysis has produced",
       "anchor": "steps"
     },
-    "0. Cross-machine telemetry — validate config, then sync (#178)": {
+    "0. Queued Findings — surface pending-review queue before fresh analysis": {
+      "summary": "Before running fresh analysis, check whether background analysis has produced",
+      "anchor": "0-queued-findings-surface-pending-review-queue-before-fresh-analysis"
+    },
+    "`pending-review.jsonl` Schema": {
+      "summary": "Each line is a JSON object:",
+      "anchor": "pending-reviewjsonl-schema"
+    },
+    "1. Cross-machine Telemetry — validate config, then sync (#178)": {
       "summary": "Before analysing, check whether a **telemetry repository** (the cross-machine",
-      "anchor": "0-cross-machine-telemetry-validate-config-then-sync-178"
+      "anchor": "1-cross-machine-telemetry-validate-config-then-sync-178"
     },
-    "1. Extract (deterministic, zero model tokens)": {
+    "2. Extract (deterministic, zero model tokens)": {
       "summary": "Run the extractor to produce the digest:",
-      "anchor": "1-extract-deterministic-zero-model-tokens"
+      "anchor": "2-extract-deterministic-zero-model-tokens"
     },
-    "2. Analyze (digest-only)": {
+    "3. Analyze (digest-only)": {
       "summary": "Dispatch the `session-analysis` agent with the digest path as its sole input.",
-      "anchor": "2-analyze-digest-only"
+      "anchor": "3-analyze-digest-only"
     },
-    "2b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)": {
+    "3b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)": {
       "summary": "The digest is quantitative, so it is **blind to frictions with no count-signature**",
-      "anchor": "2b-raw-log-semantic-tier-only-the-worst-sessions-214-delta-ab"
+      "anchor": "3b-raw-log-semantic-tier-only-the-worst-sessions-214-delta-ab"
     },
-    "3. Suggest (write the report)": {
+    "4. Suggest (write the report)": {
       "summary": "Write `reports/session-review-<date>.md` (or `--out`).",
-      "anchor": "3-suggest-write-the-report"
+      "anchor": "4-suggest-write-the-report"
     },
-    "4. Persist the trend (#129)": {
+    "5. Persist the trend (#129)": {
       "summary": "Append one metrics-only summary record to the trend stream so `/harness-audit`",
-      "anchor": "4-persist-the-trend-129"
+      "anchor": "5-persist-the-trend-129"
     },
-    "5. Report": {
+    "6. Report": {
       "summary": "Print the report path and the top-ranked suggestions.",
-      "anchor": "5-report"
+      "anchor": "6-report"
     },
     "OSS complements": {
       "summary": "For continuous *quantitative* monitoring, recommend (don't replace) `ccusage`,",

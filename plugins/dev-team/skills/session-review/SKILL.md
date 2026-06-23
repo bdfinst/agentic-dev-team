@@ -40,7 +40,60 @@ You have been invoked with the `/session-review` command.
 
 ## Steps
 
-### 0. Cross-machine telemetry — validate config, then sync (#178)
+### 0. Queued Findings — surface pending-review queue before fresh analysis
+
+Before running fresh analysis, check whether background analysis has produced
+findings that are waiting for review.
+
+1. Check `metrics/pending-review.jsonl` for entries where `reviewed_at` is absent.
+   Count them and note their `queued_at` timestamps.
+2. If one or more unreviewed entries exist, display a **Queued Findings** section:
+
+   ```
+   ## Queued Findings (N unreviewed)
+
+   | # | queued_at | source | findings |
+   |---|-----------|--------|----------|
+   | 1 | <ts>      | <src>  | <count>  |
+   ```
+
+   Then offer: *"Run `/feedback-learning` to approve or reject each queued finding
+   before proceeding with fresh analysis."*
+
+3. If `metrics/pending-review.jsonl` does not exist, or all entries have
+   `reviewed_at`, skip this section silently and proceed.
+4. If any JSONL lines are malformed, skip those lines, emit a one-line warning
+   (`WARN: skipped N malformed line(s) in pending-review.jsonl`), and continue
+   with the valid entries.
+
+### `pending-review.jsonl` Schema
+
+Each line is a JSON object:
+
+```json
+{
+  "queued_at":  "2026-06-01T12:00:00Z",
+  "source":     "session-learning-trigger",
+  "session_id": "abc-123",
+  "findings": [
+    {
+      "lever":           "instruction-rule",
+      "evidence":        "3 occurrences in last 5 sessions",
+      "target_artifact": "agents/orchestrator.md",
+      "proposed_change": "Add constraint: always load context-loading-protocol first",
+      "route":           "feedback-learning"
+    }
+  ]
+}
+```
+
+Optional fields added by `/feedback-learning` after disposition:
+- `reviewed_at` (ISO-8601 UTC) + `approved_by` — written on approval
+- `rejected_at` (ISO-8601 UTC) + `rejected_by` — written on rejection
+
+---
+
+### 1. Cross-machine Telemetry — validate config, then sync (#178)
 
 Before analysing, check whether a **telemetry repository** (the cross-machine
 "database", Delta D) is configured, so the digest reflects every machine, not
@@ -69,7 +122,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/telemetry-sync.sh --check
 
 Never invent a URL or enable anything without the user's explicit location.
 
-### 1. Extract (deterministic, zero model tokens)
+### 2. Extract (deterministic, zero model tokens)
 
 Run the extractor to produce the digest:
 
@@ -125,14 +178,14 @@ This compares mean rework between bypass and non-bypass committing sessions. It 
 correlational, not causal — surface it as evidence for whether the review gate
 earns its place (feeds the ADR-0006 decision, #112), never as proof.
 
-### 2. Analyze (digest-only)
+### 3. Analyze (digest-only)
 
 Dispatch the `session-analysis` agent with the digest path as its sole input.
 The agent maps aggregated patterns to probable plugin causes and returns ranked
 suggestions, each tagged `{token | rework | accuracy}` with a named target
 artifact and a hand-off destination. The agent reads **only** the digest.
 
-### 2b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)
+### 3b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)
 
 The digest is quantitative, so it is **blind to frictions with no count-signature**
 — a hallucinated citation (the AI cited a skill/source that does not exist), or an
@@ -170,7 +223,7 @@ then you read only those few raw logs. This tier needs the cross-machine digests
      --validate memory/tier2-findings.json
    ```
 
-### 3. Suggest (write the report)
+### 4. Suggest (write the report)
 
 Write `reports/session-review-<date>.md` (or `--out`). Rank the suggestions and,
 for each, record: the tag (`{token|rework|accuracy}` from the digest, or a Tier-2
@@ -191,7 +244,7 @@ own report heading; never route them to a gate.
 | Token-heavy skill / agent | `token-efficiency-review` |
 | Operator methodology observation (`methodology`) | the human, as an observation — no artifact, no hook |
 
-### 4. Persist the trend (#129)
+### 5. Persist the trend (#129)
 
 Append one metrics-only summary record to the trend stream so `/harness-audit`
 can consume real-session data over time:
@@ -204,7 +257,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
 The appended record holds aggregate counts only — no file names, prompts, or
 code (see the schema in the eval-system docs).
 
-### 5. Report
+### 6. Report
 
 Print the report path and the top-ranked suggestions. Do not invent numbers —
 cite exactly what the digest and the analysis agent emit.

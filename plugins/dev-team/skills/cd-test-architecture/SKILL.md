@@ -13,10 +13,11 @@ An **advisory, application-level** skill: it assesses how an existing applicatio
 
 Where `test-design-advisor` works at the unit/module level and `test-smell-review` finds smells in test files, this skill works at the **whole-application** level: test types, pipeline stages, and per-component patterns.
 
-Grounded in two knowledge references — read both before assessing:
+Grounded in these knowledge references — read the first two before assessing:
 
 - `knowledge/cd-test-architecture.md` — the six test types, the determinism→pre-merge-gate rule, the adapter rule, double validation, pipeline stages, and MinimumCD-vs-Fowler terminology.
 - `knowledge/component-test-patterns.md` — per-component patterns (UI / Services / Batch) with isolation strategy and pipeline placement.
+- `knowledge/database-test-patterns.md` — load when a component is database-backed: Database Sandbox isolation, Transaction Rollback / Table Truncation Teardown, and the rule that pushes most data-logic tests onto in-memory Fakes so they stay pre-merge-gate eligible.
 
 ## Constraints
 

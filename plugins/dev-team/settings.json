@@ -182,6 +182,16 @@
         ]
       }
     ],
+    "SessionStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash hooks/session-learning-trigger.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": null,

@@ -62,6 +62,43 @@ _emit() {  # _emit <event> <name> <outcome>
     >> "$log" 2>/dev/null || true
 }
 
+_upsert_artifact_usage() {  # _upsert_artifact_usage <skill-name>
+  local skill="$1"
+  # File-based opt-out overrides env-var opt-in for artifact-usage.json.
+  if [ -f "${cwd}/.claude/telemetry.json" ] && \
+     jq -e '.enabled == false' "${cwd}/.claude/telemetry.json" >/dev/null 2>&1; then
+    return 0
+  fi
+  local usage_dir="${cwd}/metrics"
+  local usage_file="${usage_dir}/artifact-usage.json"
+  mkdir -p "$usage_dir" 2>/dev/null
+  local tmp
+  tmp=$(mktemp "${usage_dir}/.artifact-usage-XXXXXX.json" 2>/dev/null) || return 0
+  local existing="{}"
+  if [ -f "$usage_file" ]; then
+    if ! existing=$(jq -e . "$usage_file" 2>/dev/null); then
+      echo "WARN: metrics/artifact-usage.json contained malformed JSON; discarding" >&2
+      existing="{}"
+    fi
+  fi
+  local ts
+  ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  jq -nc \
+    --arg skill "$skill" \
+    --arg ts "$ts" \
+    --argjson existing "$existing" \
+    '
+    $existing |
+    if .[$skill] == null then
+      .[$skill] = {use_count: 1, last_used_at: $ts, lifecycle: "active"}
+    else
+      .[$skill].use_count = (.[$skill].use_count + 1) |
+      .[$skill].last_used_at = $ts
+    end
+    ' > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 0; }
+  mv "$tmp" "$usage_file" 2>/dev/null || { rm -f "$tmp"; return 0; }
+}
+
 event_name=$(echo "$input" | jq -r '.hook_event_name // empty')
 
 case "$event_name" in
@@ -82,6 +119,7 @@ case "$event_name" in
         skill=$(echo "$input" | jq -r '.tool_input.skill // .tool_input.name // empty')
         if [[ "$skill" =~ ^([a-zA-Z][a-zA-Z0-9_:-]*)$ ]]; then
           _emit "skill" "${BASH_REMATCH[1]}" "invoked"
+          _upsert_artifact_usage "${BASH_REMATCH[1]}"
         fi
         ;;
       Bash)
