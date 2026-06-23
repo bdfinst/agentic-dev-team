@@ -93,6 +93,17 @@ Grep for patterns that architecture documentation explicitly bans:
 - Direct `fetch`/`axios`/`HttpClient` calls outside designated HTTP adapter layer
 - Direct DB client calls outside designated repository layer
 
+### Database change safety
+
+When the changeset includes schema migrations or DDL, apply the signals in `knowledge/architecture-assessment.md#database-change-safety`:
+
+- A migration drops or renames a column/table that the same release's application code still reads or writes — breaks running instances mid-rollout and blocks rollback
+- A roll-forward migration ships with no paired roll-back script
+- A new `NOT NULL` column or constraint added with no backfill step
+- App code and schema assumed to deploy atomically (reads a structure added in the same deploy)
+
+Flag the migration file and the coupled application code; fix direction is to split into expand/contract across releases.
+
 ## Self-Challenge
 
 After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these arch-review-specific challenges:
@@ -102,6 +113,7 @@ After producing findings, run the shared challenger loop in `knowledge/adversari
 - For each "inconsistent pattern" finding, did you verify the established pattern exists in at least 2 other locations?
 - Did you check for circular dependencies introduced by the changeset?
 - Are there new abstractions that duplicate existing ones?
+- For any schema migration in the changeset, did you confirm it is reversible (paired roll-back) and backward-compatible with the currently-deployed app version?
 
 Append confidence level (High/Medium/Low) to the `summary` field.
 

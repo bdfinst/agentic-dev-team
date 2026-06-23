@@ -124,9 +124,39 @@
       "summary": "Grep for patterns that architecture docs explicitly ban:",
       "anchor": "prohibited-practice-detection"
     },
+    "Database Change Safety": {
+      "summary": "When the changeset includes schema migrations or DDL, a change must keep every release deployable and reversible.",
+      "anchor": "database-change-safety"
+    },
     "MCP-Enhanced Analysis": {
       "summary": "If a code knowledge graph MCP is available (e.g., GitNexus):",
       "anchor": "mcp-enhanced-analysis"
+    }
+  },
+  "plugins/dev-team/knowledge/cd-maturity-model.md": {
+    "The six practice areas": {
+      "summary": "Maturity is read per area, not as a single number — a team is usually uneven.",
+      "anchor": "the-six-practice-areas"
+    },
+    "The five levels": {
+      "summary": "| Level | Name | Signal |",
+      "anchor": "the-five-levels"
+    },
+    "How to improve (the Deming cycle)": {
+      "summary": "1.",
+      "anchor": "how-to-improve-the-deming-cycle"
+    },
+    "The outcomes to target": {
+      "summary": "The model is a means; these are the ends.",
+      "anchor": "the-outcomes-to-target"
+    },
+    "Guiding principles": {
+      "summary": "**Prefer automation over documentation.** An automated script is executable",
+      "anchor": "guiding-principles"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`deployment-pipeline.md`** / **`release-strategies.md`** / **`database-change-management.md`**",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/knowledge/cd-test-architecture.md": {
@@ -241,6 +271,32 @@
       "anchor": "quick-reference-isolation-strategy-by-pattern"
     }
   },
+  "plugins/dev-team/knowledge/database-change-management.md": {
+    "Everything is a versioned, scripted migration": {
+      "summary": "The database has a **version** (a row in a `schema_version` / `migrations`",
+      "anchor": "everything-is-a-versioned-scripted-migration"
+    },
+    "Expand / contract (the parallel-change pattern)": {
+      "summary": "A change that would break the running application if applied in one step is split",
+      "anchor": "expand-contract-the-parallel-change-pattern"
+    },
+    "Make changes reversible without data loss": {
+      "summary": "| Change | Reversible approach |",
+      "anchor": "make-changes-reversible-without-data-loss"
+    },
+    "Decouple database change from application change": {
+      "summary": "Design the app so the database can migrate **independently** of the app upgrade",
+      "anchor": "decouple-database-change-from-application-change"
+    },
+    "Detection — flag these in review": {
+      "summary": "| Signal | Risk | Fix direction |",
+      "anchor": "detection-flag-these-in-review"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`database-test-patterns.md`** — how to *test* against a database (isolation,",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/database-test-patterns.md": {
     "First question: does this test need a real database at all?": {
       "summary": "Most logic that *uses* data does not need to test the *database engine*.",
@@ -328,6 +384,32 @@
     },
     "How this connects to the rest of the toolkit": {
       "summary": "**`legacy-code` skill** — owns the procedure (Change Algorithm, seam types, characterization tests); this file is its technique reference.",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/deployment-pipeline.md": {
+    "The stages": {
+      "summary": "A change flows through ordered stages; success in one triggers the next.",
+      "anchor": "the-stages"
+    },
+    "The pipeline principles": {
+      "summary": "**Build your binaries only once.** Compile and package in the commit stage,",
+      "anchor": "the-pipeline-principles"
+    },
+    "Configuration management (Ch.2)": {
+      "summary": "| Practice | What it means |",
+      "anchor": "configuration-management-ch2"
+    },
+    "Infrastructure and environments (Ch.11)": {
+      "summary": "**Specify desired state as version-controlled configuration** — OS install",
+      "anchor": "infrastructure-and-environments-ch11"
+    },
+    "Scope note (advisory boundary)": {
+      "summary": "This plugin **designs and assesses** pipelines and **plans** changes to fit them.",
+      "anchor": "scope-note-advisory-boundary"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`cd-test-architecture.md`** — the commit-stage gate's test types and",
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
@@ -601,6 +683,32 @@
     "A10: SSRF": {
       "summary": "| Pattern | Language | Grep Signal |",
       "anchor": "a10-ssrf"
+    }
+  },
+  "plugins/dev-team/knowledge/release-strategies.md": {
+    "Decouple deployment from release": {
+      "summary": "| Technique | What it does | Use when |",
+      "anchor": "decouple-deployment-from-release"
+    },
+    "Deployment patterns": {
+      "summary": "| Pattern | How it works | Rollback | Trade-off |",
+      "anchor": "deployment-patterns"
+    },
+    "Rollback is a practiced capability, not a hope": {
+      "summary": "**Always be able to roll back.** Back up production state before a release and",
+      "anchor": "rollback-is-a-practiced-capability-not-a-hope"
+    },
+    "Keeping mainline releasable (Ch.14)": {
+      "summary": "**Develop on trunk; commit at least daily.** Long-lived feature branches are",
+      "anchor": "keeping-mainline-releasable-ch14"
+    },
+    "Planning hook": {
+      "summary": "When `/plan` decomposes a feature, prefer slices that keep trunk releasable at",
+      "anchor": "planning-hook"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "**`database-change-management.md`** — the data-tier half of every pattern here;",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
   "plugins/dev-team/knowledge/result-verification.md": {
