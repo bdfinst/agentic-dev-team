@@ -1,0 +1,4 @@
+{
+  "ar-clean-arch": {"status":"pass","issues":[],"summary":"PricingService imports only domain-owned types. No infrastructure imports, no cross-layer boundary crossings."},
+  "ar-layer-violation": {"status":"fail","issues":[{"severity":"error","message":"Layer boundary violation: domain layer imports ORM entity from infrastructure layer (src/domain/pricing/PricingService.ts line 14: import InvoiceEntity from infrastructure/orm)."},{"severity":"error","message":"Layer boundary violation: domain layer imports concrete TypeORM repository instead of domain-owned port (line 18: import TypeOrmInvoiceRepository from infrastructure/orm)."}],"summary":"Two layer boundary violations: domain imports infrastructure ORM entity and concrete repository, violating inward dependency rule."}
+}

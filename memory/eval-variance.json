@@ -1,0 +1,589 @@
+{
+  "by_agent": {
+    "arch-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 2
+    },
+    "claude-setup-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 6
+    },
+    "complexity-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 7
+    },
+    "doc-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 2
+    },
+    "domain-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 5
+    },
+    "js-fp-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 6
+    },
+    "naming-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 6
+    },
+    "orchestrator": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 1
+    },
+    "security-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 6
+    },
+    "structure-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 5
+    },
+    "svelte-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 8
+    },
+    "test-design-advisor": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 11
+    },
+    "test-modernization-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 2
+    },
+    "test-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 7
+    },
+    "test-smell-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 4
+    },
+    "token-efficiency-review": {
+      "flaky_fixtures": 0,
+      "mean_pass_at_k": 1.0,
+      "pairs": 5
+    }
+  },
+  "by_pair": {
+    "ar-clean-arch::arch-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "ar-layer-violation::arch-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cs-broken-paths::claude-setup-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cs-complete-setup::claude-setup-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cs-minimal-valid::claude-setup-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cs-missing-sections::claude-setup-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cx-callback-hell::complexity-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cx-clean-functions::complexity-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cx-deep-nesting::complexity-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cx-god-function::complexity-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cx-refactor-after::complexity-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cx-refactor-before::complexity-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "cx-simple-logic::complexity-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "dm-clean-boundaries::domain-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "dm-leaky-abstraction::domain-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "dm-logic-in-ui::domain-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "dm-missing-dtos::domain-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "dm-proper-events::domain-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "dr-accurate-docs::doc-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "dr-stale-readme::doc-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "ex-explore-command-missing::claude-setup-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "ex-explore-command-present::claude-setup-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "fp-array-mutations::js-fp-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "fp-global-state::js-fp-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "fp-immutable-state::js-fp-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "fp-object-mutations::js-fp-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "fp-pure-transforms::js-fp-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "fp-safe-sort::js-fp-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "int-string-calculator::orchestrator": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "nm-clear-names::naming-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "nm-consistency-canonical::naming-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "nm-consistent-conventions::naming-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "nm-inconsistent-naming::naming-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "nm-magic-values::naming-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "nm-misleading-names::naming-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sec-env-gitignored::security-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sec-hardcoded-secrets::security-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sec-safe-auth::security-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sec-safe-headers::security-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sec-sql-injection::security-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sec-xss-vulnerable::security-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "st-clean-modules::structure-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "st-duplicate-code::structure-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "st-god-object::structure-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "st-mixed-concerns::structure-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "st-organized-exports::structure-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sv-clean-lifecycle.svelte::svelte-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sv-closure-state-leak.svelte::svelte-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sv-effect-pitfalls.svelte::svelte-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sv-lifecycle-issues.svelte::svelte-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sv-proper-reactive.svelte::svelte-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sv-safe-stores.svelte::svelte-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sv-state-proxy-pitfalls.svelte::svelte-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "sv-store-subscription-leak.svelte::svelte-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "te-clean-code::token-efficiency-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "te-duplicate-code::token-efficiency-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "te-efficient-claude::token-efficiency-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "te-long-functions::token-efficiency-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "te-verbose-claude::token-efficiency-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-assertion-roulette.test::test-smell-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-clean-doubles.test::test-smell-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-missing-edge-cases.test::test-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-mystery-guest.test::test-smell-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-no-assertions.test::test-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-overspecified-mocks.test::test-smell-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-shared-state.test::test-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-thorough-edge-cases.test::test-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-weak-assertions.test::test-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "test-well-structured.test::test-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-01-pure-function::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-02-user-facing-dynamic::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-03-browser-bug-fix::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-04-unit-bug-fix::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-05-htmx-swap-mutation::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-06-alpine-toggle::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-07-pdf-with-reference::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-08-email-no-reference::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-09-critical-single-layer::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-10-multi-gate::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tlg-11-ambiguous::test-design-advisor": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tmr-phase1-missing-seams::test-modernization-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tmr-phase1-pass::test-modernization-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    },
+    "tr-consistency-canonical::test-review": {
+      "flap": false,
+      "pass_at_k": 1.0,
+      "passes": 3,
+      "trials": 3
+    }
+  },
+  "flaky_count": 0,
+  "pairs_evaluated": 83,
+  "quarantine": [],
+  "schema": "eval-variance/v1",
+  "trials": 3
+}

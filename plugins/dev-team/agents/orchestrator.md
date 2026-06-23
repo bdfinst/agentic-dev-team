@@ -206,6 +206,21 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 - **Human gate**: Human reviews the research findings and design doc before planning begins. Catching a misunderstanding here prevents hundreds of bad lines of code downstream.
 - **Context**: Compact after this phase — write progress file, start fresh context for Phase 2
 
+#### Codebase Recon dispatch
+
+At the start of Research, check whether a RECON artifact already exists for this project at `memory/recon-<slug>.md` (where `<slug>` is the repo basename). If no artifact exists, or if the existing one is more than 24 hours old, dispatch `codebase-recon` as a sub-agent before any other exploration. It returns entry points, dependency graph, security surface, and git history in a structured artifact that onboards the Architect and Security Engineer without those agents needing to re-read the codebase themselves. Skip the dispatch (silently) when a fresh artifact is present.
+
+#### Security Engineer dispatch
+
+Dispatch `security-engineer` during Research when **any** of these signals are present in the task description or plan:
+
+- The task touches authentication, authorization, cryptography, session management, or secrets handling
+- The task introduces a new external integration or API surface
+- `security-review` produced a `fail` verdict with high-severity findings in a recent `/code-review` run
+- The user explicitly requests threat modeling or a security review
+
+Do **not** dispatch `security-engineer` on every task — its `effort: high` cost is only justified on security-relevant work. When dispatched, it produces a threat model or security analysis that feeds into the design doc and the plan's acceptance criteria.
+
 ### Phase 2: Plan
 
 - **Goal**: Specify every change to be made — files, snippets, test strategy, verification steps

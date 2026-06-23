@@ -71,6 +71,14 @@
           {
             "type": "command",
             "command": "bash hooks/telemetry.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/verify-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/bash-retry-guard.sh"
           }
         ]
       },
@@ -170,6 +178,16 @@
           {
             "type": "command",
             "command": "bash hooks/codegraph-turn-mark.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash hooks/session-learning-trigger.sh"
           }
         ]
       }

@@ -1,0 +1,36 @@
+{
+  "schema": "rawlog-flagged/v1",
+  "top": 5,
+  "worst_sessions": [
+    {
+      "friction_score": 237.023,
+      "host": "COVMD-J6K9MYQ6NY",
+      "project": "agentic-dev-team",
+      "session_id": "ea1f1644-ec0a-485b-9b92-d3db0474e9cd"
+    },
+    {
+      "friction_score": 212.9937,
+      "host": "COVMD-J6K9MYQ6NY",
+      "project": "my_tools",
+      "session_id": "b1248be2-62ef-40e9-b2f0-f70f409b48a6"
+    },
+    {
+      "friction_score": 208.0202,
+      "host": "COVMD-J6K9MYQ6NY",
+      "project": "sppe-renovatebot",
+      "session_id": "caf816cf-81a5-46cf-890b-09d5ace4a153"
+    },
+    {
+      "friction_score": 143.984,
+      "host": "COVMD-J6K9MYQ6NY",
+      "project": "nextgen-internetapi",
+      "session_id": "7231ee2e-7346-4ff5-9b45-5f14670c7722"
+    },
+    {
+      "friction_score": 133.99,
+      "host": "COVMD-J6K9MYQ6NY",
+      "project": "sppe-backstage",
+      "session_id": "777e0e2d-6985-4d0f-8e4f-6c495a10a716"
+    }
+  ]
+}
