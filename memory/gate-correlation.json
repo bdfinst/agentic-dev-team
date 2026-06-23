@@ -1,0 +1,9 @@
+{
+  "bypass_sessions": 4,
+  "clean_sessions": 44,
+  "committing_sessions": 48,
+  "interpretation": "bypassing the review gate correlates with MORE rework (74.0 vs 29.7955) \u2014 evidence the gate guards real risk",
+  "mean_rework_when_bypassed": 74.0,
+  "mean_rework_when_gated": 29.7955,
+  "schema": "gate-correlation/v1"
+}

@@ -1,0 +1,64 @@
+{
+  "recommendations": [
+    {
+      "count": 907,
+      "label": "repeated verify runs",
+      "lever": "hook",
+      "matchable": true,
+      "per_session_rate": 3.3843,
+      "rationale": "frequent and deterministically matchable \u2014 promote to a hook (validate via /agent-eval)",
+      "signal": "repeated_verify_runs"
+    },
+    {
+      "count": 457,
+      "label": "retried bash commands",
+      "lever": "hook",
+      "matchable": true,
+      "per_session_rate": 1.7052,
+      "rationale": "frequent and deterministically matchable \u2014 promote to a hook (validate via /agent-eval)",
+      "signal": "retried_bash_commands"
+    },
+    {
+      "count": 114,
+      "label": "user-correction turns",
+      "lever": "instruction-rule",
+      "matchable": false,
+      "per_session_rate": 0.4254,
+      "rationale": "recurring but judgment-shaped (no reliable matcher) \u2014 an instruction-file rule (/feedback-learning)",
+      "signal": "user_correction_turns"
+    },
+    {
+      "count": 37,
+      "label": "failed edits (old_string not found)",
+      "lever": "hint",
+      "matchable": false,
+      "per_session_rate": 0.1381,
+      "rationale": "rare \u2014 surface as a hint only",
+      "signal": "failed_edits"
+    },
+    {
+      "count": 3,
+      "label": "permission denials",
+      "lever": "hint",
+      "matchable": true,
+      "per_session_rate": 0.0112,
+      "rationale": "rare \u2014 surface as a hint only",
+      "signal": "permission_denials"
+    },
+    {
+      "count": 2,
+      "label": "context compaction events",
+      "lever": "hint",
+      "matchable": false,
+      "per_session_rate": 0.0075,
+      "rationale": "rare \u2014 surface as a hint only",
+      "signal": "compaction_events"
+    }
+  ],
+  "schema": "telemetry-escalation/v1",
+  "sessions": 268,
+  "thresholds": {
+    "frequent_rate": 1.0,
+    "rare_rate": 0.25
+  }
+}

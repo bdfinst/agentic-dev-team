@@ -1,0 +1,1665 @@
+{
+  "fp-array-mutations": {
+    "agents": {
+      "js-fp-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "taskQueue.push(task) mutates module-level external array (lines 13,18)."
+          },
+          {
+            "severity": "error",
+            "message": "tasks.sort() mutates the parameter array in-place."
+          },
+          {
+            "severity": "error",
+            "message": "tasks.splice() mutates parameter array."
+          },
+          {
+            "severity": "error",
+            "message": "tasks.reverse() mutates parameter array in-place."
+          }
+        ],
+        "summary": "Multiple array mutations."
+      }
+    },
+    "skills": {}
+  },
+  "fp-global-state": {
+    "agents": {
+      "js-fp-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "requestCount++ mutates module-level state"
+          },
+          {
+            "severity": "error",
+            "message": "window.localStorage.setItem() side effect"
+          },
+          {
+            "severity": "error",
+            "message": "window[ff_name]=enabled global window mutation"
+          },
+          {
+            "severity": "error",
+            "message": "process.env.NODE_ENV=env global mutation"
+          },
+          {
+            "severity": "error",
+            "message": "window.location.href mutation"
+          }
+        ],
+        "summary": "Pervasive global state mutations."
+      }
+    },
+    "skills": {}
+  },
+  "fp-immutable-state": {
+    "agents": {
+      "js-fp-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All state transitions use spread copies and Object.freeze."
+      }
+    },
+    "skills": {}
+  },
+  "fp-object-mutations": {
+    "agents": {
+      "js-fp-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "profile.name= and profile.email= direct mutation of parameter properties (lines 13-14)."
+          },
+          {
+            "severity": "error",
+            "message": "Object.assign(profile.metadata, extra) mutates nested object on parameter (line 22)."
+          },
+          {
+            "severity": "error",
+            "message": "Object.assign(profile, {...}) mutates parameter directly (line 27)."
+          },
+          {
+            "severity": "error",
+            "message": "delete profile.legacyField and profile.metadata[key]=value mutate parameter object (lines 35, 44)."
+          }
+        ],
+        "summary": "All functions mutate their parameter object."
+      }
+    },
+    "skills": {}
+  },
+  "fp-pure-transforms": {
+    "agents": {
+      "js-fp-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All transforms use map/filter/reduce with spread copies."
+      }
+    },
+    "skills": {}
+  },
+  "fp-safe-sort": {
+    "agents": {
+      "js-fp-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All sorts use toSorted()/toReversed() or spread copies."
+      }
+    },
+    "skills": {}
+  },
+  "dr-accurate-docs": {
+    "agents": {
+      "doc-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All documented API signatures and CLI commands align with source."
+      }
+    },
+    "skills": {}
+  },
+  "dr-stale-readme": {
+    "agents": {
+      "doc-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "README documents createInvoice with two parameters but current source requires three (taxRegion added in v2.0)."
+          },
+          {
+            "severity": "error",
+            "message": "README documents CLI command export-pdf but it was removed in v2.0 and replaced by export-html."
+          }
+        ],
+        "summary": "Stale README: two errors \u2014 missing required parameter in documented signature and documented CLI command no longer exists."
+      }
+    },
+    "skills": {}
+  },
+  "ar-clean-arch": {
+    "agents": {
+      "arch-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "PricingService imports only domain-owned types. No infrastructure imports."
+      }
+    },
+    "skills": {}
+  },
+  "ar-layer-violation": {
+    "agents": {
+      "arch-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Layer boundary violation: domain imports ORM entity InvoiceEntity from infrastructure layer."
+          },
+          {
+            "severity": "error",
+            "message": "Layer boundary violation: domain imports concrete TypeOrmInvoiceRepository from infrastructure layer."
+          }
+        ],
+        "summary": "Two layer boundary violations."
+      }
+    },
+    "skills": {}
+  },
+  "cs-broken-paths": {
+    "agents": {
+      "claude-setup-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "CLAUDE.md references file path .env.example but that path does not exist."
+          },
+          {
+            "severity": "error",
+            "message": "CLAUDE.md references file path .claude/rules/security.md but that file does not exist."
+          },
+          {
+            "severity": "error",
+            "message": "CLAUDE.md documents npm run deploy command but no deploy script exists in package.json."
+          },
+          {
+            "severity": "error",
+            "message": "CLAUDE.md documents npm run generate:types but package.json has no matching script."
+          }
+        ],
+        "summary": "Multiple broken references: missing files and undeclared npm scripts."
+      }
+    },
+    "skills": {}
+  },
+  "cs-complete-setup": {
+    "agents": {
+      "claude-setup-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "CLAUDE.md covers all sections. Supporting files exist and are well-formed."
+      }
+    },
+    "skills": {}
+  },
+  "cs-minimal-valid": {
+    "agents": {
+      "claude-setup-review": {
+        "status": "pass",
+        "issues": [
+          {
+            "severity": "warning",
+            "message": "CLAUDE.md has no dedicated coding conventions section."
+          }
+        ],
+        "summary": "Minimal but functional setup. Missing conventions is a quality gap."
+      }
+    },
+    "skills": {}
+  },
+  "cs-missing-sections": {
+    "agents": {
+      "claude-setup-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "CLAUDE.md is missing a commands section."
+          },
+          {
+            "severity": "error",
+            "message": "CLAUDE.md is missing a directory structure section."
+          },
+          {
+            "severity": "warning",
+            "message": "CLAUDE.md is missing coding conventions."
+          },
+          {
+            "severity": "warning",
+            "message": "CLAUDE.md is missing architecture documentation."
+          }
+        ],
+        "summary": "CLAUDE.md is a stub with all critical sections absent."
+      }
+    },
+    "skills": {}
+  },
+  "ex-explore-command-missing": {
+    "agents": {
+      "claude-setup-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "CLAUDE.md Slash Commands Registry references commands/explore.md but that file does not exist."
+          }
+        ],
+        "summary": "Broken path: slash command registry references nonexistent file."
+      }
+    },
+    "skills": {}
+  },
+  "ex-explore-command-present": {
+    "agents": {
+      "claude-setup-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All referenced paths resolve. commands/explore.md exists on disk."
+      }
+    },
+    "skills": {}
+  },
+  "tmr-phase1-missing-seams": {
+    "agents": {
+      "test-modernization-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Seam-reachability section is entirely absent."
+          },
+          {
+            "severity": "error",
+            "message": "CD-fitness gap row has no file-level evidence."
+          },
+          {
+            "severity": "error",
+            "message": "Child-slug to tracker-id map is absent."
+          }
+        ],
+        "summary": "Phase 1 deliverable incomplete: seam-reachability missing, gap evidence missing, tracker-id map missing."
+      }
+    },
+    "skills": {}
+  },
+  "tmr-phase1-pass": {
+    "agents": {
+      "test-modernization-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All six required Phase 1 sections present and populated."
+      }
+    },
+    "skills": {}
+  },
+  "sec-env-gitignored": {
+    "agents": {
+      "security-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": ".env is correctly gitignored. Application reads credentials from environment variables."
+      }
+    },
+    "skills": {}
+  },
+  "sec-hardcoded-secrets": {
+    "agents": {
+      "security-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "JWT secret hardcoded in source."
+          },
+          {
+            "severity": "error",
+            "message": "Stripe API key hardcoded in source."
+          },
+          {
+            "severity": "error",
+            "message": "Database password hardcoded in source."
+          },
+          {
+            "severity": "error",
+            "message": "SMTP password hardcoded in source."
+          },
+          {
+            "severity": "error",
+            "message": "Stripe API key logged to console."
+          }
+        ],
+        "summary": "Five hardcoded secrets: JWT, Stripe, DB password, SMTP password, plus API key leaked in logs."
+      }
+    },
+    "skills": {}
+  },
+  "sec-safe-auth": {
+    "agents": {
+      "security-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "Correct authentication: bcrypt 12 rounds, parameterized queries, Zod validation, constant-time comparison."
+      }
+    },
+    "skills": {}
+  },
+  "sec-safe-headers": {
+    "agents": {
+      "security-review": {
+        "status": "pass",
+        "issues": [
+          {
+            "severity": "info",
+            "message": "CSP styleSrc includes unsafe-inline."
+          }
+        ],
+        "summary": "Security headers well-configured. One suggestion-level note on unsafe-inline in styleSrc."
+      }
+    },
+    "skills": {}
+  },
+  "sec-sql-injection": {
+    "agents": {
+      "security-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "SQL injection via ORDER BY concatenation - no allowlist."
+          },
+          {
+            "severity": "error",
+            "message": "SQL injection via LIKE template literal interpolation."
+          },
+          {
+            "severity": "error",
+            "message": "SQL injection in login handler via string concatenation allowing auth bypass."
+          },
+          {
+            "severity": "error",
+            "message": "SQL injection in DELETE handler via string concatenation."
+          }
+        ],
+        "summary": "Four exploitable SQL injection points."
+      }
+    },
+    "skills": {}
+  },
+  "sec-xss-vulnerable": {
+    "agents": {
+      "security-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Reflected XSS: req.query.q interpolated directly into HTML response."
+          },
+          {
+            "severity": "error",
+            "message": "DOM-based XSS via innerHTML with user-controlled data."
+          },
+          {
+            "severity": "error",
+            "message": "DOM XSS via document.write with user-controlled data."
+          },
+          {
+            "severity": "error",
+            "message": "Error handler reflects err.message and req.originalUrl into HTML without encoding."
+          },
+          {
+            "severity": "warning",
+            "message": "No Content-Security-Policy header set anywhere in the application."
+          }
+        ],
+        "summary": "Four exploitable XSS vulnerabilities plus missing CSP."
+      }
+    },
+    "skills": {}
+  },
+  "sv-clean-lifecycle.svelte": {
+    "agents": {
+      "svelte-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All lifecycle patterns correct. No issues detected."
+      }
+    },
+    "skills": {}
+  },
+  "sv-closure-state-leak.svelte": {
+    "agents": {
+      "svelte-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "createTodoManager: todos array in plain closure, not $state. Mutations invisible to Svelte."
+          },
+          {
+            "severity": "error",
+            "message": "getAll() and items getter return internal array reference directly."
+          },
+          {
+            "severity": "error",
+            "message": "createCounter: value in plain closure outside $state."
+          }
+        ],
+        "summary": "Two factory functions back mutable state in plain closures. All mutations invisible to Svelte."
+      }
+    },
+    "skills": {}
+  },
+  "sv-effect-pitfalls.svelte": {
+    "agents": {
+      "svelte-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "$effect reads and writes count in same block creating infinite loop risk."
+          },
+          {
+            "severity": "error",
+            "message": "$effect used for synchronous derived state. Should be $derived."
+          },
+          {
+            "severity": "error",
+            "message": "Side effects (console.log, fetch) inside $derived."
+          },
+          {
+            "severity": "error",
+            "message": "$effect used to compute label from count. Should be $derived."
+          },
+          {
+            "severity": "error",
+            "message": "$effect reads and conditionally writes items creating infinite loop."
+          }
+        ],
+        "summary": "Multiple critical $effect misuses."
+      }
+    },
+    "skills": {}
+  },
+  "sv-lifecycle-issues.svelte": {
+    "agents": {
+      "svelte-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "DOM access at module scope before onMount."
+          },
+          {
+            "severity": "error",
+            "message": "window.addEventListener inside onMount with no cleanup."
+          },
+          {
+            "severity": "error",
+            "message": "setInterval inside onMount with no clearInterval on destroy."
+          },
+          {
+            "severity": "error",
+            "message": "$effect reads config indirectly via function call, dependency may not be tracked."
+          },
+          {
+            "severity": "error",
+            "message": "ResizeObserver created in onMount with no observer.disconnect()."
+          }
+        ],
+        "summary": "Five lifecycle issues: early DOM access, missing cleanup paths, hidden dependency, undisconnected observer."
+      }
+    },
+    "skills": {}
+  },
+  "sv-proper-reactive.svelte": {
+    "agents": {
+      "svelte-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All reactive patterns correct. $derived for computed values, $effect for side effects with cleanup."
+      }
+    },
+    "skills": {}
+  },
+  "sv-safe-stores.svelte": {
+    "agents": {
+      "svelte-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All store subscriptions properly managed with cleanup in onDestroy."
+      }
+    },
+    "skills": {}
+  },
+  "sv-state-proxy-pitfalls.svelte": {
+    "agents": {
+      "svelte-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Destructuring $state into plain variables breaks $state proxy tracking entirely."
+          },
+          {
+            "severity": "error",
+            "message": "todos[0].tags.push() \u2014 deep mutation of $state nested array bypasses proxy setter."
+          },
+          {
+            "severity": "error",
+            "message": "todos[index].done=true \u2014 direct property mutation on $state proxy element is fragile."
+          },
+          {
+            "severity": "warning",
+            "message": "Spreading $state proxy into plain object loses reactivity for caller."
+          },
+          {
+            "severity": "warning",
+            "message": "Assigning pre-existing plain object into $state array slot \u2014 latent reactivity bug."
+          }
+        ],
+        "summary": "One definite error (destructuring breaks proxy tracking) and four warnings."
+      }
+    },
+    "skills": {}
+  },
+  "sv-store-subscription-leak.svelte": {
+    "agents": {
+      "svelte-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "userStore.subscribe() at module scope with no unsubscribe in onDestroy."
+          },
+          {
+            "severity": "error",
+            "message": "themeStore unsubscribe captured but never called."
+          },
+          {
+            "severity": "error",
+            "message": "displayName.subscribe() unsubscribe discarded entirely."
+          },
+          {
+            "severity": "error",
+            "message": "userStore.subscribe() inside onMount with no cleanup returned."
+          }
+        ],
+        "summary": "Four distinct store subscription leaks."
+      }
+    },
+    "skills": {}
+  },
+  "te-clean-code": {
+    "agents": {
+      "token-efficiency-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "158 lines, all functions under 50 lines, no issues."
+      }
+    },
+    "skills": {}
+  },
+  "te-duplicate-code": {
+    "agents": {
+      "token-efficiency-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Three near-identical getXUsers functions (getAdminUsers, getManagerUsers, getRegularUsers) differ only by role string."
+          },
+          {
+            "severity": "error",
+            "message": "Three near-identical createXUser functions duplicate all validation and DB logic."
+          },
+          {
+            "severity": "error",
+            "message": "Three near-identical deleteXUser functions duplicate lookup and delete logic."
+          },
+          {
+            "severity": "warning",
+            "message": "Commented-out legacy code block (11 lines) exceeds 5-line threshold."
+          },
+          {
+            "severity": "warning",
+            "message": "Function triads could be replaced with single getUsersByRole(role), createUser(name, email, role), deleteUser(id, role)."
+          }
+        ],
+        "summary": "Three duplicate function triads."
+      }
+    },
+    "skills": {}
+  },
+  "te-efficient-claude": {
+    "agents": {
+      "token-efficiency-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "~1800 chars, well under limit. Uses tables, direct imperatives, no filler."
+      }
+    },
+    "skills": {}
+  },
+  "te-long-functions": {
+    "agents": {
+      "token-efficiency-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "handleCreateInvoice is 203 lines \u2014 4x the 50-line limit."
+          },
+          {
+            "severity": "error",
+            "message": "handleGetInvoiceReport is 81 lines \u2014 exceeds 50-line limit."
+          },
+          {
+            "severity": "error",
+            "message": "Nesting depth in handleCreateInvoice reaches 6 levels."
+          },
+          {
+            "severity": "warning",
+            "message": "JSDoc block is 17 lines \u2014 exceeds 15-line limit."
+          },
+          {
+            "severity": "warning",
+            "message": "Commented-out legacy function block (17 lines) exceeds threshold."
+          },
+          {
+            "severity": "warning",
+            "message": "Commented-out generateMonthlyReport block (14 lines) exceeds threshold."
+          }
+        ],
+        "summary": "363-line file with 203-line function, 81-line function, 6-level nesting."
+      }
+    },
+    "skills": {}
+  },
+  "te-verbose-claude": {
+    "agents": {
+      "token-efficiency-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Role preamble: 'You are a highly skilled senior software engineer...' \u2014 anti-pattern."
+          },
+          {
+            "severity": "error",
+            "message": "File is ~9800 chars \u2014 verbose prose nearly 2x the 5000-char limit. Should be rewritten as direct imperatives."
+          },
+          {
+            "severity": "warning",
+            "message": "Pervasive conversational filler throughout."
+          },
+          {
+            "severity": "warning",
+            "message": "Nested bullet hierarchy reaches 5 levels."
+          },
+          {
+            "severity": "warning",
+            "message": "Commands section uses paragraph-form prose instead of lookup table."
+          },
+          {
+            "severity": "warning",
+            "message": "9 code examples at the limit; most could be replaced with a table."
+          },
+          {
+            "severity": "warning",
+            "message": "Redundant context: same rule stated in two sections."
+          }
+        ],
+        "summary": "279-line, ~9800-char verbose file with role preamble, conversational filler, 5-level nesting, redundant rules."
+      }
+    },
+    "skills": {}
+  },
+  "cx-callback-hell": {
+    "agents": {
+      "complexity-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "getUserOrderDetails has 6 levels of callback nesting exceeding nesting threshold."
+          },
+          {
+            "severity": "error",
+            "message": "Callback hell: three levels of async callbacks with duplicated error-forwarding."
+          },
+          {
+            "severity": "warning",
+            "message": "loadDashboard uses nested .then() chains three levels deep with no .catch()."
+          },
+          {
+            "severity": "warning",
+            "message": "loadDashboard wraps .then() chain inside new Promise() \u2014 unnecessary Promise constructor."
+          }
+        ],
+        "summary": "Two async anti-patterns: callback hell and nested promise chains."
+      }
+    },
+    "skills": {}
+  },
+  "cx-clean-functions": {
+    "agents": {
+      "complexity-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All functions within thresholds: max 4 lines, max 2 nesting levels, max 3 params."
+      }
+    },
+    "skills": {}
+  },
+  "cx-deep-nesting": {
+    "agents": {
+      "complexity-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "aggregateByRegion reaches 6 nesting levels and exceeds 20-line function limit."
+          },
+          {
+            "severity": "error",
+            "message": "findDuplicateEntries reaches 5 nesting levels."
+          },
+          {
+            "severity": "error",
+            "message": "processNestedConfig reaches 5 nesting levels."
+          },
+          {
+            "severity": "warning",
+            "message": "aggregateByRegion inner membership test could use Set lookup."
+          }
+        ],
+        "summary": "All three functions violate the 4-level nesting threshold."
+      }
+    },
+    "skills": {}
+  },
+  "cx-god-function": {
+    "agents": {
+      "complexity-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "processTransaction is ~70 lines \u2014 far exceeds 20-line function limit."
+          },
+          {
+            "severity": "error",
+            "message": "processTransaction has 7 parameters \u2014 exceeds 5-parameter limit."
+          },
+          {
+            "severity": "error",
+            "message": "processTransaction has cyclomatic complexity ~15+."
+          },
+          {
+            "severity": "warning",
+            "message": "Payment method block reaches 3 nesting levels locally."
+          }
+        ],
+        "summary": "Severe god-function violations: 70-line length, 7 parameters, cyclomatic complexity ~15."
+      }
+    },
+    "skills": {}
+  },
+  "cx-refactor-after": {
+    "agents": {
+      "complexity-review": {
+        "status": "pass",
+        "issues": [
+          {
+            "severity": "info",
+            "message": "_split_rows is 25 lines \u2014 marginally over 20-line limit but mechanical dispatch."
+          }
+        ],
+        "summary": "Successful refactor. Max nesting 3 levels. _split_rows marginally over threshold."
+      }
+    },
+    "skills": {}
+  },
+  "cx-refactor-before": {
+    "agents": {
+      "complexity-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "parse is 48 lines \u2014 far exceeds 20-line function limit."
+          },
+          {
+            "severity": "error",
+            "message": "parse reaches 4 nesting levels \u2014 at the threshold."
+          },
+          {
+            "severity": "warning",
+            "message": "parse has cyclomatic complexity ~10 at the boundary."
+          },
+          {
+            "severity": "warning",
+            "message": "in_quotes boolean flag acts as manual state machine."
+          }
+        ],
+        "summary": "Before-refactor: 48-line function, 4-level nesting, boolean state machine."
+      }
+    },
+    "skills": {}
+  },
+  "cx-simple-logic": {
+    "agents": {
+      "complexity-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All five functions clean: longest is 11 lines, max 2 nesting levels."
+      }
+    },
+    "skills": {}
+  },
+  "nm-clear-names": {
+    "agents": {
+      "naming-review": {
+        "status": "pass",
+        "issues": [
+          {
+            "severity": "suggestion",
+            "message": "Magic number 500 in buildOrderSummary has no named constant."
+          }
+        ],
+        "summary": "Names clear and conventionally correct. One hardcoded threshold lacks a named constant."
+      }
+    },
+    "skills": {}
+  },
+  "nm-consistency-canonical": {
+    "agents": {
+      "naming-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Function total is a noun, not a verb. Rename to calculateTotal."
+          },
+          {
+            "severity": "warning",
+            "message": "Boolean field paid missing is/has prefix. Rename to isPaid."
+          },
+          {
+            "severity": "warning",
+            "message": "Parameter flag reveals nothing. Rename to paidOnly."
+          },
+          {
+            "severity": "suggestion",
+            "message": "Variable val is a generic placeholder. Rename to formattedLabel."
+          }
+        ],
+        "summary": "Four naming violations: noun function name, boolean prefix, opaque parameter, generic variable."
+      }
+    },
+    "skills": {}
+  },
+  "nm-consistent-conventions": {
+    "agents": {
+      "naming-review": {
+        "status": "pass",
+        "issues": [
+          {
+            "severity": "warning",
+            "message": "failedLoginCount vs failedAttemptCount inconsistency across types."
+          }
+        ],
+        "summary": "Named constants used throughout. One cross-type naming inconsistency."
+      }
+    },
+    "skills": {}
+  },
+  "nm-inconsistent-naming": {
+    "agents": {
+      "naming-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "UserMgr uses non-standard abbreviation Mgr. Rename to UserManager."
+          },
+          {
+            "severity": "error",
+            "message": "getAcct and rmUser use non-standard abbreviations. Rename to getAccount, removeUser."
+          },
+          {
+            "severity": "error",
+            "message": "AppCfg and loadCfg use non-standard abbreviation Cfg. Rename to AppConfig, loadConfig."
+          },
+          {
+            "severity": "warning",
+            "message": "Boolean active on User is missing is/has prefix. Rename to isActive."
+          },
+          {
+            "severity": "warning",
+            "message": "Boolean enabled on AccountInfo is missing prefix and inconsistent with active."
+          },
+          {
+            "severity": "warning",
+            "message": "Boolean debugMode missing is/has prefix."
+          },
+          {
+            "severity": "warning",
+            "message": "memberName and contactEmail inconsistent with User.name and email."
+          }
+        ],
+        "summary": "Pervasive naming issues: four abbreviations, three boolean prefixes missing, cross-type inconsistencies."
+      }
+    },
+    "skills": {}
+  },
+  "nm-magic-values": {
+    "agents": {
+      "naming-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Magic number 86400 and thresholds 30, 14 in calculateLateFee have no named constants."
+          },
+          {
+            "severity": "error",
+            "message": "Magic numbers 0.15 and 0.05 (fee rates) in calculateLateFee have no named constants. Use named constant for each rate."
+          },
+          {
+            "severity": "warning",
+            "message": "Magic numbers 1073741824, 1048576, 1024 (byte units) in formatFileSize have no named constants. Extract to BYTES_PER_GB etc."
+          },
+          {
+            "severity": "warning",
+            "message": "Magic strings pd, ov, dr in getInvoiceLabel are opaque abbreviations. Replace with enum or named constants."
+          },
+          {
+            "severity": "warning",
+            "message": "Magic numbers 250 and 3 in isEligibleForDiscount have no named constants for discount thresholds."
+          }
+        ],
+        "summary": "Six distinct magic-value violations. No named constants exist anywhere in the file."
+      }
+    },
+    "skills": {}
+  },
+  "nm-misleading-names": {
+    "agents": {
+      "naming-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Function data is a misleading noun name for a function that sums item prices."
+          },
+          {
+            "severity": "error",
+            "message": "temp in buildReport is the permanent return value."
+          },
+          {
+            "severity": "warning",
+            "message": "Parameter flag reveals nothing about its purpose."
+          },
+          {
+            "severity": "warning",
+            "message": "Parameter list2 uses sequential suffix where concept name fits."
+          },
+          {
+            "severity": "warning",
+            "message": "Variable x is meaningless."
+          },
+          {
+            "severity": "warning",
+            "message": "Function handleStuff uses vague name."
+          },
+          {
+            "severity": "suggestion",
+            "message": "Variable val is a generic placeholder."
+          }
+        ],
+        "summary": "Two errors (misleading names: noun function, permanently-assigned temp), four warnings, one suggestion."
+      }
+    },
+    "skills": {}
+  },
+  "st-clean-modules": {
+    "agents": {
+      "structure-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "Well-structured module. SRP adherence. No nesting violations, no hardcoded dependencies."
+      }
+    },
+    "skills": {}
+  },
+  "st-duplicate-code": {
+    "agents": {
+      "structure-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Three format functions (formatProductForAdmin/Customer/Csv) duplicate identical label/price/category derivations. Extract Method: normalizeProduct helper."
+          },
+          {
+            "severity": "error",
+            "message": "Three validate functions duplicate identical base validation logic across validateAdminProduct, validateCustomerProduct, validateCsvProduct."
+          },
+          {
+            "severity": "warning",
+            "message": "validateAdminProduct and validateCsvProduct are exact duplicates of each other \u2014 complete code duplication."
+          },
+          {
+            "severity": "warning",
+            "message": "The three format functions are structurally duplicated \u2014 same input transformation pattern applied three times."
+          }
+        ],
+        "summary": "Two DRY violations: format and validate function triads with semantic duplication."
+      }
+    },
+    "skills": {}
+  },
+  "st-god-object": {
+    "agents": {
+      "structure-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "UserManager bundles authentication, registration, password reset, and SMTP email delivery."
+          },
+          {
+            "severity": "error",
+            "message": "smtpHost, smtpPort, tokenSecret hardcoded in constructor (not injected)."
+          },
+          {
+            "severity": "warning",
+            "message": "Password hashing logic duplicated between register and confirmReset."
+          }
+        ],
+        "summary": "Megaclass with four responsibilities and hardcoded infrastructure dependencies."
+      }
+    },
+    "skills": {}
+  },
+  "st-mixed-concerns": {
+    "agents": {
+      "structure-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "renderOrderPage mixes three mixed concerns: data access, business logic, and HTML rendering in one function."
+          },
+          {
+            "severity": "error",
+            "message": "renderInventoryReport mixes three concerns: data access, stock status logic, and HTML rendering."
+          },
+          {
+            "severity": "error",
+            "message": "const db = require('./db') at module scope is non-injectable hardcoded dependency."
+          },
+          {
+            "severity": "warning",
+            "message": "Nesting depth in loop bodies reaches 2-3 levels."
+          }
+        ],
+        "summary": "Both functions violate SRP by mixing three concerns (data access, business logic, rendering). Hardcoded db module-level dependency."
+      }
+    },
+    "skills": {}
+  },
+  "st-organized-exports": {
+    "agents": {
+      "structure-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "Clean single-concern pagination utility. No mixed concerns, no hardcoded dependencies."
+      }
+    },
+    "skills": {}
+  },
+  "dm-clean-boundaries": {
+    "agents": {
+      "domain-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "Clean domain boundaries. OrderService orchestrates without owning rules. DTO at API boundary."
+      }
+    },
+    "skills": {}
+  },
+  "dm-leaky-abstraction": {
+    "agents": {
+      "domain-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Invoice.save(pool) embeds raw SQL in domain entity \u2014 leaky abstraction: infrastructure persistence leaks into domain."
+          },
+          {
+            "severity": "error",
+            "message": "Customer.getOutstandingInvoices(pool) issues raw SQL from inside domain entity."
+          },
+          {
+            "severity": "error",
+            "message": "PricingService imports axios and inspects HTTP response.status to drive discount logic."
+          },
+          {
+            "severity": "error",
+            "message": "PaymentProcessor sets invoice.status directly; HTTP status codes drive domain state transitions."
+          },
+          {
+            "severity": "warning",
+            "message": "Invoice is anemic with public mutable status field and no state-transition methods."
+          }
+        ],
+        "summary": "Five boundary violations: infrastructure leaks into domain via leaky abstraction. SQL, HTTP, and ORM concerns in domain objects."
+      }
+    },
+    "skills": {}
+  },
+  "dm-logic-in-ui": {
+    "agents": {
+      "domain-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Business logic for quantity discount tiers computed inside Express route handler instead of domain service."
+          },
+          {
+            "severity": "error",
+            "message": "Promo code validation and application inlined in controller."
+          },
+          {
+            "severity": "error",
+            "message": "Shipping cost calculation in route handler."
+          },
+          {
+            "severity": "error",
+            "message": "Order authorization rules inlined in handler."
+          }
+        ],
+        "summary": "Four distinct business logic rules embedded in a single Express route handler. Business logic belongs in domain objects."
+      }
+    },
+    "skills": {}
+  },
+  "dm-missing-dtos": {
+    "agents": {
+      "domain-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "User ORM entity returned directly from getUser route, exposing passwordHash and internalNotes."
+          },
+          {
+            "severity": "error",
+            "message": "Product ORM entity returned from listProducts, exposing costCents, markupPct, supplierSku."
+          },
+          {
+            "severity": "error",
+            "message": "searchOrders returns Order entities with nested User entities including passwordHash."
+          },
+          {
+            "severity": "error",
+            "message": "ORM annotations on domain objects that are directly serialized to API responses."
+          }
+        ],
+        "summary": "No DTOs exist. ORM entities returned from all route handlers exposing sensitive fields."
+      }
+    },
+    "skills": {}
+  },
+  "dm-proper-events": {
+    "agents": {
+      "domain-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "Clean cross-boundary communication. Events carry data primitives, EventBus is abstracted."
+      }
+    },
+    "skills": {}
+  },
+  "test-missing-edge-cases.test": {
+    "agents": {
+      "test-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Missing edge cases for null/undefined subtotal."
+          },
+          {
+            "severity": "error",
+            "message": "Missing boundary test at exactly the $100 discount threshold."
+          },
+          {
+            "severity": "error",
+            "message": "Missing error-path test for unknown customerTier."
+          },
+          {
+            "severity": "error",
+            "message": "Missing error-path test for invalid couponCode."
+          },
+          {
+            "severity": "warning",
+            "message": "Missing test for zero subtotal."
+          },
+          {
+            "severity": "warning",
+            "message": "Missing test for negative subtotal."
+          }
+        ],
+        "summary": "4 happy-path tests present but 7 edge cases missing."
+      }
+    },
+    "skills": {}
+  },
+  "test-no-assertions.test": {
+    "agents": {
+      "test-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "should handle null refund request: no assertion."
+          },
+          {
+            "severity": "error",
+            "message": "should handle duplicate refund requests: no assertion."
+          },
+          {
+            "severity": "error",
+            "message": "should cancel a refund: no assertion."
+          },
+          {
+            "severity": "error",
+            "message": "should calculate partial refund amount: result logged but not asserted."
+          },
+          {
+            "severity": "error",
+            "message": "should validate refund eligibility: result captured but never asserted."
+          }
+        ],
+        "summary": "5 of 7 tests contain no assertion."
+      }
+    },
+    "skills": {}
+  },
+  "test-shared-state.test": {
+    "agents": {
+      "test-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Shared mutable cart instance never reset between tests \u2014 suite is order-dependent."
+          },
+          {
+            "severity": "error",
+            "message": "Test 3 depends on accumulated state from tests 1 and 2."
+          },
+          {
+            "severity": "error",
+            "message": "jest.spyOn mock never reset; call count assertion depends on execution order."
+          },
+          {
+            "severity": "warning",
+            "message": "No fixture reset between tests. Add setup hooks to re-instantiate CartService."
+          }
+        ],
+        "summary": "Entire suite is order-dependent due to shared mutable CartService."
+      }
+    },
+    "skills": {}
+  },
+  "test-thorough-edge-cases.test": {
+    "agents": {
+      "test-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All 11 tests well-structured with specific assertions covering all boundary cases."
+      }
+    },
+    "skills": {}
+  },
+  "test-weak-assertions.test": {
+    "agents": {
+      "test-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "should get a user: all assertions use toBeTruthy() \u2014 accepts any non-null value."
+          },
+          {
+            "severity": "error",
+            "message": "should create a user: toBeTruthy() on id and user."
+          },
+          {
+            "severity": "error",
+            "message": "should return something for search: toBeTruthy() verifies only non-empty array."
+          },
+          {
+            "severity": "warning",
+            "message": "should have the internal cache: uses (service as any)._cache reflection."
+          },
+          {
+            "severity": "warning",
+            "message": "should call repository save: jest.spyOn into private field via reflection."
+          }
+        ],
+        "summary": "Three tests rely exclusively on toBeTruthy() assertions."
+      }
+    },
+    "skills": {}
+  },
+  "test-well-structured.test": {
+    "agents": {
+      "test-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All 4 tests follow clear AAA structure with specific behavioral assertions."
+      }
+    },
+    "skills": {}
+  },
+  "tr-consistency-canonical": {
+    "agents": {
+      "test-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "adds two numbers: no assertion \u2014 add(1, 2) is called but result discarded."
+          },
+          {
+            "severity": "warning",
+            "message": "returns a number: toBeTruthy() is truthiness-only assertion."
+          },
+          {
+            "severity": "suggestion",
+            "message": "test 1: misleading test description reveals nothing about behavior."
+          }
+        ],
+        "summary": "1 error, 1 warning, 1 suggestion per fixture design."
+      }
+    },
+    "skills": {}
+  },
+  "test-assertion-roulette.test": {
+    "agents": {
+      "test-smell-review": {
+        "status": "fail",
+        "issues": [
+          {
+            "severity": "error",
+            "message": "Assertion Roulette: 8 bare assertions with no messages."
+          },
+          {
+            "severity": "error",
+            "message": "Eager Test: single test exercises 7+ distinct behaviors."
+          },
+          {
+            "severity": "warning",
+            "message": "No test isolation: all behaviors in one monolithic test method."
+          }
+        ],
+        "summary": "Two xUnit smells: Assertion Roulette and Eager Test."
+      }
+    },
+    "skills": {}
+  },
+  "test-clean-doubles.test": {
+    "agents": {
+      "test-smell-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "No test smells. Stubs with state verification. Two separate tests for distinct boundary conditions."
+      }
+    },
+    "skills": {}
+  },
+  "test-mystery-guest.test": {
+    "agents": {
+      "test-smell-review": {
+        "status": "warn",
+        "issues": [
+          {
+            "severity": "warning",
+            "message": "Mystery Guest: test reads external file ./test/fixtures/sample-invoice.xml not created by the test."
+          },
+          {
+            "severity": "warning",
+            "message": "Magic values 1499.0 and 7 tied to invisible external file content."
+          }
+        ],
+        "summary": "Mystery Guest smell: external file dependency makes inputs invisible."
+      }
+    },
+    "skills": {}
+  },
+  "test-overspecified-mocks.test": {
+    "agents": {
+      "test-smell-review": {
+        "status": "warn",
+        "issues": [
+          {
+            "severity": "warning",
+            "message": "Overspecified Software: exact call order/count asserted but SUT state (returned price) never asserted."
+          },
+          {
+            "severity": "warning",
+            "message": "Mock where Stub + state assertion would do. Prefer state verification."
+          }
+        ],
+        "summary": "Fragile Test / Overspecified mocks with no state assertion on outcome."
+      }
+    },
+    "skills": {}
+  },
+  "tlg-01-pure-function": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [],
+        "layers": [
+          "unit"
+        ],
+        "report": "Pure function with no I/O. No gates fire. Unit layer only. No E2E warranted."
+      }
+    }
+  },
+  "tlg-02-user-facing-dynamic": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "A"
+        ],
+        "layers": [
+          "E2E"
+        ],
+        "report": "Gate A fires: user-facing dynamic behavior. The user journey from action to badge re-render needs E2E. The E2E architecture and pipeline placement defer to cd-test-architecture."
+      }
+    }
+  },
+  "tlg-03-browser-bug-fix": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "B"
+        ],
+        "layers": [
+          "unit",
+          "E2E"
+        ],
+        "report": "Gate B fires: bug discovered in the browser at checkout. Regression test anchored at the E2E discovery layer. Unit test added for discount arithmetic. E2E covers the rendered display failure."
+      }
+    }
+  },
+  "tlg-04-unit-bug-fix": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "B"
+        ],
+        "layers": [
+          "unit"
+        ],
+        "report": "Gate B fires in the unit direction: bug discovered while running unit tests. Regression anchored at the unit layer. No escalation above unit warranted \u2014 Gate A, C, D do not fire."
+      }
+    }
+  },
+  "tlg-05-htmx-swap-mutation": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "C"
+        ],
+        "layers": [
+          "integration",
+          "E2E"
+        ],
+        "report": "Gate C fires: HTMX swap \u2014 a browser test is REQUIRED for this structural seam. The DOM swap cannot be verified without a browser. Integration covers server POST and HTML fragment. cd-test-architecture governs harness placement."
+      }
+    }
+  },
+  "tlg-06-alpine-toggle": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "C"
+        ],
+        "layers": [
+          "E2E"
+        ],
+        "report": "Gate C fires: Alpine.js toggle is a client-side structural seam. A browser test is REQUIRED. No server call means no integration layer value. The seam can only be verified in a real browser."
+      }
+    }
+  },
+  "tlg-07-pdf-with-reference": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "D"
+        ],
+        "layers": [
+          "unit",
+          "integration"
+        ],
+        "report": "Gate D fires: PDF output with a signed-off reference mockup exists. Approval test REQUIRED for content; screenshot test REQUIRED for layout fidelity against the reference. Data assembly testable at unit level. Full rendering pipeline testable at integration level with approval overlay."
+      }
+    }
+  },
+  "tlg-08-email-no-reference": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "D"
+        ],
+        "layers": [
+          "unit",
+          "integration"
+        ],
+        "report": "Gate D fires in the no-reference branch: email output has no reference mockup. No automated approval or screenshot test without a reference. Manual review is the current gate. Unit and integration test the text structure."
+      }
+    }
+  },
+  "tlg-09-critical-single-layer": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "redundancy"
+        ],
+        "layers": [
+          "unit"
+        ],
+        "report": "Redundancy check fires: business-critical logic covered by only one unit test. A second distinct failure mode \u2014 the persistence and transaction boundary \u2014 is uncovered. A second layer (integration) covers that different failure mode independently."
+      }
+    }
+  },
+  "tlg-10-multi-gate": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "A",
+          "B"
+        ],
+        "layers": [
+          "unit",
+          "integration",
+          "E2E"
+        ],
+        "report": "Gate A and Gate B both fire. Bug discovered in browser (Gate B), user-facing dynamic re-render (Gate A). E2E regression test covers the coupon application and total re-render. Unit pins the calculation logic."
+      }
+    }
+  },
+  "tlg-11-ambiguous": {
+    "agents": {},
+    "skills": {
+      "test-design-advisor": {
+        "gates": [
+          "ambiguity"
+        ],
+        "layers": [],
+        "report": "Ambiguity gate fires: the description is genuinely ambiguous about whether the filter is client-side dynamic or server-side. Gate fires because the placement cannot be determined without clarification. The advisor states its assumption (server-side round-trip) and asks once rather than escalating silently. Stated assumption: treating as server-side round-trip until confirmed otherwise. If confirmed dynamic: Gate A applies."
+      }
+    }
+  },
+  "int-string-calculator": {
+    "agents": {},
+    "skills": {
+      "orchestrator": {
+        "report": "Integration tier fixture. This fixture uses the integration grader. Skipped in unit-tier run.",
+        "gates": [
+          "integration-tier"
+        ],
+        "layers": [
+          "integration"
+        ]
+      }
+    },
+    "integration": {
+      "orchestrator": {
+        "results": [
+          {
+            "command": "python3 test_string_calc.py",
+            "exit_code": 0,
+            "stderr_first_line": "SKIPPED: integration tier not dispatched in unit run (use --integration)"
+          }
+        ]
+      }
+    }
+  }
+}

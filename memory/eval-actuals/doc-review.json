@@ -1,0 +1,4 @@
+{
+  "dr-accurate-docs": {"status":"pass","issues":[],"summary":"All documented API signatures, CLI commands, and changelog entries align with the embedded source. No drift detected."},
+  "dr-stale-readme": {"status":"fail","issues":[{"severity":"error","message":"README documents createInvoice(customerId, currency) with two parameters, but current source requires a third parameter taxRegion (added in v2.0, required, no default)."},{"severity":"error","message":"README documents CLI command 'npx invoicer export-pdf' but export-pdf was removed in v2.0 and replaced by export-html."}],"summary":"Two errors: missing required parameter in documented signature and documented CLI command no longer exists."}
+}
