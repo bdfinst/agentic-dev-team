@@ -210,6 +210,19 @@ minimal churn. The comparison with test-after and vague-spec arms is pending.
 
 ---
 
+### Code and test quality (tdd-refactor/clear baseline)
+
+From stage0 rows (existing `self_coverage` field, already collected):
+
+| arm | coverage % | complexity /10 | test_quality /10 |
+|-----|-----------|----------------|-----------------|
+| tdd-refactor/clear | 100% | 8.08 | 7.42 |
+
+Coverage is measured by branch coverage of the agent's own tests against its own
+production code (before grade files are injected). The harness now also collects
+`test_code_ratio` (test LOC / production LOC) and `self_coverage` at each change
+stage — these will appear in the cross-arm comparison once vague-spec data arrives.
+
 ### Multi-rater code review scores (K=3 passes, tdd-refactor/clear, n=8 task-trials)
 
 | arm | complexity | naming | performance | structure | test_quality |

@@ -341,6 +341,58 @@ def review_summary(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def quality_summary(rows: list[dict]) -> str:
+    """Coverage, test-to-code ratio, and review scores by arm — the primary
+    code/test quality view requested by the experiment design."""
+    arm_cov: dict[str, list[float]] = defaultdict(list)
+    arm_ratio: dict[str, list[float]] = defaultdict(list)
+    arm_test_q: dict[str, list[float]] = defaultdict(list)
+    arm_complexity: dict[str, list[float]] = defaultdict(list)
+
+    for r in rows:
+        arm = r["arm"]
+        # Coverage: stage0 and change stages if present
+        cov = r.get("self_coverage", {})
+        if isinstance(cov, dict) and cov.get("percent") is not None:
+            arm_cov[arm].append(cov["percent"])
+
+        # Test-to-code ratio (only if present — added from this harness version)
+        tcr = r.get("test_code_ratio", {})
+        if isinstance(tcr, dict) and tcr.get("ratio") is not None:
+            arm_ratio[arm].append(tcr["ratio"])
+
+        # Review quality scores (change3 only)
+        rev = r.get("multi_rater_review", {})
+        if rev:
+            tq = rev.get("test_quality", {}).get("mean")
+            cx = rev.get("complexity", {}).get("mean")
+            if tq is not None:
+                arm_test_q[arm].append(tq)
+            if cx is not None:
+                arm_complexity[arm].append(cx)
+
+    arms = sorted(set(list(arm_cov) + list(arm_ratio) + list(arm_test_q)))
+    if not arms:
+        return "_No quality data yet._"
+
+    lines = [
+        "| arm | coverage % (mean) | test:code ratio | test_quality /10 | complexity /10 |",
+        "|-----|------------------|-----------------|------------------|----------------|",
+    ]
+    for arm in arms:
+        cov_str = fmt_f(mean(arm_cov[arm]), 1) + "%" if arm_cov[arm] else "—"
+        ratio_str = fmt_f(mean(arm_ratio[arm]), 2) if arm_ratio[arm] else "—"
+        tq_str = fmt_f(mean(arm_test_q[arm]), 2) if arm_test_q[arm] else "—"
+        cx_str = fmt_f(mean(arm_complexity[arm]), 2) if arm_complexity[arm] else "—"
+        lines.append(f"| {arm} | {cov_str} | {ratio_str} | {tq_str} | {cx_str} |")
+
+    lines.append("")
+    lines.append("*Coverage = branch coverage of production code by agent's own tests (before grade files injected).*")
+    lines.append("*test:code ratio = test LOC / production LOC (non-blank, non-comment lines).*")
+    lines.append("*test_quality and complexity are K=3 multi-rater review scores (0–10).*")
+    return "\n".join(lines)
+
+
 def radon_summary(rows: list[dict]) -> str:
     """Radon avg_cc and avg_mi by arm (last change stage, where available)."""
     arm_cc: dict[str, list[float]] = defaultdict(list)
@@ -485,7 +537,10 @@ def main(argv: list[str]) -> int:
     out_lines.append("\n\n## RQ-C: Clarity × workflow interaction\n")
     out_lines.append(rq_c_verdict(rows))
 
-    out_lines.append("\n\n## Multi-rater review scores\n")
+    out_lines.append("\n\n## Code and Test Quality\n")
+    out_lines.append(quality_summary(rows))
+
+    out_lines.append("\n\n## Multi-rater review scores (detailed)\n")
     out_lines.append(review_summary(rows))
 
     out_lines.append("\n\n## Radon structural metrics (last change stage)\n")

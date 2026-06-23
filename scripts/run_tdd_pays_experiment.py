@@ -206,6 +206,26 @@ def measure_radon(workdir: Path, prod: list[Path]) -> dict:
     return out
 
 
+def _test_code_ratio(workdir: Path, prod: list[Path], tests: list[Path]) -> dict:
+    """Count non-blank, non-comment lines in prod vs test files."""
+    def _loc(paths: list[Path]) -> int:
+        total = 0
+        for p in paths:
+            try:
+                for line in p.read_text(errors="replace").splitlines():
+                    s = line.strip()
+                    if s and not s.startswith("#"):
+                        total += 1
+            except OSError:
+                pass
+        return total
+
+    prod_loc = _loc(prod)
+    test_loc = _loc(tests)
+    ratio = round(test_loc / prod_loc, 2) if prod_loc else None
+    return {"prod_loc": prod_loc, "test_loc": test_loc, "ratio": ratio}
+
+
 # ── multi-rater review ────────────────────────────────────────────────────────
 
 REVIEW_PROMPT_TPL = """You are a senior code reviewer. Review the Python code below and rate it on each dimension from 0–10 (integers only). Output ONLY a JSON object with these keys: structure, complexity, naming, performance, test_quality. No explanation.
@@ -294,6 +314,7 @@ def run_stage0(stem: str, arm: str, clarity: str, trial: int,
     coverage = measure_coverage(workdir, env, prod) if prod else {"percent": None}
     mutation = measure_mutation(workdir, env, prod) if prod else {"score": None}
     radon = measure_radon(workdir, prod)
+    test_code_ratio = _test_code_ratio(workdir, prod, tests)
 
     # Commit after build for blast-radius baseline of change chain
     post_build_sha = _git_commit_all(workdir, "post-build")
@@ -311,7 +332,7 @@ def run_stage0(stem: str, arm: str, clarity: str, trial: int,
         "edge_passed": all(r["exit_code"] == 0 for r in edge_results) and bool(edge_results),
         "core_results": core_results, "edge_results": edge_results,
         "cost": cost, "agent_test_files": agent_tests,
-        "self_coverage": coverage, "mutation": mutation,
+        "self_coverage": coverage, "mutation": mutation, "test_code_ratio": test_code_ratio,
         "radon": radon, "contamination": contamination_flags(home, cost),
         "_worktree": str(workdir), "_post_build_sha": post_build_sha,
         "_prod_paths": [str(p) for p in prod],
@@ -347,6 +368,10 @@ def run_change_stage(stem: str, arm: str, clarity: str, trial: int,
 
     prod, tests = ([], []) if skip_dispatch else split_py_files(workdir)
 
+    # Measure coverage and test-to-code ratio before injecting grade files
+    coverage = measure_coverage(workdir, env, prod) if prod else {"percent": None}
+    test_code_ratio = _test_code_ratio(workdir, prod, tests)
+
     post_change_sha = _git_commit_all(workdir, f"post-{stage_name}")
     blast = measure_blast_radius(workdir, prior_sha)
     radon = measure_radon(workdir, prod)
@@ -369,6 +394,7 @@ def run_change_stage(stem: str, arm: str, clarity: str, trial: int,
         "passed": all(r["exit_code"] == 0 for r in results) and bool(results),
         "results": results, "cost": cost,
         "blast_radius": blast, "radon": radon,
+        "self_coverage": coverage, "test_code_ratio": test_code_ratio,
         "multi_rater_review": review,
         "contamination": contamination_flags(home, cost),
     }
