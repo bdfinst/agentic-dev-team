@@ -32,12 +32,20 @@ exactly where the prior experiment was blind?**
 > raw data, and a report; do not open a PR unless asked.
 >
 > **Two factors:**
+>
 > - **Clarity** — `clear` (spec states architecture *and* edge-case decisions) vs
 >   `vague` (omits both; the hidden acceptance is unchanged, so the *contract* is
 >   fixed — only what the agent is *told* changes).
 > - **Workflow** — `tdd-refactor` (strict RED-GREEN-**REFACTOR**, refactor
 >   mandatory), `tdd-no-refactor` (test-first, never restructure), `test-after`
->   (code first, tests last), `bduf` (design up front, then implement, then tests).
+>   (code first, tests last), `bduf` (design up front, then implement, then tests),
+>   `ship` (run the `/specs`→`/plan`→`/build` pipeline: the `/specs` phase authors
+>   acceptance criteria before any code is written; `/plan` produces Gherkin
+>   scenarios per slice; `/build` executes RED-GREEN-REFACTOR with inline review).
+>   **`ship` runs at `vague` only** — its value is in testing whether structured
+>   spec synthesis resolves ambiguity better than test-first's failing-test-as-
+>   specification; under a `clear` spec both arms trivially converge and no
+>   comparison is possible.
 >
 > Grade every cell the same way: **CORE/EDGE** Stage-0 acceptance (ambiguity), a
 > **withheld change chain** (changeability), deterministic **radon** structural
@@ -62,21 +70,36 @@ exactly where the prior experiment was blind?**
   changeability) **largest in the `vague + open-design` cell** — i.e. exactly where
   the prior null experiment could not look? This is the cell both claims predict
   TDD should win.
+- **RQ-D / spec synthesis vs test-first.** Does `ship`'s explicit acceptance-criteria
+  synthesis (the `/specs` phase authors the contract before any code is written)
+  resolve ambiguity as well as or better than `tdd-refactor`'s failing-test-as-
+  specification approach? **H-D:** under `vague`, `ship` EDGE pass rate ≥
+  `tdd-refactor` because the `/specs` phase forces the agent to state every
+  acceptance decision upfront, including those the vague spec omitted. **H-D2
+  (mechanism):** `ship` changeability ≤ `tdd-refactor` because its inline review
+  checkpoints in `/build` catch structural issues that `tdd-refactor`'s refactor
+  step misses. **Null:** the `/specs` phase makes the same happy-path assumptions
+  as any other arm — synthesising a spec from a vague prompt does not reliably
+  surface EDGE decisions.
 
 ---
 
 ## Design: clarity × workflow (fractional factorial, paired by task)
 
-| | tdd-refactor | tdd-no-refactor | test-after | bduf |
-|---|---|---|---|---|
-| **clear** | ✓ anchor | – | ✓ anchor | – |
-| **vague** | ✓ | ✓ | ✓ | ✓ |
+| | tdd-refactor | tdd-no-refactor | test-after | bduf | ship |
+|---|---|---|---|---|---|
+| **clear** | ✓ anchor | – | ✓ anchor | – | – |
+| **vague** | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-Run **all 4 arms at `vague`** (the novel regime where both benefits should appear)
+Run **all 5 arms at `vague`** (the novel regime where both benefits should appear)
 and only the **2 anchor arms** at `clear` (to establish the interaction baseline) —
-**6 arm-clarity cells per task** instead of 8. `bduf × vague` is deliberately kept:
-it tests whether committing to a design *before* requirements are clear helps or
-hurts. Model **fixed** (e.g. `claude-sonnet-4-6`), reported.
+**7 arm-clarity cells per task** instead of 10. `bduf × vague` is deliberately kept:
+it tests whether committing to a *design* before requirements are clear helps or
+hurts. `ship × vague` is the novel addition: it tests whether committing to an
+*explicit acceptance contract* (via `/specs`) before requirements are clear helps or
+hurts — a different mechanism from bduf. `ship` requires a plugin-enabled `$HOME`
+per cell (same setup as the `build-pipeline` arm in the prior 3-arm study).
+Model **fixed** (e.g. `claude-sonnet-4-6`), reported.
 
 ---
 
@@ -135,15 +158,22 @@ every build and injected only at grading:
 ## Fixed procedure (follow exactly)
 
 ### 0. Preconditions
-`pip install coverage pytest radon`. All arms are **instruction-level** (no plugin)
-— no plugin HOME template needed. Confirm the model id and that nested `claude -p`
+
+`pip install coverage pytest radon`. The four instruction arms (`tdd-refactor`,
+`tdd-no-refactor`, `test-after`, `bduf`) need no plugin. The `ship` arm requires a
+**plugin-enabled `$HOME` template** — build it once with `cp -r ~/.claude/plugins
+$TPL/.claude/` and pass `--build-home-template $TPL` to the harness (same pattern
+as the `build-pipeline` arm in the prior 3-arm study; cost reads from the JSON
+result, not the plugin meter). Confirm the model id and that nested `claude -p`
 works (`IS_SANDBOX=1` is set by the harness).
 
 ### 1. Model
+
 One fixed, capable model for the whole run, reported. The cost/quality winner flips
 with model — hold it constant.
 
 ### 2. Arms (add to `ARM_PROMPTS`; keep `PYTEST_RULE`)
+
 - **tdd-refactor:** strict TDD; after EACH test passes, REFACTOR toward the
   cleanest module boundaries/naming/duplication, re-run tests (stay green), *then*
   write the next test. Do not defer refactoring.
@@ -151,12 +181,25 @@ with model — hold it constant.
   DO NOT restructure — straight to the next test.
 - **test-after:** all production code first, tests last.
 - **bduf:** first write a short `DESIGN.md` (modules + public interfaces), then
-  implement the spec to that design, then write the tests.
+  implement the spec to that design, then write the tests. Note: `bduf` commits to
+  an *architecture* upfront; it does not author acceptance criteria. This isolates
+  the "design commitment" mechanism from the "acceptance synthesis" mechanism tested
+  by `ship`.
+- **ship** *(vague only; plugin arm):* invoke the `/specs`→`/plan`→`/build` pipeline
+  headlessly (self-approve at each human gate so it does not stall). `/specs` authors
+  explicit acceptance criteria from the vague spec before any code is written;
+  `/plan` decomposes the feature into Gherkin-backed slices; `/build` executes
+  RED-GREEN-REFACTOR with three-stage inline review checkpoints. The key difference
+  from all instruction arms: the agent must *synthesise* the acceptance contract
+  (including the edge-case decisions the vague spec omitted) as an explicit artifact
+  before implementation begins.
 
 The spec the arm reads is `spec_clear.md` or `spec_vague.md` per the cell.
 
 ### 3. Author the open-design tasks (the craft step — do this first)
+
 Per "Shared substrate". Calibrate **two** things by piloting one task:
+
 - **Trap:** naive ref passes Stage 0 but is rewritten by the trap change; clean ref
   absorbs it. If both absorb equally → no design signal, re-author.
 - **Vagueness:** under `vague`, `acc_core` is ~always passable and `acc_edge` is
@@ -164,7 +207,9 @@ Per "Shared substrate". Calibrate **two** things by piloting one task:
   never, it's unbuildable.
 
 ### 4. Extend the harness
+
 Extend `run_tdd_experiment.py` (or a sibling) to, per cell:
+
 1. Select `spec_clear.md`/`spec_vague.md`.
 2. Stage 0 build → grade `acc_core.py` and `acc_edge.py` **separately**.
 3. Change-chain stages 1..K, each seeded from the previous stage's *files* (fresh
@@ -176,12 +221,14 @@ Extend `run_tdd_experiment.py` (or a sibling) to, per cell:
 Keep acceptance hidden during each build.
 
 ### 5. Execute (sharded — instruction arms are cheap)
+
 `N = 3–5` trials per cell. Shard by task; cells are isolated, so run many runners
 concurrently. Bound every test/coverage/mutant run with a wall-clock timeout
 (already landed). Monitor non-destructively (row counts / `pgrep`); never kill the
 session's own `claude`.
 
 ### 6. Analyze (per task, then paired across tasks)
+
 - **RQ-A primary — EDGE pass:** `tdd-refactor − test-after` under `vague`, paired
   across tasks (sign + Wilcoxon); read the `workflow × clarity` interaction against
   the `clear` anchors.
@@ -190,14 +237,21 @@ session's own `claude`.
   `tdd-no-refactor` vs `test-after` vs `tdd-refactor` isolation.
 - **RQ-C — the headline:** quantify whether each arm's EDGE *and* changeability
   advantage is **largest in `vague + open-design`**.
+- **RQ-D — spec synthesis:** `ship − tdd-refactor` on EDGE pass rate and cumulative
+  changeability under `vague`, paired across tasks. Also compare `ship` to `bduf` on
+  EDGE pass rate — this isolates acceptance-criteria synthesis from architecture
+  commitment as mechanisms for resolving ambiguity. Report `ship`'s cost premium over
+  the cheapest vague arm to frame the "does spec synthesis pay?" trade-off.
 - **Secondaries:** radon trajectory; multi-rater code/test/design score (mean ±
   stddev — treat differences smaller than the stddev as noise); interpretation
   variance; regression-catch rate.
 
 ### 7. Report
+
 Write `docs/experiments/when-tdd-pays-report.md`: the clarity × workflow grid, the
-RQ-A / RQ-B / RQ-C verdicts and the RQ-B2 mechanism isolation, honest limitations
-(n, single model, autonomous-only, reviewer variance, trap+vagueness calibration),
+RQ-A / RQ-B / RQ-C verdicts and the RQ-B2 mechanism isolation, the RQ-D
+`ship`-vs-`tdd-refactor` spec-synthesis verdict, honest limitations (n, single
+model, autonomous-only, reviewer variance, trap+vagueness calibration),
 reproducibility commands, and a recommendation. Commit the report **and** raw data
 under `docs/experiments/data/`.
 
@@ -221,21 +275,25 @@ under `docs/experiments/data/`.
    in nested dispatch). The harness reads `--output-format json`.
 6. **Hold the model fixed and report it.**
 7. **Pre-register** N, both primaries (EDGE under vague; cumulative changeability),
-   and the RQ-C interaction before running; the task is the unit of inference; no
-   data-dependent stopping.
-8. **Parallelize but isolate** — each cell gets its own worktree + `$HOME`.
+   the RQ-C interaction, and the RQ-D `ship`-vs-`tdd-refactor` comparison before
+   running; the task is the unit of inference; no data-dependent stopping.
+8. **Parallelize but isolate** — each cell gets its own worktree + `$HOME`. The
+   `ship` arm additionally needs its own plugin-enabled `$HOME` template (see step
+   0); do not share `$HOME` between `ship` cells and instruction cells.
 
 ## Out of scope (by decision)
+
 - **Human / designer-in-the-loop** and the **clarification-oracle** arm. Every arm
   runs fully autonomously; the experiment measures what the workflow alone produces.
 
 ## Expected deliverables
+
 - `evals/experiments/exp-tdd-pays-<task>.json` + open-design fixtures (stub,
   `spec_clear.md`, `spec_vague.md`, hidden `acc_core.py`/`acc_edge.py`,
   `change1..K.md`, `acc_change1..K.py`), each **validated against a naive and a
   clean reference**.
 - The harness extension (clarity selection + CORE/EDGE grading + change-chain stages
-  + blast-radius/radon/multi-rater instrumentation).
+  - blast-radius/radon/multi-rater instrumentation + `ship` plugin-home support).
 - Raw data JSONL under `docs/experiments/data/`.
-- One report with the clarity × workflow grid and the RQ-A / RQ-B / RQ-B2 / RQ-C
-  verdicts and recommendation.
+- One report with the clarity × workflow grid and the RQ-A / RQ-B / RQ-B2 / RQ-C /
+  RQ-D verdicts and recommendation.

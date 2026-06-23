@@ -1,0 +1,12 @@
+{
+  "description": "Large multi-file task: url-router (patterns + match + reverse). Hidden acceptance injected only at grading.",
+  "experiment": {
+    "goldenRepo": "golden-repo.tar.gz",
+    "spec": "spec.md",
+    "change": "change.md",
+    "gradeFiles": ["acc.py"],
+    "changeGradeFiles": ["acc.py", "acc_change.py"],
+    "testCommands": ["python3 acc.py"],
+    "changeTestCommands": ["python3 acc.py", "python3 acc_change.py"]
+  }
+}
