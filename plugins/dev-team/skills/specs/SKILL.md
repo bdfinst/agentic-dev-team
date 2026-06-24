@@ -62,6 +62,33 @@ Repeat up to **2 iterations** before escalating.
 | Conflicts | Contradictions between artifacts or with existing system behavior |
 | Scope violations | Spec bundles unrelated features that belong in separate specs |
 
+## Ambiguity Resolution Protocol
+
+After critiquing the artifacts but before writing the final acceptance criteria, run this protocol on every gap and ambiguity finding. This is a hard step — it cannot be skipped.
+
+For each gap or ambiguity:
+
+**Step A — Attempt inference.** Look for a reliable basis: existing codebase behavior, domain conventions, similar precedents in the system, or unambiguous implication from stated requirements.
+
+**Step B — Classify the finding.**
+
+| Class | Meaning | Action |
+|-------|---------|--------|
+| `inferable` | A reasonable developer, given the codebase and domain, would make the same choice | Document the inference and its rationale; proceed |
+| `requires-stakeholder-input` | The decision depends on product or business intent not evident from context; two reasonable developers would choose differently | **Block — ask the human before proceeding** |
+
+**Step C — Resolve `requires-stakeholder-input` items.** Collect all such items and present them as a single batch to the human before writing acceptance criteria:
+
+> "Before writing acceptance criteria, I need clarification on N decisions the spec leaves open: [list]"
+
+Wait for answers. Only then finalize the criteria.
+
+**What "inferable" is NOT:** a convenient default. Naturalness or simplicity does not make a decision inferable — the test is whether a developer working from context alone would reliably land on the same answer. If in doubt, classify as `requires-stakeholder-input`.
+
+**Record every classification** in an `## Ambiguity Log` section of the spec file (see Output below). This log is the audit trail that turns "we asked before building" from an assertion into an artifact.
+
+This protocol exists because the most common failure mode of spec synthesis from a vague prompt is writing decisions that look thorough while encoding the same happy-path assumptions a direct implementation would make silently. The log prevents that by making every assumption visible and every gap either resolved by the human or documented as inferable with explicit rationale.
+
 ## Scope signals
 
 A specification bundles too much when any of these fire:
@@ -89,8 +116,9 @@ Validate all three artifacts as a set:
 - [ ] Architecture specification constrains implementation to what the intent requires, without over-engineering.
 - [ ] Same concepts are named consistently across all three artifacts.
 - [ ] No artifact contradicts another.
+- [ ] Every gap and ambiguity finding is logged — either documented as `inferable` (with explicit rationale) or resolved via explicit stakeholder input. No finding is left as an undocumented assumption.
 
-**Hard stop**: do not proceed to planning until every item passes.
+**Hard stop**: do not proceed to planning until every item passes. The ambiguity log item is the most critical: a passing gate with undocumented assumptions produces false confidence.
 
 ## Output
 
@@ -117,12 +145,21 @@ After the gate passes, write all three artifacts plus the verdict to a markdown 
 ## Acceptance Criteria
 <acceptance criteria artifact>
 
+## Ambiguity Log
+
+All gap and ambiguity findings from the Ambiguity Resolution Protocol, with their classifications and rationale.
+
+| Decision | Classification | Resolved By | Rationale / Answer |
+|----------|---------------|-------------|-------------------|
+| <decision text> | `inferable` / `requires-stakeholder-input` | inference / human | <rationale or human's answer> |
+
 ## Consistency Gate
 - [x/  ] Intent is unambiguous
 - [x/  ] Every behavior/goal maps to an acceptance criterion
 - [x/  ] Architecture constrains without over-engineering
 - [x/  ] Terminology consistent across artifacts
 - [x/  ] No contradictions between artifacts
+- [x/  ] Every gap/ambiguity finding is logged — inferable with rationale or resolved by human
 ```
 
 1. **Print** the file path to chat so the user can find it.
