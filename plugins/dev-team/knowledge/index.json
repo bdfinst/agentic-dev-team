@@ -4478,6 +4478,10 @@
       "summary": "| Category | Description |",
       "anchor": "critique-categories"
     },
+    "Ambiguity Resolution Protocol": {
+      "summary": "After critiquing the artifacts but before writing the final acceptance criteria, run this protocol on every gap and ambiguity finding.",
+      "anchor": "ambiguity-resolution-protocol"
+    },
     "Scope signals": {
       "summary": "A specification bundles too much when any of these fire:",
       "anchor": "scope-signals"
