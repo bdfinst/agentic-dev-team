@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.7.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.6.0...dev-team-v7.7.0) (2026-06-24)
+
+
+### Features
+
+* add harness fixes from session-review and harness-audit ([#398](https://github.com/bdfinst/agentic-dev-team/issues/398)) ([34c955a](https://github.com/bdfinst/agentic-dev-team/commit/34c955a45b14a9f88333fe4252c66715b1fb1ff5))
+* add when-tdd-pays experiment fixtures and harness extension ([#404](https://github.com/bdfinst/agentic-dev-team/issues/404)) ([4907f34](https://github.com/bdfinst/agentic-dev-team/commit/4907f34736247ab2b5edd8b51a6ae4b9d1030202))
+* implement closed learning loop (closes [#401](https://github.com/bdfinst/agentic-dev-team/issues/401)) ([#403](https://github.com/bdfinst/agentic-dev-team/issues/403)) ([d894ec4](https://github.com/bdfinst/agentic-dev-team/commit/d894ec4339828c6f95304563c3b14bab1298428b))
+
+
+### Bug Fixes
+
+* add ambiguity resolution protocol to /specs and wire /ship gate ([#412](https://github.com/bdfinst/agentic-dev-team/issues/412)) ([61c4b83](https://github.com/bdfinst/agentic-dev-team/commit/61c4b83ffb46b1219404baa1727fe47a2fcd31aa))
+
 ## [7.6.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.5.0...dev-team-v7.6.0) (2026-06-23)
 
 
