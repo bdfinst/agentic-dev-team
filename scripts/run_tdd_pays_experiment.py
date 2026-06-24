@@ -615,8 +615,10 @@ def main(argv: list[str]) -> int:
     print(f"arms: {sorted({a for a,_ in pairs})}", file=sys.stderr)
     print(f"model: {args.model}", file=sys.stderr)
 
-    # Build set of already-complete (task, arm, clarity, trial) tuples when resuming.
-    # A cell is complete when it has exactly 4 rows (stage0 + 3 change stages).
+    # Build set of already-written (task, arm, clarity, trial, stage) tuples.
+    # Per-stage tracking lets --resume skip individual stages, not just full cells,
+    # so interrupted runs (process killed mid-cell) resume from the next stage.
+    done_stages: set = set()
     done_cells: set = set()
     if args.resume and out_path.exists():
         from collections import Counter
@@ -628,39 +630,78 @@ def main(argv: list[str]) -> int:
                     continue
                 try:
                     _r = json.loads(_line)
-                    cell_counts[(_r["task"], _r["arm"], _r["clarity"], _r["trial"])] += 1
+                    key = (_r["task"], _r["arm"], _r["clarity"], _r["trial"])
+                    done_stages.add(key + (_r["stage"],))
+                    cell_counts[key] += 1
                 except (json.JSONDecodeError, KeyError):
                     pass
         done_cells = {k for k, v in cell_counts.items() if v >= 4}
-        if done_cells:
-            print(f"resume: skipping {len(done_cells)} already-complete cells",
+        skipped = len(done_cells)
+        partial = len({k for k in cell_counts if k not in done_cells})
+        if skipped or partial:
+            print(f"resume: {skipped} complete cells, {partial} partially-done cells",
                   file=sys.stderr)
 
     rows_written = 0
     with out_path.open("a") as fh:
         for stem, espec in experiments:
             fixture_dir = fixtures_dir / stem
+            chain = espec.get("changeChain", [])
             for arm, clarity in pairs:
                 plugin_tpl = ship_template if arm in PLUGIN_ARMS else None
                 for trial in range(1, args.trials + 1):
-                    if (stem, arm, clarity, trial) in done_cells:
+                    cell_key = (stem, arm, clarity, trial)
+                    if cell_key in done_cells:
                         print(f"· {stem} :: {arm}/{clarity} :: trial {trial} (skip)",
                               file=sys.stderr)
                         continue
                     print(f"· {stem} :: {arm}/{clarity} :: trial {trial}"
                           f"{' (no-dispatch)' if args.skip_dispatch else ''}",
                           file=sys.stderr)
-                    rows = run_cell(
-                        stem, espec, fixture_dir, run_root,
-                        arm, clarity, trial, args.model,
-                        args.skip_dispatch,
-                        capture=not args.no_capture,
-                        do_review=not args.no_review,
+
+                    # ── stage0 ──────────────────────────────────────────────
+                    # Always re-run stage0 even if its row is already written: the
+                    # workdir it produces is needed to seed the change chain below.
+                    workdir0 = None
+                    prior_sha = None
+                    stage0_row, workdir0 = run_stage0(
+                        stem, arm, clarity, trial, espec, fixture_dir, run_root,
+                        args.model, args.skip_dispatch, not args.no_capture,
                         plugin_template=plugin_tpl)
-                    for row in rows:
-                        fh.write(json.dumps(row) + "\n")
+                    prior_sha = stage0_row.pop("_post_build_sha", None)
+                    prod_paths = stage0_row.pop("_prod_paths", [])
+                    test_paths = stage0_row.pop("_test_paths", [])
+                    stage0_row.pop("_worktree", None)
+                    if cell_key + ("stage0",) not in done_stages:
+                        fh.write(json.dumps(stage0_row) + "\n")
+                        fh.flush()
                         rows_written += 1
-                    fh.flush()
+
+                    # ── change chain ─────────────────────────────────────────
+                    current_workdir = workdir0
+                    try:
+                        for i, chain_spec in enumerate(chain):
+                            stage_name = f"change{i + 1}"
+                            is_last = (i == len(chain) - 1)
+                            change_row, new_workdir, new_sha = run_change_stage(
+                                stem, arm, clarity, trial, i, chain_spec,
+                                espec, fixture_dir, run_root, args.model,
+                                args.skip_dispatch, not args.no_capture,
+                                seed_worktree=current_workdir, prior_sha=prior_sha,
+                                is_last=is_last, do_review=not args.no_review,
+                                plugin_template=plugin_tpl)
+                            if current_workdir != workdir0:
+                                shutil.rmtree(current_workdir, ignore_errors=True)
+                            current_workdir = new_workdir
+                            prior_sha = new_sha
+                            if cell_key + (stage_name,) not in done_stages:
+                                fh.write(json.dumps(change_row) + "\n")
+                                fh.flush()
+                                rows_written += 1
+                    finally:
+                        shutil.rmtree(current_workdir, ignore_errors=True)
+                        if workdir0 is not None and workdir0.exists():
+                            shutil.rmtree(workdir0, ignore_errors=True)
 
     print(f"done: {rows_written} rows → {out_path}", file=sys.stderr)
     print(f"run root: {run_root}", file=sys.stderr)
