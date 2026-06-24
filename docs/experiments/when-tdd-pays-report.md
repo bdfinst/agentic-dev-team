@@ -851,6 +851,43 @@ The `test-after-refactor` arm under vague spec produced 0% EDGE pass rate across
 
 **Condition 2 HOLDS** — test-after-refactor blast radius (678 lines) is within 2.1% of tdd-refactor (664 lines), well inside the 10% tolerance.
 
+**Clarification — the two refactor arms are equivalent on changeability, and that is
+*consistent* with "refactoring is the mechanism," not a contradiction of it.** It is
+tempting to read tdd-refactor (664) < test-after-refactor (678) as "test-first ordering
+buys extra changeability on top of refactoring." The data does not support that reading.
+The 14-line gap is +2.1% — inside the 10% tolerance and, at n=3 per cell, inside the
+noise. The robust, consistent signal in this dataset is **refactor vs no-refactor**, not
+TDD vs test-after:
+
+| | refactor step | mean Δlines |
+|---|---|---|
+| tdd-refactor | yes | 664 |
+| test-after-refactor | yes | 678 |
+| test-after | no | 700 |
+| tdd-no-refactor | no | 701 |
+
+Both refactor arms (664, 678) sit ~5–6% below both non-refactor arms (700, 701), and
+adding a refactor pass to test-after moved it 700 → 678, into the same band as
+tdd-refactor. Test-first ordering does not separate from test-after *once both refactor*.
+The headline H-B2 finding — the green→refactor cycle, not test ordering, drives
+changeability — holds, and the refactor-arm tie is a second confirmation of it.
+
+The residual 14 lines, *if* it is real rather than noise, has two candidate explanations,
+neither established by this experiment:
+
+1. **Refactoring granularity.** tdd-refactor refactors in small steps on every green, so
+   cleanup tracks the design as it grows; test-after-refactor does one cleanup pass after
+   the whole component is built. A late lump-sum refactor may have less leverage than many
+   incremental ones.
+2. **Safety-net erosion.** test-after-refactor's refactor phase rewrites or deletes its
+   own tests (the same effect that collapsed its EDGE coverage to 0% under vague spec,
+   Condition 1). A churned test suite is a weaker safety net when the three follow-up
+   changes land, which could nudge later blast radius up.
+
+Distinguishing "real but small effect" from "noise," and adjudicating between these two
+mechanisms, requires a dedicated higher-power experiment — see
+[Proposed follow-up: RQ-F](#proposed-follow-up-rq-f-refactoring-granularity-and-the-test-safety-net).
+
 #### Condition 3: Cost per stage < tdd-refactor
 
 | arm | mean cost/stage |
@@ -880,3 +917,85 @@ Conditions 2 and 3 both hold: the blast radius is equivalent to tdd-refactor (+2
 | Clear requirements, one-shot or cost-sensitive | **test-after** (same EDGE quality as tdd-refactor under clear spec, 2.3× cheaper) |
 | Want refactoring benefits without TDD overhead | **test-after-refactor** (clear spec only — vague spec destroys edge-case coverage during refactor) |
 | Speed-first, throwaway code | **tdd-no-refactor or test-after** (same changeability, lowest cost) |
+
+---
+
+## Proposed follow-up RQ-F: refactoring granularity and the test safety net
+
+**Status: proposed, not yet run.** Pre-registration drafted; no data collected.
+
+The second run left one question open (see the
+[Condition 2 clarification](#condition-2-blast-radius-within-10-of-tdd-refactor)).
+tdd-refactor (664) and test-after-refactor (678) are statistically equivalent on
+changeability at n=3 — the 14-line gap is inside the noise. Two questions remain:
+
+1. **Is the gap real at all,** or does it vanish under adequate statistical power?
+2. **If real, which mechanism produces it** — refactoring *granularity* (many small
+   in-loop refactors vs one post-hoc pass) or *safety-net erosion* (the one-shot refactor
+   churning its own test suite)?
+
+### Hypotheses (to pre-register before any data)
+
+- **H-F0 (equivalence):** continuous-refactor and one-shot-refactor workflows are
+  equivalent on cumulative blast radius within a ±5% margin (TOST). This is the default
+  the second-run data points to; the experiment is powered to *reject* it if a real
+  effect exists.
+- **H-F1 (granularity):** holding the test-protection factor constant, **continuous**
+  refactoring yields lower blast radius than **one-shot** refactoring. Predicts the gap
+  survives even when tests are protected from churn.
+- **H-F2 (safety net):** **freezing the test suite during the refactor** raises EDGE pass
+  rate (tests that document edge decisions survive) and lowers subsequent blast radius
+  relative to a free refactor. Predicts test-suite churn *mediates* the blast-radius
+  difference.
+
+H-F1 and H-F2 are not mutually exclusive; the design separates their contributions.
+
+### Design — a 2×2, adequately powered
+
+Cross **refactor granularity** × **test protection during refactor**, with tdd-refactor
+as an external reference:
+
+| | tests free to change in refactor | tests frozen during refactor |
+|---|---|---|
+| **one-shot refactor** (single pass after build) | test-after-refactor *(current arm)* | test-after-refactor-frozen |
+| **continuous refactor** (refactor each increment) | test-after-continuous | test-after-continuous-frozen |
+
+Plus **tdd-refactor** (continuous, test-first) as the reference point from the prior runs.
+Reuse the same 4 tasks, vague **and** clear spec, 3-change chain.
+
+**Power.** The n=3 cells could not resolve a 2% effect. Estimate the per-cell blast-radius
+SD from the existing run1+run2 data, then size n for 80% power to detect a 5% difference
+(and to make the ±5% TOST equivalence test meaningful). Expect this to require roughly
+**n = 12–15 per cell** rather than 3; pre-register the exact n from the power calc.
+
+**Instrumentation (new, per stage).** The current harness records blast radius and
+pass-rates; add:
+
+- **refactor granularity (actual):** count of distinct refactor edits between first-green
+  and stage-complete — verifies the assigned arm behaved as intended.
+- **test-suite churn during refactor:** test LOC added + deleted between first-green and
+  post-refactor. This is the mediator variable for H-F2.
+- carry forward CORE/EDGE pass rates and cost/stage.
+
+### Analysis plan (pre-registered)
+
+- **Headline:** TOST equivalence test on cumulative blast radius, continuous vs one-shot,
+  ±5% margin → resolves question 1 (real vs noise) directly, including a "confirmed
+  equivalent" outcome as a valid result.
+- **H-F1:** two-factor model on blast radius; granularity main effect with test-protection
+  held constant.
+- **H-F2:** mediation — does test-suite churn account for the granularity/protection effect
+  on blast radius? Plus the direct EDGE comparison frozen vs free (this also re-tests the
+  RQ-E Condition 1 finding that free refactor destroys edge coverage under vague spec).
+
+### What each outcome would mean
+
+| Result | Interpretation |
+|---|---|
+| TOST confirms equivalence | The refactor-arm tie is real; "refactoring is the mechanism" is the whole story, and *how* you refactor (granularity, ordering) does not move changeability. Strongest, simplest takeaway. |
+| Granularity effect, no churn mediation | Continuous refactoring is independently better; recommend refactoring in small steps regardless of test ordering. |
+| Churn mediation (H-F2) | The cost of one-shot refactor is collateral test-suite damage; recommend protecting/regenerating the test suite across a refactor, and the RQ-E EDGE collapse and the changeability residual share one root cause. |
+
+A null here is a publishable result: confirming that the two refactor workflows are
+genuinely interchangeable on changeability would let teams choose between them on the axes
+that *did* separate cleanly — cost and edge-case robustness under vague specs.

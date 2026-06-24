@@ -70,6 +70,14 @@ TDD *without* refactoring (701) lands on top of test-after (700). The advantage 
 from the refactoring, not from writing tests first. Drop the cleanup step and you pay
 TDD's higher cost for none of the benefit.
 
+**The two workflows that *do* refactor are a tie.** test-after-refactor scores 678 —
+essentially the same as TDD-with-refactoring's 664 (a 2% gap, inside the measurement
+noise at this sample size). So the split is clean: the two refactor workflows (664, 678)
+sit together, ~5% below the two non-refactor ones (700, 701). Test-first ordering buys
+nothing extra once both workflows refactor. This is a second confirmation that
+refactoring — not test ordering — is the mechanism, not a contradiction of it. (Whether
+the small 664-vs-678 difference is real at all is the open question in the last section.)
+
 ### 4. The "ship" pipeline doesn't resolve vagueness
 
 `ship` runs `/specs` to write a detailed specification up front, then `/plan` and
@@ -121,6 +129,39 @@ test-first loop. That is the price of its changeability advantage.
 
 Refactoring is what makes code easier to change; nothing in the workflow substitutes for
 resolving what the spec left unstated.
+
+---
+
+## Open question and a proposed next experiment
+
+The two workflows that refactor came out 664 vs 678 on change cost — a 2% difference that
+is inside the noise at three trials per cell. We can't yet say whether that small gap is
+real or just measurement scatter. If it *is* real, there are two candidate explanations:
+
+1. **How often you refactor.** TDD cleans up in small steps as it goes; test-after-refactor
+   does one cleanup pass at the end. Many small cleanups may keep code more malleable than
+   one big one.
+2. **What the cleanup does to the tests.** test-after-refactor's cleanup step rewrote and
+   deleted some of its own tests (the same thing that wiped out its edge-case coverage
+   under a vague spec). A thinner test suite is a weaker safety net for later changes.
+
+**Proposed next experiment.** Run a larger study (around 12–15 trials per case instead of
+3, enough to tell a real 5% difference from noise) that varies two things independently:
+*how often the code is refactored* (continuously vs one pass at the end) and *whether the
+tests are allowed to change during the cleanup* (frozen vs free). Track how many lines of
+test code the cleanup adds or deletes, so we can see whether test churn is what drives the
+difference.
+
+Three outcomes, each useful:
+
+- **The gap disappears** → the two refactor workflows are truly interchangeable on
+  changeability; choose between them on cost and edge-case robustness instead.
+- **Refactoring continuously wins** → refactor in small steps, whatever the test ordering.
+- **Test churn explains it** → protect or regenerate the test suite across a cleanup, and
+  the lost edge coverage and the slightly higher change cost turn out to share one cause.
+
+The full pre-registration (hypotheses, the 2×2 design, power, and analysis plan) is in the
+report's [RQ-F section](when-tdd-pays-report.md#proposed-follow-up-rq-f-refactoring-granularity-and-the-test-safety-net).
 
 ---
 
