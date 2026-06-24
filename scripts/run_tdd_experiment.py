@@ -166,9 +166,12 @@ def make_cell_home(run_root: Path, cell_id: str,
     if plugin_template is not None and (plugin_template / ".claude").is_dir():
         # symlinks=True + ignore_dangling: the marketplace clone contains symlinks
         # (some dangling) that would otherwise abort the copy.
-        shutil.copytree(plugin_template / ".claude", home / ".claude",
-                        dirs_exist_ok=True, symlinks=True,
-                        ignore_dangling_symlinks=True)
+        # Remove stale .claude from prior runs so symlinks don't collide on retry.
+        dst_claude = home / ".claude"
+        if dst_claude.exists() or dst_claude.is_symlink():
+            shutil.rmtree(str(dst_claude))
+        shutil.copytree(plugin_template / ".claude", dst_claude,
+                        symlinks=True, ignore_dangling_symlinks=True)
     return home
 
 
