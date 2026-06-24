@@ -31,4 +31,4 @@ jobs:
         run: bash scripts/assemble-docs.sh
 
       - name: Build and deploy to GitHub Pages
-        run: mkdocs gh-deploy --force --no-history
+        run: mkdocs gh-deploy --force --no-history --cname docs.bryanfinster.com
