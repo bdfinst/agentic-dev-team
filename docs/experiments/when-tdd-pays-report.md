@@ -768,13 +768,43 @@ arm and does not reliably surface EDGE decisions from a vague prompt.
 
 **Mechanism (from the agents' own acceptance criteria).** Each trial saved the `/specs`
 document it generated. These criteria enumerated many ambiguities but resolved them to
-**happy-path defaults**. `/specs` surfaced the trap decisions only for report-render —
-the one task whose omitted decisions (insertion-order iteration, by-reference returns)
-*are* the natural defaults — and missed them for pricing (discount priority / exclusive
-groups), notifier (per-channel priority, exception-as-False), and event-store
-(optimistic-concurrency trigger, `initial_state`). Writing acceptance criteria from a
-vague prompt does not, by itself, force the unstated decisions into view; it produces a
-confident-looking spec built on the same assumptions a happy-path implementation makes.
+**happy-path defaults**. `/specs` landed on the correct edge behaviour only for
+report-render — the one task whose omitted decisions (insertion-order iteration,
+by-reference returns) *are* the natural defaults — and either omitted or explicitly
+mis-resolved them for pricing (discount priority / exclusive groups), notifier
+(per-channel priority, exception-as-False), and event-store (optimistic-concurrency
+trigger, `initial_state`). Writing acceptance criteria from a vague prompt does not, by
+itself, force the unstated decisions into view; it produces a confident-looking spec
+built on the same assumptions a happy-path implementation makes.
+
+**What the ship workflow produces.** The `ship` arm runs the dev-team pipeline end to
+end, self-approving at each gate. `/specs` first turns the vague `spec.md` into an
+explicit specification — an intent description, an architecture spec, numbered
+GIVEN/WHEN/THEN acceptance criteria, an **"explicit decisions on omitted behaviors"**
+table, and a self-checked **consistency gate** — then `/plan` decomposes it into an
+incremental TDD plan, and `/build` implements it RED-GREEN-REFACTOR. Every trial emitted
+these artifacts (a 54–145-line `ACCEPTANCE.md` plus per-stage plan files), and the
+pipeline ran to completion on all 48 stages with no human input.
+
+Those artifacts show *why* the EDGE scores came out flat: `/specs` does drag the omitted
+decisions onto the page, but it then resolves them to the happy path and certifies the
+result complete. The event-store spec is the clearest case — it listed the trap
+decisions explicitly and chose the wrong side of both:
+
+> **D1** — `OptimisticConcurrencyError` usage … `append` does **not** take
+> `expected_version` in this version
+> **D5** — `project` initial state … always starts at `None`; not configurable
+
+…then stamped **"Consistency Gate: PASS — every behavior maps to an acceptance
+criterion."** Both decisions are the exact opposite of what `acc_core.py` requires (an
+`expected_version` conflict *must* raise `OptimisticConcurrencyError`; `project(…,
+initial_state=…)` *must* be honoured). So the failure is not an oversight the process
+forgot to consider — `/specs` surfaced the decision, reasoned about it, committed to the
+wrong default, and signed off. A self-authored spec from a vague prompt manufactures
+false confidence: it reads as thorough and internally consistent while encoding the same
+assumptions a happy-path implementation would have made silently. That is the core RQ-D
+result — explicit spec synthesis relocates the guess from the code to the spec; it does
+not eliminate it.
 
 **CORE and changeability.** ship CORE under vague was 100% for pricing, notifier, and
 report-render but **0% for event-store** — that task's `acc_core.py` encodes the
