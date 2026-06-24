@@ -555,6 +555,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--no-capture", action="store_true")
     ap.add_argument("--no-review", action="store_true",
                     help="skip the multi-rater review panel at last stage")
+    ap.add_argument("--resume", action="store_true",
+                    help="skip cells already fully written in --out (4 rows per cell)")
     args = ap.parse_args(argv)
 
     if not args.skip_dispatch and shutil.which("claude") is None:
@@ -612,6 +614,27 @@ def main(argv: list[str]) -> int:
     print(f"arms: {sorted({a for a,_ in pairs})}", file=sys.stderr)
     print(f"model: {args.model}", file=sys.stderr)
 
+    # Build set of already-complete (task, arm, clarity, trial) tuples when resuming.
+    # A cell is complete when it has exactly 4 rows (stage0 + 3 change stages).
+    done_cells: set = set()
+    if args.resume and out_path.exists():
+        from collections import Counter
+        cell_counts: Counter = Counter()
+        with out_path.open() as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if not _line:
+                    continue
+                try:
+                    _r = json.loads(_line)
+                    cell_counts[(_r["task"], _r["arm"], _r["clarity"], _r["trial"])] += 1
+                except (json.JSONDecodeError, KeyError):
+                    pass
+        done_cells = {k for k, v in cell_counts.items() if v >= 4}
+        if done_cells:
+            print(f"resume: skipping {len(done_cells)} already-complete cells",
+                  file=sys.stderr)
+
     rows_written = 0
     with out_path.open("a") as fh:
         for stem, espec in experiments:
@@ -619,6 +642,10 @@ def main(argv: list[str]) -> int:
             for arm, clarity in pairs:
                 plugin_tpl = ship_template if arm in PLUGIN_ARMS else None
                 for trial in range(1, args.trials + 1):
+                    if (stem, arm, clarity, trial) in done_cells:
+                        print(f"· {stem} :: {arm}/{clarity} :: trial {trial} (skip)",
+                              file=sys.stderr)
+                        continue
                     print(f"· {stem} :: {arm}/{clarity} :: trial {trial}"
                           f"{' (no-dispatch)' if args.skip_dispatch else ''}",
                           file=sys.stderr)
