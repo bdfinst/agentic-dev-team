@@ -1,0 +1,116 @@
+site_name: Agentic Dev Team
+site_url: https://bdfinst.github.io/agentic-dev-team/
+repo_url: https://github.com/bdfinst/agentic-dev-team
+repo_name: bdfinst/agentic-dev-team
+edit_uri: edit/main/
+
+docs_dir: _mkdocs_src
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.action.edit
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+  - tables
+  - attr_list
+
+nav:
+  - Home: README.md
+  - Getting Started: GETTING-STARTED.md
+  - Contributing: CONTRIBUTING.md
+
+  - dev-team Plugin:
+      - Overview: plugins/dev-team/README.md
+      - Team Structure: plugins/dev-team/docs/team-structure.md
+      - Agent Architecture: plugins/dev-team/docs/agent-architecture.md
+      - Agent Info: plugins/dev-team/docs/agent_info.md
+      - Workflows: plugins/dev-team/docs/workflows.md
+      - Skills: plugins/dev-team/docs/skills.md
+      - Code Review Process: plugins/dev-team/docs/code-review-process.md
+      - Model Routing: plugins/dev-team/docs/model-routing.md
+      - Model Routing Overrides: plugins/dev-team/docs/model-routing-overrides.md
+      - Eval System: plugins/dev-team/docs/eval-system.md
+      - Eval Running Guide: plugins/dev-team/docs/eval-running-guide.md
+      - Eval Maintenance: plugins/dev-team/docs/eval-maintenance.md
+      - Test Evaluation: plugins/dev-team/docs/test-evaluation.md
+      - Session Review: plugins/dev-team/docs/session-review.md
+      - Session Review OSS Complements: plugins/dev-team/docs/session-review-oss-complements.md
+      - Concurrent Use: plugins/dev-team/docs/concurrent-use.md
+      - Telemetry CI Access: plugins/dev-team/docs/telemetry-ci-access.md
+      - Telemetry Security: plugins/dev-team/docs/telemetry-repo-security.md
+      - CodeGraph Nudge: plugins/dev-team/docs/codegraph-nudge.md
+
+  - Guides:
+      - Cloud Setup: docs/cloud-setup.md
+      - Using Skills in Web Environment: docs/using-plugin-skills-in-the-web-environment.md
+      - Marketplace Builder Playbook: docs/marketplace-builder-plugin-playbook.md
+      - CD Coverage Review: docs/continuous-delivery-coverage-review.md
+
+  - Architecture Decisions:
+      - Overview: docs/adr/README.md
+      - "ADR-0001: Record Architecture Decisions": docs/adr/0001-record-architecture-decisions.md
+      - "ADR-0002: CodeGraph Nudge Hook": docs/adr/0002-use-sentinel-file-and-argument-shape-heuristic-for-codegraph-nudge-hook.md
+      - "ADR-0003: ADR Tooling Workflow Skill": docs/adr/0003-document-adr-tooling-workflow-as-a-skill.md
+      - "ADR-0004: Pre-Dispatch Model Resolution": docs/adr/0004-pre-dispatch-model-resolution.md
+      - "ADR-0005: On-Demand Knowledge Indexing": docs/adr/0005-on-demand-knowledge-indexing.md
+      - "ADR-0006: Trunk Integration Topology": docs/adr/0006-per-increment-trunk-integration-topology.md
+      - "ADR-0007: Eval Confidence Pyramid": docs/adr/0007-eval-confidence-pyramid-tier-vocabulary.md
+      - "ADR-0008: Effort Bands over Model Names": docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md
+      - "ADR-0009: Human Consent Gate for Learning": docs/adr/0009-human-consent-gate-for-learning-loop.md
+      - "ADR-0010: Per-Session Analysis Granularity": docs/adr/0010-per-session-analysis-granularity.md
+
+  - Experiments:
+      - FAQ: docs/experiments/FAQ.md
+      - TDD vs Non-TDD Report: docs/experiments/tdd-vs-nontdd-report.md
+      - When TDD Pays Experiment: docs/experiments/experiment-prompt-when-tdd-pays.md
+      - When TDD Pays Report: docs/experiments/when-tdd-pays-report.md
+      - 3 Sizes 3 Arms Experiment: docs/experiments/experiment-prompt-3sizes-3arms.md
+      - 3 Sizes 3 Arms Report: docs/experiments/3sizes-3arms-report.md
+      - Complexity Refactor Regression: docs/experiments/complexity-refactor-regression.md
+
+  - Specs:
+      - Model Complexity Routing: docs/specs/model-complexity-routing.md
+      - Insights Reports Prompt Idea: docs/specs/insights-reports/prompt-idea.md
+
+  - Changelog:
+      - Repository: CHANGELOG.md
+      - dev-team Plugin: plugins/dev-team/CHANGELOG.md
