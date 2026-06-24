@@ -719,4 +719,87 @@ Based on the first-run evidence (see experiment document, "Best path forward" se
 
 **H-E falsification criteria:** If test-after-refactor blast radius exceeds tdd-refactor by ≥10%, the iterative TDD cycle shapes design in ways a post-implementation refactor cannot replicate, and tdd-refactor remains the correct choice for open-design tasks despite its higher cost.
 
-*RQ-D and RQ-E result sections will be added here after second-run execution.*
+---
+
+## Second-Run Results (2026-06-24)
+
+**Data:** `docs/experiments/data/tdd-pays-*-run2-2026-06-24.jsonl`  
+**Combined analysis across 465 rows (first + second run).**
+
+### RQ-D: Ship arm vs tdd-refactor
+
+**Hypothesis H-D:** `ship` EDGE pass rate under vague ≥ `tdd-refactor`
+
+| task | ship EDGE | tdd-refactor EDGE | Δ |
+|------|-----------|------------------|---|
+| exp-tdd-pays-event-store | 0% (n=3) | 33% (n=3) | −33 pp |
+| exp-tdd-pays-notifier | 0% (n=3) | 0% (n=3) | 0 pp |
+| exp-tdd-pays-pricing | 0% (n=3) | 0% (n=3) | 0 pp |
+| exp-tdd-pays-report-render | 0% (n=3) | 100% (n=3) | −100 pp |
+
+**Pooled EDGE: ship 0% vs tdd-refactor 33%**
+
+**Verdict: H-D REJECTED.** The `ship` arm's `/specs`→`/plan`→`/build` pipeline did not produce higher EDGE pass rates under vague spec. In this CCR execution environment, the `ship` arm's multi-skill pipeline exceeded the 900-second dispatch timeout on every trial — all EDGE results are 0% due to timeout, not to spec-synthesis failure per se. This is an environmental finding, not a direct test of the hypothesis: the pipeline works but is too slow for the 15-minute timeout budget available here.
+
+**RQ-D2 (changeability):** For the one task (pricing) where some blast-radius data was collected before timeout, ship blast radius was 23 Δlines vs tdd-refactor 664 Δlines — if execution completed, ship changeability might be substantially lower. However, with all ship trials timing out, the changeability comparison cannot be made validly.
+
+**Practical implication:** The dev-team `/specs`→`/plan`→`/build` pipeline is designed for interactive sessions with human approval gates, not automated 15-minute dispatch windows. The ship arm is not comparable to tdd-refactor in this benchmark environment.
+
+---
+
+### RQ-E: test-after-refactor dominance
+
+**Hypothesis H-E:** `test-after-refactor` dominates all existing arms simultaneously on EDGE pass rate (≥ test-after), blast radius (within 10% of tdd-refactor), and cost (< tdd-refactor). All three conditions must hold.
+
+#### Condition 1: EDGE pass rate under vague (test-after-refactor ≥ test-after, −5 pp tolerance)
+
+| task | test-after-refactor EDGE | test-after EDGE | tdd-refactor EDGE | Condition 1 |
+|------|--------------------------|-----------------|------------------|-------------|
+| exp-tdd-pays-event-store | 0% (n=3) | 100% (n=3) | 33% (n=3) | ✗ (−100 pp) |
+| exp-tdd-pays-notifier | 0% (n=4) | 0% (n=3) | 0% (n=3) | ✓ (0 pp) |
+| exp-tdd-pays-pricing | 0% (n=6) | 67% (n=3) | 0% (n=3) | ✗ (−67 pp) |
+| exp-tdd-pays-report-render | 0% (n=3) | 100% (n=3) | 100% (n=3) | ✗ (−100 pp) |
+
+**Pooled: test-after-refactor 0% vs test-after 67% → Condition 1 FAILS**
+
+The `test-after-refactor` arm under vague spec produced 0% EDGE pass rate across 3 of 4 tasks. The refactor phase appears to remove or rewrite the edge-case-covering tests that were written against the working implementation, leaving the final suite less comprehensive than unrefactored `test-after`.
+
+#### Condition 2: Blast radius within 10% of tdd-refactor
+
+| arm | mean Δlines | vs tdd-refactor | Condition 2 |
+|-----|-------------|-----------------|-------------|
+| test-after-refactor | 678 | +2.1% | ✓ |
+| tdd-refactor | 664 | — | — |
+| test-after | 700 | +5.4% | — |
+
+**Condition 2 HOLDS** — test-after-refactor blast radius (678 lines) is within 2.1% of tdd-refactor (664 lines), well inside the 10% tolerance.
+
+#### Condition 3: Cost per stage < tdd-refactor
+
+| arm | mean cost/stage |
+|-----|----------------|
+| test-after | $0.19 |
+| tdd-no-refactor | $0.22 |
+| bduf | $0.24 |
+| test-after-refactor | $0.35 |
+| tdd-refactor | $0.44 |
+
+**Condition 3 HOLDS** — test-after-refactor ($0.35/stage) is 20% cheaper than tdd-refactor ($0.44/stage).
+
+#### H-E Overall Verdict
+
+**H-E NOT SUPPORTED.** Condition 1 fails decisively: under a vague spec, `test-after-refactor` produces 0% EDGE pass rate (pooled across 3 of 4 tasks), worse than both `test-after` (67%) and `tdd-refactor` (33%). The refactoring phase degrades edge-case coverage when the spec is ambiguous — the agent refactors away the tests that document its own decisions.
+
+Conditions 2 and 3 both hold: the blast radius is equivalent to tdd-refactor (+2.1%) and the cost is 20% lower. But the EDGE failure dominates.
+
+**The mechanism:** Under vague spec, `test-after-refactor` suffers from an ordering problem that `test-after` avoids. In `test-after`, tests written against the working implementation capture the agent's edge-case choices and stay in place. In `test-after-refactor`, those tests are then exposed to a refactor phase that rewrites the implementation — the agent often also rewrites or removes tests it considers redundant, stripping out the documented edge-case decisions. The result is structurally clean code with no EDGE coverage.
+
+**Revised decision guide (incorporating second-run results):**
+
+| Situation | Recommended workflow |
+|-----------|---------------------|
+| Vague requirements | **Stop and clarify first.** No workflow recovers omitted decisions. |
+| Clear requirements, long-lived codebase | **tdd-refactor** (lowest blast radius, best structural benefit) |
+| Clear requirements, one-shot or cost-sensitive | **test-after** (same EDGE quality as tdd-refactor under clear spec, 2.3× cheaper) |
+| Want refactoring benefits without TDD overhead | **test-after-refactor** (clear spec only — vague spec destroys edge-case coverage during refactor) |
+| Speed-first, throwaway code | **tdd-no-refactor or test-after** (same changeability, lowest cost) |

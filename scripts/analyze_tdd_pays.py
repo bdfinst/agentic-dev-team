@@ -90,12 +90,18 @@ def change_summary(rows: list[dict]) -> dict:
     out = {}
     for key, cell_rows in sorted(cells.items()):
         task, arm, clarity, stage = key
-        passes = [r["passed"] for r in cell_rows]
+        passes = [r.get("core_passed", r.get("passed")) for r in cell_rows]
+        passes = [p for p in passes if p is not None]
         blast_files = [r.get("blast_radius", {}).get("files_changed")
-                       for r in cell_rows if r.get("blast_radius")]
-        blast_lines = [r.get("blast_radius", {}).get("lines_added", 0)
-                       + r.get("blast_radius", {}).get("lines_deleted", 0)
-                       for r in cell_rows if r.get("blast_radius")]
+                       or r.get("blast_files")
+                       for r in cell_rows
+                       if r.get("blast_radius") or r.get("blast_files")]
+        blast_lines = [(r.get("blast_radius", {}).get("lines_added", 0)
+                        + r.get("blast_radius", {}).get("lines_deleted", 0))
+                       if r.get("blast_radius")
+                       else r.get("blast_lines")
+                       for r in cell_rows
+                       if r.get("blast_radius") or r.get("blast_lines")]
         costs = [r.get("cost", {}).get("cost_usd") for r in cell_rows
                  if isinstance(r.get("cost"), dict)]
         out[key] = {
