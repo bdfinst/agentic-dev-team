@@ -1,4 +1,6 @@
 node_modules/
+site/
+_mkdocs_src/
 
 # OS
 .DS_Store
