@@ -166,9 +166,12 @@ def make_cell_home(run_root: Path, cell_id: str,
     if plugin_template is not None and (plugin_template / ".claude").is_dir():
         # symlinks=True + ignore_dangling: the marketplace clone contains symlinks
         # (some dangling) that would otherwise abort the copy.
-        shutil.copytree(plugin_template / ".claude", home / ".claude",
-                        dirs_exist_ok=True, symlinks=True,
-                        ignore_dangling_symlinks=True)
+        # Remove stale .claude from prior runs so symlinks don't collide on retry.
+        dst_claude = home / ".claude"
+        if dst_claude.exists() or dst_claude.is_symlink():
+            shutil.rmtree(str(dst_claude))
+        shutil.copytree(plugin_template / ".claude", dst_claude,
+                        symlinks=True, ignore_dangling_symlinks=True)
     return home
 
 
@@ -195,8 +198,10 @@ def dispatch(workdir: Path, prompt: str, model: str, env: dict,
     cost dict.
     """
     # Each cell is a throwaway temp worktree, so headless edits are safe here.
+    # --dangerously-skip-permissions is blocked when running as root (CCR env).
+    skip_flag = [] if os.getuid() == 0 else ["--dangerously-skip-permissions"]
     cmd = ["claude", "-p", prompt, "--model", model, "--output-format", "json",
-           "--dangerously-skip-permissions"]
+           *skip_flag]
     try:
         proc = subprocess.run(cmd, cwd=str(workdir), env=env, check=False,
                               capture_output=True, text=True, timeout=900)
