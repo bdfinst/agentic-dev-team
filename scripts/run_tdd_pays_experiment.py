@@ -325,9 +325,10 @@ def multi_rater_review(workdir: Path, prod: list[Path], tests: list[Path],
     all_scores: dict[str, list[float]] = {}
     for _ in range(k):
         try:
+            skip_flag = [] if os.getuid() == 0 else ["--dangerously-skip-permissions"]
             r = subprocess.run(
                 ["claude", "-p", prompt, "--model", model,
-                 "--output-format", "json", "--dangerously-skip-permissions"],
+                 "--output-format", "json", *skip_flag],
                 cwd=str(workdir), env=env, capture_output=True, text=True, timeout=120)
             d = json.loads(r.stdout)
             result_text = d.get("result", "")

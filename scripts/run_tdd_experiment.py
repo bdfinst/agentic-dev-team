@@ -195,8 +195,10 @@ def dispatch(workdir: Path, prompt: str, model: str, env: dict,
     cost dict.
     """
     # Each cell is a throwaway temp worktree, so headless edits are safe here.
+    # --dangerously-skip-permissions is blocked when running as root (CCR env).
+    skip_flag = [] if os.getuid() == 0 else ["--dangerously-skip-permissions"]
     cmd = ["claude", "-p", prompt, "--model", model, "--output-format", "json",
-           "--dangerously-skip-permissions"]
+           *skip_flag]
     try:
         proc = subprocess.run(cmd, cwd=str(workdir), env=env, check=False,
                               capture_output=True, text=True, timeout=900)
