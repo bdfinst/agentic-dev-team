@@ -1,0 +1,29 @@
+{
+  "experiment": "refactor-granularity",
+  "clarity": "clear",
+  "model": "claude-sonnet-4-6",
+  "notes": "Clean-room corpus for RQ-F. Clear specs only, no spec-plan-build arm. Arms are exactly the prompt's 2x2x2 (granularity x protection x authorship) plus the tdd-refactor reference.",
+  "factors": {
+    "granularity": ["one-shot", "continuous"],
+    "protection": ["free", "frozen"],
+    "authorship": ["single", "split"]
+  },
+  "tasks": [
+    {
+      "name": "fare",
+      "dir": "tasks/fare",
+      "module": "fare.py",
+      "golden": "golden",
+      "spec": "spec_clear.md",
+      "coreFiles": ["acc_core.py"],
+      "edgeFiles": ["acc_edge.py"],
+      "coreCommands": ["python3 -m pytest acc_core.py -q --tb=short"],
+      "edgeCommands": ["python3 -m pytest acc_edge.py -q --tb=short"],
+      "changeChain": [
+        {"spec": "change1.md", "accFiles": ["acc_change1.py"]},
+        {"spec": "change2.md", "accFiles": ["acc_change2.py"]},
+        {"spec": "change3.md", "accFiles": ["acc_change3.py"]}
+      ]
+    }
+  ]
+}
