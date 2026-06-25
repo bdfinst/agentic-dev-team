@@ -11,6 +11,11 @@ equivalent on changeability at n=3 — a 2% gap inside the noise. We cannot yet 
 that gap is real, and if it is, what produces it. This experiment is powered to tell a
 real **5%** difference from scatter, and it pulls apart the candidate mechanisms.
 
+It judges every arm on three axes — **how modular and changeable the code is**, **how good
+the tests are**, and **what that quality cost** — and reports quality both raw and
+per-dollar, so the verdict names the efficient frontier rather than the most expensive arm.
+The three axes and their sensors are defined in [What we measure](#what-we-measure--three-axes-define-these-before-running).
+
 ---
 
 ## Prompt
@@ -103,6 +108,66 @@ spec, the 3-change chain.
 
 ---
 
+## What we measure — three axes (define these before running)
+
+The whole point is to separate **how good the code/tests are** from **what that quality
+cost**. Every cell reports all three axes per stage; the headline comparisons are
+quality-at-fixed-cost and quality-per-dollar, never quality alone.
+
+### Axis 1 — modularity & changeability of the code
+
+- **Changeability (outcome, already in the harness):** cumulative **blast radius** — lines
+  of production code touched to absorb the 3-change chain. Lower = more changeable. Also
+  record the **per-change file fan-out** (distinct files touched per change) as a ripple
+  measure: a modular design localizes a change to few files.
+- **Modularity (structural, new offline sensor):** after the build stage, run the repo's
+  read-only review agents against the agent's production code and **count findings**, the
+  way [`complexity-refactor-regression.md`](complexity-refactor-regression.md) established a
+  baseline (mean findings/solution):
+  - `complexity-review` — cyclomatic complexity, nesting depth, function size, parameter
+    count.
+  - `structure-review` — SRP violations, DRY, coupling, file organization.
+  - `refactor-opportunity-review` — residual restructuring opportunities after green.
+  Report each as findings/solution (lower = more modular) and as a combined modularity
+  index. These are **offline graders run on the frozen build-stage files** — they never
+  touch the worktree or the arm's own context.
+
+### Axis 2 — quality of the tests
+
+A suite is "good" only if it both **describes the right behavior** and **would catch a
+regression**. Capture both, plus hygiene:
+
+- **Behavioral correctness (already in the harness):** hidden-acceptance **CORE** pass rate
+  (did the suite encode the stated behavior) and **EDGE** pass rate (did it encode the
+  unstated edge decisions). EDGE is the suite's value as a safety net for later change.
+- **Regression-catching strength (already in the harness):** **mutation score** (assertion
+  strength — coverage can be high with empty assertions) and branch **self-coverage**.
+- **Test hygiene (new offline sensor):** run `test-smell-review` (and optionally the
+  `/farley-score` skill's 8-property score) on the frozen test files; record smell findings
+  and, if used, the weighted Farley score. This catches the failure mode where a suite hits
+  high coverage/mutation while being brittle or over-mocked.
+
+### Axis 3 — cost of attaining that quality
+
+- **Direct cost (already in the harness):** `cost_usd` and tokens per stage, plus the
+  **cumulative** build+change cost per task.
+- **Cost-of-quality ratios (new, derived):** the metrics that actually answer the question —
+  quality bought per dollar. Compute per cell:
+  - **mutation score per $** and **branch-coverage point per $** (test-quality efficiency),
+  - **EDGE pass rate per $** (safety-net efficiency),
+  - **blast-radius reduction per $** vs the no-refactor baseline from the prior runs
+    (changeability efficiency).
+  Report the quality axes both **raw** and **per-dollar**, so a more thorough arm that costs
+  more is judged on what the extra spend bought, not penalized or rewarded for spend alone.
+
+> **Saturation guard.** On these small tasks coverage and mutation saturate (~100% / 1.0)
+> for every arm — a known sensor ceiling. Treat any **uniform-across-arms** quality value as
+> non-discriminating and lean on the axes that *do* separate here: blast radius, EDGE,
+> modularity findings, and the cost ratios. Flag saturated metrics explicitly rather than
+> reporting a meaningless tie.
+
+---
+
 ## Extend the harness (do not rebuild it)
 
 `run_tdd_experiment.py` today ships `ALL_ARMS = (test-first, test-after, build-pipeline,
@@ -132,9 +197,18 @@ batched-red)` and per-arm prompt strings in `ARM_PROMPTS` / `CHANGE_PROMPTS`. Ad
      mediator variable for H-F2** — it is the number the user specifically wants tracked.
    - Carry forward the existing CORE/EDGE pass rates, blast radius, cost/stage, mutation,
      and contamination fields.
-4. **Validate the extension with `--skip-dispatch`** (harness self-test, no model) before
+4. **Offline graders for the three axes** (post-stage, run on the frozen files — see "What
+   we measure"): a **modularity** grader that runs `complexity-review` + `structure-review`
+   + `refactor-opportunity-review` on the production code and records findings/solution; a
+   **test-hygiene** grader that runs `test-smell-review` (and optionally `/farley-score`) on
+   the test files. These read the cell's files but never share its context. Emit the counts
+   into the JSONL row alongside the live sensors. Compute the **cost-of-quality ratios**
+   (mutation/$, coverage-point/$, EDGE/$, blast-reduction/$) at analysis time from these
+   fields — do not bake them into the row.
+5. **Validate the extension with `--skip-dispatch`** (harness self-test, no model) before
    spending a cent — prove the new arms route, the split dispatch shares one worktree, and
-   both new sensors emit, on isolated cells.
+   every sensor (the two new live sensors **and** the offline graders) emits on isolated
+   cells.
 
 Keep every cell isolated exactly as today: its own ephemeral worktree + scratch `$HOME`,
 one JSONL row per cell-stage, flushed per cell.
@@ -178,9 +252,20 @@ row counts / `pgrep`); never kill the session's own `claude` process.
 - **H-F3 / H-F4 (authorship):** authorship main effect on EDGE pass rate, mutation score,
   cost, and build-stage failure rate; authorship × protection interaction on EDGE and blast
   radius.
-- **Sensor artifacts:** treat any **uniform-across-arms** quality value as a sensor bug and
-  exclude it (the prior change-stage sensor had this); flag any non-empty `contamination`;
-  drop (do not silently keep) frozen-arm cells whose test-churn sensor is non-zero.
+- **Modularity (Axis 1):** per-arm mean modularity findings/solution and per-change file
+  fan-out; does continuous/frozen/split produce structurally cleaner code, and does lower
+  modularity-findings predict lower blast radius across tasks?
+- **Test quality (Axis 2):** per-arm CORE/EDGE, mutation, coverage, and test-smell counts —
+  reported together so an arm cannot look good on coverage while failing EDGE or piling up
+  smells.
+- **Cost of quality (Axis 3):** the per-dollar ratios. Every quality comparison above is
+  reported **twice** — raw, and divided by cumulative cost — and the recommendation names the
+  efficient frontier (which arm gives the most changeability/test-quality per dollar), not
+  just the highest-quality arm.
+- **Sensor artifacts:** treat any **uniform-across-arms** quality value as a sensor ceiling
+  and exclude it (coverage/mutation saturate on these tasks — flag, don't report as a tie);
+  flag any non-empty `contamination`; drop (do not silently keep) frozen-arm cells whose
+  test-churn sensor is non-zero.
 
 ### 5. Report
 Write `docs/experiments/refactor-granularity-report.md`: the pre-registered N and power
@@ -226,8 +311,11 @@ choose on the axes that *did* separate cleanly (cost, edge robustness under vagu
    to run many runners concurrently.
 
 ## Expected deliverables
-- Harness extension: 4 new arms, `--authorship single|split`, and the two new sensors
-  (refactor-granularity count, test-LOC churn), proven under `--skip-dispatch`.
-- Raw data JSONL under `docs/experiments/data/`.
-- One report with the 2×2×2 grid, the TOST verdict, the churn mediation, the authorship
-  effects, and the recommendation — plus the RQ-F status update in the summary.
+- Harness extension: 4 new arms, `--authorship single|split`, the two new live sensors
+  (refactor-granularity count, test-LOC churn), and the offline graders for the three axes
+  (modularity findings, test-smell/Farley), all proven under `--skip-dispatch`.
+- Raw data JSONL under `docs/experiments/data/`, carrying all three axes per cell.
+- One report with the 2×2×2 grid; the TOST verdict; the churn mediation; the authorship
+  effects; the three-axis tables (modularity & changeability, test quality, cost) with every
+  quality figure shown raw **and** per-dollar; the named efficient frontier; and the RQ-F
+  status update in the summary.
