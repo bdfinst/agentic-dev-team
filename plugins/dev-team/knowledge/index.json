@@ -448,6 +448,14 @@
       "summary": "| Smell | Signature in code | Remediation pattern |",
       "anchor": "design-smells-pattern-mapping"
     },
+    "Reinvented Built-in Cheat-Sheet": {
+      "summary": "The \"use the platform\" smell is **language-agnostic** — recognize the *concept*",
+      "anchor": "reinvented-built-in-cheat-sheet"
+    },
+    "What NOT to flag (reinvented built-in)": {
+      "summary": "A manual min/max (or similar) loop in a language/version that lacks the",
+      "anchor": "what-not-to-flag-reinvented-built-in"
+    },
     "What NOT to Flag": {
       "summary": "A `switch` over a closed enumeration where adding a case is rare (e.g., `DayOfWeek`, `HttpMethod`) — polymorphism adds ceremony without benefit",
       "anchor": "what-not-to-flag"

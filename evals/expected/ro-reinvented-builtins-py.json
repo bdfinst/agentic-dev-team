@@ -1,0 +1,14 @@
+{
+  "fixture": "ro-reinvented-builtins-py.py",
+  "description": "Cross-language proof: Python manual min/max scan and accumulator-loop sum that the reinvent-the-platform rule should flag with min()/max()/sum() suggestions — same principle as the TS fixture, different built-ins.",
+  "applicableAgents": ["refactor-opportunity-review"],
+  "agents": {
+    "refactor-opportunity-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": { "suggestion": { "min": 1, "max": 4 } },
+      "mustMention": ["max"],
+      "mustNotMention": ["Math.min"]
+    }
+  }
+}
