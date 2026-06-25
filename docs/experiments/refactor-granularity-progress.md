@@ -1,6 +1,6 @@
 # refactor-granularity (RQ-F) — live campaign
 
-_Auto-generated read-only mirror. Last update: **2026-06-25T22:26:37Z** UTC._
+_Auto-generated read-only mirror. Last update: **2026-06-25T22:27:06Z** UTC._
 
 ## What this experiment is
 
@@ -77,5 +77,12 @@ chain whose trap punishes non-modular code): `fare` (transit fares), `payroll`
 
 | arm | cells | cost |
 |---|---:|---:|
+| `continuous-single` | 0/52 | $0.00 |
+| `continuous-split` | 0/52 | $0.00 |
+| `no-refactor-single` | 0/52 | $0.00 |
+| `no-refactor-split` | 0/52 | $0.00 |
+| `one-shot-single` | 0/52 | $0.00 |
+| `one-shot-split` | 0/52 | $0.00 |
+| `tdd-refactor` | 0/52 | $0.00 |
 
 _Final merged dataset and the analysis report land in `docs/experiments/` on completion._
