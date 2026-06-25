@@ -1,9 +1,7 @@
 {
   "fixture": "st-duplicate-code",
-  "description": "Repeated code blocks that should be extracted into shared functions per DRY",
-  "applicableAgents": [
-    "structure-review"
-  ],
+  "description": "Repeated code blocks that should be extracted into shared functions per DRY. Semantic duplication that forces multi-site edits is error-level (breaks maintainability).",
+  "applicableAgents": ["structure-review"],
   "agents": {
     "structure-review": {
       "expectedStatus": "fail",
@@ -12,14 +10,12 @@
         "max": 6
       },
       "severities": {
-        "warning": {
-          "min": 2,
-          "max": 5
+        "error": {
+          "min": 1,
+          "max": 4
         }
       },
-      "mustMention": [
-        "duplicat"
-      ]
+      "mustMention": ["duplicat"]
     }
   }
 }
