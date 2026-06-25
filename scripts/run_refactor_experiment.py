@@ -41,117 +41,119 @@ CORPUS = ROOT / "evals" / "refactor-granularity"
 PER_MUTANT_TIMEOUT = 30
 MAX_MUTANTS = 25
 
-# ── arms: exactly the prompt's factors ──────────────────────────────────────────
+# ── arms: corrected design (RQ-F) ───────────────────────────────────────────────
+# INVARIANT in every arm: refactoring restructures production code only and leaves
+# the tests unchanged. Tests change only to express new behavior (the change chain),
+# never during a refactor step. We vary granularity x authorship; ordering is fixed
+# to test-after except for the tdd-refactor reference (test-first). Enforcement: a
+# separate refactor dispatch has any test-file edits reverted to the pre-refactor
+# ("green") snapshot. Inline-refactor arms (continuous, tdd) can't be reverted
+# mid-dispatch, so their refactor-commit test churn is recorded as a violation flag.
 PYTEST_RULE = (
     " Write tests as pytest tests in files named test_*.py so they run with "
     "`python -m pytest -q`. Keep production code in the module named in the spec."
 )
-COMMIT_RULE = (
-    " Mark your workflow with git commits: commit with a message starting 'green:' "
-    "every time your whole test suite passes, and a message starting 'refactor:' "
-    "for each refactoring step (restructuring with the tests staying green). Always "
-    "make a 'green:' commit before any 'refactor:' commit."
+GREEN_RULE = (
+    " Each time your whole test suite passes, commit with a message starting 'green:'."
 )
-FROZEN_RULE = (
-    " FROZEN TESTS: during any 'refactor:' step you must NOT add, edit, or delete "
-    "any test_*.py file. Restructure production code only; the tests from your last "
-    "'green:' commit must still pass unchanged."
+REFACTOR_RULE = (
+    " When you refactor (restructure without changing behavior), do NOT add, edit, or "
+    "delete any test_*.py file — the existing tests must keep passing. Commit refactor "
+    "steps with a message starting 'refactor:'."
 )
 
-# granularity, protection, authorship per arm
+# granularity x authorship (+ ordering); reference arm flagged
 ARMS = {
-    "tdd-refactor": dict(granularity="continuous", protection="frozen",
-                         authorship="single", reference=True),
-    "test-after-refactor": dict(granularity="one-shot", protection="free",
-                                authorship="single"),
-    "test-after-refactor-frozen": dict(granularity="one-shot", protection="frozen",
-                                       authorship="single"),
-    "test-after-continuous": dict(granularity="continuous", protection="free",
-                                  authorship="single"),
-    "test-after-continuous-frozen": dict(granularity="continuous", protection="frozen",
-                                         authorship="single"),
-    # split-authorship variants reuse the same granularity/protection cells
-    "test-after-refactor-split": dict(granularity="one-shot", protection="free",
-                                      authorship="split"),
-    "test-after-refactor-frozen-split": dict(granularity="one-shot", protection="frozen",
-                                             authorship="split"),
-    "test-after-continuous-split": dict(granularity="continuous", protection="free",
-                                        authorship="split"),
-    "test-after-continuous-frozen-split": dict(granularity="continuous", protection="frozen",
-                                               authorship="split"),
+    "tdd-refactor": dict(granularity="continuous", authorship="single",
+                         ordering="test-first", reference=True),
+    "no-refactor-single": dict(granularity="none", authorship="single",
+                               ordering="test-after"),
+    "one-shot-single": dict(granularity="one-shot", authorship="single",
+                            ordering="test-after"),
+    "continuous-single": dict(granularity="continuous", authorship="single",
+                              ordering="test-after"),
+    "no-refactor-split": dict(granularity="none", authorship="split",
+                              ordering="test-after"),
+    "one-shot-split": dict(granularity="one-shot", authorship="split",
+                           ordering="test-after"),
+    "continuous-split": dict(granularity="continuous", authorship="split",
+                             ordering="test-after"),
 }
 
+# Arms whose refactoring is interleaved inside the write dispatch — cannot be
+# physically reverted, so the invariant is enforced by instruction + churn detection.
+INLINE_REFACTOR = {"tdd-refactor", "continuous-single"}
 
-def build_prompt(arm: str, spec: str) -> str:
+
+def write_prompt_single(arm: str, spec: str) -> str:
     a = ARMS[arm]
-    if arm == "tdd-refactor":
-        body = (f"Implement the spec in {spec} using strict TDD: for each behavior, "
-                "write a failing test (RED), the minimum code to pass (GREEN), then "
-                "REFACTOR before moving on. Make the acceptance behavior correct.")
-    else:
-        gran = ("After EACH increment is green, immediately refactor it before moving "
-                "on (refactor continuously, in small steps)."
-                if a["granularity"] == "continuous" else
-                "Build the whole feature to green first, then do a SINGLE refactoring "
-                "pass at the end.")
-        body = (f"Implement the spec in {spec}. Write all production code first, then a "
-                f"test suite covering the behavior. {gran} Make the acceptance behavior "
-                "correct.")
-    rule = body + PYTEST_RULE + COMMIT_RULE
-    if a["protection"] == "frozen":
-        rule += FROZEN_RULE
-    return rule
+    if a["ordering"] == "test-first":
+        return (f"Implement the spec in {spec} using strict TDD: for each behavior write "
+                "a failing test (RED), the minimum code to pass (GREEN), then REFACTOR "
+                "the production code before the next behavior. Make the acceptance "
+                "behavior correct." + PYTEST_RULE + GREEN_RULE + REFACTOR_RULE)
+    body = (f"Implement the spec in {spec}. Write the production code, then a pytest suite "
+            "covering the behavior, until all tests pass.")
+    if a["granularity"] == "continuous":
+        body += (" Build incrementally: after each behavior is green, refactor the "
+                 "production code (without changing any test) before the next.")
+        return body + PYTEST_RULE + GREEN_RULE + REFACTOR_RULE
+    body += (" Do NOT refactor yet — a separate refactoring step follows."
+             if a["granularity"] == "one-shot" else " Do not refactor.")
+    return body + PYTEST_RULE + GREEN_RULE
 
 
-def split_coder_prompt(spec: str, arm: str) -> str:
-    gran = ("Refactor continuously as you go, in small steps."
-            if ARMS[arm]["granularity"] == "continuous" else
-            "Get it working first; a separate refactor pass comes later.")
-    return (f"Implement ONLY the production code for the spec in {spec}, in the module "
-            f"it names. Do NOT write any tests — a separate engineer writes the tests. "
-            f"Make the behavior correct. {gran}" + COMMIT_RULE)
+def coder_prompt(arm: str, spec: str) -> str:
+    extra = (" Refactor the production code continuously as you go."
+             if ARMS[arm]["granularity"] == "continuous" else
+             " Get it correct; a separate refactoring step may follow.")
+    return (f"Implement ONLY the production code for the spec in {spec}, in the module it "
+            "names. Do NOT write any tests — a separate engineer writes them." + extra
+            + " Commit your work.")
 
 
 def tester_prompt(spec: str) -> str:
-    return (f"Production code implementing {spec} already exists in this directory. "
-            "Write a thorough pytest suite (files named test_*.py) covering the spec's "
-            "behavior, including edge and boundary cases. Do NOT modify the production "
-            "code." + COMMIT_RULE)
+    return (f"Production code implementing {spec} already exists here. Write a thorough "
+            "pytest suite (files named test_*.py) covering the spec's behavior, including "
+            "edge and boundary cases. Do NOT modify the production code." + GREEN_RULE)
 
 
-def split_refactor_prompt(spec: str, arm: str) -> str:
-    """Phase 3 of the split build: the coder refactors with the tester's suite present.
+def refactor_prompt(doc: str) -> str:
+    return (f"The feature for {doc} is implemented and all tests pass. Refactor the "
+            "PRODUCTION code to improve its structure WITHOUT changing behavior. You must "
+            "NOT add, edit, or delete any test_*.py file — every existing test must still "
+            "pass unchanged. Commit each step with a message starting 'refactor:'.")
 
-    This is where the protection factor bites for split authorship — there is now a
-    real, independently-authored test suite to either freeze or let churn.
-    """
+
+def change_write_prompt(arm: str, change: str) -> str:
     a = ARMS[arm]
-    scope = ("Do a single, thorough refactoring pass over the production code."
-             if a["granularity"] == "one-shot" else
-             "Do a light final refactoring pass over the production code.")
-    base = (f"The production code for {spec} and an independent pytest suite both exist "
-            f"in this directory. {scope} Improve the structure of the production code "
-            "without changing its behavior; the suite must stay green. Commit each step "
-            "with a message starting 'refactor:'.")
-    if a["protection"] == "frozen":
-        base += (" FROZEN TESTS: you must NOT add, edit, or delete any test_*.py file — "
-                 "restructure production code only.")
-    else:
-        base += (" You MAY update the test files if the refactor changes an interface.")
-    return base
+    if a["ordering"] == "test-first":
+        return (f"This is an existing feature. Apply the change in {change} with strict "
+                "TDD: RED for the new behavior, GREEN, then REFACTOR the production code "
+                "without changing existing tests." + PYTEST_RULE + GREEN_RULE
+                + REFACTOR_RULE)
+    base = (f"This is an existing, working feature. Apply the change in {change}. Update "
+            "or add tests for the NEW behavior and keep all tests passing.")
+    if a["granularity"] == "continuous":
+        base += " After it is green, refactor the production code without changing tests."
+        return base + PYTEST_RULE + GREEN_RULE + REFACTOR_RULE
+    base += (" Do NOT refactor yet — a separate refactoring step follows."
+             if a["granularity"] == "one-shot" else " Do not refactor.")
+    return base + PYTEST_RULE + GREEN_RULE
 
 
-def change_prompt(arm: str, change: str) -> str:
-    a = ARMS[arm]
-    base = (f"This is an existing, working feature. Apply the change in {change}, keeping "
-            "the existing test suite green as your safety net.")
-    if arm == "tdd-refactor":
-        base = (f"This is an existing feature. Apply the change in {change} with strict "
-                "TDD (RED-GREEN-REFACTOR), keeping the existing suite green.")
-    rule = base + PYTEST_RULE + COMMIT_RULE
-    if a["protection"] == "frozen":
-        rule += FROZEN_RULE
-    return rule
+def change_coder_prompt(arm: str, change: str) -> str:
+    extra = (" Refactor the production code continuously as you go."
+             if ARMS[arm]["granularity"] == "continuous" else "")
+    return (f"This is an existing feature. Apply the change in {change} to the PRODUCTION "
+            "code only; do NOT modify or add tests — a separate engineer updates them."
+            + extra + " Commit your work.")
+
+
+def change_tester_prompt(change: str) -> str:
+    return (f"The production code was just changed per {change}. Update or add tests for "
+            "the new behavior (test_*.py) and keep all tests passing; do NOT modify the "
+            "production code." + GREEN_RULE)
 
 
 # ── shell / git helpers ─────────────────────────────────────────────────────────
@@ -468,6 +470,63 @@ def _utc():
     return datetime.now(timezone.utc).isoformat()
 
 
+def enforce_refactor(workdir, green_sha):
+    """Enforce the invariant after a separate refactor dispatch.
+
+    Revert any test-file change the refactor made back to the green snapshot (a true
+    refactor changes no behavior, so reverting is a no-op; a refactor that altered an
+    interface will now fail grading — correctly caught). Returns the attempted test
+    churn (lines the refactor tried to change in tests) for reporting.
+    """
+    attempted = numstat(workdir, green_sha, head_sha(workdir), is_test)
+    churn = attempted["lines_added"] + attempted["lines_deleted"]
+    r = git(workdir, "ls-tree", "-r", "--name-only", green_sha)
+    green_tests = [n for n in r.stdout.split() if Path(n).name.startswith("test_")]
+    if green_tests:
+        git(workdir, "checkout", green_sha, "--", *green_tests)
+    keep = {Path(g).name for g in green_tests}
+    for t in test_files(workdir):
+        if t.name not in keep:
+            t.unlink()
+    commit_all(workdir, "chore: revert test edits to green (invariant)")
+    return churn
+
+
+def _cost(parts):
+    return {"cost_usd": sum(p.get("cost_usd") or 0 for p in parts),
+            "num_turns": sum(p.get("num_turns") or 0 for p in parts),
+            "is_error": any(p.get("is_error") for p in parts),
+            "parsed": True, "phases": len(parts)}
+
+
+def _do_stage(workdir, arm, doc, model, env, run_root, cell, change):
+    """Run one stage's dispatches per arm; return (cost, attempted_test_churn)."""
+    a = ARMS[arm]
+    parts = []
+    attempted = None
+    raw = lambda suffix="": run_root / "raw" / f"{cell}{suffix}.json"
+    if a["authorship"] == "single":
+        wp = change_write_prompt(arm, doc) if change else write_prompt_single(arm, doc)
+        parts.append(dispatch(workdir, wp, model, env, raw()))
+        green = commit_all(workdir, "green: write")
+        if a["granularity"] == "one-shot":
+            parts.append(dispatch(workdir, refactor_prompt(doc), model, env,
+                                  raw("-refactor")))
+            attempted = enforce_refactor(workdir, green)
+    else:  # split authorship
+        cp = change_coder_prompt(arm, doc) if change else coder_prompt(arm, doc)
+        tp = change_tester_prompt(doc) if change else tester_prompt(doc)
+        parts.append(dispatch(workdir, cp, model, env, raw("-coder")))
+        commit_all(workdir, "green: coder")
+        parts.append(dispatch(workdir, tp, model, env, raw("-tester")))
+        green = commit_all(workdir, "green: tester")
+        if a["granularity"] in ("one-shot", "continuous"):
+            parts.append(dispatch(workdir, refactor_prompt(doc), model, env,
+                                  raw("-refactor")))
+            attempted = enforce_refactor(workdir, green)
+    return _cost(parts), attempted
+
+
 def run_build(task, arm, trial, model, fixture_dir, run_root, skip):
     cell = f"{task['name']}__{arm}__t{trial}__build"
     home = run_root / "homes" / cell
@@ -476,43 +535,27 @@ def run_build(task, arm, trial, model, fixture_dir, run_root, skip):
     workdir = Path(tempfile.mkdtemp(prefix=f"rg-{cell}-"))
     shutil.copytree(fixture_dir / task["golden"], workdir, dirs_exist_ok=True)
     base = git_init_commit(workdir)
-    spec = task["spec"]
-    shutil.copy2(fixture_dir / spec, workdir / Path(spec).name)
-    cost = {"parsed": False}
+    spec = Path(task["spec"]).name
+    shutil.copy2(fixture_dir / task["spec"], workdir / spec)
+    cost, attempted = {"parsed": False}, None
     if not skip:
-        if ARMS[arm]["authorship"] == "split":
-            sname = Path(spec).name
-            c = dispatch(workdir, split_coder_prompt(sname, arm), model, env,
-                         run_root / "raw" / f"{cell}-coder.json")
-            commit_all(workdir, "green: coder build")
-            t = dispatch(workdir, tester_prompt(sname), model, env,
-                         run_root / "raw" / f"{cell}-tester.json")
-            commit_all(workdir, "green: tester suite")
-            rf = dispatch(workdir, split_refactor_prompt(sname, arm), model, env,
-                          run_root / "raw" / f"{cell}-refactor.json")
-            parts = [c, t, rf]
-            cost = {"cost_usd": sum(p.get("cost_usd") or 0 for p in parts),
-                    "num_turns": sum(p.get("num_turns") or 0 for p in parts),
-                    "is_error": any(p.get("is_error") for p in parts),
-                    "parsed": True, "split": True, "phases": 3}
-        else:
-            cost = dispatch(workdir, build_prompt(arm, Path(spec).name), model, env,
-                            run_root / "raw" / f"{cell}.json")
+        cost, attempted = _do_stage(workdir, arm, spec, model, env, run_root, cell, False)
     commit_all(workdir, "green: build complete")
     prod, tests = prod_files(workdir), test_files(workdir)
     proc = refactor_process(workdir, base)
+    violation = (arm in INLINE_REFACTOR and proc.get("test_loc_churn_in_refactor", 0) > 0)
     row = {
         "ts": _utc(), "task": task["name"], "arm": arm, "trial": trial,
         "stage": "build", "model": model, **ARMS[arm],
         "core_passed": grade(workdir, env, fixture_dir, task["coreFiles"]) if prod else None,
         "edge_passed": grade(workdir, env, fixture_dir, task["edgeFiles"]) if prod else None,
         "cost": cost, "process": proc,
+        "refactor_test_churn_attempted": attempted,
+        "invariant_violation": violation,
         "radon": measure_radon(workdir, prod), "lizard": measure_lizard(workdir, prod),
         "smells": measure_smells(workdir, tests),
         "coverage": measure_coverage(workdir, env, prod),
         "mutation": measure_mutation(workdir, env, prod, tests),
-        "frozen_violation": (ARMS[arm]["protection"] == "frozen"
-                             and proc["test_loc_churn_in_refactor"] > 0),
     }
     return row, workdir, base
 
@@ -523,20 +566,22 @@ def run_change(task, arm, trial, model, fixture_dir, run_root, idx, change_spec,
     home = run_root / "homes" / cell
     home.mkdir(parents=True, exist_ok=True)
     env = cell_env(home)
-    spec = change_spec["spec"]
-    shutil.copy2(fixture_dir / spec, workdir / Path(spec).name)
-    cost = {"parsed": False}
+    spec = Path(change_spec["spec"]).name
+    shutil.copy2(fixture_dir / change_spec["spec"], workdir / spec)
+    cost, attempted = {"parsed": False}, None
     if not skip:
-        cost = dispatch(workdir, change_prompt(arm, Path(spec).name), model, env,
-                        run_root / "raw" / f"{cell}.json")
+        cost, attempted = _do_stage(workdir, arm, spec, model, env, run_root, cell, True)
     commit_all(workdir, f"green: change{idx} complete")
     prod, tests = prod_files(workdir), test_files(workdir)
     blast = measure_blast(workdir, prior_sha)
+    proc = refactor_process(workdir, prior_sha)
+    violation = (arm in INLINE_REFACTOR and proc.get("test_loc_churn_in_refactor", 0) > 0)
     passed = grade(workdir, env, fixture_dir, acc_so_far) if prod else None
     row = {
         "ts": _utc(), "task": task["name"], "arm": arm, "trial": trial,
         "stage": f"change{idx}", "model": model, **ARMS[arm],
         "passed": passed, "blast_radius": blast, "cost": cost,
+        "refactor_test_churn_attempted": attempted, "invariant_violation": violation,
         "radon": measure_radon(workdir, prod), "smells": measure_smells(workdir, tests),
     }
     return row, head_sha(workdir)

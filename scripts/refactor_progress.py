@@ -12,7 +12,7 @@ import glob
 import json
 import os
 
-TRIALS, TASKS, ARMS_GOAL = 13, 4, 9
+TRIALS, TASKS, ARMS_GOAL = 13, 4, 7
 PER_ARM_GOAL = TRIALS * TASKS
 SHARDS = "docs/experiments/data/refactor-granularity-*.jsonl"
 

@@ -12,10 +12,8 @@ RR="${RG_RUN_ROOT:-/tmp/rg-campaign}"
 mkdir -p "$OUT" "$RR"
 
 ARMS="tdd-refactor \
-test-after-refactor test-after-refactor-frozen \
-test-after-continuous test-after-continuous-frozen \
-test-after-refactor-split test-after-refactor-frozen-split \
-test-after-continuous-split test-after-continuous-frozen-split"
+no-refactor-single one-shot-single continuous-single \
+no-refactor-split one-shot-split continuous-split"
 
 echo "campaign start $(date -u +%FT%TZ): trials=$TRIALS model=$MODEL run_root=$RR"
 pids=""
