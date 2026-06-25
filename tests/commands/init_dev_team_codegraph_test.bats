@@ -60,6 +60,28 @@ _contains() {
 }
 
 # ---------------------------------------------------------------------------
+# Share-with-the-team step (after a successful init): commit .mcp.json so
+# clones auto-bootstrap. See ADR 0012.
+# ---------------------------------------------------------------------------
+
+@test "share_step_heading_present" {
+  _contains "Share CodeGraph with the team"
+}
+
+@test "share_step_writes_mcp_json" {
+  _contains '"command":"codegraph","args":["serve","--mcp"]'
+}
+
+@test "share_step_merge_preserves_existing_servers" {
+  # Deep-merge so an existing mcpServers entry is not clobbered.
+  _contains '. * $add'
+}
+
+@test "share_step_commit_guidance_present" {
+  _contains "commit it with .codegraph/.gitignore so teammates auto-bootstrap CodeGraph on clone"
+}
+
+# ---------------------------------------------------------------------------
 # Skip-note texts (state-aware re-runs)
 # ---------------------------------------------------------------------------
 
