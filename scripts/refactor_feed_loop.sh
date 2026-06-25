@@ -13,8 +13,10 @@ MAX=80
 refresh() {
   python3 scripts/refactor_progress.py --ts "$(date -u +%FT%TZ)" > "$FILE"
   git add "$FILE"
+  # also persist the raw shard data so results survive a container reclaim
+  git add -f docs/experiments/data/refactor-granularity-*.jsonl 2>/dev/null || true
   if ! git diff --staged --quiet; then
-    git commit -q -m "docs: refresh refactor-granularity live progress [skip ci]" \
+    git commit -q -m "docs: refresh refactor-granularity live progress + data [skip ci]" \
       -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
     git pull --rebase -q origin "$BRANCH" 2>/dev/null || true
     git push -q origin "$BRANCH" 2>/dev/null || true
