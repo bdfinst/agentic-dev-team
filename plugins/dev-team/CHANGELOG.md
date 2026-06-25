@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.9.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.8.0...dev-team-v7.9.0) (2026-06-25)
+
+
+### Features
+
+* deterministic status + finding grouping for doc/naming review agents ([#423](https://github.com/bdfinst/agentic-dev-team/issues/423)) ([8b6bdbe](https://github.com/bdfinst/agentic-dev-team/commit/8b6bdbe1a22c0a6d15d461e73e3463f6a0b74006))
+
 ## [7.8.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.7.0...dev-team-v7.8.0) (2026-06-25)
 
 
