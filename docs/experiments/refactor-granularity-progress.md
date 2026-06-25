@@ -1,25 +1,29 @@
 # refactor-granularity (RQ-F) — live campaign
 
-_Auto-generated read-only mirror. Last update: **2026-06-25T21:55:37Z** UTC._
+_Auto-generated read-only mirror. Last update: **2026-06-25T22:26:37Z** UTC._
 
 ## What this experiment is
 
 **Question (RQ-F).** When code is cleaned up, does it matter *how often* you
-refactor, *whether the tests are allowed to change* while you do, and *who writes
-the tests*? And what does any difference cost? This follows up an earlier finding
-that the two refactoring workflows tied on changeability (664 vs 678 lines) — a
-gap too small to call at 3 trials. This run is built to tell a real difference
-from noise and to separate the mechanisms behind it.
+refactor and *who writes the tests* — for how changeable the code is, how good the
+tests are, and what it costs? This follows up an earlier finding that two
+refactoring workflows tied on changeability (664 vs 678 lines) — a gap too small to
+call at 3 trials.
 
-**Three factors, crossed (2x2x2 = 8 arms) plus a reference (9 arms):**
+**Invariant (all arms).** Refactoring is behavior-preserving, so it **does not
+change the tests**. Tests change only to express new behavior (the change chain),
+never during a refactor step. Refactoring runs as a separate step whose test-file
+edits are reverted to the pre-refactor snapshot (a real refactor reverts to a
+no-op; an interface-changing "refactor" then fails grading and is caught).
+
+**Two factors, crossed (3x2 = 6 arms) plus a reference (7 arms):**
 
 | factor | levels |
 |---|---|
-| refactor **granularity** | one-shot (a single pass at the end) vs continuous (after every increment) |
-| test **protection** during the refactor | free (tests may change) vs frozen (tests locked) |
+| refactor **granularity** | none / one-shot (one pass at the end) / continuous (after every increment) |
 | **authorship** | single agent writes code+tests vs split (independent coder + tester) |
 
-Plus **`tdd-refactor`** (continuous, test-first, single-agent) as an external
+Plus **`tdd-refactor`** (test-first, continuous, single-agent) as an external
 reference. **Clear specifications only**; no spec-plan-build arm.
 
 **Each cell** = build the feature, then apply a **3-change chain** that modifies
@@ -33,8 +37,8 @@ chain whose trap punishes non-modular code): `fare` (transit fares), `payroll`
 - **changeability**: lines touched to absorb each change (blast radius)
 - **modularity**: radon (complexity, maintainability) + lizard
 - **test quality**: CORE/EDGE acceptance, mutation score, branch coverage, smells
-- **process**: refactor granularity, test-LOC churn during refactor (also the
-  frozen-compliance check), cost per stage
+- **process**: refactor count, attempted test churn during refactor (must be 0 —
+  the invariant check), cost per stage
 
 ## Steps taken so far
 
@@ -50,33 +54,28 @@ chain whose trap punishes non-modular code): `fare` (transit fares), `payroll`
 4. **Runner hardened** — resume (skips completed cells) + dispatch retry; the
    split-authorship build made a faithful 3-phase flow (coder -> independent
    tester -> coder refactor under the protection rule).
-5. **Campaign launched** — 9 arms sharded across parallel processes, 4 tasks x 13
+5. **Design corrected** — an initial run treated "tests free vs frozen during
+   refactor" as a factor; that was wrong (refactoring must not change tests), so the
+   invalid arms and their data were discarded and the harness rebuilt around the
+   tests-frozen invariant with revert-based enforcement.
+6. **Campaign launched** — 7 arms sharded across parallel processes, 4 tasks x 13
    trials, model `claude-sonnet-4-6`.
-6. **This live feed** — refreshed every ~10 min while the run proceeds.
+7. **This live feed** — refreshed every ~10 min while the run proceeds.
 
 ## Current status
 
-7. **Campaign running** — this page refreshes about every 10 minutes.
+8. **Campaign running** — this page refreshes about every 10 minutes.
 
-### Overall: 34 / 468 cells complete (7.3%)
+### Overall: 0 / 364 cells complete (0.0%)
 
-- build CORE pass: 34/34 (100%)
-- build EDGE pass: 34/34 (100%)
-- change-stage pass: 102/102 (100%)
-- API-equivalent cost so far: **$36.44**
+- build CORE pass: —
+- build EDGE pass: —
+- change-stage pass: —
+- API-equivalent cost so far: **$0.00**
 
 ### Per-arm progress
 
 | arm | cells | cost |
 |---|---:|---:|
-| `tdd-refactor` | 3/52 | $4.52 |
-| `test-after-continuous` | 5/52 | $4.03 |
-| `test-after-continuous-frozen` | 5/52 | $4.18 |
-| `test-after-continuous-frozen-split` | 3/52 | $3.97 |
-| `test-after-continuous-split` | 3/52 | $4.12 |
-| `test-after-refactor` | 4/52 | $3.38 |
-| `test-after-refactor-frozen` | 5/52 | $4.09 |
-| `test-after-refactor-frozen-split` | 3/52 | $3.92 |
-| `test-after-refactor-split` | 3/52 | $4.22 |
 
 _Final merged dataset and the analysis report land in `docs/experiments/` on completion._
