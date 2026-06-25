@@ -2,7 +2,6 @@
 # Guard: the /v1/models model probe is fully removed. Availability now comes
 # from the effort ladder, not a network probe. This test fails loudly if the
 # probe script, its tests, the curl shim, or any reference to them returns.
-# AC6.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 

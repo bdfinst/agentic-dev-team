@@ -2,8 +2,7 @@
 # Tests for hooks/pre-commit-knowledge-index.sh — sibling PreToolUse:Bash
 # hook that blocks `git commit` when the working-tree index is stale.
 # Also covers hooks/lib/pre-commit-detect.sh (shared with pre-commit-review.sh).
-#
-# AC13, AC13a, AC14, AC15, AC22 (PreToolUse half).
+# This is the PreToolUse commit-block half of the knowledge-index gate.
 
 HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/pre-commit-knowledge-index.sh"
 DETECT_LIB="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/pre-commit-detect.sh"
@@ -82,20 +81,20 @@ _bash_input() {
 }
 
 # ---------------------------------------------------------------------------
-# AC22 — settings.json registration
+# — settings.json registration
 # ---------------------------------------------------------------------------
 
-@test "AC22 PreToolUse: settings.json registers pre-commit-knowledge-index.sh under Bash" {
+@test "PreToolUse: settings.json registers pre-commit-knowledge-index.sh under Bash" {
   [ -f "$SETTINGS_JSON" ]
   run jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | select(.command | contains("pre-commit-knowledge-index.sh"))' "$SETTINGS_JSON"
   [ "$status" -eq 0 ]
 }
 
 # ---------------------------------------------------------------------------
-# AC15 — skip when no corpus file is staged
+# — skip when no corpus file is staged
 # ---------------------------------------------------------------------------
 
-@test "AC15: non-commit bash invocations are silent no-ops" {
+@test "non-commit bash invocations are silent no-ops" {
   local input
   input=$(_bash_input "ls -la")
   run bash -c "cd '$BATS_TMPDIR_CASE' && echo '$input' | bash plugins/dev-team/hooks/pre-commit-knowledge-index.sh 2>&1"
@@ -103,7 +102,7 @@ _bash_input() {
   [ -z "$output" ]
 }
 
-@test "AC15: commit with only non-corpus files staged is allowed" {
+@test "commit with only non-corpus files staged is allowed" {
   # Edit and stage an agent file only.
   cd "$BATS_TMPDIR_CASE"
   echo "## New" >> plugins/dev-team/agents/some-agent.md
@@ -117,10 +116,10 @@ _bash_input() {
 }
 
 # ---------------------------------------------------------------------------
-# AC14 — pass when working-tree index matches sources
+# — pass when working-tree index matches sources
 # ---------------------------------------------------------------------------
 
-@test "AC14: commit with corpus + matching index staged exits 0" {
+@test "commit with corpus + matching index staged exits 0" {
   cd "$BATS_TMPDIR_CASE"
   # Edit a corpus file, rebuild the index, stage both.
   echo "## New Section" >> plugins/dev-team/knowledge/foo.md
@@ -135,10 +134,10 @@ _bash_input() {
 }
 
 # ---------------------------------------------------------------------------
-# AC13 — block when working-tree index is stale
+# — block when working-tree index is stale
 # ---------------------------------------------------------------------------
 
-@test "AC13: commit with stale index blocks with the two-line remediation" {
+@test "commit with stale index blocks with the two-line remediation" {
   cd "$BATS_TMPDIR_CASE"
   # Edit the corpus file but DO NOT rebuild the index.
   echo "## New Section" >> plugins/dev-team/knowledge/foo.md
@@ -157,10 +156,10 @@ _bash_input() {
 }
 
 # ---------------------------------------------------------------------------
-# AC13a — block working-tree drift past the staged pair
+# — block working-tree drift past the staged pair
 # ---------------------------------------------------------------------------
 
-@test "AC13a: commit blocks when working tree drifts past a consistent staged pair" {
+@test "commit blocks when working tree drifts past a consistent staged pair" {
   cd "$BATS_TMPDIR_CASE"
   # 1. Stage corpus + matching index.
   echo "## First" >> plugins/dev-team/knowledge/foo.md

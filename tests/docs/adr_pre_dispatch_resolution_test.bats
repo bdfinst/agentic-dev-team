@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# AC13: ADR documenting pre-dispatch model routing decisions exists with
+# ADR documenting pre-dispatch model routing decisions exists with
 # the required sections and is referenced from docs/model-routing.md.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
@@ -10,7 +10,7 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 ADR="$REPO_ROOT/docs/adr/0004-pre-dispatch-model-resolution.md"
 ROUTING_DOC="$REPO_ROOT/plugins/dev-team/docs/model-routing.md"
 
-@test "AC13: ADR file exists at docs/adr/0004-pre-dispatch-model-resolution.md" {
+@test "ADR file exists at docs/adr/0004-pre-dispatch-model-resolution.md" {
   [ -f "$ADR" ]
 }
 

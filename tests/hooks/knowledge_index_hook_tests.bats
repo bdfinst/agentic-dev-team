@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Tests for hooks/knowledge-index.sh — PostToolUse hook on Edit|Write.
-# AC10 (rebuild on corpus edit), AC11 (skip unrelated), AC12 (fail-open),
-# AC22 (PostToolUse settings registration).
+# (rebuild on corpus edit), (skip unrelated), (fail-open),
+# (PostToolUse settings registration).
 
 HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/knowledge-index.sh"
 SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
@@ -41,20 +41,20 @@ _hook_input() {
 }
 
 # ---------------------------------------------------------------------------
-# AC22 — settings.json registration
+# — settings.json registration
 # ---------------------------------------------------------------------------
 
-@test "AC22 PostToolUse: settings.json registers knowledge-index.sh under Edit|Write" {
+@test "PostToolUse: settings.json registers knowledge-index.sh under Edit|Write" {
   [ -f "$SETTINGS_JSON" ]
   run jq -e '.hooks.PostToolUse[] | select(.matcher == "Edit|Write") | .hooks[] | select(.command | contains("knowledge-index.sh"))' "$SETTINGS_JSON"
   [ "$status" -eq 0 ]
 }
 
 # ---------------------------------------------------------------------------
-# AC10 — rebuild on corpus edit
+# — rebuild on corpus edit
 # ---------------------------------------------------------------------------
 
-@test "AC10: Edit on a knowledge .md triggers the builder and stderr says 'rebuilt'" {
+@test "Edit on a knowledge.md triggers the builder and stderr says 'rebuilt'" {
   local input
   input=$(_hook_input "Edit" "plugins/dev-team/knowledge/owasp-detection.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
@@ -63,7 +63,7 @@ _hook_input() {
   [[ "$output" == *"[knowledge-index] rebuilt"* ]]
 }
 
-@test "AC10: Edit on a skills SKILL.md triggers the builder" {
+@test "Edit on a skills SKILL.md triggers the builder" {
   local input
   input=$(_hook_input "Edit" "plugins/dev-team/skills/specs/SKILL.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
@@ -71,7 +71,7 @@ _hook_input() {
   [ -e "$SENTINEL" ]
 }
 
-@test "AC10: Write on a corpus file also triggers the builder" {
+@test "Write on a corpus file also triggers the builder" {
   local input
   input=$(_hook_input "Write" "plugins/dev-team/knowledge/owasp-detection.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
@@ -80,10 +80,10 @@ _hook_input() {
 }
 
 # ---------------------------------------------------------------------------
-# AC11 — skip unrelated edits
+# — skip unrelated edits
 # ---------------------------------------------------------------------------
 
-@test "AC11: Edit on an agent file does NOT trigger the builder" {
+@test "Edit on an agent file does NOT trigger the builder" {
   local input
   input=$(_hook_input "Edit" "plugins/dev-team/agents/security-review.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
@@ -92,7 +92,7 @@ _hook_input() {
   [[ "$output" != *"[knowledge-index]"* ]]
 }
 
-@test "AC11: Edit on a command file does NOT trigger" {
+@test "Edit on a command file does NOT trigger" {
   local input
   input=$(_hook_input "Edit" "plugins/dev-team/commands/code-review.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
@@ -100,7 +100,7 @@ _hook_input() {
   [ ! -e "$SENTINEL" ]
 }
 
-@test "AC11: Edit on a docs/ file does NOT trigger" {
+@test "Edit on a docs/ file does NOT trigger" {
   local input
   input=$(_hook_input "Edit" "plugins/dev-team/docs/agent-architecture.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
@@ -108,7 +108,7 @@ _hook_input() {
   [ ! -e "$SENTINEL" ]
 }
 
-@test "AC11: Edit on knowledge/schemas/ does NOT trigger" {
+@test "Edit on knowledge/schemas/ does NOT trigger" {
   local input
   input=$(_hook_input "Edit" "plugins/dev-team/knowledge/schemas/foo.json")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
@@ -116,7 +116,7 @@ _hook_input() {
   [ ! -e "$SENTINEL" ]
 }
 
-@test "AC11: Non-Edit/Write tool (e.g., Bash) is a no-op" {
+@test "Non-Edit/Write tool (e.g., Bash) is a no-op" {
   local input
   input=$(_hook_input "Bash" "plugins/dev-team/knowledge/owasp-detection.md")
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
@@ -125,10 +125,10 @@ _hook_input() {
 }
 
 # ---------------------------------------------------------------------------
-# AC12 — fail-open posture
+# — fail-open posture
 # ---------------------------------------------------------------------------
 
-@test "AC12: builder failure does not block the edit; stderr names 'rebuild failed'" {
+@test "builder failure does not block the edit; stderr names 'rebuild failed'" {
   FAKE_BUILDER_MODE=fail
   export FAKE_BUILDER_MODE
   local input
@@ -138,13 +138,13 @@ _hook_input() {
   [[ "$output" == *"[knowledge-index] rebuild failed"* ]]
 }
 
-@test "AC12: malformed stdin JSON exits 0 silently" {
+@test "malformed stdin JSON exits 0 silently" {
   run bash -c "echo 'not json' | bash '$HOOK' 2>&1 1>/dev/null"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
-@test "AC12: missing tool_input.file_path exits 0 silently" {
+@test "missing tool_input.file_path exits 0 silently" {
   local input
   input=$(jq -nc '{tool_name: "Edit", tool_input: {}}')
   run bash -c "echo '$input' | bash '$HOOK' 2>&1 1>/dev/null"
