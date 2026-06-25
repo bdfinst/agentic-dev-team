@@ -48,6 +48,27 @@ Return `{"status": "skip", "issues": [], "summary": "No documentation files foun
 - Comments describe behavior that the code no longer implements
 - `TODO`/`FIXME` comments referencing issues or features that were resolved without removing the comment
 - Commented-out code blocks with no explanation retained beyond 5 lines
+- Detached doc comment: a doc/JSDoc/docstring block that describes a *different*
+  symbol than the one directly below it (e.g. a block describing function B left
+  sitting above function A). Severity `warning`.
+
+### Comment hygiene — describe purpose, not issues
+
+Comments must describe *purpose* (the why), not reference tracker items. Flag,
+across any language and comment syntax (`//`, `#`, `/* */`, `--`):
+
+- Issue/epic/ticket IDs in comments: `#<digits>`, `[A-Z]{2,}-<digits>`
+  (JIRA/ADO/Linear/etc.), or the words epic/ticket/story/issue next to a number
+  (e.g. `epic #24`, `JIRA-1187`).
+- Severity `suggestion`. `suggestedFix`: rewrite the comment to state intent and
+  move the issue reference to the commit message — do not merely delete the
+  number; a comment whose only content is a ticket pointer should be replaced by
+  one that explains why.
+- Do not flag a bare `TODO(#123)`/`FIXME(#123)` marker the team uses as a
+  tracked-work convention — that is the resolved-reference rule above, not this.
+- Do not flag standards/spec references that merely *look* like tracker IDs:
+  `ISO-4217`, `RFC-2119`, `UTF-8`, `WCAG-2`, `PEP-8`, CVE IDs, etc. These name a
+  durable external standard, not a work item — judge by meaning, not the regex.
 
 ### ADR update triggers
 
@@ -71,6 +92,8 @@ After producing findings, run the shared challenger loop in `knowledge/adversari
 - Did you check whether agent/skill changes require a CLAUDE.md registry-table update — a common silent omission?
 - Are there new architectural patterns or dependencies with no ADR-trigger finding — a suspicious absence?
 - For each finding, did you distinguish a doc that is WRONG (flag) from one that merely differs in style (do not flag)?
+- Did you scan every comment (any language/delimiter) for tracker/epic/ticket IDs, and frame the fix as "describe purpose, move the ref to the commit message" rather than just deleting the number?
+- For each detached-doc-comment finding, did you confirm the block describes a different symbol than the one directly beneath it?
 
 Append confidence level (High/Medium/Low) to the `summary` field.
 

@@ -1,0 +1,14 @@
+{
+  "fixture": "dr-tracker-ids-in-comments.ts",
+  "description": "Issue/epic/JIRA tracker IDs embedded in shipped code comments (epic #24, #41, #43, JIRA-1187). Should be flagged as comment-hygiene drift — tracker IDs belong in commit messages/PRs, not in code.",
+  "applicableAgents": ["doc-review"],
+  "agents": {
+    "doc-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 1, "max": 5 },
+      "severities": { "suggestion": { "min": 1, "max": 5 } },
+      "mustMention": ["tracker"],
+      "mustNotMention": []
+    }
+  }
+}

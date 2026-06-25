@@ -1,0 +1,11 @@
+{
+  "fixture": "dr-clean-inline-comments.ts",
+  "description": "Clean counterpart: comments describe purpose, carry no tracker IDs, and each doc comment sits directly above the symbol it documents. Should pass — guards the comment-hygiene and detached-doc-comment rules against over-firing.",
+  "applicableAgents": ["doc-review"],
+  "agents": {
+    "doc-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "fixture": "ro-uses-builtins.ts",
+  "description": "Clean counterpart: uses Math.min/Math.max and the existing helper, unary minus. Should pass — guards against the reinvent-the-platform rule over-firing on idiomatic code.",
+  "applicableAgents": ["refactor-opportunity-review"],
+  "agents": {
+    "refactor-opportunity-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}
