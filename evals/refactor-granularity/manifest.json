@@ -2,7 +2,7 @@
   "experiment": "refactor-granularity",
   "clarity": "clear",
   "model": "claude-sonnet-4-6",
-  "notes": "Clean-room corpus for RQ-F. Clear specs only, no spec-plan-build arm. Arms are exactly the prompt's 2x2x2 (granularity x protection x authorship) plus the tdd-refactor reference.",
+  "notes": "Clean-room corpus for RQ-F. Clear specs only, no spec-plan-build arm. Arms are exactly the prompt's 2x2x2 (granularity x protection x authorship) plus the tdd-refactor reference. 4 authored tasks, each with a hidden CORE/EDGE acceptance suite and a 3-change chain whose trap punishes non-modular implementations.",
   "factors": {
     "granularity": ["one-shot", "continuous"],
     "protection": ["free", "frozen"],
@@ -17,8 +17,48 @@
       "spec": "spec_clear.md",
       "coreFiles": ["acc_core.py"],
       "edgeFiles": ["acc_edge.py"],
-      "coreCommands": ["python3 -m pytest acc_core.py -q --tb=short"],
-      "edgeCommands": ["python3 -m pytest acc_edge.py -q --tb=short"],
+      "changeChain": [
+        {"spec": "change1.md", "accFiles": ["acc_change1.py"]},
+        {"spec": "change2.md", "accFiles": ["acc_change2.py"]},
+        {"spec": "change3.md", "accFiles": ["acc_change3.py"]}
+      ]
+    },
+    {
+      "name": "payroll",
+      "dir": "tasks/payroll",
+      "module": "payroll.py",
+      "golden": "golden",
+      "spec": "spec_clear.md",
+      "coreFiles": ["acc_core.py"],
+      "edgeFiles": ["acc_edge.py"],
+      "changeChain": [
+        {"spec": "change1.md", "accFiles": ["acc_change1.py"]},
+        {"spec": "change2.md", "accFiles": ["acc_change2.py"]},
+        {"spec": "change3.md", "accFiles": ["acc_change3.py"]}
+      ]
+    },
+    {
+      "name": "cart",
+      "dir": "tasks/cart",
+      "module": "cart.py",
+      "golden": "golden",
+      "spec": "spec_clear.md",
+      "coreFiles": ["acc_core.py"],
+      "edgeFiles": ["acc_edge.py"],
+      "changeChain": [
+        {"spec": "change1.md", "accFiles": ["acc_change1.py"]},
+        {"spec": "change2.md", "accFiles": ["acc_change2.py"]},
+        {"spec": "change3.md", "accFiles": ["acc_change3.py"]}
+      ]
+    },
+    {
+      "name": "grades",
+      "dir": "tasks/grades",
+      "module": "grades.py",
+      "golden": "golden",
+      "spec": "spec_clear.md",
+      "coreFiles": ["acc_core.py"],
+      "edgeFiles": ["acc_edge.py"],
       "changeChain": [
         {"spec": "change1.md", "accFiles": ["acc_change1.py"]},
         {"spec": "change2.md", "accFiles": ["acc_change2.py"]},

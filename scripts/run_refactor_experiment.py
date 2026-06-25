@@ -103,10 +103,13 @@ def build_prompt(arm: str, spec: str) -> str:
     return rule
 
 
-def coder_prompt(spec: str) -> str:
+def split_coder_prompt(spec: str, arm: str) -> str:
+    gran = ("Refactor continuously as you go, in small steps."
+            if ARMS[arm]["granularity"] == "continuous" else
+            "Get it working first; a separate refactor pass comes later.")
     return (f"Implement ONLY the production code for the spec in {spec}, in the module "
-            "it names. Do NOT write any tests. Make the behavior correct and the code "
-            "clean." + COMMIT_RULE)
+            f"it names. Do NOT write any tests — a separate engineer writes the tests. "
+            f"Make the behavior correct. {gran}" + COMMIT_RULE)
 
 
 def tester_prompt(spec: str) -> str:
@@ -114,6 +117,28 @@ def tester_prompt(spec: str) -> str:
             "Write a thorough pytest suite (files named test_*.py) covering the spec's "
             "behavior, including edge and boundary cases. Do NOT modify the production "
             "code." + COMMIT_RULE)
+
+
+def split_refactor_prompt(spec: str, arm: str) -> str:
+    """Phase 3 of the split build: the coder refactors with the tester's suite present.
+
+    This is where the protection factor bites for split authorship — there is now a
+    real, independently-authored test suite to either freeze or let churn.
+    """
+    a = ARMS[arm]
+    scope = ("Do a single, thorough refactoring pass over the production code."
+             if a["granularity"] == "one-shot" else
+             "Do a light final refactoring pass over the production code.")
+    base = (f"The production code for {spec} and an independent pytest suite both exist "
+            f"in this directory. {scope} Improve the structure of the production code "
+            "without changing its behavior; the suite must stay green. Commit each step "
+            "with a message starting 'refactor:'.")
+    if a["protection"] == "frozen":
+        base += (" FROZEN TESTS: you must NOT add, edit, or delete any test_*.py file — "
+                 "restructure production code only.")
+    else:
+        base += (" You MAY update the test files if the refactor changes an interface.")
+    return base
 
 
 def change_prompt(arm: str, change: str) -> str:
@@ -456,15 +481,20 @@ def run_build(task, arm, trial, model, fixture_dir, run_root, skip):
     cost = {"parsed": False}
     if not skip:
         if ARMS[arm]["authorship"] == "split":
-            c = dispatch(workdir, coder_prompt(Path(spec).name), model, env,
+            sname = Path(spec).name
+            c = dispatch(workdir, split_coder_prompt(sname, arm), model, env,
                          run_root / "raw" / f"{cell}-coder.json")
-            commit_all(workdir, "green: coder")
-            t = dispatch(workdir, tester_prompt(Path(spec).name), model, env,
+            commit_all(workdir, "green: coder build")
+            t = dispatch(workdir, tester_prompt(sname), model, env,
                          run_root / "raw" / f"{cell}-tester.json")
-            cost = {"cost_usd": (c.get("cost_usd") or 0) + (t.get("cost_usd") or 0),
-                    "num_turns": (c.get("num_turns") or 0) + (t.get("num_turns") or 0),
-                    "is_error": bool(c.get("is_error") or t.get("is_error")),
-                    "parsed": True, "split": True}
+            commit_all(workdir, "green: tester suite")
+            rf = dispatch(workdir, split_refactor_prompt(sname, arm), model, env,
+                          run_root / "raw" / f"{cell}-refactor.json")
+            parts = [c, t, rf]
+            cost = {"cost_usd": sum(p.get("cost_usd") or 0 for p in parts),
+                    "num_turns": sum(p.get("num_turns") or 0 for p in parts),
+                    "is_error": any(p.get("is_error") for p in parts),
+                    "parsed": True, "split": True, "phases": 3}
         else:
             cost = dispatch(workdir, build_prompt(arm, Path(spec).name), model, env,
                             run_root / "raw" / f"{cell}.json")
