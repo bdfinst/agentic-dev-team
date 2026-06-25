@@ -14,7 +14,7 @@ Output JSON:
 {"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
-Status: pass=clear names, warn=improvements needed, fail=harms readability
+Status (derive from the highest-severity finding, do not let finding *volume* alone change the tier): `fail` when any finding is `error` (misleading name) or `warning` (unclear name, magic value, or inconsistent naming) — both harm readability; `warn` when the only findings are `suggestion` (style); `pass` when there are no findings.
 Severity: error=misleading names, warning=unclear, suggestion=style
 Confidence: high=mechanical (add is/has prefix, extract magic value to constant); medium=better name suggested but domain context may differ; none=requires human judgment (domain terminology choices)
 
@@ -33,9 +33,10 @@ Return `{"status": "skip", "issues": [], "summary": "No code files with nameable
 
 ## Protocol
 
-Run in two phases — enumerate first, classify second. This prevents selective attention (stopping after the first issue) and anchors findings to concrete identifiers before applying judgment.
+Run in three phases — enumerate first, classify second, group third. This prevents selective attention (stopping after the first issue), anchors findings to concrete identifiers before applying judgment, and keeps the finding count proportional to the number of distinct problems rather than the number of lines.
 
 **Phase 1 — Enumerate**: List every identifier visible in the diff:
+
 - Function and method names
 - Parameter names
 - Variable and constant names (including loop variables)
@@ -43,6 +44,15 @@ Run in two phases — enumerate first, classify second. This prevents selective 
 - Enum members and object keys
 
 **Phase 2 — Classify**: For each listed identifier, apply the Detect rules below. Assign severity if flagged.
+
+**Phase 3 — Group**: Report at the granularity of distinct problems, not one finding per identifier — aim for a handful of findings per file. When several identifiers share one mechanical smell, emit a single finding that enumerates the instances in `message`:
+
+- Magic numbers/strings → one finding per coherent value cluster (e.g. the byte-size constants together; the late-fee constants together; the status-code strings together) — typically 3–5 findings, never one-per-literal and never all-literals-as-one.
+- Non-standard abbreviations → one finding listing the abbreviations.
+- Booleans missing an is/has prefix → one finding listing them.
+- A concept named inconsistently across declarations → one finding per concept.
+
+Distinct misleading-name (`error`) findings are always reported individually — never folded into a group.
 
 ## Severity Anchors
 
@@ -78,7 +88,7 @@ Magic values:
 
 Consistency:
 
-- Same concept named differently across codebase
+- Same concept named differently across declarations — call this out as **inconsistent naming** in the finding `message`, and list the variant names
 - Non-standard abbreviations
 
 ## Self-Challenge
