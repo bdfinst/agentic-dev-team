@@ -31,7 +31,7 @@ This project uses a layered loading strategy to minimize token usage:
 ## Core Principles
 
 1. **Selective Agent Loading**: Only load necessary agents into context, avoiding token bloat. Target < 10,000 tokens for simple tasks.
-2. **40% Context Window Rule**: Maintain context below 40% capacity to prevent hallucination. Trigger summarization at threshold.
+2. **40% Context Window Rule**: Maintain context below 40% capacity to prevent hallucination. Trigger summarization at threshold. Backed by the `PreToolUse` hook `hooks/context-ceiling-guard.sh`, which measures real occupancy from the transcript and warns (or, in strict mode, blocks) capability loads over the ceiling — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md) → Enforcement.
 3. **Persona-Driven Behavior**: Each agent has detailed psychological and behavioral specifications defined in `.claude/agents/`.
 4. **Human-in-the-Loop**: Agents are autonomous but require oversight, not copilots.
 5. **Dynamic Configuration**: User-level configuration changes are applied through audited, human-approved config writes, each recorded to `metrics/config-changelog.jsonl` with `previous_value`/`new_value`/`approved_by` (see Feedback & Learning).
@@ -225,7 +225,7 @@ All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKIL
 
 Audit logging, quality gates, and ethics principles are defined in **[Governance & Compliance](skills/governance-compliance/SKILL.md)**.
 
-A `PreToolUse` hook (`hooks/pre-tool-guard.sh`) blocks writes to sensitive paths (credentials, keys, secrets) before they execute. Protected path patterns are configurable via `hooks/guards.json`. A second `PreToolUse` hook (`hooks/destructive-guard.sh`) detects destructive Bash commands (rm -rf, force-push, DROP TABLE, etc.) and warns by default. Use `/careful` to escalate warnings to blocks, `/freeze` to scope-lock edits, or `/guard` for both.
+A `PreToolUse` hook (`hooks/pre-tool-guard.sh`) blocks writes to sensitive paths (credentials, keys, secrets) before they execute. Protected path patterns are configurable via `hooks/guards.json`. A second `PreToolUse` hook (`hooks/destructive-guard.sh`) detects destructive Bash commands (rm -rf, force-push, DROP TABLE, etc.) and warns by default. Use `/careful` to escalate warnings to blocks, `/freeze` to scope-lock edits, or `/guard` for both. A third `PreToolUse` hook (`hooks/context-ceiling-guard.sh`, on `Agent` and `Skill`) enforces the 40% Context Window Rule: it measures real occupancy from the transcript and warns (or, under `DEV_TEAM_CONTEXT_STRICT=on`, blocks) capability loads over the ceiling, while never gating recovery skills like `/context-summarization`.
 
 ## Performance Metrics
 

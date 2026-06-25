@@ -8,3 +8,6 @@
 * [6. Per-increment trunk integration topology for agent work](0006-per-increment-trunk-integration-topology.md)
 * [7. Eval confidence-pyramid tier vocabulary](0007-eval-confidence-pyramid-tier-vocabulary.md)
 * [8. Use effort bands instead of model names in agent frontmatter](0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md)
+* [9. Human Consent Gate for Learning Loop](0009-human-consent-gate-for-learning-loop.md)
+* [10. Per-Session Analysis Granularity](0010-per-session-analysis-granularity.md)
+* [11. Enforce the context ceiling with a transcript-measured PreToolUse hook](0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md)
