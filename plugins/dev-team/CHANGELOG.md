@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.8.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.7.0...dev-team-v7.8.0) (2026-06-25)
+
+
+### Features
+
+* add craftsmanship-axis review rules (use-the-platform, comment hygiene) ([#419](https://github.com/bdfinst/agentic-dev-team/issues/419)) ([50f761e](https://github.com/bdfinst/agentic-dev-team/commit/50f761e2c38d08ef7e1380b46ba89e5ebc746f2a))
+
+
+### Code Refactoring
+
+* name shipped AC references for what they assert ([#422](https://github.com/bdfinst/agentic-dev-team/issues/422)) ([f8c001d](https://github.com/bdfinst/agentic-dev-team/commit/f8c001dbdb98f38a36fe25cce465eac753f4ec03))
+
 ## [7.7.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.6.0...dev-team-v7.7.0) (2026-06-24)
 
 
