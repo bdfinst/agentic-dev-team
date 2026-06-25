@@ -131,6 +131,21 @@ quality-at-fixed-cost and quality-per-dollar, never quality alone.
   Report each as findings/solution (lower = more modular) and as a combined modularity
   index. These are **offline graders run on the frozen build-stage files** — they never
   touch the worktree or the arm's own context.
+- **Deterministic fallback (use if the agent graders are too slow or noisy at ~1,600
+  cells):** the review agents are nested `claude -p` dispatches — non-deterministic and
+  ~5–14 min each, which can dominate wall-clock and add run-to-run scatter to the very
+  metric being measured. Run a **static, zero-model** modularity grader instead (or
+  alongside, on a sample, to calibrate):
+  - `radon cc -s` (cyclomatic complexity per function) and `radon mi` (maintainability
+    index) — directly mirror `complexity-review`'s thresholds.
+  - `lizard` — cyclomatic complexity, token count, parameter count, **and a built-in
+    duplicate-code detector**, covering most of `structure-review`'s structural signal.
+  Record the same shape (findings/solution, per-function complexity, an MI/duplication
+  index) so the two graders are comparable. The static tools are deterministic, run in
+  milliseconds, and add no token cost — preferred for the headline at this scale; reserve
+  the agent graders for a **calibration subset** (e.g. one task × all arms) to confirm the
+  static index tracks the agent findings, and report that correlation. `pip install radon
+  lizard` in Preconditions if this path is taken.
 
 ### Axis 2 — quality of the tests
 
@@ -145,7 +160,11 @@ regression**. Capture both, plus hygiene:
 - **Test hygiene (new offline sensor):** run `test-smell-review` (and optionally the
   `/farley-score` skill's 8-property score) on the frozen test files; record smell findings
   and, if used, the weighted Farley score. This catches the failure mode where a suite hits
-  high coverage/mutation while being brittle or over-mocked.
+  high coverage/mutation while being brittle or over-mocked. **Deterministic fallback** (same
+  scale/noise concern as Axis 1): count the cheap, objective smells statically — assertion
+  count per test, assertion-free tests, mock/patch density, sleep/time dependence, and test
+  LOC — which capture most of the brittle/over-mocked signal at zero token cost. Reserve the
+  agent grader for the calibration subset.
 
 ### Axis 3 — cost of attaining that quality
 
@@ -198,13 +217,15 @@ batched-red)` and per-arm prompt strings in `ARM_PROMPTS` / `CHANGE_PROMPTS`. Ad
    - Carry forward the existing CORE/EDGE pass rates, blast radius, cost/stage, mutation,
      and contamination fields.
 4. **Offline graders for the three axes** (post-stage, run on the frozen files — see "What
-   we measure"): a **modularity** grader that runs `complexity-review` + `structure-review`
-   + `refactor-opportunity-review` on the production code and records findings/solution; a
-   **test-hygiene** grader that runs `test-smell-review` (and optionally `/farley-score`) on
-   the test files. These read the cell's files but never share its context. Emit the counts
-   into the JSONL row alongside the live sensors. Compute the **cost-of-quality ratios**
-   (mutation/$, coverage-point/$, EDGE/$, blast-reduction/$) at analysis time from these
-   fields — do not bake them into the row.
+   we measure"). Default to the **deterministic static graders** at this scale: `radon` +
+   `lizard` for the modularity index, a static smell counter for test hygiene — zero token
+   cost, millisecond runtime, no run-to-run scatter. Optionally also wire the **agent
+   graders** (`complexity-review`/`structure-review`/`refactor-opportunity-review` and
+   `test-smell-review`) behind a flag, run only on a **calibration subset**, to confirm the
+   static index tracks the agent findings. Either way the graders read the cell's files but
+   never share its context. Emit the counts into the JSONL row alongside the live sensors;
+   compute the **cost-of-quality ratios** (mutation/$, coverage-point/$, EDGE/$,
+   blast-reduction/$) at analysis time from these fields — do not bake them into the row.
 5. **Validate the extension with `--skip-dispatch`** (harness self-test, no model) before
    spending a cent — prove the new arms route, the split dispatch shares one worktree, and
    every sensor (the two new live sensors **and** the offline graders) emits on isolated
@@ -218,8 +239,10 @@ one JSONL row per cell-stage, flushed per cell.
 ## Fixed procedure (follow exactly)
 
 ### 0. Preconditions
-- `pip install coverage pytest` (sensors need them); confirm the model id and that nested
-  `claude -p` works (`IS_SANDBOX=1` is set by the harness for headless permissions).
+- `pip install coverage pytest` (live sensors need them); add `pip install radon lizard` if
+  using the deterministic modularity/test-hygiene graders (recommended at this scale — see
+  Axis 1/2 fallbacks). Confirm the model id and that nested `claude -p` works (`IS_SANDBOX=1`
+  is set by the harness for headless permissions).
 - Reuse the four `when-tdd-pays` task fixtures and their **hidden** CORE/EDGE acceptance
   tests (kept out of the worktree; injected only at grading). Re-validate every acceptance
   file against a reference solution before running — never grade with broken tests.
