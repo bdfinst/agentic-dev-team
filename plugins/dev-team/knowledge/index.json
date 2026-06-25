@@ -2244,6 +2244,10 @@
       "summary": "Never load all agents upfront; load only the primary agent for each phase.",
       "anchor": "constraints"
     },
+    "Enforcement": {
+      "summary": "This protocol is backed by a `PreToolUse` hook — `hooks/context-ceiling-guard.sh`",
+      "anchor": "enforcement"
+    },
     "Loading Decision Procedure": {
       "summary": "Before loading anything or reading files, confirm an actionable instruction exists.",
       "anchor": "loading-decision-procedure"
