@@ -32,6 +32,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -184,7 +185,7 @@ def cell_env(home: Path):
     return env
 
 
-def dispatch(workdir, prompt, model, env, raw_out: Path | None):
+def _dispatch_once(workdir, prompt, model, env, raw_out):
     cmd = ["claude", "-p", prompt, "--model", model, "--output-format", "json",
            "--dangerously-skip-permissions"]
     out = {"cost_usd": None, "tokens_total": None, "num_turns": None,
@@ -211,6 +212,21 @@ def dispatch(workdir, prompt, model, env, raw_out: Path | None):
     except Exception:
         out["is_error"] = True
     return out
+
+
+def dispatch(workdir, prompt, model, env, raw_out: Path | None):
+    """Dispatch with backoff retry — survives transient rate-limit/API errors."""
+    last = None
+    for attempt, backoff in enumerate((0, 15, 45)):
+        if backoff:
+            time.sleep(backoff)
+        last = _dispatch_once(workdir, prompt, model, env, raw_out)
+        if last.get("parsed") and not last.get("is_error"):
+            if attempt:
+                last["retries"] = attempt
+            return last
+    last["retries"] = 2
+    return last
 
 
 # ── sensors ─────────────────────────────────────────────────────────────────────
@@ -538,15 +554,30 @@ def main(argv):
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
 
+    # Resume: a cell is complete when its change3 row already exists in the out file.
+    done = set()
+    if out.exists():
+        for line in out.read_text().splitlines():
+            try:
+                r = json.loads(line)
+            except Exception:
+                continue
+            if r.get("stage") == "change3":
+                done.add((r["task"], r["arm"], r["trial"]))
+
     n = len(tasks) * len(arms) * args.trials
     print(f"refactor-granularity: {len(tasks)} task(s) x {len(arms)} arm(s) x "
-          f"{args.trials} trial(s) = {n} cells; run_root={run_root}", flush=True)
-    written = 0
+          f"{args.trials} trial(s) = {n} cells; {len(done)} already done; "
+          f"run_root={run_root}", flush=True)
+    written = skipped = 0
     with out.open("a") as fh:
         for task in tasks:
             fixture_dir = CORPUS / task["dir"]
             for arm in arms:
                 for trial in range(1, args.trials + 1):
+                    if (task["name"], arm, trial) in done:
+                        skipped += 1
+                        continue
                     rows = run_cell(task, arm, trial, args.model, fixture_dir,
                                     run_root, args.skip_dispatch)
                     for row in rows:
@@ -555,7 +586,7 @@ def main(argv):
                         written += 1
                     print(f"  done {task['name']}/{arm}/t{trial} "
                           f"({len(rows)} rows)", flush=True)
-    print(f"wrote {written} rows to {out}")
+    print(f"wrote {written} rows ({skipped} cells skipped) to {out}")
     return 0
 
 
