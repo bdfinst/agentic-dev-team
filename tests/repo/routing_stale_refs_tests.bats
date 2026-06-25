@@ -9,7 +9,6 @@
 #
 # ADR 0004 and the CHANGELOG are intentionally NOT scanned: they are immutable
 # historical records (ADR 0004 carries an "Amended by 0008" banner).
-# AC8.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 

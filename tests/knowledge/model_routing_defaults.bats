@@ -2,12 +2,12 @@
 # Tests for plugins/dev-team/knowledge/model-routing.json — the
 # single source of truth for effort band → snapshot resolution defaults.
 #
-# AC0 (migration safety): each band default must equal the legacy tier it
+# (migration safety): each band default must equal the legacy tier it
 # replaces, snapshot-for-snapshot (low→haiku, medium→sonnet, high→opus).
-# AC1 (precondition) and AC2: the routing.json file is the ONLY in-tree
+# (precondition) and : the routing.json file is the ONLY in-tree
 # place that ships a pinned snapshot ID, and it pins the ladder rounding
 # convention. Every dispatch flows through it. Legacy tier keys are retained
-# for the migration window (AC3) so the unchanged resolver keeps resolving.
+# for the migration window so the unchanged resolver keeps resolving.
 
 ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/model-routing.json"
 
@@ -46,14 +46,14 @@ ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/model-routing.
   [ "$output" = "claude-opus-4-8" ]
 }
 
-# --- AC0: bands equal the legacy tiers they replace, snapshot-for-snapshot ---
+# --- bands equal the legacy tiers they replace, snapshot-for-snapshot ---
 
-@test "each band default equals its legacy tier snapshot (AC0 migration safety)" {
+@test "each band default equals its legacy tier snapshot (migration safety)" {
   run jq -e '.low == .haiku and .medium == .sonnet and .high == .opus' "$ROUTING_JSON"
   [ "$status" -eq 0 ]
 }
 
-# --- AC3: legacy tier keys retained for the migration window ----------------
+# --- legacy tier keys retained for the migration window ----------------
 
 @test "haiku tier maps to the documented snapshot" {
   run jq -r '.haiku' "$ROUTING_JSON"
@@ -73,7 +73,7 @@ ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/model-routing.
   [ "$output" = "claude-opus-4-8" ]
 }
 
-# --- AC2: ladder rounding convention is pinned -----------------------------
+# --- ladder rounding convention is pinned -----------------------------
 
 @test "rounding convention is pinned to round_half_up" {
   run jq -r '.rounding' "$ROUTING_JSON"

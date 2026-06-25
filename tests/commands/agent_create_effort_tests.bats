@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Tests for /agent-create and /agent-add — agents are authored in the effort
 # vocabulary (effort: low|medium|high), not the retired model/tier scheme.
-# Invalid bands are rejected with a legacy-token mapping. AC7.
+# Invalid bands are rejected with a legacy-token mapping..
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 CREATE="$REPO_ROOT/plugins/dev-team/skills/agent-create/SKILL.md"

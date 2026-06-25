@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# AC19: every knowledge-file or skill reference in an agent body either
+# every knowledge-file or skill reference in an agent body either
 # cites a section anchor that exists in knowledge/index.json, OR the
 # paragraph containing the reference contains the literal verbatim
 # token "Whole-file load:" (case-sensitive, hyphen, colon).
@@ -51,7 +51,7 @@ _agent_files_to_check() {
   [ "$status" -eq 1 ]
 }
 
-@test "AC19: every knowledge/skill reference in agents/ cites a valid anchor or 'Whole-file load:'" {
+@test "every knowledge/skill reference in agents/ cites a valid anchor or 'Whole-file load:'" {
   local files
   files=$(_agent_files_to_check) || {
     echo "$files" >&2

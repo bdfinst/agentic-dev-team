@@ -303,7 +303,7 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Step 4 — sentence-boundary rule (Group B / AC7a)
+# Step 4 — sentence-boundary rule (Group B / )
 # ---------------------------------------------------------------------------
 
 _run_sentence_case() {
@@ -321,37 +321,37 @@ EOF
   jq -r '.["plugins/dev-team/knowledge/foo.md"]["Bar"].summary' "$KNOWLEDGE_INDEX_OUTPUT"
 }
 
-@test "step4 AC7a: clean single sentence with comma" {
+@test "step4 clean single sentence with comma" {
   local got
   got=$(_run_sentence_case "Detection patterns for SQL, NoSQL, and ORM injection vectors.")
   [ "$got" = "Detection patterns for SQL, NoSQL, and ORM injection vectors." ]
 }
 
-@test "step4 AC7a: e.g. abbreviation does NOT terminate a sentence" {
+@test "step4 e.g. abbreviation does NOT terminate a sentence" {
   local got
   got=$(_run_sentence_case "Frameworks like e.g. Django need careful handling. More follows.")
   [ "$got" = "Frameworks like e.g. Django need careful handling." ]
 }
 
-@test "step4 AC7a: single-uppercase initials (J. Doe) do NOT terminate a sentence" {
+@test "step4 single-uppercase initials (J. Doe) do NOT terminate a sentence" {
   local got
   got=$(_run_sentence_case "Authored by J. Doe and others. Reviewed by team.")
   [ "$got" = "Authored by J. Doe and others." ]
 }
 
-@test "step4 AC7a: Mr. abbreviation does NOT terminate a sentence" {
+@test "step4 Mr. abbreviation does NOT terminate a sentence" {
   local got
   got=$(_run_sentence_case "Use Mr. Smith's heuristic. Then iterate.")
   [ "$got" = "Use Mr. Smith's heuristic." ]
 }
 
-@test "step4 AC7a: vs abbreviation does NOT terminate a sentence" {
+@test "step4 vs abbreviation does NOT terminate a sentence" {
   local got
   got=$(_run_sentence_case "Validation, vs. trust assumptions. Always validate.")
   [ "$got" = "Validation, vs. trust assumptions." ]
 }
 
-@test "step4 AC7a: 260-char paragraph with no terminator gets truncated with ellipsis" {
+@test "step4 260-char paragraph with no terminator gets truncated with ellipsis" {
   # 270-char string, no '.', '!', or '?' anywhere.
   local body
   body=$(python3 -c "print('word ' * 54)")  # ~270 chars, all whitespace-separated 'word'
@@ -419,7 +419,7 @@ EOF
 
 @test "step5: --check on a current index exits 0 with zero stdout AND zero stderr" {
   bash "$BUILDER"
-  # Capture stdout and stderr separately. AC17a: both must be empty.
+ # Capture stdout and stderr separately. : both must be empty.
   local stdout_file stderr_file
   stdout_file=$(mktemp)
   stderr_file=$(mktemp)
