@@ -119,12 +119,28 @@ Recommended: start at **6 trials/cell (~$400)** and sequentially extend only the
 maintainability/test-quality-per-dollar ranking is still ambiguous. The two test-first-split
 cells (C8) are the most expensive; the single-agent cells are 2–4× cheaper.
 
-## Eliminated from prompt 06 (won't help this question)
+## Relationship to prompt 06 — it folds in; there is no separate run
 
-- The stability / variance-ratio contrast, the churn→blast mediation, and the ±5% TOST — all
-  were about *refactoring cadence*, now fixed.
-- **Part B** (the 20–40-task expansion) — it funded the 5% blast main effect, which is not the
-  question here.
+With **spec clarity fixed to clear** (we already know vague specs degrade quality — that result
+is settled and not worth paying to re-measure) and **refactoring fixed on**, prompt 06 collapses
+into this one. Nothing in 06 needs a separate campaign:
+
+| 06 element | status here |
+|---|---|
+| EDGE collapse under free + **vague** | **eliminated** — vague is gone |
+| clarity × granularity interaction | **eliminated** — no clarity axis |
+| `no-refactor` arms ("does refactoring help?") | **eliminated** — refactoring is a settled premise |
+| Part B (20–40-task expansion for the 5% main effect) | **eliminated** — not this question |
+| blast **variance**, free vs frozen | **optional secondary** — computable from these rows |
+| churn → blast **mediation** | **optional secondary** — needs only the per-change test-churn series |
+| ±5% TOST on blast | **optional secondary** — underpowered; report as inconclusive |
+
+The three survivors reuse arms already in this matrix (`one-shot` = free/big, `continuous` =
+frozen/small, `tdd-refactor`). They are extra statistics over **this experiment's existing
+output rows**, not a second run. The only marginal harness work, *if* the mediation is wanted,
+is decomposing test-LOC churn per change index — a measurement add, not a new arm or factor.
+
+**Net: run this 7-cell campaign; 06 becomes an optional analysis pass over the same data.**
 
 ## Run plan
 

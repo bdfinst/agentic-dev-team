@@ -8,7 +8,17 @@
 **Companion follow-up:** [`05-experiment-prompt-refactor-cadence-larger.md`](05-experiment-prompt-refactor-cadence-larger.md)
 (the larger-code/longer-horizon design — Part B here folds it in)
 
-**Status: specified, NOT run.** Supersedes the headline of run 04's design.
+**Status: specified, NOT run — SUPERSEDED by
+[`07-experiment-prompt-workflow-matrix.md`](07-experiment-prompt-workflow-matrix.md).**
+The spec-clarity variable (clear/vague) has been eliminated by decision: vague specs are known
+to degrade quality, so re-measuring that costs money for no new signal. With clarity fixed to
+clear and refactoring fixed on, this prompt's vague-specific endpoints (EDGE collapse, the
+clarity×granularity interaction) and its `no-refactor` arms drop out; the surviving endpoints
+(blast variance, churn→blast mediation, ±5% TOST) become optional secondary analyses over
+prompt 07's output rows. Do not run this design separately — run 07. The original text is kept
+below for the power-analysis rationale and the variance/mediation method.
+
+Supersedes the headline of run 04's design.
 
 ---
 
