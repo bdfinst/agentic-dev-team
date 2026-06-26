@@ -44,6 +44,7 @@ Check what's available in the project:
 | Java/Kotlin | [pitest](https://pitest.org/) | `pom.xml` or `build.gradle` has `pitest` plugin |
 | Python | [mutmut](https://mutmut.readthedocs.io/) | `mutmut` in requirements or pyproject |
 | C#/.NET | [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/) | `dotnet-stryker` in tool manifest |
+| Go | [go-mutesting](https://github.com/zimmski/go-mutesting) | `go.mod` present; `command -v go-mutesting` resolves (installed to `$GOPATH/bin`). **Advisory only.** |
 
 **If no tool is found:** Help the user install one. For JS/TS projects:
 
@@ -62,7 +63,31 @@ For Java with Maven:
 </plugin>
 ```
 
-**Do not proceed to mutation testing without a working tool.** If the user declines to install one, explain that this skill requires real test execution and cannot substitute estimation.
+For Go projects (go-mutesting):
+
+```bash
+# Install
+go install github.com/zimmski/go-mutesting/cmd/go-mutesting@latest
+
+# Run (whole module)
+go-mutesting ./...
+```
+
+**Go is advisory-only.** go-mutesting is alpha quality — its surviving-mutant count is **not** a reliable gate, so treat the results as advisory: surface survivors as suggestions, never block on the count. In orchestrated workflows the Go mutation gate defaults to **advisory** (warn, do not block).
+
+**Complement with Go's built-in fuzzing.** Native fuzzing (Go 1.18+) is production-quality and catches boundary/edge cases mutation testing can miss. The `-fuzz` flag takes a regexp matching a single `FuzzXxx` target and fuzzes one package at a time — it is **not** a package glob:
+
+```bash
+# Run every fuzz target's seed corpus as ordinary tests (all packages)
+go test ./...
+
+# Actively fuzz one target (bounded for a pre-merge gate)
+go test -fuzz=FuzzXxx -fuzztime=30s ./path/to/pkg
+```
+
+Manage the fuzz corpus deliberately: seed it from known edge cases, commit interesting inputs under `testdata/fuzz/` so failures reproduce in CI, and run a bounded `-fuzztime` in the pre-merge gate while letting longer campaigns run out of band.
+
+**Do not proceed to mutation testing without a working tool.** (Go is the one exception where "no tool" still yields an actionable path: install go-mutesting in advisory mode, or fall back to `go test -fuzz` — never report "no tool installed" to a Go project without giving both.) If the user declines to install one, explain that this skill requires real test execution and cannot substitute estimation.
 
 ## Run the Tool (Scoped to Target)
 
@@ -182,6 +207,36 @@ Stryker.NET writes `StrykerOutput/<run>/reports/mutation-report.json` in the sam
   ]
 }
 ```
+
+### Go (go-mutesting) — example
+
+go-mutesting has no stable machine-readable report, so parse its stdout (each
+mutant prints `PASS`/`FAIL` with the mutated `file:line`) and map it into the
+same envelope, adding `"advisory": true` so callers warn instead of halt. The
+`equivalent` count is `0` unless triage reclassifies a survivor. `tool` is
+`"go-mutesting"`.
+
+```json
+{
+  "schema_version": 1,
+  "tool": "go-mutesting",
+  "advisory": true,
+  "scope": ["pkg/order/order.go"],
+  "captured_at": "2026-06-26T14:31:00Z",
+  "total": 40,
+  "killed": 31,
+  "survived": 9,
+  "equivalent": 0,
+  "survivors": [
+    { "file": "pkg/order/order.go", "line": 22, "operator": "branch/condition", "status": "survived" }
+  ]
+}
+```
+
+Because go-mutesting is advisory, downstream workflow callers MUST treat
+`advisory: true` as warn-not-block — a non-zero survivor count never fails the
+gate. Pair the advisory result with `go test -fuzz` findings when reporting to
+the operator.
 
 ### Error envelopes
 
