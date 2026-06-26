@@ -167,7 +167,7 @@ Then, for each Phase-4 child issue in dependency order (from `memory/test-modern
    - For `[Baseline]` Stories (created in Phase 1), tests lock in current behavior at existing seams — no Gherkin binding required.
    - For `[Repair disabled test]` Stories drafted in the pre-flight, `/build` removes the skip tag, lands a real assertion against the cited public-interface behavior, and proves the new assertion can fail.
 2. After every Story closes, **extract the Story's production-code file list from `/build`'s commit diff** (`git diff --name-only <story-base-sha>..<story-head-sha>` filtered to production code — test files dropped). The orchestrator MUST NOT consult a tracker CLI for this list; the commit diff is the only source of truth so a tracker JSON-shape change can never silently break the gate.
-3. Invoke `/coverage-delta <repo-path> --parent <url-or-empty> --repo-slug <slug> --story <id> --story-files <files-from-step-2>`. The worker measures and reports; it never halts. Read its stdout result block and act on the `status` field:
+3. Invoke `/coverage-delta <repo-path> --parent <url-or-empty> --repo-slug <slug> --workflow test-modernize --story <id> --story-files <files-from-step-2>`. Passing `--workflow test-modernize` keeps all memory paths under `memory/test-modernize/` exactly as before. The worker measures and reports; it never halts. Read its stdout result block and act on the `status` field:
 
    **`status: "ok"` or `"first_measurement"`** — Story closes; advance to the next.
 
@@ -181,7 +181,7 @@ Then, for each Phase-4 child issue in dependency order (from `memory/test-modern
      ...
 
    Actions:
-     [s] strengthen — add assertions, then re-run /coverage-delta --story <id> --story-files <files>
+     [s] strengthen — add assertions, then re-run /coverage-delta --workflow test-modernize --story <id> --story-files <files>
      [f] follow-up — open a Phase-5 [Strengthen assertions] Story citing these survivors
      [w] waive    — record reason; survivors carry into Phase 5
 

@@ -1,19 +1,20 @@
 ---
 name: coverage-delta
 description: >-
-  Phase-4 worker for `/test-modernize`. Reads the Phase-3 baseline coverage,
-  re-runs the same coverage tool against the current suite, computes the
-  delta on line+branch percentages, and posts it to the parent issue (or
-  local `FEATURE.md`). Called after each Phase-4 Story so the operator sees
-  coverage move with every test added.
-argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--story <id-or-path>] [--story-files <glob-or-comma-list>]"
+  Multi-workflow coverage delta worker. Reads the baseline coverage, re-runs
+  the same coverage tool against the current suite, computes the delta on
+  line+branch percentages, and posts it to the parent issue (or local
+  `FEATURE.md`). Called after each Story so the operator sees coverage move
+  with every test added. Used by `/test-upgrade` (default) and
+  `/test-modernize` (Phase 4), each via its own `--workflow` namespace.
+argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--story <id-or-path>] [--story-files <glob-or-comma-list>]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write
 ---
 
 # Coverage Delta
 
-Role: worker. Reports coverage change vs. the Phase-3 baseline. One snapshot per Story so the operator can see whether each Phase-4 / Phase-5 add actually moved the needle.
+Role: worker. Reports coverage change vs. the captured baseline. One snapshot per Story so the operator can see whether each add actually moved the needle. Callers that use a phase model (such as `/test-modernize`, where the baseline is Phase 3 and adds happen in Phase 4 / Phase 5) label snapshots by phase; phase-less workflows like `/test-upgrade` omit that label.
 
 You have been invoked with the `/coverage-delta` command.
 
@@ -23,7 +24,8 @@ Arguments: $ARGUMENTS
 
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL (or empty for local-files).
-- `--repo-slug <slug>` — `memory/test-modernize/` namespace.
+- `--repo-slug <slug>` — `memory/<workflow>/` namespace.
+- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-upgrade`. `/test-modernize` passes `test-modernize` to keep its Phase-4 paths unchanged.
 - `--story <id-or-path>` — optional Story this delta is attributed to. Used as the snapshot label.
 - `--story-files <glob-or-comma-list>` — production-code files the Story touched (typically from `/build`'s commit diff, tests filtered out). When both `--story` AND a non-empty `--story-files` are present, Step 2b runs scoped mutation; otherwise it is a no-op so `/quality-targets-converge` can keep calling this worker without `--story-files` exactly as before.
 
@@ -31,7 +33,7 @@ Arguments: $ARGUMENTS
 
 ### 1. Load the baseline
 
-Read `memory/test-modernize/<slug>/baseline-coverage.json`. If missing, tell the operator Phase 3 has not run and stop.
+Read `memory/<workflow>/<slug>/baseline-coverage.json`. If missing, tell the operator the baseline has not been captured (`/coverage-baseline` must run first; for `/test-modernize` that is Phase 3) and stop.
 
 ### 2. Re-run coverage
 
@@ -50,7 +52,7 @@ Gating: skip this whole step unless BOTH `--story <id>` AND a non-empty `--story
 When the gate fires:
 
 1. Invoke `/mutation-testing --scope <expanded --story-files> --emit-json <tmp> --workflow-managed-approval`. The `--workflow-managed-approval` flag is allowed here because `/test-modernize` Phase 0 captured operator approval at the workflow boundary (see `mutation-testing` `## Constraints` carve-out).
-2. **Baseline-of-record per file.** For each file in `--story-files`, look up the most recent entry in `memory/test-modernize/<slug>/mutation-history.json`; that entry's `survivors_after` is the baseline-of-record. If no prior entry exists, the file's status is `first_measurement` (`survivors_before: null`, `delta: null`).
+2. **Baseline-of-record per file.** For each file in `--story-files`, look up the most recent entry in `memory/<workflow>/<slug>/mutation-history.json`; that entry's `survivors_after` is the baseline-of-record. If no prior entry exists, the file's status is `first_measurement` (`survivors_before: null`, `delta: null`).
 3. **Filter `status: "equivalent"` survivors** from the `/mutation-testing` output before computing delta — reclassifications between runs must not show up as regressions.
 4. Compute `delta = survivors_after - survivors_before` (skip when `first_measurement`) and assign a status per file:
    - `ok` — `delta <= 0`.
@@ -86,7 +88,7 @@ Parse line + branch percentages with the same logic `/coverage-baseline` used. C
 
 ```json
 {
-  "phase": <4 or 5>,
+  "phase": <phase-number-or-null>,
   "captured_at": "<ISO-8601>",
   "story": "<id-or-path-or-null>",
   "line_pct": <current>,
@@ -98,11 +100,13 @@ Parse line + branch percentages with the same logic `/coverage-baseline` used. C
 }
 ```
 
-Append to `memory/test-modernize/<slug>/coverage-history.json` (array of snapshots, newest last).
+`phase` is the calling workflow's phase number when it has one (`/test-modernize` supplies `4` or `5`); workflows without a phase model, like `/test-upgrade`, supply `null`.
+
+Append to `memory/<workflow>/<slug>/coverage-history.json` (array of snapshots, newest last).
 
 ### 4. Post the snapshot
 
-Append a markdown row to the parent's `## Metrics history` section (tracker mode) or to `./plans/test-modernize/FEATURE.md` (local-files mode):
+Append a markdown row to the parent's `## Metrics history` section (tracker mode) or to `./plans/<workflow>/FEATURE.md` (local-files mode):
 
 ```markdown
 | <ISO-8601> | Phase <n> | <story-id-or-—> | Line <pct>% (Δ <+/-pct>) | Branch <pct>% (Δ <+/-pct>) | Mutants <count> (Δ <+/-n>) |

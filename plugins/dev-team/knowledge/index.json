@@ -2241,11 +2241,11 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Read `memory/test-modernize/<slug>/baseline-coverage.json`.",
+      "summary": "Read `memory/<workflow>/<slug>/baseline-coverage.json`.",
       "anchor": "steps"
     },
     "1. Load the baseline": {
-      "summary": "Read `memory/test-modernize/<slug>/baseline-coverage.json`.",
+      "summary": "Read `memory/<workflow>/<slug>/baseline-coverage.json`.",
       "anchor": "1-load-the-baseline"
     },
     "2. Re-run coverage": {
@@ -2261,7 +2261,7 @@
       "anchor": "3-parse-compute-the-delta"
     },
     "4. Post the snapshot": {
-      "summary": "Append a markdown row to the parent's `## Metrics history` section (tracker mode) or to `./plans/test-modernize/FEATURE.md` (local-files mode):",
+      "summary": "Append a markdown row to the parent's `## Metrics history` section (tracker mode) or to `./plans/<workflow>/FEATURE.md` (local-files mode):",
       "anchor": "4-post-the-snapshot"
     },
     "5. Report": {
