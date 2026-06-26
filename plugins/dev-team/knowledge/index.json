@@ -3492,6 +3492,10 @@
       "summary": "If `.codegraph.init_declined == true`: print",
       "anchor": "init-prompt-branch-installedtrue-initializedfalse"
     },
+    "Share CodeGraph with the team (after a successful init)": {
+      "summary": "The CodeGraph database (`.codegraph/codegraph.db`) is derived from source and",
+      "anchor": "share-codegraph-with-the-team-after-a-successful-init"
+    },
     "Step 3 — Select languages": {
       "summary": "Ask the user which language ecosystems they are working with.",
       "anchor": "step-3-select-languages"

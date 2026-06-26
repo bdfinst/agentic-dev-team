@@ -93,3 +93,8 @@ actuals.json
 
 # Triage records written by /triage — local-only investigation notes
 .triage/
+
+# refactor-granularity campaign: per-arm shards are intermediate (resume targets);
+# the merged dataset (refactor-granularity-campaign.jsonl) is committed instead.
+docs/experiments/data/refactor-granularity-tdd-*.jsonl
+docs/experiments/data/refactor-granularity-test-after-*.jsonl

@@ -11,3 +11,4 @@
 * [9. Human Consent Gate for Learning Loop](0009-human-consent-gate-for-learning-loop.md)
 * [10. Per-Session Analysis Granularity](0010-per-session-analysis-granularity.md)
 * [11. Enforce the context ceiling with a transcript-measured PreToolUse hook](0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md)
+* [12. Auto-bootstrap the CodeGraph index per clone](0012-auto-bootstrap-codegraph-index-per-clone.md)
