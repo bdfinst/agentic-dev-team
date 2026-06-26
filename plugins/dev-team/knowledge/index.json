@@ -2203,36 +2203,32 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Require `memory/test-modernize/<slug>/disabled-tests.json` to exist.",
+      "summary": "Read the build manifest at the repo root and pick the appropriate command:",
       "anchor": "steps"
     },
-    "1. Confirm Phase 3's audit has run": {
-      "summary": "Require `memory/test-modernize/<slug>/disabled-tests.json` to exist.",
-      "anchor": "1-confirm-phase-3s-audit-has-run"
-    },
-    "2. Detect the coverage tool": {
+    "1. Detect the coverage tool": {
       "summary": "Read the build manifest at the repo root and pick the appropriate command:",
-      "anchor": "2-detect-the-coverage-tool"
+      "anchor": "1-detect-the-coverage-tool"
     },
-    "3. Run coverage": {
+    "2. Run coverage": {
       "summary": "Run the chosen command from `<repo-path>`.",
-      "anchor": "3-run-coverage"
+      "anchor": "2-run-coverage"
     },
-    "4. Parse line + branch percentages": {
+    "3. Parse line + branch percentages": {
       "summary": "For each tool, parse the report into `{ \"line\": <pct>, \"branch\": <pct>, \"tool\": \"<name>\", \"raw_path\": \"<file>\" }`:",
-      "anchor": "4-parse-line-branch-percentages"
+      "anchor": "3-parse-line-branch-percentages"
     },
-    "5. Persist the baseline": {
-      "summary": "Write `memory/test-modernize/<slug>/baseline-coverage.json`:",
-      "anchor": "5-persist-the-baseline"
+    "4. Persist the baseline": {
+      "summary": "Write `memory/<workflow>/<slug>/baseline-coverage.json`:",
+      "anchor": "4-persist-the-baseline"
     },
-    "6. Post to the parent": {
+    "5. Post to the parent": {
       "summary": "**Tracker mode** — append a markdown block to the parent issue's description (the resolved CLI was recorded in Phase 1):",
-      "anchor": "6-post-to-the-parent"
+      "anchor": "5-post-to-the-parent"
     },
-    "7. Report": {
+    "6. Report": {
       "summary": "Print:",
-      "anchor": "7-report"
+      "anchor": "6-report"
     },
     "Notes": {
       "summary": "Coverage tools may legitimately differ by repo; never replace the repo's own script with a generic one unless detection fails.",
