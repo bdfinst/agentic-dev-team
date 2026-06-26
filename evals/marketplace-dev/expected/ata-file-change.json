@@ -1,0 +1,15 @@
+{
+  "fixture": "ata-file-change.md",
+  "description": "Existing markdown agent whose body is a purely mechanical frontmatter field-presence check — wrong type, expect CHANGE to script",
+  "applicableSkills": ["agent-type-advisor"],
+  "skills": {
+    "agent-type-advisor": {
+      "expectedMode": "retrospective",
+      "expectedRecommendation": "CHANGE",
+      "expectedCurrentType": "markdown",
+      "expectedShouldBe": "script",
+      "minRuleCitations": 2,
+      "mustCiteAnyOf": ["R1", "R2", "R5"]
+    }
+  }
+}

@@ -6,7 +6,7 @@ description: >-
   tools, ≤ 40-line body) and team agents (prose output, action tools, ≤ 75-line
   body). Use when the user says "add an agent", "create a reviewer for X",
   "new team agent for Y", or when /agent-add is invoked. Validates against
-  /agent-audit before writing. Updates the agent registry and CLAUDE.md after
+  /plugin-audit before writing. Updates the agent registry and plugin CLAUDE.md after
   success.
 role: worker
 user-invocable: true
@@ -30,6 +30,22 @@ registration checklists, see `skills/agent-skill-authoring/SKILL.md`.
 
 ---
 
+## Step 0 — Resolve Target Plugin
+
+Determine `$PLUGIN` (the target plugin directory) and `$NAME` (the plugin's
+`name` field from `.claude-plugin/plugin.json`):
+
+1. If `--plugin <dir>` was passed, use that directory as `$PLUGIN`.
+2. Else if exactly one `plugins/*/` directory exists in the repo root, use it.
+3. Else if the current working directory is inside a directory containing
+   `.claude-plugin/plugin.json`, use that directory.
+4. Else ask: `Which plugin directory should the agent be added to?`
+
+Read `$PLUGIN/.claude-plugin/plugin.json` and extract the `name` field as
+`$NAME`. All subsequent path references use `$PLUGIN/` and `$NAME`.
+
+---
+
 ## Step 1 — Parse Arguments
 
 Accept these inputs (from arguments or interactive prompts):
@@ -40,12 +56,13 @@ Accept these inputs (from arguments or interactive prompts):
 | `type` | yes | `review` or `team` |
 | `description` | yes | one-line summary for frontmatter |
 | `tools` | no | comma-separated tool list |
+| `--plugin <dir>` | no | target plugin directory (resolved in Step 0) |
 | `--effort low\|medium\|high` | no | the reasoning-effort band the agent's task needs; defaults review→low, team→medium |
 | `--context diff-only\|full-file\|project-structure` | no | sets `Context needs:` field in review body |
 | `--lang <exts>` | no | adds language scope line to review body (e.g. `Scope: .ts, .tsx files only`) |
 | `--dry` | no | display generated content without writing file or updating registry |
 
-Agents declare a vendor-neutral **effort band** (`effort: low|medium|high`), not a model name — the PreToolUse hook maps the band to a concrete model at dispatch (see `docs/model-routing.md`).
+Agents declare a vendor-neutral **effort band** (`effort: low|medium|high`), not a model name — the PreToolUse hook maps the band to a concrete model at dispatch.
 
 **Reject an invalid band.** If `--effort` is not one of `low`, `medium`, `high`, stop and emit the valid bands. Map a recognized legacy token in the message so the fix is obvious: `small`/`haiku` → `low`, `mid`/`sonnet` → `medium`, `frontier`/`opus` → `high`. Example: `Invalid effort 'frontier'. Valid bands: low, medium, high. (frontier → high)`.
 
@@ -111,14 +128,14 @@ Only apply a default when the value was not specified by the user.
 
 ## Step 6 — Check for Existing File
 
-Glob `plugins/dev-team/agents/<name>.md`.
+Glob `$PLUGIN/agents/<name>.md`.
 
 If the file exists:
 
 1. Read its `description` frontmatter field
-2. Emit: `plugins/dev-team/agents/<name>.md already exists (description: <existing-description>)`
+2. Emit: `$PLUGIN/agents/<name>.md already exists (description: <existing-description>)`
 3. Ask: `Overwrite? (yes/no)`
-4. On `no`: emit `Cancelled. Existing agent: plugins/dev-team/agents/<name>.md — <existing-description>` and **stop with no changes**
+4. On `no`: emit `Cancelled. Existing agent: $PLUGIN/agents/<name>.md — <existing-description>` and **stop with no changes**
 5. On `yes`: continue
 
 ---
@@ -127,7 +144,7 @@ If the file exists:
 
 For review agents, scan existing agents for topical overlap:
 
-1. Read `description` frontmatter of all files in `plugins/dev-team/agents/`
+1. Read `description` frontmatter of all files in `$PLUGIN/agents/`
 2. For each existing agent, also read the first 20 lines of its `## Detect` section if present
 3. If the LLM judges ≥ 60% topical overlap between the new description and an existing agent's scope, emit:
 
@@ -175,21 +192,20 @@ effort: <band>
 Do not include `hooks`, `mcpServers`, or `permissionMode` unless the user
 confirmed their inclusion in Step 8.
 
-#### `cites:` (citation drift defense, #312)
+#### `cites:` (citation drift defense)
 
 When a review agent inlines normative **numeric thresholds** (e.g. "functions
 MUST be under 50 lines", "coverage SHOULD reach 80%") that are owned by a
 canonical skill or knowledge file, declare those sources with a `cites:` list so
-`/agent-audit`'s citation lint can detect drift between the agent and its source:
+`/plugin-audit`'s citation lint can detect drift between the agent and its source:
 
 ```yaml
 cites: [complexity, object-calisthenics]   # skill names or knowledge file stems
 ```
 
-Each entry resolves to `skills/<name>/SKILL.md` or `knowledge/<name>.md`. The lint
-(`scripts/citation_lint.py`) flags any threshold the agent states on an RFC-2119
-line that is absent from every cited source. The lint is advisory (Phase 1,
-non-blocking) either way.
+Each entry resolves to `$PLUGIN/skills/<name>/SKILL.md` or `$PLUGIN/knowledge/<name>.md`.
+The lint flags any threshold the agent states on an RFC-2119 line that is absent
+from every cited source. The lint is advisory (Phase 1, non-blocking) either way.
 
 **Pre-write check.** After Step 10 generates the body, before Step 11 writes
 the file:
@@ -207,8 +223,8 @@ the file:
    ```
 
 3. On `(a)`: prompt for a comma-separated list, validate each entry resolves
-   to a real `skills/<name>/SKILL.md` or `knowledge/<name>.md`, insert
-   `cites: [<list>]` into the frontmatter, and continue to Step 11.
+   to a real `$PLUGIN/skills/<name>/SKILL.md` or `$PLUGIN/knowledge/<name>.md`,
+   insert `cites: [<list>]` into the frontmatter, and continue to Step 11.
 4. On `(b)`: continue to Step 11 with no `cites:` — the lint will flag the
    agent as `advisory` going forward, which is the correct deferred state.
 
@@ -325,28 +341,27 @@ After generating the body, count all lines (including blank lines).
 
 ---
 
-## Step 11 — Run /agent-audit Validation Gate
+## Step 11 — Run /plugin-audit Validation Gate
 
-`/agent-audit` (structural compliance of the generated agent file) is the
+`/plugin-audit` (structural compliance of the generated agent file) is the
 validation gate of record — it is the tool that audits agent files. The gate is
 **blocking**: an unresolved audit failure aborts creation (the cancel path
-below), it never silently continues. (`claude-setup-review` audits project-level
-CLAUDE.md setup, not a single new agent file, so it is not the gate here.)
+below), it never silently continues.
 
 **If `--dry` was passed**: display the complete generated file content to the user and stop. Do not write any file, do not run validation, do not update the registry or CLAUDE.md.
 
-Otherwise: write the generated content to disk, then invoke the agent-audit skill:
-`Skill(agent-audit plugins/dev-team/agents/<name>.md)`
+Otherwise: write the generated content to disk, then invoke the plugin-audit skill:
+`Skill(plugin-audit $PLUGIN/agents/<name>.md)`
 
 **If the audit returns errors:**
 
-1. Emit the raw `/agent-audit` output verbatim
+1. Emit the raw `/plugin-audit` output verbatim
 2. Emit: `All your inputs are preserved.`
 3. Emit: `(a) auto-correct and re-validate  (b) cancel`
 4. On `(b)`: delete the file, make no changes, stop
-5. On `(a)`: apply the minimal corrections, re-run `/agent-audit` once more
+5. On `(a)`: apply the minimal corrections, re-run `/plugin-audit` once more
    - If the second run passes: continue to Step 12
-   - If the second run also fails: emit new `/agent-audit` output verbatim; emit `All your inputs are preserved.`; emit `(a) auto-correct and re-validate  (b) cancel` again (no silent stop)
+   - If the second run also fails: emit new `/plugin-audit` output verbatim; emit `All your inputs are preserved.`; emit `(a) auto-correct and re-validate  (b) cancel` again (no silent stop)
 
 **If the audit passes:** continue to Step 12.
 
@@ -354,7 +369,7 @@ Otherwise: write the generated content to disk, then invoke the agent-audit skil
 
 ## Step 12 — Present Draft and Confirm Write
 
-Ask: `Write this file to plugins/dev-team/agents/<name>.md? (yes/no)`
+Ask: `Write this file to $PLUGIN/agents/<name>.md? (yes/no)`
 
 On `no`: delete the file written in Step 11, make no other changes, stop.
 On `yes`: the file is already on disk from Step 11; no re-write needed unless the user modified the draft.
@@ -363,11 +378,15 @@ On `yes`: the file is already on disk from Step 11; no re-write needed unless th
 
 ## Step 13 — Update Agent Registry
 
-Locate the table in `knowledge/agent-registry.md` whose heading contains
-`Review Agents` (for review type) or `Team Agents` (for team type).
+If `$PLUGIN/knowledge/agent-registry.md` exists, locate the table whose heading
+contains `Review Agents` (for review type) or `Team Agents` (for team type).
 
-If the heading is not found: emit
-`Cannot update knowledge/agent-registry.md: heading containing '<type> Agents' not found. Update manually.`
+If the file does not exist: emit
+`$PLUGIN/knowledge/agent-registry.md not found — skip registry update.`
+and continue to Step 14.
+
+If the file exists but the heading is not found: emit
+`Cannot update $PLUGIN/knowledge/agent-registry.md: heading containing '<type> Agents' not found. Update manually.`
 and stop without modifying the file.
 
 Append a row matching that table's columns:
@@ -385,40 +404,43 @@ Append a row matching that table's columns:
   ```
 
 The effort band is **not** mirrored in the registry — it lives only in the
-agent's `effort:` frontmatter (read live via `/model-routing-check`).
+agent's `effort:` frontmatter.
 
 ---
 
-## Step 14 — Update CLAUDE.md
+## Step 14 — Update Plugin CLAUDE.md
 
-CLAUDE.md carries a **prose Quick Reference list**, not a table — the
-authoritative agent tables live in `knowledge/agent-registry.md` (updated in
-Step 13). Update the matching Quick Reference line under `### Quick Reference`:
+If `$PLUGIN/CLAUDE.md` exists and has a **prose Quick Reference list** under
+`### Quick Reference`:
 
 - Review type → the line beginning `**Review agents** (<N>):`
 - Team type → the line beginning `**Team agents** (<N>):`
 
 Edit that line in place: **increment the parenthesised count** `(<N>)` → `(<N+1>)`
-and **append `, <name>`** to the comma-separated list (before any trailing
-token-count note, e.g. `(~4,510 tokens total)`).
+and **append `, <name>`** to the comma-separated list.
 
-If the line is not found: emit
-`Cannot update CLAUDE.md: '<type> agents' Quick Reference line not found. Update manually.`
-and stop without modifying the file. (This is a real-failure branch, not the
-normal path — the line exists in the shipped CLAUDE.md.)
+If `$PLUGIN/CLAUDE.md` does not exist, or the Quick Reference section is not
+present, emit:
+`$PLUGIN/CLAUDE.md Quick Reference list not found — skip CLAUDE.md update.`
+and continue.
 
-Confirm both updates in the completion report.
+If the file exists and the section is present but the matching line is not
+found: emit
+`Cannot update $PLUGIN/CLAUDE.md: '<type> agents' Quick Reference line not found. Update manually.`
+and stop without modifying the file.
+
+Confirm both updates (or skips) in the completion report.
 
 ---
 
 ## Completion Report
 
 ```
-Agent created: plugins/dev-team/agents/<name>.md
+Agent created: $PLUGIN/agents/<name>.md
 Type: <review|team>
 Effort: <band>
 Body: <N> lines
-Validation: PASS (/agent-audit)
-Registry updated: knowledge/agent-registry.md (<type> Agents table)
-CLAUDE.md updated: <type> agents Quick Reference list (count <N>→<N+1>)
+Validation: PASS (/plugin-audit)
+Registry updated: $PLUGIN/knowledge/agent-registry.md (<type> Agents table) [or: skipped — file not found]
+CLAUDE.md updated: <type> agents Quick Reference list (count <N>→<N+1>) [or: skipped — section not found]
 ```

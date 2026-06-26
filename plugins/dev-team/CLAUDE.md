@@ -51,7 +51,7 @@ Full registry tables with token counts, effort bands, and used-by mappings are i
 
 **Review agents** (22): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review, refactor-opportunity-review, progress-guardian, data-flow-tracer, test-modernization-review, session-analysis
 
-**Skills** (45): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Farley Score, Test Design Advisor, CD Test Architecture, Test Health, Browser Testing, Exploratory Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming, Ubiquitous Language, Test Modernize, Issues from Assessment, Gherkin Public, Test Audit + Disable, Coverage Baseline, Coverage Delta, Quality Targets Converge
+**Skills** (44): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Farley Score, Test Design Advisor, CD Test Architecture, Test Health, Browser Testing, Exploratory Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming, Ubiquitous Language, Test Modernize, Issues from Assessment, Gherkin Public, Test Audit + Disable, Coverage Baseline, Coverage Delta, Quality Targets Converge
 
 **Subagent prompt templates** (9): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`, `prompts/plan-review-parallelization.md`
 
@@ -67,14 +67,13 @@ Teams can create a `REVIEW-CONTEXT.md` file in their project root to provide dom
 
 User-invocable workflows in `.claude/skills/`. All review skills are executed under orchestrator direction. Model assignment for every agent flows through the **Resolution Procedure** (`agents/orchestrator.md`), enforced by the PreToolUse hook `hooks/agent-model-resolve.sh`.
 
+> **Moved to the `marketplace-dev` plugin.** The plugin-authoring skills `agent-create`, `agent-skill-authoring`, `agent-add`, `agent-remove`, and `add-plugin` are no longer part of dev-team. They — plus a generalized `/plugin-audit` — now live in the companion `marketplace-dev` plugin, which builds and audits Claude Code plugins for any marketplace. Install it from the `bfinster` marketplace.
+
 | Command | File | Role | What It Does |
 |---------|------|------|--------------|
-| `/add-plugin` | `skills/add-plugin/SKILL.md` | implementation | Install a plugin and register it in settings.json |
-| `/agent-add` | `skills/agent-add/SKILL.md` | implementation | Create a new review or team agent following the official schema with token-efficiency budgets |
 | `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance |
 | `/agent-eval` | `skills/agent-eval/SKILL.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
 | `/agent-readiness` | `skills/agent-readiness/SKILL.md` | worker | Score how agent-ready the current project repo is against the Agent-Readiness Scorecard; emits a tiered JSON/Markdown report (scores your project, not the plugin — use `/harness-audit` for that) |
-| `/agent-remove` | `skills/agent-remove/SKILL.md` | implementation | Remove an agent and all its registry entries and doc references |
 | `/apply-fixes` | `skills/apply-fixes/SKILL.md` | implementation | Apply correction prompts from `/code-review` output |
 | `/benchmark` | `skills/benchmark/SKILL.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
 | `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
@@ -142,7 +141,7 @@ For trivial tasks (typo fix, simple query), the Orchestrator routes directly to 
 | **Implement** | Test-Driven Development, Systematic Debugging, Mutation Testing, Browser Testing, Performance Benchmark, CI Debugging | Build with TDD, debug issues, validate quality, measure performance |
 | **Bug Triage** | `/triage` (Systematic Debugging + file-based triage record in `.triage/`) | Investigate bugs and write actionable triage records |
 | **Review** | Quality Gate Pipeline, Farley Score | Validate output before delivery |
-| **Cross-phase** | Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Governance & Compliance, Branch Workflow, Agent & Skill Authoring | Orchestration, context management, learning |
+| **Cross-phase** | Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Governance & Compliance, Branch Workflow | Orchestration, context management, learning |
 
 ### Phase Transitions
 

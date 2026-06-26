@@ -1,0 +1,12 @@
+{
+  "fixture": "pbpr-issues",
+  "description": "Plugin with a markdown review agent doing purely mechanical version-sync work (wrong type per R1/R3) and no eval coverage — expect findings identifying the type mismatch",
+  "applicableAgents": ["plugin-best-practices-review"],
+  "agents": {
+    "plugin-best-practices-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 4 },
+      "mustFlag": ["version-sync-check", "agent type"]
+    }
+  }
+}

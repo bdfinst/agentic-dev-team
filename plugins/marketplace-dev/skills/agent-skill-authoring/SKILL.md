@@ -48,17 +48,21 @@ Agent (when + why)          Skill (how)
 
 ## Creating an Agent
 
-Run `/agent-add` — it invokes the `agent-create` skill, which is the canonical procedure: name validation, type detection, scope-overlap check, body generation within token-efficiency budgets, `/agent-audit` validation gate, and registry/CLAUDE.md updates.
+Run `/agent-add` — it invokes the `agent-create` skill, which is the canonical procedure: name validation, type detection, scope-overlap check, body generation within token-efficiency budgets, `/plugin-audit` validation gate, and registry/CLAUDE.md updates.
 
-Do not hand-author agent files when `/agent-add` is available — divergent templates produced manually have historically drifted from the schema enforced by `/agent-audit`.
+Do not hand-author agent files when `/agent-add` is available — divergent templates produced manually have historically drifted from the schema enforced by `/plugin-audit`.
 
 ## Creating a Skill
 
-Place skill files at `plugins/dev-team/skills/{skill-name}/SKILL.md`. Use the skill template and authoring guidelines from [`references/templates.md`](references/templates.md#skill-template). Then follow the [registration checklist](references/templates.md#registration-checklist).
+Resolve the target plugin directory (`$PLUGIN`) using the same convention as
+`agent-create`: `--plugin <dir>` argument; else single `plugins/*/`; else cwd
+ancestor with `.claude-plugin/plugin.json`; else ask.
+
+Place skill files at `$PLUGIN/skills/{skill-name}/SKILL.md`. Use the skill template and authoring guidelines from [`references/templates.md`](references/templates.md#skill-template). Then follow the [registration checklist](references/templates.md#registration-checklist).
 
 ## Meta-Patterns for Skill Writing
 
-Before writing a new skill, read 2-3 existing skills in `skills/` to absorb the project's voice and structure. Skills that follow existing patterns integrate better.
+Before writing a new skill, read 2-3 existing skills in `$PLUGIN/skills/` to absorb the project's voice and structure. Skills that follow existing patterns integrate better.
 
 **Explain the why, not just the what.** LLMs follow rules more reliably when they understand the reasoning. "Do X because Y happens without it" beats "ALWAYS do X." Compare:
 - Weak: "ALWAYS run tests before claiming done"
@@ -88,7 +92,8 @@ After creating an agent or skill, follow the registration checklist in [`referen
 Every change must be reflected in documentation. See the sync policy and source-of-truth table in [`references/templates.md`](references/templates.md#documentation-sync-policy).
 
 ## Output
-New or updated `plugins/dev-team/skills/*/SKILL.md` file(s) with all registry tables and docs updated. Be concise — confirm what was created/updated and its registration status.
+
+New or updated `$PLUGIN/skills/*/SKILL.md` file(s) with all registry tables and docs updated. Be concise — confirm what was created/updated and its registration status.
 
 ## Anti-Patterns
 
@@ -99,4 +104,4 @@ New or updated `plugins/dev-team/skills/*/SKILL.md` file(s) with all registry ta
 | Skill without any agent reference | Orphaned knowledge, never invoked | Add to relevant agents or remove |
 | Agent without Skills section | All knowledge is inline, nothing is reusable | Identify extractable capabilities |
 | Overly broad skill | Tries to cover too much, hard to reference precisely | Split into focused skills |
-| Hand-authoring an agent file | Drifts from the schema enforced by /agent-audit | Use /agent-add (invokes the agent-create skill) |
+| Hand-authoring an agent file | Drifts from the schema enforced by /plugin-audit | Use /agent-add (invokes the agent-create skill) |

@@ -1,0 +1,6 @@
+{
+  "name": "widget-broken",
+  "version": "0.1.0",
+  "description": "An example plugin with a deliberate agent-type mismatch, used as an eval fixture",
+  "author": { "name": "", "email": "" }
+}

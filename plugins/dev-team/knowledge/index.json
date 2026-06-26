@@ -1223,44 +1223,6 @@
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
-  "plugins/dev-team/skills/add-plugin/SKILL.md": {
-    "Implementation constraints": {
-      "summary": "1.",
-      "anchor": "implementation-constraints"
-    },
-    "Parse Arguments": {
-      "summary": "Arguments: $ARGUMENTS",
-      "anchor": "parse-arguments"
-    },
-    "Steps": {
-      "summary": "Extract:",
-      "anchor": "steps"
-    },
-    "1. Parse arguments": {
-      "summary": "Extract:",
-      "anchor": "1-parse-arguments"
-    },
-    "2. Check for existing registration": {
-      "summary": "Read `.claude/settings.json`.",
-      "anchor": "2-check-for-existing-registration"
-    },
-    "3. Register marketplace (if --repo provided)": {
-      "summary": "If `REPO` is non-empty, run:",
-      "anchor": "3-register-marketplace-if-repo-provided"
-    },
-    "4. Install the plugin": {
-      "summary": "Run:",
-      "anchor": "4-install-the-plugin"
-    },
-    "5. Add to settings.json": {
-      "summary": "Add to the `enabledPlugins` object in `.claude/settings.json`:",
-      "anchor": "5-add-to-settingsjson"
-    },
-    "6. Report": {
-      "summary": "",
-      "anchor": "6-report"
-    }
-  },
   "plugins/dev-team/skills/adr-tools/SKILL.md": {
     "Pre-flight": {
       "summary": "Project convention is `docs/adr/`.",
@@ -1307,28 +1269,6 @@
       "anchor": "when-to-defer-to-adr-author"
     }
   },
-  "plugins/dev-team/skills/agent-add/SKILL.md": {
-    "Implementation constraints": {
-      "summary": "1.",
-      "anchor": "implementation-constraints"
-    },
-    "Steps": {
-      "summary": "Capture the agent name/spec or URL from `$ARGUMENTS`.",
-      "anchor": "steps"
-    },
-    "1. Parse arguments": {
-      "summary": "Capture the agent name/spec or URL from `$ARGUMENTS`.",
-      "anchor": "1-parse-arguments"
-    },
-    "2. Delegate": {
-      "summary": "Invoke the agent-create skill with the arguments.",
-      "anchor": "2-delegate"
-    },
-    "3. Report": {
-      "summary": "Output the created file path.",
-      "anchor": "3-report"
-    }
-  },
   "plugins/dev-team/skills/agent-audit/SKILL.md": {
     "Orchestrator constraints": {
       "summary": "1.",
@@ -1362,6 +1302,10 @@
       "summary": "The catalog tables (`knowledge/agent-registry.md` for agents and agent-loaded",
       "anchor": "2e-registry-completeness-preventive"
     },
+    "2f. CLAUDE.md and token-efficiency structural checks": {
+      "summary": "Two deterministic Python scripts validate concerns that the LLM-based review",
+      "anchor": "2f-claudemd-and-token-efficiency-structural-checks"
+    },
     "3. Audit skills": {
       "summary": "Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:",
       "anchor": "3-audit-skills"
@@ -1381,88 +1325,6 @@
     "7. Fix summary": {
       "summary": "If `--fix` was used, append a fix summary after the audit report:",
       "anchor": "7-fix-summary"
-    }
-  },
-  "plugins/dev-team/skills/agent-create/SKILL.md": {
-    "Constraints": {
-      "summary": "Do not write any file until validation passes and the user confirms the draft",
-      "anchor": "constraints"
-    },
-    "Step 1 — Parse Arguments": {
-      "summary": "Accept these inputs (from arguments or interactive prompts):",
-      "anchor": "step-1-parse-arguments"
-    },
-    "Step 2 — Validate Name (hard gate)": {
-      "summary": "The name must match `^[a-z][a-z0-9-]*$` exactly.",
-      "anchor": "step-2-validate-name-hard-gate"
-    },
-    "Step 3 — Detect Agent Type": {
-      "summary": "If `type` was not provided:",
-      "anchor": "step-3-detect-agent-type"
-    },
-    "Step 4 — Prompt for Missing Tools": {
-      "summary": "If `tools` was not provided, emit exactly:",
-      "anchor": "step-4-prompt-for-missing-tools"
-    },
-    "Step 5 — Apply Defaults": {
-      "summary": "| Setting | Review default | Team default |",
-      "anchor": "step-5-apply-defaults"
-    },
-    "Step 6 — Check for Existing File": {
-      "summary": "Glob `plugins/dev-team/agents/<name>.md`.",
-      "anchor": "step-6-check-for-existing-file"
-    },
-    "Step 7 — Check Scope Overlap (Review Agents Only)": {
-      "summary": "For review agents, scan existing agents for topical overlap:",
-      "anchor": "step-7-check-scope-overlap-review-agents-only"
-    },
-    "Step 8 — Handle Plugin-Unsupported Fields": {
-      "summary": "If the user has requested `hooks`, `mcpServers`, or `permissionMode`, emit:",
-      "anchor": "step-8-handle-plugin-unsupported-fields"
-    },
-    "Step 9 — Generate Frontmatter": {
-      "summary": "Emit only official fields with non-empty values.",
-      "anchor": "step-9-generate-frontmatter"
-    },
-    "Step 10 — Generate Body": {
-      "summary": "If `--context` was provided, use it for the `Context needs:` field.",
-      "anchor": "step-10-generate-body"
-    },
-    "Review Agent Body Structure (required order)": {
-      "summary": "If `--context` was provided, use it for the `Context needs:` field.",
-      "anchor": "review-agent-body-structure-required-order"
-    },
-    "Team Agent Body Structure (required order)": {
-      "summary": "Apply these rules when generating the body:",
-      "anchor": "team-agent-body-structure-required-order"
-    },
-    "Token-Efficiency Rules (both types)": {
-      "summary": "Apply these rules when generating the body:",
-      "anchor": "token-efficiency-rules-both-types"
-    },
-    "Line Budget Gate": {
-      "summary": "After generating the body, count all lines (including blank lines).",
-      "anchor": "line-budget-gate"
-    },
-    "Step 11 — Run /agent-audit Validation Gate": {
-      "summary": "`/agent-audit` (structural compliance of the generated agent file) is the",
-      "anchor": "step-11-run-agent-audit-validation-gate"
-    },
-    "Step 12 — Present Draft and Confirm Write": {
-      "summary": "Ask: `Write this file to plugins/dev-team/agents/<name>.md?",
-      "anchor": "step-12-present-draft-and-confirm-write"
-    },
-    "Step 13 — Update Agent Registry": {
-      "summary": "Locate the table in `knowledge/agent-registry.md` whose heading contains",
-      "anchor": "step-13-update-agent-registry"
-    },
-    "Step 14 — Update CLAUDE.md": {
-      "summary": "CLAUDE.md carries a **prose Quick Reference list**, not a table — the",
-      "anchor": "step-14-update-claudemd"
-    },
-    "Completion Report": {
-      "summary": "",
-      "anchor": "completion-report"
     }
   },
   "plugins/dev-team/skills/agent-eval/SKILL.md": {
@@ -1543,110 +1405,6 @@
     "Steps": {
       "summary": "1.",
       "anchor": "steps"
-    }
-  },
-  "plugins/dev-team/skills/agent-remove/SKILL.md": {
-    "Implementation constraints": {
-      "summary": "1.",
-      "anchor": "implementation-constraints"
-    },
-    "Parse Arguments": {
-      "summary": "Arguments: $ARGUMENTS",
-      "anchor": "parse-arguments"
-    },
-    "Steps": {
-      "summary": "Verify `.claude/agents/<name>.md` exists.",
-      "anchor": "steps"
-    },
-    "1. Locate agent file": {
-      "summary": "Verify `.claude/agents/<name>.md` exists.",
-      "anchor": "1-locate-agent-file"
-    },
-    "2. Detect agent type": {
-      "summary": "Read `.claude/agents/<name>.md`:",
-      "anchor": "2-detect-agent-type"
-    },
-    "3. Show removal plan": {
-      "summary": "Display a confirmation prompt listing every action that will be taken:",
-      "anchor": "3-show-removal-plan"
-    },
-    "4. Remove agent file": {
-      "summary": "If not in a git repository, use `rm`.",
-      "anchor": "4-remove-agent-file"
-    },
-    "5. Clean up eval artifacts (review agents only)": {
-      "summary": "Search for and remove matching eval fixtures and expected files:",
-      "anchor": "5-clean-up-eval-artifacts-review-agents-only"
-    },
-    "6. Update .claude/CLAUDE.md": {
-      "summary": "Remove the agent's row from the appropriate table (Team Agents or",
-      "anchor": "6-update-claudeclaudemd"
-    },
-    "7. Update .claude/agents/orchestrator.md (team agents only)": {
-      "summary": "Remove the agent name from the \"Tier guidance (informational)\"",
-      "anchor": "7-update-claudeagentsorchestratormd-team-agents-only"
-    },
-    "8. Update cross-references in other agent files": {
-      "summary": "Search for references to the removed agent:",
-      "anchor": "8-update-cross-references-in-other-agent-files"
-    },
-    "9. Update docs/agent_info.md": {
-      "summary": "Remove the agent's row from the Team Agents or Review Agents table",
-      "anchor": "9-update-docsagentinfomd"
-    },
-    "10. Update docs/team-structure.md (team agents only)": {
-      "summary": "Remove the agent node and all its edges from both Mermaid diagrams.",
-      "anchor": "10-update-docsteam-structuremd-team-agents-only"
-    },
-    "11. Tech-writer review": {
-      "summary": "Invoke the tech-writer persona to review all modified documentation files",
-      "anchor": "11-tech-writer-review"
-    },
-    "12. Report": {
-      "summary": "",
-      "anchor": "12-report"
-    }
-  },
-  "plugins/dev-team/skills/agent-skill-authoring/SKILL.md": {
-    "Overview": {
-      "summary": "This skill defines the philosophy of the agent-vs-skill split and the conventions for writing skills.",
-      "anchor": "overview"
-    },
-    "Constraints": {
-      "summary": "Skills must be agent-agnostic; no persona or behavioral logic in skill files",
-      "anchor": "constraints"
-    },
-    "Core Pattern": {
-      "summary": "**Agents** define the *role*: persona, behavior, collaboration style, and *when/why* to use each skill",
-      "anchor": "core-pattern"
-    },
-    "Creating an Agent": {
-      "summary": "Run `/agent-add` — it invokes the `agent-create` skill, which is the canonical procedure: name validation, type detection, scope-overlap check, body generation within token-efficiency budgets, `/agent-audit` validation gate, and registry/CLAUDE.md updates.",
-      "anchor": "creating-an-agent"
-    },
-    "Creating a Skill": {
-      "summary": "Place skill files at `plugins/dev-team/skills/{skill-name}/SKILL.md`.",
-      "anchor": "creating-a-skill"
-    },
-    "Meta-Patterns for Skill Writing": {
-      "summary": "Before writing a new skill, read 2-3 existing skills in `skills/` to absorb the project's voice and structure.",
-      "anchor": "meta-patterns-for-skill-writing"
-    },
-    "Registration": {
-      "summary": "After creating an agent or skill, follow the registration checklist in [`references/templates.md`](references/templates.md#registration-checklist).",
-      "anchor": "registration"
-    },
-    "Documentation Sync Policy": {
-      "summary": "Every change must be reflected in documentation.",
-      "anchor": "documentation-sync-policy"
-    },
-    "Output": {
-      "summary": "New or updated `plugins/dev-team/skills/*/SKILL.md` file(s) with all registry tables and docs updated.",
-      "anchor": "output"
-    },
-    "Anti-Patterns": {
-      "summary": "| Anti-Pattern | Problem | Fix |",
-      "anchor": "anti-patterns"
     }
   },
   "plugins/dev-team/skills/api-design/SKILL.md": {

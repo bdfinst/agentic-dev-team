@@ -132,7 +132,7 @@ Include the result in the agent report table under a `Skills-Tool` column.
 
 ### 2c. Audit team agent personas
 
-A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. For each team agent, check:
+A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. **Exemption**: an agent that declares `enforcement: script` in its frontmatter is a script-enforced **prose spec**, not a persona-driven team agent — skip the persona checks below for it and instead verify it carries a `> **Implemented by:** <script>` pointer immediately after the H1. For each remaining team agent, check:
 
 1. **Persona paragraph**: Is there a `You are…` sentence immediately after the H1 heading and before the first `##` section?
    - The line must begin with `You are` (case-sensitive).
@@ -206,9 +206,36 @@ It asserts a bijection between `plugins/dev-team/agents/*.md` +
 `plugins/dev-team/skills/*/SKILL.md` and the registry rows, reporting `MISSING`
 (file with no row) and `ORPHAN` (row with no file). Unlike the citation lint this
 is a **hard gate** — exit 1 on any discrepancy. Fix it by adding or removing the
-catalog row (or via `/agent-create` / `/agent-remove`, which maintain the tables).
+catalog row by hand (the `marketplace-dev` plugin's `/agent-create` /
+`/agent-remove` maintain these tables automatically).
 Effort bands are deliberately not checked — they live only in frontmatter. The
 bats suite `tests/repo/registry_sync_tests.bats` runs this on every PR.
+
+### 2f. CLAUDE.md and token-efficiency structural checks
+
+Two deterministic Python scripts validate concerns that the LLM-based review
+agents (`claude-setup-review` and `token-efficiency-review`) handle as deeper
+semantic checks. Run these scripts for a fast, CI-safe structural pass:
+
+**CLAUDE.md / setup review** (frontmatter schema, field completeness, effort
+bands, duplicate rules):
+
+```
+python3 scripts/claude_setup_review.py --plugin-root <plugin-root-path>
+```
+
+**Token-efficiency review** (file line counts, CLAUDE.md size, LLM
+anti-patterns):
+
+```
+python3 scripts/token_efficiency_review.py --files <path>...
+```
+
+Both scripts exit 0 and emit JSON findings to stdout. Surface any `error`
+or `warning` severity findings as FAIL/WARN rows in the audit report table.
+The scripts are the authoritative structural gate — do **not** dispatch the
+`claude-setup-review` or `token-efficiency-review` agents from this skill;
+those agents run under `/code-review` for semantic depth.
 
 ### 3. Audit skills
 

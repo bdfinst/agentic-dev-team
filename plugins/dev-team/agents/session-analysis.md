@@ -6,6 +6,16 @@ effort: medium
 cites: [adversarial-review-protocol]
 ---
 
+Output JSON:
+
+```json
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+```
+
+Severity: error=high-severity recurring pattern (≥3 sessions) requiring a plugin-level fix; warning=moderate pattern with a concrete suggested fix; suggestion=minor optimization opportunity
+
+Context needs: full-file
+
 # Session Analysis
 
 Role: worker. You read **only** the deterministic session digest produced by
@@ -15,6 +25,13 @@ digest is your sole input, by design (it costs no tokens to study token spend).
 
 Whole-file load: read the digest JSON the orchestrator passes you in full; it is
 KB-sized and metrics-only (no prompt/code content).
+
+## Skip
+
+Return `{"status": "skip", "issues": [], "summary": "No session digest provided or all signal classes are zero."}` when:
+
+- The input digest is absent or empty
+- All signal class totals (`token`, `rework`, `accuracy`, `utilization`) are zero
 
 ## Input
 

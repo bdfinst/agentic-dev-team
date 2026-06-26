@@ -4,9 +4,14 @@ description: Gate-keeper for `/test-modernize` phase boundaries — verifies the
 tools: Read, Grep, Glob
 effort: low
 cites: [adversarial-review-protocol]
+enforcement: script
 ---
 
 # Test Modernization Review
+
+> **Implemented by:** `scripts/test_modernization_review.py`
+> Run: `python3 scripts/test_modernization_review.py --repo <slug> --phase <N> [--base-dir <path>]`
+> Exit codes: 0 = pass, 1 = fail (hard errors), 2 = warn (warnings only)
 
 Gate-keeper for the `/test-modernize` orchestrator. Read-only — verifies that the just-completed phase's deliverable matches the phase's acceptance criteria, the workflow's invariants are intact, and the next phase has the inputs it needs.
 
@@ -20,7 +25,7 @@ Status: pass=phase deliverable accepted, warn=advance with caveats, fail=phase i
 Severity: error=blocker (workflow must not advance), warning=advance only with operator acknowledgement, suggestion=optional follow-up.
 Confidence: high=mechanical check, medium=judgment call, none=requires human input.
 
-Context needs: read the phase progress file + the deliverable artifacts it points at.
+Context needs: full-file
 
 ## Invocation
 

@@ -4,7 +4,10 @@ description: Token usage optimization, file length, CLAUDE.md size, LLM anti-pat
 tools: Read, Grep, Glob
 effort: low
 cites: [adversarial-review-protocol]
+enforcement: script
 ---
+
+> **Implemented by:** scripts/token_efficiency_review.py
 
 # Token Efficiency Review
 
@@ -41,16 +44,18 @@ Return `{"status": "skip", "issues": [], "summary": "No Claude Code config or so
 | JSDoc comments | ≤15 lines |
 | Commented-out code | ≤5 lines total |
 
-## Detect
+## Findings
+
+Metric thresholds are enforced by `scripts/token_efficiency_review.py` (exit 1 for errors, exit 2 for warnings). This agent provides qualitative analysis for issues the script cannot detect mechanically.
 
 ### CLAUDE.md
 
-- Exceeds char limit
+- Char limit exceeded (script-enforced at >5000)
 - Excessive code examples
 - Duplicate/repetitive sections
-- Verbose command docs (should reference package.json)
+- Verbose command docs (prefer reference to package.json)
 - Large ASCII diagrams
-- Multi-step workflows (should be skills)
+- Multi-step workflows that belong in skills
 
 ### Rules
 
@@ -61,12 +66,12 @@ Return `{"status": "skip", "issues": [], "summary": "No Claude Code config or so
 ### Skills
 
 - Missing skills for common workflows
-- Step-by-step procedures in CLAUDE.md (should be skills)
+- Step-by-step procedures in CLAUDE.md that belong in skills
 - Verbose skill definitions
 
 ### Code
 
-- Long files (>500 lines)
+- Long files (>500 lines, script-enforced)
 - Long functions (>50 lines)
 - Deep nesting (>5 levels)
 - Duplicate code blocks
