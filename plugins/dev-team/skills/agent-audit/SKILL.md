@@ -210,6 +210,32 @@ catalog row (or via `/agent-create` / `/agent-remove`, which maintain the tables
 Effort bands are deliberately not checked — they live only in frontmatter. The
 bats suite `tests/repo/registry_sync_tests.bats` runs this on every PR.
 
+### 2f. CLAUDE.md and token-efficiency structural checks
+
+Two deterministic Python scripts validate concerns that the LLM-based review
+agents (`claude-setup-review` and `token-efficiency-review`) handle as deeper
+semantic checks. Run these scripts for a fast, CI-safe structural pass:
+
+**CLAUDE.md / setup review** (frontmatter schema, field completeness, effort
+bands, duplicate rules):
+
+```
+python3 scripts/claude_setup_review.py --plugin-root <plugin-root-path>
+```
+
+**Token-efficiency review** (file line counts, CLAUDE.md size, LLM
+anti-patterns):
+
+```
+python3 scripts/token_efficiency_review.py --files <path>...
+```
+
+Both scripts exit 0 and emit JSON findings to stdout. Surface any `error`
+or `warning` severity findings as FAIL/WARN rows in the audit report table.
+The scripts are the authoritative structural gate — do **not** dispatch the
+`claude-setup-review` or `token-efficiency-review` agents from this skill;
+those agents run under `/code-review` for semantic depth.
+
 ### 3. Audit skills
 
 Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:
