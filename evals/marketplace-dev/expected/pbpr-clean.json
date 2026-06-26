@@ -1,0 +1,12 @@
+{
+  "fixture": "pbpr-clean",
+  "description": "Clean minimal plugin: one correctly-typed team agent within the 75-line budget, no review agents needing eval coverage — expect zero findings (dogfood-style pass)",
+  "applicableAgents": ["plugin-best-practices-review"],
+  "agents": {
+    "plugin-best-practices-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "severities": { "error": { "min": 0, "max": 0 } }
+    }
+  }
+}

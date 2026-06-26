@@ -101,7 +101,7 @@ The `## Skills` section is the bridge between agents and skills. The agent defin
 4. Define collaboration protocols with existing agents
 5. Reference any applicable skills in the `## Skills` section
 
-See [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) for detailed guidelines.
+See the `marketplace-dev` plugin's `agent-skill-authoring` guidance for detailed authoring conventions.
 
 ## Add a Review Agent
 

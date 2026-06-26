@@ -1,0 +1,13 @@
+{
+  "fixture": "ata-prose-script.md",
+  "description": "Prose use-case: a deterministic catalog version-sync check that runs in CI and gates merges — should be a script",
+  "applicableSkills": ["agent-type-advisor"],
+  "skills": {
+    "agent-type-advisor": {
+      "expectedMode": "forward-looking",
+      "expectedRecommendation": "script",
+      "minRuleCitations": 2,
+      "mustCiteAnyOf": ["R1", "R3", "R4", "R5"]
+    }
+  }
+}
