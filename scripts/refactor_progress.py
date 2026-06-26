@@ -160,7 +160,8 @@ def main():
     pct = round(100 * total / goal, 1) if goal else 0
     eta = estimate_eta(args.ts, per_done, per_ts)
     if total >= goal and goal:
-        phase = "**Campaign complete** — merging shards and running the analysis next."
+        phase = ("**Campaign complete.** Results and analysis: "
+                 "[refactor-granularity-report.md](refactor-granularity-report.md).")
     else:
         phase = f"**Campaign running** — estimated time remaining: **{eta}**."
 
