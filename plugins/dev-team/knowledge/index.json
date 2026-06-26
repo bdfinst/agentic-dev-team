@@ -2911,6 +2911,44 @@
       "anchor": "notes"
     }
   },
+  "plugins/dev-team/skills/gherkin-derive/SKILL.md": {
+    "Parse Arguments": {
+      "summary": "Positional: `<repo-path>` (default: cwd).",
+      "anchor": "parse-arguments"
+    },
+    "Step 1 — Choose the binding mode (BDD value rubric)": {
+      "summary": "If `--mode` was **not** supplied, present the 5-question rubric from",
+      "anchor": "step-1-choose-the-binding-mode-bdd-value-rubric"
+    },
+    "Step 2 — Discover the public surface": {
+      "summary": "No pre-computed component map is required.",
+      "anchor": "step-2-discover-the-public-surface"
+    },
+    "Step 3 — Author scenarios": {
+      "summary": "Use the same templates as `/gherkin-public`: **API Provider**, **UI**,",
+      "anchor": "step-3-author-scenarios"
+    },
+    "Step 4 — Wire the BDD framework (bdd-runner mode only)": {
+      "summary": "Skip this step entirely in `none` and `xunit-with-annotations` modes.",
+      "anchor": "step-4-wire-the-bdd-framework-bdd-runner-mode-only"
+    },
+    "Step 5 — Output": {
+      "summary": "`features/<surface>.feature` files (all non-`none` modes).",
+      "anchor": "step-5-output"
+    },
+    "Step 6 — Report": {
+      "summary": "Print the mode, the count of surfaces by discovery source (OpenAPI / route /",
+      "anchor": "step-6-report"
+    },
+    "Key differences from `/gherkin-public`": {
+      "summary": "Does **not** require `memory/test-modernize/<slug>/phase-1.md` — derives the",
+      "anchor": "key-differences-from-gherkin-public"
+    },
+    "Notes": {
+      "summary": "Characterization scenarios capture *what the code does now*.",
+      "anchor": "notes"
+    }
+  },
   "plugins/dev-team/skills/gherkin-public/SKILL.md": {
     "Parse Arguments": {
       "summary": "Arguments: $ARGUMENTS",

@@ -78,6 +78,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Farley Score | `skills/farley-score/SKILL.md` | 600 | QA Engineer, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
 | Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,010 | Orchestrator |
+| Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~700 | `/test-upgrade` (Phase 1b), QA Engineer, standalone |
 | Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | `/test-modernize` (Phase 2), QA Engineer, Product Manager |
 | Governance & Compliance | `skills/governance-compliance/SKILL.md` | 990 | QA Engineer, Technical Writer |
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 420 | Architect, Software Engineer |
