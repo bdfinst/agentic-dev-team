@@ -13,3 +13,7 @@ AGENT="$BATS_TEST_DIRNAME/../../plugins/dev-team/agents/session-analysis.md"
   grep -q "warning" "$AGENT"
   grep -q "suggestion" "$AGENT"
 }
+
+@test "has a Skip section" {
+  grep -q "## Skip" "$AGENT"
+}

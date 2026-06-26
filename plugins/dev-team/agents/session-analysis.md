@@ -24,6 +24,13 @@ digest is your sole input, by design (it costs no tokens to study token spend).
 Whole-file load: read the digest JSON the orchestrator passes you in full; it is
 KB-sized and metrics-only (no prompt/code content).
 
+## Skip
+
+Return `{"status": "skip", "issues": [], "summary": "No session digest provided or all signal classes are zero."}` when:
+
+- The input digest is absent or empty
+- All signal class totals (`token`, `rework`, `accuracy`, `utilization`) are zero
+
 ## Input
 
 A JSON digest with four signal classes: `token`, `rework`, `accuracy`,
