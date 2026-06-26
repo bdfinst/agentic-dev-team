@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-command runner for the workflow-matrix experiment (prompt 07).
+"""One-command runner for the workflow-matrix experiment (prompt 05).
 
 Runs the 7 matrix arms x 4 tasks x base trials, then *sequentially extends*
 only the arms whose cost-efficiency ranking is still ambiguous — up to a
@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent.parent
 HARNESS = ROOT / "scripts" / "run_refactor_experiment.py"
 DEFAULT_OUT = "docs/experiments/data/refactor-workflow-matrix.jsonl"
 
-# ── the 7 cells (prompt 07). no-refactor-* are excluded: refactoring is fixed on. ──
+# ── the 7 cells (prompt 05). no-refactor-* are excluded: refactoring is fixed on. ──
 # arm -> (workflow code, human label)
 MATRIX = {
     "tdd-refactor":            ("W1", "TDD (test-first, small) x 1 agent"),
@@ -273,7 +273,7 @@ def campaign(args):
 
 
 def main(argv):
-    ap = argparse.ArgumentParser(description="Workflow-matrix campaign runner (prompt 07).")
+    ap = argparse.ArgumentParser(description="Workflow-matrix campaign runner (prompt 05).")
     ap.add_argument("--go", action="store_true", help="actually dispatch (default: dry plan)")
     ap.add_argument("--analyze-only", action="store_true",
                     help="print the efficiency frontier from an existing out file; no dispatch")

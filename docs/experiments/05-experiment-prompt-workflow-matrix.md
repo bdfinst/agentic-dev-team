@@ -2,9 +2,10 @@
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
 **Harness:** [`scripts/run_refactor_experiment.py`](../../scripts/run_refactor_experiment.py)
-**Lineage:** the single, consolidated successor to the refactor-cadence experiment line
-(runs 04–06). It fixes the variables those runs left open (refactoring on, specs clear) and
-re-scopes everything to the one question below. Prior raw data lives in
+**Lineage:** the single, consolidated experiment for the refactor-cadence line. It supersedes
+the earlier granularity / larger-corpus designs (former prompts 06 and the cadence-larger
+prompt), fixes the variables they left open (refactoring on, specs clear), and re-scopes
+everything to the one question below. Prior raw data lives in
 [`data/refactor-granularity-merged.jsonl`](data/refactor-granularity-merged.jsonl).
 
 **Status: specified, harness ready, NOT run at scale.** New arms validated under
@@ -144,6 +145,23 @@ test-LOC churn per change index, a measurement add rather than a new arm or fact
 
 **Net: this is the one experiment. Run the 7-cell campaign; the secondaries are an analysis
 pass over its output.**
+
+## Future scale-up (parked — same question, bigger corpus)
+
+If the 4-task / 3-change result needs more external validity, scale the **corpus**, not the
+factors — run these same 7 cells on harder tasks. The good ideas from the retired
+cadence-larger design, kept here so they are not lost:
+
+- **Larger multi-file tasks** — 3–5 source modules behind a public API, not single-module katas.
+- **Longer change horizon** — an 8-change chain instead of 3, so changeability compounds.
+- **Held-out changeability probe** — after the chain, apply two identical changes with
+  refactoring disabled, to measure the changeability each workflow *paid forward*.
+- **Decomposed churn** — record change-churn and refactor-churn separately per change index.
+- **More tasks** — the task is the unit of inference; cross-task ranking stability is bounded by
+  task count, and only more tasks (not more trials) tightens it.
+
+This is a larger, more expensive campaign — specify N from a power calc on the prior per-task
+variance before funding it. It is **not** part of the base run.
 
 ## Run plan
 
