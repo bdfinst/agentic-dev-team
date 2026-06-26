@@ -91,6 +91,34 @@ All already emitted by the harness; map 1:1 to the three goals plus cost:
 Report every quality figure **raw and per-dollar**, and name the efficient frontier: which
 workflow buys the most maintainability + test quality per dollar.
 
+## Cost (firmed by a 1-task pilot)
+
+Per-cell costs: run-04 actuals (cross-task mean) for the 5 existing arms; a 1-task `fare`
+pilot for the 2 new arms, nudged +5% since `fare` runs ~5% below the cross-task mean.
+The pilot arms ran clean — core+edge pass, mutation 1.0, all 3 changes pass, 0 invariant
+violations.
+
+| cell | arm | $/cell | basis |
+|---|---|--:|---|
+| C3 | `continuous-single` | 0.99 | run-04 actual |
+| C1 | `tdd-refactor` | 1.57 | run-04 actual |
+| C5 | `one-shot-single` | 2.01 | run-04 actual |
+| C7 | `all-tests-first-single` | ~2.50 | **pilot** ($2.39 on `fare`) |
+| C4 | `continuous-split` | 2.81 | run-04 actual |
+| C6 | `one-shot-split` | 2.85 | run-04 actual |
+| C8 | `all-tests-first-split` | ~3.77 | **pilot** ($3.60 on `fare`) |
+| | **per task × trial (7 cells)** | **~$16.5** | |
+
+| trials/cell | cells | **est. campaign cost** |
+|---|--:|--:|
+| 6 | 168 | **~$400** |
+| 8 | 224 | **~$530** |
+| 12 | 336 | **~$790** |
+
+Recommended: start at **6 trials/cell (~$400)** and sequentially extend only the cells whose
+maintainability/test-quality-per-dollar ranking is still ambiguous. The two test-first-split
+cells (C8) are the most expensive; the single-agent cells are 2–4× cheaper.
+
 ## Eliminated from prompt 06 (won't help this question)
 
 - The stability / variance-ratio contrast, the churn→blast mediation, and the ±5% TOST — all
