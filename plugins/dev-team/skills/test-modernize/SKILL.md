@@ -88,7 +88,7 @@ Phase 2 runs in two passes around the human gate so Stories never bind to un-rev
 ### 3. Audit + baseline coverage — `/test-audit-disable` + `/coverage-baseline`
 
 1. Invoke `/test-audit-disable <repo-path> --repo-slug <slug>`. Disables every cannot-fail test (skip + tag, never delete) and records reasons in `memory/test-modernize/<slug>/disabled-tests.json`.
-2. Invoke `/coverage-baseline <repo-path> --parent <url-or-empty> --repo-slug <slug>`. Runs the project's coverage tool, records the baseline at `memory/test-modernize/<slug>/baseline-coverage.json`, and posts the number to the parent issue (or `./plans/test-modernize/FEATURE.md` in local-files mode).
+2. Invoke `/coverage-baseline <repo-path> --parent <url-or-empty> --repo-slug <slug> --workflow test-modernize`. Runs the project's coverage tool, records the baseline at `memory/test-modernize/<slug>/baseline-coverage.json`, and posts the number to the parent issue (or `./plans/test-modernize/FEATURE.md` in local-files mode). Passing `--workflow test-modernize` keeps the memory namespace under `memory/test-modernize/` exactly as before.
 3. Run `python3 scripts/test_modernization_review.py --repo <repo-slug> --phase 3`.
 
 **Human gate** — baseline accepted before adding tests.
