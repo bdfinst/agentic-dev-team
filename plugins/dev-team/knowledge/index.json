@@ -4813,6 +4813,48 @@
       "anchor": "notes"
     }
   },
+  "plugins/dev-team/skills/test-upgrade/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Positional: `<repo-path>` (default: cwd).",
+      "anchor": "parse-arguments"
+    },
+    "Phase 0 — Approach contract": {
+      "summary": "Resolve everything in one batch, then persist it:",
+      "anchor": "phase-0-approach-contract"
+    },
+    "Phase 1 — Analyze (`/test-health`)": {
+      "summary": "Delegate entirely to `/test-health`.",
+      "anchor": "phase-1-analyze-test-health"
+    },
+    "Phase 1b — Derive Gherkin (optional; skip when binding mode is `none`)": {
+      "summary": "When the binding mode chosen in Phase 0 is not `none`, delegate to",
+      "anchor": "phase-1b-derive-gherkin-optional-skip-when-binding-mode-is-none"
+    },
+    "Phase 2 — Triage (`/issues-from-assessment`)": {
+      "summary": "Delegate to `/issues-from-assessment` to convert the health report into work",
+      "anchor": "phase-2-triage-issues-from-assessment"
+    },
+    "Phase 3 — Implement": {
+      "summary": "For each Story in dependency order (`NO_REFACTOR` first; `REFACTOR_REQUIRED` only",
+      "anchor": "phase-3-implement"
+    },
+    "Phase 4 — Validate (`/quality-targets-converge`)": {
+      "summary": "Delegate to `/quality-targets-converge`, which loops until all four targets are",
+      "anchor": "phase-4-validate-quality-targets-converge"
+    },
+    "Key differences from `/test-modernize`": {
+      "summary": "| `/test-modernize` | `/test-upgrade` |",
+      "anchor": "key-differences-from-test-modernize"
+    },
+    "Notes": {
+      "summary": "Every phase delegates to its worker; the orchestrator only sequences, gates, and persists progress.",
+      "anchor": "notes"
+    }
+  },
   "plugins/dev-team/skills/threat-modeling/SKILL.md": {
     "Overview": {
       "summary": "Structured security analysis for identifying threats, attack surfaces, and mitigations during design or review phases.",
