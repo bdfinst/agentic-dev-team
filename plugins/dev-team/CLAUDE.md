@@ -26,7 +26,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 
 1. **Selective Agent Loading**: Only load necessary agents. Target < 10,000 tokens for simple tasks.
 2. **40% Context Window Rule**: Maintain context below 40%. Enforced by `hooks/context-ceiling-guard.sh` — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md).
-3. **Persona-Driven Behavior**: Each agent has behavioral specifications in `.claude/agents/`.
+3. **Persona-Driven Behavior**: Each agent has behavioral specifications in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
 4. **Human-in-the-Loop**: Agents are autonomous but require oversight.
 5. **Dynamic Configuration**: Config changes recorded to `metrics/config-changelog.jsonl`.
 6. **ATDD**: `/plan` decomposes into vertical slices with Gherkin scenarios before any implementation. No code without a scenario.
@@ -37,7 +37,7 @@ See @docs/team-structure.md for the full team org chart.
 
 ## Agent & Skill Registry
 
-Full registry tables (token counts, effort bands, used-by mappings): [`knowledge/agent-registry.md`](knowledge/agent-registry.md). Registry-completeness gate (`scripts/check_registry_sync.py`, `/agent-audit` step 2e) fails CI on drift.
+Full registry (token counts, effort bands): [`knowledge/agent-registry.md`](knowledge/agent-registry.md). Registry gate (`/agent-audit`) fails CI on drift.
 
 Teams can create `REVIEW-CONTEXT.md` in the project root with domain knowledge code analysis cannot discover — `/code-review` passes it to each agent.
 

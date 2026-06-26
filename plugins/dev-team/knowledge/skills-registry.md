@@ -8,6 +8,8 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 
 > **Moved to the `marketplace-dev` plugin.** The plugin-authoring skills `agent-create`, `agent-skill-authoring`, `agent-add`, `agent-remove`, and `add-plugin` are no longer part of dev-team. They — plus a generalized `/plugin-audit` — now live in the companion `marketplace-dev` plugin, which builds and audits Claude Code plugins for any marketplace. Install it from the `bfinster` marketplace.
 
+## Command Table
+
 | Command | File | Role | What It Does |
 |---------|------|------|--------------|
 | `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance |

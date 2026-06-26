@@ -915,6 +915,12 @@
       "anchor": "100-2026-04-21"
     }
   },
+  "plugins/dev-team/knowledge/skills-registry.md": {
+    "Command Table": {
+      "summary": "| Command | File | Role | What It Does |",
+      "anchor": "command-table"
+    }
+  },
   "plugins/dev-team/knowledge/task-size-classifier.md": {
     "Inputs": {
       "summary": "Collect these signals before classifying.",
