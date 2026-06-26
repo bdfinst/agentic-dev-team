@@ -17,3 +17,7 @@ AGENT="$BATS_TEST_DIRNAME/../../plugins/dev-team/agents/session-analysis.md"
 @test "has a Skip section" {
   grep -q "## Skip" "$AGENT"
 }
+
+@test "has Context needs: full-file line" {
+  grep -q "Context needs: full-file" "$AGENT"
+}

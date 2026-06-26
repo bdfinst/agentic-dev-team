@@ -14,6 +14,8 @@ Output JSON:
 
 Severity: error=high-severity recurring pattern (≥3 sessions) requiring a plugin-level fix; warning=moderate pattern with a concrete suggested fix; suggestion=minor optimization opportunity
 
+Context needs: full-file
+
 # Session Analysis
 
 Role: worker. You read **only** the deterministic session digest produced by
