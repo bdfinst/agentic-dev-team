@@ -3,7 +3,7 @@
 **Experiment date:** 2026-06-23  
 **Model (fixed):** `claude-sonnet-4-6`  
 **Branch:** `claude/vigilant-lamport-u7t3af-n9c3os`  
-**Related:** [`experiment-prompt-when-tdd-pays.md`](experiment-prompt-when-tdd-pays.md),
+**Related:** [`02-experiment-prompt-when-tdd-pays.md`](02-experiment-prompt-when-tdd-pays.md),
 [`tdd-vs-nontdd-report.md`](tdd-vs-nontdd-report.md),
 [`3sizes-3arms-report.md`](3sizes-3arms-report.md)
 

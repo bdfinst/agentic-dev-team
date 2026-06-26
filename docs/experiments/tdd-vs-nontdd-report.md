@@ -147,7 +147,7 @@ indistinguishable except that TDD costs the same or more.**
   a thinking tool" benefit has nothing to discover, so it cannot appear in these
   numbers. **The headline result is conditional on this assumption.** Whether TDD
   diverges under *under-specified* requirements is one axis of the planned
-  follow-up: [`experiment-prompt-when-tdd-pays.md`](experiment-prompt-when-tdd-pays.md).
+  follow-up: [`02-experiment-prompt-when-tdd-pays.md`](02-experiment-prompt-when-tdd-pays.md).
 - **n = 6 tasks per size**; exact paired tests bottom out near p≈0.03. Single-size
   results are directional; the cross-size *pattern* (TDD penalty peaks at medium,
   vanishes at large) is the durable signal.
