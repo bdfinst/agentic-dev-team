@@ -37,5 +37,6 @@ KNOWLEDGE="$PLUGIN/knowledge/decision-defaults.md"
 
 @test "/ship skill exists and is registered" {
   [ -f "$PLUGIN/skills/ship/SKILL.md" ]
-  grep -q "\`/ship\`" "$PLUGIN/CLAUDE.md"
+  # Skills Registry moved to knowledge/skills-registry.md; CLAUDE.md now has a pointer
+  grep -q "\`/ship\`" "$PLUGIN/knowledge/skills-registry.md"
 }
