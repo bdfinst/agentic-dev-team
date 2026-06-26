@@ -4,9 +4,12 @@ description: Tracks plan step completion, enforces commit discipline, and gates 
 tools: Read, Grep, Glob
 effort: medium
 cites: [adversarial-review-protocol]
+enforcement: script
 ---
 
 # Progress Guardian
+
+> **Implemented by:** scripts/progress_guardian.py
 
 Output JSON:
 
@@ -22,12 +25,12 @@ Context needs: full-file (reads plan + git state)
 
 ## Skip
 
-Return `{"status": "skip", "issues": [], "summary": "No active plan found"}` when:
+Produces `{"status": "skip", "issues": [], "summary": "No active plan found"}` when:
 
 - No plan files exist in `plans/` or `memory/`
 - The current task has no associated plan
 
-## Detect
+## What the script detects
 
 Plan adherence:
 
@@ -38,21 +41,20 @@ Plan adherence:
 
 Commit discipline:
 
-- More than one plan step completed without a commit
+- A done (`[x]`) step with no matching commit in git log
 - Large uncommitted change sets spanning multiple steps
 - Commit messages that don't reference the plan step
 
-Scope creep:
+Scope creep (`--skip-llm` path emits llm-skipped warning; LLM path assesses intent):
 
-- Files modified that aren't listed in the plan
-- New functionality added beyond plan scope
+- Files changed that aren't declared in the plan (backtick-quoted paths)
+- New functionality beyond plan scope
 - Refactoring beyond what the current step specifies
 
-Pre-PR gate:
+Pre-PR gate (`--pre-pr` flag):
 
-- Plan steps marked complete but acceptance criteria not verified
-- Quality gate checklist items unchecked
-- Missing test evidence for completed steps
+- Any `[ ]` unchecked step blocks the PR
+- Uncommitted changes block the PR
 
 ## Verify by dispatch (read-only)
 
