@@ -56,11 +56,29 @@ Invoke `/test-design` on the target and consume its results: the suite-wide **Fa
 
 Flag flakiness signals (`test-smells.md` project/behavior smells: order-dependence, unstubbed clock/RNG, real I/O at unit level) and a management recommendation (quarantine + fix, don't `retry`). Assess automation maturity with `test-automation-maturity.md`: report the rung and the single-point-of-change metric, scaled by suite size (graduated thresholds).
 
-### 8. Ordered improvement plan
+### 8. Classify gaps + recommend removals
 
-Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1.
+Classify every gap the audit surfaces into one of three classes, so the improvement plan (Step 9) only ever plans work that delivers signal:
 
-### 9. Report
+| Class | Meaning | Action |
+|---|---|---|
+| `NO_REFACTOR` | A test can be added against the code as it stands | Plan it |
+| `REFACTOR_REQUIRED` | Production code needs a testability change before a meaningful test is possible | Plan the production-code change first |
+| `LOW_VALUE` | Technically feasible but delivers no signal — **skip, never plan** | List for removal, not for work |
+
+A finding is `LOW_VALUE` only when **all three** hold:
+
+1. **No branching logic** — trivial getters/setters, pass-through constructors, framework boilerplate, or auto-generated code.
+2. **No observable outcome** — the only assertion possible is that a mock was called.
+3. **Coverage already provided** — a higher-layer test already exercises the same path.
+
+For existing tests that meet all three criteria, emit a **Recommended removals** table: the redundant test, the higher-layer test that already covers it, and a one-line rationale. These are the suite's `LOW_VALUE` tests — keeping them costs maintenance for no defect-localization gain.
+
+### 9. Ordered improvement plan
+
+Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1. `LOW_VALUE` findings never appear here — they live only in the Recommended removals table.
+
+### 10. Report
 
 Write `reports/test-health-<date>.md`.
 
@@ -79,6 +97,12 @@ Write `reports/test-health-<date>.md`.
 
 ### Test-design & mutation health (via /test-design + mutation-testing)
 <Farley score · top test-design themes · mutation ROI hotspots · under-covered critical logic>
+
+### Gap classification
+| Gap | Class (NO_REFACTOR / REFACTOR_REQUIRED / LOW_VALUE) | Note |
+
+### Recommended removals (LOW_VALUE existing tests)
+| Test to remove | Covering test | Rationale |
 
 ### Flakiness & automation maturity
 <flaky signals + management rec · maturity rung · single-point-of-change metric>
