@@ -3589,7 +3589,7 @@
       "anchor": "step-0-confirmation-gate"
     },
     "Step 1: Detect or set up tooling": {
-      "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#).",
+      "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#, go-mutesting for Go).",
       "anchor": "step-1-detect-or-set-up-tooling"
     },
     "Step 1b: Configure per-mutant timeout": {
