@@ -104,17 +104,19 @@ CHANGED_LIST=""
 if [ "$CHANGED_ONLY" = "1" ]; then
   # shellcheck source=scripts/lib/ci-changed-only.sh
   . scripts/lib/ci-changed-only.sh
+  # The trailing `--` ends option parsing so a BASE/HEAD value beginning with
+  # `-` can't be misread as a git flag (defense-in-depth; matches the sibling
+  # eval_semver_classify.sh).
   get_changed_files() {
     if [ -n "$BASE" ] && [ -n "$HEAD" ]; then
-      git diff --name-only "$BASE" "$HEAD"
+      git diff --name-only "$BASE" "$HEAD" --
     else
-      git diff --name-only HEAD || return 1
+      git diff --name-only HEAD -- || return 1
       git ls-files --others --exclude-standard
     fi
   }
-  if CHANGED_LIST="$(get_changed_files 2>/dev/null)" && [ -n "$CHANGED_LIST" ]; then
-    : # changed set resolved; honor --changed-only
-  else
+  # Guard: any failure or an empty changeset disables the flag so all suites run.
+  if ! CHANGED_LIST="$(get_changed_files 2>/dev/null)" || [ -z "$CHANGED_LIST" ]; then
     printf '%s∼ --changed-only: no usable git diff (failed or empty) — running all suites%s\n' \
       "$yellow" "$reset"
     CHANGED_ONLY=0

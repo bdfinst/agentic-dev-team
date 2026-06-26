@@ -28,6 +28,7 @@ ci_watched_paths() {
     chk_citation_lint)      printf '%s' "plugins/dev-team/ evals/ scripts/citation_lint.py" ;;
     chk_eval_semver)        printf '%s' "evals/" ;;
     chk_eslint)             printf '%s' "plugins/dev-team/ *.js *.ts *.json" ;;
+    chk_oe_staleness)       printf '%s' "" ;;  # advisory; intentionally always-run (no stable watched path)
     *)                      printf '%s' "" ;;
   esac
 }

@@ -60,9 +60,31 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
-@test "glob path: a non-matching extension under no watched dir is skipped" {
+@test "glob path: a file outside every watched path is skipped" {
   run ci_suite_has_changes chk_eslint "README.md"
   [ "$status" -eq 1 ]
+}
+
+@test "glob path: the eslint dir-prefix arm matches a non-JS file under it" {
+  run ci_suite_has_changes chk_eslint "plugins/dev-team/skills/foo/SKILL.md"
+  [ "$status" -eq 0 ]
+}
+
+@test "glob path: the *.json arm matches a manifest change" {
+  run ci_suite_has_changes chk_eslint "plugins/dev-team/.claude-plugin/plugin.json"
+  [ "$status" -eq 0 ]
+}
+
+# Proves the set -f (noglob) guard is load-bearing: with real *.js files present
+# in the working directory, an unquoted '*.js' watched entry would otherwise
+# expand against the filesystem and stop matching the changed path. The matcher
+# must still match 'app.js' (which does NOT exist on disk) via the glob.
+@test "glob match is filesystem-independent (noglob guard)" {
+  local d; d="$(mktemp -d)"
+  : > "$d/decoy.js"
+  run bash -c 'cd "$1" && . "$2" && ci_suite_has_changes chk_eslint "app.js"' _ "$d" "$LIB"
+  rm -rf "$d"
+  [ "$status" -eq 0 ]
 }
 
 # --- unmapped suites always run (conservative fallback) -------------------
@@ -70,6 +92,20 @@ setup() {
 @test "unmapped suite always runs (never silently skipped)" {
   run ci_suite_has_changes chk_oe_staleness "anything.txt"
   [ "$status" -eq 0 ]
+}
+
+@test "unmapped suite runs even with an empty changeset" {
+  run ci_suite_has_changes chk_oe_staleness ""
+  [ "$status" -eq 0 ]
+}
+
+# Pin the mapping table itself, independent of the matcher, so a misspelled or
+# dropped suite key is caught directly (not just as a silent always-run).
+@test "ci_watched_paths pins representative suite mappings" {
+  [[ "$(ci_watched_paths chk_bats_repo)" == *"tests/repo/"* ]]
+  [[ "$(ci_watched_paths chk_cost_regression)" == *"scripts/cost-regression-check.sh"* ]]
+  [[ "$(ci_watched_paths chk_eslint)" == *"*.js"* ]]
+  [ -z "$(ci_watched_paths chk_oe_staleness)" ]
 }
 
 # --- multi-file changesets -------------------------------------------------
