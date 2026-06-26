@@ -1,6 +1,6 @@
 # refactor-granularity (RQ-F) — live campaign
 
-_Auto-generated read-only mirror. Last update: **2026-06-26T15:45:17Z** UTC._
+_Auto-generated read-only mirror. Last update: **2026-06-26T15:45:19Z** UTC._
 
 ## What this experiment is
 
@@ -62,7 +62,7 @@ chain whose trap punishes non-modular code): `fare` (transit fares), `payroll`
    trials, model `claude-sonnet-4-6`.
 7. **This live feed** — refreshed every ~10 min while the run proceeds.
 
-## Current status — last updated 2026-06-26T15:45:17Z UTC
+## Current status — last updated 2026-06-26T15:45:19Z UTC
 
 _(this page refreshes at least every 15 minutes while the run is active)_
 
