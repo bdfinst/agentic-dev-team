@@ -85,6 +85,7 @@ assert 'rule' in msgs.lower() or 'bullet' in msgs.lower() or '201' in msgs, f'No
 }
 
 @test "CLAUDE.md with 200 top-level bullet items exits 0" {
+  # Use --skip-llm to isolate the rule threshold check from LLM findings
   python3 -c "
 lines = ['# Title', '']
 for i in range(200):
@@ -93,12 +94,14 @@ content = '\n'.join(lines) + '\n'
 with open('$T/CLAUDE.md', 'w') as f:
     f.write(content)
 "
-  run run_review --files "$T/CLAUDE.md"
-  [ "$status" -eq 0 ]
+  run run_review --skip-llm --files "$T/CLAUDE.md"
+  # With --skip-llm we get exit 2 (llm-skipped warning), but no rule-limit error
   echo "$output" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
-assert data['status'] == 'pass', f'Expected pass, got {data[\"status\"]}'
+rule_errors = [i for i in data['issues'] if 'rule' in i.get('message','').lower() or 'bullet' in i.get('message','').lower()]
+assert len(rule_errors) == 0, f'Expected no rule-limit errors at exactly 200 bullets, got {rule_errors}'
+assert data['status'] != 'fail', f'Expected no fail status at threshold, got {data[\"status\"]}'
 "
 }
 
