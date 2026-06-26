@@ -3779,7 +3779,7 @@
       "anchor": "5-run-plan-review-personas"
     },
     "6. Present for approval": {
-      "summary": "**First determine interactivity.** The run is **non-interactive** when any of these hold: `--yes` was passed, `DEV_TEAM_AUTO_APPROVE=1` is set in the environment, or stdin is not a usable TTY (`test -t 0` is false — the headless/CI/automation case).",
+      "summary": "**Gate check before presenting.** Verify the `## Skipped (low value)` section captures every `LOW_VALUE` finding — no slice or TDD step may carry one.",
       "anchor": "6-present-for-approval"
     },
     "Integration": {
@@ -4292,6 +4292,10 @@
       "summary": "After critiquing the artifacts but before writing the final acceptance criteria, run this protocol on every gap and ambiguity finding.",
       "anchor": "ambiguity-resolution-protocol"
     },
+    "Gap classification: NO_REFACTOR / REFACTOR_REQUIRED / LOW_VALUE": {
+      "summary": "When a critique surfaces a missing-test or coverage gap, classify it so the spec only carries work that delivers signal:",
+      "anchor": "gap-classification-norefactor-refactorrequired-lowvalue"
+    },
     "Scope signals": {
       "summary": "A specification bundles too much when any of these fire:",
       "anchor": "scope-signals"
@@ -4704,13 +4708,17 @@
       "summary": "Flag flakiness signals (`test-smells.md` project/behavior smells: order-dependence, unstubbed clock/RNG, real I/O at unit level) and a management recommendation (quarantine + fix, don't `retry`).",
       "anchor": "7-flaky-test-automation-maturity"
     },
-    "8. Ordered improvement plan": {
-      "summary": "Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1.",
-      "anchor": "8-ordered-improvement-plan"
+    "8. Classify gaps + recommend removals": {
+      "summary": "Classify every gap the audit surfaces into one of three classes, so the improvement plan (Step 9) only ever plans work that delivers signal:",
+      "anchor": "8-classify-gaps-recommend-removals"
     },
-    "9. Report": {
+    "9. Ordered improvement plan": {
+      "summary": "Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1.",
+      "anchor": "9-ordered-improvement-plan"
+    },
+    "10. Report": {
       "summary": "Write `reports/test-health-<date>.md`.",
-      "anchor": "9-report"
+      "anchor": "10-report"
     },
     "Output": {
       "summary": "**Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.",
