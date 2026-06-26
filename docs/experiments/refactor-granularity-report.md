@@ -6,6 +6,8 @@ build + 3-change chain, model `claude-sonnet-4-6`. Raw data:
 machine summary: [`data/refactor-granularity-summary.json`](data/refactor-granularity-summary.json);
 reproduce with `python3 scripts/analyze_refactor_experiment.py`.
 
+**Plain-language summary:** [`refactor-granularity-summary.md`](refactor-granularity-summary.md).
+
 ## Design
 
 Follow-up to the *When Does TDD Pay Off?* finding that two refactoring workflows tied
