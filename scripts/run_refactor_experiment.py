@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-"""Clean-room runner for the refactor-granularity experiment (RQ-F).
+"""Clean-room runner for the refactoring-cadence experiment (granularity x authorship).
 
-Tests EXACTLY the prompt's factors and no more:
-  - granularity:  one-shot vs continuous refactoring
-  - protection:   tests free vs frozen during the refactor
+Factors (and nothing more):
+  - granularity:  none / one-shot / continuous refactoring
   - authorship:   single agent vs split (independent coder + tester)
   - plus the tdd-refactor reference arm
-Clear specs only. No spec-plan-build arm. No reuse of prior scripts or data.
+INVARIANT (all arms): refactoring never changes the tests. Clear specs only. No
+spec-plan-build arm. No reuse of prior scripts or data.
 
-Each cell (task x arm x trial) runs build (stage0) + a 3-change chain, fully
-isolated in its own worktree and scratch HOME. One JSONL row per cell-stage.
+Each cell (task x arm x trial) runs build + a 3-change chain, fully isolated in
+its own worktree and scratch HOME. One JSONL row per cell-stage.
 
 Sensors (all defensive — a failure yields nulls, never a crashed cell):
   changeability: blast radius (git numstat across a change)
   modularity:    radon (cc, mi) + lizard (ccn, token, params)  [static, no model]
   test quality:  CORE/EDGE/change pass, mutation score, branch coverage, smells
-  process:       refactor granularity (count of refactor: commits),
-                 test-LOC churn during refactor (doubles as frozen compliance)
+  process:       refactor count (refactor: commits), attempted test churn during
+                 refactor (must be 0 — the tests-frozen invariant check)
   cost:          cost_usd / tokens / turns from the dispatch JSON
 
 Usage:
   python3 scripts/run_refactor_experiment.py --skip-dispatch            # free self-test
-  python3 scripts/run_refactor_experiment.py --arm test-after-refactor --task fare --trials 1
+  python3 scripts/run_refactor_experiment.py --arm one-shot-single --task fare --trials 1
 """
 import argparse
 import ast
@@ -41,7 +41,7 @@ CORPUS = ROOT / "evals" / "refactor-granularity"
 PER_MUTANT_TIMEOUT = 30
 MAX_MUTANTS = 25
 
-# ── arms: corrected design (RQ-F) ───────────────────────────────────────────────
+# ── arms: corrected design ───────────────────────────────────────────────
 # INVARIANT in every arm: refactoring restructures production code only and leaves
 # the tests unchanged. Tests change only to express new behavior (the change chain),
 # never during a refactor step. We vary granularity x authorship; ordering is fixed

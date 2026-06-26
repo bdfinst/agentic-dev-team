@@ -2,10 +2,9 @@
   "experiment": "refactor-granularity",
   "clarity": "clear",
   "model": "claude-sonnet-4-6",
-  "notes": "Clean-room corpus for RQ-F. Clear specs only, no spec-plan-build arm. Arms are exactly the prompt's 2x2x2 (granularity x protection x authorship) plus the tdd-refactor reference. 4 authored tasks, each with a hidden CORE/EDGE acceptance suite and a 3-change chain whose trap punishes non-modular implementations.",
+  "notes": "Clean-room corpus for the refactoring-cadence experiment. Clear specs only, no spec-plan-build arm. INVARIANT: refactoring never changes the tests. Arms vary granularity x authorship (6) plus the tdd-refactor reference (7 total). 4 authored tasks, each with a hidden CORE/EDGE acceptance suite and a 3-change chain whose trap punishes non-modular implementations.",
   "factors": {
-    "granularity": ["one-shot", "continuous"],
-    "protection": ["free", "frozen"],
+    "granularity": ["none", "one-shot", "continuous"],
     "authorship": ["single", "split"]
   },
   "tasks": [

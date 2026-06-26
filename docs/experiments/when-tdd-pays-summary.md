@@ -161,7 +161,7 @@ Three outcomes, each useful:
   the lost edge coverage and the slightly higher change cost turn out to share one cause.
 
 The full pre-registration (hypotheses, the 2×2 design, power, and analysis plan) is in the
-report's [RQ-F section](when-tdd-pays-report.md#proposed-follow-up-rq-f-refactoring-granularity-and-the-test-safety-net).
+report's [refactoring-cadence follow-up](when-tdd-pays-report.md#proposed-follow-up-refactoring-cadence-and-the-test-safety-net).
 
 ---
 

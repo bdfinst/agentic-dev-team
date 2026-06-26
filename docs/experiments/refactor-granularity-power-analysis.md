@@ -1,4 +1,4 @@
-# Refactor-granularity (RQ-F) — pre-run power analysis
+# Refactoring cadence & authorship — pre-run power analysis
 
 **Status: the experiment as written in
 [`experiment-prompt-refactor-granularity.md`](experiment-prompt-refactor-granularity.md)

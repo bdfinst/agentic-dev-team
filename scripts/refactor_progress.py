@@ -21,7 +21,7 @@ SHARDS = "docs/experiments/data/refactor-granularity-*.jsonl"
 SUMMARY = """\
 ## What this experiment is
 
-**Question (RQ-F).** When code is cleaned up, does it matter *how often* you
+**The question.** When code is cleaned up, does it matter *how often* you
 refactor and *who writes the tests* — for how changeable the code is, how good the
 tests are, and what it costs? This follows up an earlier finding that two
 refactoring workflows tied on changeability (664 vs 678 lines) — a gap too small to
@@ -168,7 +168,7 @@ def main():
     def rate(p, d):
         return f"{p}/{d} ({round(100*p/d)}%)" if d else "—"
 
-    o = ["# refactor-granularity (RQ-F) — live campaign",
+    o = ["# Refactoring cadence & authorship — live campaign",
          "",
          f"_Auto-generated read-only mirror. Last update: **{args.ts}** UTC._",
          "",

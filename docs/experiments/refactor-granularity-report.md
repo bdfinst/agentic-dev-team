@@ -1,4 +1,4 @@
-# Refactor-granularity (RQ-F) — results
+# Refactoring cadence & authorship — results
 
 **Status: complete.** 7 arms × 4 tasks × 13 trials = **364 cells**, clear specs,
 build + 3-change chain, model `claude-sonnet-4-6`. Raw data:
@@ -9,7 +9,7 @@ reproduce with `python3 scripts/analyze_refactor_experiment.py`.
 ## Design
 
 Follow-up to the *When Does TDD Pay Off?* finding that two refactoring workflows tied
-on changeability. The original RQ-F draft crossed a "tests free vs frozen during
+on changeability. The original draft crossed a "tests free vs frozen during
 refactor" factor; that was **corrected** — refactoring is behavior-preserving and must
 not change tests, so "tests unchanged during refactor" is an **invariant of every
 arm**, not a variable. Enforced by reverting any test-file edit a refactor step makes

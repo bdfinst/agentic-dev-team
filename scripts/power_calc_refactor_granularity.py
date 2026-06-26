@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pre-registration power calc for the refactor-granularity experiment (RQ-F).
+"""Pre-registration power calc for the refactoring-cadence experiment (granularity x authorship).
 
 Reads the existing tdd-pays run1+run2 data and estimates whether the proposed
 design (4 tasks x 2 clarities, N trials/cell) can detect a 5% difference in

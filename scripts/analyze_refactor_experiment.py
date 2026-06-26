@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze the refactor-granularity (RQ-F) campaign.
+"""Analyze the refactoring-cadence campaign (granularity x authorship).
 
 Reads the merged JSONL and reports the three axes per arm and per factor:
 changeability (cumulative blast radius), modularity (radon/lizard), test quality

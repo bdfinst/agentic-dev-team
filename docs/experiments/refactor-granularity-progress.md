@@ -1,10 +1,10 @@
-# refactor-granularity (RQ-F) — live campaign
+# Refactoring cadence & authorship — live campaign
 
-_Auto-generated read-only mirror. Last update: **2026-06-26T15:49:03Z** UTC._
+_Auto-generated read-only mirror. Last update: **2026-06-26T16:43:26Z** UTC._
 
 ## What this experiment is
 
-**Question (RQ-F).** When code is cleaned up, does it matter *how often* you
+**The question.** When code is cleaned up, does it matter *how often* you
 refactor and *who writes the tests* — for how changeable the code is, how good the
 tests are, and what it costs? This follows up an earlier finding that two
 refactoring workflows tied on changeability (664 vs 678 lines) — a gap too small to
@@ -62,7 +62,7 @@ chain whose trap punishes non-modular code): `fare` (transit fares), `payroll`
    trials, model `claude-sonnet-4-6`.
 7. **This live feed** — refreshed every ~10 min while the run proceeds.
 
-## Current status — last updated 2026-06-26T15:49:03Z UTC
+## Current status — last updated 2026-06-26T16:43:26Z UTC
 
 _(this page refreshes at least every 15 minutes while the run is active)_
 
