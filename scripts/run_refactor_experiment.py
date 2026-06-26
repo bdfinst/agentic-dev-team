@@ -78,6 +78,14 @@ ARMS = {
                            ordering="test-after"),
     "continuous-split": dict(granularity="continuous", authorship="split",
                              ordering="test-after"),
+    # W4 (all tests first, then code to pass, refactor after green) — big-batch,
+    # test-first. The one-shot mechanism (separate, revertable refactor dispatch)
+    # carries the "refactor after each iteration" rule; batch="big" selects the
+    # write-all-tests-then-all-code prompt instead of the incremental TDD loop.
+    "all-tests-first-single": dict(granularity="one-shot", authorship="single",
+                                   ordering="test-first", batch="big"),
+    "all-tests-first-split": dict(granularity="one-shot", authorship="split",
+                                  ordering="test-first", batch="big"),
 }
 
 # Arms whose refactoring is interleaved inside the write dispatch — cannot be
@@ -88,6 +96,12 @@ INLINE_REFACTOR = {"tdd-refactor", "continuous-single"}
 def write_prompt_single(arm: str, spec: str) -> str:
     a = ARMS[arm]
     if a["ordering"] == "test-first":
+        if a.get("batch") == "big":
+            return (f"Implement the spec in {spec} test-first in one batch: FIRST write a "
+                    "complete pytest suite covering every behavior in the spec, including edge "
+                    "and boundary cases (all tests fail — no production code exists yet). THEN "
+                    "write the production code until the whole suite passes. Do NOT refactor "
+                    "yet — a separate refactoring step follows." + PYTEST_RULE + GREEN_RULE)
         return (f"Implement the spec in {spec} using strict TDD: for each behavior write "
                 "a failing test (RED), the minimum code to pass (GREEN), then REFACTOR "
                 "the production code before the next behavior. Make the acceptance "
@@ -128,6 +142,12 @@ def refactor_prompt(doc: str) -> str:
 def change_write_prompt(arm: str, change: str) -> str:
     a = ARMS[arm]
     if a["ordering"] == "test-first":
+        if a.get("batch") == "big":
+            return (f"This is an existing, working feature. Apply the change in {change} "
+                    "test-first in one batch: FIRST add or update tests covering the new "
+                    "behavior (they fail), THEN change the production code until all tests "
+                    "pass. Do NOT refactor yet — a separate refactoring step follows."
+                    + PYTEST_RULE + GREEN_RULE)
         return (f"This is an existing feature. Apply the change in {change} with strict "
                 "TDD: RED for the new behavior, GREEN, then REFACTOR the production code "
                 "without changing existing tests." + PYTEST_RULE + GREEN_RULE
@@ -154,6 +174,33 @@ def change_tester_prompt(change: str) -> str:
     return (f"The production code was just changed per {change}. Update or add tests for "
             "the new behavior (test_*.py) and keep all tests passing; do NOT modify the "
             "production code." + GREEN_RULE)
+
+
+# Test-first split (W4): the tester authors the suite BEFORE any production code,
+# then an isolated coder writes production code to make it pass.
+def tester_first_prompt(spec: str) -> str:
+    return (f"Write a complete pytest suite (files named test_*.py) for the spec in {spec}, "
+            "covering all behavior including edge and boundary cases. No production code exists "
+            "yet, so the tests will fail — that is expected. Do NOT write any production code; a "
+            "separate engineer implements it. Commit your work.")
+
+
+def coder_topass_prompt(spec: str) -> str:
+    return (f"A failing pytest suite for the spec in {spec} already exists. Write ONLY the "
+            "production code, in the module the spec names, to make the whole suite pass. Do NOT "
+            "add, edit, or delete any test_*.py file." + GREEN_RULE + " Commit your work.")
+
+
+def change_tester_first_prompt(change: str) -> str:
+    return (f"This is an existing, working feature. The change in {change} adds new behavior. "
+            "Add or update tests (test_*.py) for the new behavior FIRST — they will fail until "
+            "the code is written. Do NOT modify the production code; a separate engineer does.")
+
+
+def change_coder_topass_prompt(change: str) -> str:
+    return (f"This is an existing feature. Tests for the change in {change} were just written and "
+            "are failing. Write ONLY the production-code changes to make all tests pass; do NOT "
+            "add, edit, or delete any test_*.py file." + GREEN_RULE + " Commit your work.")
 
 
 # ── shell / git helpers ─────────────────────────────────────────────────────────
@@ -513,7 +560,18 @@ def _do_stage(workdir, arm, doc, model, env, run_root, cell, change):
             parts.append(dispatch(workdir, refactor_prompt(doc), model, env,
                                   raw("-refactor")))
             attempted = enforce_refactor(workdir, green)
-    else:  # split authorship
+    elif a["ordering"] == "test-first":  # split, test-first (W4): tests authored first
+        tp = change_tester_first_prompt(doc) if change else tester_first_prompt(doc)
+        parts.append(dispatch(workdir, tp, model, env, raw("-tester")))
+        commit_all(workdir, "checkpoint: tests-first (red)")
+        cp = change_coder_topass_prompt(doc) if change else coder_topass_prompt(doc)
+        parts.append(dispatch(workdir, cp, model, env, raw("-coder")))
+        green = commit_all(workdir, "green: coder")
+        if a["granularity"] in ("one-shot", "continuous"):
+            parts.append(dispatch(workdir, refactor_prompt(doc), model, env,
+                                  raw("-refactor")))
+            attempted = enforce_refactor(workdir, green)
+    else:  # split authorship, test-after
         cp = change_coder_prompt(arm, doc) if change else coder_prompt(arm, doc)
         tp = change_tester_prompt(doc) if change else tester_prompt(doc)
         parts.append(dispatch(workdir, cp, model, env, raw("-coder")))
