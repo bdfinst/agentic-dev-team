@@ -54,7 +54,7 @@ This experiment crossed **requirement clarity** (clear vs vague spec) with **cod
 | N per cell | 3 trials |
 | Primary endpoint 1 | EDGE (omitted-decision assertions) pass-rate under `vague` spec (tdd-refactor vs test-after) |
 | Primary endpoint 2 | Cumulative changeability = Σ blast-radius lines changed across 3-change chain |
-| RQ-C interaction | Is tdd-refactor's advantage on EDGE *and* changeability **largest in the vague+open-design cell**? |
+| clarity-interaction interaction | Is tdd-refactor's advantage on EDGE *and* changeability **largest in the vague+open-design cell**? |
 
 **Hypotheses (pre-registered):**
 
@@ -107,7 +107,7 @@ Each stage is graded against two acceptance test suites:
 - **EDGE** (`acc_edge.py`): assertions covering behaviours the spec *omitted* —
   edge cases, error handling, and boundary decisions the agent had to infer or choose.
   Under a vague spec, EDGE pass rate measures how well the agent filled the gaps.
-  This is the primary discriminator for RQ-A.
+  This is the primary discriminator for ambiguity-inference.
 
 Stage 0 grades both. Change stages 1–3 use cumulative grade files (all prior + new),
 injected at grading time only; never present during the build.
@@ -130,6 +130,7 @@ wait
 ```
 
 Analysis:
+
 ```bash
 python3 scripts/analyze_tdd_pays.py \
   --data docs/experiments/data/tdd-pays-*-2026-06-23.jsonl \
@@ -159,6 +160,7 @@ All 24 arm-task-clarity combinations complete at n=3 trials each (72 cells total
 | all 4 tasks | bduf | vague | 3 |
 
 **Contaminated trials (high_turn_count):**
+
 - pricing/tdd-refactor/clear t3: turns=40, CORE/EDGE failed (change stages passed)
 - pricing/tdd-refactor/vague t3: turns=43, CORE/EDGE failed (change stages passed)
 
@@ -190,7 +192,7 @@ stage0 trials; this reduces its effective EDGE sample but does not invalidate th
 
 †Both pricing/tdd-refactor contaminations (turns=40, turns=43). Change stages passed.
 
-#### EDGE pass rate (primary RQ-A discriminator)
+#### EDGE pass rate (primary ambiguity-inference discriminator)
 
 | task | arm | clarity | pass rate | n |
 |------|-----|---------|-----------|---|
@@ -215,6 +217,7 @@ stage0 trials; this reduces its effective EDGE sample but does not invalidate th
 | report-render | all arms | both | **100%** | 3 each |
 
 **Key observations:**
+
 - report-render EDGE=100% for ALL arms under vague spec — the vague spec was
   insufficiently discriminating for this task (its edge assertions test naturally
   inferred behaviours). The trap signal comes from change3 blast radius, not EDGE.
@@ -273,7 +276,7 @@ trap (per-channel retry) shows the largest penalty for naive design.*
 
 ---
 
-### RQ-A verdict: Contract inference under ambiguity
+### ambiguity-inference verdict: Contract inference under ambiguity
 
 **Primary endpoint 1: EDGE pass-rate under vague spec (tdd-refactor vs test-after)**
 
@@ -310,9 +313,9 @@ tdd-refactor on those tasks.
   workflow overcomes missing information.
 - **report-render (EDGE=100% all arms):** The vague spec is insufficiently ambiguous —
   all edge behaviours (None passthrough, exceptions, column ordering) are natural
-  inferences. Not a discriminating task for RQ-A.
+  inferences. Not a discriminating task for ambiguity-inference.
 - **event-store (test-after=100% vs tdd-no-refactor=0%):** The starkest contrast.
-  Writing tests _after_ seeing the implementation appears to capture the emergent
+  Writing tests *after* seeing the implementation appears to capture the emergent
   contract more completely. tdd-no-refactor collapses entirely (all CORE fails) —
   jumping to code without a design step produces incoherent implementations under
   vague spec.
@@ -327,7 +330,7 @@ then write tests that capture its actual behaviour, producing better EDGE covera
 
 ---
 
-### RQ-B verdict: Cumulative changeability
+### changeability verdict: Cumulative changeability
 
 **Primary endpoint 2: Σ blast-radius lines changed across 3-change chain**
 
@@ -347,7 +350,7 @@ notifier (notifier/bduf/vague mean = 983 lines vs tdd-refactor/clear = 748 lines
 
 ---
 
-### RQ-B2 verdict: Mechanism isolation (refactoring vs test ordering)
+### refactoring-vs-ordering verdict: Mechanism isolation (refactoring vs test ordering)
 
 | arm | mean Δlines | condition |
 |-----|-------------|-----------|
@@ -371,7 +374,7 @@ other three tasks — the ordering remains the same.
 
 ---
 
-### RQ-C verdict: The headline interaction (clarity × workflow)
+### clarity-interaction verdict: The headline interaction (clarity × workflow)
 
 **Is tdd-refactor's changeability advantage largest under vague spec?**
 
@@ -380,11 +383,11 @@ other three tasks — the ordering remains the same.
 | clear | 690 | 651 | +39 lines |
 | vague | 710 | 678 | +32 lines |
 
-The gap is marginally _larger_ under clear spec (+39 lines) than vague spec (+32 lines).
+The gap is marginally *larger* under clear spec (+39 lines) than vague spec (+32 lines).
 There is no interaction: tdd-refactor's changeability advantage is consistent across
 both clarity conditions.
 
-**H-C: NOT CONFIRMED.** The RQ-C interaction does not appear for changeability. For
+**H-C: NOT CONFIRMED.** The clarity-interaction interaction does not appear for changeability. For
 EDGE pass rate, the interaction is reversed from H-C: under clear spec both arms are
 equal (100%); under vague spec test-after outperforms tdd-refactor. If anything, the
 clarity × workflow interaction favours test-after, not tdd-refactor.
@@ -405,6 +408,7 @@ clarity × workflow interaction favours test-after, not tdd-refactor.
 *avg_cc = radon cyclomatic complexity; avg_mi = maintainability index (>65 = maintainable).*
 
 **Observations:**
+
 - Coverage is near-identical across all arms (~99%) — test-first ordering does not
   produce higher self-coverage than test-after.
 - test_quality is highest for bduf (7.64) and test-after (7.49), lower for tdd arms
@@ -474,7 +478,7 @@ real decisions unstated, and a multi-stage change chain that punishes rigid desi
 
 The pre-registered hypothesis assumed that TDD's red-test cycle would force explicit
 edge-case decisions early, producing better contract inference under ambiguity.
-The data shows the opposite: writing tests _after_ building a working system
+The data shows the opposite: writing tests *after* building a working system
 produces higher EDGE pass rates under vague spec.
 
 **The most important finding first — vague requirements are a communication problem,
@@ -500,7 +504,7 @@ mechanisms explain why test-after outperforms TDD:
 
 The tdd-no-refactor arm provides a further clue: it collapses entirely on event-store
 (0/3 CORE, 0/3 change stages), while test-after passes 3/3. Both arms write tests,
-but tdd-no-refactor writes them _before_ seeing a working system — and under a vague
+but tdd-no-refactor writes them *before* seeing a working system — and under a vague
 spec, those early tests do not constrain the design enough to produce a valid
 implementation. The order of seeing-code-then-writing-tests appears protective.
 
@@ -518,23 +522,27 @@ refactoring step is load-bearing.
 ### Design trap calibration
 
 **Pricing** (trap: change2, category-scoped discounts):
+
 - Naive: single-pass loop applying each discount to global subtotal — must scan all
   items with category filter for change2.
 - Clean: `Discount.compute_savings(items, current_total)` — change2 is a 2-line change.
 
 **Notifier** (trap: change2, per-channel retry):
+
 - Naive: flat `send()` loop with `handler(msg)` calls — retry state requires a
   `register_channel` signature change.
 - Clean: per-channel dict with `{"handler": fn, "max_retries": 0, ...}` — retry is
   a 1-line change to `register_channel`.
 
 **Report-render** (trap: change3, streaming `render_stream()`):
+
 - Naive: `render()` returns `handler(data)` directly as string — streaming requires
   restructuring the dispatch.
 - Clean: registry maps format to `{"handler": fn}` — `render_stream()` wraps with
   `yield` without touching `render()`.
 
 **Event-store** (trap: change3, projection snapshots):
+
 - Naive: flat global list of all events — `project()` always scans from the start.
 - Clean: per-stream dict `{stream_id: [events]}` — snapshot is a 3-line addition.
 
@@ -548,11 +556,12 @@ The vague specs were authored to omit architecture guidance and edge-case decisi
 without making the task impossible. Expected profile: CORE ~100%, EDGE 50–80%.
 
 Actual profile diverged:
+
 - report-render: EDGE ~100% (spec leaked enough to always infer EDGE) — weak discriminator
 - notifier: EDGE ~0% (spec too sparse to infer retry semantics) — discriminator floor
 
 The informative range was pricing and event-store (EDGE 0–100% depending on arm),
-which provided the cleanest RQ-A signal.
+which provided the cleanest ambiguity-inference signal.
 
 ---
 
@@ -571,10 +580,10 @@ which provided the cleanest RQ-A signal.
    LLM reviewer variance can be high; the deterministic blast-radius and EDGE counts
    are primary. Review scores are secondary.
 5. **report-render weak EDGE calibration.** All arms pass EDGE regardless of
-   clarity condition — this task is not RQ-A-informative. Its trap signal
+   clarity condition — this task is not ambiguity-inference-informative. Its trap signal
    (change3 blast radius) is present but weaker than notifier.
 6. **notifier as a spec-gap floor.** All arms fail EDGE under vague for notifier.
-   This limits RQ-A signal to 2 of 4 tasks (pricing, event-store) — still directionally
+   This limits ambiguity-inference signal to 2 of 4 tasks (pricing, event-store) — still directionally
    consistent but narrows the evidence base.
 7. **Two contaminated trials (high_turn_count).** pricing/tdd-refactor/clear t3
    (turns=40) and pricing/tdd-refactor/vague t3 (turns=43) hit the turn limit.
@@ -640,3 +649,353 @@ step is taken seriously.
 *Report generated by `claude-sonnet-4-6` in a remote Claude Code session.*  
 *Raw data: [`docs/experiments/data/`](data/)*  
 *Analysis script: [`scripts/analyze_tdd_pays.py`](../../scripts/analyze_tdd_pays.py)*
+
+---
+
+## Second Run: spec-synthesis and test-after-refactor (pre-registration)
+
+**Pre-registration timestamp:** 2026-06-24 (before any second-run data collected)
+
+The first run could not answer two questions because the relevant arms were missing:
+
+- **spec-synthesis:** Does the `ship` arm's explicit acceptance-criteria synthesis (`/specs`→`/plan`→`/build`) resolve ambiguity as well as or better than `tdd-refactor`'s failing-test-as-specification approach?
+- **test-after-refactor:** Does `test-after-refactor` (code → tests against working impl → refactor) dominate all existing arms simultaneously on EDGE pass rate, blast radius, and cost?
+
+### Second-run pre-registration
+
+| Item | Value |
+|------|-------|
+| N per new cell | 3 trials (same as first run) |
+| New primary: test-after-refactor Condition 1 | EDGE under vague: test-after-refactor ≥ test-after (−5 pp tolerance) |
+| New primary: test-after-refactor Condition 2 | Cumulative blast radius: test-after-refactor within 10% of tdd-refactor |
+| New primary: test-after-refactor Condition 3 | Cost/stage: test-after-refactor < tdd-refactor |
+| New primary: spec-synthesis | ship EDGE under vague ≥ tdd-refactor EDGE under vague |
+
+**H-D:** under `vague`, `ship` EDGE pass rate ≥ `tdd-refactor` because `/specs` forces the agent to state every acceptance decision before any code is written. Null: `/specs` makes the same happy-path assumptions as any other arm — spec synthesis from a vague prompt does not reliably surface EDGE decisions.
+
+**H-E:** `test-after-refactor` dominates every existing arm simultaneously: EDGE ≥ `test-after` (deferred tests capture actual contract), blast radius ≈ `tdd-refactor` (refactoring under tests provides same structural safety net), cost < `tdd-refactor` (no iterative red-green cycles during initial build). All three conditions must hold. Null: the refactor phase changes the implementation enough that post-refactor tests diverge, or the iterative TDD cycle shapes design in ways a post-implementation refactor cannot replicate.
+
+### Second-run design matrix
+
+| | tdd-refactor | tdd-no-refactor | test-after | test-after-refactor | bduf | ship |
+|---|---|---|---|---|---|---|
+| **clear** | ✓ (first run) | – | ✓ (first run) | ✓ **new** | – | – |
+| **vague** | ✓ (first run) | ✓ (first run) | ✓ (first run) | ✓ **new** | ✓ (first run) | ✓ **new** |
+
+3 new arm-clarity cells × 4 tasks × 3 trials = **36 new cells**, 144 new dispatches.
+
+### Execution commands (second run)
+
+```bash
+# Precondition for 'ship' arm: build a plugin-enabled HOME template once
+TPL=/tmp/ship-template
+mkdir -p $TPL
+cp -r ~/.claude/plugins $TPL/.claude  # or wherever plugins live
+
+# Run only the new second-run cells (test-after-refactor + ship)
+for TASK in pricing notifier report-render event-store; do
+  python3 scripts/run_tdd_pays_experiment.py \
+    --only "exp-tdd-pays-${TASK}" \
+    --clarity second \
+    --trials 3 \
+    --model claude-sonnet-4-6 \
+    --ship-home-template $TPL \
+    --out "docs/experiments/data/tdd-pays-${TASK}-run2-2026-06-24.jsonl" \
+    --run-root "/tmp/tdd-pays-${TASK}-run2" &
+done
+wait
+```
+
+Combined analysis across both runs:
+
+```bash
+python3 scripts/analyze_tdd_pays.py \
+  --data \
+    docs/experiments/data/tdd-pays-*-2026-06-23.jsonl \
+    docs/experiments/data/tdd-pays-*-run2-2026-06-24.jsonl \
+  --out /tmp/combined-analysis.md
+```
+
+### Predicted outcomes (to be updated with actuals)
+
+Based on the first-run evidence (see experiment document, "Best path forward" section):
+
+| Metric | Predicted |
+|--------|-----------|
+| test-after-refactor EDGE / vague | ~67% (matching test-after) — deferred tests survive refactor |
+| test-after-refactor blast radius | ~664 (matching tdd-refactor) — refactoring under tests provides same structural benefit |
+| test-after-refactor cost/stage | ~$0.25–0.30 (between test-after $0.19 and tdd-refactor $0.44) |
+| ship EDGE / vague | ≥ tdd-refactor (33%) — explicit spec synthesis forces unstated decisions |
+| ship changeability | ≤ tdd-refactor (664) — inline review checkpoints in /build catch structural issues |
+
+**H-E falsification criteria:** If test-after-refactor blast radius exceeds tdd-refactor by ≥10%, the iterative TDD cycle shapes design in ways a post-implementation refactor cannot replicate, and tdd-refactor remains the correct choice for open-design tasks despite its higher cost.
+
+---
+
+## Second-Run Results (2026-06-24)
+
+**Data:** `docs/experiments/data/tdd-pays-*-run2-2026-06-24.jsonl`  
+**Combined analysis across 465 rows (first + second run).**
+
+### spec-synthesis: Ship arm vs tdd-refactor
+
+**Hypothesis H-D:** `ship` EDGE pass rate under vague ≥ `tdd-refactor`
+
+> **Execution note (2026-06-24).** The automated harness recorded every `ship` trial
+> as a 900-second CCR dispatch timeout, leaving only synthesized-failure placeholder
+> rows (all CORE/EDGE = 0%). The `ship` arm was therefore **re-run manually with no
+> dispatch timeout**: 4 tasks × 3 trials × (stage0 + 3 changes) = 48 graded stages,
+> each a full autonomous `/specs`→`/plan`→`/build` pipeline on the vague spec, with the
+> CORE/EDGE graders sealed (copied and executed, never read) until each stage was
+> frozen. The timeout placeholders have been replaced in the run2 data by these real
+> results. The manual run captured CORE/EDGE pass-fail only — not blast radius or cost.
+
+| task | ship EDGE | tdd-refactor EDGE | Δ |
+|------|-----------|------------------|---|
+| exp-tdd-pays-event-store | 0% (n=3) | 33% (n=3) | −33 pp |
+| exp-tdd-pays-notifier | 0% (n=3) | 0% (n=3) | 0 pp |
+| exp-tdd-pays-pricing | 0% (n=3) | 0% (n=3) | 0 pp |
+| exp-tdd-pays-report-render | 100% (n=3) | 100% (n=3) | 0 pp |
+
+**Pooled EDGE: ship 25% (3/12) vs tdd-refactor 33% (4/12)**
+
+**Verdict: H-D REJECTED (null supported).** Run to completion, the `ship` pipeline's
+explicit `/specs` acceptance-criteria synthesis did **not** surface omitted edge
+decisions better than `tdd-refactor`'s failing-test-as-specification approach — 25% vs
+33% pooled EDGE, with ship matching or trailing tdd-refactor on every task. The
+pre-registered null holds: `/specs` makes the same happy-path assumptions as any other
+arm and does not reliably surface EDGE decisions from a vague prompt.
+
+**Mechanism (from the agents' own acceptance criteria).** Each trial saved the `/specs`
+document it generated. These criteria enumerated many ambiguities but resolved them to
+**happy-path defaults**. `/specs` landed on the correct edge behaviour only for
+report-render — the one task whose omitted decisions (insertion-order iteration,
+by-reference returns) *are* the natural defaults — and either omitted or explicitly
+mis-resolved them for pricing (discount priority / exclusive groups), notifier
+(per-channel priority, exception-as-False), and event-store (optimistic-concurrency
+trigger, `initial_state`). Writing acceptance criteria from a vague prompt does not, by
+itself, force the unstated decisions into view; it produces a confident-looking spec
+built on the same assumptions a happy-path implementation makes.
+
+**What the ship workflow produces.** The `ship` arm runs the dev-team pipeline end to
+end, self-approving at each gate. `/specs` first turns the vague `spec.md` into an
+explicit specification — an intent description, an architecture spec, numbered
+GIVEN/WHEN/THEN acceptance criteria, an **"explicit decisions on omitted behaviors"**
+table, and a self-checked **consistency gate** — then `/plan` decomposes it into an
+incremental TDD plan, and `/build` implements it RED-GREEN-REFACTOR. Every trial emitted
+these artifacts (a 54–145-line `ACCEPTANCE.md` plus per-stage plan files), and the
+pipeline ran to completion on all 48 stages with no human input.
+
+Those artifacts show *why* the EDGE scores came out flat: `/specs` does drag the omitted
+decisions onto the page, but it then resolves them to the happy path and certifies the
+result complete. The event-store spec is the clearest case — it listed the trap
+decisions explicitly and chose the wrong side of both:
+
+> **D1** — `OptimisticConcurrencyError` usage … `append` does **not** take
+> `expected_version` in this version
+> **D5** — `project` initial state … always starts at `None`; not configurable
+
+…then stamped **"Consistency Gate: PASS — every behavior maps to an acceptance
+criterion."** Both decisions are the exact opposite of what `acc_core.py` requires (an
+`expected_version` conflict *must* raise `OptimisticConcurrencyError`; `project(…,
+initial_state=…)` *must* be honoured). So the failure is not an oversight the process
+forgot to consider — `/specs` surfaced the decision, reasoned about it, committed to the
+wrong default, and signed off. A self-authored spec from a vague prompt manufactures
+false confidence: it reads as thorough and internally consistent while encoding the same
+assumptions a happy-path implementation would have made silently. That is the core spec-synthesis
+result — explicit spec synthesis relocates the guess from the code to the spec; it does
+not eliminate it.
+
+**CORE and changeability.** ship CORE under vague was 100% for pricing, notifier, and
+report-render but **0% for event-store** — that task's `acc_core.py` encodes the
+optimistic-concurrency and `initial_state` behaviours as *core* (not edge) acceptance,
+so failing to surface them fails CORE outright (the agents' own suites passed while the
+hidden acceptance failed — the "looks done, isn't" signal). Across the change chain ship
+kept CORE green for those three tasks and the change-specific graders passed 33/36;
+event-store stayed at 0% throughout. **spec-synthesis2 (changeability) is not measured** in this
+manual run — blast radius and cost were not captured, so the analyzer's "ship blast
+radius 0" is an artifact of the absent fields, not a real zero.
+
+**Practical implication.** The earlier "ship is too slow for the dispatch budget" caveat
+was an environment artifact, not a property of the method. Run to completion, the
+`/specs`→`/plan`→`/build` pipeline is fully comparable to the other arms on contract
+inference — and on this benchmark it does not beat them. Explicit up-front spec synthesis
+is not a substitute for clarifying a vague spec with the stakeholder.
+
+---
+
+### test-after-refactor: test-after-refactor dominance
+
+**Hypothesis H-E:** `test-after-refactor` dominates all existing arms simultaneously on EDGE pass rate (≥ test-after), blast radius (within 10% of tdd-refactor), and cost (< tdd-refactor). All three conditions must hold.
+
+#### Condition 1: EDGE pass rate under vague (test-after-refactor ≥ test-after, −5 pp tolerance)
+
+| task | test-after-refactor EDGE | test-after EDGE | tdd-refactor EDGE | Condition 1 |
+|------|--------------------------|-----------------|------------------|-------------|
+| exp-tdd-pays-event-store | 0% (n=3) | 100% (n=3) | 33% (n=3) | ✗ (−100 pp) |
+| exp-tdd-pays-notifier | 0% (n=4) | 0% (n=3) | 0% (n=3) | ✓ (0 pp) |
+| exp-tdd-pays-pricing | 0% (n=6) | 67% (n=3) | 0% (n=3) | ✗ (−67 pp) |
+| exp-tdd-pays-report-render | 0% (n=3) | 100% (n=3) | 100% (n=3) | ✗ (−100 pp) |
+
+**Pooled: test-after-refactor 0% vs test-after 67% → Condition 1 FAILS**
+
+The `test-after-refactor` arm under vague spec produced 0% EDGE pass rate across 3 of 4 tasks. The refactor phase appears to remove or rewrite the edge-case-covering tests that were written against the working implementation, leaving the final suite less comprehensive than unrefactored `test-after`.
+
+#### Condition 2: Blast radius within 10% of tdd-refactor
+
+| arm | mean Δlines | vs tdd-refactor | Condition 2 |
+|-----|-------------|-----------------|-------------|
+| test-after-refactor | 678 | +2.1% | ✓ |
+| tdd-refactor | 664 | — | — |
+| test-after | 700 | +5.4% | — |
+
+**Condition 2 HOLDS** — test-after-refactor blast radius (678 lines) is within 2.1% of tdd-refactor (664 lines), well inside the 10% tolerance.
+
+**Clarification — the two refactor arms are equivalent on changeability, and that is
+*consistent* with "refactoring is the mechanism," not a contradiction of it.** It is
+tempting to read tdd-refactor (664) < test-after-refactor (678) as "test-first ordering
+buys extra changeability on top of refactoring." The data does not support that reading.
+The 14-line gap is +2.1% — inside the 10% tolerance and, at n=3 per cell, inside the
+noise. The robust, consistent signal in this dataset is **refactor vs no-refactor**, not
+TDD vs test-after:
+
+| | refactor step | mean Δlines |
+|---|---|---|
+| tdd-refactor | yes | 664 |
+| test-after-refactor | yes | 678 |
+| test-after | no | 700 |
+| tdd-no-refactor | no | 701 |
+
+Both refactor arms (664, 678) sit ~5–6% below both non-refactor arms (700, 701), and
+adding a refactor pass to test-after moved it 700 → 678, into the same band as
+tdd-refactor. Test-first ordering does not separate from test-after *once both refactor*.
+The headline H-B2 finding — the green→refactor cycle, not test ordering, drives
+changeability — holds, and the refactor-arm tie is a second confirmation of it.
+
+The residual 14 lines, *if* it is real rather than noise, has two candidate explanations,
+neither established by this experiment:
+
+1. **Refactoring granularity.** tdd-refactor refactors in small steps on every green, so
+   cleanup tracks the design as it grows; test-after-refactor does one cleanup pass after
+   the whole component is built. A late lump-sum refactor may have less leverage than many
+   incremental ones.
+2. **Safety-net erosion.** test-after-refactor's refactor phase rewrites or deletes its
+   own tests (the same effect that collapsed its EDGE coverage to 0% under vague spec,
+   Condition 1). A churned test suite is a weaker safety net when the three follow-up
+   changes land, which could nudge later blast radius up.
+
+Distinguishing "real but small effect" from "noise," and adjudicating between these two
+mechanisms, requires a dedicated higher-power experiment — see
+[Proposed follow-up: refactoring cadence](#proposed-follow-up-refactoring-cadence-and-the-test-safety-net).
+
+#### Condition 3: Cost per stage < tdd-refactor
+
+| arm | mean cost/stage |
+|-----|----------------|
+| test-after | $0.19 |
+| tdd-no-refactor | $0.22 |
+| bduf | $0.24 |
+| test-after-refactor | $0.35 |
+| tdd-refactor | $0.44 |
+
+**Condition 3 HOLDS** — test-after-refactor ($0.35/stage) is 20% cheaper than tdd-refactor ($0.44/stage).
+
+#### H-E Overall Verdict
+
+**H-E NOT SUPPORTED.** Condition 1 fails decisively: under a vague spec, `test-after-refactor` produces 0% EDGE pass rate (pooled across 3 of 4 tasks), worse than both `test-after` (67%) and `tdd-refactor` (33%). The refactoring phase degrades edge-case coverage when the spec is ambiguous — the agent refactors away the tests that document its own decisions.
+
+Conditions 2 and 3 both hold: the blast radius is equivalent to tdd-refactor (+2.1%) and the cost is 20% lower. But the EDGE failure dominates.
+
+**The mechanism:** Under vague spec, `test-after-refactor` suffers from an ordering problem that `test-after` avoids. In `test-after`, tests written against the working implementation capture the agent's edge-case choices and stay in place. In `test-after-refactor`, those tests are then exposed to a refactor phase that rewrites the implementation — the agent often also rewrites or removes tests it considers redundant, stripping out the documented edge-case decisions. The result is structurally clean code with no EDGE coverage.
+
+**Revised decision guide (incorporating second-run results):**
+
+| Situation | Recommended workflow |
+|-----------|---------------------|
+| Vague requirements | **Stop and clarify first.** No workflow recovers omitted decisions — including agentic spec synthesis: `ship`'s `/specs` scored 25% EDGE under vague, no better than tdd-refactor (33%). |
+| Clear requirements, long-lived codebase | **tdd-refactor** (lowest blast radius, best structural benefit) |
+| Clear requirements, one-shot or cost-sensitive | **test-after** (same EDGE quality as tdd-refactor under clear spec, 2.3× cheaper) |
+| Want refactoring benefits without TDD overhead | **test-after-refactor** (clear spec only — vague spec destroys edge-case coverage during refactor) |
+| Speed-first, throwaway code | **tdd-no-refactor or test-after** (same changeability, lowest cost) |
+
+---
+
+## Proposed follow-up: refactoring cadence and the test safety net
+
+**Status: proposed, not yet run.** Pre-registration drafted; no data collected.
+
+The second run left one question open (see the
+[Condition 2 clarification](#condition-2-blast-radius-within-10-of-tdd-refactor)).
+tdd-refactor (664) and test-after-refactor (678) are statistically equivalent on
+changeability at n=3 — the 14-line gap is inside the noise. Two questions remain:
+
+1. **Is the gap real at all,** or does it vanish under adequate statistical power?
+2. **If real, which mechanism produces it** — refactoring *granularity* (many small
+   in-loop refactors vs one post-hoc pass) or *safety-net erosion* (the one-shot refactor
+   churning its own test suite)?
+
+### Hypotheses (to pre-register before any data)
+
+- **H-F0 (equivalence):** continuous-refactor and one-shot-refactor workflows are
+  equivalent on cumulative blast radius within a ±5% margin (TOST). This is the default
+  the second-run data points to; the experiment is powered to *reject* it if a real
+  effect exists.
+- **H-F1 (granularity):** holding the test-protection factor constant, **continuous**
+  refactoring yields lower blast radius than **one-shot** refactoring. Predicts the gap
+  survives even when tests are protected from churn.
+- **H-F2 (safety net):** **freezing the test suite during the refactor** raises EDGE pass
+  rate (tests that document edge decisions survive) and lowers subsequent blast radius
+  relative to a free refactor. Predicts test-suite churn *mediates* the blast-radius
+  difference.
+
+H-F1 and H-F2 are not mutually exclusive; the design separates their contributions.
+
+### Design — a 2×2, adequately powered
+
+Cross **refactor granularity** × **test protection during refactor**, with tdd-refactor
+as an external reference:
+
+| | tests free to change in refactor | tests frozen during refactor |
+|---|---|---|
+| **one-shot refactor** (single pass after build) | test-after-refactor *(current arm)* | test-after-refactor-frozen |
+| **continuous refactor** (refactor each increment) | test-after-continuous | test-after-continuous-frozen |
+
+Plus **tdd-refactor** (continuous, test-first) as the reference point from the prior runs.
+Reuse the same 4 tasks, vague **and** clear spec, 3-change chain.
+
+**Power.** The n=3 cells could not resolve a 2% effect. Estimate the per-cell blast-radius
+SD from the existing run1+run2 data, then size n for 80% power to detect a 5% difference
+(and to make the ±5% TOST equivalence test meaningful). Expect this to require roughly
+**n = 12–15 per cell** rather than 3; pre-register the exact n from the power calc.
+
+**Instrumentation (new, per stage).** The current harness records blast radius and
+pass-rates; add:
+
+- **refactor granularity (actual):** count of distinct refactor edits between first-green
+  and stage-complete — verifies the assigned arm behaved as intended.
+- **test-suite churn during refactor:** test LOC added + deleted between first-green and
+  post-refactor. This is the mediator variable for H-F2.
+- carry forward CORE/EDGE pass rates and cost/stage.
+
+### Analysis plan (pre-registered)
+
+- **Headline:** TOST equivalence test on cumulative blast radius, continuous vs one-shot,
+  ±5% margin → resolves question 1 (real vs noise) directly, including a "confirmed
+  equivalent" outcome as a valid result.
+- **H-F1:** two-factor model on blast radius; granularity main effect with test-protection
+  held constant.
+- **H-F2:** mediation — does test-suite churn account for the granularity/protection effect
+  on blast radius? Plus the direct EDGE comparison frozen vs free (this also re-tests the
+  test-after-refactor Condition 1 finding that free refactor destroys edge coverage under vague spec).
+
+### What each outcome would mean
+
+| Result | Interpretation |
+|---|---|
+| TOST confirms equivalence | The refactor-arm tie is real; "refactoring is the mechanism" is the whole story, and *how* you refactor (granularity, ordering) does not move changeability. Strongest, simplest takeaway. |
+| Granularity effect, no churn mediation | Continuous refactoring is independently better; recommend refactoring in small steps regardless of test ordering. |
+| Churn mediation (H-F2) | The cost of one-shot refactor is collateral test-suite damage; recommend protecting/regenerating the test suite across a refactor, and the test-after-refactor EDGE collapse and the changeability residual share one root cause. |
+
+A null here is a publishable result: confirming that the two refactor workflows are
+genuinely interchangeable on changeability would let teams choose between them on the axes
+that *did* separate cleanly — cost and edge-case robustness under vague specs.
