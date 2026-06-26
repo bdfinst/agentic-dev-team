@@ -1,0 +1,6 @@
+{
+  "name": "widget-kit",
+  "version": "0.1.0",
+  "description": "A tiny example plugin used as a clean eval fixture for plugin-best-practices-review",
+  "author": { "name": "", "email": "" }
+}

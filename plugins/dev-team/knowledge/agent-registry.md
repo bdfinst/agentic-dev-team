@@ -56,8 +56,6 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 |-------|------|---------|---------|
 | ADR Tools | `skills/adr-tools/SKILL.md` | ~1,350 | Orchestrator, adr-author, Software Engineer, Architect |
 | Artifact Lifecycle | `skills/artifact-lifecycle/SKILL.md` | ~600 | Orchestrator, `/artifact-lifecycle` command |
-| Agent & Skill Authoring | `skills/agent-skill-authoring/SKILL.md` | 1,300 | Orchestrator, Technical Writer |
-| Agent Create | `skills/agent-create/SKILL.md` | ~2,100 | Orchestrator, Software Engineer, all team agents |
 | API Design | `skills/api-design/SKILL.md` | 600 | Architect, Software Engineer |
 | Branch Workflow | `skills/branch-workflow/SKILL.md` | 450 | Orchestrator, Software Engineer |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 700 | QA Engineer |

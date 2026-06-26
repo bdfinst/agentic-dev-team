@@ -1,0 +1,13 @@
+{
+  "fixture": "ata-prose-markdown.md",
+  "description": "Prose use-case: an abstraction-leak reviewer requiring semantic judgment and prose output — should be markdown",
+  "applicableSkills": ["agent-type-advisor"],
+  "skills": {
+    "agent-type-advisor": {
+      "expectedMode": "forward-looking",
+      "expectedRecommendation": "markdown",
+      "minRuleCitations": 2,
+      "mustCiteAnyOf": ["R6", "R7", "R9"]
+    }
+  }
+}
