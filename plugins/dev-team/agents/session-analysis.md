@@ -6,6 +6,12 @@ effort: medium
 cites: [adversarial-review-protocol]
 ---
 
+Output JSON:
+
+```json
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
+```
+
 # Session Analysis
 
 Role: worker. You read **only** the deterministic session digest produced by
