@@ -36,8 +36,11 @@ HOOKS="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks"
   ! grep -q "Context needs: read the phase" "$AGENTS/test-modernization-review.md"
 }
 
-@test "orchestrator has You are persona sentence" {
-  awk '/^# /,/^## /' "$AGENTS/orchestrator.md" | grep -q "^You are"
+@test "orchestrator declares enforcement: script and an Implemented-by pointer" {
+  # Script-enforced prose spec (PR #462): declares its implementation rather
+  # than a "You are" persona.
+  grep -qE '^enforcement:[[:space:]]*script' "$AGENTS/orchestrator.md"
+  grep -qE '^> \*\*Implemented by:\*\*' "$AGENTS/orchestrator.md"
 }
 
 @test "mutation-gate does not use errexit flag" {

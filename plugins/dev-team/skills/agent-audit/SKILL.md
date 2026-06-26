@@ -132,7 +132,7 @@ Include the result in the agent report table under a `Skills-Tool` column.
 
 ### 2c. Audit team agent personas
 
-A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. For each team agent, check:
+A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. **Exemption**: an agent that declares `enforcement: script` in its frontmatter is a script-enforced **prose spec**, not a persona-driven team agent — skip the persona checks below for it and instead verify it carries a `> **Implemented by:** <script>` pointer immediately after the H1. For each remaining team agent, check:
 
 1. **Persona paragraph**: Is there a `You are…` sentence immediately after the H1 heading and before the first `##` section?
    - The line must begin with `You are` (case-sensitive).
