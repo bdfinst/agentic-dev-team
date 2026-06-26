@@ -25,10 +25,10 @@ four verdicts. They reframe the research questions for the next run:
 
 | Finding | Implication for next run |
 |---------|--------------------------|
-| **H-A REJECTED (reversed):** test-after 67% EDGE vs tdd-refactor 33% under vague spec | The anchoring effect is real. Add `test-after-refactor` to test whether deferring test commitment AND refactoring combines both advantages |
-| **H-B CONFIRMED:** tdd-refactor lowest blast radius (664 vs 700–770) | Refactoring matters for changeability. The new arm tests whether test-first is necessary to get it |
-| **H-B2 CONFIRMED:** tdd-no-refactor (701) ≈ test-after (700) | **The refactor step is load-bearing, not test ordering.** But the experiment confounds refactoring with its test safety net — `test-after-refactor` isolates this |
-| **H-C NOT CONFIRMED:** TDD's changeability gap is similar across clarity conditions | The advantage is structural (from refactoring), not spec-dependent |
+| **ambiguity hypothesis REJECTED (reversed):** test-after 67% EDGE vs tdd-refactor 33% under vague spec | The anchoring effect is real. Add `test-after-refactor` to test whether deferring test commitment AND refactoring combines both advantages |
+| **changeability hypothesis CONFIRMED:** tdd-refactor lowest blast radius (664 vs 700–770) | Refactoring matters for changeability. The new arm tests whether test-first is necessary to get it |
+| **mechanism-isolation hypothesis CONFIRMED:** tdd-no-refactor (701) ≈ test-after (700) | **The refactor step is load-bearing, not test ordering.** But the experiment confounds refactoring with its test safety net — `test-after-refactor` isolates this |
+| **clarity-interaction hypothesis NOT CONFIRMED:** TDD's changeability gap is similar across clarity conditions | The advantage is structural (from refactoring), not spec-dependent |
 
 **The critical confound the first run could not resolve:** tdd-refactor's changeability
 advantage might come from (a) refactoring itself, (b) having tests before refactoring
@@ -106,33 +106,33 @@ task with an irreducible spec-gap to confirm this floor holds across workflows.
 
 ## Research questions & hypotheses (pre-register before looking at results)
 
-- **RQ-A / ambiguity.** Does workflow change how well the agent infers *unstated*
-  decisions? **H-A:** under `vague`, `tdd-refactor` passes more **EDGE** assertions
+- **ambiguity-inference / ambiguity.** Does workflow change how well the agent infers *unstated*
+  decisions? **ambiguity hypothesis:** under `vague`, `tdd-refactor` passes more **EDGE** assertions
   than `test-after`; under `clear` there is no gap (a `workflow × clarity`
   interaction). **Null:** vagueness degrades all arms equally (test-first just
   locks in its own happy-path guess).
-- **RQ-B / design.** Does workflow change the **changeability** of the design?
-  **H-B:** `tdd-refactor` absorbs the change chain at lower cumulative cost /
-  smaller blast radius than `test-after` and `bduf`. **H-B2 (mechanism):**
+- **changeability / design.** Does workflow change the **changeability** of the design?
+  **changeability hypothesis:** `tdd-refactor` absorbs the change chain at lower cumulative cost /
+  smaller blast radius than `test-after` and `bduf`. **mechanism-isolation hypothesis:**
   `tdd-no-refactor` ≈ `test-after` < `tdd-refactor` ⇒ the benefit comes from
   **refactoring**, not test ordering.
-- **RQ-C / the headline interaction.** Is TDD's advantage (on EDGE *and*
+- **clarity-interaction / the headline interaction.** Is TDD's advantage (on EDGE *and*
   changeability) **largest in the `vague + open-design` cell** — i.e. exactly where
   the prior null experiment could not look? This is the cell both claims predict
   TDD should win.
-- **RQ-D / spec synthesis vs test-first.** Does `ship`'s explicit acceptance-criteria
+- **spec-synthesis / spec synthesis vs test-first.** Does `ship`'s explicit acceptance-criteria
   synthesis (the `/specs` phase authors the contract before any code is written)
   resolve ambiguity as well as or better than `tdd-refactor`'s failing-test-as-
-  specification approach? **H-D:** under `vague`, `ship` EDGE pass rate ≥
+  specification approach? **spec-synthesis hypothesis:** under `vague`, `ship` EDGE pass rate ≥
   `tdd-refactor` because the `/specs` phase forces the agent to state every
-  acceptance decision upfront, including those the vague spec omitted. **H-D2
+  acceptance decision upfront, including those the vague spec omitted. **spec-synthesis-changeability hypothesis
   (mechanism):** `ship` changeability ≤ `tdd-refactor` because its inline review
   checkpoints in `/build` catch structural issues that `tdd-refactor`'s refactor
   step misses. **Null:** the `/specs` phase makes the same happy-path assumptions
   as any other arm — synthesising a spec from a vague prompt does not reliably
   surface EDGE decisions.
-- **RQ-E / test-after-refactor dominance.** Does deferring test commitment *and*
-  adding a refactor phase dominate all existing arms simultaneously? **H-E:** under
+- **test-after-refactor / test-after-refactor dominance.** Does deferring test commitment *and*
+  adding a refactor phase dominate all existing arms simultaneously? **dominance hypothesis:** under
   `vague`, `test-after-refactor` EDGE pass rate ≥ `test-after` (≈67%) — because
   deferred tests capture the actual emergent contract, including edge cases the
   working implementation surfaced — AND blast radius ≈ `tdd-refactor` (≈664) —
@@ -156,7 +156,7 @@ task with an irreducible spec-gap to confirm this floor holds across workflows.
 Run **all 6 arms at `vague`** (the novel regime where both benefits should appear)
 and only the **3 anchor arms** at `clear` (to establish the interaction baseline) —
 **9 arm-clarity cells per task** instead of 12. `test-after-refactor × clear` is
-added as an anchor to give RQ-E a clean baseline: under a clear spec with no design
+added as an anchor to give test-after-refactor a clean baseline: under a clear spec with no design
 trap, how much does the refactor step help relative to `test-after` (the same code
 written without a subsequent refactor)? `bduf × vague` is deliberately kept: it
 tests whether committing to a *design* before requirements are clear helps or hurts.
@@ -211,11 +211,11 @@ every build and injected only at grading:
 
 | Instrument | Measures | Answers |
 |---|---|---|
-| Stage-0 **CORE** vs **EDGE** pass | contract inference | RQ-A (under `clear`, EDGE≈100% for all arms — the baseline that makes EDGE-under-`vague` interpretable) |
-| Withheld **change chain**: dispatch cost + turns, **blast radius** (files/functions touched, public-API churn, whether the prior suite caught the regression before the fix) | changeability | RQ-B / RQ-B2 |
-| **radon** `cc`/`mi` over production modules at every stage | structural trajectory | RQ-B (does complexity grow faster as changes pile up?) |
+| Stage-0 **CORE** vs **EDGE** pass | contract inference | ambiguity-inference (under `clear`, EDGE≈100% for all arms — the baseline that makes EDGE-under-`vague` interpretable) |
+| Withheld **change chain**: dispatch cost + turns, **blast radius** (files/functions touched, public-API churn, whether the prior suite caught the regression before the fix) | changeability | changeability / refactoring-vs-ordering |
+| **radon** `cc`/`mi` over production modules at every stage | structural trajectory | changeability (does complexity grow faster as changes pile up?) |
 | **Multi-rater** review: `structure`,`complexity`,`naming`,`performance` on prod + `test-review` on tests, **K=3 passes averaged (mean ± stddev)** | code/test quality | shared "final review" (beats reviewer variance) |
-| **Interpretation variance** across trials (distinct EDGE behaviors observed) | convergence | RQ-A secondary (does `tdd-refactor` converge more?) |
+| **Interpretation variance** across trials (distinct EDGE behaviors observed) | convergence | ambiguity-inference secondary (does `tdd-refactor` converge more?) |
 
 ---
 
@@ -303,20 +303,20 @@ session's own `claude`.
 
 ### 6. Analyze (per task, then paired across tasks)
 
-- **RQ-A primary — EDGE pass:** `tdd-refactor − test-after` under `vague`, paired
+- **ambiguity-inference primary — EDGE pass:** `tdd-refactor − test-after` under `vague`, paired
   across tasks (sign + Wilcoxon); read the `workflow × clarity` interaction against
   the `clear` anchors.
-- **RQ-B primary — changeability:** cumulative cost + cumulative blast radius to
-  absorb the whole chain, per task per arm; paired arm differences. **RQ-B2:** the
+- **changeability primary — changeability:** cumulative cost + cumulative blast radius to
+  absorb the whole chain, per task per arm; paired arm differences. **refactoring-vs-ordering:** the
   `tdd-no-refactor` vs `test-after` vs `tdd-refactor` isolation.
-- **RQ-C — the headline:** quantify whether each arm's EDGE *and* changeability
+- **clarity-interaction — the headline:** quantify whether each arm's EDGE *and* changeability
   advantage is **largest in `vague + open-design`**.
-- **RQ-D — spec synthesis:** `ship − tdd-refactor` on EDGE pass rate and cumulative
+- **spec-synthesis — spec synthesis:** `ship − tdd-refactor` on EDGE pass rate and cumulative
   changeability under `vague`, paired across tasks. Also compare `ship` to `bduf` on
   EDGE pass rate — this isolates acceptance-criteria synthesis from architecture
   commitment as mechanisms for resolving ambiguity. Report `ship`'s cost premium over
   the cheapest vague arm to frame the "does spec synthesis pay?" trade-off.
-- **RQ-E — test-after-refactor dominance:** Three-way test against H-E. (a) EDGE
+- **test-after-refactor — test-after-refactor dominance:** Three-way test against dominance hypothesis. (a) EDGE
   under `vague`: `test-after-refactor` ≥ `test-after`? If yes, deferred tests
   survive a refactor phase without losing their EDGE advantage. If no, the refactor
   changes what the code does, so tests written before refactoring no longer match
@@ -325,7 +325,7 @@ session's own `claude`.
   regardless of when the tests were written. If no, the iterative TDD cycle
   produces a design that a post-implementation refactor cannot replicate. (c) Cost:
   `test-after-refactor` < `tdd-refactor`? This should hold by construction (no
-  red-green iteration during build). All three must confirm to declare H-E supported.
+  red-green iteration during build). All three must confirm to declare dominance hypothesis supported.
   A partial confirm is informative: it identifies which component of `tdd-refactor`'s
   advantage (EDGE, changeability, or both) requires early test commitment.
 - **Secondaries:** radon trajectory; multi-rater code/test/design score (mean ±
@@ -335,8 +335,8 @@ session's own `claude`.
 ### 7. Report
 
 Write `docs/experiments/when-tdd-pays-report.md`: the clarity × workflow grid, the
-RQ-A / RQ-B / RQ-C verdicts and the RQ-B2 mechanism isolation, the RQ-D
-`ship`-vs-`tdd-refactor` spec-synthesis verdict, the RQ-E `test-after-refactor`
+ambiguity-inference / changeability / clarity-interaction verdicts and the refactoring-vs-ordering mechanism isolation, the spec-synthesis
+`ship`-vs-`tdd-refactor` spec-synthesis verdict, the test-after-refactor `test-after-refactor`
 dominance verdict (all three conditions: EDGE ≥ `test-after`, blast radius ≈
 `tdd-refactor`, cost < `tdd-refactor`), honest limitations (n, single model,
 autonomous-only, reviewer variance, trap+vagueness calibration), reproducibility
@@ -345,10 +345,10 @@ commands, and a recommendation. Commit the report **and** raw data under
 
 ---
 
-## Best path forward (based on first-run evidence, pending RQ-E confirmation)
+## Best path forward (based on first-run evidence, pending test-after-refactor confirmation)
 
 The first run and the predicted outcome of the second run point to the same
-practical workflow hierarchy. Apply this pending RQ-E confirmation:
+practical workflow hierarchy. Apply this pending test-after-refactor confirmation:
 
 **If requirements are clear and the design is settled:**
 `test-after` — cheapest arm ($0.19/stage), EDGE comparable to all arms under clear
@@ -371,7 +371,7 @@ every arm regardless of workflow. The correct response is a clarifying conversat
 before any implementation starts. The workflow choice is irrelevant until the spec
 is complete enough to make edge decisions discoverable.
 
-**Decision table (predicted, pending RQ-E):**
+**Decision table (predicted, pending test-after-refactor):**
 
 | Condition | Recommended arm | Why |
 |-----------|----------------|-----|
@@ -380,7 +380,7 @@ is complete enough to make edge decisions discoverable.
 | Need explicit acceptance artefact | `ship` | `/specs` phase forces upfront contract synthesis; test if it resolves vagueness better than failing tests |
 | Spec has irreducible gaps | Clarify first | No workflow recovers unstated semantics |
 
-**What would falsify this:** RQ-E's null result. If `test-after-refactor` blast
+**What would falsify this:** test-after-refactor's null result. If `test-after-refactor` blast
 radius is significantly worse than `tdd-refactor` (≥10% higher on average), then
 the iterative TDD cycle shapes the design in ways a post-facto refactor cannot
 replicate, and `tdd-refactor` remains the correct choice for open-design tasks
@@ -409,7 +409,7 @@ plain `test-after` and is simply `tdd-refactor` written in a different order.
    in nested dispatch). The harness reads `--output-format json`.
 6. **Hold the model fixed and report it.**
 7. **Pre-register** N, both primaries (EDGE under vague; cumulative changeability),
-   the RQ-C interaction, and the RQ-D `ship`-vs-`tdd-refactor` comparison before
+   the clarity-interaction interaction, and the spec-synthesis `ship`-vs-`tdd-refactor` comparison before
    running; the task is the unit of inference; no data-dependent stopping.
 8. **Parallelize but isolate** — each cell gets its own worktree + `$HOME`. The
    `ship` arm additionally needs its own plugin-enabled `$HOME` template (see step
@@ -429,5 +429,5 @@ plain `test-after` and is simply `tdd-refactor` written in a different order.
 - The harness extension (clarity selection + CORE/EDGE grading + change-chain stages
   - blast-radius/radon/multi-rater instrumentation + `ship` plugin-home support).
 - Raw data JSONL under `docs/experiments/data/`.
-- One report with the clarity × workflow grid and the RQ-A / RQ-B / RQ-B2 / RQ-C /
-  RQ-D / RQ-E verdicts and recommendation.
+- One report with the clarity × workflow grid and the ambiguity-inference / changeability / refactoring-vs-ordering / clarity-interaction /
+  spec-synthesis / test-after-refactor verdicts and recommendation.

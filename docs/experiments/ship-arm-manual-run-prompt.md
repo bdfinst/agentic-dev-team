@@ -6,7 +6,7 @@ recorded all ship trials as timeouts because the `/specs`→`/plan`→`/build` p
 exceeds the 900-second dispatch limit in CCR. This prompt lets you run those trials
 interactively so the results can be compared against the other arms.
 
-**RQ-D pre-registration:** Does `ship`'s explicit acceptance-criteria synthesis
+**spec-synthesis pre-registration:** Does `ship`'s explicit acceptance-criteria synthesis
 (`/specs`→`/plan`→`/build`) resolve ambiguity as well as or better than
 `tdd-refactor`'s failing-test-as-specification approach? Null: `/specs` makes the
 same happy-path assumptions as any other arm and does not reliably surface EDGE
@@ -80,7 +80,7 @@ Append one JSON object per stage to `ship-arm-results.jsonl`:
 - `edge_passed`: `acc_edge.py` exits 0 (stage0 only; `null` for change stages).
 - `model`: the Claude model ID used (e.g. `claude-sonnet-4-6`).
 
-The key comparison for RQ-D is **EDGE pass rate at stage0** — whether `/specs`
+The key comparison for spec-synthesis is **EDGE pass rate at stage0** — whether `/specs`
 forces the model to state the omitted decisions before writing any code.
 
 ---
@@ -321,4 +321,4 @@ python3 scripts/analyze_tdd_pays.py \
     ship-arm-results.jsonl
 ```
 
-The analysis will replace the timeout rows with real results for RQ-D.
+The analysis will replace the timeout rows with real results for spec-synthesis.

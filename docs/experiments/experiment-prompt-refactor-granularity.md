@@ -2,7 +2,7 @@
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
 **Harness:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
-**Design + prior results:** [`when-tdd-pays-report.md` § RQ-F](when-tdd-pays-report.md#proposed-follow-up-rq-f-refactoring-granularity-and-the-test-safety-net),
+**Design + prior results:** [`when-tdd-pays-report.md` § refactoring-cadence follow-up](when-tdd-pays-report.md#proposed-follow-up-refactoring-cadence-and-the-test-safety-net),
 [`when-tdd-pays-summary.md`](when-tdd-pays-summary.md)
 
 This run resolves the open question from the *When Does TDD Pay Off?* study: the two
@@ -53,28 +53,28 @@ The three axes and their sensors are defined in [What we measure](#what-we-measu
 
 ## Pre-registered hypotheses (fix these before collecting any data)
 
-Carried forward verbatim from the RQ-F draft, plus the authorship additions:
+Carried forward verbatim from the original draft, plus the authorship additions:
 
-- **H-F0 (equivalence, the default):** continuous-refactor and one-shot-refactor are
+- **equivalence hypothesis (the default):** continuous-refactor and one-shot-refactor are
   equivalent on cumulative blast radius within a **±5%** margin (TOST). The n=3 data points
   here; this run is powered to *reject* it if a real effect exists.
-- **H-F1 (granularity):** holding test-protection constant, **continuous** refactoring
+- **granularity hypothesis:** holding test-protection constant, **continuous** refactoring
   yields lower blast radius than **one-shot**. Predicts the gap survives even when tests
   are frozen.
-- **H-F2 (safety net):** **freezing** the suite during the refactor raises EDGE pass rate
+- **safety-net hypothesis:** **freezing** the suite during the refactor raises EDGE pass rate
   (the tests that recorded edge decisions survive) and lowers subsequent blast radius vs a
   free refactor. Predicts **test-suite churn mediates** the blast-radius difference.
-- **H-F3 (authorship):** **split-agent** raises EDGE pass rate and/or mutation score (an
+- **authorship hypothesis:** **split-agent** raises EDGE pass rate and/or mutation score (an
   independent tester writes the behavior the coder didn't think to test) but may raise cost
   and the build-stage failure rate (two agents must converge on one contract). **Null:** a
   single agent testing its own code is as thorough as an independent tester — authorship
   does not move quality or changeability.
-- **H-F4 (interaction):** authorship interacts with protection — the value of an
+- **authorship-interaction hypothesis:** authorship interacts with protection — the value of an
   independent test author is largest when the refactor is **free** to churn the suite,
-  because an independent suite is the thing a free refactor erodes (the RQ-E EDGE collapse).
+  because an independent suite is the thing a free refactor erodes (the test-after-refactor EDGE collapse).
   If frozen tests already neutralize churn, split-agent buys little on top.
 
-H-F1, H-F2, H-F3 are not mutually exclusive; the 2×2×2 separates their contributions.
+granularity hypothesis, safety-net hypothesis, authorship hypothesis are not mutually exclusive; the 2×2×2 separates their contributions.
 
 ---
 
@@ -102,7 +102,7 @@ spec, the 3-change chain.
 
 > **Scale check.** 8 cells × 4 tasks × 2 clarities × ~13 trials × 2 stages ≈ **1,600+
 > dispatches** before the reference arm. If that is too costly, run it in **two phases and
-> say so in the report**: Phase 1 settles RQ-F (the 2×2, single-agent only) and *gates*
+> say so in the report**: Phase 1 settles the core question (the 2×2, single-agent only) and *gates*
 > Phase 2 — only cross authorship (Factor 3) against the granularity/protection levels that
 > Phase 1 showed actually move the metric. Pre-register the gate.
 
@@ -213,7 +213,7 @@ batched-red)` and per-arm prompt strings in `ARM_PROMPTS` / `CHANGE_PROMPTS`. Ad
      label is a violation; flag it.
    - **test-suite churn during refactor:** **test LOC added + deleted** between first-green
      and post-refactor (diff the test files at those two checkpoints). **This is the
-     mediator variable for H-F2** — it is the number the user specifically wants tracked.
+     mediator variable for safety-net hypothesis** — it is the number the user specifically wants tracked.
    - Carry forward the existing CORE/EDGE pass rates, blast radius, cost/stage, mutation,
      and contamination fields.
 4. **Offline graders for the three axes** (post-stage, run on the frozen files — see "What
@@ -266,13 +266,13 @@ row counts / `pgrep`); never kill the session's own `claude` process.
 - **Headline / question 1 (real vs noise):** **TOST** equivalence on cumulative blast
   radius, continuous vs one-shot, ±5% margin. A "confirmed equivalent" verdict is a valid,
   reportable result.
-- **H-F1 (granularity):** two-factor model on blast radius; granularity main effect with
+- **granularity hypothesis:** two-factor model on blast radius; granularity main effect with
   protection held constant.
-- **H-F2 (safety net):** **mediation** — does test-suite churn account for the
+- **safety-net hypothesis:** **mediation** — does test-suite churn account for the
   granularity/protection effect on blast radius? Plus the direct EDGE comparison frozen vs
-  free (re-tests the RQ-E finding that a free refactor destroys edge coverage under a vague
+  free (re-tests the test-after-refactor finding that a free refactor destroys edge coverage under a vague
   spec).
-- **H-F3 / H-F4 (authorship):** authorship main effect on EDGE pass rate, mutation score,
+- **authorship hypothesis / authorship-interaction hypothesis (authorship):** authorship main effect on EDGE pass rate, mutation score,
   cost, and build-stage failure rate; authorship × protection interaction on EDGE and blast
   radius.
 - **Modularity (Axis 1):** per-arm mean modularity findings/solution and per-change file
@@ -296,7 +296,7 @@ calc, the 2×2×2 results grid, the TOST verdict, the two-factor models, the chu
 the authorship effects, honest limitations (trials, model, single-task-family, sensor
 caveats), reproducibility commands, and a recommendation. Commit the report **and** the raw
 data under `docs/experiments/data/`. Update
-[`when-tdd-pays-summary.md` § Open question](when-tdd-pays-summary.md) to mark RQ-F resolved
+[`when-tdd-pays-summary.md` § Open question](when-tdd-pays-summary.md) to mark the refactoring-cadence question resolved
 and link the new report.
 
 ---
@@ -307,8 +307,8 @@ and link the new report.
 |---|---|
 | **TOST confirms equivalence** | The refactor-arm tie is real; *refactoring is the mechanism* is the whole story, and **how** you refactor (granularity, ordering) does not move changeability. Choose between the two on cost and edge robustness. |
 | **Granularity effect, no churn mediation** | Continuous refactoring is independently better. Recommend refactoring in small steps regardless of test ordering. |
-| **Churn mediation (H-F2)** | One-shot refactor's cost is collateral test-suite damage. Recommend protecting/regenerating the suite across a refactor; the RQ-E EDGE collapse and the changeability residual share one root cause. |
-| **Authorship effect (H-F3)** | An independent test author finds behavior a self-testing agent misses. Recommend splitting code and test authorship — most valuable, per H-F4, when the refactor is free to churn the suite. |
+| **Churn mediation (safety-net hypothesis)** | One-shot refactor's cost is collateral test-suite damage. Recommend protecting/regenerating the suite across a refactor; the test-after-refactor EDGE collapse and the changeability residual share one root cause. |
+| **Authorship effect (authorship hypothesis)** | An independent test author finds behavior a self-testing agent misses. Recommend splitting code and test authorship — most valuable, per authorship-interaction hypothesis, when the refactor is free to churn the suite. |
 | **Authorship null** | A single agent tests its own code as well as an independent one. Drop the split-agent overhead. |
 
 A null on any factor is a publishable result: confirming the refactor workflows are
@@ -340,5 +340,5 @@ choose on the axes that *did* separate cleanly (cost, edge robustness under vagu
 - Raw data JSONL under `docs/experiments/data/`, carrying all three axes per cell.
 - One report with the 2×2×2 grid; the TOST verdict; the churn mediation; the authorship
   effects; the three-axis tables (modularity & changeability, test quality, cost) with every
-  quality figure shown raw **and** per-dollar; the named efficient frontier; and the RQ-F
+  quality figure shown raw **and** per-dollar; the named efficient frontier; and the refactoring-cadence
   status update in the summary.

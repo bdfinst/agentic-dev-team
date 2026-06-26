@@ -20,9 +20,9 @@ Pre-registration (from experiment spec):
   N = 3 trials/cell
   Primary 1: EDGE pass rate under vague (tdd-refactor vs test-after, Wilcoxon)
   Primary 2: cumulative changeability (tokens + blast-radius across chain)
-  RQ-C: interaction — is tdd-refactor margin largest in vague+open-design cell?
-  RQ-D: ship vs tdd-refactor EDGE + changeability under vague
-  RQ-E: test-after-refactor dominance (EDGE ≥ test-after, blast ≈ tdd-refactor,
+  clarity-interaction: interaction — is tdd-refactor margin largest in vague+open-design cell?
+  spec-synthesis: ship vs tdd-refactor EDGE + changeability under vague
+  test-after-refactor: test-after-refactor dominance (EDGE ≥ test-after, blast ≈ tdd-refactor,
          cost < tdd-refactor) — all three must hold
 """
 from __future__ import annotations
