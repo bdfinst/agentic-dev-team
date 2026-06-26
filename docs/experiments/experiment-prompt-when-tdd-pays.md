@@ -25,10 +25,10 @@ four verdicts. They reframe the research questions for the next run:
 
 | Finding | Implication for next run |
 |---------|--------------------------|
-| **H-A REJECTED (reversed):** test-after 67% EDGE vs tdd-refactor 33% under vague spec | The anchoring effect is real. Add `test-after-refactor` to test whether deferring test commitment AND refactoring combines both advantages |
-| **H-B CONFIRMED:** tdd-refactor lowest blast radius (664 vs 700–770) | Refactoring matters for changeability. The new arm tests whether test-first is necessary to get it |
-| **H-B2 CONFIRMED:** tdd-no-refactor (701) ≈ test-after (700) | **The refactor step is load-bearing, not test ordering.** But the experiment confounds refactoring with its test safety net — `test-after-refactor` isolates this |
-| **H-C NOT CONFIRMED:** TDD's changeability gap is similar across clarity conditions | The advantage is structural (from refactoring), not spec-dependent |
+| **ambiguity hypothesis REJECTED (reversed):** test-after 67% EDGE vs tdd-refactor 33% under vague spec | The anchoring effect is real. Add `test-after-refactor` to test whether deferring test commitment AND refactoring combines both advantages |
+| **changeability hypothesis CONFIRMED:** tdd-refactor lowest blast radius (664 vs 700–770) | Refactoring matters for changeability. The new arm tests whether test-first is necessary to get it |
+| **mechanism-isolation hypothesis CONFIRMED:** tdd-no-refactor (701) ≈ test-after (700) | **The refactor step is load-bearing, not test ordering.** But the experiment confounds refactoring with its test safety net — `test-after-refactor` isolates this |
+| **clarity-interaction hypothesis NOT CONFIRMED:** TDD's changeability gap is similar across clarity conditions | The advantage is structural (from refactoring), not spec-dependent |
 
 **The critical confound the first run could not resolve:** tdd-refactor's changeability
 advantage might come from (a) refactoring itself, (b) having tests before refactoring
@@ -107,13 +107,13 @@ task with an irreducible spec-gap to confirm this floor holds across workflows.
 ## Research questions & hypotheses (pre-register before looking at results)
 
 - **ambiguity-inference / ambiguity.** Does workflow change how well the agent infers *unstated*
-  decisions? **H-A:** under `vague`, `tdd-refactor` passes more **EDGE** assertions
+  decisions? **ambiguity hypothesis:** under `vague`, `tdd-refactor` passes more **EDGE** assertions
   than `test-after`; under `clear` there is no gap (a `workflow × clarity`
   interaction). **Null:** vagueness degrades all arms equally (test-first just
   locks in its own happy-path guess).
 - **changeability / design.** Does workflow change the **changeability** of the design?
-  **H-B:** `tdd-refactor` absorbs the change chain at lower cumulative cost /
-  smaller blast radius than `test-after` and `bduf`. **H-B2 (mechanism):**
+  **changeability hypothesis:** `tdd-refactor` absorbs the change chain at lower cumulative cost /
+  smaller blast radius than `test-after` and `bduf`. **mechanism-isolation hypothesis:**
   `tdd-no-refactor` ≈ `test-after` < `tdd-refactor` ⇒ the benefit comes from
   **refactoring**, not test ordering.
 - **clarity-interaction / the headline interaction.** Is TDD's advantage (on EDGE *and*
@@ -123,16 +123,16 @@ task with an irreducible spec-gap to confirm this floor holds across workflows.
 - **spec-synthesis / spec synthesis vs test-first.** Does `ship`'s explicit acceptance-criteria
   synthesis (the `/specs` phase authors the contract before any code is written)
   resolve ambiguity as well as or better than `tdd-refactor`'s failing-test-as-
-  specification approach? **H-D:** under `vague`, `ship` EDGE pass rate ≥
+  specification approach? **spec-synthesis hypothesis:** under `vague`, `ship` EDGE pass rate ≥
   `tdd-refactor` because the `/specs` phase forces the agent to state every
-  acceptance decision upfront, including those the vague spec omitted. **H-D2
+  acceptance decision upfront, including those the vague spec omitted. **spec-synthesis-changeability hypothesis
   (mechanism):** `ship` changeability ≤ `tdd-refactor` because its inline review
   checkpoints in `/build` catch structural issues that `tdd-refactor`'s refactor
   step misses. **Null:** the `/specs` phase makes the same happy-path assumptions
   as any other arm — synthesising a spec from a vague prompt does not reliably
   surface EDGE decisions.
 - **test-after-refactor / test-after-refactor dominance.** Does deferring test commitment *and*
-  adding a refactor phase dominate all existing arms simultaneously? **H-E:** under
+  adding a refactor phase dominate all existing arms simultaneously? **dominance hypothesis:** under
   `vague`, `test-after-refactor` EDGE pass rate ≥ `test-after` (≈67%) — because
   deferred tests capture the actual emergent contract, including edge cases the
   working implementation surfaced — AND blast radius ≈ `tdd-refactor` (≈664) —
@@ -316,7 +316,7 @@ session's own `claude`.
   EDGE pass rate — this isolates acceptance-criteria synthesis from architecture
   commitment as mechanisms for resolving ambiguity. Report `ship`'s cost premium over
   the cheapest vague arm to frame the "does spec synthesis pay?" trade-off.
-- **test-after-refactor — test-after-refactor dominance:** Three-way test against H-E. (a) EDGE
+- **test-after-refactor — test-after-refactor dominance:** Three-way test against dominance hypothesis. (a) EDGE
   under `vague`: `test-after-refactor` ≥ `test-after`? If yes, deferred tests
   survive a refactor phase without losing their EDGE advantage. If no, the refactor
   changes what the code does, so tests written before refactoring no longer match
@@ -325,7 +325,7 @@ session's own `claude`.
   regardless of when the tests were written. If no, the iterative TDD cycle
   produces a design that a post-implementation refactor cannot replicate. (c) Cost:
   `test-after-refactor` < `tdd-refactor`? This should hold by construction (no
-  red-green iteration during build). All three must confirm to declare H-E supported.
+  red-green iteration during build). All three must confirm to declare dominance hypothesis supported.
   A partial confirm is informative: it identifies which component of `tdd-refactor`'s
   advantage (EDGE, changeability, or both) requires early test commitment.
 - **Secondaries:** radon trajectory; multi-rater code/test/design score (mean ±
