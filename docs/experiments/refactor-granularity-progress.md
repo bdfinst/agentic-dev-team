@@ -1,6 +1,6 @@
 # refactor-granularity (RQ-F) — live campaign
 
-_Auto-generated read-only mirror. Last update: **2026-06-26T05:48:19Z** UTC._
+_Auto-generated read-only mirror. Last update: **2026-06-26T05:58:21Z** UTC._
 
 ## What this experiment is
 
@@ -66,12 +66,12 @@ chain whose trap punishes non-modular code): `fare` (transit fares), `payroll`
 
 8. **Campaign running** — this page refreshes about every 10 minutes.
 
-### Overall: 310 / 364 cells complete (85.2%)
+### Overall: 313 / 364 cells complete (86.0%)
 
-- build CORE pass: 304/310 (98%)
-- build EDGE pass: 304/310 (98%)
-- change-stage pass: 910/930 (98%)
-- API-equivalent cost so far: **$495.73**
+- build CORE pass: 307/313 (98%)
+- build EDGE pass: 307/313 (98%)
+- change-stage pass: 919/939 (98%)
+- API-equivalent cost so far: **$502.68**
 
 ### Per-arm progress
 
@@ -81,8 +81,8 @@ chain whose trap punishes non-modular code): `fare` (transit fares), `payroll`
 | `continuous-split` | 30/52 | $82.29 |
 | `no-refactor-single` | 52/52 | $39.86 |
 | `no-refactor-split` | 52/52 | $76.64 |
-| `one-shot-single` | 41/52 | $79.71 |
-| `one-shot-split` | 31/52 | $84.41 |
+| `one-shot-single` | 43/52 | $83.46 |
+| `one-shot-split` | 32/52 | $87.62 |
 | `tdd-refactor` | 52/52 | $81.45 |
 
 _Final merged dataset and the analysis report land in `docs/experiments/` on completion._
