@@ -11,6 +11,8 @@ import argparse
 import glob
 import json
 import os
+import statistics as st
+from datetime import datetime
 
 TRIALS, TASKS, ARMS_GOAL = 13, 4, 7
 PER_ARM_GOAL = TRIALS * TASKS
@@ -81,17 +83,51 @@ STEPS = """\
 """
 
 
+def _fmt(seconds):
+    seconds = int(max(0, seconds))
+    h, m = seconds // 3600, (seconds % 3600) // 60
+    return f"~{h}h {m:02d}m" if h else f"~{m} min"
+
+
+def estimate_eta(now_str, per_done, per_ts):
+    """Estimate wall-clock remaining: arms run in parallel, so the slowest governs.
+
+    Per working arm: median recent inter-completion gap x cells remaining, minus
+    time already elapsed on the in-flight cell.
+    """
+    try:
+        now = datetime.fromisoformat(now_str.replace("Z", "+00:00"))
+    except Exception:
+        return "unknown"
+    worst = 0.0
+    any_working = False
+    for arm, done in per_done.items():
+        rem = PER_ARM_GOAL - done
+        if rem <= 0:
+            continue
+        any_working = True
+        ts = per_ts.get(arm, [])
+        gaps = [(b - a).total_seconds() for a, b in zip(ts[-8:], ts[-7:])]
+        per = st.median(gaps) if gaps else 900.0
+        since = (now - ts[-1]).total_seconds() if ts else 0.0
+        worst = max(worst, max(0.0, rem * per - since))
+    if not any_working:
+        return "—"
+    return _fmt(worst)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ts", default="(unknown)")
     args = ap.parse_args()
 
-    per_done, per_cost = {}, {}
+    per_done, per_cost, per_ts = {}, {}, {}
     cost = 0.0
     cp = cd = ep = ed = chp = chd = 0
     for s in sorted(glob.glob(SHARDS)):
         arm = os.path.basename(s)[len("refactor-granularity-"):-len(".jsonl")]
         done = set()
+        ts = []
         c = 0.0
         for line in open(s):
             try:
@@ -101,25 +137,32 @@ def main():
             cc = (r.get("cost") or {}).get("cost_usd") or 0
             cost += cc
             c += cc
-            st = r.get("stage")
-            if st == "change3":
+            stg = r.get("stage")
+            if stg == "change3":
                 done.add((r["task"], r["trial"]))
-            if st == "build":
+                try:
+                    ts.append(datetime.fromisoformat(r["ts"]))
+                except Exception:
+                    pass
+            if stg == "build":
                 if r.get("core_passed") is not None:
                     cd += 1; cp += 1 if r.get("core_passed") else 0
                 if r.get("edge_passed") is not None:
                     ed += 1; ep += 1 if r.get("edge_passed") else 0
-            if st and st.startswith("change") and r.get("passed") is not None:
+            if stg and stg.startswith("change") and r.get("passed") is not None:
                 chd += 1; chp += 1 if r.get("passed") else 0
         per_done[arm] = len(done)
         per_cost[arm] = c
+        per_ts[arm] = sorted(ts)
 
     total = sum(per_done.values())
     goal = ARMS_GOAL * PER_ARM_GOAL
     pct = round(100 * total / goal, 1) if goal else 0
-    phase = ("**Campaign complete** — merging shards and running the analysis next."
-             if total >= goal and goal else
-             "**Campaign running** — this page refreshes about every 10 minutes.")
+    eta = estimate_eta(args.ts, per_done, per_ts)
+    if total >= goal and goal:
+        phase = "**Campaign complete** — merging shards and running the analysis next."
+    else:
+        phase = f"**Campaign running** — estimated time remaining: **{eta}**."
 
     def rate(p, d):
         return f"{p}/{d} ({round(100*p/d)}%)" if d else "—"
@@ -131,12 +174,13 @@ def main():
          SUMMARY, STEPS,
          f"## Current status — last updated {args.ts} UTC",
          "",
-         "_(this page refreshes about every 10 minutes while the run is active)_",
+         "_(this page refreshes at least every 15 minutes while the run is active)_",
          "",
          f"8. {phase}",
          "",
          f"### Overall: {total} / {goal} cells complete ({pct}%)",
          "",
+         f"- **estimated time remaining: {eta}**",
          f"- build CORE pass: {rate(cp, cd)}",
          f"- build EDGE pass: {rate(ep, ed)}",
          f"- change-stage pass: {rate(chp, chd)}",
