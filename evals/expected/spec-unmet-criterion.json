@@ -1,0 +1,16 @@
+{
+  "fixture": "spec-unmet-criterion",
+  "description": "A spec with three acceptance criteria and a Gherkin scenario, paired with an implementation that omits the expiry criterion, violates the no-enumeration criterion, adds an out-of-scope export feature, and tests only one criterion",
+  "applicableAgents": [
+    "spec-compliance-review"
+  ],
+  "agents": {
+    "spec-compliance-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 2,
+        "max": 7
+      }
+    }
+  }
+}

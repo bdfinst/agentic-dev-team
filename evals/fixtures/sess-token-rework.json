@@ -1,0 +1,49 @@
+{
+  "schema": "session-digest/v1",
+  "sessions": 4,
+  "token": {
+    "totals": { "input": 4200000, "output": 180000 },
+    "cost_usd": 14.21,
+    "cache_hit_ratio": 0.11,
+    "by_model": {
+      "opus": { "input": 3100000, "output": 120000 },
+      "haiku": { "input": 1100000, "output": 60000 }
+    },
+    "by_skill": {
+      "code-review": { "input": 2600000, "output": 90000, "cost_micro": 9800000 },
+      "build": { "input": 600000, "output": 40000, "cost_micro": 2100000 }
+    },
+    "by_subagent": {
+      "doc-review": 410000,
+      "naming-review": 380000
+    }
+  },
+  "rework": {
+    "failed_edits": 9,
+    "repeated_file_edits": {
+      "src/payments/charge.ts": 6,
+      "src/payments/refund.ts": 4
+    },
+    "retried_bash_commands": 7,
+    "repeated_verify_runs": 5,
+    "permission_denials": 1,
+    "compaction_events": 3
+  },
+  "accuracy": {
+    "tool_errors_by_tool": { "Edit": 6, "Bash": 3 },
+    "tool_calls": 220,
+    "tool_error_rate": 0.0409,
+    "user_correction_turns": 5
+  },
+  "gate": {
+    "commit_attempts": 4,
+    "commit_bypasses": 2,
+    "bypass_rate": 0.5
+  },
+  "utilization": {
+    "skills_invoked": { "code-review": 4, "build": 3 },
+    "agents_invoked": { "doc-review": 4, "naming-review": 3 },
+    "never_observed_skills": ["mutation-testing", "farley-score"],
+    "never_observed_agents": ["svelte-review", "a11y-review"]
+  }
+}
