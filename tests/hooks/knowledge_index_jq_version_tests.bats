@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# AC24: builder is a single Python process. The shell wrapper exec's
+# builder is a single Python process. The shell wrapper exec's
 # the Python implementation; jq is no longer required after the
 # perf-rewrite.
 #
@@ -9,12 +9,12 @@
 BUILDER_SH="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/build-knowledge-index.sh"
 BUILDER_PY="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/build_knowledge_index.py"
 
-@test "AC24: shell wrapper and python implementation both exist" {
+@test "shell wrapper and python implementation both exist" {
   [ -f "$BUILDER_SH" ]
   [ -f "$BUILDER_PY" ]
 }
 
-@test "AC24: shell wrapper exec's the python builder (not jq)" {
+@test "shell wrapper exec's the python builder (not jq)" {
   # The wrapper must invoke python3 and the .py file. It must NOT
   # invoke jq directly.
   run grep -E "exec[[:space:]]+python3" "$BUILDER_SH"
@@ -26,7 +26,7 @@ BUILDER_PY="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/build_knowledge_
   [ "$status" -ne 0 ]
 }
 
-@test "AC24: python builder runs standalone (returns valid JSON)" {
+@test "python builder runs standalone (returns valid JSON)" {
   local tmp out
   tmp=$(mktemp -d)
   out="$tmp/index.json"

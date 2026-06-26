@@ -22,6 +22,32 @@ Reference file for structure-review, complexity-review, and naming-review agents
 | **Refused bequest** | Subclass overrides many parent methods to no-op or throw "not supported" | **Replace Inheritance with Composition** — the subclass needs *some* of the parent API; expose those via a member |
 | **Speculative generality** | Abstract base classes or interfaces with only one implementation and no near-term plan for a second | **Inline Class** — collapse the abstraction; re-introduce when a second implementation appears |
 | **Megaclass** | Class with 30+ public methods, multiple responsibilities, `*Manager`/`*Service`/`*Helper` suffix | **Extract Class** along responsibility lines; apply SRP |
+| **Reinvented built-in / helper** | A hand-written loop or expression recomputes a standard-library operation (min, max, sum, copy, reverse, clamp) or duplicates a named helper that already exists in the module | **Use the platform** — replace with the built-in / existing helper so the algorithm reads top-down (see cheat-sheet below) |
+| **Open-coded idiom** | The same non-trivial boolean or arithmetic expression (e.g. `Math.abs(x - y) > tol`) appears 3+ times inline instead of behind a named predicate | **Extract Method** — name the idiom (`withinTolerance`) so each call site states intent, not mechanics |
+
+## Reinvented Built-in Cheat-Sheet
+
+The "use the platform" smell is **language-agnostic** — recognize the *concept*
+(a hand-rolled standard operation), then map it to the project's language. Flag
+only as a `suggestion`; this is a readability call, not a correctness bug.
+
+| Language | Hand-rolled → built-in (examples) |
+|---|---|
+| JS/TS | min/max scan → `Math.min(...xs)` / `Math.max(...xs)`; accumulator loop → `reduce`; `0 - x` → unary `-x`; copy loop → spread / `slice` |
+| Python | min/max scan → `min()` / `max()`; accumulator loop → `sum()`; reimplemented `itertools` / `collections` helper |
+| Java | loop → `Stream.min/max`, `Collectors`, `Math.max` |
+| C# | loop → LINQ `Min` / `Max` / `Sum` / `Aggregate` |
+| Go | loop → `min` / `max` **built-ins (Go 1.21+ only)**, `slices` / `maps` packages |
+
+### What NOT to flag (reinvented built-in)
+
+- A manual min/max (or similar) loop in a language/version that lacks the
+  built-in — e.g. **Go before 1.21** has no `min`/`max`; the loop is idiomatic.
+  Confirm the built-in exists for the project's language *and version* first.
+- A hand-rolled form with a comment or context marking it a deliberate hot-path
+  optimization (avoiding intermediate allocation, the spread argument-count
+  limit, etc.) — confidence `none`, do not flag.
+- C or other environments with no standard library for the operation.
 
 ## What NOT to Flag
 

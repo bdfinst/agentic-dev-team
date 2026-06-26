@@ -104,7 +104,7 @@ With **no ladder file**, every effort band resolves to the **identical
 snapshot** it did before the effort-band migration
 (`low→claude-haiku-4-5-20251001`, `medium→claude-sonnet-4-6`,
 `high→claude-opus-4-8`) — the shipped default map equals the old tier mapping.
-Doing nothing changes nothing. (Pinned by AC0 in the routing tests.)
+Doing nothing changes nothing. (Pinned by the no-ladder migration-safety test.)
 
 ## Reverting
 

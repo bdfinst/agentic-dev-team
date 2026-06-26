@@ -76,7 +76,7 @@ def slugify(text: str) -> str:
 
 # ---------------------------------------------------------------------------
 # First-sentence extraction — operational boundary rule from the spec.
-# Logic mirrors the previous heredoc Python exactly so AC7a stays green.
+# Logic mirrors the previous heredoc Python exactly so the sentence-boundary rule stays green.
 # ---------------------------------------------------------------------------
 
 

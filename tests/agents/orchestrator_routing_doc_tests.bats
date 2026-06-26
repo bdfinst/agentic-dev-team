@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Tests for agents/orchestrator.md + CLAUDE.md routing-doc rewrite.
-# Step 15 + AC2, AC14 (cross-reference), AC18 (registry pointer).
+# Covers the registry cross-reference and the registry pointer.
 
 ORCH="$BATS_TEST_DIRNAME/../../plugins/dev-team/agents/orchestrator.md"
 CLAUDE_MD="$BATS_TEST_DIRNAME/../../plugins/dev-team/CLAUDE.md"

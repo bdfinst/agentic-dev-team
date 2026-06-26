@@ -54,6 +54,15 @@ SETTINGS="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
   [ "$status" -eq 0 ]
 }
 
+@test "codegraph-bootstrap.sh is registered in SessionStart" {
+  run jq -e '
+    .hooks.SessionStart[]
+    | .hooks[]
+    | select(.command | contains("codegraph-bootstrap.sh"))
+  ' "$SETTINGS"
+  [ "$status" -eq 0 ]
+}
+
 @test "codegraph-nudge.sh does NOT appear under a regex matcher Read|Grep|Glob" {
   # Per the plan, we chose per-tool entries over a pipe-delimited regex.
   # The negative guard catches ANY pipe-delimited matcher whose first token

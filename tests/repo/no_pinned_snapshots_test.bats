@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# AC2 enforcement: no pinned claude-* snapshot IDs anywhere in the repo
+# enforcement: no pinned claude-* snapshot IDs anywhere in the repo
 # outside the three approved files (the single source of truth + its docs).
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
@@ -25,7 +25,7 @@ ALLOWED_PATHS=(
   "plugins/dev-team/knowledge/model-pricing.json"
 )
 
-@test "AC2: no pinned snapshot IDs in plugin source outside approved files" {
+@test "no pinned snapshot IDs in plugin source outside approved files" {
   cd "$REPO_ROOT"
   local raw
   raw=$(git grep -nE 'claude-(haiku|sonnet|opus)-[0-9]' -- \

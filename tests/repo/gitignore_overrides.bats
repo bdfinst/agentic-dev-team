@@ -2,7 +2,7 @@
 # Tests for root .gitignore — the per-user model ladder and the routing bump
 # log must be ignored so corporate config and per-user metrics never leak
 # into version control. The retired model-overrides.json no longer needs an
-# entry. Required by AC8.
+# entry. Required by.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 

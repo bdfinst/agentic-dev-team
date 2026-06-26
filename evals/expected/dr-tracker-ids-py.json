@@ -1,0 +1,14 @@
+{
+  "fixture": "dr-tracker-ids-py.py",
+  "description": "Cross-language proof: Python `#` comments carrying epic/issue/JIRA IDs that the comment-hygiene rule should flag — same principle as the TS fixture, different comment syntax.",
+  "applicableAgents": ["doc-review"],
+  "agents": {
+    "doc-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": { "suggestion": { "min": 1, "max": 4 } },
+      "mustMention": ["tracker"],
+      "mustNotMention": []
+    }
+  }
+}

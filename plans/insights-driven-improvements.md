@@ -22,9 +22,11 @@ the one precondition OE is silent on (don't investigate before a task exists).
 Self-standing; off `main` so it composes cleanly whether or not PR #266 has merged.
 
 ### 1. Approach contract — `knowledge/decision-defaults.md`
+
 **Friction removed:** 13 alignment-failure events from Claude committing to an
 approach that conflicts with intent (merge-vs-replace, PNG-vs-SVG, edit-stub-vs-migrate).
 **Change:**
+
 - New `plugins/dev-team/knowledge/decision-defaults.md` — a short reference of the
   recurring high-reversal-cost decision axes, each with *trigger → default stance →
   confirm-before-commit*. Seeded from the report: replace-vs-merge, format fidelity,
@@ -38,9 +40,11 @@ approach that conflicts with intent (merge-vs-replace, PNG-vs-SVG, edit-stub-vs-
 referenced by orchestrator, PM, and `/plan`; the knowledge index includes it.
 
 ### 2. "No task, no action" precondition
+
 **Friction removed:** premature investigation before an instruction is given (the
 report's "fun ending").
 **Change:**
+
 - `skills/context-loading-protocol/SKILL.md`: a **Step 0** — confirm an actionable
   task exists before reading files, verifying code, or loading agents.
 - `agents/orchestrator.md`: a matching one-line precondition in Decision Making.
@@ -52,12 +56,13 @@ report's "fun ending").
 
 - Update registries: `CLAUDE.md` knowledge-file list (25 → 26) and
   `knowledge/agent-registry.md` table.
-- Regenerate `knowledge/index.json` (the AC16 freshness gate).
+- Regenerate `knowledge/index.json` (the knowledge-index freshness gate).
 - Add `tests/repo/decision_defaults_refs_test.bats` (bash-3.2-safe, deterministic).
 - Run `/agent-audit`; keep within token budgets and claims discipline (no bare
   numeric targets, no metaphor-as-mechanism buzzwords in shipped prose).
 
 ### 3. `/upgrade` marketplace pre-flight (implemented)
+
 **Friction removed:** two upgrade sessions stalled by trusting the update mechanism
 instead of checking the catalog against the release.
 **Change:** `skills/upgrade/SKILL.md` Step 3 now diffs the marketplace's pinned
@@ -66,8 +71,10 @@ plugin is up to date; a stale catalog is named as the root cause. Renamed ids mi
 rather than edit a stub in place (cross-links `knowledge/decision-defaults.md`).
 
 ### 4. `/ship` pipeline skill + auto-merge default (implemented)
+
 **Friction removed:** the spec→plan→TDD→PR flow re-assembled by hand every session.
 **Change:**
+
 - New `skills/ship/SKILL.md` — a thin orchestrator chaining `/specs → /plan → /build
   → /code-review → /pr` with the existing human gates and an upfront approach-contract
   screen. It only sequences; every gate/fix-loop/evidence rule comes from the

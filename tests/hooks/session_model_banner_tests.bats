@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Tests for hooks/session-model-banner.sh — the single SessionStart hook that
 # captures + persists the session model and announces the effort band→model
-# routing table. Replaces the retired overrides-banner.sh. AC4.
+# routing table. Replaces the retired overrides-banner.sh..
 
 HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/session-model-banner.sh"
 OLD_HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/overrides-banner.sh"

@@ -34,7 +34,7 @@ Apply in order; the first match wins.
 - `slice_count` ≤ 1
 - `wave_count` ≤ 1
 - `has_complex_step` = false
-- `decision_axis_triggered` = false  ← AC5 guardrail: never skips plan for high-reversal-cost work
+- `decision_axis_triggered` = false  ← decision-axis guardrail: never skips plan for high-reversal-cost work
 
 Expected saving vs full pipeline: ~65% fewer turns, ~45% lower cost (small-kata data; see calibration file).
 
