@@ -356,9 +356,9 @@ def rq_d_verdict(rows: list[dict]) -> str:
         avg_tdd = mean(tdd_rates)
         delta = avg_ship - avg_tdd
         verdict = (
-            "ship > tdd-refactor (H-D supported)" if delta > 0.05 else
+            "ship > tdd-refactor (spec-synthesis hypothesis supported)" if delta > 0.05 else
             "ship ≈ tdd-refactor" if abs(delta) <= 0.05 else
-            "ship < tdd-refactor (H-D rejected)"
+            "ship < tdd-refactor (spec-synthesis hypothesis rejected)"
         )
         lines.append(
             f"\n**Pooled EDGE**: ship {fmt_pct(avg_ship)} vs "
@@ -381,7 +381,7 @@ def rq_d_verdict(rows: list[dict]) -> str:
             f"ship blast radius {fmt_f(mean(ship_cum),0)} vs "
             f"tdd-refactor {fmt_f(mean(tdd_cum),0)} "
             f"(Δ={fmt_f(delta_lines,0)} lines, "
-            f"{'H-D2 supported: ship ≤ tdd-refactor' if delta_lines <= 10 else 'ship > tdd-refactor'})"
+            f"{'spec-synthesis-changeability hypothesis supported: ship ≤ tdd-refactor' if delta_lines <= 10 else 'ship > tdd-refactor'})"
         )
         lines.append(f"\n**spec-synthesis2 (changeability)**: {verdict2}")
 
@@ -400,8 +400,8 @@ def rq_e_verdict(rows: list[dict]) -> str:
             continue
         edge_cells[(r["task"], arm)].append(r.get("edge_passed", False))
 
-    lines = ["#### test-after-refactor: test-after-refactor dominance (H-E)\n"]
-    lines.append("All three conditions must hold to declare H-E supported.\n")
+    lines = ["#### test-after-refactor: test-after-refactor dominance (dominance hypothesis)\n"]
+    lines.append("All three conditions must hold to declare dominance hypothesis supported.\n")
 
     lines.append("**Condition 1: EDGE pass rate (stage0, vague)**\n")
     lines.append("| task | test-after-refactor | test-after | tdd-refactor | tar≥ta? |")
@@ -501,11 +501,11 @@ def rq_e_verdict(rows: list[dict]) -> str:
     lines.append("\n**test-after-refactor overall verdict:**")
     if c1 is not None and c2 is not None and c3 is not None:
         if c1 and c2 and c3:
-            lines.append("**H-E SUPPORTED** — test-after-refactor dominates all existing arms simultaneously.")
+            lines.append("**dominance hypothesis SUPPORTED** — test-after-refactor dominates all existing arms simultaneously.")
         else:
             failed = [f"Condition {i+1}" for i, c in enumerate([c1, c2, c3]) if not c]
             lines.append(
-                f"**H-E NOT SUPPORTED** — {', '.join(failed)} fail. "
+                f"**dominance hypothesis NOT SUPPORTED** — {', '.join(failed)} fail. "
                 "test-after-refactor does not dominate all existing arms."
             )
     else:

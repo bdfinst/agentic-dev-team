@@ -52,7 +52,7 @@ distribution. Cell-by-cell the refactor arms are not behaving equivalently at al
 | ship / tdd-no-refactor | 25.0% |
 | **test-after-refactor** | **0.0%** |
 
-These are exactly the H-F2 (safety-net erosion) and H-F4 (clarity×protection interaction)
+These are exactly the safety-net hypothesis (safety-net erosion) and authorship-interaction hypothesis (clarity×protection interaction)
 mechanisms the prompt hypothesized — and their effect sizes (7× variance ratio, 0% vs 67%
 EDGE) are far above 5%, so they are detectable at modest N. What is *not* detectable at 4
 tasks is the ±5% blast-radius main effect framed as the headline.
@@ -63,7 +63,7 @@ tasks is the ±5% blast-radius main effect framed as the headline.
    "inconclusive at this scale," and **promote the real effects to primary**: (a) the
    free-vs-frozen *variance/stability* contrast, (b) EDGE collapse under free+vague, (c) the
    test-LOC churn → blast-radius mediation. These are the questions the pilot says are
-   answerable, and they directly settle H-F2/H-F4.
+   answerable, and they directly settle safety-net hypothesis/authorship-interaction hypothesis.
 2. **If the 5% main effect must stay primary, the cost is task count, not trials.** Author
    roughly **20–40 pays-style tasks** (the prompt's "reuse the same 4 tasks" is the binding
    limitation). That is a large authoring effort and a much larger campaign.

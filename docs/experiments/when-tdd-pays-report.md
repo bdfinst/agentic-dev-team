@@ -19,10 +19,10 @@ This experiment crossed **requirement clarity** (clear vs vague spec) with **cod
 
 | Question | Finding |
 |----------|---------|
-| Does TDD produce better edge-case coverage under vague spec? | **No — the opposite.** test-after: 67%, tdd-refactor: 33% (H-A rejected, reversed) |
-| Does TDD produce more changeable code? | **Yes.** tdd-refactor: 664 mean Δlines vs 700–770 for all other arms (H-B confirmed) |
-| Is refactoring the mechanism, or test-first ordering? | **Refactoring.** tdd-no-refactor (701) ≈ test-after (700); removing the refactor step erases the advantage (H-B2 confirmed) |
-| Is TDD's advantage largest under vague spec? | **No.** The gap is consistent across clarity conditions (H-C not confirmed) |
+| Does TDD produce better edge-case coverage under vague spec? | **No — the opposite.** test-after: 67%, tdd-refactor: 33% (ambiguity hypothesis rejected, reversed) |
+| Does TDD produce more changeable code? | **Yes.** tdd-refactor: 664 mean Δlines vs 700–770 for all other arms (changeability hypothesis confirmed) |
+| Is refactoring the mechanism, or test-first ordering? | **Refactoring.** tdd-no-refactor (701) ≈ test-after (700); removing the refactor step erases the advantage (mechanism-isolation hypothesis confirmed) |
+| Is TDD's advantage largest under vague spec? | **No.** The gap is consistent across clarity conditions (clarity-interaction hypothesis not confirmed) |
 | What about vague requirements? | **Fix the spec first.** The notifier task — where the spec omitted per-channel retry semantics — produced 0% on EDGE assertions (behavioural tests for decisions the spec left unstated) for every workflow. No amount of TDD or upfront design recovers information that was never stated. |
 
 ### Workflow decision guide
@@ -58,14 +58,14 @@ This experiment crossed **requirement clarity** (clear vs vague spec) with **cod
 
 **Hypotheses (pre-registered):**
 
-- **H-A (ambiguity):** under `vague`, `tdd-refactor` passes more EDGE (omitted-decision) assertions
+- **ambiguity hypothesis:** under `vague`, `tdd-refactor` passes more EDGE (omitted-decision) assertions
   than `test-after`. Under `clear` there is no gap. Null: vagueness degrades all
   arms equally.
-- **H-B (changeability):** `tdd-refactor` absorbs the 3-change chain at lower
+- **changeability hypothesis:** `tdd-refactor` absorbs the 3-change chain at lower
   cumulative lines-changed than `test-after` and `bduf`.
-- **H-B2 (mechanism):** `tdd-refactor` < `tdd-no-refactor` ≈ `test-after`;
+- **mechanism-isolation hypothesis:** `tdd-refactor` < `tdd-no-refactor` ≈ `test-after`;
   the benefit comes from refactoring, not test ordering.
-- **H-C (interaction):** TDD's advantage is largest in `vague + open-design`
+- **clarity-interaction hypothesis:** TDD's advantage is largest in `vague + open-design`
   — exactly the cell the prior null experiments could not test.
 
 ---
@@ -288,7 +288,7 @@ trap (per-channel retry) shows the largest penalty for naive design.*
 | report-render | 100% (3/3) | 100% (3/3) | 0 |
 | **pooled** | **33%** (4/12) | **67%** (8/12) | **−34 pp** |
 
-**H-A: REJECTED (direction reversed).** Under vague spec, test-after achieves 67%
+**ambiguity hypothesis: REJECTED (direction reversed).** Under vague spec, test-after achieves 67%
 EDGE pass rate vs tdd-refactor's 33% — the opposite of the pre-registered hypothesis.
 
 The null-hypothesis (vagueness degrades all arms equally) is also rejected for pricing
@@ -341,7 +341,7 @@ then write tests that capture its actual behaviour, producing better EDGE covera
 | tdd-no-refactor | 701 | 4 | +37 (+5.6%) |
 | bduf | 770 | 4 | +106 (+16%) |
 
-**H-B: CONFIRMED.** tdd-refactor has the lowest cumulative blast radius across all
+**changeability hypothesis: CONFIRMED.** tdd-refactor has the lowest cumulative blast radius across all
 arms and conditions. The advantage is consistent across all 4 tasks (+1% to +12%)
 and both clarity conditions (clear: −38 lines; vague: −32 lines).
 
@@ -358,7 +358,7 @@ notifier (notifier/bduf/vague mean = 983 lines vs tdd-refactor/clear = 748 lines
 | test-after | 700 | clear + vague |
 | tdd-no-refactor | 701 | vague only |
 
-**H-B2: CONFIRMED.** tdd-no-refactor (701) ≈ test-after (700), both substantially
+**mechanism-isolation hypothesis: CONFIRMED.** tdd-no-refactor (701) ≈ test-after (700), both substantially
 above tdd-refactor (664). Removing the refactoring step from TDD (tdd-no-refactor)
 eliminates the changeability advantage — it performs identically to writing tests
 after the fact.
@@ -387,8 +387,8 @@ The gap is marginally *larger* under clear spec (+39 lines) than vague spec (+32
 There is no interaction: tdd-refactor's changeability advantage is consistent across
 both clarity conditions.
 
-**H-C: NOT CONFIRMED.** The clarity-interaction interaction does not appear for changeability. For
-EDGE pass rate, the interaction is reversed from H-C: under clear spec both arms are
+**clarity-interaction hypothesis: NOT CONFIRMED.** The clarity-interaction interaction does not appear for changeability. For
+EDGE pass rate, the interaction is reversed from clarity-interaction hypothesis: under clear spec both arms are
 equal (100%); under vague spec test-after outperforms tdd-refactor. If anything, the
 clarity × workflow interaction favours test-after, not tdd-refactor.
 
@@ -469,12 +469,12 @@ real decisions unstated, and a multi-stage change chain that punishes rigid desi
 
 | Hypothesis | Direction | Result |
 |------------|-----------|--------|
-| H-A: TDD passes more EDGE under vague | tdd-refactor > test-after | **REJECTED — reversed** (test-after 67% vs tdd-refactor 33%) |
-| H-B: TDD has lower cumulative blast radius | tdd-refactor < all others | **CONFIRMED** (664 vs 700–770) |
-| H-B2: Refactoring is the mechanism | tdd-no-refactor ≈ test-after | **CONFIRMED** (701 vs 700) |
-| H-C: Advantage largest under vague | gap larger at vague | **NOT CONFIRMED** (gap similar, slightly larger at clear) |
+| ambiguity hypothesis: TDD passes more EDGE under vague | tdd-refactor > test-after | **REJECTED — reversed** (test-after 67% vs tdd-refactor 33%) |
+| changeability hypothesis: TDD has lower cumulative blast radius | tdd-refactor < all others | **CONFIRMED** (664 vs 700–770) |
+| mechanism-isolation hypothesis: Refactoring is the mechanism | tdd-no-refactor ≈ test-after | **CONFIRMED** (701 vs 700) |
+| clarity-interaction hypothesis: Advantage largest under vague | gap larger at vague | **NOT CONFIRMED** (gap similar, slightly larger at clear) |
 
-### The H-A reversal: why test-after wins on EDGE under vague spec
+### The ambiguity hypothesis reversal: why test-after wins on EDGE under vague spec
 
 The pre-registered hypothesis assumed that TDD's red-test cycle would force explicit
 edge-case decisions early, producing better contract inference under ambiguity.
@@ -508,11 +508,11 @@ but tdd-no-refactor writes them *before* seeing a working system — and under a
 spec, those early tests do not constrain the design enough to produce a valid
 implementation. The order of seeing-code-then-writing-tests appears protective.
 
-### The H-B/H-B2 result: refactoring is the changeability driver
+### The changeability hypothesis/mechanism-isolation hypothesis result: refactoring is the changeability driver
 
 tdd-no-refactor (701) ≈ test-after (700) > tdd-refactor (664) confirms that the
 green→refactor cycle — not test-first ordering — drives the changeability advantage.
-This replicates the H-B finding from the prior studies while adding the mechanistic
+This replicates the changeability hypothesis finding from the prior studies while adding the mechanistic
 isolation that those studies could not provide.
 
 The practical implication: teams who do test-first without disciplined refactoring get
@@ -671,9 +671,9 @@ The first run could not answer two questions because the relevant arms were miss
 | New primary: test-after-refactor Condition 3 | Cost/stage: test-after-refactor < tdd-refactor |
 | New primary: spec-synthesis | ship EDGE under vague ≥ tdd-refactor EDGE under vague |
 
-**H-D:** under `vague`, `ship` EDGE pass rate ≥ `tdd-refactor` because `/specs` forces the agent to state every acceptance decision before any code is written. Null: `/specs` makes the same happy-path assumptions as any other arm — spec synthesis from a vague prompt does not reliably surface EDGE decisions.
+**spec-synthesis hypothesis:** under `vague`, `ship` EDGE pass rate ≥ `tdd-refactor` because `/specs` forces the agent to state every acceptance decision before any code is written. Null: `/specs` makes the same happy-path assumptions as any other arm — spec synthesis from a vague prompt does not reliably surface EDGE decisions.
 
-**H-E:** `test-after-refactor` dominates every existing arm simultaneously: EDGE ≥ `test-after` (deferred tests capture actual contract), blast radius ≈ `tdd-refactor` (refactoring under tests provides same structural safety net), cost < `tdd-refactor` (no iterative red-green cycles during initial build). All three conditions must hold. Null: the refactor phase changes the implementation enough that post-refactor tests diverge, or the iterative TDD cycle shapes design in ways a post-implementation refactor cannot replicate.
+**dominance hypothesis:** `test-after-refactor` dominates every existing arm simultaneously: EDGE ≥ `test-after` (deferred tests capture actual contract), blast radius ≈ `tdd-refactor` (refactoring under tests provides same structural safety net), cost < `tdd-refactor` (no iterative red-green cycles during initial build). All three conditions must hold. Null: the refactor phase changes the implementation enough that post-refactor tests diverge, or the iterative TDD cycle shapes design in ways a post-implementation refactor cannot replicate.
 
 ### Second-run design matrix
 
@@ -728,7 +728,7 @@ Based on the first-run evidence (see experiment document, "Best path forward" se
 | ship EDGE / vague | ≥ tdd-refactor (33%) — explicit spec synthesis forces unstated decisions |
 | ship changeability | ≤ tdd-refactor (664) — inline review checkpoints in /build catch structural issues |
 
-**H-E falsification criteria:** If test-after-refactor blast radius exceeds tdd-refactor by ≥10%, the iterative TDD cycle shapes design in ways a post-implementation refactor cannot replicate, and tdd-refactor remains the correct choice for open-design tasks despite its higher cost.
+**dominance hypothesis falsification criteria:** If test-after-refactor blast radius exceeds tdd-refactor by ≥10%, the iterative TDD cycle shapes design in ways a post-implementation refactor cannot replicate, and tdd-refactor remains the correct choice for open-design tasks despite its higher cost.
 
 ---
 
@@ -739,7 +739,7 @@ Based on the first-run evidence (see experiment document, "Best path forward" se
 
 ### spec-synthesis: Ship arm vs tdd-refactor
 
-**Hypothesis H-D:** `ship` EDGE pass rate under vague ≥ `tdd-refactor`
+**Hypothesis spec-synthesis hypothesis:** `ship` EDGE pass rate under vague ≥ `tdd-refactor`
 
 > **Execution note (2026-06-24).** The automated harness recorded every `ship` trial
 > as a 900-second CCR dispatch timeout, leaving only synthesized-failure placeholder
@@ -759,7 +759,7 @@ Based on the first-run evidence (see experiment document, "Best path forward" se
 
 **Pooled EDGE: ship 25% (3/12) vs tdd-refactor 33% (4/12)**
 
-**Verdict: H-D REJECTED (null supported).** Run to completion, the `ship` pipeline's
+**Verdict: spec-synthesis hypothesis REJECTED (null supported).** Run to completion, the `ship` pipeline's
 explicit `/specs` acceptance-criteria synthesis did **not** surface omitted edge
 decisions better than `tdd-refactor`'s failing-test-as-specification approach — 25% vs
 33% pooled EDGE, with ship matching or trailing tdd-refactor on every task. The
@@ -826,7 +826,7 @@ is not a substitute for clarifying a vague spec with the stakeholder.
 
 ### test-after-refactor: test-after-refactor dominance
 
-**Hypothesis H-E:** `test-after-refactor` dominates all existing arms simultaneously on EDGE pass rate (≥ test-after), blast radius (within 10% of tdd-refactor), and cost (< tdd-refactor). All three conditions must hold.
+**Hypothesis dominance hypothesis:** `test-after-refactor` dominates all existing arms simultaneously on EDGE pass rate (≥ test-after), blast radius (within 10% of tdd-refactor), and cost (< tdd-refactor). All three conditions must hold.
 
 #### Condition 1: EDGE pass rate under vague (test-after-refactor ≥ test-after, −5 pp tolerance)
 
@@ -869,7 +869,7 @@ TDD vs test-after:
 Both refactor arms (664, 678) sit ~5–6% below both non-refactor arms (700, 701), and
 adding a refactor pass to test-after moved it 700 → 678, into the same band as
 tdd-refactor. Test-first ordering does not separate from test-after *once both refactor*.
-The headline H-B2 finding — the green→refactor cycle, not test ordering, drives
+The headline mechanism-isolation hypothesis finding — the green→refactor cycle, not test ordering, drives
 changeability — holds, and the refactor-arm tie is a second confirmation of it.
 
 The residual 14 lines, *if* it is real rather than noise, has two candidate explanations,
@@ -900,9 +900,9 @@ mechanisms, requires a dedicated higher-power experiment — see
 
 **Condition 3 HOLDS** — test-after-refactor ($0.35/stage) is 20% cheaper than tdd-refactor ($0.44/stage).
 
-#### H-E Overall Verdict
+#### dominance hypothesis Overall Verdict
 
-**H-E NOT SUPPORTED.** Condition 1 fails decisively: under a vague spec, `test-after-refactor` produces 0% EDGE pass rate (pooled across 3 of 4 tasks), worse than both `test-after` (67%) and `tdd-refactor` (33%). The refactoring phase degrades edge-case coverage when the spec is ambiguous — the agent refactors away the tests that document its own decisions.
+**dominance hypothesis NOT SUPPORTED.** Condition 1 fails decisively: under a vague spec, `test-after-refactor` produces 0% EDGE pass rate (pooled across 3 of 4 tasks), worse than both `test-after` (67%) and `tdd-refactor` (33%). The refactoring phase degrades edge-case coverage when the spec is ambiguous — the agent refactors away the tests that document its own decisions.
 
 Conditions 2 and 3 both hold: the blast radius is equivalent to tdd-refactor (+2.1%) and the cost is 20% lower. But the EDGE failure dominates.
 
@@ -936,19 +936,19 @@ changeability at n=3 — the 14-line gap is inside the noise. Two questions rema
 
 ### Hypotheses (to pre-register before any data)
 
-- **H-F0 (equivalence):** continuous-refactor and one-shot-refactor workflows are
+- **equivalence hypothesis:** continuous-refactor and one-shot-refactor workflows are
   equivalent on cumulative blast radius within a ±5% margin (TOST). This is the default
   the second-run data points to; the experiment is powered to *reject* it if a real
   effect exists.
-- **H-F1 (granularity):** holding the test-protection factor constant, **continuous**
+- **granularity hypothesis:** holding the test-protection factor constant, **continuous**
   refactoring yields lower blast radius than **one-shot** refactoring. Predicts the gap
   survives even when tests are protected from churn.
-- **H-F2 (safety net):** **freezing the test suite during the refactor** raises EDGE pass
+- **safety-net hypothesis:** **freezing the test suite during the refactor** raises EDGE pass
   rate (tests that document edge decisions survive) and lowers subsequent blast radius
   relative to a free refactor. Predicts test-suite churn *mediates* the blast-radius
   difference.
 
-H-F1 and H-F2 are not mutually exclusive; the design separates their contributions.
+granularity hypothesis and safety-net hypothesis are not mutually exclusive; the design separates their contributions.
 
 ### Design — a 2×2, adequately powered
 
@@ -974,7 +974,7 @@ pass-rates; add:
 - **refactor granularity (actual):** count of distinct refactor edits between first-green
   and stage-complete — verifies the assigned arm behaved as intended.
 - **test-suite churn during refactor:** test LOC added + deleted between first-green and
-  post-refactor. This is the mediator variable for H-F2.
+  post-refactor. This is the mediator variable for safety-net hypothesis.
 - carry forward CORE/EDGE pass rates and cost/stage.
 
 ### Analysis plan (pre-registered)
@@ -982,9 +982,9 @@ pass-rates; add:
 - **Headline:** TOST equivalence test on cumulative blast radius, continuous vs one-shot,
   ±5% margin → resolves question 1 (real vs noise) directly, including a "confirmed
   equivalent" outcome as a valid result.
-- **H-F1:** two-factor model on blast radius; granularity main effect with test-protection
+- **granularity hypothesis:** two-factor model on blast radius; granularity main effect with test-protection
   held constant.
-- **H-F2:** mediation — does test-suite churn account for the granularity/protection effect
+- **safety-net hypothesis:** mediation — does test-suite churn account for the granularity/protection effect
   on blast radius? Plus the direct EDGE comparison frozen vs free (this also re-tests the
   test-after-refactor Condition 1 finding that free refactor destroys edge coverage under vague spec).
 
@@ -994,7 +994,7 @@ pass-rates; add:
 |---|---|
 | TOST confirms equivalence | The refactor-arm tie is real; "refactoring is the mechanism" is the whole story, and *how* you refactor (granularity, ordering) does not move changeability. Strongest, simplest takeaway. |
 | Granularity effect, no churn mediation | Continuous refactoring is independently better; recommend refactoring in small steps regardless of test ordering. |
-| Churn mediation (H-F2) | The cost of one-shot refactor is collateral test-suite damage; recommend protecting/regenerating the test suite across a refactor, and the test-after-refactor EDGE collapse and the changeability residual share one root cause. |
+| Churn mediation (safety-net hypothesis) | The cost of one-shot refactor is collateral test-suite damage; recommend protecting/regenerating the test suite across a refactor, and the test-after-refactor EDGE collapse and the changeability residual share one root cause. |
 
 A null here is a publishable result: confirming that the two refactor workflows are
 genuinely interchangeable on changeability would let teams choose between them on the axes
