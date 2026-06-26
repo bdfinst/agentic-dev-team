@@ -3,7 +3,10 @@ name: codebase-recon
 description: Reconnaissance agent that surveys a codebase's structure, entry points, dependencies, security surface, and git history. Produces a contract-conformant RECON artifact at `memory/recon-<slug>.{md,json}` that other agents consume.
 tools: Read, Grep, Glob, Bash
 effort: high
+enforcement: script
 ---
+
+> **Implemented by:** scripts/codebase_recon.py
 
 ## Thinking Guidance
 

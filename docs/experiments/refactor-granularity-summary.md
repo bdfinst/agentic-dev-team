@@ -115,16 +115,14 @@ are not resolvable at this scale.
 
 ## What's next
 
-Two follow-ups are specified:
+One consolidated successor is specified:
 
-- **[`05-experiment-prompt-refactor-cadence-larger.md`](05-experiment-prompt-refactor-cadence-larger.md)** —
-  larger multi-file tasks, an 8-change horizon, a held-out changeability probe, and decomposed
-  change-/refactor-churn, so refactoring's *payoff* can finally be isolated from its *cost*.
-- **[`06-experiment-prompt-refactor-granularity-revised.md`](06-experiment-prompt-refactor-granularity-revised.md)** —
-  re-aims the current four-task corpus (clarity crossing restored, ~12–15 trials) at the effects
-  the data *can* resolve now: the free-vs-frozen blast-variance contrast, the EDGE collapse under
-  free + vague specs, and test-churn → blast mediation — with the underpowered ±5% blast-radius
-  equivalence demoted to an honestly-labeled secondary.
+- **[`05-experiment-prompt-workflow-matrix.md`](05-experiment-prompt-workflow-matrix.md)** —
+  with refactoring fixed on and specs fixed clear, it asks which agentic workflow
+  (test-first/after × small/big batch × 1/2 agents) yields maintainable, well-tested code at
+  minimum cost. The free-vs-frozen blast-variance contrast and test-churn → blast mediation
+  survive as optional secondary analyses over the same output rows; the larger multi-file /
+  longer-horizon corpus is parked as a future scale-up inside that prompt.
 
 ---
 

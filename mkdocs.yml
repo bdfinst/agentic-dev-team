@@ -108,8 +108,7 @@ nav:
           - "03 · Ship Arm Manual Run": docs/experiments/03-ship-arm-manual-run-prompt.md
           - "04 · Refactor Granularity Experiment": docs/experiments/04-experiment-prompt-refactor-granularity.md
           - Refactor Granularity Report: docs/experiments/refactor-granularity-report.md
-          - "05 · Refactor Cadence (Larger) Experiment": docs/experiments/05-experiment-prompt-refactor-cadence-larger.md
-          - "06 · Refactor Granularity (Revised) Experiment": docs/experiments/06-experiment-prompt-refactor-granularity-revised.md
+          - "05 · Workflow Matrix Experiment": docs/experiments/05-experiment-prompt-workflow-matrix.md
           - Complexity Refactor Regression: docs/experiments/complexity-refactor-regression.md
 
     - Specs:

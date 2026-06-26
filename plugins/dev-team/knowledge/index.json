@@ -1338,6 +1338,10 @@
       "summary": "The catalog tables (`knowledge/agent-registry.md` for agents and agent-loaded",
       "anchor": "2e-registry-completeness-preventive"
     },
+    "2f. CLAUDE.md and token-efficiency structural checks": {
+      "summary": "Two deterministic Python scripts validate concerns that the LLM-based review",
+      "anchor": "2f-claudemd-and-token-efficiency-structural-checks"
+    },
     "3. Audit skills": {
       "summary": "Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:",
       "anchor": "3-audit-skills"

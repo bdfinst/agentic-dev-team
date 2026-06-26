@@ -1,0 +1,185 @@
+# Experiment Prompt: Which agentic workflow yields maintainable, well-tested code at minimum cost
+
+**Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
+**Harness:** [`scripts/run_refactor_experiment.py`](../../scripts/run_refactor_experiment.py)
+**Lineage:** the single, consolidated experiment for the refactor-cadence line. It supersedes
+the earlier granularity / larger-corpus designs (former prompts 06 and the cadence-larger
+prompt), fixes the variables they left open (refactoring on, specs clear), and re-scopes
+everything to the one question below. Prior raw data lives in
+[`data/refactor-granularity-merged.jsonl`](data/refactor-granularity-merged.jsonl).
+
+**Status: specified, harness ready, NOT run at scale.** New arms validated under
+`--skip-dispatch` and a 1-task cost pilot.
+
+---
+
+## The question
+
+> To achieve code that is **maintainable, well structured, and tested with good tests at
+> minimum cost**, which agentic workflow works best?
+
+Everything in the experiment exists to answer that and nothing else.
+
+## Two crossed factors (the variable matrix)
+
+| factor | levels |
+|---|---|
+| **A. Test/code ordering** | test-first / test-after |
+| **B. Batch size** | small (incremental, per-behavior) / big (all-at-once) |
+| **C. Authorship** | 1 agent / 2 context-isolated agents |
+
+The four named workflows are exactly the **A×B** cells:
+
+| workflow | ordering × batch |
+|---|---|
+| **W1 — Classic TDD (Kent Beck)** | test-first × small |
+| **W2 — Code first, tests second, small batches** | test-after × small |
+| **W3 — All code, then all tests** | test-after × big |
+| **W4 — All tests, then code to pass** | test-first × big |
+
+Crossing the 4 workflows with the 2 authorship levels gives a **2×2×2** design. One cell —
+**W1 × 2 agents** — is dropped: Beck's RED-GREEN-REFACTOR loop is a single integrated cycle,
+and splitting it across two context-isolated agents is either heavy-handoff ping-pong or no
+longer TDD. That leaves **7 cells**.
+
+## Held constant (eliminated as variables)
+
+These were variables in earlier runs; the question above fixes them, so they are removed:
+
+| held constant | fixed to | removes |
+|---|---|---|
+| Refactoring | **always**, after tests pass each iteration | the `none` / `one-shot`-only granularity arms as *separate* cadence conditions |
+| Spec clarity | **clear** | the clear/vague crossing |
+
+Refactoring being mandatory does **not** remove a refactor *step* — every arm refactors after
+green. "Each iteration" means per-behavior for the small-batch workflows and once-after-green
+for the big-batch workflows (which have a single iteration).
+
+## The 7 cells and the arms that implement them
+
+| cell | workflow × authorship | harness arm | status |
+|---|---|---|---|
+| C1 | W1 TDD × 1 agent | `tdd-refactor` | existing |
+| C3 | W2 small × 1 agent | `continuous-single` | existing |
+| C4 | W2 small × 2 agents | `continuous-split` | existing |
+| C5 | W3 big × 1 agent | `one-shot-single` | existing |
+| C6 | W3 big × 2 agents | `one-shot-split` | existing |
+| **C7** | **W4 big × 1 agent** | **`all-tests-first-single`** | **new** |
+| **C8** | **W4 big × 2 agents** | **`all-tests-first-split`** | **new** |
+
+The existing `one-shot` arms already *are* W3: one agent (or coder+tester) writes everything,
+then a separate, revertable refactor pass runs after green. Only **W4** — write the whole test
+suite first, then production code to pass it — was missing. Two new arms add it:
+
+- `all-tests-first-single`: one agent writes the full failing suite, then the production code to
+  pass it, then a separate refactor pass.
+- `all-tests-first-split`: an isolated tester writes the full failing suite, then an isolated
+  coder writes production code to pass it, then a separate refactor pass.
+
+Both use the `one-shot` refactor mechanism (separate dispatch, test edits reverted to the green
+snapshot) so the **tests-frozen-during-refactor invariant** holds exactly as in every other arm.
+
+The `no-refactor-*` arms are **not used** — refactoring is mandatory now.
+
+## Outcome measures (what "best" means)
+
+All already emitted by the harness; map 1:1 to the three goals plus cost:
+
+| goal | measured by |
+|---|---|
+| **Maintainable / well structured** | radon MI + CC, lizard CCN / tokens, blast radius across the 3-change chain (changeability) |
+| **Tested with good tests** | mutation score, branch coverage, CORE + EDGE acceptance pass, test smells (assertless tests, mock density, sleeps) |
+| **Minimum cost** | `cost_usd`, tokens, turns (raw and per quality unit) |
+
+Report every quality figure **raw and per-dollar**, and name the efficient frontier: which
+workflow buys the most maintainability + test quality per dollar.
+
+## Cost (firmed by a 1-task pilot)
+
+Per-cell costs: run-04 actuals (cross-task mean) for the 5 existing arms; a 1-task `fare`
+pilot for the 2 new arms, nudged +5% since `fare` runs ~5% below the cross-task mean.
+The pilot arms ran clean — core+edge pass, mutation 1.0, all 3 changes pass, 0 invariant
+violations.
+
+| cell | arm | $/cell | basis |
+|---|---|--:|---|
+| C3 | `continuous-single` | 0.99 | run-04 actual |
+| C1 | `tdd-refactor` | 1.57 | run-04 actual |
+| C5 | `one-shot-single` | 2.01 | run-04 actual |
+| C7 | `all-tests-first-single` | ~2.50 | **pilot** ($2.39 on `fare`) |
+| C4 | `continuous-split` | 2.81 | run-04 actual |
+| C6 | `one-shot-split` | 2.85 | run-04 actual |
+| C8 | `all-tests-first-split` | ~3.77 | **pilot** ($3.60 on `fare`) |
+| | **per task × trial (7 cells)** | **~$16.5** | |
+
+| trials/cell | cells | **est. campaign cost** |
+|---|--:|--:|
+| 6 | 168 | **~$400** |
+| 8 | 224 | **~$530** |
+| 12 | 336 | **~$790** |
+
+Recommended: start at **6 trials/cell (~$400)** and sequentially extend only the cells whose
+maintainability/test-quality-per-dollar ranking is still ambiguous. The two test-first-split
+cells (C8) are the most expensive; the single-agent cells are 2–4× cheaper.
+
+## Secondary analyses (optional, same data — no extra run)
+
+Earlier designs in this experiment line chased effects we have since either settled or
+deliberately scoped out. They need **no separate campaign** — each is either eliminated or
+computable from this experiment's existing output rows:
+
+| earlier endpoint | status here |
+|---|---|
+| EDGE collapse under **vague** specs | **eliminated** — vague specs are a settled result (they degrade quality); not worth paying to re-measure |
+| clarity × granularity interaction | **eliminated** — no clarity axis |
+| "does refactoring help?" (`no-refactor` arms) | **eliminated** — refactoring is a settled premise |
+| 20–40-task expansion for a ±5% blast main effect | **eliminated** — underpowered at four tasks; not this question |
+| blast **variance**, free (big) vs frozen (small) | **optional secondary** — computable from these rows |
+| test-churn → blast **mediation** | **optional secondary** — needs only a per-change test-churn series |
+| ±5% TOST on blast | **optional secondary** — underpowered; report as inconclusive |
+
+The three optional secondaries reuse arms already in this matrix (`one-shot` = big-batch,
+`continuous` = small-batch, `tdd-refactor`), so they are extra statistics over the same rows,
+not a second run. The only marginal harness work — *if* the mediation is wanted — is decomposing
+test-LOC churn per change index, a measurement add rather than a new arm or factor.
+
+**Net: this is the one experiment. Run the 7-cell campaign; the secondaries are an analysis
+pass over its output.**
+
+## Future scale-up (parked — same question, bigger corpus)
+
+If the 4-task / 3-change result needs more external validity, scale the **corpus**, not the
+factors — run these same 7 cells on harder tasks. The good ideas from the retired
+cadence-larger design, kept here so they are not lost:
+
+- **Larger multi-file tasks** — 3–5 source modules behind a public API, not single-module katas.
+- **Longer change horizon** — an 8-change chain instead of 3, so changeability compounds.
+- **Held-out changeability probe** — after the chain, apply two identical changes with
+  refactoring disabled, to measure the changeability each workflow *paid forward*.
+- **Decomposed churn** — record change-churn and refactor-churn separately per change index.
+- **More tasks** — the task is the unit of inference; cross-task ranking stability is bounded by
+  task count, and only more tasks (not more trials) tightens it.
+
+This is a larger, more expensive campaign — specify N from a power calc on the prior per-task
+variance before funding it. It is **not** part of the base run.
+
+## Run plan
+
+1. **Validate** with `--skip-dispatch` (free) — confirms all 7 arms run end-to-end.
+2. **1-task cost pilot** on the new arms (`--task fare --arm all-tests-first-single --arm
+   all-tests-first-split --trials 1`) to get real per-cell cost.
+3. **Campaign:** one command —
+   [`scripts/run_workflow_matrix.py`](../../scripts/run_workflow_matrix.py). It runs the 7 arms
+   × 4 tasks × 6 base trials, then **sequentially extends** only the arms whose cost-efficiency
+   (quality-per-dollar) rank is still ambiguous, up to a 12-trial ceiling. Defaults to a **dry
+   plan** (no dispatch); pass `--go` to run, `--analyze-only` to print the efficiency frontier
+   from existing data. Holds the model fixed (`claude-sonnet-4-6`).
+
+## Guardrails (carried from run 04)
+
+1. Hide acceptance suites during build/change; validate each against a reference first.
+2. The invariant is enforced by reverting test edits in refactor steps — it held at 0 violations
+   in 364 cells.
+3. Hold the model fixed and report it.
+4. The task is the unit of inference; with 4 tasks, report per-task and pooled, and be honest
+   about what 4 tasks can and cannot resolve.

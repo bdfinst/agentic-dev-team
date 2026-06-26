@@ -10,9 +10,11 @@
     "$BATS_TEST_DIRNAME/../../plugins/dev-team/agents/test-modernization-review.md"
 }
 
-@test "orchestrator has You are persona sentence before first ## section" {
-  # Extract body before first ##, check for You are
-  awk '/^# /,/^## /' \
-    "$BATS_TEST_DIRNAME/../../plugins/dev-team/agents/orchestrator.md" \
-    | grep -q "^You are"
+@test "orchestrator declares enforcement: script and an Implemented-by pointer" {
+  # The orchestrator was converted to a script-enforced prose spec (PR #462):
+  # it is no longer a persona-driven team agent, so instead of a "You are"
+  # persona it declares `enforcement: script` and points at its implementation.
+  f="$BATS_TEST_DIRNAME/../../plugins/dev-team/agents/orchestrator.md"
+  grep -qE '^enforcement:[[:space:]]*script' "$f"
+  grep -qE '^> \*\*Implemented by:\*\*' "$f"
 }
