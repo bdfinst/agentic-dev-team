@@ -749,6 +749,36 @@
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
+  "plugins/dev-team/knowledge/request-processing-flow.md": {
+    "Request Processing Flow": {
+      "summary": "For trivial tasks (typo fix, simple query), the Orchestrator routes directly to a single agent.",
+      "anchor": "request-processing-flow"
+    },
+    "Three-Phase Workflow": {
+      "summary": "1.",
+      "anchor": "three-phase-workflow"
+    },
+    "Skills by Phase": {
+      "summary": "| Phase | Skills Used | Purpose |",
+      "anchor": "skills-by-phase"
+    },
+    "Phase Transitions": {
+      "summary": "Each phase runs in a fresh context window.",
+      "anchor": "phase-transitions"
+    },
+    "Multi-Agent Collaboration Protocol": {
+      "summary": "The primary value of sub-agents is **context isolation**, not persona specialization.",
+      "anchor": "multi-agent-collaboration-protocol"
+    },
+    "Sub-Agents as Context Isolation": {
+      "summary": "The primary value of sub-agents is **context isolation**, not persona specialization.",
+      "anchor": "sub-agents-as-context-isolation"
+    },
+    "Multi-Agent Coordination": {
+      "summary": "When a task requires multiple agents:",
+      "anchor": "multi-agent-coordination"
+    }
+  },
   "plugins/dev-team/knowledge/result-verification.md": {
     "Verification style: state vs behavior": {
       "summary": "| Style | What it checks | Use when |",
@@ -883,6 +913,12 @@
     "1.0.0 (2026-04-21)": {
       "summary": "Initial contract.",
       "anchor": "100-2026-04-21"
+    }
+  },
+  "plugins/dev-team/knowledge/skills-registry.md": {
+    "Command Table": {
+      "summary": "| Command | File | Role | What It Does |",
+      "anchor": "command-table"
     }
   },
   "plugins/dev-team/knowledge/task-size-classifier.md": {

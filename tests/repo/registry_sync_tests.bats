@@ -89,3 +89,33 @@ EOF
   run python3 "$CHECK" --root "$FIX"
   [ "$status" -eq 0 ]
 }
+
+@test "a slash-command skill catalogued only in knowledge/skills-registry.md is in sync" {
+  # After the CLAUDE.md size reduction, user-invocable skill paths move from the
+  # CLAUDE.md table to knowledge/skills-registry.md. The script must scan that
+  # file as a third source so no skills are reported MISSING.
+  # Fixture: agent-registry.md has NO skill paths, CLAUDE.md has no skill paths;
+  # skills-registry.md has bar/SKILL.md. The script should exit 0 (bar is found
+  # via the knowledge file).
+  mkdir -p "$FIX/plugins/dev-team/skills/baz"
+  printf -- '---\nname: baz\n---\n' > "$FIX/plugins/dev-team/skills/baz/SKILL.md"
+  # Overwrite agent-registry to remove bar from Skills Registry
+  cat > "$FIX/plugins/dev-team/knowledge/agent-registry.md" <<'EOF'
+## Review Agents
+
+| Agent | File | What It Checks |
+|-------|------|----------------|
+| foo | `agents/foo.md` | something |
+
+## Skills Registry
+
+| Skill | File | ~Tokens | Used By |
+|-------|------|---------|---------|
+| Baz | `skills/baz/SKILL.md` | 100 | Orchestrator |
+EOF
+  # bar is registered only via knowledge/skills-registry.md, not CLAUDE.md or agent-registry.md
+  printf '| `/bar` | `skills/bar/SKILL.md` | worker | does a thing |\n' \
+    > "$FIX/plugins/dev-team/knowledge/skills-registry.md"
+  run python3 "$CHECK" --root "$FIX"
+  [ "$status" -eq 0 ]
+}
