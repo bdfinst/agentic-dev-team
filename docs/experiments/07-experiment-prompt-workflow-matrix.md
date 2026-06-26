@@ -150,9 +150,12 @@ pass over its output.**
 1. **Validate** with `--skip-dispatch` (free) — confirms all 7 arms run end-to-end.
 2. **1-task cost pilot** on the new arms (`--task fare --arm all-tests-first-single --arm
    all-tests-first-split --trials 1`) to get real per-cell cost.
-3. **Campaign:** 7 arms × 4 tasks (`fare`, `payroll`, `cart`, `grades`) × clear specs ×
-   N trials. Start at ~6 trials/cell with a sequential extension only for cells whose ranking
-   is still ambiguous. Hold the model fixed (`claude-sonnet-4-6`) and report it.
+3. **Campaign:** one command —
+   [`scripts/run_workflow_matrix.py`](../../scripts/run_workflow_matrix.py). It runs the 7 arms
+   × 4 tasks × 6 base trials, then **sequentially extends** only the arms whose cost-efficiency
+   (quality-per-dollar) rank is still ambiguous, up to a 12-trial ceiling. Defaults to a **dry
+   plan** (no dispatch); pass `--go` to run, `--analyze-only` to print the efficiency frontier
+   from existing data. Holds the model fixed (`claude-sonnet-4-6`).
 
 ## Guardrails (carried from run 04)
 
