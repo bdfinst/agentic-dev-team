@@ -1,6 +1,6 @@
 {
   "name": "marketplace-dev",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Scaffold, audit, and maintain Claude Code plugins and plugin marketplaces: structural review agent, markdown-vs-script decision framework, scaffolding skills (plugin, marketplace, eval), a generalized plugin-audit, and the migrated agent/skill authoring toolkit. Companion plugin to dev-team.",
   "author": {
     "name": "Bryan Finster",
