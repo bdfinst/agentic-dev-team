@@ -4,9 +4,12 @@ description: CLAUDE.md completeness, rules, skills, path accuracy, and agent fro
 tools: Read, Grep, Glob
 effort: low
 cites: [adversarial-review-protocol]
+enforcement: script
 ---
 
 # Claude Setup Review
+
+> **Implemented by:** scripts/claude_setup_review.py
 
 Output JSON:
 
@@ -94,17 +97,18 @@ Suggested fix for each: "This field is ignored for plugin agents. Move the agent
 
 Flag as **suggestion** any top-level frontmatter key that is not in the official field list (`name`, `description`, `tools`, `disallowedTools`, `model`, `permissionMode`, `maxTurns`, `skills`, `mcpServers`, `hooks`, `memory`, `background`, `effort`, `isolation`, `color`, `initialPrompt`). These fields are ignored by Claude Code and may indicate a typo or a skill field accidentally placed in an agent file.
 
-## Self-Challenge
+## Quality Checks (LLM reasoning scope)
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these claude-setup-review-specific challenges:
+The script handles all mechanical checks. LLM reasoning is reserved for quality
+judgments that require contextual understanding:
 
-- Did you check EVERY `.md` file under `agents/` for frontmatter schema compliance, not just a sample?
-- For each "referenced path doesn't exist" finding, did you resolve the path against the actual tree rather than assume?
-- Did you distinguish a required-field violation (error) from a plugin-unsupported field (warning) per the schema rules?
-- Are there unknown frontmatter keys you walked past that should be flagged as suggestions?
-- For each "command doesn't work" finding, did you confirm it against the actual manifest (package.json/Makefile), not infer from the name?
+- Coverage of all `.md` files under `agents/` — not just a sample
+- Path references resolved against the actual tree, not assumed
+- Required-field violations (error) vs. plugin-unsupported fields (warning) distinguished correctly
+- Unknown frontmatter keys flagged as suggestions
+- Commands verified against the actual manifest (package.json/Makefile), not inferred from name
 
-Append confidence level (High/Medium/Low) to the `summary` field.
+The `summary` field should include a confidence level (High/Medium/Low).
 
 ## Ignore
 
