@@ -41,6 +41,14 @@ Verify:
 - There are commits ahead of the base branch
 - Working tree is clean (no uncommitted changes) — if dirty, ask whether to commit or stash
 
+If a plan file is present (check `plans/` for the most recently modified approved or implemented plan), run the plan completion gate:
+
+```bash
+python3 scripts/progress_guardian.py --pre-pr --plan <plan-file>
+```
+
+A non-zero exit means incomplete steps remain; stop and surface the findings — do not open the PR until all steps are `[x]`.
+
 ### 2. Run quality gate
 
 Run each check sequentially. Stop on first failure:
