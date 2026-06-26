@@ -1,7 +1,7 @@
 # Refactoring cadence & authorship — pre-run power analysis
 
 **Status: the experiment as written in
-[`experiment-prompt-refactor-granularity.md`](experiment-prompt-refactor-granularity.md)
+[`04-experiment-prompt-refactor-granularity.md`](04-experiment-prompt-refactor-granularity.md)
 is underpowered for its headline question. Revise the design before spending model
 budget.** Reproduce with `python3 scripts/power_calc_refactor_granularity.py` (no model
 cost — reads the existing `tdd-pays` run1+run2 data).

@@ -92,14 +92,14 @@ if [ "$FILE_TYPE" = "agent" ]; then
   # Always require /agent-audit and doc sync after agent changes
   printf "\n"
   if [ -n "$FAILS" ]; then
-    printf "$FAILS"
+    printf '%b' "$FAILS"
   fi
   if [ -n "$WARNINGS" ]; then
-    printf "$WARNINGS"
+    printf '%b' "$WARNINGS"
   fi
   printf "\n"
-  printf "  Agent file changed: $AGENT_NAME\n"
-  printf "  ACTION REQUIRED: Run /agent-audit $FILE_PATH\n"
+  printf "  Agent file changed: %s\n" "$AGENT_NAME"
+  printf "  ACTION REQUIRED: Run /agent-audit %s\n" "$FILE_PATH"
   printf "  DOC SYNC REQUIRED: Update .claude/CLAUDE.md and docs/agent_info.md to reflect any changes.\n"
   printf "  Invoke the tech-writer persona to review affected documentation before marking this task complete.\n"
 fi
@@ -143,10 +143,10 @@ if [ "$FILE_TYPE" = "skill" ]; then
   if [ -n "$FAILS" ] || [ -n "$WARNINGS" ]; then
     printf "\n"
     if [ -n "$FAILS" ]; then
-      printf "$FAILS"
+      printf '%b' "$FAILS"
     fi
     if [ -n "$WARNINGS" ]; then
-      printf "$WARNINGS"
+      printf '%b' "$WARNINGS"
     fi
     printf "\n"
     printf "  Run /agent-audit for a full compliance report.\n"
@@ -157,7 +157,7 @@ fi
 if [ "$FILE_TYPE" = "config" ]; then
   CONFIG_NAME=$(basename "$FILE_PATH")
   printf "\n"
-  printf "  Config file changed: $CONFIG_NAME\n"
+  printf "  Config file changed: %s\n" "$CONFIG_NAME"
   printf "  DOC SYNC REQUIRED: Verify affected documentation is current:\n"
   case "$FILE_PATH" in
     */hooks/*.sh)
@@ -185,7 +185,7 @@ if [ "$FILE_TYPE" = "other" ]; then
 
   CHANGED_NAME=$(basename "$FILE_PATH")
   printf "\n"
-  printf "  File changed: $CHANGED_NAME\n"
+  printf "  File changed: %s\n" "$CHANGED_NAME"
   printf "  DOC SYNC CHECK: If this change affects observable behavior or architecture, update:\n"
   printf "    - docs/agent-architecture.md (system design or configuration changes)\n"
   printf "    - README.md            (top-level changes visible to new users)\n"

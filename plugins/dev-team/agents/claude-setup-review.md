@@ -21,6 +21,8 @@ Status: pass=complete config, warn=gaps, fail=critical missing
 Severity: error=blocks AI effectiveness or violates required schema; warning=reduces quality or uses unsupported field; suggestion=enhancement or style improvement
 Confidence: high=mechanical fix (add missing field, fix invalid value); medium=content exists but needs restructuring; none=requires human judgment
 
+Context needs: project-structure
+
 ## Skip
 
 Return `{"status": "skip", "issues": [], "summary": "Not a Claude Code project"}` when:

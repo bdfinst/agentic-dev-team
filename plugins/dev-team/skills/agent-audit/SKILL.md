@@ -206,7 +206,8 @@ It asserts a bijection between `plugins/dev-team/agents/*.md` +
 `plugins/dev-team/skills/*/SKILL.md` and the registry rows, reporting `MISSING`
 (file with no row) and `ORPHAN` (row with no file). Unlike the citation lint this
 is a **hard gate** — exit 1 on any discrepancy. Fix it by adding or removing the
-catalog row (or via `/agent-create` / `/agent-remove`, which maintain the tables).
+catalog row by hand (the `marketplace-dev` plugin's `/agent-create` /
+`/agent-remove` maintain these tables automatically).
 Effort bands are deliberately not checked — they live only in frontmatter. The
 bats suite `tests/repo/registry_sync_tests.bats` runs this on every PR.
 

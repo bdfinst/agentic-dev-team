@@ -13,7 +13,6 @@ Used by the Orchestrator to manage the team:
 
 | Skill | File | Purpose |
 | --- | --- | --- |
-| Agent & Skill Authoring | [`agent-skill-authoring.md`](../skills/agent-skill-authoring/SKILL.md) | Skill-authoring conventions, anti-patterns, and the agent-vs-skill philosophy (for creating new agents, use the `agent-create` skill via `/agent-add`) |
 | Context Loading Protocol | [`context-loading-protocol.md`](../skills/context-loading-protocol/SKILL.md) | Decides which agent/skill files to load and when |
 | Context Summarization | [`context-summarization.md`](../skills/context-summarization/SKILL.md) | Compresses conversation history at utilization thresholds |
 | Feedback & Learning | [`feedback-learning.md`](../skills/feedback-learning/SKILL.md) | Processes feedback keywords, audit trail, rollback |
@@ -126,11 +125,11 @@ User-invocable skills are invoked as slash commands (e.g., `/code-review`) and e
 
 ### Scaffolding Skills
 
-| Command | File | Purpose |
-| --- | --- | --- |
-| `/add-plugin` | [`add-plugin/SKILL.md`](../skills/add-plugin/SKILL.md) | Install a plugin and register it in `settings.json` |
-| `/agent-add` | [`agent-add/SKILL.md`](../skills/agent-add/SKILL.md) | Scaffold a new review agent with eval compliance check and doc updates |
-| `/agent-remove` | [`agent-remove/SKILL.md`](../skills/agent-remove/SKILL.md) | Remove an agent and all its registry entries and doc references |
+The plugin-authoring scaffolding skills — `/agent-add`, `/agent-remove`,
+`/add-plugin`, `agent-create`, and `agent-skill-authoring` — moved to the
+companion **`marketplace-dev`** plugin (which builds and audits plugins for any
+marketplace), along with a generalized `/plugin-audit`. Install `marketplace-dev`
+from the `bfinster` marketplace to use them.
 
 ### Workflow Skills
 
@@ -164,7 +163,7 @@ Team agent personas (orchestrator, architect, software-engineer, qa-engineer, se
 
 ### Skill Invocation
 
-Skills are user-invocable directly as `/<skill-name>` — there are no per-skill command wrappers. The available skills (specs, threat-modeling, hexagonal-architecture, domain-driven-design, domain-analysis, api-design, legacy-code, mutation-testing, governance-compliance, feedback-learning, context-loading-protocol, context-summarization, performance-metrics, quality-gate-pipeline, human-oversight-protocol, agent-skill-authoring, competitive-analysis, design-doc, branch-workflow, browser-testing, ci-debugging, design-interrogation, design-it-twice, feature-file-validation, performance-benchmark, static-analysis-integration, systematic-debugging, farley-score, test-design-advisor, cd-test-architecture, test-driven-development, docker-image-audit, docker-image-create, js-project-init) load their `SKILL.md` content into the current context and apply it to the task. See [`skills/`](../skills/) for full definitions.
+Skills are user-invocable directly as `/<skill-name>` — there are no per-skill command wrappers. The available skills (specs, threat-modeling, hexagonal-architecture, domain-driven-design, domain-analysis, api-design, legacy-code, mutation-testing, governance-compliance, feedback-learning, context-loading-protocol, context-summarization, performance-metrics, quality-gate-pipeline, human-oversight-protocol, competitive-analysis, design-doc, branch-workflow, browser-testing, ci-debugging, design-interrogation, design-it-twice, feature-file-validation, performance-benchmark, static-analysis-integration, systematic-debugging, farley-score, test-design-advisor, cd-test-architecture, test-driven-development, docker-image-audit, docker-image-create, js-project-init) load their `SKILL.md` content into the current context and apply it to the task. See [`skills/`](../skills/) for full definitions.
 
 ### Utility Skills
 
@@ -222,8 +221,8 @@ user-invocable: false
 [Actionable rules for applying this skill]
 ```
 
-See [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) for detailed guidelines and anti-patterns. To create a new agent (review or team), use `/agent-add` — it invokes the [`agent-create`](../skills/agent-create/SKILL.md) skill, which enforces the canonical schema, token-efficiency budgets, and registration steps.
+To create a new agent (review or team) or author a skill, use the **`marketplace-dev`** plugin's `/agent-add` (which invokes its `agent-create` skill) and `agent-skill-authoring` guidance — these enforce the canonical schema, token-efficiency budgets, and registration steps. Validate the result with `marketplace-dev`'s `/plugin-audit`.
 
 ## Add a User-Invocable Skill
 
-For a new review agent skill, use `/agent-add`. For a new workflow skill, create `.claude/skills/{name}/SKILL.md` following the skill structure (YAML frontmatter with `user-invocable: true`, `Role:` declaration, constraints, numbered steps). Run `/agent-audit` after creation.
+For a new workflow skill, create `plugins/dev-team/skills/{name}/SKILL.md` following the skill structure (YAML frontmatter with `user-invocable: true`, `Role:` declaration, constraints, numbered steps), then run `/agent-audit` to check structural compliance.
