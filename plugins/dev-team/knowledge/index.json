@@ -2203,36 +2203,32 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Require `memory/test-modernize/<slug>/disabled-tests.json` to exist.",
+      "summary": "Read the build manifest at the repo root and pick the appropriate command:",
       "anchor": "steps"
     },
-    "1. Confirm Phase 3's audit has run": {
-      "summary": "Require `memory/test-modernize/<slug>/disabled-tests.json` to exist.",
-      "anchor": "1-confirm-phase-3s-audit-has-run"
-    },
-    "2. Detect the coverage tool": {
+    "1. Detect the coverage tool": {
       "summary": "Read the build manifest at the repo root and pick the appropriate command:",
-      "anchor": "2-detect-the-coverage-tool"
+      "anchor": "1-detect-the-coverage-tool"
     },
-    "3. Run coverage": {
+    "2. Run coverage": {
       "summary": "Run the chosen command from `<repo-path>`.",
-      "anchor": "3-run-coverage"
+      "anchor": "2-run-coverage"
     },
-    "4. Parse line + branch percentages": {
+    "3. Parse line + branch percentages": {
       "summary": "For each tool, parse the report into `{ \"line\": <pct>, \"branch\": <pct>, \"tool\": \"<name>\", \"raw_path\": \"<file>\" }`:",
-      "anchor": "4-parse-line-branch-percentages"
+      "anchor": "3-parse-line-branch-percentages"
     },
-    "5. Persist the baseline": {
-      "summary": "Write `memory/test-modernize/<slug>/baseline-coverage.json`:",
-      "anchor": "5-persist-the-baseline"
+    "4. Persist the baseline": {
+      "summary": "Write `memory/<workflow>/<slug>/baseline-coverage.json`:",
+      "anchor": "4-persist-the-baseline"
     },
-    "6. Post to the parent": {
+    "5. Post to the parent": {
       "summary": "**Tracker mode** — append a markdown block to the parent issue's description (the resolved CLI was recorded in Phase 1):",
-      "anchor": "6-post-to-the-parent"
+      "anchor": "5-post-to-the-parent"
     },
-    "7. Report": {
+    "6. Report": {
       "summary": "Print:",
-      "anchor": "7-report"
+      "anchor": "6-report"
     },
     "Notes": {
       "summary": "Coverage tools may legitimately differ by repo; never replace the repo's own script with a generic one unless detection fails.",
@@ -3589,7 +3585,7 @@
       "anchor": "step-0-confirmation-gate"
     },
     "Step 1: Detect or set up tooling": {
-      "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#).",
+      "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#, go-mutesting for Go).",
       "anchor": "step-1-detect-or-set-up-tooling"
     },
     "Step 1b: Configure per-mutant timeout": {
@@ -3779,7 +3775,7 @@
       "anchor": "5-run-plan-review-personas"
     },
     "6. Present for approval": {
-      "summary": "**First determine interactivity.** The run is **non-interactive** when any of these hold: `--yes` was passed, `DEV_TEAM_AUTO_APPROVE=1` is set in the environment, or stdin is not a usable TTY (`test -t 0` is false — the headless/CI/automation case).",
+      "summary": "**Gate check before presenting.** Verify the `## Skipped (low value)` section captures every `LOW_VALUE` finding — no slice or TDD step may carry one.",
       "anchor": "6-present-for-approval"
     },
     "Integration": {
@@ -4292,6 +4288,10 @@
       "summary": "After critiquing the artifacts but before writing the final acceptance criteria, run this protocol on every gap and ambiguity finding.",
       "anchor": "ambiguity-resolution-protocol"
     },
+    "Gap classification: NO_REFACTOR / REFACTOR_REQUIRED / LOW_VALUE": {
+      "summary": "When a critique surfaces a missing-test or coverage gap, classify it so the spec only carries work that delivers signal:",
+      "anchor": "gap-classification-norefactor-refactorrequired-lowvalue"
+    },
     "Scope signals": {
       "summary": "A specification bundles too much when any of these fire:",
       "anchor": "scope-signals"
@@ -4704,13 +4704,17 @@
       "summary": "Flag flakiness signals (`test-smells.md` project/behavior smells: order-dependence, unstubbed clock/RNG, real I/O at unit level) and a management recommendation (quarantine + fix, don't `retry`).",
       "anchor": "7-flaky-test-automation-maturity"
     },
-    "8. Ordered improvement plan": {
-      "summary": "Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1.",
-      "anchor": "8-ordered-improvement-plan"
+    "8. Classify gaps + recommend removals": {
+      "summary": "Classify every gap the audit surfaces into one of three classes, so the improvement plan (Step 9) only ever plans work that delivers signal:",
+      "anchor": "8-classify-gaps-recommend-removals"
     },
-    "9. Report": {
+    "9. Ordered improvement plan": {
+      "summary": "Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1.",
+      "anchor": "9-ordered-improvement-plan"
+    },
+    "10. Report": {
       "summary": "Write `reports/test-health-<date>.md`.",
-      "anchor": "9-report"
+      "anchor": "10-report"
     },
     "Output": {
       "summary": "**Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.",

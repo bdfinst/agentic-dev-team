@@ -68,6 +68,7 @@ Behavior smells (only visible on run):
 Project smells (suite-wide):
 
 - **Buggy Tests** (pass when code is broken — recommend mutation testing), **Manual Intervention** (human step needed to run), **High Test Maintenance Cost** (*remedy:* Test Utility Method / Parameterized Test / Testcase Class per Fixture — `test-organization.md`), **Developers Not Writing Tests** (code lands untested / test count flat — name the root cause: schedule pressure, missing skill, or Hard-to-Test Code), **Production Bugs** slipping a green suite
+- **Redundant Low-Level Test** — a low-complexity unit test that duplicates coverage a higher-layer test already provides. All three must hold: no branching logic (trivial getter/setter, pass-through constructor, framework boilerplate, auto-generated code), no observable outcome (the only possible assertion is that a mock was called), and a higher-layer test already exercises the same path. Severity: `warning`. Suggested action: **removal** — it costs maintenance for no defect-localization gain. This is the per-file signal behind `/test-health`'s `LOW_VALUE` classification; report it so the suite-level skill can list the test for removal.
 
 Test double misuse (load `test-doubles.md`):
 
