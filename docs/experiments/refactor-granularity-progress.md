@@ -1,6 +1,6 @@
 # refactor-granularity (RQ-F) — live campaign
 
-_Auto-generated read-only mirror. Last update: **2026-06-26T15:15:12Z** UTC._
+_Auto-generated read-only mirror. Last update: **2026-06-26T15:25:14Z** UTC._
 
 ## What this experiment is
 
@@ -62,15 +62,15 @@ chain whose trap punishes non-modular code): `fare` (transit fares), `payroll`
    trials, model `claude-sonnet-4-6`.
 7. **This live feed** — refreshed every ~10 min while the run proceeds.
 
-## Current status — last updated 2026-06-26T15:15:12Z UTC
+## Current status — last updated 2026-06-26T15:25:14Z UTC
 
 _(this page refreshes at least every 15 minutes while the run is active)_
 
-8. **Campaign running** — estimated time remaining: **~25 min**.
+8. **Campaign running** — estimated time remaining: **~15 min**.
 
 ### Overall: 362 / 364 cells complete (99.5%)
 
-- **estimated time remaining: ~25 min**
+- **estimated time remaining: ~15 min**
 - build CORE pass: 356/362 (98%)
 - build EDGE pass: 356/362 (98%)
 - change-stage pass: 1066/1086 (98%)
