@@ -3,7 +3,7 @@ name: refactor-opportunity-review
 description: Assesses refactoring opportunities after tests pass (TDD REFACTOR phase), distinguishing semantic duplication from structural similarity
 tools: Read, Grep, Glob
 effort: medium
-cites: [adversarial-review-protocol]
+cites: [design-smells, adversarial-review-protocol]
 ---
 
 # Refactor Opportunity Review
@@ -19,6 +19,13 @@ Severity: error=semantic duplication (real DRY violation), warning=high-value re
 Confidence: high=mechanical (extract method, rename); medium=judgment call (is this duplication semantic or structural?); none=requires domain knowledge
 
 Context needs: full-file
+
+## Knowledge Files
+
+Before analysis, read `knowledge/design-smells.md#reinvented-built-in-cheat-sheet`
+— the per-language built-in map and the "What NOT to flag" guards (version/idiom
+drift) for the use-the-platform findings — plus the "Reinvented built-in / helper"
+and "Open-coded idiom" rows in `knowledge/design-smells.md#design-smells-pattern-mapping`.
 
 ## Skip
 
@@ -43,6 +50,24 @@ Return `{"status": "skip", "issues": [], "summary": "No refactoring candidates i
 - Parameter objects: functions with >4 parameters
 - Primitive obsession: repeated primitive combinations that should be a type
 - Dead code: unreachable branches, unused variables, commented-out code
+- Open-coded idiom: the same non-trivial boolean/arithmetic expression repeated
+  3+ times inline (e.g. `Math.abs(x - y) > tol`) that should be a named predicate
+  (`withinTolerance`) — see "Open-coded idiom" in `knowledge/design-smells.md#design-smells-pattern-mapping`.
+  Severity `suggestion`. Also flag terse algorithm steps that need intention-
+  revealing intermediates so the algorithm reads top-down.
+
+### Use the platform (suggestion)
+
+- Reinvented built-in: a hand-rolled loop/expression recomputes a standard-library
+  operation (min, max, sum, copy, reverse, clamp) the project's language provides
+  as one call — map via the language cheat-sheet in
+  `knowledge/design-smells.md#reinvented-built-in-cheat-sheet`.
+- Reinvented helper: an inline computation duplicates a named function already
+  defined in the same module/changed files (call it instead).
+- Recognize the *concept* and map to the local language — never pattern-match one
+  language's syntax. Honor the cheat-sheet's "What NOT to flag" (Go <1.21 has no
+  `min`/`max`; documented hot-path loops → confidence `none`). Severity
+  `suggestion`, never `error`.
 
 ### Nice (later)
 
@@ -69,6 +94,9 @@ After producing findings, run the shared challenger loop in `knowledge/adversari
 - For each extract-method finding, did you confirm a comment or block boundary marks a genuine separate responsibility?
 - Did you defer naming-only and architecture-only issues to their owning agents instead of double-reporting?
 - Are there feature-envy or primitive-obsession opportunities you walked past as "just how the code is"?
+- For each reinvented-built-in finding, did you confirm the built-in exists in the project's language *and version* (Go <1.21 has no `min`/`max`), and that the hand-rolled form isn't a documented hot-path optimization?
+- For each reinvented-helper finding, did you point at the existing named function it duplicates?
+- Did you map the smell to the local language by concept rather than matching one language's syntax?
 
 Append confidence level (High/Medium/Low) to the `summary` field.
 

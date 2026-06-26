@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Tests for /agent-audit — it validates the effort vocabulary (effort:
 # low|medium|high in frontmatter) and warns on a legacy model: tier name,
-# naming the band to use. AC7.
+# naming the band to use..
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 AUDIT="$REPO_ROOT/plugins/dev-team/skills/agent-audit/SKILL.md"

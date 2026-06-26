@@ -13,10 +13,7 @@
       "NotebookEdit",
       "mcp__*"
     ],
-    "deny": [
-      "Bash(rm *)",
-      "Bash(git push *)"
-    ]
+    "deny": ["Bash(rm *)", "Bash(git push *)"]
   },
   "hooks": {
     "SessionStart": [
@@ -25,6 +22,10 @@
           {
             "type": "command",
             "command": "bash hooks/session-model-banner.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/codegraph-bootstrap.sh"
           }
         ]
       }
@@ -88,6 +89,10 @@
           {
             "type": "command",
             "command": "bash hooks/telemetry.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/context-ceiling-guard.sh"
           }
         ]
       },
@@ -124,6 +129,10 @@
           {
             "type": "command",
             "command": "bash hooks/agent-model-resolve.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/context-ceiling-guard.sh"
           }
         ]
       }

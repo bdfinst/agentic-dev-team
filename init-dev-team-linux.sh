@@ -105,6 +105,24 @@ elif have codegraph; then
   say "CodeGraph installed but not initialized — running 'codegraph init -i'..."
   if codegraph init -i; then
     say "CodeGraph: initialized ✓"
+    # Share with the team: the .db is machine-local (gitignored), so commit a
+    # project-root .mcp.json registering the MCP server. Every clone then
+    # auto-bootstraps its own index via codegraph-bootstrap.sh. Merge without
+    # clobbering existing servers.
+    MCP_BLOCK='{"mcpServers":{"codegraph":{"type":"stdio","command":"codegraph","args":["serve","--mcp"]}}}'
+    if have jq; then
+      if [ -f .mcp.json ]; then
+        if tmp="$(mktemp)" && jq --argjson add "$MCP_BLOCK" '. * $add' .mcp.json > "$tmp" 2>/dev/null; then
+          mv -f "$tmp" .mcp.json
+        else
+          rm -f "$tmp"
+          warn "CodeGraph: could not merge .mcp.json — leaving it unchanged."
+        fi
+      else
+        printf '%s\n' "$MCP_BLOCK" | jq . > .mcp.json
+      fi
+      say "CodeGraph: wrote .mcp.json — commit it with .codegraph/.gitignore so teammates auto-bootstrap CodeGraph on clone."
+    fi
   else
     say "CodeGraph init failed (exit $?). Continuing without CodeGraph."
   fi

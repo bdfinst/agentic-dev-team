@@ -1,0 +1,14 @@
+{
+  "fixture": "ro-repeated-idiom.ts",
+  "description": "A `Math.abs(x - y) > tol` comparison open-coded four times that should be a named `withinTolerance` predicate, plus repeated inline normalize-to-origin with terse names. The expressiveness/extract-named-predicate refactor opportunity should be flagged.",
+  "applicableAgents": ["refactor-opportunity-review"],
+  "agents": {
+    "refactor-opportunity-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": { "suggestion": { "min": 1, "max": 4 } },
+      "mustMention": ["tolerance"],
+      "mustNotMention": []
+    }
+  }
+}

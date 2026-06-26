@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# AC21: building the knowledge index must leave no temp-file leak — the
+# building the knowledge index must leave no temp-file leak — the
 # builder publishes atomically (temp file + rename), and on success the
 # only artifact in the output directory is the index itself.
 #
@@ -24,7 +24,7 @@ teardown() {
   [ -n "${TMP:-}" ] && rm -rf "$TMP"
 }
 
-@test "AC21: a rebuild leaves no temp or partial files beside the index" {
+@test "a rebuild leaves no temp or partial files beside the index" {
   # Default corpus roots (the real plugin tree) → output diverted to TMP.
   KNOWLEDGE_INDEX_OUTPUT="$OUT" bash "$BUILDER"
   # On a clean publish the temp file has been renamed onto the index; the
@@ -34,7 +34,7 @@ teardown() {
   [ "$output" = "index.json" ]
 }
 
-@test "AC21: the diverted build is byte-identical to the committed index" {
+@test "the diverted build is byte-identical to the committed index" {
   KNOWLEDGE_INDEX_OUTPUT="$OUT" bash "$BUILDER"
   run diff -u "$COMMITTED_INDEX" "$OUT"
   [ "$status" -eq 0 ]

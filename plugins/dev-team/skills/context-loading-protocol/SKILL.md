@@ -16,6 +16,21 @@ Token-budget reference (CLAUDE.md baseline, full-load ceiling, per-agent and per
 - Load agents on demand when their phase begins, not speculatively.
 - Use tool-based file reads (Read); do not paste file contents into the prompt.
 
+## Enforcement
+
+This protocol is backed by a `PreToolUse` hook — `hooks/context-ceiling-guard.sh`
+(registered on `Agent` and `Skill`). Before a capability-loading call it reads the
+*actual* occupancy from the transcript's latest assistant-message usage
+(`input + cache_read + cache_creation` tokens) against the model's context window
+and, at/above the ceiling, nudges you to summarize (warn, default) or blocks the
+load (`DEV_TEAM_CONTEXT_STRICT=on`). Recovery skills (`/context-summarization`,
+`/context-loading-protocol`, `/continue`, `/review-summary`, `/session-review`) are
+never gated. The window cannot be auto-detected on a 1M-context model (the
+transcript omits the `[1m]` suffix) — set `DEV_TEAM_CONTEXT_WINDOW=1000000` there.
+Knobs: `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40), `DEV_TEAM_CONTEXT_CEILING=off`.
+The hook is a backstop measured from real usage; the budget estimate below is still
+the planning tool you apply *before* loading.
+
 ## Loading Decision Procedure
 
 ### Step 0: Confirm there is a task
@@ -74,14 +89,17 @@ Do NOT copy file contents into the system prompt or conversation.
 Pre-computed loading sets for common task types.
 
 ### Code Implementation
+
 - **Load**: Software Engineer + relevant skill(s)
 - **Defer**: QA (load after implementation), Architect (load only if design questions arise)
 
 ### Architecture Design
+
 - **Load**: Architect + relevant architecture skill(s)
 - **Defer**: Software Engineer (load at implementation), QA (load at validation)
 
 ### Bug Fix
+
 - **Load**: Software Engineer only
 - **Defer**: QA (load if regression test needed)
 
@@ -96,6 +114,7 @@ Three phases, each in a fresh context window with a human review gate between. E
 | 3. Implement | Software Engineer + QA + skill(s) | Execute the plan; code, tests | Working code + test results |
 
 Key rules:
+
 - Each phase starts with a fresh context window, loading only the previous phase's progress file.
 - Human reviews and approves the progress file before the next phase begins.
 - Sub-agents primarily provide context isolation — they search, read, and return concise findings.

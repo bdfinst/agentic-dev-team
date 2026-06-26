@@ -73,7 +73,7 @@ using `knowledge/task-size-classifier.md`. Whole-file load: all signal definitio
 
 ### Gate procedure
 
-1. **Screen decision axes first (AC5 guardrail).** Read `knowledge/decision-defaults.md`. Whole-file load: all five axis definitions (triggers, defaults, confirm clauses) are needed to check the request against every axis. Check whether the task touches any high-reversal-cost axis (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope). If any axis is triggered → `decision_axis_triggered = true` → the task **cannot be trivial**, regardless of other signals.
+1. **Screen decision axes first (decision-axis guardrail).** Read `knowledge/decision-defaults.md`. Whole-file load: all five axis definitions (triggers, defaults, confirm clauses) are needed to check the request against every axis. Check whether the task touches any high-reversal-cost axis (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope). If any axis is triggered → `decision_axis_triggered = true` → the task **cannot be trivial**, regardless of other signals.
 
 2. **Collect objective signals.** Gather `files_changed`, `loc_delta`, `slice_count`,
    `wave_count`, `has_complex_step` per the classifier spec.
@@ -111,7 +111,7 @@ Inputs: files_changed=<N>, loc_delta=<N>, decision_axis_triggered=false.
 Expected saving: ~65% fewer turns vs full pipeline (see docs/experiments/data/3sizes-3arms-summary.json).
 ```
 
-### Demonstration of saving (AC3)
+### Demonstration of saving
 
 From `docs/experiments/data/3sizes-3arms-summary.json` (small-kata tier, haiku-4.5):
 

@@ -42,7 +42,7 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# Default map (no ladder) — AC0 migration safety
+# Default map (no ladder) — migration safety
 # ---------------------------------------------------------------------------
 
 @test "resolver: low band resolves to the haiku default snapshot" {
@@ -63,7 +63,7 @@ teardown() {
   [ "$output" = "claude-opus-4-8" ]
 }
 
-@test "resolver: AC0 no-ladder bands equal the pre-migration tier snapshots" {
+@test "resolver: no-ladder bands equal the pre-migration tier snapshots" {
   [ "$(bash "$RESOLVER" low)" = "claude-haiku-4-5-20251001" ]
   [ "$(bash "$RESOLVER" medium)" = "claude-sonnet-4-6" ]
   [ "$(bash "$RESOLVER" high)" = "claude-opus-4-8" ]

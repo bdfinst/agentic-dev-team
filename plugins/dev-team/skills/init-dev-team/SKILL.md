@@ -188,13 +188,46 @@ supersedes the recorded preference.
     1. Print: `Running 'codegraph init -i' in this project...`
     2. Execute `codegraph init -i` with the current working directory as cwd.
        Surface its stdout/stderr to the user.
-    3. On exit 0: print `CodeGraph: initialized ✓` and merge
-       `{"codegraph": {"init_accepted": true}}` into `.claude/init-state.json`.
+    3. On exit 0: print `CodeGraph: initialized ✓`, merge
+       `{"codegraph": {"init_accepted": true}}` into `.claude/init-state.json`,
+       then run the **Share CodeGraph with the team** step below.
     4. On non-zero exit N: print
        `CodeGraph init failed (exit code N). See output above. Continuing without CodeGraph.`
        Do NOT modify `.claude/init-state.json`.
   - On any other response: merge `{"codegraph": {"init_declined": true}}`
     and continue silently.
+
+### Share CodeGraph with the team (after a successful init)
+
+The CodeGraph database (`.codegraph/codegraph.db`) is derived from source and
+machine-local — `.codegraph/.gitignore` excludes `*.db`, so it is never
+committed. The team shares CodeGraph by **committing two things** so every
+clone bootstraps its own local index automatically (no per-developer
+`codegraph init`):
+
+1. **The committed `.codegraph/` directory** (its `.gitignore`). This is the
+   repo's opt-in signal. On a fresh clone the plugin's `codegraph-bootstrap.sh`
+   SessionStart hook sees `.codegraph/` but no local `*.db` and rebuilds the
+   index automatically.
+2. **A project-root `.mcp.json`** registering the CodeGraph MCP server, so
+   every teammate's Claude Code session auto-starts `codegraph serve --mcp`
+   (its file-watcher + connect-time catch-up keep the index current).
+
+Write/merge `.mcp.json` at the project root without clobbering any existing
+server entries:
+
+```bash
+MCP_BLOCK='{"mcpServers":{"codegraph":{"type":"stdio","command":"codegraph","args":["serve","--mcp"]}}}'
+if [ -f .mcp.json ]; then
+  tmp="$(mktemp)"
+  jq --argjson add "$MCP_BLOCK" '. * $add' .mcp.json > "$tmp" && mv -f "$tmp" .mcp.json
+else
+  printf '%s\n' "$MCP_BLOCK" | jq . > .mcp.json
+fi
+```
+
+Then print: `CodeGraph: wrote .mcp.json — commit it with .codegraph/.gitignore so teammates auto-bootstrap CodeGraph on clone.`
+Do not run `git add`/`git commit` yourself; leave staging to the user.
 
 `.claude/init-state.json` uses a top-level `codegraph` key so future plugins
 can claim sibling keys without collision. Always merge into existing JSON

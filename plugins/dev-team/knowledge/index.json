@@ -448,6 +448,14 @@
       "summary": "| Smell | Signature in code | Remediation pattern |",
       "anchor": "design-smells-pattern-mapping"
     },
+    "Reinvented Built-in Cheat-Sheet": {
+      "summary": "The \"use the platform\" smell is **language-agnostic** — recognize the *concept*",
+      "anchor": "reinvented-built-in-cheat-sheet"
+    },
+    "What NOT to flag (reinvented built-in)": {
+      "summary": "A manual min/max (or similar) loop in a language/version that lacks the",
+      "anchor": "what-not-to-flag-reinvented-built-in"
+    },
     "What NOT to Flag": {
       "summary": "A `switch` over a closed enumeration where adding a case is rare (e.g., `DayOfWeek`, `HttpMethod`) — polymorphism adds ceremony without benefit",
       "anchor": "what-not-to-flag"
@@ -2236,6 +2244,10 @@
       "summary": "Never load all agents upfront; load only the primary agent for each phase.",
       "anchor": "constraints"
     },
+    "Enforcement": {
+      "summary": "This protocol is backed by a `PreToolUse` hook — `hooks/context-ceiling-guard.sh`",
+      "anchor": "enforcement"
+    },
     "Loading Decision Procedure": {
       "summary": "Before loading anything or reading files, confirm an actionable instruction exists.",
       "anchor": "loading-decision-procedure"
@@ -3480,6 +3492,10 @@
       "summary": "If `.codegraph.init_declined == true`: print",
       "anchor": "init-prompt-branch-installedtrue-initializedfalse"
     },
+    "Share CodeGraph with the team (after a successful init)": {
+      "summary": "The CodeGraph database (`.codegraph/codegraph.db`) is derived from source and",
+      "anchor": "share-codegraph-with-the-team-after-a-successful-init"
+    },
     "Step 3 — Select languages": {
       "summary": "Ask the user which language ecosystems they are working with.",
       "anchor": "step-3-select-languages"
@@ -4477,6 +4493,10 @@
     "Critique categories": {
       "summary": "| Category | Description |",
       "anchor": "critique-categories"
+    },
+    "Ambiguity Resolution Protocol": {
+      "summary": "After critiquing the artifacts but before writing the final acceptance criteria, run this protocol on every gap and ambiguity finding.",
+      "anchor": "ambiguity-resolution-protocol"
     },
     "Scope signals": {
       "summary": "A specification bundles too much when any of these fire:",

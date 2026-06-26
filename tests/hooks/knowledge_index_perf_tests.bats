@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Opt-in performance gate. AC23.
+# Opt-in performance gate..
 #
 # After the single-process Python rewrite the builder runs ~0.17s for
 # the real corpus on Apple Silicon. The threshold here is the spec's

@@ -47,8 +47,17 @@ a genuinely blocking ambiguity remains.
 
 ### 2. Spec (unless `--skip-spec`)
 
-Invoke `/specs` for the feature. Present the Intent, Architecture, and Acceptance
-Criteria for approval. **Human gate** — wait for approval before planning.
+Invoke `/specs` for the feature. `/specs` runs the Ambiguity Resolution Protocol
+before finalizing acceptance criteria — any finding classified `requires-stakeholder-input`
+is surfaced to the human as a required answer, not an optional confirmation.
+
+**These unresolved items ARE the human gate.** Do not auto-approve past them, even in
+non-interactive mode. The only exception is `--skip-spec` (when a reviewed spec already
+exists). A spec that passed its consistency gate with undocumented assumptions is not
+an approved spec.
+
+Present the completed spec (Intent, Architecture, Acceptance Criteria, and Ambiguity
+Log) for human review. **Human gate** — wait for approval before planning.
 
 ### 3. Plan
 

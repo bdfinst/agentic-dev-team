@@ -8,7 +8,6 @@
 #   - unknown agent:   pass-through {} when no usable band is found
 #   - resolver error:  fail-open {} (incl. missing routing.json — never deny)
 #
-# AC2, AC3, AC5.
 
 HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/agent-model-resolve.sh"
 SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
@@ -60,7 +59,7 @@ _agent_input() {
 # Effort-band resolution (the primary path)
 # ---------------------------------------------------------------------------
 
-@test "effort high, no ladder → rewrites model to opus, logs no bump (AC5)" {
+@test "effort high, no ladder → rewrites model to opus, logs no bump" {
   run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   echo "$output" | jq -e . >/dev/null
@@ -70,7 +69,7 @@ _agent_input() {
   [ ! -e "$MODEL_BUMP_LOG" ]
 }
 
-@test "effort agent always rewrites model even when equal to default (AC5, not pass-through)" {
+@test "effort agent always rewrites model even when equal to default (not pass-through)" {
   run bash -c "echo '$(_agent_input high-agent)' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   [ "$output" != "{}" ]
@@ -101,7 +100,7 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Legacy tier fallback + deprecation marker (AC3)
+# Legacy tier fallback + deprecation marker
 # ---------------------------------------------------------------------------
 
 @test "legacy model: sonnet (no effort agent) → medium snapshot + deprecation marker" {
@@ -231,10 +230,10 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# AC18 — settings.json registration (unchanged filename)
+# — settings.json registration (unchanged filename)
 # ---------------------------------------------------------------------------
 
-@test "AC18: settings.json registers agent-model-resolve.sh under PreToolUse Agent matcher" {
+@test "settings.json registers agent-model-resolve.sh under PreToolUse Agent matcher" {
   [ -f "$SETTINGS_JSON" ]
   run jq -e '.hooks.PreToolUse[] | select(.matcher == "Agent") | .hooks[] | select(.command | contains("agent-model-resolve.sh"))' "$SETTINGS_JSON"
   [ "$status" -eq 0 ]

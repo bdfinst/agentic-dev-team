@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
-# Opt-in performance gate for hooks/lib/model-resolve.sh. AC15.
+# Opt-in performance gate for hooks/lib/model-resolve.sh..
 #
-# The spec AC15 target is a 50ms p99 ceiling per resolver invocation.
+# The spec target is a 50ms p99 ceiling per resolver invocation.
 # Each invocation is a separate bash + jq process; bash + jq cold-start
 # on macOS Apple Silicon is ~10ms together, dominating actual resolution
 # work. We assert 50000ms (50ms × 1000) as the wall-clock ceiling for
