@@ -361,7 +361,7 @@ def step7_emit(
                 "confidence": "high",
                 "file": "",
                 "line": 0,
-                "message": f"recon-inventory.sh failed (exit {inventory_result.returncode}): {inventory_result.stderr.strip()}",
+                "message": f"recon-inventory.sh failed (exit {inventory_result.returncode}): {inventory_result.stderr.strip()[:500]}",
                 "suggestedFix": "Check that recon-inventory.sh is executable and the repo root is valid.",
             }
         )

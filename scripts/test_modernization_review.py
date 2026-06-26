@@ -420,6 +420,28 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    import re as _re
+
+    if not _re.fullmatch(r"[a-zA-Z0-9_.\-]+", args.repo):
+        print(
+            json.dumps(
+                build_result(
+                    [
+                        {
+                            "severity": "error",
+                            "confidence": "high",
+                            "file": "",
+                            "line": 0,
+                            "message": f"Invalid --repo slug '{args.repo}': must match [a-zA-Z0-9_.\\-]+",
+                            "suggestedFix": "Pass a simple repo slug without path separators or '..' components.",
+                        }
+                    ],
+                    [],
+                )
+            ),
+            flush=True,
+        )
+        sys.exit(1)
     base_dir = Path(args.base_dir).resolve()
     paths = resolve_artifacts(base_dir, args.repo, args.phase)
 
