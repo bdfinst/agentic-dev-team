@@ -12,6 +12,8 @@ Output JSON:
 {"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
 ```
 
+Severity: error=high-severity recurring pattern (≥3 sessions) requiring a plugin-level fix; warning=moderate pattern with a concrete suggested fix; suggestion=minor optimization opportunity
+
 # Session Analysis
 
 Role: worker. You read **only** the deterministic session digest produced by
