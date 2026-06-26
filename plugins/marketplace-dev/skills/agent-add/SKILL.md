@@ -8,11 +8,11 @@ description: >-
   reviewer for Y", "new team agent for Z". Also use when given a URL to a
   coding standard that should become a review agent.
 argument-hint: >-
-  <description-or-url> [--name <name>] [--type review|team]
+  <description-or-url> [--plugin <dir>] [--name <name>] [--type review|team]
   [--effort low|medium|high] [--context diff-only|full-file|project-structure]
   [--lang <exts>] [--dry]
 user-invocable: true
-allowed-tools: Read, Write, Edit, Grep, Glob, WebFetch, Skill(agent-audit *)
+allowed-tools: Read, Write, Edit, Grep, Glob, WebFetch, Skill(plugin-audit *)
 ---
 
 # Agent Add
@@ -48,6 +48,7 @@ the agent description.
 
 Pass these flags through to the skill as context:
 
+- `--plugin <dir>` → target plugin directory (resolved by agent-create Step 0)
 - `--name <name>` → set agent name (skips name prompt)
 - `--type review|team` → set agent type (skips type prompt)
 - `--effort low|medium|high` → sets the agent's effort band (invalid values rejected; legacy tokens mapped, e.g. frontier → high)

@@ -14,7 +14,7 @@ decisions under a vague spec.
 
 **Related files:**
 - `docs/experiments/when-tdd-pays-report.md` — full report and pre-registration
-- `docs/experiments/experiment-prompt-when-tdd-pays.md` — experiment design
+- `docs/experiments/02-experiment-prompt-when-tdd-pays.md` — experiment design
 - `docs/experiments/data/tdd-pays-*-run2-2026-06-24.jsonl` — second-run data
   (ship rows all have `"timeout": true`)
 - `evals/fixtures/exp-tdd-pays-{pricing,notifier,report-render,event-store}/` —

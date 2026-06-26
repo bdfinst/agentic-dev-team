@@ -135,8 +135,6 @@ All review commands are executed under orchestrator direction. When a user trigg
 | `/review-agent` | Single-agent review | Inline checkpoint during Phase 3 |
 | `/agent-audit` | Compliance check for agents/skills/hooks | After adding or modifying agents or commands |
 | `/agent-eval` | Accuracy validation against fixtures | When validating review agent quality |
-| `/add-agent` | Scaffold new review agent | When a new review capability is needed |
-| `/add-plugin` | Install and register a plugin | When a new plugin is needed |
 | `/apply-fixes` | Apply correction prompts | After `/code-review` generates corrections |
 | `/review-summary` | Persist session summary | At phase transitions |
 | `/semgrep-analyze` | Static analysis | As pre-flight context for security-review |
@@ -178,7 +176,6 @@ Whole-file load: each linked SKILL.md is loaded in full when invoked; per-sectio
 - [Feedback & Learning](../skills/feedback-learning/SKILL.md) - invoke when user uses amend/learn/remember/forget keywords, or during learning loop at task completion
 - [Human Oversight Protocol](../skills/human-oversight-protocol/SKILL.md) - invoke when approval gates fire, when user issues override/pause/stop, or when escalating decisions
 - [Performance Metrics](../skills/performance-metrics/SKILL.md) - invoke at task completion to log metrics, and during learning loop to review trends
-- [Agent & Skill Authoring](../skills/agent-skill-authoring/SKILL.md) - invoke when creating or editing a skill, or when reviewing the agent-vs-skill separation (for new agent files, prefer `/agent-add` which invokes the `agent-create` skill)
 - [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke to enforce the three-phase quality gate: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3)
 - [Specs](../skills/specs/SKILL.md) - invoke when routing a new feature request; verify the consistency gate passed before loading implementing agents
 - [Code Review](../skills/code-review/SKILL.md) - invoke after each Phase 3 checkpoint and before committing; runs all relevant review agents with orchestrator-assigned models
@@ -187,8 +184,6 @@ Whole-file load: each linked SKILL.md is loaded in full when invoked; per-sectio
 - [Agent Eval](../skills/agent-eval/SKILL.md) - invoke to validate review agent accuracy when fixtures are added or changed
 - [Apply Fixes](../skills/apply-fixes/SKILL.md) - invoke after `/code-review` generates correction prompts; passes corrections to coding agent
 - [Review Summary](../skills/review-summary/SKILL.md) - invoke at phase transitions to persist review state before context compaction
-- [Agent Add](../skills/agent-add/SKILL.md) - invoke when a new review capability is needed; runs agent-audit and doc updates automatically
-- [Agent Remove](../skills/agent-remove/SKILL.md) - invoke when retiring any agent; handles file deletion, registry cleanup, and doc updates
 - [Semgrep Analyze](../skills/semgrep-analyze/SKILL.md) - invoke as pre-flight context for security-review when SAST findings are needed
 - [Design Doc](../skills/design-doc/SKILL.md) - invoke during Research phase for non-trivial features; produces a written design document with user approval before planning
 - [Branch Workflow](../skills/branch-workflow/SKILL.md) - invoke after Phase 3 human gate approval to formalize PR creation, merge strategy, and branch cleanup

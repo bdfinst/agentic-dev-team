@@ -4,8 +4,8 @@
 # Invalid bands are rejected with a legacy-token mapping..
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-CREATE="$REPO_ROOT/plugins/dev-team/skills/agent-create/SKILL.md"
-ADD="$REPO_ROOT/plugins/dev-team/skills/agent-add/SKILL.md"
+CREATE="$REPO_ROOT/plugins/marketplace-dev/skills/agent-create/SKILL.md"
+ADD="$REPO_ROOT/plugins/marketplace-dev/skills/agent-add/SKILL.md"
 
 # ---------------------------------------------------------------------------
 # /agent-create authors effort bands
