@@ -2,8 +2,10 @@
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
 **Harness:** [`scripts/run_refactor_experiment.py`](../../scripts/run_refactor_experiment.py)
-**Supersedes the design of:** [`06-experiment-prompt-refactor-granularity-revised.md`](06-experiment-prompt-refactor-granularity-revised.md)
-(this re-scopes that experiment to the question below and drops everything that does not serve it)
+**Lineage:** the single, consolidated successor to the refactor-cadence experiment line
+(runs 04–06). It fixes the variables those runs left open (refactoring on, specs clear) and
+re-scopes everything to the one question below. Prior raw data lives in
+[`data/refactor-granularity-merged.jsonl`](data/refactor-granularity-merged.jsonl).
 
 **Status: specified, harness ready, NOT run at scale.** New arms validated under
 `--skip-dispatch` and a 1-task cost pilot.
@@ -41,7 +43,7 @@ longer TDD. That leaves **7 cells**.
 
 ## Held constant (eliminated as variables)
 
-These were factors in run 04 / prompt 06; the question above fixes them, so they are removed:
+These were variables in earlier runs; the question above fixes them, so they are removed:
 
 | held constant | fixed to | removes |
 |---|---|---|
@@ -119,28 +121,29 @@ Recommended: start at **6 trials/cell (~$400)** and sequentially extend only the
 maintainability/test-quality-per-dollar ranking is still ambiguous. The two test-first-split
 cells (C8) are the most expensive; the single-agent cells are 2–4× cheaper.
 
-## Relationship to prompt 06 — it folds in; there is no separate run
+## Secondary analyses (optional, same data — no extra run)
 
-With **spec clarity fixed to clear** (we already know vague specs degrade quality — that result
-is settled and not worth paying to re-measure) and **refactoring fixed on**, prompt 06 collapses
-into this one. Nothing in 06 needs a separate campaign:
+Earlier designs in this experiment line chased effects we have since either settled or
+deliberately scoped out. They need **no separate campaign** — each is either eliminated or
+computable from this experiment's existing output rows:
 
-| 06 element | status here |
+| earlier endpoint | status here |
 |---|---|
-| EDGE collapse under free + **vague** | **eliminated** — vague is gone |
+| EDGE collapse under **vague** specs | **eliminated** — vague specs are a settled result (they degrade quality); not worth paying to re-measure |
 | clarity × granularity interaction | **eliminated** — no clarity axis |
-| `no-refactor` arms ("does refactoring help?") | **eliminated** — refactoring is a settled premise |
-| Part B (20–40-task expansion for the 5% main effect) | **eliminated** — not this question |
-| blast **variance**, free vs frozen | **optional secondary** — computable from these rows |
-| churn → blast **mediation** | **optional secondary** — needs only the per-change test-churn series |
+| "does refactoring help?" (`no-refactor` arms) | **eliminated** — refactoring is a settled premise |
+| 20–40-task expansion for a ±5% blast main effect | **eliminated** — underpowered at four tasks; not this question |
+| blast **variance**, free (big) vs frozen (small) | **optional secondary** — computable from these rows |
+| test-churn → blast **mediation** | **optional secondary** — needs only a per-change test-churn series |
 | ±5% TOST on blast | **optional secondary** — underpowered; report as inconclusive |
 
-The three survivors reuse arms already in this matrix (`one-shot` = free/big, `continuous` =
-frozen/small, `tdd-refactor`). They are extra statistics over **this experiment's existing
-output rows**, not a second run. The only marginal harness work, *if* the mediation is wanted,
-is decomposing test-LOC churn per change index — a measurement add, not a new arm or factor.
+The three optional secondaries reuse arms already in this matrix (`one-shot` = big-batch,
+`continuous` = small-batch, `tdd-refactor`), so they are extra statistics over the same rows,
+not a second run. The only marginal harness work — *if* the mediation is wanted — is decomposing
+test-LOC churn per change index, a measurement add rather than a new arm or factor.
 
-**Net: run this 7-cell campaign; 06 becomes an optional analysis pass over the same data.**
+**Net: this is the one experiment. Run the 7-cell campaign; the secondaries are an analysis
+pass over its output.**
 
 ## Run plan
 
