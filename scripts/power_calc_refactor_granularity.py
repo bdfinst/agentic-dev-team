@@ -5,7 +5,7 @@ Reads the existing tdd-pays run1+run2 data and estimates whether the proposed
 design (4 tasks x 2 clarities, N trials/cell) can detect a 5% difference in
 cumulative blast radius between the refactor arms. Run before spending any model
 budget — it is the "Power (do this first)" step of
-docs/experiments/experiment-prompt-refactor-granularity.md.
+docs/experiments/04-experiment-prompt-refactor-granularity.md.
 
 Usage: python3 scripts/power_calc_refactor_granularity.py
 """
