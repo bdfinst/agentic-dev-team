@@ -2,7 +2,7 @@
 
 1. Invoke `/cd-test-architecture <repo-path> [--ci <ci-path>] [--external-tests <loc>]`. It writes the assessment to `reports/cd-test-architecture-<app>.md`.
 2. Invoke `/issues-from-assessment <assessment-path> --parent <url-or-empty> --repo-slug <slug>`. It creates the parent + Phase-1 / Phase-2 / Phase-5 children via the resolved CLI (or local plan files) and writes a per-phase index to `memory/test-modernize/<slug>/phase-1.md`.
-3. Dispatch `dev-team:test-modernization-review` (Agent tool) with `--phase 1`. Surface any blocker findings to the operator and have them resolved before the gate.
+3. Run `python3 scripts/test_modernization_review.py --repo <repo-slug> --phase 1`. Surface any blocker findings to the operator and have them resolved before the gate.
 
 **Human gate** — wait for approval before specifying the public interface.
 
@@ -13,7 +13,7 @@ Phase 2 runs in two passes around the human gate so Stories never bind to un-rev
 **Pass A — author scenarios.**
 
 1. Invoke `/gherkin-public <repo-path> --repo-slug <slug>`. It reads the component map from `memory/test-modernize/<slug>/phase-1.md` and writes `.feature` files per public surface (API endpoint, UI flow, batch-job entry point, library export, event type) to `features/test-modernize/` (or `./specs/test-modernize/` if no `features/` dir exists). It does NOT create Stories on this pass.
-2. Dispatch `dev-team:test-modernization-review --phase 2`.
+2. Run `python3 scripts/test_modernization_review.py --repo <repo-slug> --phase 2`.
 
 **Human gate** — operator validates the Gherkin scenarios. This is a hard stop. The operator may edit `.feature` files in place before approving.
 
@@ -26,7 +26,7 @@ Phase 2 runs in two passes around the human gate so Stories never bind to un-rev
 
 1. Invoke `/test-audit-disable <repo-path> --repo-slug <slug>`. Disables every cannot-fail test (skip + tag, never delete) and records reasons in `memory/test-modernize/<slug>/disabled-tests.json`.
 2. Invoke `/coverage-baseline <repo-path> --parent <url-or-empty> --repo-slug <slug>`. Runs the project's coverage tool, records the baseline at `memory/test-modernize/<slug>/baseline-coverage.json`, and posts the number to the parent issue (or `./plans/test-modernize/FEATURE.md` in local-files mode).
-3. Dispatch `dev-team:test-modernization-review --phase 3`.
+3. Run `python3 scripts/test_modernization_review.py --repo <repo-slug> --phase 3`.
 
 **Human gate** — baseline accepted before adding tests.
 
