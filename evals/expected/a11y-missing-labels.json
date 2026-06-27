@@ -1,0 +1,22 @@
+{
+  "fixture": "a11y-missing-labels",
+  "description": "UI markup with clickable divs lacking keyboard handlers, an icon control with no accessible name, an image without alt text, an unlabeled input, skipped heading levels, and outline:none with no focus replacement",
+  "applicableAgents": [
+    "a11y-review"
+  ],
+  "agents": {
+    "a11y-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 3,
+        "max": 9
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 7
+        }
+      }
+    }
+  }
+}

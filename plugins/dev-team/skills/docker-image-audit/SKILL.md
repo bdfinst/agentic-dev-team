@@ -1,6 +1,7 @@
 ---
 name: docker-image-audit
 description: Audit Docker images and Dockerfiles for security vulnerabilities, bloat, and best-practice violations using hadolint, Trivy, and Grype. Produces a structured severity report with actionable fixes. Use this skill whenever the user wants to check a Docker image for security issues, scan a container for vulnerabilities, audit a Dockerfile, harden a Docker image, reduce image size, minimize attack surface, check for CVEs in a container, or says things like "is this Dockerfile secure?", "scan my image", "check my container for vulnerabilities", "how can I make this image smaller?", "audit my Docker setup", or "harden this container". Also trigger when the user has just created or modified a Dockerfile and wants validation before shipping it.
+role: worker
 user-invocable: true
 ---
 

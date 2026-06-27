@@ -1,0 +1,22 @@
+{
+  "fixture": "perf-nplus1-loop",
+  "description": "Runtime code with an N+1 query inside a loop, an unbounded Map cache, a leaked connection plus an uncleared setInterval, and a network call with no timeout",
+  "applicableAgents": [
+    "performance-review"
+  ],
+  "agents": {
+    "performance-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 2,
+        "max": 7
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 5
+        }
+      }
+    }
+  }
+}
