@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.1.0...dev-team-v8.2.0) (2026-06-27)
+
+
+### Features
+
+* guard markdown references and harden skill runtime reads ([#489](https://github.com/bdfinst/agentic-dev-team/issues/489)) ([184725f](https://github.com/bdfinst/agentic-dev-team/commit/184725f2d6544d837d4bda24403f4777550fa6fd))
+
 ## [8.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.0.0...dev-team-v8.1.0) (2026-06-27)
 
 
