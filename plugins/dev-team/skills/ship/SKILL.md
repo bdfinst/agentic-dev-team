@@ -25,7 +25,7 @@ You have been invoked with the `/ship` command.
 2. **Honor the human gates.** Do not advance past a gate without explicit approval —
    this command sequences phases, it does not remove their review points.
 3. **Confirm the approach first.** Before planning, screen the request against
-   `knowledge/decision-defaults.md` and confirm any ambiguous high-reversal-cost axis
+   `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md` and confirm any ambiguous high-reversal-cost axis
    (replace-vs-merge, format fidelity, migrate-vs-edit-stub, scope) in one batch.
 4. **Be concise.** Report each phase's outcome and the next gate, nothing more.
 
@@ -41,7 +41,7 @@ Arguments: $ARGUMENTS
 
 ### 1. Approach contract
 
-Screen the request against `knowledge/decision-defaults.md`. Surface any ambiguous
+Screen the request against `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`. Surface any ambiguous
 axis to the user in a single batch and get the answers before proceeding. Stop here if
 a genuinely blocking ambiguity remains.
 

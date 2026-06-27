@@ -24,7 +24,7 @@ You have been invoked with the `/plan` command.
 3. **Incremental.** Each step must leave the codebase in a working, committable state.
 4. **Human approval required.** Present the plan for approval before any implementation begins.
 5. **Be concise.** The plan is the artifact; keep chat to decisions and gaps.
-6. **State your approach stance.** For any high-reversal-cost axis in `knowledge/decision-defaults.md` the task touches (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope), state the chosen stance explicitly in the plan so it is visible — and correctable — at the human gate.
+6. **State your approach stance.** For any high-reversal-cost axis in `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md` the task touches (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope), state the chosen stance explicitly in the plan so it is visible — and correctable — at the human gate.
 
 ## Parse Arguments
 

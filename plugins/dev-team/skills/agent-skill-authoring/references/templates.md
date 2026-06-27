@@ -52,7 +52,7 @@ Use `/agent-add` — it invokes the `agent-create` skill, which handles all regi
 - Appends a row to the matching table in `plugins/dev-team/knowledge/agent-registry.md`
 - Appends a row to the matching table in `plugins/dev-team/CLAUDE.md`
 
-For review agents specifically, also add eval fixtures to `plugins/dev-team/evals/fixtures/` and expected results to `plugins/dev-team/evals/expected/` (these are not auto-generated).
+For review agents specifically, also add eval fixtures to `evals/fixtures/` and expected results to `evals/expected/` (these are not auto-generated).
 
 For team agents, also add a node and edges to `plugins/dev-team/docs/team-structure.md` and a row to the Team Agents table in `plugins/dev-team/docs/agent_info.md`.
 

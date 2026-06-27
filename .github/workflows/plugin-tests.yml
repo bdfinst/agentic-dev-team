@@ -62,6 +62,14 @@ jobs:
             tests/docs/ \
             tests/scripts/
 
+      # Markdown reference integrity: a skill/agent/knowledge file that names a
+      # real repo file by a path which resolves nowhere (a rename left behind, a
+      # bare subdir path the runtime reads file-relative) fails here with the
+      # exact references listed — the class that broke /ship's decision-defaults
+      # screen. The bats suite above also asserts it; this prints the offenders.
+      - name: Run markdown reference integrity check
+        run: python3 scripts/check_md_references.py
+
       # Rules-vs-prompts boundary sensor (#118): the security-review-rule-map.yaml
       # policy must stay consistent — no class on two surfaces, every rule-surface
       # class has fixtures + a measured fp_rate <= 10%.
