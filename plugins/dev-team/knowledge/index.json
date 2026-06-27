@@ -1983,7 +1983,7 @@
       "anchor": "7-generate-report"
     },
     "8. Save correction prompts for remaining issues": {
-      "summary": "For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), generate one correction prompt per issue using the Correction prompt schema in [`output-format.md`](code-review/output-format.md#correction-prompt-json).",
+      "summary": "For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), generate one correction prompt per issue using the Correction prompt schema in [`output-format.md`](output-format.md#correction-prompt-json).",
       "anchor": "8-save-correction-prompts-for-remaining-issues"
     },
     "9. Write pre-commit gate file": {
@@ -4265,11 +4265,11 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Screen the request against `knowledge/decision-defaults.md`.",
+      "summary": "Screen the request against `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`.",
       "anchor": "steps"
     },
     "1. Approach contract": {
-      "summary": "Screen the request against `knowledge/decision-defaults.md`.",
+      "summary": "Screen the request against `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`.",
       "anchor": "1-approach-contract"
     },
     "2. Spec (unless `--skip-spec`)": {

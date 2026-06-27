@@ -23,7 +23,7 @@ allowed-tools: >-
 
 Role: orchestrator. Route work to review agents; do not review code yourself. Pass each agent's tier alias (from its `model:` frontmatter) when dispatching — the PreToolUse hook `hooks/agent-model-resolve.sh` resolves it to the active snapshot per the Resolution Procedure in `agents/orchestrator.md`.
 
-Output templates and JSON schemas: [`code-review/output-format.md`](code-review/output-format.md). Example report: [`code-review/examples/sample-report.md`](code-review/examples/sample-report.md).
+Output templates and JSON schemas: [`output-format.md`](output-format.md). Example report: [`examples/sample-report.md`](examples/sample-report.md).
 
 ## Orchestrator constraints
 
@@ -128,7 +128,7 @@ Skip entirely if `--background`. If `--force` without `--reason`, halt:
 ERROR: --force requires --reason "<justification>".
 ```
 
-If `--force` with `--reason`, append an entry to `metrics/override-audit.jsonl` per the schema in [`output-format.md`](code-review/output-format.md#override-audit-log-entry-step-2---force-path), then proceed to step 3.
+If `--force` with `--reason`, append an entry to `metrics/override-audit.jsonl` per the schema in [`output-format.md`](output-format.md#override-audit-log-entry-step-2---force-path), then proceed to step 3.
 
 Otherwise run these in sequence (stop on first failure):
 
@@ -144,7 +144,7 @@ Skip any gate silently if its tool is unavailable.
 
 Skip if `--no-static-analysis` or `--background`.
 
-Follow the detection, execution, and deduplication procedure in [`skills/static-analysis-integration/SKILL.md`](../skills/static-analysis-integration/SKILL.md). Output is structured findings injected into agent context in step 4. **This step does not gate execution** — it collects context only.
+Follow the detection, execution, and deduplication procedure in [`skills/static-analysis-integration/SKILL.md`](../static-analysis-integration/SKILL.md). Output is structured findings injected into agent context in step 4. **This step does not gate execution** — it collects context only.
 
 If Semgrep already ran in the pre-flight gate, reuse those findings. Do not run Semgrep twice.
 
@@ -208,7 +208,7 @@ Classify each issue by actionability:
 
 If zero actionable issues, skip to step 7.
 
-Otherwise present the Review Findings prompt (template: [`output-format.md`](code-review/output-format.md#review-findings-prompt-interactive--step-6)) and ask: **"Fix these issues automatically, or save as report only?"**
+Otherwise present the Review Findings prompt (template: [`output-format.md`](output-format.md#review-findings-prompt-interactive--step-6)) and ask: **"Fix these issues automatically, or save as report only?"**
 
 - "Fix" / "apply" / "yes" → step 6a
 - "Report" / "no" / "don't fix" → step 7 (no code modified)
@@ -244,19 +244,19 @@ if iteration > MAX_ITERATIONS AND actionable_issues > 0:
 | Same issues persist | Exit — not converging |
 | Tests fail after fix and revert | Mark issue human-required; continue |
 
-Track each iteration for the report — template in [`output-format.md`](code-review/output-format.md#review-fix-loop-iteration-log-step-6a-iv).
+Track each iteration for the report — template in [`output-format.md`](output-format.md#review-fix-loop-iteration-log-step-6a-iv).
 
 ### 7. Generate report
 
 Read `knowledge/review-template.md` for the structure.
 
-If `--json`, emit the aggregated JSON object per the schema in [`output-format.md`](code-review/output-format.md#aggregated-json-result---json-flag) and stop.
+If `--json`, emit the aggregated JSON object per the schema in [`output-format.md`](output-format.md#aggregated-json-result---json-flag) and stop.
 
-Otherwise emit the prose summary using the Code Review Summary template in [`output-format.md`](code-review/output-format.md#code-review-summary-report-step-7-prose-mode). Append the iteration table.
+Otherwise emit the prose summary using the Code Review Summary template in [`output-format.md`](output-format.md#code-review-summary-report-step-7-prose-mode). Append the iteration table.
 
 ### 8. Save correction prompts for remaining issues
 
-For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), generate one correction prompt per issue using the Correction prompt schema in [`output-format.md`](code-review/output-format.md#correction-prompt-json). Save to `corrections/`. These can be addressed manually or via `/apply-fixes`.
+For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), generate one correction prompt per issue using the Correction prompt schema in [`output-format.md`](output-format.md#correction-prompt-json). Save to `corrections/`. These can be addressed manually or via `/apply-fixes`.
 
 ### 9. Write pre-commit gate file
 

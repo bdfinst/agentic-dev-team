@@ -74,7 +74,7 @@ Arguments: $ARGUMENTS
 ## Confidence pyramid
 
 `/agent-eval` dispatches at one of three tiers, in increasing confidence and
-cost. See [ADR 0007](../../../docs/adr/0007-eval-confidence-pyramid-tier-vocabulary.md)
+cost. See [ADR 0007](../../../../docs/adr/0007-eval-confidence-pyramid-tier-vocabulary.md)
 for the full vocabulary; this skill is responsible for selecting the tier and
 routing to the right runner.
 

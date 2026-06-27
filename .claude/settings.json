@@ -1,8 +1,4 @@
 {
-  "enabledPlugins": {
-    "skill-creator@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true
-  },
   "hooks": {
     "SessionStart": [
       {
@@ -14,5 +10,9 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "skill-creator@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true
   }
 }

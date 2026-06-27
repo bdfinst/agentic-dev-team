@@ -11,4 +11,4 @@ Resolves `test-design-advisor`'s abstract layer (`test-pyramid.md`) for server-r
 
 **Recipe — testing the swap without a browser (the cheap 80%).** Request the fragment from the server (or render the template), load the HTML into **JSDOM**, and assert the hypermedia attributes and structure. This catches wrong/missing `hx-*` wiring fast and deterministically. It does **not** prove the browser applies the swap — that is Gate C's required Playwright test (`test-layer-gates.md`), because integration gives the client-side seam *zero* coverage.
 
-**Notes.** Don't unit-test HTMX itself — test *your* attributes and *your* fragment. Visual fidelity of a swapped fragment → `testing-techniques/screenshot.md`; markup correctness → `approval.md`. The advisor flags the browser requirement and defers harness/pipeline design to `cd-test-architecture`.
+**Notes.** Don't unit-test HTMX itself — test *your* attributes and *your* fragment. Visual fidelity of a swapped fragment → `../testing-techniques/screenshot.md`; markup correctness → `approval.md`. The advisor flags the browser requirement and defers harness/pipeline design to `cd-test-architecture`.

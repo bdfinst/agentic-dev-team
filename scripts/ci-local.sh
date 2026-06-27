@@ -145,6 +145,7 @@ chk_cost_regression() { bash scripts/cost-regression-check.sh; }
 chk_eval_corpus()     { python3 scripts/eval_grade.py --check-corpus; }
 chk_oe_staleness()    { python3 scripts/oe_scoring_staleness.py --warn-only; }
 chk_citation_lint()   { python3 scripts/citation_lint.py --all; }  # advisory (#312)
+chk_md_references()   { python3 scripts/check_md_references.py; }
 chk_skills_index()    { bash plugins/dev-team/hooks/lib/build-skills-index.sh --check; }
 chk_eval_semver() {
   if [ -n "$BASE" ] && [ -n "$HEAD" ]; then
@@ -174,6 +175,7 @@ CHECKS=(
   "eval corpus integrity (eval_grade.py --check-corpus)::chk_eval_corpus"
   "OE scoring staleness (advisory; oe_scoring_staleness.py)::chk_oe_staleness"
   "citation drift lint (citation_lint.py, advisory)::chk_citation_lint"
+  "markdown reference integrity (check_md_references.py)::chk_md_references"
   "skills catalog freshness (docs/skills.md)::chk_skills_index"
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"

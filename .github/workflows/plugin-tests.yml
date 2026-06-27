@@ -81,6 +81,15 @@ jobs:
       # tests/hooks/ is intentionally excluded: its mutation-gate end-to-end
       # tests require stryker/pitest and its overhead tests are timing-based,
       # neither of which is portable to a clean CI runner.
+      # Markdown reference integrity: a skill/agent/knowledge file that names a
+      # real repo file by a path which resolves nowhere (a rename left behind, a
+      # bare subdir path the runtime reads file-relative) fails here with the
+      # exact references listed — the class that broke /ship's decision-defaults
+      # screen. Runs before the bats suite (which also asserts it) so a failure
+      # prints the offenders and fails fast.
+      - name: Run markdown reference integrity check
+        run: python3 scripts/check_md_references.py
+
       - name: Run dev-team content tests (bats)
         # Fans the suite's files across the runner's vCPUs via xargs -P.
         run: |
