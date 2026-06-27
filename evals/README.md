@@ -16,15 +16,23 @@ enforce on every PR (see below):
    asserts every `expected/*.json` is valid, declares an agent/skill target,
    and pairs with a fixture; `tests/repo/eval_grader_tests.bats` exercises the
    grader. No tokens, no flakes.
-2. **Live gate (paid, label-gated).** Dispatches the review agents via the
-   Claude Code GitHub Action (`anthropics/claude-code-action@v1`), records
-   their raw outputs to `actuals.json`, and grades against `baseline.json` —
-   failing the PR on any **regression** with a readable diff. It costs tokens,
-   so it runs **only when the PR carries the `run-eval` label** (or via a
-   manual `workflow_dispatch` with `force_live=true`), and only when
-   `ANTHROPIC_API_KEY` is set. Otherwise it is **skipped, not failed** (a
-   GitHub notice is emitted); the structural gate still runs. A `concurrency`
-   group cancels superseded runs so rapid pushes don't stack paid runs.
+2. **Live gate (paid, label-gated).** Dispatches the review agents via the bare
+   `claude` CLI (`@anthropic-ai/claude-code`), records their raw outputs to
+   `actuals.json`, and grades against `baseline.json` — failing the PR on any
+   **regression** with a readable diff. It costs tokens, so it runs **only when
+   the PR carries the `run-eval` label** (or via a manual `workflow_dispatch`
+   with `force_live=true`), and only when `ANTHROPIC_API_KEY` is set. Otherwise
+   it is **skipped, not failed** (a GitHub notice is emitted); the structural
+   gate still runs. A `concurrency` group cancels superseded runs so rapid
+   pushes don't stack paid runs.
+
+   > **Why the bare CLI, not `anthropics/claude-code-action`?** The action wraps
+   > the CLI in a Bun runtime that crashes at launch in CI ("directory mismatch
+   > for tsconfig.json", fd 4) before any API call — upstream
+   > [#1205](https://github.com/anthropics/claude-code-action/issues/1205) /
+   > [#1295](https://github.com/anthropics/claude-code-action/issues/1295), not
+   > fixable by version/SHA pinning. The live gate dispatches the agents
+   > directly with `claude -p`, mirroring the integration tier.
 
    **Diff-scoped runs.** The live gate runs only the agents/skills the PR
    changed (derived from the diff and threaded into both the runner prompt and
@@ -32,17 +40,13 @@ enforce on every PR (see below):
    grader, or the workflow — falls back to a full run, since one knowledge file
    can feed many agents. This is the main per-run cost lever.
 
-   **Note on workflow validation:** `claude-code-action` will *self-skip* (no
-   model run) on any PR that adds or modifies this workflow file, because
-   GitHub requires the workflow to match the default branch. The live gate
-   therefore only exercises the agents once `agent-eval.yml` is merged to the
-   default branch.
-
-   The runner is wired (it stages the corpus into `.claude/evals/`, installs
-   the `dev-team@bfinster` plugin, and prompts the model to write
-   `actuals.json` in the shape below). To record the baseline: add the
-   `run-eval` label to a PR (post-merge of this workflow), confirm it produces
-   a well-formed `actuals.json`, then capture its passing pairs below.
+   The runner is wired (it stages the corpus into `.claude/evals/`, installs the
+   `claude` CLI and the `dev-team@bfinster` plugin, and prompts the model to
+   write `actuals.json` in the shape below). Unlike the GitHub Action, the bare
+   CLI has no self-skip on PRs that modify this workflow, so the gate can be
+   exercised on the labeling PR itself. To record the baseline: add the
+   `run-eval` label to a PR, confirm it produces a well-formed `actuals.json`,
+   then capture its passing pairs below.
 
 ### Grader input shape (`actuals.json`)
 
