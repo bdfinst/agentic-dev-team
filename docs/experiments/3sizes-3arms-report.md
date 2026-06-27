@@ -3,7 +3,7 @@
 **Status:** Complete — one campaign, three sizes, three arms, model fixed.
 **Date:** 2026-06-22
 **Model (fixed):** `claude-sonnet-4-6`
-**Design + prior results:** [`experiment-prompt-3sizes-3arms.md`](experiment-prompt-3sizes-3arms.md),
+**Design + prior results:** [`01-experiment-prompt-3sizes-3arms.md`](01-experiment-prompt-3sizes-3arms.md),
 [`tdd-vs-test-after-experiment.md`](tdd-vs-test-after-experiment.md),
 [`tdd-vs-test-after-consolidated-report.md`](tdd-vs-test-after-consolidated-report.md)
 **Runner:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py)

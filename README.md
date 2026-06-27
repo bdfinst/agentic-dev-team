@@ -1,11 +1,12 @@
 # Agentic Dev Team
 
-Two Claude Code plugins for engineering workflows. Install one or both.
+Three Claude Code plugins for engineering workflows. Install one or all.
 
 - **`dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
 - **`security-assessment`** is the security companion. It adds a deterministic-first `/security-assessment` pipeline (SAST + LLM judgment + FP-reduction + exec report), a `/cross-repo-analysis` command for multi-repo attack chains, and an adversarial ML red-team harness (`/redteam-model`) for self-owned model endpoints.
+- **`marketplace-dev`** is the plugin-author's toolkit. It scaffolds new plugins and marketplaces (`/scaffold-plugin`, `/scaffold-marketplace`, `/init-plugin-eval`), audits any plugin for structural compliance (`/plugin-audit`), advises on the markdown-vs-script agent decision (`/agent-type-advisor`), and ships the migrated agent/skill authoring toolkit (`/agent-create`, `/agent-add`, `/agent-remove`).
 
-The two plugins share a primitives contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding envelope) that lives in `dev-team`. Install that plugin first; add the security companion when you need it.
+`dev-team` is the hub: it owns the primitives contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding envelope) that `security-assessment` builds on, so install `dev-team` first and add `security-assessment` when you need it. `marketplace-dev` is independent — it has no hard runtime dependency on `dev-team` and can be installed on its own to build or maintain plugins.
 
 ## Plugins
 
@@ -13,8 +14,9 @@ The two plugins share a primitives contract (`codebase-recon`, `ACCEPTED-RISKS.m
 | --- | --- | --- | --- | --- |
 | **[dev-team](plugins/dev-team/README.md)** | Persona-driven development team, reviewer swarm, TDD-gated build loop | `/specs`, `/plan`, `/build`, `/pr`, `/code-review`, `/triage` | `jq`, `gh` | `semgrep`, `playwright`, `hadolint`/`trivy`/`grype`; auto-detected formatters and test/type/lint runners |
 | **[security-assessment](plugins/security-assessment/README.md)** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | `dev-team`, Python ≥ 3.10, tier-1 SAST (`semgrep`, `gitleaks`, `trivy`, `hadolint`, `actionlint`) | `grype`, PDF-export deps |
+| **[marketplace-dev](plugins/marketplace-dev/CLAUDE.md)** | Scaffold, audit, and maintain Claude Code plugins and marketplaces | `/scaffold-plugin`, `/scaffold-marketplace`, `/plugin-audit`, `/agent-type-advisor`, `/agent-create` | `jq` | `git` |
 
-Plugin names link to each plugin's README, where the full tool list and per-tool install commands live. Claude Code itself is assumed. **First time here?** Start with `dev-team`; add `security-assessment` only when you run full `/security-assessment` pipelines against target repos.
+Plugin names link to each plugin's README (or, for `marketplace-dev`, its `CLAUDE.md` guide), where the full tool list and per-tool install commands live. Claude Code itself is assumed. **First time here?** Start with `dev-team`; add `security-assessment` only when you run full `/security-assessment` pipelines against target repos, and `marketplace-dev` when you're building or maintaining plugins.
 
 ## Getting Started
 
@@ -51,6 +53,16 @@ claude plugin install security-assessment@bfinster
 
 For a self-hosted git host, see the [plugin install guide](plugins/dev-team/README.md#install); for a local clone, see [Local development](CONTRIBUTING.md#local-development) in CONTRIBUTING.
 
+### Install `marketplace-dev` (optional)
+
+Add this plugin if you're building or maintaining Claude Code plugins and marketplaces. It is independent of `dev-team` — install it on its own if that's all you need.
+
+```bash
+claude plugin install marketplace-dev@bfinster
+```
+
+Then use `/scaffold-plugin <name>` to create a new plugin, `/scaffold-marketplace <owner>` for a new marketplace, or `/plugin-audit [dir]` to check an existing plugin for structural compliance. See the [marketplace-dev guide](plugins/marketplace-dev/CLAUDE.md) for the full command list.
+
 ### Update an installed plugin
 
 Run `/upgrade` from any Claude Code session with `dev-team` installed. It:
@@ -64,6 +76,7 @@ Manual fallback when `/upgrade` is unavailable:
 ```bash
 claude plugin update --scope <scope> dev-team@bfinster
 claude plugin update --scope <scope> security-assessment@bfinster
+claude plugin update --scope <scope> marketplace-dev@bfinster
 ```
 
 Then install the tier-1 static-analysis tools:
@@ -210,6 +223,14 @@ Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUT
 | [User Guide](plugins/security-assessment/docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool matrix |
 | [Accepted Risks Format](plugins/security-assessment/docs/accepted-risks-format.md) | `ACCEPTED-RISKS.md` schema and format |
 | [Comparative Testing](plugins/security-assessment/docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |
+
+### marketplace-dev plugin
+
+| Doc | Covers |
+| --- | --- |
+| [Plugin Guide](plugins/marketplace-dev/CLAUDE.md) | Slash commands, the structural review agent, conventions enforced, eval fixtures |
+| [Agent-type Decision Rules](plugins/marketplace-dev/knowledge/agent-type-decision-rules.md) | The markdown-vs-script decision matrix (rules R1–R10) |
+| [Marketplace Builder Playbook](docs/marketplace-builder-plugin-playbook.md) | The conventions `marketplace-dev` encodes — layout, frontmatter contracts, release/catalog sync |
 
 ### Repo-level guides & decision records
 

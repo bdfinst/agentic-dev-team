@@ -23,3 +23,7 @@ semgrep
 # the smoke test (probes import them lazily inside run()), so they stay out of
 # the dev gate set.
 httpx>=0.27
+
+# Required by scripts/codebase_recon.py to validate the recon envelope against
+# plugins/dev-team/knowledge/schemas/recon-envelope-v1.json before writing.
+jsonschema>=4.0

@@ -1,4 +1,5 @@
 {
-  "plugins/dev-team": "7.9.0",
-  "plugins/security-assessment": "3.3.0"
+  "plugins/dev-team": "8.1.0",
+  "plugins/security-assessment": "3.3.0",
+  "plugins/marketplace-dev": "1.0.0"
 }

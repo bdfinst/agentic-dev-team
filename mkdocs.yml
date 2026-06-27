@@ -101,10 +101,14 @@ nav:
     - Experiments:
           - FAQ: docs/experiments/FAQ.md
           - TDD vs Non-TDD Report: docs/experiments/tdd-vs-nontdd-report.md
-          - When TDD Pays Experiment: docs/experiments/experiment-prompt-when-tdd-pays.md
-          - When TDD Pays Report: docs/experiments/when-tdd-pays-report.md
-          - 3 Sizes 3 Arms Experiment: docs/experiments/experiment-prompt-3sizes-3arms.md
+          - "01 · 3 Sizes 3 Arms Experiment": docs/experiments/01-experiment-prompt-3sizes-3arms.md
           - 3 Sizes 3 Arms Report: docs/experiments/3sizes-3arms-report.md
+          - "02 · When TDD Pays Experiment": docs/experiments/02-experiment-prompt-when-tdd-pays.md
+          - When TDD Pays Report: docs/experiments/when-tdd-pays-report.md
+          - "03 · Ship Arm Manual Run": docs/experiments/03-ship-arm-manual-run-prompt.md
+          - "04 · Refactor Granularity Experiment": docs/experiments/04-experiment-prompt-refactor-granularity.md
+          - Refactor Granularity Report: docs/experiments/refactor-granularity-report.md
+          - "05 · Workflow Matrix Experiment": docs/experiments/05-experiment-prompt-workflow-matrix.md
           - Complexity Refactor Regression: docs/experiments/complexity-refactor-regression.md
 
     - Specs:

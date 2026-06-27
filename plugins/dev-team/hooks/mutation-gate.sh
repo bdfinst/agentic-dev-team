@@ -9,10 +9,11 @@
 #   Advisory : emit_advisory JSON to stdout, exit 0
 #   Silent   : no stdout, exit 0
 
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=hooks/mutation-adapters/lib.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/mutation-adapters/lib.sh"
 
 # ---------------------------------------------------------------------------
@@ -86,6 +87,7 @@ ADAPTER_RUNNER_STDOUT=$(echo "$PREV_STATE" | jq -r '.runner_stdout // ""' 2>/dev
 case "$ADAPTER" in
   stryker)
     # shellcheck source=hooks/mutation-adapters/stryker.sh
+    # shellcheck disable=SC1091
     source "$SCRIPT_DIR/mutation-adapters/stryker.sh"
     stryker_detect || exit 0
     ADAPTER_SOURCE_FILE=$(derive_source_file "${COMMAND##* }" 2>/dev/null || true)
@@ -94,12 +96,14 @@ case "$ADAPTER" in
     ;;
   pitest)
     # shellcheck source=hooks/mutation-adapters/pitest.sh
+    # shellcheck disable=SC1091
     source "$SCRIPT_DIR/mutation-adapters/pitest.sh"
     pitest_detect || exit 0
     pitest_run "$ZERO_KILLS_FILE"
     ;;
   stryker-net)
     # shellcheck source=hooks/mutation-adapters/stryker-net.sh
+    # shellcheck disable=SC1091
     source "$SCRIPT_DIR/mutation-adapters/stryker-net.sh"
     stryker_net_detect || exit 0
     stryker_net_run "$ZERO_KILLS_FILE"

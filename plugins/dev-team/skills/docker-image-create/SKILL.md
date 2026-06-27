@@ -1,6 +1,7 @@
 ---
 name: docker-image-create
 description: Generate production-ready Dockerfiles from project source code. Detects language/framework automatically and produces multi-stage builds with minimal, distroless, or slim base images. Use this skill whenever the user wants to containerize an application, create a Dockerfile, dockerize a project, build a Docker image, or says things like "make this run in Docker", "create a container for this app", "I need a Dockerfile", "package this for deployment", or "containerize this service". Also trigger when the user has an existing Dockerfile and wants it rewritten for production use, or when they ask about Docker best practices for their project.
+role: worker
 user-invocable: true
 ---
 

@@ -159,4 +159,5 @@ unclear names), the
 [refactoring](https://github.com/elifiner/refactoring) plugin provides
 incremental, verified refactorings one at a time — better suited for
 complex structural changes than batch correction prompts.
-Install: `/add-plugin refactoring@refactoring --repo elifiner/refactoring`
+Install it with `claude plugin install refactoring@refactoring` (or the
+`marketplace-dev` plugin's `/add-plugin refactoring@refactoring --repo elifiner/refactoring`).

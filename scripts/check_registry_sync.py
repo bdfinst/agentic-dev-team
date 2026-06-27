@@ -106,13 +106,20 @@ def main(argv=None):
             doc, ["Team Agents", "Review Agents"], r"agents/[A-Za-z0-9._-]+\.md"
         ),
     )
-    # Skills are catalogued across two surfaces: agent-loaded knowledge skills in
-    # agent-registry.md, and user-invocable slash commands in the plugin CLAUDE.md
-    # table. A skill counts as registered if it appears in either.
+    # Skills are catalogued across three surfaces: agent-loaded knowledge skills in
+    # agent-registry.md, user-invocable slash commands in the plugin CLAUDE.md
+    # table, and (since the size reduction) in knowledge/skills-registry.md.
+    # A skill counts as registered if it appears in any of the three sources.
     skill_pat = r"skills/[A-Za-z0-9._-]+/SKILL\.md"
     claude_md = os.path.join(args.root, PLUGIN, "CLAUDE.md")
-    registered_skills = set(re.findall(skill_pat, doc)) | set(
-        re.findall(skill_pat, read(claude_md))
+    skills_registry_md = os.path.join(
+        args.root, PLUGIN, "knowledge", "skills-registry.md"
+    )
+    skill_sources = [doc, read(claude_md)]
+    if os.path.exists(skills_registry_md):
+        skill_sources.append(read(skills_registry_md))
+    registered_skills = set().union(
+        *[set(re.findall(skill_pat, s)) for s in skill_sources]
     )
     problems += discrepancies("skill", disk_skills(args.root), registered_skills)
 

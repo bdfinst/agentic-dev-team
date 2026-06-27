@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Account settings</title>
+    <style>
+      /* Removes the focus ring with no visible replacement. */
+      button,
+      a,
+      input {
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Clickable div acting as a button: not focusable, no keyboard handler, no accessible name. -->
+    <div class="btn" onclick="saveProfile()">Save</div>
+
+    <!-- Icon-only control with no accessible name. -->
+    <span class="icon-trash" onclick="deleteAccount()">🗑</span>
+
+    <!-- Image conveying meaning without alt text. -->
+    <img src="/avatar.png" />
+
+    <!-- Text input with no associated label. -->
+    <input type="text" name="displayName" placeholder="Display name" />
+
+    <!-- Heading levels skip from h1 to h3. -->
+    <h1>Settings</h1>
+    <h3>Notifications</h3>
+
+    <!-- Dynamic status region with no aria-live, so updates are not announced. -->
+    <div id="status"></div>
+
+    <script>
+      function saveProfile() {}
+      function deleteAccount() {}
+    </script>
+  </body>
+</html>

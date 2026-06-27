@@ -174,4 +174,4 @@ Stop and ask the user when:
 - `farley-score` scores the branch's tests (Farley Score) as the final pre-PR quality signal
 - `/pr` creates the pull request after a successful build
 - `/continue` can resume a partially completed build across sessions
-- The progress-guardian agent tracks step completion against the plan
+- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary

@@ -3,8 +3,9 @@ name: ship
 description: >-
   Run the full spec-to-merge pipeline as one command: spec, plan, TDD build,
   code review, and a PR with auto-merge — pausing at the existing human gates.
-  Use when the user says "ship this", "take this feature end to end", or wants
-  the spec->plan->build->PR flow without re-assembling it each time.
+  Use when the user says "ship this", "take this feature end to end",
+  "implement this issue", "we need to build", or wants the
+  spec->plan->build->PR flow without re-assembling it each time.
 argument-hint: "<feature-description> [--skip-spec] [--no-auto-merge]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Skill(specs *), Skill(plan *), Skill(build *), Skill(code-review *), Skill(pr *)
