@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.0.0...dev-team-v8.1.0) (2026-06-27)
+
+
+### Features
+
+* eval fixtures for uncovered review agents; plugin-audit skill fixes ([#485](https://github.com/bdfinst/agentic-dev-team/issues/485)) ([6ede1cf](https://github.com/bdfinst/agentic-dev-team/commit/6ede1cf54df13b3884ce997fbe224b7c8e48f7cb))
+
 ## [8.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.9.0...dev-team-v8.0.0) (2026-06-26)
 
 
