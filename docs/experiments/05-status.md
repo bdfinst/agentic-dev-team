@@ -1,6 +1,6 @@
 # Experiment 05 — Status Report
 
-**Last updated:** 2026-06-27 20:08 UTC
+**Last updated:** 2026-06-27 20:38 UTC
 
 ---
 
@@ -56,18 +56,18 @@ Each cell runs across 4 tasks (`fare`, `payroll`, `cart`, `grades`) × 6 base tr
 ## Campaign progress
 
 <!-- STATUS_START -->
-**Overall:** 236 / 672 rows written — **35% complete**
+**Overall:** 244 / 672 rows written — **36% complete**
 
 | Task | Arms complete | Status |
 |---|---|---|
 | fare | 7 / 7 | ✅ done |
-| payroll | 3 / 7 | 🔄 in progress |
+| payroll | 4 / 7 | 🔄 in progress |
 | cart | 0 / 7 | ⏳ queued |
 | grades | 0 / 7 | ⏳ queued |
 
 _Base campaign: 7 arms × 4 tasks × 6 trials = 168 cells × 4 rows = 672 rows. Sequential extension may add more._
 
-**Campaign started:** 2026-06-27 02:50 UTC — **elapsed: 17h 17m**
+**Campaign started:** 2026-06-27 02:50 UTC — **elapsed: 17h 47m**
 <!-- STATUS_END -->
 
 
