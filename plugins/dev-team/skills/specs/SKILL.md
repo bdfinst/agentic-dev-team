@@ -89,6 +89,16 @@ Wait for answers. Only then finalize the criteria.
 
 This protocol exists because the most common failure mode of spec synthesis from a vague prompt is writing decisions that look thorough while encoding the same happy-path assumptions a direct implementation would make silently. The log prevents that by making every assumption visible and every gap either resolved by the human or documented as inferable with explicit rationale.
 
+## Gap classification: NO_REFACTOR / REFACTOR_REQUIRED / LOW_VALUE
+
+When a critique surfaces a missing-test or coverage gap, classify it so the spec only carries work that delivers signal:
+
+- `NO_REFACTOR` — a meaningful test can be written against the code as it stands. Carry it into the acceptance criteria.
+- `REFACTOR_REQUIRED` — production code needs a testability change before a meaningful test is possible. Note the change.
+- `LOW_VALUE` — **skip, not defer.** A `LOW_VALUE` finding is never written into the acceptance criteria and is never parked as deferred backlog; deferring it only re-surfaces the same no-signal work later. All three criteria must hold: no branching logic, no observable outcome (the only possible assertion is that a mock was called), and a higher-layer test already covers the path.
+
+`LOW_VALUE` is the one class dropped rather than tracked — the Ambiguity Log records the skip and its rationale, nothing more. It never becomes an acceptance criterion and never reaches `/plan` as work.
+
 ## Scope signals
 
 A specification bundles too much when any of these fire:

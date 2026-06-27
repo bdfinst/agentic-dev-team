@@ -1,5 +1,54 @@
 # Changelog
 
+## [8.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.0.0...dev-team-v8.1.0) (2026-06-27)
+
+
+### Features
+
+* eval fixtures for uncovered review agents; plugin-audit skill fixes ([#485](https://github.com/bdfinst/agentic-dev-team/issues/485)) ([6ede1cf](https://github.com/bdfinst/agentic-dev-team/commit/6ede1cf54df13b3884ce997fbe224b7c8e48f7cb))
+
+## [8.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.9.0...dev-team-v8.0.0) (2026-06-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* the agent-create, agent-skill-authoring, agent-add, agent-remove, and add-plugin skills are removed from dev-team (hard cut) and now live in marketplace-dev. dev-team registry, CLAUDE.md, docs, orchestrator, tech-writer, and knowledge index updated accordingly. The agent-create effort test is repointed to the migrated skills. agent-audit remains in dev-team.
+
+### Features
+
+* add /gherkin-derive skill (standalone Gherkin derivation from code) ([#483](https://github.com/bdfinst/agentic-dev-team/issues/483)) ([fca5d63](https://github.com/bdfinst/agentic-dev-team/commit/fca5d6378efbf3da904c438c883bfa942628bb77)), closes [#441](https://github.com/bdfinst/agentic-dev-team/issues/441)
+* add /test-upgrade skill (general-purpose analyze-then-improve orchestrator) ([#484](https://github.com/bdfinst/agentic-dev-team/issues/484)) ([2c03350](https://github.com/bdfinst/agentic-dev-team/commit/2c0335033b48541e14f2b6150bba978fdf8fa56a)), closes [#442](https://github.com/bdfinst/agentic-dev-team/issues/442) [#443](https://github.com/bdfinst/agentic-dev-team/issues/443)
+* add Cucumber-JVM BDD entry to Spring Boot test stack profile ([#480](https://github.com/bdfinst/agentic-dev-team/issues/480)) ([1cfb759](https://github.com/bdfinst/agentic-dev-team/commit/1cfb7595b300b48a8fa19989f457ca7f88b55acb)), closes [#440](https://github.com/bdfinst/agentic-dev-team/issues/440)
+* add Cucumber.js BDD entry to Node.js test stack profile ([#479](https://github.com/bdfinst/agentic-dev-team/issues/479)) ([1228136](https://github.com/bdfinst/agentic-dev-team/commit/1228136ae4291d0d62f322cf3a57aabe02e0f98e)), closes [#439](https://github.com/bdfinst/agentic-dev-team/issues/439)
+* add Go mutation testing support to tool-setup and mutation-testing ([#474](https://github.com/bdfinst/agentic-dev-team/issues/474)) ([5e8923d](https://github.com/bdfinst/agentic-dev-team/commit/5e8923d3d0cf317182d69416970a33af26170a4b)), closes [#434](https://github.com/bdfinst/agentic-dev-team/issues/434)
+* add Godog BDD entry to Go test stack profile ([#477](https://github.com/bdfinst/agentic-dev-team/issues/477)) ([98a24c1](https://github.com/bdfinst/agentic-dev-team/commit/98a24c19e25ea7478673d05afb364db9906a00c7)), closes [#437](https://github.com/bdfinst/agentic-dev-team/issues/437)
+* add LOW_VALUE gap classification to test-health, specs, plan, and test-smell-review ([#471](https://github.com/bdfinst/agentic-dev-team/issues/471)) ([d25329f](https://github.com/bdfinst/agentic-dev-team/commit/d25329f7a36804c0807be05652ecd99dcc059c08)), closes [#431](https://github.com/bdfinst/agentic-dev-team/issues/431)
+* add marketplace-dev plugin and migrate plugin-authoring skills from dev-team ([#464](https://github.com/bdfinst/agentic-dev-team/issues/464)) ([770e386](https://github.com/bdfinst/agentic-dev-team/commit/770e386270617517074dc6e06e16bf80d7336f64))
+* add mutation-kill agent (autonomous survivor-reduction loop) ([#482](https://github.com/bdfinst/agentic-dev-team/issues/482)) ([f58eaf7](https://github.com/bdfinst/agentic-dev-team/commit/f58eaf787ee9f7b4ab84c6f3ce8b623e3ae42800)), closes [#461](https://github.com/bdfinst/agentic-dev-team/issues/461)
+* add Reqnroll BDD entry to .NET test stack profile ([#478](https://github.com/bdfinst/agentic-dev-team/issues/478)) ([fecead7](https://github.com/bdfinst/agentic-dev-team/commit/fecead760d93086ac607b75a2fe0a8cc64f64ef6)), closes [#438](https://github.com/bdfinst/agentic-dev-team/issues/438)
+* auto-bootstrap the CodeGraph index per clone ([#428](https://github.com/bdfinst/agentic-dev-team/issues/428)) ([ba9ff78](https://github.com/bdfinst/agentic-dev-team/commit/ba9ff783414630ef780700278dae359de09cf49a))
+* convert six markdown agents to Python/hybrid harness pattern ([#462](https://github.com/bdfinst/agentic-dev-team/issues/462)) ([f587109](https://github.com/bdfinst/agentic-dev-team/commit/f58710982ab36c017c5f8f0ee30a4fb31ea747ba))
+* create bdd-frameworks.md knowledge reference for per-language BDD wire-in ([#476](https://github.com/bdfinst/agentic-dev-team/issues/476)) ([b22a675](https://github.com/bdfinst/agentic-dev-team/commit/b22a675bb5f2a4cd21bbd34a083bf4bca16777d1)), closes [#436](https://github.com/bdfinst/agentic-dev-team/issues/436)
+* create bdd-value-guide.md knowledge reference ([#475](https://github.com/bdfinst/agentic-dev-team/issues/475)) ([da2e9ef](https://github.com/bdfinst/agentic-dev-team/commit/da2e9efcbdca102f801d45231cfc7a4436d202fe)), closes [#435](https://github.com/bdfinst/agentic-dev-team/issues/435)
+* enforce the 40% context ceiling with a PreToolUse hook ([#425](https://github.com/bdfinst/agentic-dev-team/issues/425)) ([7fac5b4](https://github.com/bdfinst/agentic-dev-team/commit/7fac5b4d724caef3197056adeea42eb29c2e5052))
+
+
+### Bug Fixes
+
+* agent audit compliance fixes — session-analysis schema, Context needs, persona, hook reliability ([#465](https://github.com/bdfinst/agentic-dev-team/issues/465)) ([7ce0a6a](https://github.com/bdfinst/agentic-dev-team/commit/7ce0a6abb3737fb39fc1c06425c9bac919b9c8c5))
+* decouple coverage-baseline from /test-modernize ([#472](https://github.com/bdfinst/agentic-dev-team/issues/472)) ([085fca3](https://github.com/bdfinst/agentic-dev-team/commit/085fca32f6a3dc4377d6b70176d63819b3dd7e14)), closes [#432](https://github.com/bdfinst/agentic-dev-team/issues/432)
+* decouple coverage-delta from /test-modernize ([#473](https://github.com/bdfinst/agentic-dev-team/issues/473)) ([f432452](https://github.com/bdfinst/agentic-dev-team/commit/f432452391239503b64a1d59bb3abdcef70aa4f9)), closes [#433](https://github.com/bdfinst/agentic-dev-team/issues/433)
+
+
+### Documentation
+
+* reduce plugin CLAUDE.md from 30k to 4950 chars via knowledge file extraction ([#468](https://github.com/bdfinst/agentic-dev-team/issues/468)) ([561e457](https://github.com/bdfinst/agentic-dev-team/commit/561e457c86f77a6825aef388ac2023fe1342b8dc))
+
+
+### Miscellaneous
+
+* trigger ship skill more broadly ([#470](https://github.com/bdfinst/agentic-dev-team/issues/470)) ([fcb5924](https://github.com/bdfinst/agentic-dev-team/commit/fcb5924dbb3342197de2c87b6fd95215993fe400))
+
 ## [7.9.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v7.8.0...dev-team-v7.9.0) (2026-06-25)
 
 

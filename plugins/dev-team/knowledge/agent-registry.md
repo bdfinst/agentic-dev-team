@@ -34,6 +34,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | doc-review | `agents/doc-review.md` | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
 | domain-review | `agents/domain-review.md` | Domain boundaries, abstraction leaks, entity/DTO confusion |
 | js-fp-review | `agents/js-fp-review.md` | Array mutations, impure patterns, global state |
+| mutation-kill | `agents/mutation-kill.md` | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; gates on hard kills only (Go advisory). Not a reviewer; invoked by `/test-upgrade` or directly |
 | naming-review | `agents/naming-review.md` | Intent-revealing names, boolean prefixes, magic values |
 | performance-review | `agents/performance-review.md` | Resource leaks, N+1 queries, unbounded growth |
 | progress-guardian | `agents/progress-guardian.md` | Plan adherence, commit discipline, scope creep detection |
@@ -56,8 +57,6 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 |-------|------|---------|---------|
 | ADR Tools | `skills/adr-tools/SKILL.md` | ~1,350 | Orchestrator, adr-author, Software Engineer, Architect |
 | Artifact Lifecycle | `skills/artifact-lifecycle/SKILL.md` | ~600 | Orchestrator, `/artifact-lifecycle` command |
-| Agent & Skill Authoring | `skills/agent-skill-authoring/SKILL.md` | 1,300 | Orchestrator, Technical Writer |
-| Agent Create | `skills/agent-create/SKILL.md` | ~2,100 | Orchestrator, Software Engineer, all team agents |
 | API Design | `skills/api-design/SKILL.md` | 600 | Architect, Software Engineer |
 | Branch Workflow | `skills/branch-workflow/SKILL.md` | 450 | Orchestrator, Software Engineer |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 700 | QA Engineer |
@@ -79,6 +78,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Farley Score | `skills/farley-score/SKILL.md` | 600 | QA Engineer, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
 | Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,010 | Orchestrator |
+| Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~700 | `/test-upgrade` (Phase 1b), QA Engineer, standalone |
 | Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | `/test-modernize` (Phase 2), QA Engineer, Product Manager |
 | Governance & Compliance | `skills/governance-compliance/SKILL.md` | 990 | QA Engineer, Technical Writer |
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 420 | Architect, Software Engineer |
@@ -99,6 +99,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~700 | QA Engineer, Software Engineer, `/test-design` command |
 | Test Health | `skills/test-health/SKILL.md` | ~900 | QA Engineer, `/test-health` command |
 | Test Modernize | `skills/test-modernize/SKILL.md` | ~900 | Orchestrator, QA Engineer, `/test-modernize` command |
+| Test Upgrade | `skills/test-upgrade/SKILL.md` | ~900 | Orchestrator, QA Engineer, `/test-upgrade` command |
 | Test-Driven Development | `skills/test-driven-development/SKILL.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
 | Threat Modeling | `skills/threat-modeling/SKILL.md` | 600 | Security Engineer, Architect |
 | Ubiquitous Language | `skills/ubiquitous-language/SKILL.md` | ~800 | Architect, domain-review, Product Manager |

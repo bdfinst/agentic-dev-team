@@ -6,11 +6,17 @@
 # agent-eval is NOT here — it is opt-in and lives in scripts/eval-changed.sh.
 #
 # Usage:
-#   bash scripts/ci-local.sh [BASE HEAD]
+#   bash scripts/ci-local.sh [--changed-only] [BASE HEAD]
 #
 # BASE/HEAD (optional) enable the eval-corpus semver-contract check, which needs
 # a commit range (the pre-push hook passes the push range). Without them that one
 # check is skipped; everything else always runs.
+#
+# --changed-only (optional, developer convenience) skips any suite whose watched
+# paths have no changed files in `git diff`, logging each skip. It is NEVER the
+# default and the pre-push hook does not pass it. The changed-file set is the
+# BASE..HEAD range when supplied, otherwise the working tree vs HEAD plus
+# untracked files. If `git diff` fails or the set is empty, all suites run.
 #
 # Parallelism: the independent gates run concurrently in a bounded pool capped at
 # the core count (portable across Linux + macOS, no bash-4 features). Output is
@@ -25,6 +31,20 @@
 set -uo pipefail
 
 cd "$(git rev-parse --show-toplevel)" || exit 2
+
+# --- argument parsing ------------------------------------------------------
+# --changed-only is a position-independent flag; BASE/HEAD are positional and
+# keep their existing meaning so the pre-push hook's `ci-local.sh BASE HEAD`
+# invocation is unaffected.
+CHANGED_ONLY=0
+positional=()
+for arg in "$@"; do
+  case "$arg" in
+    --changed-only) CHANGED_ONLY=1 ;;
+    *) positional+=("$arg") ;;
+  esac
+done
+set -- ${positional[@]+"${positional[@]}"}
 
 BASE="${1:-}"
 HEAD="${2:-}"
@@ -75,6 +95,33 @@ case "$JOBS" in ''|*[!0-9]*) JOBS=2 ;; esac
 # bats files are fanned across cores by scripts/run-bats-parallel.sh (xargs -P),
 # which needs no GNU `parallel` package — portable on every macOS + Linux box.
 run_bats() { bash scripts/run-bats-parallel.sh -j "$JOBS" "$@"; }
+
+# --- --changed-only resolution ---------------------------------------------
+# Source the suite->path mapping + matcher (pure logic, unit-tested separately),
+# then resolve the changed-file set once. Any failure or an empty set disables
+# the flag so all suites run — the safe direction.
+CHANGED_LIST=""
+if [ "$CHANGED_ONLY" = "1" ]; then
+  # shellcheck source=scripts/lib/ci-changed-only.sh
+  . scripts/lib/ci-changed-only.sh
+  # The trailing `--` ends option parsing so a BASE/HEAD value beginning with
+  # `-` can't be misread as a git flag (defense-in-depth; matches the sibling
+  # eval_semver_classify.sh).
+  get_changed_files() {
+    if [ -n "$BASE" ] && [ -n "$HEAD" ]; then
+      git diff --name-only "$BASE" "$HEAD" --
+    else
+      git diff --name-only HEAD -- || return 1
+      git ls-files --others --exclude-standard
+    fi
+  }
+  # Guard: any failure or an empty changeset disables the flag so all suites run.
+  if ! CHANGED_LIST="$(get_changed_files 2>/dev/null)" || [ -z "$CHANGED_LIST" ]; then
+    printf '%s∼ --changed-only: no usable git diff (failed or empty) — running all suites%s\n' \
+      "$yellow" "$reset"
+    CHANGED_ONLY=0
+  fi
+fi
 
 # --- check definitions -----------------------------------------------------
 # Each gate is a function returning its exit code. They are dispatched
@@ -142,6 +189,14 @@ pids=()
 idx=0
 for entry in "${CHECKS[@]}"; do
   fn="${entry##*::}"
+  # --changed-only: skip suites whose watched paths saw no change. Record the
+  # skip as a passing result so the aggregation below logs it in declared order.
+  if [ "$CHANGED_ONLY" = "1" ] && ! ci_suite_has_changes "$fn" "$CHANGED_LIST"; then
+    printf '%s∼ skipped (no relevant changes)%s\n' "$yellow" "$reset" >"$RUNDIR/$idx.out"
+    echo 0 >"$RUNDIR/$idx.rc"
+    idx=$((idx + 1))
+    continue
+  fi
   ( "$fn" >"$RUNDIR/$idx.out" 2>&1; echo $? >"$RUNDIR/$idx.rc" ) &
   pids+=("$!")
   idx=$((idx + 1))

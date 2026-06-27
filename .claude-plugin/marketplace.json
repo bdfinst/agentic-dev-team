@@ -18,11 +18,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/dev-team",
-        "ref": "dev-team-v7.9.0",
+        "ref": "dev-team-v8.1.0",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "7.9.0"
+      "version": "8.1.0"
     },
     {
       "author": {
@@ -40,6 +40,23 @@
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
       "version": "3.3.0"
+    },
+    {
+      "author": {
+        "name": "Bryan Finster"
+      },
+      "description": "Scaffold, audit, and maintain Claude Code plugins and plugin marketplaces: a markdown-vs-script decision framework, a structural best-practices review agent, scaffolding skills (plugin, marketplace, eval), a generalized plugin-audit, and the migrated agent/skill authoring toolkit. Companion plugin to dev-team.",
+      "homepage": "https://github.com/bdfinst/agentic-dev-team",
+      "license": "MIT",
+      "name": "marketplace-dev",
+      "repository": "https://github.com/bdfinst/agentic-dev-team",
+      "source": {
+        "path": "plugins/marketplace-dev",
+        "ref": "marketplace-dev-v1.0.0",
+        "source": "git-subdir",
+        "url": "https://github.com/bdfinst/agentic-dev-team.git"
+      },
+      "version": "1.0.0"
     }
   ]
 }

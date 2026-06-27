@@ -1,12 +1,13 @@
 ---
 name: coverage-baseline
 description: >-
-  Phase-3 worker for `/test-modernize`. Detects the repo's coverage tool from
-  its build manifest, runs it after `/test-audit-disable` has removed the
-  cannot-fail tests, records the resulting line+branch percentages as the
-  Phase-3 baseline, and posts the number to the parent issue (or local
-  `FEATURE.md`). This number is the floor every later phase must improve on.
-argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>]"
+  Multi-workflow coverage baseline worker. Detects the repo's coverage tool
+  from its build manifest, runs it, records the resulting line+branch
+  percentages as the baseline, and posts the number to the parent issue (or
+  local `FEATURE.md`). This number is the floor every later phase must improve
+  on. Used by `/test-upgrade` (default) and `/test-modernize` (Phase 3), each
+  via its own `--workflow` namespace.
+argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write
 ---
@@ -23,17 +24,14 @@ Arguments: $ARGUMENTS
 
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL on the resolved tracker (or empty for local-files mode).
-- `--repo-slug <slug>` — namespace under `memory/test-modernize/`.
+- `--repo-slug <slug>` — namespace under `memory/<workflow>/`.
+- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-upgrade`. `/test-modernize` passes `test-modernize` to keep its Phase-3 paths unchanged.
 
 If `<repo-path>` is absent, ask the operator.
 
 ## Steps
 
-### 1. Confirm Phase 3's audit has run
-
-Require `memory/test-modernize/<slug>/disabled-tests.json` to exist. If it does not, tell the operator to run `/test-audit-disable` first and stop.
-
-### 2. Detect the coverage tool
+### 1. Detect the coverage tool
 
 Read the build manifest at the repo root and pick the appropriate command:
 
@@ -49,7 +47,7 @@ Read the build manifest at the repo root and pick the appropriate command:
 
 If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command.
 
-### 3. Run coverage
+### 2. Run coverage
 
 Run the chosen command from `<repo-path>`. Capture stdout, stderr, and the exit code.
 
@@ -59,7 +57,7 @@ If the run fails:
 - Do NOT write a baseline. The floor must be a true measurement.
 - Stop.
 
-### 4. Parse line + branch percentages
+### 3. Parse line + branch percentages
 
 For each tool, parse the report into `{ "line": <pct>, "branch": <pct>, "tool": "<name>", "raw_path": "<file>" }`:
 
@@ -70,9 +68,9 @@ For each tool, parse the report into `{ "line": <pct>, "branch": <pct>, "tool": 
 - cargo-llvm-cov → `--json` → `data[0].totals.lines.percent`, `…branches.percent`.
 - Go → `go tool cover -func` → `total:` line; branch coverage isn't native, report `null` and flag.
 
-### 5. Persist the baseline
+### 4. Persist the baseline
 
-Write `memory/test-modernize/<slug>/baseline-coverage.json`:
+Write `memory/<workflow>/<slug>/baseline-coverage.json`:
 
 ```json
 {
@@ -86,9 +84,11 @@ Write `memory/test-modernize/<slug>/baseline-coverage.json`:
 }
 ```
 
-Append a phase-3 summary to `memory/test-modernize/<slug>/phase-3.md` (one file owns the phase; this worker writes the coverage block, `/test-audit-disable` writes the audit block).
+`disabled_test_count` is included **only** when `memory/<workflow>/<slug>/disabled-tests.json` exists (the `/test-modernize` path, where `/test-audit-disable` ran first); omit the field otherwise. `phase` carries the calling workflow's phase number when it has one, and may be omitted for workflows without numbered phases.
 
-### 6. Post to the parent
+Append a baseline summary to `memory/<workflow>/<slug>/phase-3.md` (for `/test-modernize`, one file owns the phase: this worker writes the coverage block, `/test-audit-disable` writes the audit block; other workflows just get the coverage block).
+
+### 5. Post to the parent
 
 **Tracker mode** — append a markdown block to the parent issue's description (the resolved CLI was recorded in Phase 1):
 
@@ -97,7 +97,7 @@ Append a phase-3 summary to `memory/test-modernize/<slug>/phase-3.md` (one file 
 - Coverage tool: <tool>
 - Line: <pct>%
 - Branch: <pct>% (or "not native — see notes")
-- Cannot-fail tests disabled in Phase 3: <count>
+- Cannot-fail tests disabled in Phase 3: <count> (omit this line when no `disabled-tests.json` exists for the workflow)
 - Quality targets: line ≥ 90% · branch ≥ 90% · mutants = 0 · determinism = 100% · wall-clock = fastest achievable
 ```
 
@@ -117,9 +117,9 @@ glab issue note add <parent-iid> --message "$(cat phase-3-block.md)"
 acli jira workitem comment add --key <parent-key> --body "$(cat phase-3-block.md)"
 ```
 
-**Local-files mode** — append the block to `./plans/test-modernize/FEATURE.md` under a `## Metrics history` heading (create the heading if missing).
+**Local-files mode** — append the block to `./plans/<workflow>/FEATURE.md` under a `## Metrics history` heading (create the heading if missing).
 
-### 7. Report
+### 6. Report
 
 Print:
 

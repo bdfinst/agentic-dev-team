@@ -1,13 +1,6 @@
 ---
 name: adr-tools
-description: >-
-  Create and manage Architecture Decision Records using the adr-tools CLI
-  (https://github.com/npryce/adr-tools). Use when the user asks to "add an ADR",
-  "record this decision", "create an ADR", "supersede ADR N", "link ADRs",
-  "generate the ADR table of contents", or any request involving the `adr`
-  command. Pairs with the adr-author agent: this skill is the mechanics
-  (commands, files, links); adr-author is the decision framework (when an ADR is
-  warranted) and the prose authoring.
+description: Create and manage Architecture Decision Records using the npryce adr-tools CLI. Use when the user asks to "add an ADR", "record this decision", "create an ADR", "supersede ADR N", "link ADRs", "generate the ADR table of contents", or any request involving the `adr` command. Pairs with the adr-author agent — this skill is the mechanics (commands, files, links); adr-author is the decision framework (when an ADR is warranted) and the prose authoring.
 role: worker
 user-invocable: true
 ---

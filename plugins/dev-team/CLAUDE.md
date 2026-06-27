@@ -2,250 +2,86 @@
 
 ## System Overview
 
-This project implements a fully automated development team using persona-driven AI agents orchestrated through an intelligent coordination pipeline. The Orchestrator agent acts as the central dispatcher, routing tasks to specialized agents based on task classification, complexity, and required expertise.
+Fully automated development team using persona-driven AI agents. The Orchestrator dispatches tasks to specialized agents based on classification, complexity, and expertise.
 
 ## North Star
 
-Every change must reduce friction for someone trying to get work done with this plugin: **fewer missteps, less rework, lower token cost.** We measure friction, we do not assume it — telemetry and cost metering exist to close a loop where observed friction becomes a concrete improvement: a hint to the user, a new skill, an agent-config change, or a hook that constrains a bad path.
-
-Not goals: reputational novelty, feature breadth, or ceremony for its own sake. A change that cannot name the friction it removes — and the metric that would show the reduction — does not ship. (This applies the same claims-discipline rule as quantitative prose: every claim must name the instrument that measures it.)
-
-When prioritizing or rejecting work, this is the tie-breaker: the option that removes more real, observed friction wins.
+Every change must reduce friction: **fewer missteps, less rework, lower token cost.** Measure friction — don't assume it. A change that cannot name the friction it removes does not ship.
 
 ## Architecture
 
-This project uses a layered loading strategy to minimize token usage:
-
-- **CLAUDE.md**: Core philosophy + quick reference (always loaded, ~800 tokens)
-- **Skills**: Detailed patterns and procedures (loaded on-demand when a phase or task requires them)
-- **Knowledge**: Reference data — registries, rubrics, detection patterns (loaded on-demand by agents)
+- **CLAUDE.md**: Core philosophy + quick reference (always loaded)
+- **Skills**: Detailed procedures (loaded on-demand)
+- **Knowledge**: Registries, rubrics, patterns (loaded on-demand by agents)
 - **Agents**: Behavioral specifications (loaded per-phase, never all at once)
-- **Templates**: Language-specific agent templates (scaffolded per-project by `/setup`)
+- **Templates**: Language-specific agent templates (scaffolded by `/setup`)
 
 ## Output Guardrails
 
-1. **Write to files, not chat.** Artifacts (plans, design docs, reports, code) go to files. Chat is for decisions, status updates, and questions — not deliverables.
-2. **Plan-only mode.** When asked for a plan, produce ONLY the plan. Do not start implementing. The plan is a gate, not a warm-up.
-3. **Incremental output.** Produce a first draft within 3-4 tool calls, then refine iteratively. Don't spend 20 tool calls exploring before writing anything.
+1. **Write to files, not chat.** Artifacts go to files — not chat deliverables.
+2. **Plan-only mode.** When asked for a plan, produce ONLY the plan.
+3. **Incremental output.** First draft within 3-4 tool calls, then refine.
 
 ## Core Principles
 
-1. **Selective Agent Loading**: Only load necessary agents into context, avoiding token bloat. Target < 10,000 tokens for simple tasks.
-2. **40% Context Window Rule**: Maintain context below 40% capacity to prevent hallucination. Trigger summarization at threshold. Backed by the `PreToolUse` hook `hooks/context-ceiling-guard.sh`, which measures real occupancy from the transcript and warns (or, in strict mode, blocks) capability loads over the ceiling — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md) → Enforcement.
-3. **Persona-Driven Behavior**: Each agent has detailed psychological and behavioral specifications defined in `.claude/agents/`.
-4. **Human-in-the-Loop**: Agents are autonomous but require oversight, not copilots.
-5. **Dynamic Configuration**: User-level configuration changes are applied through audited, human-approved config writes, each recorded to `metrics/config-changelog.jsonl` with `previous_value`/`new_value`/`approved_by` (see Feedback & Learning).
-6. **Acceptance Test Driven Development**: All development follows ATDD. The spec describes the change and its goals; `/plan` then decomposes it into vertical slices and authors the Gherkin scenarios for each slice before implementation begins. These per-slice scenarios are the single source of truth for expected behavior — no implementation without a corresponding scenario, no scenario without a corresponding test.
+1. **Selective Agent Loading**: Only load necessary agents. Target < 10,000 tokens for simple tasks.
+2. **40% Context Window Rule**: Maintain context below 40%. Enforced by `hooks/context-ceiling-guard.sh` — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md).
+3. **Persona-Driven Behavior**: Each agent has behavioral specifications in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
+4. **Human-in-the-Loop**: Agents are autonomous but require oversight.
+5. **Dynamic Configuration**: Config changes recorded to `metrics/config-changelog.jsonl`.
+6. **ATDD**: `/plan` decomposes into vertical slices with Gherkin scenarios before any implementation. No code without a scenario.
 
 ## Team Organization
 
-See @docs/team-structure.md for the full team org chart (Mermaid diagram).
+See @docs/team-structure.md for the full team org chart.
 
 ## Agent & Skill Registry
 
-Full registry tables with token counts, effort bands, and used-by mappings are in [`knowledge/agent-registry.md`](knowledge/agent-registry.md). The orchestrator reads this file when routing decisions require the full catalog. A registry-completeness gate (`scripts/check_registry_sync.py`, surfaced as `/agent-audit` step 2e) fails CI when an agent or skill on disk is missing from — or orphaned in — these tables.
+Full registry (token counts, effort bands): [`knowledge/agent-registry.md`](knowledge/agent-registry.md). Registry gate (`/agent-audit`) fails CI on drift.
 
-### Quick Reference
-
-**Team agents** (11): Orchestrator, Software Engineer, QA Engineer, UI/UX Designer, Architect, Product Manager, Technical Writer, Security Engineer, Platform Engineer, ADR Author, Codebase Recon (~4,510 tokens total)
-
-**Review agents** (22): spec-compliance-review, a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, doc-review, domain-review, js-fp-review, naming-review, performance-review, security-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review, refactor-opportunity-review, progress-guardian, data-flow-tracer, test-modernization-review, session-analysis
-
-**Skills** (45): Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Quality Gate Pipeline, Governance & Compliance, Agent & Skill Authoring, Hexagonal Architecture, Domain-Driven Design, Domain Analysis, Specs, Threat Modeling, API Design, Legacy Code, Mutation Testing, Test-Driven Development, Systematic Debugging, Design Doc, Branch Workflow, CI Debugging, Farley Score, Test Design Advisor, CD Test Architecture, Test Health, Browser Testing, Exploratory Testing, Competitive Analysis, Design Interrogation, Design It Twice, Static Analysis Integration, Feature File Validation, Docker Image Create, Docker Image Audit, Performance Benchmark, ADR Tools, Mermaid Diagramming, Ubiquitous Language, Test Modernize, Issues from Assessment, Gherkin Public, Test Audit + Disable, Coverage Baseline, Coverage Delta, Quality Targets Converge
-
-**Subagent prompt templates** (9): `prompts/implementer.md`, `prompts/spec-reviewer.md`, `prompts/quality-reviewer.md`, `prompts/plan-reviewer.md`, `prompts/plan-review-acceptance.md`, `prompts/plan-review-design.md`, `prompts/plan-review-ux.md`, `prompts/plan-review-strategic.md`, `prompts/plan-review-parallelization.md`
-
-**Knowledge files** (37 + 3 collections): agent-registry, decision-defaults, review-template, review-rubric, owasp-detection, domain-modeling, architecture-assessment, exploratory-testing-field-guide, adversarial-review-protocol, design-smells, object-calisthenics, testability-patterns, dependency-breaking-techniques, legacy-test-strategy, test-smells, test-automation-principles, test-doubles, value-patterns, test-pyramid, test-strategy, fixture-construction, result-verification, test-organization, test-refactoring, database-test-patterns, microservice-testing, cd-test-architecture, component-test-patterns, test-layer-gates, testing-quadrants, test-automation-maturity, test-file-indicators, test-review-division-of-labor, database-change-management, release-strategies, deployment-pipeline, cd-maturity-model; collections: `test-matrix-examples/`, `testing-techniques/`, `test-stack-profiles/`
-
-**Agent templates** (9): ts-enforcer, esm-enforcer, react-testing, front-end-testing, twelve-factor-audit, python-quality, go-quality, csharp-quality, angular-testing (in `templates/agents/`, scaffolded by `/setup`)
-
-### Institutional Context
-
-Teams can create a `REVIEW-CONTEXT.md` file in their project root to provide domain knowledge that code analysis alone cannot discover: related services, known issues, team context, architectural history. When present, `/code-review` reads it and passes the contents to each agent as additional context. This file is optional and project-local.
+Teams can create `REVIEW-CONTEXT.md` in the project root with domain knowledge code analysis cannot discover — `/code-review` passes it to each agent.
 
 ## Skills Registry
 
-User-invocable workflows in `.claude/skills/`. All review skills are executed under orchestrator direction. Model assignment for every agent flows through the **Resolution Procedure** (`agents/orchestrator.md`), enforced by the PreToolUse hook `hooks/agent-model-resolve.sh`.
-
-| Command | File | Role | What It Does |
-|---------|------|------|--------------|
-| `/add-plugin` | `skills/add-plugin/SKILL.md` | implementation | Install a plugin and register it in settings.json |
-| `/agent-add` | `skills/agent-add/SKILL.md` | implementation | Create a new review or team agent following the official schema with token-efficiency budgets |
-| `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance |
-| `/agent-eval` | `skills/agent-eval/SKILL.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
-| `/agent-readiness` | `skills/agent-readiness/SKILL.md` | worker | Score how agent-ready the current project repo is against the Agent-Readiness Scorecard; emits a tiered JSON/Markdown report (scores your project, not the plugin — use `/harness-audit` for that) |
-| `/agent-remove` | `skills/agent-remove/SKILL.md` | implementation | Remove an agent and all its registry entries and doc references |
-| `/apply-fixes` | `skills/apply-fixes/SKILL.md` | implementation | Apply correction prompts from `/code-review` output |
-| `/benchmark` | `skills/benchmark/SKILL.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
-| `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
-| `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence; ends with a Farley Score for the branch's tests before prompting for `/pr` |
-| `/careful` | `skills/careful/SKILL.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
-| `/code-review` | `skills/code-review/SKILL.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
-| `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
-| `/cost-report` | `skills/cost-report/SKILL.md` | worker | Report actual token spend and dollar cost of dispatched work — per agent and total — and flag cost regressions |
-| `/coverage-baseline` | `skills/coverage-baseline/SKILL.md` | worker | Phase-3 of `/test-modernize` — detect the repo's coverage tool, capture line+branch percentages as the post-audit baseline, post to the parent issue or local FEATURE.md |
-| `/coverage-delta` | `skills/coverage-delta/SKILL.md` | worker | Phase-4 of `/test-modernize` — re-run coverage and post Δ vs. baseline after each Story closes; when `--story-files` is supplied, also runs scoped mutation testing on those files and emits a structured status (`ok | net_new_survivors | first_measurement | tool_unavailable | skipped_empty_scope`) for the orchestrator to act on; never halts and never overwrites history (atomic temp-file-then-rename writes to`mutation-history.json`) |
-| `/explore` | `skills/explore/SKILL.md` | worker | Charter-driven exploratory testing of a running target (Chaos Specialist mode): structured heuristics + adversarial expansion, auto-triages critical defects, writes an incremental report |
-| `/freeze` | `skills/freeze/SKILL.md` | worker | Scope-lock editing to a glob pattern; blocks edits outside the pattern |
-| `/gherkin-public` | `skills/gherkin-public/SKILL.md` | worker | Phase-2 of `/test-modernize` — author Gherkin scenarios for the entire public interface (API endpoints, UI flows, batch-job entry points, library exports, event types) at the observable boundary |
-| `/guard` | `skills/guard/SKILL.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
-| `/harness-audit` | `skills/harness-audit/SKILL.md` | orchestrator | Analyze harness effectiveness and flag stale components |
-| `/help` | `skills/help/SKILL.md` | worker | List all available slash commands with descriptions |
-| `/init-dev-team` | `skills/init-dev-team/SKILL.md` | worker | Install plugin prerequisites (jq, python3, mutation tools). Includes a state-aware CodeGraph offer (install / init / silent-confirm based on `command -v codegraph` and `.codegraph/` presence), and bootstraps a JS project via `js-project-init` when JS/TS is selected but `package.json` is absent. |
-| `/issues-from-assessment` | `skills/issues-from-assessment/SKILL.md` | worker | Convert a `/cd-test-architecture` assessment into a parent + Phase-tagged child issues via the tracker CLI resolved from the parent URL host (gh / az / glab / acli). Falls back to local plan files when no URL is given or the CLI is missing |
-| `/issues-from-plan` | `skills/issues-from-plan/SKILL.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
-| `/js-project-init` | `skills/js-project-init/SKILL.md` | worker | Initialize a new JavaScript project (ES modules, functional style, prettier, eslint, editorconfig, vitest, gitignore) |
-| `/model-routing-check` | `skills/model-routing-check/SKILL.md` | worker | Read-only diagnostic for effort-band model routing. Prints the effective band → model map, the ladder (or a ready-to-edit starter), the captured session model, and the most recent routing bumps from the resolver log. |
-| `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
-| `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request (enables auto-merge by default) |
-| `/quality-targets-converge` | `skills/quality-targets-converge/SKILL.md` | worker | Phase-5 of `/test-modernize` — loop that picks the largest gap to the four quality targets (coverage / mutants / determinism / speed) and dispatches the smallest action to close it |
-| `/review` | `skills/review/SKILL.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
-| `/review-agent` | `skills/review-agent/SKILL.md` | worker | Run a single review agent (used for inline checkpoints) |
-| `/review-summary` | `skills/review-summary/SKILL.md` | orchestrator | Generate compact session summary for context continuity |
-| `/semantic-scan` | `skills/semantic-scan/SKILL.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
-| `/semgrep-analyze` | `skills/semgrep-analyze/SKILL.md` | worker | Run Semgrep SAST and return structured findings |
-| `/session-review` | `skills/session-review/SKILL.md` | orchestrator | Mine real session transcripts (via the deterministic `session_extract.py`) and dispatch `session-analysis` to suggest token/rework/accuracy improvements; suggests, never auto-applies |
-| `/setup` | `skills/setup/SKILL.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
-| `/ship` | `skills/ship/SKILL.md` | orchestrator | Run the full spec→plan→TDD build→code-review→PR(auto-merge) pipeline as one command, pausing at the existing human gates |
-| `/telemetry` | `skills/telemetry/SKILL.md` | worker | Manage and report the opt-in, privacy-clean usage telemetry beacon (on/off/status/report) |
-| `/test-audit-disable` | `skills/test-audit-disable/SKILL.md` | worker | Phase-3 of `/test-modernize` — detect tests that cannot fail (no assertions, tautologies, self-equality, swallowed exceptions) and disable each by skip-and-tag with the reason; never deletes |
-| `/test-design` | `skills/test-design/SKILL.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, score all existing tests (Farley Score), then run test-design-advisor for testability/refactor recommendations (advisory) |
-| `/test-health` | `skills/test-health/SKILL.md` | orchestrator | Project-wide test-strategy audit: shape vs. architecture fit, quadrant coverage, flaky/automation maturity, ordered plan. Runs `/test-design` (Farley Score + smell themes) and `mutation-testing` and folds their results in; delegates pipeline assessment to cd-test-architecture (advisory) |
-| `/test-modernize` | `skills/test-modernize/SKILL.md` | orchestrator | Modernize a legacy repository's tests for CD as one sequenced workflow — assessment → public-interface Gherkin → audit + baseline coverage → no-refactor adds → minimum refactor + converge on coverage/mutation/determinism/speed targets. Outputs phase issues to ADO, GitHub, GitLab, Jira, or local plans/specs files via the parent issue URL |
-| `/triage` | `skills/triage/SKILL.md` | worker | Investigate a bug and write a triage record to `.triage/<slug>.md` with a TDD fix plan |
-| `/unfreeze` | `skills/unfreeze/SKILL.md` | worker | Lift the scope lock set by `/freeze` |
-| `/upgrade` | `skills/upgrade/SKILL.md` | worker | Check for and apply plugin updates from within a session |
-| `/version` | `skills/version/SKILL.md` | worker | Report the installed plugin version |
+See [knowledge/skills-registry.md](knowledge/skills-registry.md) for the full command reference. All review skills run under orchestrator direction with model assignment flowing through the Resolution Procedure (`agents/orchestrator.md`).
 
 ## Request Processing Flow
 
-For trivial tasks (typo fix, simple query), the Orchestrator routes directly to a single agent. For non-trivial tasks, the Orchestrator follows the **Research → Plan → Implement** workflow:
-
-### Three-Phase Workflow
-
-1. **Research** — Understand the system: find relevant files, trace data flows, identify the problem surface area. Sub-agents explore the codebase and return concise findings to keep the parent context clean. For non-trivial features, produce a **design document** at `docs/specs/` with problem statement, approach, alternatives, and scope boundaries. Optionally run **Design Interrogation** to stress-test the design and surface unresolved decisions before planning. For module boundaries, use **Design It Twice** to generate parallel alternative interfaces via sub-agents. Output: research progress file + design doc written to `memory/`.
-2. **Human Review Gate** — Human reviews research findings and design doc. Catching a misunderstanding here prevents hundreds of bad lines of code.
-3. **Plan** — Decompose the feature into **vertical slices**, author each slice's **Gherkin scenarios** (the behavioral contract), then specify every change: files, snippets, TDD steps, verification. Before the human sees the plan, **plan review personas** run in parallel as critical outside reviewers — the set **scales to a plan tier** (`trivial`/`standard`/`complex`, derived from slice/file counts and decision axes): Acceptance Test Critic (criteria quality, scenario gaps; always runs), Design & Architecture Critic (coupling, structural risks), UX Critic (user journey, accessibility; only with a UI surface), Strategic Critic (scope, risk, opportunity cost), and Parallelization Critic (same-wave build independence; only when slice count > 1). Complex plans get all five. Any blocker findings are addressed before the human gate. The plan is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. After approval, optionally run `/issues-from-plan` to create GitHub issues for team distribution. Output: implementation plan progress file written to `memory/`.
-4. **Human Review Gate** — Human reviews the plan. This replaces traditional line-by-line code review as the primary quality gate.
-5. **Implement** — Execute the plan using the `prompts/implementer.md` template. All code follows **RED-GREEN-REFACTOR** with **vertical slices** (TDD skill). The build runs **wave by wave** (the plan's `## Parallelization` schedule): independent slices in a wave build concurrently in **worktree isolation** (`isolation: "worktree"`), then a barrier reconciles the wave and gates on the full suite before the next wave. Effective concurrency is `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)` — the env var **`DEV_TEAM_MAX_PARALLEL_BUILDS`** caps parallel builds (default **2**; set to 1 for sequential). A fully-dependent plan degrades to today's one-slice-at-a-time behavior. A **three-stage inline review** runs at a granularity that scales with step complexity — per step for `complex` steps, batched once at the slice boundary for `standard`/`trivial` steps: (1) spec-compliance-review checks code matches spec, (2) quality review agents check code quality, (3) browser verification for UI changes. Each checkpoint's find/fix/no-op outcome is logged to `metrics/review-value.jsonl` so the overhead is measurable. Actionable issues (error/warning severity with high/medium confidence) are **auto-fixed and re-reviewed** in a loop (up to 5 iterations) — only issues requiring human judgment are escalated. Run `/code-review` before committing (which auto-scopes to uncommitted changes and runs its own fix loop). Then invoke the tech-writer to verify all affected documentation is current. All agents must provide **verification evidence** (fresh test output) before claiming completion. Output: working code + test results + code review pass + docs verified.
-6. **Human Review Gate** — Human reviews the final output. Lightweight if the plan was correct.
-7. **Branch Workflow** — Create PR, choose merge strategy, clean up branch (see Branch Workflow skill).
-8. **Learning loop** — Update configs if needed, log metrics, refine routing.
-
-### Skills by Phase
-
-| Phase | Skills Used | Purpose |
-|-------|-----------|---------|
-| **Research** | Design Doc, Domain Analysis, Domain-Driven Design, Threat Modeling, Design Interrogation, Design It Twice, Competitive Analysis | Understand the system, explore alternatives, stress-test designs |
-| **Plan** | Specs, API Design, Hexagonal Architecture, Legacy Code | Define what to build, specify interfaces and test strategy |
-| **Plan → Team** | `/issues-from-plan` | Break plan into GitHub issues for team distribution |
-| **Implement** | Test-Driven Development, Systematic Debugging, Mutation Testing, Browser Testing, Performance Benchmark, CI Debugging | Build with TDD, debug issues, validate quality, measure performance |
-| **Bug Triage** | `/triage` (Systematic Debugging + file-based triage record in `.triage/`) | Investigate bugs and write actionable triage records |
-| **Review** | Quality Gate Pipeline, Farley Score | Validate output before delivery |
-| **Cross-phase** | Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Governance & Compliance, Branch Workflow, Agent & Skill Authoring | Orchestration, context management, learning |
-
-### Phase Transitions
-
-Each phase runs in a fresh context window. The output of each phase is a structured progress file in `memory/` that onboards the next phase. See the Orchestrator agent for the full protocol.
-
-## Multi-Agent Collaboration Protocol
-
-### Sub-Agents as Context Isolation
-
-The primary value of sub-agents is **context isolation**, not persona specialization. When a parent agent dispatches a sub-agent to explore, search, or analyze, the sub-agent absorbs the context burden of reading files and tracing code flows. Only a concise, structured finding returns to the parent — keeping the parent's context clean and focused on the actual task.
-
-**Design sub-agent calls for minimal context return**:
-
-- Send the sub-agent a specific question ("Where is user authentication handled? Return file paths and line numbers.")
-- The sub-agent reads 20 files; the parent receives 10 lines of structured findings
-- The parent can get right to work without the context burden of exploration
-
-Persona specialization (Software Engineer, Architect, etc.) provides behavioral guardrails and domain expertise, but context isolation is what makes multi-agent workflows scale.
-
-### Multi-Agent Coordination
-
-When a task requires multiple agents:
-
-1. Orchestrator identifies multi-agent task and assigns the three-phase workflow
-2. Load primary agent + sub-agents for the current phase only
-3. Sub-agents explore and return concise findings (context isolation)
-4. Primary agent coordinates (defines interfaces, manages dependencies, resolves conflicts)
-5. Phase output is written to `memory/` as a progress file
-6. Human reviews before next phase begins
-7. Integration and validation (QA validates, Architect reviews if architectural changes)
-8. Unified result delivery
+See [knowledge/request-processing-flow.md](knowledge/request-processing-flow.md) for the three-phase workflow (Research → Plan → Implement), inline review protocol, phase transitions, and multi-agent collaboration.
 
 ## Model Routing
 
-Each agent declares an effort band (`effort: low|medium|high`) in its frontmatter. Band-to-model resolution is enforced by the PreToolUse hook `hooks/agent-model-resolve.sh` (registered in `settings.json` under `matcher: "Agent"`), backed by the resolver helper `hooks/lib/model-resolve.sh`: it reads the band by `subagent_type` and maps it via the shipped default map in `knowledge/model-routing.json` or, when present, a per-environment ladder `.claude/model-ladder.json` (gitignored). The session model (captured at SessionStart) is the fallback for an unmappable model, never a ceiling. See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for the contract and `docs/model-routing-overrides.md` for ladder authoring, and run `/model-routing-check` for a read-only diagnostic.
+Each agent declares an effort band (`effort: low|medium|high`). Resolution enforced by `hooks/agent-model-resolve.sh` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
 
 ## Context Management
 
-Context management is the Orchestrator's responsibility, governed by two operational skills:
+1. **[Context Loading Protocol](skills/context-loading-protocol/SKILL.md)** — decides *what* to load and *when*
+2. **[Context Summarization](skills/context-summarization/SKILL.md)** — decides *when* to compress and *how*
 
-1. **[Context Loading Protocol](skills/context-loading-protocol/SKILL.md)** - decides *what* to load and *when*, using task classification, phased loading, and measured token budgets
-2. **[Context Summarization](skills/context-summarization/SKILL.md)** - decides *when* to compress and *how*, using utilization-threshold triggers and structured summaries written to `memory/`
+Token budgets per agent: see [knowledge/agent-registry.md](knowledge/agent-registry.md).
 
-### Baseline Budget
-
-- CLAUDE.md (always loaded): ~800 tokens (reduced by moving registries to `knowledge/agent-registry.md`)
-- Single team agent + single skill: ~600-1,100 tokens
-- All team agents (no skills): ~3,590 tokens
-- All review agents: ~3,100 tokens (spawned as sub-agents, not loaded in parent context; includes spec-compliance-review)
-- Knowledge files: ~3,450 tokens total (loaded on demand by agents, not in parent context; includes agent-registry)
-- Subagent prompt templates: ~1,800 tokens total (loaded by orchestrator when dispatching; includes 5 plan review personas)
-- Full load (all team agents + all skills): ~18,100 tokens
-
-### Operating Rules
-
-1. **Load on demand**: Only load agent/skill files when their phase begins (see Loading Protocol)
-2. **40% utilization ceiling**: Trigger summarization when proxy signals indicate 40%+ utilization
-3. **Phase transitions**: Summarize completed phases to `memory/` before loading next-phase agents
-4. **Summaries replace history**: New conversations read from `memory/`, not from prior conversation replay
+Operating rules: load on demand; trigger summarization at 40%; summarize phases to `memory/` before next-phase load; new conversations read from `memory/`.
 
 ## Feedback & Learning
 
-Users can modify system behavior at any time using trigger keywords (`amend`, `learn`, `remember`, `forget`). The full procedure is defined in **[Feedback & Learning](skills/feedback-learning/SKILL.md)**.
-
-Changes are logged to `metrics/config-changelog.jsonl` with full audit trail and rollback support.
-
-Non-obvious routing and architectural decisions are logged to `memory/decisions.md` by the Orchestrator during task execution. This log persists across session resets and gives subsequent phases visibility into prior reasoning.
+Trigger keywords: `amend`, `learn`, `remember`, `forget`. Full procedure: **[Feedback & Learning](skills/feedback-learning/SKILL.md)**. Changes logged to `metrics/config-changelog.jsonl`.
 
 ## Human Oversight
 
-Agents operate autonomously within defined boundaries. Human involvement is required for high-impact decisions (production deployments, architecture changes, scope modifications). The full protocol is defined in **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**.
+Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**.
 
 Intervention commands: `amend`, `learn`, `remember`, `forget`, `override`, `pause`, `stop`.
 
 ## Quality & Accuracy
 
-All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKILL.md)** before delivering output: self-validation (Phase 1), verification evidence (Phase 2), and review-correction loops (Phase 3). The QA agent performs peer validation when applicable.
+All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKILL.md)**. Ethics and audit logging: **[Governance & Compliance](skills/governance-compliance/SKILL.md)**.
 
-**Quality ownership.** A failing test is a failing test regardless of whether the current change caused it. Agents own the quality *state* they observe, not just their delta: green means the whole suite, and a red signal must be fixed or explicitly triaged (`/triage`/quarantine with a reason) — never stepped over as "pre-existing" or "not my diff" on the way to claiming completion.
+**Quality ownership.** Agents own the quality *state* — green means the whole suite, not just the diff. A red signal must be fixed or triaged, never stepped over.
 
-Audit logging, quality gates, and ethics principles are defined in **[Governance & Compliance](skills/governance-compliance/SKILL.md)**.
-
-A `PreToolUse` hook (`hooks/pre-tool-guard.sh`) blocks writes to sensitive paths (credentials, keys, secrets) before they execute. Protected path patterns are configurable via `hooks/guards.json`. A second `PreToolUse` hook (`hooks/destructive-guard.sh`) detects destructive Bash commands (rm -rf, force-push, DROP TABLE, etc.) and warns by default. Use `/careful` to escalate warnings to blocks, `/freeze` to scope-lock edits, or `/guard` for both. A third `PreToolUse` hook (`hooks/context-ceiling-guard.sh`, on `Agent` and `Skill`) enforces the 40% Context Window Rule: it measures real occupancy from the transcript and warns (or, under `DEV_TEAM_CONTEXT_STRICT=on`, blocks) capability loads over the ceiling, while never gating recovery skills like `/context-summarization`.
+Hooks: `pre-tool-guard.sh` blocks sensitive path writes; `destructive-guard.sh` warns on destructive commands (use `/careful`/`/freeze`/`/guard` to escalate); `context-ceiling-guard.sh` enforces the 40% rule.
 
 ## Performance Metrics
 
-Task completion data is logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)** for the schema and reporting cadence.
+Logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
 
-### Claims discipline
-
-Any quantitative claim in shipped prose must name the instrument that measures
-it. A number with no sensor is fiction and gets deleted, not shipped.
-
-**Instrumented (measured today):**
-
-- Token budgets in the Baseline Budget section above — measured by
-  `scripts/measure-tokens.sh` (tiktoken/`cl100k_base`, `--verify` gate).
-- Per-agent detection accuracy against the eval corpus — measured by
-  `/agent-eval` over `evals/expected/*.json` (deterministic grading).
-
-**Aspirational, not yet instrumented:** efficiency gains, hallucination rate,
-structured-extraction accuracy, lifecycle accuracy, and first-pass acceptance
-rate are design goals with *no sensor in this repo*. They are intentionally
-not stated as numeric targets until an instrument exists. Tracking:
-runtime cost/token metering (#102) and the opt-in telemetry beacon (#106) will
-supply the missing meters; until then these remain unquantified.
+Every quantitative claim must name the instrument that measures it. **Instrumented:** token budgets (`scripts/measure-tokens.sh`) and per-agent accuracy (`/agent-eval`). **Not yet instrumented:** efficiency gains, hallucination rate, first-pass acceptance rate (#102, #106).

@@ -90,12 +90,18 @@ def change_summary(rows: list[dict]) -> dict:
     out = {}
     for key, cell_rows in sorted(cells.items()):
         task, arm, clarity, stage = key
-        passes = [r["passed"] for r in cell_rows]
+        passes = [r.get("core_passed", r.get("passed")) for r in cell_rows]
+        passes = [p for p in passes if p is not None]
         blast_files = [r.get("blast_radius", {}).get("files_changed")
-                       for r in cell_rows if r.get("blast_radius")]
-        blast_lines = [r.get("blast_radius", {}).get("lines_added", 0)
-                       + r.get("blast_radius", {}).get("lines_deleted", 0)
-                       for r in cell_rows if r.get("blast_radius")]
+                       or r.get("blast_files")
+                       for r in cell_rows
+                       if r.get("blast_radius") or r.get("blast_files")]
+        blast_lines = [(r.get("blast_radius", {}).get("lines_added", 0)
+                        + r.get("blast_radius", {}).get("lines_deleted", 0))
+                       if r.get("blast_radius")
+                       else r.get("blast_lines")
+                       for r in cell_rows
+                       if r.get("blast_radius") or r.get("blast_lines")]
         costs = [r.get("cost", {}).get("cost_usd") for r in cell_rows
                  if isinstance(r.get("cost"), dict)]
         out[key] = {
@@ -181,7 +187,7 @@ def arm_clarity_grid(summary_fn, rows, metric_key, fmt_fn=fmt_f) -> str:
 # ── RQ verdicts ───────────────────────────────────────────────────────────────
 
 def rq_a_verdict(rows: list[dict]) -> str:
-    """RQ-A: EDGE pass-rate under vague spec (tdd-refactor vs test-after)."""
+    """ambiguity-inference: EDGE pass-rate under vague spec (tdd-refactor vs test-after)."""
     cells: dict[tuple, list[bool]] = defaultdict(list)
     for r in rows:
         if r.get("stage") != "stage0" or r.get("clarity") != "vague":
@@ -224,10 +230,10 @@ def rq_a_verdict(rows: list[dict]) -> str:
 
 
 def rq_b_verdict(rows: list[dict]) -> str:
-    """RQ-B: Cumulative changeability (lines changed across 3 changes)."""
+    """changeability: Cumulative changeability (lines changed across 3 changes)."""
     cum = cumulative_changeability(rows)
     if not cum:
-        return "_Insufficient data for RQ-B verdict._"
+        return "_Insufficient data for changeability verdict._"
 
     # Pool across tasks, compare arms
     arm_cum: dict[str, list[float]] = defaultdict(list)
@@ -252,7 +258,7 @@ def rq_b_verdict(rows: list[dict]) -> str:
 
 
 def rq_b2_verdict(rows: list[dict]) -> str:
-    """RQ-B2: tdd-no-refactor vs test-after isolation."""
+    """refactoring-vs-ordering: tdd-no-refactor vs test-after isolation."""
     cum = cumulative_changeability(rows)
     tdd_nr = [v["mean"] for (t, a, c), v in cum.items()
               if a == "tdd-no-refactor" and v["mean"] is not None]
@@ -260,7 +266,7 @@ def rq_b2_verdict(rows: list[dict]) -> str:
           if a == "test-after" and v["mean"] is not None]
 
     if not tdd_nr or not ta:
-        return "_Insufficient data for RQ-B2 verdict._"
+        return "_Insufficient data for refactoring-vs-ordering verdict._"
 
     m_nr = mean(tdd_nr)
     m_ta = mean(ta)
@@ -268,13 +274,13 @@ def rq_b2_verdict(rows: list[dict]) -> str:
     direction = ("test-after costs more churn" if delta > 10 else
                  "tdd-no-refactor costs more churn" if delta < -10 else
                  "no clear difference")
-    return (f"**RQ-B2 (TDD vs tests-after, no refactor)**:\n"
+    return (f"**refactoring-vs-ordering (TDD vs tests-after, no refactor)**:\n"
             f"tdd-no-refactor mean Δlines={fmt_f(m_nr,0)} (n={len(tdd_nr)}), "
             f"test-after mean Δlines={fmt_f(m_ta,0)} (n={len(ta)}) → **{direction}** (Δ={fmt_f(delta,0)} lines)")
 
 
 def rq_c_verdict(rows: list[dict]) -> str:
-    """RQ-C: Is the tdd-refactor advantage largest under vague+open-design?"""
+    """clarity-interaction: Is the tdd-refactor advantage largest under vague+open-design?"""
     cum = cumulative_changeability(rows)
 
     # Split by clarity
@@ -287,7 +293,7 @@ def rq_c_verdict(rows: list[dict]) -> str:
     ta_clear = [v["mean"] for (t, a, c), v in cum.items()
                 if a == "test-after" and c == "clear" and v["mean"] is not None]
 
-    lines = ["**RQ-C (interaction: clarity × workflow)**"]
+    lines = ["**clarity-interaction (interaction: clarity × workflow)**"]
     if tdd_vague and ta_vague:
         d_vague = mean(ta_vague) - mean(tdd_vague)
         lines.append(f"- vague spec Δ (test-after − tdd-refactor): {fmt_f(d_vague,0)} lines")
@@ -306,6 +312,204 @@ def rq_c_verdict(rows: list[dict]) -> str:
             lines.append("→ **No clear interaction**: advantage similar across clarity levels.")
     else:
         lines.append("→ _Insufficient data for interaction verdict._")
+
+    return "\n".join(lines)
+
+
+def rq_d_verdict(rows: list[dict]) -> str:
+    """spec-synthesis: ship vs tdd-refactor EDGE and changeability under vague spec."""
+    edge_cells: dict[tuple, list[bool]] = defaultdict(list)
+    for r in rows:
+        if r.get("stage") != "stage0" or r.get("clarity") != "vague":
+            continue
+        arm = r["arm"]
+        if arm not in ("ship", "tdd-refactor", "bduf"):
+            continue
+        edge_cells[(r["task"], arm)].append(r.get("edge_passed", False))
+
+    lines = ["#### spec-synthesis: ship vs tdd-refactor EDGE pass rate (stage0, vague)\n"]
+    lines.append("| task | ship | tdd-refactor | bduf | ship−tdd Δ |")
+    lines.append("|------|------|-------------|------|-----------|")
+    tasks = sorted({k[0] for k in edge_cells})
+    ship_rates, tdd_rates = [], []
+    for task in tasks:
+        ship = edge_cells.get((task, "ship"), [])
+        tdd = edge_cells.get((task, "tdd-refactor"), [])
+        bduf = edge_cells.get((task, "bduf"), [])
+        sr = mean(ship) if ship else None
+        tr = mean(tdd) if tdd else None
+        br = mean(bduf) if bduf else None
+        delta = (sr - tr) if (sr is not None and tr is not None) else None
+        if sr is not None:
+            ship_rates.append(sr)
+        if tr is not None:
+            tdd_rates.append(tr)
+        lines.append(
+            f"| {task} | {fmt_pct(sr)} (n={len(ship)}) | "
+            f"{fmt_pct(tr)} (n={len(tdd)}) | "
+            f"{fmt_pct(br)} (n={len(bduf)}) | "
+            f"{fmt_pct(delta) if delta is not None else '—'} |"
+        )
+
+    if ship_rates and tdd_rates:
+        avg_ship = mean(ship_rates)
+        avg_tdd = mean(tdd_rates)
+        delta = avg_ship - avg_tdd
+        verdict = (
+            "ship > tdd-refactor (spec-synthesis hypothesis supported)" if delta > 0.05 else
+            "ship ≈ tdd-refactor" if abs(delta) <= 0.05 else
+            "ship < tdd-refactor (spec-synthesis hypothesis rejected)"
+        )
+        lines.append(
+            f"\n**Pooled EDGE**: ship {fmt_pct(avg_ship)} vs "
+            f"tdd-refactor {fmt_pct(avg_tdd)} → **{verdict}**"
+        )
+    elif not ship_rates:
+        lines.append("\n_No ship arm data — run second pass with --clarity=second._")
+    else:
+        lines.append("\n_Insufficient data for spec-synthesis verdict._")
+
+    # Changeability comparison
+    cum = cumulative_changeability(rows)
+    ship_cum = [v["mean"] for (t, a, c), v in cum.items()
+                if a == "ship" and c == "vague" and v["mean"] is not None]
+    tdd_cum = [v["mean"] for (t, a, c), v in cum.items()
+               if a == "tdd-refactor" and c == "vague" and v["mean"] is not None]
+    if ship_cum and tdd_cum:
+        delta_lines = mean(ship_cum) - mean(tdd_cum)
+        verdict2 = (
+            f"ship blast radius {fmt_f(mean(ship_cum),0)} vs "
+            f"tdd-refactor {fmt_f(mean(tdd_cum),0)} "
+            f"(Δ={fmt_f(delta_lines,0)} lines, "
+            f"{'spec-synthesis-changeability hypothesis supported: ship ≤ tdd-refactor' if delta_lines <= 10 else 'ship > tdd-refactor'})"
+        )
+        lines.append(f"\n**spec-synthesis2 (changeability)**: {verdict2}")
+
+    return "\n".join(lines)
+
+
+def rq_e_verdict(rows: list[dict]) -> str:
+    """test-after-refactor: test-after-refactor dominance — EDGE ≥ test-after, blast ≈ tdd-refactor, cost < tdd-refactor."""
+    # EDGE pass rate comparison
+    edge_cells: dict[tuple, list[bool]] = defaultdict(list)
+    for r in rows:
+        if r.get("stage") != "stage0" or r.get("clarity") != "vague":
+            continue
+        arm = r["arm"]
+        if arm not in ("test-after-refactor", "test-after", "tdd-refactor"):
+            continue
+        edge_cells[(r["task"], arm)].append(r.get("edge_passed", False))
+
+    lines = ["#### test-after-refactor: test-after-refactor dominance (dominance hypothesis)\n"]
+    lines.append("All three conditions must hold to declare dominance hypothesis supported.\n")
+
+    lines.append("**Condition 1: EDGE pass rate (stage0, vague)**\n")
+    lines.append("| task | test-after-refactor | test-after | tdd-refactor | tar≥ta? |")
+    lines.append("|------|---------------------|-----------|-------------|---------|")
+    tasks = sorted({k[0] for k in edge_cells})
+    tar_rates, ta_rates, tdd_rates = [], [], []
+    cond1_holds = []
+    for task in tasks:
+        tar = edge_cells.get((task, "test-after-refactor"), [])
+        ta = edge_cells.get((task, "test-after"), [])
+        tdd = edge_cells.get((task, "tdd-refactor"), [])
+        tar_r = mean(tar) if tar else None
+        ta_r = mean(ta) if ta else None
+        tdd_r = mean(tdd) if tdd else None
+        holds = (tar_r is not None and ta_r is not None and tar_r >= ta_r - 0.05)
+        if tar_r is not None:
+            tar_rates.append(tar_r)
+        if ta_r is not None:
+            ta_rates.append(ta_r)
+        if tdd_r is not None:
+            tdd_rates.append(tdd_r)
+        if tar_r is not None and ta_r is not None:
+            cond1_holds.append(holds)
+        lines.append(
+            f"| {task} | {fmt_pct(tar_r)} (n={len(tar)}) | "
+            f"{fmt_pct(ta_r)} (n={len(ta)}) | "
+            f"{fmt_pct(tdd_r)} (n={len(tdd)}) | "
+            f"{'✓' if holds else '✗' if tar_r is not None and ta_r is not None else '?'} |"
+        )
+
+    if tar_rates and ta_rates:
+        avg_tar = mean(tar_rates)
+        avg_ta = mean(ta_rates)
+        c1 = avg_tar >= avg_ta - 0.05
+        lines.append(
+            f"\nPooled: test-after-refactor {fmt_pct(avg_tar)} vs "
+            f"test-after {fmt_pct(avg_ta)} → "
+            f"**Condition 1 {'HOLDS' if c1 else 'FAILS'}**"
+        )
+    else:
+        lines.append("\n_No test-after-refactor data for Condition 1 — run second pass._")
+        c1 = None
+
+    # Condition 2: blast radius ≈ tdd-refactor
+    cum = cumulative_changeability(rows)
+    tar_cum = [v["mean"] for (t, a, c), v in cum.items()
+               if a == "test-after-refactor" and v["mean"] is not None]
+    tdd_cum_all = [v["mean"] for (t, a, c), v in cum.items()
+                   if a == "tdd-refactor" and v["mean"] is not None]
+    ta_cum = [v["mean"] for (t, a, c), v in cum.items()
+              if a == "test-after" and v["mean"] is not None]
+
+    lines.append("\n**Condition 2: blast radius ≈ tdd-refactor**\n")
+    if tar_cum and tdd_cum_all:
+        avg_tar_bl = mean(tar_cum)
+        avg_tdd_bl = mean(tdd_cum_all)
+        pct_diff = (avg_tar_bl - avg_tdd_bl) / avg_tdd_bl * 100 if avg_tdd_bl else 0
+        c2 = abs(pct_diff) < 10  # within 10%
+        lines.append(
+            f"test-after-refactor {fmt_f(avg_tar_bl,0)} lines vs "
+            f"tdd-refactor {fmt_f(avg_tdd_bl,0)} lines "
+            f"(Δ={fmt_f(pct_diff,1)}%) → "
+            f"**Condition 2 {'HOLDS' if c2 else 'FAILS'}**"
+        )
+        if ta_cum:
+            lines.append(
+                f"(test-after for reference: {fmt_f(mean(ta_cum),0)} lines)"
+            )
+    else:
+        lines.append("_No test-after-refactor blast-radius data — run second pass._")
+        c2 = None
+
+    # Condition 3: cost < tdd-refactor
+    arm_costs: dict[str, list[float]] = defaultdict(list)
+    for r in rows:
+        c = r.get("cost", {})
+        if isinstance(c, dict) and c.get("cost_usd") is not None:
+            arm_costs[r["arm"]].append(c["cost_usd"])
+
+    lines.append("\n**Condition 3: cost < tdd-refactor**\n")
+    tar_costs = arm_costs.get("test-after-refactor", [])
+    tdd_costs = arm_costs.get("tdd-refactor", [])
+    if tar_costs and tdd_costs:
+        avg_tar_cost = mean(tar_costs)
+        avg_tdd_cost = mean(tdd_costs)
+        c3 = avg_tar_cost < avg_tdd_cost
+        lines.append(
+            f"test-after-refactor ${fmt_f(avg_tar_cost,3)}/stage vs "
+            f"tdd-refactor ${fmt_f(avg_tdd_cost,3)}/stage → "
+            f"**Condition 3 {'HOLDS' if c3 else 'FAILS'}**"
+        )
+    else:
+        lines.append("_No test-after-refactor cost data — run second pass._")
+        c3 = None
+
+    # Overall verdict
+    lines.append("\n**test-after-refactor overall verdict:**")
+    if c1 is not None and c2 is not None and c3 is not None:
+        if c1 and c2 and c3:
+            lines.append("**dominance hypothesis SUPPORTED** — test-after-refactor dominates all existing arms simultaneously.")
+        else:
+            failed = [f"Condition {i+1}" for i, c in enumerate([c1, c2, c3]) if not c]
+            lines.append(
+                f"**dominance hypothesis NOT SUPPORTED** — {', '.join(failed)} fail. "
+                "test-after-refactor does not dominate all existing arms."
+            )
+    else:
+        lines.append("_Incomplete data — run --clarity=second to collect test-after-refactor and ship arms._")
 
     return "\n".join(lines)
 
@@ -525,17 +729,23 @@ def main(argv: list[str]) -> int:
                          f"{fmt_f(v['mean_files_changed'],1)} | "
                          f"{fmt_f(v['mean_lines_changed'],0)} | {v['n']} |")
 
-    out_lines.append("\n\n## RQ-A: Contract inference under vague spec\n")
+    out_lines.append("\n\n## ambiguity-inference: Contract inference under vague spec\n")
     out_lines.append(rq_a_verdict(rows))
 
-    out_lines.append("\n\n## RQ-B: Cumulative changeability\n")
+    out_lines.append("\n\n## changeability: Cumulative changeability\n")
     out_lines.append(rq_b_verdict(rows))
 
-    out_lines.append("\n\n## RQ-B2: TDD-no-refactor vs test-after isolation\n")
+    out_lines.append("\n\n## refactoring-vs-ordering: TDD-no-refactor vs test-after isolation\n")
     out_lines.append(rq_b2_verdict(rows))
 
-    out_lines.append("\n\n## RQ-C: Clarity × workflow interaction\n")
+    out_lines.append("\n\n## clarity-interaction: Clarity × workflow interaction\n")
     out_lines.append(rq_c_verdict(rows))
+
+    out_lines.append("\n\n## spec-synthesis: Ship arm vs tdd-refactor (spec synthesis vs failing-test-as-spec)\n")
+    out_lines.append(rq_d_verdict(rows))
+
+    out_lines.append("\n\n## test-after-refactor: test-after-refactor dominance\n")
+    out_lines.append(rq_e_verdict(rows))
 
     out_lines.append("\n\n## Code and Test Quality\n")
     out_lines.append(quality_summary(rows))

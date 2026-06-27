@@ -1,0 +1,22 @@
+{
+  "fixture": "cc-check-then-act",
+  "description": "Async code with a check-then-act race on shared Map state across a suspension point, a non-idempotent charge handler, and an unhandled fire-and-forget rejection",
+  "applicableAgents": [
+    "concurrency-review"
+  ],
+  "agents": {
+    "concurrency-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 2,
+        "max": 6
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 4
+        }
+      }
+    }
+  }
+}

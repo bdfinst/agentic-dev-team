@@ -7,7 +7,7 @@ user-invocable: true
 
 # Mutation Testing
 
-Wraps a real mutation tool (Stryker, pitest, mutmut, Stryker.NET) and adds AI triage of survivors. The tool generates mutations and reports survivors; the AI classifies survivors and writes fix tests. **Never estimate or guess mutation outcomes** — if no tool is available, help set one up; do not substitute reasoning for execution.
+Wraps a real mutation tool (Stryker, pitest, mutmut, Stryker.NET, go-mutesting) and adds AI triage of survivors. The tool generates mutations and reports survivors; the AI classifies survivors and writes fix tests. **Never estimate or guess mutation outcomes** — if no tool is available, help set one up; do not substitute reasoning for execution.
 
 ## Constraints
 
@@ -37,7 +37,9 @@ Before any mutation run, present the estimated time and the scope, then block on
 
 ## Step 1: Detect or set up tooling
 
-Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#). Per-language detection and installation: `references/tool-setup.md`. **Do not proceed without a working tool.**
+Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#, go-mutesting for Go). Per-language detection and installation: `references/tool-setup.md`. **Do not proceed without a working tool.**
+
+**Go is advisory-only.** When the project has a `go.mod`, resolve to **go-mutesting** in advisory mode (it is alpha quality — the surviving-mutant count is not a reliable gate). Advisory mode emits the `schema_version: 1` envelope with `"advisory": true`; orchestrated workflows treat that as **warn, do not block** — a non-zero survivor count never fails the gate. Always pair it with Go's built-in fuzzing (`go test -fuzz=FuzzXxx -fuzztime=30s ./path/to/pkg` — `-fuzz` takes a single target regexp, not a package glob), which is production-quality, for boundary and edge-case discovery. Never tell a Go project "no tool installed" without giving both the go-mutesting install path and the fuzz alternative.
 
 ## Step 1b: Configure per-mutant timeout
 
@@ -60,6 +62,7 @@ Per-tool configuration:
 | **pitest (Java/Kotlin)** | CLI: `--timeoutConst 60 --timeoutFactor 2.5` | 60 s const |
 | **mutmut (Python)** | CLI: `--timeout <seconds>` (passed to subprocess) | 60 s |
 | **Stryker.NET (C#)** | `stryker-config.yaml`: `timeout: 60000` | 60 000 ms |
+| **go-mutesting (Go)** | no reliable per-mutant flag — wrap the process externally: `timeout <seconds> go-mutesting ./...` (`gtimeout` on macOS) | 60 s |
 
 Set the tool timeout to `timeout_seconds` (converting to ms for Stryker / Stryker.NET)
 before running Step 2. Document the chosen timeout in the output summary.
@@ -191,6 +194,8 @@ When `--emit-json <path>` is set, write a structured result document to `<path>`
 ```
 
 Each entry in `survivors` carries `file`, `line`, `operator`, and `status` where `status` is `"survived"` or `"equivalent"`. Callers MUST filter `status: "equivalent"` before computing deltas so reclassifications between runs don't show up as regressions.
+
+An optional top-level `"advisory": true` flag marks a result from an advisory-only tool (go-mutesting today). When present, callers MUST treat the survivor count as warn-not-block — it never fails a gate. Absent (the default), the result is authoritative.
 
 **Error envelopes (exit code non-zero, `<path>` still written for caller diagnostics):**
 

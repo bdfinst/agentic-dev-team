@@ -46,6 +46,24 @@
           "jsonpath": "$.plugins[?(@.name=='security-assessment')].source.ref"
         }
       ]
+    },
+    "plugins/marketplace-dev": {
+      "release-type": "simple",
+      "package-name": "marketplace-dev",
+      "component": "marketplace-dev",
+      "extra-files": [
+        ".claude-plugin/plugin.json",
+        {
+          "type": "json",
+          "path": "/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='marketplace-dev')].version"
+        },
+        {
+          "type": "json",
+          "path": "/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='marketplace-dev')].source.ref"
+        }
+      ]
     }
   }
 }

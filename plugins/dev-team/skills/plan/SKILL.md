@@ -59,6 +59,8 @@ When authoring each slice's Gherkin, cover:
 
 Keep scenarios implementation-independent (no databases, selectors, or internal data structures in step text) and deterministic. Every acceptance criterion from the spec must be covered by at least one scenario across the slices. Each TDD step traces back to one or more scenarios in its slice.
 
+**Filter `LOW_VALUE` findings out of the work streams.** A gap classified `LOW_VALUE` by `/specs` or `/test-health` (no branching logic, no observable outcome, coverage already provided by a higher-layer test) never becomes a slice or a TDD step. List such findings in a `## Skipped (low value)` section with their one-line rationale so the decision is visible — they document why the work was *not* planned, not deferred work to revisit. **The plan gate rejects any slice or step classified `LOW_VALUE`**: if a `LOW_VALUE` finding has leaked into a work stream, move it to the Skipped section before the human gate.
+
 ### 3. Create the plan
 
 Write the plan file using this structure:
@@ -180,6 +182,17 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 - [ ] `/code-review` passes
 - [ ] Documentation updated (if applicable)
 
+## Skipped (low value)
+
+Findings classified `LOW_VALUE` — feasible but no signal (no branching logic, no
+observable outcome, coverage already provided by a higher-layer test). These are
+**skipped, not deferred**: they never appear in a slice or a work stream. Omit this
+section when there are none.
+
+| Finding | Rationale (one line) |
+|---|---|
+| <finding> | <why it delivers no signal> |
+
 ## Risks & Open Questions
 
 - <Risk or question, with mitigation or who should answer>
@@ -264,6 +277,8 @@ Pass each reviewer the full plan content. Also pass the Parallelization Critic t
 **After all pass**: Append a `## Plan Review Summary` section to the plan file with the aggregated findings (warnings and observations from the dispatched reviewers). **Record the chosen tier and the reviewer set at the top of that section** (e.g. `Plan tier: standard — reviewers: Acceptance, Design, Parallelization (UX skipped — no UI surface)`) so the scaling decision is visible and auditable.
 
 ### 6. Present for approval
+
+**Gate check before presenting.** Verify the `## Skipped (low value)` section captures every `LOW_VALUE` finding — no slice or TDD step may carry one. If a `LOW_VALUE` finding leaked into a work stream, move it to the Skipped section before the plan reaches the human.
 
 **First determine interactivity.** The run is **non-interactive** when any of these hold: `--yes` was passed, `DEV_TEAM_AUTO_APPROVE=1` is set in the environment, or stdin is not a usable TTY (`test -t 0` is false — the headless/CI/automation case). Otherwise it is **interactive**. This is the same non-interactive principle the GitHub-issue prompt below already follows; the approval gate now follows it too, so a headless `/plan`→`/build` run never hangs waiting for input.
 

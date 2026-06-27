@@ -1,0 +1,16 @@
+{
+  "fixture": "sess-token-rework",
+  "description": "A session-digest/v1 with high code-review token spend alongside repeated file edits and failed edits, a low cache-hit ratio, recurring user corrections, and never-observed harness surface — mapping to concrete plugin-level fixes",
+  "applicableAgents": [
+    "session-analysis"
+  ],
+  "agents": {
+    "session-analysis": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 2,
+        "max": 8
+      }
+    }
+  }
+}

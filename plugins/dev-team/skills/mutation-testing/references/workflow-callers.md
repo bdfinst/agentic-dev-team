@@ -10,6 +10,7 @@ This file is the source of truth for the allowlist. `/mutation-testing` `## Cons
 | --- | --- | --- | --- |
 | [`/coverage-delta`](../../coverage-delta/SKILL.md) | `/test-modernize` Phase 4 (per-Story mutation gate) | `/test-modernize` Phase 0 ("Approach contract" — quality targets confirmation, including mutation) | Phase 4 measures mutation per Story automatically; per-invocation prompts would block the workflow on every Story close. |
 | [`/quality-targets-converge`](../../quality-targets-converge/SKILL.md) | `/test-modernize` Phase 5 (convergence loop) | `/test-modernize` Phase 0 (same) | Phase 5 measures mutation across every in-scope file each iteration; per-invocation prompts would block the convergence loop. |
+| [`/quality-targets-converge`](../../quality-targets-converge/SKILL.md) | `/test-upgrade` Phase 4 (Validate convergence loop) | `/test-upgrade` Phase 0 ("Approach contract" — quality-targets confirmation, including the mutation target) | Phase 4 runs the same convergence loop for the general-purpose `/test-upgrade` workflow; approval is captured once at its Phase 0. `/test-upgrade` Phase 3 drives mutation via the `mutation-kill` agent (which wraps the tool directly and never sets this flag), so the flag enters only through this Phase-4 caller. |
 
 ## Adding a new caller
 

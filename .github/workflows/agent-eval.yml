@@ -51,6 +51,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Restore the apt download cache so a warm run skips re-fetching the .deb
+      # archives. apt-get update still refreshes the lists. (Issue #467.)
+      - name: Cache apt packages
+        uses: actions/cache@v5
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/*.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
       - name: Install bats + jq
         run: sudo apt-get update && sudo apt-get install -y bats jq
 
@@ -95,14 +107,13 @@ jobs:
     name: Live regression gate (model-dependent)
     runs-on: ubuntu-latest
     needs: structural-gate
-    # anthropics/claude-code-action@v1 authenticates its GitHub operations via
-    # an OIDC token, so id-token: write is required (it is never granted by
-    # default). contents: read to access the repo; pull-requests: write because
-    # the action's post-step buffers inline PR comments.
+    # The live gate dispatches the agents through the bare `claude` CLI (see the
+    # dispatch step below), which authenticates from ANTHROPIC_API_KEY — no OIDC
+    # token and no PR-comment write are needed, so the only permission required
+    # is read access to the repo. (The integration tier already dispatches the
+    # orchestrator via the bare CLI and runs with `contents: read` alone.)
     permissions:
-      id-token: write
       contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -213,70 +224,86 @@ jobs:
           fi
           echo "::notice title=eval replay cache::${nhits} hit(s) replayed, ${nmiss} miss(es) dispatched"
 
-      # Run the review agents headlessly via the Claude Code GitHub Action and
-      # serialize their RAW outputs to actuals.json in the grader's input shape
-      # (see scripts/eval_grade.py header). Grading stays in the deterministic
-      # grader below — this step only records, it does not judge. The plugin is
-      # installed from the in-repo marketplace so its skills are discoverable.
-      # KNOWN-BROKEN UPSTREAM (do not "fix" with version/native-vs-node pins):
-      # claude-code-action currently crashes at launch in CI with
-      #   "Claude Code process exited with code 1"
-      #   "Internal error: directory mismatch for directory '.../tsconfig.json', fd 4"
-      # before any API call. It is a Bun runtime fd bug in the action, tracked at
-      #   https://github.com/anthropics/claude-code-action/issues/1205
-      #   https://github.com/anthropics/claude-code-action/issues/1295
-      # Reporters confirm it is NOT version-specific (tested multiple versions +
-      # a pinned SHA) and NOT runner-OS-specific. We verified the same: pinning
-      # the CLI version and supplying a custom node-build executable
-      # (path_to_claude_code_executable) both crash identically (PRs #161, #162).
-      # So there is no config knob on our side that fixes it.
+      # Dispatch the review agents headlessly via the bare `claude` CLI — NOT via
+      # anthropics/claude-code-action. The action wraps the CLI in a Bun runtime
+      # that crashes at launch in CI ("directory mismatch for tsconfig.json",
+      # fd 4 / "Claude Code process exited with code 1") before any API call. It
+      # is an upstream bug — anthropics/claude-code-action#1205 (closed
+      # 2026-06-09 but the symptom persists) and #1295 (still open). It is NOT
+      # fixable on our side: the `@v1` pin already resolves to the latest release
+      # and still crashes, and pinning a CLI version / a custom node executable
+      # both crashed identically (PRs #161, #162). The integration tier below
+      # already dispatches the orchestrator through the bare CLI for the same
+      # reason; this mirrors that pattern.
       #
-      # This only affects the OPT-IN live path (run-eval label / force_live). The
-      # required structural + semver gates above are unaffected and still run, so
-      # nothing is blocked. Re-enable / re-test once the upstream issues are
-      # fixed; the Grade step below treats a missing actuals.json as a skip.
+      # The CLI authenticates from ANTHROPIC_API_KEY and the model writes its RAW
+      # agent outputs to actuals.json in the grader's input shape (see
+      # scripts/eval_grade.py header). Grading stays in the deterministic grader
+      # below — this step only records. Secret exposure is bounded by the
+      # maintainer-applied 'run-eval' label gate above (same model as the
+      # integration tier); unlike the action there is no self-skip on
+      # workflow-modifying PRs, so the gate can be exercised on its own PR.
+      - name: Install the claude CLI and the dev-team plugin
+        if: steps.cred.outputs.run_live == 'true'
+        run: |
+          npm install -g @anthropic-ai/claude-code || true
+          command -v claude >/dev/null \
+            || { echo "::error title=claude CLI missing::npm install of @anthropic-ai/claude-code failed; the live gate cannot dispatch."; exit 1; }
+          # Install the plugin from the in-repo marketplace so its skills/agents
+          # are discoverable to the headless run.
+          claude plugin marketplace add "$PWD"
+          claude plugin install dev-team@bfinster
+
       - name: Run agent-eval (records actuals.json)
         if: steps.cred.outputs.run_live == 'true'
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          plugin_marketplaces: ${{ github.workspace }}
-          plugins: "dev-team@bfinster"
-          prompt: |
-            Run the review agents against every fixture in
-            .claude/evals/fixtures/ whose paired .claude/evals/expected/<stem>.json
-            declares an applicableAgents (or applicableSkills) target, using the
-            /review-agent skill for agent fixtures and the test-design-advisor
-            skill for skill fixtures.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Dynamic directives flow in as env so GitHub expression substitution
+          # stays out of the shell body (no quoting hazards in the prompt).
+          SCOPE_INSTRUCTION: ${{ steps.scope.outputs.instruction }}
+          CACHE_SKIP: ${{ steps.cacheplan.outputs.cache_skip }}
+        run: |
+          # Assemble the prompt: static body via a quoted heredoc (no expansion),
+          # then the dynamic scope/cache directives appended from env.
+          cat > eval-prompt.txt <<'PROMPT'
+          Run the review agents against every fixture in
+          .claude/evals/fixtures/ whose paired .claude/evals/expected/<stem>.json
+          declares an applicableAgents (or applicableSkills) target, using the
+          /review-agent skill for agent fixtures and the test-design-advisor
+          skill for skill fixtures.
 
-            Do NOT grade. Record each agent's/skill's raw output and write it to
-            a file named actuals.json at the repository root, in EXACTLY this
-            shape (keyed by fixture stem — the expected filename without .json):
+          Do NOT grade. Record each agent's/skill's raw output and write it to
+          a file named actuals.json at the repository root, in EXACTLY this
+          shape (keyed by fixture stem — the expected filename without .json):
 
-              {
-                "<stem>": {
-                  "agents": {
-                    "<agent>": { "status": "...",
-                                 "issues": [{ "severity": "...", "message": "..." }],
-                                 "summary": "..." }
-                  },
-                  "skills": {
-                    "<skill>": { "report": "full advisor report text",
-                                 "gates": ["A"], "layers": ["unit"] }
-                  }
+            {
+              "<stem>": {
+                "agents": {
+                  "<agent>": { "status": "...",
+                               "issues": [{ "severity": "...", "message": "..." }],
+                               "summary": "..." }
+                },
+                "skills": {
+                  "<skill>": { "report": "full advisor report text",
+                               "gates": ["A"], "layers": ["unit"] }
                 }
               }
+            }
 
-            Include only the block(s) (agents/skills) that the fixture targets.
-            Write valid JSON and nothing else to actuals.json.
+          Include only the block(s) (agents/skills) that the fixture targets.
+          Write valid JSON and nothing else to actuals.json.
+          PROMPT
+          printf '\n%s\n%s\n' "$SCOPE_INSTRUCTION" "$CACHE_SKIP" >> eval-prompt.txt
 
-            ${{ steps.scope.outputs.instruction }}
-            ${{ steps.cacheplan.outputs.cache_skip }}
-          claude_args: |
-            --output-format json
-            --max-turns 60
-            --model claude-sonnet-4-6
-            --allowedTools "Read" "Glob" "Grep" "Write" "Agent" "Skill(review-agent *)" "Skill(test-design-advisor *)"
+          # Bare-CLI headless dispatch. A non-zero exit must NOT hard-fail the
+          # job — the grade step below treats a missing/empty actuals.json as a
+          # skip, keeping the opt-in gate non-blocking on dispatch trouble.
+          claude -p "$(cat eval-prompt.txt)" \
+            --output-format json \
+            --max-turns 60 \
+            --model claude-sonnet-4-6 \
+            --allowedTools "Read" "Glob" "Grep" "Write" "Agent" "Skill(review-agent *)" "Skill(test-design-advisor *)" \
+            || echo "::warning title=live dispatch exited non-zero::The claude CLI returned an error; grading treats a missing actuals.json as a skip."
 
       # Merge the cache-replayed pairs (replay.json, #311) into whatever the
       # dispatch recorded, so the grader sees the full pair set — replayed
@@ -295,24 +322,21 @@ jobs:
           echo "merged actuals (replay ∪ dispatched):"
           jq -r 'keys[]' actuals.json | sed 's/^/  · /' || true
 
-      - name: Grade against baseline (or skip if the action did not run)
+      - name: Grade against baseline (or skip if dispatch produced nothing)
         if: steps.cred.outputs.run_live == 'true'
         run: |
-          # anthropics/claude-code-action self-skips (exit 0, no model run) on
-          # any PR that adds/modifies this workflow file — GitHub workflow
-          # validation requires the file to match the default branch. In that
-          # case no actuals.json is produced; treat it as a skip, not a
-          # failure, so it does not red-line PRs. The gate exercises the agents
-          # once this workflow is merged to the default branch. With the replay
-          # cache (#311), an all-hits run still produces a populated actuals.json
-          # from replay.json, so grading proceeds with zero dispatch.
+          # If the bare-CLI dispatch produced no parseable actuals.json (it
+          # exited non-zero, wrote nothing, or every pair replayed from an empty
+          # cache), treat it as a skip — not a failure — so dispatch trouble does
+          # not red-line PRs on the opt-in gate. With the replay cache (#311), an
+          # all-hits run still produces a populated actuals.json from replay.json,
+          # so grading proceeds with zero dispatch.
           if [ ! -s actuals.json ] || ! jq -e 'keys|length>0' actuals.json >/dev/null 2>&1; then
             echo "::warning title=live eval did not run::No parseable" \
-              "actuals.json was produced and the replay cache was empty. This is" \
-              "expected on a PR that adds or modifies this workflow" \
-              "(claude-code-action only runs once the workflow is unchanged on" \
-              "the default branch), or if the runner wrote no file. The live gate" \
-              "will exercise the agents after merge."
+              "actuals.json was produced and the replay cache was empty — the" \
+              "claude CLI dispatch wrote no file or exited early. Skipping the" \
+              "grade rather than failing the opt-in gate; check the dispatch" \
+              "step log above."
             exit 0
           fi
           # Honor the quarantine (#233): flaky pairs recorded by a multi-trial

@@ -1,0 +1,14 @@
+{
+  "fixture": "ata-file-keep.md",
+  "description": "Existing markdown review agent whose checks require reading code and exercising judgment — correctly typed, expect KEEP",
+  "applicableSkills": ["agent-type-advisor"],
+  "skills": {
+    "agent-type-advisor": {
+      "expectedMode": "retrospective",
+      "expectedRecommendation": "KEEP",
+      "expectedShouldBe": "markdown",
+      "minRuleCitations": 2,
+      "mustCiteAnyOf": ["R6", "R7", "R9"]
+    }
+  }
+}
