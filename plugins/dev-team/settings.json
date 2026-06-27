@@ -160,6 +160,10 @@
           {
             "type": "command",
             "command": "bash hooks/knowledge-index.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/skills-index.sh"
           }
         ]
       },

@@ -259,7 +259,7 @@ Do **not** dispatch `security-engineer` on every task — its `effort: high` cos
 - **Doc review**: Before the human gate, invoke the tech-writer to review all documentation affected by the changes:
   - Any behavioral or architectural change → check `docs/agent-architecture.md`, `README.md`
   - Any configuration or tooling change → check `docs/agent-architecture.md` (Governance section)
-  - Any agent or skill change → check `CLAUDE.md`, `docs/agent_info.md`, `docs/skills.md`, `docs/team-structure.md`
+  - Any agent or skill change → check `CLAUDE.md`, `docs/agent_info.md`, `docs/team-structure.md`; regenerate `docs/skills.md` (generated — `hooks/lib/build-skills-index.sh`)
   - Tech-writer updates outdated sections and confirms all docs reflect current behavior before proceeding
 - **Human gate**: Human reviews the final output. If the plan was good, implementation review is lightweight.
 - **Context**: If implementation is large, compact mid-phase — update the plan progress file with completed steps and continue in a fresh context
