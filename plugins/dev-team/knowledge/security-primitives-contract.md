@@ -243,7 +243,7 @@ The `exec-report-generator` enforces these invariants and rejects (with named er
 Explicitly NOT part of this contract:
 
 - Per-tool raw outputs (SARIF documents, JSON outputs from bespoke adapters). These flow through the adapter layer and are normalized into unified findings. Consumers treat adapters as opaque — the unified finding envelope is the contract boundary.
-- Internal adapter configuration (`references/tool-configs.md` layouts, matcher regexes). These are implementation details of `skills/static-analysis-integration`.
+- Internal adapter configuration (`skills/static-analysis-integration/references/tool-configs.md` layouts, matcher regexes). These are implementation details of `skills/static-analysis-integration`.
 - Compliance mapping outputs. These are a downstream product of the companion plugin, not shared cross-plugin primitives.
 - Report templates (executive report sections, Mermaid diagrams). These are presentation concerns.
 - Red-team harness artifacts. The harness ships its own schemas under `plugins/security-assessment/harness/redteam/schemas/` — separate lifecycle, separate versioning.

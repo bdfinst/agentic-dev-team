@@ -58,4 +58,4 @@ In these cases choose `bdd-runner` and wire it per `bdd-frameworks.md`.
 
 ## See also
 
-- `test-stack-profiles/bdd-frameworks.md` — per-language wire-in (install, layout, runner config, step stubs) once you have chosen `bdd-runner`.
+- `../test-stack-profiles/bdd-frameworks.md` — per-language wire-in (install, layout, runner config, step stubs) once you have chosen `bdd-runner`.

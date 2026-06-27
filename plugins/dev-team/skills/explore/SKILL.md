@@ -16,7 +16,7 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Skill, Agent
 
 Role: worker. This command is a thin entry point: it parses arguments, runs the
 charter-quality + reachability pre-flight, then runs the
-[`exploratory-testing`](../skills/exploratory-testing/SKILL.md) skill as the
+[`exploratory-testing`](../exploratory-testing/SKILL.md) skill as the
 probe loop. It does not probe directly — the skill owns the protocol.
 
 ## Worker constraints

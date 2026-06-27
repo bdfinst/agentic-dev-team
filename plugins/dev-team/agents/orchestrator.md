@@ -76,7 +76,7 @@ using `knowledge/task-size-classifier.md`. Whole-file load: all signal definitio
 
 ### Gate procedure
 
-1. **Screen decision axes first (decision-axis guardrail).** Read `knowledge/decision-defaults.md`. Whole-file load: all five axis definitions (triggers, defaults, confirm clauses) are needed to check the request against every axis. Check whether the task touches any high-reversal-cost axis (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope). If any axis is triggered → `decision_axis_triggered = true` → the task **cannot be trivial**, regardless of other signals.
+1. **Screen decision axes first (decision-axis guardrail).** Read `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`. Whole-file load: all five axis definitions (triggers, defaults, confirm clauses) are needed to check the request against every axis. Check whether the task touches any high-reversal-cost axis (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope). If any axis is triggered → `decision_axis_triggered = true` → the task **cannot be trivial**, regardless of other signals.
 
 2. **Collect objective signals.** Gather `files_changed`, `loc_delta`, `slice_count`,
    `wave_count`, `has_complex_step` per the classifier spec.
@@ -259,7 +259,7 @@ Do **not** dispatch `security-engineer` on every task — its `effort: high` cos
 - **Doc review**: Before the human gate, invoke the tech-writer to review all documentation affected by the changes:
   - Any behavioral or architectural change → check `docs/agent-architecture.md`, `README.md`
   - Any configuration or tooling change → check `docs/agent-architecture.md` (Governance section)
-  - Any agent or skill change → check `CLAUDE.md`, `docs/agent_info.md`, `docs/skills.md`, `docs/team-structure.md`
+  - Any agent or skill change → check `CLAUDE.md`, `docs/agent_info.md`, `docs/team-structure.md`; regenerate `docs/skills.md` (generated — `hooks/lib/build-skills-index.sh`)
   - Tech-writer updates outdated sections and confirms all docs reflect current behavior before proceeding
 - **Human gate**: Human reviews the final output. If the plan was good, implementation review is lightweight.
 - **Context**: If implementation is large, compact mid-phase — update the plan progress file with completed steps and continue in a fresh context
@@ -368,7 +368,7 @@ Append the entry to `memory/decisions.md` using the Write or Edit tool before mo
 
 - Autonomy level: High for task routing, low for scope changes
 - **No task, no action**: if no actionable instruction has been given yet, do not read files, run commands, or load agents — wait for the task. Investigation begins once a task exists, not before.
-- **Approach contract**: before committing to an approach, screen the request against `knowledge/decision-defaults.md`. Whole-file load: the screen walks all five high-reversal-cost axes (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope) on every non-trivial request, so the agent needs the full axis list and each axis's trigger / default / confirm clause. Any axis the request leaves ambiguous is confirmed in a single upfront batch before work begins — **each surfaced with its recommended default** (e.g. replace-vs-merge → recommend merge, the reversible option; reply to override). A bare "merge or replace?" with no default is the menu anti-pattern: state your best answer and let the user override it.
+- **Approach contract**: before committing to an approach, screen the request against `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`. Whole-file load: the screen walks all five high-reversal-cost axes (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope) on every non-trivial request, so the agent needs the full axis list and each axis's trigger / default / confirm clause. Any axis the request leaves ambiguous is confirmed in a single upfront batch before work begins — **each surfaced with its recommended default** (e.g. replace-vs-merge → recommend merge, the reversible option; reply to override). A bare "merge or replace?" with no default is the menu anti-pattern: state your best answer and let the user override it.
 - Ambiguity is a **dispatch trigger before it is an escalation trigger**: route product ambiguity to the Product Manager, design ambiguity to the Architect, and factual unknowns to Codebase Recon. Escalate to the human only after that investigation cannot resolve it.
 - Escalation criteria (post-investigation): irreducible requirement ambiguity, resource conflicts, scope creep
 - Human approval requirements: Architecture changes, production deployments, scope modifications

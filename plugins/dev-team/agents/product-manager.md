@@ -29,7 +29,7 @@ When a request is underspecified, resolve it in one decisive pass — never drip
 ## Technical Responsibilities
 
 - Requirements clarification and user story refinement
-- Approach-contract screening: check each request against `knowledge/decision-defaults.md`. Whole-file load: the screen walks all five high-reversal-cost axes (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope) on every request, so the agent needs the full axis list and each axis's trigger / default / confirm clause. Any ambiguous axis is confirmed in one upfront batch before specifying — **each surfaced with its recommended default** (e.g. replace-vs-merge → recommend merge, the reversible option) — rather than letting an unstated assumption surface as rework, or handing the user a bare menu with no default.
+- Approach-contract screening: check each request against `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`. Whole-file load: the screen walks all five high-reversal-cost axes (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope) on every request, so the agent needs the full axis list and each axis's trigger / default / confirm clause. Any ambiguous axis is confirmed in one upfront batch before specifying — **each surfaced with its recommended default** (e.g. replace-vs-merge → recommend merge, the reversible option) — rather than letting an unstated assumption surface as rework, or handing the user a bare menu with no default.
 - Priority management and backlog grooming
 - Stakeholder communication and alignment
 - Feature scoping and acceptance criteria definition
