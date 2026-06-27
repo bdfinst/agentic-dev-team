@@ -49,6 +49,18 @@ skill() { printf '%b' "$1" > "$FIX/plugins/dev-team/skills/demo/SKILL.md"; }
   [[ "$output" == *"aa/bb.md"* ]]
 }
 
+@test "a reference to a tracked path resolves even if the filesystem can't (symlink)" {
+  # Reproduces the macOS-vs-CI split: a tracked symlink (e.g. .claude/evals/fixtures
+  # -> evals/…) that a CI checkout leaves unmaterialized reads as dangling via
+  # os.path but IS a real tracked path. A broken symlink to a directory models
+  # that — the walk lists it (so it counts as tracked) yet os.path.isdir is false.
+  mkdir -p "$FIX/data"
+  ln -s nonexistent-target "$FIX/data/store"
+  skill 'Fixtures live in `data/store/` at runtime.\n'
+  run python3 "$CHECK" --root "$FIX"
+  [ "$status" -eq 0 ]
+}
+
 @test "a reference that names nothing real is ignored (runtime artifact)" {
   skill 'State is written to `memory/decisions.md` at runtime.\n'
   run python3 "$CHECK" --root "$FIX"

@@ -103,19 +103,25 @@ def _normalize(ref: str):
     return ref
 
 
-def _present(base: str, rel: str, is_dir: bool):
+def _present(base: str, rel: str, is_dir: bool, root: str, tracked: set):
     target = os.path.normpath(os.path.join(base, rel.lstrip("/")))
-    return os.path.isdir(target) if is_dir else os.path.exists(target)
+    if os.path.isdir(target) if is_dir else os.path.exists(target):
+        return True
+    # Environment-independent fallback: a path that IS a tracked repo entry counts
+    # as present even when os.path can't resolve it — e.g. a tracked symlink that a
+    # CI checkout leaves unmaterialized (`.claude/evals/fixtures` → `evals/…`),
+    # which would otherwise read as dangling on Linux but resolved on macOS.
+    return os.path.relpath(target, root) in tracked
 
 
-def _resolves(ref: str, file_dir: str, module_root: str, root: str):
+def _resolves(ref: str, file_dir: str, module_root: str, root: str, tracked: set):
     is_dir = ref.endswith("/")
     if ref.startswith(_PLUGIN_ROOT_VAR):
-        return _present(module_root, ref[len(_PLUGIN_ROOT_VAR):], is_dir)
+        return _present(module_root, ref[len(_PLUGIN_ROOT_VAR):], is_dir, root, tracked)
     return (
-        _present(file_dir, ref, is_dir)
-        or _present(module_root, ref, is_dir)
-        or _present(root, ref, is_dir)
+        _present(file_dir, ref, is_dir, root, tracked)
+        or _present(module_root, ref, is_dir, root, tracked)
+        or _present(root, ref, is_dir, root, tracked)
     )
 
 
@@ -158,20 +164,33 @@ def _real_file_list(root: str):
     return files
 
 
-def _build_real_index(root: str):
-    """basename -> set of real paths (files and their parent dirs)."""
+def _tracked_paths(root: str):
+    """Every real path (files + their parent dirs) — the resolution authority.
+
+    No exclusions: a reference TO any tracked path (including a synthetic-fixture
+    tree or a tracked symlink) must count as resolved."""
     paths = set()
     for f in _real_file_list(root):
         f = f.strip()
-        if not f or f.startswith(INDEX_EXCLUDE_PREFIXES):
+        if not f:
             continue
         paths.add(f)
         d = os.path.dirname(f)
         while d:
             paths.add(d)
             d = os.path.dirname(d)
+    return paths
+
+
+def _build_real_index(tracked: set):
+    """basename -> real paths, for suffix-matching a dangling ref to a real file.
+
+    Synthetic fixture trees are excluded HERE only (not from resolution) so a
+    descriptive path can't coincidentally suffix-match a throwaway fixture."""
     index = {}
-    for p in paths:
+    for p in tracked:
+        if p.startswith(INDEX_EXCLUDE_PREFIXES):
+            continue
         index.setdefault(p.rsplit("/", 1)[-1], set()).add(p)
     return index
 
@@ -187,13 +206,17 @@ def _names_real_file(ref: str, real_index):
     return False
 
 
-def _check_file(path: str, root: str, real_index):
+def _check_file(path: str, root: str, real_index, tracked):
     breaks = []
     file_dir = os.path.dirname(path)
     mod_root = _module_root(path, root)
     in_fence = False
     fence_marker = ""
-    with open(path, encoding="utf-8") as fh:
+    try:
+        fh = open(path, encoding="utf-8")
+    except OSError:
+        return breaks  # unreadable (e.g. a broken symlink) — nothing to scan
+    with fh:
         for line_no, line in enumerate(fh, start=1):
             stripped = line.lstrip()
             if in_fence:
@@ -208,7 +231,7 @@ def _check_file(path: str, root: str, real_index):
                 ref = _normalize(raw)
                 if ref is None:
                     continue
-                if _resolves(ref, file_dir, mod_root, root):
+                if _resolves(ref, file_dir, mod_root, root, tracked):
                     continue
                 if _names_real_file(ref, real_index):
                     breaks.append((line_no, ref))
@@ -244,11 +267,12 @@ def main(argv=None):
         ).stdout.strip() or "."
     root = os.path.abspath(root)
 
-    real_index = _build_real_index(root)
+    tracked = _tracked_paths(root)
+    real_index = _build_real_index(tracked)
 
     total = 0
     for path in _iter_md_files(root):
-        for line_no, ref in _check_file(path, root, real_index):
+        for line_no, ref in _check_file(path, root, real_index, tracked):
             rel = os.path.relpath(path, root)
             print(f"{rel}:{line_no}  `{ref}`  names a real file but resolves nowhere")
             total += 1
