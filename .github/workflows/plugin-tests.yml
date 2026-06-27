@@ -62,6 +62,13 @@ jobs:
             tests/docs/ \
             tests/scripts/
 
+      # Skills-catalog freshness: docs/skills.md is generated from each SKILL.md's
+      # frontmatter. This fails (with a diff) if a skill was added/removed/renamed
+      # or a description edited without regenerating — the bats suite above also
+      # asserts it; this prints the drift.
+      - name: Run skills-catalog freshness check
+        run: bash plugins/dev-team/hooks/lib/build-skills-index.sh --check
+
       # Rules-vs-prompts boundary sensor (#118): the security-review-rule-map.yaml
       # policy must stay consistent — no class on two surfaces, every rule-surface
       # class has fixtures + a measured fp_rate <= 10%.
