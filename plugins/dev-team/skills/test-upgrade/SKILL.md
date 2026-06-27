@@ -53,7 +53,7 @@ Resolve everything in one batch, then persist it:
    > - **refactor-allowed** — promote `REFACTOR_REQUIRED` gaps into the work queue; modify production code only to introduce a testable seam. **Constraint: only test *additions* are permitted — existing tests may not be modified or removed.**
 
    Record the chosen mode in `memory/test-upgrade/<slug>/phase-0.md`. Every later phase reads it.
-4. **BDD binding mode.** Present the 5-question rubric from `references/bdd-value-guide.md` and recommend a mode (`≥3 yes → bdd-runner`, `1–2 → xunit-with-annotations`, `0 → none`). The operator may **override** the recommendation.
+4. **BDD binding mode.** Present the 5-question rubric from `knowledge/references/bdd-value-guide.md` and recommend a mode (`≥3 yes → bdd-runner`, `1–2 → xunit-with-annotations`, `0 → none`). The operator may **override** the recommendation.
 5. **Quality targets** — defaults coverage ≥ 90%, surviving mutants = 0, determinism = 100%, pre-merge wall-clock = fastest achievable. `.dev-team/quality-targets.json` overrides per-repo; load it if present.
 6. **Tracker or local files.** With `--parent`, map the host → CLI (`gh` / `az boards` / `glab` / `acli`) and probe it; if missing, fall back to local files. Without `--parent`, **local-files mode** is the default.
 

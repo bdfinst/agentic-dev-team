@@ -38,7 +38,7 @@ or as the Phase-1b sub-step of `/test-upgrade`.
 ## Step 1 — Choose the binding mode (BDD value rubric)
 
 If `--mode` was **not** supplied, present the 5-question rubric from
-`references/bdd-value-guide.md` and recommend a mode from the score:
+`knowledge/references/bdd-value-guide.md` and recommend a mode from the score:
 
 - `≥ 3 yes` → **`bdd-runner`**
 - `1–2 yes` → **`xunit-with-annotations`**
@@ -107,7 +107,7 @@ Feature: <surface>
 
 Skip this step entirely in `none` and `xunit-with-annotations` modes.
 
-Read `test-stack-profiles/bdd-frameworks.md` for the per-language install steps
+Read `knowledge/test-stack-profiles/bdd-frameworks.md` for the per-language install steps
 and directory layout, then generate **pending** step-definition stubs so the
 suite **compiles and fails intentionally** (red before green) — never empty stubs
 that pass silently.

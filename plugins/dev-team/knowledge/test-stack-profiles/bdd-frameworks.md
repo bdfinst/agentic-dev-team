@@ -1,7 +1,7 @@
 # BDD Frameworks — per-language wire-in
 
 The minimal steps to wire a BDD runner into a project, one section per supported
-language. Use this **after** `references/bdd-value-guide.md` recommends
+language. Use this **after** `../references/bdd-value-guide.md` recommends
 `bdd-runner` mode — this file is the mechanics, not the decision.
 
 Every runner here outputs JUnit-XML (or an equivalent the CI already understands),
