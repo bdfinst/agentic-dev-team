@@ -4,8 +4,8 @@
 **Date:** 2026-06-22
 **Model (fixed):** `claude-sonnet-4-6`
 **Design + prior results:** [`01-experiment-prompt-3sizes-3arms.md`](01-experiment-prompt-3sizes-3arms.md),
-[`tdd-vs-test-after-experiment.md`](tdd-vs-test-after-experiment.md),
-[`tdd-vs-test-after-consolidated-report.md`](tdd-vs-test-after-consolidated-report.md)
+`tdd-vs-test-after-experiment.md`,
+`tdd-vs-test-after-consolidated-report.md` (prior campaign; not migrated into this docs set)
 **Runner:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py)
 **Analyzer:** [`scripts/analyze_tdd_experiment.py`](../../scripts/analyze_tdd_experiment.py)
 **Raw data:** [`data/3sizes-small-sonnet-2026-06-22.jsonl`](data/3sizes-small-sonnet-2026-06-22.jsonl) (small),

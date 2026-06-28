@@ -7,6 +7,20 @@ edit_uri: edit/main/
 docs_dir: _mkdocs_src
 site_dir: site
 
+# Surface nav/link problems during the build. MkDocs reserves `error` for a few
+# checks and rejects it for `nav.not_found`, so the hard gate against a nav entry
+# pointing at a missing file lives in the link-check workflow's nav-integrity
+# step; this block keeps the build's own diagnostics visible. Cross-tree body
+# links to files outside the assembled site (scripts/, sibling plugins) only warn.
+validation:
+    nav:
+        not_found: warn
+        omitted_files: info
+    links:
+        not_found: warn
+        anchors: warn
+        absolute_links: warn
+
 theme:
     name: material
     palette:
