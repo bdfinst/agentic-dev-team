@@ -2,8 +2,8 @@
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
 **Harness:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py)
-**Design + prior results:** [`tdd-vs-test-after-experiment.md`](tdd-vs-test-after-experiment.md),
-[`tdd-vs-test-after-consolidated-report.md`](tdd-vs-test-after-consolidated-report.md)
+**Design + prior results:** `tdd-vs-test-after-experiment.md`,
+`tdd-vs-test-after-consolidated-report.md` (prior campaign; not migrated into this docs set)
 
 ---
 
