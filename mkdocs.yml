@@ -21,6 +21,9 @@ validation:
         anchors: warn
         absolute_links: warn
 
+extra_css:
+    - stylesheets/sidebar.css
+
 theme:
     name: material
     palette:
