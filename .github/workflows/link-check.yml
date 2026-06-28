@@ -42,8 +42,31 @@ jobs:
       - name: Assemble docs sources
         run: bash scripts/assemble-docs.sh
 
-      - name: Build site (nav + link validation)
+      - name: Build site
         run: mkdocs build --site-dir /tmp/site
+
+      - name: Assert every nav entry resolves to a file
+        run: |
+          python3 - <<'PY'
+          import os, sys, yaml
+          nav = yaml.safe_load(open("mkdocs.yml"))["nav"]
+          out = "_mkdocs_src"
+          missing = []
+          def walk(node):
+              if isinstance(node, list):
+                  for item in node: walk(item)
+              elif isinstance(node, dict):
+                  for value in node.values(): walk(value)
+              elif isinstance(node, str):
+                  if not os.path.exists(os.path.join(out, node)):
+                      missing.append(node)
+          walk(nav)
+          if missing:
+              print("nav entries with no matching file under %s/:" % out)
+              for m in missing: print("  -", m)
+              sys.exit(1)
+          print("OK: every nav entry resolves to an assembled file.")
+          PY
 
   # Validates relative links and anchors inside the documentation bodies. Offline:
   # only local file links are resolved, so external link rot never flakes the gate.
