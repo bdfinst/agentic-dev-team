@@ -1,5 +1,9 @@
 # Agentic Dev Team
 
+[![Docs](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml/badge.svg)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml)
+
+📖 **[Documentation](https://docs.bryanfinster.com/)**
+
 Three Claude Code plugins for engineering workflows. Install one or all.
 
 - **`dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
@@ -20,78 +24,16 @@ Plugin names link to each plugin's README (or, for `marketplace-dev`, its `CLAUD
 
 ## Getting Started
 
-### Install `dev-team`
+New here? The **[Getting Started guide](GETTING-STARTED.md)** is the full walkthrough — installing each plugin, configuring a project, the day-to-day workflow, and the diagnostic commands.
 
-Start here — most users install only this plugin. Required tools (`jq`, `gh`) are listed in the [Plugins](#plugins) table above.
+Quick install of the core plugin:
 
 ```bash
 claude plugin marketplace add bdfinst/agentic-dev-team
 claude plugin install dev-team@bfinster
 ```
 
-The `owner/repo` shorthand and the full `https://github.com/bdfinst/agentic-dev-team` URL are equivalent. For self-hosted or other git hosts, install scopes (`user`/`project`/`local`), and the upgrade/re-point commands, see the [plugin install guide](plugins/dev-team/README.md#install).
-
-Then, in your project, install tool dependencies and generate config:
-
-```text
-/init-dev-team
-/setup
-```
-
-- **`/init-dev-team`** installs the tools the plugin depends on — `jq` and `python3` (mutation gate), language-specific mutation testing (Stryker for JS/TS, pitest for Java/Kotlin, Stryker.NET for C#), an optional CodeGraph index for code intelligence, and an opt-in model-availability probe for restricted API endpoints.
-- **`/setup`** detects your stack and generates project-level config and hooks, including the automated pre-commit review gate.
-
-After `/setup`, run `/specs` to start a feature, or ask a question and let the Orchestrator route it.
-
-### Install `security-assessment` (optional)
-
-Add this plugin only if you want the `/security-assessment` pipeline. Install `dev-team` first.
-
-```bash
-claude plugin install security-assessment@bfinster
-```
-
-For a self-hosted git host, see the [plugin install guide](plugins/dev-team/README.md#install); for a local clone, see [Local development](CONTRIBUTING.md#local-development) in CONTRIBUTING.
-
-### Install `marketplace-dev` (optional)
-
-Add this plugin if you're building or maintaining Claude Code plugins and marketplaces. It is independent of `dev-team` — install it on its own if that's all you need.
-
-```bash
-claude plugin install marketplace-dev@bfinster
-```
-
-Then use `/scaffold-plugin <name>` to create a new plugin, `/scaffold-marketplace <owner>` for a new marketplace, or `/plugin-audit [dir]` to check an existing plugin for structural compliance. See the [marketplace-dev guide](plugins/marketplace-dev/CLAUDE.md) for the full command list.
-
-### Update an installed plugin
-
-Run `/upgrade` from any Claude Code session with `dev-team` installed. It:
-
-1. Reads the current installed scope from `claude plugin list` and passes `--scope <scope>` to `claude plugin update`, so project- and local-scope installs upgrade correctly rather than silently failing against the `user` default.
-2. Asks before enabling marketplace-level auto-update (the same `extraKnownMarketplaces.<marketplace>.autoUpdate` flag the `/plugin` UI toggles); decline to keep manual control.
-3. Reports the previous and new version, and prompts you to restart Claude Code so the new code loads.
-
-Manual fallback when `/upgrade` is unavailable:
-
-```bash
-claude plugin update --scope <scope> dev-team@bfinster
-claude plugin update --scope <scope> security-assessment@bfinster
-claude plugin update --scope <scope> marketplace-dev@bfinster
-```
-
-Then install the tier-1 static-analysis tools:
-
-```bash
-# macOS
-./plugins/security-assessment/install-macos.sh           # tier-1 only
-./plugins/security-assessment/install-macos.sh --all     # tier-1 + optional + PDF deps
-./plugins/security-assessment/install-macos.sh --dry-run # preview without running
-
-# Windows (requires Scoop)
-.\plugins\security-assessment\install-windows.ps1
-```
-
-Verify: `./plugins/security-assessment/install.sh`
+Then run `/init-dev-team` and `/setup` in your project. Optional plugins (`security-assessment`, `marketplace-dev`), self-hosted git hosts, install scopes, and the `/upgrade` flow are all covered in the [Getting Started guide](GETTING-STARTED.md).
 
 ## Dev team workflow
 
@@ -161,85 +103,19 @@ Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUT
 
 ## Documentation
 
-### Start here
+The full documentation — architecture, model routing, eval system, telemetry, ADRs, and experiment reports — lives at **[docs.bryanfinster.com](https://docs.bryanfinster.com/)**, with search and complete navigation.
+
+Start here:
 
 | Doc | Covers |
 | --- | --- |
-| [Getting Started](GETTING-STARTED.md) | User tutorial — the workflow, suggested skills, worked examples |
+| [Getting Started](GETTING-STARTED.md) | Install, the workflow, suggested skills, worked examples |
 | [Contributing](CONTRIBUTING.md) | Local development, testing, adding agents/skills, releasing |
 | [Plugin Development Guide](CLAUDE.md) | Project North Star, repo structure, working rules |
 
-### dev-team — architecture
+Per-plugin docs: **[dev-team](plugins/dev-team/README.md)** · **[security-assessment](plugins/security-assessment/README.md)** · **[marketplace-dev](plugins/marketplace-dev/CLAUDE.md)** — each plugin's README is the entry point to its architecture, commands, and deeper guides.
 
-| Doc | Covers |
-| --- | --- |
-| [Plugin README](plugins/dev-team/README.md) | Install, prerequisites, optional tools, quality gates |
-| [Orchestration Pipeline](plugins/dev-team/CLAUDE.md) | Three-phase workflow, registries, context management |
-| [Architecture](plugins/dev-team/docs/agent-architecture.md) | Context management, quality assurance, governance, model routing |
-| [Team Structure](plugins/dev-team/docs/team-structure.md) | Org chart, team + review-agent dispatch diagrams |
-| [Agents](plugins/dev-team/docs/agent_info.md) | Agent roster, persona template, adding/removing/customizing |
-
-### dev-team — workflows & skills
-
-| Doc | Covers |
-| --- | --- |
-| [Workflows](plugins/dev-team/docs/workflows.md) | `/ship` and `/test-modernize` orchestration with human gates |
-| [Code Review Process](plugins/dev-team/docs/code-review-process.md) | `/code-review` end-to-end flow and the agents it dispatches |
-| [Skills & Commands](plugins/dev-team/docs/skills.md) | Skills catalog and slash-command reference |
-| [Session Review](plugins/dev-team/docs/session-review.md) | Mining session transcripts for improvement suggestions |
-| [Session Review — OSS complements](plugins/dev-team/docs/session-review-oss-complements.md) | OSS tools that complement the session-review loop |
-
-### dev-team — model routing
-
-| Doc | Covers |
-| --- | --- |
-| [Model Routing](plugins/dev-team/docs/model-routing.md) | Environment-aware effort-band → model resolution, defaults, ladder, troubleshooting |
-| [Model Routing — Overrides](plugins/dev-team/docs/model-routing-overrides.md) | Authoring `.claude/model-ladder.json`: schema, precedence, worked ladders, migration guarantee |
-
-### dev-team — evaluation & quality
-
-| Doc | Covers |
-| --- | --- |
-| [Eval System](plugins/dev-team/docs/eval-system.md) | How review-agent accuracy is measured and graded |
-| [Eval Running Guide](plugins/dev-team/docs/eval-running-guide.md) | Running the eval fixtures |
-| [Eval Maintenance](plugins/dev-team/docs/eval-maintenance.md) | Maintaining fixtures, catching regressions, tracking accuracy |
-| [Test Evaluation](plugins/dev-team/docs/test-evaluation.md) | Test-evaluation procedures |
-
-### dev-team — operations & observability
-
-| Doc | Covers |
-| --- | --- |
-| [Concurrent Use](plugins/dev-team/docs/concurrent-use.md) | Worktree isolation and concurrent build strategy |
-| [CodeGraph Nudge](plugins/dev-team/docs/codegraph-nudge.md) | The hook that nudges CodeGraph over multi-file Read/Grep |
-| [Telemetry — CI access](plugins/dev-team/docs/telemetry-ci-access.md) | Giving CI read-only access to the telemetry repo |
-| [Telemetry — repo security](plugins/dev-team/docs/telemetry-repo-security.md) | How machines write digests to the telemetry repo |
-
-### security-assessment plugin
-
-| Doc | Covers |
-| --- | --- |
-| [Plugin README](plugins/security-assessment/README.md) | Design philosophy, install, when to use vs. `/code-review` |
-| [Plugin Architecture](plugins/security-assessment/CLAUDE.md) | Hooks, SARIF orchestration, LLM-safety bounds, red-team targets |
-| [User Guide](plugins/security-assessment/docs/user-guide-security-assessment.md) | Path-A (plugin) vs. Path-B (zero-install) runbook, tool matrix |
-| [Accepted Risks Format](plugins/security-assessment/docs/accepted-risks-format.md) | `ACCEPTED-RISKS.md` schema and format |
-| [Comparative Testing](plugins/security-assessment/docs/comparative-testing.md) | Fixture repo, ground truth, scoring methodology |
-
-### marketplace-dev plugin
-
-| Doc | Covers |
-| --- | --- |
-| [Plugin Guide](plugins/marketplace-dev/CLAUDE.md) | Slash commands, the structural review agent, conventions enforced, eval fixtures |
-| [Agent-type Decision Rules](plugins/marketplace-dev/knowledge/agent-type-decision-rules.md) | The markdown-vs-script decision matrix (rules R1–R10) |
-| [Marketplace Builder Playbook](docs/marketplace-builder-plugin-playbook.md) | The conventions `marketplace-dev` encodes — layout, frontmatter contracts, release/catalog sync |
-
-### Repo-level guides & decision records
-
-| Doc | Covers |
-| --- | --- |
-| [Marketplace Builder Playbook](docs/marketplace-builder-plugin-playbook.md) | Building a plugin that scaffolds/audits marketplace monorepos |
-| [Plugin Skills in the Web Environment](docs/using-plugin-skills-in-the-web-environment.md) | Running a plugin's skills from a Claude Code web session |
-| [Architecture Decision Records](docs/adr/README.md) | Indexed ADRs — model routing, knowledge indexing, eval tiers, integration topology |
-| [Design Specs](docs/specs/model-complexity-routing.md) | Effort-band model routing design specification |
+Adapting model selection to your environment? See [Model Routing](plugins/dev-team/docs/model-routing.md) and its [override guide](plugins/dev-team/docs/model-routing-overrides.md).
 
 ## CodeGraph
 

@@ -1,0 +1,85 @@
+name: link-check
+
+# Catches broken documentation links before they merge — the class of breakage a
+# deleted or renamed doc leaves behind (e.g. a nav entry or README link pointing at
+# a file that no longer exists).
+
+on:
+  # No 'paths' filter, on purpose. nav-integrity and body-links are REQUIRED
+  # status checks, and a path-filtered workflow reports NO status on PRs that
+  # don't match the filter — deadlocking every unrelated PR at "Waiting for
+  # status to be reported" (it can never go green). Both jobs are cheap and
+  # hermetic (assemble + mkdocs build + offline lychee), so they run on every
+  # PR and always report. (Same rationale as agent-eval.yml's free gates.)
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Validates the MkDocs nav: a nav entry pointing at a missing file fails the build.
+  nav-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install MkDocs dependencies
+        run: pip install -r requirements-docs.txt
+
+      - name: Assemble docs sources
+        run: bash scripts/assemble-docs.sh
+
+      - name: Build site
+        run: mkdocs build --site-dir /tmp/site
+
+      - name: Assert every nav entry resolves to a file
+        run: |
+          python3 - <<'PY'
+          import os, sys, yaml
+          nav = yaml.safe_load(open("mkdocs.yml"))["nav"]
+          out = "_mkdocs_src"
+          missing = []
+          def walk(node):
+              if isinstance(node, list):
+                  for item in node: walk(item)
+              elif isinstance(node, dict):
+                  for value in node.values(): walk(value)
+              elif isinstance(node, str):
+                  if not os.path.exists(os.path.join(out, node)):
+                      missing.append(node)
+          walk(nav)
+          if missing:
+              print("nav entries with no matching file under %s/:" % out)
+              for m in missing: print("  -", m)
+              sys.exit(1)
+          print("OK: every nav entry resolves to an assembled file.")
+          PY
+
+  # Validates relative links and anchors inside the documentation bodies. Offline:
+  # only local file links are resolved, so external link rot never flakes the gate.
+  body-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check documentation links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --offline
+            --no-progress
+            README.md
+            GETTING-STARTED.md
+            CONTRIBUTING.md
+            CHANGELOG.md
+            docs/**/*.md
+            plugins/dev-team/README.md
+            plugins/dev-team/docs/**/*.md
+          fail: true

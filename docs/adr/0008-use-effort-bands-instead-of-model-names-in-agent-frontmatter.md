@@ -41,9 +41,9 @@ needs** — a relative, vendor-neutral property of the task — and let the
 environment decide which model serves that effort.
 
 The full mechanism (the environment model ladder, the effort→ladder mapping, the
-session-model fallback, and the SessionStart banner) is specified in
-[`docs/specs/model-complexity-routing.md`](../specs/model-complexity-routing.md).
-This ADR records the decision; the spec records the design.
+session-model fallback, and the SessionStart banner) is documented in
+[the model-routing reference](../../plugins/dev-team/docs/model-routing.md).
+This ADR records the decision; that reference records the mechanism.
 
 ## Decision
 

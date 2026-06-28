@@ -11,6 +11,9 @@
     </marker>
   </defs>
 
+  <!-- Light background so the diagram stays readable in dark-mode docs -->
+  <rect width="600" height="520" fill="#ffffff"/>
+
   <!-- User Request -->
   <g filter="url(#shadow)">
     <rect x="215" y="12" width="170" height="44" rx="22" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
@@ -28,26 +31,26 @@
   </g>
 
   <!-- Branches from Orchestrator -->
-  <line x1="240" y1="134" x2="240" y2="165" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="360" y1="134" x2="360" y2="165" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="258" y1="134" x2="158" y2="166" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="342" y1="134" x2="358" y2="166" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- Model Tier Resolution (PreToolUse hook) -->
   <g filter="url(#shadow)">
-    <rect x="135" y="170" width="210" height="48" rx="12" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1.5"/>
-    <rect x="135" y="170" width="5" height="48" rx="2.5" fill="#8B5CF6"/>
-    <text x="240" y="194" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Model Tier Resolution</text>
-    <text x="240" y="208" text-anchor="middle" font-size="10" font-weight="400" fill="#475569">(PreToolUse hook)</text>
+    <rect x="65" y="170" width="170" height="48" rx="12" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1.5"/>
+    <rect x="65" y="170" width="5" height="48" rx="2.5" fill="#8B5CF6"/>
+    <text x="150" y="194" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Model Tier Resolution</text>
+    <text x="150" y="208" text-anchor="middle" font-size="10" font-weight="400" fill="#475569">(PreToolUse hook)</text>
   </g>
 
   <!-- Agent Selection -->
   <g filter="url(#shadow)">
-    <rect x="255" y="170" width="210" height="48" rx="12" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5"/>
-    <rect x="255" y="170" width="5" height="48" rx="2.5" fill="#3B82F6"/>
+    <rect x="275" y="170" width="170" height="48" rx="12" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5"/>
+    <rect x="275" y="170" width="5" height="48" rx="2.5" fill="#3B82F6"/>
     <text x="360" y="199" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">Agent Selection</text>
   </g>
 
   <!-- Merge arrows down -->
-  <line x1="240" y1="218" x2="300" y2="248" stroke="#94A3B8" stroke-width="2"/>
+  <line x1="150" y1="218" x2="300" y2="248" stroke="#94A3B8" stroke-width="2"/>
   <line x1="360" y1="218" x2="300" y2="248" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- Task Execution -->

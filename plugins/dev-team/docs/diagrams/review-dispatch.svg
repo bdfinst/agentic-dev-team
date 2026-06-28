@@ -14,6 +14,9 @@
     </marker>
   </defs>
 
+  <!-- Light background so the diagram stays readable in dark-mode docs -->
+  <rect width="900" height="480" fill="#ffffff"/>
+
   <!-- Orchestrator -->
   <g filter="url(#shadow)">
     <rect x="16" y="190" width="160" height="52" rx="12" fill="#6366F1" stroke="#4F46E5" stroke-width="1"/>
