@@ -7,6 +7,18 @@ edit_uri: edit/main/
 docs_dir: _mkdocs_src
 site_dir: site
 
+# Fail the build when a nav entry points at a missing file (the class of
+# breakage a deleted/renamed doc leaves behind). Cross-tree body links to
+# files outside the assembled site (scripts/, sibling plugins) only warn.
+validation:
+    nav:
+        not_found: error
+        omitted_files: info
+    links:
+        not_found: warn
+        anchors: warn
+        absolute_links: warn
+
 theme:
     name: material
     palette:

@@ -1,0 +1,68 @@
+name: link-check
+
+# Catches broken documentation links before they merge — the class of breakage a
+# deleted or renamed doc leaves behind (e.g. a nav entry or README link pointing at
+# a file that no longer exists). Runs on docs changes and on demand.
+
+on:
+  pull_request:
+    paths:
+      - "**.md"
+      - mkdocs.yml
+      - requirements-docs.txt
+      - scripts/assemble-docs.sh
+      - .github/workflows/link-check.yml
+  push:
+    branches: [main]
+    paths:
+      - "**.md"
+      - mkdocs.yml
+      - requirements-docs.txt
+      - scripts/assemble-docs.sh
+      - .github/workflows/link-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Validates the MkDocs nav: a nav entry pointing at a missing file fails the build.
+  nav-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install MkDocs dependencies
+        run: pip install -r requirements-docs.txt
+
+      - name: Assemble docs sources
+        run: bash scripts/assemble-docs.sh
+
+      - name: Build site (nav + link validation)
+        run: mkdocs build --site-dir /tmp/site
+
+  # Validates relative links and anchors inside the documentation bodies. Offline:
+  # only local file links are resolved, so external link rot never flakes the gate.
+  body-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check documentation links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --offline
+            --no-progress
+            README.md
+            GETTING-STARTED.md
+            CONTRIBUTING.md
+            CHANGELOG.md
+            docs/**/*.md
+            plugins/dev-team/README.md
+            plugins/dev-team/docs/**/*.md
+          fail: true
