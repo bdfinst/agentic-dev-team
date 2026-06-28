@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.3.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.0...dev-team-v8.3.1) (2026-06-28)
+
+
+### Documentation
+
+* correct three-phase workflow diagram to match actual workflow ([#498](https://github.com/bdfinst/agentic-dev-team/issues/498)) ([bde853f](https://github.com/bdfinst/agentic-dev-team/commit/bde853f20511fe7161e2830ebb7ced9ca0d80953))
+* fix diagram rendering in dark mode and resolve overlaps/clipping ([#496](https://github.com/bdfinst/agentic-dev-team/issues/496)) ([03bbe36](https://github.com/bdfinst/agentic-dev-team/commit/03bbe36d69ce5a7f8502b703fac2798436a13223))
+
 ## [8.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.2.0...dev-team-v8.3.0) (2026-06-28)
 
 
