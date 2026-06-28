@@ -260,8 +260,13 @@ def cell_env(home: Path):
 
 
 def _dispatch_once(workdir, prompt, model, env, raw_out):
+    import os
+    if os.getuid() == 0:
+        perm_flags = ["--allowedTools", "Bash,Edit,Write,Read,Glob,Grep,mcp"]
+    else:
+        perm_flags = ["--dangerously-skip-permissions"]
     cmd = ["claude", "-p", prompt, "--model", model, "--output-format", "json",
-           "--dangerously-skip-permissions"]
+           *perm_flags]
     out = {"cost_usd": None, "tokens_total": None, "num_turns": None,
            "is_error": None, "parsed": False}
     try:
