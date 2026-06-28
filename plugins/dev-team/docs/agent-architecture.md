@@ -8,6 +8,12 @@
 
 The Orchestrator receives every request, classifies it by type and complexity, selects agents, assigns models, and coordinates delivery. During Phase 3 (Implement), review agents check coding agent output at each discrete unit-of-work checkpoint. Findings feed back as structured corrections (max 2 cycles before human escalation). After each task, the learning loop captures metrics and evaluates whether configuration updates are needed.
 
+## Three-phase workflow
+
+Feature work flows through three phases — **Research → Plan → Implement** — with a human gate between each. Research turns a request into approved specs (`/specs` → design doc); Plan decomposes them into TDD steps that four critic personas challenge before the human approves; Implement runs the RED-GREEN-REFACTOR build loop with inline review and a `/code-review` gate, then opens the PR and feeds the learning loop.
+
+![Three-phase workflow: Research (/specs → design doc → approve), Plan (/plan with Acceptance, Design, UX, and Strategic critics → approve), and Implement (TDD loop → spec-compliance → quality agents → /code-review with auto-fix → approve), ending in /pr and the learning loop.](diagrams/workflow-three-phase.svg)
+
 ## Model Routing
 
 Each agent declares an effort band (`effort: low|medium|high`) in its frontmatter. Band-to-model resolution is **enforced by a PreToolUse hook** (`hooks/agent-model-resolve.sh`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper `hooks/lib/model-resolve.sh`: it reads the band by `subagent_type` and maps it via the shipped default map in `knowledge/model-routing.json` or, when present, a per-environment ladder `.claude/model-ladder.json` (gitignored, hand-written for restricted endpoints). The session model captured at SessionStart is the fallback for an unmappable model, never a ceiling. See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for the contract and `docs/model-routing-overrides.md` for ladder authoring, and `/model-routing-check` for a read-only diagnostic.
