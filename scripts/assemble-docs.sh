@@ -22,3 +22,7 @@ cp -r "${REPO_ROOT}/docs" "${OUT}/docs"
 cp "${REPO_ROOT}/plugins/dev-team/README.md"    "${OUT}/plugins/dev-team/README.md"
 cp "${REPO_ROOT}/plugins/dev-team/CHANGELOG.md" "${OUT}/plugins/dev-team/CHANGELOG.md"
 cp -r "${REPO_ROOT}/plugins/dev-team/docs"      "${OUT}/plugins/dev-team/docs"
+
+# GitHub Pages custom domain — published to the gh-pages root so GitHub binds it.
+# Must match the host in mkdocs.yml site_url.
+printf 'docs.bryanfinster.com\n' > "${OUT}/CNAME"

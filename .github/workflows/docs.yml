@@ -7,6 +7,8 @@ on:
       - "**.md"
       - mkdocs.yml
       - requirements-docs.txt
+      - scripts/assemble-docs.sh
+      - .github/workflows/docs.yml
   workflow_dispatch:
 
 permissions:
