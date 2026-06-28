@@ -15,7 +15,7 @@ cp "${REPO_ROOT}/GETTING-STARTED.md" "${OUT}/GETTING-STARTED.md"
 cp "${REPO_ROOT}/CONTRIBUTING.md"   "${OUT}/CONTRIBUTING.md"
 cp "${REPO_ROOT}/CHANGELOG.md"      "${OUT}/CHANGELOG.md"
 
-# Repo-level docs tree
+# Repo-level docs tree (includes stylesheets/)
 cp -r "${REPO_ROOT}/docs" "${OUT}/docs"
 
 # dev-team plugin docs
