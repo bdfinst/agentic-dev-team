@@ -1,5 +1,9 @@
 # Agentic Dev Team
 
+[![Docs](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml/badge.svg)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml)
+
+📖 **[Documentation](https://docs.bryanfinster.com/)**
+
 Three Claude Code plugins for engineering workflows. Install one or all.
 
 - **`dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
