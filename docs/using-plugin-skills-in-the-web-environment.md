@@ -4,7 +4,7 @@ Claude Code **plugins are a local CLI / IDE feature**, but you *can* get a
 plugin's skills, agents, and slash commands working inside a Claude Code **web**
 session (claude.ai/code). The reliable way is to install the plugin from the
 environment's **Setup script**, which runs *before* Claude boots — so the plugin
-is on disk in time to be enumerated and loads in the **same** session. This guide
+is on disk before Claude starts and gets picked up in the **same** session. This guide
 explains why that works, and gives a file-based fallback for restrictive
 environments. It uses this repo's `dev-team` plugin as the worked example.
 
@@ -20,15 +20,15 @@ environments. It uses this repo's `dev-team` plugin as the worked example.
 
 ## 1. Why a plugin must be installed *before* Claude boots
 
-Claude enumerates the skills, agents, and slash commands available to it **once,
-at process boot.** Anything that lands on disk *after* boot is invisible to the
-running session. That single fact drives everything below:
+Claude loads all skills, agents, and slash commands **once, when it starts.**
+Anything that lands on disk *after* that is invisible to the running session.
+That single fact drives everything below:
 
 - The environment **Setup script** (configured in the cloud UI) runs **before**
   Claude launches, and its filesystem is snapshotted and reused by later
-  sessions. A plugin installed there is on disk in time to be enumerated → it
-  loads in the **same** session. This is the supported equivalent of a custom
-  image (replacing the base image itself is *not* supported).
+  sessions. A plugin installed there is on disk before Claude starts, so it
+  loads in the **same** session. This is the supported way to install software
+  before the session starts (you cannot replace the underlying machine image).
 - A **`SessionStart` hook** runs **after** Claude has already launched. A plugin
   it installs is on disk too late for *this* session's enumeration, so it only
   takes effect on the **next** session — the "next-session effect." Useful as a
@@ -46,7 +46,7 @@ policy blocks the install.
 
 ## 2. Option A (recommended) — install via the Setup script
 
-Paste a self-contained, existence-guarded, always-`exit 0` snippet into your
+Paste this script into your
 environment's **Setup script** field (claude.ai/code → Environment → Setup
 script). It installs the repo's toolchain **and** the `dev-team` plugin before
 Claude boots, so the plugin's ~86 skills (including `/ship`) are available in the
