@@ -2,24 +2,18 @@ name: link-check
 
 # Catches broken documentation links before they merge — the class of breakage a
 # deleted or renamed doc leaves behind (e.g. a nav entry or README link pointing at
-# a file that no longer exists). Runs on docs changes and on demand.
+# a file that no longer exists).
 
 on:
+  # No 'paths' filter, on purpose. nav-integrity and body-links are REQUIRED
+  # status checks, and a path-filtered workflow reports NO status on PRs that
+  # don't match the filter — deadlocking every unrelated PR at "Waiting for
+  # status to be reported" (it can never go green). Both jobs are cheap and
+  # hermetic (assemble + mkdocs build + offline lychee), so they run on every
+  # PR and always report. (Same rationale as agent-eval.yml's free gates.)
   pull_request:
-    paths:
-      - "**.md"
-      - mkdocs.yml
-      - requirements-docs.txt
-      - scripts/assemble-docs.sh
-      - .github/workflows/link-check.yml
   push:
     branches: [main]
-    paths:
-      - "**.md"
-      - mkdocs.yml
-      - requirements-docs.txt
-      - scripts/assemble-docs.sh
-      - .github/workflows/link-check.yml
   workflow_dispatch:
 
 permissions:
