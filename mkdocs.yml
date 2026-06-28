@@ -84,6 +84,17 @@ nav:
                 - Telemetry Security: plugins/dev-team/docs/telemetry-repo-security.md
                 - CodeGraph Nudge: plugins/dev-team/docs/codegraph-nudge.md
 
+    - security-assessment Plugin:
+          - Overview: plugins/security-assessment/README.md
+          - Architecture: plugins/security-assessment/CLAUDE.md
+          - User Guide: plugins/security-assessment/docs/user-guide-security-assessment.md
+          - Accepted Risks Format: plugins/security-assessment/docs/accepted-risks-format.md
+          - Comparative Testing: plugins/security-assessment/docs/comparative-testing.md
+
+    - marketplace-dev Plugin:
+          - Guide: plugins/marketplace-dev/CLAUDE.md
+          - Agent-type Decision Rules: plugins/marketplace-dev/knowledge/agent-type-decision-rules.md
+
     - Guides:
           - Cloud Setup: docs/cloud-setup.md
           - Using Skills in Web Environment: docs/using-plugin-skills-in-the-web-environment.md
@@ -130,3 +141,5 @@ nav:
     - Changelog:
           - Repository: CHANGELOG.md
           - dev-team Plugin: plugins/dev-team/CHANGELOG.md
+          - security-assessment Plugin: plugins/security-assessment/CHANGELOG.md
+          - marketplace-dev Plugin: plugins/marketplace-dev/CHANGELOG.md
