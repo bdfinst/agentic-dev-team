@@ -37,7 +37,7 @@
     <rect x="40" y="130" width="200" height="40" rx="10" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1.5"/>
     <rect x="40" y="130" width="4" height="40" rx="2" fill="#8B5CF6"/>
     <text x="140" y="148" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">/specs</text>
-    <text x="140" y="163" text-anchor="middle" font-size="9" fill="#64748B">Intent · BDD · Architecture · Criteria</text>
+    <text x="140" y="163" text-anchor="middle" font-size="9" fill="#64748B">Intent · Architecture · Criteria</text>
   </g>
   <line x1="240" y1="150" x2="264" y2="150" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
@@ -64,34 +64,39 @@
 
   <!-- /plan -->
   <g filter="url(#shadow)">
-    <rect x="40" y="230" width="110" height="38" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5"/>
-    <rect x="40" y="230" width="4" height="38" rx="2" fill="#3B82F6"/>
-    <text x="95" y="247" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">/plan</text>
-    <text x="95" y="260" text-anchor="middle" font-size="9" fill="#64748B">TDD steps</text>
+    <rect x="40" y="228" width="110" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5"/>
+    <rect x="40" y="228" width="4" height="44" rx="2" fill="#3B82F6"/>
+    <text x="95" y="245" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">/plan</text>
+    <text x="95" y="257" text-anchor="middle" font-size="8.5" fill="#64748B">slices · Gherkin</text>
+    <text x="95" y="268" text-anchor="middle" font-size="8.5" fill="#64748B">TDD steps</text>
   </g>
-  <line x1="150" y1="249" x2="168" y2="249" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="150" y1="250" x2="168" y2="250" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- Plan Review Personas (2x2 grid) -->
+  <!-- Plan Review Personas (5 critics; scale to plan tier) -->
   <g filter="url(#shadow)">
-    <rect x="172" y="228" width="108" height="30" rx="8" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
-    <text x="226" y="247" text-anchor="middle" font-size="9" font-weight="600" fill="#1E293B">Acceptance</text>
+    <rect x="172" y="228" width="72" height="30" rx="8" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
+    <text x="208" y="247" text-anchor="middle" font-size="9" font-weight="600" fill="#1E293B">Acceptance</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="286" y="228" width="108" height="30" rx="8" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
-    <text x="340" y="247" text-anchor="middle" font-size="9" font-weight="600" fill="#1E293B">Design</text>
+    <rect x="247" y="228" width="72" height="30" rx="8" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
+    <text x="283" y="247" text-anchor="middle" font-size="9" font-weight="600" fill="#1E293B">Design</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="172" y="264" width="108" height="30" rx="8" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
-    <text x="226" y="283" text-anchor="middle" font-size="9" font-weight="600" fill="#1E293B">UX</text>
+    <rect x="322" y="228" width="72" height="30" rx="8" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
+    <text x="358" y="247" text-anchor="middle" font-size="9" font-weight="600" fill="#1E293B">UX</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="286" y="264" width="108" height="30" rx="8" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
-    <text x="340" y="283" text-anchor="middle" font-size="9" font-weight="600" fill="#1E293B">Strategic</text>
+    <rect x="172" y="264" width="72" height="30" rx="8" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
+    <text x="208" y="283" text-anchor="middle" font-size="9" font-weight="600" fill="#1E293B">Strategic</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="322" y="264" width="72" height="30" rx="8" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
+    <text x="358" y="283" text-anchor="middle" font-size="8" font-weight="600" fill="#1E293B">Parallelization</text>
   </g>
 
-  <!-- Lines from 2x2 grid to Aggregate (horizontal exit from right edge of grid) -->
-  <line x1="394" y1="243" x2="430" y2="258" stroke="#CBD5E1" stroke-width="1.5"/>
-  <line x1="394" y1="279" x2="430" y2="262" stroke="#CBD5E1" stroke-width="1.5"/>
+  <!-- Lines from persona grid (right edge) to Aggregate -->
+  <line x1="394" y1="243" x2="432" y2="256" stroke="#CBD5E1" stroke-width="1.5"/>
+  <line x1="394" y1="279" x2="432" y2="264" stroke="#CBD5E1" stroke-width="1.5"/>
 
   <!-- Aggregate Findings -->
   <g filter="url(#shadow)">
@@ -116,10 +121,10 @@
 
   <!-- TDD Loop -->
   <g filter="url(#shadow)">
-    <rect x="40" y="360" width="130" height="44" rx="10" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+    <rect x="40" y="360" width="116" height="44" rx="10" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
     <rect x="40" y="360" width="4" height="44" rx="2" fill="#10B981"/>
-    <text x="105" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#1E293B">TDD Loop</text>
-    <text x="105" y="394" text-anchor="middle" font-size="9">
+    <text x="98" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#1E293B">TDD Loop</text>
+    <text x="98" y="394" text-anchor="middle" font-size="9">
       <tspan fill="#EF4444" font-weight="600">RED</tspan>
       <tspan fill="#64748B"> → </tspan>
       <tspan fill="#22C55E" font-weight="600">GREEN</tspan>
@@ -127,44 +132,53 @@
       <tspan fill="#3B82F6" font-weight="600">REFACTOR</tspan>
     </text>
   </g>
-  <line x1="170" y1="382" x2="190" y2="382" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="156" y1="382" x2="172" y2="382" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- Spec Compliance -->
+  <!-- Inline review — Stage 1: Spec Compliance -->
   <g filter="url(#shadow)">
-    <rect x="194" y="360" width="120" height="44" rx="10" fill="#FDF2F8" stroke="#EC4899" stroke-width="1.5"/>
-    <rect x="194" y="360" width="4" height="44" rx="2" fill="#EC4899"/>
-    <text x="254" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#1E293B">Spec Compliance</text>
-    <text x="254" y="394" text-anchor="middle" font-size="9" fill="#64748B">Stage 1</text>
+    <rect x="172" y="360" width="94" height="44" rx="10" fill="#FDF2F8" stroke="#EC4899" stroke-width="1.5"/>
+    <rect x="172" y="360" width="4" height="44" rx="2" fill="#EC4899"/>
+    <text x="219" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#1E293B">Spec Compliance</text>
+    <text x="219" y="394" text-anchor="middle" font-size="9" fill="#64748B">Stage 1</text>
   </g>
-  <line x1="314" y1="382" x2="334" y2="382" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="266" y1="382" x2="282" y2="382" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- Quality Agents -->
+  <!-- Inline review — Stage 2: Quality Agents -->
   <g filter="url(#shadow)">
-    <rect x="338" y="360" width="120" height="44" rx="10" fill="#FDF2F8" stroke="#EC4899" stroke-width="1.5"/>
-    <rect x="338" y="360" width="4" height="44" rx="2" fill="#EC4899"/>
-    <text x="398" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#1E293B">Quality Agents</text>
-    <text x="398" y="394" text-anchor="middle" font-size="9" fill="#64748B">Stage 2</text>
+    <rect x="282" y="360" width="94" height="44" rx="10" fill="#FDF2F8" stroke="#EC4899" stroke-width="1.5"/>
+    <rect x="282" y="360" width="4" height="44" rx="2" fill="#EC4899"/>
+    <text x="329" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#1E293B">Quality Agents</text>
+    <text x="329" y="394" text-anchor="middle" font-size="9" fill="#64748B">Stage 2</text>
   </g>
-  <line x1="458" y1="382" x2="478" y2="382" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="376" y1="382" x2="392" y2="382" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Inline review — Stage 3: Browser verify (UI changes only; dashed = conditional) -->
+  <g filter="url(#shadow)">
+    <rect x="392" y="360" width="94" height="44" rx="10" fill="#FDF2F8" stroke="#EC4899" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <rect x="392" y="360" width="4" height="44" rx="2" fill="#EC4899"/>
+    <text x="439" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#1E293B">Browser Verify</text>
+    <text x="439" y="394" text-anchor="middle" font-size="9" fill="#64748B">Stage 3 · UI</text>
+  </g>
+  <line x1="486" y1="382" x2="502" y2="382" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- /code-review -->
   <g filter="url(#shadow)">
-    <rect x="482" y="360" width="130" height="44" rx="10" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
-    <rect x="482" y="360" width="4" height="44" rx="2" fill="#10B981"/>
-    <text x="547" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#1E293B">/code-review</text>
-    <text x="547" y="394" text-anchor="middle" font-size="9" fill="#64748B">auto-fix loop (5x)</text>
+    <rect x="502" y="360" width="104" height="44" rx="10" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+    <rect x="502" y="360" width="4" height="44" rx="2" fill="#10B981"/>
+    <text x="554" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#1E293B">/code-review</text>
+    <text x="554" y="394" text-anchor="middle" font-size="9" fill="#64748B">auto-fix loop (5x)</text>
   </g>
-  <line x1="612" y1="382" x2="636" y2="382" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="606" y1="382" x2="624" y2="382" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- Human Gate 3 (inline) -->
   <g filter="url(#shadow)">
-    <rect x="640" y="364" width="220" height="36" rx="18" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
-    <text x="750" y="387" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human Gate — approve</text>
+    <rect x="624" y="364" width="236" height="36" rx="18" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
+    <text x="742" y="387" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human Gate — approve</text>
   </g>
 
   <!-- Fail loop (under Phase 3 row, enters TDD box from left) -->
-  <path d="M398,404 C398,430 40,430 40,382" stroke="#F43F5E" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-red)"/>
-  <text x="220" y="440" text-anchor="middle" font-size="8" fill="#F43F5E">fail → auto-fix → re-run (max 5x)</text>
+  <path d="M329,404 C329,430 40,430 40,384" stroke="#F43F5E" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-red)"/>
+  <text x="210" y="442" text-anchor="middle" font-size="8" fill="#F43F5E">fail → auto-fix → re-run (max 5x)</text>
 
   <!-- /pr -->
   <g filter="url(#shadow)">
@@ -181,6 +195,6 @@
   </g>
 
   <!-- Lines from Gate 3 bottom to box tops -->
-  <line x1="710" y1="400" x2="350" y2="458" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="700" y1="400" x2="350" y2="458" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="790" y1="400" x2="650" y2="458" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
 </svg>
