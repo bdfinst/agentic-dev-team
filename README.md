@@ -181,7 +181,7 @@ Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUT
 | [Marketplace Builder Playbook](docs/marketplace-builder-plugin-playbook.md) | Building a plugin that scaffolds/audits marketplace monorepos |
 | [Plugin Skills in the Web Environment](docs/using-plugin-skills-in-the-web-environment.md) | Running a plugin's skills from a Claude Code web session |
 | [Architecture Decision Records](docs/adr/README.md) | Indexed ADRs — model routing, knowledge indexing, eval tiers, integration topology |
-| [Design Specs](docs/specs/model-complexity-routing.md) | Effort-band model routing design specification |
+| [Design Specs](docs/specs/python-agent-harness-pattern.md) | In-repo design specs — e.g. the Python agent-harness pattern and CLAUDE.md size reduction |
 
 ## CodeGraph
 

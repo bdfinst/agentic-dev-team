@@ -112,7 +112,8 @@ nav:
           - Complexity Refactor Regression: docs/experiments/complexity-refactor-regression.md
 
     - Specs:
-          - Model Complexity Routing: docs/specs/model-complexity-routing.md
+          - Plugin CLAUDE.md Size Reduction: docs/specs/plugin-claude-md-size-reduction.md
+          - Python Agent-Harness Pattern: docs/specs/python-agent-harness-pattern.md
           - Insights Reports Prompt Idea: docs/specs/insights-reports/prompt-idea.md
 
     - Changelog:
