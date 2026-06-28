@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.2.0...dev-team-v8.3.0) (2026-06-28)
+
+
+### Features
+
+* add frontend component-architecture review agent and /frontend-architecture skill ([#492](https://github.com/bdfinst/agentic-dev-team/issues/492)) ([4f459bc](https://github.com/bdfinst/agentic-dev-team/commit/4f459bc83276f9d01525b8ca194850c7bd23e6d1))
+
 ## [8.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.1.0...dev-team-v8.2.0) (2026-06-27)
 
 
