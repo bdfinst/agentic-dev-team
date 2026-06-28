@@ -1,0 +1,105 @@
+name: experiment-05-workflow-matrix-campaign
+
+# Runs the 7-arm workflow-matrix experiment campaign on GitHub Actions,
+# committing results back to the branch as they accumulate.
+# Trigger manually via workflow_dispatch; runs until all 672 rows are written
+# or the 6-hour job timeout is hit (restart to continue — harness resumes).
+
+on:
+  workflow_dispatch:
+    inputs:
+      arm:
+        description: "Specific arm to run (blank = all 7)"
+        required: false
+        default: ""
+      trials:
+        description: "Base trials per cell"
+        required: false
+        default: "6"
+
+jobs:
+  campaign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: claude/experiment-prompt-workflow-matrix-ky2r1r
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install radon lizard coverage pytest
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Configure git
+        run: |
+          git config user.email "experiment-bot@github-actions"
+          git config user.name "Experiment Bot"
+
+      - name: Pull latest data (resume)
+        run: |
+          git pull origin claude/experiment-prompt-workflow-matrix-ky2r1r || true
+
+      - name: Run campaign
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          ROWS=$(wc -l < docs/experiments/data/refactor-workflow-matrix.jsonl 2>/dev/null || echo 0)
+          echo "Starting at $ROWS rows"
+
+          ARM_FLAGS=""
+          if [ -n "${{ github.event.inputs.arm }}" ]; then
+            ARM_FLAGS="--arm ${{ github.event.inputs.arm }}"
+          fi
+
+          python3 scripts/run_workflow_matrix.py \
+            --go \
+            --out docs/experiments/data/refactor-workflow-matrix.jsonl \
+            --base-trials ${{ github.event.inputs.trials }} \
+            $ARM_FLAGS &
+          CAMP_PID=$!
+
+          # Commit progress every 30 minutes while campaign runs
+          while kill -0 $CAMP_PID 2>/dev/null; do
+            sleep 1800
+            python3 scripts/update_experiment_status.py || true
+            git add docs/experiments/data/refactor-workflow-matrix.jsonl \
+                    docs/experiments/05-status.md || true
+            if ! git diff --cached --quiet; then
+              ROWS=$(wc -l < docs/experiments/data/refactor-workflow-matrix.jsonl)
+              git commit -m "chore: campaign checkpoint ($ROWS rows)" || true
+              git push origin claude/experiment-prompt-workflow-matrix-ky2r1r || true
+            fi
+          done
+
+          wait $CAMP_PID
+          EXIT=$?
+          echo "Campaign exited with code $EXIT"
+
+      - name: Final commit
+        if: always()
+        run: |
+          python3 scripts/update_experiment_status.py || true
+          git add docs/experiments/data/refactor-workflow-matrix.jsonl \
+                  docs/experiments/05-status.md || true
+          if ! git diff --cached --quiet; then
+            ROWS=$(wc -l < docs/experiments/data/refactor-workflow-matrix.jsonl 2>/dev/null || echo 0)
+            git commit -m "chore: campaign final checkpoint ($ROWS rows)"
+            git push origin claude/experiment-prompt-workflow-matrix-ky2r1r
+          fi
