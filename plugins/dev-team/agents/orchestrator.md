@@ -290,7 +290,7 @@ After each discrete unit of work classified as **standard** or **complex** (a fu
 | Test files | test-review |
 | API surface / auth | security-review |
 | Domain/business logic | domain-review |
-| UI components | a11y-review, structure-review |
+| UI components | a11y-review, structure-review, component-architecture-review |
 | Agent or command files | eval-compliance-check hook runs automatically; also run /agent-audit |
 | Dockerfile or .dockerignore | docker-image-audit skill |
 | Documentation files (.md) | doc-review |

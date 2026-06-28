@@ -29,6 +29,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | arch-review | `agents/arch-review.md` | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
 | claude-setup-review | `agents/claude-setup-review.md` | CLAUDE.md completeness, rules, skills, path accuracy |
 | complexity-review | `agents/complexity-review.md` | Function size, cyclomatic complexity, nesting, parameters |
+| component-architecture-review | `agents/component-architecture-review.md` | Reusable component extraction, frontend UI duplication, prop drilling, component granularity, inconsistent component APIs |
 | concurrency-review | `agents/concurrency-review.md` | Race conditions, async pitfalls, shared state |
 | data-flow-tracer | `agents/data-flow-tracer.md` | Data flow tracing through architecture layers (analysis-only) |
 | doc-review | `agents/doc-review.md` | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
@@ -126,7 +127,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 
 | Name | File | ~Tokens | Used By |
 |------|------|---------|---------|
-| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 22 review agents (a11y-review, arch-review, claude-setup-review, complexity-review, concurrency-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-modernization-review, test-review, test-smell-review, token-efficiency-review) |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 23 review agents (a11y-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-modernization-review, test-review, test-smell-review, token-efficiency-review) |
 | Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
 | CD Maturity Model | `knowledge/cd-maturity-model.md` | ~870 | Platform Engineer, QA Engineer |
@@ -140,6 +141,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
 | Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~900 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
 | Fixture Construction | `knowledge/fixture-construction.md` | ~750 | test-design-advisor, test-smell-review, test-review |
+| Frontend Component Architecture | `knowledge/frontend-component-architecture.md` | ~900 | component-architecture-review, `/frontend-architecture` |
 | Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |
 | Object Calisthenics | `knowledge/object-calisthenics.md` | ~400 | structure-review, complexity-review |
 | OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |

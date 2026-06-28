@@ -587,6 +587,56 @@
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
+  "plugins/dev-team/knowledge/frontend-component-architecture.md": {
+    "When to extract (and when not to)": {
+      "summary": "**Rule of three.** Two occurrences are not yet duplication — they may diverge.",
+      "anchor": "when-to-extract-and-when-not-to"
+    },
+    "Detection categories": {
+      "summary": "The same JSX/template subtree (markup structure + class/style + bindings) is",
+      "anchor": "detection-categories"
+    },
+    "Duplicate render logic": {
+      "summary": "The same JSX/template subtree (markup structure + class/style + bindings) is",
+      "anchor": "duplicate-render-logic"
+    },
+    "Reusable-primitive extraction candidates": {
+      "summary": "Repeated *patterns* that the codebase keeps re-implementing inline instead of",
+      "anchor": "reusable-primitive-extraction-candidates"
+    },
+    "Component granularity": {
+      "summary": "**God component**: one component mixing data fetching, business logic, layout,",
+      "anchor": "component-granularity"
+    },
+    "Prop drilling": {
+      "summary": "State or callbacks threaded through intermediate components that do not use them,",
+      "anchor": "prop-drilling"
+    },
+    "Inconsistent component APIs": {
+      "summary": "Sibling components that do the same job expose different contracts: event-handler",
+      "anchor": "inconsistent-component-apis"
+    },
+    "Composition over configuration": {
+      "summary": "A component accumulating mode/variant flags that switch large rendering branches",
+      "anchor": "composition-over-configuration"
+    },
+    "Cross-feature / design-system reuse": {
+      "summary": "The same visual primitive reimplemented independently in two feature folders",
+      "anchor": "cross-feature-design-system-reuse"
+    },
+    "Library barrel / public exports": {
+      "summary": "A shared component library needs **one public entry point** — an `index`",
+      "anchor": "library-barrel-public-exports"
+    },
+    "Framework mapping": {
+      "summary": "Recognize the *concept*, then express the fix in the project's framework:",
+      "anchor": "framework-mapping"
+    },
+    "What NOT to flag": {
+      "summary": "Two occurrences (below the rule-of-three threshold) with no shared behavioral",
+      "anchor": "what-not-to-flag"
+    }
+  },
   "plugins/dev-team/knowledge/legacy-test-strategy.md": {
     "1. Reason about effects": {
       "summary": "Every functional change has a chain of effects that propagates outward — through the methods that call the changed code — until it reaches a place you can observe, or stops because nothing downstream depends on it.",
@@ -2909,6 +2959,36 @@
     "Notes": {
       "summary": "The `pre-tool-guard.sh` hook reads `hooks/freeze-state.json` and blocks Write/Edit to files that do NOT match the allowed patterns.",
       "anchor": "notes"
+    }
+  },
+  "plugins/dev-team/skills/frontend-architecture/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Same auto-scope logic as `/code-review`: review uncommitted changes if any",
+      "anchor": "steps"
+    },
+    "1. Determine target files": {
+      "summary": "Same auto-scope logic as `/code-review`: review uncommitted changes if any",
+      "anchor": "1-determine-target-files"
+    },
+    "2. Dispatch the review agent": {
+      "summary": "Spawn `component-architecture-review` as a sub-agent in a single batch, passing",
+      "anchor": "2-dispatch-the-review-agent"
+    },
+    "3. Aggregate and rank": {
+      "summary": "Take the agent's issues.",
+      "anchor": "3-aggregate-and-rank"
+    },
+    "4. Report": {
+      "summary": "If `--json`, emit the aggregated JSON object and stop.",
+      "anchor": "4-report"
     }
   },
   "plugins/dev-team/skills/gherkin-derive/SKILL.md": {
