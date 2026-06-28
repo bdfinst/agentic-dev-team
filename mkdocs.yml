@@ -72,24 +72,29 @@ nav:
 
     - dev-team Plugin:
           - Overview: plugins/dev-team/README.md
-          - Team Structure: plugins/dev-team/docs/team-structure.md
-          - Agent Architecture: plugins/dev-team/docs/agent-architecture.md
-          - Agent Info: plugins/dev-team/docs/agent_info.md
-          - Workflows: plugins/dev-team/docs/workflows.md
-          - Skills: plugins/dev-team/docs/skills.md
-          - Code Review Process: plugins/dev-team/docs/code-review-process.md
-          - Model Routing: plugins/dev-team/docs/model-routing.md
-          - Model Routing Overrides: plugins/dev-team/docs/model-routing-overrides.md
-          - Eval System: plugins/dev-team/docs/eval-system.md
-          - Eval Running Guide: plugins/dev-team/docs/eval-running-guide.md
-          - Eval Maintenance: plugins/dev-team/docs/eval-maintenance.md
-          - Test Evaluation: plugins/dev-team/docs/test-evaluation.md
-          - Session Review: plugins/dev-team/docs/session-review.md
-          - Session Review OSS Complements: plugins/dev-team/docs/session-review-oss-complements.md
-          - Concurrent Use: plugins/dev-team/docs/concurrent-use.md
-          - Telemetry CI Access: plugins/dev-team/docs/telemetry-ci-access.md
-          - Telemetry Security: plugins/dev-team/docs/telemetry-repo-security.md
-          - CodeGraph Nudge: plugins/dev-team/docs/codegraph-nudge.md
+          - Architecture:
+                - Team Structure: plugins/dev-team/docs/team-structure.md
+                - Agent Architecture: plugins/dev-team/docs/agent-architecture.md
+                - Agent Info: plugins/dev-team/docs/agent_info.md
+          - Workflows & Skills:
+                - Workflows: plugins/dev-team/docs/workflows.md
+                - Skills: plugins/dev-team/docs/skills.md
+                - Code Review Process: plugins/dev-team/docs/code-review-process.md
+          - Model Routing:
+                - Model Routing: plugins/dev-team/docs/model-routing.md
+                - Model Routing Overrides: plugins/dev-team/docs/model-routing-overrides.md
+          - Evaluation:
+                - Eval System: plugins/dev-team/docs/eval-system.md
+                - Eval Running Guide: plugins/dev-team/docs/eval-running-guide.md
+                - Eval Maintenance: plugins/dev-team/docs/eval-maintenance.md
+                - Test Evaluation: plugins/dev-team/docs/test-evaluation.md
+          - Operations:
+                - Session Review: plugins/dev-team/docs/session-review.md
+                - Session Review OSS Complements: plugins/dev-team/docs/session-review-oss-complements.md
+                - Concurrent Use: plugins/dev-team/docs/concurrent-use.md
+                - Telemetry CI Access: plugins/dev-team/docs/telemetry-ci-access.md
+                - Telemetry Security: plugins/dev-team/docs/telemetry-repo-security.md
+                - CodeGraph Nudge: plugins/dev-team/docs/codegraph-nudge.md
 
     - Guides:
           - Cloud Setup: docs/cloud-setup.md
@@ -109,6 +114,8 @@ nav:
           - "ADR-0008: Effort Bands over Model Names": docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md
           - "ADR-0009: Human Consent Gate for Learning": docs/adr/0009-human-consent-gate-for-learning-loop.md
           - "ADR-0010: Per-Session Analysis Granularity": docs/adr/0010-per-session-analysis-granularity.md
+          - "ADR-0011: Enforce Context Ceiling": docs/adr/0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md
+          - "ADR-0012: Auto-Bootstrap CodeGraph Index": docs/adr/0012-auto-bootstrap-codegraph-index-per-clone.md
 
     - Experiments:
           - FAQ: docs/experiments/FAQ.md
@@ -117,9 +124,13 @@ nav:
           - 3 Sizes 3 Arms Report: docs/experiments/3sizes-3arms-report.md
           - "02 · When TDD Pays Experiment": docs/experiments/02-experiment-prompt-when-tdd-pays.md
           - When TDD Pays Report: docs/experiments/when-tdd-pays-report.md
+          - When TDD Pays Summary: docs/experiments/when-tdd-pays-summary.md
           - "03 · Ship Arm Manual Run": docs/experiments/03-ship-arm-manual-run-prompt.md
           - "04 · Refactor Granularity Experiment": docs/experiments/04-experiment-prompt-refactor-granularity.md
           - Refactor Granularity Report: docs/experiments/refactor-granularity-report.md
+          - Refactor Granularity Summary: docs/experiments/refactor-granularity-summary.md
+          - Refactor Granularity Progress: docs/experiments/refactor-granularity-progress.md
+          - Refactor Granularity Power Analysis: docs/experiments/refactor-granularity-power-analysis.md
           - "05 · Workflow Matrix Experiment": docs/experiments/05-experiment-prompt-workflow-matrix.md
           - Complexity Refactor Regression: docs/experiments/complexity-refactor-regression.md
 

@@ -168,8 +168,8 @@ After starting Claude Code, confirm the system is working:
 
 ## What's included
 
-- **12 team agents** — Orchestrator, Software Engineer, QA Engineer, Architect, Product Manager, etc.
+- **11 team agents** — Orchestrator, Software Engineer, QA Engineer, Architect, Product Manager, etc.
 - **19 review agents** — security-review, domain-review, test-review, naming-review, …
-- **74 skills** — 41 agent-loaded (TDD, design-doc, competitive-analysis, …) + 33 user-invocable slash commands (`/plan`, `/build`, `/pr`, `/code-review`, `/browse`, `/triage`, …)
+- **85 skills** — knowledge modules and procedures the team draws on, 82 of them user-invocable as slash commands (`/plan`, `/build`, `/pr`, `/code-review`, `/browse`, `/triage`, …)
 
 Full catalogs: [Agents](docs/agent_info.md) · [Skills](docs/skills.md)
