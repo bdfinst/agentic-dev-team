@@ -22,7 +22,7 @@ Then, in your project, install tool dependencies and generate config:
 /setup
 ```
 
-- **`/init-dev-team`** installs the tools the plugin depends on — `jq` and `python3` (mutation gate), language-specific mutation testing (Stryker for JS/TS, pitest for Java/Kotlin, Stryker.NET for C#), an optional CodeGraph index for code intelligence, and an opt-in model-availability probe for restricted API endpoints.
+- **`/init-dev-team`** installs the plugin's tool dependencies — `jq`, `python3`, and language-specific mutation tooling (Stryker, pitest, Stryker.NET) — plus an optional CodeGraph index for code intelligence.
 - **`/setup`** detects your stack and generates project-level config and hooks, including the automated pre-commit review gate.
 
 After `/setup`, run `/specs` to start a feature, or ask a question and let the Orchestrator route it.
@@ -36,6 +36,20 @@ claude plugin install security-assessment@bfinster
 ```
 
 For a self-hosted git host, see the [plugin install guide](plugins/dev-team/README.md#install); for a local clone, see [Local development](CONTRIBUTING.md#local-development) in CONTRIBUTING.
+
+Then install the tier-1 static-analysis tools the pipeline depends on:
+
+```bash
+# macOS
+./plugins/security-assessment/install-macos.sh           # tier-1 only
+./plugins/security-assessment/install-macos.sh --all     # tier-1 + optional + PDF deps
+./plugins/security-assessment/install-macos.sh --dry-run # preview without running
+
+# Windows (requires Scoop)
+.\plugins\security-assessment\install-windows.ps1
+```
+
+Verify: `./plugins/security-assessment/install.sh`
 
 ### Install `marketplace-dev` (optional)
 
@@ -62,20 +76,6 @@ claude plugin update --scope <scope> dev-team@bfinster
 claude plugin update --scope <scope> security-assessment@bfinster
 claude plugin update --scope <scope> marketplace-dev@bfinster
 ```
-
-Then install the tier-1 static-analysis tools:
-
-```bash
-# macOS
-./plugins/security-assessment/install-macos.sh           # tier-1 only
-./plugins/security-assessment/install-macos.sh --all     # tier-1 + optional + PDF deps
-./plugins/security-assessment/install-macos.sh --dry-run # preview without running
-
-# Windows (requires Scoop)
-.\plugins\security-assessment\install-windows.ps1
-```
-
-Verify: `./plugins/security-assessment/install.sh`
 
 ## Key Concepts
 
@@ -184,22 +184,15 @@ The commands above support a change in flight. These workflows do the opposite: 
 
 | Workflow | What it reports | Run it when |
 |----------|-----------------|-------------|
-| `/test-health` | Project-wide test-strategy audit: suite shape vs. architecture fit, coverage mapped to the testing quadrants, flaky tests, automation maturity — ending in an ordered improvement plan. **Runs `/test-design` and `/mutation-testing` as part of its rollup**, so it's the broadest starting point. | "How healthy is our test suite?" — start here for whole-suite test work. |
-| `/test-design` | Deep test-design review of the existing suite: a **Farley Score** for all existing tests (quality 1–10 across Dave Farley's 8 properties) plus per-file smells and testability blockers. Also runs standalone. | You want a quantitative quality score and concrete per-test fixes without the full strategy audit. |
-| `/mutation-testing` | Whether your existing tests actually catch bugs — runs a real mutation tool on critical modules and triages surviving mutants. Also feeds `/test-health`. | Coverage looks high but you suspect assertions are weak. |
-| `/code-review --all` | The full review-agent suite (architecture, complexity, naming, security, duplication, docs, …) over the **entire repository**, not just a diff. Add `--background` for a no-gates structural drift review. | Auditing code quality across a whole project or after a long period without review. |
-| `/semantic-scan` | Business logic reimplemented in multiple layers — the same domain calculation duplicated across domain services, adapters, and UI — with canonical-location suggestions. | Hunting for hidden duplication and drift in a layered codebase. |
-| `/threat-modeling` | STRIDE security analysis of attack surfaces, trust boundaries, and mitigations. | Reviewing the security posture of an existing service or data flow. |
-| `/docker-image-audit` | Container and Dockerfile security (CVEs), image bloat, and best-practice violations via hadolint, Trivy, and Grype. | Hardening or slimming an existing image. |
-| `/benchmark <url>` | Runtime performance of a running app (Core Web Vitals, resource sizes), compared against saved baselines. | Establishing or checking a performance baseline. |
-| `/explore --charter '<goal>'` | Charter-driven exploratory testing of a **running** target: structured heuristics + adversarial probing, auto-triaging critical defects into a report. | Finding bugs in a live app that the test suite doesn't cover. |
-
-```text
-/test-health                      Audit the whole test suite and get an improvement plan
-/test-design                      Score every existing test (Farley Score) and surface smells
-/code-review --all                Review the entire repository, not just pending changes
-/semantic-scan                    Find duplicated business logic across layers
-```
+| `/test-health` | Whole-suite test-strategy audit — suite shape, coverage-to-quadrant mapping, flaky tests, maturity — ending in an ordered plan. Rolls up `/test-design` + `/mutation-testing`, so start here. | "How healthy is our test suite?" |
+| `/test-design` | A **Farley Score** (1–10 across Farley's 8 properties) for every test, plus per-file smells and testability blockers. | You want a quality score and per-test fixes without the full audit. |
+| `/mutation-testing` | Whether tests actually catch bugs — mutates critical modules and triages survivors. | Coverage looks high but assertions feel weak. |
+| `/code-review --all` | The full review-agent suite over the **entire repository**, not just a diff (`--background` for a no-gates drift review). | Auditing a whole project, or after a long gap. |
+| `/semantic-scan` | The same business logic reimplemented across layers, with canonical-location suggestions. | Hunting hidden duplication in a layered codebase. |
+| `/threat-modeling` | STRIDE analysis of attack surfaces, trust boundaries, and mitigations. | Reviewing a service's security posture. |
+| `/docker-image-audit` | Container/Dockerfile CVEs, bloat, and best-practice violations (hadolint, Trivy, Grype). | Hardening or slimming an image. |
+| `/benchmark <url>` | Runtime performance of a running app (Core Web Vitals, resource sizes) vs. saved baselines. | Establishing or checking a performance baseline. |
+| `/explore --charter '<goal>'` | Charter-driven exploratory testing of a **running** target, auto-triaging critical defects. | Finding bugs the test suite misses. |
 
 Two harness-level diagnostics review *how the project is set up to work with the team* rather than the product code: `/harness-audit` flags stale or redundant review agents and orchestration, and `/cost-report` reports token spend and cost regressions for a run. Run `/help` for the complete catalog.
 
