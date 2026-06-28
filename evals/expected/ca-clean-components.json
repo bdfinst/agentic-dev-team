@@ -1,0 +1,11 @@
+{
+  "fixture": "ca-clean-components",
+  "description": "A single reusable Card primitive consumed via composition with children, session state supplied through context rather than drilled, and a consistent prop/event API. Should pass review.",
+  "applicableAgents": ["component-architecture-review"],
+  "agents": {
+    "component-architecture-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

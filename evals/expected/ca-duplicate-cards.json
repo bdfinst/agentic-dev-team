@@ -1,0 +1,15 @@
+{
+  "fixture": "ca-duplicate-cards",
+  "description": "Three near-identical card components repeating the same render subtree and the same availability rule; should be extracted into one reusable parameterized card. Duplicated behavioral rule forces multi-site edits, so it is error-level.",
+  "applicableAgents": ["component-architecture-review"],
+  "agents": {
+    "component-architecture-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": {
+        "error": { "min": 1, "max": 3 }
+      },
+      "mustMention": ["duplicat"]
+    }
+  }
+}
