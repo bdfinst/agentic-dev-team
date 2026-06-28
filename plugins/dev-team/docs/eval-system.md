@@ -9,19 +9,19 @@ use deterministic (code-based) graders for everything they can handle, use
 model-based graders only for what genuinely requires judgment, and calibrate
 both against human review.
 
-## Two eval corpora
+## Two sets of test cases
 
-This document covers the **deterministic detection corpus** (`evals/expected/`):
-does a *review agent* catch a code issue? It is graded model-free by
-`scripts/eval_grade.py` and gated in CI via `--check-corpus`.
+This document covers the **deterministic detection fixtures** (`evals/expected/`):
+does a *review agent* catch a code issue? These are graded automatically by
+`scripts/eval_grade.py` and checked in CI via `--check-corpus`.
 
-A second, complementary corpus grades **behavior, not detection** — the
+A second, complementary set grades **behavior, not detection** — the
 [Ownership Engineering suite](../../../evals/ownership-engineering/) — does a
 *team agent or workflow skill* investigate vs. escalate, decide vs. menu, prove
-vs. assert? Because that is judgment, it is **judge-graded** (LLM-as-judge or
-human), lives outside `evals/expected/` so it never enters the deterministic
-gate, and its currency is tracked by an advisory staleness alert
-(`scripts/oe_scoring_staleness.py`) that flags any subject/fixture whose inputs
+vs. assert? Because that requires judgment, it is **graded by an AI judge or a
+human reviewer**, lives outside `evals/expected/` so it never enters the
+deterministic gate, and its freshness is tracked by a staleness warning
+(`scripts/oe_scoring_staleness.py`) that flags any subject or fixture whose inputs
 changed since they were last scored. See that suite's `README.md` for the run
 procedure.
 

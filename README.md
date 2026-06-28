@@ -7,10 +7,10 @@
 Three Claude Code plugins for engineering workflows. Install one or all.
 
 - **`dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
-- **`security-assessment`** is the security companion. It adds a deterministic-first `/security-assessment` pipeline (SAST + LLM judgment + FP-reduction + exec report), a `/cross-repo-analysis` command for multi-repo attack chains, and an adversarial ML red-team harness (`/redteam-model`) for self-owned model endpoints.
+- **`security-assessment`** is the security companion. It adds a tool-first `/security-assessment` pipeline (SAST + AI judgment + false-positive filtering + executive report), a `/cross-repo-analysis` command for multi-repo attack chains, and an adversarial ML red-team harness (`/redteam-model`) for self-owned model endpoints.
 - **`marketplace-dev`** is the plugin-author's toolkit. It scaffolds new plugins and marketplaces (`/scaffold-plugin`, `/scaffold-marketplace`, `/init-plugin-eval`), audits any plugin for structural compliance (`/plugin-audit`), advises on the markdown-vs-script agent decision (`/agent-type-advisor`), and ships the migrated agent/skill authoring toolkit (`/agent-create`, `/agent-add`, `/agent-remove`).
 
-`dev-team` is the hub: it owns the primitives contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding envelope) that `security-assessment` builds on, so install `dev-team` first and add `security-assessment` when you need it. `marketplace-dev` is independent — it has no hard runtime dependency on `dev-team` and can be installed on its own to build or maintain plugins.
+`dev-team` is the foundation: it owns the shared data contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding format) that `security-assessment` builds on, so install `dev-team` first and add `security-assessment` when you need it. `marketplace-dev` is independent — it has no hard dependency on `dev-team` and can be installed on its own to build or maintain plugins.
 
 ## Plugins
 
@@ -85,7 +85,7 @@ Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook
 | **1. Tool-first detection** | semgrep, gitleaks, trivy, hadolint, actionlint, custom rulesets | unified findings stream |
 | **1b. Judgment** | `security-review`, `business-logic-domain-review` agents | appended findings |
 | **1c. Suppression** | `ACCEPTED-RISKS.md` gate (deterministic) | filtered stream + audit log |
-| **2. FP-reduction** | 5-stage rubric (reachability, environment, controls, dedup, severity) | disposition register |
+| **2. False-positive filter** | 5-stage check (reachability, environment, controls, dedup, severity) | decisions log |
 | **2b. Severity floors** | deterministic domain-class calibration | floor-adjusted scores |
 | **3. Narrative + compliance** | `tool-finding-narrative-annotator`, compliance-mapping skill | 4-domain narrative + compliance JSON |
 | **4. Cross-repo** | service-comm parser, shared-cred hash match (multi-target only) | mermaid diagram + SARIF |
@@ -93,7 +93,7 @@ Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook
 
 **Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. Auto-detects the `claude` CLI; degrades to deterministic-only when absent. See [the user guide](plugins/security-assessment/docs/user-guide-security-assessment.md) for the full runbook.
 
-**Adversarial ML red-team**: `/redteam-model` probes a self-owned model endpoint (localhost / RFC1918 by default; public targets require a signed `authorization.md`). Eight probes covering recon, evasion, extraction, and report synthesis.
+**Adversarial ML red-team**: `/redteam-model` probes a self-owned model endpoint (localhost / private network by default; public targets require a signed `authorization.md`). Eight probes covering discovery, evasion, data extraction, and report synthesis.
 
 ---
 

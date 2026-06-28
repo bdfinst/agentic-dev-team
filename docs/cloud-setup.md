@@ -8,10 +8,9 @@ fallback), see
 
 ## Why declaring the plugin isn't enough
 
-Claude enumerates every skill, agent, and slash command **once, at process
-boot.** A plugin is only visible to a session if its files are on disk *before*
-that boot. So "install the plugin" is really "get the plugin on disk before
-Claude launches."
+Claude loads every skill, agent, and slash command **once, when it starts.**
+A plugin is only visible if its files are on disk *before* that happens.
+So "install the plugin" really means "get the plugin on disk before Claude starts."
 
 That timing is the whole story:
 
@@ -20,20 +19,20 @@ That timing is the whole story:
 | **Setup script** (cloud UI) | **before** Claude boots; filesystem snapshotted & reused | **this** session ✅ |
 | **`SessionStart` hook** (`.claude/install-dev-team.sh`) | **after** Claude boots | **next** session only ⚠️ |
 
-The Setup script is the supported equivalent of a custom image (replacing the
-base image itself is not supported). The `SessionStart` hook can't beat boot
-enumeration, so it only ever lands the plugin for the *next* session — keep it as
-a fallback, not the primary path.
+The Setup script is the supported way to install software before the session
+starts (you cannot replace the underlying machine image). The `SessionStart`
+hook runs too late — the plugin it installs only takes effect in the *next*
+session — so use the Setup script as your primary path and the hook as a fallback.
 
 The `claude` CLI **is** available in cloud environments, so the install commands
 below run fine from the Setup script.
 
 ## The snippet to paste into the Setup script field
 
-claude.ai/code → Environment → **Setup script**. This is self-contained,
-existence-guarded, and always exits 0 (a non-zero Setup script **fails** session
-startup). It prefers a repo-committed bootstrap if one exists, and otherwise
-installs the plugin inline, with a no-CLI guard:
+claude.ai/code → Environment → **Setup script**. The script below checks whether
+the plugin is already installed and always exits without error (a non-zero exit
+**fails** session startup). It uses a repo-committed bootstrap when one exists,
+and otherwise installs the plugin directly:
 
 ```bash
 #!/bin/bash
@@ -58,9 +57,9 @@ If you also want this repo's test/gate toolchain (`jq`, `shellcheck`, `bats`,
 the Python dev deps, `gh`) in the same step, paste the body of
 [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) instead — it installs the
 toolchain *and* the plugin, and follows the same exit-0 discipline. It also
-installs Node 24+ and runs `npm ci`, which embeds the husky git hooks
+installs Node 24+ and runs `npm ci`, which sets up the git hooks
 (`pre-commit`, `pre-push`, `commit-msg`) so commits and pushes in the cloud
-session run the same local gates as a workstation. (Skip this only if you don't
+session run the same checks you'd run locally. (Skip this only if you don't
 intend to commit from the session — it adds a minute to setup.)
 
 ## Verify it worked
