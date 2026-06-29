@@ -1,4 +1,4 @@
-name: link-check
+name: Docs checks
 
 # Catches broken documentation links before they merge — the class of breakage a
 # deleted or renamed doc leaves behind (e.g. a nav entry or README link pointing at
@@ -22,6 +22,7 @@ permissions:
 jobs:
   # Validates the MkDocs nav: a nav entry pointing at a missing file fails the build.
   nav-integrity:
+    name: Docs nav integrity
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +48,7 @@ jobs:
   # Validates relative links and anchors inside the documentation bodies. Offline:
   # only local file links are resolved, so external link rot never flakes the gate.
   body-links:
+    name: Docs link check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
