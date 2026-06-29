@@ -108,6 +108,13 @@ case "$ADAPTER" in
     stryker_net_detect || exit 0
     stryker_net_run "$ZERO_KILLS_FILE"
     ;;
+  mutmut)
+    # shellcheck source=hooks/mutation-adapters/mutmut.sh
+    # shellcheck disable=SC1091
+    source "$SCRIPT_DIR/mutation-adapters/mutmut.sh"
+    mutmut_detect || exit 0
+    mutmut_run "$ZERO_KILLS_FILE"
+    ;;
 esac
 
 # ---------------------------------------------------------------------------
