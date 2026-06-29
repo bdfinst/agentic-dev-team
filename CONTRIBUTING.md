@@ -87,6 +87,14 @@ Scaffold a new agent (review or team) with the authoring command:
 
 Every new or changed agent/skill/hook must pass `/agent-audit`.
 
+## Documentation diagrams
+
+The docs use three diagram formats, each for a distinct purpose — match the convention when adding or editing a diagram:
+
+- **Mermaid** (` ```mermaid ` fences) — the default for flow, sequence, and architecture diagrams authored inline. It is text-based (diffs cleanly), renders on GitHub natively, and renders on the [docs site](https://docs.bryanfinster.com/) (Material loads Mermaid.js via the `pymdownx.superfences` custom fence in `mkdocs.yml`). Reuse the shared `%%{init ...}%%` theme block from an existing diagram (e.g. `plugins/dev-team/docs/model-routing.md`) so diagrams look consistent.
+- **SVG** (`plugins/dev-team/docs/diagrams/*.svg`) — reserved for the polished, hand-tuned architecture diagrams that are laid out deliberately and tuned for dark mode. Don't auto-convert these to Mermaid; edit the SVG.
+- **ASCII** (plain ` ``` ` fences) — only for directory/file trees and short inline command flows, never for boxes-and-arrows diagrams (use Mermaid for those).
+
 ## Releasing
 
 Releases are managed by [release-please](https://github.com/googleapis/release-please). Push [conventional commits](https://www.conventionalcommits.org/) to `main`:
