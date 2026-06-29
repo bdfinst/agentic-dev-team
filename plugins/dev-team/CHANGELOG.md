@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.3.4](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.3...dev-team-v8.3.4) (2026-06-29)
+
+
+### Documentation
+
+* group the skills catalog by capability, not invocation type ([#511](https://github.com/bdfinst/agentic-dev-team/issues/511)) ([ea87e20](https://github.com/bdfinst/agentic-dev-team/commit/ea87e200bff1e70aaf1db5dc5a67eee0e5f594a5))
+
 ## [8.3.3](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.2...dev-team-v8.3.3) (2026-06-29)
 
 
