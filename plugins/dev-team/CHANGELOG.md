@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.3.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.1...dev-team-v8.3.2) (2026-06-29)
+
+
+### Documentation
+
+* improve findability and trim verbosity ([#502](https://github.com/bdfinst/agentic-dev-team/issues/502)) ([fade9e0](https://github.com/bdfinst/agentic-dev-team/commit/fade9e004a0e8a0221e70ba92dfa37e2e659a58e))
+* simplify language to high school reading level ([#506](https://github.com/bdfinst/agentic-dev-team/issues/506)) ([3dc30bf](https://github.com/bdfinst/agentic-dev-team/commit/3dc30bf9784de59ae47fd436884ef107c3dc9b85))
+
 ## [8.3.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.0...dev-team-v8.3.1) (2026-06-28)
 
 
