@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.3.3](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.2...dev-team-v8.3.3) (2026-06-29)
+
+
+### Documentation
+
+* render mermaid in MkDocs and unify the diagram strategy ([#508](https://github.com/bdfinst/agentic-dev-team/issues/508)) ([dc32a63](https://github.com/bdfinst/agentic-dev-team/commit/dc32a6392566e106e4a1a428f48c7667972c3400))
+
 ## [8.3.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.1...dev-team-v8.3.2) (2026-06-29)
 
 
