@@ -1,6 +1,8 @@
 # Agentic Dev Team
 
-[![Docs](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml/badge.svg)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml)
+[![Tests](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml)
+[![Link check](https://github.com/bdfinst/agentic-dev-team/actions/workflows/link-check.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/link-check.yml)
+[![Docs](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml)
 
 📖 **[Documentation](https://docs.bryanfinster.com/)**
 
