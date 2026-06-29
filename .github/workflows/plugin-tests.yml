@@ -34,20 +34,11 @@ jobs:
       - name: Install shellcheck + jq
         run: sudo apt-get update && sudo apt-get install -y shellcheck jq
 
-      - name: Shellcheck security-assessment helper scripts
-        run: |
-          shellcheck -x plugins/security-assessment/scripts/*.sh
-
-      - name: Shellcheck test files
-        run: |
-          shellcheck tests/security-assessment/scripts/*.sh
-
-      - name: Shellcheck repo audit scripts
-        run: |
-          shellcheck scripts/audit-rules-vs-prompts.sh
-
-      - name: Run tests/security-assessment/scripts/run-all.sh
-        run: bash tests/security-assessment/scripts/run-all.sh
+      # Shellcheck (helpers, test scripts, the repo audit script) + the
+      # security-assessment shell suite — defined once in scripts/ci-local.sh so
+      # CI and the local pre-push gate run identical checks.
+      - name: Shell checks (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_shellcheck_helpers,chk_shellcheck_tests,chk_sa_shell_suite
 
   bats-tests:
     runs-on: ubuntu-latest
@@ -87,47 +78,15 @@ jobs:
       # exact references listed — the class that broke /ship's decision-defaults
       # screen. Runs before the bats suite (which also asserts it) so a failure
       # prints the offenders and fails fast.
-      - name: Run markdown reference integrity check
-        run: python3 scripts/check_md_references.py
-
-      - name: Run dev-team content tests (bats)
-        # Fans the suite's files across the runner's vCPUs via xargs -P.
-        run: |
-          bash scripts/run-bats-parallel.sh \
-            tests/repo/ \
-            tests/knowledge/ \
-            tests/agents/ \
-            tests/commands/ \
-            tests/docs/ \
-            tests/scripts/
-
-      # Skills-catalog freshness: docs/skills.md is generated from each SKILL.md's
-      # frontmatter. This fails (with a diff) if a skill was added/removed/renamed
-      # or a description edited without regenerating — the bats suite above also
-      # asserts it; this prints the drift.
-      - name: Run skills-catalog freshness check
-        run: bash plugins/dev-team/hooks/lib/build-skills-index.sh --check
-
-      # Rules-vs-prompts boundary sensor (#118): the security-review-rule-map.yaml
-      # policy must stay consistent — no class on two surfaces, every rule-surface
-      # class has fixtures + a measured fp_rate <= 10%.
-      - name: Run rules-vs-prompts audit
-        run: bash scripts/audit-rules-vs-prompts.sh
-
-      # Toolchain-free hook conformance gates. Most of tests/hooks/ needs
-      # stryker/pitest and is excluded above, but these suites are pure
-      # bash + python3 + jq, so they run here as CI gates:
-      #   - model-routing: the updatedInput PreToolUse rewrite contract
-      #     (ADR-0004) is load-bearing and depends on undocumented harness
-      #     behavior (#104).
-      #   - plugin-version: the mechanical /version resolver.
-      - name: Run toolchain-free hook conformance tests (bats)
-        run: |
-          bash scripts/run-bats-parallel.sh \
-            tests/hooks/updated_input_contract_tests.bats \
-            tests/hooks/agent_model_resolve_hook_tests.bats \
-            tests/hooks/model_resolve_tests.bats \
-            tests/hooks/plugin_version_tests.bats
+      # Markdown reference integrity, the dev-team content bats suites
+      # (tests/repo + knowledge/agents/commands/docs/scripts), skills-catalog
+      # freshness, the rules-vs-prompts boundary sensor (#118), and the
+      # toolchain-free hook-conformance bats (model-routing #104, /version) —
+      # all defined once in scripts/ci-local.sh so CI and the local pre-push
+      # gate can't drift. Tests/hooks mutation-gate suites are still excluded
+      # (they need stryker/pitest); only the pure bash+python+jq ones run.
+      - name: Content + hook-conformance checks (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_md_references,chk_bats_repo,chk_bats_content_rest,chk_skills_index,chk_rules_vs_prompts,chk_model_routing
 
   # Cost-regression gate (#140 mechanism, #171 real baseline). Isolated in its
   # own job so the read-only telemetry deploy key is never in scope for the
@@ -175,8 +134,8 @@ jobs:
       # the cross-machine rolling mean — warn-only, since a non-deterministic
       # meter must not hard-fail an unrelated code PR. Fork PRs reach here with
       # no baseline and get the self-test only.
-      - name: Run cost-regression check
-        run: bash scripts/cost-regression-check.sh
+      - name: Run cost-regression check (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_cost_regression
 
   # Per-rule semgrep fixture measurement (#124): runs semgrep over the
   # positive/negative fixtures of the 36 custom rules to MEASURE real behaviour
@@ -204,8 +163,8 @@ jobs:
       # Fails if a rule is missing a fixture, a working rule's negative fires
       # (measured fp_rate > 0.10 — the demotion trigger), a non-known-broken
       # rule's positive fires on nothing, or a known-broken entry now works.
-      - name: Measure custom semgrep rule fixtures
-        run: python3 scripts/audit-semgrep-fixtures.py
+      - name: Measure custom semgrep rule fixtures (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_semgrep_fixtures
 
   # Lightweight smoke test for the red-team harness: guards the orchestrator
   # self-bootstrap + probe-loader wiring (relative imports must resolve so the
@@ -228,5 +187,5 @@ jobs:
       - name: Install harness runtime dependency (httpx)
         run: pip install --quiet httpx
 
-      - name: Red-team harness smoke test
-        run: python3 tests/security-assessment/harness/smoke_test.py
+      - name: Red-team harness smoke test (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_harness_smoke

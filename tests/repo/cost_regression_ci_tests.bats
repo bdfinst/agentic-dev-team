@@ -52,5 +52,13 @@ EOF
 }
 
 @test "ci-cost: registered as a step in plugin-tests.yml" {
-  grep -q "cost-regression-check.sh" "$REPO_ROOT/.github/workflows/plugin-tests.yml"
+  # Wired either directly or through the shared gate (scripts/ci-local.sh's
+  # chk_cost_regression — single source of truth for CI and pre-push). For the
+  # indirect form, confirm ci-local actually maps the check to the script.
+  local wf="$REPO_ROOT/.github/workflows/plugin-tests.yml"
+  if grep -q "cost-regression-check.sh" "$wf"; then
+    return 0
+  fi
+  grep -q "chk_cost_regression" "$wf" \
+    && grep -q "chk_cost_regression.*cost-regression-check.sh" "$REPO_ROOT/scripts/ci-local.sh"
 }

@@ -39,28 +39,10 @@ jobs:
       - name: Build site
         run: mkdocs build --site-dir /tmp/site
 
+      # Same nav-integrity assertion the local gate runs (scripts/ci-local.sh's
+      # chk_nav_integrity), kept in one script so CI and pre-push can't drift.
       - name: Assert every nav entry resolves to a file
-        run: |
-          python3 - <<'PY'
-          import os, sys, yaml
-          nav = yaml.safe_load(open("mkdocs.yml"))["nav"]
-          out = "_mkdocs_src"
-          missing = []
-          def walk(node):
-              if isinstance(node, list):
-                  for item in node: walk(item)
-              elif isinstance(node, dict):
-                  for value in node.values(): walk(value)
-              elif isinstance(node, str):
-                  if not os.path.exists(os.path.join(out, node)):
-                      missing.append(node)
-          walk(nav)
-          if missing:
-              print("nav entries with no matching file under %s/:" % out)
-              for m in missing: print("  -", m)
-              sys.exit(1)
-          print("OK: every nav entry resolves to an assembled file.")
-          PY
+        run: python3 scripts/check_nav_integrity.py
 
   # Validates relative links and anchors inside the documentation bodies. Offline:
   # only local file links are resolved, so external link rot never flakes the gate.
