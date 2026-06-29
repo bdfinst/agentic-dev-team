@@ -37,10 +37,16 @@ cd "$(git rev-parse --show-toplevel)" || exit 2
 # keep their existing meaning so the pre-push hook's `ci-local.sh BASE HEAD`
 # invocation is unaffected.
 CHANGED_ONLY=0
+# --only=fn[,fn...] runs just the named checks. CI calls it so each gate job
+# invokes the same definitions this script owns (single source of truth),
+# keeping the required-status-check job names stable. The per-job tool installs
+# live in the workflow, so the global prereq gate below is skipped under --only.
+ONLY=""
 positional=()
 for arg in "$@"; do
   case "$arg" in
     --changed-only) CHANGED_ONLY=1 ;;
+    --only=*) ONLY="${arg#--only=}" ;;
     *) positional+=("$arg") ;;
   esac
 done
@@ -59,31 +65,34 @@ reset=$(tput sgr0 2>/dev/null || true)
 section() { printf '\n%s== %s ==%s\n' "$bold" "$1" "$reset"; }
 
 # --- tool prerequisites (CI installs these; require them locally too) -------
-missing=()
-for t in shellcheck bats jq python3; do
-  command -v "$t" >/dev/null 2>&1 || missing+=("$t")
-done
-if [ "${#missing[@]}" -gt 0 ]; then
-  printf '%s%sMissing required tools: %s%s\n' "$bold" "$red" "${missing[*]}" "$reset" >&2
-  printf 'Install everything the dev gates need: bash scripts/dev-setup.sh\n' >&2
-  printf '  (or, macOS only: brew install %s)\n' "${missing[*]}" >&2
-  exit 2
-fi
+# Skipped under --only: CI invokes a subset and installs exactly that subset's
+# tools per job, so a full-toolchain gate here would false-fail those jobs.
+if [ -z "$ONLY" ]; then
+  missing=()
+  for t in shellcheck bats jq python3 semgrep; do
+    command -v "$t" >/dev/null 2>&1 || missing+=("$t")
+  done
+  if [ "${#missing[@]}" -gt 0 ]; then
+    printf '%s%sMissing required tools: %s%s\n' "$bold" "$red" "${missing[*]}" "$reset" >&2
+    printf 'Install everything the dev gates need: bash scripts/dev-setup.sh\n' >&2
+    printf '  (or, macOS only: brew install %s)\n' "${missing[*]}" >&2
+    exit 2
+  fi
 
-# --- python module prerequisites (declared in requirements-dev.txt) ---------
-# Binaries alone aren't enough: several bats suites shell out to Python scripts
-# that import third-party modules. Check them up front so a missing dep fails
-# loudly here instead of as a cryptic ModuleNotFoundError mid-suite.
-py_missing=()
-# shellcheck disable=SC2043  # single entry today; kept as a list for new modules
-for m in yaml; do
-  python3 -c "import $m" >/dev/null 2>&1 || py_missing+=("$m")
-done
-if [ "${#py_missing[@]}" -gt 0 ]; then
-  printf '%s%sMissing required Python modules: %s%s\n' "$bold" "$red" "${py_missing[*]}" "$reset" >&2
-  printf 'Install the dev dependencies: python3 -m pip install -r requirements-dev.txt\n' >&2
-  printf '  (or run the one-shot setup: bash scripts/dev-setup.sh)\n' >&2
-  exit 2
+  # --- python module prerequisites (declared in requirements-dev.txt) -------
+  # Binaries alone aren't enough: several gates shell out to Python scripts that
+  # import third-party modules. Check them up front so a missing dep fails
+  # loudly here instead of as a cryptic ModuleNotFoundError mid-suite.
+  py_missing=()
+  for m in yaml httpx; do
+    python3 -c "import $m" >/dev/null 2>&1 || py_missing+=("$m")
+  done
+  if [ "${#py_missing[@]}" -gt 0 ]; then
+    printf '%s%sMissing required Python modules: %s%s\n' "$bold" "$red" "${py_missing[*]}" "$reset" >&2
+    printf 'Install the dev dependencies: python3 -m pip install -r requirements-dev.txt\n' >&2
+    printf '  (or run the one-shot setup: bash scripts/dev-setup.sh)\n' >&2
+    exit 2
+  fi
 fi
 
 # --- concurrency setup -----------------------------------------------------
@@ -130,7 +139,7 @@ fi
 # instead of running after them.
 
 chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.sh; }
-chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh; }
+chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh scripts/audit-rules-vs-prompts.sh; }
 chk_sa_shell_suite()     { bash tests/security-assessment/scripts/run-all.sh; }
 chk_bats_repo()          { run_bats tests/repo/; }
 chk_bats_content_rest()  { run_bats tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/; }
@@ -147,6 +156,17 @@ chk_oe_staleness()    { python3 scripts/oe_scoring_staleness.py --warn-only; }
 chk_citation_lint()   { python3 scripts/citation_lint.py --all; }  # advisory (#312)
 chk_md_references()   { python3 scripts/check_md_references.py; }
 chk_skills_index()    { bash plugins/dev-team/hooks/lib/build-skills-index.sh --check; }
+chk_rules_vs_prompts() { bash scripts/audit-rules-vs-prompts.sh; }
+chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
+chk_harness_smoke()    { python3 tests/security-assessment/harness/smoke_test.py; }
+# Lightweight nav gate: assemble the docs tree, then assert every mkdocs nav
+# entry resolves to a file (the breakage a deleted/renamed doc leaves behind).
+# The full mkdocs build + lychee body-link scan stay CI-only (link-check.yml) so
+# mkdocs/lychee never become local prereqs.
+chk_nav_integrity() {
+  bash scripts/assemble-docs.sh >/dev/null 2>&1 || return 1
+  python3 scripts/check_nav_integrity.py
+}
 chk_eval_semver() {
   if [ -n "$BASE" ] && [ -n "$HEAD" ]; then
     bash scripts/eval_semver_classify.sh "$BASE" "$HEAD"
@@ -172,14 +192,32 @@ CHECKS=(
   "bats — dev-team content (knowledge/agents/commands/docs/scripts)::chk_bats_content_rest"
   "bats — model-routing hook conformance::chk_model_routing"
   "cost-regression check::chk_cost_regression"
+  "semgrep rule fixtures (audit-semgrep-fixtures.py)::chk_semgrep_fixtures"
+  "red-team harness smoke (smoke_test.py)::chk_harness_smoke"
+  "rules-vs-prompts audit (audit-rules-vs-prompts.sh)::chk_rules_vs_prompts"
   "eval corpus integrity (eval_grade.py --check-corpus)::chk_eval_corpus"
   "OE scoring staleness (advisory; oe_scoring_staleness.py)::chk_oe_staleness"
   "citation drift lint (citation_lint.py, advisory)::chk_citation_lint"
   "markdown reference integrity (check_md_references.py)::chk_md_references"
   "skills catalog freshness (docs/skills.md)::chk_skills_index"
+  "nav integrity (mkdocs nav → assembled file)::chk_nav_integrity"
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"
 )
+
+# --only=fn[,fn...] : keep just the named checks (CI invokes per-job subsets).
+if [ -n "$ONLY" ]; then
+  filtered=()
+  for entry in ${CHECKS[@]+"${CHECKS[@]}"}; do
+    fn="${entry##*::}"
+    case ",$ONLY," in *",$fn,"*) filtered+=("$entry") ;; esac
+  done
+  if [ "${#filtered[@]}" -eq 0 ]; then
+    printf '%s%sNo checks matched --only=%s%s\n' "$bold" "$red" "$ONLY" "$reset" >&2
+    exit 2
+  fi
+  CHECKS=(${filtered[@]+"${filtered[@]}"})
+fi
 
 # --- dispatch (bounded FIFO pool; no `wait -n`, so portable to bash 3.2) ----
 RUNDIR="$(mktemp -d)"

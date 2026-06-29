@@ -21,9 +21,19 @@ test_workflow_exists() {
 
 test_workflow_runs_tests() {
   [[ -f "$WORKFLOW" ]] || { fail "workflow missing; prerequisite"; return; }
-  grep -q 'tests/security-assessment/scripts/run-all.sh' "$WORKFLOW" \
-    || { fail "workflow does not invoke tests/security-assessment/scripts/run-all.sh"; return; }
-  ok "workflow invokes tests/security-assessment/scripts/run-all.sh"
+  # The suite runs either directly or through the shared local gate
+  # (scripts/ci-local.sh's chk_sa_shell_suite — single source of truth for CI
+  # and pre-push). Accept either wiring, but for the indirect form confirm the
+  # ci-local check actually reaches run-all.sh so the assertion stays real.
+  local cilocal="$REPO_ROOT/scripts/ci-local.sh"
+  if grep -q 'tests/security-assessment/scripts/run-all.sh' "$WORKFLOW"; then
+    ok "workflow invokes tests/security-assessment/scripts/run-all.sh"
+  elif grep -q 'chk_sa_shell_suite' "$WORKFLOW" \
+       && grep -q 'chk_sa_shell_suite.*run-all.sh' "$cilocal"; then
+    ok "workflow invokes run-all.sh via ci-local (chk_sa_shell_suite)"
+  else
+    fail "workflow does not invoke run-all.sh (directly or via ci-local chk_sa_shell_suite)"
+  fi
 }
 
 test_workflow_runs_shellcheck() {
