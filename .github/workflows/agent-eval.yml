@@ -1,4 +1,4 @@
-name: agent-eval-gate
+name: Eval
 
 # Agent-eval regression gate (issue #99).
 #
@@ -46,7 +46,7 @@ concurrency:
 
 jobs:
   structural-gate:
-    name: Structural gate (model-free)
+    name: Eval corpus & graders
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -85,7 +85,7 @@ jobs:
     # Job name is a REQUIRED status-check context (renovate-require-tests
     # ruleset). Keep it paren-free and issue-number-free so it is stable and
     # can't be truncated mid-token when typed into branch rules. (Issue #101.)
-    name: Eval-corpus prompt-semver gate
+    name: Eval corpus semver
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
@@ -104,7 +104,7 @@ jobs:
             "${{ github.event.pull_request.head.sha }}"
 
   live-gate:
-    name: Live regression gate (model-dependent)
+    name: Eval live regression (opt-in)
     runs-on: ubuntu-latest
     needs: structural-gate
     # The live gate dispatches the agents through the bare `claude` CLI (see the
@@ -374,7 +374,7 @@ jobs:
           retention-days: 7
 
   integration-gate:
-    name: Integration eval tier (golden-repo, opt-in)
+    name: Eval integration tier (opt-in)
     runs-on: ubuntu-latest
     needs: structural-gate
     # Opt-in tier (#313): dispatches the orchestrator in an ephemeral worktree
