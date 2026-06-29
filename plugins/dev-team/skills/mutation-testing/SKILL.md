@@ -97,6 +97,14 @@ python3 /path/to/nextgen-test-upgrade-process/scripts/stryker-pipeline.py
 
 Run scoped to user-specified files or changed files. Per-language commands: `references/tool-setup.md`. Capture full output and note HTML report paths.
 
+**C# repos — check for shard configs before running.** `dotnet stryker` on a large C# solution takes 60–90 min and will time out. Before running:
+
+1. Check for `stryker-config.shard-*.json` files in the repo root.
+2. **If shard configs exist:**
+   - *Single file in `--scope`* — find the shard whose `mutate` prefix covers that file (see the bash helper in `references/tool-setup.md`) and run with `--config-file <shard> --mutate "**/File.cs" --coverage-analysis perTest`. Completes in 5–15 min.
+   - *Full scan (no `--scope`, or whole-repo convergence)* — run `python3 /path/to/nextgen-test-upgrade-process/scripts/stryker-pipeline.py --skip-agent`. It runs each shard sequentially and writes per-shard reports to `StrykerOutput/shards/`. Aggregate the JSON reports for the total score.
+3. **If no shard configs exist** — offer to run `stryker-setup.py` before proceeding (see `references/tool-setup.md` for the command). A full unscoped `dotnet stryker` on a large repo will time out; generating shard configs first is the fix, not extending the timeout.
+
 ## Step 3: Parse results
 
 Extract surviving mutants. Map each to:
