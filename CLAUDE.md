@@ -29,7 +29,7 @@ evals/                             # Agent eval fixtures (not shipped)
 reports/                           # Review reports (not shipped)
 ```
 
-Two repo-level guides distill the marketplace conventions:
+Two guides explain how the marketplace works:
 
 - [`docs/marketplace-builder-plugin-playbook.md`](docs/marketplace-builder-plugin-playbook.md) — how to build a plugin that scaffolds/audits/maintains marketplace monorepos (shipping hygiene, portability, testing, release/catalog sync).
 - [`docs/using-plugin-skills-in-the-web-environment.md`](docs/using-plugin-skills-in-the-web-environment.md) — how to use a plugin's skills from a Claude Code web session.
@@ -45,7 +45,7 @@ The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these t
 - CLI: `shellcheck`, `bats`, `jq`, `python3` (macOS: `brew install shellcheck bats-core jq python3`)
 - Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML is required — several bats suites shell out to Python scripts that import it; semgrep for the security-assessment suites; httpx for the red-team harness smoke test).
 
-**One-shot setup:** `bash scripts/dev-setup.sh` validates this toolchain and installs anything missing (Homebrew on macOS, apt-get on Debian/Ubuntu, then the `requirements-dev.txt` deps). It is idempotent — safe to re-run.
+**One-shot setup:** `bash scripts/dev-setup.sh` validates this toolchain and installs anything missing (Homebrew on macOS, apt-get on Debian/Ubuntu, then the `requirements-dev.txt` deps). Safe to re-run.
 
 `ci-local.sh` checks these up front and exits with an actionable message (pointing at `dev-setup.sh`) if any are missing.
 
@@ -54,7 +54,7 @@ The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these t
 Every shell script — both the dev/CI scripts and the ones shipped inside the plugins — is `bash` and must run on **macOS, Linux, and Windows**. Conventions:
 
 - **macOS** ships bash 3.2, so stay 3.2-safe: no `mapfile`/`readarray`, `declare -A`, `${var,,}`, or `wait -n`; expand possibly-empty arrays with the empty-safe idiom `${arr[@]+"${arr[@]}"}` (bare `"${arr[@]}"` under `set -u` aborts on 3.2).
-- **BSD vs GNU coreutils**: avoid GNU-only flags (`readlink -f`, `sed -i` semantics, `date +%N`, `stat -c`, `find -printf`, `timeout`) or guard them with a fallback (e.g. `recon-inventory.sh`'s `readlink -f || python3`, `_lib.sh`'s `date +%s%3N || python3`, `mutation-adapters/lib.sh`'s `timeout`→`gtimeout`→unbounded).
+- **macOS vs Linux command differences**: avoid Linux-only flags (`readlink -f`, `sed -i` semantics, `date +%N`, `stat -c`, `find -printf`, `timeout`) or guard them with a fallback (e.g. `recon-inventory.sh`'s `readlink -f || python3`, `_lib.sh`'s `date +%s%3N || python3`, `mutation-adapters/lib.sh`'s `timeout`→`gtimeout`→unbounded).
 - **Windows = Git Bash.** Native `cmd.exe`/PowerShell are not targets; the plugin's hooks and helper scripts run under [Git Bash](https://git-scm.com/download/win) (the POSIX shell Claude Code uses for its Bash tool on Windows). Each plugin's `install.sh` detects Windows-without-Git-Bash and tells the user to install it; `scripts/dev-setup.sh` does the same for contributors.
 
 ### Testing locally
@@ -88,7 +88,7 @@ Releases are managed by release-please. Push conventional commits to main:
 
 A release PR is opened automatically. Merging it creates a GitHub Release with a version tag.
 
-**Squash-merge titles must be conventional.** This repo squash-merges PRs, so the **PR title becomes the commit subject** that release-please reads — and `release-type: simple` classifies off the *subject*, not the body. A PR titled `Add X` (no `feat:`/`fix:` prefix) is invisible to release-please and silently skips the version bump, even when its squashed body contains conventional commits. Title every PR conventionally. To recover a release that was missed this way, land a follow-up commit carrying a `Release-As: X.Y.Z` footer.
+**Squash-merge titles must be conventional.** This repo squash-merges PRs, so the **PR title is the only thing release-please reads** for the version bump — not the commit messages in the body. A PR titled `Add X` (no `feat:`/`fix:` prefix) is invisible to release-please and silently skips the version bump, even when its squashed body contains conventional commits. Title every PR conventionally. To recover a release that was missed this way, land a follow-up commit carrying a `Release-As: X.Y.Z` footer.
 
 ## Cloud sessions (claude.ai/code)
 
@@ -98,8 +98,8 @@ cloud **UI** (not a repo file) — see
 [Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web).
 
 **Install the plugin via the Setup script (loads this session).** Claude
-enumerates skills/agents/commands once, at boot, so the plugin must be on disk
-*before* Claude launches. The environment **Setup script** (cloud UI) runs
+loads all skills, agents, and commands once when it starts, so the plugin must
+be on disk *before* Claude launches. The environment **Setup script** (cloud UI) runs
 pre-boot and its filesystem is snapshotted and reused — installing the plugin
 there makes it load in the **same** session. The `claude` CLI **is** available in
 cloud environments. Paste the body of [`.claude/cloud-setup.sh`](.claude/cloud-setup.sh)

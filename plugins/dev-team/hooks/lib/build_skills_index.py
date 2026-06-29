@@ -31,23 +31,31 @@ import yaml
 PLUGIN_DIR = Path(__file__).resolve().parents[2]  # lib -> hooks -> dev-team
 SKILLS_DIR = Path(os.environ.get("SKILLS_INDEX_SKILLS_DIR", PLUGIN_DIR / "skills"))
 OUTPUT = Path(os.environ.get("SKILLS_INDEX_OUTPUT", PLUGIN_DIR / "docs" / "skills.md"))
+CATEGORIES_FILE = Path(
+    os.environ.get(
+        "SKILLS_INDEX_CATEGORIES",
+        Path(__file__).resolve().parent / "skill_categories.yaml",
+    )
+)
+OTHER = "Other"
 
 HEADER = """\
 # Skills
 
 <!-- GENERATED FILE — do not edit by hand.
-     Source: each plugins/dev-team/skills/<name>/SKILL.md frontmatter (name, description).
+     Rows: each plugins/dev-team/skills/<name>/SKILL.md frontmatter (name, description).
+     Grouping: plugins/dev-team/hooks/lib/skill_categories.yaml (by capability).
      Regenerate: bash plugins/dev-team/hooks/lib/build-skills-index.sh
      A CI freshness gate (--check) fails if this file drifts from the skills on disk. -->
 
 Skills are the unified reusable capability layer in this system. Every skill lives \
-in `skills/<name>/SKILL.md`; its frontmatter sorts it into one of two sub-types:
+in `skills/<name>/SKILL.md`. This catalog groups them **by capability** (the \
+sections below); each row's description is the skill's own frontmatter \
+`description`, verbatim.
 
-- **User-invocable skills** (`user-invocable: true`) — slash-command workflows \
-(e.g. `/code-review`), run under Orchestrator direction.
-- **Agent-loaded skills** — knowledge modules an agent reads for domain expertise.
-
-Each row's description is the skill's own frontmatter `description`, verbatim.
+Most skills are **user-invocable** as slash commands — shown as `/name`; run them \
+directly or let the Orchestrator dispatch them. The rest are **agent-loaded** \
+knowledge modules — shown as a plain `name` — that agents read for domain expertise.
 """
 
 
@@ -80,8 +88,20 @@ def _cell(text: str) -> str:
     return " ".join(str(text).split()).replace("|", "\\|")
 
 
+def _load_categories():
+    """Ordered [(category_name, [skill, ...]), ...] from skill_categories.yaml."""
+    data = yaml.safe_load(CATEGORIES_FILE.read_text(encoding="utf-8")) or {}
+    return [(c["name"], list(c.get("skills") or [])) for c in (data.get("categories") or [])]
+
+
 def _collect():
-    invocable, agent_loaded = [], []
+    """Group skills by capability. Returns ordered [(category, rows), ...] where each
+    row is (name, folder, link, desc, slash). A skill whose folder isn't in the
+    taxonomy lands in a trailing `Other` section so it stays visible in the diff."""
+    cats = _load_categories()
+    order = [name for name, _ in cats]
+    lookup = {skill: name for name, skills in cats for skill in skills}
+    buckets = {name: [] for name in order}
     for skill_md in sorted(SKILLS_DIR.glob("*/SKILL.md")):
         folder = skill_md.parent.name
         fm = _frontmatter(skill_md)
@@ -90,26 +110,29 @@ def _collect():
         name = str(fm.get("name") or folder)
         desc = _cell(fm["description"])
         link = f"[`{folder}/SKILL.md`](../skills/{folder}/SKILL.md)"
-        row = (name, folder, link, desc)
-        (invocable if fm.get("user-invocable") is True else agent_loaded).append(row)
-    invocable.sort(key=lambda r: r[1])
-    agent_loaded.sort(key=lambda r: r[1])
-    return invocable, agent_loaded
+        slash = fm.get("user-invocable") is True
+        buckets.setdefault(lookup.get(folder, OTHER), []).append((name, folder, link, desc, slash))
+    display = [(name, buckets[name]) for name in order if buckets.get(name)]
+    if buckets.get(OTHER):
+        display.append((OTHER, buckets[OTHER]))
+    for _name, rows in display:
+        rows.sort(key=lambda r: r[1])
+    return display
 
 
-def _table(rows, slash: bool) -> str:
+def _table(rows) -> str:
     head = "| Skill | File | Description |\n| --- | --- | --- |\n"
     body = []
-    for name, _folder, link, desc in rows:
+    for name, _folder, link, desc, slash in rows:
         label = f"`/{name}`" if slash else name
         body.append(f"| {label} | {link} | {desc} |")
     return head + "\n".join(body) + "\n"
 
 
 def build() -> str:
-    invocable, agent_loaded = _collect()
-    parts = [HEADER, "", "## User-invocable skills", "", _table(invocable, slash=True)]
-    parts += ["", "## Agent-loaded skills", "", _table(agent_loaded, slash=False)]
+    parts = [HEADER]
+    for cat_name, rows in _collect():
+        parts += ["", f"## {cat_name}", "", _table(rows)]
     return "\n".join(parts).rstrip("\n") + "\n"
 
 

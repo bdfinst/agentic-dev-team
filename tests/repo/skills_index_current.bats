@@ -71,3 +71,28 @@ BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-skills-index.sh"
   SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" bash "$BUILDER"
   grep -q 'alpha \\| beta' "$OUT"
 }
+
+@test "catalog is grouped by capability, not by invocation type" {
+  md="$REPO_ROOT/plugins/dev-team/docs/skills.md"
+  grep -q '^## Specs & Planning' "$md"
+  grep -q '^## Testing & Coverage' "$md"
+  grep -q '^## Harness Governance & Tuning' "$md"
+  # the old invocation-type sections are gone
+  ! grep -q '^## User-invocable skills' "$md"
+  ! grep -q '^## Agent-loaded skills' "$md"
+}
+
+@test "a skill outside the taxonomy lands in a trailing Other section" {
+  FIX="${BATS_TEST_TMPDIR:-$BATS_TMPDIR}/skills-other"
+  rm -rf "$FIX"; mkdir -p "$FIX/skills/known" "$FIX/skills/stray"
+  printf -- '---\nname: known\ndescription: Known.\nuser-invocable: true\n---\n' > "$FIX/skills/known/SKILL.md"
+  printf -- '---\nname: stray\ndescription: Stray.\nuser-invocable: true\n---\n' > "$FIX/skills/stray/SKILL.md"
+  printf 'categories:\n  - name: Demo\n    skills: [known]\n' > "$FIX/cats.yaml"
+  OUT="$FIX/skills.md"
+  SKILLS_INDEX_SKILLS_DIR="$FIX/skills" SKILLS_INDEX_OUTPUT="$OUT" \
+    SKILLS_INDEX_CATEGORIES="$FIX/cats.yaml" bash "$BUILDER"
+  grep -q '^## Demo' "$OUT"
+  grep -q '^## Other' "$OUT"
+  grep -q '`/known`' "$OUT"
+  grep -q '`/stray`' "$OUT"
+}

@@ -9,37 +9,31 @@ use deterministic (code-based) graders for everything they can handle, use
 model-based graders only for what genuinely requires judgment, and calibrate
 both against human review.
 
-## Two eval corpora
+## Two sets of test cases
 
-This document covers the **deterministic detection corpus** (`evals/expected/`):
-does a *review agent* catch a code issue? It is graded model-free by
-`scripts/eval_grade.py` and gated in CI via `--check-corpus`.
+This document covers the **deterministic detection fixtures** (`evals/expected/`):
+does a *review agent* catch a code issue? These are graded automatically by
+`scripts/eval_grade.py` and checked in CI via `--check-corpus`.
 
-A second, complementary corpus grades **behavior, not detection** — the
+A second, complementary set grades **behavior, not detection** — the
 [Ownership Engineering suite](../../../evals/ownership-engineering/) — does a
 *team agent or workflow skill* investigate vs. escalate, decide vs. menu, prove
-vs. assert? Because that is judgment, it is **judge-graded** (LLM-as-judge or
-human), lives outside `evals/expected/` so it never enters the deterministic
-gate, and its currency is tracked by an advisory staleness alert
-(`scripts/oe_scoring_staleness.py`) that flags any subject/fixture whose inputs
+vs. assert? Because that requires judgment, it is **graded by an AI judge or a
+human reviewer**, lives outside `evals/expected/` so it never enters the
+deterministic gate, and its freshness is tracked by a staleness warning
+(`scripts/oe_scoring_staleness.py`) that flags any subject or fixture whose inputs
 changed since they were last scored. See that suite's `README.md` for the run
 procedure.
 
 ## Architecture
 
-```text
-┌──────────────────────────────────────────────────┐
-│              User Workflows                      │
-│  /code-review  /review-agent  /apply-fixes       │
-└──────────────────┬───────────────────────────────┘
-                   │
-        ┌──────────┼──────────┐
-        ▼          ▼          ▼
-┌──────────┐ ┌──────────┐ ┌──────────┐
-│ Layer 1  │ │ Layer 2  │ │ Layer 3  │
-│ Hooks    │ │ Agents   │ │ Human    │
-│ (determ.)│ │ (model)  │ │ (review) │
-└──────────┘ └──────────┘ └──────────┘
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e0f2fe', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#2563eb', 'clusterBkg': '#eff6ff', 'clusterBorder': '#bfdbfe', 'titleColor': '#1e3a5f', 'edgeLabelBackground': '#f8fafc'}}}%%
+flowchart TD
+    UW["User Workflows<br/>/code-review · /review-agent · /apply-fixes"]
+    UW --> L1["Layer 1 · Hooks<br/>(deterministic)"]
+    UW --> L2["Layer 2 · Agents<br/>(model)"]
+    UW --> L3["Layer 3 · Human<br/>(review)"]
 ```
 
 ## Grader Layers
