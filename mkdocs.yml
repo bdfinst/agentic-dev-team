@@ -58,7 +58,13 @@ plugins:
 markdown_extensions:
     - admonition
     - pymdownx.details
-    - pymdownx.superfences
+    - pymdownx.superfences:
+          # Render ```mermaid fences as diagrams. Material for MkDocs loads
+          # Mermaid.js automatically once this custom fence is declared.
+          custom_fences:
+              - name: mermaid
+                class: mermaid
+                format: !!python/name:pymdownx.superfences.fence_code_format
     - pymdownx.highlight:
           anchor_linenums: true
     - pymdownx.inlinehilite

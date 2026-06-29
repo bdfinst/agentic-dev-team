@@ -16,6 +16,13 @@ import yaml
 OUT = "_mkdocs_src"
 CONFIG = "mkdocs.yml"
 
+# mkdocs.yml carries the !!python/name: tag (e.g. the superfences mermaid fence
+# format). SafeLoader rejects it, so register a no-op multi-constructor — this
+# script only reads the nav, never those values.
+yaml.SafeLoader.add_multi_constructor(
+    "tag:yaml.org,2002:python/name:", lambda loader, suffix, node: None
+)
+
 
 def collect_missing(node, missing):
     if isinstance(node, list):
