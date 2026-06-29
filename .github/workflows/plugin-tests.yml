@@ -1,4 +1,4 @@
-name: plugin-tests
+name: Tests
 
 on:
   push:
@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   shell-tests:
+    name: Shell scripts & suite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -41,6 +42,7 @@ jobs:
         run: bash scripts/ci-local.sh --only=chk_shellcheck_helpers,chk_shellcheck_tests,chk_sa_shell_suite
 
   bats-tests:
+    name: Plugin content & hooks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -60,9 +62,9 @@ jobs:
       - name: Install bats + jq
         # Across-file parallelism comes from scripts/run-bats-parallel.sh
         # (xargs -P, built into the runner) — no GNU `parallel` package needed,
-        # so local pre-push and CI use the exact same portable mechanism. Job
-        # topology is unchanged so the `bats-tests` required-status-check name
-        # stays stable.
+        # so local pre-push and CI use the exact same portable mechanism. The
+        # job id stays `bats-tests`; its required-status-check context is the
+        # job name "Plugin content & hooks".
         run: sudo apt-get update && sudo apt-get install -y bats jq python3-yaml
 
       # Content-validation suites: repo invariants, knowledge-index shape,
@@ -93,6 +95,7 @@ jobs:
   # broader test jobs. The self-test step always runs (blocking); the telemetry
   # clone + real cross-machine baseline only run where the secret is available.
   cost-regression:
+    name: Cost regression
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -142,6 +145,7 @@ jobs:
   # (not just file presence, which the bats job covers). Heavier than the
   # bats/jq/python gate — semgrep install — so it is its own job.
   semgrep-fixtures:
+    name: Semgrep rule fixtures
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -172,6 +176,7 @@ jobs:
   # --dry-run path, so the sole runtime dep is httpx (numpy/scipy/scikit-learn
   # are used lazily inside probe run() bodies the smoke test never reaches).
   harness-smoke:
+    name: Red-team harness smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
