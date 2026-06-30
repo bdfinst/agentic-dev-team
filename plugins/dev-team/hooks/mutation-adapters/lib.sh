@@ -250,7 +250,7 @@ PYEOF
 }
 
 # ---------------------------------------------------------------------------
-# detect_adapter COMMAND — prints adapter name: stryker | pitest | stryker-net | none
+# detect_adapter COMMAND — prints adapter name: stryker | pitest | stryker-net | mutmut | none
 # ---------------------------------------------------------------------------
 detect_adapter() {
   local cmd="$1"
@@ -259,6 +259,8 @@ detect_adapter() {
     mvn\ test*|mvn\ verify*|./mvnw\ test*|./mvnw\ verify*|mvnw\ test*|\
     gradle\ test*|./gradlew\ test*|gradlew\ test*) echo "pitest" ;;
     dotnet\ test*) echo "stryker-net" ;;
+    python\ *pytest*|python3\ *pytest*|pytest\ *|python\ *unittest*|\
+    python3\ *unittest*|python\ -m\ pytest*|python3\ -m\ pytest*) echo "mutmut" ;;
     *) echo "none" ;;
   esac
 }
