@@ -34,6 +34,10 @@ STEP_PATTERN = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
 # Matches backtick-quoted paths in plan text (declared file references)
 BACKTICK_PATH_RE = re.compile(r"`([^`\s]+\.[a-zA-Z0-9_]+)`")
 
+# Matches a slice's `**Files:** ...` declaration line. Captures the
+# remainder of the line so BACKTICK_PATH_RE can extract the paths from it.
+SLICE_FILES_RE = re.compile(r"^\*\*Files:\*\*\s*(.+)$")
+
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -126,34 +130,138 @@ def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
     return steps, []
 
 
-def check_commit_discipline(steps: List[Step], repo_root: str) -> List[dict]:
-    """For each done step, verify a matching commit exists in git log.
+def _parse_slice_files(plan_text: str, slice_header: str) -> List[str]:
+    """Return backtick-quoted paths from the `**Files:**` line that follows
+    the slice declaring `slice_header`. Empty list when not found.
 
-    Matching: case-insensitive substring of step header in commit subject line.
+    The slice block is the run of lines starting at the heading whose text
+    contains `slice_header` (after the STEP_PATTERN match strips the
+    `- [x] Step N.M: ` prefix), and ending at the next blank line followed
+    by another `- [` checkbox, or at the next `## ` H2. We scan forward
+    looking for a `**Files:**` line within that block.
+    """
+    lines = plan_text.splitlines()
+    in_block = False
+    for raw in lines:
+        line = raw.rstrip()
+        # Start the block when we see the checkbox line whose header matches.
+        m = STEP_PATTERN.match(line)
+        if m:
+            header = m.group(2).strip()
+            if header == slice_header:
+                in_block = True
+                continue
+            if in_block:
+                # A different checkbox closes the block.
+                break
+        if not in_block:
+            continue
+        # Within the block: stop at next H2.
+        if line.startswith("## "):
+            break
+        # Look for the **Files:** line.
+        fm = SLICE_FILES_RE.match(line)
+        if fm:
+            return BACKTICK_PATH_RE.findall(fm.group(1))
+    return []
+
+
+def _branch_base_sha(repo_root: str) -> Optional[str]:
+    """Resolve the branch base SHA (the merge-base with trunk).
+
+    Prefers remote tracking refs over local refs — local main lags
+    origin/main the moment any work begins. Returns None when no
+    trunk-like ref resolves to a divergence point; callers should
+    treat None as "no meaningful branch base — use whole history."
+    See issue #525.
+    """
+    head_sha = run_git(["rev-parse", "HEAD"], repo_root).strip()
+    for branch in ("origin/main", "origin/master", "main", "master"):
+        out = run_git(["merge-base", "HEAD", branch], repo_root).strip()
+        if out and out != head_sha:
+            return out
+    return None
+
+
+def check_commit_discipline(
+    steps: List[Step], repo_root: str, plan_text: str = ""
+) -> List[dict]:
+    """For each done step, verify a matching commit exists on this branch.
+
+    Two strategies, tried in order per step:
+      1. **File-path match (preferred).** When the slice declares
+         `**Files:** ...`, pass when any commit since the branch base
+         touched one of the declared files. This decouples the gate
+         from commit-subject wording so Conventional Commits work.
+      2. **Substring fallback.** When the slice has no `**Files:**`
+         line (legacy plans), pass when any commit subject since the
+         branch base contains the slice header. Same matcher as before,
+         but scoped to `<base>..HEAD` so both strategies see the same
+         commit range (cannot diverge — see issue #525).
+
     Returns error findings for any done step with no matching commit.
     """
     done_steps = [s for s in steps if s.done]
     if not done_steps:
         return []
 
-    log_output = run_git(["log", "--oneline", "--no-merges", "HEAD"], repo_root)
-    if not log_output.strip():
-        # Zero commits — emit a warning (repo may be fresh), not a hard error
+    base_sha = _branch_base_sha(repo_root)
+
+    # Build the commit range. When no base resolves (orphan HEAD), fall
+    # back to whole-history matching so legacy behavior is preserved.
+    if base_sha:
+        range_arg = f"{base_sha}..HEAD"
+        log_subjects_out = run_git(
+            ["log", "--no-merges", "--format=%s", range_arg], repo_root
+        )
+    else:
+        range_arg = "HEAD"
+        log_subjects_out = run_git(
+            ["log", "--no-merges", "--format=%s", "HEAD"], repo_root
+        )
+    if not log_subjects_out.strip():
+        # Zero commits on this branch — emit a warning, not a hard error.
         return [
             _make_warning(
-                message="No commits found in git log — cannot verify commit discipline.",
+                message="No commits found on this branch — cannot verify commit discipline.",
                 suggested_fix="Commit work before marking steps done.",
             )
         ]
-
-    log_lines = log_output.strip().splitlines()
-    # Strip the short hash prefix from each line for matching
     commit_subjects = [
-        " ".join(line.split()[1:]).lower() for line in log_lines if line.strip()
+        s.lower() for s in log_subjects_out.strip().splitlines() if s.strip()
     ]
+
+    # Collect file paths touched by commits in the range (file-path path).
+    if base_sha:
+        diff_out = run_git(["diff", "--name-only", range_arg], repo_root)
+    else:
+        diff_out = run_git(
+            ["log", "--name-only", "--pretty=format:", "HEAD"], repo_root
+        )
+    branch_files = {p for p in diff_out.strip().splitlines() if p.strip()}
 
     errors: List[dict] = []
     for step in done_steps:
+        declared = _parse_slice_files(plan_text, step.header) if plan_text else []
+        if declared:
+            # File-path path: pass when any declared path was touched on this branch.
+            if any(p in branch_files for p in declared):
+                continue
+            errors.append(
+                _make_error(
+                    message=(
+                        f"Done step '{step.header}' has no matching commit in git log. "
+                        f"Expected a commit on this branch that touched one of: "
+                        f"{', '.join(declared)}"
+                    ),
+                    suggested_fix=(
+                        f"Commit your work touching one of the declared files "
+                        f"({', '.join(declared)}) before marking '{step.header}' done."
+                    ),
+                )
+            )
+            continue
+        # Substring fallback: no `**Files:**` declared.
         header_lower = step.header.lower()
         if not any(header_lower in subject for subject in commit_subjects):
             errors.append(
@@ -241,20 +349,13 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
     text = plan_path.read_text(encoding="utf-8")
     declared_paths = set(BACKTICK_PATH_RE.findall(text))
 
-    # Find the base commit: try merge-base with main/master, fall back to root commit.
-    # Skip candidates where merge-base == HEAD (we ARE on that branch — no divergence).
-    head_sha = run_git(["rev-parse", "HEAD"], repo_root).strip()
-    base_ref = ""
-    # Prefer remote tracking refs over local refs — local main lags origin/main
-    # the moment any work begins, and the resulting merge-base would sweep in
-    # every commit landed on trunk while the contributor was working. See #525.
-    for branch in ("origin/main", "origin/master", "main", "master"):
-        out = run_git(["merge-base", "HEAD", branch], repo_root).strip()
-        if out and out != head_sha:
-            base_ref = out
-            break
+    # Single source of truth for base-ref resolution — shared with
+    # check_commit_discipline so the two checks cannot drift on what
+    # counts as "trunk" (see issue #525). When no meaningful divergence
+    # point exists (no remote, no local trunk), fall back to the root
+    # commit so check_scope can still flag every file touched in the repo.
+    base_ref = _branch_base_sha(repo_root)
     if not base_ref:
-        # Fall back to the very first commit (root) — captures all changes in the repo
         base_ref = run_git(["rev-list", "--max-parents=0", "HEAD"], repo_root).strip()
 
     # Collect files changed in commits since base_ref
@@ -393,6 +494,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     steps, parse_errors = parse_plan(plan_path)
     errors.extend(parse_errors)
 
+    # Pre-read the plan text once so check_commit_discipline can locate
+    # per-slice `**Files:**` declarations (file-path matcher path).
+    plan_text = plan_path.read_text(encoding="utf-8")
     if not parse_errors:
         # 2. Uncommitted change check (always runs; ignore the plan file itself)
         uncommitted_issues = check_uncommitted(
@@ -401,7 +505,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         errors.extend(uncommitted_issues)
 
         # 3. Commit discipline (runs regardless of uncommitted state — both issues matter)
-        commit_issues = check_commit_discipline(steps, repo_root)
+        commit_issues = check_commit_discipline(steps, repo_root, plan_text)
         for issue in commit_issues:
             if issue["severity"] == "error":
                 errors.append(issue)

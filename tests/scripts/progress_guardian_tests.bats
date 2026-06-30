@@ -347,3 +347,80 @@ setup_stale_main_repo() {
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }
+
+# ---------------------------------------------------------------------------
+# Step 4.2 — Issue #525 regressions: file-path matcher
+# Bug: check_commit_discipline required a substring of the slice header in
+# the commit subject. Conventional Commits (mandated by CLAUDE.md) never
+# contain plan-step header text verbatim, so the gate fired on every
+# normally-disciplined branch.
+#
+# Fix: parse each [x] slice's `**Files:**` line, then for each declared
+# path check whether any commit on this branch touched it. Fall back to
+# the substring matcher when no `**Files:**` line is declared (legacy
+# plans + the existing 11 tests).
+# ---------------------------------------------------------------------------
+
+@test "4.2a: Conventional Commit on declared file satisfies the matcher" {
+  T="$(mktemp -d)"
+  cd "$T"
+  git init -q
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  git commit -q --allow-empty -m "chore: initial"
+  echo "branch work" > a.py
+  git add a.py
+  # Conventional Commit subject that does NOT substring-match the slice header.
+  git commit -q -m "feat(scope): wording unrelated to the slice header"
+  PLAN="$T/plan.md"
+  printf '%s\n' "- [x] Slice 1: do thing" "" "**Files:** \`a.py\`" > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
+}
+
+@test "4.2b: commit touches one of multiple declared files (any-of semantics)" {
+  T="$(mktemp -d)"
+  cd "$T"
+  git init -q
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  git commit -q --allow-empty -m "chore: initial"
+  echo "branch work" > b.py
+  git add b.py
+  git commit -q -m "feat: anything"
+  PLAN="$T/plan.md"
+  printf '%s\n' "- [x] Slice 1: do thing" "" "**Files:** \`a.py\`, \`b.py\`" > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
+}
+
+@test "4.2c: commit modifies only undeclared files; matcher fails naming the slice" {
+  T="$(mktemp -d)"
+  cd "$T"
+  git init -q
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  git commit -q --allow-empty -m "chore: initial"
+  echo "branch work" > b.py
+  git add b.py
+  git commit -q -m "feat: anything"
+  PLAN="$T/plan.md"
+  printf '%s\n' "- [x] Slice 1: do thing" "" "**Files:** \`a.py\`" > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 1 ]
+  # Exactly one commit-discipline error whose message includes the slice header.
+  echo "$output" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+errs = [i for i in d['issues'] if i['severity'] == 'error' and 'Slice 1: do thing' in i['message']]
+assert len(errs) == 1, d
+"
+}
