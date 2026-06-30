@@ -1885,8 +1885,12 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job).",
+      "summary": "Resolve the project's stack so the assessment can resolve concrete tools from `knowledge/test-stack-profiles/<stack>.md`.",
       "anchor": "steps"
+    },
+    "0. Detect stack": {
+      "summary": "Resolve the project's stack so the assessment can resolve concrete tools from `knowledge/test-stack-profiles/<stack>.md`.",
+      "anchor": "0-detect-stack"
     },
     "1. Inventory the application's components": {
       "summary": "Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job).",

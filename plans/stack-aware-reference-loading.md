@@ -317,26 +317,26 @@ No `complex` steps. The plan touches one high-reversal-cost axis (Scope — kept
 
 #### Wave 1
 
-- [ ] Slice 1: Wire stack detection into `test-smell-review`
-  - [ ] Step 1.1: Add per-target bats file with the full assertion set for `test-smell-review`
-- [ ] Slice 2: Wire stack detection + `--stack` into `cd-test-architecture`
-  - [ ] Step 2.1: Add per-target bats file with the full assertion set for `cd-test-architecture`
-- [ ] Slice 3: Wire `--stack` passthrough into `test-modernize`
-  - [ ] Step 3.1: Add per-target bats file with the full assertion set for `test-modernize`
+- [x] Slice 1: Wire stack detection into `test-smell-review`
+  - [x] Step 1.1: Add per-target bats file with the full assertion set for `test-smell-review`
+- [x] Slice 2: Wire stack detection + `--stack` into `cd-test-architecture`
+  - [x] Step 2.1: Add per-target bats file with the full assertion set for `cd-test-architecture`
+- [x] Slice 3: Wire `--stack` passthrough into `test-modernize`
+  - [x] Step 3.1: Add per-target bats file with the full assertion set for `test-modernize`
 
 #### Wave 2
 
-- [ ] Slice 4: Manual verification on a .NET fixture
-  - [ ] Step 4.1: Add the .NET smoke fixture
-  - [ ] Step 4.2: Capture verification evidence in the PR body draft
+- [x] Slice 4: Manual verification on a .NET fixture
+  - [x] Step 4.1: Add the .NET smoke fixture
+  - [x] Step 4.2: Capture verification evidence in the PR body draft
 
 ### Acceptance Criteria
 
-- [ ] A1: test-smell-review wired (Knowledge Files + Detect cross-ref + negative-grep clean + fallback wording)
-- [ ] A2: cd-test-architecture wired (`--stack` flag + Step 0 detection + cite-in-output + negative-grep clean)
-- [ ] A3: test-modernize wired (Step-0 detect + Phase-1 `--stack` passthrough + argument-hint + negative-grep clean)
-- [ ] A4: Pattern parity with test-design-advisor (PR description side-by-side)
-- [ ] A5: Manual .NET verification (two report excerpts in PR body)
+- [x] A1: test-smell-review wired (Knowledge Files + Detect cross-ref + negative-grep clean + fallback wording)
+- [x] A2: cd-test-architecture wired (`--stack` flag + Step 0 detection + cite-in-output + negative-grep clean)
+- [x] A3: test-modernize wired (Step-0 detect + Phase-1 `--stack` passthrough + argument-hint + negative-grep clean)
+- [x] A4: Pattern parity with test-design-advisor (PR description side-by-side)
+- [x] A5: Manual .NET verification (two report excerpts in PR body)
 - [ ] A6: CI/eval pass (agent-audit, ci-local, release-please-ready title, `--no-auto-merge`)
 
 ## Plan Review Summary
