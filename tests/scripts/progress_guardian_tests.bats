@@ -549,3 +549,41 @@ for i in errs:
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }
+
+# ---------------------------------------------------------------------------
+# Step 4.4 — Issue #525 end-to-end: realistic plan with all three patterns
+# Smoke test that all three Slices compose: origin/main ahead of local main,
+# Conventional Commit subject that does NOT substring-match the slice
+# header, **Files:** line driving the file-path matcher, AND a separate
+# `## Acceptance Criteria` section the gate must ignore.
+# ---------------------------------------------------------------------------
+
+@test "4.4: realistic plan with all three #525 patterns passes the pre-PR gate" {
+  T="$(mktemp -d)"
+  WORK="$T/work"
+  setup_stale_main_repo "$WORK" "unrelated.py"
+  cd "$WORK"
+  echo "branch work" > a.py
+  git add a.py
+  # Conventional Commit subject that does NOT substring-match the slice header.
+  git commit -q -m "feat(scope): wording unrelated to the slice header"
+  PLAN="$WORK/plan.md"
+  printf '%s\n' \
+    "## Build Progress" \
+    "" \
+    "- [x] Slice 1: do thing" \
+    "" \
+    "**Files:** \`a.py\`" \
+    "" \
+    "## Acceptance Criteria" \
+    "" \
+    "- [ ] A1: foo" \
+    "- [ ] A2: bar" \
+    "- [ ] A3: baz" \
+    > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
+}
