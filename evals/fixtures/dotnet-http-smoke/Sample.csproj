@@ -1,0 +1,9 @@
+<!-- Minimal SDK-style csproj for the stack-aware-reference-loading smoke fixture
+     (issue #524). Not built or restored — exists solely so manifest-based stack
+     detection in /cd-test-architecture and /test-smell-review resolves to the
+     `dotnet` stack profile when targeted at evals/fixtures/dotnet-http-smoke/. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+</Project>
