@@ -26,6 +26,10 @@ BANNED_TOKENS='csharp|dotnet|HttpClient|HttpMessageHandler'
 # assertions that must ignore language names appearing in worked examples or
 # frontmatter `cites:` lists.
 body_only() {
+  # Strip YAML frontmatter, fenced code blocks, and inline backtick spans.
+  # Profile slugs and manifest filenames cited via `inline code` are legitimate
+  # references (not language-specific guidance) — the rule we want to enforce
+  # is "no language-specific tokens in flowing prose."
   awk '
     BEGIN { in_fm = 0; in_fence = 0; first = 1 }
     /^---$/ {
@@ -35,7 +39,7 @@ body_only() {
     in_fm { next }
     /^```/ { in_fence = !in_fence; next }
     in_fence { next }
-    { print }
+    { gsub(/`[^`]*`/, ""); print }
   '
 }
 

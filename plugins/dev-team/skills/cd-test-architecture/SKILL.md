@@ -32,9 +32,13 @@ Grounded in these knowledge references — read the first two before assessing:
 
 ## Parse Arguments
 
-Arguments: a target application/repo path or description. Optional `--component <name>` to scope to one component, `--ci <path>` to point at the existing pipeline config, and **`--external-tests <path-or-repo-or-description>`** to point at tests that live outside this repo (another repo's suite, a third-party runner, Postman/Insomnia collections, manual test scripts, recorded UI flows, spreadsheets of test cases). If little or no in-repo testing is found and no external location is given, **ask** where the application is actually tested before concluding it is untested. If no target is given, ask for one.
+Arguments: a target application/repo path or description. Optional `--component <name>` to scope to one component, `--ci <path>` to point at the existing pipeline config, **`--external-tests <path-or-repo-or-description>`** to point at tests that live outside this repo (another repo's suite, a third-party runner, Postman/Insomnia collections, manual test scripts, recorded UI flows, spreadsheets of test cases), and `--stack <id>` to override stack detection (default: detect from manifests; resolved profile key like `dotnet`, `node`, `spring-boot`, `go`, `django`, `react`, `vue`, `ssr-htmx`). If little or no in-repo testing is found and no external location is given, **ask** where the application is actually tested before concluding it is untested. If no target is given, ask for one.
 
 ## Steps
+
+### 0. Detect stack
+
+Resolve the project's stack so the assessment can resolve concrete tools from `knowledge/test-stack-profiles/<stack>.md`. Mirrors `skills/test-design-advisor/SKILL.md:31, 62`: when `--stack <id>` is provided, **it takes precedence** and detection is skipped. Otherwise, read manifests at the target — `package.json` (refined to react/vue via dependency, or to ssr-htmx when an htmx dep is present alongside `templates/*.html`), `*.csproj` / `*.sln`, `pom.xml` / `build.gradle*`, `go.mod`, `pyproject.toml` / `requirements.txt` — and resolve the matching profile key. Load `knowledge/test-stack-profiles/<stack>.md` (and any references it points at) so the *Target architecture* table can name concrete tools per layer. When no profile matches, proceed with stack-agnostic guidance and **name the missing profile in the report** — never block on it.
 
 ### 1. Inventory the application's components
 
@@ -125,6 +129,8 @@ Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component
 
 ### Target architecture (per component)
 | Component | Layer | Test type | Double (to run config-free) | Pipeline stage |
+
+When Step 0 loaded a `knowledge/test-stack-profiles/<stack>.md` profile, **cite that profile** (and any reference it points at) in the *Test type* or *Double* column so the concrete tool choice is traceable to the stack-specific reference.
 
 ### Pre-merge gate (deterministic, config-free)
 <the set of suites that will gate merges, and why each is deterministic>
