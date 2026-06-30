@@ -119,6 +119,59 @@ mvn pitest:mutationCoverage -DwithHistory
 mutmut run --paths-to-mutate=src/calculator.py
 ```
 
+**Stryker.NET (C#):**
+
+Large C# repos take 60–90 min for a whole-project run. Always scope runs; if
+the repo has pre-generated shard configs, use them.
+
+*Scoped to a single file (Phase 4 per-Story gate):*
+
+```bash
+# Scope to the changed file within its shard config
+dotnet stryker \
+  --config-file stryker-config.shard-<name>.json \
+  --mutate "**/ChangedFile.cs" \
+  --coverage-analysis perTest \
+  --reporter json \
+  --output StrykerOutput/gate-shard
+```
+
+*Full scan — shard configs present (Phase 5 convergence, initial baseline):*
+
+```bash
+# Run each shard sequentially; aggregate results
+# stryker-pipeline.py --skip-agent handles this automatically
+python3 /path/to/nextgen-test-upgrade-process/scripts/stryker-pipeline.py \
+  --skip-agent
+```
+
+The pipeline writes one `StrykerOutput/shards/<name>/reports/mutation-report.json`
+per shard. Aggregate kills and survivors across all reports for the total score.
+
+*Full scan — no shard configs (first time, small repo):*
+
+```bash
+# Generate shard configs first to make future runs fast
+python3 /path/to/nextgen-test-upgrade-process/scripts/stryker-setup.py
+
+# Then run normally — dotnet stryker finds stryker-config.json
+dotnet stryker --coverage-analysis perTest --reporter json
+```
+
+*Finding the relevant shard config for a given file (bash helper):*
+
+```bash
+changed_file="src/Foo.Bar/Controllers/PaymentController.cs"
+for cfg in stryker-config.shard-*.json; do
+  prefix=$(python3 -c "
+import json
+p = json.load(open('$cfg'))['stryker-config'].get('mutate', [''])[0]
+print(p.split('/**')[0])
+")
+  [[ "$changed_file" == ${prefix}/* ]] && echo "$cfg" && break
+done
+```
+
 Capture the full output. If the tool produces an HTML report, note its path for the user.
 
 ## Machine-readable output schema

@@ -3710,6 +3710,10 @@
       "summary": "Set a per-mutant wall-clock timeout before running.",
       "anchor": "step-1b-configure-per-mutant-timeout"
     },
+    "Stryker.NET (C#): shard-aware execution for large repos": {
+      "summary": "For C# repos, `dotnet stryker` run against the whole solution can take 60–90 minutes.",
+      "anchor": "strykernet-c-shard-aware-execution-for-large-repos"
+    },
     "Step 2: Run the tool (scoped to target)": {
       "summary": "Run scoped to user-specified files or changed files.",
       "anchor": "step-2-run-the-tool-scoped-to-target"
