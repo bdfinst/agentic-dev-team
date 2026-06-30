@@ -2,7 +2,7 @@
 
 **Created**: 2026-06-30
 **Branch**: feat/525-guardian-fixes
-**Status**: approved
+**Status**: implemented
 **Spec**: docs/specs/progress-guardian-fixes.md
 **Issue**: <https://github.com/bdfinst/agentic-dev-team/issues/525>
 
@@ -297,7 +297,7 @@ No `complex` steps. The plan touches one high-reversal-cost axis (Scope — kept
 - [x] A3: Build Progress anchor (with whole-file fallback + bats regression)
 - [x] A4: End-to-end bats fixture (Slice 4) combines all three patterns and passes
 - [x] A5: All 21 bats tests (11 existing + 10 new across 4 slices) green
-- [ ] A6: ci-local green, PR title `fix:`, --no-auto-merge
+- [x] A6: ci-local green, PR title `fix:`, --no-auto-merge
 
 ## Plan Review Summary
 
