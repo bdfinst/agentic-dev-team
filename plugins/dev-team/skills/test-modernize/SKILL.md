@@ -8,7 +8,7 @@ description: >-
   speed targets are met. Outputs phase issues to ADO, GitHub, GitLab, Jira, or
   local plans/specs files — whichever the parent issue URL resolves to (empty
   falls back to local files).
-argument-hint: "<repo-path> [--parent <issue-url>] [--ci <path>] [--external-tests <loc>] [--from-phase <n>]"
+argument-hint: "<repo-path> [--parent <issue-url>] [--ci <path>] [--external-tests <loc>] [--stack <id>] [--from-phase <n>]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Agent, Skill(cd-test-architecture *), Skill(issues-from-assessment *), Skill(gherkin-public *), Skill(test-audit-disable *), Skill(coverage-baseline *), Skill(coverage-delta *), Skill(quality-targets-converge *), Skill(build *), Skill(mutation-testing *)
 ---
@@ -34,6 +34,7 @@ Arguments: $ARGUMENTS
 - `--parent <issue-url>` — parent issue URL on ADO / GitHub / GitLab / Jira. Empty or omitted → local-files mode.
 - `--ci <path>` — existing pipeline config (azure-pipelines.yml / .github/workflows / Jenkinsfile). Passed through to `/cd-test-architecture`.
 - `--external-tests <loc>` — other-repo suites, Postman collections, manual scripts. Passed through to `/cd-test-architecture`.
+- `--stack <id>` — override stack detection (default: detect from manifests in Step 0). Resolved profile key like `dotnet`, `node`, `spring-boot`, `go`, `django`, `react`, `vue`, `ssr-htmx`. Passed through to `/cd-test-architecture` so the orchestrated flow does not double-scan.
 - `--from-phase <n>` — resume from phase `n` (skips earlier phases when their progress files exist).
 
 ## Steps
@@ -57,13 +58,14 @@ Resolve the sink and the inputs in a single batch:
    - `bdd-runner` — generate step definitions in the project's BDD runner (cucumber-js, pytest-bdd, behave, cucumber-jvm, SpecFlow, godog) so each Scenario executes its Given/When/Then steps directly.
    - `xunit-with-annotations` (default) — one xUnit-style test method per Scenario; the test method name mirrors the Scenario name, and the Given/When/Then become structured comments at the top of the test body citing the source `.feature` file.
    Record the choice in `memory/test-modernize/<slug>/phase-0.md`; `/gherkin-public` reads it to populate the `[Component tests]` Story bodies.
-8. Generate a `<repo-slug>` (last path segment, lowercased, non-alphanumerics → `-`). All progress files live under `memory/test-modernize/<repo-slug>/`.
+8. **Detect stack.** Resolve the project's stack from manifests so Phase 1 can forward `--stack <id>` to `/cd-test-architecture` (no double-scan in the orchestrated flow). The resolved identifier is the key for `knowledge/test-stack-profiles/<stack>.md`, which `/cd-test-architecture` will load. Mirrors `skills/test-design-advisor/SKILL.md:31, 62`: when `--stack <id>` was passed to `/test-modernize`, it takes precedence and detection is skipped. Otherwise, read manifests at `<repo-path>` — `package.json` (refined to react/vue via dependency, or to ssr-htmx when an htmx dep is present alongside `templates/*.html`), `*.csproj` / `*.sln`, `pom.xml` / `build.gradle*`, `go.mod`, `pyproject.toml` / `requirements.txt` — and resolve the matching profile key. When no profile matches, fall through to stack-agnostic guidance and **name the missing profile** in `memory/test-modernize/<slug>/phase-0.md` — never block on it. Record the resolved stack (or the missing-profile note) in `phase-0.md` so `/continue` and `--from-phase` resumes preserve it.
+9. Generate a `<repo-slug>` (last path segment, lowercased, non-alphanumerics → `-`). All progress files live under `memory/test-modernize/<repo-slug>/`.
 
 Print the resolved inputs (sink, CLI, fallback decision, targets, `<repo-slug>`) and proceed. If `--from-phase <n>` was given, jump to that phase.
 
 ### 1. Analyze — `/cd-test-architecture` + `/issues-from-assessment`
 
-1. Invoke `/cd-test-architecture <repo-path> [--ci <ci-path>] [--external-tests <loc>]`. It writes the assessment to `reports/cd-test-architecture-<app>.md`.
+1. Invoke `/cd-test-architecture <repo-path> [--ci <ci-path>] [--external-tests <loc>] [--stack <stack>]`. The `--stack` value is the one resolved in Step 0 (or the explicit override) — passing it forwards the stack identifier so `/cd-test-architecture` does not re-scan manifests. It writes the assessment to `reports/cd-test-architecture-<app>.md`.
 2. Invoke `/issues-from-assessment <assessment-path> --parent <url-or-empty> --repo-slug <slug>`. It creates the parent + Phase-1 / Phase-2 / Phase-5 children via the resolved CLI (or local plan files) and writes a per-phase index to `memory/test-modernize/<slug>/phase-1.md`.
 3. Run `python3 scripts/test_modernization_review.py --repo <repo-slug> --phase 1`. Surface any blocker findings to the operator and have them resolved before the gate.
 
