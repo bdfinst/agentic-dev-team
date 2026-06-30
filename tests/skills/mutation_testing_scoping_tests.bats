@@ -15,7 +15,7 @@
 # contract drifts.
 
 SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/SKILL.md"
-SETUP="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/references/tool-setup.md"
+LANG_DIR="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/references/languages"
 
 # --- Step 1.1: flag surface --------------------------------------------------
 
@@ -144,33 +144,32 @@ SETUP="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/referen
   echo "$output" | grep -q 'equivalent'
 }
 
-# --- Step 1.2: tool-setup.md per-tool examples ------------------------------
+# --- Step 1.2: per-language KBs carry the native-report schema mapping ------
 
-@test "tool-setup: has 'Machine-readable output schema' subsection" {
-  run grep -iE '^##+ +Machine-readable output schema' "$SETUP"
+@test "languages/javascript-stryker.md: has 'Native report' mapping with a Stryker JSON envelope" {
+  run grep -iE '^##+ +Native report' "$LANG_DIR/javascript-stryker.md"
+  [ "$status" -eq 0 ]
+  run grep -q '"tool": "stryker"' "$LANG_DIR/javascript-stryker.md"
   [ "$status" -eq 0 ]
 }
 
-@test "tool-setup: per-tool example for Stryker" {
-  run awk '/^## Machine-readable output schema/{f=1;next} /^## /{ if(f==1){f=2} } f==1' "$SETUP"
+@test "languages/java-pitest.md: has 'Native report' mapping with a pitest JSON envelope" {
+  run grep -iE '^##+ +Native report' "$LANG_DIR/java-pitest.md"
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qi 'stryker'
+  run grep -q '"tool": "pitest"' "$LANG_DIR/java-pitest.md"
+  [ "$status" -eq 0 ]
 }
 
-@test "tool-setup: per-tool example for pitest" {
-  run awk '/^## Machine-readable output schema/{f=1;next} /^## /{ if(f==1){f=2} } f==1' "$SETUP"
+@test "languages/python-mutmut.md: has 'Native report' mapping with a mutmut JSON envelope" {
+  run grep -iE '^##+ +Native report' "$LANG_DIR/python-mutmut.md"
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qi 'pitest'
+  run grep -q '"tool": "mutmut"' "$LANG_DIR/python-mutmut.md"
+  [ "$status" -eq 0 ]
 }
 
-@test "tool-setup: per-tool example for mutmut" {
-  run awk '/^## Machine-readable output schema/{f=1;next} /^## /{ if(f==1){f=2} } f==1' "$SETUP"
+@test "languages/csharp-stryker-net.md: has 'Native report' mapping with a Stryker.NET JSON envelope" {
+  run grep -iE '^##+ +Native report' "$LANG_DIR/csharp-stryker-net.md"
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qi 'mutmut'
-}
-
-@test "tool-setup: per-tool example for Stryker.NET" {
-  run awk '/^## Machine-readable output schema/{f=1;next} /^## /{ if(f==1){f=2} } f==1' "$SETUP"
+  run grep -q '"tool": "stryker-net"' "$LANG_DIR/csharp-stryker-net.md"
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qE 'Stryker\.NET|StrykerNET'
 }
