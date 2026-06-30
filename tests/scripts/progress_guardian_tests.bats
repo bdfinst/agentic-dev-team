@@ -424,3 +424,128 @@ errs = [i for i in d['issues'] if i['severity'] == 'error' and 'Slice 1: do thin
 assert len(errs) == 1, d
 "
 }
+
+# ---------------------------------------------------------------------------
+# Step 4.3 — Issue #525 regressions: Build Progress anchor
+# Bug: STEP_PATTERN matched every checkbox in the plan. The
+# `## Acceptance Criteria` section uses the same `- [ ]` syntax, so the
+# pre-PR gate demanded each AC be checked too — false positives on every
+# plan with both sections.
+#
+# Fix: parse_plan only reads checkboxes in the `## Build Progress`
+# section. Falls back to whole-file scanning when no `## Build Progress`
+# heading is present (preserves the existing 11 tests).
+# ---------------------------------------------------------------------------
+
+@test "4.3a: Build Progress [x] + AC [ ] items; --pre-pr exits 0 (ACs ignored)" {
+  T="$(mktemp -d)"
+  cd "$T"
+  git init -q
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  # Isolates parse_plan / pre-PR scoping from commit-discipline by making the
+  # slice header substring-match the commit subject (Slice 2's file-path
+  # matcher is exercised in 4.2*; this test only verifies AC ignoring).
+  git commit -q --allow-empty -m "feat: do the slice work"
+  PLAN="$T/plan.md"
+  printf '%s\n' \
+    "## Build Progress" \
+    "" \
+    "- [x] do the slice work" \
+    "" \
+    "## Acceptance Criteria" \
+    "" \
+    "- [ ] A1: foo" \
+    "- [ ] A2: bar" \
+    "- [ ] A3: baz" \
+    > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
+}
+
+@test "4.3b: Build Progress [ ] + AC [ ] items; --pre-pr exits 1 naming the slice, not ACs" {
+  T="$(mktemp -d)"
+  cd "$T"
+  git init -q
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  git commit -q --allow-empty -m "chore: initial"
+  PLAN="$T/plan.md"
+  printf '%s\n' \
+    "## Build Progress" \
+    "" \
+    "- [ ] Slice 1: do thing" \
+    "" \
+    "## Acceptance Criteria" \
+    "" \
+    "- [ ] A1: foo" \
+    "- [ ] A2: bar" \
+    "- [ ] A3: baz" \
+    > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 1 ]
+  echo "$output" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+errs = [i for i in d['issues'] if i['severity'] == 'error']
+assert any('Slice 1: do thing' in i['message'] for i in errs), d
+for i in errs:
+    msg = i['message']
+    assert 'A1:' not in msg and 'A2:' not in msg and 'A3:' not in msg, \
+        'AC item leaked into errors: ' + msg
+"
+}
+
+@test "4.3c: Build Progress section exists but contains no checkboxes; exits 1 naming the plan file" {
+  T="$(mktemp -d)"
+  cd "$T"
+  git init -q
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  git commit -q --allow-empty -m "chore: initial"
+  PLAN="$T/plan.md"
+  printf '%s\n' \
+    "## Build Progress" \
+    "" \
+    "Some prose, no checkboxes." \
+    "" \
+    "## Acceptance Criteria" \
+    "" \
+    "- [ ] A1: foo" \
+    > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 1 ]
+  echo "$output" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+errs = [i for i in d['issues'] if i['severity'] == 'error']
+assert any('plan.md' in (i.get('message','') + i.get('file','')) for i in errs), d
+for i in errs:
+    assert 'A1:' not in i['message'], 'AC item leaked into errors: ' + i['message']
+"
+}
+
+@test "4.3d: legacy plan with no '## Build Progress' heading falls back to whole-file scan" {
+  # This scenario mirrors the existing 3.3a test's plan format. Verifies the
+  # backward-compatibility fallback is intact.
+  T="$(mktemp -d)"
+  cd "$T"
+  git init -q
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  git commit -q --allow-empty -m "feat: do thing"
+  PLAN="$T/plan.md"
+  printf '%s\n' "- [x] Step 1.1: do thing" > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
+}

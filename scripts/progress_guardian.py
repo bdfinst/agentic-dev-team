@@ -109,12 +109,40 @@ def run_git(args: List[str], cwd: str) -> str:
 def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
     """Parse plan file and return (steps, errors).
 
+    When the plan contains a `## Build Progress` heading, only checkboxes
+    between that heading and the next H2 are parsed. This prevents the
+    `## Acceptance Criteria` section's checkboxes from being treated as
+    Build Progress steps (issue #525). When no `## Build Progress` heading
+    is present (legacy/minimal plans), falls back to whole-file scanning.
+
     Returns an error finding (naming the file) if no checkboxes found.
     """
     text = path.read_text(encoding="utf-8")
+
+    # First, see whether the plan has a `## Build Progress` heading. If it
+    # does, narrow the scan to that section only. Otherwise, scan the whole
+    # file (preserves backward compatibility with plans that don't carry
+    # the section structure).
+    lines = text.splitlines()
+    has_build_progress = any(
+        line.rstrip().startswith("## Build Progress") for line in lines
+    )
+
     steps: List[Step] = []
-    for line in text.splitlines():
-        m = STEP_PATTERN.match(line.rstrip())
+    in_build_progress = not has_build_progress  # legacy plans: scan everything
+    for raw in lines:
+        line = raw.rstrip()
+        if has_build_progress:
+            if line.startswith("## Build Progress"):
+                in_build_progress = True
+                continue
+            # Any other H2 closes the section.
+            if in_build_progress and line.startswith("## "):
+                in_build_progress = False
+                continue
+        if not in_build_progress:
+            continue
+        m = STEP_PATTERN.match(line)
         if m:
             flag, header = m.group(1), m.group(2).strip()
             steps.append(Step(done=(flag.lower() == "x"), header=header))
