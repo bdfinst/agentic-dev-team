@@ -2,7 +2,7 @@
 
 **Created**: 2026-06-30
 **Branch**: feat/524-stack-aware-skill-loading
-**Status**: approved
+**Status**: implemented
 **Spec**: docs/specs/stack-aware-reference-loading.md
 **Issue**: <https://github.com/bdfinst/agentic-dev-team/issues/524>
 
@@ -337,7 +337,7 @@ No `complex` steps. The plan touches one high-reversal-cost axis (Scope — kept
 - [x] A3: test-modernize wired (Step-0 detect + Phase-1 `--stack` passthrough + argument-hint + negative-grep clean)
 - [x] A4: Pattern parity with test-design-advisor (PR description side-by-side)
 - [x] A5: Manual .NET verification (two report excerpts in PR body)
-- [ ] A6: CI/eval pass (agent-audit, ci-local, release-please-ready title, `--no-auto-merge`)
+- [x] A6: CI/eval pass (agent-audit, ci-local, release-please-ready title, `--no-auto-merge`)
 
 ## Plan Review Summary
 
