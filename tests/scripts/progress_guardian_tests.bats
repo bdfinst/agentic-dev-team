@@ -240,3 +240,110 @@ make_plan() {
   [ "$status" -eq 2 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any(i.get('rule_id') == 'llm-skipped' for i in d['issues']), d"
 }
+
+# ---------------------------------------------------------------------------
+# Step 4.1 — Issue #525 regressions: origin/main preference
+# Bug: check_scope's branch tuple was ("main", "master", "origin/main",
+# "origin/master") — preferring stale local main. When local main lags
+# origin/main, the resulting merge-base sweeps in every commit landed on
+# trunk while the contributor was working.
+# ---------------------------------------------------------------------------
+
+# Helper: set up a tmp dir with a bare "remote" repo and a working clone where
+# origin/main is exactly one commit ahead of local main. Both refs are real;
+# the test exercises check_scope's branch-resolution order.
+#
+# Usage: setup_stale_main_repo <work_dir> <ahead_commit_file>
+# After this returns, <work_dir> is a git repo with:
+#   - origin/main pointing at HEAD~1 + an "ahead" commit on the remote
+#   - local main pointing at HEAD~1 (the shared base) — lagging by 1
+#   - HEAD on a feature branch off origin/main
+setup_stale_main_repo() {
+  local work="$1"
+  local ahead_file="$2"
+  local remote="$work/../remote.git"
+  # Bare remote
+  git init -q --bare "$remote"
+  # Working clone seeded with an initial commit
+  git init -q "$work"
+  cd "$work"
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  git remote add origin "$remote"
+  git checkout -q -b main
+  echo "seed" > seed.txt
+  git add seed.txt
+  git commit -q -m "chore: seed"
+  git push -q origin main
+  # Advance the remote with an ahead-commit touching <ahead_file>, via a
+  # sibling clone so this clone's local main stays at the seed.
+  local sibling
+  sibling="$(mktemp -d)/sibling"
+  git clone -q "$remote" "$sibling"
+  cd "$sibling"
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  echo "ahead" > "$ahead_file"
+  git add "$ahead_file"
+  git commit -q -m "feat: ahead on main"
+  git push -q origin main
+  # Back to the working clone; fetch so origin/main moves but local main stays.
+  cd "$work"
+  git fetch -q origin
+  # Cut the feature branch off origin/main (the new tip).
+  git checkout -q -b feature origin/main
+}
+
+@test "4.1a: local main lags origin/main by one commit; on-branch file is not reported as out-of-plan" {
+  T="$(mktemp -d)"
+  WORK="$T/work"
+  setup_stale_main_repo "$WORK" "unrelated.py"
+  # Commit a.py on the feature branch.
+  cd "$WORK"
+  echo "branch work" > a.py
+  git add a.py
+  # Slice 1 isolates scope-check; the commit subject must substring-match
+  # the slice header so commit-discipline passes and only scope-check is
+  # under test. (Slice 2 covers the Conventional-Commits scenario where
+  # subject and header don't substring-match.)
+  git commit -q -m "feat: write a.py for the slice"
+  PLAN="$WORK/plan.md"
+  printf '%s\n' "- [x] write a.py for the slice" "" "**Files:** \`a.py\`" > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
+}
+
+@test "4.1b: local main equals origin/main; on-branch file is not reported as out-of-plan (no regression)" {
+  T="$(mktemp -d)"
+  WORK="$T/work"
+  # Set up a repo where origin/main == local main (no remote advance).
+  REMOTE="$T/remote.git"
+  git init -q --bare "$REMOTE"
+  git init -q "$WORK"
+  cd "$WORK"
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  git remote add origin "$REMOTE"
+  git checkout -q -b main
+  echo "seed" > seed.txt
+  git add seed.txt
+  git commit -q -m "chore: seed"
+  git push -q origin main
+  git fetch -q origin
+  # Branch off and commit a.py. Slice header substring-matches the commit
+  # subject so commit-discipline passes and only scope-check is under test.
+  git checkout -q -b feature
+  echo "branch work" > a.py
+  git add a.py
+  git commit -q -m "feat: write a.py for the slice"
+  PLAN="$WORK/plan.md"
+  printf '%s\n' "- [x] write a.py for the slice" "" "**Files:** \`a.py\`" > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
+}

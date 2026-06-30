@@ -245,7 +245,10 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
     # Skip candidates where merge-base == HEAD (we ARE on that branch — no divergence).
     head_sha = run_git(["rev-parse", "HEAD"], repo_root).strip()
     base_ref = ""
-    for branch in ("main", "master", "origin/main", "origin/master"):
+    # Prefer remote tracking refs over local refs — local main lags origin/main
+    # the moment any work begins, and the resulting merge-base would sweep in
+    # every commit landed on trunk while the contributor was working. See #525.
+    for branch in ("origin/main", "origin/master", "main", "master"):
         out = run_git(["merge-base", "HEAD", branch], repo_root).strip()
         if out and out != head_sha:
             base_ref = out
