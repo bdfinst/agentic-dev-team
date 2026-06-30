@@ -4,45 +4,48 @@
 # the go test -fuzz complement — never a bare "no tool installed".
 
 PLUGIN="$BATS_TEST_DIRNAME/../../plugins/dev-team"
-SETUP="$PLUGIN/skills/mutation-testing/references/tool-setup.md"
+DETECTION="$PLUGIN/skills/mutation-testing/references/tool-detection.md"
+GO_KB="$PLUGIN/skills/mutation-testing/references/languages/go-go-mutesting.md"
 SKILL="$PLUGIN/skills/mutation-testing/SKILL.md"
 
-# --- tool-setup.md: Go detection / install / run / advisory -----------------
+# --- tool-detection.md: Go row in the ecosystem router ----------------------
 
-@test "tool-setup: detection table has a Go row naming go-mutesting" {
-  grep -qi 'go-mutesting' "$SETUP"
-  grep -Eq '\| *Go *\|' "$SETUP"
+@test "tool-detection: row has a Go entry naming go-mutesting" {
+  grep -qi 'go-mutesting' "$DETECTION"
+  grep -Eq '\| *Go *\|' "$DETECTION"
 }
 
-@test "tool-setup: Go detection keys on go.mod" {
-  run grep -E 'go\.mod' "$SETUP"
+@test "tool-detection: Go detection keys on go.mod" {
+  run grep -E 'go\.mod' "$DETECTION"
   [ "$status" -eq 0 ]
 }
 
-@test "tool-setup: documents the go-mutesting install command" {
-  run grep -E 'go install .*go-mutesting' "$SETUP"
+# --- languages/go-go-mutesting.md: install / run / advisory / fuzz ----------
+
+@test "go-go-mutesting: documents the go-mutesting install command" {
+  run grep -E 'go install .*go-mutesting' "$GO_KB"
   [ "$status" -eq 0 ]
 }
 
-@test "tool-setup: documents the go-mutesting run command" {
-  run grep -E 'go-mutesting \./\.\.\.' "$SETUP"
+@test "go-go-mutesting: documents the go-mutesting run command" {
+  run grep -E 'go-mutesting \./\.\.\.' "$GO_KB"
   [ "$status" -eq 0 ]
 }
 
-@test "tool-setup: marks go-mutesting advisory-only" {
-  run grep -Eqi 'advisory' "$SETUP"
+@test "go-go-mutesting: marks go-mutesting advisory-only" {
+  run grep -Eqi 'advisory' "$GO_KB"
   [ "$status" -eq 0 ]
 }
 
-@test "tool-setup: documents the go test -fuzz complement" {
-  run grep -E 'go test -fuzz' "$SETUP"
+@test "go-go-mutesting: documents the go test -fuzz complement" {
+  run grep -E 'go test -fuzz' "$GO_KB"
   [ "$status" -eq 0 ]
 }
 
-@test "tool-setup: Go machine-readable example carries advisory: true" {
+@test "go-go-mutesting: machine-readable example carries advisory: true" {
   # The schema mapping section must show the Go envelope with advisory true so
   # downstream callers warn rather than halt.
-  run grep -Eq '"advisory": *true' "$SETUP"
+  run grep -Eq '"advisory": *true' "$GO_KB"
   [ "$status" -eq 0 ]
 }
 

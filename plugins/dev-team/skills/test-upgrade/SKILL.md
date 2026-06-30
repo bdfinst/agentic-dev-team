@@ -44,7 +44,7 @@ You have been invoked with the `/test-upgrade` command.
 Resolve everything in one batch, then persist it:
 
 1. **Detect language(s)** from build manifests: `package.json` (JS/TS), `pom.xml` / `build.gradle*` (Java), `*.csproj` (C#), `go.mod` (Go). A repo may be polyglot — record each.
-2. **Go advisory up front.** If `go.mod` is present, surface immediately that Go mutation testing is **advisory only** (go-mutesting is alpha-quality; the survivor count is not a gate) and recommend `go test -fuzz` as the production-quality complement (see `skills/mutation-testing/references/tool-setup.md`).
+2. **Go advisory up front.** If `go.mod` is present, surface immediately that Go mutation testing is **advisory only** (go-mutesting is alpha-quality; the survivor count is not a gate) and recommend `go test -fuzz` as the production-quality complement (see `skills/mutation-testing/references/languages/go-go-mutesting.md`).
 3. **Refactoring mode.** The coverage target is **≥ 90% line and branch**. Ask, defaulting to **no-refactor**:
 
    > Allow production-code refactoring to reach coverage targets? (default: **no**)
