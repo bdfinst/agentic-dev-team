@@ -272,31 +272,31 @@ No `complex` steps. The plan touches one high-reversal-cost axis (Scope — kept
 
 #### Wave 1
 
-- [ ] Slice 1: Prefer origin/main over local main in `check_scope`
-  - [ ] Step 1.1: Reorder the branch tuple and add regression bats coverage
+- [x] Slice 1: Prefer origin/main over local main in `check_scope`
+  - [x] Step 1.1: Reorder the branch tuple and add regression bats coverage
 
 #### Wave 2
 
-- [ ] Slice 2: File-path commit-discipline matcher (with substring fallback)
-  - [ ] Step 2.1: Implement file-path matcher with substring fallback + regression coverage
+- [x] Slice 2: File-path commit-discipline matcher (with substring fallback)
+  - [x] Step 2.1: Implement file-path matcher with substring fallback + regression coverage
 
 #### Wave 3
 
-- [ ] Slice 3: parse_plan anchored on `## Build Progress`
-  - [ ] Step 3.1: Anchor parse_plan on `## Build Progress` with whole-file fallback + regression coverage
+- [x] Slice 3: parse_plan anchored on `## Build Progress`
+  - [x] Step 3.1: Anchor parse_plan on `## Build Progress` with whole-file fallback + regression coverage
 
 #### Wave 4
 
-- [ ] Slice 4: Real-world reproduction smoke test
-  - [ ] Step 4.1: Add an end-to-end bats fixture combining all three patterns
+- [x] Slice 4: Real-world reproduction smoke test
+  - [x] Step 4.1: Add an end-to-end bats fixture combining all three patterns
 
 ### Acceptance Criteria
 
-- [ ] A1: Stale-main fix (tuple reorder + bats regression)
-- [ ] A2: File-path commit matcher (with substring fallback + bats regression)
-- [ ] A3: Build Progress anchor (with whole-file fallback + bats regression)
-- [ ] A4: End-to-end bats fixture (Slice 4) combines all three patterns and passes
-- [ ] A5: All 19 bats tests (11 existing + 8 new across 4 slices) green
+- [x] A1: Stale-main fix (tuple reorder + bats regression)
+- [x] A2: File-path commit matcher (with substring fallback + bats regression)
+- [x] A3: Build Progress anchor (with whole-file fallback + bats regression)
+- [x] A4: End-to-end bats fixture (Slice 4) combines all three patterns and passes
+- [x] A5: All 21 bats tests (11 existing + 10 new across 4 slices) green
 - [ ] A6: ci-local green, PR title `fix:`, --no-auto-merge
 
 ## Plan Review Summary

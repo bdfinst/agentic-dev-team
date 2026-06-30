@@ -130,17 +130,29 @@ def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
 
     steps: List[Step] = []
     in_build_progress = not has_build_progress  # legacy plans: scan everything
+    in_acceptance = False
     for raw in lines:
         line = raw.rstrip()
         if has_build_progress:
             if line.startswith("## Build Progress"):
                 in_build_progress = True
+                in_acceptance = False
                 continue
             # Any other H2 closes the section.
             if in_build_progress and line.startswith("## "):
                 in_build_progress = False
                 continue
-        if not in_build_progress:
+            # The `### Acceptance Criteria` subheading inside Build Progress
+            # is a documentation mirror — the same items appear in the
+            # top-level `## Acceptance Criteria`. Skip its checkboxes so
+            # they don't demand commits of their own. See issue #525.
+            if in_build_progress and line.startswith("### Acceptance Criteria"):
+                in_acceptance = True
+                continue
+            # Any other H3 within Build Progress exits the AC subsection.
+            if in_acceptance and line.startswith("### "):
+                in_acceptance = False
+        if not in_build_progress or in_acceptance:
             continue
         m = STEP_PATTERN.match(line)
         if m:
@@ -159,20 +171,43 @@ def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
 
 
 def _parse_slice_files(plan_text: str, slice_header: str) -> List[str]:
-    """Return backtick-quoted paths from the `**Files:**` line that follows
-    the slice declaring `slice_header`. Empty list when not found.
+    """Return backtick-quoted paths from the `**Files:**` line declared
+    under the slice identified by `slice_header`. Empty list when not found.
 
-    The slice block is the run of lines starting at the heading whose text
-    contains `slice_header` (after the STEP_PATTERN match strips the
-    `- [x] Step N.M: ` prefix), and ending at the next blank line followed
-    by another `- [` checkbox, or at the next `## ` H2. We scan forward
-    looking for a `**Files:**` line within that block.
+    Two layouts are supported:
+      1. **Heading-anchored** (the /plan skill convention): the slice is
+         declared with `### Slice N: title` and `**Files:** ...` lives in
+         that section's body. Build Progress checkboxes mirror the heading
+         text — we match the heading and scan forward.
+      2. **Inline** (minimal plans): `- [x] Slice N: title` followed by a
+         `**Files:** ...` line in the same checkbox block. Scan forward
+         from the checkbox until another checkbox or a heading.
+
+    Heading-anchored is tried first because real plans always use it. The
+    inline form preserves a smaller fixture surface for tests and the
+    minimal plans the existing bats fixtures construct.
     """
     lines = plan_text.splitlines()
+
+    # Try heading-anchored layout first.
     in_block = False
     for raw in lines:
         line = raw.rstrip()
-        # Start the block when we see the checkbox line whose header matches.
+        if line.startswith("### ") and line[4:].strip() == slice_header:
+            in_block = True
+            continue
+        if not in_block:
+            continue
+        if line.startswith("## ") or line.startswith("### "):
+            break
+        fm = SLICE_FILES_RE.match(line)
+        if fm:
+            return BACKTICK_PATH_RE.findall(fm.group(1))
+
+    # Fall back to inline layout: `**Files:**` line near a `- [x] <header>`.
+    in_block = False
+    for raw in lines:
+        line = raw.rstrip()
         m = STEP_PATTERN.match(line)
         if m:
             header = m.group(2).strip()
@@ -184,10 +219,8 @@ def _parse_slice_files(plan_text: str, slice_header: str) -> List[str]:
                 break
         if not in_block:
             continue
-        # Within the block: stop at next H2.
-        if line.startswith("## "):
+        if line.startswith("## ") or line.startswith("### "):
             break
-        # Look for the **Files:** line.
         fm = SLICE_FILES_RE.match(line)
         if fm:
             return BACKTICK_PATH_RE.findall(fm.group(1))
