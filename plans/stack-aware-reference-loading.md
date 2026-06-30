@@ -35,7 +35,7 @@ The required fallback phrase (equivalent to `test-design-advisor/SKILL.md:62`): 
 - [ ] A2: `cd-test-architecture` skill accepts optional `--stack <id>`, documents detection + the fallback phrase, and cites the loaded profile in the *Target architecture* table. Required positive greps mirror A1's manifest + fallback + cross-reference list, plus `--stack` appearing in the Parse Arguments block (positional check: same `--stack` token within 30 lines of the `Parse Arguments` heading). Same body-only negative-grep.
 - [ ] A3: `test-modernize` skill detects once in Step 0, records the stack in `phase-0.md`, and forwards `--stack <id>` to `/cd-test-architecture` in Phase 1. Required positive greps: same six manifest tokens + fallback phrase + cross-reference; argument-hint contains `[--stack <id>]`; the literal token `--stack` appears **within 10 lines** of the literal token `Invoke /cd-test-architecture` (positional check enforces the passthrough lands in the Phase-1 invocation, not just anywhere in the file). Same body-only negative-grep.
 - [ ] A4: For each of the three edited files, the bats positive-grep set in A1/A2/A3 is identical (modulo the file-specific positional checks). The PR description shows a three-column side-by-side excerpt of the detection note from each edited file plus `test-design-advisor/SKILL.md:31` so a human can confirm wording parity at a glance.
-- [ ] A5: Manual verification on a .NET fixture. Definition of "outbound HTTP code path triggers the citation": the fixture contains at least one class whose **constructor accepts `HttpClient` as a parameter**. Given that property, the `/cd-test-architecture` report MUST cite both `knowledge/test-stack-profiles/dotnet.md` AND `knowledge/references/csharp-http-client-testing.md` (verification: grep the report excerpt embedded in the PR body for both literal paths; exit 0). The `/test-smell-review` finding on `SampleClientTests.cs` (which contains a `Mock<HttpClient>` smell) MUST cite `knowledge/references/csharp-http-client-testing.md` (same grep test). Step 4.2 also auto-asserts `docs/pr-bodies/524.md` exists and contains an `## Evidence` heading — see Step 4.2 RED.
+- [ ] A5: Manual verification on a .NET fixture. Definition of "outbound HTTP code path triggers the citation": the fixture contains at least one class whose **constructor accepts `HttpClient` as a parameter**. Given that property, the `/cd-test-architecture` report MUST cite both `knowledge/test-stack-profiles/dotnet.md` AND `knowledge/references/csharp-http-client-testing.md` (verification: grep the report excerpt embedded in the PR body for both literal paths; exit 0). The `/test-smell-review` finding on `SampleClientTests.cs` (which contains a `Mock<HttpClient>` smell) MUST cite `knowledge/references/csharp-http-client-testing.md` (same grep test). Step 4.2 also auto-asserts `plans/pr-bodies/524.md` exists and contains an `## Evidence` heading — see Step 4.2 RED.
 - [ ] A6: `/agent-audit` passes; `scripts/ci-local.sh` passes; PR title prefix `feat:` for release-please; opened with `--no-auto-merge`.
 
 ## Slices
@@ -220,7 +220,7 @@ Run `bats`; all assertions fail.
 ### Slice 4: Manual verification on a .NET fixture
 
 **Depends-on:** 1, 2, 3
-**Files:** `evals/fixtures/dotnet-http-smoke/Sample.csproj`, `evals/fixtures/dotnet-http-smoke/SampleClient.cs`, `evals/fixtures/dotnet-http-smoke/SampleClientTests.cs`, `docs/pr-bodies/524.md`, `tests/bats/stack-aware-dotnet-fixture.bats`
+**Files:** `evals/fixtures/dotnet-http-smoke/Sample.csproj`, `evals/fixtures/dotnet-http-smoke/SampleClient.cs`, `evals/fixtures/dotnet-http-smoke/SampleClientTests.cs`, `plans/pr-bodies/524.md`, `tests/bats/stack-aware-dotnet-fixture.bats`
 
 **Behavior:**
 
@@ -258,10 +258,10 @@ Feature: The wired skills produce stack-specific output when run against a .NET 
 #### Step 4.2: Capture verification evidence in the PR body draft
 
 **Complexity**: standard
-**RED**: Extend `tests/bats/stack-aware-dotnet-fixture.bats` with three new structural assertions: (a) `docs/pr-bodies/524.md` exists; (b) it contains an `## Evidence` heading (`grep -c '^## Evidence' docs/pr-bodies/524.md` ≥ 1); (c) the file contains both literal paths `knowledge/test-stack-profiles/dotnet.md` AND `knowledge/references/csharp-http-client-testing.md` (verifies the operator pasted the citation lines, not just an empty heading). Run `bats`; all three fail.
-**GREEN**: Run `/cd-test-architecture evals/fixtures/dotnet-http-smoke/` and `/test-smell-review` against the fixture's test file. Create `docs/pr-bodies/524.md` with an `## Evidence` heading containing two fenced-block excerpts (one per skill invocation) — the excerpts must include the citation lines that name the two knowledge paths. Run `bats`; all three pass. The bats assertions guarantee the file is non-empty and contains the required citations; whether the LLM output was actually correct is the human-merge reviewer's call (deliberate trade-off — automated structural coverage with an explicit operator-judgment gate on content).
+**RED**: Extend `tests/bats/stack-aware-dotnet-fixture.bats` with three new structural assertions: (a) `plans/pr-bodies/524.md` exists; (b) it contains an `## Evidence` heading (`grep -c '^## Evidence' plans/pr-bodies/524.md` ≥ 1); (c) the file contains both literal paths `knowledge/test-stack-profiles/dotnet.md` AND `knowledge/references/csharp-http-client-testing.md` (verifies the operator pasted the citation lines, not just an empty heading). Run `bats`; all three fail.
+**GREEN**: Run `/cd-test-architecture evals/fixtures/dotnet-http-smoke/` and `/test-smell-review` against the fixture's test file. Create `plans/pr-bodies/524.md` with an `## Evidence` heading containing two fenced-block excerpts (one per skill invocation) — the excerpts must include the citation lines that name the two knowledge paths. Run `bats`; all three pass. The bats assertions guarantee the file is non-empty and contains the required citations; whether the LLM output was actually correct is the human-merge reviewer's call (deliberate trade-off — automated structural coverage with an explicit operator-judgment gate on content).
 **REFACTOR**: None.
-**Files**: `docs/pr-bodies/524.md`, `tests/bats/stack-aware-dotnet-fixture.bats`
+**Files**: `plans/pr-bodies/524.md`, `tests/bats/stack-aware-dotnet-fixture.bats`
 **Commit**: `docs(stack-aware): capture .NET smoke verification evidence for #524`
 
 ## Parallelization
@@ -359,7 +359,7 @@ No `complex` steps. The plan touches one high-reversal-cost axis (Scope — kept
 **Strategic + Design + Acceptance observations (all `[observation]`, not actioned):**
 
 - Manual A5 verification lives outside the automated gate by design (LLM-invocable skill ⇒ human-eyes content review).
-- `docs/pr-bodies/524.md` is a one-off PR-body draft, not a recurring directory pattern; revisit if a second PR adopts it.
+- `plans/pr-bodies/524.md` is a one-off PR-body draft, not a recurring directory pattern; revisit if a second PR adopts it.
 - The banned-token list is duplicated across three bats files with a documented mitigation; extract to `tests/bats/_helpers/stack-aware.bash` when a fourth target adopts the pattern (captured in Risks).
 - The spec's "not duplicated" wording at line 39 is slightly out of sync with the "each agent detects independently" decision (spec line 125); cosmetic — no behavioral impact on this plan.
 - Frontmatter `version:` field — confirmed at planning time: none of the three target files carry one today; no bump needed for this PR.

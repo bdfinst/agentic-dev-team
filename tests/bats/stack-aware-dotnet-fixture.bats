@@ -6,7 +6,7 @@
 # merge reviewer's call.
 
 FIXTURE_DIR="evals/fixtures/dotnet-http-smoke"
-PR_BODY="docs/pr-bodies/524.md"
+PR_BODY="plans/pr-bodies/524.md"
 
 @test "fixture directory exists and contains a .csproj" {
   [ -d "$FIXTURE_DIR" ]

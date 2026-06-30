@@ -36,7 +36,7 @@ without further skill edits.
 - `plugins/dev-team/skills/cd-test-architecture/SKILL.md` — add a stack-detection step before the assessment is produced; cite the matching profile in the report's *Target architecture* and *Migration path* sections.
 - `plugins/dev-team/skills/test-modernize/SKILL.md` — detect once at workflow entry; pass `--stack <id>` through to `/cd-test-architecture` so the modernize flow does not double-scan.
 
-**Pattern source-of-truth:** `plugins/dev-team/skills/test-design-advisor/SKILL.md:31, 62`. Detection rules and fallback behavior are inherited from that skill — *not* duplicated. Each new skill/agent describes detection in one sentence and references the pattern.
+**Pattern source-of-truth:** `plugins/dev-team/skills/test-design-advisor/SKILL.md:31, 62`. Detection rules and fallback behavior mirror that skill's pattern; each new skill/agent restates the one-sentence detection note (so each file remains self-contained for on-demand loading) and cross-references the pattern source so future editors know all instances must update together.
 
 **Detection inputs (per `test-design-advisor`):**
 
