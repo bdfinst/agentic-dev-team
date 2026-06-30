@@ -109,11 +109,25 @@ def run_git(args: List[str], cwd: str) -> str:
 def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
     """Parse plan file and return (steps, errors).
 
-    When the plan contains a `## Build Progress` heading, only checkboxes
-    between that heading and the next H2 are parsed. This prevents the
-    `## Acceptance Criteria` section's checkboxes from being treated as
-    Build Progress steps (issue #525). When no `## Build Progress` heading
-    is present (legacy/minimal plans), falls back to whole-file scanning.
+    Scopes checkbox parsing with two flags when a Build Progress section
+    exists (issue #525):
+
+    - `in_build_progress` (outer scope) — when the plan contains a
+      `## Build Progress` heading, only lines between that heading and the
+      next `## ` H2 are eligible for step parsing. This prevents the
+      top-level `## Acceptance Criteria` section's checkboxes from being
+      treated as Build Progress steps.
+    - `in_acceptance` (inner skip) — within the Build Progress section,
+      the `/plan` skill renders a documentation mirror of the top-level
+      AC list under a `### Acceptance Criteria` H3 sub-heading. Those
+      mirror items lack work-tracking semantics (no `### Slice` heading,
+      no `**Files:**` line, no commit subject anchor). They are skipped
+      so the pre-PR gate doesn't demand a commit for each one. The
+      structural problem behind the workaround is tracked in #526.
+
+    When no `## Build Progress` heading is present (legacy/minimal plans),
+    falls back to whole-file scanning — preserves backward compatibility
+    with the pre-existing bats fixtures that construct minimal plans.
 
     Returns an error finding (naming the file) if no checkboxes found.
     """
@@ -145,7 +159,9 @@ def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
             # The `### Acceptance Criteria` subheading inside Build Progress
             # is a documentation mirror — the same items appear in the
             # top-level `## Acceptance Criteria`. Skip its checkboxes so
-            # they don't demand commits of their own. See issue #525.
+            # they don't demand commits of their own. The structural
+            # redesign of where ACs live is tracked in #526; this PR
+            # ships the workaround so the gate stops false-positiving.
             if in_build_progress and line.startswith("### Acceptance Criteria"):
                 in_acceptance = True
                 continue

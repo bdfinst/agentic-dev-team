@@ -1,4 +1,4 @@
-# Plan: progress_guardian — fix three pre-PR gate false positives
+# Plan: progress_guardian — fix four pre-PR gate false positives
 
 **Created**: 2026-06-30
 **Branch**: feat/525-guardian-fixes
@@ -8,7 +8,7 @@
 
 ## Goal
 
-Fix three independent false-positive bugs in `scripts/progress_guardian.py` that block clean PRs on every Conventional-Commits-following branch with a normal `## Build Progress` + `## Acceptance Criteria` plan layout: (1) prefer `origin/main` over stale local `main`; (2) match commits to slices by declared file path instead of step-header substring; (3) parse only the `## Build Progress` section's checkboxes, not the `## Acceptance Criteria` section's. All three fixes are additive — every existing bats fixture remains green via fallback paths for plans that don't carry the new format conventions.
+Fix four false-positive bugs in `scripts/progress_guardian.py` that block clean PRs on every Conventional-Commits-following branch with the standard `/plan` template layout: (1) prefer `origin/main` over stale local `main`; (2) match commits to slices by declared file path instead of step-header substring; (3) parse only the `## Build Progress` section's checkboxes, not the top-level `## Acceptance Criteria` section's; (4) also skip the `### Acceptance Criteria` mirror nested inside `## Build Progress`. Bugs 1–3 were identified in issue #525 upfront; bug 4 was discovered mid-build (commit `a978a29`). All four fixes are additive — every existing bats fixture remains green via fallback paths for plans that don't carry the new format conventions. The structural design problem behind bug 4 (AC mirror items track no work) is carved out as **issue #526** for separate redesign.
 
 ## Approach stance (high-reversal-cost axes)
 
@@ -24,7 +24,7 @@ Fix three independent false-positive bugs in `scripts/progress_guardian.py` that
 - [ ] A2: New bats test — plan with `## Build Progress` containing `- [x] Slice 1: …` + `**Files:** \`a.py\``; branch has one Conventional Commit`feat(scope): wording` that modified `a.py` — guardian exits 0. Counterpart test: same plan, commit modified `b.py` (not declared) — guardian exits 1 naming the slice. Substring-fallback test: plan with no `**Files:**` line still passes the existing 3.2a test under the old matcher path.
 - [ ] A3: New bats test — plan with `## Build Progress` (one `[x]` slice with matching commit) AND `## Acceptance Criteria` (several `[ ]` items) — `--pre-pr` exits 0; AC checkboxes ignored. Counterpart test: same plan, Build Progress slice is `[ ]` — `--pre-pr` exits 1 naming that slice. Fallback test: plan with no `## Build Progress` heading still parses every checkbox in the file (existing test 3.3a stays green).
 - [ ] A4: An end-to-end bats fixture (Step 4.1) constructs a tmp repo combining all three patterns — `origin/main` ahead of local `main`, a Conventional Commit subject that does NOT substring-match the slice header, a `**Files:**` line whose declared path the commit modified, AND both `## Build Progress` + `## Acceptance Criteria` sections — and exits 0 with an empty `issues` array. This is the deterministic verification of "all three fixes compose."
-- [ ] A5: `bats tests/scripts/progress_guardian_tests.bats` exits 0. Count: 11 pre-existing tests + 8 new tests (Slice 1: 2 scenarios = 2 tests; Slice 2: 4 scenarios = 4 tests; Slice 3: 4 scenarios = 4 tests including the new "Build Progress empty" case; Slice 4: 1 end-to-end test) = 19 total. If any scenario is implemented as a parametrized `@test` instead of a separate one, A5 still requires every scenario to be independently asserted.
+- [ ] A5: `bats tests/scripts/progress_guardian_tests.bats` exits 0. Final count: 11 pre-existing tests + 10 new tests (Slice 1: 2 tests; Slice 2: 3 tests; Slice 3: 4 tests; Slice 4: 1 end-to-end test) = 21 total. (The originally planned 8 new tests grew to 10 after Slice 3 added its "Build Progress empty" scenario, picked up during plan review iteration 1.)
 - [ ] A6: `bash scripts/ci-local.sh` exits 0; PR title prefix `fix:` for release-please patch bump; PR opened with `--no-auto-merge`.
 
 ## Slices
@@ -265,6 +265,10 @@ No `complex` steps. The plan touches one high-reversal-cost axis (Scope — kept
 - **Risk:** Refactoring `check_scope` to extract `_branch_base_sha` in Slice 2 could subtly change `check_scope`'s behavior. Mitigation: run the full existing bats suite after each slice — 3.3d in particular drives the `check_scope` → `llm-skipped` warning path through a committed-diff out-of-plan file, exercising the base-resolution loop. After the extraction, 3.3d must still emit `rule_id == 'llm-skipped'` for the same fixture. The REFACTOR phase of Step 2.1 explicitly runs bats again to catch any regression here.
 - **Note (parallelization):** the `Depends-on` chain (Slice 2 → 1, Slice 3 → 2, Slice 4 → 1,2,3) reflects file-mutation serialization in a single worktree, not pure logical coupling. Slice 2 does have a real logical dependency on Slice 1 (Slice 2's REFACTOR consumes Slice 1's branch tuple). Slice 3 is logically independent of Slices 1-2 — its dependency is solely to avoid a same-file collision.
 - **Open question:** None — all three high-reversal-cost decisions were resolved in the approach contract before `/specs` ran.
+
+**Build-time discoveries:**
+
+- **Bug 4 — `### Acceptance Criteria` mirror inside `## Build Progress`.** Discovered when running the freshly-fixed guardian against this PR's own plan: every AC item in the Build Progress mirror produced a "no matching commit" error. Patched in commit `a978a29` by extending `parse_plan` with a second flag (`in_acceptance`) that skips the H3 AC sub-heading inside Build Progress. The underlying structural problem — that AC items are checkbox-tracked without work-tracking semantics (no `### Slice` heading, no `**Files:**` line, no commit message draft) — is captured separately as **issue #526** for redesign in a follow-up PR. This PR ships the surgical workaround so the gate stops false-positiving today; #526 will revisit whether the AC mirror should be removed, evidence-tied, or per-AC verified.
 
 ## Build Progress
 

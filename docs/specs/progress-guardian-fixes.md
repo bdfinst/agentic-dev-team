@@ -1,5 +1,5 @@
 <!-- spec-version: 1 -->
-# Spec: progress_guardian — fix three pre-PR gate false positives
+# Spec: progress_guardian — fix four pre-PR gate false positives
 
 **Format:** dev-team specs v1
 **Issue:** <https://github.com/bdfinst/agentic-dev-team/issues/525>
@@ -8,19 +8,22 @@
 
 `scripts/progress_guardian.py` is the pre-PR gate run by `/pr` (and the `progress-guardian` agent) to prove that a branch's plan is complete, every `[x]` step has a matching commit, and the branch hasn't sprawled outside its declared file scope. It is supposed to *catch* plan-discipline failures. Today it fires on every Conventional-Commits-following branch with a normal `## Build Progress` + `## Acceptance Criteria` plan layout — producing noise that trains contributors to ignore the gate, the exact failure mode the gate exists to prevent.
 
-The root cause is three independent bugs, each documented in issue #525 with concrete reproducers on the #524 branch:
+The root cause is **four** false-positive bugs (three identified upfront in issue #525 and a fourth discovered during build):
 
-1. **`check_scope` prefers stale local `main` over `origin/main`** (line 248). Local `main` lags `origin/main` from the moment any work begins; the resulting merge-base sweeps in every commit landed on trunk while the contributor worked, producing dozens of false "out-of-plan file" warnings.
-2. **`check_commit_discipline` requires a substring of the plan-step header in commit subjects** (lines 156–170). CLAUDE.md mandates Conventional Commits (`feat(scope): summary`); plan headers like *"Wire stack detection into test-smell-review"* never appear verbatim in `feat(test-smell-review): detect stack from manifests…`. The matcher and the repo's own commit policy structurally collide.
-3. **`parse_plan` scans every checkbox in the file** (lines 32, 110–126). The `## Acceptance Criteria` section uses the same `- [ ]` syntax as `## Build Progress`, so the pre-PR gate then demands each AC be `[x]` — producing false "Pre-PR gate: step 'A1: …'" findings on plans where the AC list is correctly aspirational.
+1. **`check_scope` prefers stale local `main` over `origin/main`** (pre-fix line 248). Local `main` lags `origin/main` from the moment any work begins; the resulting merge-base sweeps in every commit landed on trunk while the contributor worked, producing dozens of false "out-of-plan file" warnings.
+2. **`check_commit_discipline` requires a substring of the plan-step header in commit subjects** (pre-fix lines 156–170). CLAUDE.md mandates Conventional Commits (`feat(scope): summary`); plan headers like *"Wire stack detection into test-smell-review"* never appear verbatim in `feat(test-smell-review): detect stack from manifests…`. The matcher and the repo's own commit policy structurally collide.
+3. **`parse_plan` scans every checkbox in the file** (pre-fix lines 32, 110–126). The `## Acceptance Criteria` section uses the same `- [ ]` syntax as `## Build Progress`, so the pre-PR gate then demands each AC be `[x]` — producing false "Pre-PR gate: step 'A1: …'" findings on plans where the AC list is correctly aspirational.
+4. **`parse_plan` also reads the `### Acceptance Criteria` mirror inside `## Build Progress`.** Discovered during build: the `/plan` skill's Build Progress template renders a documentation-only mirror of the top-level AC list. With Change 3 narrowing parse_plan to the Build Progress section, that mirror still trips the gate. Fixed in-place by extending the section anchor with an inner skip for the H3 AC sub-heading. The underlying structural issue — that AC items are checkbox-tracked without work-tracking semantics — is tracked separately as **issue #526** for future redesign; this PR ships the workaround.
 
-This change fixes all three with the minimum-blast-radius implementations chosen in the approach contract: tuple reorder for (1), file-path matching for (2), `## Build Progress` heading anchor for (3). Each fix is independent and additive; none break existing passing fixtures.
+This change fixes all four with the minimum-blast-radius implementations chosen in the approach contract: tuple reorder for (1), file-path matching for (2), `## Build Progress` heading anchor for (3), inner H3 skip for (4). Each fix is independent and additive; none break existing passing fixtures.
+
+Pre-fix line numbers above reference the script's state on `origin/main` at the start of this PR. After the fix the `check_scope` tuple lives inside the new `_branch_base_sha` helper, and `check_commit_discipline` spans roughly 247-340 with two new helpers added above it.
 
 ## Architecture Specification
 
 **Single file edited:** `scripts/progress_guardian.py`. No new modules, no helper-script extraction, no public-API changes — the script's three CLI flags (`--plan`, `--pre-pr`, `--skip-llm`) and three exit codes (`0` pass, `1` fail, `2` warn) are unchanged.
 
-**Test files touched:** `tests/scripts/progress_guardian_tests.bats` (extended with regression coverage for all three bugs). The existing 11 `@test` blocks must remain green.
+**Test files touched:** `tests/scripts/progress_guardian_tests.bats` (extended with regression coverage for all four bugs — the original three regression sections 4.1–4.3 plus `4.3-mirror` for bug 4). The existing 11 `@test` blocks must remain green.
 
 **Change 1 — `check_scope`: prefer remote tracking refs.**
 
@@ -48,6 +51,10 @@ When the plan contains a `## Build Progress` heading, only parse checkbox lines 
 
 This narrows the gate to where the `/plan` skill actually stores step-completion state.
 
+**Change 4 — `parse_plan`: skip the `### Acceptance Criteria` mirror inside Build Progress.**
+
+Discovered during build. The `/plan` skill's Build Progress template renders an inner mirror of the top-level AC list under a `### Acceptance Criteria` H3 subheading. Those mirror items have no `### Slice N:` heading and no `**Files:**` line, so the file-path matcher (Change 2) and the substring fallback both fail — manifesting as "no matching commit" errors for every AC item. `parse_plan` now carries a second flag (`in_acceptance`) alongside `in_build_progress`: when an H3 named exactly `### Acceptance Criteria` is seen inside the Build Progress section, the inner-skip flag flips on and stays on until either another H3 opens or the section closes on its next H2. The legacy whole-file fallback is unaffected. **Issue #526** tracks the structural redesign of how ACs live in plans (operator evidence, per-AC verify commands, or removing the mirror entirely); this PR ships the surgical workaround so the gate stops false-positiving today.
+
 **Constraints:**
 
 - All 11 existing bats tests in `tests/scripts/progress_guardian_tests.bats` must remain green — these document the contract for minimal plans without `## Build Progress` or `**Files:**` lines.
@@ -60,7 +67,8 @@ This narrows the gate to where the `/plan` skill actually stores step-completion
 
 - No `git fetch` added to refresh `origin/main` before merge-base. Approach contract resolved this as "additive only" — the cost of network in the gate exceeds the marginal value over "trust the tracking ref."
 - No scope-token matching against Conventional Commit `feat(scope)` syntax. File-path matching is the chosen strategy; scope-token was rejected in the approach contract as fragile for slices whose title doesn't translate cleanly.
-- No structural refactor of `progress_guardian.py` (no class extraction, no module split). The three changes are surgical edits in the existing function bodies.
+- No structural refactor of `progress_guardian.py` (no class extraction, no module split). The four changes are surgical edits in the existing function bodies.
+- No redesign of where AC items live in plan files — tracked in **issue #526**. The Change 4 workaround makes the gate pass on plans the `/plan` skill emits today; the underlying "ACs lack work-tracking semantics" problem is left to a separate spec.
 - No changes to the `progress-guardian` agent's prompt template (`plugins/dev-team/agents/progress-guardian.md`). The agent uses the script's output verbatim — fixing the script fixes its findings.
 - No changes to other plan-consuming tools (`build-wave.sh`, `plan-waves.sh`, etc.). They parse plans for different purposes and aren't affected.
 
@@ -90,6 +98,10 @@ Each criterion is a deterministic, observable check.
 - Behavioral check via new bats test: same plan but the `## Build Progress` slice is `[ ]`. `progress_guardian --pre-pr --skip-llm` exits 1 naming the unchecked slice.
 - Behavioral check (fallback path) via existing test 3.3a: minimal plan with no `## Build Progress` heading — every checkbox in the file is parsed (today's behavior). Test stays green.
 
+**A3b — AC mirror inside Build Progress is skipped (Change 4 / #526 workaround).**
+
+Discovered during build. Plan with a `### Acceptance Criteria` H3 sub-heading inside `## Build Progress` containing `[ ]` AC mirror items, plus an outer `[x]` slice with a matching commit. `progress_guardian --pre-pr --skip-llm` exits 0 — the inner AC mirror items are ignored. Verified by bats test `4.3-mirror`. Structural redesign of where ACs live in plans is tracked in **issue #526**; this criterion only locks in the workaround.
+
 **A4 — Real-world reproduction passes.**
 
 - Manual verification step run from the #524 branch (or any future branch with the same plan layout): `python3 scripts/progress_guardian.py --pre-pr --plan plans/stack-aware-reference-loading.md` exits 0. PR description captures the before/after output as evidence.
@@ -101,7 +113,7 @@ Each criterion is a deterministic, observable check.
 
 **A6 — CI/release hygiene.**
 
-- PR title `fix(progress-guardian): correct three pre-PR gate false positives (#525)` — `fix:` prefix for release-please patch bump.
+- PR title `fix(progress-guardian): correct four pre-PR gate false positives (#525)` — `fix:` prefix for release-please patch bump.
 - PR opened with `--no-auto-merge` per CLAUDE.md (touches `scripts/`).
 - `/code-review` passes after auto-fix loop.
 
@@ -124,7 +136,7 @@ No `LOW_VALUE` items.
 ## Consistency Gate
 
 - [x] Intent is unambiguous — *Three independent bugs in `scripts/progress_guardian.py`; fix each with the minimum-blast-radius implementation chosen in the approach contract; preserve all existing exit codes, JSON shape, and 11 passing bats tests.*
-- [x] Every behavior/goal maps to an acceptance criterion — A1 (Change 1: stale main), A2 (Change 2: commit matcher), A3 (Change 3: parse_plan anchor), A4 (real-world repro), A5 (no regressions), A6 (CI).
+- [x] Every behavior/goal maps to an acceptance criterion — A1 (Change 1: stale main), A2 (Change 2: commit matcher), A3 (Change 3: parse_plan anchor), A3b (Change 4: AC mirror skip), A4 (real-world repro), A5 (no regressions), A6 (CI).
 - [x] Architecture constrains without over-engineering — one file edited, no new modules, no helper extraction, no API changes, three surgical fixes.
 - [x] Terminology consistent across artifacts — *Build Progress*, *Acceptance Criteria*, *file-path matcher*, *substring fallback*, *origin/main preference* used identically.
 - [x] No contradictions between artifacts — the three locked decisions and the four `inferable` decisions appear identically in Intent, Architecture, Acceptance, and Ambiguity Log.

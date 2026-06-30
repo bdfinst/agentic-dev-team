@@ -261,7 +261,15 @@ make_plan() {
 setup_stale_main_repo() {
   local work="$1"
   local ahead_file="$2"
-  local remote="$work/../remote.git"
+  # All three working areas (the bare remote, the working clone, and the
+  # sibling clone used to advance the remote) live as siblings under
+  # $work's PARENT directory. Callers create $work as `$T/work` for some
+  # mktemp-d $T, so `rm -rf $T` covers everything this helper allocates —
+  # no detached tmpdirs leak under /tmp.
+  local parent
+  parent="$(dirname "$work")"
+  local remote="$parent/remote.git"
+  local sibling="$parent/sibling"
   # Bare remote
   git init -q --bare "$remote"
   # Working clone seeded with an initial commit
@@ -275,10 +283,8 @@ setup_stale_main_repo() {
   git add seed.txt
   git commit -q -m "chore: seed"
   git push -q origin main
-  # Advance the remote with an ahead-commit touching <ahead_file>, via a
+  # Advance the remote with an ahead-commit touching <ahead_file>, via the
   # sibling clone so this clone's local main stays at the seed.
-  local sibling
-  sibling="$(mktemp -d)/sibling"
   git clone -q "$remote" "$sibling"
   cd "$sibling"
   git config user.email "test@test.com"
@@ -401,6 +407,12 @@ setup_stale_main_repo() {
 }
 
 @test "4.2c: commit modifies only undeclared files; matcher fails naming the slice" {
+  # Tightening note: the commit subject is constructed to substring-MATCH the
+  # slice header ("do thing" in "feat: do thing" matches the literal
+  # "do thing"). If the production code regressed to the substring fallback
+  # despite the **Files:** declaration, this test would false-pass with exit
+  # 0. The current file-path matcher correctly rejects (b.py not in declared
+  # [a.py]), so exit 1 here proves the file-path matcher is the active path.
   T="$(mktemp -d)"
   cd "$T"
   git init -q
@@ -409,9 +421,9 @@ setup_stale_main_repo() {
   git commit -q --allow-empty -m "chore: initial"
   echo "branch work" > b.py
   git add b.py
-  git commit -q -m "feat: anything"
+  git commit -q -m "feat: do thing"
   PLAN="$T/plan.md"
-  printf '%s\n' "- [x] Slice 1: do thing" "" "**Files:** \`a.py\`" > "$PLAN"
+  printf '%s\n' "- [x] do thing" "" "**Files:** \`a.py\`" > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
   rm -rf "$T"
@@ -420,22 +432,60 @@ setup_stale_main_repo() {
   echo "$output" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
-errs = [i for i in d['issues'] if i['severity'] == 'error' and 'Slice 1: do thing' in i['message']]
+errs = [i for i in d['issues'] if i['severity'] == 'error' and \"'do thing'\" in i['message']]
 assert len(errs) == 1, d
 "
 }
 
 # ---------------------------------------------------------------------------
-# Step 4.3 — Issue #525 regressions: Build Progress anchor
-# Bug: STEP_PATTERN matched every checkbox in the plan. The
-# `## Acceptance Criteria` section uses the same `- [ ]` syntax, so the
-# pre-PR gate demanded each AC be checked too — false positives on every
-# plan with both sections.
+# Step 4.3 — Issue #525 regressions: Build Progress anchor + AC mirror skip
+# Two related bugs:
+#   (3) STEP_PATTERN matched every checkbox in the plan, including the
+#       top-level `## Acceptance Criteria` section.
+#   (4) Discovered during build: the /plan template ALSO renders an inner
+#       mirror of the AC list under a `### Acceptance Criteria` H3 inside
+#       `## Build Progress`. Those mirror items lack work-tracking semantics
+#       and produce "no matching commit" errors. Structural redesign tracked
+#       in #526.
 #
-# Fix: parse_plan only reads checkboxes in the `## Build Progress`
-# section. Falls back to whole-file scanning when no `## Build Progress`
-# heading is present (preserves the existing 11 tests).
+# Fix: parse_plan now uses two flags. `in_build_progress` scopes parsing
+# to lines between `## Build Progress` and the next H2. `in_acceptance`
+# skips the inner `### Acceptance Criteria` subheading within that scope.
+# Plans with no `## Build Progress` heading fall back to whole-file
+# scanning (preserves the existing 11 tests).
 # ---------------------------------------------------------------------------
+
+@test "4.3-mirror: ### Acceptance Criteria mirror INSIDE Build Progress is skipped (bug 4 / #526 workaround)" {
+  # The /plan template emits an inner `### Acceptance Criteria` subheading
+  # inside the `## Build Progress` section, mirroring the top-level AC list.
+  # parse_plan must skip those mirror items because they have no
+  # work-tracking semantics (no `### Slice` heading, no `**Files:**` line).
+  # Structural redesign tracked in #526; this test guards the workaround.
+  T="$(mktemp -d)"
+  cd "$T"
+  git init -q
+  git config user.email "test@test.com"
+  git config user.name "Test"
+  git commit -q --allow-empty -m "feat: do the slice work"
+  PLAN="$T/plan.md"
+  printf '%s\n' \
+    "## Build Progress" \
+    "" \
+    "### Slices (grouped by wave)" \
+    "" \
+    "- [x] do the slice work" \
+    "" \
+    "### Acceptance Criteria" \
+    "" \
+    "- [ ] A1: aspirational outcome 1" \
+    "- [ ] A2: aspirational outcome 2" \
+    > "$PLAN"
+
+  run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
+  rm -rf "$T"
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
+}
 
 @test "4.3a: Build Progress [x] + AC [ ] items; --pre-pr exits 0 (ACs ignored)" {
   T="$(mktemp -d)"
