@@ -60,6 +60,23 @@ For tool-specific flag names and config-file keys (e.g. Stryker's `timeoutMS`, p
 
 Run scoped to user-specified files or changed files. Capture full output and note any HTML report paths. Per-language commands and scoping idioms — including the C# shard-aware execution path for large repos — live in [`references/languages/<lang>.md`](references/languages/).
 
+### Probe file selection
+
+Before scoping the full run, pick a **probe file** — one file to shake out configuration and get a first honest signal. A good probe exercises both fast kills and the timeout ceiling, so the run tells you whether the tool is configured correctly. A bad probe produces a mass-CompileError smoke plume that validates nothing.
+
+Rules (language-agnostic):
+
+- **≥ 50 mutants** — enough operator variety that the score is not a coin flip.
+- **Highest existing mutation score in the target** — a file already well-tested by unit tests exercises both the "kill fast" and "timeout near the limit" paths; a weakly-tested file only measures how weakly it is tested.
+
+Avoid, in every language:
+
+- **Generated code** (Protobuf, OpenAPI stubs, ORM entity generators) — the mutation tool cannot distinguish generator output from hand-written code, and mutations on generated types typically fail to compile.
+- **DTOs / value objects** — no branching logic; every survivor is either equivalent or a wrapper-property assertion, so the file gives no signal about test quality.
+- **Files with near-0 % coverage** — validates configuration only, not test quality. Every mutant survives regardless of how the tests are written.
+
+Language-specific probe traps (particularly in C#/Stryker.NET, where certain operator combinations produce methods that don't exist) live in [`references/languages/<lang>.md`](references/languages/).
+
 ## Step 3: Parse results
 
 Extract surviving mutants. Map each to:
@@ -74,15 +91,39 @@ Extract surviving mutants. Map each to:
 
 ## Step 4: Triage survivors
 
-For each survivor, classify and act:
+For each mutant, classify and act. **`NoCoverage` outranks `Survived`** — a survived mutant at least ran, so a tighter assertion can kill it; a no-coverage mutant was never reached at all, so writing a test that exercises the path is the higher-leverage move.
 
 | Classification | Meaning | Action |
 |---|---|---|
+| **NoCoverage** | No test exercises this code path at all | Add a test that reaches the path before worrying about killing the mutant — coverage is the prerequisite |
 | **Equivalent** | Mutation produces identical behavior | Mark excluded — no test can kill it |
 | **Missing assertion** | Test executes the code but doesn't assert on affected output | Strengthen the assertion |
 | **Missing test case** | No test exercises the mutated path | Write a new test |
 | **Undertested boundary** | Mutation exposes a boundary/edge with no coverage | Add a boundary test |
 | **Acceptable risk** | Trivial code where the mutation doesn't matter | Document and skip |
+
+**Recommended work order** — attack in this sequence, not by file order:
+
+1. **NoCoverage** first (each conversion moves the honest score as much as killing a survivor, and it's usually cheaper — the unreached path just needs a test that touches it).
+2. **Survived** next (assertion or coverage fix — see the mutation-type-aware guidance below).
+3. **Equivalent** last (documentation only; no test to write).
+
+### Mutation-type-aware triage
+
+Different mutation types fail for different reasons. A single strategy does not fit all — asking an LLM to strengthen an assertion cannot kill a Statement-removal survivor. Match the fix to the family:
+
+**String / ObjectInitializer / Equality** — the easiest family to kill and the highest kills-per-test. The test executes the code but does not assert on the mutated value (a status-code check will not catch a wrong string). Fix: add a **specific-value assertion** on the affected field. Example (C#):
+
+```csharp
+// WEAK — status only
+response.EnsureSuccessStatusCode();
+// STRONG — assert on the specific field the mutation would change
+Assert.AreEqual("expected-value", response.Data.FieldName);
+```
+
+**Statement / Block removal** — survives because the code path is not exercised, not because an assertion is weak. **A stronger assertion cannot kill this family.** Fix: add a test that reaches the missing path. Do not ask an LLM to kill a Statement mutation with a stronger assertion — it will produce a plausible-looking test that still doesn't cover the deleted line.
+
+**Guard (null-check / range-check / required-field removal)** — on internal service or builder methods, cannot be killed by HTTP-layer / integration tests: the outer request path validates before reaching the guard. Fix: a **unit test that invokes the guarded method directly** with invalid input, asserting the exception (or the observable side effect the guard prevents). Identify guard survivors by looking for `Statement` survivors in service/builder classes and asking "is this guarding an internal invariant?" — if yes, the fix is a direct call, not a request-level test.
 
 ### Triage procedure
 
@@ -137,11 +178,20 @@ expect(db.save).toHaveBeenCalledWith(order);  // catches removed save()
 
 ## Output format
 
+Report the **honest** figure as the operator's primary signal. Tool-claimed scoring counts timeouts as kills and inflates — on a real Stryker.NET run, 999 of 1305 headline "kills" were timeouts (~23 % honest vs. ~61 % as Stryker reported it). Show both, honest above claimed, and emit the timeout warning when it fires. Formula derivation is documented in the [Machine-readable output](#machine-readable-output) section.
+
+The illustrative counts below are self-consistent under those formulas (verify: `100 / (100+200+135) = 23.0 %`; `(100+430) / (100+200+430+135) = 61.3 %`; `430 / (100+200+430) = 58.9 %`). Do not tune wording without re-checking the arithmetic.
+
 ```markdown
 ## Mutation Testing Results
 
 **Tool:** Stryker 8.x | **Scope:** src/calculator.ts | **Duration:** 45s | **Per-mutant timeout:** 60s
-**Score:** 82% (41 killed / 50 total, 3 equivalent, 6 survived)
+**Honest score:** 23.0% (100 killed of 435 candidates; candidates = killed + survived + no-coverage)
+**Claimed score:** 61.3% ((killed + timeout) / (killed + survived + timeout + no-coverage))
+
+> ⚠️ **Timeout warning:** 58.9% of run outcomes were timeouts (430 of 730). The claimed score
+> is not trustworthy — raise `additional-timeout` (per-tool flag; see the language reference)
+> before treating either score as a gate.
 
 ### Surviving Mutants
 
@@ -175,6 +225,13 @@ When `--emit-json <path>` is set, write a structured result document to `<path>`
   "killed": 41,
   "survived": 6,
   "equivalent": 3,
+  "timeout": 0,
+  "no_coverage": 0,
+  "compile_error": 0,
+  "honest_score": 87.2,
+  "claimed_score": 87.2,
+  "timeout_pct": 0.0,
+  "timeout_warning": false,
   "survivors": [
     { "file": "src/calculator.ts", "line": 42, "operator": "ConditionalBoundary", "status": "survived" },
     { "file": "src/calculator.ts", "line": 67, "operator": "ReturnValue",        "status": "equivalent" }
@@ -185,6 +242,19 @@ When `--emit-json <path>` is set, write a structured result document to `<path>`
 Each entry in `survivors` carries `file`, `line`, `operator`, and `status` where `status` is `"survived"` or `"equivalent"`. Callers MUST filter `status: "equivalent"` before computing deltas so reclassifications between runs don't show up as regressions.
 
 An optional top-level `"advisory": true` flag marks a result from an advisory-only tool (go-mutesting today). When present, callers MUST treat the survivor count as warn-not-block — it never fails a gate. Absent (the default), the result is authoritative.
+
+**Formulas.** The score fields are derived; the raw counts are the source of truth.
+
+```
+honest_score   = Killed / (Killed + Survived + NoCoverage)
+claimed_score  = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
+timeout_pct    = Timeout / (Killed + Survived + Timeout)
+timeout_warning = timeout_pct > 0.05
+```
+
+The honest score matches the sibling `mutation-kill` agent's formula so both surfaces read the same number. It differs from Stryker's own "mutation score" line (Stryker counts `Timeout` toward the numerator). When `timeout_warning` is true, the claimed score is not trustworthy: raise the tool's `additional-timeout` (or equivalent per-tool wall-clock budget) before treating either score as a gate. The warning is advisory — not a hard gate that fails the run — so a caller can decide policy without the skill forcing one.
+
+**Emitting adapters.** Adapters emit the additive score fields only when their native tool distinguishes `Timeout` and `NoCoverage` from `Killed`/`Survived`. Today that is Stryker (JS), **Stryker.NET**, pitest, and mutmut. Advisory-only tools that do not distinguish them — today's example is **go-mutesting** — omit the fields entirely rather than emit misleading zeros; the top-level `"advisory": true` flag is the caller's signal to treat the envelope as warn-not-block. Readers that consume the new fields MUST tolerate them being absent on an advisory envelope.
 
 **Error envelopes (exit code non-zero, `<path>` still written for caller diagnostics):**
 

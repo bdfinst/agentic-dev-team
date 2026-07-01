@@ -7,19 +7,19 @@
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 
 @test ".claude/model-ladder.json is gitignored" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   run git check-ignore .claude/model-ladder.json
   [ "$status" -eq 0 ]
 }
 
 @test ".claude/session-model is gitignored" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   run git check-ignore .claude/session-model
   [ "$status" -eq 0 ]
 }
 
 @test ".claude/metrics/model-routing.log is gitignored" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   run git check-ignore .claude/metrics/model-routing.log
   [ "$status" -eq 0 ]
 }

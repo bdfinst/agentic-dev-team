@@ -12,7 +12,7 @@ INDEX="$REPO_ROOT/plugins/dev-team/knowledge/index.json"
 }
 
 @test "every knowledge/*.md (excluding schemas/) appears as a top-level key" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   for f in plugins/dev-team/knowledge/*.md; do
     [ -f "$f" ] || continue
     run jq -e --arg k "$f" 'has($k)' "$INDEX"
@@ -21,7 +21,7 @@ INDEX="$REPO_ROOT/plugins/dev-team/knowledge/index.json"
 }
 
 @test "every skills/*/SKILL.md appears as a top-level key" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   for f in plugins/dev-team/skills/*/SKILL.md; do
     [ -f "$f" ] || continue
     run jq -e --arg k "$f" 'has($k)' "$INDEX"
@@ -30,7 +30,7 @@ INDEX="$REPO_ROOT/plugins/dev-team/knowledge/index.json"
 }
 
 @test "no file outside the corpus appears as a top-level key" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   local bad
   bad=$(jq -r 'keys[]' "$INDEX" | grep -vE '^plugins/dev-team/(knowledge/[^/]+\.md|skills/[^/]+/SKILL\.md)$' || true)
   if [[ -n "$bad" ]]; then
@@ -41,13 +41,13 @@ INDEX="$REPO_ROOT/plugins/dev-team/knowledge/index.json"
 }
 
 @test "knowledge/schemas/ subdirectory is excluded" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   run jq -r 'keys[]' "$INDEX"
   [[ "$output" != *"knowledge/schemas"* ]]
 }
 
 @test "no docs/, agents/, or commands/ paths appear" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   run jq -r 'keys[]' "$INDEX"
   [[ "$output" != *"/docs/"* ]]
   [[ "$output" != *"/agents/"* ]]

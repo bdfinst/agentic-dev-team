@@ -26,7 +26,7 @@ ALLOWED_PATHS=(
 )
 
 @test "no pinned snapshot IDs in plugin source outside approved files" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   local raw
   raw=$(git grep -nE 'claude-(haiku|sonnet|opus)-[0-9]' -- \
     'plugins/' \
