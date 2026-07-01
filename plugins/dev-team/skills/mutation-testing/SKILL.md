@@ -60,6 +60,23 @@ For tool-specific flag names and config-file keys (e.g. Stryker's `timeoutMS`, p
 
 Run scoped to user-specified files or changed files. Capture full output and note any HTML report paths. Per-language commands and scoping idioms — including the C# shard-aware execution path for large repos — live in [`references/languages/<lang>.md`](references/languages/).
 
+### Capturing run output safely
+
+Do **not** wrap the mutation tool in a bare `<tool> 2>&1 | tee run.log` pipeline. Bash pipeline exit status defaults to the last command's — `tee` always exits 0 on a successful write — so any Stryker / mutmut / pitest / go-mutesting startup failure (missing tool manifest, invalid config key, wrong `DOTNET_ROOT`, compile-error abort) is silently masked. Downstream automation (background tasks, CI wrappers, this plugin's own monitor loops) then sees "success" and moves on, and the failure is discovered only when the report JSON is missing.
+
+Two safe patterns — pick by whether you need live tail:
+
+```bash
+# One-shot run — direct redirect, simpler, no shell-option side effect.
+dotnet stryker --config-file stryker-config.json >StrykerOutput/full-run.log 2>&1
+
+# Live-tail run — pipefail makes the pipeline exit the leftmost non-zero.
+set -o pipefail
+dotnet stryker --config-file stryker-config.json 2>&1 | tee StrykerOutput/full-run.log
+```
+
+This trap is portable across all languages the skill supports; the same rule applies to `npx stryker run ... | tee`, `mutmut run ... | tee`, `mvn pitest:mutationCoverage ... | tee`, and `go-mutesting ... | tee`. If you rely on `$?` or a monitor's exit-code trigger, always use one of the two safe patterns above.
+
 ### Probe file selection
 
 Before scoping the full run, pick a **probe file** — one file to shake out configuration and get a first honest signal. A good probe exercises both fast kills and the timeout ceiling, so the run tells you whether the tool is configured correctly. A bad probe produces a mass-CompileError smoke plume that validates nothing.

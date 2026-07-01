@@ -12,6 +12,8 @@ go install github.com/zimmski/go-mutesting/cmd/go-mutesting@latest
 
 ## Run (scoped)
 
+> When capturing run output to a log file, do **not** use a bare `go-mutesting ... 2>&1 | tee run.log` — the pipeline exit code is `tee`'s (always 0), so a tool failure is silently masked. Use `>run.log 2>&1` for one-shot runs or `set -o pipefail` for live tail. See [`SKILL.md` → Capturing run output safely](../../SKILL.md#capturing-run-output-safely).
+
 ```bash
 # Whole module
 go-mutesting ./...

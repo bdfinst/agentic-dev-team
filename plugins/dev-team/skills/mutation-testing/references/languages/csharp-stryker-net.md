@@ -85,6 +85,8 @@ The language-agnostic probe rule (≥ 50 mutants, highest existing mutation scor
 
 Large C# repos take 60–90 min for a whole-project run. Always scope runs; if the repo has pre-generated shard configs, use them.
 
+> When capturing run output to a log file, do **not** use a bare `dotnet stryker ... 2>&1 | tee run.log` — the pipeline exit code is `tee`'s (always 0), so a Stryker failure is silently masked. Use `>run.log 2>&1` for one-shot runs or `set -o pipefail` for live tail. See [`SKILL.md` → Capturing run output safely](../../SKILL.md#capturing-run-output-safely).
+
 **Single file in `--scope` (Phase 4 per-Story gate):**
 
 ```bash
