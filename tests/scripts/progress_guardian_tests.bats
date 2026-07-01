@@ -270,15 +270,22 @@ setup_stale_main_repo() {
   parent="$(dirname "$work")"
   local remote="$parent/remote.git"
   local sibling="$parent/sibling"
-  # Bare remote
-  git init -q --bare "$remote"
-  # Working clone seeded with an initial commit
-  git init -q "$work"
+  # Bare remote. Force HEAD to main so `git clone` from it later
+  # doesn't warn about a nonexistent ref.
+  git init -q --bare --initial-branch=main "$remote" 2>/dev/null \
+    || { git init -q --bare "$remote"; git -C "$remote" symbolic-ref HEAD refs/heads/main; }
+  # Working clone seeded with an initial commit on `main`. Use
+  # --initial-branch=main so the branch exists from the start regardless of
+  # the host git's `init.defaultBranch` config (CI runners often default to
+  # `master` or leave it unset, which causes `git push origin main` to fail
+  # with "src refspec main does not match any" when the branch only becomes
+  # real via `git checkout -b main` before the first commit).
+  git init -q --initial-branch=main "$work" 2>/dev/null \
+    || { git init -q "$work"; git -C "$work" symbolic-ref HEAD refs/heads/main; }
   cd "$work"
   git config user.email "test@test.com"
   git config user.name "Test"
   git remote add origin "$remote"
-  git checkout -q -b main
   echo "seed" > seed.txt
   git add seed.txt
   git commit -q -m "chore: seed"
@@ -289,6 +296,7 @@ setup_stale_main_repo() {
   cd "$sibling"
   git config user.email "test@test.com"
   git config user.name "Test"
+  # Sibling clone inherits its default branch from the remote HEAD (main).
   echo "ahead" > "$ahead_file"
   git add "$ahead_file"
   git commit -q -m "feat: ahead on main"
@@ -326,14 +334,17 @@ setup_stale_main_repo() {
   T="$(mktemp -d)"
   WORK="$T/work"
   # Set up a repo where origin/main == local main (no remote advance).
+  # Use --initial-branch=main (with fallback) so this works on CI runners
+  # whose git default branch is not `main`.
   REMOTE="$T/remote.git"
-  git init -q --bare "$REMOTE"
-  git init -q "$WORK"
+  git init -q --bare --initial-branch=main "$REMOTE" 2>/dev/null \
+    || { git init -q --bare "$REMOTE"; git -C "$REMOTE" symbolic-ref HEAD refs/heads/main; }
+  git init -q --initial-branch=main "$WORK" 2>/dev/null \
+    || { git init -q "$WORK"; git -C "$WORK" symbolic-ref HEAD refs/heads/main; }
   cd "$WORK"
   git config user.email "test@test.com"
   git config user.name "Test"
   git remote add origin "$REMOTE"
-  git checkout -q -b main
   echo "seed" > seed.txt
   git add seed.txt
   git commit -q -m "chore: seed"
