@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: `Issue-521`
-**Status**: approved
+**Status**: in-progress
 **Spec**: [docs/specs/mutation-testing-honest-score-and-triage.md](../docs/specs/mutation-testing-honest-score-and-triage.md)
 
 ## Goal
@@ -291,9 +291,9 @@ Plan tier: **standard** — reviewers: Acceptance Test Critic + Design & Archite
 
 #### Wave 2
 
-- [ ] Slice 2: C#-specific probe-file avoidance list in csharp-stryker-net.md
-  - [ ] Step 2.1: Extend bats suite with C# probe-avoidance grep tests (RED)
-  - [ ] Step 2.2: Add C#-specific probe-file avoidance list (GREEN)
+- [x] Slice 2: C#-specific probe-file avoidance list in csharp-stryker-net.md
+  - [x] Step 2.1: Extend bats suite with C# probe-avoidance grep tests (RED)
+  - [x] Step 2.2: Add C#-specific probe-file avoidance list (GREEN)
 
 ### Acceptance Criteria
 
@@ -306,7 +306,7 @@ Plan tier: **standard** — reviewers: Acceptance Test Critic + Design & Archite
 - [x] AC-7: `NoCoverage` triage row present; work order lists it before `Survived`.
 - [x] AC-8: `Mutation-type-aware` sub-section covers three families with the required wording.
 - [x] AC-9: Language-agnostic probe file selection guidance in `SKILL.md` Step 2.
-- [ ] AC-10: C#-specific probe avoidance in `csharp-stryker-net.md`.
+- [x] AC-10: C#-specific probe avoidance in `csharp-stryker-net.md`.
 - [ ] AC-11: PR diff touches only the four intended paths.
 - [ ] AC-12: PR title `feat(mutation-testing): …`; body contains `Closes #521`.
 - [ ] AC-13: Auto-merge armed at PR open.

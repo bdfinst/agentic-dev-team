@@ -74,6 +74,13 @@ Every Stryker run block below assumes a fresh `dotnet build ... -c Debug --nolog
 
 Stryker.NET rejects **any unknown key** in `stryker-config.json` since v1.x — a JSON comment workaround like `"_note": "..."` or `"//": "..."` causes the entire run to fail with a clear error message. Do not embed intent comments in the config. Document config intent in the git commit message that introduces the config, or in a nearby `README.md`.
 
+### Probe file selection — C#-specific traps
+
+The language-agnostic probe rule (≥ 50 mutants, highest existing mutation score, avoid generated code / DTOs / near-0 %-coverage files) lives in [`../../SKILL.md`](../../SKILL.md) Step 2 — read it first. Two Stryker.NET-specific probe anti-patterns compound the general rule; picking either as a probe validates nothing and produces a mass-CompileError smoke plume:
+
+- **gRPC / Protobuf service implementations.** Stryker.NET's `ObjectInitializer` mutations target the auto-generated Protobuf message types. Because those types are code-generated, the mutations produce constructor / initializer forms that do not compile, yielding hundreds to thousands of `CompileError` mutants — no signal, only cost. Avoid these files as probes; scope them out of full runs unless you have a specific reason.
+- **Caching / key-building classes under `mutation-level: Standard`.** The `Standard` mutation level enables `LinqMutation` and `StringMutation` operators that generate calls to methods that **do not exist** — for example `StringBuilder.Prepend` (the method is `Insert(0, …)`) and `IDictionary.Sum` (there is no `Sum` extension in the target namespace). These produce 1000+ `CompileError` mutants on files that build hash keys or aggregate LINQ. Drop such files to `mutation-level: Basic` (or exclude them) before probing.
+
 ## Run (scoped)
 
 Large C# repos take 60–90 min for a whole-project run. Always scope runs; if the repo has pre-generated shard configs, use them.
