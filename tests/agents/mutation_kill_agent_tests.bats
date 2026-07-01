@@ -40,6 +40,13 @@ REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/agent-registry.md"
   grep -Eqi 'prioritize NoCoverage|NoCoverage.*before.*Survived|NoCoverage.*first' "$AGENT"
 }
 
+@test "loop starts with a fresh build; prohibits --no-build on mutation runs" {
+  # The build-first step must precede the loop pseudo-code.
+  grep -Eq 'dotnet build' "$AGENT"
+  # The prohibition against --no-build during mutation runs must be explicit.
+  grep -Eqi 'never.*--no-build|do not use.*--no-build|not.*--no-build' "$AGENT"
+}
+
 @test "warns that shard and full-run scores are not comparable" {
   grep -Eqi 'shard' "$AGENT"
   grep -Eqi 'not comparable|never (mix|compare)|prohibit.*compar' "$AGENT"

@@ -106,6 +106,21 @@ drops from full-suite time to the time of the tests covering the mutated line
 (observed 10–50× speedup). Use scoped + per-test for the development loop; reserve
 the full run (coverage-analysis off) for the CI gate only.
 
+## Step 0: build first (per file, before any round)
+
+Every mutation run assumes fresh binaries. A stale build produces phantom
+failures — Stryker either aborts on load or reports every mutant as `Survived`,
+and both the failures and the kills are meaningless. Before Round 1 (and again
+after every source edit outside the loop):
+
+```
+dotnet build <SOLUTION> -c Debug --nologo   # or the language equivalent
+```
+
+If the build fails, **stop** — do not proceed to any round. **Never use
+`--no-build` on the test command during mutation testing.** Stryker instruments
+the build; `--no-build` runs against whatever binary happens to be on disk.
+
 ## Loop (per file)
 
 ```
