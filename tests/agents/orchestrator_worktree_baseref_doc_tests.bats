@@ -49,3 +49,10 @@ ROOT="${BATS_TEST_DIRNAME}/../.."
   run bash -c "grep -E '(\\.claude/settings\\.json|~/\\.claude/settings\\.json)' '$ROOT/plugins/dev-team/knowledge/request-processing-flow.md'"
   [ "$status" -eq 0 ]
 }
+
+@test "request-processing-flow.md points at the spike audit trail" {
+  # Parity with orchestrator.md — spec AC6 requires all three doc
+  # locations to link the spike file explicitly.
+  run grep -F 'worktree-baseref-head-spike' "$ROOT/plugins/dev-team/knowledge/request-processing-flow.md"
+  [ "$status" -eq 0 ]
+}
