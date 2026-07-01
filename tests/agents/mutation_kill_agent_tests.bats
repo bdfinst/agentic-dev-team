@@ -24,8 +24,10 @@ REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/agent-registry.md"
 
 @test "defines the honest score formula (hard kills only, timeout excluded)" {
   grep -Eqi 'honest' "$AGENT"
-  grep -Eq 'Killed */ *\(Total' "$AGENT"
+  grep -Eq 'Killed */ *\(Killed \+ Survived \+ NoCoverage\)' "$AGENT"
   grep -Eqi 'timeout' "$AGENT"
+  # Retired formula must be gone, not just supplemented.
+  ! grep -Eq 'Killed */ *\(Total *- *Ignored' "$AGENT"
 }
 
 @test "reports timeout count separately and never gates on it" {
