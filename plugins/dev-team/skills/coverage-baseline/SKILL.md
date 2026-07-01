@@ -25,7 +25,7 @@ Arguments: $ARGUMENTS
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL on the resolved tracker (or empty for local-files mode).
 - `--repo-slug <slug>` — namespace under `memory/<workflow>/`.
-- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-upgrade`. `/test-modernize` passes `test-modernize` to keep its Phase-3 paths unchanged.
+- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-upgrade`. `/test-modernize` passes `test-modernize` to keep its Phase-3 paths unchanged; `/test-improve` passes `test-improve` for its Phase-2 baseline.
 
 If `<repo-path>` is absent, ask the operator.
 

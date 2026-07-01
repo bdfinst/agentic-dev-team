@@ -25,7 +25,7 @@ Arguments: $ARGUMENTS
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL (or empty for local-files).
 - `--repo-slug <slug>` — `memory/<workflow>/` namespace.
-- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-upgrade`. `/test-modernize` passes `test-modernize` to keep its Phase-4 paths unchanged.
+- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-upgrade`. `/test-modernize` passes `test-modernize` to keep its Phase-4 paths unchanged; `/test-improve` passes `test-improve` for its Phase-4 per-Story deltas.
 - `--story <id-or-path>` — optional Story this delta is attributed to. Used as the snapshot label.
 - `--story-files <glob-or-comma-list>` — production-code files the Story touched (typically from `/build`'s commit diff, tests filtered out). When both `--story` AND a non-empty `--story-files` are present, Step 2b runs scoped mutation; otherwise it is a no-op so `/quality-targets-converge` can keep calling this worker without `--story-files` exactly as before.
 
