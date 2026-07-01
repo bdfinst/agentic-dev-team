@@ -13,7 +13,7 @@ setup() {
   # Build a tiny temp git repo. The hook reads `git diff --cached` to
   # decide which corpus files are staged, so the test repo needs the
   # plugin layout.
-  cd "$BATS_TMPDIR_CASE"
+  cd "$BATS_TMPDIR_CASE" || return 1
   git init -q
   git config user.email "test@example.com"
   git config user.name "Test"
@@ -104,7 +104,7 @@ _bash_input() {
 
 @test "commit with only non-corpus files staged is allowed" {
   # Edit and stage an agent file only.
-  cd "$BATS_TMPDIR_CASE"
+  cd "$BATS_TMPDIR_CASE" || return 1
   echo "## New" >> plugins/dev-team/agents/some-agent.md
   echo "Body." >> plugins/dev-team/agents/some-agent.md
   git add plugins/dev-team/agents/some-agent.md
@@ -120,7 +120,7 @@ _bash_input() {
 # ---------------------------------------------------------------------------
 
 @test "commit with corpus + matching index staged exits 0" {
-  cd "$BATS_TMPDIR_CASE"
+  cd "$BATS_TMPDIR_CASE" || return 1
   # Edit a corpus file, rebuild the index, stage both.
   echo "## New Section" >> plugins/dev-team/knowledge/foo.md
   echo "Body of new section." >> plugins/dev-team/knowledge/foo.md
@@ -138,7 +138,7 @@ _bash_input() {
 # ---------------------------------------------------------------------------
 
 @test "commit with stale index blocks with the two-line remediation" {
-  cd "$BATS_TMPDIR_CASE"
+  cd "$BATS_TMPDIR_CASE" || return 1
   # Edit the corpus file but DO NOT rebuild the index.
   echo "## New Section" >> plugins/dev-team/knowledge/foo.md
   echo "Body of new section." >> plugins/dev-team/knowledge/foo.md
@@ -160,7 +160,7 @@ _bash_input() {
 # ---------------------------------------------------------------------------
 
 @test "commit blocks when working tree drifts past a consistent staged pair" {
-  cd "$BATS_TMPDIR_CASE"
+  cd "$BATS_TMPDIR_CASE" || return 1
   # 1. Stage corpus + matching index.
   echo "## First" >> plugins/dev-team/knowledge/foo.md
   echo "Body of first." >> plugins/dev-team/knowledge/foo.md
@@ -183,7 +183,7 @@ _bash_input() {
 # ---------------------------------------------------------------------------
 
 @test "bypass: --no-verify is allowed even when index is stale" {
-  cd "$BATS_TMPDIR_CASE"
+  cd "$BATS_TMPDIR_CASE" || return 1
   echo "## New" >> plugins/dev-team/knowledge/foo.md
   echo "Body." >> plugins/dev-team/knowledge/foo.md
   git add plugins/dev-team/knowledge/foo.md

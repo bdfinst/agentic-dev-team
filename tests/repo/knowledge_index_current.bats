@@ -8,7 +8,7 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-knowledge-index.sh"
 
 @test "knowledge/index.json is current with the working tree" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   run bash "$BUILDER" --check
   [ "$status" -eq 0 ]
 }

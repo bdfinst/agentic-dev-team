@@ -8,7 +8,7 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-skills-index.sh"
 
 @test "docs/skills.md is current with the skills on disk" {
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT" || return 1
   run bash "$BUILDER" --check
   [ "$status" -eq 0 ]
 }

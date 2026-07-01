@@ -24,7 +24,7 @@ make_plan() {
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: Do something"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -42,7 +42,7 @@ make_plan() {
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [ ] Step 1.2: Another thing"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -60,7 +60,7 @@ make_plan() {
   PLAN="$T/plan.md"
   make_plan "$PLAN" "# Plan\n\nSome text without any checkboxes."
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -81,7 +81,7 @@ make_plan() {
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -99,7 +99,7 @@ make_plan() {
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: Add something specific"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -116,7 +116,7 @@ make_plan() {
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -135,7 +135,7 @@ make_plan() {
   T="$(mktemp -d)"
   PLAN="$T/plan.md"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -163,7 +163,7 @@ make_plan() {
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser
 - [x] Step 1.2: add git log check"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -181,7 +181,7 @@ make_plan() {
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser
 - [ ] Step 1.2: add git log check"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -199,7 +199,7 @@ make_plan() {
   # Plan declares no file paths; extra.py is out-of-plan
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -221,7 +221,7 @@ make_plan() {
   # Plan declares no backtick-paths; extra.py is out-of-plan
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser"
 
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -313,7 +313,7 @@ setup_stale_main_repo() {
   WORK="$T/work"
   setup_stale_main_repo "$WORK" "unrelated.py"
   # Commit a.py on the feature branch.
-  cd "$WORK"
+  cd "$WORK" || return 1
   echo "branch work" > a.py
   git add a.py
   # Slice 1 isolates scope-check; the commit subject must substring-match
@@ -341,7 +341,7 @@ setup_stale_main_repo() {
     || { git init -q --bare "$REMOTE"; git -C "$REMOTE" symbolic-ref HEAD refs/heads/main; }
   git init -q --initial-branch=main "$WORK" 2>/dev/null \
     || { git init -q "$WORK"; git -C "$WORK" symbolic-ref HEAD refs/heads/main; }
-  cd "$WORK"
+  cd "$WORK" || return 1
   git config user.email "test@test.com"
   git config user.name "Test"
   git remote add origin "$REMOTE"
@@ -380,7 +380,7 @@ setup_stale_main_repo() {
 
 @test "4.2a: Conventional Commit on declared file satisfies the matcher" {
   T="$(mktemp -d)"
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -400,7 +400,7 @@ setup_stale_main_repo() {
 
 @test "4.2b: commit touches one of multiple declared files (any-of semantics)" {
   T="$(mktemp -d)"
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -425,7 +425,7 @@ setup_stale_main_repo() {
   # 0. The current file-path matcher correctly rejects (b.py not in declared
   # [a.py]), so exit 1 here proves the file-path matcher is the active path.
   T="$(mktemp -d)"
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -473,7 +473,7 @@ assert len(errs) == 1, d
   # work-tracking semantics (no `### Slice` heading, no `**Files:**` line).
   # Structural redesign tracked in #526; this test guards the workaround.
   T="$(mktemp -d)"
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -500,7 +500,7 @@ assert len(errs) == 1, d
 
 @test "4.3a: Build Progress [x] + AC [ ] items; --pre-pr exits 0 (ACs ignored)" {
   T="$(mktemp -d)"
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -529,7 +529,7 @@ assert len(errs) == 1, d
 
 @test "4.3b: Build Progress [ ] + AC [ ] items; --pre-pr exits 1 naming the slice, not ACs" {
   T="$(mktemp -d)"
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -564,7 +564,7 @@ for i in errs:
 
 @test "4.3c: Build Progress section exists but contains no checkboxes; exits 1 naming the plan file" {
   T="$(mktemp -d)"
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -597,7 +597,7 @@ for i in errs:
   # This scenario mirrors the existing 3.3a test's plan format. Verifies the
   # backward-compatibility fallback is intact.
   T="$(mktemp -d)"
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -623,7 +623,7 @@ for i in errs:
   T="$(mktemp -d)"
   WORK="$T/work"
   setup_stale_main_repo "$WORK" "unrelated.py"
-  cd "$WORK"
+  cd "$WORK" || return 1
   echo "branch work" > a.py
   git add a.py
   # Conventional Commit subject that does NOT substring-match the slice header.

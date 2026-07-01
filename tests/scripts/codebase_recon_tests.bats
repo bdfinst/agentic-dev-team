@@ -7,7 +7,7 @@ SCRIPT="$REPO_ROOT/scripts/codebase_recon.py"
 
 setup() {
   T="$(mktemp -d)"
-  cd "$T"
+  cd "$T" || return 1
   git init -q
   git config user.email "t@t.com"
   git config user.name "T"
