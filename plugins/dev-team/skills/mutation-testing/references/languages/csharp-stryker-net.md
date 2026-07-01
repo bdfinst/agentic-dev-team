@@ -67,6 +67,8 @@ If detected, take **all four** steps below. Missing any one recreates the fake-s
 
 4. In `stryker-config.json`, set `"additional-timeout": 30000` — headroom for ~5 hanging tests × 5 s `testTimeout` per mutant plus overhead. This is a **layered** cap on top of the per-mutant `timeout` documented in [`SKILL.md`](../../SKILL.md) Step 1b.
 
+The four steps above defend against the *fake-100 %-via-Timeout* variant of the MTP-runner incompatibility. The **complementary** *fake-0 %-via-Survived* variant (mutation-switch not observing mutations at runtime; every mutant reported `Survived`; final score `0.00 %`) is caught by [`SKILL.md`](../../SKILL.md) **Step 1c smoke gate** — run a single-file probe before any full run and parse `mutation-report.json` for `Killed > 0`. Do not skip Step 1c on xunit.v3 configurations; it is the specific safety net for issues [#554](https://github.com/bdfinst/agentic-dev-team/issues/554) and [#557](https://github.com/bdfinst/agentic-dev-team/issues/557).
+
 ## Pre-run: build first
 
 Always build before timing the baseline suite or invoking Stryker. A stale binary produces phantom failures — Stryker either aborts on load or reports every mutant as `Survived`. Baseline timing:
@@ -81,6 +83,30 @@ Every Stryker run block below assumes a fresh `dotnet build ... -c Debug --nolog
 ## Config authoring notes
 
 Stryker.NET rejects **any unknown key** in `stryker-config.json` since v1.x — a JSON comment workaround like `"_note": "..."` or `"//": "..."` causes the entire run to fail with a clear error message. Do not embed intent comments in the config. Document config intent in the git commit message that introduces the config, or in a nearby `README.md`.
+
+### SolutionPath trap
+
+When `stryker-config.json` sets **both** `SolutionPath` and an explicit `test-projects` list, Stryker.NET evidently enumerates additional test projects from the solution and prefers them over the ones listed in `test-projects`. On a repo whose main test project is on xunit.v3 + MTP but whose configured `test-projects` points at a working xunit.v2 shim, this manifests as the shim's `InternalsVisibleTo` grant and successful smoke tests not helping — because Stryker isn't actually running the shim; it's running the main xunit.v3 test project it discovered via `SolutionPath`, and the fake-0 %-via-Survived MTP failure mode from #554 strikes anyway. The `--diag` output reveals this via a `Property TargetPath=` line naming the wrong test-project `.dll`. See issue [#557](https://github.com/bdfinst/agentic-dev-team/issues/557).
+
+Three remediation paths, in order of preference:
+
+1. **Remove `SolutionPath` from `stryker-config.json`.** Rely on `test-projects` only. Simplest fix; the plugin **recommends this path** for multi-project repos where the only reason `SolutionPath` was set was to help Stryker resolve source-project dependencies — the explicit `test-projects` list gives it what it needs. This is the path documented in the shipped wrapper.
+2. **Add the shim project to the solution and exclude the main test project from Stryker's discovery.** Requires per-repo solution-file surgery and a Stryker-side exclusion rule; brittle and not documented upstream.
+3. **Downgrade the main test project to xunit.v2** for the mutation window. Nuclear option — invasive to the main test suite for the duration of a mutation-testing session; only use when path 1 is genuinely impossible.
+
+### Reporters — use `dots` for log-tail parsing
+
+Configure Stryker with a **non-ANSI** reporter alongside JSON/HTML so status-loop tooling and log inspection can read progress deterministically:
+
+```json
+{
+  "stryker-config": {
+    "reporters": ["dots", "json", "html"]
+  }
+}
+```
+
+The default `progress` reporter uses ANSI in-place cursor updates that **do not survive log redirection** — a redirected run's log file has no per-mutant progress record. The `dots` reporter emits one `.` per completed mutant to stdout, which redirects cleanly. Any long-run inspection tooling (see [`SKILL.md` → Long-run inspection](../../SKILL.md#long-run-inspection)) that reads progress from a log tail depends on `dots` (or JSON) being configured.
 
 ### Probe file selection — C#-specific traps
 
