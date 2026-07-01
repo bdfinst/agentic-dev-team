@@ -4,192 +4,213 @@
 
 ## Intent Description
 
-When `/build` fans slices out to isolated git worktrees, each worktree must see
-the caller's current branch state — including uncommitted spec/plan work and any
-in-progress commits that have not yet reached `origin/<default>`. Today
-worktrees branch from `origin/<default>` (the `fresh` policy), so the
-`docs/specs/<slug>.md` and `plans/<slug>.md` files a caller just produced with
-`/specs`/`/plan` are invisible to the subagents that consume them. Every
-`/ship` end-to-end run is broken by this by default; the only reason recent
-runs succeeded is that subagents guessed a `git checkout <sha> -- …`
-workaround.
+When `/build` fans slices out to isolated git worktrees, each worktree
+must see the caller's current branch state — including uncommitted
+spec/plan work and any in-progress commits that have not yet reached
+`origin/<default>`. Today worktrees branch from `origin/<default>` (the
+`fresh` policy), so the `docs/specs/<slug>.md` and `plans/<slug>.md`
+files a caller just produced with `/specs`/`/plan` are invisible to the
+subagents that consume them. Every `/ship` end-to-end run is broken by
+this by default; the only reason recent runs succeeded is that
+subagents guessed a `git checkout <sha> -- …` workaround.
 
-The change makes the `/ship` pipeline correct by construction: a slice worktree
-starts from the caller's HEAD, so the spec, plan, and any prior-wave commits
-are already tracked in the worktree's history — no workaround needed, and the
-reconciler's merge naturally carries those commits back into the integration
-branch.
+The mechanism exists in Claude Code: the `worktree.baseRef: "head"`
+setting makes worktree isolation branch from the caller's local HEAD
+instead of `origin/<default>`. Slice 0's empirical spike
+(`docs/spikes/worktree-baseref-head-spike.md`) confirmed that the
+setting works — but *only* at project (`.claude/settings.json`) or
+user (`~/.claude/settings.json`) scope. Plugin-scope settings and
+project-local (`.claude/settings.local.json`) are ignored by
+2.1.198's worktree isolation for this key.
 
-Two layers, defense in depth:
+Because the plugin cannot ship a silent default that would take effect
+for every consumer, the correct posture is **detect and warn loudly** at
+`/build` pre-dispatch: if the effective setting is not `head`, print a
+warning that names (a) the exact settings file the user should edit,
+(b) the exact JSON snippet to paste, and (c) the
+`DEV_TEAM_WORKTREE_BASE_FRESH=1` opt-out for users who deliberately
+want fresh-from-origin worktrees. `/build` never mutates a settings
+file. Users opt in; the plugin surfaces the need loudly.
 
-1. **Plugin default.** `plugins/dev-team/settings.json` sets
-   `worktree.baseRef: "head"` so every worktree the plugin spawns inherits the
-   caller's HEAD by default.
-2. **`/build` detect-and-warn.** Before dispatching worktree subagents,
-   `/build` resolves the effective `worktree.baseRef` and, if it is not
-   `head` (or if detection cannot be performed), prints a loud warning
-   naming the user-visible fix and the opt-out env var. `/build` never
-   mutates a settings file — the user's own setting wins. This surfaces
-   a user-level override of the plugin default loudly instead of silently
-   reintroducing the bug.
-
-*Design note.* An earlier draft of this spec proposed a stateful
-force/restore fallback that would rewrite a scoped settings file for the
-duration of a build. Plan review found the mechanism unverifiable by its
-own tests (no way to introspect the CLI's effective `worktree.baseRef`
-from a shell, nor to confirm a mid-session settings write actually
-changes the next Agent-tool worktree spawn) and, worse, a crash before
-restore would leak a silent, persistent override into unrelated
-commands. The mechanism was dropped in favor of the detect-and-warn
-design captured above. See
-`plans/build-worktree-inherits-caller-head.md`'s "What changed from the
-initial draft" section for the full rationale.
+*Design history.* An earlier draft proposed a stateful force/restore
+fallback that would rewrite a scoped settings file for the duration of
+a build. Plan review (4 of 5 reviewers) converged on the same failure
+mode — the mechanism was unverifiable by its own tests, and a crash
+before restore would leak a persistent override — and the mechanism was
+dropped in favor of the detect-and-warn design captured above. A
+subsequent proposal placed `worktree.baseRef: "head"` in the plugin's
+own `settings.json`; Slice 0's spike disproved that at build time
+(plugin-scope settings not honored), and the fix collapsed to the
+warning-only design in this spec. See
+`plans/build-worktree-inherits-caller-head.md`'s "What changed after
+Slice 0" and "Plan Review Summary" sections for the full audit trail.
 
 ## Architecture Specification
 
 ### Components affected
 
-- `plugins/dev-team/settings.json` — plugin-scoped settings that ship with the
-  dev-team plugin. New top-level `worktree.baseRef: "head"` key.
-- `plugins/dev-team/skills/build/SKILL.md` — orchestrator step that dispatches
-  worktree subagents. Adds a pre-dispatch verification/fallback stage.
-- `plugins/dev-team/scripts/build-wave-reconcile.sh` — merges wave slice
-  branches back into the integration branch. Must be verified (and if
-  necessary, adjusted) to carry the caller's WIP commits into the reconciled
-  history alongside the slice diffs.
-- `plugins/dev-team/agents/orchestrator.md` — text reference to the wave
-  dispatch protocol; update to describe the base-ref contract.
+- `plugins/dev-team/scripts/build-worktree-baseref.sh` (new) — detect
+  the effective `worktree.baseRef` value across the settings-scope
+  ladder. Degrade-never-abort per the `hooks/lib/model-resolve.sh`
+  precedent.
+- `plugins/dev-team/skills/build/SKILL.md` — orchestrator step that
+  dispatches worktree subagents. New pre-dispatch base-ref check that
+  runs in the top-level `/build` session (before any subagent
+  dispatch), prints a paste-ready warning when the setting is not
+  `head`, and continues without mutating anything.
+- `plugins/dev-team/scripts/build-wave-reconcile.sh` — merges wave
+  slice branches back into the integration branch. Verified (and if
+  necessary, adjusted) to carry the caller's WIP commits into the
+  reconciled history alongside the slice diffs.
+- `plugins/dev-team/agents/orchestrator.md`,
+  `plugins/dev-team/knowledge/request-processing-flow.md` — describe
+  the `worktree.baseRef` requirement and name the settings scopes that
+  work (project + user) vs. those that do not (plugin, project-local),
+  citing the spike file as the audit trail.
 
 ### Interfaces
 
-- **Setting**: `worktree.baseRef` (documented in Claude Code changelog entry
-  around v2.1.140). Values: `fresh` (branch from `origin/<default>`) or `head`
-  (branch from caller's local HEAD). Read by the Agent tool's worktree
-  isolation and by `EnterWorktree`. Merges through the standard settings
-  precedence: **project-local (`.claude/settings.local.json`) >
-  project (`.claude/settings.json`) > user (`~/.claude/settings.json`) >
-  plugin (`plugins/<name>/settings.json`)**. Higher precedence wins.
-- **Environment**: `DEV_TEAM_WORKTREE_BASE_FRESH=1` silences `/build`'s
-  detect-and-warn message when the user has deliberately chosen a
-  non-`head` setting. The plugin default is the primary lever; the
-  warning is a read-only guard, not a new knob for behavior.
-- **Reconciler CLI**: `build-wave-reconcile.sh --into <integration> --base <ref>
-  --test-cmd "<full suite>" <slice-branch>...` (unchanged surface; internal
-  behavior may adjust to preserve WIP commits from `<integration>`).
+- **Setting**: `worktree.baseRef` (Claude Code changelog v2.1.140+).
+  Values: `fresh` (branch from `origin/<default>`) or `head` (branch
+  from caller's local HEAD). Read by the Agent tool's worktree
+  isolation and by `EnterWorktree`. **Settings-scope constraint
+  observed in 2.1.198** (spike evidence): only
+  `.claude/settings.json` (project) and `~/.claude/settings.json`
+  (user) are honored for this key. `.claude/settings.local.json`
+  (project-local) and `plugins/<name>/settings.json` (plugin) are
+  **not** honored. This is the constraint the plugin's detect-and-warn
+  design accepts.
+- **Environment**: `DEV_TEAM_WORKTREE_BASE_FRESH=1` silences
+  `/build`'s detect-and-warn message when the user has deliberately
+  chosen a non-`head` setting.
+- **Reconciler CLI**: `build-wave-reconcile.sh --into <integration>
+  --base <ref> --test-cmd "<full suite>" <slice-branch>...`
+  (unchanged surface; internal behavior may adjust to preserve WIP
+  commits from `<integration>`).
 
 ### Dependencies
 
-- Claude Code CLI version supporting `worktree.baseRef` (v2.1.140+ per
-  changelog). No new external dependencies.
-- Existing `hooks/pre-tool-guard.sh`, `hooks/context-ceiling-guard.sh`, and
-  agent-model-resolve infrastructure are untouched.
+- Claude Code CLI 2.1.140+ (setting exists), verified working at
+  2.1.198.
+- `jq` (already a hard dev dependency per repo `CLAUDE.md`).
+- No new external dependencies.
 
 ### Constraints
 
-- **No new tool surface.** The plugin uses only the existing `worktree.baseRef`
-  setting; no changes to the Agent tool's interface are proposed here.
-- **Backward compatible with user overrides.** A user who deliberately sets
-  `worktree.baseRef: "fresh"` in their user- or project-scoped settings
-  overrides the plugin default (standard precedence), but the `/build` runtime
-  fallback still ensures worktrees spawned during a `/build` run branch from
-  HEAD. If the user *wants* fresh-from-origin build worktrees, they can set
-  the env var `DEV_TEAM_WORKTREE_BASE_FRESH=1` to disable the fallback (opt-out
-  escape hatch).
-- **Sequential fallback is unchanged.** Effective concurrency 1 already builds
-  in a single worktree with no fan-out; the fix has no effect on that path.
-- **No settings mutation at build time.** `/build`'s pre-dispatch check
-  is read-only. It never writes a settings file. This constraint is what
-  made the earlier force/restore design's crash-recovery risk moot: with
-  no mutation, there is nothing to leak.
-- **Portable shell.** Any script changes stay bash-3.2 safe and work on macOS,
-  Linux, and Git Bash on Windows (per repo CLAUDE.md).
+- **No settings mutation at build time.** `/build`'s pre-dispatch
+  check is read-only. Never writes a settings file. With no mutation,
+  there is no crash-recovery surface to worry about — the failure
+  mode the plan reviewers flagged is structurally absent.
+- **No new tool surface.** Reuses the existing `worktree.baseRef`
+  setting; no changes to the Agent tool's interface.
+- **User opts in.** The plugin cannot silently fix #553 for every
+  install because the CLI does not honor plugin-scope settings for
+  this key. The warning is the plugin's only mechanism to surface the
+  need; users must edit their own settings.
+- **Portable shell.** New/changed scripts stay bash-3.2 safe and work
+  on macOS, Linux, and Git Bash on Windows (per repo `CLAUDE.md`).
 
 ### Data flow
 
 ```
+user's .claude/settings.json  (worktree.baseRef: "head")
+        or ~/.claude/settings.json
+        │
 caller branch (issue-XXX)
 ├── docs/specs/<slug>.md   ← committed on issue-XXX
 ├── plans/<slug>.md        ← committed on issue-XXX
 └── /build begins
-    ├── detect worktree.baseRef; warn (do not mutate) if not head
+    ├── detect worktree.baseRef; warn (do not mutate) if not "head"
+    │     └── warning names the file + paste-ready JSON + opt-out env
     ├── dispatch wave 1 slices → each worktree branches from caller HEAD
-    │   └── worktree sees the spec + plan naturally
+    │     └── worktree sees the spec + plan naturally
     └── build-wave-reconcile.sh merges slice branches back
         └── caller's WIP commits (spec+plan) are already in the ancestry
 ```
 
 ## Acceptance Criteria
 
-1. **Plugin default sets `worktree.baseRef` to `head`.** The shipped
-   `plugins/dev-team/settings.json` contains `"worktree": {"baseRef": "head"}`
-   at the top level. Verifiable by reading the file and by
-   `jq '.worktree.baseRef' plugins/dev-team/settings.json` returning `"head"`.
+1. **Spike evidence exists.** `docs/spikes/worktree-baseref-head-spike.md`
+   documents the settings-scope matrix: project + user honored, plugin
+   and project-local not honored (in 2.1.198). This is the audit trail
+   the design rests on.
 
-2. **`/build` warns loudly on non-head base ref.** In a run where the
-   effective `worktree.baseRef` resolves to `fresh` (or cannot be detected —
-   the `unknown` sentinel), `/build` prints a warning naming the exact fix
-   (edit user/project settings) and the opt-out env var, then continues. It
-   does **not** mutate any settings file. Verifiable by a bats test that
-   stubs the setting to `fresh` and asserts the warning tokens appear in
-   the build output.
+2. **`/build` warns loudly on non-`head`.** In a run where the
+   effective `worktree.baseRef` resolves to `fresh`, `unset` (key
+   absent from every honored file), or `unknown` (detection failed —
+   e.g. `jq` unavailable), `/build` prints a warning that includes:
+   (a) `.claude/settings.json` or `~/.claude/settings.json` as the
+   file to edit, (b) a paste-ready JSON snippet like
+   `"worktree": {"baseRef": "head"}`, and (c) the
+   `DEV_TEAM_WORKTREE_BASE_FRESH` opt-out. Then it continues —
+   never blocks. **`/build` does not mutate any settings file.**
+   Verifiable by a bats test that stubs the setting via the
+   `BASEREF_SETTINGS_PATHS` env-var seam and asserts the warning
+   tokens appear in the build output.
 
-3. **Opt-out silences the warning.** With `DEV_TEAM_WORKTREE_BASE_FRESH=1`
-   set, `/build` does not emit the warning — the user's setting is
-   honored. Verifiable by a bats test that sets the env var and asserts
-   no warning is emitted.
+3. **Opt-out silences the warning.** With
+   `DEV_TEAM_WORKTREE_BASE_FRESH=1` set, `/build` emits no warning —
+   the user's choice is honored. Verifiable by a bats test that sets
+   the env var and asserts no warning is emitted.
 
-4. **Worktree subagents see the caller's WIP.** In a fixture repo where a
-   commit on the current branch adds `docs/specs/<slug>.md` and
-   `plans/<slug>.md`, a subagent dispatched with `isolation: "worktree"` under
-   this plugin's settings sees both files at their expected paths without any
-   `git checkout <sha> -- …` workaround. Verifiable by a bats test using the
-   existing hermetic fixture infrastructure (`tests/lib/hermetic`) — spawn a
-   worktree via the Agent tool's isolation contract and assert
-   `test -f docs/specs/<slug>.md` in the child worktree.
+4. **End-to-end verification (manual).** On a repo whose
+   `.claude/settings.json` sets `worktree.baseRef: "head"`, running
+   `/build` against a branch with a commit adding
+   `docs/specs/e2e-check.md` (unpushed to origin) results in at least
+   one subagent's worktree containing `docs/specs/e2e-check.md` at
+   dispatch time. Recorded in the PR description. bats cannot dispatch
+   an `isolation:"worktree"` agent from a fixture, so this is a
+   documented manual gate in Pre-PR Quality Gate.
 
 5. **Reconciler preserves caller's WIP commits.** After
-   `build-wave-reconcile.sh` merges all slice branches into the integration
-   branch, the resulting history contains the caller's original WIP commits
-   (the spec+plan commit) as ancestors of the reconciled tip. Verifiable by a
-   bats test: seed a repo with a WIP commit, dispatch slice worktrees, run
-   reconcile, and assert `git log --format=%H | grep <wip-sha>` succeeds on
-   the integration branch.
+   `build-wave-reconcile.sh` merges all slice branches into the
+   integration branch, the history contains the caller's original WIP
+   commits (spec+plan) as ancestors of the reconciled tip. Verifiable
+   by a hermetic bats test that seeds a repo with a WIP commit on the
+   integration branch after slice branches diverged and asserts the
+   sha survives reconcile.
 
-6. **Documentation updated.** `plugins/dev-team/skills/build/SKILL.md`
-   references the base-ref contract in Step 4 (concurrent dispatch), and
-   `plugins/dev-team/agents/orchestrator.md`'s Wave-Aware Build Dispatch
-   section names the contract. Verifiable by grep for the relevant phrase in
-   both files.
+6. **Documentation updated.**
+   `plugins/dev-team/skills/build/SKILL.md`,
+   `plugins/dev-team/agents/orchestrator.md`, and
+   `plugins/dev-team/knowledge/request-processing-flow.md` describe
+   the `worktree.baseRef=head` requirement, name the settings scopes
+   that work vs. those that don't (per the spike), and link to the
+   spike file. Verifiable by grep.
 
-7. **No regression in existing suites.** All existing bats tests still pass
-   under `scripts/ci-local.sh` after the change.
+7. **No regression.** `scripts/ci-local.sh` remains green.
 
 ## Ambiguity Log
 
 | Decision | Classification | Resolved By | Rationale / Answer |
 |---|---|---|---|
-| Where the fix should live | `requires-stakeholder-input` | human | User chose "Both (recommend + fallback)": plugin default in settings.json plus a defensive `/build` verify-and-set. Belt-and-suspenders posture protects against user-level overrides silently reintroducing the bug. |
+| Where the fix should live | `requires-stakeholder-input` (iter 1) | human | User initially chose "Both (recommend + fallback)": plugin default in settings.json plus a defensive `/build` verify-and-set. Belt-and-suspenders posture. |
 | Whether the reconciler needs its own change | `requires-stakeholder-input` | human | User chose "Yes — include in scope": verify `build-wave-reconcile.sh` carries the caller's WIP commits into the reconciled branch; if it does not, fix it. |
-| Escape-hatch env var name | `inferable` | inference | Repo convention prefixes plugin env vars with `DEV_TEAM_` (see `DEV_TEAM_MAX_PARALLEL_BUILDS`, `DEV_TEAM_AUTO_APPROVE`, `DEV_TEAM_REVIEW_VALUE`). `DEV_TEAM_WORKTREE_BASE_FRESH=1` follows that pattern and reads naturally as "opt back into fresh". |
-| Whether to touch the Agent tool's interface | `inferable` | inference | Explicit non-goal in the issue's "Not in scope" section (the async-agent output path issue is orthogonal). The `worktree.baseRef` setting already exists in Claude Code v2.1.140+; no new tool surface is required. |
-| Behavior of the fallback: git config vs settings vs env | `inferable` | inference | `worktree.baseRef` is a Claude Code setting, not a git config. The fallback writes a scoped `.claude/settings.local.json` merge for the duration of the run and restores it at the end, or (simpler) sets `CLAUDE_CODE_WORKTREE_BASEREF=head` for the child process env if the CLI honors it. Concrete mechanism chosen during `/plan`; the acceptance criterion is behavioral (the audit line appears), not mechanistic. |
-| Whether to fail loudly or silently when the fallback runs | `inferable` | inference | Repo convention is "loud halt, never silent" (see `/build` Step 4 sub-step 4). The fallback records an audit line but proceeds — matching the auto-approve pattern (`Auto-approved plan status …`). This is not an error; it is a corrected default. |
-| Behavior when the caller has uncommitted (not-yet-committed) changes | `inferable` | inference | Out of scope. `head` refs a *commit*, not the index/worktree. Uncommitted changes never flow into a subagent worktree — the caller is expected to commit spec+plan before `/build` runs, which is already the `/ship` pipeline's convention (`/specs` and `/plan` both persist to disk and expect the caller to commit before `/build`). |
-| Scope split: is this one feature or several | `inferable` | inference | Single feature: "worktree agents can see the caller's HEAD". The two layers (plugin default + `/build` fallback) and the reconciler check are three deliverables of the same behavior contract, exactly the vertical decomposition `/plan` will produce. Issue #553 explicitly deferred the two orthogonal observations (async output path, plan-waves parser) as separate issues if pursued. |
-| `LOW_VALUE` items skipped | (none) | — | No low-value coverage gaps identified during critique. All acceptance criteria describe observable outcomes or file-level artifacts. |
+| Whether plugin-scope `worktree.baseRef=head` is actually honored | discovered `requires-stakeholder-input` (Slice 0 spike) | human | Slice 0 empirically disproved the assumption baked into the earlier design. Plugin scope is NOT honored. Fix collapsed to detect-and-warn only; the plugin cannot ship a silent default. |
+| Escape-hatch env var name | `inferable` | inference | Repo convention prefixes plugin env vars with `DEV_TEAM_` (see `DEV_TEAM_MAX_PARALLEL_BUILDS`, `DEV_TEAM_AUTO_APPROVE`, `DEV_TEAM_REVIEW_VALUE`). `DEV_TEAM_WORKTREE_BASE_FRESH=1` follows that pattern. |
+| Whether to touch the Agent tool's interface | `inferable` | inference | Explicit non-goal in issue #553's "Not in scope" section. |
+| Whether to fail loudly or silently when the effective setting is wrong | `inferable` | inference | Repo convention is "loud halt, never silent" (see `/build` Step 4 sub-step 4). Detect-and-warn: warn loudly, do not block. This is not an error; it is a corrected default. |
+| Behavior when the caller has uncommitted (not-yet-committed) changes | `inferable` | inference | Out of scope. `head` refs a *commit*, not the index/worktree. The caller is expected to commit spec+plan before `/build` runs — already the `/ship` pipeline's convention. |
+| Scope split: is this one feature or several | `inferable` | inference | Single feature. Issue #553 explicitly deferred the two orthogonal observations (async output path, plan-waves parser) as separate issues if pursued. |
+| `LOW_VALUE` items skipped | (none) | — | No low-value coverage gaps identified during critique. |
 
 ## Consistency Gate
 
 - [x] Intent is unambiguous — two developers would agree that "worktree
-      subagents must inherit caller HEAD" is the goal.
-- [x] Every behavior/goal maps to an acceptance criterion (defaults →
-      criterion 1; fallback → 2, 3; visibility → 4; reconciler → 5;
+      subagents must inherit caller HEAD, and the plugin's job is to
+      surface the required user setting loudly" is the goal.
+- [x] Every behavior/goal maps to an acceptance criterion (spike →
+      criterion 1; warning → 2, 3; end-to-end → 4; reconciler → 5;
       documentation → 6; no regression → 7).
-- [x] Architecture constrains without over-engineering — reuses the existing
-      `worktree.baseRef` setting; no new tool surface; portable shell.
-- [x] Terminology consistent across artifacts (`worktree.baseRef`, `head`,
-      `fresh`, `caller's HEAD`, `WIP commits`, `reconciler`).
-- [x] No contradictions between artifacts.
-- [x] Every gap/ambiguity finding is logged — the two `requires-stakeholder-input`
-      items were resolved by the user before this file was written; every
-      inference has a written rationale.
+- [x] Architecture constrains without over-engineering — read-only
+      detect, no settings mutation, no new tool surface.
+- [x] Terminology consistent across artifacts (`worktree.baseRef`,
+      `head`, `fresh`, `caller's HEAD`, `WIP commits`, `reconciler`,
+      `settings-scope constraint`).
+- [x] No contradictions between artifacts — spec and plan were both
+      revised together after Slice 0's spike.
+- [x] Every gap/ambiguity finding is logged — the initial two
+      `requires-stakeholder-input` items were resolved by the user,
+      and the Slice 0 spike-driven finding is logged as its own row
+      with the human's chosen resolution ("drop Slice 1; keep
+      detect-and-warn").
