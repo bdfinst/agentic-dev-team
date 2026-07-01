@@ -4895,6 +4895,10 @@
     "Phase 2 — Baseline (coverage + mutation)": {
       "summary": "Capture the objective starting point **before any file under the stack's test",
       "anchor": "phase-2-baseline-coverage-mutation"
+    },
+    "Phase 2b — Derive Gherkin (conditional)": {
+      "summary": "Gherkin derivation is **conditional on the Phase-0 BDD rubric answer**.",
+      "anchor": "phase-2b-derive-gherkin-conditional"
     }
   },
   "plugins/dev-team/skills/test-modernize/SKILL.md": {

@@ -189,4 +189,36 @@ Go advisory in Phase 0). `baseline-mutation.json` is written with the
 
 **Ordering invariant.** Baselines land **before any test file is modified** — no file under the stack's test directory may change between Phase 0 and the creation of `baseline-coverage.json` (and `baseline-mutation.json` when applicable). Phase 2b, Phase 4, and any subsequent test edits depend on this ordering.
 
-_(Phases 2b..7 are added in subsequent slices.)_
+### Phase 2b — Derive Gherkin (conditional)
+
+Gherkin derivation is **conditional on the Phase-0 BDD rubric answer**. It
+runs only when the operator opted in to a binding mode other than `none`.
+
+**Binding mode `none` — skipped entirely.** When `phase-0.md` recorded binding
+mode `none`, Phase 2b is **skipped**: `/gherkin-derive` is **not invoked**, no
+`.feature` files are written, no runner is added. Phase 3 follows Phase 2.
+
+**Binding mode `xunit-with-annotations` — .feature files without a runner.**
+Invoke `/gherkin-derive --workflow test-improve --mode xunit-with-annotations`.
+The skill writes `.feature` files under `features/test-improve/`; **no runner
+dependency** is added to the project. The corresponding xUnit tests (authored
+in Phase 4) will carry the scenario name plus Given/When/Then leading comments
+that cite the `.feature` file, but they run through the existing xUnit runner.
+
+**Binding mode `bdd-runner` — native parser wired.** Invoke
+`/gherkin-derive --workflow test-improve --mode bdd-runner`. The stack profile
+selects the native parser (`cucumber-js` for JS/TS, `SpecFlow` / `Reqnroll` for
+.NET, `cucumber-jvm` for Java, `godog` for Go). `/gherkin-derive`:
+
+- adds the parser as a project dependency,
+- generates pending step-definition stubs,
+- writes `.feature` files under `features/test-improve/`.
+
+**Persistence.** Record the surface inventory and (in `bdd-runner` mode) the
+parser wiring to `memory/test-improve/<slug>/gherkin.md`.
+
+**Human gate.** After Phase 2b produces `.feature` files (or parser wiring in
+`bdd-runner` mode), present them to the operator for review. **Phase 3 does
+not run** until the operator approves.
+
+_(Phases 3..7 are added in subsequent slices.)_
