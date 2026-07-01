@@ -1,0 +1,61 @@
+# Mutation Testing — JavaScript / TypeScript (Stryker)
+
+Tool: [Stryker Mutator](https://stryker-mutator.io/). Detection: `package.json` has `@stryker-mutator/core` or `stryker.conf.json` exists.
+
+## Install / detect
+
+```bash
+npm install --save-dev @stryker-mutator/core @stryker-mutator/vitest-runner  # or jest-runner, karma-runner
+npx stryker init
+```
+
+## Run (scoped)
+
+```bash
+# Specific files
+npx stryker run --mutate "src/calculator.ts"
+
+# Changed files only (CI mode)
+npx stryker run --mutate "$(git diff --name-only HEAD~1 -- '*.ts' | grep -v test | tr '\n' ',')"
+```
+
+## Per-mutant timeout flag
+
+Configure in `stryker.config.js`:
+
+```js
+{
+  timeoutMS: 60000,       // hard wall-clock cap per mutant
+  timeoutFactor: 2.5,     // multiplier over baseline test time
+}
+```
+
+Default shipped: 60 000 ms. Set `timeoutMS` to `timeout_seconds × 1000` (formula in [`SKILL.md`](../../SKILL.md) Step 1b).
+
+## Native report → schema mapping
+
+Source: `reports/mutation/mutation.json`. Map `metrics` to top-level totals and `files[*].mutants[]` to `survivors[]`.
+
+```json
+{
+  "schema_version": 1,
+  "tool": "stryker",
+  "scope": ["src/calculator.ts"],
+  "captured_at": "2026-06-19T14:22:08Z",
+  "total": 50,
+  "killed": 41,
+  "survived": 6,
+  "equivalent": 3,
+  "survivors": [
+    { "file": "src/calculator.ts", "line": 42, "operator": "ConditionalBoundary", "status": "survived" },
+    { "file": "src/calculator.ts", "line": 67, "operator": "ReturnValue",        "status": "equivalent" }
+  ]
+}
+```
+
+`status: "equivalent"` is set when Stryker's `status` field is `NoCoverage` paired with an operator type the triage step (`SKILL.md` Step 4) classifies as equivalent; otherwise `survived`.
+
+## Language-specific notes
+
+- **`coverageAnalysis: "perTest"`** — set in `stryker.config.js` to run only tests covering the mutated line. This is the single biggest knob on per-mutant time; without it, per-mutant time ≈ full suite time.
+- Stryker's HTML report (`reports/mutation/index.html`) is the most useful triage view — note the path when reporting back.

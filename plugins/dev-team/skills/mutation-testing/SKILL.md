@@ -9,6 +9,8 @@ user-invocable: true
 
 Wraps a real mutation tool (Stryker, pitest, mutmut, Stryker.NET, go-mutesting) and adds AI triage of survivors. The tool generates mutations and reports survivors; the AI classifies survivors and writes fix tests. **Never estimate or guess mutation outcomes** — if no tool is available, help set one up; do not substitute reasoning for execution.
 
+This file describes the language-agnostic workflow and the data contract. **Per-language detail — install, run commands, timeout flag names, native-report mapping — lives in [`references/languages/`](references/languages/).** Detect the language first via [`references/tool-detection.md`](references/tool-detection.md), then load the matching language file.
+
 ## Constraints
 
 - **Always ask the user before running.** Present the time estimate and scope; get explicit approval. Mutation testing can be slow — never surprise the user.
@@ -16,7 +18,7 @@ Wraps a real mutation tool (Stryker, pitest, mutmut, Stryker.NET, go-mutesting) 
 - Do not chase 100% mutation score; equivalent mutants are noise.
 - Scope to changed files by default; full-codebase runs are periodic audits.
 - Surviving mutants in critical paths require action; in trivial code they may be acceptable.
-- **Per-mutant wall-clock timeout.** Every mutant run is capped at a wall-clock timeout. A run that exceeds the timeout counts as a **killed** mutant (matching the experiment-harness fix). Default: `timeout_seconds = max(60, suite_time_seconds × 10)`. Never run without a timeout — an infinite-loop mutant will hang the harness indefinitely.
+- **Per-mutant wall-clock timeout.** Every mutant run is capped at a wall-clock timeout. A run that exceeds the timeout counts as a **killed** mutant (matching the experiment-harness fix). Default: `timeout_seconds = max(60, suite_time_seconds × 10)`. Never run without a timeout — an infinite-loop mutant will hang the harness indefinitely. Per-tool flag names live in each [`references/languages/<lang>.md`](references/languages/).
 - **`--workflow-managed-approval` carve-out.** When this flag is set, the `Step 0` confirmation prompt is skipped — but the "always ask the user before running" invariant still holds at a higher boundary. The flag is reserved for orchestrated workflows that capture operator approval once for the whole run, then propagate the consent down to each scoped invocation. The authoritative caller registry is [`references/workflow-callers.md`](references/workflow-callers.md). Today's allowed callers are `/coverage-delta` (Phase 4 of `/test-modernize`) and `/quality-targets-converge` (Phase 5); both inherit the workflow-level approval obtained at `/test-modernize` Phase 0. Any new caller must document where its workflow-level approval is captured before adopting the flag — see the registry file for the full process.
 
 ## Parse Arguments
@@ -29,7 +31,7 @@ The skill accepts free-form natural-language arguments AND the following named f
 
 ## Time estimation
 
-Use the heuristics in `references/tool-setup.md`. Present the estimate to the user; if > 5 minutes, suggest scoping down.
+See [`references/time-estimation.md`](references/time-estimation.md) for the formula, heuristic table, and how to estimate for a specific project. Present the estimate to the user; if > 5 minutes, suggest scoping down.
 
 ## Step 0: Confirmation gate
 
@@ -37,15 +39,13 @@ Before any mutation run, present the estimated time and the scope, then block on
 
 ## Step 1: Detect or set up tooling
 
-Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#, go-mutesting for Go). Per-language detection and installation: `references/tool-setup.md`. **Do not proceed without a working tool.**
+Use [`references/tool-detection.md`](references/tool-detection.md) to resolve the project's ecosystem to a mutation tool, then load the matching `references/languages/<lang>.md` for install and run commands. **Do not proceed without a working tool.**
 
-**Go is advisory-only.** When the project has a `go.mod`, resolve to **go-mutesting** in advisory mode (it is alpha quality — the surviving-mutant count is not a reliable gate). Advisory mode emits the `schema_version: 1` envelope with `"advisory": true`; orchestrated workflows treat that as **warn, do not block** — a non-zero survivor count never fails the gate. Always pair it with Go's built-in fuzzing (`go test -fuzz=FuzzXxx -fuzztime=30s ./path/to/pkg` — `-fuzz` takes a single target regexp, not a package glob), which is production-quality, for boundary and edge-case discovery. Never tell a Go project "no tool installed" without giving both the go-mutesting install path and the fuzz alternative.
+**Go is advisory-only.** When the project has a `go.mod`, resolve to **go-mutesting** in advisory mode (it is alpha quality — the surviving-mutant count is not a reliable gate). Advisory mode emits the `schema_version: 1` envelope with `"advisory": true`; orchestrated workflows treat that as **warn, do not block** — a non-zero survivor count never fails the gate. Always pair it with Go's built-in fuzzing (`go test -fuzz=FuzzXxx -fuzztime=30s ./path/to/pkg`), which is production-quality, for boundary and edge-case discovery. Full install path and fuzz idioms: [`references/languages/go-go-mutesting.md`](references/languages/go-go-mutesting.md). Never tell a Go project "no tool installed" without giving both the go-mutesting install path and the fuzz alternative.
 
 ## Step 1b: Configure per-mutant timeout
 
-Set a per-mutant wall-clock timeout before running. A timed-out mutant is **killed**
-(counts toward the mutation score as a non-survivor). This matches the experiment-harness
-fix in `docs/experiments/`.
+Set a per-mutant wall-clock timeout before running. A timed-out mutant is **killed** (counts toward the mutation score as a non-survivor). This matches the experiment-harness fix in `docs/experiments/`.
 
 Derive the timeout:
 
@@ -54,22 +54,11 @@ suite_time_seconds = time the baseline test suite (from Step 1 output, or measur
 timeout_seconds    = max(60, suite_time_seconds × 10)
 ```
 
-Per-tool configuration:
-
-| Tool | Config | Default shipped |
-|------|--------|-----------------|
-| **Stryker (JS/TS)** | `stryker.config.js`: `timeoutMS: <ms>`, `timeoutFactor: 2.5` | 60 000 ms |
-| **pitest (Java/Kotlin)** | CLI: `--timeoutConst 60 --timeoutFactor 2.5` | 60 s const |
-| **mutmut (Python)** | CLI: `--timeout <seconds>` (passed to subprocess) | 60 s |
-| **Stryker.NET (C#)** | `stryker-config.yaml`: `timeout: 60000` | 60 000 ms |
-| **go-mutesting (Go)** | no reliable per-mutant flag — wrap the process externally: `timeout <seconds> go-mutesting ./...` (`gtimeout` on macOS) | 60 s |
-
-Set the tool timeout to `timeout_seconds` (converting to ms for Stryker / Stryker.NET)
-before running Step 2. Document the chosen timeout in the output summary.
+For tool-specific flag names and config-file keys (e.g. Stryker's `timeoutMS`, pitest's `--timeoutConst`), see the matching [`references/languages/<lang>.md`](references/languages/). Document the chosen timeout in the output summary.
 
 ## Step 2: Run the tool (scoped to target)
 
-Run scoped to user-specified files or changed files. Per-language commands: `references/tool-setup.md`. Capture full output and note HTML report paths.
+Run scoped to user-specified files or changed files. Capture full output and note any HTML report paths. Per-language commands and scoping idioms — including the C# shard-aware execution path for large repos — live in [`references/languages/<lang>.md`](references/languages/).
 
 ## Step 3: Parse results
 
@@ -105,7 +94,7 @@ For each survivor, classify and act:
 
 ### Weak vs strong test patterns
 
-Most survivors come from tests that execute code without meaningfully asserting on behavior:
+Most survivors come from tests that execute code without meaningfully asserting on behavior. Patterns are language-agnostic — JavaScript is shown for illustration; translate the idiom into your language's test framework.
 
 **Arithmetic operators** — beware identity values (`0` for `+/-`, `1` for `*//`, `""` for concat):
 
@@ -206,7 +195,7 @@ An optional top-level `"advisory": true` flag marks a result from an advisory-on
 
 When `<path>` itself is unwritable (read-only directory, permission denied), the skill writes nothing to disk, prints the offending path to stderr, and exits non-zero. No partial JSON is left behind.
 
-Per-tool worked examples (Stryker, pitest, mutmut, Stryker.NET) live in `references/tool-setup.md` under `## Machine-readable output schema`.
+Per-tool native-report mappings (Stryker → JSON, pitest XML → JSON, mutmut → JSON, Stryker.NET JSON, go-mutesting stdout) live with each language file under [`references/languages/`](references/languages/).
 
 ## When not to apply
 

@@ -176,7 +176,7 @@ cores − 2).
 go-mutesting is alpha-quality and has no per-test coverage analysis. For Go,
 `mutation-kill` runs in **advisory** mode: it logs survivors and the generated
 tests but **does not commit** — the operator applies them manually. Pair with
-`go test -fuzz` for boundary discovery (see `skills/mutation-testing/references/tool-setup.md`).
+`go test -fuzz` for boundary discovery (see `skills/mutation-testing/references/languages/go-go-mutesting.md`).
 
 ## Relationship to other skills
 

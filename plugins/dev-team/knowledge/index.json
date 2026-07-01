@@ -1885,8 +1885,12 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job).",
+      "summary": "Resolve the project's stack so the assessment can resolve concrete tools from `knowledge/test-stack-profiles/<stack>.md`.",
       "anchor": "steps"
+    },
+    "0. Detect stack": {
+      "summary": "Resolve the project's stack so the assessment can resolve concrete tools from `knowledge/test-stack-profiles/<stack>.md`.",
+      "anchor": "0-detect-stack"
     },
     "1. Inventory the application's components": {
       "summary": "Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job).",
@@ -3695,7 +3699,7 @@
       "anchor": "parse-arguments"
     },
     "Time estimation": {
-      "summary": "Use the heuristics in `references/tool-setup.md`.",
+      "summary": "See [`references/time-estimation.md`](references/time-estimation.md) for the formula, heuristic table, and how to estimate for a specific project.",
       "anchor": "time-estimation"
     },
     "Step 0: Confirmation gate": {
@@ -3703,7 +3707,7 @@
       "anchor": "step-0-confirmation-gate"
     },
     "Step 1: Detect or set up tooling": {
-      "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#, go-mutesting for Go).",
+      "summary": "Use [`references/tool-detection.md`](references/tool-detection.md) to resolve the project's ecosystem to a mutation tool, then load the matching `references/languages/<lang>.md` for install and run commands.",
       "anchor": "step-1-detect-or-set-up-tooling"
     },
     "Step 1b: Configure per-mutant timeout": {
@@ -3727,7 +3731,7 @@
       "anchor": "triage-procedure"
     },
     "Weak vs strong test patterns": {
-      "summary": "Most survivors come from tests that execute code without meaningfully asserting on behavior:",
+      "summary": "Most survivors come from tests that execute code without meaningfully asserting on behavior.",
       "anchor": "weak-vs-strong-test-patterns"
     },
     "Step 5: Fix and verify": {
