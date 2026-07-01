@@ -50,7 +50,26 @@ Invoke `cd-test-architecture` on the target. Summarize its findings (which tests
 
 ### 6. Test-design + mutation health (ROI)
 
-Invoke `/test-design` on the target and consume its results: the suite-wide **Farley Score**, the dominant `test-review` / `test-smell-review` themes (weak assertions, non-determinism, fixture/structure smells, testability blockers), and the advisor's testability verdicts. Then invoke `mutation-testing` on the **critical-logic** modules only (not the whole repo — that's the ROI framing). Roll both up: where is coverage high but mutation-weak (assertions that don't catch bugs)? Where do test-design smells concentrate? Where is critical logic under-covered? Prioritize by risk, not by raw %. Both feed the ordered plan (Step 8) — summarize the themes and link to the `/test-design` report for per-file detail; do not reproduce it.
+Invoke `/test-design` on the target, passing the same scope this run was
+invoked with — the dispatch must be explicit so a subtree audit never
+inherits a whole-repo Farley Score:
+
+- `/test-health --path <dir>` → dispatch `/test-design --path <dir>`.
+- `/test-health` (unscoped) → dispatch `/test-design` with no scope flag.
+
+Consume its results: the scope-labelled **Farley Score** (`(all tests)` /
+`(under <dir>)` / `(changed since <ref>)` / `(under <dir>, changed since <ref>)`,
+or the empty-scope note `no in-scope test files`), the dominant
+`test-review` / `test-smell-review` themes (weak assertions,
+non-determinism, fixture/structure smells, testability blockers), and the
+advisor's testability verdicts. Then invoke `mutation-testing` on the
+**critical-logic** modules only (not the whole repo — that's the ROI
+framing). Roll both up: where is coverage high but mutation-weak
+(assertions that don't catch bugs)? Where do test-design smells
+concentrate? Where is critical logic under-covered? Prioritize by risk,
+not by raw %. Both feed the ordered plan (Step 8) — summarize the themes
+and link to the `/test-design` report for per-file detail; do not
+reproduce it.
 
 ### 7. Flaky-test + automation maturity
 
@@ -96,7 +115,11 @@ Write `reports/test-health-<date>.md`.
 <one-paragraph summary + link to its report>
 
 ### Test-design & mutation health (via /test-design + mutation-testing)
-<Farley score · top test-design themes · mutation ROI hotspots · under-covered critical logic>
+<Farley Score with scope label — one of `(all tests)`, `(under <path>)`,
+`(changed since <ref>)`, `(under <path>, changed since <ref>)`, or the
+literal `no in-scope test files` when the in-scope set was empty; render
+the label /test-design returned verbatim — do not synthesize a number.
+Top test-design themes · mutation ROI hotspots · under-covered critical logic>
 
 ### Gap classification
 | Gap | Class (NO_REFACTOR / REFACTOR_REQUIRED / LOW_VALUE) | Note |
