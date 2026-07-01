@@ -283,11 +283,11 @@ Plan tier: **standard** — reviewers: Acceptance Test Critic + Design & Archite
 
 #### Wave 1
 
-- [ ] Slice 1: Honest score, timeout warning, NoCoverage-first triage, type-aware guidance, language-agnostic probe guidance in SKILL.md
-  - [ ] Step 1.1: Add bats suite that greps SKILL.md for the doc contract (RED)
-  - [ ] Step 1.2: Update output-format + JSON schema + formulas + emitting-adapters list (GREEN)
-  - [ ] Step 1.3: Extend Step 4 with NoCoverage row and Mutation-type-aware sub-section (GREEN)
-  - [ ] Step 1.4: Add language-agnostic probe file selection guidance to Step 2 (GREEN)
+- [x] Slice 1: Honest score, timeout warning, NoCoverage-first triage, type-aware guidance, language-agnostic probe guidance in SKILL.md
+  - [x] Step 1.1: Add bats suite that greps SKILL.md for the doc contract (RED)
+  - [x] Step 1.2: Update output-format + JSON schema + formulas + emitting-adapters list (GREEN)
+  - [x] Step 1.3: Extend Step 4 with NoCoverage row and Mutation-type-aware sub-section (GREEN)
+  - [x] Step 1.4: Add language-agnostic probe file selection guidance to Step 2 (GREEN)
 
 #### Wave 2
 
@@ -297,15 +297,15 @@ Plan tier: **standard** — reviewers: Acceptance Test Critic + Design & Archite
 
 ### Acceptance Criteria
 
-- [ ] AC-1: `SKILL.md` output-format block shows `Honest score` above `Claimed score`.
-- [ ] AC-2: `SKILL.md` JSON schema example includes `honest_score`, `claimed_score`, `timeout_pct`, `no_coverage`, `timeout_warning`.
-- [ ] AC-3: Formulas documented next to the schema in a code fence.
-- [ ] AC-4: `schema_version` stays at `1`.
-- [ ] AC-5: Timeout warning defined (`timeout_pct > 0.05`), surfaced in human output, and remediation named.
-- [ ] AC-6: Emitting-adapters list documented.
-- [ ] AC-7: `NoCoverage` triage row present; work order lists it before `Survived`.
-- [ ] AC-8: `Mutation-type-aware` sub-section covers three families with the required wording.
-- [ ] AC-9: Language-agnostic probe file selection guidance in `SKILL.md` Step 2.
+- [x] AC-1: `SKILL.md` output-format block shows `Honest score` above `Claimed score`.
+- [x] AC-2: `SKILL.md` JSON schema example includes `honest_score`, `claimed_score`, `timeout_pct`, `no_coverage`, `timeout_warning`.
+- [x] AC-3: Formulas documented next to the schema in a code fence.
+- [x] AC-4: `schema_version` stays at `1`.
+- [x] AC-5: Timeout warning defined (`timeout_pct > 0.05`), surfaced in human output, and remediation named.
+- [x] AC-6: Emitting-adapters list documented.
+- [x] AC-7: `NoCoverage` triage row present; work order lists it before `Survived`.
+- [x] AC-8: `Mutation-type-aware` sub-section covers three families with the required wording.
+- [x] AC-9: Language-agnostic probe file selection guidance in `SKILL.md` Step 2.
 - [ ] AC-10: C#-specific probe avoidance in `csharp-stryker-net.md`.
 - [ ] AC-11: PR diff touches only the four intended paths.
 - [ ] AC-12: PR title `feat(mutation-testing): …`; body contains `Closes #521`.

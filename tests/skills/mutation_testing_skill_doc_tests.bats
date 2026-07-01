@@ -204,4 +204,62 @@ CSHARP="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/refere
   [ "$status" -eq 0 ]
 }
 
-# --- Slice 2 tests appended in Step 2.1 (C#-specific probe avoidance) -------
+# --- Slice 2 · AC-10: C#-specific probe avoidance in the language reference -
+
+@test "csharp: reference has a probe file selection sub-section" {
+  run awk '/^### .*[Pp]robe file selection/{found=1} END{exit !found}' "$CSHARP"
+  [ "$status" -eq 0 ]
+}
+
+@test "csharp: probe avoidance names gRPC/Protobuf ObjectInitializer CompileError failure mode" {
+  run awk '
+    /^```/                       { code = !code; next }
+    !code && /^### .*[Pp]robe file selection/ { f=1; next }
+    !code && /^### /             { f=0 }
+    !code && /^## /              { f=0 }
+    f && /(gRPC|Protobuf)/       { a=1 }
+    f && /ObjectInitializer/     { b=1 }
+    f && /CompileError/          { c=1 }
+    END                          { exit !(a && b && c) }
+  ' "$CSHARP"
+  [ "$status" -eq 0 ]
+}
+
+@test "csharp: probe avoidance names Caching + Standard mutation-level failure mode" {
+  run awk '
+    /^```/                       { code = !code; next }
+    !code && /^### .*[Pp]robe file selection/ { f=1; next }
+    !code && /^### /             { f=0 }
+    !code && /^## /              { f=0 }
+    f && /[Cc]aching/            { a=1 }
+    f && /Standard/              { b=1 }
+    END                          { exit !(a && b) }
+  ' "$CSHARP"
+  [ "$status" -eq 0 ]
+}
+
+@test "csharp: probe avoidance names the specific non-existent methods (StringBuilder.Prepend, IDictionary.Sum)" {
+  run awk '
+    /^```/                       { code = !code; next }
+    !code && /^### .*[Pp]robe file selection/ { f=1; next }
+    !code && /^### /             { f=0 }
+    !code && /^## /              { f=0 }
+    f && /StringBuilder\.Prepend/ { a=1 }
+    f && /IDictionary\.Sum/      { b=1 }
+    END                          { exit !(a && b) }
+  ' "$CSHARP"
+  [ "$status" -eq 0 ]
+}
+
+@test "csharp: probe file section cross-links back to SKILL.md Step 2 for the language-agnostic rule" {
+  run awk '
+    /^```/                       { code = !code; next }
+    !code && /^### .*[Pp]robe file selection/ { f=1; next }
+    !code && /^### /             { f=0 }
+    !code && /^## /              { f=0 }
+    f && /SKILL\.md/             { a=1 }
+    f && /Step 2/                { b=1 }
+    END                          { exit !(a && b) }
+  ' "$CSHARP"
+  [ "$status" -eq 0 ]
+}
