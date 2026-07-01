@@ -347,4 +347,33 @@ parallel over the Phase-5 diff; `/apply-fixes corrections/` then re-run
 the **same fixed schema** as Phase 4 (`base_sha`, `head_sha`, `farley_score`,
 `smells`, `code_review`, `iterations`, `escalated`).
 
-_(Phases 6..7 are added in subsequent slices.)_
+### Phase 6 — Validate (converge quality targets)
+
+Verify the improved suite meets the Phase-0 quality targets. Delegate to
+`/quality-targets-converge --workflow test-improve`; the skill routes memory
+and plan paths under `test-improve/` (per Slice 11).
+
+**Mutation-off skip (not waive).** When `phase-0.md` recorded mutation
+**off**, the mutation target is **skipped** and marked "not enabled for this
+run" — it is **not waived**. Skipping and waiving are distinct outcomes: a
+waiver signals a target failed and the operator accepted the gap; a skip
+signals the target was never in scope for this run.
+
+**Go mutation advisory.** When the resolved stack is Go and mutation is on,
+the mutation target is **advisory-only** (survivor count is not a gate). The
+target reads with the "advisory only — go-mutesting is alpha" footnote and
+the run may pass regardless of mutation numbers.
+
+**Coverage < 90% in no-refactor mode.** When Phase 6 closes with coverage
+below 90% and Phase 0 recorded `refactor-mode: no-refactor`,
+`/test-improve` surfaces a **re-run prompt** shaped **`[y/n]`**: *"Coverage is
+below 90% in no-refactor mode. Re-run in refactor-allowed mode to close the
+gap? `[y/n]`"*. The prompt names the **backlogged REFACTOR_REQUIRED items**
+that would close the gap (drawn from `memory/test-improve/<slug>/refactor-backlog.md`
+when `[b]` was picked at Phase 4b, or from the Phase-3 deferred list when
+Phase 4b was not reached).
+
+**Evidence.** Persist target outcomes to
+`memory/test-improve/<slug>/phase-6.md`.
+
+*(Phase 7 is added in the next slice.)*

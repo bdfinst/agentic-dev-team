@@ -31,7 +31,7 @@ Mirrors the 53 ACs in `docs/specs/test-improve-orchestrator.md`. Grouped here fo
 - [ ] AC22–28: Phase 4 improve-without-refactoring + end-of-phase review loop.
 - [ ] AC29–30: Phase 4b `[y/b/q]` refactor decision prompt.
 - [x] AC31–35: Phase 5 refactor-for-testability (conditional; seam-only; precondition-check; review loop).
-- [ ] AC36–39: Phase 6 validate (`/quality-targets-converge --workflow test-improve`; mutation-off skip vs waive; Go advisory; coverage-<90% re-run prompt).
+- [x] AC36–39: Phase 6 validate (`/quality-targets-converge --workflow test-improve`; mutation-off skip vs waive; Go advisory; coverage-<90% re-run prompt).
 - [ ] AC40 + AC40.1–40.6: Phase 7 report ships from the executive-summary template with 10 numbered sections; sections never disappear; parent-issue/FEATURE.md link update; regeneratable-from-memory contract.
 - [ ] AC41–44: Worker-skill parameterization (`--workflow` on issues-from-assessment + quality-targets-converge; mutation-testing workflow-callers allowlist updated; coverage-baseline + coverage-delta recognize new workflow name).
 - [ ] AC45–49: Docs + diagrams + registries.
@@ -924,8 +924,8 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 #### Wave 9
 
-- [ ] Slice 9: Phase 6 — Validate
-  - [ ] Step 9.1: Add Phase 6 validation
+- [x] Slice 9: Phase 6 — Validate
+  - [x] Step 9.1: Add Phase 6 validation
 
 #### Wave 10
 
@@ -960,7 +960,7 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 - [x] AC22–28: Phase 4 improve + review loop
 - [x] AC29–30: Phase 4b prompt
 - [x] AC31–35: Phase 5 refactor
-- [ ] AC36–39: Phase 6 validate
+- [x] AC36–39: Phase 6 validate
 - [ ] AC40 + AC40.1–40.6: Phase 7 report ships from the executive-summary template with 10 numbered sections; sections never disappear; parent-issue/FEATURE.md link update; regeneratable-from-memory contract
 - [x] AC41–44: --workflow parameterization
 - [ ] AC45–49: docs + diagrams + registries
