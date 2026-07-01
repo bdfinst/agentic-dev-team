@@ -888,8 +888,8 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 #### Wave 2
 
-- [ ] Slice 2: Phase 1 — Analyze via /test-health
-  - [ ] Step 2.1: Add Phase 1 delegation to /test-health
+- [x] Slice 2: Phase 1 — Analyze via /test-health
+  - [x] Step 2.1: Add Phase 1 delegation to /test-health
 
 #### Wave 3
 
@@ -953,7 +953,7 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 - [ ] AC1–4: /test-improve skill exists; old skills + gate agent + script removed on main post-merge; /agent-audit passes
 - [ ] AC5–8: Phase 0 approach contract
-- [ ] AC9–11: Phase 1 via /test-health
+- [x] AC9–11: Phase 1 via /test-health
 - [ ] AC12–14: Phase 2 baseline
 - [ ] AC15–18: Phase 2b Gherkin
 - [ ] AC19–21: Phase 3 triage

@@ -4887,6 +4887,10 @@
     "Phase 0 — Approach contract": {
       "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
       "anchor": "phase-0-approach-contract"
+    },
+    "Phase 1 — Analyze via /test-health": {
+      "summary": "Delegate the entire analysis pass to **`/test-health`** — it is the **sole",
+      "anchor": "phase-1-analyze-via-test-health"
     }
   },
   "plugins/dev-team/skills/test-modernize/SKILL.md": {

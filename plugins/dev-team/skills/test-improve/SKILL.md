@@ -136,4 +136,28 @@ third time at the highest-consequence prompt in the flow would produce
 operator confusion. `[y]` advances to Phase 5; `[b]` backlogs the
 REFACTOR_REQUIRED items and skips to Phase 6; `[q]` quits before Phase 6.
 
-_(Phases 1..7 are added in subsequent slices.)_
+### Phase 1 — Analyze via /test-health
+
+Delegate the entire analysis pass to **`/test-health`** — it is the **sole
+worker** for Phase 1. Invoke it exactly once with the resolved repo path from
+Phase 0. `/test-health` internally orchestrates whatever sub-skills it needs
+(CD-alignment audit, test-design assessment, mutation-testing roll-up); the
+orchestrator must **not** invoke `/cd-test-architecture`, `/test-design`, or
+`/mutation-testing` separately here. Any prior workflow that reached those
+skills directly is superseded by the single `/test-health` call.
+
+**Mutation section respects Phase 0.** When `phase-0.md` recorded
+**mutation off**, the rolled-up report's mutation section is either **omitted**
+or marked "not enabled for this run". `/test-health` is not invoked with a
+mutation flag — the setting flows through from `phase-0.md` and the section is
+handled at report time.
+
+**Output.** Persist the rolled-up analysis plus the ordered improvement plan to
+`memory/test-improve/<slug>/phase-1.md`.
+
+**Human gate.** After `/test-health` returns, present **the ordered improvement
+plan** to the operator and wait for explicit approval. **Phase 2 does not run**
+until the operator approves. This is the human gate for Phase 1; do not advance
+past it without approval.
+
+_(Phases 2..7 are added in subsequent slices.)_
