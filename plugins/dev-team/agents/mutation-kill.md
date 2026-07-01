@@ -37,14 +37,28 @@ observed run 76% of "kills" were timeouts; adding faster targeted tests let thos
 mutations *complete* instead of timing out, and the score fell from 61.3% to
 30.36%. A score inflated by timeouts is not evidence of good tests.
 
-Always gate and report on **hard kills only** (`status == Killed`):
+Gate on **hard kills only** (`status == Killed`); Stryker.NET 4.x keeps `NoCoverage`
+mutants in its own denominator, so the honest formula matches:
 
 ```
-honest_score = Killed / (Total - Ignored - CompileError - Timeout)
+honest_score  = Killed / (Killed + Survived + NoCoverage)
+reported_score = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
 ```
 
-Report the `Timeout` count **separately**, never inside the gate denominator. The
-honest score is the only number that gates a round or a file.
+Report **both**. `honest_score` is the only number that gates a round or a file —
+Timeout stays out of the numerator. `reported_score` mirrors what the Stryker HTML
+report prints, so a reviewer comparing the two numbers gets an honest gap
+(numerator delta) rather than a formula mismatch. `Timeout` and `NoCoverage`
+counts always print separately alongside both scores.
+
+### NoCoverage is a first-class signal
+
+Each `NoCoverage → Killed` conversion improves the score as much as killing a
+`Survived` mutant — and NoCoverage paths are usually easier, because **any** test
+that reaches the line kills the mutant (no specific-value assertion required).
+**Prioritize NoCoverage coverage before attacking hard Survived mutations.** A
+file with 27 NoCoverage mutants at 0% score drags the overall number down more
+than a file with 20 Survived at 70%; fix the NoCoverage first.
 
 ## Shard vs full-run scores are not comparable
 
