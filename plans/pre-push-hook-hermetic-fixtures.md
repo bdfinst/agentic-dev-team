@@ -388,9 +388,9 @@ Summary: 1 trivial (docs), 8 standard, 2 complex (broad fixture edit, end-to-end
 - [x] Slice 1: Shared hermetic bats helper
   - [x] Step 1.1: Author `hermetic_setup` in `tests/lib/hermetic.bash`
   - [x] Step 1.2: `hermetic_assert_pwd` + parallel-safety
-- [ ] Slice 2: Env scrub in `scripts/ci-local.sh`
-  - [ ] Step 2.1: RED env-scrub test for ci-local
-  - [ ] Step 2.2: Scrub git env vars in ci-local
+- [x] Slice 2: Env scrub in `scripts/ci-local.sh`
+  - [x] Step 2.1: RED env-scrub test for ci-local
+  - [x] Step 2.2: Scrub git env vars in ci-local
 
 #### Wave 2
 
