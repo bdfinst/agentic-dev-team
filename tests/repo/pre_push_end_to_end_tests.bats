@@ -69,9 +69,11 @@ STUB
   # But the worktree's local refs must be byte-identical before and after.
   [ "$PRE_WORK" = "$POST_WORK" ]
   # And the bare's `main` (unrelated to the push) must be unchanged.
-  echo "$PRE_BARE" | grep 'refs/heads/main' > /tmp/e2e-pre-main
-  echo "$POST_BARE" | grep 'refs/heads/main' > /tmp/e2e-post-main
-  diff /tmp/e2e-pre-main /tmp/e2e-post-main
+  # Scratch files live under $HERMETIC_ROOT so parallel bats workers can't
+  # race and hermetic_teardown reclaims them with the rest of the tempdir.
+  echo "$PRE_BARE" | grep 'refs/heads/main' > "$HERMETIC_ROOT/e2e-pre-main"
+  echo "$POST_BARE" | grep 'refs/heads/main' > "$HERMETIC_ROOT/e2e-post-main"
+  diff "$HERMETIC_ROOT/e2e-pre-main" "$HERMETIC_ROOT/e2e-post-main"
 }
 
 @test "e2e: shipped pre-push refuses to complete if a ref moves during the hook" {
@@ -111,6 +113,11 @@ STUB
   # Attempt the push. The ref-guard should refuse it.
   run env HUSKY_RUN_EVALS=0 git push -q origin feature
   [ "$status" -ne 0 ]
+
+  # Assert the guard fired for the RIGHT reason — the diagnostic must
+  # name the drifted ref and mention the "changed during hook" wording.
+  [[ "$output" == *"refs/heads/main"* ]]
+  [[ "$output" == *"changed during hook"* ]]
 
   # The bare's feature ref must NOT have been created (push refused).
   ! git --git-dir="$BARE" show-ref --verify refs/heads/feature 2>/dev/null

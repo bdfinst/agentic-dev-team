@@ -132,27 +132,29 @@ HELPER="$BATS_TEST_DIRNAME/hermetic.bash"
   cd /
   run hermetic_assert_pwd
   [ "$status" -ne 0 ]
-  # Diagnostic names both drift and expected root.
+  # Diagnostic names both the drifted PWD and the expected root.
+  [[ "$output" == *"drifted outside HERMETIC_ROOT"* ]]
   [[ "$output" == *"$HERMETIC_ROOT"* ]]
-  [[ "$output" == *"/"* ]]
+  [[ "$output" == *"PWD"* ]]
 }
 
-@test "1.2c: two concurrent hermetic_setup invocations produce distinct roots" {
+@test "1.2c: two hermetic_setup invocations (parallel background) produce distinct roots" {
   # shellcheck disable=SC1090
   source "$HELPER"
 
-  # Run in two subshells sequentially — mktemp -d guarantees distinct paths
-  # even without concurrency, but the -t "bats-$$-XXXX" prefix means paths
-  # under different bats worker pids also namespace apart.
-  R1="$(
-    hermetic_setup >/dev/null
-    printf '%s' "$HERMETIC_ROOT"
-  )"
-  R2="$(
-    hermetic_setup >/dev/null
-    printf '%s' "$HERMETIC_ROOT"
-  )"
+  # Fork two real subshells in parallel via background jobs, each writing
+  # its HERMETIC_ROOT to its own file. bats --jobs forks per test, so this
+  # exercises the same collision surface a parallel-worker run would.
+  F1="$BATS_TEST_TMPDIR/root1"
+  F2="$BATS_TEST_TMPDIR/root2"
+  ( hermetic_setup >/dev/null; printf '%s' "$HERMETIC_ROOT" > "$F1" ) &
+  P1=$!
+  ( hermetic_setup >/dev/null; printf '%s' "$HERMETIC_ROOT" > "$F2" ) &
+  P2=$!
+  wait "$P1" "$P2"
 
+  R1="$(cat "$F1")"
+  R2="$(cat "$F2")"
   [ -n "$R1" ]
   [ -n "$R2" ]
   [ "$R1" != "$R2" ]

@@ -23,7 +23,7 @@ teardown() {
   hermetic_teardown
 }
 
-@test "ci-local: env-scrub probe emits no GIT_* env vars" {
+@test "ci-local: env-scrub probe reports every targeted var as __unset__" {
   # Create the decoy first (in a clean env) so we don't fight git.
   DECOY="$HERMETIC_ROOT/decoy.git"
   mkdir -p "$DECOY" && ( cd "$DECOY" && git init -q --bare )
@@ -35,16 +35,24 @@ teardown() {
   export GIT_PREFIX="subdir/"
   export GIT_REFLOG_ACTION="push"
 
+  # Also export a UNRELATED GIT_* variable that the probe MUST NOT leak,
+  # simulating a real developer env with e.g. GIT_HTTP_EXTRAHEADER carrying
+  # a bearer token. The narrowed probe should never mention it.
+  export GIT_HTTP_EXTRAHEADER="Authorization: bearer SUPER_SECRET_TOKEN_XYZ"
+
   run env CI_LOCAL_PROBE_ENV=1 bash "$CI_LOCAL"
   [ "$status" -eq 0 ]
 
-  # After scrub, none of the GIT_* names the pre-push hook leaks should
-  # appear in ci-local's own env dump.
-  ! grep -q '^GIT_DIR=' <<<"$output"
-  ! grep -q '^GIT_INDEX_FILE=' <<<"$output"
-  ! grep -q '^GIT_WORK_TREE=' <<<"$output"
-  ! grep -q '^GIT_PREFIX=' <<<"$output"
-  ! grep -q '^GIT_REFLOG_ACTION=' <<<"$output"
+  # Each of the 5 scrubbed vars must report as unset.
+  [[ "$output" == *"GIT_DIR=__unset__"* ]]
+  [[ "$output" == *"GIT_INDEX_FILE=__unset__"* ]]
+  [[ "$output" == *"GIT_WORK_TREE=__unset__"* ]]
+  [[ "$output" == *"GIT_PREFIX=__unset__"* ]]
+  [[ "$output" == *"GIT_REFLOG_ACTION=__unset__"* ]]
+
+  # And critically — unrelated GIT_* secrets never appear in probe output.
+  ! grep -q 'SUPER_SECRET_TOKEN_XYZ' <<<"$output"
+  ! grep -q '^GIT_HTTP_EXTRAHEADER' <<<"$output"
 }
 
 @test "ci-local: hostile GIT_DIR does not mutate the decoy bare repo" {

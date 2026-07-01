@@ -56,8 +56,21 @@ hermetic_assert_pwd() {
 }
 
 # hermetic_teardown — called from the fixture's teardown() block.
-# Asserts PWD did not drift; leaves cleanup of $HERMETIC_ROOT to
-# BATS_TEST_TMPDIR / the OS (mktemp -d roots are per-test and short-lived).
+# Asserts PWD did not drift, then removes $HERMETIC_ROOT so parallel bats
+# workers don't accumulate scratch git repos in $TMPDIR (mktemp -d -t roots
+# are NOT under $BATS_TEST_TMPDIR, so bats' own cleanup won't reap them).
+# The rm is guarded on the path prefix looking like a real tempdir so a
+# misconfigured $TMPDIR can't escalate the delete to an unexpected path.
 hermetic_teardown() {
-  hermetic_assert_pwd
+  local rc=0
+  hermetic_assert_pwd || rc=$?
+  if [ -n "${HERMETIC_ROOT:-}" ] && [ -d "$HERMETIC_ROOT" ]; then
+    case "$HERMETIC_ROOT" in
+      /tmp/*|/var/folders/*|/private/var/folders/*|/private/tmp/*)
+        cd / && rm -rf "$HERMETIC_ROOT"
+        ;;
+    esac
+  fi
+  unset HERMETIC_ROOT
+  return "$rc"
 }

@@ -39,11 +39,17 @@ set -uo pipefail
 # child process can see them.
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_REFLOG_ACTION
 
-# CI_LOCAL_PROBE_ENV=1 short-circuits ci-local to dump its post-scrub
-# GIT_* env vars and exit 0. Used by tests/scripts/ci_local_hermetic_tests.bats
-# to assert the scrub happened without running the full suite.
+# CI_LOCAL_PROBE_ENV=1 short-circuits ci-local to report the state of the
+# five scrubbed vars and exit 0. Used by tests/scripts/ci_local_hermetic_tests.bats
+# to assert the scrub happened without running the full suite. Deliberately
+# NARROW — only reports the exact names the unset targeted so the probe
+# cannot exfiltrate unrelated GIT_* secrets (GIT_HTTP_EXTRAHEADER carries
+# bearer tokens, GIT_ASKPASS carries credential-helper paths, etc.).
 if [ "${CI_LOCAL_PROBE_ENV:-}" = "1" ]; then
-  env | grep '^GIT_' || true
+  for _v in GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_REFLOG_ACTION; do
+    eval "_val=\${$_v-__unset__}"
+    printf '%s=%s\n' "$_v" "$_val"
+  done
   exit 0
 fi
 
