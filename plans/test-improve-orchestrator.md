@@ -27,7 +27,7 @@ Mirrors the 53 ACs in `docs/specs/test-improve-orchestrator.md`. Grouped here fo
 - [ ] AC9–11: Phase 1 (`/test-health` once; mutation section respects Phase 0; human gate).
 - [x] AC12–14: Phase 2 baseline (coverage before any test edit; mutation before any test edit when enabled; both with `--workflow test-improve`).
 - [x] AC15–18: Phase 2b Gherkin (skipped on `none`; xUnit annotations on `xunit-with-annotations`; parser wiring on `bdd-runner`; human gate).
-- [ ] AC19–21: Phase 3 triage (`--workflow test-improve`; three-way gap partition; human gate).
+- [x] AC19–21: Phase 3 triage (`--workflow test-improve`; three-way gap partition; human gate).
 - [ ] AC22–28: Phase 4 improve-without-refactoring + end-of-phase review loop.
 - [ ] AC29–30: Phase 4b `[y/b/q]` refactor decision prompt.
 - [ ] AC31–35: Phase 5 refactor-for-testability (conditional; seam-only; precondition-check; review loop).
@@ -903,8 +903,8 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 #### Wave 5
 
-- [ ] Slice 5: Phase 3 — Triage
-  - [ ] Step 5.1: Add Phase 3 triage orchestration
+- [x] Slice 5: Phase 3 — Triage
+  - [x] Step 5.1: Add Phase 3 triage orchestration
 
 #### Wave 6
 
@@ -956,7 +956,7 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 - [x] AC9–11: Phase 1 via /test-health
 - [x] AC12–14: Phase 2 baseline
 - [x] AC15–18: Phase 2b Gherkin
-- [ ] AC19–21: Phase 3 triage
+- [x] AC19–21: Phase 3 triage
 - [ ] AC22–28: Phase 4 improve + review loop
 - [ ] AC29–30: Phase 4b prompt
 - [ ] AC31–35: Phase 5 refactor

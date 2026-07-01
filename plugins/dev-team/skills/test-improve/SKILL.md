@@ -221,4 +221,24 @@ parser wiring to `memory/test-improve/<slug>/gherkin.md`.
 `bdd-runner` mode), present them to the operator for review. **Phase 3 does
 not run** until the operator approves.
 
-_(Phases 3..7 are added in subsequent slices.)_
+### Phase 3 — Triage (partition findings by gap class)
+
+Convert Phase 1's ordered improvement plan into actionable work items.
+Delegate the write to `/issues-from-assessment --workflow test-improve`; the
+skill routes the memory + plan paths under `test-improve/` (per Slice 11).
+
+Every finding lands in exactly one of three **gap classes**:
+
+- **`NO_REFACTOR`** — fixable by test edits alone. Written as **Phase-4
+  Stories** to `./plans/test-improve/` (or the configured parent tracker
+  when `--parent` was supplied at Phase 0).
+- **`REFACTOR_REQUIRED`** — needs a production-code seam before a test can reach the behavior. REFACTOR_REQUIRED items are **deferred to Phase 5** and are **not written as Phase-4 Stories**; they surface with rationale for the operator, who decides at Phase 4b whether to enter Phase 5.
+- **`LOW_VALUE`** — tests that are cheap to have but not worth fixing (e.g. duplicate coverage, trivial getters, dead-code assertions). LOW_VALUE findings are **advisory-only**: enumerated in the report, no PR is opened to delete a test flagged this way.
+
+**Persistence.** Persist the classified finding set to
+`memory/test-improve/<slug>/phase-3.md`.
+
+**Human gate.** Present the Phase-4 Story set (NO_REFACTOR only) to the
+operator. **Phase 4 does not run** until the operator approves the set.
+
+_(Phases 4..7 are added in subsequent slices.)_
