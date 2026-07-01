@@ -243,8 +243,11 @@ For each fixture/skill pair (skill fixtures, e.g. `tlg-*`):
    the fixture is a behavior description the advisor designs tests for. Pass
    **only** the fixture file, never the expected JSON.
    - **Default:** a fresh subprocess —
-     `claude -p "/test-design-advisor <fixture-path>" --output-format json`.
-   - **`--in-session`:** invoke the skill in this session.
+     `claude -p "/test-design --advise --path <fixture-path>" --output-format json`.
+     The `test-design-advisor` skill is worker-only; dispatch it through
+     `/test-design`, which auto-fires the advisor for a single-file target.
+   - **`--in-session`:** invoke the skill in this session via
+     `Skill(test-design-advisor, <fixture-path>)`.
 2. Capture the advisor's report text — specifically the *Pyramid
    placement* table (the `Gate` column and recommended `Layer`(s)) and
    the surrounding rationale.
