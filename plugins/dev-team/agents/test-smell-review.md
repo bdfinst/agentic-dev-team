@@ -11,18 +11,57 @@ cites: [test-smells, test-automation-principles, test-doubles, value-patterns, t
 Output JSON:
 
 ```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "smell": "", "message": "", "suggestedFix": ""}], "summary": ""}
+{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "smell": "", "message": "", "remedyFamily": "fixture-construction|result-verification|test-organization|test-refactoring|null", "suggestedFix": ""}], "summary": ""}
 ```
 
 Status: pass=no smells, warn=minor smells, fail=behavior/project smell that undermines trust in the suite
 Severity: error=smell that makes the suite untrustworthy or unmaintainable (flaky, buggy test, false confidence), warning=should fix (fragile, obscure, overspecified), suggestion=improvement
 Confidence: high=named smell with a mechanical fix (add assertion message, inline mystery guest, downgrade mock to stub); medium=smell is clear but the redesign has options (split strategy, layer choice); none=requires human judgment (intended test level, whether a behavior is worth testing)
 
+### remedyFamily and suggestedFix — the two-field contract
+
+Both `remedyFamily` and `suggestedFix` are always populated on every finding.
+`remedyFamily` names the knowledge file that carries the remedy taxonomy — one
+of `fixture-construction`, `result-verification`, `test-organization`,
+`test-refactoring`, or `null` for smells with no family cite (e.g. bare
+pyramid-placement flags). `suggestedFix` is always populated with a **specific
+remedy pattern** (e.g. "Expected Object", "Custom Assertion", "Creation
+Method"), **not a family slug** — this contract holds regardless of invocation
+context, so solo `/code-review` output still names an actionable pattern
+without dispatching the advisor.
+
+**Prose-emission contract.** For every finding whose `remedyFamily` is
+non-null, the family slug MUST also appear verbatim in the finding's `message`
+prose (not `suggestedFix`). The eval grader `scripts/eval_graders/verdict.py:40`
+concatenates `issue.message` + `summary` and scans for `mustMention` keywords
+in prose; it does **not** read `suggestedFix` or `remedyFamily` structurally.
+Emitting the family slug in `message` is what makes `mustMention` on the
+family slug enforceable by the existing fixture grader without extending it.
+
+### Smell → family mapping
+
+The mapping the agent uses to populate `remedyFamily`, grounded in
+`knowledge/test-smells.md#smell-categories` and the remedy files it points at
+(Whole-file load: consult the full taxonomy when a smell does not fit a row):
+
+| Smell (from `test-smells.md`) | remedyFamily | Typical pattern in `suggestedFix` |
+|---|---|---|
+| Assertion Roulette, Hard-Coded / Magic Values | `result-verification` | Expected Object, Custom Assertion |
+| Overspecified Software (mock-heavy) | `result-verification` | prefer state verification over behavior verification |
+| Mystery Guest, General Fixture, Irrelevant Information | `fixture-construction` | Creation Method, Test Data Builder, Minimal Fixture |
+| Obscure Test (Four-Phase visibility), Test Code Duplication (structure) | `test-organization` | Four-Phase Test, Test Utility Method, Parameterized Test |
+| Eager Test (Split Test), Fragile Test refactor sequences | `test-refactoring` | Split Test, Inline Mystery Guest, Introduce Expected Object |
+| Erratic Test, Slow Tests, pyramid-placement flags with no family fit | `null` | remedy is production-side or layer-relocation (no xUnit family cite) |
+
+When a finding fits no row, consult `knowledge/test-smells.md#smell-categories` and pick the family from its remedy column; emit `null` if none applies.
+
 Context needs: full-file
 
 ## Scope
 
 The design-level companion to test-review. This agent names xUnit test smells, judges test-double choice, and checks pyramid-layer placement. The division of labor with `test-review` is defined in `knowledge/test-review-division-of-labor.md#the-two-roles`: this agent owns the named-smell signals (including non-determinism, framed as the **Erratic Test** smell with its root cause), and defers the pure tactical mechanics (missing assertion, missing `await`, mock-reset) to `test-review`.
+
+The division of labor with `test-design-advisor` is defined in the same file under the section **"test-smell-review ↔ test-design-advisor — remedy division"** — the invocation rule and grader-alignment specifics live there; the two-field contract above is the on-the-wire summary.
 
 ## Knowledge Files
 

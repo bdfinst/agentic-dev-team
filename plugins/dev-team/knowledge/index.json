@@ -1181,6 +1181,10 @@
     "The rule in one line": {
       "summary": "When both agents run, `test-smell-review` defers the pure mechanics (missing",
       "anchor": "the-rule-in-one-line"
+    },
+    "test-smell-review ↔ test-design-advisor — remedy division": {
+      "summary": "`test-smell-review` and `test-design-advisor` both draw remedy guidance from the",
+      "anchor": "test-smell-review-test-design-advisor-remedy-division"
     }
   },
   "plugins/dev-team/knowledge/test-smells.md": {
@@ -4669,11 +4673,11 @@
       "anchor": "3-choose-doubles"
     },
     "3b. Recommend fixture and interaction strategy": {
-      "summary": "Using `knowledge/test-strategy.md`, recommend per test group: fixture design + lifecycle (default Minimal + Fresh; escalate to Immutable Shared → Shared only under measured speed pressure), how the test is driven (scripted default; data-driven when variation is purely data), and SUT interaction (front-door by default; Layer Test for layered code; Back Door Manipulation only when the front door obscures intent).",
+      "summary": "**Under `/test-design`**, the smell agent has already named the smell and its remedy family (via `remedyFamily`, per `knowledge/test-review-division-of-labor.md` § \"test-smell-review ↔ test-design-advisor — remedy division\"); this step supplies the specific remedy pattern from that family and its per-behavior application.",
       "anchor": "3b-recommend-fixture-and-interaction-strategy"
     },
     "3c. Recommend verification and test structure": {
-      "summary": "Using `knowledge/result-verification.md`, recommend the assertion pattern that fixes verification smells: **Expected Object** for field-by-field clutter, **Custom Assertion / Verification Method** for repeated complex comparisons or poor failure messages, **Guard Assertion** before a precondition-dependent assertion, **Delta Assertion** against a baseline for shared/persistent fixtures — and verify one logical condition per test.",
+      "summary": "**Under `/test-design`**, the smell agent has already named the smell and its remedy family (via `remedyFamily`, per `knowledge/test-review-division-of-labor.md` § \"test-smell-review ↔ test-design-advisor — remedy division\"); this step supplies the specific remedy pattern from that family (result-verification and test-organization patterns) and its per-behavior application.",
       "anchor": "3c-recommend-verification-and-test-structure"
     },
     "4. Propose a behavior-preserving refactor sequence (only if blockers or test smells exist)": {
