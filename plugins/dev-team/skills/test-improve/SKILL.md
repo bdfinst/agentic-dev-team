@@ -376,4 +376,48 @@ Phase 4b was not reached).
 **Evidence.** Persist target outcomes to
 `memory/test-improve/<slug>/phase-6.md`.
 
-*(Phase 7 is added in the next slice.)*
+### Phase 7 — Executive-summary report
+
+Produce a stable executive-summary report from the shipped template. Every
+section is present in every run; empty sections **do not disappear** — they
+render `_Not applicable — <reason>._` so the shape of the report never changes
+between runs.
+
+**Template source.** Copy
+`plugins/dev-team/skills/test-improve/templates/executive-summary.md` to the
+output path.
+
+**Output path.** `reports/test-improve/<repo-slug>-<date>.md` — the file is
+always relative to the invocation directory, whether the run used a tracker
+sink or local-files mode.
+
+**Interpolation.** Every placeholder is **interpolated** from persisted
+memory files under `memory/test-improve/<slug>/` (`phase-0.md`, `phase-1.md`,
+`baseline-coverage.json`, `baseline-mutation.json`, `phase-3.md`,
+`coverage-history.json`, `phase-4-review.json`, `phase-5-review.json` if
+Phase 5 ran, `refactor-backlog.md` if Phase 4b chose `[b]`, `waivers.json`,
+`phase-6.md`). No placeholder is left literal.
+
+**Empty-section rule.** Sections with no data render `_Not applicable —
+<reason>._` (e.g. § 6 when Phase 5 was declined reads "*Phase 5 not run —
+operator chose to backlog REFACTOR_REQUIRED items at Phase 4b.*"). Sections
+are never omitted or hidden — this keeps the report shape stable across runs.
+
+**Mutation row shape.**
+
+- Mutation on, non-Go: honest score (hard kills / effective total; timeouts
+  reported separately).
+- Mutation off: `_Not applicable — mutation disabled at Phase 0._`
+- Go stack: honest numbers with the "advisory only — go-mutesting is alpha"
+  footnote.
+
+**Parent-issue-or-FEATURE.md link update.** When the run used a **parent
+tracker** (Phase 0 selected `--parent <url>`), the parent issue is updated
+with a link to `reports/test-improve/<repo-slug>-<date>.md`. When the run
+was **local-files-only**, `plans/test-improve/FEATURE.md` is updated with
+the same link.
+
+**Regeneratable-from-memory contract.** The report is a **pure function** of
+`memory/test-improve/<slug>/`. Deleting the report file and re-invoking
+Phase 7 against the same memory directory reproduces the report byte-for-byte
+— no run-time state is consulted outside the memory directory.

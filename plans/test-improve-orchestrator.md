@@ -32,7 +32,7 @@ Mirrors the 53 ACs in `docs/specs/test-improve-orchestrator.md`. Grouped here fo
 - [ ] AC29–30: Phase 4b `[y/b/q]` refactor decision prompt.
 - [x] AC31–35: Phase 5 refactor-for-testability (conditional; seam-only; precondition-check; review loop).
 - [x] AC36–39: Phase 6 validate (`/quality-targets-converge --workflow test-improve`; mutation-off skip vs waive; Go advisory; coverage-<90% re-run prompt).
-- [ ] AC40 + AC40.1–40.6: Phase 7 report ships from the executive-summary template with 10 numbered sections; sections never disappear; parent-issue/FEATURE.md link update; regeneratable-from-memory contract.
+- [x] AC40 + AC40.1–40.6: Phase 7 report ships from the executive-summary template with 10 numbered sections; sections never disappear; parent-issue/FEATURE.md link update; regeneratable-from-memory contract.
 - [ ] AC41–44: Worker-skill parameterization (`--workflow` on issues-from-assessment + quality-targets-converge; mutation-testing workflow-callers allowlist updated; coverage-baseline + coverage-delta recognize new workflow name).
 - [ ] AC45–49: Docs + diagrams + registries.
 - [ ] AC50–53: `/agent-audit` + `/agent-eval` + bats gate.
@@ -929,9 +929,9 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 #### Wave 10
 
-- [ ] Slice 10: Phase 7 — Report
-  - [ ] Step 10.1: Ship the executive-summary template
-  - [ ] Step 10.2: Add Phase 7 report orchestration
+- [x] Slice 10: Phase 7 — Report
+  - [x] Step 10.1: Ship the executive-summary template
+  - [x] Step 10.2: Add Phase 7 report orchestration
 
 #### Wave 11
 
@@ -961,7 +961,7 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 - [x] AC29–30: Phase 4b prompt
 - [x] AC31–35: Phase 5 refactor
 - [x] AC36–39: Phase 6 validate
-- [ ] AC40 + AC40.1–40.6: Phase 7 report ships from the executive-summary template with 10 numbered sections; sections never disappear; parent-issue/FEATURE.md link update; regeneratable-from-memory contract
+- [x] AC40 + AC40.1–40.6: Phase 7 report ships from the executive-summary template with 10 numbered sections; sections never disappear; parent-issue/FEATURE.md link update; regeneratable-from-memory contract
 - [x] AC41–44: --workflow parameterization
 - [ ] AC45–49: docs + diagrams + registries
 - [ ] AC50–53: /agent-audit + /agent-eval + bats gate

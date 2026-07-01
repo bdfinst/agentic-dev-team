@@ -4919,6 +4919,10 @@
     "Phase 6 — Validate (converge quality targets)": {
       "summary": "Verify the improved suite meets the Phase-0 quality targets.",
       "anchor": "phase-6-validate-converge-quality-targets"
+    },
+    "Phase 7 — Executive-summary report": {
+      "summary": "Produce a stable executive-summary report from the shipped template.",
+      "anchor": "phase-7-executive-summary-report"
     }
   },
   "plugins/dev-team/skills/test-modernize/SKILL.md": {
