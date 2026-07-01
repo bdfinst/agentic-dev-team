@@ -4907,6 +4907,10 @@
     "Phase 4 — Improve without refactoring (build + mutation-kill + review loop)": {
       "summary": "Iterate the approved Phase-4 Story set.",
       "anchor": "phase-4-improve-without-refactoring-build-mutation-kill-review-loop"
+    },
+    "Phase 4b — Refactor decision prompt": {
+      "summary": "With Phase 4 closed, present the **REFACTOR_REQUIRED** list deferred at",
+      "anchor": "phase-4b-refactor-decision-prompt"
     }
   },
   "plugins/dev-team/skills/test-modernize/SKILL.md": {

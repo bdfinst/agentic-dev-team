@@ -914,8 +914,8 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 #### Wave 7
 
-- [ ] Slice 7: Phase 4b — refactor decision prompt
-  - [ ] Step 7.1: Add Phase 4b prompt
+- [x] Slice 7: Phase 4b — refactor decision prompt
+  - [x] Step 7.1: Add Phase 4b prompt
 
 #### Wave 8
 
@@ -958,7 +958,7 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 - [x] AC15–18: Phase 2b Gherkin
 - [x] AC19–21: Phase 3 triage
 - [x] AC22–28: Phase 4 improve + review loop
-- [ ] AC29–30: Phase 4b prompt
+- [x] AC29–30: Phase 4b prompt
 - [ ] AC31–35: Phase 5 refactor
 - [ ] AC36–39: Phase 6 validate
 - [ ] AC40 + AC40.1–40.6: Phase 7 report ships from the executive-summary template with 10 numbered sections; sections never disappear; parent-issue/FEATURE.md link update; regeneratable-from-memory contract

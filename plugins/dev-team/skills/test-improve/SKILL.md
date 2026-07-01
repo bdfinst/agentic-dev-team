@@ -292,4 +292,30 @@ Phase-4 diff:
    the fixed schema — fields: `base_sha`, `head_sha`, `farley_score`,
    `smells`, `code_review`, `iterations`, `escalated`.
 
-_(Phases 4b..7 are added in subsequent slices.)_
+### Phase 4b — Refactor decision prompt
+
+With Phase 4 closed, present the **REFACTOR_REQUIRED** list deferred at
+Phase 3. Each item is shown with three columns:
+
+- **seam-needed** — the production-code seam the test would need (e.g.
+  interface extraction, dependency injection, virtual method).
+- **behavior-gained** — the untested behavior a Phase-5 refactor would
+  unlock coverage for.
+- **estimated-risk** — a qualitative risk marker (low / medium / high) for
+  the specific refactor.
+
+Prompt the operator with **`[y] enter Phase 5 / [b] backlog and skip to
+Phase 6 / [q] quit`** (shape `[y/b/q]`). The letter `y` was chosen deliberately
+over `r` — `[r]` is already claimed by mutation-kill's `[c/r/w/q]` (retry) and
+the review-loop's `[r/w/q]` (revise); a third `[r]` at the
+highest-consequence prompt would confuse operators.
+
+- **`[y]`** — advances to **Phase 5** (refactor-for-testability).
+- **`[b]`** — writes the REFACTOR_REQUIRED items to
+  `memory/test-improve/<slug>/refactor-backlog.md` (or updates the parent
+  tracker when `--parent` was passed); **skips Phase 5** and runs **Phase 6**
+  directly with the current Phase-4 test suite as the target.
+- **`[q]`** — **quits** before Phase 6. No further phase runs; the final
+  report reflects Phase-4 state only.
+
+_(Phases 5..7 are added in subsequent slices.)_
