@@ -34,10 +34,22 @@ done
 sorted=()
 while IFS= read -r b; do sorted+=("$b"); done < <(printf '%s\n' "${branches[@]}" | sort)
 
-git checkout -B "$INTO" "$BASE" >/dev/null 2>&1 || {
-  echo "build-wave-reconcile: cannot create integration branch '$INTO' from '$BASE'." >&2
-  exit 2
-}
+# If $INTO already exists, reconcile onto its current tip so any commits the
+# caller made directly on the integration branch (e.g. spec/plan WIP commits
+# made before or between wave dispatches) stay in the ancestry. Only create
+# $INTO fresh from $BASE when it does not exist yet — resetting an existing
+# $INTO to $BASE would silently discard those WIP commits.
+if git rev-parse --verify --quiet "$INTO" >/dev/null 2>&1; then
+  git checkout "$INTO" >/dev/null 2>&1 || {
+    echo "build-wave-reconcile: cannot check out existing integration branch '$INTO'." >&2
+    exit 2
+  }
+else
+  git checkout -B "$INTO" "$BASE" >/dev/null 2>&1 || {
+    echo "build-wave-reconcile: cannot create integration branch '$INTO' from '$BASE'." >&2
+    exit 2
+  }
+fi
 
 for b in "${sorted[@]}"; do
   if ! git merge --no-ff --no-edit "$b" >/dev/null 2>&1; then
