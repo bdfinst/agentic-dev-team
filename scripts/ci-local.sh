@@ -30,6 +30,29 @@
 
 set -uo pipefail
 
+# --- git env scrub (issue #546) -------------------------------------------
+# Git exports GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE / GIT_PREFIX /
+# GIT_REFLOG_ACTION into the pre-push hook's environment. Left in place,
+# fixture bats tests that run `git init` / `git commit` / `git push`
+# inherit them and target the parent worktree's gitdir instead of their
+# tempdirs, silently rewriting refs/heads/*. Scrub at the boundary so no
+# child process can see them.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_REFLOG_ACTION
+
+# CI_LOCAL_PROBE_ENV=1 short-circuits ci-local to report the state of the
+# five scrubbed vars and exit 0. Used by tests/scripts/ci_local_hermetic_tests.bats
+# to assert the scrub happened without running the full suite. Deliberately
+# NARROW — only reports the exact names the unset targeted so the probe
+# cannot exfiltrate unrelated GIT_* secrets (GIT_HTTP_EXTRAHEADER carries
+# bearer tokens, GIT_ASKPASS carries credential-helper paths, etc.).
+if [ "${CI_LOCAL_PROBE_ENV:-}" = "1" ]; then
+  for _v in GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_REFLOG_ACTION; do
+    eval "_val=\${$_v-__unset__}"
+    printf '%s=%s\n' "$_v" "$_val"
+  done
+  exit 0
+fi
+
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
 # --- argument parsing ------------------------------------------------------

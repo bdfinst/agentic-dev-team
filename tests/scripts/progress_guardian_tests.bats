@@ -6,6 +6,21 @@
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 PG="$REPO_ROOT/scripts/progress_guardian.py"
 
+load '../lib/hermetic'
+
+# hermetic_setup scrubs the git env vars git exports into pre-push hooks
+# (GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE / GIT_PREFIX / GIT_REFLOG_ACTION)
+# and creates a per-worker tempdir at $HERMETIC_ROOT. Every fixture git
+# operation below runs against that tempdir, never the parent worktree's
+# gitdir. See tests/lib/hermetic.bash + issue #546.
+setup() {
+  hermetic_setup
+}
+
+teardown() {
+  hermetic_teardown
+}
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -20,7 +35,7 @@ make_plan() {
 # ---------------------------------------------------------------------------
 
 @test "3.1a: done checkbox [x] is parsed as done=True with header captured" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: Do something"
 
@@ -31,14 +46,13 @@ make_plan() {
   git commit -q --allow-empty -m "initial commit"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   # [x] step present, no matching commit → exit 1 naming the step
   [ "$status" -eq 1 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any('Do something' in i['message'] for i in d['issues']), d"
 }
 
 @test "3.1b: undone checkbox [ ] is parsed as done=False (no error for it)" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [ ] Step 1.2: Another thing"
 
@@ -49,14 +63,13 @@ make_plan() {
   git commit -q --allow-empty -m "initial commit"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   # [ ] step is not done — no commit-discipline error, but may get llm-skipped warning
   # status should NOT be 1 (fail) because the step is unchecked
   [ "$status" -ne 1 ]
 }
 
 @test "3.1c: plan file with no checkboxes exits 1 with file name in output" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   make_plan "$PLAN" "# Plan\n\nSome text without any checkboxes."
 
@@ -67,7 +80,6 @@ make_plan() {
   git commit -q --allow-empty -m "initial commit"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 1 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any('plan.md' in i['message'] or 'plan.md' in i['file'] for i in d['issues']), d"
 }
@@ -77,7 +89,7 @@ make_plan() {
 # ---------------------------------------------------------------------------
 
 @test "3.2a: [x] step with matching commit exits 0 (clean tree)" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser"
 
@@ -90,12 +102,11 @@ make_plan() {
   git commit -q -m "add plan"
 
   run python3 "$PG" --plan "$T/plan.md" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
 }
 
 @test "3.2b: [x] step with no matching commit exits 1 naming the step header" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: Add something specific"
 
@@ -106,13 +117,12 @@ make_plan() {
   git commit -q --allow-empty -m "feat: something unrelated"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 1 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any('Add something specific' in i['message'] for i in d['issues']), d"
 }
 
 @test "3.2c: staged file with a [x] step exits 1 (uncommitted work)" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser"
 
@@ -126,13 +136,12 @@ make_plan() {
   git add staged.txt
 
   run python3 "$PG" --plan "$T/plan.md" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 1 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any('uncommit' in i['message'].lower() for i in d['issues']), d"
 }
 
 @test "3.2d: unstaged modification with a [x] step exits 1 (uncommitted work)" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
 
   cd "$T" || return 1
@@ -148,7 +157,6 @@ make_plan() {
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 1 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any('uncommit' in i['message'].lower() for i in d['issues']), d"
 }
@@ -158,7 +166,7 @@ make_plan() {
 # ---------------------------------------------------------------------------
 
 @test "3.3a: --pre-pr with all [x] steps + matching commits + clean tree exits 0" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser
 - [x] Step 1.2: add git log check"
@@ -171,12 +179,11 @@ make_plan() {
   git commit -q --allow-empty -m "feat: add git log check"
 
   run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
 }
 
 @test "3.3b: --pre-pr with a [ ] (undone) step exits 1" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser
 - [ ] Step 1.2: add git log check"
@@ -188,13 +195,12 @@ make_plan() {
   git commit -q --allow-empty -m "feat: add checkbox parser"
 
   run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 1 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any('incomplete' in i['message'].lower() or 'unchecked' in i['message'].lower() or 'not done' in i['message'].lower() for i in d['issues']), d"
 }
 
 @test "3.3c: --skip-llm with out-of-plan staged file adds warning finding (exit 2)" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   # Plan declares no file paths; extra.py is out-of-plan
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser"
@@ -209,14 +215,13 @@ make_plan() {
   git add extra.py
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   # Uncommitted staged file → exit 1 (uncommitted check fires before scope check)
   # But we want to confirm scope check is included. The uncommitted check should fire.
   [ "$status" -eq 1 ]
 }
 
 @test "3.3d: --skip-llm with clean tree but out-of-plan file in committed diff emits warning (exit 2)" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   PLAN="$T/plan.md"
   # Plan declares no backtick-paths; extra.py is out-of-plan
   make_plan "$PLAN" "- [x] Step 1.1: add checkbox parser"
@@ -235,7 +240,6 @@ make_plan() {
   git commit -q -m "feat: add checkbox parser extra"
 
   run python3 "$PG" --plan plan.md --skip-llm
-  rm -rf "$T"
   # With clean tree and [x] steps + matching commits, scope check fires → llm-skipped warning → exit 2
   [ "$status" -eq 2 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any(i.get('rule_id') == 'llm-skipped' for i in d['issues']), d"
@@ -263,9 +267,9 @@ setup_stale_main_repo() {
   local ahead_file="$2"
   # All three working areas (the bare remote, the working clone, and the
   # sibling clone used to advance the remote) live as siblings under
-  # $work's PARENT directory. Callers create $work as `$T/work` for some
-  # mktemp-d $T, so `rm -rf $T` covers everything this helper allocates —
-  # no detached tmpdirs leak under /tmp.
+  # $work's PARENT directory (typically $HERMETIC_ROOT). hermetic_setup
+  # allocates $HERMETIC_ROOT per test, so everything lives under one root
+  # per test — no detached tmpdirs leak under /tmp.
   local parent
   parent="$(dirname "$work")"
   local remote="$parent/remote.git"
@@ -309,7 +313,7 @@ setup_stale_main_repo() {
 }
 
 @test "4.1a: local main lags origin/main by one commit; on-branch file is not reported as out-of-plan" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   WORK="$T/work"
   setup_stale_main_repo "$WORK" "unrelated.py"
   # Commit a.py on the feature branch.
@@ -325,13 +329,12 @@ setup_stale_main_repo() {
   printf '%s\n' "- [x] write a.py for the slice" "" "**Files:** \`a.py\`" > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }
 
 @test "4.1b: local main equals origin/main; on-branch file is not reported as out-of-plan (no regression)" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   WORK="$T/work"
   # Set up a repo where origin/main == local main (no remote advance).
   # Use --initial-branch=main (with fallback) so this works on CI runners
@@ -360,7 +363,6 @@ setup_stale_main_repo() {
   printf '%s\n' "- [x] write a.py for the slice" "" "**Files:** \`a.py\`" > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }
@@ -379,7 +381,7 @@ setup_stale_main_repo() {
 # ---------------------------------------------------------------------------
 
 @test "4.2a: Conventional Commit on declared file satisfies the matcher" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
@@ -393,13 +395,12 @@ setup_stale_main_repo() {
   printf '%s\n' "- [x] Slice 1: do thing" "" "**Files:** \`a.py\`" > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }
 
 @test "4.2b: commit touches one of multiple declared files (any-of semantics)" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
@@ -412,7 +413,6 @@ setup_stale_main_repo() {
   printf '%s\n' "- [x] Slice 1: do thing" "" "**Files:** \`a.py\`, \`b.py\`" > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }
@@ -424,7 +424,7 @@ setup_stale_main_repo() {
   # despite the **Files:** declaration, this test would false-pass with exit
   # 0. The current file-path matcher correctly rejects (b.py not in declared
   # [a.py]), so exit 1 here proves the file-path matcher is the active path.
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
@@ -437,7 +437,6 @@ setup_stale_main_repo() {
   printf '%s\n' "- [x] do thing" "" "**Files:** \`a.py\`" > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 1 ]
   # Exactly one commit-discipline error whose message includes the slice header.
   echo "$output" | python3 -c "
@@ -472,7 +471,7 @@ assert len(errs) == 1, d
   # parse_plan must skip those mirror items because they have no
   # work-tracking semantics (no `### Slice` heading, no `**Files:**` line).
   # Structural redesign tracked in #526; this test guards the workaround.
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
@@ -493,13 +492,12 @@ assert len(errs) == 1, d
     > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }
 
 @test "4.3a: Build Progress [x] + AC [ ] items; --pre-pr exits 0 (ACs ignored)" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
@@ -522,13 +520,12 @@ assert len(errs) == 1, d
     > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }
 
 @test "4.3b: Build Progress [ ] + AC [ ] items; --pre-pr exits 1 naming the slice, not ACs" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
@@ -548,7 +545,6 @@ assert len(errs) == 1, d
     > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 1 ]
   echo "$output" | python3 -c "
 import sys, json
@@ -563,7 +559,7 @@ for i in errs:
 }
 
 @test "4.3c: Build Progress section exists but contains no checkboxes; exits 1 naming the plan file" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
@@ -581,7 +577,6 @@ for i in errs:
     > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 1 ]
   echo "$output" | python3 -c "
 import sys, json
@@ -596,7 +591,7 @@ for i in errs:
 @test "4.3d: legacy plan with no '## Build Progress' heading falls back to whole-file scan" {
   # This scenario mirrors the existing 3.3a test's plan format. Verifies the
   # backward-compatibility fallback is intact.
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   cd "$T" || return 1
   git init -q
   git config user.email "test@test.com"
@@ -606,7 +601,6 @@ for i in errs:
   printf '%s\n' "- [x] Step 1.1: do thing" > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }
@@ -620,7 +614,7 @@ for i in errs:
 # ---------------------------------------------------------------------------
 
 @test "4.4: realistic plan with all three #525 patterns passes the pre-PR gate" {
-  T="$(mktemp -d)"
+  T="$HERMETIC_ROOT"
   WORK="$T/work"
   setup_stale_main_repo "$WORK" "unrelated.py"
   cd "$WORK" || return 1
@@ -644,7 +638,6 @@ for i in errs:
     > "$PLAN"
 
   run python3 "$PG" --plan "$PLAN" --pre-pr --skip-llm
-  rm -rf "$T"
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['issues']==[], d"
 }

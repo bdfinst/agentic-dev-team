@@ -8,12 +8,14 @@ HOOK="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/pre-commit-knowledge-index
 DETECT_LIB="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/pre-commit-detect.sh"
 SETTINGS_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/settings.json"
 
+load '../lib/hermetic'
+
 setup() {
-  BATS_TMPDIR_CASE="$(mktemp -d)"
+  hermetic_setup  # scrubs GIT_DIR/etc + cds into $HERMETIC_ROOT — issue #546
+  BATS_TMPDIR_CASE="$HERMETIC_ROOT"
   # Build a tiny temp git repo. The hook reads `git diff --cached` to
   # decide which corpus files are staged, so the test repo needs the
   # plugin layout.
-  cd "$BATS_TMPDIR_CASE" || return 1
   git init -q
   git config user.email "test@example.com"
   git config user.name "Test"
@@ -49,8 +51,7 @@ EOF
 }
 
 teardown() {
-  cd /
-  rm -rf "$BATS_TMPDIR_CASE"
+  hermetic_teardown
 }
 
 _bash_input() {
