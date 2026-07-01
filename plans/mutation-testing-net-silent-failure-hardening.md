@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: more-fixes
-**Status**: approved
+**Status**: in-progress
 **Spec**: [docs/specs/mutation-testing-net-silent-failure-hardening.md](../docs/specs/mutation-testing-net-silent-failure-hardening.md)
 
 ## Approach stance
@@ -668,9 +668,9 @@ Observations acknowledged (no code change):
 
 ### Wave 1
 
-- [ ] Slice 1: SKILL.md — Step 1c smoke gate + Long-run inspection section
-  - [ ] Step 1.1: RED — bats doc-shape tests for Step 1c
-  - [ ] Step 1.2: RED — bats doc-shape tests for Long-run inspection section
+- [x] Slice 1: SKILL.md — Step 1c smoke gate + Long-run inspection section
+  - [x] Step 1.1: RED — bats doc-shape tests for Step 1c
+  - [x] Step 1.2: RED — bats doc-shape tests for Long-run inspection section
 
 ### Wave 2
 
