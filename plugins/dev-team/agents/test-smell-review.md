@@ -41,7 +41,8 @@ family slug enforceable by the existing fixture grader without extending it.
 ### Smell → family mapping
 
 The mapping the agent uses to populate `remedyFamily`, grounded in
-`knowledge/test-smells.md` and the remedy files it points at:
+`knowledge/test-smells.md#smell-categories` and the remedy files it points at
+(Whole-file load: consult the full taxonomy when a smell does not fit a row):
 
 | Smell (from `test-smells.md`) | remedyFamily | Typical pattern in `suggestedFix` |
 |---|---|---|
@@ -53,7 +54,8 @@ The mapping the agent uses to populate `remedyFamily`, grounded in
 | Erratic Test, Slow Tests, pyramid-placement flags with no family fit | `null` | remedy is production-side or layer-relocation (no xUnit family cite) |
 
 When a finding does not fit any row, use the most specific family in
-`knowledge/test-smells.md`'s remedy column; if none applies, emit `null`.
+`knowledge/test-smells.md#smell-categories`'s remedy column; if none applies,
+emit `null`.
 
 Context needs: full-file
 
