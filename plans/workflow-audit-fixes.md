@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: feat/531-workflow-rename
-**Status**: approved
+**Status**: implemented
 **Spec**: docs/specs/workflow-audit-fixes.md
 **Issue**: <https://github.com/bdfinst/agentic-dev-team/issues/531>
 
@@ -173,25 +173,25 @@ No `complex` steps.
 
 #### Wave 1
 
-- [ ] Slice 1: Rename `plugin-tests.yml`
-  - [ ] Step 1.1: Rename `plugin-tests.yml` + add regression bats
+- [x] Slice 1: Rename `plugin-tests.yml`
+  - [x] Step 1.1: Rename `plugin-tests.yml` + add regression bats
 
 #### Wave 2
 
-- [ ] Slice 2: Rename `agent-eval.yml` + delegate structural-gate through `--only`
-  - [ ] Step 2.1: Rename `agent-eval.yml` + delegate two steps + regression bats
+- [x] Slice 2: Rename `agent-eval.yml` + delegate structural-gate through `--only`
+  - [x] Step 2.1: Rename `agent-eval.yml` + delegate two steps + regression bats
 
 #### Wave 3
 
-- [ ] Slice 3: Document local/CI split in `link-check.yml`
-  - [ ] Step 3.1: Add local/CI split comment + regression bats
+- [x] Slice 3: Document local/CI split in `link-check.yml`
+  - [x] Step 3.1: Add local/CI split comment + regression bats
 
 ### Acceptance Criteria
 
-- [ ] A1: plugin-tests renamed
-- [ ] A2: agent-eval renamed
-- [ ] A3: structural-gate delegates two steps through --only
-- [ ] A4: link-check.yml documents local/CI split
-- [ ] A5: No job-name, trigger, or dependency changes
-- [ ] A6: Local --only dry-run exits 0
-- [ ] A7: ci-local green, PR title chore(ci):, --no-auto-merge
+- [x] A1: plugin-tests renamed
+- [x] A2: agent-eval renamed
+- [x] A3: structural-gate delegates two steps through --only
+- [x] A4: link-check.yml documents local/CI split
+- [x] A5: No job-name, trigger, or dependency changes
+- [x] A6: Local --only dry-run exits 0
+- [x] A7: ci-local green, PR title chore(ci):, --no-auto-merge
