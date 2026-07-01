@@ -893,8 +893,8 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 #### Wave 3
 
-- [ ] Slice 3: Phase 2 — Baseline
-  - [ ] Step 3.1: Add Phase 2 baseline orchestration
+- [x] Slice 3: Phase 2 — Baseline
+  - [x] Step 3.1: Add Phase 2 baseline orchestration
 
 #### Wave 4
 

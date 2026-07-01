@@ -160,4 +160,33 @@ plan** to the operator and wait for explicit approval. **Phase 2 does not run**
 until the operator approves. This is the human gate for Phase 1; do not advance
 past it without approval.
 
-_(Phases 2..7 are added in subsequent slices.)_
+### Phase 2 — Baseline (coverage + mutation)
+
+Capture the objective starting point **before any file under the stack's test
+directory is modified**. Baselines are the ground truth every downstream delta
+compares against; running any test edit before baseline capture invalidates
+the whole run.
+
+**Coverage baseline.** Invoke `/coverage-baseline --workflow test-improve`
+against the resolved repo path. Persist the result to
+`memory/test-improve/<slug>/baseline-coverage.json`.
+
+**Mutation baseline (mutation-on only).** When `phase-0.md` recorded
+**mutation on**, invoke `/mutation-testing --baseline --workflow test-improve`.
+Persist the result to `memory/test-improve/<slug>/baseline-mutation.json`. The
+file records the **honest score**: hard kills / effective total, with the
+**timeout count reported separately** (timeouts are not counted as kills).
+
+**Mutation-off skip.** When `phase-0.md` recorded **mutation off**,
+`/mutation-testing` is **not invoked** and no `baseline-mutation.json` is
+written. The Phase-6 mutation target is later marked "not enabled", not waived
+(see Phase 6).
+
+**Go advisory marker.** When the resolved stack is Go and mutation is on, the
+mutation baseline is **advisory only** — go-mutesting is alpha-quality (see the
+Go advisory in Phase 0). `baseline-mutation.json` is written with the
+`advisory-only: true` marker; survivor counts are not a gate.
+
+**Ordering invariant.** Baselines land **before any test file is modified** — no file under the stack's test directory may change between Phase 0 and the creation of `baseline-coverage.json` (and `baseline-mutation.json` when applicable). Phase 2b, Phase 4, and any subsequent test edits depend on this ordering.
+
+_(Phases 2b..7 are added in subsequent slices.)_
