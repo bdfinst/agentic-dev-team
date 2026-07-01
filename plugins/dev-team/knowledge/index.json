@@ -4911,6 +4911,10 @@
     "Phase 4b — Refactor decision prompt": {
       "summary": "With Phase 4 closed, present the **REFACTOR_REQUIRED** list deferred at",
       "anchor": "phase-4b-refactor-decision-prompt"
+    },
+    "Phase 5 — Refactor-for-testability (conditional)": {
+      "summary": "Phase 5 runs **only when the operator picked `[y]` at Phase 4b**.",
+      "anchor": "phase-5-refactor-for-testability-conditional"
     }
   },
   "plugins/dev-team/skills/test-modernize/SKILL.md": {

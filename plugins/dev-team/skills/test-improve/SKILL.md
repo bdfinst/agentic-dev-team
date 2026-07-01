@@ -318,4 +318,33 @@ highest-consequence prompt would confuse operators.
 - **`[q]`** — **quits** before Phase 6. No further phase runs; the final
   report reflects Phase-4 state only.
 
-_(Phases 5..7 are added in subsequent slices.)_
+### Phase 5 — Refactor-for-testability (conditional)
+
+Phase 5 runs **only when the operator picked `[y]` at Phase 4b**. If Phase 4b
+returned `[b]` (backlog) or `[q]` (quit), Phase 5 is **skipped**.
+
+**Seam-only production code changes.** `/build` in Phase 5 accepts **seam
+introductions only** — interface extractions, dependency injection points,
+virtual method promotions, factory wrapping. Any change beyond a seam is
+rejected. Behavior modifications, refactors that alter semantics, and
+opportunistic clean-ups are all out of scope.
+
+**Existing tests are immutable.** Phase 5 **may not modify or remove existing tests** — `/build` rejects deletions and edits to any file under the stack's test directory that existed before Phase 5 started. The pre-Phase-5 suite must stay green throughout; a red pre-Phase-5 test halts the phase.
+
+**Phase-4 precondition-check.** Each Phase-5 Story is paired with the
+corresponding Phase-4 baseline Story that could not close under no-refactor.
+Before `/build` runs a Phase-5 Story, `/test-improve` **verifies the paired
+Phase-4 Story is closed and green**. A missing or failing Phase-4 baseline
+halts that Story until the operator resolves it.
+
+**End-of-phase review loop.** After all Phase-5 Stories close, run the
+**same review loop as Phase 4** (see the Phase 4 end-of-phase review loop
+above) — `/test-design --since` and `/code-review --since` dispatch in
+parallel over the Phase-5 diff; `/apply-fixes corrections/` then re-run
+`/code-review`; cap 2 iterations with `[r/w/q]` escalation.
+
+**Evidence.** Write `memory/test-improve/<slug>/phase-5-review.json` using
+the **same fixed schema** as Phase 4 (`base_sha`, `head_sha`, `farley_score`,
+`smells`, `code_review`, `iterations`, `escalated`).
+
+_(Phases 6..7 are added in subsequent slices.)_
