@@ -74,7 +74,7 @@ so the manual fix is one paste rather than a research task.
 
 ## Slices
 
-### Slice 0: Spike — verify `worktree.baseRef=head` works [DONE]
+### Slice 0: Spike — verify `worktree.baseRef=head` works
 
 **Depends-on:** none
 **Files:** `docs/spikes/worktree-baseref-head-spike.md`
