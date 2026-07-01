@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: issue-536
-**Status**: approved
+**Status**: in-progress
 **Spec**: [`docs/specs/test-improve-orchestrator.md`](../docs/specs/test-improve-orchestrator.md)
 **Issue**: [#536](https://github.com/bdfinst/agentic-dev-team/issues/536)
 
@@ -878,13 +878,13 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 #### Wave 1
 
-- [ ] Slice 1: Orchestrator skeleton + Phase 0 approach contract
-  - [ ] Step 1.1: Author test-improve/SKILL.md skeleton with Phase 0
-- [ ] Slice 11: Add `--workflow` parameter to issues-from-assessment and quality-targets-converge
-  - [ ] Step 11.1: Parameterize /issues-from-assessment on --workflow
-  - [ ] Step 11.2: Parameterize /quality-targets-converge on --workflow
-  - [ ] Step 11.3: Extend mutation-testing workflow-callers allowlist for /test-improve
-  - [ ] Step 11.4: Document test-improve as a valid --workflow in coverage-{baseline,delta}
+- [x] Slice 1: Orchestrator skeleton + Phase 0 approach contract
+  - [x] Step 1.1: Author test-improve/SKILL.md skeleton with Phase 0
+- [x] Slice 11: Add `--workflow` parameter to issues-from-assessment and quality-targets-converge
+  - [x] Step 11.1: Parameterize /issues-from-assessment on --workflow
+  - [x] Step 11.2: Parameterize /quality-targets-converge on --workflow
+  - [x] Step 11.3: Extend mutation-testing workflow-callers allowlist for /test-improve
+  - [x] Step 11.4: Document test-improve as a valid --workflow in coverage-{baseline,delta}
 
 #### Wave 2
 
@@ -962,6 +962,6 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 - [ ] AC31–35: Phase 5 refactor
 - [ ] AC36–39: Phase 6 validate
 - [ ] AC40 + AC40.1–40.6: Phase 7 report ships from the executive-summary template with 10 numbered sections; sections never disappear; parent-issue/FEATURE.md link update; regeneratable-from-memory contract
-- [ ] AC41–44: --workflow parameterization
+- [x] AC41–44: --workflow parameterization
 - [ ] AC45–49: docs + diagrams + registries
 - [ ] AC50–53: /agent-audit + /agent-eval + bats gate
