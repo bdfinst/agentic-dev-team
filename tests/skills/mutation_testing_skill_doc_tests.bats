@@ -14,21 +14,46 @@ SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/SKILL.m
 CSHARP="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/references/languages/csharp-stryker-net.md"
 
 # --- Slice 1 · AC-1: honest score above claimed score in Output format -------
+#
+# awk section-scanning here must ignore ## headings INSIDE fenced code blocks
+# (the ```markdown example contains "## Mutation Testing Results" etc.).
+# `code` toggles on ``` and suppresses the ## section-boundary while inside.
 
 @test "SKILL: Output format shows Honest score line" {
-  run awk '/^## Output format/{f=1;next} /^## /{f=0} f && /Honest score/{found=1} END{exit !found}' "$SKILL"
+  run awk '
+    /^```/                   { code = !code; next }
+    !code && /^## Output format/ { f=1; next }
+    !code && /^## /          { f=0 }
+    f && /Honest score/      { found=1 }
+    END                      { exit !found }
+  ' "$SKILL"
   [ "$status" -eq 0 ]
 }
 
 @test "SKILL: Output format shows Claimed score line" {
-  run awk '/^## Output format/{f=1;next} /^## /{f=0} f && /Claimed score/{found=1} END{exit !found}' "$SKILL"
+  run awk '
+    /^```/                   { code = !code; next }
+    !code && /^## Output format/ { f=1; next }
+    !code && /^## /          { f=0 }
+    f && /Claimed score/     { found=1 }
+    END                      { exit !found }
+  ' "$SKILL"
   [ "$status" -eq 0 ]
 }
 
 @test "SKILL: Honest score line appears above Claimed score line in Output format" {
-  # Extract the section, then check the first Honest-score line is above the first Claimed-score line.
-  honest_line=$(awk '/^## Output format/{f=1;next} /^## /{f=0} f && /Honest score/{print NR;exit}' "$SKILL")
-  claimed_line=$(awk '/^## Output format/{f=1;next} /^## /{f=0} f && /Claimed score/{print NR;exit}' "$SKILL")
+  honest_line=$(awk '
+    /^```/                   { code = !code; next }
+    !code && /^## Output format/ { f=1; next }
+    !code && /^## /          { f=0 }
+    f && /Honest score/      { print NR; exit }
+  ' "$SKILL")
+  claimed_line=$(awk '
+    /^```/                   { code = !code; next }
+    !code && /^## Output format/ { f=1; next }
+    !code && /^## /          { f=0 }
+    f && /Claimed score/     { print NR; exit }
+  ' "$SKILL")
   [ -n "$honest_line" ]
   [ -n "$claimed_line" ]
   [ "$honest_line" -lt "$claimed_line" ]

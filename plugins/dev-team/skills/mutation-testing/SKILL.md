@@ -137,11 +137,18 @@ expect(db.save).toHaveBeenCalledWith(order);  // catches removed save()
 
 ## Output format
 
+Report the **honest score** as the operator's primary signal. The claimed score (Stryker's headline) counts timeouts as kills and can inflate — on a real run 999 of 1305 reported "kills" were timeouts, so 61 % claimed corresponded to 23 % honest. Show both, honest above claimed, and emit the timeout warning when it fires. Formula derivation is documented in the [Machine-readable output](#machine-readable-output) section.
+
 ```markdown
 ## Mutation Testing Results
 
 **Tool:** Stryker 8.x | **Scope:** src/calculator.ts | **Duration:** 45s | **Per-mutant timeout:** 60s
-**Score:** 82% (41 killed / 50 total, 3 equivalent, 6 survived)
+**Honest score:** 23.1% (306 killed / 1325 = killed + survived + no-coverage)
+**Claimed score:** 61.3% (killed + timeout / killed + survived + timeout + no-coverage)
+
+> ⚠️ **Timeout warning:** 76.5% of run outcomes were timeouts. The claimed score is
+> not trustworthy — raise `additional-timeout` (per-tool flag; see the language reference)
+> before treating either score as a gate.
 
 ### Surviving Mutants
 
@@ -175,6 +182,13 @@ When `--emit-json <path>` is set, write a structured result document to `<path>`
   "killed": 41,
   "survived": 6,
   "equivalent": 3,
+  "timeout": 0,
+  "no_coverage": 0,
+  "compile_error": 0,
+  "honest_score": 87.2,
+  "claimed_score": 87.2,
+  "timeout_pct": 0.0,
+  "timeout_warning": false,
   "survivors": [
     { "file": "src/calculator.ts", "line": 42, "operator": "ConditionalBoundary", "status": "survived" },
     { "file": "src/calculator.ts", "line": 67, "operator": "ReturnValue",        "status": "equivalent" }
@@ -185,6 +199,19 @@ When `--emit-json <path>` is set, write a structured result document to `<path>`
 Each entry in `survivors` carries `file`, `line`, `operator`, and `status` where `status` is `"survived"` or `"equivalent"`. Callers MUST filter `status: "equivalent"` before computing deltas so reclassifications between runs don't show up as regressions.
 
 An optional top-level `"advisory": true` flag marks a result from an advisory-only tool (go-mutesting today). When present, callers MUST treat the survivor count as warn-not-block — it never fails a gate. Absent (the default), the result is authoritative.
+
+**Formulas.** The score fields are derived; the raw counts are the source of truth.
+
+```
+honest_score   = Killed / (Killed + Survived + NoCoverage)
+claimed_score  = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
+timeout_pct    = Timeout / (Killed + Survived + Timeout)
+timeout_warning = timeout_pct > 0.05
+```
+
+The honest score matches the sibling `mutation-kill` agent's formula so both surfaces read the same number. It differs from Stryker's own "mutation score" line (Stryker counts `Timeout` toward the numerator). When `timeout_warning` is true, the claimed score is not trustworthy: raise the tool's `additional-timeout` (or equivalent per-tool wall-clock budget) before treating either score as a gate. The warning is advisory — not a hard gate that fails the run — so a caller can decide policy without the skill forcing one.
+
+**Emitting adapters.** Adapters emit the additive score fields only when their native tool distinguishes `Timeout` and `NoCoverage` from `Killed`/`Survived`. Today that is Stryker (JS), **Stryker.NET**, pitest, and mutmut. Advisory-only tools that do not distinguish them — today's example is **go-mutesting** — omit the fields entirely rather than emit misleading zeros; the top-level `"advisory": true` flag is the caller's signal to treat the envelope as warn-not-block. Readers that consume the new fields MUST tolerate them being absent on an advisory envelope.
 
 **Error envelopes (exit code non-zero, `<path>` still written for caller diagnostics):**
 

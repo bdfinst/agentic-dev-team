@@ -3739,7 +3739,7 @@
       "anchor": "step-5-fix-and-verify"
     },
     "Output format": {
-      "summary": "When `--emit-json <path>` is set, write a structured result document to `<path>`.",
+      "summary": "Report the **honest score** as the operator's primary signal.",
       "anchor": "output-format"
     },
     "Machine-readable output": {
