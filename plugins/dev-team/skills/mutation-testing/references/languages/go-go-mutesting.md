@@ -6,8 +6,16 @@ Tool: [go-mutesting](https://github.com/zimmski/go-mutesting). Detection: `go.mo
 
 ## Install / detect
 
+`go install …@latest` writes the binary to `$GOPATH/bin` (typically `~/go/bin`), and `$GOPATH/bin` must be on `PATH` for `go-mutesting` to resolve. There is no project-scoped alternative — this is the one language path where the skill's "prefer local install" recommendation cannot be honored, so the `PATH` requirement is called out explicitly here rather than hidden.
+
 ```bash
 go install github.com/zimmski/go-mutesting/cmd/go-mutesting@latest
+```
+
+Confirm the tool resolves before configuring a run:
+
+```bash
+command -v go-mutesting || echo "go-mutesting not on PATH — check \$GOPATH/bin"
 ```
 
 ## Run (scoped)

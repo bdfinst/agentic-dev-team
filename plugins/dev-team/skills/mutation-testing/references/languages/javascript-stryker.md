@@ -4,9 +4,17 @@ Tool: [Stryker Mutator](https://stryker-mutator.io/). Detection: `package.json` 
 
 ## Install / detect
 
+`--save-dev` is the **local** install path — the binary resolves via `node_modules/.bin` (which `npm run` / `npx` add to `PATH` scope-locally), so no global `PATH` edit is needed. Prefer this over `npm install -g @stryker-mutator/core`, which is the silent-failure trap called out in the skill's "prefer local install" note.
+
 ```bash
 npm install --save-dev @stryker-mutator/core @stryker-mutator/vitest-runner  # or jest-runner, karma-runner
 npx stryker init
+```
+
+Confirm the tool resolves before configuring a run:
+
+```bash
+npx stryker --version
 ```
 
 ## Run (scoped)

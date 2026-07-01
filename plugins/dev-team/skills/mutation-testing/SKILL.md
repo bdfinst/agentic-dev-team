@@ -39,6 +39,8 @@ Before any mutation run, present the estimated time and the scope, then block on
 
 ## Step 1: Detect or set up tooling
 
+**Prefer a local install** over a global one. Global installs depend on the user's `PATH` and produce silent "command not found" failures when it is not configured (see [`references/languages/csharp-stryker-net.md`](references/languages/csharp-stryker-net.md) for the observed Stryker.NET case). Each [`references/languages/<lang>.md`](references/languages/) file below shows the **local**-install command as the primary path.
+
 Use [`references/tool-detection.md`](references/tool-detection.md) to resolve the project's ecosystem to a mutation tool, then load the matching `references/languages/<lang>.md` for install and run commands. **Do not proceed without a working tool.**
 
 **Go is advisory-only.** When the project has a `go.mod`, resolve to **go-mutesting** in advisory mode (it is alpha quality — the surviving-mutant count is not a reliable gate). Advisory mode emits the `schema_version: 1` envelope with `"advisory": true`; orchestrated workflows treat that as **warn, do not block** — a non-zero survivor count never fails the gate. Always pair it with Go's built-in fuzzing (`go test -fuzz=FuzzXxx -fuzztime=30s ./path/to/pkg`), which is production-quality, for boundary and edge-case discovery. Full install path and fuzz idioms: [`references/languages/go-go-mutesting.md`](references/languages/go-go-mutesting.md). Never tell a Go project "no tool installed" without giving both the go-mutesting install path and the fuzz alternative.
