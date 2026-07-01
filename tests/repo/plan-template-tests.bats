@@ -52,3 +52,30 @@ GUARDIAN_TESTS="$REPO_ROOT/tests/scripts/progress_guardian_tests.bats"
   # That's Step 3, AC-quality review — not the removed mirror-tick.
   grep -q 'Verify acceptance criteria (gate)' "$BUILD_SKILL"
 }
+
+# ---------------------------------------------------------------------------
+# Slice 3 — belt-and-suspenders: the #525 guardian inner-skip is preserved
+# so legacy plans (that still carry the AC mirror) don't false-positive.
+# ---------------------------------------------------------------------------
+
+@test "526-3.1a: full progress_guardian bats suite from #525 still passes end-to-end" {
+  # Runs the guardian's own regression suite. If either the removal of the
+  # /build AC-tick or any other post-#525 change accidentally regresses the
+  # guardian, this fails loudly with which of the 22 tests broke.
+  run bats --tap "$GUARDIAN_TESTS"
+  [ "$status" -eq 0 ]
+  ok_count=$(echo "$output" | grep -c '^ok ' || true)
+  [ "$ok_count" -ge 22 ]
+}
+
+@test "526-3.1b: guardian's parse_plan still carries the in_acceptance inner-skip state" {
+  # Belt-and-suspenders — legacy plans on branches that still carry the AC
+  # mirror rely on this skip. Removing it would silently regress every
+  # such branch's pre-PR gate.
+  grep -q 'in_acceptance' "$GUARDIAN"
+}
+
+@test "526-3.1c: guardian's parse_plan still checks for '### Acceptance Criteria' as the skip trigger" {
+  # The other half of the inner-skip pair.
+  grep -q '### Acceptance Criteria' "$GUARDIAN"
+}
