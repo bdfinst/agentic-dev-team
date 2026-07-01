@@ -21,7 +21,7 @@ estimate or fabricate mutation outcomes.
 
 ```
 /mutation-kill [<repo-path>] [--file <path>] [--all] [--max-rounds <n>]
-               [--from-report <path>] [--concurrency <n>]
+               [--from-report <path>] [--concurrency <n>] [--parallel <n>]
 ```
 
 - `--file <path>` — target a single source file.
@@ -29,6 +29,7 @@ estimate or fabricate mutation outcomes.
 - `--from-report <path>` — load an existing report instead of running the tool (first round only).
 - `--max-rounds <n>` — maximum rounds per file (default: 5).
 - `--concurrency <n>` — parallel files via git worktrees when using `--all` (default: 2; max = physical cores − 2).
+- `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Parallel execution (Phase 4)](#parallel-execution-phase-4)).
 
 ## The honest score — hard kills only
 
@@ -37,14 +38,28 @@ observed run 76% of "kills" were timeouts; adding faster targeted tests let thos
 mutations *complete* instead of timing out, and the score fell from 61.3% to
 30.36%. A score inflated by timeouts is not evidence of good tests.
 
-Always gate and report on **hard kills only** (`status == Killed`):
+Gate on **hard kills only** (`status == Killed`); Stryker.NET 4.x keeps `NoCoverage`
+mutants in its own denominator, so the honest formula matches:
 
 ```
-honest_score = Killed / (Total - Ignored - CompileError - Timeout)
+honest_score  = Killed / (Killed + Survived + NoCoverage)
+reported_score = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
 ```
 
-Report the `Timeout` count **separately**, never inside the gate denominator. The
-honest score is the only number that gates a round or a file.
+Report **both**. `honest_score` is the only number that gates a round or a file —
+Timeout stays out of the numerator. `reported_score` mirrors what the Stryker HTML
+report prints, so a reviewer comparing the two numbers gets an honest gap
+(numerator delta) rather than a formula mismatch. `Timeout` and `NoCoverage`
+counts always print separately alongside both scores.
+
+### NoCoverage is a first-class signal
+
+Each `NoCoverage → Killed` conversion improves the score as much as killing a
+`Survived` mutant — and NoCoverage paths are usually easier, because **any** test
+that reaches the line kills the mutant (no specific-value assertion required).
+**Prioritize NoCoverage coverage before attacking hard Survived mutations.** A
+file with 27 NoCoverage mutants at 0% score drags the overall number down more
+than a file with 20 Survived at 70%; fix the NoCoverage first.
 
 ## Shard vs full-run scores are not comparable
 
@@ -91,6 +106,55 @@ Run scoped to one file with per-test coverage analysis (Stryker:
 drops from full-suite time to the time of the tests covering the mutated line
 (observed 10–50× speedup). Use scoped + per-test for the development loop; reserve
 the full run (coverage-analysis off) for the CI gate only.
+
+## Step 0: build first (per file, before any round)
+
+Every mutation run assumes fresh binaries. A stale build produces phantom
+failures — Stryker either aborts on load or reports every mutant as `Survived`,
+and both the failures and the kills are meaningless. Before Round 1 (and again
+after every source edit outside the loop):
+
+```
+dotnet build <SOLUTION> -c Debug --nologo   # or the language equivalent
+```
+
+If the build fails, **stop** — do not proceed to any round. **Never use
+`--no-build` on the test command during mutation testing.** Stryker instruments
+the build; `--no-build` runs against whatever binary happens to be on disk.
+
+## Infrastructure exclusion detection (before the loop starts)
+
+After parsing the baseline report and before entering the file-by-file loop,
+scan the report for files that are almost certainly infrastructure — DI wiring,
+exception handlers, middleware, generated code — where mutations cannot be
+killed by the available test surface. Two signals in combination flag a file:
+
+- `score < 15%`
+- `NoCoverage > 50%` of effective mutants (total − Ignored − CompileError)
+
+If both hold **and** the filename matches one of:
+
+```
+Startup.cs        Program.cs         *Filter.cs        *Middleware.cs
+*Logger*.cs       *HealthCheck*.cs   *.Designer.cs
+```
+
+… ask (once, batched for the whole scan): *"Are these mutations in DI
+registration, exception handlers, middleware, or generated code that this
+test surface cannot reach?"*
+
+- **Yes** → add the file to the `mutate` exclusion list with a documented reason
+  and log:
+
+  ```
+  EXCLUDED <file> — <reason>: <mutation types> are equivalent in <test surface>
+  ```
+
+- **No** → keep in scope; the file's poor score is real coverage debt, not
+  infrastructure.
+
+This is the same `EXCLUDED` log format used for the [structurally unkillable
+files](#structurally-unkillable-files) section — a single audit trail either way.
 
 ## Loop (per file)
 
@@ -164,12 +228,81 @@ EXCLUDED <file> — <reason>: surviving mutations are structural guards reachabl
 only by direct invalid-input invocation; available test surface is <surface>.
 ```
 
+### Structurally untestable WITHOUT refactoring
+
+Three patterns are unkillable by the test suite as it stands — do not spend
+rounds attacking them. Log each as technical debt using the `EXCLUDED` format
+above and move on.
+
+1. **`#if DEBUG` / `#if RELEASE` compilation blocks.** The code under test
+   doesn't exist in the test build; mutations live in Release-only code while
+   the test suite always hits the Debug path.
+
+   ```
+   EXCLUDED <file>::<method> — #if DEBUG block; mutations are Release-only
+   ```
+
+2. **Service-locator pattern (`HttpContext.RequestServices.GetService<T>()`).**
+   Cannot inject mocks without constructing a full `IServiceProvider` per test.
+   Kills require refactoring to constructor injection.
+
+   ```
+   EXCLUDED <file> — service-locator pattern; requires refactor to
+     constructor injection before mutations become testable
+   ```
+
+3. **Pure DI registration (`services.AddX()`, `builder.Services.AddX()`).**
+   The test host's `TestStartup` / `TestServer` overrides the real DI
+   container, so removing a real registration is invisible to any test using
+   test doubles. Exclude the whole file from the `mutate` glob.
+
+   ```
+   EXCLUDED <file> — pure DI registration; TestStartup overrides the
+     container so mutations are unobservable to the test surface
+   ```
+
+Never spend rounds trying to kill these — they inflate the round count and
+produce zero kills.
+
 ## Parallelism
 
 With `--all`, run files in parallel via git worktrees (each shard gets its own
 build-artifacts directory). Concurrent runs saturate CPU/RAM fast — honor
 `--concurrency` (default **2** per developer machine; configurable up to physical
 cores − 2).
+
+## Parallel execution (Phase 4)
+
+`--concurrency` fans **files** out across git worktrees. `--parallel <n>` fans
+**sub-agents** out **within** a file's Phase-4 survivor set, using the Agent
+tool directly — no worktrees, because test-file writes don't conflict with
+source-file reads. The two flags are orthogonal.
+
+With `--all --parallel <n>`:
+
+1. Sort files by survivor count (descending); cap at the first `4 × n`
+   candidates.
+2. Group into `n` batches of up to 4 files each.
+3. Spawn `n` sub-agents in parallel via the Agent tool. Each sub-agent reads
+   its files' survivor lists from the baseline JSON and targets mutation
+   types in the priority order (String → ObjectInit → Equality → Negate →
+   Conditional → Statement).
+4. Synthesize results at the barrier; if survivors still exceed the round's
+   threshold, repeat with the next batch.
+
+Agent count per batch — **3–4** for easy mutation types (String / Equality /
+ObjectInit), **1–2** for hard types (Statement / Block removal). Easy types
+tolerate more concurrent test edits because each survivor is fixed by an
+independent assertion; hard types require code-path additions where two
+concurrent edits to the same test class collide.
+
+### Interaction with `--concurrency`
+
+`--concurrency` governs the **outer** worktree fan-out (files × worktrees) and
+`--parallel` governs the **inner** Agent-tool fan-out (sub-agents per Phase-4
+batch). When both are set the effective concurrent-actor count is the product
+(`concurrency × parallel`), bounded by physical cores − 2. Fail fast when the
+product exceeds that ceiling rather than oversubscribing the machine.
 
 ## Go is advisory
 
