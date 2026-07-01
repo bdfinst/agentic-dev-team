@@ -3471,12 +3471,16 @@
       "anchor": "6-backfill-predecessor-links"
     },
     "7. Persist phase-1 progress": {
-      "summary": "Write `memory/test-modernize/<slug>/phase-1.md` with:",
+      "summary": "Write `memory/<workflow>/<slug>/phase-1.md` with:",
       "anchor": "7-persist-phase-1-progress"
     },
     "8. Report": {
       "summary": "Print:",
       "anchor": "8-report"
+    },
+    "Examples / Integration": {
+      "summary": "`/test-modernize` (default) invokes this worker without `--workflow`; paths resolve under `memory/test-modernize/<slug>/` and labels lead with `test-modernize`.",
+      "anchor": "examples-integration"
     },
     "Notes": {
       "summary": "This worker is the only place tracker-CLI knowledge sits.",
@@ -4045,6 +4049,10 @@
     "8. Report": {
       "summary": "Print:",
       "anchor": "8-report"
+    },
+    "Examples / Integration": {
+      "summary": "`/test-modernize` invokes this worker from Phase 5 without `--workflow`; the resolved namespace is `test-modernize` (paths become `memory/<workflow>/<slug>/` and `./plans/<workflow>/phase-5/` with `<workflow>` = `test-modernize`).",
+      "anchor": "examples-integration"
     },
     "Notes": {
       "summary": "This worker does not write tests or edit production code.",
@@ -4869,6 +4877,28 @@
     "Integration": {
       "summary": "**Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.",
       "anchor": "integration"
+    }
+  },
+  "plugins/dev-team/skills/test-improve/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Positional: `<repo-path>` (default: cwd).",
+      "anchor": "parse-arguments"
+    },
+    "Phase-start banner": {
+      "summary": "At the start of every phase (0..7), print a two-line banner:",
+      "anchor": "phase-start-banner"
+    },
+    "Steps": {
+      "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
+      "anchor": "steps"
+    },
+    "Phase 0 — Approach contract": {
+      "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
+      "anchor": "phase-0-approach-contract"
     }
   },
   "plugins/dev-team/skills/test-modernize/SKILL.md": {

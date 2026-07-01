@@ -16,6 +16,7 @@
 
 SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/SKILL.md"
 LANG_DIR="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/references/languages"
+REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/references/workflow-callers.md"
 
 # --- Step 1.1: flag surface --------------------------------------------------
 
@@ -172,4 +173,61 @@ LANG_DIR="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/refe
   [ "$status" -eq 0 ]
   run grep -q '"tool": "stryker-net"' "$LANG_DIR/csharp-stryker-net.md"
   [ "$status" -eq 0 ]
+}
+
+# --- Slice 11 / Step 11.3: /test-improve joins the allowlist in three co-enforced locations
+# The registry file is the authoritative source of truth; SKILL.md ## Constraints
+# enumerates callers for human-readable discoverability. Both must move together.
+
+@test "registry: workflow-callers.md exists" {
+  run test -f "$REGISTRY"
+  [ "$status" -eq 0 ]
+}
+
+@test "registry: names /test-improve as an allowed caller" {
+  run grep -F '/test-improve' "$REGISTRY"
+  [ "$status" -eq 0 ]
+}
+
+@test "registry: /test-improve row cites Phase 2 baseline as an approval-capture point" {
+  # The registry table is the naming surface; the /test-improve row must name
+  # the phase where operator approval was captured, matching the pattern the
+  # existing /coverage-delta and /quality-targets-converge rows use.
+  run awk '/^\| /{ if ($0 ~ /\/test-improve/) print }' "$REGISTRY"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qE 'Phase 2|Phase 0'
+}
+
+@test "registry: /test-improve row cites Phase 6 (via /quality-targets-converge) as a caller path" {
+  run awk '/^\| /{ if ($0 ~ /\/test-improve/) print }' "$REGISTRY"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qE 'Phase 6|/quality-targets-converge'
+}
+
+@test "SKILL: ## Constraints enumerates /test-improve alongside /coverage-delta and /quality-targets-converge" {
+  # Generalized assertion: every caller present in the registry table's
+  # "Allowed callers" section should be discoverable via the Constraints
+  # section too. For today we check the three named callers explicitly.
+  run awk '/^## Constraints/{f=1;next} /^## /{f=0} f' "$SKILL"
+  [ "$status" -eq 0 ]
+  for caller in '/coverage-delta' '/quality-targets-converge' '/test-improve'; do
+    echo "$output" | grep -qF "$caller" || {
+      echo "missing caller in ## Constraints: $caller"
+      return 1
+    }
+  done
+}
+
+@test "SKILL + registry stay in lockstep: every caller in Constraints appears in the registry" {
+  # This is the drift-catching assertion — if a future PR adds a caller to
+  # Constraints without touching the registry (or vice versa), one of the
+  # two greps below fails.
+  callers_in_constraints=$(awk '/^## Constraints/{f=1;next} /^## /{f=0} f' "$SKILL" \
+    | grep -oE '/(coverage-delta|quality-targets-converge|test-improve)' | sort -u)
+  for caller in $callers_in_constraints; do
+    grep -qF "$caller" "$REGISTRY" || {
+      echo "caller in SKILL Constraints but missing from registry: $caller"
+      return 1
+    }
+  done
 }
