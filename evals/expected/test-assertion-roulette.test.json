@@ -7,7 +7,11 @@
       "expectedStatus": "fail",
       "issueCount": { "min": 2, "max": 5 },
       "severities": { "warning": { "min": 1, "max": 4 } },
-      "mustMention": ["Assertion Roulette", "Eager Test"],
+      "mustMention": [
+        "Assertion Roulette",
+        "Eager Test",
+        "result-verification"
+      ],
       "mustNotMention": ["Mystery Guest"]
     }
   }
