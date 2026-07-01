@@ -116,7 +116,6 @@ For each step within a slice, dispatch implementation following the implementer 
 5. **Mark step done** — Use the Edit tool to update the plan file's `## Build Progress` section on disk:
    - Change `- [ ] Step N.M: <title>` to `- [x] Step N.M: <title>` for the completed step.
    - When every step under a slice is `[x]`, check off the parent `- [ ] Slice N: <title>`.
-   - For each acceptance criterion verified by this step, change `- [ ]` to `- [x]` in the Build Progress `### Acceptance Criteria` subsection.
    - After all slices are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
    - This disk write is the durable commit. If a `/clear` occurs, `/continue` reads `## Build Progress` to determine the resume point without needing conversation history.
 6. **Slice review checkpoint (batched).** When every step under the current slice is `[x]` **and** the slice had any deferred `standard` (or unspecified) steps, run **one** review pass over the slice's accumulated changed files: `/review-agent spec-compliance-review`, then the quality review agents relevant to what changed. Apply the same review-fix loop (up to 5 iterations; escalate if it doesn't converge). `trivial`-only and all-`complex` slices have nothing to batch — skip this pass. Then **record the checkpoint outcome** (sub-step 7).

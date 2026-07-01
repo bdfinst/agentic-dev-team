@@ -31,3 +31,24 @@ GUARDIAN_TESTS="$REPO_ROOT/tests/scripts/progress_guardian_tests.bats"
   count=$(grep -c 'criteria from \`## Acceptance Criteria\`' "$PLAN_SKILL" || true)
   [ "$count" -eq 0 ]
 }
+
+# ---------------------------------------------------------------------------
+# Slice 2 — /build's step-done instructions no longer tick the AC mirror
+# ---------------------------------------------------------------------------
+
+@test "526-2.1a: /build SKILL.md no longer references 'Build Progress `### Acceptance Criteria`'" {
+  count=$(grep -c 'Build Progress \`### Acceptance Criteria\`' "$BUILD_SKILL" || true)
+  [ "$count" -eq 0 ]
+}
+
+@test "526-2.1b: /build SKILL.md still contains the slice/step tick instructions (surrounding text preserved)" {
+  # Anchor grep — the sub-bullet that ticks Step N.M checkboxes stays.
+  grep -q 'Change \`- \[ \] Step N.M' "$BUILD_SKILL"
+  # And the parent-slice tick.
+  grep -q 'check off the parent \`- \[ \] Slice N' "$BUILD_SKILL"
+}
+
+@test "526-2.1c: /build SKILL.md still contains the pre-implementation 'Verify acceptance criteria (gate)' step" {
+  # That's Step 3, AC-quality review — not the removed mirror-tick.
+  grep -q 'Verify acceptance criteria (gate)' "$BUILD_SKILL"
+}
