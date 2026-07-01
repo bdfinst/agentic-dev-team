@@ -160,15 +160,12 @@ justification, NO target counts) · double strategy · refactor sequence ·
 E2E justification (only when E2E is recommended)>
 
 ### Suppressed duplicates
-<Every drop constraint 3 performed at aggregation time. Default: `_None._` when
-nothing was dropped. When non-empty, each entry cites the finding's `file:line`,
-what was dropped (which agent's finding, keyed by smell/message), and the
-reason (e.g. "mechanics duplicate of Assertion Roulette owned by
-test-smell-review"). test-smell-review ↔ test-design-advisor overlaps are
-never listed here — they are joined structurally on `remedyFamily`, not
-dropped.>
-
-_None._
+<Every drop constraint 3 performed at aggregation time. Each entry cites the
+finding's `file:line`, what was dropped (which agent's finding, keyed by
+smell/message), and the reason (e.g. "mechanics duplicate of Assertion
+Roulette owned by test-smell-review"). test-smell-review ↔ test-design-advisor
+overlaps are never listed here — they are joined structurally on
+`remedyFamily`, not dropped. Emit `_None._` when nothing was dropped.>
 
 ### Next steps
 - Mechanical fixes → /apply-fixes

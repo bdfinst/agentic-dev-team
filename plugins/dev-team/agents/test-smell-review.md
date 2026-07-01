@@ -53,9 +53,7 @@ The mapping the agent uses to populate `remedyFamily`, grounded in
 | Eager Test (Split Test), Fragile Test refactor sequences | `test-refactoring` | Split Test, Inline Mystery Guest, Introduce Expected Object |
 | Erratic Test, Slow Tests, pyramid-placement flags with no family fit | `null` | remedy is production-side or layer-relocation (no xUnit family cite) |
 
-When a finding does not fit any row, use the most specific family in
-`knowledge/test-smells.md#smell-categories`'s remedy column; if none applies,
-emit `null`.
+When a finding fits no row, consult `knowledge/test-smells.md#smell-categories` and pick the family from its remedy column; emit `null` if none applies.
 
 Context needs: full-file
 
@@ -63,7 +61,7 @@ Context needs: full-file
 
 The design-level companion to test-review. This agent names xUnit test smells, judges test-double choice, and checks pyramid-layer placement. The division of labor with `test-review` is defined in `knowledge/test-review-division-of-labor.md#the-two-roles`: this agent owns the named-smell signals (including non-determinism, framed as the **Erratic Test** smell with its root cause), and defers the pure tactical mechanics (missing assertion, missing `await`, mock-reset) to `test-review`.
 
-The division of labor with `test-design-advisor` is defined in the same file under the section **"test-smell-review ↔ test-design-advisor — remedy division"**. Under `/test-design`, this agent names the smell and its remedy family (the `remedyFamily` field); the advisor names the specific remedy pattern and its refactor sequence. Solo (e.g. under `/code-review`), this agent fills the whole row — `suggestedFix` still carries the specific pattern, not just the family slug.
+The division of labor with `test-design-advisor` is defined in the same file under the section **"test-smell-review ↔ test-design-advisor — remedy division"** — the invocation rule and grader-alignment specifics live there; the two-field contract above is the on-the-wire summary.
 
 ## Knowledge Files
 

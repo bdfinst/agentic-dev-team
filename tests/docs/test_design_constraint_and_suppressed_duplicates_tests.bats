@@ -12,8 +12,11 @@ SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/test-design/SKILL.md"
 }
 
 @test "constraint 3 states the structural join on remedyFamily" {
-  # Find constraint 3 (via '3.' heading in Orchestrator constraints), scan it.
-  grep -Eqi 'join.*(structurally )?on.*remedyFamily|structural join on remedyFamily|join.*rows.*(on|via).*remedyFamily' "$SKILL"
+  # The phrase may span two lines (word-wrap); flatten to one line via `tr`
+  # before matching so the regex isn't foiled by hard wraps.
+  awk '/^3\. \*\*No double-reporting/,/^4\. /' "$SKILL" | tr '\n' ' ' > /tmp/constraint-3.txt
+  grep -Eqi 'join +structurally|structural +join' /tmp/constraint-3.txt
+  grep -Eq 'remedyFamily' /tmp/constraint-3.txt
 }
 
 @test "constraint 3 no longer proposes report-time de-duplication of advisor remedies" {

@@ -24,7 +24,15 @@ AGENT="$BATS_TEST_DIRNAME/../../plugins/dev-team/agents/test-smell-review.md"
 
 @test "R2.2.d contract: suggestedFix is always a specific remedy pattern, not a family slug, regardless of invocation" {
   # The AC11 guard: solo /code-review still gets a pattern-level suggestedFix.
-  grep -Eqi 'suggestedFix.*specific.*pattern|specific remedy pattern.*suggestedFix|suggestedFix.*not.*family.*slug|not.*family slug.*suggestedFix|suggestedFix.*pattern.*not.*slug|regardless of invocation.*suggestedFix|suggestedFix.*regardless of invocation' "$AGENT"
+  # Flatten multi-line paragraph before matching so word wrap doesn't defeat
+  # the regex. The contract must state (a) suggestedFix carries a specific
+  # pattern, (b) not a family slug, and (c) the rule holds regardless of
+  # invocation context.
+  local flat
+  flat="$(tr '\n' ' ' < "$AGENT")"
+  echo "$flat" | grep -Eqi 'suggestedFix.*specific.*(remedy )?pattern'
+  echo "$flat" | grep -Eqi 'not.*family slug|not a family slug'
+  echo "$flat" | grep -Eqi 'regardless of invocation'
 }
 
 @test "R2.2.e prose-emission contract: family slug must appear verbatim in message (not suggestedFix)" {
