@@ -84,6 +84,34 @@ If any criteria are flagged:
 
 Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan-waves.sh`). Within a wave, independent slices may build concurrently; across waves a barrier holds the next wave until the current one reconciles green.
 
+**Base-ref check (top-level session, before any subagent dispatch).** Worktree subagents (`isolation: "worktree"`) must branch from the caller's local HEAD, not `origin/<default>`, so the `docs/specs/<slug>.md` and `plans/<slug>.md` files `/ship` just produced are visible to them (issue #553). This is controlled by Claude Code's `worktree.baseRef` setting, which is honored only at project (`.claude/settings.json`) or user (`~/.claude/settings.json`) scope — **not** at plugin or project-local scope (`docs/spikes/worktree-baseref-head-spike.md`). `/build` cannot set this on the user's behalf, so it runs a read-only detect-and-warn **in this top-level `/build` session, before any subagent dispatch**, so the warning is visible in the human-facing transcript:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-worktree-baseref.sh detect   # prints head|fresh|unset|unknown
+```
+
+- **`head`** → no warning. Proceed.
+- **`fresh`**, **`unset`**, or **`unknown`** (detection failed — e.g. `jq` unavailable; treated fail-safe) → unless `DEV_TEAM_WORKTREE_BASE_FRESH=1` is set, print a loud warning naming the exact file to edit and a paste-ready snippet, then continue:
+
+  ```
+  ⚠ worktree.baseRef is not "head" (detected: <value>) — worktree subagents
+  will branch from origin/<default>, not your current HEAD. Any
+  uncommitted-to-origin spec/plan/WIP files will be invisible to them.
+
+  Add this to .claude/settings.json (project) or ~/.claude/settings.json
+  (user) — plugin and project-local settings.json are NOT honored for
+  this key:
+
+    { "worktree": { "baseRef": "head" } }
+
+  To keep fresh-from-origin worktrees deliberately, set
+  DEV_TEAM_WORKTREE_BASE_FRESH=1 to silence this warning.
+  ```
+
+  If detection returned `unknown`, the warning additionally states that `worktree.baseRef could not be detected`.
+
+**`/build` never mutates a settings file.** The check is read-only end to end — it never writes `.claude/settings.json`, `~/.claude/settings.json`, or any other settings file. There is nothing to restore and no crash-recovery surface.
+
 **Resolve the wave schedule and concurrency first:**
 
 ```bash
