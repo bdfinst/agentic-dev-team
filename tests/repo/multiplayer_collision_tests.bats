@@ -10,14 +10,16 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 HOOK="$REPO_ROOT/plugins/dev-team/hooks/pre-commit-review.sh"
 GATEHASH="$REPO_ROOT/plugins/dev-team/hooks/lib/review-gate-hash.sh"
 
+load '../lib/hermetic'
+
 setup() {
-  WORK="$(mktemp -d)"
-  cd "$WORK" || return 1
+  hermetic_setup  # scrubs GIT_DIR/etc + cds into $HERMETIC_ROOT — issue #546
+  WORK="$HERMETIC_ROOT"
   git init -q
   git config user.email t@t.dev
   git config user.name tester
 }
-teardown() { cd / || true; rm -rf "$WORK"; }
+teardown() { hermetic_teardown; }
 
 _commit_hook() { echo '{"tool_input":{"command":"git commit -m x"}}' | bash "$HOOK"; }
 _write_gate()  { bash "$GATEHASH" > .review-passed; }

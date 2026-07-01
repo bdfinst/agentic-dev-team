@@ -5,9 +5,11 @@
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 SCRIPT="$REPO_ROOT/scripts/codebase_recon.py"
 
+load '../lib/hermetic'
+
 setup() {
-  T="$(mktemp -d)"
-  cd "$T" || return 1
+  hermetic_setup  # scrubs GIT_DIR/etc + cds into per-worker tempdir — issue #546
+  T="$HERMETIC_ROOT"
   git init -q
   git config user.email "t@t.com"
   git config user.name "T"
@@ -17,7 +19,7 @@ setup() {
 }
 
 teardown() {
-  rm -rf "$T"
+  hermetic_teardown
 }
 
 # ---------------------------------------------------------------------------

@@ -5,7 +5,14 @@
 
 SCRIPT="$BATS_TEST_DIRNAME/../../scripts/eval_semver_classify.sh"
 
-setup() { source "$SCRIPT"; }
+load '../lib/hermetic'
+
+setup() {
+  hermetic_setup  # scrubs GIT_DIR/etc + cds into $HERMETIC_ROOT — issue #546
+  source "$SCRIPT"
+}
+
+teardown() { hermetic_teardown; }
 
 # --- classify_change_class ------------------------------------------------
 
@@ -108,7 +115,7 @@ setup() { source "$SCRIPT"; }
 # --- end-to-end via a throwaway git repo ----------------------------------
 
 _mkrepo() {
-  REPO="$(mktemp -d)"
+  REPO="$HERMETIC_ROOT"
   cd "$REPO" || return 1
   git init -q
   git config user.email t@t.t
@@ -177,7 +184,7 @@ _mkrepo() {
 # --- #136: threshold-only edits classify as minor, not major --------------
 
 _mkrepo_thresh() {
-  REPO="$(mktemp -d)"; cd "$REPO" || return 1
+  REPO="$HERMETIC_ROOT"; cd "$REPO" || return 1
   git init -q; git config user.email t@t.t; git config user.name t
   git config commit.gpgsign false; git config tag.gpgsign false
   mkdir -p evals/expected

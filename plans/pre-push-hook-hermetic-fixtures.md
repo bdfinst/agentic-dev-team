@@ -394,10 +394,10 @@ Summary: 1 trivial (docs), 8 standard, 2 complex (broad fixture edit, end-to-end
 
 #### Wave 2
 
-- [ ] Slice 3: Adopt hermetic helper in fixture bats tests
-  - [ ] Step 3.1: `progress_guardian_tests.bats`
-  - [ ] Step 3.2: `codebase_recon` and `pre_commit_knowledge_index`
-  - [ ] Step 3.3: Remaining fixture bats files
+- [x] Slice 3: Adopt hermetic helper in fixture bats tests
+  - [x] Step 3.1: `progress_guardian_tests.bats`
+  - [x] Step 3.2: `codebase_recon` and `pre_commit_knowledge_index`
+  - [x] Step 3.3: Remaining fixture bats files
 - [x] Slice 4: Post-hook ref-integrity guard in `.husky/pre-push`
   - [x] Step 4.1: RED ref-guard bats test
   - [x] Step 4.2: GREEN ref-integrity guard
