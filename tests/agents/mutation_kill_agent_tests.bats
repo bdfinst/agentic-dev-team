@@ -34,6 +34,12 @@ REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/agent-registry.md"
   grep -Eqi 'timeout.*separate|report.*timeout|never.*timeout|timeout.*not.*(count|gate)' "$AGENT"
 }
 
+@test "NoCoverage is a first-class signal, prioritized before hard Survived mutations" {
+  # NoCoverage must appear in the formula, first-class-signal note, and prioritization guidance.
+  [ "$(grep -c -F 'NoCoverage' "$AGENT")" -ge 3 ]
+  grep -Eqi 'prioritize NoCoverage|NoCoverage.*before.*Survived|NoCoverage.*first' "$AGENT"
+}
+
 @test "warns that shard and full-run scores are not comparable" {
   grep -Eqi 'shard' "$AGENT"
   grep -Eqi 'not comparable|never (mix|compare)|prohibit.*compar' "$AGENT"
