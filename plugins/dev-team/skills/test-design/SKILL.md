@@ -10,6 +10,7 @@ description: >-
   writing a suite for an untested module. For a single unit, pass
   --advise --path <file>. Advisory — it recommends, it does not edit.
 argument-hint: "[--path <dir>] [--since <ref>] [--advise]"
+role: orchestrator
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(git diff *), Skill, Agent
 ---
@@ -94,15 +95,24 @@ Spawn both as sub-agents in one batch:
 Each returns its standard JSON (`status`/`issues`/`summary`). If no test files
 exist, both skip — proceed to Step 4 with `--advise`.
 
-### 3. Score all existing tests (Farley Score)
+### 3. Score the in-scope tests (Farley Score)
 
-A user-requested test review reports a quality score for the whole suite, not
-just the changed slice. Use the Skill tool (`Skill(farley-score ...)`) over **all
-existing test files in the repository** (use the test-file indicators in
-`knowledge/test-file-indicators.md`) to produce the suite-level Farley Score, rating,
-and distribution. This headline score is independent of `--path` / `--since` —
-those scope the findings below; the score always reflects the full suite. If the
-repository has no test files, skip this step and note it in the report.
+Using the file set already resolved in Step 1 (Step 1 is the single
+scope-resolution authority in this skill), invoke `Skill(farley-score ...)`
+to produce the Farley Score, rating, and distribution. Label the score with
+the scope it was computed over:
+
+- No `--path` / no `--since` → every test file in the repository (test-file
+  indicators in `knowledge/test-file-indicators.md`); label `all tests`.
+- `--path <dir>` → tests under `<dir>` or covering production code under
+  `<dir>`; label `under <dir>`.
+- `--since <ref>` → tests touched in the diff plus tests covering production
+  files touched in the diff; label `changed since <ref>`.
+- `--path <dir>` and `--since <ref>` together → tests under `<dir>` that are
+  also touched (directly or via covered production code) since `<ref>` — the
+  intersection of both sets; label `under <dir>, changed since <ref>`.
+- Empty in-scope test set → skip the score and print `no in-scope test files`
+  in the report instead of a number.
 
 ### 4. Run the advisor (when applicable)
 
@@ -125,7 +135,13 @@ for a module):
 ## Test Design Review — <target>
 
 **Health**: <pass|attention|critical>   **Test files**: N   **Findings**: N
-**Farley Score (all existing tests)**: <score> (<rating>) — Exemplary N · Good N · Adequate N · Poor N
+**Farley Score (<scope>)**: <score> (<rating>) — Exemplary N · Good N · Adequate N · Poor N
+
+`<scope>` is the label produced by Step 3; render it verbatim. Concrete
+forms: `Farley Score (all tests)`, `Farley Score (under <dir>)`,
+`Farley Score (changed since <ref>)`, `Farley Score (under <dir>, changed since <ref>)`.
+When the in-scope set was empty, replace the whole line with
+`**Farley Score**: no in-scope test files`.
 
 ### Test type definitions used in this report
 <one-line glosses for MinimumCD terms appearing below; verbatim from

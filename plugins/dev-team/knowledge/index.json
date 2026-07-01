@@ -4706,9 +4706,9 @@
       "summary": "Spawn both as sub-agents in one batch:",
       "anchor": "2-dispatch-review-agents-parallel"
     },
-    "3. Score all existing tests (Farley Score)": {
-      "summary": "A user-requested test review reports a quality score for the whole suite, not",
-      "anchor": "3-score-all-existing-tests-farley-score"
+    "3. Score the in-scope tests (Farley Score)": {
+      "summary": "Using the file set already resolved in Step 1 (Step 1 is the single",
+      "anchor": "3-score-the-in-scope-tests-farley-score"
     },
     "4. Run the advisor (when applicable)": {
       "summary": "If `--advise` is set (or auto-triggered), use the Skill tool (`Skill(test-design-advisor ...)`) on the production code to produce testability assessment, pyramid",
@@ -4819,7 +4819,7 @@
       "anchor": "5-delegate-architecture-pipeline"
     },
     "6. Test-design + mutation health (ROI)": {
-      "summary": "Invoke `/test-design` on the target and consume its results: the suite-wide **Farley Score**, the dominant `test-review` / `test-smell-review` themes (weak assertions, non-determinism, fixture/structure smells, testability blockers), and the advisor's testability verdicts.",
+      "summary": "Invoke `/test-design` on the target, passing the same scope this run was",
       "anchor": "6-test-design-mutation-health-roi"
     },
     "7. Flaky-test + automation maturity": {
