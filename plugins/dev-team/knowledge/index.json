@@ -3723,8 +3723,12 @@
       "anchor": "step-3-parse-results"
     },
     "Step 4: Triage survivors": {
-      "summary": "For each survivor, classify and act:",
+      "summary": "For each mutant, classify and act.",
       "anchor": "step-4-triage-survivors"
+    },
+    "Mutation-type-aware triage": {
+      "summary": "Different mutation types fail for different reasons.",
+      "anchor": "mutation-type-aware-triage"
     },
     "Triage procedure": {
       "summary": "1.",

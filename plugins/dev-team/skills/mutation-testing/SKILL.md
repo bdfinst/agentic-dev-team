@@ -74,15 +74,39 @@ Extract surviving mutants. Map each to:
 
 ## Step 4: Triage survivors
 
-For each survivor, classify and act:
+For each mutant, classify and act. **`NoCoverage` outranks `Survived`** — a survived mutant at least ran, so a tighter assertion can kill it; a no-coverage mutant was never reached at all, so writing a test that exercises the path is the higher-leverage move.
 
 | Classification | Meaning | Action |
 |---|---|---|
+| **NoCoverage** | No test exercises this code path at all | Add a test that reaches the path before worrying about killing the mutant — coverage is the prerequisite |
 | **Equivalent** | Mutation produces identical behavior | Mark excluded — no test can kill it |
 | **Missing assertion** | Test executes the code but doesn't assert on affected output | Strengthen the assertion |
 | **Missing test case** | No test exercises the mutated path | Write a new test |
 | **Undertested boundary** | Mutation exposes a boundary/edge with no coverage | Add a boundary test |
 | **Acceptable risk** | Trivial code where the mutation doesn't matter | Document and skip |
+
+**Recommended work order** — attack in this sequence, not by file order:
+
+1. **NoCoverage** first (each conversion moves the honest score as much as killing a survivor, and it's usually cheaper — the unreached path just needs a test that touches it).
+2. **Survived** next (assertion or coverage fix — see the mutation-type-aware guidance below).
+3. **Equivalent** last (documentation only; no test to write).
+
+### Mutation-type-aware triage
+
+Different mutation types fail for different reasons. A single strategy does not fit all — asking an LLM to strengthen an assertion cannot kill a Statement-removal survivor. Match the fix to the family:
+
+**String / ObjectInitializer / Equality** — the easiest family to kill and the highest kills-per-test. The test executes the code but does not assert on the mutated value (a status-code check will not catch a wrong string). Fix: add a **specific-value assertion** on the affected field. Example (C#):
+
+```csharp
+// WEAK — status only
+response.EnsureSuccessStatusCode();
+// STRONG — assert on the specific field the mutation would change
+Assert.AreEqual("expected-value", response.Data.FieldName);
+```
+
+**Statement / Block removal** — survives because the code path is not exercised, not because an assertion is weak. **A stronger assertion cannot kill this family.** Fix: add a test that reaches the missing path. Do not ask an LLM to kill a Statement mutation with a stronger assertion — it will produce a plausible-looking test that still doesn't cover the deleted line.
+
+**Guard (null-check / range-check / required-field removal)** — on internal service or builder methods, cannot be killed by HTTP-layer / integration tests: the outer request path validates before reaching the guard. Fix: a **unit test that invokes the guarded method directly** with invalid input, asserting the exception (or the observable side effect the guard prevents). Identify guard survivors by looking for `Statement` survivors in service/builder classes and asking "is this guarding an internal invariant?" — if yes, the fix is a direct call, not a request-level test.
 
 ### Triage procedure
 
