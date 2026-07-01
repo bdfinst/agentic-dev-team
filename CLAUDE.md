@@ -57,6 +57,12 @@ Every shell script — both the dev/CI scripts and the ones shipped inside the p
 - **macOS vs Linux command differences**: avoid Linux-only flags (`readlink -f`, `sed -i` semantics, `date +%N`, `stat -c`, `find -printf`, `timeout`) or guard them with a fallback (e.g. `recon-inventory.sh`'s `readlink -f || python3`, `_lib.sh`'s `date +%s%3N || python3`, `mutation-adapters/lib.sh`'s `timeout`→`gtimeout`→unbounded).
 - **Windows = Git Bash.** Native `cmd.exe`/PowerShell are not targets; the plugin's hooks and helper scripts run under [Git Bash](https://git-scm.com/download/win) (the POSIX shell Claude Code uses for its Bash tool on Windows). Each plugin's `install.sh` detects Windows-without-Git-Bash and tells the user to install it; `scripts/dev-setup.sh` does the same for contributors.
 
+### Hermetic bats fixtures
+
+Every `.bats` file under `tests/` that runs state-mutating git commands (`init`, `commit`, `push`, `update-ref`, `checkout`, `branch`, `add`, `clone`, `merge`, `rebase`, `reset`, ...) **must** `load '../lib/hermetic'` and wire `hermetic_setup` + `hermetic_teardown` into its `setup()`/`teardown()` blocks. `tests/repo/hermetic_adoption_tests.bats` enforces this at CI time.
+
+Rationale: git exports `GIT_DIR`/`GIT_INDEX_FILE`/`GIT_WORK_TREE`/`GIT_PREFIX`/`GIT_REFLOG_ACTION` into the pre-push hook's environment. Without scrubbing, fixture bats tests inherit those vars and their `git init`/`git commit`/`git push` operations target the parent worktree's gitdir instead of their tempdirs, silently rewriting `refs/heads/*` on the pushing repo. See [`.triage/pre-push-corrupts-local-branch-refs.md`](.triage/pre-push-corrupts-local-branch-refs.md) and issue #546.
+
 ### Testing locally
 
 Register the local checkout as a marketplace, then install from it into a test project:

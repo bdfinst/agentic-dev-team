@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: issue-546
-**Status**: in-progress
+**Status**: implemented
 
 ## Goal
 
@@ -16,15 +16,15 @@ Approach stance on decision-defaults axes:
 
 ## Acceptance Criteria
 
-- [ ] Running `git push` on any branch leaves every `refs/heads/*` unchanged from its pre-hook value regardless of ci-local pass/fail.
-- [ ] With a hostile `GIT_DIR`/`GIT_INDEX_FILE` in the environment, `bash scripts/ci-local.sh` does not mutate the decoy gitdir and its child bats processes see empty git env vars.
-- [ ] With a hostile `GIT_DIR`/`GIT_INDEX_FILE` in the environment, a fixture bats test using `hermetic_setup` does not mutate the decoy gitdir; the fixture's git operations target only its tempdir.
-- [ ] If a fixture bats test's `PWD` leaves the per-worker tempdir root created by `hermetic_setup`, the test fails loudly.
-- [ ] If any `refs/heads/*` changes during `.husky/pre-push` execution, the hook exits non-zero with a diagnostic listing every changed ref and its pre/post SHAs — even if `ci-local.sh` exits zero.
-- [ ] Two fixture bats tests running concurrently each get a distinct tempdir root.
-- [ ] `bash scripts/ci-local.sh` (direct invocation) continues to pass on a clean tree.
-- [ ] End-to-end: running the full test suite under a real `git push` on a scratch branch completes without corrupting any local ref on any worktree.
-- [ ] All acceptance criteria are enforced by automated tests that fail without the fix and pass with it.
+- [x] Running `git push` on any branch leaves every `refs/heads/*` unchanged from its pre-hook value regardless of ci-local pass/fail.
+- [x] With a hostile `GIT_DIR`/`GIT_INDEX_FILE` in the environment, `bash scripts/ci-local.sh` does not mutate the decoy gitdir and its child bats processes see empty git env vars.
+- [x] With a hostile `GIT_DIR`/`GIT_INDEX_FILE` in the environment, a fixture bats test using `hermetic_setup` does not mutate the decoy gitdir; the fixture's git operations target only its tempdir.
+- [x] If a fixture bats test's `PWD` leaves the per-worker tempdir root created by `hermetic_setup`, the test fails loudly.
+- [x] If any `refs/heads/*` changes during `.husky/pre-push` execution, the hook exits non-zero with a diagnostic listing every changed ref and its pre/post SHAs — even if `ci-local.sh` exits zero.
+- [x] Two fixture bats tests running concurrently each get a distinct tempdir root.
+- [x] `bash scripts/ci-local.sh` (direct invocation) continues to pass on a clean tree.
+- [x] End-to-end: running the full test suite under a real `git push` on a scratch branch completes without corrupting any local ref on any worktree.
+- [x] All acceptance criteria are enforced by automated tests that fail without the fix and pass with it.
 
 ## Slices
 
@@ -351,11 +351,11 @@ Summary: 1 trivial (docs), 8 standard, 2 complex (broad fixture edit, end-to-end
 
 ## Pre-PR Quality Gate
 
-- [ ] All tests pass (`bash scripts/ci-local.sh`)
-- [ ] Shellcheck clean on new/edited shell files
-- [ ] `/code-review` passes
-- [ ] Documentation updated (`CLAUDE.md` note)
-- [ ] End-to-end test demonstrates ref stability under real `git push`
+- [x] All tests pass (`bash scripts/ci-local.sh`)
+- [x] Shellcheck clean on new/edited shell files
+- [x] `/code-review` passes
+- [x] Documentation updated (`CLAUDE.md` note)
+- [x] End-to-end test demonstrates ref stability under real `git push`
 
 ## Risks & Open Questions
 
@@ -404,21 +404,21 @@ Summary: 1 trivial (docs), 8 standard, 2 complex (broad fixture edit, end-to-end
 
 #### Wave 3
 
-- [ ] Slice 5: End-to-end verification and CLAUDE.md note
-  - [ ] Step 5.1: End-to-end bats test
-  - [ ] Step 5.2: Document the hermetic contract
+- [x] Slice 5: End-to-end verification and CLAUDE.md note
+  - [x] Step 5.1: End-to-end bats test
+  - [x] Step 5.2: Document the hermetic contract
 
 ### Acceptance Criteria
 
-- [ ] `git push` leaves every `refs/heads/*` unchanged regardless of ci-local pass/fail
-- [ ] Hostile `GIT_DIR` does not mutate decoy gitdir via `ci-local.sh`; child bats see empty git env
-- [ ] Hostile `GIT_DIR` does not mutate decoy gitdir via fixture `hermetic_setup`
-- [ ] PWD drift inside a hermetic fixture fails the test loudly
-- [ ] Any `refs/heads/*` change during `.husky/pre-push` yields a non-zero exit with pre/post SHAs
-- [ ] Two concurrent fixture bats tests get distinct tempdir roots
-- [ ] `bash scripts/ci-local.sh` (direct invocation) continues to pass
-- [ ] Full test suite under real `git push` does not corrupt any local ref
-- [ ] All acceptance criteria enforced by tests that fail without the fix and pass with it
+- [x] `git push` leaves every `refs/heads/*` unchanged regardless of ci-local pass/fail
+- [x] Hostile `GIT_DIR` does not mutate decoy gitdir via `ci-local.sh`; child bats see empty git env
+- [x] Hostile `GIT_DIR` does not mutate decoy gitdir via fixture `hermetic_setup`
+- [x] PWD drift inside a hermetic fixture fails the test loudly
+- [x] Any `refs/heads/*` change during `.husky/pre-push` yields a non-zero exit with pre/post SHAs
+- [x] Two concurrent fixture bats tests get distinct tempdir roots
+- [x] `bash scripts/ci-local.sh` (direct invocation) continues to pass
+- [x] Full test suite under real `git push` does not corrupt any local ref
+- [x] All acceptance criteria enforced by tests that fail without the fix and pass with it
 
 ## Plan Review Summary
 
