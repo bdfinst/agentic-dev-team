@@ -282,7 +282,7 @@ setup_stale_main_repo() {
   # real via `git checkout -b main` before the first commit).
   git init -q --initial-branch=main "$work" 2>/dev/null \
     || { git init -q "$work"; git -C "$work" symbolic-ref HEAD refs/heads/main; }
-  cd "$work"
+  cd "$work" || return 1
   git config user.email "test@test.com"
   git config user.name "Test"
   git remote add origin "$remote"
@@ -293,7 +293,7 @@ setup_stale_main_repo() {
   # Advance the remote with an ahead-commit touching <ahead_file>, via the
   # sibling clone so this clone's local main stays at the seed.
   git clone -q "$remote" "$sibling"
-  cd "$sibling"
+  cd "$sibling" || return 1
   git config user.email "test@test.com"
   git config user.name "Test"
   # Sibling clone inherits its default branch from the remote HEAD (main).
@@ -302,7 +302,7 @@ setup_stale_main_repo() {
   git commit -q -m "feat: ahead on main"
   git push -q origin main
   # Back to the working clone; fetch so origin/main moves but local main stays.
-  cd "$work"
+  cd "$work" || return 1
   git fetch -q origin
   # Cut the feature branch off origin/main (the new tip).
   git checkout -q -b feature origin/main
