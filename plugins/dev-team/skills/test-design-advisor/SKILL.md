@@ -1,8 +1,7 @@
 ---
 name: test-design-advisor
-description: Advise on test design — assess testability, recommend the right test-pyramid layer and test-double strategy, and propose a behavior-preserving refactor sequence to make hard-to-test code testable. Use when the user says "how should I test this", "is this testable", "design tests for this", "what's the right test for X", or before writing tests for an untested module.
+description: Worker skill — assess testability, recommend the right test-pyramid layer and test-double strategy, and propose a behavior-preserving refactor sequence to make hard-to-test code testable. Invoked by /test-design and /test-health; not user-invocable. For a user-facing entry point use /test-design (add --advise --path <file> for forward-design on a single unit).
 role: worker
-user-invocable: true
 ---
 
 # Test Design Advisor

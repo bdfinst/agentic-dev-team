@@ -214,7 +214,9 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 /test-design --advise
 
 # Unit/module design advice (advisory — does not write tests)
-/test-design-advisor src/payments/PaymentProcessor.ts
+# The test-design-advisor worker skill is dispatched via /test-design; a
+# single-file target auto-fires the advisor.
+/test-design --advise --path src/payments/PaymentProcessor.ts
 
 # Strategic suite-wide audit — delegates to cd-test-architecture, /test-design, and mutation-testing
 /test-health

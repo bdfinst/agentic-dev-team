@@ -1,12 +1,14 @@
 ---
 name: test-design
 description: >-
-  Deep test-design review: dispatch test-review (tactical quality) and
-  test-smell-review (xUnit smells, double selection, pyramid placement) in
-  parallel, then run the test-design-advisor skill to recommend how to test
-  hard-to-test code. Use when the user says "review my tests", "how should I
-  test this", "is this testable", "test design review", or before writing a
-  suite for an untested module. Advisory — it recommends, it does not edit.
+  Deep test-design review and forward-design advisor. Dispatches test-review
+  (tactical quality) and test-smell-review (xUnit smells, double selection,
+  pyramid placement) in parallel, and runs the test-design-advisor worker
+  to recommend how to test hard-to-test code. Use when the user says "review
+  my tests", "how should I test this", "is this testable", "design tests for
+  this", "what's the right test for X", "test design review", or before
+  writing a suite for an untested module. For a single unit, pass
+  --advise --path <file>. Advisory — it recommends, it does not edit.
 argument-hint: "[--path <dir>] [--since <ref>] [--advise]"
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(git diff *), Skill, Agent
@@ -65,7 +67,7 @@ Optional:
 
 - `--path <dir>`: target directory (default: current working directory)
 - `--since <ref>`: target files changed since a git ref (`git diff --name-only <ref>...HEAD`)
-- `--advise`: also run the test-design-advisor skill for forward-looking design (default on when the target has untested production code or few/no test files)
+- `--advise`: also run the test-design-advisor skill for forward-looking design (default on when the target has untested production code or few/no test files, **or when the target resolves to a single production file** — via `--path <file>` or a `--since` diff that touches exactly one production file; this is the path for forward-design on a single unit — the `test-design-advisor` skill has no user-facing slash command)
 
 ## Steps
 
@@ -74,6 +76,13 @@ Optional:
 Same auto-scope logic as `/code-review`: uncommitted changes if present, else
 all source files; honor `--since` and `--path`. Identify test files and the
 production code they cover.
+
+**Single-file → auto-`--advise`.** If the resolved target is exactly one
+production file (`--path <file>` pointing at a production source file, or a
+`--since` diff whose production set has one file), set `--advise` on for this
+run and record it in the report header. This is the entry path for
+forward-design on a single unit (the `test-design-advisor` worker skill has
+no user-facing slash command).
 
 ### 2. Dispatch review agents (parallel)
 
