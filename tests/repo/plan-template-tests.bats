@@ -42,10 +42,14 @@ GUARDIAN_TESTS="$REPO_ROOT/tests/scripts/progress_guardian_tests.bats"
 }
 
 @test "526-2.1b: /build SKILL.md still contains the slice/step tick instructions (surrounding text preserved)" {
-  # Anchor grep — the sub-bullet that ticks Step N.M checkboxes stays.
-  grep -q 'Change \`- \[ \] Step N.M' "$BUILD_SKILL"
+  # Anchor via fixed-string match (grep -F) — the sub-bullet that ticks
+  # Step N.M checkboxes stays. Fixed-strings avoids grep-implementation
+  # differences (BSD vs GNU vs ugrep) around escaping backticks and
+  # brackets. See the hermetic-tests memory: local grep may be ugrep
+  # (Homebrew default) which accepts escapes that GNU grep on CI does not.
+  grep -qF 'Change `- [ ] Step N.M' "$BUILD_SKILL"
   # And the parent-slice tick.
-  grep -q 'check off the parent \`- \[ \] Slice N' "$BUILD_SKILL"
+  grep -qF 'check off the parent `- [ ] Slice N' "$BUILD_SKILL"
 }
 
 @test "526-2.1c: /build SKILL.md still contains the pre-implementation 'Verify acceptance criteria (gate)' step" {
