@@ -398,9 +398,9 @@ Summary: 1 trivial (docs), 8 standard, 2 complex (broad fixture edit, end-to-end
   - [ ] Step 3.1: `progress_guardian_tests.bats`
   - [ ] Step 3.2: `codebase_recon` and `pre_commit_knowledge_index`
   - [ ] Step 3.3: Remaining fixture bats files
-- [ ] Slice 4: Post-hook ref-integrity guard in `.husky/pre-push`
-  - [ ] Step 4.1: RED ref-guard bats test
-  - [ ] Step 4.2: GREEN ref-integrity guard
+- [x] Slice 4: Post-hook ref-integrity guard in `.husky/pre-push`
+  - [x] Step 4.1: RED ref-guard bats test
+  - [x] Step 4.2: GREEN ref-integrity guard
 
 #### Wave 3
 
