@@ -195,7 +195,7 @@ CSHARP="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/refere
 }
 
 @test "SKILL: probe selection names the highest-existing-score rule" {
-  run awk '/^### .*[Pp]robe file selection/{f=1;next} /^### /{f=0} /^## /{f=0} f && /highest/ && /score/{found=1} END{exit !found}' "$SKILL"
+  run awk '/^### .*[Pp]robe file selection/{f=1;next} /^### /{f=0} /^## /{f=0} f && /[Hh]ighest/ && /score/{found=1} END{exit !found}' "$SKILL"
   [ "$status" -eq 0 ]
 }
 

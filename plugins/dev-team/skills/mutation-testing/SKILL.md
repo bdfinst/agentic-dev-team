@@ -60,6 +60,23 @@ For tool-specific flag names and config-file keys (e.g. Stryker's `timeoutMS`, p
 
 Run scoped to user-specified files or changed files. Capture full output and note any HTML report paths. Per-language commands and scoping idioms — including the C# shard-aware execution path for large repos — live in [`references/languages/<lang>.md`](references/languages/).
 
+### Probe file selection
+
+Before scoping the full run, pick a **probe file** — one file to shake out configuration and get a first honest signal. A good probe exercises both fast kills and the timeout ceiling, so the run tells you whether the tool is configured correctly. A bad probe produces a mass-CompileError smoke plume that validates nothing.
+
+Rules (language-agnostic):
+
+- **≥ 50 mutants** — enough operator variety that the score is not a coin flip.
+- **Highest existing mutation score in the target** — a file already well-tested by unit tests exercises both the "kill fast" and "timeout near the limit" paths; a weakly-tested file only measures how weakly it is tested.
+
+Avoid, in every language:
+
+- **Generated code** (Protobuf, OpenAPI stubs, ORM entity generators) — the mutation tool cannot distinguish generator output from hand-written code, and mutations on generated types typically fail to compile.
+- **DTOs / value objects** — no branching logic; every survivor is either equivalent or a wrapper-property assertion, so the file gives no signal about test quality.
+- **Files with near-0 % coverage** — validates configuration only, not test quality. Every mutant survives regardless of how the tests are written.
+
+Language-specific probe traps (particularly in C#/Stryker.NET, where certain operator combinations produce methods that don't exist) live in [`references/languages/<lang>.md`](references/languages/).
+
 ## Step 3: Parse results
 
 Extract surviving mutants. Map each to:

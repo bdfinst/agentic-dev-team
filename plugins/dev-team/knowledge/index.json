@@ -3718,6 +3718,10 @@
       "summary": "Run scoped to user-specified files or changed files.",
       "anchor": "step-2-run-the-tool-scoped-to-target"
     },
+    "Probe file selection": {
+      "summary": "Before scoping the full run, pick a **probe file** — one file to shake out configuration and get a first honest signal.",
+      "anchor": "probe-file-selection"
+    },
     "Step 3: Parse results": {
       "summary": "Extract surviving mutants.",
       "anchor": "step-3-parse-results"
