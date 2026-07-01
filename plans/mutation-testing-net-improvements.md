@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: issue-528
-**Status**: in-progress
+**Status**: implemented
 **Spec**: docs/specs/mutation-testing-net-improvements.md
 **Issue**: #528
 
@@ -22,21 +22,21 @@ Land eight improvements from the .NET mutation drive into the plugin: honest/rep
 
 Mirrors `docs/specs/mutation-testing-net-improvements.md` § Acceptance Criteria (18 items). Restated here so `/build` can check them off:
 
-- [ ] AC1: Honest score formula updated to `Killed / (Killed + Survived + NoCoverage)`; reported-score formula also present.
-- [ ] AC2: NoCoverage-first prioritization documented in `mutation-kill.md` (≥ 3 mentions).
-- [ ] AC3: Infrastructure exclusion detection section present with thresholds (< 15% score, > 50% NoCoverage), file patterns, and `EXCLUDED` log format.
-- [ ] AC4: `--parallel <n>` flag added to Invocation and a Parallel-execution section documents Agent-tool fan-out, batching, and mutation-type gating.
-- [ ] AC5: "Build first" step precedes the Loop; `--no-build` prohibition documented.
-- [ ] AC6: Structurally-untestable patterns catalog covers `#if DEBUG`/`#if RELEASE`, service-locator, and pure DI registration — each with `EXCLUDED` log line.
-- [ ] AC7: `--since` incremental-run pattern in `csharp-stryker-net.md` with the verification-config trap called out.
-- [ ] AC8: Infrastructure exclusion `mutate` glob template in `csharp-stryker-net.md`.
-- [ ] AC9: NoCoverage denominator note in `csharp-stryker-net.md`.
-- [ ] AC10: `--since` env-var pass-through in `stryker-net.sh` with the exact guarded block; env var documented in header.
-- [ ] AC11: Adapter tests cover all three env-var branches (target-set-CI-unset, target-set-CI-set, target-unset).
-- [ ] AC12: Agent tests updated for the new formula regex.
-- [ ] AC13: All pre-existing agent-test invariants still pass.
-- [ ] AC14: `bash scripts/ci-local.sh` (or the two bats suites) exits 0.
-- [ ] AC15: `/agent-audit` passes on the modified agent file.
+- [x] AC1: Honest score formula updated to `Killed / (Killed + Survived + NoCoverage)`; reported-score formula also present.
+- [x] AC2: NoCoverage-first prioritization documented in `mutation-kill.md` (≥ 3 mentions).
+- [x] AC3: Infrastructure exclusion detection section present with thresholds (< 15% score, > 50% NoCoverage), file patterns, and `EXCLUDED` log format.
+- [x] AC4: `--parallel <n>` flag added to Invocation and a Parallel-execution section documents Agent-tool fan-out, batching, and mutation-type gating.
+- [x] AC5: "Build first" step precedes the Loop; `--no-build` prohibition documented.
+- [x] AC6: Structurally-untestable patterns catalog covers `#if DEBUG`/`#if RELEASE`, service-locator, and pure DI registration — each with `EXCLUDED` log line.
+- [x] AC7: `--since` incremental-run pattern in `csharp-stryker-net.md` with the verification-config trap called out.
+- [x] AC8: Infrastructure exclusion `mutate` glob template in `csharp-stryker-net.md`.
+- [x] AC9: NoCoverage denominator note in `csharp-stryker-net.md`.
+- [x] AC10: `--since` env-var pass-through in `stryker-net.sh` with the exact guarded block; env var documented in header.
+- [x] AC11: Adapter tests cover all three env-var branches (target-set-CI-unset, target-set-CI-set, target-unset).
+- [x] AC12: Agent tests updated for the new formula regex.
+- [x] AC13: All pre-existing agent-test invariants still pass.
+- [x] AC14: `bash scripts/ci-local.sh` (or the two bats suites) exits 0.
+- [x] AC15: `/agent-audit` passes on the modified agent file.
 - [ ] AC16: PR body contains `Closes #528`.
 - [ ] AC17: PR title is `feat(mutation-testing): ...`.
 - [ ] AC18: Auto-merge NOT armed.
@@ -372,13 +372,13 @@ Steps 1.6 (complex — new flag + orchestration section), 1.2/1.3/1.4/1.5/1.7/2.
   - [x] Step 1.6: Add `--parallel <n>` flag test + Parallel-execution section
   - [x] Step 1.7: Add structurally-untestable patterns test + expanded section
   - [x] Step 1.8: Verify agent-audit and full bats suite
-- [ ] Slice 2: Update `csharp-stryker-net.md` (`--since`, mutate-glob template, NoCoverage denominator note)
-  - [ ] Step 2.1: Add `--since` incremental-run subsection
-  - [ ] Step 2.2: Add infrastructure exclusion mutate-glob template
-  - [ ] Step 2.3: Add NoCoverage denominator note
-- [ ] Slice 3: `--since` env-var pass-through in `stryker-net.sh` adapter
-  - [ ] Step 3.1: Add adapter tests for all three env-var branches
-  - [ ] Step 3.2: Add the guarded `--since` block to `stryker_net_run`
+- [x] Slice 2: Update `csharp-stryker-net.md` (`--since`, mutate-glob template, NoCoverage denominator note)
+  - [x] Step 2.1: Add `--since` incremental-run subsection
+  - [x] Step 2.2: Add infrastructure exclusion mutate-glob template
+  - [x] Step 2.3: Add NoCoverage denominator note
+- [x] Slice 3: `--since` env-var pass-through in `stryker-net.sh` adapter
+  - [x] Step 3.1: Add adapter tests for all three env-var branches
+  - [x] Step 3.2: Add the guarded `--since` block to `stryker_net_run`
 
 ### Acceptance Criteria
 
@@ -388,15 +388,15 @@ Steps 1.6 (complex — new flag + orchestration section), 1.2/1.3/1.4/1.5/1.7/2.
 - [x] AC4: `--parallel <n>` flag + Parallel-execution section
 - [x] AC5: "Build first" step precedes the Loop
 - [x] AC6: Structurally-untestable patterns catalog (all three)
-- [ ] AC7: `--since` incremental-run pattern with verification-config trap
-- [ ] AC8: Infrastructure exclusion `mutate` glob template
-- [ ] AC9: NoCoverage denominator note
-- [ ] AC10: `--since` env-var pass-through in adapter
-- [ ] AC11: Adapter tests cover all three env-var branches
-- [ ] AC12: Agent tests updated for new formula
-- [ ] AC13: Pre-existing agent-test invariants still pass
-- [ ] AC14: `bash scripts/ci-local.sh` exits 0
-- [ ] AC15: `/agent-audit` passes
+- [x] AC7: `--since` incremental-run pattern with verification-config trap
+- [x] AC8: Infrastructure exclusion `mutate` glob template
+- [x] AC9: NoCoverage denominator note
+- [x] AC10: `--since` env-var pass-through in adapter
+- [x] AC11: Adapter tests cover all three env-var branches
+- [x] AC12: Agent tests updated for new formula
+- [x] AC13: Pre-existing agent-test invariants still pass
+- [x] AC14: `bash scripts/ci-local.sh` exits 0
+- [x] AC15: `/agent-audit` passes
 - [ ] AC16: PR body contains `Closes #528`
 - [ ] AC17: PR title is `feat(mutation-testing): ...`
 - [ ] AC18: Auto-merge NOT armed

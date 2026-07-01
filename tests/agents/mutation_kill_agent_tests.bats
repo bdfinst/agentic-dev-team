@@ -44,7 +44,8 @@ REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/agent-registry.md"
   # The build-first step must precede the loop pseudo-code.
   grep -Eq 'dotnet build' "$AGENT"
   # The prohibition against --no-build during mutation runs must be explicit.
-  grep -Eqi 'never.*--no-build|do not use.*--no-build|not.*--no-build' "$AGENT"
+  # Flatten newlines so a line-broken sentence still matches.
+  tr '\n' ' ' < "$AGENT" | grep -Eqi 'never.*--no-build|do not use.*--no-build|not.*--no-build'
 }
 
 @test "--parallel <n> is documented as an Invocation flag with Agent-tool fan-out" {
@@ -60,9 +61,11 @@ REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/agent-registry.md"
 }
 
 @test "--parallel and --concurrency interaction rule is specified" {
-  # The interaction rule must reference both flags (either as compose-together
-  # or mutually-exclusive) in the same neighborhood.
-  awk '/Parallel execution/,/^## /' "$AGENT" | grep -Eqi 'concurrency'
+  # The interaction rule must reference both flags in the "Parallel execution"
+  # section. Use sed to extract from the section header to the next top-level
+  # (^## ) header, dropping the header itself so its own regex doesn't close
+  # the range prematurely.
+  sed -n '/^## Parallel execution/,/^## [^P]/p' "$AGENT" | grep -Eqi 'concurrency'
 }
 
 @test "infrastructure exclusion detection: thresholds, file patterns, and log format" {
