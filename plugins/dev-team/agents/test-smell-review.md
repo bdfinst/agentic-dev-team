@@ -40,6 +40,7 @@ Load on demand by finding type — do not load them all unless the target needs 
 - `knowledge/test-organization.md` — the named remedy for structure smells (Obscure Test, Test Code Duplication, High Test Maintenance Cost): Four-Phase Test, Testcase Class per Fixture, Test Utility Method, Parameterized Test.
 - `knowledge/test-refactoring.md` — the goals/principles a smell violates and the behavior-preserving move toward the target pattern. Cite a **named refactoring**, not prose, for each remedy.
 - `knowledge/database-test-patterns.md` — the named remedy for DB-backed Erratic/Slow tests (Database Sandbox, Transaction Rollback / Table Truncation Teardown). Load when the target hits a real database.
+- `knowledge/test-stack-profiles/<stack>.md` — stack-specific tool resolution and seam choice (and any references the profile points at). Load on stack match. Detection mirrors `skills/test-design-advisor/SKILL.md:31, 62`: read manifests at the target — `package.json` (refined to react/vue via dependency, or to ssr-htmx when an htmx dep is present alongside `templates/*.html`), `*.csproj` / `*.sln`, `pom.xml` / `build.gradle*`, `go.mod`, `pyproject.toml` / `requirements.txt` — and resolve the profile key. When a finding is stack-specific, cite the matching `knowledge/test-stack-profiles/<stack>.md` (and any reference it points at) by knowledge path in the finding's `message` or `suggestedFix`. When no profile matches, produce stack-agnostic guidance and name the missing profile in the `summary` — never block on it.
 
 ## Skip
 
