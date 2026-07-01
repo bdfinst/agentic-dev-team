@@ -47,6 +47,24 @@ REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/agent-registry.md"
   grep -Eqi 'never.*--no-build|do not use.*--no-build|not.*--no-build' "$AGENT"
 }
 
+@test "--parallel <n> is documented as an Invocation flag with Agent-tool fan-out" {
+  # Invocation surface
+  grep -Eq -- '--parallel' "$AGENT"
+  # Parallel-execution section exists
+  grep -Eqi '^## Parallel execution|^### Parallel execution' "$AGENT"
+  # Agent tool, not worktrees
+  grep -Eqi 'Agent tool' "$AGENT"
+  # Batch cardinality claims from the plan's scenario
+  grep -Eq '3.4' "$AGENT" || grep -Eq '3-4' "$AGENT"
+  grep -Eq '1.2' "$AGENT" || grep -Eq '1-2' "$AGENT"
+}
+
+@test "--parallel and --concurrency interaction rule is specified" {
+  # The interaction rule must reference both flags (either as compose-together
+  # or mutually-exclusive) in the same neighborhood.
+  awk '/Parallel execution/,/^## /' "$AGENT" | grep -Eqi 'concurrency'
+}
+
 @test "infrastructure exclusion detection: thresholds, file patterns, and log format" {
   # Numeric thresholds
   grep -Eq '15%' "$AGENT"

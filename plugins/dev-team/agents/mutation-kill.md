@@ -21,7 +21,7 @@ estimate or fabricate mutation outcomes.
 
 ```
 /mutation-kill [<repo-path>] [--file <path>] [--all] [--max-rounds <n>]
-               [--from-report <path>] [--concurrency <n>]
+               [--from-report <path>] [--concurrency <n>] [--parallel <n>]
 ```
 
 - `--file <path>` — target a single source file.
@@ -29,6 +29,7 @@ estimate or fabricate mutation outcomes.
 - `--from-report <path>` — load an existing report instead of running the tool (first round only).
 - `--max-rounds <n>` — maximum rounds per file (default: 5).
 - `--concurrency <n>` — parallel files via git worktrees when using `--all` (default: 2; max = physical cores − 2).
+- `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Parallel execution (Phase 4)](#parallel-execution-phase-4)).
 
 ## The honest score — hard kills only
 
@@ -233,6 +234,39 @@ With `--all`, run files in parallel via git worktrees (each shard gets its own
 build-artifacts directory). Concurrent runs saturate CPU/RAM fast — honor
 `--concurrency` (default **2** per developer machine; configurable up to physical
 cores − 2).
+
+## Parallel execution (Phase 4)
+
+`--concurrency` fans **files** out across git worktrees. `--parallel <n>` fans
+**sub-agents** out **within** a file's Phase-4 survivor set, using the Agent
+tool directly — no worktrees, because test-file writes don't conflict with
+source-file reads. The two flags are orthogonal.
+
+With `--all --parallel <n>`:
+
+1. Sort files by survivor count (descending); cap at the first `4 × n`
+   candidates.
+2. Group into `n` batches of up to 4 files each.
+3. Spawn `n` sub-agents in parallel via the Agent tool. Each sub-agent reads
+   its files' survivor lists from the baseline JSON and targets mutation
+   types in the priority order (String → ObjectInit → Equality → Negate →
+   Conditional → Statement).
+4. Synthesize results at the barrier; if survivors still exceed the round's
+   threshold, repeat with the next batch.
+
+Agent count per batch — **3–4** for easy mutation types (String / Equality /
+ObjectInit), **1–2** for hard types (Statement / Block removal). Easy types
+tolerate more concurrent test edits because each survivor is fixed by an
+independent assertion; hard types require code-path additions where two
+concurrent edits to the same test class collide.
+
+### Interaction with `--concurrency`
+
+`--concurrency` governs the **outer** worktree fan-out (files × worktrees) and
+`--parallel` governs the **inner** Agent-tool fan-out (sub-agents per Phase-4
+batch). When both are set the effective concurrent-actor count is the product
+(`concurrency × parallel`), bounded by physical cores − 2. Fail fast when the
+product exceeds that ceiling rather than oversubscribing the machine.
 
 ## Go is advisory
 
