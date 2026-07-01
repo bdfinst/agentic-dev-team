@@ -390,9 +390,9 @@ No `LOW_VALUE` findings.
 
 ### Wave 2
 
-- [ ] Slice 1: `/build` detect-and-warn (primary lever)
-  - [ ] Step 1.1: `detect` subcommand with settings-path env-var seam
-  - [ ] Step 1.2: Wire detect-and-warn into `/build` Step 4
+- [x] Slice 1: `/build` detect-and-warn (primary lever)
+  - [x] Step 1.1: `detect` subcommand with settings-path env-var seam
+  - [x] Step 1.2: Wire detect-and-warn into `/build` Step 4
 - [x] Slice 2: Reconciler preserves caller's WIP commits
   - [x] Step 2.1: Failing test proves the WIP-preservation contract
 
