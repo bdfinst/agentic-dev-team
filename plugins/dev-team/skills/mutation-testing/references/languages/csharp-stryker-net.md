@@ -4,9 +4,17 @@ Tool: [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/). 
 
 ## Install / detect
 
+The tool manifest is the **local** install path: `.config/dotnet-tools.json` lives in the repo, so `dotnet stryker` resolves via the manifest without depending on `$PATH`. A global install (`dotnet tool install -g dotnet-stryker`) is a fallback only — it depends on `~/.dotnet/tools` being on `PATH` and is the failure mode that motivated the "prefer local install" note in the skill.
+
 ```bash
 dotnet new tool-manifest        # if no .config/dotnet-tools.json yet
 dotnet tool install dotnet-stryker
+```
+
+Confirm the tool resolves before configuring a run:
+
+```bash
+dotnet stryker --version
 ```
 
 ## Environment preamble (macOS Homebrew)
