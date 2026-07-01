@@ -908,9 +908,9 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 #### Wave 6
 
-- [ ] Slice 6: Phase 4 — Improve + review loop
-  - [ ] Step 6.1: Add Phase 4 build + mutation-kill loop
-  - [ ] Step 6.2: Add Phase 4 end-of-phase review loop
+- [x] Slice 6: Phase 4 — Improve + review loop
+  - [x] Step 6.1: Add Phase 4 build + mutation-kill loop
+  - [x] Step 6.2: Add Phase 4 end-of-phase review loop
 
 #### Wave 7
 
@@ -957,7 +957,7 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 - [x] AC12–14: Phase 2 baseline
 - [x] AC15–18: Phase 2b Gherkin
 - [x] AC19–21: Phase 3 triage
-- [ ] AC22–28: Phase 4 improve + review loop
+- [x] AC22–28: Phase 4 improve + review loop
 - [ ] AC29–30: Phase 4b prompt
 - [ ] AC31–35: Phase 5 refactor
 - [ ] AC36–39: Phase 6 validate

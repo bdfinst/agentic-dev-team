@@ -241,4 +241,55 @@ Every finding lands in exactly one of three **gap classes**:
 **Human gate.** Present the Phase-4 Story set (NO_REFACTOR only) to the
 operator. **Phase 4 does not run** until the operator approves the set.
 
-_(Phases 4..7 are added in subsequent slices.)_
+### Phase 4 — Improve without refactoring (build + mutation-kill + review loop)
+
+Iterate the approved Phase-4 Story set. For **each Story**:
+
+1. **Build** — invoke `/build <story-id>`. `/build` inherits the **no-refactor**
+   mode from Phase 0: production-code changes are **rejected**. A Story that
+   would require a production-code change is surfaced as a REFACTOR_REQUIRED
+   deferral candidate and re-classified for Phase 4b.
+2. **Apply the Phase-0 binding mode.** If Phase 0 selected
+   `xunit-with-annotations`, the resulting test names mirror the source
+   scenario name and Given/When/Then lines appear as **leading comments**
+   citing the source `.feature` file. In `bdd-runner` mode, the step
+   definitions are filled in against the parser wired at Phase 2b. In `none`
+   mode, the test is authored idiomatically for the stack without
+   feature-file citations.
+3. **Coverage delta** — after `/build` closes the Story, invoke
+   `/coverage-delta --workflow test-improve --story <id>`. The delta is
+   appended to `memory/test-improve/<slug>/coverage-history.json`.
+4. **Mutation-kill (mutation-on only).** Invoke the **`mutation-kill` agent**
+   with `--file <story-file> --max-rounds 3`. Residual survivors trigger the
+   **`[c]ontinue / [r]etry / [w]aive / [q]uit`** prompt — the shape is
+   `[c/r/w/q]`. `[c]` accepts the residual and moves on; `[r]` re-runs one
+   more mutation-kill round; `[w]` waives the residual to `waivers.json`;
+   `[q]` quits Phase 4.
+5. **Go mutation-kill is advisory.** On Go stacks, `mutation-kill` logs
+   survivors but makes **no commit** — the operator is instructed to apply
+   changes manually. Advisory-only handling matches the Phase-0 Go advisory.
+
+#### End-of-phase review loop
+
+After **all Phase-4 Stories have closed**, run the review loop over the
+Phase-4 diff:
+
+1. **Dispatch in parallel** — `/test-design --since <base-sha>` and
+   `/code-review --since <base-sha>` run **concurrently** against the diff
+   between the Phase-4 base commit and HEAD.
+2. **Apply fixes.** Run `/apply-fixes corrections/`, then **re-run
+   `/code-review`** to confirm.
+3. **Iterate at most 2 rounds.** After **2 iterations** without clean
+   `/code-review`, prompt the operator with **`[r]evise / [w]aive / [q]uit`**
+   (shape `[r/w/q]`).
+   - `[r]` triggers one more revise pass (may exceed the cap by operator
+     consent).
+   - `[w]` writes the outstanding finding set to
+     `memory/test-improve/<slug>/waivers.json`, **tagged** with the finding
+     list, and closes the phase.
+   - `[q]` quits Phase 4 with the loop unresolved.
+4. **Evidence.** Write `memory/test-improve/<slug>/phase-4-review.json` with
+   the fixed schema — fields: `base_sha`, `head_sha`, `farley_score`,
+   `smells`, `code_review`, `iterations`, `escalated`.
+
+_(Phases 4b..7 are added in subsequent slices.)_
