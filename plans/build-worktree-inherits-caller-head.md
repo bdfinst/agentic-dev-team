@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: fixes
-**Status**: in-progress
+**Status**: implemented
 **Spec**: `docs/specs/build-worktree-inherits-caller-head.md`
 **Closes**: #553
 
