@@ -136,6 +136,17 @@ REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/agent-registry.md"
   grep -Eqi 'reason|document the exclusion' "$AGENT"
 }
 
+@test "catalogs three structurally untestable patterns: #if DEBUG, service-locator, pure DI" {
+  # #if DEBUG / #if RELEASE
+  grep -Eq '#if DEBUG|#if RELEASE' "$AGENT"
+  # service-locator: HttpContext.RequestServices.GetService<T>
+  grep -Eq 'HttpContext\.RequestServices' "$AGENT"
+  grep -Eqi 'service.?locator' "$AGENT"
+  # pure DI registration
+  grep -Eq 'services\.AddX|builder\.Services\.AddX|services\.Add[A-Za-z]|AddX\(\)' "$AGENT"
+  grep -Eqi 'DI registration|test.?startup|TestStartup|TestServer' "$AGENT"
+}
+
 @test "Go runs advisory (logs, does not commit)" {
   grep -Eqi 'advisory' "$AGENT"
   grep -Eqi 'does not commit|not commit|operator applies' "$AGENT"

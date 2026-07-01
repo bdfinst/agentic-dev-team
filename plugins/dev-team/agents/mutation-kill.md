@@ -228,6 +228,42 @@ EXCLUDED <file> — <reason>: surviving mutations are structural guards reachabl
 only by direct invalid-input invocation; available test surface is <surface>.
 ```
 
+### Structurally untestable WITHOUT refactoring
+
+Three patterns are unkillable by the test suite as it stands — do not spend
+rounds attacking them. Log each as technical debt using the `EXCLUDED` format
+above and move on.
+
+1. **`#if DEBUG` / `#if RELEASE` compilation blocks.** The code under test
+   doesn't exist in the test build; mutations live in Release-only code while
+   the test suite always hits the Debug path.
+
+   ```
+   EXCLUDED <file>::<method> — #if DEBUG block; mutations are Release-only
+   ```
+
+2. **Service-locator pattern (`HttpContext.RequestServices.GetService<T>()`).**
+   Cannot inject mocks without constructing a full `IServiceProvider` per test.
+   Kills require refactoring to constructor injection.
+
+   ```
+   EXCLUDED <file> — service-locator pattern; requires refactor to
+     constructor injection before mutations become testable
+   ```
+
+3. **Pure DI registration (`services.AddX()`, `builder.Services.AddX()`).**
+   The test host's `TestStartup` / `TestServer` overrides the real DI
+   container, so removing a real registration is invisible to any test using
+   test doubles. Exclude the whole file from the `mutate` glob.
+
+   ```
+   EXCLUDED <file> — pure DI registration; TestStartup overrides the
+     container so mutations are unobservable to the test surface
+   ```
+
+Never spend rounds trying to kill these — they inflate the round count and
+produce zero kills.
+
 ## Parallelism
 
 With `--all`, run files in parallel via git worktrees (each shard gets its own
