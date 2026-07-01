@@ -39,6 +39,8 @@ Before any mutation run, present the estimated time and the scope, then block on
 
 ## Step 1: Detect or set up tooling
 
+**Prefer a local install** over a global one. Global installs depend on the user's `PATH` and produce silent "command not found" failures when it is not configured (see [`references/languages/csharp-stryker-net.md`](references/languages/csharp-stryker-net.md) for the observed Stryker.NET case). Each [`references/languages/<lang>.md`](references/languages/) file below shows the **local**-install command as the primary path.
+
 Use [`references/tool-detection.md`](references/tool-detection.md) to resolve the project's ecosystem to a mutation tool, then load the matching `references/languages/<lang>.md` for install and run commands. **Do not proceed without a working tool.**
 
 **Go is advisory-only.** When the project has a `go.mod`, resolve to **go-mutesting** in advisory mode (it is alpha quality — the surviving-mutant count is not a reliable gate). Advisory mode emits the `schema_version: 1` envelope with `"advisory": true`; orchestrated workflows treat that as **warn, do not block** — a non-zero survivor count never fails the gate. Always pair it with Go's built-in fuzzing (`go test -fuzz=FuzzXxx -fuzztime=30s ./path/to/pkg`), which is production-quality, for boundary and edge-case discovery. Full install path and fuzz idioms: [`references/languages/go-go-mutesting.md`](references/languages/go-go-mutesting.md). Never tell a Go project "no tool installed" without giving both the go-mutesting install path and the fuzz alternative.
@@ -59,6 +61,23 @@ For tool-specific flag names and config-file keys (e.g. Stryker's `timeoutMS`, p
 ## Step 2: Run the tool (scoped to target)
 
 Run scoped to user-specified files or changed files. Capture full output and note any HTML report paths. Per-language commands and scoping idioms — including the C# shard-aware execution path for large repos — live in [`references/languages/<lang>.md`](references/languages/).
+
+### Capturing run output safely
+
+Do **not** wrap the mutation tool in a bare `<tool> 2>&1 | tee run.log` pipeline. Bash pipeline exit status defaults to the last command's — `tee` always exits 0 on a successful write — so any Stryker / mutmut / pitest / go-mutesting startup failure (missing tool manifest, invalid config key, wrong `DOTNET_ROOT`, compile-error abort) is silently masked. Downstream automation (background tasks, CI wrappers, this plugin's own monitor loops) then sees "success" and moves on, and the failure is discovered only when the report JSON is missing.
+
+Two safe patterns — pick by whether you need live tail:
+
+```bash
+# One-shot run — direct redirect, simpler, no shell-option side effect.
+dotnet stryker --config-file stryker-config.json >StrykerOutput/full-run.log 2>&1
+
+# Live-tail run — pipefail makes the pipeline exit the leftmost non-zero.
+set -o pipefail
+dotnet stryker --config-file stryker-config.json 2>&1 | tee StrykerOutput/full-run.log
+```
+
+This trap is portable across all languages the skill supports; the same rule applies to `npx stryker run ... | tee`, `mutmut run ... | tee`, `mvn pitest:mutationCoverage ... | tee`, and `go-mutesting ... | tee`. If you rely on `$?` or a monitor's exit-code trigger, always use one of the two safe patterns above.
 
 ### Probe file selection
 

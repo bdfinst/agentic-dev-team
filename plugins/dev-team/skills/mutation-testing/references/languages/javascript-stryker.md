@@ -4,12 +4,22 @@ Tool: [Stryker Mutator](https://stryker-mutator.io/). Detection: `package.json` 
 
 ## Install / detect
 
+`--save-dev` is the **local** install path — the binary resolves via `node_modules/.bin` (which `npm run` / `npx` add to `PATH` scope-locally), so no global `PATH` edit is needed. Prefer this over `npm install -g @stryker-mutator/core`, which is the silent-failure trap called out in the skill's "prefer local install" note.
+
 ```bash
 npm install --save-dev @stryker-mutator/core @stryker-mutator/vitest-runner  # or jest-runner, karma-runner
 npx stryker init
 ```
 
+Confirm the tool resolves before configuring a run:
+
+```bash
+npx stryker --version
+```
+
 ## Run (scoped)
+
+> When capturing run output to a log file, do **not** use a bare `npx stryker run ... 2>&1 | tee run.log` — the pipeline exit code is `tee`'s (always 0), so a tool failure is silently masked. Use `>run.log 2>&1` for one-shot runs or `set -o pipefail` for live tail. See [`SKILL.md` → Capturing run output safely](../../SKILL.md#capturing-run-output-safely).
 
 ```bash
 # Specific files
