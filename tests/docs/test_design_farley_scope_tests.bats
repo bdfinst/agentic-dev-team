@@ -31,8 +31,9 @@ SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/test-design/SKILL.md"
 }
 
 @test "test-design SKILL documents intersection semantics for combined scope" {
-  # Any of: 'intersection', 'both ... and', 'AND'.
-  run grep -Eci "intersection|\\bboth\\b|\\bAND\\b" "$SKILL"
+  # Match specific phrases, not the bare word 'both' or 'and' which
+  # appear in ordinary prose all over the SKILL.
+  run grep -Ec "\\bintersection\\b|the intersection of both sets" "$SKILL"
   [ "$status" -eq 0 ]
   [ "$output" -gt 0 ]
 }
@@ -49,7 +50,19 @@ SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/test-design/SKILL.md"
   [ "$output" -gt 0 ]
 }
 
+@test "test-design SKILL names Step 1 as the single scope-resolution authority" {
+  # Collapse newlines before matching so a soft-wrapped phrase still hits.
+  run bash -c "tr '\n' ' ' < \"$SKILL\" | grep -Eci 'single[[:space:]]+scope-resolution authority|one[[:space:]]+scope-resolution authority'"
+  [ "$status" -eq 0 ]
+  [ "$output" -gt 0 ]
+}
+
 @test "test-design SKILL no longer claims Farley is independent of --path / --since" {
   run grep -c "This headline score is independent of" "$SKILL"
+  [ "$output" -eq 0 ]
+}
+
+@test "test-design SKILL no longer carries the whole-suite stale phrases" {
+  run grep -Ec "score always reflects the full suite|Farley Score \\(all existing tests\\)" "$SKILL"
   [ "$output" -eq 0 ]
 }

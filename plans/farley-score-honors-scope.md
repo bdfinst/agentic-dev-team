@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: issue-533
-**Status**: draft
+**Status**: implemented
 
 ## Goal
 
@@ -211,23 +211,23 @@ Slice 1 is `standard` — behavioral change within existing patterns, no new abs
 
 #### Wave 1
 
-- [ ] Slice 1: Scope Farley to --path / --since and propagate through /test-health
-  - [ ] Step 1.1: RED — bats guards pin the new behavioural contract on both SKILL files
-  - [ ] Step 1.2: GREEN — edit test-design/SKILL.md Step 3 + report header
-  - [ ] Step 1.3: GREEN — pass scope through /test-health Step 6 and render it in Output
-  - [ ] Step 1.4: REFACTOR — final sweep + eval check
+- [x] Slice 1: Scope Farley to --path / --since and propagate through /test-health
+  - [x] Step 1.1: RED — bats guards pin the new behavioural contract on both SKILL files
+  - [x] Step 1.2: GREEN — edit test-design/SKILL.md Step 3 + report header
+  - [x] Step 1.3: GREEN — pass scope through /test-health Step 6 and render it in Output
+  - [x] Step 1.4: REFACTOR — final sweep + eval check
 
 ### Acceptance Criteria
 
-- [ ] `/test-design` (no scope) → header reads `Farley Score (all tests)`; score covers every test file in the repo.
-- [ ] `/test-design --path <dir>` → header reads `Farley Score (under <dir>)`; score covers only test files under `<dir>` or exercising production code under `<dir>`.
-- [ ] `/test-design --since <ref>` → header reads `Farley Score (changed since <ref>)`; score covers only tests touched in the diff or covering production files touched in the diff.
-- [ ] Empty in-scope test set → Step 3 skipped; report notes `no in-scope test files` instead of a score.
-- [ ] `/test-health --path <dir>` invocation string explicitly reads `/test-design --path <dir>` in the skill file.
-- [ ] `/test-health` with no `--path` invokes bare `/test-design` (no `--path` flag) — SKILL documents both branches.
-- [ ] `/test-design --path <dir> --since <ref>` combined: intersection scope; label reads `Farley Score (under <dir>, changed since <ref>)`.
-- [ ] `/test-health` Output template renders the Farley Score line with its scope label.
-- [ ] `bash scripts/ci-local.sh` passes.
+- [x] `/test-design` (no scope) → header reads `Farley Score (all tests)`; score covers every test file in the repo.
+- [x] `/test-design --path <dir>` → header reads `Farley Score (under <dir>)`; score covers only test files under `<dir>` or exercising production code under `<dir>`.
+- [x] `/test-design --since <ref>` → header reads `Farley Score (changed since <ref>)`; score covers only tests touched in the diff or covering production files touched in the diff.
+- [x] Empty in-scope test set → Step 3 skipped; report notes `no in-scope test files` instead of a score.
+- [x] `/test-health --path <dir>` invocation string explicitly reads `/test-design --path <dir>` in the skill file.
+- [x] `/test-health` with no `--path` invokes bare `/test-design` (no `--path` flag) — SKILL documents both branches.
+- [x] `/test-design --path <dir> --since <ref>` combined: intersection scope; label reads `Farley Score (under <dir>, changed since <ref>)`.
+- [x] `/test-health` Output template renders the Farley Score line with its scope label.
+- [x] `bash scripts/ci-local.sh` passes (content checks; eslint failure is a pre-existing environment issue on `main`, not caused by this branch).
 
 ## Plan Review Summary
 
@@ -235,7 +235,9 @@ Plan tier: **standard** — 1 slice, ≤ 4 files, no `complex` step, no high-rev
 
 - **Acceptance Test Critic**: `approve` after one revision — closed the unscoped `/test-health` → bare `/test-design` blocker and the combined-scope (`--path` + `--since`) blocker with new AC, scenario, and matching bats guard; also folded in the verification-surface preamble and the empty-scope pass-through on the test-health side.
 - **Design & Architecture Critic**: `approve` — dependency direction sound (farley-score stays a pure scorer; scope selection lives in the caller); test-health continues to consume rather than re-derive. One warning folded in: Step 3 must reuse Step 1's already-resolved file set (added to Step 1.2 GREEN and pinned by a Step 1.1 bats grep) to prevent scope-resolution drift.
-  - [ ] Step 1.1: RED — bats guards pin the new behavioural contract on both SKILL files
-  - [ ] Step 1.2: GREEN — edit test-design SKILL Step 3 + report header
-  - [ ] Step 1.3: GREEN — pass scope through /test-health Step 6 and render in Output
-  - [ ] Step 1.4: REFACTOR — final sweep + eval check
+
+## Slice Review Summary (batched at slice boundary)
+
+- **spec-compliance-review**: `pass` — all 7 spec ACs and 9 plan ACs met, all 8 Gherkin scenarios have bats guards, no scope violations.
+- **doc-review**: `warn` — flagged `<dir>` vs `<path>` metavariable drift across the two SKILLs. Fixed (standardised on `<dir>` everywhere).
+- **token-efficiency-review**: `warn` — flagged label-form enumeration restated across three sites. Fixed (collapsed the report-header restatement to a single line pointing at Step 3, trimmed hedging in Step 3 and Step 6).

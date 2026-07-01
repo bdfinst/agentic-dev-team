@@ -57,9 +57,9 @@ inherits a whole-repo Farley Score:
 - `/test-health --path <dir>` → dispatch `/test-design --path <dir>`.
 - `/test-health` (unscoped) → dispatch `/test-design` with no scope flag.
 
-Consume its results: the scope-labelled **Farley Score** (`(all tests)` /
-`(under <dir>)` / `(changed since <ref>)` / `(under <dir>, changed since <ref>)`,
-or the empty-scope note `no in-scope test files`), the dominant
+Consume its results: the scope-labelled **Farley Score** (`(all tests)` when
+unscoped, `(under <dir>)` when passing `--path`, or the empty-scope note
+`no in-scope test files` when the in-scope set is empty), the dominant
 `test-review` / `test-smell-review` themes (weak assertions,
 non-determinism, fixture/structure smells, testability blockers), and the
 advisor's testability verdicts. Then invoke `mutation-testing` on the
@@ -116,10 +116,10 @@ Write `reports/test-health-<date>.md`.
 
 ### Test-design & mutation health (via /test-design + mutation-testing)
 <Farley Score — render the scope-labelled value from `/test-design`
-verbatim (one of `(all tests)`, `(under <dir>)`, `(changed since <ref>)`,
-`(under <dir>, changed since <ref>)`), or the literal `no in-scope test files`
-when the in-scope set was empty; do not synthesize a number. Top test-design
-themes · mutation ROI hotspots · under-covered critical logic>
+verbatim (`(all tests)` when this run is unscoped, `(under <dir>)` when
+`--path` is set), or the literal `no in-scope test files` when the in-scope
+set was empty; do not synthesize a number. Top test-design themes ·
+mutation ROI hotspots · under-covered critical logic>
 
 ### Gap classification
 | Gap | Class (NO_REFACTOR / REFACTOR_REQUIRED / LOW_VALUE) | Note |

@@ -10,6 +10,7 @@ description: >-
   writing a suite for an untested module. For a single unit, pass
   --advise --path <file>. Advisory — it recommends, it does not edit.
 argument-hint: "[--path <dir>] [--since <ref>] [--advise]"
+role: orchestrator
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(git diff *), Skill, Agent
 ---
