@@ -58,6 +58,29 @@ timeout_seconds    = max(60, suite_time_seconds × 10)
 
 For tool-specific flag names and config-file keys (e.g. Stryker's `timeoutMS`, pitest's `--timeoutConst`), see the matching [`references/languages/<lang>.md`](references/languages/). Document the chosen timeout in the output summary.
 
+## Step 1c: Smoke gate — verify the tool is actually observing mutations
+
+Before running the full scan, run the tool against **one covered file** and confirm the mutation-switch mechanism is actually observing mutations at runtime. On some tool + test-framework combinations (issue [#554](https://github.com/bdfinst/agentic-dev-team/issues/554), [#557](https://github.com/bdfinst/agentic-dev-team/issues/557) on Stryker.NET + xunit.v3 + MTP), the tool cheerfully runs to completion but reports **every mutant as `Survived`** because the injected `ActiveMutation` env var never reaches the test host — the score looks like `0.00 %` but the run wasted hours. This gate catches that failure mode in one file's worth of wall-clock time.
+
+**Deterministic parse source.** Parse the tool's **report JSON** (Stryker's `StrykerOutput/<run>/reports/mutation-report.json`, pitest's `target/pit-reports/mutations.xml`, mutmut's `.mutmut-cache` export, etc.). **Do not parse stdout, the ANSI progress reporter output, or any log tail** — those are lossy, reporter-config-dependent, and don't survive redirection (see `## Capturing run output safely`). The gate is deterministic only when it reads the same artifact downstream steps read.
+
+**Three-way decision** (from the parsed counts):
+
+1. **`Killed > 0`** — the mutation-switch mechanism is working. **Proceed** to Step 2's full run.
+2. **`Killed == 0 && Survived > 0`** — the tool ran the test suite for every mutant and killed **none of them**. This is the mutation-switch-not-observing-mutations failure mode. **Halt** with an error message that:
+   - names the failure mode (mutation-switch not observing mutations at runtime),
+   - references issues #554 and #557 for the observed Stryker.NET / xunit.v3 / MTP case,
+   - and enumerates the diagnostic checklist below.
+3. **`Killed == 0 && Survived == 0`** (no-signal probe — all mutants `NoCoverage`, `CompileError`, or none generated) — the probe file provides no configuration signal. **Halt** and instruct the operator to pick a different probe file with real test coverage; a probe with no scored mutants can't distinguish "tool is broken" from "tool works but this file has no tests."
+
+**Diagnostic checklist** (for the mutation-switch failure mode — walk this before touching any config):
+
+- [ ] **Manual mutation kills the test?** Edit one covered line of the probe file, rebuild, run the specific test that covers it — does that test fail? If yes, the tests can observe changes but the tool's mutation-switch isn't activating them at runtime.
+- [ ] **`SolutionPath` in the config?** Multi-project configs that set both `SolutionPath` and an explicit test-projects list may see the tool enumerate additional test projects from the solution and prefer them over the ones listed. Verify the tool is actually running the test project you configured (`--diag` output on Stryker.NET; equivalent flag on other tools). See `references/languages/csharp-stryker-net.md` § SolutionPath trap.
+- [ ] **Unintended test-project enumeration?** Confirm no other test project in the solution is being picked up ahead of yours. If the tool is running the wrong test project, the smoke gate will fail even though the tool and configured tests are both fine in isolation.
+
+Per-language commands (which probe file to pick, how to invoke the tool with a single-file mutate glob, and where the report JSON lands) live in each [`references/languages/<lang>.md`](references/languages/). This step's decision procedure is language-agnostic; the mechanics are language-specific.
+
 ## Step 2: Run the tool (scoped to target)
 
 Run scoped to user-specified files or changed files. Capture full output and note any HTML report paths. Per-language commands and scoping idioms — including the C# shard-aware execution path for large repos — live in [`references/languages/<lang>.md`](references/languages/).

@@ -3718,6 +3718,10 @@
       "summary": "Set a per-mutant wall-clock timeout before running.",
       "anchor": "step-1b-configure-per-mutant-timeout"
     },
+    "Step 1c: Smoke gate — verify the tool is actually observing mutations": {
+      "summary": "Before running the full scan, run the tool against **one covered file** and confirm the mutation-switch mechanism is actually observing mutations at runtime.",
+      "anchor": "step-1c-smoke-gate-verify-the-tool-is-actually-observing-mutations"
+    },
     "Step 2: Run the tool (scoped to target)": {
       "summary": "Run scoped to user-specified files or changed files.",
       "anchor": "step-2-run-the-tool-scoped-to-target"
