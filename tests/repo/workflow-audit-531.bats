@@ -89,3 +89,25 @@ structural_gate_block() {
   count=$(echo "$block" | grep -c 'eval_grader_tests.bats' || true)
   [ "$count" -ge 1 ]
 }
+
+# ---------------------------------------------------------------------------
+# Slice 3 — link-check.yml documents its intentional local/CI split
+# ---------------------------------------------------------------------------
+
+@test "531-3.1a: link-check.yml references chk_nav_integrity (the local counterpart)" {
+  run grep -c 'chk_nav_integrity' "$LINK_CHECK"
+  [ "$status" -eq 0 ]
+  [ "$output" -ge 1 ]
+}
+
+@test "531-3.1b: link-check.yml names mkdocs as a CI-only tool" {
+  run grep -ci 'mkdocs' "$LINK_CHECK"
+  [ "$status" -eq 0 ]
+  [ "$output" -ge 1 ]
+}
+
+@test "531-3.1c: link-check.yml names lychee as a CI-only tool" {
+  run grep -ci 'lychee' "$LINK_CHECK"
+  [ "$status" -eq 0 ]
+  [ "$output" -ge 1 ]
+}
