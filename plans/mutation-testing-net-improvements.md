@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: issue-528
-**Status**: approved
+**Status**: in-progress
 **Spec**: docs/specs/mutation-testing-net-improvements.md
 **Issue**: #528
 
@@ -363,15 +363,15 @@ Steps 1.6 (complex — new flag + orchestration section), 1.2/1.3/1.4/1.5/1.7/2.
 
 #### Wave 1
 
-- [ ] Slice 1: Update `mutation-kill.md` (scores, NoCoverage, build-first, infra exclusion, `--parallel`, unkillable patterns)
-  - [ ] Step 1.1: Update honest-score assertion in bats
-  - [ ] Step 1.2: Update honest score section + add reported score
-  - [ ] Step 1.3: Add NoCoverage-first prioritization test + section
-  - [ ] Step 1.4: Add build-first step test + Step 0 in Loop
-  - [ ] Step 1.5: Add infrastructure exclusion detection test + section
-  - [ ] Step 1.6: Add `--parallel <n>` flag test + Parallel-execution section
-  - [ ] Step 1.7: Add structurally-untestable patterns test + expanded section
-  - [ ] Step 1.8: Verify agent-audit and full bats suite
+- [x] Slice 1: Update `mutation-kill.md` (scores, NoCoverage, build-first, infra exclusion, `--parallel`, unkillable patterns)
+  - [x] Step 1.1: Update honest-score assertion in bats
+  - [x] Step 1.2: Update honest score section + add reported score
+  - [x] Step 1.3: Add NoCoverage-first prioritization test + section
+  - [x] Step 1.4: Add build-first step test + Step 0 in Loop
+  - [x] Step 1.5: Add infrastructure exclusion detection test + section
+  - [x] Step 1.6: Add `--parallel <n>` flag test + Parallel-execution section
+  - [x] Step 1.7: Add structurally-untestable patterns test + expanded section
+  - [x] Step 1.8: Verify agent-audit and full bats suite
 - [ ] Slice 2: Update `csharp-stryker-net.md` (`--since`, mutate-glob template, NoCoverage denominator note)
   - [ ] Step 2.1: Add `--since` incremental-run subsection
   - [ ] Step 2.2: Add infrastructure exclusion mutate-glob template
@@ -382,12 +382,12 @@ Steps 1.6 (complex — new flag + orchestration section), 1.2/1.3/1.4/1.5/1.7/2.
 
 ### Acceptance Criteria
 
-- [ ] AC1: Honest score formula updated
-- [ ] AC2: NoCoverage-first prioritization documented (≥ 3 mentions)
-- [ ] AC3: Infrastructure exclusion detection section with thresholds + patterns + log format
-- [ ] AC4: `--parallel <n>` flag + Parallel-execution section
-- [ ] AC5: "Build first" step precedes the Loop
-- [ ] AC6: Structurally-untestable patterns catalog (all three)
+- [x] AC1: Honest score formula updated
+- [x] AC2: NoCoverage-first prioritization documented (≥ 3 mentions)
+- [x] AC3: Infrastructure exclusion detection section with thresholds + patterns + log format
+- [x] AC4: `--parallel <n>` flag + Parallel-execution section
+- [x] AC5: "Build first" step precedes the Loop
+- [x] AC6: Structurally-untestable patterns catalog (all three)
 - [ ] AC7: `--since` incremental-run pattern with verification-config trap
 - [ ] AC8: Infrastructure exclusion `mutate` glob template
 - [ ] AC9: NoCoverage denominator note
