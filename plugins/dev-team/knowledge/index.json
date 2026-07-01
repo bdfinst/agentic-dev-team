@@ -3711,7 +3711,7 @@
       "anchor": "step-0-confirmation-gate"
     },
     "Step 1: Detect or set up tooling": {
-      "summary": "Use [`references/tool-detection.md`](references/tool-detection.md) to resolve the project's ecosystem to a mutation tool, then load the matching `references/languages/<lang>.md` for install and run commands.",
+      "summary": "**Prefer a local install** over a global one.",
       "anchor": "step-1-detect-or-set-up-tooling"
     },
     "Step 1b: Configure per-mutant timeout": {
