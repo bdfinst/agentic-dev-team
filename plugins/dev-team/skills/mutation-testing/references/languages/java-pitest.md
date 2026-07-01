@@ -4,6 +4,8 @@ Tool: [pitest](https://pitest.org/). Detection: `pom.xml` or `build.gradle` has 
 
 ## Install / detect
 
+Both install paths are **project-scoped by design** — the Maven `<plugin>` declaration and the Gradle `info.solidsoft.pitest` plugin resolve through the build tool's own dependency resolution, not through any user-configured `PATH`. There is no meaningful "global" alternative to pitest, so this language avoids the silent-failure trap the skill's "prefer local install" note is guarding against.
+
 Maven:
 
 ```xml
@@ -15,6 +17,16 @@ Maven:
 ```
 
 Gradle: add the `info.solidsoft.pitest` plugin.
+
+Confirm the plugin resolves before configuring a run:
+
+```bash
+# Maven: prints the help header for the mutationCoverage goal
+./mvnw org.pitest:pitest-maven:help -Ddetail=true -Dgoal=mutationCoverage | head -1
+
+# Gradle: lists the pitest tasks the plugin registers
+./gradlew tasks --group=pitest
+```
 
 ## Run (scoped)
 
