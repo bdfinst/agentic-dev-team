@@ -115,11 +115,11 @@ Write `reports/test-health-<date>.md`.
 <one-paragraph summary + link to its report>
 
 ### Test-design & mutation health (via /test-design + mutation-testing)
-<Farley Score with scope label — one of `(all tests)`, `(under <path>)`,
-`(changed since <ref>)`, `(under <path>, changed since <ref>)`, or the
-literal `no in-scope test files` when the in-scope set was empty; render
-the label /test-design returned verbatim — do not synthesize a number.
-Top test-design themes · mutation ROI hotspots · under-covered critical logic>
+<Farley Score — render the scope-labelled value from `/test-design`
+verbatim (one of `(all tests)`, `(under <dir>)`, `(changed since <ref>)`,
+`(under <dir>, changed since <ref>)`), or the literal `no in-scope test files`
+when the in-scope set was empty; do not synthesize a number. Top test-design
+themes · mutation ROI hotspots · under-covered critical logic>
 
 ### Gap classification
 | Gap | Class (NO_REFACTOR / REFACTOR_REQUIRED / LOW_VALUE) | Note |

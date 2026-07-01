@@ -4707,7 +4707,7 @@
       "anchor": "2-dispatch-review-agents-parallel"
     },
     "3. Score the in-scope tests (Farley Score)": {
-      "summary": "Compute a Farley Score over the same file set already resolved in Step 1 — do",
+      "summary": "Using the file set already resolved in Step 1 (Step 1 is the single",
       "anchor": "3-score-the-in-scope-tests-farley-score"
     },
     "4. Run the advisor (when applicable)": {
