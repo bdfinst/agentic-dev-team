@@ -1181,6 +1181,10 @@
     "The rule in one line": {
       "summary": "When both agents run, `test-smell-review` defers the pure mechanics (missing",
       "anchor": "the-rule-in-one-line"
+    },
+    "test-smell-review ↔ test-design-advisor — remedy division": {
+      "summary": "`test-smell-review` and `test-design-advisor` both draw remedy guidance from the",
+      "anchor": "test-smell-review-test-design-advisor-remedy-division"
     }
   },
   "plugins/dev-team/knowledge/test-smells.md": {
