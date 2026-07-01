@@ -241,3 +241,11 @@ Plan tier: **standard** — 1 slice, ≤ 4 files, no `complex` step, no high-rev
 - **spec-compliance-review**: `pass` — all 7 spec ACs and 9 plan ACs met, all 8 Gherkin scenarios have bats guards, no scope violations.
 - **doc-review**: `warn` — flagged `<dir>` vs `<path>` metavariable drift across the two SKILLs. Fixed (standardised on `<dir>` everywhere).
 - **token-efficiency-review**: `warn` — flagged label-form enumeration restated across three sites. Fixed (collapsed the report-header restatement to a single line pointing at Step 3, trimmed hedging in Step 3 and Step 6).
+
+## Final /code-review Summary
+
+- **arch-review**: `pass` — dependency direction preserved (farley-score → test-design → test-health); no layer boundary violation; sibling-pattern consistency verified.
+- **claude-setup-review**: `warn` (3 findings) — 2 fixed: added `role: orchestrator` to test-design frontmatter; trimmed unreachable `(changed since <ref>)` label variants from test-health Output block (test-health parses only `--path`). 1 skipped: folded-scalar cosmetic on test-health `description:` — out of scope for #533.
+- **test-review**: `warn` (5 findings) — 5 fixed: intersection-semantics grep no longer matches bare English words; unscoped-branch assertion pins branch-specific phrasing; Output-block scope-label check is section-scoped; added negative assertions for the remaining stale whole-suite phrases; added positive assertion pinning "single scope-resolution authority". All four tightened guards verified to fail against origin/main.
+
+**Branch Farley Score**: 8.9 / 10 (Good, borderline Exemplary) — 6 Exemplary, 8 Good, 0 below.
