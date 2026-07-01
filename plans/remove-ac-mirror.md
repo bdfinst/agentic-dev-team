@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: feat/526-remove-ac-mirror
-**Status**: approved
+**Status**: implemented
 **Spec**: docs/specs/remove-ac-mirror.md
 **Issue**: <https://github.com/bdfinst/agentic-dev-team/issues/526>
 
@@ -187,15 +187,15 @@ No `complex` steps.
 
 #### Wave 1
 
-- [ ] Slice 1: Remove the AC mirror from `/plan`'s template + update Step 4 prose
-  - [ ] Step 1.1: Remove the mirror block + update Step 4 prose + regression bats
+- [x] Slice 1: Remove the AC mirror from `/plan`'s template + update Step 4 prose
+  - [x] Step 1.1: Remove the mirror block + update Step 4 prose + regression bats
 
 #### Wave 2
 
-- [ ] Slice 2: Remove `/build`'s AC-tick instruction
-  - [ ] Step 2.1: Remove line 119's AC-tick instruction + regression bats
+- [x] Slice 2: Remove `/build`'s AC-tick instruction
+  - [x] Step 2.1: Remove line 119's AC-tick instruction + regression bats
 
 #### Wave 3
 
-- [ ] Slice 3: Belt-and-suspenders — assert guardian tests still green
-  - [ ] Step 3.1: Add cross-suite regression assertion + inner-skip preservation check
+- [x] Slice 3: Belt-and-suspenders — assert guardian tests still green
+  - [x] Step 3.1: Add cross-suite regression assertion + inner-skip preservation check
