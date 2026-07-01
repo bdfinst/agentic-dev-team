@@ -398,8 +398,8 @@ No `LOW_VALUE` findings.
 
 ### Wave 3
 
-- [ ] Slice 3: Document the constraint and required user action
-  - [ ] Step 3.1: Document the required setting + scope
+- [x] Slice 3: Document the constraint and required user action
+  - [x] Step 3.1: Document the required setting + scope
 
 ## Plan Review Summary
 
