@@ -1,6 +1,6 @@
 # Agentic Dev Team
 
-[![Tests](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml)
+[![Plugin tests](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml)
 [![Docs checks](https://github.com/bdfinst/agentic-dev-team/actions/workflows/link-check.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/link-check.yml)
 [![Docs deploy](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml)
 

@@ -120,7 +120,7 @@ Feature: link-check.yml documents its intentional local/CI split
 #### Step 3.1: Add local/CI split comment + regression bats
 
 **Complexity**: trivial
-**RED**: Extend `tests/repo/workflow-audit-531.bats` with three `@test` blocks asserting `chk_nav_integrity`, `mkdocs`, and `lychee` each appear at least once in `.github/workflows/link-check.yml`. Run `bats`; all three fail.
+**RED (honest — lock-in rather than TDD-first)**: Extend `tests/repo/workflow-audit-531.bats` with `@test` blocks asserting `chk_nav_integrity`, `mkdocs`, and `lychee` each appear at least once in `.github/workflows/link-check.yml`, AND a `531-3.1d` block requiring the top-level `# Relationship to the local gate` comment header (added by this slice). The three token-presence assertions were already green against the pre-existing file — those tokens appear inline in step comments and action names. They land as regression lock-in against a future removal of `mkdocs`/`lychee` from CI. Only 3.1d (the comment-header assertion) is a true RED-first driver: it fails until this slice's edit lands.
 **GREEN**: Edit `.github/workflows/link-check.yml`: add a `#`-prefixed comment block near the top (above `jobs:`) explaining that this workflow is a CI-only superset of `chk_nav_integrity` in `scripts/ci-local.sh`, and that `mkdocs build` + `lychee` stay CI-only so they don't become local prereqs. Run `bats`; all assertions pass.
 **REFACTOR**: None.
 **Files**: `.github/workflows/link-check.yml`, `tests/repo/workflow-audit-531.bats`
@@ -164,7 +164,7 @@ No `complex` steps.
 ## Risks & Open Questions
 
 - **Risk:** The `structural-gate` bats extraction (Slice 2) uses `awk` to scope grep to the job block. If YAML indentation shifts (e.g. someone re-indents the file to 4-space), the awk pattern breaks. **Mitigation:** the pattern `awk '/^  structural-gate:/,/^  [a-z_-]+:$/'` anchors on GitHub Actions' canonical 2-space indent, matching what the file uses today. If the file is ever re-indented, the bats test fails loudly (not silently) — pointing directly at the assumption.
-- **Risk:** Branch protection rules on the repo may reference workflow names *as well as* job names (e.g. required check `Tests / Plugin content & hooks` in the ruleset). Verified during spec-writing: `agent-eval.yml` lines 82-90 already document that "Job name is a REQUIRED status-check context" — the ruleset is on job names, not workflow prefixes. **Mitigation:** if this turns out to be wrong at merge time, revert this PR (safe rename) and reopen with a `renovate-require-tests` update.
+- **Risk:** Branch protection rules on the repo may reference workflow names *as well as* job names (e.g. required check `Tests / Plugin content & hooks` in the ruleset). Verified during spec-writing: `agent-eval.yml`'s `semver-contract` job header comment already documents that "Job name is a REQUIRED status-check context" — the ruleset is on job names, not workflow prefixes. **Mitigation:** if this turns out to be wrong at merge time, revert this PR (safe rename) and reopen with a `renovate-require-tests` update.
 - **Open question:** None — all decisions locked in the spec's Ambiguity Log.
 
 ## Build Progress

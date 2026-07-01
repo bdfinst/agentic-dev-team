@@ -26,7 +26,7 @@ This change makes three fixes that improve discoverability and remove one real d
 
 **Public surface preserved:**
 
-- **Job names** are unchanged. Branch protection rules match on job name, not workflow name. The four PR checks that exist today (`Eval corpus & graders`, `Eval corpus semver`, `Eval live regression (opt-in)`, `Eval integration tier (opt-in)`, `Plugin content & hooks`, `Shell scripts & suite`, `Cost regression`, `Semgrep rule fixtures`, `Red-team harness smoke`) continue to exist with those exact names.
+- **Job names** are unchanged. Branch protection rules match on job name, not workflow name. The nine PR checks that exist today (`Eval corpus & graders`, `Eval corpus semver`, `Eval live regression (opt-in)`, `Eval integration tier (opt-in)`, `Plugin content & hooks`, `Shell scripts & suite`, `Cost regression`, `Semgrep rule fixtures`, `Red-team harness smoke`) continue to exist with those exact names.
 - **Trigger events** are unchanged (`push`, `pull_request`).
 - **Job order and dependencies** are unchanged.
 - **The set of commands each job runs** is functionally unchanged: `--only=chk_eval_corpus` runs exactly `python3 scripts/eval_grade.py --check-corpus` (line 154 of ci-local.sh); `--only=chk_citation_lint` runs exactly `python3 scripts/citation_lint.py --all` (line 156). Same commands, one indirection layer.
@@ -40,7 +40,7 @@ This change makes three fixes that improve discoverability and remove one real d
 
 **Risk surface:**
 
-- **Branch protection compatibility.** The rename risks nothing because branch protection matches on job names, not workflow names. Job names are untouched. Verified during spec-writing by inspecting `agent-eval.yml` lines 82-90: each job explicitly documents "Job name is a REQUIRED status-check context ... Keep it paren-free and issue-number-free" — the workflow authors already understood this distinction.
+- **Branch protection compatibility.** The rename risks nothing because branch protection matches on job names, not workflow names. Job names are untouched. Verified during spec-writing by inspecting `agent-eval.yml` the semver-contract job header comment: each job explicitly documents "Job name is a REQUIRED status-check context ... Keep it paren-free and issue-number-free" — the workflow authors already understood this distinction.
 - **Actions tab lookup by workflow name.** External integrations (dashboards, log-searches) that filter by workflow name will see the new labels. This repo has no such known integration. Verified by grepping for `workflow: Tests` and `workflow: Eval` — no other file references them.
 - **Cache invalidation.** The apt-cache keys use `${{ hashFiles('**/*.yml') }}` which will change when the workflow files are edited — one cache miss on first run after merge, no ongoing impact.
 
@@ -79,7 +79,7 @@ Diff verification: `git diff origin/main..HEAD -- .github/workflows/*.yml | grep
 |----------|---------------|-------------|-------------------|
 | Which structural-gate steps to migrate to `--only` | `requires-stakeholder-input`, resolved at spec-write time | inference from ci-local.sh grep | Only `chk_eval_corpus` and `chk_citation_lint` — those are the two ci-local functions with an exact 1:1 command match. The bats-list step (4 specific files) has no matching helper; migrating it would double-run the whole `tests/repo/` dir. |
 | Workflow renames — should we also touch job names? | `inferable` | inference | No. Job names are branch-protection contexts. Touching them would require updating branch protection rules externally, which is out of scope. Issue #531 also explicitly says "Job names are unchanged (they're what branch protection matches on)." |
-| Comment format in `link-check.yml` | `inferable` | inference | YAML `#`-prefixed comment block above `jobs:`. Matches the comment style already used in `agent-eval.yml` (lines 82-90) and `pr-title-lint.yml`. No new format invented. |
+| Comment format in `link-check.yml` | `inferable` | inference | YAML `#`-prefixed comment block above `jobs:`. Matches the comment style already used in `agent-eval.yml` (the semver-contract job header comment) and `pr-title-lint.yml`. No new format invented. |
 | PR title convention (`chore(ci):` vs `refactor(ci):` vs `feat(ci):`) | `inferable` | inference | `chore(ci):` — this is workflow-config maintenance with no user-visible behavior change and no functional change to the checks CI runs. release-please treats `chore:` as no-version-bump, which is correct: neither the plugin ships nor changes. |
 | Whether to remove the workflow-name literal from job body-comment references | `inferable` | inference | No changes to internal comments referencing the old names (if any exist) — spec is bounded to the four surfaces named in Architecture Specification. A grep-cleanup could be done in a follow-up if drift becomes visible. |
 | Add-eslint-to-CI and apt-cache-extraction | `requires-stakeholder-input`, resolved by user in issue #531 body | issue #531 out-of-scope section | Both parked for future PRs. Not touching them. |
