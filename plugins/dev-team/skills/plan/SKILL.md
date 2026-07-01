@@ -211,17 +211,11 @@ This section is the machine-parseable recovery handle. `/build` updates checkbox
 #### Wave 2
 - [ ] Slice 2: <title>
   - [ ] Step 2.1: <title>
-
-### Acceptance Criteria
-
-- [ ] <Criterion 1 — mirrors the Acceptance Criteria section above>
-- [ ] <Criterion 2>
-- [ ] <Criterion 3>
 ````
 
 ### 4. Create the plans directory
 
-Create `plans/` if it doesn't exist. When writing the plan file, populate the `## Build Progress` section by copying slice and step titles from `## Slices` and criteria from `## Acceptance Criteria`. These are the checkboxes `/build` will update on disk as each step completes — a slice is checked off once all its steps are.
+Create `plans/` if it doesn't exist. When writing the plan file, populate the `## Build Progress` section by copying slice and step titles from `## Slices`. These are the checkboxes `/build` will update on disk as each step completes — a slice is checked off once all its steps are. Acceptance Criteria live only in the top-level `## Acceptance Criteria` section as PR-checklist material; the operator ticks each one at PR review time after behaviorally verifying it, not during build.
 
 Then derive the waves — never hand-author them:
 
