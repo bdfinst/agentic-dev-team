@@ -3,6 +3,14 @@
 FIXTURE="${STRYKER_NET_FIXTURE:-}"
 REPORT_DIR="${STRYKER_NET_REPORT_DIR:-StrykerOutput}"
 mkdir -p "$REPORT_DIR"
+
+# Log every argv element (one per line) to DOTNET_ARGV_LOG when set,
+# so adapter tests can grep the exact command line. Redirect to /dev/null
+# when unset — no side-effect for tests that don't opt in.
+_argv_log="${DOTNET_ARGV_LOG:-/dev/null}"
+for _a in "$@"; do
+  printf '%s\n' "$_a" >>"$_argv_log"
+done
 if [ "${STRYKER_NET_TIMEOUT:-0}" = "1" ]; then
   exit 124
 fi
