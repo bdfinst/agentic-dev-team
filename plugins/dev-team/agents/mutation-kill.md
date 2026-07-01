@@ -121,6 +121,40 @@ If the build fails, **stop** — do not proceed to any round. **Never use
 `--no-build` on the test command during mutation testing.** Stryker instruments
 the build; `--no-build` runs against whatever binary happens to be on disk.
 
+## Infrastructure exclusion detection (before the loop starts)
+
+After parsing the baseline report and before entering the file-by-file loop,
+scan the report for files that are almost certainly infrastructure — DI wiring,
+exception handlers, middleware, generated code — where mutations cannot be
+killed by the available test surface. Two signals in combination flag a file:
+
+- `score < 15%`
+- `NoCoverage > 50%` of effective mutants (total − Ignored − CompileError)
+
+If both hold **and** the filename matches one of:
+
+```
+Startup.cs        Program.cs         *Filter.cs        *Middleware.cs
+*Logger*.cs       *HealthCheck*.cs   *.Designer.cs
+```
+
+… ask (once, batched for the whole scan): *"Are these mutations in DI
+registration, exception handlers, middleware, or generated code that this
+test surface cannot reach?"*
+
+- **Yes** → add the file to the `mutate` exclusion list with a documented reason
+  and log:
+
+  ```
+  EXCLUDED <file> — <reason>: <mutation types> are equivalent in <test surface>
+  ```
+
+- **No** → keep in scope; the file's poor score is real coverage debt, not
+  infrastructure.
+
+This is the same `EXCLUDED` log format used for the [structurally unkillable
+files](#structurally-unkillable-files) section — a single audit trail either way.
+
 ## Loop (per file)
 
 ```

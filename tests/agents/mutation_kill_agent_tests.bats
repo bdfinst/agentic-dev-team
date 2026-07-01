@@ -47,6 +47,23 @@ REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/agent-registry.md"
   grep -Eqi 'never.*--no-build|do not use.*--no-build|not.*--no-build' "$AGENT"
 }
 
+@test "infrastructure exclusion detection: thresholds, file patterns, and log format" {
+  # Numeric thresholds
+  grep -Eq '15%' "$AGENT"
+  grep -Eq '50%' "$AGENT"
+  # Filename patterns
+  grep -Eq 'Startup\.cs' "$AGENT"
+  grep -Eq 'Program\.cs' "$AGENT"
+  grep -Eq '\*Filter\.cs' "$AGENT"
+  grep -Eq '\*Middleware\.cs' "$AGENT"
+  grep -Eq '\*Logger\*\.cs' "$AGENT"
+  grep -Eq '\*HealthCheck\*\.cs' "$AGENT"
+  grep -Eq '\*\.Designer\.cs' "$AGENT"
+  # EXCLUDED log-line format is already asserted elsewhere; here just confirm
+  # the infra-exclusion section references it.
+  grep -Eqi 'EXCLUDED' "$AGENT"
+}
+
 @test "warns that shard and full-run scores are not comparable" {
   grep -Eqi 'shard' "$AGENT"
   grep -Eqi 'not comparable|never (mix|compare)|prohibit.*compar' "$AGENT"
