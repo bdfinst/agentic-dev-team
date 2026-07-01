@@ -3747,7 +3747,7 @@
       "anchor": "step-5-fix-and-verify"
     },
     "Output format": {
-      "summary": "Report the **honest score** as the operator's primary signal.",
+      "summary": "Report the **honest** figure as the operator's primary signal.",
       "anchor": "output-format"
     },
     "Machine-readable output": {

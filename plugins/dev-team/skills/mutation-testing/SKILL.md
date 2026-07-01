@@ -178,17 +178,19 @@ expect(db.save).toHaveBeenCalledWith(order);  // catches removed save()
 
 ## Output format
 
-Report the **honest score** as the operator's primary signal. The claimed score (Stryker's headline) counts timeouts as kills and can inflate — on a real run 999 of 1305 reported "kills" were timeouts, so 61 % claimed corresponded to 23 % honest. Show both, honest above claimed, and emit the timeout warning when it fires. Formula derivation is documented in the [Machine-readable output](#machine-readable-output) section.
+Report the **honest** figure as the operator's primary signal. Tool-claimed scoring counts timeouts as kills and inflates — on a real Stryker.NET run, 999 of 1305 headline "kills" were timeouts (~23 % honest vs. ~61 % as Stryker reported it). Show both, honest above claimed, and emit the timeout warning when it fires. Formula derivation is documented in the [Machine-readable output](#machine-readable-output) section.
+
+The illustrative counts below are self-consistent under those formulas (verify: `100 / (100+200+135) = 23.0 %`; `(100+430) / (100+200+430+135) = 61.3 %`; `430 / (100+200+430) = 58.9 %`). Do not tune wording without re-checking the arithmetic.
 
 ```markdown
 ## Mutation Testing Results
 
 **Tool:** Stryker 8.x | **Scope:** src/calculator.ts | **Duration:** 45s | **Per-mutant timeout:** 60s
-**Honest score:** 23.1% (306 killed / 1325 = killed + survived + no-coverage)
-**Claimed score:** 61.3% (killed + timeout / killed + survived + timeout + no-coverage)
+**Honest score:** 23.0% (100 killed of 435 candidates; candidates = killed + survived + no-coverage)
+**Claimed score:** 61.3% ((killed + timeout) / (killed + survived + timeout + no-coverage))
 
-> ⚠️ **Timeout warning:** 76.5% of run outcomes were timeouts. The claimed score is
-> not trustworthy — raise `additional-timeout` (per-tool flag; see the language reference)
+> ⚠️ **Timeout warning:** 58.9% of run outcomes were timeouts (430 of 730). The claimed score
+> is not trustworthy — raise `additional-timeout` (per-tool flag; see the language reference)
 > before treating either score as a gate.
 
 ### Surviving Mutants

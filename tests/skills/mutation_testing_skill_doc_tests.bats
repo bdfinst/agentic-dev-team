@@ -118,24 +118,63 @@ CSHARP="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/refere
 }
 
 # --- Slice 1 · AC-6: emitting-adapters list ---------------------------------
+#
+# These tests must guard the AC-6 "Emitting adapters" paragraph, NOT the
+# pre-existing native-report cross-link that happens to also name the adapters.
+# Scope each check to a window that starts at the "Emitting adapters" heading
+# in the Machine-readable output section.
 
-@test "SKILL: schema section names Stryker.NET as an emitting adapter" {
-  run awk '/^## Machine-readable output/{f=1;next} /^## /{f=0} f && /Stryker\.NET/{found=1} END{exit !found}' "$SKILL"
+@test "SKILL: 'Emitting adapters' paragraph exists in the schema section" {
+  run awk '
+    /^## Machine-readable output/     { f=1; next }
+    /^## /                            { f=0 }
+    f && /[Ee]mitting adapters/       { found=1 }
+    END                               { exit !found }
+  ' "$SKILL"
   [ "$status" -eq 0 ]
 }
 
-@test "SKILL: schema section names pitest as an emitting adapter" {
-  run awk '/^## Machine-readable output/{f=1;next} /^## /{f=0} f && /pitest/{found=1} END{exit !found}' "$SKILL"
+@test "SKILL: Emitting adapters paragraph names Stryker.NET as an emitter" {
+  run awk '
+    /^## Machine-readable output/     { section=1; next }
+    /^## /                            { section=0 }
+    section && /[Ee]mitting adapters/ { window=1 }
+    window && /Stryker\.NET/          { found=1 }
+    END                               { exit !found }
+  ' "$SKILL"
   [ "$status" -eq 0 ]
 }
 
-@test "SKILL: schema section names mutmut as an emitting adapter" {
-  run awk '/^## Machine-readable output/{f=1;next} /^## /{f=0} f && /mutmut/{found=1} END{exit !found}' "$SKILL"
+@test "SKILL: Emitting adapters paragraph names pitest as an emitter" {
+  run awk '
+    /^## Machine-readable output/     { section=1; next }
+    /^## /                            { section=0 }
+    section && /[Ee]mitting adapters/ { window=1 }
+    window && /pitest/                { found=1 }
+    END                               { exit !found }
+  ' "$SKILL"
   [ "$status" -eq 0 ]
 }
 
-@test "SKILL: schema section notes go-mutesting omits the new fields (advisory-only)" {
-  run awk '/^## Machine-readable output/{f=1;next} /^## /{f=0} f && /go-mutesting/ && /omit/{found=1} END{exit !found}' "$SKILL"
+@test "SKILL: Emitting adapters paragraph names mutmut as an emitter" {
+  run awk '
+    /^## Machine-readable output/     { section=1; next }
+    /^## /                            { section=0 }
+    section && /[Ee]mitting adapters/ { window=1 }
+    window && /mutmut/                { found=1 }
+    END                               { exit !found }
+  ' "$SKILL"
+  [ "$status" -eq 0 ]
+}
+
+@test "SKILL: Emitting adapters paragraph notes go-mutesting omits the new fields (advisory-only)" {
+  run awk '
+    /^## Machine-readable output/     { section=1; next }
+    /^## /                            { section=0 }
+    section && /[Ee]mitting adapters/ { window=1 }
+    window && /go-mutesting/ && /omit/{ found=1 }
+    END                               { exit !found }
+  ' "$SKILL"
   [ "$status" -eq 0 ]
 }
 
