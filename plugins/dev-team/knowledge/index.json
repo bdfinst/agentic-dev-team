@@ -3722,6 +3722,10 @@
       "summary": "Run scoped to user-specified files or changed files.",
       "anchor": "step-2-run-the-tool-scoped-to-target"
     },
+    "Capturing run output safely": {
+      "summary": "Do **not** wrap the mutation tool in a bare `<tool> 2>&1 | tee run.log` pipeline.",
+      "anchor": "capturing-run-output-safely"
+    },
     "Probe file selection": {
       "summary": "Before scoping the full run, pick a **probe file** — one file to shake out configuration and get a first honest signal.",
       "anchor": "probe-file-selection"
