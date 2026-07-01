@@ -10,6 +10,11 @@ source "$ADAPTER_LIB_DIR/lib.sh"
 
 STRYKER_NET_REPORT="${STRYKER_NET_REPORT:-StrykerOutput/mutation-report.json}"
 
+# Optional dev-loop opt-in: STRYKER_SINCE_TARGET=<git-ref> asks Stryker.NET
+# to mutate only source files changed since that ref (typically `main`). Set
+# on dev machines for fast iteration; leave unset in CI so the gate always
+# runs the full scan. Ignored when CI=true.
+
 # stryker_net_detect — returns 0 if Stryker.NET is available
 stryker_net_detect() {
   # Check dotnet-tools.json
@@ -123,6 +128,12 @@ stryker_net_run() {
 
   # Override output directory so gate runs don't stomp the full pipeline reports
   stryker_args+=(--output StrykerOutput/gate-shard)
+
+  # Dev-only: --since limits mutations to files changed vs the target ref.
+  # Skipped in CI (full run needed for the gate score).
+  if [ "${CI:-}" != "true" ] && [ -n "${STRYKER_SINCE_TARGET:-}" ]; then
+    stryker_args+=(--since:"$STRYKER_SINCE_TARGET")
+  fi
 
   local stryker_exit=0
   _timeout "$timeout" dotnet stryker "${stryker_args[@]}" \

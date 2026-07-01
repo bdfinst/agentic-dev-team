@@ -161,6 +161,72 @@ print(p.split('/**')[0])
 done
 ```
 
+## Incremental runs with `--since`
+
+For fast iteration during Phase-4 test-fix work, add a `since` block to the dev shard config so Stryker only mutates source files that changed vs a reference (typically `main`):
+
+```json
+// stryker-config.shard-<name>.json — development / Phase 4 fix loop
+{
+  "stryker-config": {
+    "since": {
+      "enabled": true,
+      "target": "main"
+    }
+  }
+}
+```
+
+Run with the dev config for fast feedback:
+
+```bash
+export DOTNET_ROOT="${DOTNET_ROOT:-/opt/homebrew/opt/dotnet/libexec}"
+dotnet build <solution> -c Debug --nologo
+dotnet stryker --config-file stryker-config.shard-webapi.json
+```
+
+**Trap — verification runs must NOT use `since`.** `--since` limits mutations to **source** files that changed since the git ref. Test-file changes do **not** trigger source-file mutations, so a verification run through a `--since` config silently produces **0 results** — no mutants, no report, no useful signal. Always keep a **separate** verification config (`stryker-config.verification.json` or equivalent) that is identical to the dev shard config **except** for having no `since` block:
+
+```bash
+# Full verification — no --since; mutates every source file in scope
+dotnet stryker --config-file stryker-config.verification.json -O StrykerOutput/verification
+```
+
+Adapter-side, `hooks/mutation-adapters/stryker-net.sh` reads `STRYKER_SINCE_TARGET` when `CI` is not `true` and appends `--since:$STRYKER_SINCE_TARGET` to the command line. Set the env var on dev machines; leave it unset in CI so the gate always runs the full scan.
+
+## Infrastructure exclusion `mutate` glob template
+
+DI wiring, exception handlers, and generated code produce mutations that no test surface can kill — dragging the score down without providing any signal. Exclude them from the `mutate` glob in the shard config:
+
+```json
+// stryker-config.shard-webapi.json
+{
+  "stryker-config": {
+    "mutate": [
+      "**/MyProject.WebAPI/**/*.cs",
+      "!**/Startup.cs",
+      "!**/Program.cs",
+      "!**/*ExceptionFilter.cs",
+      "!**/*ExceptionFormatter.cs",
+      "!**/*LoggerService.cs",
+      "!**/*.Designer.cs"
+    ]
+  }
+}
+```
+
+Pairs with the mutation-kill agent's [infrastructure exclusion detection](../../../../agents/mutation-kill.md#infrastructure-exclusion-detection-before-the-loop-starts) — the agent flags candidates at baseline scan time; this template is what actually removes them from the mutation set.
+
+## Score formula and NoCoverage
+
+Stryker.NET's own score formula (v4.x):
+
+```
+score = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
+```
+
+`NoCoverage` sits in the denominator even though those mutants are never executed. A file with 27 `NoCoverage` mutants at 0% score drags the overall score down more than a file with 20 `Survived` mutants at 70%. **Fix `NoCoverage` first** — any test that reaches the line kills a `NoCoverage` mutant, so ROI is higher than crafting value-specific assertions to kill hard `Survived` mutants. This mirrors the mutation-kill agent's [NoCoverage-first-class-signal](../../../../agents/mutation-kill.md#nocoverage-is-a-first-class-signal) guidance.
+
 ## Per-mutant timeout flag
 
 Configure in `stryker-config.yaml` (or the per-shard JSON config):

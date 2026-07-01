@@ -114,6 +114,64 @@ assert 'MUTATION GATE SKIPPED' in d['hookSpecificOutput']['additionalContext']
   [ $? -eq 0 ]
 }
 
+# ---------------------------------------------------------------------------
+# --since env-var pass-through (STRYKER_SINCE_TARGET)
+# ---------------------------------------------------------------------------
+
+@test "stryker_net_run: STRYKER_SINCE_TARGET=main + CI unset → --since:main in argv" {
+  mkdir -p "$TEST_PWD/StrykerOutput"
+  run bash -c "
+    cd '$TEST_PWD'
+    export PATH=\"$FAKE_BIN:\$PATH\"
+    export STRYKER_NET_FIXTURE='$FIXTURES/mutation-report-zero-kill.json'
+    export ADAPTER_TIMEOUT=10
+    export DOTNET_ARGV_LOG='$TMPDIR/argv.log'
+    export STRYKER_SINCE_TARGET=main
+    unset CI
+    source '$PLUGIN_DIR/hooks/mutation-adapters/stryker-net.sh'
+    stryker_net_run '$TMPDIR/mutation-gate/zero-kills.json'
+  "
+  [ "$status" -eq 0 ]
+  [ -f "$TMPDIR/argv.log" ]
+  grep -q -- '--since:main' "$TMPDIR/argv.log"
+}
+
+@test "stryker_net_run: STRYKER_SINCE_TARGET=main + CI=true → --since excluded" {
+  mkdir -p "$TEST_PWD/StrykerOutput"
+  run bash -c "
+    cd '$TEST_PWD'
+    export PATH=\"$FAKE_BIN:\$PATH\"
+    export STRYKER_NET_FIXTURE='$FIXTURES/mutation-report-zero-kill.json'
+    export ADAPTER_TIMEOUT=10
+    export DOTNET_ARGV_LOG='$TMPDIR/argv.log'
+    export STRYKER_SINCE_TARGET=main
+    export CI=true
+    source '$PLUGIN_DIR/hooks/mutation-adapters/stryker-net.sh'
+    stryker_net_run '$TMPDIR/mutation-gate/zero-kills.json'
+  "
+  [ "$status" -eq 0 ]
+  [ -f "$TMPDIR/argv.log" ]
+  ! grep -q -- '--since' "$TMPDIR/argv.log"
+}
+
+@test "stryker_net_run: STRYKER_SINCE_TARGET unset → --since excluded (baseline preserved)" {
+  mkdir -p "$TEST_PWD/StrykerOutput"
+  run bash -c "
+    cd '$TEST_PWD'
+    export PATH=\"$FAKE_BIN:\$PATH\"
+    export STRYKER_NET_FIXTURE='$FIXTURES/mutation-report-zero-kill.json'
+    export ADAPTER_TIMEOUT=10
+    export DOTNET_ARGV_LOG='$TMPDIR/argv.log'
+    unset STRYKER_SINCE_TARGET
+    unset CI
+    source '$PLUGIN_DIR/hooks/mutation-adapters/stryker-net.sh'
+    stryker_net_run '$TMPDIR/mutation-gate/zero-kills.json'
+  "
+  [ "$status" -eq 0 ]
+  [ -f "$TMPDIR/argv.log" ]
+  ! grep -q -- '--since' "$TMPDIR/argv.log"
+}
+
 @test "stryker_run and stryker_net_run are separate functions (not unified)" {
   run bash -c "
     source '$PLUGIN_DIR/hooks/mutation-adapters/stryker.sh'
