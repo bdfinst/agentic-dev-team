@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-01
 **Branch**: `Issue-521`
-**Status**: in-progress
+**Status**: implemented
 **Spec**: [docs/specs/mutation-testing-honest-score-and-triage.md](../docs/specs/mutation-testing-honest-score-and-triage.md)
 
 ## Goal
