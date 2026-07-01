@@ -36,11 +36,14 @@ Resolution Procedure in `agents/orchestrator.md`.
    structured JSON, not file dumps.
 3. **No double-reporting.** Apply `knowledge/test-review-division-of-labor.md`:
    when the same line appears in both `test-review` and `test-smell-review`,
-   keep the design-level framing and drop the duplicate. The same rule covers
-   remedy overlap between `test-smell-review` and `test-design-advisor` — both
-   name fixture/verification/organization patterns from the same knowledge set;
-   report each remedy once, preferring the advisor's forward-looking sequence
-   when it subsumes the smell-review note.
+   keep the design-level framing and drop the duplicate — record every such
+   drop in the report's `### Suppressed duplicates` section (see step 6).
+   For `test-smell-review` and `test-design-advisor`, no de-duplication is
+   required: per the "test-smell-review ↔ test-design-advisor — remedy
+   division" section of the knowledge doc, the smell agent cites the remedy
+   family (via `remedyFamily`) and the advisor names the specific remedy
+   pattern and refactor sequence — smell rows and advisor rows join
+   structurally on `remedyFamily`, not by prose match.
 4. **Be concise.** One aggregated report. Issue messages one sentence;
    recommendations map to a concrete next edit.
 5. **MinimumCD vocabulary.** Layer labels in the aggregated report use the
@@ -155,6 +158,14 @@ the terms actually used in the report>
 <testability table · pyramid placement (per-behavior, two-direction
 justification, NO target counts) · double strategy · refactor sequence ·
 E2E justification (only when E2E is recommended)>
+
+### Suppressed duplicates
+<Every drop constraint 3 performed at aggregation time. Each entry cites the
+finding's `file:line`, what was dropped (which agent's finding, keyed by
+smell/message), and the reason (e.g. "mechanics duplicate of Assertion
+Roulette owned by test-smell-review"). test-smell-review ↔ test-design-advisor
+overlaps are never listed here — they are joined structurally on
+`remedyFamily`, not dropped. Emit `_None._` when nothing was dropped.>
 
 ### Next steps
 - Mechanical fixes → /apply-fixes

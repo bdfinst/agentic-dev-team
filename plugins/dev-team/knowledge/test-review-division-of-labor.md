@@ -42,3 +42,37 @@ When both agents run, `test-smell-review` defers the pure mechanics (missing
 assertion, missing `await`, mock-reset) to `test-review`, and `test-review`
 defers the named-smell signals above to `test-smell-review`. `/test-design`
 drops any duplicate that slips through, keeping the design-level framing.
+
+## test-smell-review ↔ test-design-advisor — remedy division
+
+`test-smell-review` and `test-design-advisor` both draw remedy guidance from the
+same knowledge set (`fixture-construction.md`, `result-verification.md`,
+`test-organization.md`, `test-refactoring.md`). Rather than de-duplicate remedy
+prose at report time, the two components divide the row structurally.
+`test-smell-review` names the **smell + its remedy family** (the knowledge-file
+cite); `test-design-advisor` names the **specific remedy pattern** and its
+refactor sequence. `/test-design` joins the two on `remedyFamily` — no prose
+matching, no silent drops.
+
+| Column | Owner | Content |
+|---|---|---|
+| Smell name + location | test-smell-review | e.g. "Assertion Roulette at foo_test.js:42" |
+| Severity + confidence | test-smell-review | `error` / `warning` / `suggestion`; `high` / `medium` / `none` |
+| Remedy family (knowledge file) | test-smell-review | one of `fixture-construction`, `result-verification`, `test-organization`, `test-refactoring`, or `null` when no family applies |
+| Specific remedy pattern | test-design-advisor | e.g. "Expected Object", "Custom Assertion", "Creation Method", "Delta Assertion" |
+| Refactor sequence (behavior-preserving) | test-design-advisor | ordered steps from `test-refactoring.md` |
+| Forward-design placement (pyramid, doubles) | test-design-advisor | table row from `test-pyramid.md` / `test-doubles.md` |
+
+**Invocation rule.** When both components run together under `/test-design`,
+the advisor owns the remedy-pattern columns and `test-smell-review` cites the
+family only — the advisor's per-behavior recommendation is the specific fix.
+When `test-smell-review` runs solo (e.g. under `/code-review`, where the
+advisor is not dispatched), it fills the whole row: `suggestedFix` still names
+a specific pattern from the family (not just the family slug), so no downstream
+consumer is blocked on the advisor.
+
+**Grader alignment.** The eval grader (`scripts/eval_graders/verdict.py:40`)
+scans `issue.message` + `summary` prose for `mustMention` keywords. It does
+not read `remedyFamily` structurally. So `test-smell-review` also emits the
+family slug verbatim in the finding's `message` — this makes the family cite
+enforceable by existing fixtures without extending the grader.

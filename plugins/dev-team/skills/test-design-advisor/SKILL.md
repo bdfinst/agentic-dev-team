@@ -83,11 +83,15 @@ For each collaborator at each test, recommend the simplest double using the deci
 
 ### 3b. Recommend fixture and interaction strategy
 
+**Under `/test-design`**, the smell agent has already named the smell and its remedy family (via `remedyFamily`, per `knowledge/test-review-division-of-labor.md` § "test-smell-review ↔ test-design-advisor — remedy division"); this step supplies the specific remedy pattern from that family and its per-behavior application. When invoked standalone, this step supplies both the smell framing and the pattern.
+
 Using `knowledge/test-strategy.md`, recommend per test group: fixture design + lifecycle (default Minimal + Fresh; escalate to Immutable Shared → Shared only under measured speed pressure), how the test is driven (scripted default; data-driven when variation is purely data), and SUT interaction (front-door by default; Layer Test for layered code; Back Door Manipulation only when the front door obscures intent). Flag any reliance on a mutable Shared Fixture as an Interacting-Tests risk.
 
 For the construction **mechanics** that realize that strategy, recommend a specific pattern from `knowledge/fixture-construction.md` — Creation Method / Test Data Builder / Object Mother for building, the right setup location, and **Automated Teardown** for persistent fixtures — to fix fixture smells (Mystery Guest, General Fixture, Irrelevant Information, Test Code Duplication) at the root rather than only naming them.
 
 ### 3c. Recommend verification and test structure
+
+**Under `/test-design`**, the smell agent has already named the smell and its remedy family (via `remedyFamily`, per `knowledge/test-review-division-of-labor.md` § "test-smell-review ↔ test-design-advisor — remedy division"); this step supplies the specific remedy pattern from that family (result-verification and test-organization patterns) and its per-behavior application.
 
 Using `knowledge/result-verification.md`, recommend the assertion pattern that fixes verification smells: **Expected Object** for field-by-field clutter, **Custom Assertion / Verification Method** for repeated complex comparisons or poor failure messages, **Guard Assertion** before a precondition-dependent assertion, **Delta Assertion** against a baseline for shared/persistent fixtures — and verify one logical condition per test.
 

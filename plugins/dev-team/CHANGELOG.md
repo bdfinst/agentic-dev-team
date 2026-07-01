@@ -1,5 +1,36 @@
 # Changelog
 
+## [8.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.4...dev-team-v8.4.0) (2026-07-01)
+
+
+### Features
+
+* **mutation-testing:** 8 improvements from .NET mutation drive ([#544](https://github.com/bdfinst/agentic-dev-team/issues/544)) ([6648b80](https://github.com/bdfinst/agentic-dev-team/commit/6648b8035770b7c50f4644101cd627a1ffa3376e))
+* **mutation-testing:** honest score, timeout warning, NoCoverage-first triage, ([#521](https://github.com/bdfinst/agentic-dev-team/issues/521)) ([#545](https://github.com/bdfinst/agentic-dev-team/issues/545)) ([069cd00](https://github.com/bdfinst/agentic-dev-team/commit/069cd00b19e66191ca864bb8949633a75f7dd388))
+* **mutmut:** add Python mutation testing adapter + dispatch wiring ([#518](https://github.com/bdfinst/agentic-dev-team/issues/518)) ([69da27f](https://github.com/bdfinst/agentic-dev-team/commit/69da27f7d21da6cfac04c2c60cf72f18cd6ce475))
+* **stack-aware:** wire reference loading into three test-strategy skills/agents ([#524](https://github.com/bdfinst/agentic-dev-team/issues/524)) ([#530](https://github.com/bdfinst/agentic-dev-team/issues/530)) ([2f97705](https://github.com/bdfinst/agentic-dev-team/commit/2f97705541cbd19e93f9b1dd2310213cbda9610d))
+
+
+### Bug Fixes
+
+* **knowledge:** correct misrouted csharp-http-client-testing.md references ([#520](https://github.com/bdfinst/agentic-dev-team/issues/520)) ([0a3a70d](https://github.com/bdfinst/agentic-dev-team/commit/0a3a70d2ebf48ef0ed2c8680a7d344def424a95a))
+* **pitest:** class scoping, withHistory, per-mutant timeout, multi-module Maven ([#517](https://github.com/bdfinst/agentic-dev-team/issues/517)) ([e85ae92](https://github.com/bdfinst/agentic-dev-team/commit/e85ae92cdffdd6b6ee416332301c33dc43bf8bb8))
+* **plan:** remove AC mirror from Build Progress template ([#526](https://github.com/bdfinst/agentic-dev-team/issues/526)) ([#538](https://github.com/bdfinst/agentic-dev-team/issues/538)) ([f60df58](https://github.com/bdfinst/agentic-dev-team/commit/f60df58590c8cb0b97053203a516cb20c9d72bc7))
+* **stryker-js:** raise timeout 60s→300s, read per-mutant timeoutMS from config ([#516](https://github.com/bdfinst/agentic-dev-team/issues/516)) ([6dce929](https://github.com/bdfinst/agentic-dev-team/commit/6dce929773f49c9263cba6f6b0534cda85de04b2))
+* **stryker-net:** shard-aware execution prevents mutation gate timeouts on large C# repos ([#515](https://github.com/bdfinst/agentic-dev-team/issues/515)) ([c8f6624](https://github.com/bdfinst/agentic-dev-team/commit/c8f66245136ae5d80b67b8abde66b58b7f7d936e))
+* **test-design:** scope farley score to --path and --since ([#533](https://github.com/bdfinst/agentic-dev-team/issues/533)) ([#542](https://github.com/bdfinst/agentic-dev-team/issues/542)) ([00925d8](https://github.com/bdfinst/agentic-dev-team/commit/00925d8642a38e0e4b64821807acd0af9e3f4e8a))
+
+
+### Code Refactoring
+
+* **mutation-testing:** split SKILL into language-agnostic workflow + per-language KBs ([#523](https://github.com/bdfinst/agentic-dev-team/issues/523)) ([9ae29e2](https://github.com/bdfinst/agentic-dev-team/commit/9ae29e28323f218d42fc10f6098d684587e497ed))
+* **test-design:** demote test-design-advisor from user-invocable ([#532](https://github.com/bdfinst/agentic-dev-team/issues/532)) ([#539](https://github.com/bdfinst/agentic-dev-team/issues/539)) ([5b3782b](https://github.com/bdfinst/agentic-dev-team/commit/5b3782b662999e8aeb353e42aa7b01e64111bdac))
+
+
+### Documentation
+
+* **mutation-testing:** correct Stryker.NET reference (xunit.v3, DOTNET_ROOT, CLI, verbosity) ([#540](https://github.com/bdfinst/agentic-dev-team/issues/540)) ([d9c0f1c](https://github.com/bdfinst/agentic-dev-team/commit/d9c0f1c01177a95f1894197b39d36a2bc7781fef)), closes [#522](https://github.com/bdfinst/agentic-dev-team/issues/522)
+
 ## [8.3.4](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.3...dev-team-v8.3.4) (2026-06-29)
 
 
