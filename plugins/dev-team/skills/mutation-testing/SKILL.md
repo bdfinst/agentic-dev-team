@@ -119,6 +119,27 @@ Avoid, in every language:
 
 Language-specific probe traps (particularly in C#/Stryker.NET, where certain operator combinations produce methods that don't exist) live in [`references/languages/<lang>.md`](references/languages/).
 
+## Long-run inspection
+
+Real mutation runs take 15 min – several hours. During that window the tool emits progress on the terminal via an ANSI in-place reporter that **does not survive log redirection**, so a redirected run looks frozen even when the tool is fine. A silent-hang and a silent-config-error look identical to a healthy run until the summary lands. That's a several-hour feedback loop when the failure could have been caught in one. Every long run needs a periodic inspection loop watching **three signals**:
+
+1. **Progress** — mutants tested / total. Read from a source that survives redirection: the tool's report JSON while in progress, a non-ANSI reporter's output (Stryker's `dots` reporter is the survives-redirection choice), or counts scraped from the log. Do NOT depend on the ANSI progress reporter.
+2. **Health** — is the tool process still alive? Are child test-host processes alive? Elapsed wall-clock time. Silent + live = fine. Silent + dead = an unreported crash.
+3. **Error inspection** — grep the log for known-broken signatures each tick, not just at the end. Failure modes to catch at tick boundary:
+   - `Killed: 0` co-occurring with `Survived: > 0` — the mutation-switch-not-observing-mutations failure Step 1c gates against; if it slips past Step 1c (e.g. new file added mid-run), catch it here.
+   - `CompileError` count spike — probe file, `mutate` glob, or generator-code inclusion misconfigured.
+   - Tool-specific config-trap markers (Stryker.NET's `SolutionPath` naming a `.sln` outside the configured `test-projects` list, for example).
+   - Frequency spikes in `Restarting` / `test process crashed` / `Timeout`.
+
+**Default cadence: 10 minutes** (600 s). Short enough to catch a stall or config error within one cycle, long enough not to spam operator output. Runs shorter than ~15 min don't need this — the summary at the end is sufficient. Cadence should be configurable.
+
+**This is a contract, not a mandated implementation.** Two examples the plugin ships:
+
+- **Portable bash wrapper** — a `trap`-restored shell script forks a background loop that polls the log file, greps for red-flag signatures, and emits one status + zero-or-more `[RED-FLAG]` lines per tick. Works outside Claude Code (CI, direct terminal). The Stryker.NET reference in [`references/languages/csharp-stryker-net.md`](references/languages/csharp-stryker-net.md) documents the shipped wrapper (`csharp-stryker-net-wrapper.sh`) + status loop (`csharp-stryker-net-status-loop.sh`).
+- **In-session Monitor** — inside a Claude Code session, a `Monitor` tool call on the log file stream that emits an event on each recognized red-flag pattern. Cleaner integration but no coverage for out-of-session (CI, direct-terminal) operators.
+
+Per-language references may add tool-specific red-flag signatures — the language file lists them alongside the parse patterns.
+
 ## Step 3: Parse results
 
 Extract surviving mutants. Map each to:

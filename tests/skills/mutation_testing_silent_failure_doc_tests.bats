@@ -161,13 +161,13 @@ CSHARP="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/refere
 
 @test "SKILL: Long-run inspection names progress, health, error inspection signals" {
   run awk '
-    /^```/                             { code = !code; next }
-    !code && /^## Long-run inspection/ { f=1; next }
-    !code && /^## /                    { f=0 }
-    !code && f && /progress/           { got_p=1 }
-    !code && f && /health/             { got_h=1 }
-    !code && f && /error inspection/   { got_e=1 }
-    END                                { exit !(got_p && got_h && got_e) }
+    /^```/                                        { code = !code; next }
+    !code && /^## Long-run inspection/            { f=1; next }
+    !code && /^## /                               { f=0 }
+    !code && f && tolower($0) ~ /progress/        { got_p=1 }
+    !code && f && tolower($0) ~ /health/          { got_h=1 }
+    !code && f && tolower($0) ~ /error inspection/ { got_e=1 }
+    END                                           { exit !(got_p && got_h && got_e) }
   ' "$SKILL"
   [ "$status" -eq 0 ]
 }

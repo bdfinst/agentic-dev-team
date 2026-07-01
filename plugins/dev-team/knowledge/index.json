@@ -3734,6 +3734,10 @@
       "summary": "Before scoping the full run, pick a **probe file** — one file to shake out configuration and get a first honest signal.",
       "anchor": "probe-file-selection"
     },
+    "Long-run inspection": {
+      "summary": "Real mutation runs take 15 min – several hours.",
+      "anchor": "long-run-inspection"
+    },
     "Step 3: Parse results": {
       "summary": "Extract surviving mutants.",
       "anchor": "step-3-parse-results"
