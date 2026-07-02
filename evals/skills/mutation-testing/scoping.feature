@@ -1,11 +1,11 @@
 # Behavior spec for /mutation-testing's scoped, workflow-callable mode.
 # Source of record: plans/mutation-testing-every-phase.md (Slice 1) · issue #284
-# Enforced by: tests/skills/mutation_testing_scoping_tests.bats
+# Enforced by: tests/skills/test_mutation_testing_scoping.py
 #
 # This file is a Given/When/Then spec, not an eval-grader fixture: the
 # mutation/coverage workflow skills are contract skills with no applicable
 # verdict/skill_gate/integration grader genre, so their executable
-# enforcement is the bats contract named above. It is kept here for strict
+# enforcement is the pytest contract named above. It is kept here for strict
 # acceptance-criteria traceability and is checked for non-drift by
 # tests/repo/feature_spec_refs_test.bats.
 
