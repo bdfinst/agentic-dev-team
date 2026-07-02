@@ -65,10 +65,12 @@ jobs:
         # plugins/dev-team/tests/ replace the retired `chk_model_routing`
         # bats suite. bats-core itself is retired (#677) — every
         # content-guard suite is now pytest, so this job no longer installs
-        # it.
+        # it. `pytest-asyncio` is required by tests/scripts/test_orchestrator.py's
+        # @pytest.mark.asyncio tests, folded into chk_hook_units by #677 when
+        # tests/scripts/ was wired into CI for the first time.
         run: |
           sudo apt-get update && sudo apt-get install -y jq python3-yaml python3-pip
-          sudo python3 -m pip install pytest
+          sudo python3 -m pip install pytest pytest-asyncio
 
       # Content-validation suites: repo invariants, knowledge-index shape,
       # agent knowledge-anchor citations (AC19), command/doc registry sync.
