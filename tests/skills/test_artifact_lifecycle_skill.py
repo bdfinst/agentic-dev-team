@@ -5,7 +5,7 @@ Ported from tests/skills/artifact_lifecycle_skill_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep
+from skill_doc_helpers import PLUGIN_ROOT, grep
 
 SKILL = PLUGIN_ROOT / "skills" / "artifact-lifecycle" / "SKILL.md"
 HARNESS_AUDIT = PLUGIN_ROOT / "skills" / "harness-audit" / "SKILL.md"

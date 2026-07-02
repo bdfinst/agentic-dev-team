@@ -7,7 +7,7 @@ Ported from tests/skills/test_improve_executive_summary_template_tests.bats
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep
+from skill_doc_helpers import PLUGIN_ROOT, grep
 
 TEMPLATE = (
     PLUGIN_ROOT / "skills" / "test-improve" / "templates" / "executive-summary.md"

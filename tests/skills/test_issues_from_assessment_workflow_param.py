@@ -16,7 +16,7 @@ Ported from tests/skills/issues_from_assessment_workflow_param_tests.bats
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 SKILL = PLUGIN_ROOT / "skills" / "issues-from-assessment" / "SKILL.md"
 COV_BASELINE = PLUGIN_ROOT / "skills" / "coverage-baseline" / "SKILL.md"

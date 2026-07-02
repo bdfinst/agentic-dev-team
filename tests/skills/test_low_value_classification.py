@@ -12,7 +12,7 @@ Ported from tests/skills/low_value_classification_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep
+from skill_doc_helpers import PLUGIN_ROOT, grep
 
 TEST_HEALTH = PLUGIN_ROOT / "skills" / "test-health" / "SKILL.md"
 SPECS = PLUGIN_ROOT / "skills" / "specs" / "SKILL.md"

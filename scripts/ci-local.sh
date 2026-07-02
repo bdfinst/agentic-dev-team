@@ -217,9 +217,11 @@ chk_hook_units() {
   # tests/bats/ were ported from bats to pytest under issue #675 (epic
   # #668). tests/repo/'s eval/cost/telemetry/workflow-audit suites were
   # ported under #672 (epic #668) and already ran here. tests/bats/ had no
-  # prior CI wiring (orphaned bats suite) — this is its first invocation.
+  # prior CI wiring (orphaned bats suite). tests/skills/ was ported under
+  # issue #674 and likewise had no prior CI wiring — this is its first
+  # invocation.
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
-    tests/docs tests/knowledge tests/bats
+    tests/docs tests/knowledge tests/bats tests/skills
 }
 
 # Ordered list of "label::function". Order defines both the replay order and the

@@ -50,7 +50,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from conftest import PLUGIN_ROOT
+from skill_doc_helpers import PLUGIN_ROOT
 
 SCRIPT = PLUGIN_ROOT / "scripts" / "build_wave_reconcile.py"
 

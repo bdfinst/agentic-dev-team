@@ -7,7 +7,7 @@ Ported from tests/skills/go_mutation_support_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 DETECTION = (
     PLUGIN_ROOT / "skills" / "mutation-testing" / "references" / "tool-detection.md"

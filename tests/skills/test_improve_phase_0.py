@@ -9,7 +9,7 @@ Ported from tests/skills/test_improve_phase_0_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, frontmatter, grep
+from skill_doc_helpers import PLUGIN_ROOT, frontmatter, grep
 
 SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 

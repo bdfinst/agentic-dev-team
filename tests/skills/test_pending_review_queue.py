@@ -17,7 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from conftest import PLUGIN_ROOT, REPO_ROOT
+from skill_doc_helpers import PLUGIN_ROOT, REPO_ROOT
 
 SESSION_REVIEW = PLUGIN_ROOT / "skills" / "session-review" / "SKILL.md"
 FEEDBACK_LEARNING = PLUGIN_ROOT / "skills" / "feedback-learning" / "SKILL.md"

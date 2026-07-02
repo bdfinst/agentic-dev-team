@@ -16,7 +16,7 @@ Ported from tests/skills/coverage_delta_mutation_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-delta" / "SKILL.md"
 
