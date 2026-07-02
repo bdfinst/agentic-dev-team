@@ -7,9 +7,8 @@ description: >-
   achievable on-machine). Each iteration reads the latest measurements,
   picks the largest gap, and dispatches the smallest action that moves it.
   Stops only when all four targets are green or each gap is explicitly
-  waived by the operator with a recorded reason. Called by `/test-modernize`
-  (Phase 5, default) and `/test-improve` (Phase 6), each via its own
-  `--workflow` namespace.
+  waived by the operator with a recorded reason. Called by `/test-improve`
+  (Phase 6) via `--workflow test-improve`.
 argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--max-iterations <n>]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write, Skill(coverage-delta *), Skill(mutation-testing *)
@@ -28,10 +27,10 @@ Arguments: $ARGUMENTS
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL (or empty).
 - `--repo-slug <slug>` — `memory/<workflow>/` namespace.
-- `--workflow <name>` — the workflow namespace under `memory/` and `./plans/`. Defaults to `test-modernize` (the historical caller). `/test-improve` passes `test-improve` so its Phase-6 convergence artifacts stay quarantined from any concurrent `/test-modernize` runs.
+- `--workflow <name>` — the workflow namespace under `memory/` and `./plans/`. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
 - `--max-iterations <n>` — safety cap. Default 10. The operator can extend mid-run.
 
-**Path templates.** Every filesystem path in the Steps below carries `<workflow>` as a placeholder; the skill interpolates the resolved `--workflow` value at run time. There is no literal `test-modernize` inside a path string.
+**Path templates.** Every filesystem path in the Steps below carries `<workflow>` as a placeholder; the skill interpolates the resolved `--workflow` value at run time. There is no literal workflow-name string inside a path.
 
 ## Steps
 
@@ -176,7 +175,7 @@ Print:
 
 ## Examples / Integration
 
-- `/test-modernize` invokes this worker from Phase 5 without `--workflow`; the resolved namespace is `test-modernize` (paths become `memory/<workflow>/<slug>/` and `./plans/<workflow>/phase-5/` with `<workflow>` = `test-modernize`).
+- `/test-improve` invokes this worker from Phase 6 with `--workflow test-improve`; paths resolve as `memory/test-improve/<slug>/` and `./plans/test-improve/phase-6/`.
 - `/test-improve` invokes this worker from Phase 6 with `--workflow test-improve`; the same template resolves with `<workflow>` = `test-improve`.
 
 ## Notes

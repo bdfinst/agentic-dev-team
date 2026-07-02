@@ -3029,7 +3029,7 @@
       "anchor": "step-6-report"
     },
     "Key differences from `/gherkin-public`": {
-      "summary": "Does **not** require `memory/test-modernize/<slug>/phase-1.md` — derives the",
+      "summary": "Does **not** require any prior assessment file — derives the surface itself",
       "anchor": "key-differences-from-gherkin-public"
     },
     "Notes": {
@@ -3043,15 +3043,15 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Read `memory/test-modernize/<slug>/phase-1.md` for the components & patterns table.",
+      "summary": "Read `memory/<workflow>/<slug>/phase-1.md` for the components & patterns table.",
       "anchor": "steps"
     },
     "1. Load the component map": {
-      "summary": "Read `memory/test-modernize/<slug>/phase-1.md` for the components & patterns table.",
+      "summary": "Read `memory/<workflow>/<slug>/phase-1.md` for the components & patterns table.",
       "anchor": "1-load-the-component-map"
     },
     "2. Pick the output directory": {
-      "summary": "Prefer `features/test-modernize/` if `<repo>/features/` already exists (matches the repo's existing Gherkin layout).",
+      "summary": "Prefer `features/<workflow>/` if `<repo>/features/` already exists (matches the repo's existing Gherkin layout).",
       "anchor": "2-pick-the-output-directory"
     },
     "3. Author scenarios per public surface": {
@@ -3063,11 +3063,11 @@
       "anchor": "4-cite-the-assessment"
     },
     "5. Persist phase-2 progress": {
-      "summary": "Write `memory/test-modernize/<slug>/phase-2.md` with:",
+      "summary": "Write `memory/<workflow>/<slug>/phase-2.md` with:",
       "anchor": "5-persist-phase-2-progress"
     },
     "6. STOP for human sign-off": {
-      "summary": "This is the Phase-2 human gate the orchestrator (`/test-modernize`) enforces.",
+      "summary": "This is the Gherkin-review human gate the calling orchestrator (when one is used) enforces.",
       "anchor": "6-stop-for-human-sign-off"
     },
     "7. Create `[Component tests]` Stories bound to the approved scenarios": {
@@ -3479,7 +3479,7 @@
       "anchor": "8-report"
     },
     "Examples / Integration": {
-      "summary": "`/test-modernize` (default) invokes this worker without `--workflow`; paths resolve under `memory/test-modernize/<slug>/` and labels lead with `test-modernize`.",
+      "summary": "`/test-improve` invokes this worker with `--workflow test-improve` from its Phase 3; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.",
       "anchor": "examples-integration"
     },
     "Notes": {
@@ -4039,7 +4039,7 @@
       "anchor": "8-report"
     },
     "Examples / Integration": {
-      "summary": "`/test-modernize` invokes this worker from Phase 5 without `--workflow`; the resolved namespace is `test-modernize` (paths become `memory/<workflow>/<slug>/` and `./plans/<workflow>/phase-5/` with `<workflow>` = `test-modernize`).",
+      "summary": "`/test-improve` invokes this worker from Phase 6 with `--workflow test-improve`; paths resolve as `memory/test-improve/<slug>/` and `./plans/test-improve/phase-6/`.",
       "anchor": "examples-integration"
     },
     "Notes": {
@@ -4923,98 +4923,6 @@
     "Phase 7 — Executive-summary report": {
       "summary": "Produce a stable executive-summary report from the shipped template.",
       "anchor": "phase-7-executive-summary-report"
-    }
-  },
-  "plugins/dev-team/skills/test-modernize/SKILL.md": {
-    "Orchestrator constraints": {
-      "summary": "1.",
-      "anchor": "orchestrator-constraints"
-    },
-    "Parse Arguments": {
-      "summary": "Arguments: $ARGUMENTS",
-      "anchor": "parse-arguments"
-    },
-    "Steps": {
-      "summary": "Resolve the sink and the inputs in a single batch:",
-      "anchor": "steps"
-    },
-    "0. Approach contract": {
-      "summary": "Resolve the sink and the inputs in a single batch:",
-      "anchor": "0-approach-contract"
-    },
-    "1. Analyze — `/cd-test-architecture` + `/issues-from-assessment`": {
-      "summary": "1.",
-      "anchor": "1-analyze-cd-test-architecture-issues-from-assessment"
-    },
-    "2. Specify public interface — `/gherkin-public` (two-pass)": {
-      "summary": "Phase 2 runs in two passes around the human gate so Stories never bind to un-reviewed scenarios.",
-      "anchor": "2-specify-public-interface-gherkin-public-two-pass"
-    },
-    "3. Audit + baseline coverage — `/test-audit-disable` + `/coverage-baseline`": {
-      "summary": "1.",
-      "anchor": "3-audit-baseline-coverage-test-audit-disable-coverage-baseline"
-    },
-    "3a. Review-the-phase loop (Phase 4 + Phase 5 use this identically)": {
-      "summary": "This is the shared end-of-phase review the orchestrator runs at the close of Phase 4 and Phase 5.",
-      "anchor": "3a-review-the-phase-loop-phase-4-phase-5-use-this-identically"
-    },
-    "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate": {
-      "summary": "**Pre-flight — resolve Phase-3 disabled tests.** Before any Phase-4 child issue runs, read `memory/test-modernize/<slug>/disabled-tests.json` and walk it entry-by-entry.",
-      "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta-mutation-gate"
-    },
-    "5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`": {
-      "summary": "For each Phase-5 child issue in dependency order:",
-      "anchor": "5-refactor-for-testability-converge-build-mutation-testing-quality-targets-converge"
-    },
-    "6. Report": {
-      "summary": "Report:",
-      "anchor": "6-report"
-    },
-    "Notes": {
-      "summary": "`/test-modernize` is sequencing only — every gate, fix loop, and evidence requirement comes from the underlying skills.",
-      "anchor": "notes"
-    }
-  },
-  "plugins/dev-team/skills/test-upgrade/SKILL.md": {
-    "Orchestrator constraints": {
-      "summary": "1.",
-      "anchor": "orchestrator-constraints"
-    },
-    "Parse Arguments": {
-      "summary": "Positional: `<repo-path>` (default: cwd).",
-      "anchor": "parse-arguments"
-    },
-    "Phase 0 — Approach contract": {
-      "summary": "Resolve everything in one batch, then persist it:",
-      "anchor": "phase-0-approach-contract"
-    },
-    "Phase 1 — Analyze (`/test-health`)": {
-      "summary": "Delegate entirely to `/test-health`.",
-      "anchor": "phase-1-analyze-test-health"
-    },
-    "Phase 1b — Derive Gherkin (optional; skip when binding mode is `none`)": {
-      "summary": "When the binding mode chosen in Phase 0 is not `none`, delegate to",
-      "anchor": "phase-1b-derive-gherkin-optional-skip-when-binding-mode-is-none"
-    },
-    "Phase 2 — Triage (`/issues-from-assessment`)": {
-      "summary": "Delegate to `/issues-from-assessment` to convert the health report into work",
-      "anchor": "phase-2-triage-issues-from-assessment"
-    },
-    "Phase 3 — Implement": {
-      "summary": "For each Story in dependency order (`NO_REFACTOR` first; `REFACTOR_REQUIRED` only",
-      "anchor": "phase-3-implement"
-    },
-    "Phase 4 — Validate (`/quality-targets-converge`)": {
-      "summary": "Delegate to `/quality-targets-converge`, which loops until all four targets are",
-      "anchor": "phase-4-validate-quality-targets-converge"
-    },
-    "Key differences from `/test-modernize`": {
-      "summary": "| `/test-modernize` | `/test-upgrade` |",
-      "anchor": "key-differences-from-test-modernize"
-    },
-    "Notes": {
-      "summary": "Every phase delegates to its worker; the orchestrator only sequences, gates, and persists progress.",
-      "anchor": "notes"
     }
   },
   "plugins/dev-team/skills/threat-modeling/SKILL.md": {

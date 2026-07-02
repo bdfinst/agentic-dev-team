@@ -5,8 +5,8 @@ description: >-
   the same coverage tool against the current suite, computes the delta on
   line+branch percentages, and posts it to the parent issue (or local
   `FEATURE.md`). Called after each Story so the operator sees coverage move
-  with every test added. Used by `/test-upgrade` (default) and
-  `/test-modernize` (Phase 4), each via its own `--workflow` namespace.
+  with every test added. Called by `/test-improve` (Phase 4) via
+  `--workflow test-improve`.
 argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--story <id-or-path>] [--story-files <glob-or-comma-list>]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write
@@ -14,7 +14,7 @@ allowed-tools: Read, Glob, Grep, Bash, Write
 
 # Coverage Delta
 
-Role: worker. Reports coverage change vs. the captured baseline. One snapshot per Story so the operator can see whether each add actually moved the needle. Callers that use a phase model (such as `/test-modernize`, where the baseline is Phase 3 and adds happen in Phase 4 / Phase 5) label snapshots by phase; phase-less workflows like `/test-upgrade` omit that label.
+Role: worker. Reports coverage change vs. the captured baseline. One snapshot per Story so the operator can see whether each add actually moved the needle. Callers with a phase model (such as `/test-improve`, where the baseline lands in Phase 2 and per-Story deltas fire in Phase 4) label snapshots by phase; phase-less workflows omit that label.
 
 You have been invoked with the `/coverage-delta` command.
 
@@ -25,7 +25,7 @@ Arguments: $ARGUMENTS
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL (or empty for local-files).
 - `--repo-slug <slug>` — `memory/<workflow>/` namespace.
-- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-upgrade`. `/test-modernize` passes `test-modernize` to keep its Phase-4 paths unchanged; `/test-improve` passes `test-improve` for its Phase-4 per-Story deltas.
+- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-improve`. Orchestrators pass their own namespace (e.g. `/test-improve` passes `test-improve` for its Phase-4 per-Story deltas).
 - `--story <id-or-path>` — optional Story this delta is attributed to. Used as the snapshot label.
 - `--story-files <glob-or-comma-list>` — production-code files the Story touched (typically from `/build`'s commit diff, tests filtered out). When both `--story` AND a non-empty `--story-files` are present, Step 2b runs scoped mutation; otherwise it is a no-op so `/quality-targets-converge` can keep calling this worker without `--story-files` exactly as before.
 
@@ -33,7 +33,7 @@ Arguments: $ARGUMENTS
 
 ### 1. Load the baseline
 
-Read `memory/<workflow>/<slug>/baseline-coverage.json`. If missing, tell the operator the baseline has not been captured (`/coverage-baseline` must run first; for `/test-modernize` that is Phase 3) and stop.
+Read `memory/<workflow>/<slug>/baseline-coverage.json`. If missing, tell the operator the baseline has not been captured (`/coverage-baseline` must run first; for `/test-improve` that is Phase 2) and stop.
 
 ### 2. Re-run coverage
 
@@ -43,7 +43,7 @@ If the run fails, surface the first error and stop. Do not post a delta from a b
 
 ### 2b. Measure scoped mutation (only when both `--story` AND `--story-files` are present)
 
-**Worker boundary.** This worker measures and reports; it does NOT halt the workflow on net-new survivors. Policy enforcement is the orchestrator's job (`/test-modernize` Phase 4 reads the structured `status` field this step emits and decides whether to pause Story close).
+**Worker boundary.** This worker measures and reports; it does NOT halt the workflow on net-new survivors. Policy enforcement is the orchestrator's job (`/test-improve` Phase 4 reads the structured `status` field this step emits and decides whether to pause Story close via the mutation-kill agent's `[c/r/w/q]` prompt).
 
 **Implementation detail** — baseline-of-record lookup, equivalent-mutant filter, classification table, atomic-write idiom: [`references/mutation-gate.md`](references/mutation-gate.md). This section pins the contract (flags, status enum, exit-code rule, schema keys); the reference holds the mechanics.
 
@@ -51,7 +51,7 @@ Gating: skip this whole step unless BOTH `--story <id>` AND a non-empty `--story
 
 When the gate fires:
 
-1. Invoke `/mutation-testing --scope <expanded --story-files> --emit-json <tmp> --workflow-managed-approval`. The `--workflow-managed-approval` flag is allowed here because `/test-modernize` Phase 0 captured operator approval at the workflow boundary (see `mutation-testing` `## Constraints` carve-out).
+1. Invoke `/mutation-testing --scope <expanded --story-files> --emit-json <tmp> --workflow-managed-approval`. The `--workflow-managed-approval` flag is allowed here because `/test-improve` Phase 0 captured operator approval at the workflow boundary (see `mutation-testing` `## Constraints` carve-out).
 2. **Baseline-of-record per file.** For each file in `--story-files`, look up the most recent entry in `memory/<workflow>/<slug>/mutation-history.json`; that entry's `survivors_after` is the baseline-of-record. If no prior entry exists, the file's status is `first_measurement` (`survivors_before: null`, `delta: null`).
 3. **Filter `status: "equivalent"` survivors** from the `/mutation-testing` output before computing delta — reclassifications between runs must not show up as regressions.
 4. Compute `delta = survivors_after - survivors_before` (skip when `first_measurement`) and assign a status per file:
@@ -100,7 +100,7 @@ Parse line + branch percentages with the same logic `/coverage-baseline` used. C
 }
 ```
 
-`phase` is the calling workflow's phase number when it has one (`/test-modernize` supplies `4` or `5`); workflows without a phase model, like `/test-upgrade`, supply `null`.
+`phase` is the calling workflow's phase number when it has one (`/test-improve` supplies `4`); workflows without a phase model supply `null`.
 
 Append to `memory/<workflow>/<slug>/coverage-history.json` (array of snapshots, newest last).
 

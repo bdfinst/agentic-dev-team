@@ -16,6 +16,6 @@ The Orchestrator selects review agents based on what changed in each unit of wor
 
 ## Special-purpose review agents
 
-`progress-guardian` and `test-modernization-review` are process gate-keepers, not code reviewers — they are not in the standard review-dispatch fan-out above. `progress-guardian` tracks plan-step completion and commit discipline; `test-modernization-review` reads each phase deliverable from `memory/test-modernize/<repo>/phase-<n>.md` and gates `/test-modernize`'s advance from one phase to the next. Both are invoked by their owning orchestrator, never by `/code-review`.
+`progress-guardian` is a process gate-keeper, not a code reviewer — it is not in the standard review-dispatch fan-out above. It tracks plan-step completion and commit discipline, and is invoked by its owning orchestrator, never by `/code-review`.
 
-The newer `/test-improve` orchestrator (which consolidates `/test-modernize` and `/test-upgrade`) does **not** use a separate phase-gate agent; its per-phase progress files under `memory/test-improve/<slug>/phase-<n>.md` and its end-of-phase review loop (Phase 4 and Phase 5) carry the equivalent evidence contract.
+`/test-improve` does **not** use a separate phase-gate agent; its per-phase progress files under `memory/test-improve/<slug>/phase-<n>.md` and its end-of-phase review loop (Phase 4 and Phase 5) carry the equivalent evidence contract.
