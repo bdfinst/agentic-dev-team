@@ -207,6 +207,20 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return p.parse_known_args(list(argv))[0], p.parse_known_args(list(argv))[1]
 
 
+# =============================================================================
+# Concurrency default — Stryker's own `-c`/`--concurrency` mutant-testing-
+# process count. Defaults to cores-2 instead of Stryker's flat default of 5.
+# =============================================================================
+def default_concurrency(cpu_count: Optional[int]) -> int:
+    """Return ``max(1, (cpu_count or 2) - 2)``.
+
+    ``cpu_count`` is normally ``os.cpu_count()``, which returns ``None`` when
+    the machine's core count can't be determined — falls back to 2 so the
+    computed default is still 1 (never 0 or negative).
+    """
+    return max(1, (cpu_count or 2) - 2)
+
+
 def build_project(project: str, cwd: Optional[Path] = None) -> int:
     """Run ``dotnet build <project> -c Debug --nologo`` in the given cwd.
     Returns the subprocess exit code.
@@ -336,6 +350,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
         # Hide .sln during the run.
         hide_sln(sln, sln_hidden)
+
+        # Inject a computed default `-c` (mutant-testing concurrency) unless
+        # the caller's pass-through args already specify one.
+        if "-c" not in stryker_args and "--concurrency" not in stryker_args:
+            stryker_args = [
+                *stryker_args,
+                "-c",
+                str(default_concurrency(os.cpu_count())),
+            ]
 
         # Run Stryker; capture its exit code.
         exit_code = run_stryker(
