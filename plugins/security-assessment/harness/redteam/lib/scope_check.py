@@ -4,6 +4,7 @@ By default, targets must be localhost + RFC1918 + ::1. Public hostnames and
 IPs are refused unless the operator passes --self-certify-owned <path>; the
 artifact's SHA-256 is logged for audit.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -14,13 +15,13 @@ from urllib.parse import urlparse
 
 # Self-owned CIDR allowlist
 ALLOWED_CIDRS_V4 = [
-    ipaddress.IPv4Network("127.0.0.0/8"),   # loopback
-    ipaddress.IPv4Network("10.0.0.0/8"),     # RFC1918
+    ipaddress.IPv4Network("127.0.0.0/8"),  # loopback
+    ipaddress.IPv4Network("10.0.0.0/8"),  # RFC1918
     ipaddress.IPv4Network("172.16.0.0/12"),  # RFC1918
-    ipaddress.IPv4Network("192.168.0.0/16"), # RFC1918
+    ipaddress.IPv4Network("192.168.0.0/16"),  # RFC1918
 ]
 ALLOWED_CIDRS_V6 = [
-    ipaddress.IPv6Network("::1/128"),   # loopback
+    ipaddress.IPv6Network("::1/128"),  # loopback
     ipaddress.IPv6Network("fc00::/7"),  # unique local addresses
 ]
 
@@ -38,6 +39,20 @@ def _resolve_host_ips(host: str) -> list[str]:
     return sorted({i[4][0] for i in info})
 
 
+def _matching_allowed_cidr(
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> ipaddress.IPv4Network | ipaddress.IPv6Network | None:
+    """Return the first allowlisted CIDR that contains `ip`, or None if the
+    IP falls outside every self-owned range."""
+    nets = (
+        ALLOWED_CIDRS_V4 if isinstance(ip, ipaddress.IPv4Address) else ALLOWED_CIDRS_V6
+    )
+    for net in nets:
+        if ip in net:
+            return net
+    return None
+
+
 def is_self_owned(target_url: str) -> tuple[bool, str]:
     """Return (accepted, reason).
 
@@ -52,14 +67,9 @@ def is_self_owned(target_url: str) -> tuple[bool, str]:
     # Literal IP
     try:
         ip = ipaddress.ip_address(host)
-        if isinstance(ip, ipaddress.IPv4Address):
-            for net in ALLOWED_CIDRS_V4:
-                if ip in net:
-                    return True, f"{host} is in {net}"
-        else:
-            for net in ALLOWED_CIDRS_V6:
-                if ip in net:
-                    return True, f"{host} is in {net}"
+        net = _matching_allowed_cidr(ip)
+        if net is not None:
+            return True, f"{host} is in {net}"
         return False, f"{host} is a public IP; not in self-owned CIDRs."
     except ValueError:
         pass
@@ -70,18 +80,7 @@ def is_self_owned(target_url: str) -> tuple[bool, str]:
         return False, f"Could not resolve host {host!r}; refuse by default."
     for ip_str in ips:
         ip = ipaddress.ip_address(ip_str)
-        matched = False
-        if isinstance(ip, ipaddress.IPv4Address):
-            for net in ALLOWED_CIDRS_V4:
-                if ip in net:
-                    matched = True
-                    break
-        else:
-            for net in ALLOWED_CIDRS_V6:
-                if ip in net:
-                    matched = True
-                    break
-        if not matched:
+        if _matching_allowed_cidr(ip) is None:
             return False, (
                 f"{host} resolves to {ip} which is outside the self-owned "
                 f"CIDRs (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, ::1)."
