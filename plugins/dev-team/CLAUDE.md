@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Fully automated development team using persona-driven AI agents. The Orchestrator dispatches tasks to specialized agents based on classification, complexity, and expertise.
+Fully automated development team using persona-driven AI agents. The Orchestrator dispatches tasks to specialized agents by classification, complexity, and expertise.
 
 ## North Star
 
@@ -30,7 +30,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 4. **Human-in-the-Loop**: Autonomous agents, human oversight.
 5. **Dynamic Configuration**: Config changes → `metrics/config-changelog.jsonl`.
 6. **ATDD**: `/plan` decomposes into slices with Gherkin. No code without a scenario.
-7. **Python for cross-OS scripts**: Every shipped hook + script is Python 3.8+ stdlib-only. See ADR 0014 + ADR 0015.
+7. **Python for cross-OS scripts**: shipped hooks/scripts are Python 3.8+ stdlib-only (ADR 0014, 0015).
 
 ## Team Organization
 
@@ -73,7 +73,11 @@ Trigger keywords: `amend`, `learn`, `remember`, `forget`. Full procedure: **[Fee
 
 Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**.
 
-Intervention commands: `amend`, `learn`, `remember`, `forget`, `override`, `pause`, `stop`.
+Intervention commands: feedback keywords above, plus `override`, `pause`, `stop`.
+
+## Proxy Resilience
+
+Proxy 429s/refused conns: **[Proxy Resilience](skills/proxy-resilience/SKILL.md)**.
 
 ## Quality & Accuracy
 
@@ -81,7 +85,7 @@ All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKIL
 
 **Quality ownership.** Agents own the quality *state* — green means the whole suite, not just the diff. A red signal must be fixed or triaged, never stepped over.
 
-Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands (use `/careful`/`/freeze`/`/guard` to escalate); `context_ceiling_guard.py` enforces the 40% rule.
+Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands (`/careful`/`/freeze`/`/guard`); `context_ceiling_guard.py` enforces the 40% rule.
 
 ## Performance Metrics
 
