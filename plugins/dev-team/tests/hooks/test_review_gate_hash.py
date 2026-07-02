@@ -8,7 +8,6 @@ implementations against each other were removed alongside it.
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -20,15 +19,16 @@ _HOOKS_LIB = Path(__file__).resolve().parents[2] / "hooks" / "lib"
 if str(_HOOKS_LIB) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB))
 
+_TESTS_LIB = Path(__file__).resolve().parents[2] / "tests" / "lib"
+if str(_TESTS_LIB) not in sys.path:
+    sys.path.insert(0, str(_TESTS_LIB))
+
 import review_gate_hash as gate  # type: ignore[import-not-found]  # noqa: E402
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
 
 
 def _init_repo(tmp_path: Path) -> Path:
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=tmp_path)
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
     subprocess.run(
         ["git", "config", "user.email", "t@t.dev"], cwd=tmp_path, env=env, check=True
@@ -59,7 +59,9 @@ def test_empty_staged_area_produces_stable_hash(tmp_path: Path) -> None:
 def test_single_staged_file_produces_hex_hash(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     (tmp_path / "a.ts").write_text("hello\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "add", "a.ts"], cwd=tmp_path, env=hermetic_git_env(home=tmp_path), check=True
+    )
     h = gate.review_gate_hash(cwd=tmp_path)
     assert len(h) == 64
     int(h, 16)  # hex
@@ -69,10 +71,14 @@ def test_changed_content_changes_hash(tmp_path: Path) -> None:
     """The whole point of #193 — content edits must alter the hash."""
     _init_repo(tmp_path)
     (tmp_path / "a.ts").write_text("v1\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "add", "a.ts"], cwd=tmp_path, env=hermetic_git_env(home=tmp_path), check=True
+    )
     h1 = gate.review_gate_hash(cwd=tmp_path)
     (tmp_path / "a.ts").write_text("v2\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "add", "a.ts"], cwd=tmp_path, env=hermetic_git_env(home=tmp_path), check=True
+    )
     h2 = gate.review_gate_hash(cwd=tmp_path)
     assert h1 != h2
 
@@ -80,10 +86,14 @@ def test_changed_content_changes_hash(tmp_path: Path) -> None:
 def test_extra_staged_file_changes_hash(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     (tmp_path / "a.ts").write_text("hi\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "add", "a.ts"], cwd=tmp_path, env=hermetic_git_env(home=tmp_path), check=True
+    )
     h1 = gate.review_gate_hash(cwd=tmp_path)
     (tmp_path / "b.ts").write_text("new\n")
-    subprocess.run(["git", "add", "b.ts"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "add", "b.ts"], cwd=tmp_path, env=hermetic_git_env(home=tmp_path), check=True
+    )
     h2 = gate.review_gate_hash(cwd=tmp_path)
     assert h1 != h2
 
@@ -91,7 +101,9 @@ def test_extra_staged_file_changes_hash(tmp_path: Path) -> None:
 def test_deterministic_across_repeated_calls(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     (tmp_path / "a.ts").write_text("stable\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "add", "a.ts"], cwd=tmp_path, env=hermetic_git_env(home=tmp_path), check=True
+    )
     hashes = {gate.review_gate_hash(cwd=tmp_path) for _ in range(5)}
     assert len(hashes) == 1
 
@@ -100,7 +112,9 @@ def test_hash_is_64_hex_chars(tmp_path: Path) -> None:
     """sha256 hex-encoded → 64 chars."""
     _init_repo(tmp_path)
     (tmp_path / "a.ts").write_text("x\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "add", "a.ts"], cwd=tmp_path, env=hermetic_git_env(home=tmp_path), check=True
+    )
     h = gate.review_gate_hash(cwd=tmp_path)
     assert len(h) == 64
     int(h, 16)  # raises if not hex

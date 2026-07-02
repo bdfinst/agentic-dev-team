@@ -20,7 +20,12 @@ _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
 if str(_HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_DIR))
 
+_TESTS_LIB = Path(__file__).resolve().parents[2] / "tests" / "lib"
+if str(_TESTS_LIB) not in sys.path:
+    sys.path.insert(0, str(_TESTS_LIB))
+
 import contract_version_guard as hook  # type: ignore[import-not-found]  # noqa: E402
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -128,28 +133,38 @@ def _init_hermetic_repo(root: Path, contract_content: str) -> None:
     plugins/dev-team/knowledge/security-primitives-contract.md relative to
     repo root.
     """
+    env = hermetic_git_env(home=root)
     subprocess.run(
         ["git", "init", "--quiet", "-b", "main"],
         cwd=root,
+        env=env,
         check=True,
         capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.email", "t@t"],
         cwd=root,
+        env=env,
         check=True,
         capture_output=True,
     )
     subprocess.run(
-        ["git", "config", "user.name", "t"], cwd=root, check=True, capture_output=True
+        ["git", "config", "user.name", "t"],
+        cwd=root,
+        env=env,
+        check=True,
+        capture_output=True,
     )
     contract_dir = root / "plugins" / "dev-team" / "knowledge"
     contract_dir.mkdir(parents=True, exist_ok=True)
     (contract_dir / "security-primitives-contract.md").write_text(contract_content)
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "-A"], cwd=root, env=env, check=True, capture_output=True
+    )
     subprocess.run(
         ["git", "commit", "--quiet", "-m", "init"],
         cwd=root,
+        env=env,
         check=True,
         capture_output=True,
     )
@@ -290,29 +305,36 @@ def test_non_contract_file_pass(tmp_path: Path) -> None:
 
 def test_initial_add_without_version_blocks(tmp_path: Path) -> None:
     # Hermetic repo does NOT commit the contract → HEAD_CONTENT is empty.
+    env = hermetic_git_env(home=tmp_path)
     subprocess.run(
         ["git", "init", "--quiet", "-b", "main"],
         cwd=tmp_path,
+        env=env,
         check=True,
         capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.email", "t@t"],
         cwd=tmp_path,
+        env=env,
         check=True,
         capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "t"],
         cwd=tmp_path,
+        env=env,
         check=True,
         capture_output=True,
     )
     (tmp_path / "sentinel").write_text("")
-    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "-A"], cwd=tmp_path, env=env, check=True, capture_output=True
+    )
     subprocess.run(
         ["git", "commit", "--quiet", "-m", "init"],
         cwd=tmp_path,
+        env=env,
         check=True,
         capture_output=True,
     )
@@ -331,29 +353,36 @@ def test_initial_add_without_version_blocks(tmp_path: Path) -> None:
 
 
 def test_initial_add_with_version_passes(tmp_path: Path) -> None:
+    env = hermetic_git_env(home=tmp_path)
     subprocess.run(
         ["git", "init", "--quiet", "-b", "main"],
         cwd=tmp_path,
+        env=env,
         check=True,
         capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.email", "t@t"],
         cwd=tmp_path,
+        env=env,
         check=True,
         capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "t"],
         cwd=tmp_path,
+        env=env,
         check=True,
         capture_output=True,
     )
     (tmp_path / "sentinel").write_text("")
-    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "-A"], cwd=tmp_path, env=env, check=True, capture_output=True
+    )
     subprocess.run(
         ["git", "commit", "--quiet", "-m", "init"],
         cwd=tmp_path,
+        env=env,
         check=True,
         capture_output=True,
     )

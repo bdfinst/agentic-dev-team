@@ -20,6 +20,12 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_commit_knowledge_index.py"
 
+_TESTS_LIB = Path(__file__).resolve().parents[2] / "tests" / "lib"
+if str(_TESTS_LIB) not in sys.path:
+    sys.path.insert(0, str(_TESTS_LIB))
+
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
+
 
 def _run(
     payload: dict, cwd: Path, extra_env: dict = None
@@ -53,11 +59,7 @@ def _run(
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     """A tiny hermetic git repo with a plugin corpus tree + fresh index."""
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=tmp_path)
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
     subprocess.run(
         ["git", "config", "user.email", "t@t.dev"], cwd=tmp_path, env=env, check=True
@@ -124,11 +126,7 @@ def test_no_verify_bypass(repo: Path) -> None:
     (repo / "plugins" / "dev-team" / "knowledge" / "foo.md").write_text(
         "# Foo\n## Section A\nEdited body.\n"
     )
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=repo)
     subprocess.run(
         ["git", "add", "plugins/dev-team/knowledge/foo.md"],
         cwd=repo,
@@ -146,11 +144,7 @@ def test_no_verify_bypass(repo: Path) -> None:
 
 
 def test_commit_with_only_non_corpus_staged_is_allowed(repo: Path) -> None:
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=repo)
     (repo / "plugins" / "dev-team" / "agents" / "some-agent.md").write_text(
         "# Some Agent\n## New\nBody.\n"
     )
@@ -167,11 +161,7 @@ def test_commit_with_only_non_corpus_staged_is_allowed(repo: Path) -> None:
 
 
 def test_commit_with_corpus_and_matching_index_passes(repo: Path) -> None:
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=repo)
     (repo / "plugins" / "dev-team" / "knowledge" / "foo.md").write_text(
         "# Foo\n## Section A\nFirst sentence of A.\n## New Section\nBody of new section.\n"
     )
@@ -201,11 +191,7 @@ def test_commit_with_corpus_and_matching_index_passes(repo: Path) -> None:
 
 
 def test_commit_with_stale_index_blocks_with_remediation(repo: Path) -> None:
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=repo)
     (repo / "plugins" / "dev-team" / "knowledge" / "foo.md").write_text(
         "# Foo\n## Section A\nFirst sentence of A.\n## New Section\nBody of new section.\n"
     )
@@ -226,11 +212,7 @@ def test_commit_with_stale_index_blocks_with_remediation(repo: Path) -> None:
 
 
 def test_commit_blocks_when_working_tree_drifts_past_staged_pair(repo: Path) -> None:
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=repo)
     (repo / "plugins" / "dev-team" / "knowledge" / "foo.md").write_text(
         "# Foo\n## Section A\nFirst sentence of A.\n## First\nBody of first.\n"
     )
