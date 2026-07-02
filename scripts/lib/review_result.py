@@ -44,6 +44,35 @@ def main_exit(result: dict) -> int:
     return 0
 
 
+def make_issue(
+    severity: str,
+    confidence: str = "high",
+    file: str = "",
+    line: int = 0,
+    message: str = "",
+    suggested_fix: str = "",
+    rule_id: str = "",
+) -> dict:
+    """Return a canonical issue dict — the shared shape every review script
+    (progress_guardian, claude_setup_review, test_modernization_review,
+    token_efficiency_review) independently duplicated before #732.
+
+    `rule_id` is included only when truthy, matching the pre-dedup
+    token_efficiency_review._issue behavior.
+    """
+    issue: dict = {
+        "severity": severity,
+        "confidence": confidence,
+        "file": file,
+        "line": line,
+        "message": message,
+        "suggestedFix": suggested_fix,
+    }
+    if rule_id:
+        issue["rule_id"] = rule_id
+    return issue
+
+
 def skipped_llm_warning(message: str = "LLM check skipped (--skip-llm)") -> dict:
     """Return a single warning finding for use when --skip-llm suppresses the LLM call."""
     return {

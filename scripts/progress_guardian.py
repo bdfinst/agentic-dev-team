@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.review_result import build_result, main_exit, skipped_llm_warning
+from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
 # ---------------------------------------------------------------------------
 # Module constants (REFACTOR: extracted for easy maintenance)
@@ -89,38 +89,6 @@ class Step:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_error(
-    message: str,
-    file: str = "",
-    line: int = 0,
-    suggested_fix: str = "",
-) -> dict:
-    return {
-        "severity": "error",
-        "confidence": "high",
-        "file": file,
-        "line": line,
-        "message": message,
-        "suggestedFix": suggested_fix,
-    }
-
-
-def _make_warning(
-    message: str,
-    file: str = "",
-    line: int = 0,
-    suggested_fix: str = "",
-) -> dict:
-    return {
-        "severity": "warning",
-        "confidence": "high",
-        "file": file,
-        "line": line,
-        "message": message,
-        "suggestedFix": suggested_fix,
-    }
 
 
 def run_git(args: List[str], cwd: str) -> str:
@@ -213,7 +181,8 @@ def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
 
     if not steps:
         return [], [
-            _make_error(
+            make_issue(
+                "error",
                 message=f"No checkbox steps found in plan file: {path.name}",
                 file=str(path),
                 suggested_fix="Add steps with '- [ ] Step N.M: description' format.",
@@ -335,7 +304,8 @@ def check_commit_discipline(
     if not log_subjects_out.strip():
         # Zero commits on this branch — emit a warning, not a hard error.
         return [
-            _make_warning(
+            make_issue(
+                "warning",
                 message="No commits found on this branch — cannot verify commit discipline.",
                 suggested_fix="Commit work before marking steps done.",
             )
@@ -363,7 +333,8 @@ def check_commit_discipline(
             if any(_is_path_declared(bf, declared) for bf in branch_files):
                 continue
             errors.append(
-                _make_error(
+                make_issue(
+                    "error",
                     message=(
                         f"Done step '{step.header}' has no matching commit in git log. "
                         f"Expected a commit on this branch that touched one of: "
@@ -380,7 +351,8 @@ def check_commit_discipline(
         header_lower = step.header.lower()
         if not any(header_lower in subject for subject in commit_subjects):
             errors.append(
-                _make_error(
+                make_issue(
+                    "error",
                     message=(
                         f"Done step '{step.header}' has no matching commit in git log. "
                         f"Expected a commit whose subject contains: '{step.header}'"
@@ -423,7 +395,8 @@ def check_uncommitted(
 
     if non_excluded_lines:
         return [
-            _make_error(
+            make_issue(
+                "error",
                 message=(
                     "Uncommitted changes detected. All work must be committed "
                     "before plan steps can be considered complete."
@@ -440,7 +413,8 @@ def check_pre_pr(steps: List[Step]) -> List[dict]:
     for step in steps:
         if not step.done:
             errors.append(
-                _make_error(
+                make_issue(
+                    "error",
                     message=(
                         f"Pre-PR gate: step '{step.header}' is not done ([ ] unchecked). "
                         f"All plan steps must be complete before opening a PR."
@@ -594,7 +568,8 @@ def check_verify_log(repo_root: str, changed_files: List[str]) -> List[dict]:
         return []
 
     return [
-        _make_error(
+        make_issue(
+            "error",
             message=(
                 "Pre-PR gate: this branch touches runtime-surface file(s) but no "
                 f"entry in {VERIFY_LOG_PATH} matches branch '{branch}'. `/verify` "
@@ -709,7 +684,8 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
         )
         if result.returncode != 0 or not result.stdout.strip():
             return [
-                _make_warning(
+                make_issue(
+                    "warning",
                     message=(
                         f"LLM scope check unavailable: {len(out_of_plan)} file(s) not in plan "
                         f"({file_list}) — manual scope review recommended."
@@ -717,7 +693,8 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
                 )
             ]
         return [
-            _make_warning(
+            make_issue(
+                "warning",
                 message=(
                     f"Scope check (LLM): {len(out_of_plan)} out-of-plan file(s): "
                     f"{file_list}. LLM assessment: {result.stdout.strip()[:300]}"
@@ -726,7 +703,8 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
         ]
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return [
-            _make_warning(
+            make_issue(
+                "warning",
                 message=(
                     f"LLM scope check unavailable (claude not on PATH or timed out): "
                     f"{len(out_of_plan)} file(s) not declared in plan — manual review needed."
@@ -760,7 +738,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     plan_path = Path(args.plan).resolve()
     if not plan_path.exists():
         result = build_result(
-            errors=[_make_error(f"Plan file not found: {args.plan}", file=args.plan)],
+            errors=[
+                make_issue(
+                    "error",
+                    message=f"Plan file not found: {args.plan}",
+                    file=args.plan,
+                )
+            ],
             warnings=[],
         )
         return main_exit(result)
