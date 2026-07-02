@@ -34,6 +34,10 @@ jobs:
   bats-on-git-bash:
     name: Bats on Git Bash (native Windows)
     runs-on: windows-latest
+    # GitHub Actions' default job timeout is 6 hours — way too generous for
+    # a test suite that should finish in ~2 minutes end-to-end. Cap at 15
+    # minutes so a hang caught by an MSYS-vs-POSIX divergence is reaped fast.
+    timeout-minutes: 15
     # Default shell for `run:` steps → Git Bash (as opposed to PowerShell,
     # which is the windows-latest default). Every step below runs under
     # `C:\Program Files\Git\bin\bash.exe` — exactly the shell operators
@@ -91,17 +95,33 @@ jobs:
           fi
           [ "$missing" -eq 0 ]
 
-      # The three test files that exercise the wrapper end-to-end. Excludes
-      # tests/hooks/mutation_testing_smoke_gate.bats — the Claude-Code hook is
-      # not in the wrapper's cross-platform target audience (it only runs when
-      # Claude Code intercepts a Bash tool call, which is CC-scoped).
-      - name: Run wrapper + status-loop bats suites
+      # Scope: only the wrapper's own contract on Windows Git Bash. The
+      # wrapper is what operators run end-to-end (trap-restore, .sln hide,
+      # SIGINT/SIGTERM process-group semantics, backgrounded-Stryker PID
+      # reaping) — exactly what #567 asks us to verify.
+      #
+      # Explicitly excluded from this job:
+      #   - tests/skills/mutation_testing_status_loop_tests.bats
+      #     Its setup() forks `bash -c 'exit 0' &` + `wait` to obtain a
+      #     definitively-dead PID. On MSYS bash the fork emulation and
+      #     child-reaping semantics diverge from POSIX enough that this
+      #     setup hangs indefinitely on Windows runners (verified: the
+      #     first attempt of this workflow ran until GitHub Actions'
+      #     6-hour job timeout killed it, having completed only test 33
+      #     — `status-loop: file exists`, which does NOT touch the
+      #     forking setup). Tracked in #571. The status loop runs
+      #     backgrounded from the wrapper on Linux/macOS in normal
+      #     operation; verifying its internal helpers on Windows Git
+      #     Bash is out of scope for #567.
+      #   - tests/skills/mutation_testing_wrapper_loop_integration_tests.bats
+      #     Same forked-child + STATUS_INTERVAL loop shape as the status-
+      #     loop unit tests; excluded for the same reason.
+      #   - tests/hooks/mutation_testing_smoke_gate.bats
+      #     Claude Code hook, only runs when CC intercepts a Bash call.
+      - name: Run wrapper bats suite (only)
         run: |
           set -euo pipefail
-          bats \
-            tests/skills/mutation_testing_wrapper_tests.bats \
-            tests/skills/mutation_testing_status_loop_tests.bats \
-            tests/skills/mutation_testing_wrapper_loop_integration_tests.bats
+          bats tests/skills/mutation_testing_wrapper_tests.bats
 
       # Explicit shellcheck of the two shipped scripts. The wrapper's own
       # bats file already includes a shellcheck test that skips when the
