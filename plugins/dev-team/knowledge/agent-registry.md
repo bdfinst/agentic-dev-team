@@ -5,7 +5,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 ## Team Agents
 
 | Agent | File | ~Tokens | Primary Focus |
-|-------|------|---------|---------------|
+| ------- | ------ | --------- | --------------- |
 | ADR Author | `agents/adr-author.md` | 320 | Creates and manages Architecture Decision Records |
 | Architect | `agents/architect.md` | 360 | System design, architecture |
 | Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis. |
@@ -24,7 +24,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Each agent declares its reasoning-effort band (`effort: low|medium|high`) in frontmatter; the PreToolUse hook `hooks/agent_model_resolve.py` resolves the band to the active model per the **Resolution Procedure** in `agents/orchestrator.md`. The band is the single source of truth — run `/model-routing-check` for the live band→model map rather than mirroring tiers here.
 
 | Agent | File | What It Checks |
-|-------|------|----------------|
+| ------- | ------ | ---------------- |
 | a11y-review | `agents/a11y-review.md` | WCAG 2.1 AA, ARIA, keyboard nav, focus management |
 | arch-review | `agents/arch-review.md` | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
 | claude-setup-review | `agents/claude-setup-review.md` | CLAUDE.md completeness, rules, skills, path accuracy |
@@ -54,7 +54,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 Skills are reusable knowledge modules in `.claude/skills/` that agents reference. They define patterns, guidelines, and project structures without being tied to any single agent persona.
 
 | Skill | File | ~Tokens | Used By |
-|-------|------|---------|---------|
+| ------- | ------ | --------- | --------- |
 | ADR Tools | `skills/adr-tools/SKILL.md` | ~1,350 | Orchestrator, adr-author, Software Engineer, Architect |
 | Artifact Lifecycle | `skills/artifact-lifecycle/SKILL.md` | ~600 | Orchestrator, `/artifact-lifecycle` command |
 | API Design | `skills/api-design/SKILL.md` | 600 | Architect, Software Engineer |
@@ -89,6 +89,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Mutation Testing | `skills/mutation-testing/SKILL.md` | 700 | QA Engineer, Software Engineer |
 | Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, Platform Engineer, `/benchmark` command |
 | Performance Metrics | `skills/performance-metrics/SKILL.md` | 890 | Orchestrator |
+| Proxy Resilience | `skills/proxy-resilience/SKILL.md` | ~800 | All agents (any session running against a corporate Anthropic proxy) |
 | Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | 900 | All agents |
 | Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~750 | `/test-improve` (Phase 6), QA Engineer, Software Engineer |
 | Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~4,500 | Orchestrator, Software Engineer, Architect |
@@ -108,7 +109,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 Concrete prompt templates in `prompts/` that the orchestrator and `/code-review` use when dispatching subagents, making behavior reproducible.
 
 | Template | File | Used By |
-|----------|------|---------|
+| ---------- | ------ | --------- |
 | Implementer | `prompts/implementer.md` | Orchestrator (Phase 3 implementation dispatch) |
 | Plan Review — Acceptance | `prompts/plan-review-acceptance.md` | Orchestrator (Phase 2 plan review persona) |
 | Plan Review — Design | `prompts/plan-review-design.md` | Orchestrator (Phase 2 plan review persona) |
@@ -124,7 +125,7 @@ Concrete prompt templates in `prompts/` that the orchestrator and `/code-review`
 Knowledge files in `knowledge/` provide progressive disclosure — agents read them on demand during analysis rather than carrying all detection patterns inline.
 
 | Name | File | ~Tokens | Used By |
-|------|------|---------|---------|
+| ------ | ------ | --------- | --------- |
 | Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 23 review agents (a11y-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-modernization-review, test-review, test-smell-review, token-efficiency-review) |
 | Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
@@ -168,7 +169,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 Language-specific review agents in `templates/agents/`. Scaffolded into projects by `/setup` when the matching stack is detected. Not bundled as always-on.
 
 | Template | File | Activates When |
-|----------|------|---------------|
+| ---------- | ------ | --------------- |
 | angular-testing | `templates/agents/angular-testing.md` | Angular in deps |
 | csharp-quality | `templates/agents/csharp-quality.md` | C#/.NET stack |
 | esm-enforcer | `templates/agents/esm-enforcer.md` | Any JS/TS project (always-on) |

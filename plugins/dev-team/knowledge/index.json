@@ -4001,6 +4001,32 @@
       "anchor": "6-report"
     }
   },
+  "plugins/dev-team/skills/proxy-resilience/SKILL.md": {
+    "Overview": {
+      "summary": "A corporate proxy fronting Anthropic API traffic enforces its own rate",
+      "anchor": "overview"
+    },
+    "Detection Signals": {
+      "summary": "Treat an error as **proxy rate-limiting** when it shows *all* of:",
+      "anchor": "detection-signals"
+    },
+    "Backoff Schedule": {
+      "summary": "Apply exponential backoff **per call site** (one place repeatedly issuing",
+      "anchor": "backoff-schedule"
+    },
+    "Escalation Rule": {
+      "summary": "Once the retry budget (5 attempts) is exhausted at a call site:",
+      "anchor": "escalation-rule"
+    },
+    "Concurrency Guidance": {
+      "summary": "Parallel subagent/Task fan-out against a shared proxy allowlist is a likely",
+      "anchor": "concurrency-guidance"
+    },
+    "Anti-Patterns": {
+      "summary": "| Anti-pattern | Why it's wrong | What to do instead |",
+      "anchor": "anti-patterns"
+    }
+  },
   "plugins/dev-team/skills/quality-gate-pipeline/SKILL.md": {
     "Overview": {
       "summary": "Single quality gate that every agent passes through before output is accepted.",
