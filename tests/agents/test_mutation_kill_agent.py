@@ -341,6 +341,31 @@ def test_tiered_mutation_level_basic_baseline_and_standard_escalation(
     assert re.search(r"re-attempted.*(from )?Basic", flat, re.IGNORECASE)
 
 
+def test_tiered_mutation_level_compile_error_trap_and_concurrency_crossref(
+    text: str, flat: str
+) -> None:
+    """Slice 4, Step 4.2 (#683)."""
+    # Cross-references the existing CompileError trap; drop-to-Basic-only +
+    # EXCLUDED log, not a retry loop.
+    assert re.search(r"CompileError", text)
+    assert re.search(
+        r"drops? back to Basic.only.*EXCLUDED|EXCLUDED.*drops? back to Basic.only",
+        flat,
+        re.IGNORECASE,
+    )
+    assert re.search(r"not a retry", flat, re.IGNORECASE)
+    # Cross-references the wrapper's --stryker-concurrency cores-2 default,
+    # naming it distinctly from mutation-kill's own --concurrency.
+    assert re.search(r"--stryker-concurrency", text)
+    assert re.search(r"cores.{0,10}2|cpu_count.{0,10}2", flat, re.IGNORECASE)
+    assert re.search(r"--concurrency", text)
+    assert re.search(
+        r"different dial|worktree fan.?out|unrelated and unchanged",
+        flat,
+        re.IGNORECASE,
+    )
+
+
 def test_registered_in_agent_registry() -> None:
     registry_text = REGISTRY.read_text(encoding="utf-8")
     assert "agents/mutation-kill.md" in registry_text

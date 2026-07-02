@@ -375,6 +375,35 @@ only `survivors == 0` or an explicit exclusion writes an entry. The file is
 simply re-attempted from Basic on the next `--all` invocation, the same as any
 other never-converged file today.
 
+### CompileError trap during escalation
+
+A file that hits the known Standard-level `CompileError` trap during its
+escalation pass — the same "[Caching / key-building classes under
+`mutation-level: Standard`](../skills/mutation-testing/references/languages/csharp-stryker-net.md#probe-file-selection--c-specific-traps)"
+plume documented in `csharp-stryker-net.md` (`LinqMutation`/`StringMutation`
+operators generating calls to methods that don't exist, producing 1000+
+`CompileError` mutants) — drops back to Basic-only results and logs an
+`EXCLUDED` line, not a retry loop:
+
+```
+EXCLUDED <file> — Standard-level CompileError trap: LinqMutation/StringMutation
+  operators produced non-compiling mutants; retaining Basic-level results
+```
+
+### Concurrency cross-reference
+
+The Stryker.NET wrapper's `--stryker-concurrency` flag (env:
+`STRYKER_MUTANT_CONCURRENCY`) defaults Stryker's own mutant-testing-process
+count to `cores − 2` (`max(1, cpu_count - 2)`) — see
+[`csharp-stryker-net.md`](../skills/mutation-testing/references/languages/csharp-stryker-net.md#concurrency-default).
+This is a **different dial** from mutation-kill's own `--concurrency` flag
+(worktree fan-out, default 2, documented above): despite the shared "cores − 2"
+heuristic, tuning one has no effect on the other — `--stryker-concurrency`
+sets how many mutants Stryker itself tests in parallel per invocation;
+mutation-kill's `--concurrency` sets how many files run concurrently, each in
+its own git worktree. `--stryker-concurrency` is unrelated and unchanged by
+this document's `--concurrency` default.
+
 ## Parallelism
 
 With `--all`, run files in parallel via git worktrees (each shard gets its own
