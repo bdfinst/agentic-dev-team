@@ -47,8 +47,11 @@ _payload_no_cwd() {
 
 # _dispatch <payload>
 # Pipe the payload to the hook and capture output+exit via `run`.
+# Payloads may contain any character (single quotes, semicolons, glob chars),
+# so route through a heredoc rather than command substitution.
 _dispatch() {
-  run bash -c "printf '%s\n' '$1' | bash '$HOOK'"
+  local pl="$1"
+  run bash -c "bash '$HOOK'" <<<"$pl"
 }
 
 # _write_report_with_statuses <path> <status1> [<status2> ...]
@@ -126,6 +129,99 @@ _write_report_raw() {
 
 @test "hook: silent-pass on wrapper invocation with single-file --mutate" {
   _dispatch "$(_payload "./scripts/csharp-stryker-net-wrapper.sh --mutate 'src/Foo.cs' -O StrykerOutput/smoke")"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+# =============================================================================
+# Step 1.2 — block paths + report parsing
+# =============================================================================
+
+@test "hook: block on semicolon-separated multi-file --mutate (Stryker.NET syntax)" {
+  # #565 blocker: `--mutate 'src/Foo.cs;src/Bar.cs'` counts as multi-file
+  # and triggers the gate. This scenario was called out by name in the spec
+  # and MUST be locked in with a dedicated test.
+  _dispatch "$(_payload "dotnet stryker --mutate 'src/Foo.cs;src/Bar.cs'")"
+  [ "$status" -eq 2 ]
+  echo "$output" | grep -q "smoke gate"
+}
+
+@test "hook: block on whole-scope run when no smoke report exists" {
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json --mutate '**/Validators/**/*.cs'")"
+  [ "$status" -eq 2 ]
+  echo "$output" | grep -q "StrykerOutput/smoke/reports/mutation-report.json"
+}
+
+@test "hook: block message on missing report includes the example smoke-probe command" {
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 2 ]
+  echo "$output" | grep -q -- "-O StrykerOutput/smoke"
+  echo "$output" | grep -q -- "--mutate"
+}
+
+@test "hook: every block message names MUTATION_SMOKE_GATE_SKIP=1" {
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 2 ]
+  echo "$output" | grep -q "MUTATION_SMOKE_GATE_SKIP=1"
+}
+
+@test "hook: block when report contains only Survived statuses (Killed=0, Survived>0)" {
+  _write_report_with_statuses "$D/StrykerOutput/smoke/reports/mutation-report.json" \
+    Survived Survived Survived Survived Survived Survived Survived Survived Survived Survived
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 2 ]
+  # Names observed counts.
+  echo "$output" | grep -qE "killed=0"
+  echo "$output" | grep -qE "survived=10"
+  # References the failure-mode issues.
+  echo "$output" | grep -q "#554"
+  echo "$output" | grep -q "#557"
+  # Points at SKILL.md Step 1c for the diagnostic checklist.
+  echo "$output" | grep -q "Step 1c"
+}
+
+@test "hook: block when report contains only NoCoverage + CompileError (no scored mutants)" {
+  _write_report_with_statuses "$D/StrykerOutput/smoke/reports/mutation-report.json" \
+    NoCoverage NoCoverage NoCoverage CompileError CompileError
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 2 ]
+  echo "$output" | grep -q "no scored mutants"
+  echo "$output" | grep -q "different probe file"
+}
+
+@test "hook: block when mutants[] is empty" {
+  _write_report_raw "$D/StrykerOutput/smoke/reports/mutation-report.json" \
+    '{"schemaVersion":"1","mutants":[]}'
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 2 ]
+  echo "$output" | grep -q "no scored mutants"
+}
+
+@test "hook: silent-pass when report has at least one Killed mutant" {
+  # Reuse the real Stryker.NET fixture verbatim — Killed + Survived.
+  cp "$REPO_ROOT/tests/hooks/fixtures/stryker-net/mutation-report-zero-kill.json" \
+    "$D/StrykerOutput/smoke/reports/mutation-report.json"
+  # Sanity-check the fixture has what we expect (one Killed, one Survived).
+  local killed
+  killed="$(jq -r '[.mutants[] | select(.status=="Killed")] | length' "$D/StrykerOutput/smoke/reports/mutation-report.json")"
+  [ "$killed" -ge 1 ]
+
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "hook: silent-pass on stale report (freshness NOT checked in v1)" {
+  # Locks the v1 documented decision: no freshness check.
+  # A stale-but-passing report continues to pass the gate.
+  _write_report_with_statuses "$D/StrykerOutput/smoke/reports/mutation-report.json" \
+    Killed Survived
+  # Set mtime to 30 days ago. `touch -t YYYYMMDDhhmm` is cross-platform.
+  local old
+  old="$(python3 -c 'import datetime; print((datetime.datetime.now() - datetime.timedelta(days=30)).strftime("%Y%m%d%H%M"))')"
+  touch -t "$old" "$D/StrykerOutput/smoke/reports/mutation-report.json"
+
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }

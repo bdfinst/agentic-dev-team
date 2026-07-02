@@ -103,12 +103,60 @@ MUTATE_VALUE="$(extract_mutate_value "$COMMAND")"
 is_single_file_mutate "$MUTATE_VALUE" && exit 0
 
 # =============================================================================
-# Whole-scope run detected — Step 1.2 adds report-check + block logic here.
-# Step 1.3 adds escape-hatch + advisory branches ahead of this fallthrough.
+# Whole-scope run detected — check the smoke report.
 # =============================================================================
 
-# TEMPORARY placeholder — remains until Step 1.2 GREEN wires in report checks.
-# Silent-pass keeps Step 1.1's tests honest (they only assert silent-pass
-# paths; the semicolon-block test lives in Step 1.2, alongside the report
-# checks it needs to be meaningful).
-exit 0
+# print_block_message <specific-diagnostic-line>
+# Writes the shared block-message body with the caller's specific diagnostic
+# inserted. Every block path funnels through this function so the example
+# command, escape-hatch hint, and Step 1c reference are consistent.
+print_block_message() {
+    local diagnostic="$1"
+    cat <<EOF
+[BLOCK] mutation-testing-smoke-gate: whole-scope Stryker.NET run detected
+
+$diagnostic
+
+The Step 1c smoke gate (see SKILL.md § Step 1c) requires a single-file
+mutation probe with Killed > 0 before authorizing a full run. This
+prevents the silent 0.00 % failure mode (see #554, #557).
+
+To run the smoke probe:
+
+  dotnet stryker --config-file stryker-config.json \\
+    --mutate 'path/to/one/covered/file.cs' \\
+    -O StrykerOutput/smoke
+
+Then re-run this command. To bypass this gate for a legitimate exception,
+set MUTATION_SMOKE_GATE_SKIP=1 in the environment (audit-logged).
+EOF
+}
+
+REPORT_PATH="$PAYLOAD_CWD/StrykerOutput/smoke/reports/mutation-report.json"
+
+# Missing report — nothing to parse; block with the missing-path diagnostic.
+if [ ! -f "$REPORT_PATH" ]; then
+    print_block_message "no smoke report at $REPORT_PATH"
+    exit 2
+fi
+
+# Count mutants by status against the mutation-testing-elements schema.
+# .mutants[]? tolerates a missing key without erroring; the schema-drift
+# advisory (Step 1.3) handles that case explicitly.
+KILLED="$(jq -r '[.mutants[]? | select(.status=="Killed")] | length' "$REPORT_PATH" 2>/dev/null || echo 0)"
+SURVIVED="$(jq -r '[.mutants[]? | select(.status=="Survived")] | length' "$REPORT_PATH" 2>/dev/null || echo 0)"
+
+# At least one Killed → gate passes silently.
+if [ "$KILLED" -gt 0 ]; then
+    exit 0
+fi
+
+# Killed==0 && Survived>0 → mutation-switch not observing mutations (#554/#557).
+if [ "$SURVIVED" -gt 0 ]; then
+    print_block_message "killed=0 survived=$SURVIVED — mutation-switch not observing mutations at runtime (see #554, #557 and SKILL.md Step 1c diagnostic checklist)"
+    exit 2
+fi
+
+# Killed==0 && Survived==0 → empty mutants[] or only NoCoverage/CompileError.
+print_block_message "no scored mutants in smoke report — pick a different probe file with real test coverage"
+exit 2
