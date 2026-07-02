@@ -17,6 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # check-python-only.py diffs against origin/main (git diff
+          # base...HEAD); a shallow (depth-1) checkout has no origin/main ref
+          # to diff against. Fetch full history so that ref resolves.
+          fetch-depth: 0
 
       # Restore the apt download cache so a warm run skips re-fetching the .deb
       # archives. apt-get update still refreshes the package lists; only the
@@ -36,10 +41,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck jq
 
       # Shellcheck (helpers, test scripts, the repo audit script) + the
-      # security-assessment shell suite — defined once in scripts/ci-local.sh so
-      # CI and the local pre-push gate run identical checks.
+      # security-assessment shell suite + the prefer-Python-over-bash gate
+      # (needs git diff against origin/main, hence fetch-depth: 0 above) —
+      # defined once in scripts/ci-local.sh so CI and the local pre-push gate
+      # run identical checks.
       - name: Shell checks (via ci-local)
-        run: bash scripts/ci-local.sh --only=chk_shellcheck_helpers,chk_shellcheck_tests,chk_sa_shell_suite
+        run: bash scripts/ci-local.sh --only=chk_shellcheck_helpers,chk_shellcheck_tests,chk_sa_shell_suite,chk_python_only
 
   bats-tests:
     name: Plugin content & hooks
