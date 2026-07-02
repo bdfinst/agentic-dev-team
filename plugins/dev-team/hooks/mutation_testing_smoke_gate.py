@@ -32,6 +32,18 @@ from pathlib import Path
 from typing import Optional
 
 
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+
+sys.path.insert(0, str(_LIB_DIR))
+try:
+    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover
+
+    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Trigger detection
 # ---------------------------------------------------------------------------
@@ -177,20 +189,6 @@ def count_mutants_by_status(report: dict, status: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _read_stdin_json() -> Optional[dict]:
-    """Read stdin as JSON; None on empty or malformed input."""
-    try:
-        raw = sys.stdin.read()
-    except OSError:
-        return None
-    if not raw.strip():
-        return None
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-
-
 def main() -> int:
     # -------------------------------------------------------------------
     # Dependency guards — a missing dep must NOT become a de facto gate.
@@ -209,7 +207,7 @@ def main() -> int:
     # -------------------------------------------------------------------
     # Parse PreToolUse payload
     # -------------------------------------------------------------------
-    payload = _read_stdin_json()
+    payload = read_stdin_json()
     if payload is None:
         # Empty or malformed stdin — nothing to check, silent-pass.
         return 0

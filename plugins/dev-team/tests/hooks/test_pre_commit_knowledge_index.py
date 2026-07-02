@@ -87,6 +87,7 @@ def repo(tmp_path: Path) -> Path:
         "build_knowledge_index.py",
         "knowledge_index_paths.py",
         "pre_commit_detect.py",
+        "stdin_json.py",
     ):
         (plugin / "hooks" / "lib" / name).write_text((src_lib / name).read_text())
     # Copy the hook itself too so it can find its siblings on sys.path.

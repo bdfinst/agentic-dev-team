@@ -28,25 +28,23 @@ from pathlib import Path
 from typing import Optional
 
 
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+
+sys.path.insert(0, str(_LIB_DIR))
+try:
+    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover
+
+    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+        return None
+
+
 WARN_MSG = (
     "[codegraph-nudge] CodeGraph is initialized in this project. Prefer "
     "codegraph_context or codegraph_explore for multi-file exploration; "
     "Grep/Glob/Read for confirming a specific detail."
 )
-
-
-def _read_stdin_json() -> Optional[dict]:
-    try:
-        raw = sys.stdin.read()
-    except OSError:
-        return None
-    if not raw.strip():
-        return None
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
 
 
 def _codegraph_used_this_turn(cwd: Path, transcript_path: str) -> bool:
@@ -122,7 +120,7 @@ def _careful_active(hook_dir: Path) -> bool:
 
 
 def main() -> int:
-    payload = _read_stdin_json()
+    payload = read_stdin_json()
     if payload is None:
         return 0
 

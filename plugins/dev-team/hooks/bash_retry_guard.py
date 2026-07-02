@@ -31,6 +31,18 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+
+sys.path.insert(0, str(_LIB_DIR))
+try:
+    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover
+
+    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+        return None
+
+
 # Verify-family commands — the verify-guard hook handles retry-nudging for
 # these; this hook must not double-warn. The pattern MUST match the .sh's
 # ERE byte-for-byte.
@@ -114,22 +126,8 @@ def _write_state(path: Path, state: Dict[str, Any]) -> None:
         pass
 
 
-def _read_stdin_json() -> Optional[dict]:
-    try:
-        raw = sys.stdin.read()
-    except OSError:
-        return None
-    if not raw.strip():
-        return None
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
-
-
 def main() -> int:
-    payload = _read_stdin_json()
+    payload = read_stdin_json()
     if payload is None:
         return 0
 

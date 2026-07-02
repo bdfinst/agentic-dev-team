@@ -28,7 +28,6 @@ Stdlib-only. Python 3.8+.
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -43,6 +42,7 @@ sys.path.insert(0, str(_LIB_DIR))
 try:
     from knowledge_index_paths import is_corpus_path  # type: ignore[import-not-found]
     from pre_commit_detect import is_git_commit_invocation  # type: ignore[import-not-found]
+    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
     # Fail-open on missing shared libs.
     def is_corpus_path(_: str) -> bool:  # type: ignore[misc]
@@ -50,6 +50,9 @@ except ImportError:  # pragma: no cover
 
     def is_git_commit_invocation(_: str) -> bool:  # type: ignore[misc]
         return False
+
+    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+        return None
 
 
 _REMEDIATION = """knowledge/index.json is stale; the auto-rebuild ran but you must stage the result.
@@ -59,20 +62,6 @@ _REMEDIATION = """knowledge/index.json is stale; the auto-rebuild ran but you mu
 
 Diff (expected vs working tree):
 """
-
-
-def _read_stdin_json() -> Optional[dict]:
-    try:
-        raw = sys.stdin.read()
-    except OSError:
-        return None
-    if not raw.strip():
-        return None
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
 
 
 def _staged_files() -> List[str]:
@@ -91,7 +80,7 @@ def _staged_files() -> List[str]:
 
 
 def main() -> int:
-    payload = _read_stdin_json()
+    payload = read_stdin_json()
     if payload is None:
         return 0
 

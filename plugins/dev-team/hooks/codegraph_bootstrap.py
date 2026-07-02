@@ -24,13 +24,24 @@ Stdlib-only. Python 3.8+.
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+
+
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+
+sys.path.insert(0, str(_LIB_DIR))
+try:
+    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover
+
+    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+        return None
 
 
 # Single-line messages — kept in sync with the .sh sibling and the bats.
@@ -46,24 +57,10 @@ _INSTALL_MSG = (
 )
 
 
-def _read_stdin_json() -> Optional[dict]:
-    try:
-        raw = sys.stdin.read()
-    except OSError:
-        return None
-    if not raw.strip():
-        # Empty stdin is a valid input — silent no-op like the .sh's
-        # `echo "$input" | jq -e .` on empty input (jq exits non-zero).
-        return None
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
-
-
 def main() -> int:
-    payload = _read_stdin_json()
+    # Empty stdin is a valid input — silent no-op like the .sh's
+    # `echo "$input" | jq -e .` on empty input (jq exits non-zero).
+    payload = read_stdin_json()
     # Fail-open on malformed / empty input.
     if payload is None:
         return 0

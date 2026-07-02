@@ -51,6 +51,7 @@ try:
         is_git_commit_command,
     )
     from review_gate_hash import review_gate_hash  # type: ignore[import-not-found]
+    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
 
     def is_git_commit_command(_: str) -> bool:  # type: ignore[misc]
@@ -64,6 +65,9 @@ except ImportError:  # pragma: no cover
 
     def review_gate_hash(cwd=None) -> str:  # type: ignore[misc]
         return ""
+
+    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+        return None
 
 
 _BLOCK_MESSAGE = (
@@ -84,20 +88,6 @@ _BYPASS_BLOCK_MESSAGE = (
     "The bypass is logged to metrics/gate-bypass-audit.jsonl once a reason\n"
     "is supplied.\n"
 )
-
-
-def _read_stdin_json() -> Optional[dict]:
-    try:
-        raw = sys.stdin.read()
-    except OSError:
-        return None
-    if not raw.strip():
-        return None
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
 
 
 def _staged_names() -> List[str]:
@@ -164,7 +154,7 @@ def _record_bypass_audit(flag: str, reason: str, staged_count: int) -> None:
 
 
 def main() -> int:
-    payload = _read_stdin_json()
+    payload = read_stdin_json()
     if payload is None:
         return 0
 
