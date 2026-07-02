@@ -233,10 +233,38 @@ CLI flags (all optional; every one accepts an environment-variable equivalent so
 | `--shim-project PATH` | `SHIM_PROJECT` | (empty; no shim) |
 | `--stryker-bin CMD` | `STRYKER_BIN` | `dotnet-stryker` |
 | `--logfile PATH` | `LOGFILE` | `StrykerOutput/wrapper.log` |
+| `--stryker-concurrency N` | `STRYKER_MUTANT_CONCURRENCY` | `max(1, cpu_count - 2)` (computed) |
 
 Everything after those flags forwards to Stryker unchanged.
 
 `DOTNET_ROOT` is auto-probed across the standard install locations on all supported platforms; a pre-set value is respected. When no SDK is found the wrapper exits 3 with an actionable message.
+
+### Concurrency default
+
+The wrapper defaults Stryker's own mutant-testing-process concurrency (its
+`-c`/`--concurrency` flag) to `max(1, cpu_count - 2)` instead of Stryker's
+flat default of 5, computed from `os.cpu_count()`. Override precedence,
+highest to lowest: a pass-through `-c`/`--concurrency` already present in
+the args forwarded to Stryker (explicit caller intent, never overridden) >
+the `--stryker-concurrency` CLI flag > the `STRYKER_MUTANT_CONCURRENCY`
+env var > the computed `cores - 2` default. When a pass-through value
+conflicts with an explicit `--stryker-concurrency`/env value, the wrapper
+logs a one-line note to stderr naming which pass-through value overrode
+which explicit value — the override is never silent.
+
+`--stryker-concurrency`/`STRYKER_MUTANT_CONCURRENCY` is deliberately **not**
+named `--concurrency`/`-c`: that spelling is reserved for (a) Stryker's own
+pass-through flag — registering `-c` as a wrapper-owned option would make it
+structurally impossible for a caller's pass-through `-c` to ever reach the
+"already present" detection above — and (b) `mutation-kill`'s own
+pre-existing `--concurrency` flag (worktree fan-out, a different dial at a
+different layer) despite the shared "cores − 2" heuristic.
+
+**CI/cgroup caveat:** `os.cpu_count()` reads the host/system core count, not
+a container's cgroup quota. On resource-capped CI runners this can compute a
+concurrency value higher than the container's actual allotment — pass an
+explicit `--stryker-concurrency` value (or set `STRYKER_MUTANT_CONCURRENCY`)
+rather than rely on the computed default in those environments.
 
 ## Incremental runs with `--since`
 
