@@ -75,7 +75,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/verify-guard.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_VERIFY_GUARD:-0}\" = \"1\" ]; then python3 hooks/verify_guard.py; else bash hooks/verify-guard.sh; fi'"
           },
           {
             "type": "command",
