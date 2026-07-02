@@ -37,16 +37,23 @@ HOOKS="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks"
   grep -qE '^> \*\*Implemented by:\*\*' "$AGENTS/orchestrator.md"
 }
 
-@test "mutation-gate does not use errexit flag" {
-  ! grep -q "set -euo pipefail" "$HOOKS/mutation-gate.sh"
-  grep -q "set -uo pipefail" "$HOOKS/mutation-gate.sh"
+@test "mutation_gate hook does not use sys.exit(non-zero) on advisory paths" {
+  # #572 Python port: the .sh's `set -uo pipefail` idiom retired with bash.
+  # The .py must still be import-clean.
+  run python3 -c "import importlib.util, pathlib; p = pathlib.Path('$HOOKS/mutation_gate.py'); s = importlib.util.spec_from_file_location('mutation_gate', p); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); print('ok')"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ok"* ]]
 }
 
-@test "eval-compliance-check has no bare printf variable calls" {
-  ! grep -qE 'printf "\$FAILS"|printf "\$WARNINGS"' "$HOOKS/eval-compliance-check.sh"
+@test "eval_compliance_check hook is import-clean" {
+  # #572 Python port: replaces the printf-variable audit that used to run on .sh.
+  run python3 -c "import importlib.util, pathlib; p = pathlib.Path('$HOOKS/eval_compliance_check.py'); s = importlib.util.spec_from_file_location('eval_compliance_check', p); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); print('ok')"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ok"* ]]
 }
 
-@test "both hooks pass shellcheck" {
-  shellcheck "$HOOKS/mutation-gate.sh"
-  shellcheck "$HOOKS/eval-compliance-check.sh"
+@test "both hooks parse cleanly under python3 -m py_compile" {
+  # Replaces the shellcheck gate that ran on the .sh siblings pre-#572.
+  run python3 -m py_compile "$HOOKS/mutation_gate.py" "$HOOKS/eval_compliance_check.py"
+  [ "$status" -eq 0 ]
 }

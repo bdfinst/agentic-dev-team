@@ -60,21 +60,21 @@ teardown() {
 @test "5.2b: fake recon-inventory.sh that exits 1 causes harness to exit 1" {
   # Create a fake inventory script that fails
   mkdir -p "$T/fake-scripts"
-  printf '#!/usr/bin/env bash\necho "inventory failed" >&2\nexit 1\n' > "$T/fake-scripts/recon-inventory.sh"
-  chmod +x "$T/fake-scripts/recon-inventory.sh"
+  printf '#!/usr/bin/env bash\necho "inventory failed" >&2\nexit 1\n' > "$T/fake-scripts/recon_inventory.py"
+  chmod +x "$T/fake-scripts/recon_inventory.py"
 
   run python3 "$SCRIPT" "$T" --skip-llm --output-dir "$T/out" \
-    --inventory-script "$T/fake-scripts/recon-inventory.sh"
+    --inventory-script "$T/fake-scripts/recon_inventory.py"
   [ "$status" -eq 1 ]
 }
 
 @test "5.2c: fake recon-inventory.sh failure leaves no artifact in output dir" {
   mkdir -p "$T/fake-scripts"
-  printf '#!/usr/bin/env bash\necho "inventory failed" >&2\nexit 1\n' > "$T/fake-scripts/recon-inventory.sh"
-  chmod +x "$T/fake-scripts/recon-inventory.sh"
+  printf '#!/usr/bin/env bash\necho "inventory failed" >&2\nexit 1\n' > "$T/fake-scripts/recon_inventory.py"
+  chmod +x "$T/fake-scripts/recon_inventory.py"
 
   python3 "$SCRIPT" "$T" --skip-llm --output-dir "$T/out" \
-    --inventory-script "$T/fake-scripts/recon-inventory.sh" || true
+    --inventory-script "$T/fake-scripts/recon_inventory.py" || true
 
   # No JSON should have been written
   local count

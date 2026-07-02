@@ -82,12 +82,12 @@ If any criteria are flagged:
 
 ### 4. Implement each step
 
-Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan-waves.sh`). Within a wave, independent slices may build concurrently; across waves a barrier holds the next wave until the current one reconciles green.
+Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan_waves.py`). Within a wave, independent slices may build concurrently; across waves a barrier holds the next wave until the current one reconciles green.
 
 **Base-ref check (top-level session, before any subagent dispatch).** Worktree subagents (`isolation: "worktree"`) must branch from the caller's local HEAD, not `origin/<default>`, so the `docs/specs/<slug>.md` and `plans/<slug>.md` files `/ship` just produced are visible to them (issue #553). This is controlled by Claude Code's `worktree.baseRef` setting, which is honored only at project (`.claude/settings.json`) or user (`~/.claude/settings.json`) scope — **not** at plugin or project-local scope (`docs/spikes/worktree-baseref-head-spike.md`). `/build` cannot set this on the user's behalf, so it runs a read-only detect-and-warn **in this top-level `/build` session, before any subagent dispatch**, so the warning is visible in the human-facing transcript:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-worktree-baseref.sh detect   # prints head|fresh|unset|unknown
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py detect   # prints head|fresh|unset|unknown
 ```
 
 - **`head`** → no warning. Proceed.
@@ -115,17 +115,17 @@ bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-worktree-baseref.sh detect   # prints h
 **Resolve the wave schedule and concurrency first:**
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-wave.sh <plan-file>          # ordered waves + members
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-jobs.sh --wave-width <W> [--jobs N]  # effective concurrency
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_wave.py <plan-file>          # ordered waves + members
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py --wave-width <W> [--jobs N]  # effective concurrency
 ```
 
-`build-jobs.sh` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)` (default max **2**; non-positive/non-integer clamp to 1). **Sequential fallback:** when effective concurrency is **1** (a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
+`build_jobs.py` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)` (default max **2**; non-positive/non-integer clamp to 1). **Sequential fallback:** when effective concurrency is **1** (a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
 
 **Concurrent dispatch (effective concurrency > 1):**
 
 1. Dispatch each independent slice in the wave to its **own** git worktree (`isolation: "worktree"`), up to the effective concurrency. Each slice's changes stay isolated until reconcile, and each slice still runs its full RED-GREEN-REFACTOR and inline review gates.
 2. **Report the concrete level and cost**, e.g. *"building wave 2 — 2 slices concurrently; faster wall-clock but burns token budget faster."*
-3. **Barrier + reconcile** once the wave's slices finish: `build-wave-reconcile.sh --into <integration> --base <ref> --test-cmd "<full suite>" <slice-branch>...` merges them order-independently and gates on the full suite before any next-wave slice starts.
+3. **Barrier + reconcile** once the wave's slices finish: `build_wave_reconcile.py --into <integration> --base <ref> --test-cmd "<full suite>" <slice-branch>...` merges them order-independently and gates on the full suite before any next-wave slice starts.
 4. **Loud halt, never silent:**
    - A **failing slice** → exit non-zero naming it, list which same-wave slices succeeded and where their (preserved) worktrees are, print the resume command, and start no next-wave slice. Resume rebuilds only the incomplete slice.
    - A **reconcile conflict** (two same-wave diffs touch one file) → exit non-zero naming the file, pick no side, start no next-wave slice.

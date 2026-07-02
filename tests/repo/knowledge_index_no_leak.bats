@@ -12,7 +12,7 @@
 # committed index byte-for-byte.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-knowledge-index.sh"
+BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build_knowledge_index.py"
 COMMITTED_INDEX="$REPO_ROOT/plugins/dev-team/knowledge/index.json"
 
 setup() {
@@ -26,7 +26,7 @@ teardown() {
 
 @test "a rebuild leaves no temp or partial files beside the index" {
   # Default corpus roots (the real plugin tree) → output diverted to TMP.
-  KNOWLEDGE_INDEX_OUTPUT="$OUT" bash "$BUILDER"
+  KNOWLEDGE_INDEX_OUTPUT="$OUT" python3 "$BUILDER"
   # On a clean publish the temp file has been renamed onto the index; the
   # only thing left in the directory is the index itself.
   run bash -c "ls -A '$TMP'"
@@ -35,7 +35,7 @@ teardown() {
 }
 
 @test "the diverted build is byte-identical to the committed index" {
-  KNOWLEDGE_INDEX_OUTPUT="$OUT" bash "$BUILDER"
+  KNOWLEDGE_INDEX_OUTPUT="$OUT" python3 "$BUILDER"
   run diff -u "$COMMITTED_INDEX" "$OUT"
   [ "$status" -eq 0 ]
 }

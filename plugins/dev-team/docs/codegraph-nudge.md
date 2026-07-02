@@ -72,8 +72,8 @@ production-critical sessions where you want to force codegraph use.
 
 ## Source
 
-- `plugins/dev-team/hooks/codegraph-nudge.sh`
-- `plugins/dev-team/hooks/codegraph-turn-mark.sh`
+- `plugins/dev-team/hooks/codegraph_nudge.py`
+- `plugins/dev-team/hooks/codegraph_turn_mark.py`
 - Registered in `plugins/dev-team/settings.json` under PreToolUse
   (`Read`, `Grep`, `Glob`) and PostToolUse (`mcp__codegraph__.*`).
 - Tests: `tests/hooks/codegraph_nudge.bats` and

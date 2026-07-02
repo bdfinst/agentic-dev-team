@@ -25,7 +25,7 @@ Produces a queryable per-concept glossary at `.plans/domain/`. Each concept gets
 Run the colocated gather script. It collects raw candidates; it does not decide what is domain language (that is Phase 3's job).
 
 ```bash
-bash .claude/skills/ubiquitous-language/scripts/collect-domain-signals.sh "$ARGUMENTS"
+python3 .claude/skills/ubiquitous-language/scripts/collect_domain_signals.py "$ARGUMENTS"
 ```
 
 The script writes to `.plans/raw/domain-language/`:
@@ -52,7 +52,7 @@ Check for `.plans/domain/_index.md`. If it exists, read the current term list so
 For each candidate term from Phase 1, apply all four gates. Promote only terms that pass all four.
 
 | Gate | Question | Fail condition |
-|---|---|---|
+| --- | --- | --- |
 | 1. Business concept | Would a domain expert (not a developer) recognize this term as part of the business vocabulary? | Pure technical terms: `Repository`, `Controller`, `Factory`, `Builder`, `Manager`, `Handler`, `Util`, `Helper`, `Config`, `Base`, `Abstract` |
 | 2. Non-generic | Does the name carry specific business meaning beyond "thing that does stuff"? | Single-word generics: `Item`, `Data`, `Info`, `Record`, `Object`, `Entity`, `Model` (unless qualified: `OrderLineItem` passes) |
 | 3. Appears in ≥2 signal sources | Is the term used in at least two different signal types (e.g., class name AND BDD scenario name)? | Terms that appear only once in a single file with no corroborating evidence |

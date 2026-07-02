@@ -1,10 +1,12 @@
 #!/usr/bin/env bats
-# #574 — Python hook contract + settings-toggle docs exist with required
-# sections. Phase 0 gate for the bash → python migration (#572).
+# #574 — Python hook contract doc exists with required sections. The
+# settings-toggle mechanism was retired in #618 (epic #572 close), so its
+# doc + tests are gone; the contract doc itself survives as historical
+# reference + the still-authoritative statement of exit codes / stdin /
+# stderr / authoring rules for shipped Python hooks.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 CONTRACT="$REPO_ROOT/docs/python-hook-contract.md"
-TOGGLE="$REPO_ROOT/plugins/dev-team/hooks/settings-toggle.md"
 
 @test "python-hook contract file exists at docs/python-hook-contract.md" {
   [ -f "$CONTRACT" ]
@@ -38,16 +40,4 @@ TOGGLE="$REPO_ROOT/plugins/dev-team/hooks/settings-toggle.md"
   grep -qE "^## Python authoring rules" "$CONTRACT"
   grep -qi "stdlib" "$CONTRACT"
   grep -qE "3\.8" "$CONTRACT"
-}
-
-@test "settings-toggle doc exists" {
-  [ -f "$TOGGLE" ]
-}
-
-@test "toggle: documents DEV_TEAM_PY_HOOK_<NAME> pattern" {
-  grep -q "DEV_TEAM_PY_HOOK_" "$TOGGLE"
-}
-
-@test "toggle: default-off semantics documented" {
-  grep -qi "default.*off\|defaults.*off\|default.*0" "$TOGGLE"
 }

@@ -37,7 +37,7 @@
 #         (out of scope for this fix)
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-SCRIPT="$REPO_ROOT/plugins/dev-team/scripts/build-wave-reconcile.sh"
+SCRIPT="$REPO_ROOT/plugins/dev-team/scripts/build_wave_reconcile.py"
 
 load '../lib/hermetic'
 

@@ -3,9 +3,9 @@
 # schedule, order-independent reconcile + loud conflict halt). Model-free.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-JOBS="$REPO_ROOT/plugins/dev-team/scripts/build-jobs.sh"
-WAVE="$REPO_ROOT/plugins/dev-team/scripts/build-wave.sh"
-RECONCILE="$REPO_ROOT/plugins/dev-team/scripts/build-wave-reconcile.sh"
+JOBS="$REPO_ROOT/plugins/dev-team/scripts/build_jobs.py"
+WAVE="$REPO_ROOT/plugins/dev-team/scripts/build_wave.py"
+RECONCILE="$REPO_ROOT/plugins/dev-team/scripts/build_wave_reconcile.py"
 FIX="$REPO_ROOT/tests/fixtures/plans"
 
 # ---- build-jobs.sh ---------------------------------------------------------

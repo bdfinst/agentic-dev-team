@@ -25,12 +25,12 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 ## Core Principles
 
 1. **Selective Agent Loading**: Load only necessary agents. Target < 10,000 tokens simple tasks.
-2. **40% Context Ceiling**: Enforced by `hooks/context-ceiling-guard.sh` — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md).
+2. **40% Context Ceiling**: Enforced by `hooks/context_ceiling_guard.py` — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md).
 3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
 4. **Human-in-the-Loop**: Autonomous agents, human oversight.
 5. **Dynamic Configuration**: Config changes → `metrics/config-changelog.jsonl`.
 6. **ATDD**: `/plan` decomposes into slices with Gherkin. No code without a scenario.
-7. **Python for cross-OS scripts**: New scripts in Python 3.8+ stdlib. See [ADR 0014](../../docs/adr/0014-python-for-cross-os-scripts.md); bash converts per #572.
+7. **Python for cross-OS scripts**: Every shipped hook + script is Python 3.8+ stdlib-only. See ADR 0014 + ADR 0015.
 
 ## Team Organization
 
@@ -52,7 +52,7 @@ See [knowledge/request-processing-flow.md](knowledge/request-processing-flow.md)
 
 ## Model Routing
 
-Each agent declares an effort band (`effort: low|medium|high`). Resolution enforced by `hooks/agent-model-resolve.sh` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
+Each agent declares an effort band (`effort: low|medium|high`). Resolution enforced by `hooks/agent_model_resolve.py` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
 
 ## Context Management
 
@@ -79,7 +79,7 @@ All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKIL
 
 **Quality ownership.** Agents own the quality *state* — green means the whole suite, not just the diff. A red signal must be fixed or triaged, never stepped over.
 
-Hooks: `pre-tool-guard.sh` blocks sensitive path writes; `destructive-guard.sh` warns on destructive commands (use `/careful`/`/freeze`/`/guard` to escalate); `context-ceiling-guard.sh` enforces the 40% rule.
+Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands (use `/careful`/`/freeze`/`/guard` to escalate); `context_ceiling_guard.py` enforces the 40% rule.
 
 ## Performance Metrics
 

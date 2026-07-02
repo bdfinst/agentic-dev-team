@@ -82,9 +82,6 @@ def repo(tmp_path: Path) -> Path:
     # a real plugin install and the hook can resolve its dependencies.
     src_lib = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
     for name in (
-        "knowledge-index-paths.sh",
-        "pre-commit-detect.sh",
-        "build-knowledge-index.sh",
         "build_knowledge_index.py",
         "knowledge_index_paths.py",
         "pre_commit_detect.py",
@@ -100,7 +97,7 @@ def repo(tmp_path: Path) -> Path:
 
     # Build the fresh index against the temp repo and stage it.
     subprocess.run(
-        ["bash", "plugins/dev-team/hooks/lib/build-knowledge-index.sh"],
+        ["python3", "plugins/dev-team/hooks/lib/build_knowledge_index.py"],
         cwd=tmp_path,
         env=env,
         check=True,
@@ -179,7 +176,7 @@ def test_commit_with_corpus_and_matching_index_passes(repo: Path) -> None:
         "# Foo\n## Section A\nFirst sentence of A.\n## New Section\nBody of new section.\n"
     )
     subprocess.run(
-        ["bash", "plugins/dev-team/hooks/lib/build-knowledge-index.sh"],
+        ["python3", "plugins/dev-team/hooks/lib/build_knowledge_index.py"],
         cwd=repo,
         env=env,
         check=True,
@@ -224,7 +221,7 @@ def test_commit_with_stale_index_blocks_with_remediation(repo: Path) -> None:
     )
     assert r.returncode == 2
     assert "knowledge/index.json is stale" in r.stderr
-    assert "bash plugins/dev-team/hooks/lib/build-knowledge-index.sh" in r.stderr
+    assert "python3 plugins/dev-team/hooks/lib/build_knowledge_index.py" in r.stderr
     assert "git add plugins/dev-team/knowledge/index.json" in r.stderr
 
 
@@ -238,7 +235,7 @@ def test_commit_blocks_when_working_tree_drifts_past_staged_pair(repo: Path) -> 
         "# Foo\n## Section A\nFirst sentence of A.\n## First\nBody of first.\n"
     )
     subprocess.run(
-        ["bash", "plugins/dev-team/hooks/lib/build-knowledge-index.sh"],
+        ["python3", "plugins/dev-team/hooks/lib/build_knowledge_index.py"],
         cwd=repo,
         env=env,
         check=True,

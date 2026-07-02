@@ -1,4 +1,0 @@
-{
-  "tool_input": { "command": "pip install foo" },
-  "cwd": "C:\\Users\\dev\\repo"
-}

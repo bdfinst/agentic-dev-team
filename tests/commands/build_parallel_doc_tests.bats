@@ -12,9 +12,9 @@ CLAUDEMD="$BATS_TEST_DIRNAME/../../plugins/dev-team/CLAUDE.md"
 }
 
 @test "build skill drives the wave schedule + jobs scripts" {
-  grep -q 'build-wave.sh' "$BUILD"
-  grep -q 'build-jobs.sh' "$BUILD"
-  grep -q 'build-wave-reconcile.sh' "$BUILD"
+  grep -q 'build_wave.py' "$BUILD"
+  grep -q 'build_jobs.py' "$BUILD"
+  grep -q 'build_wave_reconcile.py' "$BUILD"
 }
 
 @test "build skill documents the configurable bound and sequential fallback" {
@@ -37,7 +37,7 @@ CLAUDEMD="$BATS_TEST_DIRNAME/../../plugins/dev-team/CLAUDE.md"
 
 @test "orchestrator documents wave-dispatch -> worktree -> reconcile" {
   grep -qi 'Wave-Aware Build Dispatch' "$ORCH"
-  grep -q 'build-wave-reconcile.sh' "$ORCH"
+  grep -q 'build_wave_reconcile.py' "$ORCH"
 }
 
 @test "CLAUDE.md documents the DEV_TEAM_MAX_PARALLEL_BUILDS env var" {

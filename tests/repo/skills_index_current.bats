@@ -5,11 +5,11 @@
 # catalog stale (the drift that left 14 skills uncatalogued before this gate).
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-skills-index.sh"
+BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build_skills_index.py"
 
 @test "docs/skills.md is current with the skills on disk" {
   cd "$REPO_ROOT" || return 1
-  run bash "$BUILDER" --check
+  run python3 "$BUILDER" --check
   [ "$status" -eq 0 ]
 }
 
@@ -28,14 +28,14 @@ BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-skills-index.sh"
   printf -- '---\nname: two\ndescription: Second.\n---\n' > "$FIX/two/SKILL.md"
   OUT="$FIX/skills.md"
 
-  SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" bash "$BUILDER"
-  run env SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" bash "$BUILDER" --check
+  SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" python3 "$BUILDER"
+  run env SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" python3 "$BUILDER" --check
   [ "$status" -eq 0 ]
 
   # Add a skill without rebuilding -> the gate fails.
   mkdir -p "$FIX/three"
   printf -- '---\nname: three\ndescription: Third.\nuser-invocable: true\n---\n' > "$FIX/three/SKILL.md"
-  run env SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" bash "$BUILDER" --check
+  run env SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" python3 "$BUILDER" --check
   [ "$status" -eq 1 ]
   [[ "$output" == *"three"* ]]
 }
@@ -46,7 +46,7 @@ BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-skills-index.sh"
   printf -- '---\nname: cmd\ndescription: A command.\nuser-invocable: true\n---\n' > "$FIX/cmd/SKILL.md"
   printf -- '---\nname: lib\ndescription: A module.\n---\n' > "$FIX/lib/SKILL.md"
   OUT="$FIX/skills.md"
-  SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" bash "$BUILDER"
+  SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" python3 "$BUILDER"
   grep -q '`/cmd`' "$OUT"
   grep -q '| lib |' "$OUT"
   ! grep -q '`/lib`' "$OUT"
@@ -58,7 +58,7 @@ BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-skills-index.sh"
   FIX="${BATS_TEST_TMPDIR:-$BATS_TMPDIR}/skills-bad"
   rm -rf "$FIX"; mkdir -p "$FIX/bad"
   printf -- '---\nname: bad\ndescription: refers to foo: bar inline\nuser-invocable: true\n---\n' > "$FIX/bad/SKILL.md"
-  run env SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$FIX/o.md" bash "$BUILDER"
+  run env SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$FIX/o.md" python3 "$BUILDER"
   [ "$status" -eq 1 ]
   [[ "$output" == *"bad/SKILL.md"* ]]
 }
@@ -68,7 +68,7 @@ BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-skills-index.sh"
   rm -rf "$FIX"; mkdir -p "$FIX/p"
   printf -- '---\nname: p\ndescription: alpha | beta\nuser-invocable: true\n---\n' > "$FIX/p/SKILL.md"
   OUT="$FIX/skills.md"
-  SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" bash "$BUILDER"
+  SKILLS_INDEX_SKILLS_DIR="$FIX" SKILLS_INDEX_OUTPUT="$OUT" python3 "$BUILDER"
   grep -q 'alpha \\| beta' "$OUT"
 }
 
@@ -90,7 +90,7 @@ BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-skills-index.sh"
   printf 'categories:\n  - name: Demo\n    skills: [known]\n' > "$FIX/cats.yaml"
   OUT="$FIX/skills.md"
   SKILLS_INDEX_SKILLS_DIR="$FIX/skills" SKILLS_INDEX_OUTPUT="$OUT" \
-    SKILLS_INDEX_CATEGORIES="$FIX/cats.yaml" bash "$BUILDER"
+    SKILLS_INDEX_CATEGORIES="$FIX/cats.yaml" python3 "$BUILDER"
   grep -q '^## Demo' "$OUT"
   grep -q '^## Other' "$OUT"
   grep -q '`/known`' "$OUT"

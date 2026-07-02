@@ -43,7 +43,7 @@ _SKILL_PATH_RE = re.compile(r"/?plugins/dev-team/skills/[^/]+/SKILL\.md$")
 
 def _default_builder() -> Path:
     hook_dir = Path(__file__).resolve().parent
-    return hook_dir / "lib" / "build-skills-index.sh"
+    return hook_dir / "lib" / "build_skills_index.py"
 
 
 def _resolve_builder() -> Path:
@@ -90,8 +90,13 @@ def main() -> int:
     try:
         try:
             with open(stderr_path, "w") as stderr_sink:
+                argv = (
+                    [sys.executable, str(builder)]
+                    if str(builder).endswith(".py")
+                    else ["bash", str(builder)]
+                )
                 completed = subprocess.run(
-                    ["bash", str(builder)],
+                    argv,
                     stdout=subprocess.DEVNULL,
                     stderr=stderr_sink,
                     check=False,

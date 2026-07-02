@@ -12,7 +12,7 @@
 # signature deterministically, so we don't depend on catching a timing race.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build-knowledge-index.sh"
+BUILDER="$REPO_ROOT/plugins/dev-team/hooks/lib/build_knowledge_index.py"
 SENTINEL="plugins/dev-team/knowledge/agent-registry.md"
 
 # Portable inode read (macOS + Linux): `ls -i` prints the inode first.
@@ -28,10 +28,10 @@ teardown() {
 }
 
 @test "atomic-publish: a rebuild swaps the index inode (rename, not truncate-in-place)" {
-  KNOWLEDGE_INDEX_OUTPUT="$OUT" bash "$BUILDER"
+  KNOWLEDGE_INDEX_OUTPUT="$OUT" python3 "$BUILDER"
   local before after
   before="$(inode_of "$OUT")"
-  KNOWLEDGE_INDEX_OUTPUT="$OUT" bash "$BUILDER"
+  KNOWLEDGE_INDEX_OUTPUT="$OUT" python3 "$BUILDER"
   after="$(inode_of "$OUT")"
   [ "$before" != "$after" ] || {
     echo "inode unchanged ($before): index was rewritten in place, not atomically replaced" >&2
@@ -40,11 +40,11 @@ teardown() {
 }
 
 @test "atomic-publish: the destination is always complete (sentinel present after each rebuild)" {
-  KNOWLEDGE_INDEX_OUTPUT="$OUT" bash "$BUILDER"
+  KNOWLEDGE_INDEX_OUTPUT="$OUT" python3 "$BUILDER"
   run jq -e --arg k "$SENTINEL" 'has($k)' "$OUT"
   [ "$status" -eq 0 ]
   # A second rebuild must also leave a complete, parseable file behind.
-  KNOWLEDGE_INDEX_OUTPUT="$OUT" bash "$BUILDER"
+  KNOWLEDGE_INDEX_OUTPUT="$OUT" python3 "$BUILDER"
   run jq -e --arg k "$SENTINEL" 'has($k)' "$OUT"
   [ "$status" -eq 0 ]
 }

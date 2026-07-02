@@ -4,7 +4,7 @@
 # the session model, and recent routing bumps.
 
 COMMAND_MD="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/model-routing-check/SKILL.md"
-RESOLVER="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/model-resolve.sh"
+RESOLVER="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks/lib/model_resolve.py"
 
 EXEC_SCRIPT=""
 

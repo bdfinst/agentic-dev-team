@@ -21,7 +21,7 @@ You have been invoked with the `/review-agent` skill. Run a single named review 
 
 This command is executed under orchestrator direction. Pass the named
 agent's tier alias (from its `model:` frontmatter) when dispatching —
-the PreToolUse hook `hooks/agent-model-resolve.sh` resolves it to the
+the PreToolUse hook `hooks/agent_model_resolve.py` resolves it to the
 active snapshot per the Resolution Procedure in `.claude/agents/orchestrator.md`.
 
 ## Worker constraints

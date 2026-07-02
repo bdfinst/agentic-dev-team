@@ -4,7 +4,7 @@ Date: 2026-07-02
 
 ## Status
 
-Accepted
+Accepted, superseded by [ADR 0015](0015-bash-removal-complete.md) for the shipped-script surface (the bash → Python migration completed with epic #572).
 
 ## Context
 

@@ -63,8 +63,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-apt-
 
-      - name: Install bats + jq
-        run: sudo apt-get update && sudo apt-get install -y bats jq
+      - name: Install jq + pytest
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq python3-pip
+          sudo python3 -m pip install pytest
 
       # Delegate through ci-local.sh --only so this check stays in sync with
       # the local gate — a rename of scripts/eval_grade.py can't silently break
@@ -74,10 +76,10 @@ jobs:
 
       - name: Grader, cache & integration-tier unit tests
         run: |
-          bats tests/repo/eval_grader_tests.bats \
-               tests/repo/eval_cache_tests.bats \
-               tests/repo/integration_tier_tests.bats \
-               tests/repo/citation_lint_tests.bats
+          python3 -m pytest tests/repo/test_eval_grader.py \
+                            tests/repo/test_eval_cache.py \
+                            tests/repo/test_integration_tier.py \
+                            tests/repo/test_citation_lint.py
 
       # Citation drift lint (#312). Advisory in Phase 1 — always exits 0, so it
       # surfaces drift warnings in the log without blocking the gate.

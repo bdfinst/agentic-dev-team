@@ -7,8 +7,8 @@
 # is covered by review_gate_hash_tests.bats.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-HOOK="$REPO_ROOT/plugins/dev-team/hooks/pre-commit-review.sh"
-GATEHASH="$REPO_ROOT/plugins/dev-team/hooks/lib/review-gate-hash.sh"
+HOOK="$REPO_ROOT/plugins/dev-team/hooks/pre_commit_review.py"
+GATEHASH="$REPO_ROOT/plugins/dev-team/hooks/lib/review_gate_hash.py"
 
 load '../lib/hermetic'
 
@@ -21,8 +21,8 @@ setup() {
 }
 teardown() { hermetic_teardown; }
 
-_commit_hook() { echo '{"tool_input":{"command":"git commit -m x"}}' | bash "$HOOK"; }
-_write_gate()  { bash "$GATEHASH" > .review-passed; }
+_commit_hook() { echo '{"tool_input":{"command":"git commit -m x"}}' | python3 "$HOOK"; }
+_write_gate()  { python3 "$GATEHASH" > .review-passed; }
 
 @test "baseline: a gate written for the current staged content allows the commit" {
   echo v1 > a.ts; git add a.ts

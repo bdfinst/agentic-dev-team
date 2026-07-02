@@ -327,7 +327,7 @@ def step7_emit(
     history: dict,
     inventory_script: Path | None = None,
 ) -> tuple[bool, list[dict]]:
-    """Run recon-inventory.sh, validate schema, write artifact atomically.
+    """Run recon_inventory.py, validate schema, write artifact atomically.
 
     Returns (success: bool, errors: list[dict]).
     """
@@ -335,22 +335,22 @@ def step7_emit(
 
     # Resolve inventory script path
     if inventory_script is None:
-        # Default: look for recon-inventory.sh relative to plugin scripts
+        # Default: look for recon_inventory.py relative to plugin scripts
         inventory_script = (
             Path(__file__).parent.parent
             / "plugins"
             / "dev-team"
             / "scripts"
-            / "recon-inventory.sh"
+            / "recon_inventory.py"
         )
 
     slug = _derive_slug(root)
     output_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = output_dir / f"recon-{slug}.json"
 
-    # Run recon-inventory.sh
+    # Run recon_inventory.py
     inventory_result = subprocess.run(
-        ["bash", str(inventory_script), str(root), "--slug", slug],
+        [sys.executable, str(inventory_script), str(root), "--slug", slug],
         capture_output=True,
         text=True,
     )
@@ -361,8 +361,8 @@ def step7_emit(
                 "confidence": "high",
                 "file": "",
                 "line": 0,
-                "message": f"recon-inventory.sh failed (exit {inventory_result.returncode}): {inventory_result.stderr.strip()[:500]}",
-                "suggestedFix": "Check that recon-inventory.sh is executable and the repo root is valid.",
+                "message": f"recon_inventory.py failed (exit {inventory_result.returncode}): {inventory_result.stderr.strip()[:500]}",
+                "suggestedFix": "Check that recon_inventory.py is executable and the repo root is valid.",
             }
         )
         return False, errors
@@ -510,7 +510,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--inventory-script",
         default=None,
-        help="Path to recon-inventory.sh (for testing with a fake script).",
+        help="Path to recon_inventory.py (for testing with a fake script).",
     )
     return parser.parse_args(argv)
 
