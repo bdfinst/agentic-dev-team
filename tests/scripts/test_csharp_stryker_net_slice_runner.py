@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -471,6 +472,11 @@ def _install_fakes(monkeypatch, ctx, *, exit_code=0):
 
     monkeypatch.setattr(wrapper, "build_project", fake_build)
     monkeypatch.setattr(wrapper, "run_stryker", fake_run_stryker)
+    # Critical: also stub out signal-handler installation, same precaution
+    # taken in test_csharp_stryker_net_wrapper.py's _install_fakes(). Without
+    # this, main() calls signal.signal(SIGINT, ...) which globally replaces
+    # the process's SIGINT handler for the rest of the pytest session.
+    monkeypatch.setattr(wrapper, "_install_signal_handlers", lambda: [])
 
 
 def run_slice_runner(hermetic, *extra_args):
@@ -585,5 +591,76 @@ class TestMainAllSlices:
         _install_fakes(monkeypatch, hermetic, exit_code=1)
         rc = run_slice_runner(hermetic, "--slice", "all", "--total-workers", "2")
         assert rc == 1
+        assert hermetic.sln.exists()
+        assert not hermetic.sln_hidden.exists()
+
+
+# =============================================================================
+# Signal handling (#732) — main() must install the same SIGINT/SIGTERM
+# handlers the wrapper installs, so that Ctrl-C / a process-manager SIGTERM
+# during the parallel fleet run terminates every in-flight slice's Stryker
+# subprocess (tracked in wrapper._RUNNING_STRYKER_PROCS, shared across all
+# ThreadPoolExecutor worker threads) instead of leaving them orphaned.
+# =============================================================================
+class TestMainSignalHandling:
+    def test_installs_and_restores_signal_handlers_around_the_fleet_run(
+        self, hermetic, monkeypatch
+    ):
+        install_calls = []
+        restore_calls = []
+        sentinel_previous = [("sentinel", None)]
+
+        def fake_install():
+            install_calls.append(1)
+            return sentinel_previous
+
+        def fake_restore(previous):
+            restore_calls.append(previous)
+
+        _install_fakes(monkeypatch, hermetic)
+        # Override the no-op stub from _install_fakes with call-recording
+        # spies so we can assert main() actually wires these in.
+        monkeypatch.setattr(wrapper, "_install_signal_handlers", fake_install)
+        monkeypatch.setattr(wrapper, "_restore_signal_handlers", fake_restore)
+
+        rc = run_slice_runner(hermetic, "--slice", "all", "--total-workers", "2")
+
+        assert rc == 0
+        assert install_calls == [1]
+        assert restore_calls == [sentinel_previous]
+
+    def test_interrupt_during_fleet_run_returns_130_and_restores_sln(
+        self, hermetic, monkeypatch
+    ):
+        """Simulates a KeyboardInterrupt escaping the fleet run — exactly
+        what happens when the wrapper's real signal handler fires mid-run
+        (it terminates every tracked Stryker subprocess, then raises
+        KeyboardInterrupt). main() must catch it, still restore the fleet-
+        level .sln, and return a conventional interrupted exit code — never
+        let it propagate uncaught (which would skip the aggregate step in an
+        uncontrolled way) and never hang waiting on the still-running slice.
+        """
+        call_count = {"n": 0}
+        call_lock = threading.Lock()
+
+        def fake_build(project, cwd=None):
+            return 0
+
+        def fake_run_stryker(stryker_bin, stryker_args, logfile):
+            with call_lock:
+                call_count["n"] += 1
+                first = call_count["n"] == 1
+            if first:
+                raise KeyboardInterrupt("signal 2")
+            return 0
+
+        monkeypatch.setattr(wrapper, "build_project", fake_build)
+        monkeypatch.setattr(wrapper, "run_stryker", fake_run_stryker)
+        monkeypatch.setattr(wrapper, "_install_signal_handlers", lambda: [])
+        monkeypatch.setattr(wrapper, "_restore_signal_handlers", lambda previous: None)
+
+        rc = run_slice_runner(hermetic, "--slice", "all", "--total-workers", "2")
+
+        assert rc == 130
         assert hermetic.sln.exists()
         assert not hermetic.sln_hidden.exists()
