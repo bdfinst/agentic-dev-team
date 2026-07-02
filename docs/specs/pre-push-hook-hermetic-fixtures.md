@@ -44,7 +44,7 @@ The outcome: `git push` on this repo never mutates local refs as a side effect o
 ## Ambiguity Log
 
 | Decision | Classification | Resolved By | Rationale / Answer |
-|----------|---------------|-------------|-------------------|
+| ---------- | --------------- | ------------- | ------------------- |
 | Fix scope (root-cause only vs. full 4-step + REFACTOR) | `requires-stakeholder-input` | human | "Full 4-step plan + REFACTOR" — env-scrub in fixtures + ci-local.sh + post-hook ref guard + per-worker tempdirs + shared hermetic helper |
 | Whether to change shared bare repo's `hooksPath = .husky/_` to absolute | `requires-stakeholder-input` | human | "Leave as-is" — env-scrub closes the corruption channel; hooksPath is a compounding factor, not root cause, and changing it touches config outside the checkout |
 | Which env vars to scrub | `inferable` | inference | Triage investigation identified `GIT_DIR`, `GIT_INDEX_FILE`, `GIT_WORK_TREE`, `GIT_PREFIX`, `GIT_REFLOG_ACTION` as git-exported; `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_SYSTEM=/dev/null` isolate global config. Standard git-hermeticity pattern |
@@ -52,9 +52,9 @@ The outcome: `git push` on this repo never mutates local refs as a side effect o
 | Which refs the post-hook guard checks | `inferable` | inference | All `refs/heads/*` via `git for-each-ref` — cheap, comprehensive, avoids false-negatives if corruption hits a ref other than the pushing branch (issue #546 explicitly notes `main` also gets clobbered) |
 | Whether the post-hook guard runs when ci-local.sh exits non-zero | `inferable` | inference | Yes — corruption in #546 is silent regardless of ci-local exit code. Guard runs unconditionally |
 | Location of the shared helper | `inferable` | inference | `tests/lib/hermetic.bash` per triage record; matches bats convention (`load '../lib/hermetic'`) |
-| Whether existing `|| return 1` cd guards from PR #545 must be removed | `inferable` | inference | No — they are harmless once the shared helper's PWD trap is in place. Removal is a follow-up cleanup, not part of this fix |
+| Whether existing `\|\| return 1` cd guards from PR #545 must be removed | `inferable` | inference | No — they are harmless once the shared helper's PWD trap is in place. Removal is a follow-up cleanup, not part of this fix |
 | Tempdir prefix format | `inferable` | inference | `mktemp -d -t "bats-$$-XXXX"` — `$$` gives per-worker namespace (bats PID), `XXXX` is mktemp's own randomness. Cross-platform (macOS, Linux, Git Bash) |
-| Whether to file separately the observation that `hooksPath` is relative | `inferable` | inference (LOW_VALUE for this spec) | Note in code review but out of scope here; env-scrub alone satisfies acceptance criteria |
+| Whether to file separately the observation that `hooksPath` is relative | `inferable` | inference (LOW_VALUE for this spec) | Note in code review but out of scope here; env-scrub alone satisfies acceptance criteria. **Follow-up (issue #717, closed):** investigated and disposed as a documented known limitation — see [root `CLAUDE.md`](../../CLAUDE.md#known-limitation--local-husky-hooks-dont-run-in-unprovisioned-worktrees). The relative `hooksPath` amplifier means ephemeral worktrees without `.husky/_`/`node_modules` silently skip the local pre-commit hook; CI's `test_knowledge_index_current.py` backstops the consequential half (knowledge-index staleness). `hooksPath` itself remains unchanged, consistent with the "leave as-is" decision above. |
 
 ## Consistency Gate
 
