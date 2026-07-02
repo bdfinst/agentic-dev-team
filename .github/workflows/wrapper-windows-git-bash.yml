@@ -1,0 +1,144 @@
+name: Wrapper — Windows Git Bash
+
+# Verifies csharp-stryker-net-wrapper.sh + csharp-stryker-net-status-loop.sh
+# on Windows Git Bash (native, not WSL). Answers the deferred Windows
+# signal-handling question filed as #567 — the wrapper's EXIT/INT/TERM
+# trap, process-group SIGINT via `kill -INT -PGID`, and backgrounded-
+# Stryker PID reaping through `kill -0` have been verified on macOS + Linux
+# but never on Windows Git Bash's MSYS bash, whose job-control diverges
+# from POSIX.
+#
+# Refs: #564 (parent — the wrapper cross-platform work), #567 (the
+# tracking issue this job closes).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      # Only fires when the wrapper, status loop, their bats tests, or this
+      # workflow itself changes — avoids running Windows CI on every unrelated
+      # PR since Windows runners are slower + more expensive.
+      - "plugins/dev-team/skills/mutation-testing/scripts/csharp-stryker-net-*.sh"
+      - "tests/skills/mutation_testing_wrapper_tests.bats"
+      - "tests/skills/mutation_testing_wrapper_loop_integration_tests.bats"
+      - "tests/skills/mutation_testing_status_loop_tests.bats"
+      - "tests/fixtures/stryker-net-logs/**"
+      - ".github/workflows/wrapper-windows-git-bash.yml"
+
+concurrency:
+  group: wrapper-windows-git-bash-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bats-on-git-bash:
+    name: Bats on Git Bash (native Windows)
+    runs-on: windows-latest
+    # GitHub Actions' default job timeout is 6 hours — way too generous for
+    # a test suite that should finish in ~2 minutes end-to-end. Cap at 15
+    # minutes so a hang caught by an MSYS-vs-POSIX divergence is reaped fast.
+    timeout-minutes: 15
+    # Default shell for `run:` steps → Git Bash (as opposed to PowerShell,
+    # which is the windows-latest default). Every step below runs under
+    # `C:\Program Files\Git\bin\bash.exe` — exactly the shell operators
+    # actually use with the wrapper on Windows.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      # windows-latest ships jq + python3 + sha256sum out of the box, but
+      # NOT bats or shellcheck. Install both from their upstream release
+      # binaries to a userprofile-scoped dir, then append to $GITHUB_PATH.
+      # Pinned versions match what other jobs in this repo use — so a
+      # regression that only shows up on Windows is a real Windows issue,
+      # not "the CI installed a different lint tool."
+      - name: Install bats-core from upstream tarball
+        run: |
+          set -euo pipefail
+          BATS_VERSION="1.10.0"
+          tmp="$(mktemp -d)"
+          curl -fsSL "https://github.com/bats-core/bats-core/archive/refs/tags/v${BATS_VERSION}.tar.gz" \
+            | tar -xz -C "$tmp"
+          "$tmp/bats-core-${BATS_VERSION}/install.sh" "$USERPROFILE/.local/bats"
+          echo "$USERPROFILE/.local/bats/bin" >> "$GITHUB_PATH"
+
+      - name: Install shellcheck from upstream release
+        run: |
+          set -euo pipefail
+          # Chocolatey's `shellcheck` package is stuck at 0.9.0; upstream
+          # 0.11.0 (current stable) matches what the plugin is authored
+          # against. Fetch the Windows release binary directly.
+          SC_VERSION="v0.11.0"
+          tmp="$(mktemp -d)"
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/${SC_VERSION}/shellcheck-${SC_VERSION}.zip" \
+            -o "$tmp/shellcheck.zip"
+          (cd "$tmp" && unzip -q shellcheck.zip)
+          mkdir -p "$USERPROFILE/.local/shellcheck/bin"
+          cp "$tmp/shellcheck.exe" "$USERPROFILE/.local/shellcheck/bin/shellcheck.exe"
+          echo "$USERPROFILE/.local/shellcheck/bin" >> "$GITHUB_PATH"
+
+      # Verify every dep is now on PATH under Git Bash (not just PowerShell —
+      # Chocolatey installs into `C:\ProgramData\Chocolatey\bin` which Git
+      # Bash inherits, but confirm to fail fast if this ever changes).
+      - name: Verify required tools are on PATH
+        run: |
+          set -euo pipefail
+          missing=0
+          for t in bats shellcheck jq python3; do
+            if command -v "$t" >/dev/null 2>&1; then
+              printf 'ok:   %-11s %s\n' "$t" "$(command -v "$t")"
+            else
+              printf 'MISS: %s NOT on PATH\n' "$t"
+              missing=1
+            fi
+          done
+          # sha256sum OR shasum satisfies the wrapper/loop hashing need.
+          if command -v sha256sum >/dev/null 2>&1; then
+            printf 'ok:   %-11s %s\n' "sha256sum" "$(command -v sha256sum)"
+          elif command -v shasum >/dev/null 2>&1; then
+            printf 'ok:   %-11s %s\n' "shasum" "$(command -v shasum)"
+          else
+            printf 'MISS: neither sha256sum nor shasum on PATH\n'
+            missing=1
+          fi
+          [ "$missing" -eq 0 ]
+
+      # Scope: only the wrapper's own contract on Windows Git Bash. The
+      # wrapper is what operators run end-to-end (trap-restore, .sln hide,
+      # SIGINT/SIGTERM process-group semantics, backgrounded-Stryker PID
+      # reaping) — exactly what #567 asks us to verify.
+      #
+      # Explicitly excluded from this job:
+      #   - tests/skills/mutation_testing_status_loop_tests.bats
+      #     Its setup() forks `bash -c 'exit 0' &` + `wait` to obtain a
+      #     definitively-dead PID. On MSYS bash the fork emulation and
+      #     child-reaping semantics diverge from POSIX enough that this
+      #     setup hangs indefinitely on Windows runners (verified: the
+      #     first attempt of this workflow ran until GitHub Actions'
+      #     6-hour job timeout killed it, having completed only test 33
+      #     — `status-loop: file exists`, which does NOT touch the
+      #     forking setup). Tracked in #571. The status loop runs
+      #     backgrounded from the wrapper on Linux/macOS in normal
+      #     operation; verifying its internal helpers on Windows Git
+      #     Bash is out of scope for #567.
+      #   - tests/skills/mutation_testing_wrapper_loop_integration_tests.bats
+      #     Same forked-child + STATUS_INTERVAL loop shape as the status-
+      #     loop unit tests; excluded for the same reason.
+      #   - tests/hooks/mutation_testing_smoke_gate.bats
+      #     Claude Code hook, only runs when CC intercepts a Bash call.
+      - name: Run wrapper bats suite (only)
+        run: |
+          set -euo pipefail
+          bats tests/skills/mutation_testing_wrapper_tests.bats
+
+      # Explicit shellcheck of the two shipped scripts. The wrapper's own
+      # bats file already includes a shellcheck test that skips when the
+      # tool is absent — this step confirms Git Bash on the Windows runner
+      # actually has shellcheck available AND the scripts pass under it.
+      - name: Shellcheck the shipped wrapper + status loop
+        run: |
+          set -euo pipefail
+          shellcheck plugins/dev-team/skills/mutation-testing/scripts/csharp-stryker-net-wrapper.sh
+          shellcheck plugins/dev-team/skills/mutation-testing/scripts/csharp-stryker-net-status-loop.sh
