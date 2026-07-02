@@ -674,9 +674,9 @@ Observations acknowledged (no code change):
 
 ### Wave 2
 
-- [ ] Slice 2: csharp-stryker-net.md — SolutionPath warning, Step 1c link, dots reporter
-  - [ ] Step 2.1: RED — bats doc-shape tests for SolutionPath warning + Step 1c link + dots reporter
-  - [ ] Step 2.2: PR1 gate + open PR
+- [x] Slice 2: csharp-stryker-net.md — SolutionPath warning, Step 1c link, dots reporter
+  - [x] Step 2.1: RED — bats doc-shape tests for SolutionPath warning + Step 1c link + dots reporter
+  - [x] Step 2.2: PR1 gate + open PR (#562)
 
 ### Wave 3
 
