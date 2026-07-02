@@ -52,7 +52,7 @@ Display:
 
 ## Notes
 
-- The `pre-tool-guard.sh` hook reads `hooks/freeze-state.json` and blocks Write/Edit to files that do NOT match the allowed patterns.
+- The `hooks/pre_tool_guard.py` hook reads `hooks/freeze-state.json` and blocks Write/Edit to files that do NOT match the allowed patterns.
 - Freeze state persists across tool calls within a session.
 - If a session crashes while frozen, use `/unfreeze` in the next session to clear stale state.
 - Multiple patterns can be provided as comma-separated: `/freeze src/auth/**,src/middleware/**`

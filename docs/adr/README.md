@@ -12,3 +12,6 @@
 * [10. Per-Session Analysis Granularity](0010-per-session-analysis-granularity.md)
 * [11. Enforce the context ceiling with a transcript-measured PreToolUse hook](0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md)
 * [12. Auto-bootstrap the CodeGraph index per clone](0012-auto-bootstrap-codegraph-index-per-clone.md)
+* [13. LLM-driven orchestration over deterministic workflow scripts](0013-llm-driven-orchestration-over-deterministic-workflow-scripts.md)
+* [14. Python for cross-OS scripts](0014-python-for-cross-os-scripts.md)
+* [15. Bash removal complete — plugins/dev-team is Python-native](0015-bash-removal-complete.md)

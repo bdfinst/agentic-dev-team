@@ -158,7 +158,7 @@ graph TD
 | 1 | 1 |
 | 2 | 2 |
 
-If `plan-waves.sh` reports a cycle, a missing `Depends-on`, an unknown reference,
+If `scripts/plan_waves.py` reports a cycle, a missing `Depends-on`, an unknown reference,
 or a **same-wave file collision** (two slices in one wave declaring the same file),
 fix the plan before the human gate — those break safe concurrent delivery.
 
@@ -234,10 +234,10 @@ Before presenting to the user, dispatch the plan review personas in parallel as 
 
 #### 5a. Classify the plan tier
 
-Derive a **plan tier** from objective signals already on hand — the same `trivial | standard | complex` vocabulary `/build` uses for per-step review depth, so the concept is consistent across the pipeline. Inputs: the slice count and wave structure from the `plan-waves.sh` JSON, the file count, the per-step Complexity ratings, and whether the plan takes a stance on any high-reversal-cost axis in `knowledge/decision-defaults.md`.
+Derive a **plan tier** from objective signals already on hand — the same `trivial | standard | complex` vocabulary `/build` uses for per-step review depth, so the concept is consistent across the pipeline. Inputs: the slice count and wave structure from the `scripts/plan_waves.py` JSON, the file count, the per-step Complexity ratings, and whether the plan takes a stance on any high-reversal-cost axis in `knowledge/decision-defaults.md`.
 
 | Tier | Signals | Reviewers |
-|------|---------|-----------|
+| ------ | --------- | ----------- |
 | `trivial` | 1 slice, ≤ 2 files, no `complex` step, touches no high-reversal-cost decision axis | **Acceptance Test Critic only** (1) |
 | `standard` | anything between — e.g. a single slice with a few files, or a small multi-slice plan within existing patterns | **Acceptance Test Critic + Design & Architecture Critic**, plus **UX Critic** if the plan has a user-facing/UI surface, plus **Parallelization Critic** if slice count > 1 (2–4) |
 | `complex` | > 1 wave, ≥ 4 slices, any `complex` step, a security-sensitive/cross-cutting change, or a stance on a high-reversal-cost decision axis | **all 5** |
@@ -257,12 +257,12 @@ bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-revie
 Pass the resolved model id as the `model` override on each persona dispatch. (`medium` resolves to the same default the personas used before, but now flows through `.claude/model-ladder.json` / `knowledge/model-routing.json` instead of a literal.)
 
 | Reviewer | Template | Effort | Focus |
-|----------|----------|--------|-------|
+| ---------- | ---------- | -------- | ------- |
 | Acceptance Test Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-acceptance.md` | `medium` | Per-slice Gherkin quality (determinism, isolation, implementation-independence), scenario gaps, error paths, criteria coverage, TDD traceability |
 | Design & Architecture Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-design.md` | `medium` | Coupling, abstractions, structural risks, pattern adherence |
 | UX Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-ux.md` | `medium` | User journey, error UX, cognitive load, accessibility |
 | Strategic Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-strategic.md` | `medium` | Problem fit, scope, slice boundaries, risk, opportunity cost |
-| Parallelization Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-parallelization.md` | `medium` | Same-wave independence: file-overlap collisions (from `plan-waves.sh`), disjoint-file behavioral coupling, residual cycles/mis-layering |
+| Parallelization Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-parallelization.md` | `medium` | Same-wave independence: file-overlap collisions (from `scripts/plan_waves.py`), disjoint-file behavioral coupling, residual cycles/mis-layering |
 
 Pass each reviewer the full plan content. Also pass the Parallelization Critic the `scripts/plan_waves.py` JSON for this plan (its `collisions` array is the deterministic input). Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate. It is the one reviewer that always runs (every tier). A `needs-revision` from the Parallelization Critic triggers plan revision (re-wave the colliding slices) before the human sees the plan.
 

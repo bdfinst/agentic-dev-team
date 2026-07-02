@@ -26,7 +26,7 @@ def test_skill_exists() -> None:
 
 
 def test_derives_dependency_links_from_dag_not_file_order(text: str) -> None:
-    assert "issue-deps.sh" in text
+    assert "issue_deps.py" in text
     assert "not file order" in text.lower()
 
 

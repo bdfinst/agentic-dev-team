@@ -45,7 +45,7 @@ HEADER = """\
 <!-- GENERATED FILE — do not edit by hand.
      Rows: each plugins/dev-team/skills/<name>/SKILL.md frontmatter (name, description).
      Grouping: plugins/dev-team/hooks/lib/skill_categories.yaml (by capability).
-     Regenerate: bash plugins/dev-team/hooks/lib/build-skills-index.sh
+     Regenerate: python3 plugins/dev-team/hooks/lib/build_skills_index.py
      A CI freshness gate (--check) fails if this file drifts from the skills on disk. -->
 
 Skills are the unified reusable capability layer in this system. Every skill lives \
@@ -91,7 +91,9 @@ def _cell(text: str) -> str:
 def _load_categories():
     """Ordered [(category_name, [skill, ...]), ...] from skill_categories.yaml."""
     data = yaml.safe_load(CATEGORIES_FILE.read_text(encoding="utf-8")) or {}
-    return [(c["name"], list(c.get("skills") or [])) for c in (data.get("categories") or [])]
+    return [
+        (c["name"], list(c.get("skills") or [])) for c in (data.get("categories") or [])
+    ]
 
 
 def _collect():
@@ -111,7 +113,9 @@ def _collect():
         desc = _cell(fm["description"])
         link = f"[`{folder}/SKILL.md`](../skills/{folder}/SKILL.md)"
         slash = fm.get("user-invocable") is True
-        buckets.setdefault(lookup.get(folder, OTHER), []).append((name, folder, link, desc, slash))
+        buckets.setdefault(lookup.get(folder, OTHER), []).append(
+            (name, folder, link, desc, slash)
+        )
     display = [(name, buckets[name]) for name in order if buckets.get(name)]
     if buckets.get(OTHER):
         display.append((OTHER, buckets[OTHER]))
@@ -170,7 +174,7 @@ def main(argv: list) -> int:
         sys.stderr.writelines(diff)
         sys.stderr.write(
             "\n[skills-index] docs/skills.md is stale. Regenerate: "
-            "bash plugins/dev-team/hooks/lib/build-skills-index.sh\n"
+            "python3 plugins/dev-team/hooks/lib/build_skills_index.py\n"
         )
         return 1
 

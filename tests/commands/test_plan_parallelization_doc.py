@@ -40,7 +40,7 @@ def test_plan_renders_parallelization_section(text: str) -> None:
 
 
 def test_parallelization_section_references_wave_computer(text: str) -> None:
-    assert "plan-waves.sh" in text
+    assert "plan_waves.py" in text
 
 
 def test_parallelization_section_contains_mermaid_dag_and_wave_table(

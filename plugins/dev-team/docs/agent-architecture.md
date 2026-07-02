@@ -99,7 +99,7 @@ Before the human reviews a plan (Phase 2), a tier-scaled set of critical review 
 | --- | --- | --- | --- |
 | Acceptance Test Critic | `prompts/plan-review-acceptance.md` | medium | Per-slice Gherkin quality (determinism, isolation, completeness), criteria verifiability, error-path coverage, TDD step traceability |
 | Design & Architecture Critic | `prompts/plan-review-design.md` | medium | Dependency direction, abstraction quality, structural risks, pattern consistency |
-| Parallelization Critic | `prompts/plan-review-parallelization.md` | medium | Same-wave independence: file-overlap collisions (plan-waves.sh), disjoint-file behavioral coupling, residual cycles |
+| Parallelization Critic | `prompts/plan-review-parallelization.md` | medium | Same-wave independence: file-overlap collisions (plan_waves.py), disjoint-file behavioral coupling, residual cycles |
 | Strategic Critic | `prompts/plan-review-strategic.md` | medium | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
 | UX Critic | `prompts/plan-review-ux.md` | medium | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
 
@@ -161,7 +161,7 @@ Intervention commands (`override`, `pause`, `stop`) give humans immediate contro
 
 ### Pre-Execution Hook Pipeline
 
-A `PreToolUse` hook (`pre-tool-guard.sh`) intercepts every Write and Edit call before execution:
+A `PreToolUse` hook (`hooks/pre_tool_guard.py`) intercepts every Write and Edit call before execution:
 
 | Action | Trigger | Behavior |
 | --- | --- | --- |
@@ -187,7 +187,7 @@ A `PreToolUse` hook (`hooks/context_ceiling_guard.py`) registered on `Agent` and
 
 ### Freeze Mode
 
-The `pre-tool-guard.sh` hook also enforces freeze mode. When `/freeze <glob>` is invoked, it writes a state file (`hooks/freeze-state.json`) that restricts Write/Edit operations to files matching the allowed pattern. This prevents accidental edits outside the scope of a debugging session. `/unfreeze` removes the restriction. `/guard <glob>` activates both careful mode and freeze mode together.
+The `hooks/pre_tool_guard.py` hook also enforces freeze mode. When `/freeze <glob>` is invoked, it writes a state file (`hooks/freeze-state.json`) that restricts Write/Edit operations to files matching the allowed pattern. This prevents accidental edits outside the scope of a debugging session. `/unfreeze` removes the restriction. `/guard <glob>` activates both careful mode and freeze mode together.
 
 ### Decision Log
 

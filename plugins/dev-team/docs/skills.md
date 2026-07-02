@@ -3,7 +3,7 @@
 <!-- GENERATED FILE — do not edit by hand.
      Rows: each plugins/dev-team/skills/<name>/SKILL.md frontmatter (name, description).
      Grouping: plugins/dev-team/hooks/lib/skill_categories.yaml (by capability).
-     Regenerate: bash plugins/dev-team/hooks/lib/build-skills-index.sh
+     Regenerate: python3 plugins/dev-team/hooks/lib/build_skills_index.py
      A CI freshness gate (--check) fails if this file drifts from the skills on disk. -->
 
 Skills are the unified reusable capability layer in this system. Every skill lives in `skills/<name>/SKILL.md`. This catalog groups them **by capability** (the sections below); each row's description is the skill's own frontmatter `description`, verbatim.
