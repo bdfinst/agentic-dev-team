@@ -147,7 +147,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/js-fp-review.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_JS_FP_REVIEW:-0}\" = \"1\" ]; then python3 hooks/js_fp_review.py; else bash hooks/js-fp-review.sh; fi'"
           },
           {
             "type": "command",
@@ -155,7 +155,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/eval-compliance-check.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_EVAL_COMPLIANCE_CHECK:-0}\" = \"1\" ]; then python3 hooks/eval_compliance_check.py; else bash hooks/eval-compliance-check.sh; fi'"
           },
           {
             "type": "command",
@@ -194,7 +194,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/codegraph-turn-mark.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_TURN_MARK:-0}\" = \"1\" ]; then python3 hooks/codegraph_turn_mark.py; else bash hooks/codegraph-turn-mark.sh; fi'"
           }
         ]
       }
@@ -215,7 +215,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/cost-meter.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_COST_METER:-0}\" = \"1\" ]; then python3 hooks/cost_meter.py; else bash hooks/cost-meter.sh; fi'"
           }
         ]
       }
@@ -226,7 +226,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/cost-meter.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_COST_METER:-0}\" = \"1\" ]; then python3 hooks/cost_meter.py; else bash hooks/cost-meter.sh; fi'"
           }
         ]
       }
