@@ -71,7 +71,7 @@ The four steps above defend against the *fake-100 %-via-Timeout* variant of the 
 
 ## Default `coverage-analysis: perTest` for xunit.v2 / non-MTP projects
 
-For Stryker.NET projects that are **not** on xunit.v3 / the MTP runner (see the [xunit.v3 detection](#xunit-v3-detection-do-this-before-configuring-runs) section above, which stays mandatory for those projects), default `"coverage-analysis": "perTest"` in `stryker-config.json` rather than `"off"`. Per-test coverage tracking lets each mutant run only the tests that actually exercise the mutated line, instead of the full suite — a significant speedup on large suites.
+For Stryker.NET projects that are **not** on xunit.v3 / the MTP runner (see the [xunit.v3 detection](#xunitv3-detection-do-this-before-configuring-runs) section above, which stays mandatory for those projects), default `"coverage-analysis": "perTest"` in `stryker-config.json` rather than `"off"`. Per-test coverage tracking lets each mutant run only the tests that actually exercise the mutated line, instead of the full suite — a significant speedup on large suites.
 
 [#669](https://github.com/bdfinst/agentic-dev-team/issues/669) validated this against an xunit.v2-shim repo (the shim workaround from #554/#557, above) at two points, checking the two failure modes a static-analysis-based coverage tool is prone to:
 
@@ -90,7 +90,7 @@ Both risks checked out clean — zero mutants flipped from `Killed` to `Survived
 
 Speed: the testing-phase wall-clock dropped roughly **5-6x** (~17-21 min under `off` → ~3-4 min under `perTest`; total run including build+shim went from ~19-24 min to ~6 min).
 
-This recommendation **does not apply to xunit.v3 / MTP-runner projects** — the [xunit.v3 detection](#xunit-v3-detection-do-this-before-configuring-runs) section's `"coverage-analysis": "off"` mandate above is unrelated and unaffected; #669 did not re-test that failure mode.
+This recommendation **does not apply to xunit.v3 / MTP-runner projects** — the [xunit.v3 detection](#xunitv3-detection-do-this-before-configuring-runs) section's `"coverage-analysis": "off"` mandate above is unrelated and unaffected; #669 did not re-test that failure mode.
 
 ## Pre-run: build first
 
@@ -146,6 +146,8 @@ Large C# repos take 60–90 min for a whole-project run. Always scope runs; if t
 
 **Single file in `--scope` (Phase 4 per-Story gate):**
 
+`coverage-analysis` is config-file-only in Stryker.NET 4.15.0 — there is no CLI flag for it (confirmed via `--help`); set it in `stryker-config.shard-<name>.json` (see [Default `coverage-analysis: perTest`](#default-coverage-analysis-pertest-for-xunitv2-non-mtp-projects) above) rather than passing it on the command line below.
+
 ```bash
 export DOTNET_ROOT="${DOTNET_ROOT:-/opt/homebrew/opt/dotnet/libexec}"
 dotnet build <solution> -c Debug --nologo
@@ -154,7 +156,6 @@ dotnet build <solution> -c Debug --nologo
 dotnet stryker \
   --config-file stryker-config.shard-<name>.json \
   --mutate "**/ChangedFile.cs" \
-  --coverage-analysis perTest \
   --reporter json \
   -O StrykerOutput/gate-shard
 ```
@@ -183,7 +184,8 @@ dotnet build <solution> -c Debug --nologo
 python3 /path/to/nextgen-test-upgrade-process/scripts/stryker-setup.py
 
 # Then run — dotnet stryker finds stryker-config.json
-dotnet stryker --coverage-analysis perTest --reporter json -O StrykerOutput/baseline
+# (set "coverage-analysis" in stryker-config.json itself — it's config-file-only, no CLI flag)
+dotnet stryker --reporter json -O StrykerOutput/baseline
 ```
 
 **Named-run output directories.** Use the `-O` / `--output` CLI flag to name the output directory, e.g. `-O StrykerOutput/baseline` and `-O StrykerOutput/verification`. Do **not** use `--report-file-name` as a CLI flag — it is not one; it is a **config-file key** (`"report-file-name"` inside `stryker-config.json`) that renames the HTML/JSON output files *within* whichever directory `-O` selected.

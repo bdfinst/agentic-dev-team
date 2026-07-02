@@ -31,9 +31,9 @@ Per `knowledge/decision-defaults.md`, the task touches these axes:
 
 Mirrors the spec's Acceptance Criteria, condensed for build tracking:
 
-- [ ] New section recommends `"coverage-analysis": "perTest"` as default for xunit.v2 / xunit.v2-shim projects, citing issue #669's experiment result (identical Killed counts, ~5-6x speedup)
-- [ ] New section explicitly states the recommendation does not apply to xunit.v3/MTP-runner projects, cross-referencing the existing "xunit.v3 detection" section's `"off"` mandate (no restatement)
-- [ ] Both existing CLI examples showing `--coverage-analysis perTest` no longer present it as a working CLI flag; a note states Stryker.NET 4.15.0 accepts this only via the `stryker-config.json` key
+- [x] New section recommends `"coverage-analysis": "perTest"` as default for xunit.v2 / xunit.v2-shim projects, citing issue #669's experiment result (identical Killed counts, ~5-6x speedup)
+- [x] New section explicitly states the recommendation does not apply to xunit.v3/MTP-runner projects, cross-referencing the existing "xunit.v3 detection" section's `"off"` mandate (no restatement)
+- [x] Both existing CLI examples showing `--coverage-analysis perTest` no longer present it as a working CLI flag; a note states Stryker.NET 4.15.0 accepts this only via the `stryker-config.json` key
 - [ ] No code, agent, skill, or hook file is modified — only `csharp-stryker-net.md` plus this change's own spec/plan/check artifacts (`docs/specs/`, `plans/`)
 - [ ] `/agent-audit` passes on the modified file
 - [ ] PR body contains `Closes #669`; PR title is `docs(mutation-testing): default coverage-analysis to perTest for xunit.v2-shim Stryker.NET projects`
@@ -174,14 +174,14 @@ None. Both findings (perTest-default guidance, CLI-flag correction) deliver obse
 
 - [ ] Slice 1: Add perTest-default guidance and correct the CLI-flag examples
   - [x] Step 1.1: Add the "Default coverage-analysis: perTest" section
-  - [ ] Step 1.2: Correct the two CLI examples that misdescribe `--coverage-analysis` as a flag
+  - [x] Step 1.2: Correct the two CLI examples that misdescribe `--coverage-analysis` as a flag
   - [ ] Step 1.3: Run /agent-audit and open the PR with auto-merge armed
 
 ### Acceptance Criteria
 
-- [ ] New section recommends `"coverage-analysis": "perTest"` as default for xunit.v2 / xunit.v2-shim projects, citing issue #669's experiment result (identical Killed counts, ~5-6x speedup)
-- [ ] New section explicitly states the recommendation does not apply to xunit.v3/MTP-runner projects, cross-referencing the existing "xunit.v3 detection" section's `"off"` mandate (no restatement)
-- [ ] Both existing CLI examples showing `--coverage-analysis perTest` no longer present it as a working CLI flag; a note states Stryker.NET 4.15.0 accepts this only via the `stryker-config.json` key
+- [x] New section recommends `"coverage-analysis": "perTest"` as default for xunit.v2 / xunit.v2-shim projects, citing issue #669's experiment result (identical Killed counts, ~5-6x speedup)
+- [x] New section explicitly states the recommendation does not apply to xunit.v3/MTP-runner projects, cross-referencing the existing "xunit.v3 detection" section's `"off"` mandate (no restatement)
+- [x] Both existing CLI examples showing `--coverage-analysis perTest` no longer present it as a working CLI flag; a note states Stryker.NET 4.15.0 accepts this only via the `stryker-config.json` key
 - [ ] No code, agent, skill, or hook file is modified — only `csharp-stryker-net.md` plus this change's own spec/plan/check artifacts (`docs/specs/`, `plans/`)
 - [ ] `/agent-audit` passes on the modified file
 - [ ] PR body contains `Closes #669`; PR title is `docs(mutation-testing): default coverage-analysis to perTest for xunit.v2-shim Stryker.NET projects`
