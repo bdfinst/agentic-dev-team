@@ -146,7 +146,7 @@ Large C# repos take 60–90 min for a whole-project run. Always scope runs; if t
 
 **Single file in `--scope` (Phase 4 per-Story gate):**
 
-`coverage-analysis` is config-file-only in Stryker.NET 4.15.0 — there is no CLI flag for it (confirmed via `--help`); set it in `stryker-config.shard-<name>.json` (see [Default `coverage-analysis: perTest`](#default-coverage-analysis-pertest-for-xunitv2-non-mtp-projects) above) rather than passing it on the command line below.
+`coverage-analysis` is config-file-only in Stryker.NET 4.15.0 — there is no CLI flag for it (confirmed via `--help`); set it in `stryker-config.shard-<name>.json` (see [Default `coverage-analysis: perTest`](#default-coverage-analysis-pertest-for-xunitv2--non-mtp-projects) above) rather than passing it on the command line below.
 
 ```bash
 export DOTNET_ROOT="${DOTNET_ROOT:-/opt/homebrew/opt/dotnet/libexec}"
