@@ -463,6 +463,116 @@ class TestMainContract:
 
 
 # =============================================================================
+# default_concurrency + injection — cores-2 default (#667, #681)
+# =============================================================================
+class TestConcurrencyDefault:
+    """Step 2.1: wrapper injects a computed default `-c` value unless the
+    caller already forwards one. See plans/mutation-kill-slice-loop-
+    refinements.md Slice 2.
+    """
+
+    def test_injects_computed_default_when_no_concurrency_present(
+        self, hermetic, monkeypatch
+    ):
+        monkeypatch.setattr(os, "cpu_count", lambda: 8)
+        _install_fakes(monkeypatch, hermetic)
+        rc = run_wrapper(hermetic)
+        assert rc == 0
+        strykers = [c for c in hermetic.calls if c["kind"] == "stryker"]
+        argv = strykers[0]["stryker_args"]
+        assert argv == ["-c", "6"]
+
+    def test_does_not_override_existing_short_form_pass_through(
+        self, hermetic, monkeypatch
+    ):
+        monkeypatch.setattr(os, "cpu_count", lambda: 8)
+        _install_fakes(monkeypatch, hermetic)
+        rc = run_wrapper(hermetic, "-c", "3")
+        assert rc == 0
+        strykers = [c for c in hermetic.calls if c["kind"] == "stryker"]
+        argv = strykers[0]["stryker_args"]
+        assert argv == ["-c", "3"]
+
+    def test_default_concurrency_falls_back_when_cpu_count_is_none(self):
+        assert wrapper.default_concurrency(None) == 1
+
+    def test_default_concurrency_computes_cores_minus_two(self):
+        assert wrapper.default_concurrency(8) == 6
+
+    def test_default_concurrency_floors_at_one(self):
+        assert wrapper.default_concurrency(2) == 1
+        assert wrapper.default_concurrency(1) == 1
+
+
+# =============================================================================
+# --stryker-concurrency / STRYKER_MUTANT_CONCURRENCY override (#667, #681)
+# =============================================================================
+class TestConcurrencyOverride:
+    """Step 2.2: explicit CLI flag / env var override the computed default,
+    with CLI winning over env, and pass-through always winning over both
+    (logging a one-line override note when it conflicts with an explicit
+    value). Deliberately NOT named `--concurrency`/`-c` — see the plan's
+    naming note (post-review-1 revision).
+    """
+
+    def test_explicit_stryker_concurrency_flag_is_forwarded(
+        self, hermetic, monkeypatch
+    ):
+        monkeypatch.setattr(os, "cpu_count", lambda: 8)
+        _install_fakes(monkeypatch, hermetic)
+        rc = run_wrapper(hermetic, "--stryker-concurrency", "8")
+        assert rc == 0
+        strykers = [c for c in hermetic.calls if c["kind"] == "stryker"]
+        argv = strykers[0]["stryker_args"]
+        assert argv == ["-c", "8"]
+
+    def test_env_var_used_when_no_cli_flag(self, hermetic, monkeypatch):
+        monkeypatch.setattr(os, "cpu_count", lambda: 8)
+        monkeypatch.setenv("STRYKER_MUTANT_CONCURRENCY", "6")
+        _install_fakes(monkeypatch, hermetic)
+        rc = run_wrapper(hermetic)
+        assert rc == 0
+        strykers = [c for c in hermetic.calls if c["kind"] == "stryker"]
+        argv = strykers[0]["stryker_args"]
+        assert argv == ["-c", "6"]
+
+    def test_cli_flag_wins_over_env_var(self, hermetic, monkeypatch):
+        monkeypatch.setattr(os, "cpu_count", lambda: 8)
+        monkeypatch.setenv("STRYKER_MUTANT_CONCURRENCY", "6")
+        _install_fakes(monkeypatch, hermetic)
+        rc = run_wrapper(hermetic, "--stryker-concurrency", "8")
+        assert rc == 0
+        strykers = [c for c in hermetic.calls if c["kind"] == "stryker"]
+        argv = strykers[0]["stryker_args"]
+        assert argv == ["-c", "8"]
+
+    def test_does_not_override_existing_long_form_pass_through(
+        self, hermetic, monkeypatch
+    ):
+        monkeypatch.setattr(os, "cpu_count", lambda: 8)
+        _install_fakes(monkeypatch, hermetic)
+        rc = run_wrapper(hermetic, "--concurrency", "3")
+        assert rc == 0
+        strykers = [c for c in hermetic.calls if c["kind"] == "stryker"]
+        argv = strykers[0]["stryker_args"]
+        assert argv == ["--concurrency", "3"]
+
+    def test_pass_through_wins_over_explicit_value_and_logs_override(
+        self, hermetic, monkeypatch, capsys
+    ):
+        monkeypatch.setattr(os, "cpu_count", lambda: 8)
+        _install_fakes(monkeypatch, hermetic)
+        rc = run_wrapper(hermetic, "--stryker-concurrency", "8", "-c", "3")
+        assert rc == 0
+        strykers = [c for c in hermetic.calls if c["kind"] == "stryker"]
+        argv = strykers[0]["stryker_args"]
+        assert argv == ["-c", "3"]
+        captured = capsys.readouterr()
+        assert "-c 3" in captured.err
+        assert "--stryker-concurrency 8" in captured.err
+
+
+# =============================================================================
 # Signal handling — POSIX only
 # =============================================================================
 # Windows signal semantics differ fundamentally from POSIX:
