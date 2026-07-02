@@ -76,6 +76,8 @@ memory/_*.sh
 
 # Runtime report output (ad-hoc competitive / comparative analyses)
 reports/
+# …but keep parity-fixture reports (see #574 / #572).
+!plugins/dev-team/tests/hooks/parity/fixtures/**/reports/
 
 # Scratch files
 xx

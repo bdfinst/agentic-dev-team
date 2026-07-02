@@ -132,7 +132,8 @@ def test_stderr_normalization_strips_timestamps_pids_tmpdir(tmp_path: Path) -> N
         "#!/usr/bin/env python3\n"
         "import os, sys\n"
         "print('ok')\n"
-        "print(f'ts=2026-07-02T99:99:99Z pid=99999 path={os.getcwd()}/x.log', file=sys.stderr)\n"
+        "cwd = os.environ.get('PWD') or os.getcwd()\n"
+        "print(f'ts=2026-07-02T99:99:99Z pid=99999 path={cwd}/x.log', file=sys.stderr)\n"
         "sys.exit(0)\n"
     )
     fixture = Fixture(name="stderr-norm", stdin=b"", argv=[], env={})

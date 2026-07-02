@@ -95,6 +95,10 @@ def _minimal_env(sandbox_root: Path, extra: Mapping[str, str]) -> Dict[str, str]
         # every hook invocation and defeat the parity comparison.
         "PYTHONDONTWRITEBYTECODE": "1",
         "HOME": str(sandbox_root),
+        # PWD is the shell's logical cwd; bash preserves it verbatim while
+        # Python's os.getcwd() resolves symlinks. On macOS /var → /private/var
+        # the two diverge — align both by explicitly setting PWD.
+        "PWD": str(sandbox_root),
         "CLAUDE_PROJECT_DIR": str(sandbox_root),
         "GIT_CONFIG_GLOBAL": "/dev/null",
         "GIT_CONFIG_SYSTEM": "/dev/null",
@@ -111,13 +115,22 @@ def _apply_initial_tree(root: Path, tree: Mapping[str, str]) -> None:
 
 
 def _snapshot_tree(root: Path) -> Dict[str, str]:
-    """Return {relative_path: sha256} for every file under `root`."""
+    """Return {relative_path: sha256-of-normalized-content} for files under `root`.
+
+    Content is normalized before hashing so that timestamps, PIDs, and the
+    per-side tmpdir prefix — which the .sh and .py MUST embed at different
+    values for the same fixture — do not fail the parity check. This mirrors
+    the stderr normalization: if two impls diverge on anything past those
+    three axes inside a file they wrote, that is a real divergence.
+    """
     snapshot: Dict[str, str] = {}
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
         rel = str(path.relative_to(root))
-        snapshot[rel] = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+        raw = path.read_bytes()
+        normalized = _normalize_stderr(raw, root)
+        snapshot[rel] = "sha256:" + hashlib.sha256(normalized).hexdigest()
     return snapshot
 
 
@@ -138,6 +151,20 @@ def _normalize_stderr(raw: bytes, tmpdir_prefix: Optional[Path] = None) -> bytes
     text = _PID_RE.sub("pid=<PID>", text)
     if tmpdir_prefix is not None:
         text = text.replace(str(tmpdir_prefix), "<SANDBOX>")
+    return text.encode("utf-8")
+
+
+def _scrub_sandbox_prefix(raw: bytes, tmpdir_prefix: Optional[Path]) -> bytes:
+    """Replace each side's own tmpdir prefix in stdout with <SANDBOX>.
+
+    Unlike stderr normalization, this does NOT touch timestamps or PIDs —
+    those never legitimately appear on stdout for a hook and any divergence
+    on those axes should still fail the parity check.
+    """
+    if tmpdir_prefix is None:
+        return raw
+    text = raw.decode("utf-8", errors="replace")
+    text = text.replace(str(tmpdir_prefix), "<SANDBOX>")
     return text.encode("utf-8")
 
 
@@ -241,11 +268,17 @@ def assert_parity(
         f"sh stderr: {_fmt_bytes(sh_result.stderr)!r}\n"
         f"py stderr: {_fmt_bytes(py_result.stderr)!r}"
     )
-    # Stdout byte-equal.
-    assert sh_result.stdout == py_result.stdout, (
+    # Stdout byte-equal after sandbox-prefix normalization. Each side runs in
+    # its own tmpdir, so an identical hook that echoes its cwd still emits
+    # different strings — that is a harness artifact, not a hook divergence.
+    # Scrub only each side's own sandbox root (no timestamps, no PIDs — stdout
+    # is the user-visible channel and we do not want to hide real drift there).
+    sh_stdout_norm = _scrub_sandbox_prefix(sh_result.stdout, sh_result.sandbox_root)
+    py_stdout_norm = _scrub_sandbox_prefix(py_result.stdout, py_result.sandbox_root)
+    assert sh_stdout_norm == py_stdout_norm, (
         f"[{fixture.name}] stdout diverged\n"
-        f"sh: {_fmt_bytes(sh_result.stdout)!r}\n"
-        f"py: {_fmt_bytes(py_result.stdout)!r}"
+        f"sh: {_fmt_bytes(sh_stdout_norm)!r}\n"
+        f"py: {_fmt_bytes(py_stdout_norm)!r}"
     )
     # Stderr equal after normalization — each side's own tmpdir is scrubbed.
     sh_stderr_norm = _normalize_stderr(sh_result.stderr, sh_result.sandbox_root)

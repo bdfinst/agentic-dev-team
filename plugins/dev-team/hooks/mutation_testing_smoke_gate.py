@@ -123,7 +123,8 @@ def log_bypass_audit(raw_command: str, payload_cwd: str) -> None:
     }
     try:
         with audit_file.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record, separators=(", ", ": ")) + "\n")
+            # Match jq -c compact output: no spaces after ',' or ':'.
+            fh.write(json.dumps(record, separators=(",", ":")) + "\n")
     except OSError:
         print(
             f"mutation-testing-smoke-gate: cannot write to {audit_file} "
@@ -217,8 +218,10 @@ def main() -> int:
     if not command:
         return 0
 
-    # cwd from payload, fall back to $PWD (matches .sh).
-    payload_cwd = str(payload.get("cwd") or os.getcwd())
+    # cwd from payload, fall back to $PWD (matches .sh's `${PAYLOAD_CWD:=$PWD}`).
+    # Prefer the shell-provided $PWD over os.getcwd() so macOS's /var → /private/var
+    # symlink resolution does not diverge from the .sh.
+    payload_cwd = str(payload.get("cwd") or os.environ.get("PWD") or os.getcwd())
 
     # -------------------------------------------------------------------
     # Trigger detection
