@@ -23,14 +23,17 @@ import json
 import sys
 from pathlib import Path
 
-import yaml
-
 HERE = Path(__file__).resolve().parent
+# skills/agent-readiness -> skills -> dev-team -> hooks/lib (stdlib-only YAML
+# subset parser; see ADR 0014/0015 — no third-party imports in shipped code).
+sys.path.insert(0, str(HERE.parents[1] / "hooks" / "lib"))
+from minimal_yaml import parse_yaml  # noqa: E402
 
 
 # --------------------------------------------------------------------------
 # Small filesystem helpers (all detection is file-presence/heuristic).
 # --------------------------------------------------------------------------
+
 
 def _exists(root: Path, *names: str) -> str | None:
     for n in names:
@@ -38,19 +41,27 @@ def _exists(root: Path, *names: str) -> str | None:
             return n
     return None
 
+
 def _glob_any(root: Path, *patterns: str) -> str | None:
     for p in patterns:
         for hit in root.glob(p):
             return str(hit.relative_to(root))
     return None
 
+
 def _ci_files(root: Path) -> list[Path]:
     out = []
-    for pat in (".github/workflows/*.yml", ".github/workflows/*.yaml",
-                "Jenkinsfile", ".gitlab-ci.yml", "azure-pipelines.yml",
-                ".azure-pipelines.yml"):
+    for pat in (
+        ".github/workflows/*.yml",
+        ".github/workflows/*.yaml",
+        "Jenkinsfile",
+        ".gitlab-ci.yml",
+        "azure-pipelines.yml",
+        ".azure-pipelines.yml",
+    ):
         out.extend(root.glob(pat))
     return [p for p in out if p.is_file()]
+
 
 def _ci_mentions(root: Path, *needles: str) -> bool:
     for f in _ci_files(root):
@@ -62,6 +73,7 @@ def _ci_mentions(root: Path, *needles: str) -> bool:
             return True
     return False
 
+
 def _score(n: int, evidence: str) -> dict:
     return {"score": n, "max": 2, "evidence": evidence}
 
@@ -70,48 +82,76 @@ def _score(n: int, evidence: str) -> dict:
 # Analyzers — each returns {score, max, evidence}. MVP: file-presence only.
 # --------------------------------------------------------------------------
 
+
 def b2_reproducible_env(root: Path, cfg: dict) -> dict:
-    strong = _exists(root, ".devcontainer/devcontainer.json", "flake.nix",
-                     "docker-compose.yml", "docker-compose.yaml", "compose.yaml")
+    strong = _exists(
+        root,
+        ".devcontainer/devcontainer.json",
+        "flake.nix",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yaml",
+    )
     if strong:
         return _score(2, f"{strong} present (full reproducible environment)")
     if _exists(root, "Dockerfile"):
         return _score(1, "Dockerfile only (no devcontainer/compose/nix)")
     return _score(0, "no Dockerfile/devcontainer/compose/nix")
 
-LOCK_FILES = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock",
-              "Pipfile.lock", "go.sum", "Cargo.lock", "composer.lock",
-              "uv.lock", "Gemfile.lock"]
+
+LOCK_FILES = [
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "poetry.lock",
+    "Pipfile.lock",
+    "go.sum",
+    "Cargo.lock",
+    "composer.lock",
+    "uv.lock",
+    "Gemfile.lock",
+]
+
 
 def b3_dependency_management(root: Path, cfg: dict) -> dict:
     found = [f for f in LOCK_FILES if (root / f).exists()]
     if not found:
         return _score(0, "no lock file found")
-    gi = (root / ".gitignore")
-    ignored = gi.exists() and any(f in gi.read_text(errors="ignore")
-                                  for f in found)
+    gi = root / ".gitignore"
+    ignored = gi.exists() and any(f in gi.read_text(errors="ignore") for f in found)
     if ignored:
         return _score(1, f"lock file(s) {found} present but matched in .gitignore")
     return _score(2, f"lock file(s) committed: {', '.join(found)}")
 
+
 def c1_formatting(root: Path, cfg: dict) -> dict:
-    cfgfile = (_glob_any(root, ".prettierrc*", ".editorconfig", "rustfmt.toml")
-               or _pyproject_has(root, "[tool.black]", "[tool.ruff.format]"))
+    cfgfile = _glob_any(
+        root, ".prettierrc*", ".editorconfig", "rustfmt.toml"
+    ) or _pyproject_has(root, "[tool.black]", "[tool.ruff.format]")
     if not cfgfile:
         return _score(0, "no formatter config")
     if _ci_mentions(root, "prettier", "format", "fmt", "ruff format"):
         return _score(2, f"formatter config ({cfgfile}) + CI format step")
     return _score(1, f"formatter config ({cfgfile}) but no CI enforcement found")
 
+
 def c2_linting(root: Path, cfg: dict) -> dict:
-    cfgfile = (_glob_any(root, ".eslintrc*", "eslint.config.*", "ruff.toml",
-                         ".pylintrc", "pylintrc", ".golangci.yml", ".golangci.yaml")
-               or _pyproject_has(root, "[tool.ruff]", "[tool.pylint]"))
+    cfgfile = _glob_any(
+        root,
+        ".eslintrc*",
+        "eslint.config.*",
+        "ruff.toml",
+        ".pylintrc",
+        "pylintrc",
+        ".golangci.yml",
+        ".golangci.yaml",
+    ) or _pyproject_has(root, "[tool.ruff]", "[tool.pylint]")
     if not cfgfile:
         return _score(0, "no linter config")
     if _ci_mentions(root, "lint", "eslint", "ruff check", "golangci"):
         return _score(2, f"linter config ({cfgfile}) + CI lint step")
     return _score(1, f"linter config ({cfgfile}) but no CI enforcement found")
+
 
 def c4_module_size(root: Path, cfg: dict) -> dict:
     exts = set(cfg.get("source_extensions", []))
@@ -132,10 +172,13 @@ def c4_module_size(root: Path, cfg: dict) -> dict:
     p90 = counts[min(len(counts) - 1, int(round(0.9 * (len(counts) - 1))))]
     th = cfg["thresholds"]
     if p90 <= th["file_size_p90_small"]:
-        return _score(2, f"p90 source file = {p90} lines (<= {th['file_size_p90_small']})")
+        return _score(
+            2, f"p90 source file = {p90} lines (<= {th['file_size_p90_small']})"
+        )
     if p90 <= th["file_size_p90_large"]:
         return _score(1, f"p90 source file = {p90} lines")
     return _score(0, f"p90 source file = {p90} lines (> {th['file_size_p90_large']})")
+
 
 def d1_readme(root: Path, cfg: dict) -> dict:
     readme = _exists(root, "README.md", "README.rst", "README")
@@ -144,59 +187,97 @@ def d1_readme(root: Path, cfg: dict) -> dict:
     text = (root / readme).read_text(errors="ignore")
     words = len(text.split())
     low = text.lower()
-    has_sections = all(k in low for k in ("setup",)) and \
-        any(k in low for k in ("build", "install")) and "test" in low
+    has_sections = (
+        all(k in low for k in ("setup",))
+        and any(k in low for k in ("build", "install"))
+        and "test" in low
+    )
     min_words = cfg["thresholds"]["readme_min_words"]
     if words >= min_words and has_sections:
         return _score(2, f"README {words} words with setup/build/test sections")
     if words > 0:
-        return _score(1, f"README present ({words} words) but thin or missing setup/build/test")
+        return _score(
+            1, f"README present ({words} words) but thin or missing setup/build/test"
+        )
     return _score(0, "README empty")
 
+
 def d2_ai_instructions(root: Path, cfg: dict) -> dict:
-    f = _exists(root, "CLAUDE.md", ".claude/CLAUDE.md", "AGENTS.md",
-                ".cursorrules", ".github/copilot-instructions.md",
-                "CODING_GUIDELINES.md")
+    f = _exists(
+        root,
+        "CLAUDE.md",
+        ".claude/CLAUDE.md",
+        "AGENTS.md",
+        ".cursorrules",
+        ".github/copilot-instructions.md",
+        "CODING_GUIDELINES.md",
+    )
     if not f:
-        return _score(0, "no AI-instructions file (CLAUDE.md/AGENTS.md/.cursorrules/...)")
+        return _score(
+            0, "no AI-instructions file (CLAUDE.md/AGENTS.md/.cursorrules/...)"
+        )
     words = len((root / f).read_text(errors="ignore").split())
     if words >= cfg["thresholds"]["ai_instructions_min_words"]:
         return _score(2, f"{f} present ({words} words, detailed)")
     return _score(1, f"{f} present but brief ({words} words)")
 
+
 def d3_architecture_docs(root: Path, cfg: dict) -> dict:
-    f = (_glob_any(root, "docs/adr/*", "docs/architecture*", "docs/design*",
-                   "ARCHITECTURE.md", "docs/decisions/*"))
+    f = _glob_any(
+        root,
+        "docs/adr/*",
+        "docs/architecture*",
+        "docs/design*",
+        "ARCHITECTURE.md",
+        "docs/decisions/*",
+    )
     if f:
         return _score(2, f"architecture docs present ({f})")
     return _score(0, "no architecture docs (docs/adr, ARCHITECTURE.md, ...)")
 
+
 def v2_precommit_hooks(root: Path, cfg: dict) -> dict:
-    f = _exists(root, ".pre-commit-config.yaml", ".husky", "lefthook.yml",
-                "lefthook.yaml") or _glob_any(root, ".lintstagedrc*")
+    f = _exists(
+        root, ".pre-commit-config.yaml", ".husky", "lefthook.yml", "lefthook.yaml"
+    ) or _glob_any(root, ".lintstagedrc*")
     if not f:
         return _score(0, "no pre-commit hook config")
     if _ci_mentions(root, "pre-commit") or f == ".pre-commit-config.yaml":
         return _score(2, f"pre-commit hooks configured ({f})")
     return _score(1, f"partial hook config ({f})")
 
+
 def v3_commit_conventions(root: Path, cfg: dict) -> dict:
     f = _glob_any(root, "commitlint.config.*", ".commitlintrc*")
     if f:
         enforced = _ci_mentions(root, "commitlint") or (root / ".husky").exists()
-        return _score(2 if enforced else 1,
-                      f"commit-convention tooling ({f})" +
-                      ("" if enforced else " but no CI/hook enforcement found"))
+        return _score(
+            2 if enforced else 1,
+            f"commit-convention tooling ({f})"
+            + ("" if enforced else " but no CI/hook enforcement found"),
+        )
     return _score(0, "no commit-convention tooling")
 
+
 def v4_dependency_scanning(root: Path, cfg: dict) -> dict:
-    found = [n for n in (".github/dependabot.yml", ".github/dependabot.yaml",
-                         ".snyk", "renovate.json", ".renovaterc",
-                         ".renovaterc.json") if (root / n).exists()]
+    found = [
+        n
+        for n in (
+            ".github/dependabot.yml",
+            ".github/dependabot.yaml",
+            ".snyk",
+            "renovate.json",
+            ".renovaterc",
+            ".renovaterc.json",
+        )
+        if (root / n).exists()
+    ]
     if not found:
         return _score(0, "no dependency-scanning config")
-    return _score(2 if len(found) >= 1 else 1,
-                  f"dependency scanning configured: {', '.join(found)}")
+    return _score(
+        2 if len(found) >= 1 else 1,
+        f"dependency scanning configured: {', '.join(found)}",
+    )
 
 
 def _pyproject_has(root: Path, *sections: str) -> str | None:
@@ -228,6 +309,7 @@ ANALYZERS = {
 # Scorer.
 # --------------------------------------------------------------------------
 
+
 def scan(root: Path, cfg: dict) -> dict:
     weights = cfg["weights"]
     categories = {}
@@ -237,8 +319,9 @@ def scan(root: Path, cfg: dict) -> dict:
         scored, raw, mx = {}, 0, 0
         for crit, meta in crits.items():
             if meta.get("manual_review"):
-                manual_flags.append({"criterion": crit,
-                                     "reason": "heuristic weak; needs human review"})
+                manual_flags.append(
+                    {"criterion": crit, "reason": "heuristic weak; needs human review"}
+                )
             if not meta.get("mvp"):
                 continue
             fn = ANALYZERS.get(crit)
@@ -249,13 +332,20 @@ def scan(root: Path, cfg: dict) -> dict:
             raw += res["score"]
             mx += res["max"]
         if mx == 0:
-            categories[cat] = {"weight": weights.get(cat, 0), "scored": False,
-                               "reason": "no MVP criteria (deferred — needs CI API)",
-                               "criteria": {}}
+            categories[cat] = {
+                "weight": weights.get(cat, 0),
+                "scored": False,
+                "reason": "no MVP criteria (deferred — needs CI API)",
+                "criteria": {},
+            }
         else:
             pct = round(raw / mx * 100, 1)
-            categories[cat] = {"weight": weights.get(cat, 0), "scored": True,
-                               "score_pct": pct, "criteria": scored}
+            categories[cat] = {
+                "weight": weights.get(cat, 0),
+                "scored": True,
+                "score_pct": pct,
+                "criteria": scored,
+            }
 
     # Renormalize weights across scored categories only.
     scored_w = sum(c["weight"] for c in categories.values() if c["scored"])
@@ -267,10 +357,15 @@ def scan(root: Path, cfg: dict) -> dict:
     overall = round(overall, 2)
 
     t = cfg["tiers"]
-    tier = ("Agent-Ready" if overall >= t["agent_ready"] else
-            "Agent-Assisted" if overall >= t["agent_assisted"] else
-            "Agent-Limited" if overall >= t["agent_limited"] else
-            "Agent-Hostile")
+    tier = (
+        "Agent-Ready"
+        if overall >= t["agent_ready"]
+        else "Agent-Assisted"
+        if overall >= t["agent_assisted"]
+        else "Agent-Limited"
+        if overall >= t["agent_limited"]
+        else "Agent-Hostile"
+    )
 
     return {
         "repository": root.name,
@@ -278,7 +373,7 @@ def scan(root: Path, cfg: dict) -> dict:
         "scope": "mvp-local-file-presence",
         "overall_score": overall,
         "overall_note": "renormalized over scored categories; deferred "
-                        "categories excluded (need CI-platform APIs)",
+        "categories excluded (need CI-platform APIs)",
         "tier": tier,
         "categories": categories,
         "manual_review_flags": manual_flags,
@@ -287,16 +382,16 @@ def scan(root: Path, cfg: dict) -> dict:
 
 def to_markdown(result: dict) -> str:
     lines = [f"# Agent-Readiness Report — {result['repository']}", ""]
-    lines.append(f"**Overall: {result['overall_score']} / 100 — "
-                 f"{result['tier']}**  ")
+    lines.append(f"**Overall: {result['overall_score']} / 100 — {result['tier']}**  ")
     lines.append(f"_{result['overall_note']}_")
     lines.append("")
     lines.append("| Category | Scored | % | Weighted |")
     lines.append("| --- | --- | --- | --- |")
     for cat, c in result["categories"].items():
         if c["scored"]:
-            lines.append(f"| {cat} | yes | {c['score_pct']}% | "
-                         f"{c.get('weighted_score', 0)} |")
+            lines.append(
+                f"| {cat} | yes | {c['score_pct']}% | {c.get('weighted_score', 0)} |"
+            )
         else:
             lines.append(f"| {cat} | deferred | — | — |")
     lines.append("")
@@ -326,7 +421,7 @@ def main(argv: list[str]) -> int:
     if not root.is_dir():
         print(f"error: not a directory: {root}", file=sys.stderr)
         return 2
-    cfg = yaml.safe_load(Path(args.config).read_text())
+    cfg = parse_yaml(Path(args.config).read_text())
 
     result = scan(root, cfg)
     md = to_markdown(result)
