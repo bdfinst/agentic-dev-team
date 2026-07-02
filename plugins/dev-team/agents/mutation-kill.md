@@ -305,6 +305,51 @@ Two write triggers, each tied to an existing point in this file's own loop:
   or updates the file's entry with `status: "excluded"`, the same `reason` text
   used in the `EXCLUDED <file> — <reason>` log line, and the current commit SHA.
 
+### Reading convergence history: staleness check and glob-shrinking
+
+On a fresh `--all` invocation, read `StrykerOutput/mutation-kill-convergence.json`
+**before the baseline scan** (before [infrastructure exclusion
+detection](#infrastructure-exclusion-detection-before-the-loop-starts) runs). For
+each entry, compare its recorded `commit` against the file's current last-commit
+SHA (`git log -1 --format=%H -- <file>`):
+
+- **Still valid** (recorded `commit` == current last-commit SHA) — this holds
+  **identically for both `"converged"` and `"excluded"` entries**, regardless of
+  status: append `"!<file>"` to the baseline `--mutate` glob and skip the file in
+  the per-file loop entirely. Log one of:
+
+  ```
+  SKIPPED <file> — already converged at <sha>
+  SKIPPED <file> — excluded: <reason>
+  ```
+
+  (matching the existing `EXCLUDED <file> — <reason>` file-first log convention).
+  Only the log-line wording differs between the two statuses — the glob-shrinking
+  and skip behavior are identical.
+- **Stale** (recorded `commit` != current last-commit SHA) — the file changed
+  since it was recorded. Drop the stale entry and include the file in scope as
+  normal, exactly as if no entry existed.
+
+Once the baseline scan completes, print a run-level summary:
+
+```
+convergence: skipped N (already converged/excluded), testing M
+```
+
+This mirrors the existing `mutation-history.json` reuse rule in
+`quality-targets-converge/SKILL.md`, which requires the analogous summary line for
+the same reason: without that line, the reuse rule is invisible and the operator
+can't tell whether the convergence-history mechanism actually paid off.
+
+**Distinct from `--since`.** This mechanism is complementary to, not a
+replacement for, the existing `--since` incremental-run pattern (see
+[`csharp-stryker-net.md`](../skills/mutation-testing/references/languages/csharp-stryker-net.md#incremental-runs-with---since)).
+`--since` answers "did this source file change vs. a git ref," which cannot
+express "this file's mutant set already converged under `mutation-kill`" — a file
+can be unchanged since `main` yet never have been scoped by `mutation-kill` at
+all. Both mechanisms can narrow the same shard config's `mutate` glob
+simultaneously.
+
 ## Parallelism
 
 With `--all`, run files in parallel via git worktrees (each shard gets its own
