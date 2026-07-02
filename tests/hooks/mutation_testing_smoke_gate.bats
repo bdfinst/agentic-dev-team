@@ -128,7 +128,7 @@ _write_report_raw() {
 }
 
 @test "hook: silent-pass on wrapper invocation with single-file --mutate" {
-  _dispatch "$(_payload "./scripts/csharp-stryker-net-wrapper.sh --mutate 'src/Foo.cs' -O StrykerOutput/smoke")"
+  _dispatch "$(_payload "python3 scripts/csharp_stryker_net_wrapper.py --mutate 'src/Foo.cs' -O StrykerOutput/smoke")"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }

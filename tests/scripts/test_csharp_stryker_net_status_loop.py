@@ -1,5 +1,5 @@
-"""Pytest tests for csharp_stryker_net_status_loop.py — the Python port of
-csharp-stryker-net-status-loop.sh (#558, #571, #572).
+"""Pytest tests for csharp_stryker_net_status_loop.py — the shipped
+Stryker.NET status + red-flag inspection loop (#558, #571, #572).
 
 Reuses the existing fixture logs under tests/fixtures/stryker-net-logs/ that
 the bats suite already exercises — same schema, same behavior. Each red-flag

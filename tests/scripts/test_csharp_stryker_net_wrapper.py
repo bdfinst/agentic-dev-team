@@ -1,5 +1,5 @@
-"""Pytest tests for csharp_stryker_net_wrapper.py — the Python port of
-csharp-stryker-net-wrapper.sh (#559, #564, #572).
+"""Pytest tests for csharp_stryker_net_wrapper.py — the shipped Stryker.NET
+wrapper (#559, #564, #572).
 
 Fixture strategy: temp dir with a dummy .sln + a fake ``dotnet`` shim on
 PATH that records arg vectors, invocation timestamps, and env vars into
@@ -63,23 +63,18 @@ def hermetic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     bin_dir = root / "bin"
     bin_dir.mkdir()
 
-    # Fake dotnet shim — records every invocation into $RECORD_DIR/invocation-NN.
-    fake_dotnet = bin_dir / "dotnet"
-    if os.name == "nt":
-        # On native Windows, PATH resolution uses `dotnet.bat`/`.exe`.
-        # We're not targeting native Windows in this test harness — the wrapper
-        # is verified on Windows via subprocess-shim tests in a separate pass.
-        pytest.skip("Fake-dotnet shim requires POSIX-shell interpreter")
-
-    fake_dotnet.write_text(
-        # A Python shim (not bash) so we don't reintroduce the bash fork/wait
-        # issues on Git Bash. Cross-platform via the same Python interpreter.
-        "#!/usr/bin/env python3\n"
+    # Fake `dotnet` — a portable Python module that records every invocation.
+    # The wrapper shells out via `dotnet build ...` and via `$STRYKER_BIN`,
+    # so we install a launcher named `dotnet` on both POSIX (executable
+    # script) and Windows (`dotnet.cmd` batch shim). Both delegate to the
+    # same Python module below.
+    fake_dotnet_py = bin_dir / "_fake_dotnet.py"
+    fake_dotnet_py.write_text(
         "import json, os, sys, time\n"
         "record_dir = os.environ['RECORD_DIR']\n"
         "existing = sorted(os.listdir(record_dir))\n"
         "n = len(existing) + 1\n"
-        f"rec = os.path.join(record_dir, f'invocation-{{n:02d}}.json')\n"
+        "rec = os.path.join(record_dir, f'invocation-{n:02d}.json')\n"
         "data = {\n"
         "  'ts_ns': time.time_ns(),\n"
         "  'DOTNET_ROOT': os.environ.get('DOTNET_ROOT', ''),\n"
@@ -89,7 +84,6 @@ def hermetic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "with open(rec, 'w') as f:\n"
         "  json.dump(data, f)\n"
         "\n"
-        "# Dispatch: build always exits 0. stryker respects env sentinels.\n"
         "if len(sys.argv) > 1 and sys.argv[1] == 'build':\n"
         "  sys.exit(0)\n"
         "if len(sys.argv) > 1 and sys.argv[1] == 'stryker':\n"
@@ -105,21 +99,41 @@ def hermetic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "  sys.exit(0)\n"
         "sys.exit(0)\n"
     )
-    fake_dotnet.chmod(
-        fake_dotnet.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH
-    )
 
-    # Also install a stryker shim under the same directory. Runner will call
-    # $STRYKER_BIN, which we set to point at this.
-    fake_stryker = bin_dir / "dotnet-stryker-fake"
-    fake_stryker.write_text(
-        "#!/usr/bin/env python3\n"
-        "import os, sys\n"
-        "os.execvp('dotnet', ['dotnet', 'stryker'] + sys.argv[1:])\n"
+    # Launcher: POSIX gets a #! shell script, Windows gets a .cmd batch shim.
+    # subprocess.Popen(['dotnet', ...]) then finds the launcher on PATH.
+    py = sys.executable
+    if os.name == "nt":
+        fake_dotnet = bin_dir / "dotnet.cmd"
+        fake_dotnet.write_text(f'@echo off\r\n"{py}" "{fake_dotnet_py}" %*\r\n')
+    else:
+        fake_dotnet = bin_dir / "dotnet"
+        fake_dotnet.write_text(
+            f'#!/usr/bin/env sh\nexec "{py}" "{fake_dotnet_py}" "$@"\n'
+        )
+        fake_dotnet.chmod(
+            fake_dotnet.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH
+        )
+
+    # Stryker launcher — invoked via `--stryker-bin`. Delegates to the same
+    # fake dotnet with 'stryker' prepended.
+    fake_stryker_py = bin_dir / "_fake_stryker.py"
+    fake_stryker_py.write_text(
+        "import os, subprocess, sys\n"
+        "fake_dotnet_py = os.path.join(os.path.dirname(__file__), '_fake_dotnet.py')\n"
+        "sys.exit(subprocess.call([sys.executable, fake_dotnet_py, 'stryker'] + sys.argv[1:]))\n"
     )
-    fake_stryker.chmod(
-        fake_stryker.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH
-    )
+    if os.name == "nt":
+        fake_stryker = bin_dir / "dotnet-stryker-fake.cmd"
+        fake_stryker.write_text(f'@echo off\r\n"{py}" "{fake_stryker_py}" %*\r\n')
+    else:
+        fake_stryker = bin_dir / "dotnet-stryker-fake"
+        fake_stryker.write_text(
+            f'#!/usr/bin/env sh\nexec "{py}" "{fake_stryker_py}" "$@"\n'
+        )
+        fake_stryker.chmod(
+            fake_stryker.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH
+        )
 
     # Prepend bin_dir to PATH so subprocess.Popen finds the fake dotnet.
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")

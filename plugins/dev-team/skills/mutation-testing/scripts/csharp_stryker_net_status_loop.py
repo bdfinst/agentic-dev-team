@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """csharp_stryker_net_status_loop.py — status + red-flag inspection loop for
-long-running Stryker.NET invocations. Python port of csharp-stryker-net-status-loop.sh.
+long-running Stryker.NET invocations.
 
 Called by csharp_stryker_net_wrapper.py (or usable standalone via the CLI).
 Public API (importable):

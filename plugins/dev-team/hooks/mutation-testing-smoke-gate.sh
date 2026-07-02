@@ -58,9 +58,11 @@ PAYLOAD_CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 # Trigger detection
 # =============================================================================
 
-# Match "dotnet stryker" OR a path ending in csharp-stryker-net-wrapper.sh.
+# Match "dotnet stryker" OR a path ending in csharp_stryker_net_wrapper.py
+# (the shipped Python wrapper — the previous .sh version was removed
+# alongside ADR 0014 / issue #572).
 is_stryker_command() {
-    printf '%s' "$1" | grep -qE '(^|[^a-zA-Z0-9])dotnet[[:space:]]+stryker(\b|$)|csharp-stryker-net-wrapper\.sh'
+    printf '%s' "$1" | grep -qE '(^|[^a-zA-Z0-9])dotnet[[:space:]]+stryker(\b|$)|csharp_stryker_net_wrapper\.py'
 }
 
 # Extract the --mutate value (handles --mutate=X, --mutate X, -m X).

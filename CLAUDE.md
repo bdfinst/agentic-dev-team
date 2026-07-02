@@ -49,13 +49,25 @@ The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these t
 
 `ci-local.sh` checks these up front and exits with an actionable message (pointing at `dev-setup.sh`) if any are missing.
 
-### Shell-script portability
+### Script authoring — Python for cross-OS scripts
 
-Every shell script — both the dev/CI scripts and the ones shipped inside the plugins — is `bash` and must run on **macOS, Linux, and Windows**. Conventions:
+**Every new script in this repo is authored in Python 3.8+ using stdlib only.** See [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md) for the full decision, alternatives, and consequences. Concretely:
+
+- **New shipped hooks, dev/CI helpers, and user-invocable tooling land as `.py` files.** No new `.sh` files enter `plugins/dev-team/` after ADR 0014.
+- **Stdlib only.** No `pip install`, no `requirements.txt` for scripts. `subprocess`, `signal`, `pathlib`, `argparse`, `json`, `hashlib`, `re` cover the vast majority of shell-script territory portably.
+- **Existing `.sh` scripts stay** until converted per the phased plan in issue #572 (bash → Python migration epic). When you make a substantive change to an existing bash script, prefer converting it to Python in the same PR over patching bash.
+- **Tests follow the shipped script.** New pytest for new Python; existing bats stays until its target script converts.
+- **Two-line install trampolines that must be shell** (e.g. `plugins/dev-team/install.sh`) are the sole exception — they exist to detect the shell environment before Python is guaranteed available.
+
+Why Python: uniform behavior on macOS + Linux + Windows Git Bash + native Windows via one runtime. `python3` is already a hard dependency of every plugin hook — this consolidates on it rather than introducing anything new.
+
+### Shell-script portability (legacy bash, until converted per #572)
+
+These rules apply to **existing** `.sh` scripts until they convert to Python per the epic in #572. All existing bash must continue to run on **macOS, Linux, and Windows Git Bash**:
 
 - **macOS** ships bash 3.2, so stay 3.2-safe: no `mapfile`/`readarray`, `declare -A`, `${var,,}`, or `wait -n`; expand possibly-empty arrays with the empty-safe idiom `${arr[@]+"${arr[@]}"}` (bare `"${arr[@]}"` under `set -u` aborts on 3.2).
 - **macOS vs Linux command differences**: avoid Linux-only flags (`readlink -f`, `sed -i` semantics, `date +%N`, `stat -c`, `find -printf`, `timeout`) or guard them with a fallback (e.g. `recon-inventory.sh`'s `readlink -f || python3`, `_lib.sh`'s `date +%s%3N || python3`, `mutation-adapters/lib.sh`'s `timeout`→`gtimeout`→unbounded).
-- **Windows = Git Bash.** Native `cmd.exe`/PowerShell are not targets; the plugin's hooks and helper scripts run under [Git Bash](https://git-scm.com/download/win) (the POSIX shell Claude Code uses for its Bash tool on Windows). Each plugin's `install.sh` detects Windows-without-Git-Bash and tells the user to install it; `scripts/dev-setup.sh` does the same for contributors.
+- **Windows = Git Bash.** Native `cmd.exe`/PowerShell are not targets for legacy bash; the plugin's hooks and helper scripts run under [Git Bash](https://git-scm.com/download/win) (the POSIX shell Claude Code uses for its Bash tool on Windows). Each plugin's `install.sh` detects Windows-without-Git-Bash and tells the user to install it; `scripts/dev-setup.sh` does the same for contributors. New Python scripts don't need this — they run under native Python on any OS.
 
 ### Hermetic bats fixtures
 
