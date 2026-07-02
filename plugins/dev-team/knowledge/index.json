@@ -1782,6 +1782,10 @@
       "summary": "| Category | Description |",
       "anchor": "playwright-patterns"
     },
+    "Fast Feedback Loop": {
+      "summary": "A verification pass is usually a *sequence* of related checks, not one isolated check — keep the loop cheap:",
+      "anchor": "fast-feedback-loop"
+    },
     "Visual Verification Guidelines": {
       "summary": "When interpreting screenshots, describe:",
       "anchor": "visual-verification-guidelines"
