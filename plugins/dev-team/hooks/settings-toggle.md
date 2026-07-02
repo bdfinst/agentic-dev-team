@@ -18,8 +18,8 @@ Rules:
 
 - Prefix is always `DEV_TEAM_PY_HOOK_`.
 - Suffix is the hook's base filename **upper-cased with `-` and `.`
-  replaced by `_`**. `mutation-testing-smoke-gate.sh` →
-  `DEV_TEAM_PY_HOOK_MUTATION_TESTING_SMOKE_GATE`.
+  replaced by `_`**. `destructive-guard.sh` →
+  `DEV_TEAM_PY_HOOK_DESTRUCTIVE_GUARD`.
 - **Default is `0`** (unset counts as `0`). The bash implementation is
   authoritative until the parity harness has been green for at least one
   release-please cycle.
@@ -34,7 +34,7 @@ Windows Git Bash. Example entry:
 ```json
 {
   "type": "command",
-  "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_MUTATION_TESTING_SMOKE_GATE:-0}\" = \"1\" ]; then python3 hooks/mutation_testing_smoke_gate.py; else bash hooks/mutation-testing-smoke-gate.sh; fi'"
+  "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_DESTRUCTIVE_GUARD:-0}\" = \"1\" ]; then python3 hooks/destructive_guard.py; else bash hooks/destructive-guard.sh; fi'"
 }
 ```
 

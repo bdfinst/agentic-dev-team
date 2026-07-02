@@ -83,7 +83,7 @@
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_MUTATION_TESTING_SMOKE_GATE:-0}\" = \"1\" ]; then python3 hooks/mutation_testing_smoke_gate.py; else bash hooks/mutation-testing-smoke-gate.sh; fi'"
+            "command": "python3 hooks/mutation_testing_smoke_gate.py"
           }
         ]
       },
