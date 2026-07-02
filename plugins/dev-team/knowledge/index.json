@@ -3943,7 +3943,7 @@
       "anchor": "2-understand-the-task-and-cut-the-slices"
     },
     "3. Create the plan": {
-      "summary": "Write the plan file using this structure:",
+      "summary": "Write the plan file using the structure in `references/plan-template.md` (goal,",
       "anchor": "3-create-the-plan"
     },
     "4. Create the plans directory": {
