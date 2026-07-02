@@ -773,6 +773,16 @@
       "anchor": "a10-ssrf"
     }
   },
+  "plugins/dev-team/knowledge/proxy-connectivity.md": {
+    "Root cause": {
+      "summary": "Sessions that route Anthropic API traffic (or Bash-invoked tools like `curl`,",
+      "anchor": "root-cause"
+    },
+    "Connection refused": {
+      "summary": "**Signature:** `ECONNREFUSED` / \"Connection refused\" / any TCP-level",
+      "anchor": "connection-refused"
+    }
+  },
   "plugins/dev-team/knowledge/release-strategies.md": {
     "Decouple deployment from release": {
       "summary": "| Technique | What it does | Use when |",
@@ -1782,6 +1792,10 @@
       "summary": "| Category | Description |",
       "anchor": "playwright-patterns"
     },
+    "Fast Feedback Loop": {
+      "summary": "A verification pass is usually a *sequence* of related checks, not one isolated check — keep the loop cheap:",
+      "anchor": "fast-feedback-loop"
+    },
     "Visual Verification Guidelines": {
       "summary": "When interpreting screenshots, describe:",
       "anchor": "visual-verification-guidelines"
@@ -1969,6 +1983,10 @@
     "4. Reproduce locally": {
       "summary": "Before fixing, reproduce the failure locally:",
       "anchor": "4-reproduce-locally"
+    },
+    "Monitoring long-running jobs": {
+      "summary": "Before calling `Monitor` on a job whose completion time matters:",
+      "anchor": "monitoring-long-running-jobs"
     },
     "5. Fix and verify": {
       "summary": "Fix the root cause.",

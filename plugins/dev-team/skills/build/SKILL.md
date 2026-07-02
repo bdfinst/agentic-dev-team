@@ -24,6 +24,7 @@ You have been invoked with the `/build` command.
 4. **Verification evidence required.** Paste fresh test output before claiming a step is done.
 5. **Review checkpoints (granularity scales with complexity).** Run inline review (spec-compliance first, then quality agents) per step for `complex` steps; batch `standard`/`trivial` steps into one review at the slice boundary. Record each checkpoint's find/fix/no-op outcome to `metrics/review-value.jsonl`. The final `/code-review` is the backstop.
 6. **Be concise.** Report step status and verification evidence, no narration.
+7. **Diagnose before retry.** When any bash command run during the build fails (a script, a test run, a build-tooling invocation), read the exit code and error text and state a one-line cause hypothesis before correcting and re-issuing it. Never re-run a failed command unmodified. If the shallow diagnosis reveals a real defect rather than a shell-level mistake (bad path, typo, missing arg), escalate to Systematic Debugging per the Escalation section below.
 
 ## Parse Arguments
 
@@ -132,6 +133,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py --wave-width <W> [--jobs N] 
 
 For each step within a slice, dispatch implementation following the implementer template (`${CLAUDE_PLUGIN_ROOT}/prompts/implementer.md`). Pass the implementer its step **and the slice's Gherkin scenario(s)** — the scenarios are the behavioral contract the step's test must satisfy.
 
+Within the RED/GREEN/REFACTOR mini-cycle below, repeated Write/Edit calls can race a `PostToolUse` hook that rewrites files (e.g., a formatter): an `Edit` failing on a stale `old_string` is expected to self-correct by re-`Read`ing the file before the next `Edit` attempt, not to escalate immediately.
+
 1. **RED** — Write the failing test described in the step, covering the slice scenario it traces to. Run the test suite. **Hard gate: the new test must fail.** Paste the failing output. If the test passes without new code, the behavior already exists — pick a different test. Do NOT proceed to GREEN without pasted failing output.
 2. **GREEN** — Write the minimum implementation to make the failing test pass. Do not add behavior beyond what the test requires. Run the test suite. **Hard gate: all tests must pass.** Paste the passing output. Do NOT proceed without pasted passing output.
 3. **REFACTOR** — Clean up structure, naming, duplication without changing behavior. Run tests again — they must still pass. If tests break, undo and try a smaller change.
@@ -184,7 +187,7 @@ Invoke the [Feedback & Learning](../feedback-learning/SKILL.md) skill at task co
 
 ## Escalation
 
-A failure is a debugging task first, not a hand-back. Before escalating any test or review failure, run a [Systematic Debugging](../systematic-debugging/SKILL.md) pass — reproduce, find the root cause, state it in one sentence — and escalate **with that diagnosis**, never just an attempt count.
+A failure is a debugging task first, not a hand-back. Before escalating any test, review, or bash/command failure, run a [Systematic Debugging](../systematic-debugging/SKILL.md) pass — reproduce, find the root cause, state it in one sentence — and escalate **with that diagnosis**, never just an attempt count.
 
 Stop and ask the user when:
 
