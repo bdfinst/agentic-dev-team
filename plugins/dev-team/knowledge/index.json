@@ -773,6 +773,16 @@
       "anchor": "a10-ssrf"
     }
   },
+  "plugins/dev-team/knowledge/proxy-connectivity.md": {
+    "Root cause": {
+      "summary": "Sessions that route Anthropic API traffic (or Bash-invoked tools like `curl`,",
+      "anchor": "root-cause"
+    },
+    "Connection refused": {
+      "summary": "**Signature:** `ECONNREFUSED` / \"Connection refused\" / any TCP-level",
+      "anchor": "connection-refused"
+    }
+  },
   "plugins/dev-team/knowledge/release-strategies.md": {
     "Decouple deployment from release": {
       "summary": "| Technique | What it does | Use when |",

@@ -44,7 +44,7 @@ Teams can create `REVIEW-CONTEXT.md` in the project root with domain knowledge c
 
 ## Skills Registry
 
-See [knowledge/skills-registry.md](knowledge/skills-registry.md) for the full command reference. All review skills run under orchestrator direction with model assignment flowing through the Resolution Procedure (`agents/orchestrator.md`).
+See [knowledge/skills-registry.md](knowledge/skills-registry.md) for the full command reference. All review skills run under orchestrator direction via the Resolution Procedure (`agents/orchestrator.md`).
 
 ## Request Processing Flow
 
@@ -53,6 +53,8 @@ See [knowledge/request-processing-flow.md](knowledge/request-processing-flow.md)
 ## Model Routing
 
 Each agent declares an effort band (`effort: low|medium|high`). Resolution enforced by `hooks/agent_model_resolve.py` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
+
+Restricted-endpoint (proxy) failures: [proxy-connectivity.md](knowledge/proxy-connectivity.md).
 
 ## Context Management
 
