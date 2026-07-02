@@ -6,13 +6,31 @@ produces the raw, machine-friendly content; interpretation happens downstream.
 
 Produces: results/08_report.json  AND  results/adversarial-report.md
 """
+
 from __future__ import annotations
 
+import html
 import json
 from datetime import datetime, timezone
 
 from .. import config
 from ..lib import result_store
+
+
+def _esc(value: object) -> str:
+    """HTML-escape a probe-result value before it is interpolated into the
+    generated Markdown report.
+
+    Probe results ultimately originate from the probed model's own HTTP
+    responses — an attacker-controlled service under test — so any string
+    field here (framework name, feature name, doc path, ...) must be
+    treated as untrusted. The report is later rendered to HTML/PDF (see
+    commands/export-pdf.md: python-markdown + weasyprint), and
+    python-markdown passes raw embedded HTML through unmodified, so an
+    unescaped value could inject markup/script content into the rendered
+    report.
+    """
+    return html.escape(str(value), quote=True)
 
 
 def _load_or_empty(name: str) -> dict:
@@ -24,25 +42,33 @@ def _load_or_empty(name: str) -> dict:
 
 def _format_recon(recon: dict) -> str:
     lines = ["## Probe 01 — API Recon\n"]
-    lines.append(f"- **Target**: `{recon.get('target', 'unknown')}`")
-    lines.append(f"- **Inferred framework**: {recon.get('inferred_framework')}")
+    lines.append(f"- **Target**: `{_esc(recon.get('target', 'unknown'))}`")
+    lines.append(f"- **Inferred framework**: {_esc(recon.get('inferred_framework'))}")
     visible_doc = [p for p in recon.get("doc_paths", []) if p.get("status") == 200]
     lines.append(f"- **Documentation paths exposed**: {len(visible_doc)}")
     for p in visible_doc[:5]:
-        lines.append(f"  - `{p['path']}` ({p.get('content_type', 'unknown')})")
+        lines.append(
+            f"  - `{_esc(p['path'])}` ({_esc(p.get('content_type', 'unknown'))})"
+        )
     if recon.get("method_matrix"):
-        accepted_verbs = [m for m, d in recon["method_matrix"].items() if d.get("status", 500) < 400]
-        lines.append(f"- **HTTP verbs accepted on predict endpoint**: {', '.join(accepted_verbs) or 'none'}")
+        accepted_verbs = [
+            m for m, d in recon["method_matrix"].items() if d.get("status", 500) < 400
+        ]
+        escaped_verbs = ", ".join(_esc(v) for v in accepted_verbs) or "none"
+        lines.append(f"- **HTTP verbs accepted on predict endpoint**: {escaped_verbs}")
     return "\n".join(lines) + "\n"
 
 
 def _format_schema(schema: dict) -> str:
     lines = ["## Probe 02 — Schema Discovery\n"]
-    lines.append(f"- **Discovery strategy**: {schema.get('strategy_used', 'none succeeded')}")
+    lines.append(
+        f"- **Discovery strategy**: {_esc(schema.get('strategy_used', 'none succeeded'))}"
+    )
     feats = schema.get("features", [])
     lines.append(f"- **Features discovered**: {len(feats)}")
     for category, group in (schema.get("by_category") or {}).items():
-        lines.append(f"  - **{category}**: {', '.join(group)}")
+        escaped_group = ", ".join(_esc(g) for g in group)
+        lines.append(f"  - **{_esc(category)}**: {escaped_group}")
     return "\n".join(lines) + "\n"
 
 
@@ -51,7 +77,7 @@ def _format_sensitivity(sens: dict) -> str:
     lines.append(f"- **Baseline score**: {sens.get('baseline_score')}")
     lines.append("- **Top 5 most-influential features**:")
     for r in (sens.get("rankings") or [])[:5]:
-        lines.append(f"  - `{r['feature']}` (sensitivity {r['sensitivity']:.3f})")
+        lines.append(f"  - `{_esc(r['feature'])}` (sensitivity {r['sensitivity']:.3f})")
     return "\n".join(lines) + "\n"
 
 
@@ -59,9 +85,11 @@ def _format_boundaries(boundaries: dict) -> str:
     lines = ["## Probe 04 — Boundary Mapping\n"]
     for b in boundaries.get("boundaries", []):
         if b.get("boundary") is not None:
-            lines.append(f"- `{b['feature']}`: boundary at {b['boundary']:.3f}")
+            lines.append(f"- `{_esc(b['feature'])}`: boundary at {b['boundary']:.3f}")
         else:
-            lines.append(f"- `{b['feature']}`: no boundary ({b.get('reason')})")
+            lines.append(
+                f"- `{_esc(b['feature'])}`: no boundary ({_esc(b.get('reason'))})"
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -70,9 +98,12 @@ def _format_evasion(evasion: dict) -> str:
     lines.append(f"- **Score target**: < {evasion.get('score_target', 0.4)}")
     results = evasion.get("results") or []
     methods_used = sorted({r.get("method") for r in results})
-    lines.append(f"- **Methods that found adversarials**: {', '.join(m for m in methods_used if m) or 'none'}")
-    lines.append(f"- **Lowest score achieved**: "
-                 f"{min((r['score'] for r in results if isinstance(r.get('score'), (int, float))), default='n/a')}")
+    escaped_methods = ", ".join(_esc(m) for m in methods_used if m) or "none"
+    lines.append(f"- **Methods that found adversarials**: {escaped_methods}")
+    lines.append(
+        f"- **Lowest score achieved**: "
+        f"{min((r['score'] for r in results if isinstance(r.get('score'), (int, float))), default='n/a')}"
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -81,7 +112,9 @@ def _format_validation(validation: dict) -> str:
     summary = validation.get("summary") or {}
     lines.append(f"- **Cases tested**: {summary.get('total_cases', 0)}")
     lines.append(f"- **Fail-open cases**: {summary.get('fail_open_count', 0)}")
-    lines.append(f"- **Information-leakage cases**: {summary.get('information_leakage_count', 0)}")
+    lines.append(
+        f"- **Information-leakage cases**: {summary.get('information_leakage_count', 0)}"
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -89,11 +122,11 @@ def _format_extraction(extraction: dict) -> str:
     lines = ["## Probe 07 — Model Extraction\n"]
     lines.append(f"- **Samples collected**: {extraction.get('n_samples', 0)}")
     lines.append(f"- **Best R²**: {extraction.get('best_r2', 0.0):.3f}")
-    lines.append(f"- **Fidelity**: {extraction.get('fidelity', 'unknown')}")
+    lines.append(f"- **Fidelity**: {_esc(extraction.get('fidelity', 'unknown'))}")
     surrogates = extraction.get("surrogates") or {}
     for name, stats in surrogates.items():
         if isinstance(stats, dict) and "r2" in stats:
-            lines.append(f"  - {name}: R² = {stats['r2']:.3f}")
+            lines.append(f"  - {_esc(name)}: R² = {stats['r2']:.3f}")
     return "\n".join(lines) + "\n"
 
 

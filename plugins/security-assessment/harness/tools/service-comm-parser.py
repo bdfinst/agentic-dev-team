@@ -16,9 +16,11 @@ Exit codes:
     0  — Mermaid emitted on stdout (may be empty-ish if nothing found)
     2  — argument or IO error
 """
+
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import sys
@@ -81,7 +83,15 @@ def scan_nats(repo_path: Path, service: Service) -> None:
         if not src_file.is_file():
             continue
         # Only text-ish files
-        if src_file.suffix.lower() not in {".py", ".js", ".ts", ".go", ".java", ".scala", ".kt"}:
+        if src_file.suffix.lower() not in {
+            ".py",
+            ".js",
+            ".ts",
+            ".go",
+            ".java",
+            ".scala",
+            ".kt",
+        }:
             continue
         try:
             text = src_file.read_text(encoding="utf-8", errors="replace")
@@ -91,7 +101,8 @@ def scan_nats(repo_path: Path, service: Service) -> None:
         for m in re.finditer(NATS_PATTERN, text):
             subject = m.group(1)
             verb_match = re.search(
-                r"(subscribe|publish|queueSubscribe|request|respond)", text[max(0, m.start() - 30): m.start() + 1]
+                r"(subscribe|publish|queueSubscribe|request|respond)",
+                text[max(0, m.start() - 30) : m.start() + 1],
             )
             verb = verb_match.group(1).lower() if verb_match else ""
             if verb in ("subscribe", "queuesubscribe", "respond"):
@@ -123,7 +134,9 @@ def scan_k8s(repo_path: Path, service: Service) -> None:
             service.k8s_names.add(m.group(1))
 
 
-def scan_package_deps(repo_path: Path, service: Service, all_services: list[Service]) -> list[Edge]:
+def scan_package_deps(
+    repo_path: Path, service: Service, all_services: list[Service]
+) -> list[Edge]:
     """Emit edges where one repo's package.json / requirements.txt references
     another repo's service name as an internal dependency.
     """
@@ -141,12 +154,14 @@ def scan_package_deps(repo_path: Path, service: Service, all_services: list[Serv
                 # Normalize: drop scope
                 normalized = dep_name.lstrip("@").split("/", 1)[-1]
                 if normalized in service_names and normalized != service.name:
-                    edges.append(Edge(
-                        src=service.name,
-                        dst=normalized,
-                        kind="package",
-                        note=f"npm dependency: {dep_name}",
-                    ))
+                    edges.append(
+                        Edge(
+                            src=service.name,
+                            dst=normalized,
+                            kind="package",
+                            note=f"npm dependency: {dep_name}",
+                        )
+                    )
         except (json.JSONDecodeError, ValueError):
             pass
 
@@ -156,12 +171,14 @@ def scan_package_deps(repo_path: Path, service: Service, all_services: list[Serv
             for line in requirements.read_text(encoding="utf-8").splitlines():
                 line = line.strip().split("==")[0].split(">=")[0].split("<=")[0]
                 if line and line in service_names and line != service.name:
-                    edges.append(Edge(
-                        src=service.name,
-                        dst=line,
-                        kind="package",
-                        note=f"pip dependency: {line}",
-                    ))
+                    edges.append(
+                        Edge(
+                            src=service.name,
+                            dst=line,
+                            kind="package",
+                            note=f"pip dependency: {line}",
+                        )
+                    )
         except OSError:
             pass
 
@@ -196,36 +213,65 @@ def derive_nats_edges(services: list[Service]) -> list[Edge]:
                         auth = False
                     elif pub_svc.nats_auth and sub_svc.nats_auth:
                         auth = True
-                edges.append(Edge(src=p, dst=s, kind="nats", subject=subject, auth=auth))
+                edges.append(
+                    Edge(src=p, dst=s, kind="nats", subject=subject, auth=auth)
+                )
     return edges
+
+
+def _mermaid_id(name: str) -> str:
+    """Sanitize a repo/response-derived name into a safe, unquoted Mermaid
+    node identifier. Mermaid node IDs are emitted without quoting, so any
+    character outside [A-Za-z0-9_] (space, bracket, quote, newline, ...)
+    could otherwise break out of the identifier position and inject
+    arbitrary Mermaid/HTML syntax.
+    """
+    return re.sub(r"[^A-Za-z0-9_]", "_", name)
+
+
+def _mermaid_label(text: str) -> str:
+    """HTML-escape repo/response-derived text before it is interpolated into
+    a quoted Mermaid label. Mermaid renders flowchart labels as HTML, and
+    labels are also delimited by literal double quotes in the diagram
+    source, so unescaped `<`, `>`, `&`, or `"` in attacker-influenced input
+    (package.json name, k8s Service name, dependency name, NATS subject)
+    can break out of the label/quote and inject markup or script content
+    that a downstream Markdown/HTML/PDF renderer will execute.
+    """
+    return html.escape(text, quote=True)
 
 
 def emit_mermaid(services: list[Service], edges: list[Edge]) -> str:
     lines = ["```mermaid", "graph LR"]
     # Nodes
     for svc in services:
-        node_id = svc.name.replace("-", "_")
+        node_id = _mermaid_id(svc.name)
         # Annotate with K8s Services if any
-        label = svc.name
+        label = _mermaid_label(svc.name)
         if svc.k8s_names:
-            label += f"<br/>k8s: {', '.join(sorted(svc.k8s_names))}"
+            escaped_k8s = ", ".join(_mermaid_label(n) for n in sorted(svc.k8s_names))
+            label += f"<br/>k8s: {escaped_k8s}"
         lines.append(f'  {node_id}["{label}"]')
 
     # Edges — dedup; annotate auth / encryption where known
     seen: set[tuple[str, str, str]] = set()
     for e in edges:
-        src_id = e.src.replace("-", "_")
-        dst_id = e.dst.replace("-", "_")
+        src_id = _mermaid_id(e.src)
+        dst_id = _mermaid_id(e.dst)
         key = (src_id, dst_id, e.subject)
         if key in seen:
             continue
         seen.add(key)
         if e.kind == "nats":
-            auth_tag = "auth" if e.auth is True else ("NO-AUTH" if e.auth is False else "?auth")
-            label = f"{e.subject} [{auth_tag}]"
+            auth_tag = (
+                "auth"
+                if e.auth is True
+                else ("NO-AUTH" if e.auth is False else "?auth")
+            )
+            label = f"{_mermaid_label(e.subject)} [{auth_tag}]"
             lines.append(f'  {src_id} -- "{label}" --> {dst_id}')
         elif e.kind == "package":
-            lines.append(f'  {src_id} -. "{e.note}" .-> {dst_id}')
+            lines.append(f'  {src_id} -. "{_mermaid_label(e.note)}" .-> {dst_id}')
         else:
             lines.append(f"  {src_id} --> {dst_id}")
 
@@ -242,7 +288,10 @@ def main() -> int:
     for path_arg in args.paths:
         p = Path(path_arg)
         if not p.exists() or not p.is_dir():
-            print(f"service-comm-parser: skipping non-directory: {path_arg}", file=sys.stderr)
+            print(
+                f"service-comm-parser: skipping non-directory: {path_arg}",
+                file=sys.stderr,
+            )
             continue
         svc = Service(name=infer_service_name(p), repo=str(p))
         scan_nats(p, svc)
@@ -250,7 +299,7 @@ def main() -> int:
         services.append(svc)
 
     if not services:
-        print("```mermaid\ngraph LR\n  empty[\"no services detected\"]\n```")
+        print('```mermaid\ngraph LR\n  empty["no services detected"]\n```')
         return 0
 
     # Compute edges
