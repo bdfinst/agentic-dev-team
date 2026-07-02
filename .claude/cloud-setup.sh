@@ -18,9 +18,9 @@ set -uo pipefail
 
 # --- Toolchain the repo's tests/gates need ---------------------------------
 apt-get update -y || true
-apt-get install -y jq shellcheck bats || true
+apt-get install -y jq shellcheck || true
 
-# Python dev deps — several bats suites shell out to Python that imports these.
+# Python dev deps — several content-guard suites shell out to Python that imports these.
 python3 -m pip install --quiet -r requirements-dev.txt \
   || pip3 install --quiet -r requirements-dev.txt \
   || true
@@ -59,5 +59,5 @@ else
   echo "cloud setup: claude CLI not found — skipping plugin install (run skills from files)."
 fi
 
-echo "agentic-dev-team cloud setup complete: jq shellcheck bats python-deps gh node+husky-hooks dev-team-plugin"
+echo "agentic-dev-team cloud setup complete: jq shellcheck python-deps gh node+husky-hooks dev-team-plugin"
 exit 0

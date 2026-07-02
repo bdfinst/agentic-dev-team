@@ -53,7 +53,7 @@ Claude boots, so the plugin's ~86 skills (including `/ship`) are available in th
 session that starts.
 
 The body of [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) is exactly that
-script — it installs `jq`, `shellcheck`, `bats`, the Python dev deps
+script — it installs `jq`, `shellcheck`, the Python dev deps
 (`requirements-dev.txt`), `gh`, and then the plugin
 (`claude plugin marketplace add bdfinst/agentic-dev-team` +
 `claude plugin install dev-team@bfinster`). Every step is best-effort and the
@@ -99,7 +99,7 @@ Notes:
 - A skill may reference helper scripts as `${CLAUDE_PLUGIN_ROOT}/scripts/…`. When
   you run it from files, that variable isn't set — substitute the in-repo path
   (`plugins/dev-team/scripts/…`) instead.
-- Helper scripts need their toolchain (`jq`, `bats`, `python3`, …); the Setup
+- Helper scripts need their toolchain (`jq`, `python3`, …); the Setup
   script installs these regardless of which option you use.
 
 This path is robust precisely because it has no dependency on plugin loading —
