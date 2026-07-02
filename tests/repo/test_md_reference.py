@@ -127,3 +127,76 @@ def test_an_external_url_is_ignored(tmp_path: Path) -> None:
     _write_skill(fix, "Docs at https://example.com/aa/bb.md are external.\n")
     result = _run("--root", str(fix))
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_a_valid_anchor_reference_passes(tmp_path: Path) -> None:
+    fix = _fixture(tmp_path)
+    (fix / "plugins" / "dev-team" / "knowledge" / "aa" / "bb.md").write_text(
+        "# Overview\n\n## Getting Started\n\nSome content here.\n"
+    )
+    _write_skill(fix, "See [Getting Started](../../knowledge/aa/bb.md#getting-started).\n")
+    result = _run("--root", str(fix))
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_a_broken_anchor_reference_fails(tmp_path: Path) -> None:
+    fix = _fixture(tmp_path)
+    (fix / "plugins" / "dev-team" / "knowledge" / "aa" / "bb.md").write_text(
+        "# Overview\n\n## Getting Started\n\nSome content here.\n"
+    )
+    _write_skill(
+        fix, "See [Configuration](../../knowledge/aa/bb.md#configuration).\n"
+    )
+    result = _run("--root", str(fix))
+    assert result.returncode == 1
+    assert "anchor does not exist" in result.stdout + result.stderr
+    assert "configuration" in result.stdout + result.stderr
+
+
+def test_anchor_with_code_spans_is_normalized_correctly(tmp_path: Path) -> None:
+    fix = _fixture(tmp_path)
+    (fix / "plugins" / "dev-team" / "knowledge" / "aa" / "bb.md").write_text(
+        "# Overview\n\n## Configure `--since` flag\n\nSome content here.\n"
+    )
+    _write_skill(
+        fix, "See [Flag Guide](../../knowledge/aa/bb.md#configure-since-flag).\n"
+    )
+    result = _run("--root", str(fix))
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_anchor_reference_to_nonexistent_file_is_ignored(tmp_path: Path) -> None:
+    # When the FILE doesn't exist in the repo, the reference is ignored
+    # (it names nothing real). No error is raised.
+    fix = _fixture(tmp_path)
+    _write_skill(
+        fix,
+        "See [Getting Started](../../knowledge/nonexistent.md#getting-started).\n",
+    )
+    result = _run("--root", str(fix))
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_anchor_in_code_fence_is_not_validated(tmp_path: Path) -> None:
+    fix = _fixture(tmp_path)
+    (fix / "plugins" / "dev-team" / "knowledge" / "aa" / "bb.md").write_text(
+        "# Overview\n\nSome content here.\n"
+    )
+    _write_skill(
+        fix,
+        "```\n[link](../../knowledge/aa/bb.md#nonexistent)\n```\n",
+    )
+    result = _run("--root", str(fix))
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_multiple_headings_with_similar_names(tmp_path: Path) -> None:
+    fix = _fixture(tmp_path)
+    (fix / "plugins" / "dev-team" / "knowledge" / "aa" / "bb.md").write_text(
+        "# Overview\n\n## Configuration\n\n## Configure Logs\n\nContent.\n"
+    )
+    _write_skill(
+        fix, "See [Logs](../../knowledge/aa/bb.md#configure-logs).\n"
+    )
+    result = _run("--root", str(fix))
+    assert result.returncode == 0, result.stdout + result.stderr
