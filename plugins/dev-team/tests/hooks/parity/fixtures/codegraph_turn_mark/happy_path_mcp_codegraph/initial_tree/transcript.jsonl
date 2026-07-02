@@ -1,0 +1,4 @@
+{"type":"user","content":"hello"}
+{"type":"assistant","content":"hi"}
+{"type":"user","content":"go"}
+{"type":"assistant","content":"ok"}
