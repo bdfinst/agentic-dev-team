@@ -1702,6 +1702,10 @@
       "summary": "After confirming the base branch, present exactly four choices:",
       "anchor": "3-present-options"
     },
+    "3a. Pre-Switch Verification (Option 1 only)": {
+      "summary": "Before performing the checkout/merge that Option 1 (\"Merge locally\") requires, verify the working tree is safe to switch:",
+      "anchor": "3a-pre-switch-verification-option-1-only"
+    },
     "4. Merge Strategy (for options 1 and 2)": {
       "summary": "| Situation | Strategy | Why |",
       "anchor": "4-merge-strategy-for-options-1-and-2"
