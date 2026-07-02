@@ -23,9 +23,9 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import tempfile
 import time
+import zlib
 from pathlib import Path
 
 _STATE_DIRNAME = "dev-team-verify-guard"
@@ -37,22 +37,17 @@ _STATE_TTL_SECONDS = 14400  # 4 hours
 
 
 def cksum(text: str) -> str:
-    """Reproduce the `cksum` command's decimal CRC output.
+    """In-process, deterministic hash used for state-key/hash purposes.
 
-    cksum(1) uses CRC-32/POSIX with a length-included final block; Python's
-    binascii.crc32 does not match it. What matters here is that BOTH hooks
-    hash the same way, so the state key/hash they compute for the same
-    session agrees — hence the shared helper rather than two copies.
+    The bash-parity `cksum` shell-out this used to require is gone (the
+    .sh implementations were removed — ADR 0015 / epic #572); only that
+    both hooks hash the same way matters, so the state key/hash they
+    compute for the same session agrees — hence the shared helper rather
+    than two copies. Uses zlib.crc32, matching bash_retry_guard.py's own
+    `_cksum` exactly so checksums stay comparable if anything ever
+    persists/compares both.
     """
-    r = subprocess.run(
-        ["cksum"],
-        input=(text + "\n").encode(),
-        capture_output=True,
-        check=False,
-    )
-    if r.returncode != 0:
-        return "0"
-    return r.stdout.decode().split()[0]
+    return str(zlib.crc32(text.encode("utf-8")) & 0xFFFFFFFF)
 
 
 def tmpdir() -> Path:

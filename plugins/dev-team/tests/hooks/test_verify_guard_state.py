@@ -58,6 +58,32 @@ def test_cksum_deterministic_for_same_input() -> None:
     assert vgs.cksum("npm test") != vgs.cksum("pytest -q")
 
 
+def test_cksum_does_not_shell_out_to_external_binary(monkeypatch) -> None:
+    """Regression guard (Low-severity finding): `cksum` used to shell out to
+    the external `cksum` binary per call, a bash-parity leftover no longer
+    needed now that the .sh implementations are gone. It must hash
+    in-process instead, matching bash_retry_guard.py's own approach."""
+    import subprocess
+
+    def _boom(*args, **kwargs):  # pragma: no cover - only runs if regressed
+        raise AssertionError("cksum() must not shell out to a subprocess")
+
+    monkeypatch.setattr(subprocess, "run", _boom)
+    assert vgs.cksum("npm test") == vgs.cksum("npm test")
+
+
+def test_cksum_matches_bash_retry_guard_algorithm() -> None:
+    """Same algorithm as bash_retry_guard.py's `_cksum` (zlib.crc32) so
+    checksums stay comparable if anything ever persists/compares both."""
+    _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
+    if str(_HOOKS_DIR) not in sys.path:
+        sys.path.insert(0, str(_HOOKS_DIR))
+    import bash_retry_guard  # type: ignore[import-not-found]  # noqa: E402
+
+    for text in ["npm test", "pytest -q", "", "weird\tinput\nwith  spaces"]:
+        assert vgs.cksum(text) == bash_retry_guard._cksum(text)
+
+
 # ---------------------------------------------------------------------------
 # purge_stale — TTL purge on write (#732)
 #
