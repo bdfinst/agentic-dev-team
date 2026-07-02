@@ -56,9 +56,99 @@ def test_extract_rework_signals() -> None:
     assert rework["failed_edits"] == 1
     assert rework["repeated_file_edits"]["a.ts"] == 2
     assert rework["retried_bash_commands"] == 1
-    assert rework["repeated_verify_runs"] == 2
+    # repeated_verify_runs (#708) counts consecutive-identical-no-edit-between
+    # repeats, not a raw tally of every verify-class command: the fixture has
+    # two `npm test` Bash calls back-to-back with no intervening Edit, so the
+    # SECOND one is the one and only "repeat" (the first is never a repeat of
+    # anything).
+    assert rework["repeated_verify_runs"] == 1
     assert rework["permission_denials"] == 1
     assert rework["compaction_events"] == 1
+
+
+def test_extract_repeated_verify_runs_resets_on_intervening_edit(
+    tmp_path: Path,
+) -> None:
+    """#708: an Edit between two identical verify commands means neither is
+    a "repeat" of a stuck loop — only a genuinely unbroken run of the same
+    command counts."""
+    records = [
+        {
+            "type": "assistant",
+            "sessionId": "s2",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "a1",
+                        "name": "Bash",
+                        "input": {"command": "pytest -q"},
+                    }
+                ]
+            },
+        },
+        {
+            "type": "assistant",
+            "sessionId": "s2",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "a2",
+                        "name": "Bash",
+                        "input": {"command": "pytest -q"},
+                    }
+                ]
+            },
+        },
+        {
+            "type": "assistant",
+            "sessionId": "s2",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "a3",
+                        "name": "Edit",
+                        "input": {"file_path": "/proj/src/b.ts"},
+                    }
+                ]
+            },
+        },
+        {
+            "type": "assistant",
+            "sessionId": "s2",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "a4",
+                        "name": "Bash",
+                        "input": {"command": "pytest -q"},
+                    }
+                ]
+            },
+        },
+    ]
+    transcript = tmp_path / "edit-reset.jsonl"
+    transcript.write_text("\n".join(json.dumps(r) for r in records) + "\n")
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(EXTRACT),
+            "--transcript",
+            str(transcript),
+            "--plugin-root",
+            str(PLUGIN),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    digest = json.loads(result.stdout)
+    # a1 (first, not a repeat), a2 (repeat of a1, no edit between -> +1),
+    # a3 edit resets, a4 (not a repeat of a2 - an edit intervened) -> total 1.
+    assert digest["rework"]["repeated_verify_runs"] == 1
 
 
 def test_extract_accuracy_signals() -> None:
