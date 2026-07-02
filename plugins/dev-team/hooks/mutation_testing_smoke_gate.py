@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Python port of hooks/mutation-testing-smoke-gate.sh (#574 / #572 Phase 0).
+"""Mutation-testing smoke gate — PreToolUse hook (#565; python port per #574 / #572).
 
 Byte-compatible port of the Claude Code PreToolUse hook that enforces the
 SKILL.md § Step 1c smoke gate. Blocks whole-scope Stryker.NET invocations

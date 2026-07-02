@@ -1,4 +1,4 @@
-"""Unit tests for the Python port of hooks/mutation-testing-smoke-gate.sh (#574).
+"""Unit tests for hooks/mutation_testing_smoke_gate.py (#565, #574, #572).
 
 These are white-box tests on the port's helpers. Byte-parity with the .sh
 sibling is enforced separately by the parity harness (Slice 4).
