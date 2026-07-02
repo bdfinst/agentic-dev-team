@@ -561,7 +561,7 @@ def test_dump_map_format_matches_bash_printf(
 
 
 # ---------------------------------------------------------------------------
-# Internal helper coverage — _normalize_band / _band_weight / _round_half_up
+# Internal helper coverage — normalize_band / _band_weight / _round_half_up
 # ---------------------------------------------------------------------------
 
 
@@ -580,7 +580,48 @@ def test_dump_map_format_matches_bash_printf(
     ],
 )
 def test_normalize_band(token: str, expected: str) -> None:
-    assert model_resolve._normalize_band(token) == expected
+    # Public name (#732 dedup): agent_model_resolve.py calls this directly
+    # instead of keeping its own drifted copy.
+    assert model_resolve.normalize_band(token) == expected
+
+
+# ---------------------------------------------------------------------------
+# load_json — public so agent_model_resolve.py can call it directly (#732
+# dedup). Regression coverage for the exception tuple the two copies had
+# drifted on: agent_model_resolve.py's private copy additionally caught
+# `ValueError` (covering e.g. UnicodeDecodeError from a mis-encoded file),
+# which model_resolve.py's original did not. The shared implementation must
+# have the broader (safer) tuple so both callers behave identically.
+# ---------------------------------------------------------------------------
+
+
+def test_load_json_returns_none_for_invalid_utf8(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(b"\xff\xfe\x00\x00invalid")
+    assert model_resolve.load_json(bad) is None
+
+
+def test_load_json_returns_none_for_missing_file(tmp_path: Path) -> None:
+    assert model_resolve.load_json(tmp_path / "missing.json") is None
+
+
+def test_load_json_returns_none_for_malformed_json(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not valid json", encoding="utf-8")
+    assert model_resolve.load_json(bad) is None
+
+
+def test_load_json_returns_parsed_data(tmp_path: Path) -> None:
+    good = tmp_path / "good.json"
+    good.write_text(json.dumps({"low": "x"}), encoding="utf-8")
+    assert model_resolve.load_json(good) == {"low": "x"}
+
+
+def test_ladder_is_valid_public_name(tmp_path: Path) -> None:
+    ladder = tmp_path / "ladder.json"
+    ladder.write_text(json.dumps(["a", "b"]), encoding="utf-8")
+    assert model_resolve.ladder_is_valid(ladder) is True
+    assert model_resolve.ladder_is_valid(tmp_path / "missing.json") is False
 
 
 @pytest.mark.parametrize(

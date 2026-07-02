@@ -204,8 +204,9 @@ truth. If a fourth band is ever warranted (e.g. a common 4+ model ladder), add
 it in lockstep:
 
 1. Extend `ALLOWED_BANDS` in `tests/agents/agent_effort_frontmatter_tests.bats`
-   and the weight table in `hooks/lib/model_resolve.py` (`_band_weight`) and
-   `hooks/agent_model_resolve.py` (`_normalize_band`).
+   and the weight table in `hooks/lib/model_resolve.py` (`_band_weight` and
+   `normalize_band` — `hooks/agent_model_resolve.py` calls the latter
+   directly rather than keeping its own copy).
 2. Add the band key to `knowledge/model-routing.json`.
 3. Update the band → model dump in `_dump_map`, this file, and the spec.
 
