@@ -93,7 +93,7 @@ jobs:
       # gate can't drift. Tests/hooks mutation-gate suites are still excluded
       # (they need stryker/pitest); only the pure bash+python+jq ones run.
       - name: Content + hook-conformance checks (via ci-local)
-        run: bash scripts/ci-local.sh --only=chk_md_references,chk_bats_repo,chk_bats_content_rest,chk_skills_index,chk_rules_vs_prompts,chk_hook_units
+        run: bash scripts/ci-local.sh --only=chk_md_references,chk_bats_repo,chk_bats_content_rest,chk_skills_index,chk_rules_vs_prompts,chk_hook_units,chk_eval_units
 
   # Cost-regression gate (#140 mechanism, #171 real baseline). Isolated in its
   # own job so the read-only telemetry deploy key is never in scope for the
