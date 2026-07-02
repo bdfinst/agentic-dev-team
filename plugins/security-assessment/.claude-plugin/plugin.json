@@ -1,6 +1,6 @@
 {
   "name": "security-assessment",
-  "version": "3.3.1",
+  "version": "3.3.2",
   "description": "Deep security assessment + adversarial ML red-team: SARIF-first tool orchestration, narrowly-scoped LLM agents, FP-reduction with fallback banner, compliance mapping, service-comm diagramming, and a self-owned-target red-team harness. Companion plugin to dev-team.",
   "author": {
     "name": "finsterb",

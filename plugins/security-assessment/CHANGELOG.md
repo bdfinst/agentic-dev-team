@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.3.2](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.1...security-assessment-v3.3.2) (2026-07-02)
+
+
+### Bug Fixes
+
+* **security-assessment:** enforce self-owned scope check in config.validate() ([edc459b](https://github.com/bdfinst/agentic-dev-team/commit/edc459b49fb59b715e62252a41db24cee42df757))
+* **security:** escape untrusted strings in report/Mermaid pipeline; disable weasyprint remote fetch ([9528c16](https://github.com/bdfinst/agentic-dev-team/commit/9528c16d0b5fe18cc6673716f7f9d226af306553))
+
+
+### Code Refactoring
+
+* **security-assessment:** extract shared CIDR-match helper in scope_check.py ([5a7e6a3](https://github.com/bdfinst/agentic-dev-team/commit/5a7e6a390ff8ca23064e91422aa01c857342eed8))
+
 ## [3.3.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.0...security-assessment-v3.3.1) (2026-07-02)
 
 

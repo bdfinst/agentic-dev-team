@@ -1,5 +1,66 @@
 # Changelog
 
+## [9.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.1.0...dev-team-v9.2.0) (2026-07-02)
+
+
+### Features
+
+* extend check_md_references.py to validate anchor fragments ([f7dd077](https://github.com/bdfinst/agentic-dev-team/commit/f7dd07779d54092a1fdf12577b2edd8e05c0153e))
+
+
+### Bug Fixes
+
+* **build:** mandate /verify before a runtime-surface slice is done ([1ca3665](https://github.com/bdfinst/agentic-dev-team/commit/1ca366580c552c9df8edd6d9037287015e2f46ce))
+* **claude-md:** restore claims-discipline sensor phrase after trim ([91ae4c5](https://github.com/bdfinst/agentic-dev-team/commit/91ae4c528e3e3340a70be1ae89786ec274db6ec1))
+* **docs:** use fully-qualified dev-team:tech-writer in dispatch prose ([f0ca139](https://github.com/bdfinst/agentic-dev-team/commit/f0ca13905dadca5a0964d6b0b78161e1791564e7)), closes [#720](https://github.com/bdfinst/agentic-dev-team/issues/720)
+* **hooks:** escalate verify-guard to a hard block for stuck loops ([3fd772c](https://github.com/bdfinst/agentic-dev-team/commit/3fd772c622efab0fcb2e1d0498ffcb310a13d61f)), closes [#708](https://github.com/bdfinst/agentic-dev-team/issues/708)
+* **hooks:** purge stale bash-retry/verify-guard state files on write ([66cf777](https://github.com/bdfinst/agentic-dev-team/commit/66cf7778aaae8530aec5dc56bb3a8d488051ce8b))
+* **hooks:** replace third-party PyYAML with a minimal stdlib parser ([bba1f9b](https://github.com/bdfinst/agentic-dev-team/commit/bba1f9b984b19e6a538e5853bce0c2be00ef8d80))
+* **hooks:** require a logged reason for --no-verify/-n commit bypass ([4e3470c](https://github.com/bdfinst/agentic-dev-team/commit/4e3470c9cd3855971085c13a6e76235475c59860)), closes [#709](https://github.com/bdfinst/agentic-dev-team/issues/709)
+* **hooks:** use in-process hashing in verify_guard_state instead of cksum ([08ee6e0](https://github.com/bdfinst/agentic-dev-team/commit/08ee6e05d260c0f6cb72cfdb35a91695d6a09e31))
+* **install:** retire Git Bash hard-requirement on Windows ([5704a04](https://github.com/bdfinst/agentic-dev-team/commit/5704a04cbf262c85a24339f0249f61d94277c9b4))
+* **model-routing-check:** invoke resolver with python3, not bash ([340f14c](https://github.com/bdfinst/agentic-dev-team/commit/340f14c5628f91c766acd8a7af4e8af94fa7d2f4)), closes [#718](https://github.com/bdfinst/agentic-dev-team/issues/718)
+* **mutation-testing:** avoid real OS signal delivery in portable test ([f11beaa](https://github.com/bdfinst/agentic-dev-team/commit/f11beaaffaa6118dbece785fec5732afb3b4f82a))
+* **mutation-testing:** terminate all live Stryker procs on signal, not one ([6de8d95](https://github.com/bdfinst/agentic-dev-team/commit/6de8d959bac2e9f5f11116e27a437f5bbfb68172))
+* **proxy-resilience:** consolidate proxy pointers to stay under CLAUDE.md budget ([4943e4e](https://github.com/bdfinst/agentic-dev-team/commit/4943e4e43a65df4c0e600fc6ead53a24b5b99d77))
+* **scripts:** bound shell subprocess calls with a timeout ([cb5e802](https://github.com/bdfinst/agentic-dev-team/commit/cb5e80296e4858a74a8107ffaa5b75503b7b8934))
+* **skills:** add diagnose-before-retry rule to /build ([c896654](https://github.com/bdfinst/agentic-dev-team/commit/c896654cbbe92b2d8b735995479ffdd6e01d0b98)), closes [#710](https://github.com/bdfinst/agentic-dev-team/issues/710)
+* **skills:** add pre-switch verification to branch-workflow ([4be5516](https://github.com/bdfinst/agentic-dev-team/commit/4be5516a2fd0145c394ffa17f94ce3f2a07a6b7c)), closes [#714](https://github.com/bdfinst/agentic-dev-team/issues/714)
+* **skills:** extend quality-gate-pipeline with external UI citation guidance ([91746bb](https://github.com/bdfinst/agentic-dev-team/commit/91746bb86e7375fdc5aa989382911d62b7bacf44)), closes [#728](https://github.com/bdfinst/agentic-dev-team/issues/728)
+* **skills:** pair branch-workflow cleanup with EnterWorktree/ExitWorktree ([3751720](https://github.com/bdfinst/agentic-dev-team/commit/37517208a0f6f172c3f8709f9d756c3c497e0aa2)), closes [#716](https://github.com/bdfinst/agentic-dev-team/issues/716)
+* **telemetry:** resolve dead-surface audit of never-invoked agents ([#712](https://github.com/bdfinst/agentic-dev-team/issues/712)) ([9b8a7c2](https://github.com/bdfinst/agentic-dev-team/commit/9b8a7c24e2744a9c6c11b6f385613a287b461847))
+* **tests:** extend hermetic-adoption gate to plugins/dev-team/tests/**/*.py ([649c4ce](https://github.com/bdfinst/agentic-dev-team/commit/649c4ce82667eeab811d5ed34e1a4b8deff9cfc7)), closes [#715](https://github.com/bdfinst/agentic-dev-team/issues/715)
+
+
+### Code Refactoring
+
+* **hooks:** dedupe model-band helpers into model_resolve ([758a28b](https://github.com/bdfinst/agentic-dev-team/commit/758a28b0d0a9315f9b95b736d55883e68b22124d))
+* **hooks:** dedupe stdin-JSON-read helper into hooks/lib/stdin_json.py ([dbfb953](https://github.com/bdfinst/agentic-dev-team/commit/dbfb9532a64df584f2dc1c62d12184bec32ab2a9))
+* **hooks:** rename magic numbers and cryptic identifiers in 4 hooks ([b3d8d07](https://github.com/bdfinst/agentic-dev-team/commit/b3d8d07f5732a82f4587c704d378b07a937e7b67))
+* **hooks:** share the 5000-char / 500-line token-efficiency thresholds ([7a44221](https://github.com/bdfinst/agentic-dev-team/commit/7a44221a74060138d997e6e31e8e80fb1fd38f48))
+* **hooks:** stop double-parsing the ladder JSON in resolve_band() ([b73a444](https://github.com/bdfinst/agentic-dev-team/commit/b73a444f274d64d6252d29d9f0f3025d7c729bb5))
+* **mutation-adapters:** dedupe first-changed-source-file lookup ([935ad37](https://github.com/bdfinst/agentic-dev-team/commit/935ad375414575497adf2286e8b926cf592c2a07))
+* **scripts:** dedupe issue-dict builders into review_result.make_issue ([ed212e1](https://github.com/bdfinst/agentic-dev-team/commit/ed212e15d27e31313ba525dbaf4621621e4337be))
+* **skills:** extract plan file template to references/plan-template.md ([dad1b07](https://github.com/bdfinst/agentic-dev-team/commit/dad1b0763d3c183d5f1f4bf972e9dfa6fb200288))
+
+
+### Performance Improvements
+
+* **hooks:** rotate disposed entries out of pending-review.jsonl ([12c9a41](https://github.com/bdfinst/agentic-dev-team/commit/12c9a41ca2db4e1079672122ed8b8dc7269531ea))
+* **hooks:** tail-read cost meter transcript instead of full re-parse ([0e73d8c](https://github.com/bdfinst/agentic-dev-team/commit/0e73d8c89a802b92de3d402ebe11485fab02a02d))
+
+
+### Documentation
+
+* **agents,skills:** recover from Edit stale-old_string via re-Read ([f5fa055](https://github.com/bdfinst/agentic-dev-team/commit/f5fa05557bee2f428884f809c4eb5a1362721486)), closes [#726](https://github.com/bdfinst/agentic-dev-team/issues/726)
+* **agents:** sync agent_info.md review-agent table with agent-registry.md ([1e5dadd](https://github.com/bdfinst/agentic-dev-team/commit/1e5dadd41b59042d18be7a4966e917507f2c5baa))
+* **ci-debugging:** add Monitor timeout_ms guidance for long-running jobs ([a814a67](https://github.com/bdfinst/agentic-dev-team/commit/a814a67f7ffe6178d922a0c4832c21a72e9ade68)), closes [#721](https://github.com/bdfinst/agentic-dev-team/issues/721)
+* document frontmatter extension keys, drop stale skip-guard, clarify ADR 0015 scope ([680c060](https://github.com/bdfinst/agentic-dev-team/commit/680c0607c68174db1c508373e43e65c29599b896))
+* fix bash-migration doc drift (dead agent refs, stale .sh names, ADR TOC) ([c991c3d](https://github.com/bdfinst/agentic-dev-team/commit/c991c3dd1aa28b3e669deb348501e855ee08c145))
+* **knowledge:** document proxy connection-refused retry/surface policy ([7607bba](https://github.com/bdfinst/agentic-dev-team/commit/7607bba116313026b4c75cd96fcd49e949ca7fab)), closes [#724](https://github.com/bdfinst/agentic-dev-team/issues/724)
+* **proxy-resilience:** add backoff/retry ceiling convention for proxy rate limits ([f3ded18](https://github.com/bdfinst/agentic-dev-team/commit/f3ded1851f60f2e28316ca416f756d4e7b590370)), closes [#723](https://github.com/bdfinst/agentic-dev-team/issues/723)
+* **skills:** add fast feedback loop guidance to browser-testing ([7fe8b43](https://github.com/bdfinst/agentic-dev-team/commit/7fe8b4338bbad52cd66344ab1e0973640b59f81f)), closes [#725](https://github.com/bdfinst/agentic-dev-team/issues/725)
+
 ## [9.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.0.0...dev-team-v9.1.0) (2026-07-02)
 
 
