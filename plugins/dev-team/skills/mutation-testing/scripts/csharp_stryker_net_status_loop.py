@@ -171,11 +171,49 @@ def _drift_counter_path(state_dir: Path, stryker_pid: Optional[int]) -> Path:
 
 
 def _pid_is_alive(pid: int) -> bool:
-    """Cross-platform 'signal 0' liveness check. Returns False on Windows
-    when the PID doesn't exist (OSError WinError 87); True when it does.
+    """Cross-platform PID-liveness check.
+
+    - POSIX: ``os.kill(pid, 0)`` — raises ``ProcessLookupError`` for dead
+      PIDs, ``PermissionError`` for existing-but-not-ours.
+    - Windows: ``os.kill(pid, 0)`` has undefined semantics (it can send
+      ``CTRL_C_EVENT`` to console-attached processes on some Python builds,
+      which interrupts the *current* process). Use ``ctypes.OpenProcess``
+      directly instead — no signal delivery, deterministic on any Windows
+      Python.
     """
     if pid <= 0:
         return False
+
+    if os.name == "nt":
+        # Windows: query the kernel for the process handle. If OpenProcess
+        # succeeds we have an existing PID (living or a zombie kept alive
+        # by an open handle elsewhere — either way, "alive enough" for the
+        # loop's died-mid-run red-flag test). If it fails we treat the PID
+        # as dead. Uses PROCESS_QUERY_LIMITED_INFORMATION (0x1000) — the
+        # minimum access right needed to open any process.
+        try:
+            import ctypes
+
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid)
+            )
+            if not handle:
+                return False
+            # If the process is a zombie, GetExitCodeProcess returns
+            # STILL_ACTIVE (259) while alive and something else after exit.
+            # Distinguishing is nice but not required for this check; the
+            # OpenProcess handle being non-null already answers "does a PID
+            # slot with this number exist right now."
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        except Exception:
+            # Any Windows-specific quirk — fall back to "alive" to avoid
+            # false died-mid-run red flags. That matches the POSIX
+            # "unknown-error" branch below.
+            return True
+
+    # POSIX path — signal 0 delivery is a no-op existence check.
     try:
         os.kill(pid, 0)
         return True
