@@ -80,6 +80,10 @@
           {
             "type": "command",
             "command": "bash hooks/bash-retry-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash hooks/mutation-testing-smoke-gate.sh"
           }
         ]
       },
