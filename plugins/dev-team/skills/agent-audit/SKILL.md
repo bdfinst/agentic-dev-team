@@ -209,7 +209,7 @@ is a **hard gate** — exit 1 on any discrepancy. Fix it by adding or removing t
 catalog row by hand (the `marketplace-dev` plugin's `/agent-create` /
 `/agent-remove` maintain these tables automatically).
 Effort bands are deliberately not checked — they live only in frontmatter. The
-bats suite `tests/repo/registry_sync_tests.bats` runs this on every PR.
+pytest suite `tests/repo/test_registry_sync.py` runs this on every PR.
 
 ### 2f. CLAUDE.md and token-efficiency structural checks
 

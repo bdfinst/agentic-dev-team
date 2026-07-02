@@ -63,7 +63,7 @@ Repo-root `scripts/*.sh` (`ci-local.sh`, `dev-setup.sh`, `cost-regression-check.
 
 ### Hermetic bats fixtures
 
-Every `.bats` file under `tests/` that runs state-mutating git commands (`init`, `commit`, `push`, `update-ref`, `checkout`, `branch`, `add`, `clone`, `merge`, `rebase`, `reset`, ...) **must** `load '../lib/hermetic'` and wire `hermetic_setup` + `hermetic_teardown` into its `setup()`/`teardown()` blocks. `tests/repo/hermetic_adoption_tests.bats` enforces this at CI time.
+Every `.bats` file under `tests/` that runs state-mutating git commands (`init`, `commit`, `push`, `update-ref`, `checkout`, `branch`, `add`, `clone`, `merge`, `rebase`, `reset`, ...) **must** `load '../lib/hermetic'` and wire `hermetic_setup` + `hermetic_teardown` into its `setup()`/`teardown()` blocks. `tests/repo/test_hermetic_adoption.py` enforces this at CI time.
 
 Rationale: git exports `GIT_DIR`/`GIT_INDEX_FILE`/`GIT_WORK_TREE`/`GIT_PREFIX`/`GIT_REFLOG_ACTION` into the pre-push hook's environment. Without scrubbing, fixture bats tests inherit those vars and their `git init`/`git commit`/`git push` operations target the parent worktree's gitdir instead of their tempdirs, silently rewriting `refs/heads/*` on the pushing repo. See [`.triage/pre-push-corrupts-local-branch-refs.md`](.triage/pre-push-corrupts-local-branch-refs.md) and issue #546.
 

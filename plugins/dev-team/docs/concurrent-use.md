@@ -12,7 +12,7 @@ problem cleanly.
 The plugin's local coordination state is per-checkout, not shared:
 
 | State | Where | Shared across checkouts? |
-|---|---|---|
+| --- | --- | --- |
 | Review gate `.review-passed` | repo root, **gitignored** | No — local to each working tree |
 | `.claude/session-model` / `.claude/model-ladder.json` | **gitignored** | No — local to each working tree |
 | Plan / build progress | `plans/<name>.md` (**tracked**) | Merges through normal git |
@@ -26,7 +26,7 @@ for the standard one-checkout-per-person workflow.
 Two background agents, two terminals in the same directory, or a human and an
 agent in the same checkout share **one** `.git/index` and **one** set of local
 state files. That is where collisions occur (reproduced in
-[`../../../tests/repo/multiplayer_collision_tests.bats`](../../../tests/repo/multiplayer_collision_tests.bats),
+[`../../../tests/repo/test_multiplayer_collision.py`](../../../tests/repo/test_multiplayer_collision.py),
 characterized in issue #109):
 the shared `.review-passed` gets overwritten (false blocks), the staged set
 interleaves, and `.claude/session-model` / routing-bump-log writes race.
