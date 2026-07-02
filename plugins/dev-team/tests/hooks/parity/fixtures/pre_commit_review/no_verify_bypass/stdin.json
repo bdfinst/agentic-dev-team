@@ -1,0 +1,4 @@
+{
+  "tool_name": "Bash",
+  "tool_input": { "command": "git commit --no-verify -m foo" }
+}

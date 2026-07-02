@@ -63,7 +63,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/pre-commit-review.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_PRE_COMMIT_REVIEW:-0}\" = \"1\" ]; then python3 hooks/pre_commit_review.py; else bash hooks/pre-commit-review.sh; fi'"
           },
           {
             "type": "command",
@@ -96,7 +96,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/context-ceiling-guard.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CONTEXT_CEILING_GUARD:-0}\" = \"1\" ]; then python3 hooks/context_ceiling_guard.py; else bash hooks/context-ceiling-guard.sh; fi'"
           }
         ]
       },
@@ -136,7 +136,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/context-ceiling-guard.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CONTEXT_CEILING_GUARD:-0}\" = \"1\" ]; then python3 hooks/context_ceiling_guard.py; else bash hooks/context-ceiling-guard.sh; fi'"
           }
         ]
       }
@@ -151,7 +151,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/token-efficiency-review.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_TOKEN_EFFICIENCY_REVIEW:-0}\" = \"1\" ]; then python3 hooks/token_efficiency_review.py; else bash hooks/token-efficiency-review.sh; fi'"
           },
           {
             "type": "command",
