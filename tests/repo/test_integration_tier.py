@@ -25,6 +25,36 @@ GRADE = REPO_ROOT / "scripts" / "eval_grade.py"
 RUNNER = REPO_ROOT / "scripts" / "run_integration_eval.py"
 
 
+def _load_runner_module():
+    """Import scripts/run_integration_eval.py by path so its functions
+    (extract_golden_repo) can be unit-tested directly, in-process, without
+    forking a subprocess for every case."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("run_integration_eval", RUNNER)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+runner_module = _load_runner_module()
+
+
+def _tarball_with_member(
+    tar_path: Path, member_name: str, content: bytes = b"pwned"
+) -> None:
+    """Build a tarball containing a single member whose name is a raw,
+    attacker-chosen string (bypassing tarfile.add()'s own name normalization,
+    the same way a hand-crafted malicious archive would)."""
+    import io
+
+    info = tarfile.TarInfo(name=member_name)
+    info.size = len(content)
+    with tarfile.open(tar_path, "w:gz") as tar:
+        tar.addfile(info, io.BytesIO(content))
+
+
 EXPECTED_DEMO = """{
   "fixture": "demo",
   "applicableSkills": ["orchestrator"],
@@ -303,3 +333,88 @@ def test_runner_missing_claude_errors_naming_component(case: Path) -> None:
     assert res.returncode == 2, out
     assert "claude" in out
     assert "prerequisites missing" in out
+
+
+# --- extract_golden_repo zip-slip guard --------------------------------------
+#
+# extract_golden_repo()'s path-traversal guard previously used a naive
+# `str(target).startswith(str(dest.resolve()))` string-prefix check with no
+# separator boundary — the classic zip-slip-guard-bypass pattern flagged by
+# semgrep's trailofbits.python.tarfile-extractall-traversal rule. A sibling
+# directory whose name happens to share dest's name as a string prefix (e.g.
+# dest="out", sibling="out-evil") passes the naive check even though it is
+# not actually inside dest.
+#
+# test_prefix_sibling_bypass_is_rejected_by_is_within unit-tests the
+# containment predicate (_is_within) directly rather than only going
+# through a full extract_golden_repo() -> tarfile.extractall() round-trip:
+# Python 3.12+'s own tarfile.extractall() added its own PEP 706 traversal
+# filter, which independently rejects some crafted members and can mask a
+# still-buggy prefix check on newer interpreters, giving a false-negative
+# "the code is already fixed" reading. Testing the predicate in isolation
+# exercises exactly the logic this repo owns and is responsible for.
+
+
+def test_prefix_sibling_bypass_is_rejected_by_is_within() -> None:
+    # The specific naive-startswith bypass: dest is named "out"; the crafted
+    # target resolves one level up into a *sibling* directory "out-evil"
+    # whose name has "out" as a string prefix. The old
+    # `str(target).startswith(str(dest))` check incorrectly treated this as
+    # "inside dest".
+    dest = Path("/tmp/case/out")
+    sibling_escape = Path("/tmp/case/out-evil/pwned.txt")
+    assert runner_module._is_within(dest, sibling_escape) is False
+
+
+def test_dotdot_traversal_is_rejected_by_is_within() -> None:
+    dest = Path("/tmp/case/out")
+    assert runner_module._is_within(dest, Path("/etc/passwd")) is False
+
+
+def test_legitimate_nested_target_is_accepted_by_is_within() -> None:
+    dest = Path("/tmp/case/out")
+    assert runner_module._is_within(dest, dest / "src" / "app" / "main.py") is True
+    assert runner_module._is_within(dest, dest) is True
+
+
+def test_extract_golden_repo_rejects_dotdot_traversal(tmp_path: Path) -> None:
+    dest = tmp_path / "work" / "extracted"
+    tarball = tmp_path / "golden.tar.gz"
+    _tarball_with_member(tarball, "../../../../../../etc/passwd")
+
+    with pytest.raises(Exception):
+        runner_module.extract_golden_repo(tarball, dest)
+
+    assert not (Path("/etc/passwd_pwned")).exists()  # sanity: no stray writes
+    assert not any(dest.rglob("passwd"))
+
+
+def test_extract_golden_repo_rejects_prefix_sibling_bypass(tmp_path: Path) -> None:
+    # Regression for the specific naive-startswith bypass: dest is named
+    # "out"; a crafted member escapes one level up into a *sibling*
+    # directory "out-evil" whose name has "out" as a string prefix. The old
+    # `str(target).startswith(str(dest.resolve()))` check incorrectly
+    # treated this as "inside dest" and let extractall() write outside it.
+    dest = tmp_path / "out"
+    sibling_escape = tmp_path / "out-evil" / "pwned.txt"
+    tarball = tmp_path / "golden.tar.gz"
+    _tarball_with_member(tarball, "../out-evil/pwned.txt")
+
+    with pytest.raises(Exception):
+        runner_module.extract_golden_repo(tarball, dest)
+
+    assert not sibling_escape.exists(), (
+        f"zip-slip guard bypass: file escaped into sibling directory {sibling_escape}"
+    )
+
+
+def test_extract_golden_repo_allows_legitimate_nested_paths(tmp_path: Path) -> None:
+    dest = tmp_path / "out"
+    tarball = tmp_path / "golden.tar.gz"
+    _tarball_with_member(tarball, "src/app/main.py", content=b"print('hi')\n")
+
+    runner_module.extract_golden_repo(tarball, dest)
+
+    extracted = dest / "src" / "app" / "main.py"
+    assert extracted.is_file()
+    assert extracted.read_bytes() == b"print('hi')\n"
