@@ -169,6 +169,13 @@ chk_citation_lint()   { python3 scripts/citation_lint.py --all; }  # advisory (#
 chk_md_references()   { python3 scripts/check_md_references.py; }
 chk_skills_index()    { python3 plugins/dev-team/hooks/lib/build_skills_index.py --check; }
 chk_rules_vs_prompts() { bash scripts/audit-rules-vs-prompts.sh; }
+chk_python_only() {
+  if [ -n "$BASE" ]; then
+    python3 scripts/check-python-only.py --base "$BASE"
+  else
+    python3 scripts/check-python-only.py  # defaults to origin/main, blocking
+  fi
+}
 chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
 chk_harness_smoke()    { python3 tests/security-assessment/harness/smoke_test.py; }
 # Lightweight nav gate: assemble the docs tree, then assert every mkdocs nav
@@ -232,6 +239,7 @@ CHECKS=(
   "semgrep rule fixtures (audit-semgrep-fixtures.py)::chk_semgrep_fixtures"
   "red-team harness smoke (smoke_test.py)::chk_harness_smoke"
   "rules-vs-prompts audit (audit-rules-vs-prompts.sh)::chk_rules_vs_prompts"
+  "prefer-Python-over-bash audit (check-python-only.py)::chk_python_only"
   "eval corpus integrity (eval_grade.py --check-corpus)::chk_eval_corpus"
   "OE scoring staleness (advisory; oe_scoring_staleness.py)::chk_oe_staleness"
   "citation drift lint (citation_lint.py, advisory)::chk_citation_lint"

@@ -1,24 +1,39 @@
 #!/usr/bin/env python3
-"""check-python-only.py — audit ADR 0014's "new scripts in Python" rule.
+"""check-python-only.py — enforce ADR 0014's "new scripts in Python" rule.
 
-Enumerates any ``.sh`` files added under ``plugins/dev-team/`` in the git diff
-between the branch and its base (default: ``origin/main``). Advisory today
-(exit 0 + warning), promoted to a blocking gate once ADR 0014's Phase 2 is
-complete.
+Enumerates any ``.sh``/``.bats`` files newly **added** (``git diff
+--diff-filter=A``) between the branch and its base (default:
+``origin/main``), repo-wide, and fails the ones that fall outside an
+explicit allowlist. Blocking by default (exit 1 on a violation) since ADR
+0015 records the epic's Phase 3 gate as met; pass ``--advisory`` to opt back
+into warn-only behavior.
 
-Exclusions:
-  - ``plugins/dev-team/install.sh`` — the shell-trampoline exception the ADR
-    explicitly allows (needs to run before Python is guaranteed available).
-  - Any file whose path matches an entry in ``AUDIT_EXCLUSIONS`` (below);
-    this list is meant to shrink over time as ADR 0014's Phase 2 lands.
+Allowlist (directories and exact paths; see
+docs/enforce-prefer-python-over-bash.md for the full rationale table):
+
+  - ``plugins/dev-team/install.sh`` (exact file) — the shell trampoline that
+    must run before Python is guaranteed on PATH.
+  - ``plugins/security-assessment/`` (prefix) — a different plugin, shell-based
+    by design; ADR 0014/0015 scope the Python rule to plugins/dev-team/ only.
+  - ``tests/security-assessment/`` (prefix) — test suite for the above.
+  - ``evals/`` (prefix) — eval fixtures deliberately exercise shell-script
+    scenarios as test data, not shipped tooling.
+  - ``.claude/cloud-setup.sh``, ``.claude/install-dev-team.sh`` (exact files)
+    — same install-trampoline rationale as install.sh.
+  - ``tests/lib/hermetic_tests.bats`` (exact file) — named out-of-scope-here
+    in #700; owned by #677 (retire bats-core), not this gate.
+
+Everything else repo-wide — including new repo-root ``scripts/*.sh`` — is in
+scope: new additions there are blocked, not just discouraged (existing files
+may still be edited; only ``--diff-filter=A`` additions are flagged).
 
 Usage:
-    python3 scripts/check-python-only.py                    # advisory
-    python3 scripts/check-python-only.py --block            # blocking mode
-    python3 scripts/check-python-only.py --base origin/main # explicit base
-    python3 scripts/check-python-only.py --list             # print + exit 0
+    python3 scripts/check-python-only.py                    # blocking (default)
+    python3 scripts/check-python-only.py --advisory          # warn-only
+    python3 scripts/check-python-only.py --base origin/main  # explicit base
+    python3 scripts/check-python-only.py --list              # print allowlist, exit 0
 
-Refs: ADR 0014, issue #572.
+Refs: ADR 0014, ADR 0015, docs/enforce-prefer-python-over-bash.md, issues #572, #700, #701, #702.
 """
 
 from __future__ import annotations
@@ -26,20 +41,39 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
-from pathlib import Path
 
-# Files the ADR explicitly allows to remain shell forever.
-AUDIT_EXCLUSIONS = {
+TRACKED_EXTENSIONS = (".sh", ".bats")
+
+# Exact file paths the allowlist exempts, one line per entry with the
+# rationale inline (see the module docstring's table for detail).
+ALLOWLIST_EXACT_PATHS = {
+    # Shell trampoline that must run before Python is guaranteed on PATH.
     "plugins/dev-team/install.sh",
+    # Cloud SessionStart / setup-script install trampolines — same rationale.
+    ".claude/cloud-setup.sh",
+    ".claude/install-dev-team.sh",
+    # Named out-of-scope-here in #700; owned by #677 (retire bats-core).
+    "tests/lib/hermetic_tests.bats",
 }
+
+# Directory prefixes the allowlist exempts wholesale (trailing "/").
+ALLOWLIST_DIR_PREFIXES = (
+    # A different plugin, shell-based by design (ADR 0014/0015 scope the
+    # Python rule to plugins/dev-team/ only).
+    "plugins/security-assessment/",
+    # Test suite for the above; same rationale.
+    "tests/security-assessment/",
+    # Eval fixtures deliberately exercise shell-script scenarios as test
+    # data, not shipped tooling.
+    "evals/",
+)
 
 
 def _git_diff_added_files(base: str) -> list[str]:
     """Return the list of files added on the current branch vs ``base``.
 
     Uses ``git diff --diff-filter=A --name-only`` so only newly-added files
-    are surfaced — edits to existing bash are not flagged (those are for the
-    epic's phased conversion, not this audit).
+    are surfaced — edits to existing bash are unaffected by this gate.
     """
     try:
         result = subprocess.run(
@@ -57,18 +91,20 @@ def _git_diff_added_files(base: str) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
-def new_bash_scripts_in_plugin(base: str) -> list[str]:
-    """Return the list of ``.sh`` files newly added under
-    ``plugins/dev-team/`` in this branch's diff, minus the ADR's allowed
-    exceptions.
+def is_allowlisted(path: str) -> bool:
+    """Return True if ``path`` is exempt from the Python-only gate."""
+    if path in ALLOWLIST_EXACT_PATHS:
+        return True
+    return any(path.startswith(prefix) for prefix in ALLOWLIST_DIR_PREFIXES)
+
+
+def find_violations(base: str) -> list[str]:
+    """Return newly-added ``.sh``/``.bats`` files (repo-wide) that fall
+    outside the allowlist.
     """
     added = _git_diff_added_files(base)
     return [
-        f
-        for f in added
-        if f.startswith("plugins/dev-team/")
-        and f.endswith(".sh")
-        and f not in AUDIT_EXCLUSIONS
+        f for f in added if f.endswith(TRACKED_EXTENSIONS) and not is_allowlisted(f)
     ]
 
 
@@ -77,9 +113,9 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="check-python-only.py",
         description=(
-            "Audit for ADR 0014 — surface .sh files newly added under "
-            "plugins/dev-team/. New scripts should be Python; existing bash "
-            "converts per issue #572."
+            "Enforce ADR 0014 — block new .sh/.bats files added outside the "
+            "allowlist, repo-wide. New scripts should be Python; existing "
+            "shell converts per issue #572."
         ),
     )
     p.add_argument(
@@ -88,40 +124,45 @@ def main(argv: list[str] | None = None) -> int:
         help="Git ref to diff against (default: origin/main)",
     )
     p.add_argument(
-        "--block",
+        "--advisory",
         action="store_true",
-        help="Exit non-zero when violations are found (default: advisory).",
+        help="Warn only, exit 0 even on violations (default: blocking).",
     )
     p.add_argument(
         "--list",
         action="store_true",
-        help="Print the current audit exclusions list and exit 0.",
+        help="Print the current allowlist and exit 0.",
     )
     args = p.parse_args(argv)
 
     if args.list:
-        print("check-python-only audit exclusions (ADR 0014):")
-        for excl in sorted(AUDIT_EXCLUSIONS):
-            print(f"  {excl}")
+        print("check-python-only allowlist (ADR 0014):")
+        print("  exact paths:")
+        for excl in sorted(ALLOWLIST_EXACT_PATHS):
+            print(f"    {excl}")
+        print("  directory prefixes:")
+        for excl in sorted(ALLOWLIST_DIR_PREFIXES):
+            print(f"    {excl}")
         return 0
 
-    violations = new_bash_scripts_in_plugin(args.base)
+    violations = find_violations(args.base)
     if not violations:
         return 0
 
-    prefix = "BLOCKING" if args.block else "ADVISORY"
+    prefix = "ADVISORY" if args.advisory else "BLOCKING"
     sys.stderr.write(
         f"{prefix}: check-python-only found {len(violations)} newly-added "
-        f".sh file(s) under plugins/dev-team/. ADR 0014 requires new scripts "
-        f"to be Python:\n"
+        f".sh/.bats file(s) outside the allowlist. ADR 0014 requires new "
+        f"scripts to be Python:\n"
     )
     for v in violations:
         sys.stderr.write(f"  {v}\n")
     sys.stderr.write(
         "\nADR: docs/adr/0014-python-for-cross-os-scripts.md\n"
+        "Design doc: docs/enforce-prefer-python-over-bash.md\n"
         "Epic: https://github.com/bdfinst/agentic-dev-team/issues/572\n"
     )
-    return 1 if args.block else 0
+    return 0 if args.advisory else 1
 
 
 if __name__ == "__main__":
