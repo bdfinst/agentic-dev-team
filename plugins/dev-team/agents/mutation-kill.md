@@ -337,7 +337,8 @@ convergence: skipped N (already converged/excluded), testing M
 ```
 
 This mirrors the existing `mutation-history.json` reuse rule in
-`quality-targets-converge/SKILL.md`, which requires the analogous summary line for
+[`quality-targets-converge/SKILL.md`](../skills/quality-targets-converge/SKILL.md),
+which requires the analogous summary line for
 the same reason: without that line, the reuse rule is invisible and the operator
 can't tell whether the convergence-history mechanism actually paid off.
 
