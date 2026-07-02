@@ -23,8 +23,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LINT = REPO_ROOT / "scripts" / "citation_lint.py"
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
@@ -39,11 +37,6 @@ CITED_CLEAN = [
     "test-review",
     "test-smell-review",
 ]
-
-
-def _require_lint() -> None:
-    if not LINT.is_file():
-        pytest.skip("citation_lint.py not present yet (PR #315 not merged)")
 
 
 def _run_lint() -> subprocess.CompletedProcess:
@@ -62,13 +55,11 @@ def _run_lint() -> subprocess.CompletedProcess:
 
 
 def test_lint_exits_0_on_the_real_plugin_corpus() -> None:
-    _require_lint()
     result = _run_lint()
     assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_every_reviewer_with_declared_cites_resolves_to_real_sources() -> None:
-    _require_lint()
     # Any 'unknown source' warning means a cites: entry points at a file that
     # does not exist - i.e. a knowledge file was renamed without updating the
     # citing agent. Hard fail (advisory exit code, but the warning text is
@@ -82,7 +73,6 @@ def test_every_reviewer_with_declared_cites_resolves_to_real_sources() -> None:
 
 
 def test_no_drift_on_backfilled_reviewers() -> None:
-    _require_lint()
     # Reviewers that have a cites: list AND zero threshold drift today. If any
     # of these later appear in the warning stream, a backfilled agent
     # silently regressed.
