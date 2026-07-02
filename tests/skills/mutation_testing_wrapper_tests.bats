@@ -303,11 +303,21 @@ teardown() {
   grep -q "DOTNET_ROOT=/custom/dotnet" "$RECORD_DIR/invocation-03"
 }
 
-@test "wrapper: exports the default DOTNET_ROOT when unset" {
-  unset DOTNET_ROOT
-  run "$WRAPPER"
+@test "wrapper: resolves DOTNET_ROOT via _probe_dotnet_root when unset (rewritten for #564)" {
+  # Original test hard-coded /opt/homebrew/opt/dotnet/libexec, which broke on
+  # any machine (Linux CI, most non-Homebrew Macs) without that literal path.
+  # The new probe is a sourceable function callable with a candidate list.
+  # Source the wrapper (its sourced-vs-executed guard suppresses main flow),
+  # then call _probe_dotnet_root directly with a fixture whose SDK layout
+  # exists on disk. The function's stdout is the resolved path.
+  fixture="$HERMETIC_ROOT/fake-installs/probe-default/libexec"
+  mkdir -p "$fixture/shared"   # shared/ dir marker satisfies the probe
+
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  run _probe_dotnet_root "$fixture"
   [ "$status" -eq 0 ]
-  grep -q "DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec" "$RECORD_DIR/invocation-03"
+  [ "$output" = "$fixture" ]
 }
 
 @test "wrapper: forwards arguments to Stryker unchanged" {
@@ -321,4 +331,234 @@ teardown() {
   grep -q "^arg\[3\]=\*\*/Foo.cs$"       "$RECORD_DIR/invocation-03"
   grep -q "^arg\[4\]=-O$"                "$RECORD_DIR/invocation-03"
   grep -q "^arg\[5\]=StrykerOutput/probe$" "$RECORD_DIR/invocation-03"
+}
+
+# =============================================================================
+# Issue #564 — _probe_dotnet_root function-level tests
+# =============================================================================
+#
+# The probe function is sourceable; the wrapper's sourced-vs-executed guard
+# suppresses the main flow when the file is sourced, so bats can call the
+# probe directly with fixture paths. These tests don't invoke the wrapper
+# end-to-end — they exercise the pure function.
+
+@test "probe-fn: returns first candidate with executable dotnet" {
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  fx="$HERMETIC_ROOT/fx"
+  mkdir -p "$fx/a" "$fx/b"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$fx/a/dotnet"
+  chmod +x "$fx/a/dotnet"
+  run _probe_dotnet_root "$fx/a" "$fx/b"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$fx/a" ]
+}
+
+@test "probe-fn: returns first candidate with dotnet.exe marker (Windows-style)" {
+  # #564 Acceptance Critic blocker — dotnet.exe-only marker must count as a
+  # hit even when no shared/ dir and no non-.exe dotnet are present.
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  fx="$HERMETIC_ROOT/fx"
+  mkdir -p "$fx/win"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$fx/win/dotnet.exe"
+  chmod +x "$fx/win/dotnet.exe"
+  run _probe_dotnet_root "$fx/win"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$fx/win" ]
+}
+
+@test "probe-fn: returns first candidate with shared/ dir marker" {
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  fx="$HERMETIC_ROOT/fx"
+  mkdir -p "$fx/sdk/shared"
+  run _probe_dotnet_root "$fx/sdk"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$fx/sdk" ]
+}
+
+@test "probe-fn: skips empty candidate segments" {
+  # Guards against the [ -z "$candidate" ] && continue branch in the loop.
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  fx="$HERMETIC_ROOT/fx"
+  mkdir -p "$fx/valid/shared"
+  run _probe_dotnet_root "" "$fx/valid" ""
+  [ "$status" -eq 0 ]
+  [ "$output" = "$fx/valid" ]
+}
+
+@test "probe-fn: candidate hit order — position 1 wins over position 3" {
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  fx="$HERMETIC_ROOT/fx"
+  mkdir -p "$fx/homebrew-as/shared" "$fx/debian/shared"
+  run _probe_dotnet_root "$fx/homebrew-as" "$fx/homebrew-intel" "$fx/debian"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$fx/homebrew-as" ]
+}
+
+@test "probe-fn: candidate hit order — position 4 wins over position 5" {
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  fx="$HERMETIC_ROOT/fx"
+  mkdir -p "$fx/fedora/shared" "$fx/user-scope/shared"
+  run _probe_dotnet_root "$fx/homebrew-as" "$fx/homebrew-intel" "$fx/debian" "$fx/fedora" "$fx/user-scope"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$fx/fedora" ]
+}
+
+@test "probe-fn: candidate hit order — position 6 wins over position 7" {
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  fx="$HERMETIC_ROOT/fx"
+  mkdir -p "$fx/win-pf/shared" "$fx/win-lower/shared"
+  run _probe_dotnet_root "$fx/nowhere1" "$fx/nowhere2" "$fx/nowhere3" "$fx/nowhere4" "$fx/nowhere5" \
+      "$fx/win-pf" "$fx/win-lower"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$fx/win-pf" ]
+}
+
+@test "probe-fn: handles paths with spaces (Windows Program Files style)" {
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  fx="$HERMETIC_ROOT/fx/Program Files/dotnet"
+  mkdir -p "$fx/shared"
+  run _probe_dotnet_root "$fx"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$fx" ]
+}
+
+@test "probe-fn: returns exit 1 when no candidate hits" {
+  # shellcheck disable=SC1090
+  source "$WRAPPER"
+  run _probe_dotnet_root "$HERMETIC_ROOT/nope-1" "$HERMETIC_ROOT/nope-2"
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}
+
+# =============================================================================
+# Issue #564 — wrapper-level tests for PATH fallback and exit-3 no-SDK path
+# =============================================================================
+
+# The wrapper-level probe-miss + exit-3 tests below require the host to
+# have NO .NET SDK installed at any of the 7 documented probe paths — an
+# invariant we can only assert on CI runners (which don't ship a Homebrew
+# .NET). Local dev machines with a real /opt/homebrew/opt/dotnet/libexec
+# install skip these end-to-end tests; the function-level probe tests above
+# already cover the probe's behavioral contract deterministically. This is
+# the tradeoff the design chose (no public probe-override surface) — see
+# plan Risks & Open Questions.
+_any_real_dotnet_probe_path_present() {
+  local candidate
+  for candidate in \
+      /opt/homebrew/opt/dotnet/libexec \
+      /usr/local/opt/dotnet/libexec \
+      /usr/share/dotnet \
+      /usr/lib/dotnet \
+      "${HOME}/.dotnet" \
+      "/c/Program Files/dotnet" \
+      "/c/program files/dotnet"; do
+    if [ -x "$candidate/dotnet" ] \
+        || [ -x "$candidate/dotnet.exe" ] \
+        || [ -d "$candidate/shared" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+@test "wrapper: falls back to dirname \$(command -v dotnet) when no probe candidate hits" {
+  if _any_real_dotnet_probe_path_present; then
+    skip "host has a real .NET SDK at a documented probe path — probe short-circuits before the PATH fallback"
+  fi
+  unset DOTNET_ROOT
+  run "$WRAPPER"
+  [ "$status" -eq 0 ]
+  # DOTNET_ROOT recorded in invocation-03 should be $FAKE_BIN (dirname of
+  # $FAKE_BIN/dotnet, which is what command -v resolves to).
+  grep -q "^DOTNET_ROOT=$FAKE_BIN$" "$RECORD_DIR/invocation-03"
+}
+
+@test "wrapper: exits 3 when probe misses AND dotnet not on PATH" {
+  if _any_real_dotnet_probe_path_present; then
+    skip "host has a real .NET SDK at a documented probe path — probe short-circuits before the exit-3 path"
+  fi
+  unset DOTNET_ROOT
+  PATH=/usr/bin:/bin run "$WRAPPER"
+  [ "$status" -eq 3 ]
+  # No .sln mutation.
+  [ -f "$SLN" ]
+  [ ! -f "${SLN}.stryker-hidden" ]
+  # No dotnet build invocations recorded.
+  [ ! -f "$RECORD_DIR/invocation-01" ]
+}
+
+@test "wrapper: exit-3 stderr names at least one probed path" {
+  if _any_real_dotnet_probe_path_present; then
+    skip "host has a real .NET SDK at a documented probe path — exit-3 unreachable"
+  fi
+  unset DOTNET_ROOT
+  PATH=/usr/bin:/bin run "$WRAPPER"
+  [ "$status" -eq 3 ]
+  # At least one of the documented probe candidates named in stderr.
+  echo "$stderr$output" | grep -qE "(/opt/homebrew/opt/dotnet|/usr/share/dotnet|Program Files/dotnet)"
+}
+
+@test "wrapper: exit-3 stderr instructs setting DOTNET_ROOT explicitly" {
+  if _any_real_dotnet_probe_path_present; then
+    skip "host has a real .NET SDK at a documented probe path — exit-3 unreachable"
+  fi
+  unset DOTNET_ROOT
+  PATH=/usr/bin:/bin run "$WRAPPER"
+  [ "$status" -eq 3 ]
+  echo "$stderr$output" | grep -qi "set.*DOTNET_ROOT"
+}
+
+@test "wrapper: exit-3 stderr includes dotnet.microsoft.com/download URL" {
+  if _any_real_dotnet_probe_path_present; then
+    skip "host has a real .NET SDK at a documented probe path — exit-3 unreachable"
+  fi
+  unset DOTNET_ROOT
+  PATH=/usr/bin:/bin run "$WRAPPER"
+  [ "$status" -eq 3 ]
+  echo "$stderr$output" | grep -q "dotnet.microsoft.com/download"
+}
+
+# =============================================================================
+# Issue #564 — source-lint tests on wrapper header comment
+# =============================================================================
+
+@test "wrapper source-lint: header declares cross-platform DOTNET_ROOT scope" {
+  run head -20 "$WRAPPER"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "macOS"
+  echo "$output" | grep -qi "linux"
+  echo "$output" | grep -qi "Windows Git Bash"
+}
+
+@test "wrapper source-lint: header does NOT contain 'not a supported target'" {
+  run grep -i "not a supported target" "$WRAPPER"
+  [ "$status" -ne 0 ]
+}
+
+@test "wrapper source-lint: header names the Windows signal-handling follow-up issue" {
+  # Grep for a #NNN reference OR a github.com/.../issues/NNN URL — matches
+  # either the short-form issue link or a full URL.
+  run head -30 "$WRAPPER"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qE "(#[0-9]+|issues/[0-9]+)"
+}
+
+@test "wrapper source-lint: default probe list contains all 7 documented filesystem candidates" {
+  # The wrapper source names each of the 7 default candidates in its callsite.
+  # PATH fallback is a separate code path and is NOT counted here.
+  grep -qF "/opt/homebrew/opt/dotnet/libexec" "$WRAPPER"
+  grep -qF "/usr/local/opt/dotnet/libexec"    "$WRAPPER"
+  grep -qF "/usr/share/dotnet"                "$WRAPPER"
+  grep -qF "/usr/lib/dotnet"                  "$WRAPPER"
+  grep -qF ".dotnet"                          "$WRAPPER"
+  grep -qF "/c/Program Files/dotnet"          "$WRAPPER"
+  grep -qF "/c/program files/dotnet"          "$WRAPPER"
 }
