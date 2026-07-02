@@ -70,7 +70,7 @@ changes.
    existing CLI examples showing `--coverage-analysis perTest` are corrected or
    annotated to state Stryker.NET 4.15.0 accepts this only via the
    `stryker-config.json` `coverage-analysis` key.
-4. No file other than `csharp-stryker-net.md` is modified.
+4. No code, agent, skill, or hook file is modified — only `csharp-stryker-net.md` plus this change's own companion spec/plan/verification-script artifacts (`docs/specs/`, `plans/`), per this repo's established convention for spec-driven doc PRs (precedent: issue #522 / commit `d9c0f1c`, which shipped its spec + plan alongside the corrected reference file).
 5. The resulting diff qualifies as documentation-only under the repo's top-level
    `CLAUDE.md` auto-merge policy (touches only `*.md`, changes no code/agent/skill
    frontmatter/hook/eval-fixture/marketplace-manifest).

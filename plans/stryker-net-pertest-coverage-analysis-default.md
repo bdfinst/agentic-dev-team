@@ -34,7 +34,7 @@ Mirrors the spec's Acceptance Criteria, condensed for build tracking:
 - [ ] New section recommends `"coverage-analysis": "perTest"` as default for xunit.v2 / xunit.v2-shim projects, citing issue #669's experiment result (identical Killed counts, ~5-6x speedup)
 - [ ] New section explicitly states the recommendation does not apply to xunit.v3/MTP-runner projects, cross-referencing the existing "xunit.v3 detection" section's `"off"` mandate (no restatement)
 - [ ] Both existing CLI examples showing `--coverage-analysis perTest` no longer present it as a working CLI flag; a note states Stryker.NET 4.15.0 accepts this only via the `stryker-config.json` key
-- [ ] No file other than `csharp-stryker-net.md` is modified
+- [ ] No code, agent, skill, or hook file is modified — only `csharp-stryker-net.md` plus this change's own spec/plan/check artifacts (`docs/specs/`, `plans/`)
 - [ ] `/agent-audit` passes on the modified file
 - [ ] PR body contains `Closes #669`; PR title is `docs(mutation-testing): default coverage-analysis to perTest for xunit.v2-shim Stryker.NET projects`
 - [ ] `gh pr merge <num> --auto --rebase` armed at PR open
@@ -70,10 +70,11 @@ Feature: Stryker.NET reference recommends perTest for xunit.v2-shim projects and
     Then neither fenced command block contains `--coverage-analysis perTest` as a CLI argument
     And a note states Stryker.NET 4.15.0 accepts `coverage-analysis` only via the `stryker-config.json` key, not as a CLI flag
 
-  Scenario: No other file changes
+  Scenario: No code, agent, skill, or hook file changes
     Given the PR diff for this change
     When a reviewer inspects the changed files
-    Then only `plugins/dev-team/skills/mutation-testing/references/languages/csharp-stryker-net.md` is modified
+    Then `csharp-stryker-net.md` is the only file under `plugins/dev-team/` that is modified
+    And any other changed files are limited to this change's own `docs/specs/` and `plans/` artifacts
 
   Scenario: PR opens with auto-merge armed and passing structural gates
     Given Steps 1.1 and 1.2 are complete and /agent-audit is green on the modified file
@@ -116,7 +117,7 @@ Feature: Stryker.NET reference recommends perTest for xunit.v2-shim projects and
 #### Step 1.3: Run /agent-audit and open the PR with auto-merge armed
 
 **Complexity**: standard
-**RED**: `/agent-audit` on the modified file must be green. `gh pr view` must show `Closes #669` and the conventional-commit title. `git diff --name-only origin/main...HEAD` must output exactly `plugins/dev-team/skills/mutation-testing/references/languages/csharp-stryker-net.md` and nothing else (confirms no other file was touched). `gh pr view <num> --json autoMergeRequest` must return a non-null `autoMergeRequest` (confirms auto-merge was actually armed, not just attempted).
+**RED**: `/agent-audit` on the modified file must be green. `gh pr view` must show `Closes #669` and the conventional-commit title. `git diff --name-only origin/main...HEAD` must output only `csharp-stryker-net.md` plus paths under `docs/specs/` and/or `plans/` — no `plugins/dev-team/{agents,skills,hooks}` path other than the target reference file, and nothing under `plugins/dev-team/hooks/mutation_adapters/` (confirms no code/agent/skill/hook file outside the target doc was touched; matches the #522 precedent's convention of shipping spec+plan alongside the doc fix). `gh pr view <num> --json autoMergeRequest` must return a non-null `autoMergeRequest` (confirms auto-merge was actually armed, not just attempted).
 **GREEN**: Run `/agent-audit`. Push branch, open PR with title `docs(mutation-testing): default coverage-analysis to perTest for xunit.v2-shim Stryker.NET projects` and body containing `Closes #669`. Arm auto-merge: `gh pr merge <num> --auto --rebase`.
 **REFACTOR**: None.
 **Files**: none (CI + PR)
@@ -181,7 +182,7 @@ None. Both findings (perTest-default guidance, CLI-flag correction) deliver obse
 - [ ] New section recommends `"coverage-analysis": "perTest"` as default for xunit.v2 / xunit.v2-shim projects, citing issue #669's experiment result (identical Killed counts, ~5-6x speedup)
 - [ ] New section explicitly states the recommendation does not apply to xunit.v3/MTP-runner projects, cross-referencing the existing "xunit.v3 detection" section's `"off"` mandate (no restatement)
 - [ ] Both existing CLI examples showing `--coverage-analysis perTest` no longer present it as a working CLI flag; a note states Stryker.NET 4.15.0 accepts this only via the `stryker-config.json` key
-- [ ] No file other than `csharp-stryker-net.md` is modified
+- [ ] No code, agent, skill, or hook file is modified — only `csharp-stryker-net.md` plus this change's own spec/plan/check artifacts (`docs/specs/`, `plans/`)
 - [ ] `/agent-audit` passes on the modified file
 - [ ] PR body contains `Closes #669`; PR title is `docs(mutation-testing): default coverage-analysis to perTest for xunit.v2-shim Stryker.NET projects`
 - [ ] `gh pr merge <num> --auto --rebase` armed at PR open
