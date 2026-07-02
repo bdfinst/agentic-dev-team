@@ -165,7 +165,7 @@ chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.s
 chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh scripts/audit-rules-vs-prompts.sh; }
 chk_sa_shell_suite()     { bash tests/security-assessment/scripts/run-all.sh; }
 chk_bats_repo()          { run_bats tests/repo/; }
-chk_bats_content_rest()  { run_bats tests/knowledge/ tests/docs/ tests/scripts/; }
+chk_bats_content_rest()  { run_bats tests/scripts/; }
 # chk_model_routing (formerly ran 4 bats files) — retired in #618. The bash
 # hooks under test have been ported to Python (#585 / #577 / #609), and their
 # unit tests now live in plugins/dev-team/tests/hooks/test_*.py (invoked via
@@ -213,11 +213,13 @@ chk_hook_units() {
     printf '%s∼ skipped (pytest not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
     return 0
   fi
-  # tests/agents/ and tests/commands/ were ported from bats to pytest under
-  # issue #675 (epic #668). tests/repo/'s eval/cost/telemetry/workflow-audit
-  # suites were ported under #672 (epic #668) and already ran here — no
-  # separate check needed.
-  python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands
+  # tests/agents/, tests/commands/, tests/docs/, tests/knowledge/, and
+  # tests/bats/ were ported from bats to pytest under issue #675 (epic
+  # #668). tests/repo/'s eval/cost/telemetry/workflow-audit suites were
+  # ported under #672 (epic #668) and already ran here. tests/bats/ had no
+  # prior CI wiring (orphaned bats suite) — this is its first invocation.
+  python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
+    tests/docs tests/knowledge tests/bats
 }
 
 # Ordered list of "label::function". Order defines both the replay order and the
