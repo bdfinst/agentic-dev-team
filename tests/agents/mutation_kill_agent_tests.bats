@@ -85,6 +85,25 @@ REGISTRY="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/agent-registry.md"
   grep -Eqi 'EXCLUDED' "$AGENT"
 }
 
+@test "infrastructure exclusion detection: DI-wiring filename patterns catch by signal alone (#680)" {
+  # Five new DI/wiring filename patterns must be present in the allowlist.
+  grep -Eq '\*Module\.cs' "$AGENT"
+  grep -Eq '\*Container\.cs' "$AGENT"
+  grep -Eq '\*Registration\.cs' "$AGENT"
+  grep -Eq '\*Bootstrap\*\.cs' "$AGENT"
+  grep -Eq '\*DependencyInjection\*\.cs' "$AGENT"
+  # The two numeric signals alone (no filename match required) must be
+  # stated as sufficient to trigger the batched confirmation.
+  tr '\n' ' ' < "$AGENT" | grep -Eqi 'signal(s)? alone|alone.*(is|are).*sufficient|no filename match required'
+  # Explicit negative case: failing either numeric signal alone must never
+  # trigger the question.
+  tr '\n' ' ' < "$AGENT" | grep -Eqi 'failing either.*signal.*alone.*never trigger|never trigger.*failing either'
+  # The batched confirmation must itemize each flagged file with its
+  # specific trigger reason (named convention vs signal-only).
+  grep -Eqi 'named convention' "$AGENT"
+  grep -Eqi 'signal.?only' "$AGENT"
+}
+
 @test "warns that shard and full-run scores are not comparable" {
   grep -Eqi 'shard' "$AGENT"
   grep -Eqi 'not comparable|never (mix|compare)|prohibit.*compar' "$AGENT"
