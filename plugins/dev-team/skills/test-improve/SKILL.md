@@ -6,9 +6,9 @@ description: >-
   testing, refactor-for-testability) only when the operator asks. Always
   baselines coverage (and mutation, when enabled) before any test change, runs
   the end-of-phase review loop after Phases 4 and 5, and produces a stable
-  10-section executive-summary report. Replaces /test-modernize and
-  /test-upgrade. Use when the user says "improve our tests", "modernize the
-  test suite", "upgrade our tests", or runs /test-improve.
+  10-section executive-summary report. Use when the user says "improve our
+  tests", "modernize the test suite", "upgrade our tests", or runs
+  /test-improve.
 argument-hint: "<repo-path> [--parent <url>] [--analyze-only] [--from-phase <n>] [--stack <id>]"
 role: orchestrator
 user-invocable: true

@@ -19,7 +19,7 @@ ARCH="$BATS_TEST_DIRNAME/../../plugins/dev-team/docs/agent-architecture.md"
 @test "SKILL: ## Parse Arguments documents the --workflow default value" {
   run awk '/^## Parse Arguments/{f=1;next} /^## /{f=0} f' "$SKILL"
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qiE 'default.*test-modernize|Defaults to.*test-modernize'
+  echo "$output" | grep -qiE 'default.*test-improve|Defaults to.*test-improve'
 }
 
 @test "argument-hint frontmatter names --workflow" {

@@ -11,6 +11,6 @@ SKILLS_REG="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/skills-registry.
   grep -q "skills/build/SKILL.md" "$SKILLS_REG"
 }
 
-@test "skills-registry.md contains the /test-modernize command" {
-  grep -q "skills/test-modernize/SKILL.md" "$SKILLS_REG"
+@test "skills-registry.md contains the /test-improve command" {
+  grep -q "skills/test-improve/SKILL.md" "$SKILLS_REG"
 }
