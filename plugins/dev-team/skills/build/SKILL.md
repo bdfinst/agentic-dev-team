@@ -24,6 +24,7 @@ You have been invoked with the `/build` command.
 4. **Verification evidence required.** Paste fresh test output before claiming a step is done.
 5. **Review checkpoints (granularity scales with complexity).** Run inline review (spec-compliance first, then quality agents) per step for `complex` steps; batch `standard`/`trivial` steps into one review at the slice boundary. Record each checkpoint's find/fix/no-op outcome to `metrics/review-value.jsonl`. The final `/code-review` is the backstop.
 6. **Be concise.** Report step status and verification evidence, no narration.
+7. **Diagnose before retry.** When any bash command run during the build fails (a script, a test run, a build-tooling invocation), read the exit code and error text and state a one-line cause hypothesis before correcting and re-issuing it. Never re-run a failed command unmodified. If the shallow diagnosis reveals a real defect rather than a shell-level mistake (bad path, typo, missing arg), escalate to Systematic Debugging per the Escalation section below.
 
 ## Parse Arguments
 
@@ -184,7 +185,7 @@ Invoke the [Feedback & Learning](../feedback-learning/SKILL.md) skill at task co
 
 ## Escalation
 
-A failure is a debugging task first, not a hand-back. Before escalating any test or review failure, run a [Systematic Debugging](../systematic-debugging/SKILL.md) pass — reproduce, find the root cause, state it in one sentence — and escalate **with that diagnosis**, never just an attempt count.
+A failure is a debugging task first, not a hand-back. Before escalating any test, review, or bash/command failure, run a [Systematic Debugging](../systematic-debugging/SKILL.md) pass — reproduce, find the root cause, state it in one sentence — and escalate **with that diagnosis**, never just an attempt count.
 
 Stop and ask the user when:
 
