@@ -1,0 +1,29 @@
+Stryker.NET v4.7.0
+
+Testing mutants:
+[13:21:01 WRN] CompileError in Foo.cs:12
+[13:21:01 WRN] CompileError in Foo.cs:15
+[13:21:01 WRN] CompileError in Foo.cs:22
+[13:21:01 WRN] CompileError in Foo.cs:28
+[13:21:01 WRN] CompileError in Foo.cs:31
+[13:21:01 WRN] CompileError in Foo.cs:34
+[13:21:01 WRN] CompileError in Foo.cs:41
+[13:21:01 WRN] CompileError in Foo.cs:44
+[13:21:01 WRN] CompileError in Foo.cs:47
+[13:21:01 WRN] CompileError in Foo.cs:50
+[13:21:01 WRN] CompileError in Foo.cs:53
+[13:21:01 WRN] CompileError in Foo.cs:56
+[13:21:01 WRN] CompileError in Foo.cs:59
+[13:21:01 WRN] CompileError in Foo.cs:62
+[13:21:01 WRN] CompileError in Foo.cs:65
+[13:21:01 WRN] CompileError in Foo.cs:68
+[13:21:01 WRN] CompileError in Foo.cs:71
+[13:21:01 WRN] CompileError in Foo.cs:74
+[13:21:01 WRN] CompileError in Foo.cs:77
+[13:21:01 WRN] CompileError in Foo.cs:80
+[13:21:01 WRN] CompileError in Foo.cs:83
+[13:21:01 WRN] CompileError in Foo.cs:86
+[13:21:01 WRN] CompileError in Foo.cs:89
+[13:21:01 WRN] CompileError in Foo.cs:92
+[13:21:01 WRN] CompileError in Foo.cs:95
+.....
