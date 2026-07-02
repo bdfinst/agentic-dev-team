@@ -204,13 +204,16 @@ chk_eslint() {
 # plugins/dev-team/tests/hooks/parity/ (the .sh↔.py parity harness) was retired
 # in #618 (epic #572) once every shipped hook + script became Python-only. The
 # going-forward coverage lives in plugins/dev-team/tests/hooks/test_*.py and
-# tests/repo/test_*.py (pytest, invoked here via chk_hook_units + chk_eval_units).
+# tests/repo/test_*.py (pytest, both invoked here via chk_hook_units). The
+# tests/repo/*.bats fixture suite is being ported to pytest incrementally
+# (epic #668) — files land here as their bats sibling is deleted, so
+# chk_bats_repo shrinks over the same series of PRs.
 chk_hook_units() {
   if ! python3 -c 'import pytest' >/dev/null 2>&1; then
     printf '%s∼ skipped (pytest not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
     return 0
   fi
-  python3 -m pytest plugins/dev-team/tests
+  python3 -m pytest plugins/dev-team/tests tests/repo
 }
 
 # Ordered list of "label::function". Order defines both the replay order and the
