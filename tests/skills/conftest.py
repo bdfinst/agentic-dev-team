@@ -45,6 +45,70 @@ def grep_multiline(pattern: str, text: str, ignore_case: bool = False) -> bool:
     return re.search(_posix_classes(pattern), text, flags) is not None
 
 
+def first_line_outside_code(text: str, pattern: str) -> int | None:
+    """Mirror the repeated awk idiom:
+
+        /^```/ { code = !code; next }
+        !code && /<pattern>/ { print NR; exit }
+
+    Returns the 1-based line number of the first match found outside a
+    fenced code block, or None if no such line exists.
+    """
+    pattern_re = re.compile(_posix_classes(pattern))
+    code = False
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("```"):
+            code = not code
+            continue
+        if not code and pattern_re.search(line):
+            return lineno
+    return None
+
+
+def section_outside_code(
+    text: str,
+    start_pattern: str,
+    boundary_pattern: str = r"^## ",
+    include_start_line: bool = False,
+) -> str:
+    """Mirror the repeated awk idiom:
+
+        /^```/                 { code = !code; next }
+        !code && /<start>/     { f=1; next }
+        !code && /<boundary>/  { f=0 }
+        f { print }
+
+    Section extraction that ignores fenced-code-block content when
+    matching header boundaries (used by the mutation-testing SKILL.md
+    contracts, whose sections contain embedded ``` examples that must not
+    be mistaken for a `## `-prefixed header)."""
+    lines = text.splitlines()
+    start_re = re.compile(_posix_classes(start_pattern))
+    boundary_re = re.compile(_posix_classes(boundary_pattern))
+    out: list[str] = []
+    inphase = False
+    code = False
+    for line in lines:
+        if line.startswith("```"):
+            code = not code
+            continue
+        if code:
+            if inphase:
+                out.append(line)
+            continue
+        if not inphase and start_re.search(line):
+            inphase = True
+            if include_start_line:
+                out.append(line)
+            continue
+        if inphase and boundary_re.match(line):
+            inphase = False
+            continue
+        if inphase:
+            out.append(line)
+    return "\n".join(out)
+
+
 def frontmatter(text: str) -> str:
     """Mirror `awk 'NR>1 && /^---/{exit} {print}'` — the YAML frontmatter
     block between the opening `---` (line 1, always skipped by NR>1) and
@@ -58,21 +122,32 @@ def frontmatter(text: str) -> str:
     return "\n".join(out)
 
 
-def section(text: str, start_pattern: str, exclude_pattern: str | None = None) -> str:
+def section(
+    text: str,
+    start_pattern: str,
+    exclude_pattern: str | None = None,
+    boundary_pattern: str = r"^### ",
+    include_start_line: bool = True,
+) -> str:
     """Mirror the repeated awk idiom:
 
         /<start_pattern>/ {inphase=1; print; next}
-        inphase && /^### / {exit}
+        inphase && /<boundary_pattern>/ {exit}
         inphase {print}
 
     Extracts from the first line matching `start_pattern` up to (but not
-    including) the next `### `-prefixed header line. `exclude_pattern`,
-    when given, mirrors `&& !/<exclude_pattern>/` guarding the start match
-    (used by the Phase 2 vs Phase 2b disambiguation).
+    including) the next line matching `boundary_pattern` (defaults to the
+    `### `-prefixed header level used by the /test-improve phase files;
+    pass `r"^## "` for the `## `-level sections used elsewhere, e.g.
+    `## Constraints`). `exclude_pattern`, when given, mirrors
+    `&& !/<exclude_pattern>/` guarding the start match (used by the
+    Phase 2 vs Phase 2b disambiguation). `include_start_line=False`
+    mirrors the `{f=1; next}` idiom (start header consumed, not printed).
     """
     lines = text.splitlines()
     start_re = re.compile(start_pattern)
     exclude_re = re.compile(exclude_pattern) if exclude_pattern else None
+    boundary_re = re.compile(boundary_pattern)
     out: list[str] = []
     inphase = False
     for line in lines:
@@ -80,9 +155,10 @@ def section(text: str, start_pattern: str, exclude_pattern: str | None = None) -
             if exclude_re is not None and exclude_re.search(line):
                 continue
             inphase = True
-            out.append(line)
+            if include_start_line:
+                out.append(line)
             continue
-        if inphase and re.match(r"^### ", line):
+        if inphase and boundary_re.match(line):
             break
         if inphase:
             out.append(line)
