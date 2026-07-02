@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.0.0...dev-team-v9.1.0) (2026-07-02)
+
+
+### Features
+
+* **mutation-testing:** first-class Stryker.NET slicing + slice-level parallelism ([#561](https://github.com/bdfinst/agentic-dev-team/issues/561)) ([1cc52b0](https://github.com/bdfinst/agentic-dev-team/commit/1cc52b0636b117a2185613bdfc72c003eed7a951))
+
+
+### Bug Fixes
+
+* **skills:** grant code-review the Agent tool it already instructs ([37568f4](https://github.com/bdfinst/agentic-dev-team/commit/37568f4f84d11621b12ab97e44a6171b91db0132)), closes [#730](https://github.com/bdfinst/agentic-dev-team/issues/730)
+
 ## [9.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.4.0...dev-team-v9.0.0) (2026-07-02)
 
 
