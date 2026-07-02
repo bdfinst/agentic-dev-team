@@ -3,6 +3,11 @@ per-slice Depends-on, a ## Parallelization section (Mermaid DAG + wave
 table), and a wave-grouped Build Progress. Documentation gate for slice 1's
 rendering.
 
+The plan-file template (where this structure is defined) was later extracted
+from SKILL.md's body into references/plan-template.md (token-efficiency
+cleanup) — the fixture now covers both files so this gate still validates the
+full documented structure regardless of which file a given piece lives in.
+
 Ported from tests/commands/plan_parallelization_doc_tests.bats (issue #675:
 bats -> pytest).
 """
@@ -16,11 +21,22 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "plan" / "SKILL.md"
+TEMPLATE = (
+    REPO_ROOT
+    / "plugins"
+    / "dev-team"
+    / "skills"
+    / "plan"
+    / "references"
+    / "plan-template.md"
+)
 
 
 @pytest.fixture(scope="module")
 def text() -> str:
-    return SKILL.read_text(encoding="utf-8")
+    return (
+        SKILL.read_text(encoding="utf-8") + "\n" + TEMPLATE.read_text(encoding="utf-8")
+    )
 
 
 def test_plan_skill_exists() -> None:

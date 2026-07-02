@@ -16,6 +16,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLAN_SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "plan" / "SKILL.md"
+# The plan-file template (goal/AC/slices/... structure) was later extracted
+# from SKILL.md's body into this reference file (token-efficiency cleanup).
+PLAN_TEMPLATE = (
+    REPO_ROOT
+    / "plugins"
+    / "dev-team"
+    / "skills"
+    / "plan"
+    / "references"
+    / "plan-template.md"
+)
 BUILD_SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "build" / "SKILL.md"
 GUARDIAN = REPO_ROOT / "scripts" / "progress_guardian.py"
 GUARDIAN_TESTS = REPO_ROOT / "tests" / "scripts" / "test_progress_guardian.py"
@@ -34,7 +45,9 @@ def test_526_1_1a_plan_skill_no_longer_has_acceptance_criteria_subheading() -> N
 def test_526_1_1b_plan_skill_still_declares_top_level_acceptance_criteria_heading() -> (
     None
 ):
-    text = PLAN_SKILL.read_text()
+    # The heading lives in the plan-file template, extracted from SKILL.md's
+    # body into references/plan-template.md (token-efficiency cleanup).
+    text = PLAN_SKILL.read_text() + "\n" + PLAN_TEMPLATE.read_text()
     count = len(re.findall(r"^## Acceptance Criteria$", text, re.MULTILINE))
     assert count >= 1
 
