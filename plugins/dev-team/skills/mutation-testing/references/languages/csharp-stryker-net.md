@@ -324,6 +324,123 @@ concurrency value higher than the container's actual allotment — pass an
 explicit `--stryker-concurrency` value (or set `STRYKER_MUTANT_CONCURRENCY`)
 rather than rely on the computed default in those environments.
 
+## Slice runner
+
+The plugin ships a third script, `csharp_stryker_net_slice_runner.py`, under
+`plugins/dev-team/skills/mutation-testing/scripts/`, layering first-class
+slicing and configurable slice-level parallelism (#561) on top of the
+wrapper documented above. It imports `csharp_stryker_net_wrapper.py`
+directly and reuses its `hide_sln`/`restore_sln`/`build_project`/
+`run_stryker` primitives — the slice runner does not duplicate the
+DOTNET_ROOT probe, the pre-build-before-hide ordering, or the signal-safe
+Stryker subprocess handling; it only adds the fleet-level orchestration
+around them.
+
+### Invocation
+
+```bash
+python3 scripts/csharp_stryker_net_slice_runner.py \
+  --slices-config mutation-slices.json \
+  --slice <name>       # a single configured slice by name
+  --slice all          # every configured slice, resuming past terminal ones
+  --sln Foo.sln \
+  --output-root StrykerOutput \
+  --total-workers auto
+```
+
+### `slices:` config block
+
+A top-level `slices` array in `mutation-slices.json` (JSON, not YAML — this
+plugin's shipped scripts are stdlib-only Python, and `json` is stdlib while
+YAML is not). Only `name` + `mutate` are required in this first cut; `kind`,
+`mutation-level`, and `exclude-converged` are accepted and passed through
+but reserved for #667's within-slice refinements — a typo in one of those
+field names still fails config validation, it just isn't acted on yet:
+
+```json
+{
+  "slices": [
+    {
+      "name": "validators",
+      "mutate": "**/Validators/**/*.cs",
+      "kind": "logic",
+      "mutation-level": "Basic",
+      "exclude-converged": true
+    },
+    {
+      "name": "services",
+      "mutate": "**/Services/**/*.cs"
+    }
+  ]
+}
+```
+
+Each generated per-slice `stryker-config.json` inherits
+`"coverage-analysis": "perTest"` by default (per #669's validated
+recommendation above); pass a `--base-config` pointing at an existing
+`stryker-config.json` whose `"coverage-analysis": "off"` should be
+preserved (e.g. xunit.v3/MTP projects) — an explicit value in the base
+config always wins over the per-slice default.
+
+### Output layout and the aggregate roll-up
+
+Each slice writes its own report to
+`<output-root>/slice-<name>/reports/mutation-report.json` (Stryker's native
+JSON-reporter shape). After every slice in the run completes, the runner
+reads each slice's report, sums per-status mutant counts, and writes one
+aggregate roll-up to `<output-root>/aggregate-mutation-report.json` — the
+stable, programmatic entry point for #667's glob-shrinking logic (or any
+other tooling) instead of scraping per-slice reports individually.
+
+### Resume by skipping terminal slices
+
+A slice is **terminal** when its `mutation-report.json` exists, parses as
+JSON, and has a non-empty `files` map — a partial file from a crashed mid-
+run either fails to parse or has no `files` entries, so it is never
+mistaken for a completed run. On `--slice all`, the runner skips every
+terminal slice and logs `SKIPPED <name> — terminal report exists (use
+--force to rerun)`; pass `--force` to rerun every selected slice
+unconditionally, including terminal ones.
+
+### Configurable slice-level parallelism
+
+- `--total-workers N|auto` — the overall worker ceiling. `auto` (the
+  default) computes `max(2, cores / 2)`.
+- `--parallel-slices N` / `--per-slice-concurrency N` — optional hints for
+  operators who want to fix one axis explicitly. When **both** are set, the
+  runner refuses (unless `--force`) when their product exceeds
+  `--total-workers`.
+- When **neither** is set, the default split allocates slices first (up to
+  the configured slice count), then divides the remainder as per-slice
+  concurrency — this favours cross-slice parallelism over deeper
+  within-slice parallelism, matching #667's per-slice-convergence work.
+- A `--total-workers` value over `cores − 1` is refused with an error
+  unless `--force` is passed, in which case it proceeds with a warning
+  instead — never silently oversubscribe the machine.
+
+### `.sln` hide/restore is a fleet-level ceremony, done once
+
+Only one Stryker instance can safely hide the shared `.sln` at a time — a
+per-slice hide/restore would race across parallel slices. The slice runner
+hides `.sln` **once**, before spawning any slice, and restores it **once**,
+after every slice in the fleet has finished (success, failure, or
+exception) — never per slice. Individual slice invocations run against the
+already-hidden `.sln` and never touch the hide/restore state themselves.
+
+### Rolled-up progress reporting
+
+The runner prints one rolled-up progress line per slice-state transition,
+e.g.:
+
+```
+slice 1/7 running, slice 2/7 running, slice 3/7 queued, slice 4/7 queued, ...
+slice 1/7 done, slice 2/7 running, slice 3/7 running, slice 4/7 queued, ...
+```
+
+Each slice's state is one of `queued`, `running`, `done`, or `failed`
+(non-zero Stryker exit code); the overall exit code is the worst
+(highest, non-zero-preferred) of all slice exit codes.
+
 ## Incremental runs with `--since`
 
 For fast iteration during Phase-4 test-fix work, add a `since` block to the dev shard config so Stryker only mutates source files that changed vs a reference (typically `main`):
