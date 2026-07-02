@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/session-model-banner.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_SESSION_MODEL_BANNER:-0}\" = \"1\" ]; then python3 hooks/session_model_banner.py; else bash hooks/session-model-banner.sh; fi'"
           },
           {
             "type": "command",
