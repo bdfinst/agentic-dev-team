@@ -147,7 +147,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/js-fp-review.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_JS_FP_REVIEW:-0}\" = \"1\" ]; then python3 hooks/js_fp_review.py; else bash hooks/js-fp-review.sh; fi'"
           },
           {
             "type": "command",
