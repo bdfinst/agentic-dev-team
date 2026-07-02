@@ -44,24 +44,41 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # bats + shellcheck + jq + python3 already ship with the windows-latest
-      # image via Chocolatey. `bats` here is the Windows package — verified
-      # by the setup step below (a hard-failure would surface the reference
-      # rot before the wrapper tests even run).
+      # windows-latest ships jq + python3 + sha256sum out of the box, but
+      # NOT bats or shellcheck. Install them via Chocolatey (already on the
+      # runner). Chocolatey's bats package installs the same bats-core the
+      # Linux job uses. Refs #567 verification job.
+      - name: Install bats + shellcheck via Chocolatey
+        run: |
+          choco install bats --no-progress -y
+          choco install shellcheck --no-progress -y
+        shell: pwsh
+
+      # Verify every dep is now on PATH under Git Bash (not just PowerShell —
+      # Chocolatey installs into `C:\ProgramData\Chocolatey\bin` which Git
+      # Bash inherits, but confirm to fail fast if this ever changes).
       - name: Verify required tools are on PATH
         run: |
           set -euo pipefail
-          for t in bats shellcheck jq python3 shasum sha256sum; do
+          missing=0
+          for t in bats shellcheck jq python3; do
             if command -v "$t" >/dev/null 2>&1; then
-              printf 'ok: %-11s %s\n' "$t" "$(command -v "$t")"
+              printf 'ok:   %-11s %s\n' "$t" "$(command -v "$t")"
             else
-              printf 'skip: %s not on PATH — tests that need it will `skip` themselves\n' "$t"
+              printf 'MISS: %s NOT on PATH\n' "$t"
+              missing=1
             fi
           done
-          # bats + jq are hard dependencies; shellcheck is soft (tests skip).
-          command -v bats >/dev/null
-          command -v jq >/dev/null
-          command -v python3 >/dev/null
+          # sha256sum OR shasum satisfies the wrapper/loop hashing need.
+          if command -v sha256sum >/dev/null 2>&1; then
+            printf 'ok:   %-11s %s\n' "sha256sum" "$(command -v sha256sum)"
+          elif command -v shasum >/dev/null 2>&1; then
+            printf 'ok:   %-11s %s\n' "shasum" "$(command -v shasum)"
+          else
+            printf 'MISS: neither sha256sum nor shasum on PATH\n'
+            missing=1
+          fi
+          [ "$missing" -eq 0 ]
 
       # The three test files that exercise the wrapper end-to-end. Excludes
       # tests/hooks/mutation_testing_smoke_gate.bats — the Claude-Code hook is
