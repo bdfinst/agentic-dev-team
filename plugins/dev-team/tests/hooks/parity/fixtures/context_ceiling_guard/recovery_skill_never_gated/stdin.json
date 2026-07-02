@@ -1,0 +1,6 @@
+{
+  "tool_name": "Skill",
+  "session_id": "s1",
+  "transcript_path": "transcript.jsonl",
+  "tool_input": { "skill": "dev-team:context-summarization" }
+}

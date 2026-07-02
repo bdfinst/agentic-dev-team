@@ -1,0 +1,6 @@
+{
+  "tool_name": "Agent",
+  "session_id": "s1",
+  "transcript_path": "does-not-exist.jsonl",
+  "tool_input": { "subagent_type": "x" }
+}

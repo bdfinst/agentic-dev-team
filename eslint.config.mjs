@@ -83,6 +83,10 @@ export default tseslint.config(
       "**/dist/**",
       "**/knowledge/rule-fixtures/**/*.js",
       "**/tests/fixtures/agent-readiness/**/*.js",
+      // Parity harness fixtures for the token-efficiency-review hook are
+      // synthetic files whose whole point is being oversized or having long
+      // functions — that's the behavior under test. Not first-party source.
+      "**/plugins/dev-team/tests/hooks/parity/fixtures/token_efficiency_review/**",
     ],
   },
 

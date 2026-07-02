@@ -196,6 +196,13 @@ def dispatch(
     with tempfile.TemporaryDirectory(prefix="parity-") as tmpdir_str:
         root = Path(tmpdir_str)
         _apply_initial_tree(root, initial_tree or {})
+        # Substitute SANDBOX token in env VALUES too — some hooks (e.g.
+        # context-ceiling-guard) need per-session dedupe markers written under
+        # a per-side tmpdir so the parity snapshot captures them. Fixtures set
+        # e.g. {"TMPDIR": "SANDBOX"} and each side receives its own tmpdir path.
+        for k, v in list(extra_env.items()):
+            if v == "SANDBOX":
+                extra_env[k] = str(root)
         proc_env = _minimal_env(root, extra_env) if sandbox else dict(os.environ)
         effective_cwd = cwd if cwd is not None else root
         # Substitute SANDBOX token in argv.
