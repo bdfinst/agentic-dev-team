@@ -201,8 +201,10 @@ def dispatch(
         # a per-side tmpdir so the parity snapshot captures them. Fixtures set
         # e.g. {"TMPDIR": "SANDBOX"} and each side receives its own tmpdir path.
         for k, v in list(extra_env.items()):
-            if v == "SANDBOX":
-                extra_env[k] = str(root)
+            if "SANDBOX" in v:
+                # Replace every occurrence so fixtures can address files
+                # INSIDE the sandbox ("SANDBOX/foo" → "<tmpdir>/foo").
+                extra_env[k] = v.replace("SANDBOX", str(root))
         proc_env = _minimal_env(root, extra_env) if sandbox else dict(os.environ)
         effective_cwd = cwd if cwd is not None else root
         # Substitute SANDBOX token in argv.

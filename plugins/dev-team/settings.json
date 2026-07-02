@@ -132,7 +132,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/agent-model-resolve.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_AGENT_MODEL_RESOLVE:-0}\" = \"1\" ]; then python3 hooks/agent_model_resolve.py; else bash hooks/agent-model-resolve.sh; fi'"
           },
           {
             "type": "command",
