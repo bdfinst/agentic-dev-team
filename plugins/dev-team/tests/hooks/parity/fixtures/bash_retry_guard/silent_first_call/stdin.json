@@ -1,0 +1,4 @@
+{
+  "session_id": "parity-sess-1",
+  "tool_input": { "command": "rm -rf /tmp/junk" }
+}

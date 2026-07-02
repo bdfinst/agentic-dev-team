@@ -14,7 +14,10 @@ REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 #   docs/specs/, plans/, docs/spikes/ — design artifacts that name the
 #     values exactly because they describe the migration.
 #   evals/ — semgrep fixtures for OTHER plugins' LLM model strings.
-#   tests/  — bats fixtures that depend on the literal values.
+#   tests/  — bats + pytest fixtures that depend on the literal values.
+#     Includes plugins/dev-team/tests/ (the plugin's own pytest suite) — same
+#     exemption reason: fixture-test code legitimately names the literals to
+#     assert byte-for-byte against them.
 #   knowledge/model-pricing.json — cost meter's pricing table (#102); must key
 #     by model snapshot because the transcript usage records emit snapshot IDs.
 ALLOWED_PATHS=(
@@ -35,6 +38,7 @@ ALLOWED_PATHS=(
     ':!plugins/dev-team/docs/model-routing-overrides.md' \
     ':!plugins/dev-team/templates/agents/agent-template.md' \
     ':!plugins/dev-team/knowledge/model-pricing.json' \
+    ':!plugins/dev-team/tests/' \
     2>/dev/null || true)
   if [[ -n "$raw" ]]; then
     echo "Pinned snapshot IDs found in non-approved plugin source files:" >&2

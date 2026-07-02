@@ -25,7 +25,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/codegraph-bootstrap.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_BOOTSTRAP:-0}\" = \"1\" ]; then python3 hooks/codegraph_bootstrap.py; else bash hooks/codegraph-bootstrap.sh; fi'"
           }
         ]
       }
@@ -79,7 +79,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/bash-retry-guard.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_BASH_RETRY_GUARD:-0}\" = \"1\" ]; then python3 hooks/bash_retry_guard.py; else bash hooks/bash-retry-guard.sh; fi'"
           },
           {
             "type": "command",
