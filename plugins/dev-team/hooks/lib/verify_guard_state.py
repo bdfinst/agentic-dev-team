@@ -25,9 +25,15 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 _STATE_DIRNAME = "dev-team-verify-guard"
+
+# Same TTL-purge-on-write pattern as tdd_guard.py / mutation_adapters/lib.py
+# (#732) — one state file is written per session with no expiry otherwise,
+# so long-lived hosts accumulate a file per session forever.
+_STATE_TTL_SECONDS = 14400  # 4 hours
 
 
 def cksum(text: str) -> str:
@@ -78,11 +84,31 @@ def read_state(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def purge_stale(directory: Path) -> None:
+    """Delete `*.json` state files in `directory` untouched past the TTL.
+
+    Both verify_guard.py and verify_guard_edit_marker.py write through
+    `write_state`, so calling this there is the single choke point that
+    keeps the shared state dir from accumulating one file per session
+    forever (#732).
+    """
+    if not directory.is_dir():
+        return
+    now = time.time()
+    for path in directory.glob("*.json"):
+        try:
+            if now - path.stat().st_mtime > _STATE_TTL_SECONDS:
+                path.unlink()
+        except OSError:
+            pass
+
+
 def write_state(path: Path, data: dict) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
     except OSError:
         return
+    purge_stale(path.parent)
     try:
         path.write_text(json.dumps(data, separators=(",", ":")) + "\n")
     except OSError:

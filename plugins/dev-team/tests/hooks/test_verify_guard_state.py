@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from pathlib import Path
 
 _HOOKS_LIB = Path(__file__).resolve().parents[2] / "hooks" / "lib"
@@ -55,3 +56,47 @@ def test_read_state_malformed_json_returns_empty_dict(tmp_path: Path) -> None:
 def test_cksum_deterministic_for_same_input() -> None:
     assert vgs.cksum("npm test") == vgs.cksum("npm test")
     assert vgs.cksum("npm test") != vgs.cksum("pytest -q")
+
+
+# ---------------------------------------------------------------------------
+# purge_stale — TTL purge on write (#732)
+#
+# verify_guard.py / verify_guard_edit_marker.py each write one state file per
+# session with no expiry, unlike tdd_guard.py / mutation_adapters/lib.py's
+# `_purge_stale`. Both hooks write through `write_state`, so the purge lives
+# there as the single choke point.
+# ---------------------------------------------------------------------------
+
+
+def test_purge_stale_removes_old_files_but_keeps_fresh(tmp_path: Path) -> None:
+    state_dir = tmp_path / "dev-team-verify-guard"
+    state_dir.mkdir(parents=True)
+
+    stale = state_dir / "old-session.json"
+    stale.write_text("{}")
+    old_time = time.time() - vgs._STATE_TTL_SECONDS - 60
+    os.utime(stale, (old_time, old_time))
+
+    fresh = state_dir / "recent-session.json"
+    fresh.write_text("{}")
+
+    vgs.purge_stale(state_dir)
+
+    assert not stale.exists()
+    assert fresh.exists()
+
+
+def test_write_state_purges_stale_sibling_state_files(tmp_path: Path) -> None:
+    """The TTL purge fires on every write_state call, not just on request."""
+    state_dir = tmp_path / "dev-team-verify-guard"
+    state_dir.mkdir(parents=True)
+
+    stale = state_dir / "old-session.json"
+    stale.write_text('{"hash":"x","count":1}')
+    old_time = time.time() - vgs._STATE_TTL_SECONDS - 60
+    os.utime(stale, (old_time, old_time))
+
+    vgs.write_state(state_dir / "new-session.json", {"hash": "y", "count": 1})
+
+    assert not stale.exists()
+    assert (state_dir / "new-session.json").exists()

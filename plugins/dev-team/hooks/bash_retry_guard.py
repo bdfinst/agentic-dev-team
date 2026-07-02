@@ -26,6 +26,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 import zlib
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -57,6 +58,11 @@ _VERIFY_RE = re.compile(
 _READ_ONLY_FIRST_TOKENS = {"ls", "pwd", "echo", "cat", "head", "tail", "grep"}
 
 _STATE_DIRNAME = "dev-team-bash-retry"
+
+# Same TTL-purge-on-write pattern as tdd_guard.py / mutation_adapters/lib.py
+# (#732) — one state file is written per session with no expiry otherwise,
+# so long-lived hosts accumulate a file per session forever.
+_STATE_TTL_SECONDS = 14400  # 4 hours
 
 
 def _cksum(text: str) -> str:
@@ -98,10 +104,23 @@ def _state_key(session_id: str, cwd: str) -> str:
     return _cksum(cwd or os.getcwd())
 
 
+def _purge_stale(state_dir: Path) -> None:
+    if not state_dir.is_dir():
+        return
+    now = time.time()
+    for path in state_dir.glob("*.json"):
+        try:
+            if now - path.stat().st_mtime > _STATE_TTL_SECONDS:
+                path.unlink()
+        except OSError:
+            pass
+
+
 def _state_file(state_key: str) -> Path:
     tmp = Path(os.environ.get("TMPDIR", tempfile.gettempdir()))
     state_dir = tmp / _STATE_DIRNAME
     state_dir.mkdir(parents=True, exist_ok=True)
+    _purge_stale(state_dir)
     return state_dir / f"{state_key}.json"
 
 
