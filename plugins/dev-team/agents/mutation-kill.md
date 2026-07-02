@@ -351,6 +351,30 @@ can be unchanged since `main` yet never have been scoped by `mutation-kill` at
 all. Both mechanisms can narrow the same shard config's `mutate` glob
 simultaneously.
 
+## Tiered mutation-level (Stryker.NET only)
+
+The baseline `--all` scan runs at `--mutation-level Basic`. A file whose
+Basic-level rounds reach `survivors == 0` is done — no Standard-level pass, and
+no change from today's convergence-history write.
+
+A file whose Basic-level rounds stop via the [no-improvement or `--max-rounds`
+exit](#loop-per-file) with `survivors > 0` logs:
+
+```
+ESCALATING <file> — Standard pass: N survivors remaining after Basic
+```
+
+and gets **one** additional pass at `--mutation-level Standard`, scoped via
+`--mutate` to just that file only, to surface the pickier operators
+(`LinqMutation`, `StringMutation`, etc.) that `Basic` doesn't generate.
+
+If that Standard-level pass itself stops (no-improvement / `--max-rounds`) with
+`survivors > 0`, the file is left in scope with no convergence-history entry
+written — per the [convergence-history write triggers](#convergence-history-across---all-invocations),
+only `survivors == 0` or an explicit exclusion writes an entry. The file is
+simply re-attempted from Basic on the next `--all` invocation, the same as any
+other never-converged file today.
+
 ## Parallelism
 
 With `--all`, run files in parallel via git worktrees (each shard gets its own

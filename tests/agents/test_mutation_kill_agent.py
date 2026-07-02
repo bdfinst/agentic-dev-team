@@ -305,6 +305,42 @@ def test_convergence_history_staleness_check_and_glob_shrinking_read_path(
     assert re.search(r"complementary", flat, re.IGNORECASE)
 
 
+def test_tiered_mutation_level_basic_baseline_and_standard_escalation(
+    text: str, flat: str
+) -> None:
+    """Slice 4, Step 4.1 (#683)."""
+    # Baseline --all scan runs at mutation-level Basic.
+    assert re.search(r"mutation-level Basic", text)
+    # Fully-Basic-converged files skip the Standard pass.
+    assert re.search(
+        r"survivors *== *0.*(done|no Standard)|"
+        r"(done|no Standard).*survivors *== *0",
+        flat,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"no Standard.?level pass|does not receive a Standard", text, re.IGNORECASE
+    )
+    # Escalation condition: Basic rounds stop (no-improvement/--max-rounds)
+    # with survivors remaining.
+    assert re.search(r"no-improvement|--max-rounds", text)
+    assert re.search(
+        r"ESCALATING <file> — Standard pass: N survivors remaining after Basic",
+        text,
+    )
+    # One additional Standard-level pass scoped to that file only.
+    assert re.search(r"mutation-level Standard", text)
+    assert re.search(
+        r"scoped.*(via --mutate)?.*to (just )?that file", flat, re.IGNORECASE
+    )
+    # A Standard pass that itself still ends with survivors gets no
+    # convergence-history entry and is re-attempted from Basic next --all.
+    assert re.search(
+        r"no *(\*\*)?convergence.history(\*\*)? entry", flat, re.IGNORECASE
+    )
+    assert re.search(r"re-attempted.*(from )?Basic", flat, re.IGNORECASE)
+
+
 def test_registered_in_agent_registry() -> None:
     registry_text = REGISTRY.read_text(encoding="utf-8")
     assert "agents/mutation-kill.md" in registry_text
