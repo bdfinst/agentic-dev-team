@@ -131,6 +131,37 @@ def test_infrastructure_exclusion_thresholds_patterns_and_log_format(
     assert re.search(r"EXCLUDED", text, re.IGNORECASE)
 
 
+def test_infrastructure_exclusion_di_wiring_filename_patterns_catch_by_signal_alone(
+    text: str, flat: str
+) -> None:
+    # Five new DI/wiring filename patterns must be present in the allowlist
+    # (#680).
+    assert re.search(r"\*Module\.cs", text)
+    assert re.search(r"\*Container\.cs", text)
+    assert re.search(r"\*Registration\.cs", text)
+    assert re.search(r"\*Bootstrap\*\.cs", text)
+    assert re.search(r"\*DependencyInjection\*\.cs", text)
+    # The two numeric signals alone (no filename match required) must be
+    # stated as sufficient to trigger the batched confirmation.
+    assert re.search(
+        r"signal(s)? alone|alone.*(is|are).*sufficient|no filename match required",
+        flat,
+        re.IGNORECASE,
+    )
+    # Explicit negative case: failing either numeric signal alone must never
+    # trigger the question.
+    assert re.search(
+        r"failing either.*signal.*alone.*never trigger|"
+        r"never trigger.*failing either",
+        flat,
+        re.IGNORECASE,
+    )
+    # The batched confirmation must itemize each flagged file with its
+    # specific trigger reason (named convention vs signal-only).
+    assert re.search(r"named convention", text, re.IGNORECASE)
+    assert re.search(r"signal.?only", text, re.IGNORECASE)
+
+
 def test_warns_shard_and_full_run_scores_not_comparable(text: str) -> None:
     assert re.search(r"shard", text, re.IGNORECASE)
     assert re.search(
