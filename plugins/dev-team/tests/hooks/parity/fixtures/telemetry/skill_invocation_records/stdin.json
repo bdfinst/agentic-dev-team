@@ -1,0 +1,5 @@
+{
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Skill",
+  "tool_input": { "skill": "plan" }
+}

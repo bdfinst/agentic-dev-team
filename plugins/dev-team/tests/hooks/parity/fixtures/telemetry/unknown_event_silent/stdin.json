@@ -1,0 +1,4 @@
+{
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "just regular text no slash"
+}
