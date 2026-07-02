@@ -99,6 +99,31 @@ await page.waitForResponse(resp =>
 await page.waitForTimeout(2000);
 ```
 
+#### Batched re-check session (fast feedback loop)
+
+For a QA pass with several related checks, reuse one browser/page instead of relaunching per check. Use `networkidle` only for the first navigation; wait on the specific signal that changed for each re-check after that.
+
+```javascript
+const browser = await chromium.launch({ headless: true });
+const page = await (await browser.newContext()).newPage();
+
+// First navigation: full network-idle wait
+await page.goto('http://localhost:3000/form', { waitUntil: 'networkidle' });
+await page.screenshot({ path: 'tmp/screenshots/01-initial.png', fullPage: true });
+
+// Re-check 1: same page, small change — wait on the specific signal, not networkidle
+await page.fill('input[name="email"]', 'user@example.com');
+await page.click('button[type="submit"]');
+await page.waitForSelector('.confirmation-banner');
+await page.locator('.confirmation-banner').screenshot({ path: 'tmp/screenshots/02-confirmation.png' });
+
+// Re-check 2: still no route change — no goto/reload needed
+await page.waitForResponse(resp => resp.url().includes('/api/status') && resp.status() === 200);
+await page.locator('.status-panel').screenshot({ path: 'tmp/screenshots/03-status.png' });
+
+await browser.close();
+```
+
 ### Extracting Information
 
 ```javascript
@@ -168,7 +193,7 @@ const { chromium } = require('playwright');
 ## Error Handling
 
 | Error | Cause | Resolution |
-|-------|-------|------------|
+| ------- | ------- | ------------ |
 | `TimeoutError: page.goto` | Server not running or URL wrong | Check if dev server is up; verify URL |
 | `TimeoutError: waiting for selector` | Element doesn't exist or is hidden | Inspect page HTML; check selector syntax |
 | `net::ERR_CONNECTION_REFUSED` | No server at the target port | Start the dev server first |
@@ -184,6 +209,7 @@ When automated browsing hits a CAPTCHA, MFA, or OAuth login wall:
 4. **Resume**: After manual completion, re-run `/browse` from the authenticated state
 
 For recurring auth needs, suggest the user:
+
 - Set up a test account with MFA disabled
 - Use session cookies via Playwright's `storageState`
 - Pre-authenticate and save state: `await context.storageState({ path: 'auth.json' })`
