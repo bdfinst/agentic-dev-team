@@ -17,7 +17,7 @@ def extract_score(response: httpx.Response | dict | None) -> float | None:
     Shapes handled (in order of preference):
         1. top-level float or int
         2. top-level dict with 'score', 'fraud_score', 'probability', 'risk_score'
-        3. nested 'result.probas.B' (legacy ACI shape)
+        3. nested 'result.probas.B' (legacy vendor-specific shape)
         4. 'predictions[0].score' (TF-serving / SageMaker shape)
         5. 'output.confidence' (some Hugging Face wrappers)
 

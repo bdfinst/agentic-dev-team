@@ -11,7 +11,7 @@ maintainers:
 
 Reference catalogue of seven business-logic anti-patterns the `business-logic-domain-review` agent hunts for. Each entry expands the cues with concrete code signatures (for greps) and example exploit scenarios.
 
-Patterns validated by the `opus_repo_scan_test` reference's `scan-03-business-logic-fraud.md` agent against three production ACI data-science repos.
+Patterns validated by the `opus_repo_scan_test` reference's `scan-03-business-logic-fraud.md` agent against three production data-science repos.
 
 ## Shared attack model
 
