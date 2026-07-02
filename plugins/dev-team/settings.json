@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/destructive-guard.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_DESTRUCTIVE_GUARD:-0}\" = \"1\" ]; then python3 hooks/destructive_guard.py; else bash hooks/destructive-guard.sh; fi'"
           },
           {
             "type": "command",
