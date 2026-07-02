@@ -66,7 +66,7 @@ File scope is resolved with this priority: `--path` → `--since` → `--all` �
 Auto-scope (the default) runs `git diff --name-only` plus `git diff --cached --name-only`. If either shows changes, only those files are reviewed. If the working tree is clean, the full repository is reviewed.
 
 | File count (full-repo mode) | Behavior |
-|-----------------------------|----------|
+| ----------------------------- | ---------- |
 | ≤ 200 | Proceed |
 | 201–500 | Warn, proceed |
 | > 500 | Warn and request confirmation |
@@ -90,7 +90,7 @@ The orchestrator probes for enhanced analysis tools (RoslynMCP, code knowledge g
 Deterministic checks run before any AI agent is invoked. Cheaper checks block expensive ones.
 
 | # | Gate | Tool | Stops on |
-|---|------|------|----------|
+| --- | ------ | ------ | ---------- |
 | 1 | Lint | `npx eslint` (or project's lint) | errors |
 | 2 | Type check | `npx tsc --noEmit` (if `tsconfig.json` exists) | errors |
 | 3 | Secret scan | grep for common secret patterns | any match |
@@ -127,7 +127,7 @@ Each enabled agent is spawned as a sub-agent via the Agent tool, all in a single
 - Receives the minimum context its `Context needs` field requires
 
 | `Context needs` | Input | When to use |
-|-----------------|-------|-------------|
+| ----------------- | ------- | ------------- |
 | `diff-only` | Git diff output only | Pattern-matching agents (naming, FP) |
 | `full-file` | Complete file contents | Agents needing function-level context |
 | `project-structure` | Full files + directory tree | Agents reasoning about architecture |
@@ -137,7 +137,7 @@ When the target is the full repository (`--all`, `--path`, or clean auto-scope),
 **Model routing** is orchestrator-controlled, not agent-controlled:
 
 | Tier | Model | Assigned to |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | small | Haiku | naming, complexity, claude-setup, token-efficiency, performance |
 | mid | Sonnet | spec-compliance, test, structure, js-fp, concurrency, a11y, svelte, doc, refactoring, progress-guardian, data-flow-tracer |
 | frontier | Opus | security, domain, arch |
@@ -151,7 +151,7 @@ Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summ
 **5b. Health scoring** per [`knowledge/review-rubric.md`](../knowledge/review-rubric.md):
 
 | Score | Condition |
-|-------|-----------|
+| ------- | ----------- |
 | 🟢 HEALTHY | 0 fail AND ≤ 2 warn |
 | 🟠 NEEDS ATTENTION | 1–2 fail OR 3+ warn |
 | 🔴 CRITICAL | 3+ fail OR any `security-review` fail |
@@ -159,7 +159,7 @@ Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summ
 **Actionability classification** determines what the fix loop touches:
 
 | Severity | Confidence | Actionable | Behavior |
-|----------|------------|------------|----------|
+| ---------- | ------------ | ------------ | ---------- |
 | error / warning | high / medium | Yes | Auto-apply in fix loop |
 | error / warning | none | No | Report only — human judgment |
 | suggestion | any | No | Report only — do not trigger loop |
@@ -190,7 +190,7 @@ while actionable_issues > 0 and iteration ≤ 5:
 **Exit conditions**:
 
 | Condition | Outcome |
-|-----------|---------|
+| ----------- | --------- |
 | Zero actionable issues | Converged → generate report |
 | Iteration limit (5) reached | Escalate remaining issues to human |
 | Same issues persist after fix attempt | Not converging → exit and escalate |
@@ -221,19 +221,34 @@ git diff --cached --name-only | sort | shasum -a 256 | cut -d' ' -f1 > .review-p
 
 The pre-commit hook reads this file to verify the staged files match what was actually reviewed. If the review failed, `.review-passed` is **not** written, and commits are blocked until the review is re-run and passes.
 
+### Reasoned bypass (`--no-verify` / `-n`)
+
+`git commit --no-verify` (or its short form `-n`) is git's standard escape
+hatch and still works — but the pre-commit review gate hook
+(`hooks/pre_commit_review.py`) now requires a non-empty `GATE_BYPASS_REASON`
+environment variable before it lets the bypass through. Without one, the
+commit is blocked (exit 2) with a message naming the required variable. With
+one, the hook allows the commit and appends an accountability line —
+timestamp, branch, which flag triggered it, the reason, staged file count,
+and plugin version — to `metrics/gate-bypass-audit.jsonl`, unconditionally
+(this log is not gated by `DEV_TEAM_TELEMETRY`). This closes the previously
+frictionless, unlogged bypass path that correlated with materially higher
+rework (#709).
+
 ## Artifacts
 
 | Artifact | When | Purpose |
-|----------|------|---------|
+| ---------- | ------ | --------- |
 | Stdout report (markdown or JSON) | Every run | Human or CI consumption |
 | `corrections/*.json` | When unfixed actionable or suggestion issues remain | Feeds `/apply-fixes` |
 | `.review-passed` | Auto-scoped clean/warn runs | Gates the pre-commit hook |
 | `metrics/override-audit.jsonl` | `--force --reason ...` | Audit trail for skipped gates |
+| `metrics/gate-bypass-audit.jsonl` | `git commit --no-verify`/`-n` with `GATE_BYPASS_REASON` set | Audit trail for reasoned pre-commit-gate bypasses |
 
 ## Customization points
 
 | File | Location | Effect |
-|------|----------|--------|
+| ------ | ---------- | -------- |
 | `review-config.json` | Project root | Disables specific agents per project |
 | `REVIEW-CONTEXT.md` | Project root | Injects institutional knowledge into every agent's prompt |
 | `ACCEPTED-RISKS.md` | Project root | Suppresses known findings with audit trail and expiry |

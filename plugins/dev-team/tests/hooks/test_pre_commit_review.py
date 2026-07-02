@@ -27,7 +27,9 @@ if str(_TESTS_LIB) not in sys.path:
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
 
 
-def _run(payload: dict, cwd: Path) -> subprocess.CompletedProcess[str]:
+def _run(
+    payload: dict, cwd: Path, extra_env: dict = None
+) -> subprocess.CompletedProcess[str]:
     proc_env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": os.environ.get("HOME", "/tmp"),
@@ -36,6 +38,8 @@ def _run(payload: dict, cwd: Path) -> subprocess.CompletedProcess[str]:
         "GIT_CONFIG_GLOBAL": "/dev/null",
         "GIT_CONFIG_SYSTEM": "/dev/null",
     }
+    if extra_env:
+        proc_env.update(extra_env)
     return subprocess.run(
         ["python3", str(_HOOK)],
         input=json.dumps(payload),
@@ -84,12 +88,68 @@ def test_non_commit_silent(repo: Path) -> None:
     assert r.stdout == ""
 
 
-def test_no_verify_bypass(repo: Path) -> None:
+def test_no_verify_bypass_without_reason_blocks(repo: Path) -> None:
+    """#709: the --no-verify escape hatch now requires a logged reason."""
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m x"}},
         cwd=repo,
     )
+    assert r.returncode == 2
+    assert "GATE_BYPASS_REASON" in r.stdout
+    assert not (repo / "metrics" / "gate-bypass-audit.jsonl").exists()
+
+
+def test_no_verify_bypass_with_reason_allows_and_audits(repo: Path) -> None:
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m x"}},
+        cwd=repo,
+        extra_env={"GATE_BYPASS_REASON": "hotfix, review to follow"},
+    )
     assert r.returncode == 0
+    audit = repo / "metrics" / "gate-bypass-audit.jsonl"
+    assert audit.exists()
+    lines = audit.read_text().splitlines()
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["triggeredBy"] == "--no-verify"
+    assert entry["reason"] == "hotfix, review to follow"
+    assert entry["stagedFileCount"] == 1
+    assert "timestamp" in entry
+    assert "branch" in entry
+    assert "pluginVersion" in entry
+
+
+def test_no_verify_bypass_empty_reason_blocks(repo: Path) -> None:
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m x"}},
+        cwd=repo,
+        extra_env={"GATE_BYPASS_REASON": "   "},
+    )
+    assert r.returncode == 2
+    assert "GATE_BYPASS_REASON" in r.stdout
+
+
+def test_bare_n_bypass_without_reason_blocks(repo: Path) -> None:
+    """#709 AC4: bare -n is treated identically to --no-verify."""
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -n -m x"}},
+        cwd=repo,
+    )
+    assert r.returncode == 2
+    assert "GATE_BYPASS_REASON" in r.stdout
+
+
+def test_bare_n_bypass_with_reason_allows_and_audits(repo: Path) -> None:
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -n -m x"}},
+        cwd=repo,
+        extra_env={"GATE_BYPASS_REASON": "emergency rollback"},
+    )
+    assert r.returncode == 0
+    audit = repo / "metrics" / "gate-bypass-audit.jsonl"
+    entry = json.loads(audit.read_text().splitlines()[0])
+    assert entry["triggeredBy"] == "-n"
+    assert entry["reason"] == "emergency rollback"
 
 
 def test_commit_with_nothing_staged_silent(tmp_path: Path) -> None:
