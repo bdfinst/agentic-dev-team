@@ -18,17 +18,20 @@ Usage:
         [--shared-creds <sarif>] \\
         --output <report.md>
 """
+
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from severity_rank import SEVERITY_ORDER, sort_index as _severity_sort_index  # noqa: E402
 
-SEVERITY_ORDER = ["error", "warning", "suggestion", "info"]
 PRESENTATIONAL_MAP = {
-    "error": "HIGH",       # skeleton default — real pipeline maps with exploitability
+    "error": "HIGH",  # skeleton default — real pipeline maps with exploitability
     "warning": "MEDIUM",
     "suggestion": "LOW",
     "info": "LOW",
@@ -70,12 +73,20 @@ def render_report(
     lines.append("")
     lines.append("> This is a **deterministic-only skeleton report** produced by")
     lines.append("> `scripts/run-assessment-local.sh`. The full `/security-assessment`")
-    lines.append("> pipeline adds LLM-driven sections (exec summary narrative, FP reduction,")
-    lines.append("> compliance mapping, business-logic analysis, remediation prose). Those")
+    lines.append(
+        "> pipeline adds LLM-driven sections (exec summary narrative, FP reduction,"
+    )
+    lines.append(
+        "> compliance mapping, business-logic analysis, remediation prose). Those"
+    )
     lines.append("> sections are marked `[LLM-SKIPPED]` below.")
     lines.append("")
-    lines.append("> This compliance mapping is informational and derived from pattern matching.")
-    lines.append("> It does not constitute a certified audit and should not be used as a")
+    lines.append(
+        "> This compliance mapping is informational and derived from pattern matching."
+    )
+    lines.append(
+        "> It does not constitute a certified audit and should not be used as a"
+    )
     lines.append("> substitute for formal compliance review.")
     lines.append("")
 
@@ -86,19 +97,29 @@ def render_report(
     for f in findings:
         pres = PRESENTATIONAL_MAP.get(f.get("severity", "warning"), "MEDIUM")
         by_pres[pres] += 1
-    lines.append(f"- **Findings summary**: CRITICAL: 0  HIGH: {by_pres['HIGH']}  MEDIUM: {by_pres['MEDIUM']}  LOW: {by_pres['LOW']}")
-    lines.append(f"- **Languages detected**: " + ", ".join(l.get("name", "?") for l in recon.get("languages", [])[:5]) or "none")
+    lines.append(
+        f"- **Findings summary**: CRITICAL: 0  HIGH: {by_pres['HIGH']}  MEDIUM: {by_pres['MEDIUM']}  LOW: {by_pres['LOW']}"
+    )
+    lines.append(
+        f"- **Languages detected**: "
+        + ", ".join(l.get("name", "?") for l in recon.get("languages", [])[:5])
+        or "none"
+    )
     ep_count = len(recon.get("entry_points", []))
     lines.append(f"- **Entry points identified**: {ep_count}")
     lines.append("")
-    lines.append("**Top 3 Actions**: [LLM-SKIPPED — requires exec-report-generator agent]")
+    lines.append(
+        "**Top 3 Actions**: [LLM-SKIPPED — requires exec-report-generator agent]"
+    )
     lines.append("")
 
     # ── Section 1 — Findings Dashboard ────────────────────────────────────
     lines.append("## Section 1 — Findings Dashboard")
     lines.append("")
     if not findings:
-        lines.append("_No findings emitted. Either the target is clean or deterministic tools were unavailable._")
+        lines.append(
+            "_No findings emitted. Either the target is clean or deterministic tools were unavailable._"
+        )
         lines.append("")
     else:
         lines.append("| ID | Rule | File | Line | Severity | Presentational | Source |")
@@ -106,9 +127,10 @@ def render_report(
         # Sort by severity then by rule_id
         sorted_findings = sorted(
             findings,
-            key=lambda f: (SEVERITY_ORDER.index(f.get("severity", "warning"))
-                           if f.get("severity") in SEVERITY_ORDER else 99,
-                           f.get("rule_id", "")),
+            key=lambda f: (
+                _severity_sort_index(f.get("severity", "warning")),
+                f.get("rule_id", ""),
+            ),
         )
         for i, f in enumerate(sorted_findings, start=1):
             rule = f.get("rule_id", "?")
@@ -117,13 +139,19 @@ def render_report(
             sev = f.get("severity", "?")
             pres = PRESENTATIONAL_MAP.get(sev, "?")
             source = f.get("metadata", {}).get("source", "?")
-            lines.append(f"| F{i:03d} | `{rule}` | `{file_}` | {line} | {sev} | {pres} | {source} |")
+            lines.append(
+                f"| F{i:03d} | `{rule}` | `{file_}` | {line} | {sev} | {pres} | {source} |"
+            )
         lines.append("")
 
     # ── Section 2 — Critical & High Findings (detailed) ───────────────────
     lines.append("## Section 2 — Critical & High Findings")
     lines.append("")
-    high_findings = [f for f in findings if PRESENTATIONAL_MAP.get(f.get("severity", ""), "") in ("CRITICAL", "HIGH")]
+    high_findings = [
+        f
+        for f in findings
+        if PRESENTATIONAL_MAP.get(f.get("severity", ""), "") in ("CRITICAL", "HIGH")
+    ]
     if not high_findings:
         lines.append("_No findings at HIGH or CRITICAL severity._")
         lines.append("")
@@ -132,7 +160,9 @@ def render_report(
             lines.append(f"### F{i:03d} — {f.get('rule_id', 'unnamed')}")
             lines.append("")
             lines.append(f"- **Location**: `{f.get('file', '?')}:{f.get('line', '?')}`")
-            lines.append(f"- **Severity**: {f.get('severity', '?')} → {PRESENTATIONAL_MAP.get(f.get('severity', ''), '?')} presentational")
+            lines.append(
+                f"- **Severity**: {f.get('severity', '?')} → {PRESENTATIONAL_MAP.get(f.get('severity', ''), '?')} presentational"
+            )
             lines.append(f"- **Source**: {f.get('metadata', {}).get('source', '?')}")
             if f.get("cwe"):
                 lines.append(f"- **CWE**: {', '.join(f['cwe'])}")
@@ -146,14 +176,20 @@ def render_report(
     # ── Section 3 — Medium & Low Findings (condensed) ─────────────────────
     lines.append("## Section 3 — Medium & Low Findings")
     lines.append("")
-    low_findings = [f for f in findings if PRESENTATIONAL_MAP.get(f.get("severity", ""), "") in ("MEDIUM", "LOW")]
+    low_findings = [
+        f
+        for f in findings
+        if PRESENTATIONAL_MAP.get(f.get("severity", ""), "") in ("MEDIUM", "LOW")
+    ]
     if not low_findings:
         lines.append("_No findings at MEDIUM or LOW severity._")
         lines.append("")
     else:
         for f in low_findings:
             sev = PRESENTATIONAL_MAP.get(f.get("severity", ""), "?")
-            lines.append(f"- **[{sev}]** `{f.get('rule_id', '?')}` at `{f.get('file', '?')}:{f.get('line', '?')}` — {f.get('message', '')[:120]}")
+            lines.append(
+                f"- **[{sev}]** `{f.get('rule_id', '?')}` at `{f.get('file', '?')}:{f.get('line', '?')}` — {f.get('message', '')[:120]}"
+            )
         lines.append("")
 
     # ── Section 4 — Service Communication Diagram ─────────────────────────
@@ -163,7 +199,9 @@ def render_report(
         lines.append(service_comm_path.read_text().rstrip())
         lines.append("")
     else:
-        lines.append("_Service-communication diagram not generated (single-target run, or tool absent)._")
+        lines.append(
+            "_Service-communication diagram not generated (single-target run, or tool absent)._"
+        )
         lines.append("")
 
     # ── Section 5 — Cross-repo findings (if any) ──────────────────────────
@@ -174,13 +212,19 @@ def render_report(
             with shared_creds_path.open() as f:
                 doc = json.load(f)
             results = sum(len(r.get("results", [])) for r in doc.get("runs", []))
-            lines.append(f"- **Shared credentials detected**: {results} occurrence(s) across repos (see `{shared_creds_path}` for SARIF)")
+            lines.append(
+                f"- **Shared credentials detected**: {results} occurrence(s) across repos (see `{shared_creds_path}` for SARIF)"
+            )
         except (json.JSONDecodeError, OSError):
             lines.append("_Shared-credentials SARIF unparseable._")
     else:
-        lines.append("_Not applicable — single-target run or cross-cred script skipped._")
+        lines.append(
+            "_Not applicable — single-target run or cross-cred script skipped._"
+        )
     lines.append("")
-    lines.append("_Attack chains and systemic patterns: [LLM-SKIPPED — requires cross-repo-synthesizer agent]_")
+    lines.append(
+        "_Attack chains and systemic patterns: [LLM-SKIPPED — requires cross-repo-synthesizer agent]_"
+    )
     lines.append("")
 
     # ── Section 6 — Methodology & Scope ───────────────────────────────────
@@ -188,19 +232,35 @@ def render_report(
     lines.append("")
     lines.append("**Deterministic-only skeleton pipeline:**")
     lines.append("")
-    lines.append("- Codebase reconnaissance via `scripts/lib/deterministic_recon.py` (grep-based)")
-    lines.append("- Custom SARIF-emitting scripts: `entropy-check`, `model-hash-verify`")
-    lines.append("- Custom semgrep rulesets: `ml-patterns`, `llm-safety`, `fraud-domain`, `crypto-anti-patterns`")
-    lines.append("- Community bundles: `p/security-audit`, `p/secrets`, `p/owasp-top-ten`")
-    lines.append("- Tier-1 tools (where installed): semgrep, gitleaks, trivy, hadolint, actionlint")
-    lines.append("- Custom cross-repo scripts: `service-comm-parser`, `shared-cred-hash-match`")
+    lines.append(
+        "- Codebase reconnaissance via `scripts/lib/deterministic_recon.py` (grep-based)"
+    )
+    lines.append(
+        "- Custom SARIF-emitting scripts: `entropy-check`, `model-hash-verify`"
+    )
+    lines.append(
+        "- Custom semgrep rulesets: `ml-patterns`, `llm-safety`, `fraud-domain`, `crypto-anti-patterns`"
+    )
+    lines.append(
+        "- Community bundles: `p/security-audit`, `p/secrets`, `p/owasp-top-ten`"
+    )
+    lines.append(
+        "- Tier-1 tools (where installed): semgrep, gitleaks, trivy, hadolint, actionlint"
+    )
+    lines.append(
+        "- Custom cross-repo scripts: `service-comm-parser`, `shared-cred-hash-match`"
+    )
     lines.append("")
     lines.append("**Skipped (needs full `/security-assessment` or plugin install):**")
     lines.append("")
-    lines.append("- LLM judgment agents: `security-review`, `business-logic-domain-review`, `tool-finding-narrative-annotator`, `compliance-edge-annotator`")
+    lines.append(
+        "- LLM judgment agents: `security-review`, `business-logic-domain-review`, `tool-finding-narrative-annotator`, `compliance-edge-annotator`"
+    )
     lines.append("- 5-stage FP reduction")
     lines.append("- Compliance mapping with edge-case LLM annotation")
-    lines.append("- Executive summary narrative, attack scenarios, and remediation prose")
+    lines.append(
+        "- Executive summary narrative, attack scenarios, and remediation prose"
+    )
     lines.append("")
 
     # ── Appendices ─────────────────────────────────────────────────────────
@@ -208,7 +268,9 @@ def render_report(
     lines.append("")
     lines.append("### Appendix A — RECON artifact summary")
     lines.append("")
-    lines.append(f"- **Package manager**: {recon.get('repo', {}).get('package_manager', '?')}")
+    lines.append(
+        f"- **Package manager**: {recon.get('repo', {}).get('package_manager', '?')}"
+    )
     lines.append(f"- **Monorepo**: {recon.get('repo', {}).get('monorepo', False)}")
     lines.append(f"- **Workspaces**: {recon.get('repo', {}).get('workspaces', [])}")
     lines.append(f"- **Entry points**: {len(recon.get('entry_points', []))}")
@@ -253,5 +315,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import sys
     sys.exit(main())

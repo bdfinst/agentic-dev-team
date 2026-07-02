@@ -13,6 +13,7 @@ If output-jsonl exists, it is overwritten. The shared parser is imported
 from evals/static-analysis-tools/validate.py so rule-id conventions stay
 in lock-step with that validator.
 """
+
 from __future__ import annotations
 
 import json
@@ -22,14 +23,20 @@ from typing import Any
 
 
 REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(REPO / "evals/static-analysis-tools"))
+
+from severity_rank import rank as _severity_rank  # noqa: E402
 
 # Import from the existing validator — keeps rule-id conventions in sync
 try:
     from validate import parse_sarif, TOOL_TIER_MAP  # type: ignore[import-not-found]
 except ImportError as e:
     print(f"error: cannot import shared parser: {e}", file=sys.stderr)
-    print(f"  (expected at {REPO}/evals/static-analysis-tools/validate.py)", file=sys.stderr)
+    print(
+        f"  (expected at {REPO}/evals/static-analysis-tools/validate.py)",
+        file=sys.stderr,
+    )
     sys.exit(2)
 
 
@@ -47,14 +54,15 @@ def dedupe_findings(findings: list[dict]) -> list[dict]:
     """Remove duplicates on (rule_id, file, line). Keep the first occurrence
     but prefer higher-severity duplicates when they clash on location."""
     seen: dict[tuple[str, str, int | None], dict] = {}
-    severity_rank = {"error": 4, "warning": 3, "suggestion": 2, "info": 1}
     for f in findings:
         key = (f.get("rule_id", ""), f.get("file", ""), f.get("line"))
         if key not in seen:
             seen[key] = f
         else:
             existing = seen[key]
-            if severity_rank.get(f.get("severity", ""), 0) > severity_rank.get(existing.get("severity", ""), 0):
+            if _severity_rank(f.get("severity", "")) > _severity_rank(
+                existing.get("severity", "")
+            ):
                 seen[key] = f
     return list(seen.values())
 
@@ -73,7 +81,10 @@ def process_sarif_file(sarif_path: Path, target_path_prefix: str | None) -> list
     try:
         findings = parse_sarif(doc)
     except Exception as e:
-        print(f"  [skip] {sarif_path.name}: parse error {type(e).__name__}: {e}", file=sys.stderr)
+        print(
+            f"  [skip] {sarif_path.name}: parse error {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
         return []
 
     # Normalize file paths to target-relative if a target prefix was provided
@@ -82,14 +93,16 @@ def process_sarif_file(sarif_path: Path, target_path_prefix: str | None) -> list
         for f in findings:
             file = f.get("file", "")
             if file.startswith(prefix):
-                f["file"] = file[len(prefix):]
+                f["file"] = file[len(prefix) :]
 
     return findings
 
 
 def main() -> int:
     if len(sys.argv) != 3:
-        print("usage: normalize_findings.py <sarif-dir> <output-jsonl>", file=sys.stderr)
+        print(
+            "usage: normalize_findings.py <sarif-dir> <output-jsonl>", file=sys.stderr
+        )
         return 2
 
     sarif_dir = Path(sys.argv[1])
@@ -108,7 +121,10 @@ def main() -> int:
     # Dedupe
     before = len(all_findings)
     all_findings = dedupe_findings(all_findings)
-    print(f"Normalized {before} → {len(all_findings)} findings after dedup", file=sys.stderr)
+    print(
+        f"Normalized {before} → {len(all_findings)} findings after dedup",
+        file=sys.stderr,
+    )
 
     # Emit JSONL
     output.parent.mkdir(parents=True, exist_ok=True)
