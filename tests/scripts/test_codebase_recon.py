@@ -207,3 +207,61 @@ def test_5_3e_schema_version_in_emitted_artifact_is_1_0(repo: Path) -> None:
     assert f is not None
     data = json.loads(f.read_text())
     assert data.get("schema_version") == "1.0"
+
+
+# ---------------------------------------------------------------------------
+# 5.4 — main()'s default-output-dir slug must reuse _derive_slug, not
+# duplicate its regex logic inline.
+# ---------------------------------------------------------------------------
+
+
+def _main_function_source() -> str:
+    text = SCRIPT.read_text(encoding="utf-8")
+    start = text.index("\ndef main(")
+    # main() is the last top-level def in the file; slice to the __main__ guard.
+    end = text.index('\nif __name__ == "__main__":', start)
+    return text[start:end]
+
+
+def test_main_reuses_derive_slug_helper_instead_of_duplicating_the_regex() -> None:
+    main_src = _main_function_source()
+    assert "_derive_slug(" in main_src, (
+        "main() should call _derive_slug(root) for its default output-dir "
+        "slug instead of re-deriving it inline"
+    )
+    # The duplicated regex substitution (the tell-tale sign of the inline
+    # copy) must not appear a second time inside main().
+    assert "[^a-z0-9._-]" not in main_src, (
+        "main() still duplicates _derive_slug's regex inline"
+    )
+
+
+def test_default_output_dir_uses_derived_slug_for_a_name_needing_slugification(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "My Weird Repo!!"
+    repo_dir.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo_dir, check=True)
+    (repo_dir / "README.md").touch()
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo_dir, check=True)
+
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(repo_dir), "--skip-llm"],
+        cwd=workdir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+    expected_out_dir = workdir / "memory" / "recon-my-weird-repo"
+    assert expected_out_dir.is_dir(), sorted(
+        p.name for p in (workdir / "memory").glob("*")
+    )
+    assert len(list(expected_out_dir.glob("*.json"))) == 1

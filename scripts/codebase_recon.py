@@ -524,13 +524,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Derive default output dir from CWD + slug
     if args.output_dir is None:
-        import re
-
-        name = root.name.lower()
-        name = re.sub(r"[^a-z0-9._-]", "-", name)
-        name = re.sub(r"-{2,}", "-", name)
-        name = name.strip("-") or "repo"
-        output_dir = Path.cwd() / "memory" / f"recon-{name}"
+        output_dir = Path.cwd() / "memory" / f"recon-{_derive_slug(root)}"
     else:
         output_dir = Path(args.output_dir)
 
