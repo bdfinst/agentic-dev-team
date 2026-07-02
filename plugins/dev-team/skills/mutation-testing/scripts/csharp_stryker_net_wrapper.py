@@ -204,6 +204,16 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=os.environ.get("LOGFILE", "StrykerOutput/wrapper.log"),
         help="Log redirect target (default: %(default)s)",
     )
+    p.add_argument(
+        "--stryker-concurrency",
+        default=os.environ.get("STRYKER_MUTANT_CONCURRENCY"),
+        help=(
+            "Stryker's own mutant-testing-process concurrency (its -c/"
+            "--concurrency flag). Deliberately NOT -c/--concurrency here — "
+            "see csharp-stryker-net.md. Env equivalent: "
+            "STRYKER_MUTANT_CONCURRENCY. Default: max(1, cpu_count - 2)."
+        ),
+    )
     return p.parse_known_args(list(argv))[0], p.parse_known_args(list(argv))[1]
 
 
@@ -219,6 +229,18 @@ def default_concurrency(cpu_count: Optional[int]) -> int:
     computed default is still 1 (never 0 or negative).
     """
     return max(1, (cpu_count or 2) - 2)
+
+
+def _pass_through_concurrency_flag(stryker_args: Sequence[str]) -> Optional[str]:
+    """Return the pass-through concurrency flag (``-c`` or ``--concurrency``)
+    present in ``stryker_args``, or ``None``. Consolidates the "does the
+    caller already specify concurrency" check used by both the explicit-
+    value and computed-default injection paths.
+    """
+    for flag in ("-c", "--concurrency"):
+        if flag in stryker_args:
+            return flag
+    return None
 
 
 def build_project(project: str, cwd: Optional[Path] = None) -> int:
@@ -351,14 +373,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # Hide .sln during the run.
         hide_sln(sln, sln_hidden)
 
-        # Inject a computed default `-c` (mutant-testing concurrency) unless
-        # the caller's pass-through args already specify one.
-        if "-c" not in stryker_args and "--concurrency" not in stryker_args:
-            stryker_args = [
-                *stryker_args,
-                "-c",
-                str(default_concurrency(os.cpu_count())),
-            ]
+        # Inject Stryker's own mutant-testing concurrency (`-c`) unless the
+        # caller's pass-through args already specify one — pass-through
+        # always wins over both an explicit --stryker-concurrency/env value
+        # and the computed default; never silently override an explicit
+        # caller-supplied value.
+        pass_through_flag = _pass_through_concurrency_flag(stryker_args)
+        if pass_through_flag is None:
+            if args.stryker_concurrency is not None:
+                value = str(args.stryker_concurrency)
+            else:
+                value = str(default_concurrency(os.cpu_count()))
+            stryker_args = [*stryker_args, "-c", value]
+        elif args.stryker_concurrency is not None:
+            idx = stryker_args.index(pass_through_flag)
+            pass_through_value = (
+                stryker_args[idx + 1] if idx + 1 < len(stryker_args) else ""
+            )
+            sys.stderr.write(
+                f'note: pass-through "{pass_through_flag} '
+                f'{pass_through_value}" overrode explicit '
+                f'"--stryker-concurrency {args.stryker_concurrency}"\n'
+            )
 
         # Run Stryker; capture its exit code.
         exit_code = run_stryker(
