@@ -1,19 +1,25 @@
-"""Unit tests for hooks/lib/cost_meter.py's `record` path (issue #732 Fix A).
+"""Unit tests for hooks/lib/cost_meter.py (#732).
 
-`cmd_record` is invoked once per Stop/SubagentStop hook fire over the life of
-a session. Before this fix it called `parse_transcript()`, which re-reads and
-re-parses the *entire* transcript file from byte 0 on every single fire —
-O(turns) work repeated O(turns) times over a long session.
-
-This suite proves the fix: `cmd_record` now persists a byte offset (plus the
-running per-model/per-thread aggregates) in a tmp-state file keyed by the
-transcript path, and only tails bytes appended since the last fire.
+Covers two independent #732 fixes:
+  * `record` path perf fix — `cmd_record` is invoked once per Stop/
+    SubagentStop hook fire over the life of a session. Before this fix it
+    called `parse_transcript()`, which re-reads and re-parses the *entire*
+    transcript file from byte 0 on every single fire — O(turns) work
+    repeated O(turns) times over a long session. This suite proves the
+    fix: `cmd_record` now persists a byte offset (plus the running
+    per-model/per-thread aggregates) in a tmp-state file keyed by the
+    transcript path, and only tails bytes appended since the last fire.
+  * naming cleanup — the generically-named `_dig()` helper (renamed
+    `_first_present_field`) and the compressed `inp`/`out`/`cw`/`cr` local
+    variables inside `_cost()`.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -22,9 +28,11 @@ from types import SimpleNamespace
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
+_HOOKS_LIB = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+if str(_HOOKS_LIB) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB))
 
-import cost_meter  # noqa: E402
+import cost_meter  # type: ignore[import-not-found]  # noqa: E402
 
 
 _PRICING = {
@@ -215,3 +223,54 @@ def test_purge_stale_removes_old_state_but_keeps_fresh(hermetic_cost_meter):
 
     assert not stale.exists()
     assert fresh.exists()
+
+
+# ---------------------------------------------------------------------------
+# _first_present_field / _cost — field-lookup and cost math naming cleanup
+# ---------------------------------------------------------------------------
+
+
+def test_first_present_field_prefers_top_level_record():
+    rec = {"usage": {"input_tokens": 1}, "message": {"usage": {"input_tokens": 2}}}
+    assert cost_meter._first_present_field(rec, "usage") == {"input_tokens": 1}
+
+
+def test_first_present_field_falls_back_to_message():
+    rec = {"message": {"model": "claude-x"}}
+    assert cost_meter._first_present_field(rec, "model") == "claude-x"
+
+
+def test_first_present_field_returns_none_when_absent():
+    rec = {"message": {}}
+    assert cost_meter._first_present_field(rec, "model") is None
+
+
+def test_cost_computes_expected_dollars():
+    usage = {
+        "input_tokens": 1_000_000,
+        "output_tokens": 1_000_000,
+        "cache_creation_input_tokens": 1_000_000,
+        "cache_read_input_tokens": 1_000_000,
+    }
+    rate = _PRICING["models"]["claude-x"]
+    cost = cost_meter._cost(usage, rate, _PRICING)
+    expected = 3.0 + 15.0 + (3.0 * 1.25) + (3.0 * 0.1)
+    assert cost == expected
+
+
+def test_dig_helper_renamed_descriptively():
+    # Low-severity naming finding (#732): `_dig()` and its compressed
+    # inp/out/cw/cr locals in `_cost()` should carry descriptive names.
+    assert not hasattr(cost_meter, "_dig")
+    assert hasattr(cost_meter, "_first_present_field")
+
+    cost_source = inspect.getsource(cost_meter._cost)
+    for cryptic in ("inp", "out", "cw", "cr"):
+        assert re.search(rf"\b{cryptic}\b", cost_source) is None
+    for descriptive in (
+        "input_tokens",
+        "output_tokens",
+        "cache_write_tokens",
+        "cache_read_tokens",
+    ):
+        assert descriptive in cost_source

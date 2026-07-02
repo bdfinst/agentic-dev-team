@@ -175,20 +175,27 @@ def main() -> int:
 
     lower_command = command.lower()
 
-    file_pat, db_pat, git_pat, proc_pat, perm_pat, safe_pat = _load_patterns()
+    (
+        file_patterns,
+        database_patterns,
+        git_patterns,
+        process_patterns,
+        permission_patterns,
+        safe_patterns,
+    ) = _load_patterns()
 
     # Safe allowlist short-circuit — matches the .sh's `matches_safe` check.
-    if _matches_any(lower_command, safe_pat) is not None:
+    if _matches_any(lower_command, safe_patterns) is not None:
         return 0
 
     match = _first_match(
         lower_command,
         [
-            (file_pat, "File destruction"),
-            (db_pat, "Database destruction"),
-            (git_pat, "Git destruction"),
-            (proc_pat, "Process destruction"),
-            (perm_pat, "Permission escalation"),
+            (file_patterns, "File destruction"),
+            (database_patterns, "Database destruction"),
+            (git_patterns, "Git destruction"),
+            (process_patterns, "Process destruction"),
+            (permission_patterns, "Permission escalation"),
         ],
     )
     if match is None:
