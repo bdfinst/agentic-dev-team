@@ -22,9 +22,7 @@
 # the core count (portable across Linux + macOS, no bash-4 features). Output is
 # buffered per check and replayed in declared order, so the log stays readable
 # and the pass/fail summary is deterministic — same "run everything, collect all
-# failures" contract as the old serial runner, just faster. The bats suites also
-# parallelize across files via scripts/run-bats-parallel.sh, which uses `xargs -P`
-# (built into macOS + Linux) — no GNU `parallel` package required.
+# failures" contract as the old serial runner, just faster.
 #
 # Exit codes: 0 = all checks passed, 1 = one or more failed, 2 = missing tool.
 
@@ -33,14 +31,14 @@ set -uo pipefail
 # --- git env scrub (issue #546) -------------------------------------------
 # Git exports GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE / GIT_PREFIX /
 # GIT_REFLOG_ACTION into the pre-push hook's environment. Left in place,
-# fixture bats tests that run `git init` / `git commit` / `git push`
-# inherit them and target the parent worktree's gitdir instead of their
-# tempdirs, silently rewriting refs/heads/*. Scrub at the boundary so no
-# child process can see them.
+# fixture tests that run `git init` / `git commit` / `git push` inherit
+# them and target the parent worktree's gitdir instead of their tempdirs,
+# silently rewriting refs/heads/*. Scrub at the boundary so no child
+# process can see them.
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_REFLOG_ACTION
 
 # CI_LOCAL_PROBE_ENV=1 short-circuits ci-local to report the state of the
-# five scrubbed vars and exit 0. Used by tests/scripts/ci_local_hermetic_tests.bats
+# five scrubbed vars and exit 0. Used by tests/scripts/test_ci_local_hermetic.py
 # to assert the scrub happened without running the full suite. Deliberately
 # NARROW — only reports the exact names the unset targeted so the probe
 # cannot exfiltrate unrelated GIT_* secrets (GIT_HTTP_EXTRAHEADER carries
@@ -92,7 +90,7 @@ section() { printf '\n%s== %s ==%s\n' "$bold" "$1" "$reset"; }
 # tools per job, so a full-toolchain gate here would false-fail those jobs.
 if [ -z "$ONLY" ]; then
   missing=()
-  for t in shellcheck bats jq python3 semgrep; do
+  for t in shellcheck jq python3 semgrep; do
     command -v "$t" >/dev/null 2>&1 || missing+=("$t")
   done
   if [ "${#missing[@]}" -gt 0 ]; then
@@ -123,10 +121,6 @@ fi
 JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
 case "$JOBS" in ''|*[!0-9]*) JOBS=2 ;; esac
 [ "$JOBS" -ge 1 ] || JOBS=2
-
-# bats files are fanned across cores by scripts/run-bats-parallel.sh (xargs -P),
-# which needs no GNU `parallel` package — portable on every macOS + Linux box.
-run_bats() { bash scripts/run-bats-parallel.sh -j "$JOBS" "$@"; }
 
 # --- --changed-only resolution ---------------------------------------------
 # Source the suite->path mapping + matcher (pure logic, unit-tested separately),
@@ -164,8 +158,6 @@ fi
 chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.sh; }
 chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh scripts/audit-rules-vs-prompts.sh; }
 chk_sa_shell_suite()     { bash tests/security-assessment/scripts/run-all.sh; }
-chk_bats_repo()          { run_bats tests/repo/; }
-chk_bats_content_rest()  { run_bats tests/scripts/; }
 # chk_model_routing (formerly ran 4 bats files) — retired in #618. The bash
 # hooks under test have been ported to Python (#585 / #577 / #609), and their
 # unit tests now live in plugins/dev-team/tests/hooks/test_*.py (invoked via
@@ -204,10 +196,10 @@ chk_eslint() {
 # plugins/dev-team/tests/hooks/parity/ (the .sh↔.py parity harness) was retired
 # in #618 (epic #572) once every shipped hook + script became Python-only. The
 # going-forward coverage lives in plugins/dev-team/tests/hooks/test_*.py and
-# tests/repo/test_*.py (pytest, both invoked here via chk_hook_units). The
-# tests/repo/*.bats fixture suite is being ported to pytest incrementally
-# (epic #668) — files land here as their bats sibling is deleted, so
-# chk_bats_repo shrinks over the same series of PRs.
+# tests/repo/test_*.py (pytest, both invoked here via chk_hook_units). Every
+# content-guard *.bats fixture suite has now been ported to pytest (epic
+# #668) and bats-core itself is retired (#677) — chk_hook_units is the sole
+# content-guard gate; there is no separate bats check left to fold in.
 chk_hook_units() {
   if ! python3 -c 'import pytest' >/dev/null 2>&1; then
     printf '%s∼ skipped (pytest not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
@@ -216,12 +208,18 @@ chk_hook_units() {
   # tests/agents/, tests/commands/, tests/docs/, tests/knowledge/, and
   # tests/bats/ were ported from bats to pytest under issue #675 (epic
   # #668). tests/repo/'s eval/cost/telemetry/workflow-audit suites were
-  # ported under #672 (epic #668) and already ran here. tests/bats/ had no
-  # prior CI wiring (orphaned bats suite). tests/skills/ was ported under
-  # issue #674 and likewise had no prior CI wiring — this is its first
-  # invocation.
+  # ported under #672 (epic #668) and already ran here. tests/skills/ was
+  # ported under issue #674. tests/scripts/ was ported under issue #676 and
+  # is folded in here for the first time by #677 (its former bats runner,
+  # chk_bats_content_rest, retired with bats-core itself) — excluding the
+  # csharp_stryker_net_* wrapper tests, which stay on their own dedicated
+  # Windows workflow (wrapper-windows.yml) because they are timing/signal
+  # sensitive and not portable to this runner, matching the pre-existing
+  # tests/hooks/ exclusion below.
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
-    tests/docs tests/knowledge tests/bats tests/skills
+    tests/docs tests/knowledge tests/bats tests/skills tests/scripts \
+    --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
+    --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py
 }
 
 # Ordered list of "label::function". Order defines both the replay order and the
@@ -230,8 +228,6 @@ CHECKS=(
   "shellcheck — security-assessment helper scripts::chk_shellcheck_helpers"
   "shellcheck — test scripts::chk_shellcheck_tests"
   "security-assessment shell test suite (run-all.sh)::chk_sa_shell_suite"
-  "bats — dev-team tests/repo::chk_bats_repo"
-  "bats — dev-team content (knowledge/agents/commands/docs/scripts)::chk_bats_content_rest"
   "cost-regression check::chk_cost_regression"
   "semgrep rule fixtures (audit-semgrep-fixtures.py)::chk_semgrep_fixtures"
   "red-team harness smoke (smoke_test.py)::chk_harness_smoke"
