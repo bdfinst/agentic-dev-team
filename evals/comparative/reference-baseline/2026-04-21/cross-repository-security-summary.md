@@ -50,7 +50,7 @@ Both services ship the same architectural assumption: "something upstream of us 
 | `NODE_TLS_REJECT_UNAUTHORIZED=0` | TLS-disable flag | `fraud-scoring/config/.env.production:9`, `auth-gateway/src/server.ts:10` | HIGH |
 | `fallback-secret-for-dev` | JWT fallback literal | `auth-gateway/src/routes/admin.ts:15` | HIGH |
 | `postgres://fraud:fraud@db.internal/fraud` | DB creds | `fraud-scoring/config/.env.production:11` | HIGH |
-| `AKIAIOSFODNN7EXAMPLE` / `wJalrXUtnFEMI/…KEY` | AWS access keys | `fraud-scoring/config/.env.production:2-3` | CRITICAL |
+| `AKIA_EXAMPLE_NOT_A_REAL_KEY` / `EXAMPLE-aws-secret-not-real-key` | AWS access keys | `fraud-scoring/config/.env.production:2-3` | CRITICAL |
 
 **Systemic pattern:** production credentials live in `config/.env.*` files, are committed to the repo, and are baked into Docker images via `COPY . .`. There is no evidence of a secrets manager, no `.gitignore` entry for env files, and no `.dockerignore`.
 
