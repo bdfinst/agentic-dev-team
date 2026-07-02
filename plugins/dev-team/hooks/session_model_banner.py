@@ -201,6 +201,19 @@ def _render_banner(session_model: str, session_known: bool, reused: bool) -> str
 
 
 def _notify_pending_findings(cwd: str) -> Optional[str]:
+    """Count still-pending entries in the pending-review queue, rotating out
+    disposed ones so the file stays bounded (#732).
+
+    A finding gains exactly one disposition (`reviewed_at` on approval,
+    `rejected_at` on rejection — see feedback-learning/SKILL.md); once either
+    is present, its audit trail lives in metrics/config-changelog.jsonl (on
+    approval) and the entry itself has no further use here. Rewriting the
+    queue to drop disposed entries every SessionStart keeps it bounded to the
+    outstanding backlog instead of growing without limit across the life of
+    a project. Lines that fail to parse can't be classified either way, so
+    they are left untouched — /session-review handles malformed-line
+    reporting on its own.
+    """
     queue_env = os.environ.get("PENDING_REVIEW_FILE")
     queue = (
         Path(queue_env) if queue_env else Path(cwd) / "metrics" / "pending-review.jsonl"
@@ -212,17 +225,39 @@ def _notify_pending_findings(cwd: str) -> Optional[str]:
             lines = fh.readlines()
     except OSError:
         return None
+
+    kept_lines: List[str] = []
+    dropped_any = False
     count = 0
-    for line in lines:
-        line = line.strip()
+    for raw_line in lines:
+        line = raw_line.strip()
         if not line:
+            dropped_any = True
             continue
         try:
             entry = json.loads(line)
         except (json.JSONDecodeError, ValueError):
+            # Can't classify — keep it as-is rather than silently losing it.
+            kept_lines.append(line)
             continue
-        if isinstance(entry, dict) and "reviewed_at" not in entry:
+        if isinstance(entry, dict) and (
+            "reviewed_at" in entry or "rejected_at" in entry
+        ):
+            # Disposed — rotate it out of the queue.
+            dropped_any = True
+            continue
+        if isinstance(entry, dict):
             count += 1
+        kept_lines.append(line)
+
+    if dropped_any:
+        try:
+            queue.write_text(
+                "".join(f"{line}\n" for line in kept_lines), encoding="utf-8"
+            )
+        except OSError:
+            pass
+
     if count <= 0:
         return None
     return (
