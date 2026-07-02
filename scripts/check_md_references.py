@@ -70,6 +70,7 @@ _BACKTICK = re.compile(r"`([^`]+)`")
 _PLUGIN_ROOT_VAR = "${CLAUDE_PLUGIN_ROOT}/"
 _NONLITERAL = re.compile(r"[<>*|]")  # glob / placeholder markers (the plugin-root
 # var is stripped before this test, so its ${} is fine)
+_MD_HEADING = re.compile(r"^#+\s+(.+)$")  # markdown heading: # Title
 
 
 def _candidates(line: str):
@@ -83,22 +84,29 @@ def _candidates(line: str):
 
 
 def _normalize(ref: str):
-    """Return a checkable path (``${CLAUDE_PLUGIN_ROOT}/`` preserved), or None."""
+    """Return a checkable path (``${CLAUDE_PLUGIN_ROOT}/`` preserved), or None.
+
+    Preserves #anchor fragments if present — anchor validation happens separately.
+    """
     ref = ref.strip()
     if not ref:
         return None
     ref = ref.split(" ", 1)[0]  # drop a markdown link title
     if ref.startswith("#"):
         return None
-    ref = ref.split("#", 1)[0]  # strip a trailing #anchor
-    if not ref:
-        return None
-    lower = ref.lower()
+    lower = ref.split("#", 1)[0].lower() if "#" in ref else ref.lower()
     if lower.startswith(("http://", "https://", "mailto:", "tel:")):
+        return None
+    path_part = ref.split("#", 1)[0]
+    if not path_part:
         return None
     if ref.startswith("~") or ref.startswith("/"):
         return None  # home-relative or absolute system paths: not repo references
-    body = ref[len(_PLUGIN_ROOT_VAR) :] if ref.startswith(_PLUGIN_ROOT_VAR) else ref
+    body = (
+        path_part[len(_PLUGIN_ROOT_VAR) :]
+        if path_part.startswith(_PLUGIN_ROOT_VAR)
+        else path_part
+    )
     if "$" in body or _NONLITERAL.search(body):
         return None  # other shell vars / globs / placeholders: not statically checkable
     is_dir = body.endswith("/")
@@ -118,6 +126,26 @@ def _present(base: str, rel: str, is_dir: bool, root: str, tracked: set):
     # CI checkout leaves unmaterialized (`.claude/evals/fixtures` → `evals/…`),
     # which would otherwise read as dangling on Linux but resolved on macOS.
     return os.path.relpath(target, root) in tracked
+
+
+def _resolve_path(ref: str, file_dir: str, module_root: str, root: str, tracked: set):
+    """Return the resolved path for a reference, or None if unresolvable."""
+    is_dir = ref.endswith("/")
+    bases = []
+    if ref.startswith(_PLUGIN_ROOT_VAR):
+        bases = [(module_root, ref[len(_PLUGIN_ROOT_VAR) :])]
+    else:
+        bases = [(file_dir, ref), (module_root, ref), (root, ref)]
+
+    for base, rel in bases:
+        target = os.path.normpath(os.path.join(base, rel.lstrip("/")))
+        if os.path.isdir(target) if is_dir else os.path.exists(target):
+            return target
+        # Check tracked paths as fallback
+        rel_target = os.path.relpath(target, root)
+        if rel_target in tracked:
+            return target
+    return None
 
 
 def _resolves(ref: str, file_dir: str, module_root: str, root: str, tracked: set):
@@ -218,12 +246,52 @@ def _names_real_file(ref: str, real_index):
     return False
 
 
+def _gfm_slug(heading: str) -> str:
+    """Convert a markdown heading to its GFM anchor slug.
+
+    GFM slug: remove backticks but keep content, lowercase, strip non-word/non-space/non-hyphen,
+    collapse consecutive spaces/hyphens to single hyphen, trim leading/trailing hyphens.
+    """
+    # Remove backticks but keep their content
+    s = re.sub(r"`([^`]*)`", r"\1", heading)
+    # Lowercase
+    s = s.lower()
+    # Keep only word chars, spaces, and hyphens
+    s = re.sub(r"[^\w\s\-]", "", s)
+    # Collapse multiple spaces/hyphens to single hyphen
+    s = re.sub(r"[\s\-]+", "-", s)
+    # Strip leading/trailing hyphens
+    s = s.strip("-")
+    return s
+
+
+def _extract_heading_slugs(path: str) -> set[str]:
+    """Extract all GFM heading slugs from a markdown file."""
+    slugs = set()
+    try:
+        fh = open(path, encoding="utf-8")
+    except OSError:
+        return slugs
+    with fh:
+        for line in fh:
+            m = _MD_HEADING.match(line.rstrip())
+            if m:
+                heading_text = m.group(1)
+                slug = _gfm_slug(heading_text)
+                if slug:
+                    slugs.add(slug)
+    return slugs
+
+
 def _check_file(path: str, root: str, real_index, tracked):
     breaks = []
     file_dir = os.path.dirname(path)
     mod_root = _module_root(path, root)
     in_fence = False
     fence_marker = ""
+    # Cache for extracted heading slugs (path -> set of slugs)
+    slug_cache = {}
+
     try:
         fh = open(path, encoding="utf-8")
     except OSError:
@@ -243,9 +311,30 @@ def _check_file(path: str, root: str, real_index, tracked):
                 ref = _normalize(raw)
                 if ref is None:
                     continue
-                if _resolves(ref, file_dir, mod_root, root, tracked):
+
+                # Split ref into path and anchor parts
+                path_part, anchor = (ref.split("#", 1) if "#" in ref else (ref, None))
+
+                if _resolves(path_part, file_dir, mod_root, root, tracked):
+                    # Path resolves; if there's an anchor, validate it
+                    if anchor:
+                        # Resolve the actual file path to validate the anchor
+                        target_path = _resolve_path(
+                            path_part, file_dir, mod_root, root, tracked
+                        )
+                        if target_path and target_path.endswith(".md"):
+                            # Extract heading slugs if not cached
+                            if target_path not in slug_cache:
+                                slug_cache[target_path] = _extract_heading_slugs(
+                                    target_path
+                                )
+                            slugs = slug_cache[target_path]
+                            # Check if anchor matches any heading slug
+                            if anchor not in slugs:
+                                breaks.append((line_no, ref))
                     continue
-                if _names_real_file(ref, real_index):
+
+                if _names_real_file(path_part, real_index):
                     breaks.append((line_no, ref))
     return breaks
 
@@ -292,14 +381,17 @@ def main(argv=None):
     for path in _iter_md_files(root):
         for line_no, ref in _check_file(path, root, real_index, tracked):
             rel = os.path.relpath(path, root)
-            print(f"{rel}:{line_no}  `{ref}`  names a real file but resolves nowhere")
+            if "#" in ref:
+                print(f"{rel}:{line_no}  `{ref}`  anchor does not exist in target file")
+            else:
+                print(f"{rel}:{line_no}  `{ref}`  names a real file but resolves nowhere")
             total += 1
 
     if total:
         print(
-            f"\n{total} misrouted reference(s): the named file exists in the repo, "
-            f"but the path resolves to the wrong place. Fix the path (a file-relative "
-            f"path, or ${{CLAUDE_PLUGIN_ROOT}}/… for a runtime read).",
+            f"\n{total} reference error(s): either the path resolves to the wrong place "
+            f"or an anchor does not exist. Fix the path (a file-relative path, or "
+            f"${{CLAUDE_PLUGIN_ROOT}}/… for a runtime read) or the anchor target.",
             file=sys.stderr,
         )
         return 1

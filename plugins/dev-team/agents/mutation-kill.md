@@ -344,7 +344,7 @@ can't tell whether the convergence-history mechanism actually paid off.
 
 **Distinct from `--since`.** This mechanism is complementary to, not a
 replacement for, the existing `--since` incremental-run pattern (see
-[`csharp-stryker-net.md`](../skills/mutation-testing/references/languages/csharp-stryker-net.md#incremental-runs-with---since)).
+[`csharp-stryker-net.md`](../skills/mutation-testing/references/languages/csharp-stryker-net.md#incremental-runs-with-since)).
 `--since` answers "did this source file change vs. a git ref," which cannot
 express "this file's mutant set already converged under `mutation-kill`" — a file
 can be unchanged since `main` yet never have been scoped by `mutation-kill` at
