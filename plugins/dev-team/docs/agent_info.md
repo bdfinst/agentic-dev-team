@@ -36,11 +36,13 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `doc-review` | [`doc-review.md`](../agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
 | `domain-review` | [`domain-review.md`](../agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
 | `js-fp-review` | [`js-fp-review.md`](../agents/js-fp-review.md) | sonnet | Array mutations, impure patterns (JS/TS) |
+| `mutation-kill` | [`mutation-kill.md`](../agents/mutation-kill.md) | opus | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; not a reviewer, invoked per Story by `/test-improve` Phase 4 or directly |
 | `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
 | `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
 | `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
 | `refactor-opportunity-review` | [`refactor-opportunity-review.md`](../agents/refactor-opportunity-review.md) | sonnet | Post-GREEN refactoring opportunities |
 | `security-review` | [`security-review.md`](../agents/security-review.md) | opus | Injection, auth, data exposure |
+| `session-analysis` | [`session-analysis.md`](../agents/session-analysis.md) | sonnet | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
 | `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
 | `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
 | `svelte-review` | [`svelte-review.md`](../agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
