@@ -185,7 +185,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/version-check.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_VERSION_CHECK:-0}\" = \"1\" ]; then python3 hooks/version_check.py; else bash hooks/version-check.sh; fi'"
           }
         ]
       },
