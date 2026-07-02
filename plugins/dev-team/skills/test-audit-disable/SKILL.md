@@ -1,11 +1,11 @@
 ---
 name: test-audit-disable
 description: >-
-  Phase-3 worker for `/test-modernize`. Audits the existing test suite for
+  Standalone worker. Audits the existing test suite for
   tests that cannot fail — no assertions, assertions on constants, expect-true,
   swallowed exceptions, self-equality — and disables each one by skip-and-tag
   (never deletes). Records each disabled test plus its reason in a JSON log
-  under `memory/test-modernize/` so Phase 4 can later repair them. Pairs with
+  under `memory/<workflow>/<slug>/` so a later phase can repair them. Pairs with
   `/coverage-baseline` to produce a true baseline coverage number.
 argument-hint: "<repo-path> [--repo-slug <slug>] [--dry-run]"
 user-invocable: true
@@ -23,7 +23,7 @@ You have been invoked with the `/test-audit-disable` command.
 Arguments: $ARGUMENTS
 
 - Positional: `<repo-path>` — the repo under modernization.
-- `--repo-slug <slug>` — namespace under `memory/test-modernize/`. Defaults to the last path segment.
+- `--repo-slug <slug>` — namespace under `memory/<workflow>/`. Defaults to the last path segment.
 - `--dry-run` — print the cannot-fail list and exit without disabling.
 
 ## Steps
@@ -102,8 +102,8 @@ For each finding, use `Edit` to insert the framework's skip helper at the matchi
 
 Write:
 
-- `memory/test-modernize/<slug>/disabled-tests.json` — the array from Step 3, augmented with the disabling tag inserted at each site.
-- `memory/test-modernize/<slug>/phase-3-audit.md` — counts by reason, framework, file. Lists any test files the worker could not parse (call out as "needs hand-audit").
+- `memory/<workflow>/<slug>/disabled-tests.json` — the array from Step 3, augmented with the disabling tag inserted at each site.
+- `memory/<workflow>/<slug>/phase-3-audit.md` — counts by reason, framework, file. Lists any test files the worker could not parse (call out as "needs hand-audit").
 
 The orchestrator's Phase-3 progress file is owned by `/coverage-baseline`, which runs immediately after this worker.
 

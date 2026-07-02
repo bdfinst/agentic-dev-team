@@ -6,9 +6,8 @@ description: >-
   routes, existing tests, then exported signatures), recommends a BDD binding
   mode via the bdd-value-guide rubric, and writes `.feature` files plus
   (in bdd-runner mode) pending step-definition stubs. Use it on its own to
-  capture intended behavior before changing tests, or as Phase 1b of
-  `/test-upgrade`. Unlike `/gherkin-public` it needs no `/test-modernize`
-  component map and creates no tracker Stories.
+  capture intended behavior before changing tests, or as Phase 2b of
+  `/test-improve`. Creates no tracker Stories.
 argument-hint: "<repo-path> [--mode none|xunit-with-annotations|bdd-runner] [--repo-slug <slug>]"
 role: worker
 user-invocable: true
@@ -18,14 +17,13 @@ allowed-tools: Read, Glob, Grep, Bash, Write
 # Gherkin Derive
 
 Role: worker. A **standalone** Gherkin derivation skill. It derives scenarios for
-a repo's public surface directly from code — it does **not** require
-`memory/test-modernize/<slug>/phase-1.md` or any prior `/cd-test-architecture`
-analysis, and it does **not** create tracker Stories (that is `/test-upgrade`
-Phase 2's job). `/gherkin-public` is unchanged and remains the `/test-modernize`
-Phase-2 worker.
+a repo's public surface directly from code — it does **not** require any prior
+`/cd-test-architecture` analysis, and it does **not** create tracker Stories
+(the calling orchestrator owns triage). `/gherkin-public` remains a
+public-boundary Gherkin authoring worker used standalone.
 
 Usable two ways: on its own to capture intended behavior before any test change,
-or as the Phase-1b sub-step of `/test-upgrade`.
+or as the Phase-2b sub-step of `/test-improve`.
 
 ## Parse Arguments
 
@@ -33,7 +31,7 @@ or as the Phase-1b sub-step of `/test-upgrade`.
 - `--mode <none|xunit-with-annotations|bdd-runner>` — the binding mode. When
   omitted, present the BDD value rubric (Step 1) and let the operator choose.
 - `--repo-slug <slug>` — namespace for the surface inventory under
-  `memory/test-upgrade/<slug>/`.
+  `memory/<workflow>/<slug>/` (`/test-improve` passes `--workflow test-improve`).
 
 ## Step 1 — Choose the binding mode (BDD value rubric)
 
@@ -124,9 +122,10 @@ that pass silently.
 
 - `features/<surface>.feature` files (all non-`none` modes).
 - `step_definitions/<surface>_steps.<ext>` pending stubs (`bdd-runner` only).
-- A surface inventory at `memory/test-upgrade/<slug>/gherkin.md` listing each
+- A surface inventory at `memory/<workflow>/<slug>/gherkin.md` listing each
   discovered surface, its discovery source, provenance, mode, and the files
-  written. `/test-upgrade` reads this to bind component tests in Phase 3.
+  written. `/test-improve` reads this at Phase 3 (triage) and Phase 4 (build)
+  to bind tests to the derived scenarios.
 
 ## Step 6 — Report
 
@@ -136,11 +135,13 @@ written. In `none` mode, print only the one-line recommendation.
 
 ## Key differences from `/gherkin-public`
 
-- Does **not** require `memory/test-modernize/<slug>/phase-1.md` — derives the
-  surface itself.
-- Does **not** create tracker Stories — `/test-upgrade` Phase 2 owns that.
-- Usable standalone or as `/test-upgrade` Phase 1b.
-- `/gherkin-public` is unchanged.
+- Does **not** require any prior assessment file — derives the surface itself
+  from code.
+- Does **not** create tracker Stories — the calling orchestrator (e.g.
+  `/test-improve` Phase 3) owns triage.
+- Usable standalone or as `/test-improve` Phase 2b.
+- `/gherkin-public` remains a separate public-boundary Gherkin authoring
+  worker.
 
 ## Notes
 

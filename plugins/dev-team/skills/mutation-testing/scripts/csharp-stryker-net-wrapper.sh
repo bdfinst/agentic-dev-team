@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
-# csharp-stryker-net-wrapper.sh — reference wrapper for Stryker.NET on macOS/Linux.
+# csharp-stryker-net-wrapper.sh — reference wrapper for Stryker.NET.
+#
+# DOTNET_ROOT resolution: cross-platform (macOS, Linux, Windows Git Bash).
+# The wrapper probes each platform's standard .NET install paths and falls
+# back to $(dirname "$(command -v dotnet)") on PATH before failing with an
+# actionable error message (exit 3).
+#
+# Process/signal cleanup (SIGINT/SIGTERM handling, backgrounded-child
+# reaping): verified on macOS + Linux; Windows Git Bash job-control and
+# signal semantics diverge from POSIX and are NOT yet verified here — see
+# https://github.com/bdfinst/agentic-dev-team/issues/567 for the
+# tracking issue.
 #
 # Copy this file AND csharp-stryker-net-status-loop.sh together into your
 # repo's `scripts/` directory, edit the header vars below, and run it in
-# place of a bare `dotnet stryker` invocation. Windows Git Bash is NOT a
-# supported target (DOTNET_ROOT default is Homebrew-macOS specific).
+# place of a bare `dotnet stryker` invocation.
 #
 # What it owns:
-#   - DOTNET_ROOT export (Homebrew macOS defaults; respected if pre-set)
+#   - DOTNET_ROOT probe across macOS Homebrew (Apple Silicon + Intel),
+#     Debian/Ubuntu, Fedora/RHEL, user-scope, and Windows Git Bash paths
 #   - Pre-building ${SLN} and ${SHIM_PROJECT} BEFORE hiding .sln (Stryker's
 #     own build step can't rebuild whole-solution after the hide)
 #   - Hiding .sln during the run + trap-restoring it on EXIT / INT / TERM
@@ -24,9 +35,42 @@
 #   - Progress/red-flag detection (see csharp-stryker-net-status-loop.sh)
 #   - Stryker's own config file (that stays in stryker-config.json)
 #
-# Refs: #554, #557, #558, #559.
+# Refs: #554, #557, #558, #559, #564.
 
 set -euo pipefail
+
+# =============================================================================
+# DOTNET_ROOT probe — sourceable function (issue #564)
+# =============================================================================
+#
+# Iterates the argument list of candidate directories and prints the first
+# one whose SDK layout is present (executable `dotnet`, executable `dotnet.exe`,
+# or `shared/` directory). Returns 0 on hit, 1 when no candidate resolves.
+#
+# Empty candidate arguments are skipped so callers can concatenate lists
+# without worrying about stray separators.
+_probe_dotnet_root() {
+    local candidate
+    for candidate in "$@"; do
+        [ -z "$candidate" ] && continue
+        if [ -x "$candidate/dotnet" ] \
+            || [ -x "$candidate/dotnet.exe" ] \
+            || [ -d "$candidate/shared" ]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Sourced-vs-executed guard: when this file is sourced (e.g. from a bats
+# test) BASH_SOURCE[0] is the file path but $0 is the sourcing shell's $0
+# (bats-exec-test on the tests side). When executed directly they are
+# equal. Sourced case: expose _probe_dotnet_root and return without
+# running the main flow.
+if [ "${BASH_SOURCE[0]:-}" != "${0:-}" ]; then
+    return 0
+fi
 
 # ---- Per-repo edits (header vars) ------------------------------------------
 SLN="${SLN:-Foo.sln}"                                # Solution file to hide during run
@@ -37,7 +81,41 @@ STATUS_INTERVAL="${STATUS_INTERVAL:-600}"            # Seconds between status ti
 COMPILE_ERROR_THRESHOLD="${COMPILE_ERROR_THRESHOLD:-25}"   # CompileError count over threshold trips red-flag
 # ---------------------------------------------------------------------------
 
-export DOTNET_ROOT="${DOTNET_ROOT:-/opt/homebrew/opt/dotnet/libexec}"
+# Default probe candidates — the 7-position chain documented in
+# docs/specs/csharp-stryker-net-wrapper-cross-platform.md. PATH fallback is
+# a separate code path (see below) and is NOT counted in this list. Hoisted
+# to a named array so the ordering is a first-class identifier the code and
+# lint tests reference. Bash 3.2-safe (indexed arrays are supported).
+_default_probe_candidates=(
+    "/opt/homebrew/opt/dotnet/libexec"     # position 1: macOS Apple Silicon Homebrew
+    "/usr/local/opt/dotnet/libexec"        # position 2: macOS Intel Homebrew
+    "/usr/share/dotnet"                    # position 3: Debian/Ubuntu package
+    "/usr/lib/dotnet"                      # position 4: Fedora/RHEL package
+    "${HOME}/.dotnet"                      # position 5: user-scope (dotnet-install.sh)
+    "/c/Program Files/dotnet"              # position 6: Windows Git Bash Program Files
+    "/c/program files/dotnet"              # position 7: Windows Git Bash lowercase drive mount
+)
+
+if [ -z "${DOTNET_ROOT:-}" ]; then
+    # Empty-safe array expansion (per CLAUDE.md bash 3.2 guidance).
+    if resolved="$(_probe_dotnet_root "${_default_probe_candidates[@]+"${_default_probe_candidates[@]}"}")"; then
+        DOTNET_ROOT="$resolved"
+    elif command -v dotnet >/dev/null 2>&1; then
+        DOTNET_ROOT="$(dirname "$(command -v dotnet)")"
+    else
+        {
+            printf 'error: no .NET SDK found; DOTNET_ROOT is unset and no candidate resolved\n'
+            printf '  probed: /opt/homebrew/opt/dotnet/libexec, /usr/local/opt/dotnet/libexec,\n'
+            printf '          /usr/share/dotnet, /usr/lib/dotnet, %s/.dotnet,\n' "${HOME}"
+            printf '          /c/Program Files/dotnet, /c/program files/dotnet\n'
+            # shellcheck disable=SC2016  # literal $(command -v dotnet) in message text, not an expansion
+            printf '  also tried: dirname $(command -v dotnet) — dotnet not on PATH\n'
+            printf 'set DOTNET_ROOT explicitly, or install .NET: https://dotnet.microsoft.com/download\n'
+        } >&2
+        exit 3
+    fi
+fi
+export DOTNET_ROOT
 
 SLN_HIDDEN="${SLN}.stryker-hidden"
 STATUS_PID=""
@@ -49,9 +127,7 @@ restore_sln() {
     if [ -f "$SLN_HIDDEN" ] && [ ! -f "$SLN" ]; then
         mv "$SLN_HIDDEN" "$SLN"
     fi
-    # Kill children in reverse spawn order — status loop first, then Stryker.
-    # SIGINT/SIGTERM on the wrapper doesn't propagate through `wait` to the
-    # backgrounded Stryker automatically; we kill both explicitly.
+    # Kill children — order: status loop (spawned by us), then Stryker (backgrounded).
     if [ -n "$STATUS_PID" ] && kill -0 "$STATUS_PID" 2>/dev/null; then
         kill "$STATUS_PID" 2>/dev/null || true
     fi

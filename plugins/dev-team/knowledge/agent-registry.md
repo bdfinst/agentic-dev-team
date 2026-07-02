@@ -35,7 +35,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | doc-review | `agents/doc-review.md` | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
 | domain-review | `agents/domain-review.md` | Domain boundaries, abstraction leaks, entity/DTO confusion |
 | js-fp-review | `agents/js-fp-review.md` | Array mutations, impure patterns, global state |
-| mutation-kill | `agents/mutation-kill.md` | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; gates on hard kills only (Go advisory). Not a reviewer; invoked by `/test-upgrade` or directly |
+| mutation-kill | `agents/mutation-kill.md` | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; gates on hard kills only (Go advisory). Not a reviewer; invoked per Story by `/test-improve` Phase 4 or directly |
 | naming-review | `agents/naming-review.md` | Intent-revealing names, boolean prefixes, magic values |
 | performance-review | `agents/performance-review.md` | Resource leaks, N+1 queries, unbounded growth |
 | progress-guardian | `agents/progress-guardian.md` | Plan adherence, commit discipline, scope creep detection |
@@ -45,7 +45,6 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — first gate before quality review |
 | structure-review | `agents/structure-review.md` | SRP violations, DRY, coupling, file organization |
 | svelte-review | `agents/svelte-review.md` | Svelte reactivity pitfalls, closure state leaks |
-| test-modernization-review | `agents/test-modernization-review.md` | Gate-keeper for `/test-modernize` — verifies each phase's deliverable matches its acceptance criteria before the workflow advances |
 | test-review | `agents/test-review.md` | Coverage gaps, assertion quality, test hygiene |
 | test-smell-review | `agents/test-smell-review.md` | xUnit test smells, test-double selection, test-pyramid layer placement |
 | token-efficiency-review | `agents/token-efficiency-review.md` | File/function size, LLM anti-patterns, token usage |
@@ -66,8 +65,8 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
 | Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | 600 | Orchestrator |
 | Context Summarization | `skills/context-summarization/SKILL.md` | 500 | Orchestrator |
-| Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~600 | `/test-modernize` (Phase 3), QA Engineer, Platform Engineer |
-| Coverage Delta | `skills/coverage-delta/SKILL.md` | ~450 | `/test-modernize` (Phases 4–5), QA Engineer |
+| Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~600 | `/test-improve` (Phase 2), QA Engineer, Platform Engineer |
+| Coverage Delta | `skills/coverage-delta/SKILL.md` | ~450 | `/test-improve` (Phase 4), QA Engineer |
 | Design Doc | `skills/design-doc/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
 | Design Interrogation | `skills/design-interrogation/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
 | Design It Twice | `skills/design-it-twice/SKILL.md` | 550 | Architect, Software Engineer |
@@ -79,29 +78,27 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Farley Score | `skills/farley-score/SKILL.md` | 600 | QA Engineer, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
 | Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,010 | Orchestrator |
-| Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~700 | `/test-upgrade` (Phase 1b), QA Engineer, standalone |
-| Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | `/test-modernize` (Phase 2), QA Engineer, Product Manager |
+| Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~700 | `/test-improve` (Phase 2b, conditional), QA Engineer, standalone |
+| Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | Standalone worker; QA Engineer, Product Manager |
 | Governance & Compliance | `skills/governance-compliance/SKILL.md` | 990 | QA Engineer, Technical Writer |
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 420 | Architect, Software Engineer |
 | Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 1,020 | Orchestrator, Product Manager |
-| Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~750 | `/test-modernize` (Phase 1), QA Engineer |
+| Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~750 | `/test-improve` (Phase 3), QA Engineer |
 | Legacy Code | `skills/legacy-code/SKILL.md` | 700 | Software Engineer, QA Engineer, Architect |
 | Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~400 | Architect, Software Engineer, Tech Writer |
 | Mutation Testing | `skills/mutation-testing/SKILL.md` | 700 | QA Engineer, Software Engineer |
 | Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, Platform Engineer, `/benchmark` command |
 | Performance Metrics | `skills/performance-metrics/SKILL.md` | 890 | Orchestrator |
 | Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | 900 | All agents |
-| Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~750 | `/test-modernize` (Phase 5), QA Engineer, Software Engineer |
+| Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~750 | `/test-improve` (Phase 6), QA Engineer, Software Engineer |
 | Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~4,500 | Orchestrator, Software Engineer, Architect |
 | Specs | `skills/specs/SKILL.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
 | Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 650 | Orchestrator, `/code-review` |
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 600 | Software Engineer, QA Engineer |
-| Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~650 | `/test-modernize` (Phase 3), QA Engineer |
+| Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~650 | Standalone worker; QA Engineer |
 | Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~700 | QA Engineer, Software Engineer, `/test-design` command |
 | Test Health | `skills/test-health/SKILL.md` | ~900 | QA Engineer, `/test-health` command |
-| Test Improve | `skills/test-improve/SKILL.md` | ~1200 | Orchestrator, QA Engineer, `/test-improve` command (replaces `/test-modernize` and `/test-upgrade`) |
-| Test Modernize | `skills/test-modernize/SKILL.md` | ~900 | Orchestrator, QA Engineer, `/test-modernize` command |
-| Test Upgrade | `skills/test-upgrade/SKILL.md` | ~900 | Orchestrator, QA Engineer, `/test-upgrade` command |
+| Test Improve | `skills/test-improve/SKILL.md` | ~1200 | Orchestrator, QA Engineer, `/test-improve` command |
 | Test-Driven Development | `skills/test-driven-development/SKILL.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
 | Threat Modeling | `skills/threat-modeling/SKILL.md` | 600 | Security Engineer, Architect |
 | Ubiquitous Language | `skills/ubiquitous-language/SKILL.md` | ~800 | Architect, domain-review, Product Manager |

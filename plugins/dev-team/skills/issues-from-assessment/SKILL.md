@@ -7,7 +7,7 @@ description: >-
   `gh`, `glab`, `acli`). When no parent URL is given, or when the required
   CLI is not installed, falls back to local plan files under
   `./plans/<workflow>/` after informing the operator. Multi-workflow: called
-  by `/test-modernize` (default) and `/test-improve`, each via its own
+  by `/test-improve` (Phase 3), via its own
   `--workflow` namespace so memory paths and tracker labels never collide.
 argument-hint: "<assessment-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--dry-run]"
 user-invocable: true
@@ -27,12 +27,12 @@ Arguments: $ARGUMENTS
 - Positional: `<assessment-path>` — the file `/cd-test-architecture` wrote (`reports/cd-test-architecture-<app>.md`).
 - `--parent <issue-url>` — parent issue / Feature / Epic URL. Empty or omitted → local-files mode.
 - `--repo-slug <slug>` — slug used for the `memory/<workflow>/<slug>/` namespace. Defaults to the assessment file's `<app>` token.
-- `--workflow <name>` — the workflow namespace under `memory/` and `./plans/`, and the leading tracker-label token. Defaults to `test-modernize` (the historical caller). `/test-improve` passes `test-improve` so its runs stay quarantined from any concurrent `/test-modernize` runs.
+- `--workflow <name>` — the workflow namespace under `memory/` and `./plans/`, and the leading tracker-label token. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
 - `--dry-run` — print the preview list and exit without creating anything.
 
 If `<assessment-path>` is absent or the file is missing, ask the operator to point at one.
 
-**Path + label templates.** Every filesystem path and every operator-visible tracker label in the Steps below carries `<workflow>` as a placeholder — the skill interpolates the resolved `--workflow` value at run time. There is no literal `test-modernize` in path or label strings; the historical name is only the default value of the argument.
+**Path + label templates.** Every filesystem path and every operator-visible tracker label in the Steps below carries `<workflow>` as a placeholder — the skill interpolates the resolved `--workflow` value at run time. No literal workflow name appears in a path or label string.
 
 ## Steps
 
@@ -204,7 +204,7 @@ Print:
 
 ## Examples / Integration
 
-- `/test-modernize` (default) invokes this worker without `--workflow`; paths resolve under `memory/test-modernize/<slug>/` and labels lead with `test-modernize`.
+- `/test-improve` invokes this worker with `--workflow test-improve` from its Phase 3; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.
 - `/test-improve` invokes this worker with `--workflow test-improve`; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`, keeping a mixed board unambiguous when both workflows are active.
 
 ## Notes
