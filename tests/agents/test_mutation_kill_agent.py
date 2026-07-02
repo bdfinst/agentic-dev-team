@@ -253,6 +253,31 @@ def test_go_runs_advisory_logs_does_not_commit(text: str) -> None:
     )
 
 
+def test_convergence_history_persisted_entry_shape_and_write_triggers(
+    text: str, flat: str
+) -> None:
+    """Slice 3, Step 3.1 (#682)."""
+    # Persisted file path.
+    assert re.search(r"mutation-kill-convergence\.json", text)
+    # Entry shape fields.
+    assert '"file"' in text
+    assert '"status"' in text
+    assert '"reason"' in text
+    assert '"commit"' in text
+    # Both write triggers: converged (survivors == 0) and excluded.
+    assert re.search(
+        r"survivors *== *0.*(write|record|entry)|"
+        r"(write|record|entry).*survivors *== *0",
+        flat,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"excluded.*(write|record|entry)|(write|record|entry).*excluded",
+        flat,
+        re.IGNORECASE,
+    )
+
+
 def test_registered_in_agent_registry() -> None:
     registry_text = REGISTRY.read_text(encoding="utf-8")
     assert "agents/mutation-kill.md" in registry_text
