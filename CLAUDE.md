@@ -5,7 +5,8 @@ This is the marketplace repository for the dev-team Claude Code plugin.
 ## Working Rules
 
 - **Always work on a branch.** Never commit directly to `main`. Every change — including documentation-only changes, gitignore tweaks, and one-line fixes — lands via a feature branch and a pull request. If a commit accidentally lands on `main` locally, reset `main` to `origin/main` and move the commit to a branch before pushing. Release commits authored by release-please are the only exception; they arrive as their own PR.
-- **Documentation-only PRs auto-merge.** When the diff touches only `*.md` files (plus `.gitignore`, `LICENSE`, or other non-shipping metadata) and changes no code, agent, skill, or hook, arm auto-merge at PR-open time: `gh pr merge <num> --auto --squash`. Required checks still run; the PR lands the moment they pass. Any PR that touches code, agents, skills, hooks, eval fixtures, or marketplace manifests requires explicit human merge.
+- **Rebase-only merges.** `main` is protected by a ruleset that requires **signed commits** and forbids force-pushes. GitHub's squash/merge-commit strategies synthesize new commits with no signature and are blocked by the ruleset; **rebase merge is the only strategy that lands PRs**. Configure your local git to sign commits (`git config --global commit.gpgsign true` plus a key) so every commit you push is `G`-verified — see `git log --pretty="%h %G? %s"` to check.
+- **Documentation-only PRs auto-merge.** When the diff touches only `*.md` files (plus `.gitignore`, `LICENSE`, or other non-shipping metadata) and changes no code, agent, skill, or hook, arm auto-merge at PR-open time: `gh pr merge <num> --auto --rebase`. Required checks still run; the PR lands the moment they pass. Any PR that touches code, agents, skills, hooks, eval fixtures, or marketplace manifests requires explicit human merge.
 
 ## Repository Structure
 
@@ -106,7 +107,10 @@ Releases are managed by release-please. Push conventional commits to main:
 
 A release PR is opened automatically. Merging it creates a GitHub Release with a version tag.
 
-**Squash-merge titles must be conventional.** This repo squash-merges PRs, so the **PR title is the only thing release-please reads** for the version bump — not the commit messages in the body. A PR titled `Add X` (no `feat:`/`fix:` prefix) is invisible to release-please and silently skips the version bump, even when its squashed body contains conventional commits. Title every PR conventionally. To recover a release that was missed this way, land a follow-up commit carrying a `Release-As: X.Y.Z` footer.
+**Every commit landed on `main` must be conventional.** This repo rebase-merges PRs (see [Working Rules](#working-rules) — squash and merge-commit are disabled because they synthesize unsigned commits that the branch ruleset rejects). Rebase-merge lands each PR commit on `main` verbatim, so **release-please reads every commit**, not just the PR title. Two consequences:
+
+- Squash your work-in-progress locally (`git rebase -i`) before opening the PR so only conventional-prefixed commits land — noise commits like `fix typo` or `wip` will confuse the changelog. Prefix genuinely non-shipping commits inside a PR with `chore:` so release-please ignores them.
+- If a release is silently missed (nothing conventional landed), recover with a follow-up commit carrying a `Release-As: X.Y.Z` footer.
 
 ## Cloud sessions (claude.ai/code)
 
