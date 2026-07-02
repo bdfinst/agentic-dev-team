@@ -314,13 +314,26 @@ DI wiring, exception handlers, and generated code produce mutations that no test
       "!**/*ExceptionFilter.cs",
       "!**/*ExceptionFormatter.cs",
       "!**/*LoggerService.cs",
-      "!**/*.Designer.cs"
+      "!**/*.Designer.cs",
+      "!**/Validators/AddressValidator.cs"
     ]
   }
 }
 ```
 
 Pairs with the mutation-kill agent's [infrastructure exclusion detection](../../../../agents/mutation-kill.md#infrastructure-exclusion-detection-before-the-loop-starts) — the agent flags candidates at baseline scan time; this template is what actually removes them from the mutation set.
+
+The last entry (`!**/Validators/AddressValidator.cs`) is a **convergence-derived**
+negation, not an infra-exclusion one — the mutation-kill agent's [convergence
+history](../../../../agents/mutation-kill.md#convergence-history-across---all-invocations)
+mechanism added it because that file already converged (or was excluded) at a
+recorded commit that still matches the file's current last-commit SHA. The two
+kinds of negation share the same `mutate` array but differ in permanence: the
+Startup/Program/Filter/etc. negations above are **permanent** (infrastructure
+never becomes testable by adding more tests), while convergence-derived
+negations like `AddressValidator.cs` are **re-checked on every `--all`
+invocation and can drop out** the moment the file's source changes — at that
+point the entry goes stale and the file re-enters scope automatically.
 
 ## Score formula and NoCoverage
 
