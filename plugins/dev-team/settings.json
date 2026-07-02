@@ -105,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/codegraph-nudge.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_NUDGE:-0}\" = \"1\" ]; then python3 hooks/codegraph_nudge.py; else bash hooks/codegraph-nudge.sh; fi'"
           }
         ]
       },
@@ -114,7 +114,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/codegraph-nudge.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_NUDGE:-0}\" = \"1\" ]; then python3 hooks/codegraph_nudge.py; else bash hooks/codegraph-nudge.sh; fi'"
           }
         ]
       },
@@ -123,7 +123,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/codegraph-nudge.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_NUDGE:-0}\" = \"1\" ]; then python3 hooks/codegraph_nudge.py; else bash hooks/codegraph-nudge.sh; fi'"
           }
         ]
       },
