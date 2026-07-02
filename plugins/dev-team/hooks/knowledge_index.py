@@ -22,12 +22,10 @@ Stdlib-only. Python 3.8+.
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 _HOOK_DIR = Path(__file__).resolve().parent
@@ -37,6 +35,7 @@ _LIB_DIR = _HOOK_DIR / "lib"
 sys.path.insert(0, str(_LIB_DIR))
 try:
     from knowledge_index_paths import is_corpus_path  # type: ignore[import-not-found]
+    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
     # Fail-open: if the shared lib is missing (should never happen in a
     # correctly installed plugin), treat every path as non-corpus and
@@ -44,23 +43,12 @@ except ImportError:  # pragma: no cover
     def is_corpus_path(_: str) -> bool:  # type: ignore[misc]
         return False
 
-
-def _read_stdin_json() -> Optional[dict]:
-    try:
-        raw = sys.stdin.read()
-    except OSError:
+    def read_stdin_json():  # type: ignore[misc]
         return None
-    if not raw.strip():
-        return None
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
 
 
 def main() -> int:
-    payload = _read_stdin_json()
+    payload = read_stdin_json()
     if payload is None:
         # Malformed/empty input — fail-open.
         return 0
