@@ -1,12 +1,14 @@
 # Python hook contract
 
 Phase 0 deliverable of the bash → Python hook migration ([#572]). Every
-Python hook that ships with the `dev-team` plugin — and every hook ported
-from bash during Phases 1–3 — MUST honor this contract byte-for-byte. The
-parity harness at `plugins/dev-team/tests/hooks/parity/` mechanically
-enforces it: for each hook it runs the `.sh` and the `.py` against
-identical `(stdin, env, argv, initial-tree)` fixtures and asserts equal
-stdout, exit code, normalized stderr, and side-effect tree.
+Python hook that ships with the `dev-team` plugin MUST honor this contract
+byte-for-byte. During the migration (Phases 1–3), the parity harness at
+`plugins/dev-team/tests/hooks/parity/` mechanically enforced it: for each
+hook it ran the `.sh` and the `.py` against identical
+`(stdin, env, argv, initial-tree)` fixtures and asserted equal stdout, exit
+code, normalized stderr, and side-effect tree. Every hook is now Python-only
+and the parity harness has been retired ([ADR 0015]); the contract below is
+enforced by `plugins/dev-team/tests/hooks/test_*.py` (pytest) instead.
 
 The contract mirrors the Claude Code hook payload conventions already in
 use by the bash hooks; nothing here is Python-specific except the
@@ -124,8 +126,9 @@ across macOS + Linux + Windows Git Bash.
 - **CLI with argparse** when a hook takes arguments; otherwise read stdin
   and dispatch on JSON fields.
 - **Tests: pytest.** Unit tests live under `plugins/dev-team/tests/hooks/`
-  (per-hook file). Parity fixtures live under
-  `plugins/dev-team/tests/hooks/parity/fixtures/<hook_name>/`.
+  (per-hook file). The `.sh`↔`.py` parity harness that once lived under
+  `plugins/dev-team/tests/hooks/parity/` was retired once every hook shipped
+  as Python-only ([ADR 0015]) — `test_*.py` is the coverage source of truth.
 - **Lint: ruff.** Type-check optional (`mypy` is not on the CI critical
   path).
 - **`main() -> int`** returns the exit code. A trailing
@@ -145,6 +148,8 @@ across macOS + Linux + Windows Git Bash.
 
 - [`#572`](https://github.com/bdfinst/agentic-dev-team/issues/572) — the
   migration epic.
+- [ADR 0015](adr/0015-bash-removal-complete.md) — the migration's
+  completion; retires the parity harness referenced above.
 - `plans/cached-inventing-wave.md` — Phase 0 architectural context.
 - `plugins/dev-team/hooks/lib/cost_meter.py`,
   `plugins/dev-team/hooks/lib/build_knowledge_index.py`,
