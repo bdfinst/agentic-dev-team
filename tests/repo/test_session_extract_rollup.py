@@ -72,7 +72,8 @@ def _seed_digests(tmp_path: Path) -> Path:
         '{"schema":"session-sync/v1","host":"boxA","project":"alpha","session_id":"s1",'
         '"tokens":{"input_tokens":1000,"output_tokens":100,"cache_read_input_tokens":400},'
         '"cost_usd":0.5,"rework":{"failed_edits":1},'
-        '"accuracy":{"tool_calls":10,"tool_error_rate":0.1,"user_correction_turns":1},'
+        '"accuracy":{"tool_calls":10,"tool_error_rate":0.1,"user_correction_turns":1,'
+        '"by_skill":{"plan":1},"by_agent":{"unattributed":1}},'
         '"utilization":{"skills_invoked":{"plan":1},"agents_invoked":{}}}\n'
         '{"schema":"session-sync/v1","host":"boxA","project":"beta","session_id":"s2",'
         '"tokens":{"input_tokens":2000,"output_tokens":200},"cost_usd":1.0,'
@@ -84,7 +85,8 @@ def _seed_digests(tmp_path: Path) -> Path:
         '{"schema":"session-sync/v1","host":"boxB","project":"alpha","session_id":"s3",'
         '"tokens":{"input_tokens":500,"output_tokens":50},"cost_usd":0.25,'
         '"rework":{"failed_edits":2},'
-        '"accuracy":{"tool_calls":4,"tool_error_rate":0.25,"user_correction_turns":0},'
+        '"accuracy":{"tool_calls":4,"tool_error_rate":0.25,"user_correction_turns":1,'
+        '"by_skill":{"code-review":1},"by_agent":{"software-engineer":1}},'
         '"utilization":{"skills_invoked":{"plan":2},"agents_invoked":{}}}\n'
     )
     return tmp_path / "digests"
@@ -130,6 +132,21 @@ def test_rollup_utilization_unions_invocations_and_never_observed(
     # set
     assert "plan" not in data["utilization"]["never_observed_skills"]
     assert len(data["utilization"]["never_observed_skills"]) > 5
+
+
+def test_rollup_accuracy_sums_correction_by_skill_and_by_agent_across_hosts(
+    tmp_path: Path,
+) -> None:
+    # #711: rollup must sum the per-session correction-attribution maps, and
+    # the summed total must equal the scalar user_correction_turns rollup.
+    digests = _seed_digests(tmp_path)
+    data = _rollup(digests)
+    accuracy = data["accuracy"]
+    assert accuracy["user_correction_turns"] == 2
+    assert accuracy["by_skill"] == {"code-review": 1, "plan": 1}
+    assert accuracy["by_agent"] == {"software-engineer": 1, "unattributed": 1}
+    assert sum(accuracy["by_skill"].values()) == accuracy["user_correction_turns"]
+    assert sum(accuracy["by_agent"].values()) == accuracy["user_correction_turns"]
 
 
 def test_rollup_a_session_id_seen_twice_is_deduped(tmp_path: Path) -> None:

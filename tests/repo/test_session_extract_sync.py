@@ -150,6 +150,52 @@ def test_sync_privacy_basename_only_no_full_paths_or_content(
     assert '"project": "alpha"' in text or '"project":"alpha"' in text
 
 
+def test_sync_record_carries_correction_by_skill_and_by_agent(
+    tmp_path: Path,
+) -> None:
+    # #711: sync_record's accuracy block must carry the full by_skill/by_agent
+    # correction-attribution maps through from the digest, not just the
+    # slimmed scalar.
+    projects = tmp_path / "projects"
+    proj = projects / "projC"
+    proj.mkdir(parents=True)
+    (proj / "sess-corr.jsonl").write_text(
+        '{"type":"assistant","cwd":"/home/u/work/gamma","sessionId":"s-corr",'
+        '"timestamp":"2026-06-07T10:00:00Z","message":{"content":'
+        '[{"type":"tool_use","id":"u1","name":"Skill",'
+        '"input":{"skill":"dev-team:plan"}}]}}\n'
+        '{"type":"user","cwd":"/home/u/work/gamma","sessionId":"s-corr",'
+        '"message":{"content":"No, actually revert that change"}}\n'
+    )
+    out = tmp_path / "digests" / "testhost" / "session-digest.jsonl"
+    watermark = tmp_path / "watermark.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(EXTRACT),
+            "--sync-out",
+            str(out),
+            "--watermark",
+            str(watermark),
+            "--projects-root",
+            str(projects),
+            "--host",
+            "testhost",
+            "--plugin-root",
+            str(PLUGIN),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    records = _records(out)
+    assert len(records) == 1
+    accuracy = records[0]["accuracy"]
+    assert accuracy["user_correction_turns"] == 1
+    assert accuracy["by_skill"] == {"plan": 1}
+    assert accuracy["by_agent"] == {"unattributed": 1}
+
+
 def test_all_projects_non_sync_digest_aggregates_sessions_across_projects(
     scratch: Dict[str, Path],
 ) -> None:
