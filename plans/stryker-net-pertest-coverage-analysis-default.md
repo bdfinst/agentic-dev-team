@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-02
 **Branch**: `docs/issue-669-stryker-net-pertest-default` (to be created from `origin/main`; current session branch `mutation` mirrors `main` exactly — confirm branching at the human gate before `/build`)
-**Status**: approved
+**Status**: implemented
 **Spec**: [docs/specs/stryker-net-pertest-coverage-analysis-default.md](../docs/specs/stryker-net-pertest-coverage-analysis-default.md)
 
 ## Goal
