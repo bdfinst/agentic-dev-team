@@ -1838,6 +1838,10 @@
       "summary": "Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan_waves.py`).",
       "anchor": "4-implement-each-step"
     },
+    "4.9. Verify runtime behavior before the slice is done (issue #727)": {
+      "summary": "A \"done\" step that only passed its own tests is not the same as a feature that works — a red suite catches structural regressions, not \"it fails the first time someone actually runs it.\" Once a slice's steps are all `[x]` (sub-step 5) and…",
+      "anchor": "49-verify-runtime-behavior-before-the-slice-is-done-issue-727"
+    },
     "5. Run full test suite": {
       "summary": "After all steps are complete, run the full test suite.",
       "anchor": "5-run-full-test-suite"
@@ -3899,6 +3903,10 @@
     "Review Value Entry (#348)": {
       "summary": "`/build` appends one entry per **inline review checkpoint** to",
       "anchor": "review-value-entry-348"
+    },
+    "Verify Log Entry (#727)": {
+      "summary": "`/build` appends one entry per **slice with a runtime surface** to",
+      "anchor": "verify-log-entry-727"
     },
     "When to Log": {
       "summary": "| Event | Action |",
