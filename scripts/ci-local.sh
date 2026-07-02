@@ -204,6 +204,31 @@ chk_eslint() {
     printf '%s∼ skipped (npx not found)%s\n' "$yellow" "$reset"
   fi
 }
+# Python-hook parity harness (#574 / #572 Phase 0). Runs pytest against
+# plugins/dev-team/tests/hooks/parity/ — the gate that mechanically enforces
+# byte-equal parity between each .sh hook and its .py port during the
+# parallel-ship migration.
+#
+# Backward-compatible: when the harness directory is absent (which can happen
+# on a fresh clone before Phase 0 lands, or on a shallow checkout that omits
+# the plugin's tests dir), the check reports a skip and exits 0 — a green CI
+# on those checkouts is still meaningful.
+chk_parity() {
+  local parity_dir="plugins/dev-team/tests/hooks/parity"
+  if [ ! -d "$parity_dir" ]; then
+    printf '%s∼ skipped (parity harness dir absent — %s)%s\n' "$yellow" "$parity_dir" "$reset"
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    printf '%s∼ skipped (python3 not on PATH)%s\n' "$yellow" "$reset"
+    return 0
+  fi
+  if ! python3 -c 'import pytest' >/dev/null 2>&1; then
+    printf '%s∼ skipped (pytest not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
+    return 0
+  fi
+  python3 -m pytest "$parity_dir"
+}
 
 # Ordered list of "label::function". Order defines both the replay order and the
 # summary order (declared order, independent of completion order).
@@ -226,6 +251,7 @@ CHECKS=(
   "nav integrity (mkdocs nav → assembled file)::chk_nav_integrity"
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"
+  "python-hook parity harness (pytest tests/hooks/parity)::chk_parity"
 )
 
 # --only=fn[,fn...] : keep just the named checks (CI invokes per-job subsets).

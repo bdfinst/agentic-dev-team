@@ -54,7 +54,13 @@ SKIP_FILENAMES = ("CHANGELOG.md",)
 # Synthetic project trees under here are eval scaffolding, not the repo's own
 # structure. Excluding them from the real-file index stops a descriptive path
 # (e.g. `.claude/skills/`) from coincidentally matching a fixture and false-firing.
-INDEX_EXCLUDE_PREFIXES = ("evals/fixtures/",)
+INDEX_EXCLUDE_PREFIXES = (
+    "evals/fixtures/",
+    # Parity fixtures seed runtime-shape files (e.g. StrykerOutput/…) into a
+    # sandbox tree. They are test scaffolding for the bash → python hook
+    # migration harness (#574), not references from the repo's own docs.
+    "plugins/dev-team/tests/hooks/parity/fixtures/",
+)
 
 PATH_EXTS = ("md", "json", "sh", "py", "svg", "tmpl", "txt", "yml", "yaml", "cfg")
 _EXT_ALT = "|".join(PATH_EXTS)
@@ -92,7 +98,7 @@ def _normalize(ref: str):
         return None
     if ref.startswith("~") or ref.startswith("/"):
         return None  # home-relative or absolute system paths: not repo references
-    body = ref[len(_PLUGIN_ROOT_VAR):] if ref.startswith(_PLUGIN_ROOT_VAR) else ref
+    body = ref[len(_PLUGIN_ROOT_VAR) :] if ref.startswith(_PLUGIN_ROOT_VAR) else ref
     if "$" in body or _NONLITERAL.search(body):
         return None  # other shell vars / globs / placeholders: not statically checkable
     is_dir = body.endswith("/")
@@ -117,7 +123,9 @@ def _present(base: str, rel: str, is_dir: bool, root: str, tracked: set):
 def _resolves(ref: str, file_dir: str, module_root: str, root: str, tracked: set):
     is_dir = ref.endswith("/")
     if ref.startswith(_PLUGIN_ROOT_VAR):
-        return _present(module_root, ref[len(_PLUGIN_ROOT_VAR):], is_dir, root, tracked)
+        return _present(
+            module_root, ref[len(_PLUGIN_ROOT_VAR) :], is_dir, root, tracked
+        )
     return (
         _present(file_dir, ref, is_dir, root, tracked)
         or _present(module_root, ref, is_dir, root, tracked)
@@ -135,7 +143,7 @@ def _module_root(path: str, root: str):
 
 def _ref_tail(ref: str):
     """The reference reduced to its meaningful path tail (no var, no ./.. prefix)."""
-    body = ref[len(_PLUGIN_ROOT_VAR):] if ref.startswith(_PLUGIN_ROOT_VAR) else ref
+    body = ref[len(_PLUGIN_ROOT_VAR) :] if ref.startswith(_PLUGIN_ROOT_VAR) else ref
     parts = [p for p in body.strip("/").split("/") if p not in (".", "..")]
     return "/".join(parts)
 
@@ -149,7 +157,9 @@ def _real_file_list(root: str):
     try:
         out = subprocess.run(
             ["git", "-C", root, "ls-files"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
         files = [f for f in out.splitlines() if f.strip()]
         if files:
@@ -160,7 +170,9 @@ def _real_file_list(root: str):
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [x for x in dirnames if x not in (".git", "node_modules")]
         for fn in filenames:
-            files.append(os.path.relpath(os.path.join(dirpath, fn), root).replace(os.sep, "/"))
+            files.append(
+                os.path.relpath(os.path.join(dirpath, fn), root).replace(os.sep, "/")
+            )
     return files
 
 
@@ -256,15 +268,21 @@ def _iter_md_files(root: str):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", default=None, help="repo root (default: git toplevel)")
+    parser.add_argument(
+        "--root", default=None, help="repo root (default: git toplevel)"
+    )
     args = parser.parse_args(argv)
 
     root = args.root
     if root is None:
-        root = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True,
-        ).stdout.strip() or "."
+        root = (
+            subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            or "."
+        )
     root = os.path.abspath(root)
 
     tracked = _tracked_paths(root)
