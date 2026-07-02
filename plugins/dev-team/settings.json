@@ -194,7 +194,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/codegraph-turn-mark.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_TURN_MARK:-0}\" = \"1\" ]; then python3 hooks/codegraph_turn_mark.py; else bash hooks/codegraph-turn-mark.sh; fi'"
           }
         ]
       }
