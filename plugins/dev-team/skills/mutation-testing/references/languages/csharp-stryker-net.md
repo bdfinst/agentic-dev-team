@@ -73,7 +73,7 @@ The four steps above defend against the *fake-100 %-via-Timeout* variant of the 
 
 For Stryker.NET projects that are **not** on xunit.v3 / the MTP runner (see the [xunit.v3 detection](#xunitv3-detection-do-this-before-configuring-runs) section above, which stays mandatory for those projects), default `"coverage-analysis": "perTest"` in `stryker-config.json` rather than `"off"`. Per-test coverage tracking lets each mutant run only the tests that actually exercise the mutated line, instead of the full suite — a significant speedup on large suites.
 
-[#669](https://github.com/bdfinst/agentic-dev-team/issues/669) validated this against an xunit.v2-shim repo (the shim workaround from #554/#557, above) at two points, checking the two failure modes a static-analysis-based coverage tool is prone to:
+[#669](https://github.com/bdfinst/agentic-dev-team/issues/669) validated this against an xunit.v2-shim repo (the shim workaround from #554/#557, described in the [SolutionPath trap](#solutionpath-trap) section below) at two points. It specifically checked the two failure modes a static-analysis-based coverage tool is prone to:
 
 - **Reflection** (`MethodInfo.Invoke`) — a test invoking a private method via reflection correctly killed its target mutant under `perTest`.
 - **Container-resolution DI** (Autofac `container.Resolve<T>()`) — 14 tests building a real Autofac container and resolving decorated services were correctly attributed as covering the registration statements they exercise.
