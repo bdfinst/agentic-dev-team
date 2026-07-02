@@ -25,7 +25,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/codegraph-bootstrap.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_BOOTSTRAP:-0}\" = \"1\" ]; then python3 hooks/codegraph_bootstrap.py; else bash hooks/codegraph-bootstrap.sh; fi'"
           }
         ]
       }
