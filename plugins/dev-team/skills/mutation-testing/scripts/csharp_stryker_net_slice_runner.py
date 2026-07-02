@@ -491,6 +491,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     states: Dict[str, str] = {name: "queued" for name in order}
     exit_codes: Dict[str, int] = {}
 
+    # ---- Install signal handlers now that we're about to spawn a fleet of
+    # concurrent Stryker subprocesses (one per in-flight slice). This reuses
+    # the wrapper's own SIGINT/SIGTERM handler, which terminates every Popen
+    # tracked in wrapper._RUNNING_STRYKER_PROCS — a set shared across every
+    # ThreadPoolExecutor worker thread below, so Ctrl-C / SIGTERM kills ALL
+    # still-running slices, not just one (#732). Save/restore previous
+    # handlers exactly as wrapper.main() does, so library-style callers
+    # (e.g. pytest) don't inherit our handlers past this call.
+    previous_signal_handlers = wrapper._install_signal_handlers()
+    interrupted = False
     try:
         with ThreadPoolExecutor(max_workers=max(1, parallel_slices)) as pool:
             futures = {}
@@ -512,8 +522,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 exit_codes[name] = future.result()
                 states[name] = "done" if exit_codes[name] == 0 else "failed"
                 print(format_progress_line(order, states))
+    except KeyboardInterrupt:
+        # SIGINT/SIGTERM propagated through the signal handlers, which have
+        # already terminate()'d every live Stryker subprocess across all
+        # slice worker threads. Fall through to fleet-level .sln restoration
+        # below rather than let this escape uncaught.
+        interrupted = True
+        sys.stderr.write("mutation slice run interrupted; restoring .sln\n")
     finally:
         wrapper.restore_sln(sln, sln_hidden)
+        wrapper._restore_signal_handlers(previous_signal_handlers)
+
+    if interrupted:
+        return 130
 
     # ---- Aggregate roll-up ----
     summaries = {}

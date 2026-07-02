@@ -573,6 +573,94 @@ class TestConcurrencyOverride:
 
 
 # =============================================================================
+# Concurrent run_stryker() tracking — slice-level parallelism (#561, #732)
+# =============================================================================
+# csharp_stryker_net_slice_runner.py calls wrapper.run_stryker() concurrently
+# from multiple ThreadPoolExecutor worker threads (one per in-flight slice).
+# The signal handler's job is to terminate every live Stryker subprocess, not
+# just whichever slice happens to be the last one to register. These tests
+# use fake Popen-like objects (no real dotnet/Stryker process) so they run
+# everywhere, unconditionally — no opt-in env var required.
+class _FakePopen:
+    """Stand-in for subprocess.Popen: blocks in wait() until terminate() (or
+    an external release()) fires, and counts terminate() calls.
+    """
+
+    def __init__(self):
+        self._terminated = threading.Event()
+        self.terminate_calls = 0
+
+    def poll(self):
+        return 0 if self._terminated.is_set() else None
+
+    def terminate(self):
+        self.terminate_calls += 1
+        self._terminated.set()
+
+    def wait(self, timeout=None):
+        self._terminated.wait(timeout)
+        return 0 if self._terminated.is_set() else None
+
+
+class TestConcurrentRunStrykerTracking:
+    def test_signal_handler_terminates_every_concurrently_running_slice(
+        self, tmp_path, monkeypatch
+    ):
+        fake_procs: list[_FakePopen] = []
+        registry_lock = threading.Lock()
+
+        def fake_popen(*args, **kwargs):
+            proc = _FakePopen()
+            with registry_lock:
+                fake_procs.append(proc)
+            return proc
+
+        monkeypatch.setattr(wrapper.subprocess, "Popen", fake_popen)
+
+        # Two "slices" call run_stryker() concurrently, exactly as two
+        # ThreadPoolExecutor workers would. daemon=True so that if the bug
+        # under test leaves one of them permanently blocked in proc.wait(),
+        # the test process can still exit instead of hanging CI forever —
+        # the ``assert`` below is what should fail, not the process itself.
+        threads = [
+            threading.Thread(
+                target=wrapper.run_stryker,
+                kwargs=dict(
+                    stryker_bin="fake-stryker",
+                    stryker_args=[],
+                    logfile=tmp_path / f"slice-{i}.log",
+                ),
+                daemon=True,
+            )
+            for i in range(2)
+        ]
+        for t in threads:
+            t.start()
+
+        # Wait until both fake subprocesses are registered and blocked.
+        for _ in range(200):
+            with registry_lock:
+                if len(fake_procs) == 2:
+                    break
+            time.sleep(0.01)
+        assert len(fake_procs) == 2, "both slices should have spawned a process"
+
+        previous = wrapper._install_signal_handlers()
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                os.kill(os.getpid(), signal.SIGINT)
+        finally:
+            wrapper._restore_signal_handlers(previous)
+
+        for t in threads:
+            t.join(timeout=5)
+            assert not t.is_alive()
+
+        # Every live slice process must be terminated — not just one of them.
+        assert [p.terminate_calls for p in fake_procs] == [1, 1]
+
+
+# =============================================================================
 # Signal handling — POSIX only
 # =============================================================================
 # Windows signal semantics differ fundamentally from POSIX:

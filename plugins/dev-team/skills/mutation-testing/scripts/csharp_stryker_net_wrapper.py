@@ -36,6 +36,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -261,6 +262,14 @@ def run_stryker(stryker_bin: str, stryker_args: Sequence[str], logfile: Path) ->
     Popen child inherits the process group by default — a tty Ctrl-C reaches
     both. On explicit `signal` from a parent process manager, main()'s signal
     handlers intercept and terminate the child before re-raising.
+
+    Thread-safety: csharp_stryker_net_slice_runner.py's slice-level
+    parallelism (#561) calls this function concurrently from multiple
+    ThreadPoolExecutor worker threads — one live Stryker subprocess per
+    in-flight slice at once. Every live Popen is tracked in the shared,
+    lock-guarded ``_RUNNING_STRYKER_PROCS`` set (not a single-slot global) so
+    the signal handler can terminate all of them, not just whichever slice
+    last registered (#732).
     """
     logfile.parent.mkdir(parents=True, exist_ok=True)
     with logfile.open("wb") as log:
@@ -270,21 +279,30 @@ def run_stryker(stryker_bin: str, stryker_args: Sequence[str], logfile: Path) ->
             stderr=subprocess.STDOUT,
         )
         # Track for signal handlers.
-        _RUNNING_STRYKER["proc"] = proc
+        with _RUNNING_STRYKER_LOCK:
+            _RUNNING_STRYKER_PROCS.add(proc)
         try:
             return proc.wait()
         finally:
-            _RUNNING_STRYKER["proc"] = None
+            with _RUNNING_STRYKER_LOCK:
+                _RUNNING_STRYKER_PROCS.discard(proc)
 
 
-_RUNNING_STRYKER: dict[str, Optional[subprocess.Popen]] = {"proc": None}
+# Guards _RUNNING_STRYKER_PROCS, which holds every currently-running Stryker
+# Popen across all worker threads (one per in-flight slice under #561's
+# slice-level parallelism). A plain set is not thread-safe on its own; the
+# lock makes add/discard/snapshot atomic with respect to the signal handler.
+_RUNNING_STRYKER_LOCK = threading.Lock()
+_RUNNING_STRYKER_PROCS: set[subprocess.Popen] = set()
 
 
 def _install_signal_handlers() -> list[tuple[int, object]]:
-    """Install SIGINT + SIGTERM handlers that terminate any running Stryker
-    subprocess before re-raising KeyboardInterrupt / exiting. On Windows,
-    SIGTERM is delivered as SIGBREAK — signal.signal accepts SIGTERM but
-    doesn't actually receive it; we register SIGBREAK too where available.
+    """Install SIGINT + SIGTERM handlers that terminate every currently-
+    running Stryker subprocess (there may be several concurrently, one per
+    in-flight slice under #561's slice-level parallelism) before re-raising
+    KeyboardInterrupt / exiting. On Windows, SIGTERM is delivered as
+    SIGBREAK — signal.signal accepts SIGTERM but doesn't actually receive it;
+    we register SIGBREAK too where available.
 
     Returns a list of (signum, previous_handler) tuples so ``main()`` can
     restore the process's prior handlers on exit. This matters when
@@ -295,12 +313,14 @@ def _install_signal_handlers() -> list[tuple[int, object]]:
     """
 
     def _handler(signum: int, _frame) -> None:
-        proc = _RUNNING_STRYKER.get("proc")
-        if proc and proc.poll() is None:
-            try:
-                proc.terminate()
-            except Exception:
-                pass
+        with _RUNNING_STRYKER_LOCK:
+            procs = list(_RUNNING_STRYKER_PROCS)
+        for proc in procs:
+            if proc.poll() is None:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
         # Re-raise as KeyboardInterrupt for main()'s finally to fire cleanly.
         raise KeyboardInterrupt(f"signal {signum}")
 
