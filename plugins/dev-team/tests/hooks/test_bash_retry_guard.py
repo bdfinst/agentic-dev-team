@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -221,6 +222,31 @@ def test_missing_session_id_falls_back_to_cwd_hash(tmp_path: Path) -> None:
 
 
 # --- whitespace normalization ---------------------------------------------
+
+
+def test_purges_stale_state_files_older_than_ttl(tmp_path: Path) -> None:
+    """State files never got a TTL purge (unlike tdd_guard.py/
+    mutation_adapters/lib.py's `_purge_stale`) — old per-session state files
+    accumulated in $TMPDIR/dev-team-bash-retry forever."""
+    state_dir = tmp_path / "dev-team-bash-retry"
+    state_dir.mkdir(parents=True)
+
+    stale = state_dir / "old-session.json"
+    stale.write_text('{"hash":"deadbeef","count":1}')
+    old_time = time.time() - (241 * 60)  # just over a 4h TTL
+    os.utime(stale, (old_time, old_time))
+
+    fresh = state_dir / "recent-session.json"
+    fresh.write_text('{"hash":"cafef00d","count":1}')
+
+    _run(
+        {"session_id": "sess-purge", "tool_input": {"command": "curl example.com"}},
+        env={},
+        tmpdir=tmp_path,
+    )
+
+    assert not stale.exists(), "stale state file should be purged on write"
+    assert fresh.exists(), "recently-touched state file should survive purge"
 
 
 def test_whitespace_variations_hash_identically(tmp_path: Path) -> None:
