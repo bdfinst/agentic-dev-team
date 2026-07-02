@@ -197,14 +197,46 @@ print(p.split('/**')[0])
 done
 ```
 
-## Shipped wrapper — copy both files together
+## Shipped wrapper — Python (recommended) or bash
 
-The plugin ships two operational helper scripts under `plugins/dev-team/skills/mutation-testing/scripts/`:
+The plugin ships two implementations of the wrapper + status loop under `plugins/dev-team/skills/mutation-testing/scripts/`:
 
-- **`csharp-stryker-net-wrapper.sh`** — hides `.sln` during the run + trap-restores it on any exit path (EXIT / INT / TERM), exports `DOTNET_ROOT` (Homebrew macOS default; respects a pre-set value), pre-builds `${SLN}` and optional `${SHIM_PROJECT}` **before** hiding, backgrounds Stryker so a wrapper-side SIGINT/SIGTERM kills the child too (no orphans), and redirects with `> "$LOGFILE" 2>&1` (never bare `| tee`).
-- **`csharp-stryker-net-status-loop.sh`** — status + red-flag inspection loop sourced by the wrapper. Ticks every `STATUS_INTERVAL` seconds emitting one status record plus zero-or-more `[RED-FLAG]` lines when known-broken patterns are observed (mutation-switch not observing; CompileError count over threshold; SolutionPath trap; Stryker died mid-run; parser drift).
+- **`csharp_stryker_net_wrapper.py`** + **`csharp_stryker_net_status_loop.py`** — **the recommended path**. Cross-platform authoritative: same code runs identically on macOS, Linux, Windows Git Bash, and native Windows via Python 3.8+'s stdlib. No shell-tooling divergence. Requires only `python3` on PATH.
+- `csharp-stryker-net-wrapper.sh` + `csharp-stryker-net-status-loop.sh` — the original bash implementation. Verified working on macOS + Linux + Windows Git Bash (see #567). Kept alongside the Python versions for one release cycle before removal per the [bash → Python migration epic](https://github.com/bdfinst/agentic-dev-team/issues/572).
 
-**Copy BOTH files together** into your repo's `scripts/` directory. The wrapper `. "$(dirname "${BASH_SOURCE[0]}")/csharp-stryker-net-status-loop.sh"` — copying only the wrapper hard-fails at `set -e` on the missing `source` when `STATUS_INTERVAL > 0` (the default). If you deliberately want the wrapper without the loop, set `STATUS_INTERVAL=0` in the header vars to disable the loop entirely; the source call is guarded on that check.
+### Python wrapper — copy one file
+
+Copy `csharp_stryker_net_wrapper.py` AND `csharp_stryker_net_status_loop.py` into your repo's `scripts/` directory. The wrapper imports the status loop by module name; both files must sit next to each other so Python can find the loop on `sys.path`.
+
+Run in place of a bare `dotnet stryker`:
+
+```bash
+python3 scripts/csharp_stryker_net_wrapper.py \
+  --sln Foo.sln \
+  --shim-project tests/Foo.Tests.Mutation/Foo.Tests.Mutation.csproj \
+  --stryker-bin dotnet-stryker \
+  --logfile StrykerOutput/wrapper.log \
+  --config-file stryker-config.json \
+  --mutate "**/Validators/**/*.cs" \
+  -O StrykerOutput/slice-validators
+```
+
+CLI flags (all optional; every one accepts an environment-variable equivalent so header-var configuration is preserved):
+
+| Flag | Env var | Default |
+| --- | --- | --- |
+| `--sln PATH` | `SLN` | `Foo.sln` |
+| `--shim-project PATH` | `SHIM_PROJECT` | (empty; no shim) |
+| `--stryker-bin CMD` | `STRYKER_BIN` | `dotnet-stryker` |
+| `--logfile PATH` | `LOGFILE` | `StrykerOutput/wrapper.log` |
+
+Everything after those flags forwards to Stryker unchanged.
+
+`DOTNET_ROOT` is auto-probed across the standard install locations on all supported platforms; a pre-set value is respected. When no SDK is found the wrapper exits 3 with an actionable message.
+
+### Bash wrapper — copy both files together
+
+The bash version remains available. **Copy BOTH files together** into your repo's `scripts/` directory. The wrapper sources the status loop via `. "$(dirname "${BASH_SOURCE[0]}")/csharp-stryker-net-status-loop.sh"` — copying only the wrapper hard-fails at `set -e` on the missing `source` when `STATUS_INTERVAL > 0` (the default). If you deliberately want the wrapper without the loop, set `STATUS_INTERVAL=0` in the header vars.
 
 Header vars (edit at the top of the wrapper for your repo):
 
@@ -224,7 +256,7 @@ Run it in place of a bare `dotnet stryker`:
   --mutate "**/Validators/**/*.cs" -O StrykerOutput/slice-validators
 ```
 
-The wrapper forwards `"$@"` to Stryker unchanged.
+The wrapper forwards `"$@"` to Stryker unchanged. Same contract as the Python version — same 5-detector red-flag set in the status loop, same `.sln` trap-restore, same exit codes.
 
 ## Incremental runs with `--since`
 
