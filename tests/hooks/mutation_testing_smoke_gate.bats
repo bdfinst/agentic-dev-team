@@ -395,3 +395,76 @@ _write_report_raw() {
   _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
   ! echo "$output" | grep -q "no scored mutants"
 }
+
+# =============================================================================
+# Step 1.4 — registration + documentation source-lint
+# =============================================================================
+
+SETTINGS_JSON="$REPO_ROOT/plugins/dev-team/settings.json"
+SKILL_MD="$REPO_ROOT/plugins/dev-team/skills/mutation-testing/SKILL.md"
+CSHARP_MD="$REPO_ROOT/plugins/dev-team/skills/mutation-testing/references/languages/csharp-stryker-net.md"
+
+@test "settings.json: registers mutation-testing-smoke-gate.sh under PreToolUse.Bash" {
+  # PreToolUse can have multiple matcher blocks; find the one with matcher=Bash
+  # and confirm one of its hook commands references our script.
+  run jq -e '
+    (.hooks.PreToolUse // [])[]?
+    | select(.matcher == "Bash")
+    | .hooks[]?.command
+    | select(test("mutation-testing-smoke-gate\\.sh"))
+  ' "$SETTINGS_JSON"
+  [ "$status" -eq 0 ]
+}
+
+@test "settings.json: remains valid JSON" {
+  run jq empty "$SETTINGS_JSON"
+  [ "$status" -eq 0 ]
+}
+
+@test "SKILL.md Step 1c names the smoke-gate hook" {
+  run awk '
+    /^```/                     { code = !code; next }
+    !code && /^## Step 1c/     { f=1; next }
+    !code && /^## /            { f=0 }
+    f && /mutation-testing-smoke-gate/ { found=1 }
+    END                        { exit !found }
+  ' "$SKILL_MD"
+  [ "$status" -eq 0 ]
+}
+
+@test "SKILL.md Step 1c documents -O StrykerOutput/smoke path convention" {
+  run awk '
+    /^```/                     { code = !code; next }
+    !code && /^## Step 1c/     { f=1; next }
+    !code && /^## /            { f=0 }
+    f && /StrykerOutput\/smoke/ { found=1 }
+    END                        { exit !found }
+  ' "$SKILL_MD"
+  [ "$status" -eq 0 ]
+}
+
+@test "SKILL.md Step 1c documents MUTATION_SMOKE_GATE_SKIP=1 escape hatch" {
+  run awk '
+    /^```/                     { code = !code; next }
+    !code && /^## Step 1c/     { f=1; next }
+    !code && /^## /            { f=0 }
+    f && /MUTATION_SMOKE_GATE_SKIP/ { found=1 }
+    END                        { exit !found }
+  ' "$SKILL_MD"
+  [ "$status" -eq 0 ]
+}
+
+@test "SKILL.md Step 1c documents metrics/gate-bypass.jsonl audit path" {
+  run awk '
+    /^```/                     { code = !code; next }
+    !code && /^## Step 1c/     { f=1; next }
+    !code && /^## /            { f=0 }
+    f && /gate-bypass\.jsonl/  { found=1 }
+    END                        { exit !found }
+  ' "$SKILL_MD"
+  [ "$status" -eq 0 ]
+}
+
+@test "csharp-stryker-net.md mentions the smoke-gate hook" {
+  grep -q "mutation-testing-smoke-gate" "$CSHARP_MD"
+}
