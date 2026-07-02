@@ -166,6 +166,8 @@ None. Both findings (perTest-default guidance, CLI-flag correction) deliver obse
 - **Section placement.** Placing the new section directly after "xunit.v3 detection" assumes a reader scans coverage-analysis guidance top-down from that point. Low risk — matches the spec's architecture note.
 - **File-size trend.** `csharp-stryker-net.md` is already 368 lines — 4-5x longer than its sibling per-language references (`javascript-stryker.md` 71, `java-pitest.md` 77, `python-mutmut.md` 66, `go-go-mutesting.md` 95 lines) and already carries a dozen-plus distinct responsibilities. This plan adds one more top-level section; post-change size stays well under the repo's 500-line file-length ceiling, so not a blocker, but treat this file as approaching a natural split point — a future issue splitting it (e.g. a dedicated coverage-analysis or troubleshooting sub-doc) should be filed once it nears ~450 lines rather than continuing to concatenate indefinitely.
 - **Adapter invocation shape unverified.** The "harmless no-op" scope-exclusion for `stryker_net.py`'s existing `--coverage-analysis perTest` CLI arg (the sole Stryker.NET adapter — the legacy bash `stryker-net.sh` no longer exists post-ADR-0015) rests on #669's general `--help`-confirmed finding, not on re-running the adapter's exact invocation combination (`--coverage-analysis perTest` alongside `--config-file`/`--mutate`/`--output`/`--since`). Treat as a documented assumption, not a re-verified fact — file a follow-up issue if this combination is ever observed to behave differently.
+- **Pre-existing DOTNET_ROOT preamble duplication (out of scope, deferred).** The final `/code-review` pass (structure-review) flagged that the `export DOTNET_ROOT=...` + `dotnet build` preamble is copy-pasted verbatim across 8 fenced bash blocks in `csharp-stryker-net.md` — a real DRY issue, but pre-existing (not introduced by this diff) and unrelated to issue #669. Fixing it would mean editing content across the whole file, well beyond this plan's narrow scope. Deferred as a follow-up issue candidate rather than fixed here.
+- **Throwaway check-script complexity (out of scope, deferred).** complexity-review flagged `plans/checks/stryker_net_pertest_check.py`'s `check_step_1` as ~90 lines / high cyclomatic complexity. Accepted as-is: the script is disposable verification tooling for this one plan, not shipped code, and refactoring it into per-item helper functions would be effort spent with no shipped-value.
 
 ## Build Progress
 
@@ -173,7 +175,7 @@ None. Both findings (perTest-default guidance, CLI-flag correction) deliver obse
 
 #### Wave 1
 
-- [ ] Slice 1: Add perTest-default guidance and correct the CLI-flag examples (Steps 1.1/1.2 done; 1.3 pending)
+- [ ] Slice 1: Add perTest-default guidance and correct the CLI-flag examples (Steps 1.1/1.2 done; 1.3 — PR opening — pending, owned by `/pr`)
   - [x] Step 1.1: Add the "Default coverage-analysis: perTest" section
   - [x] Step 1.2: Correct the two CLI examples that misdescribe `--coverage-analysis` as a flag
   - [ ] Step 1.3: Run /agent-audit and open the PR with auto-merge armed
