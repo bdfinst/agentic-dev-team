@@ -656,10 +656,17 @@ def rollup(digests_root: Path, registry: dict) -> dict:
         for name, k in (acc.get("by_agent", {}) or {}).items():
             correction_by_agent[name] += k
         u = r.get("utilization", {}) if isinstance(r.get("utilization"), dict) else {}
+        # Re-strip namespace prefixes at rollup time too: historical per-session
+        # digests may have been written before `_strip_ns` existed (or before a
+        # given prefix was added to its known list), so a raw `agentic-dev-team:x`
+        # key can coexist with an already-stripped `x` key across different hosts'
+        # digest files. Without renormalizing here, `x` is undercounted and can
+        # wrongly surface in never_observed_* even though it was actually invoked
+        # (#712).
         for name, k in (u.get("skills_invoked", {}) or {}).items():
-            skills_invoked[name] += k
+            skills_invoked[_strip_ns(name)] += k
         for name, k in (u.get("agents_invoked", {}) or {}).items():
-            agents_invoked[name] += k
+            agents_invoked[_strip_ns(name)] += k
 
     never_skills = sorted(set(registry.get("skills", [])) - set(skills_invoked))
     never_agents = sorted(set(registry.get("agents", [])) - set(agents_invoked))
