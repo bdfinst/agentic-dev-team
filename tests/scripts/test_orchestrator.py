@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -77,9 +78,28 @@ async def test_classify_standard_calls_research_phase():
 
 @pytest.mark.asyncio
 async def test_classify_fallback_on_llm_unavailable():
-    """When claude is not on PATH, classify() must return standard (safe default)."""
+    """When `claude` is not on PATH, subprocess.run raises FileNotFoundError;
+    classify() must catch it and fall back to the exact safe default."""
+    with patch.object(orch.subprocess, "run", side_effect=FileNotFoundError):
+        result = await orch.classify("do something", skip_llm=False)
+    assert result == {"size": "standard"}
+
+
+@pytest.mark.skipif(
+    os.environ.get("ORCHESTRATOR_REAL_SUBPROCESS_TESTS") != "1",
+    reason=(
+        "shells out to the real `claude` CLI with a 30s timeout and its "
+        "outcome/latency/cost vary by host; opt in with "
+        "ORCHESTRATOR_REAL_SUBPROCESS_TESTS=1 on a host with `claude` on "
+        "PATH. Mirrors the opt-in pattern in "
+        "test_csharp_stryker_net_wrapper.py's TestSignalHandlingPOSIX."
+    ),
+)
+@pytest.mark.asyncio
+async def test_classify_real_subprocess_returns_valid_size():
+    """Real-subprocess probe: classify() against the actual `claude` CLI
+    must still return a dict with a valid 'size', whatever the classification."""
     result = await orch.classify("do something", skip_llm=False)
-    # claude may or may not be available; either way must return a dict with 'size'
     assert "size" in result
     assert result["size"] in ("trivial", "standard", "complex")
 
