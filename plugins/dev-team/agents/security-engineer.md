@@ -1,6 +1,6 @@
 ---
 name: security-engineer
-description: Threat modeling, security analysis, vulnerability assessment, and secure design guidance
+description: Design-time threat modeling and secure-architecture guidance before code exists — dispatch when a task touches authentication, authorization, cryptography, session management, or secrets handling, introduces a new external integration or API surface, or the user asks to "threat model this", "design this securely", or "what's the attack surface here". Not the same as security-review, which scans an already-written diff during code review
 tools: Read, Grep, Glob, Bash, Skill
 effort: high
 ---

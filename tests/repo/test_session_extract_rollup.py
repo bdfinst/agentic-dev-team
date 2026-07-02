@@ -165,6 +165,41 @@ def test_rollup_a_session_id_seen_twice_is_deduped(tmp_path: Path) -> None:
     assert data["sessions"] == 3
 
 
+def test_rollup_renormalizes_legacy_unstripped_namespace_prefixes(
+    tmp_path: Path,
+) -> None:
+    """#712: a per-session digest written before `_strip_ns` existed (or before
+    a prefix was added to its known list) can carry a raw `agentic-dev-team:x`
+    key in `utilization.agents_invoked`/`skills_invoked` alongside an
+    already-stripped `x` key from a newer digest. `rollup` must fold both into
+    the same bare registry name — summing them and excluding it from
+    never_observed — rather than treating them as two distinct, separately
+    under-counted entries."""
+    digests = tmp_path / "digests" / "boxA"
+    digests.mkdir(parents=True)
+    (digests / "session-digest.jsonl").write_text(
+        '{"schema":"session-sync/v1","host":"boxA","project":"alpha","session_id":"s1",'
+        '"tokens":{"input_tokens":100,"output_tokens":10},"cost_usd":0.1,'
+        '"rework":{},"accuracy":{"tool_calls":1,"tool_error_rate":0,'
+        '"user_correction_turns":0},'
+        '"utilization":{"skills_invoked":{},'
+        '"agents_invoked":{"agentic-dev-team:product-manager":6}}}\n'
+        '{"schema":"session-sync/v1","host":"boxA","project":"alpha","session_id":"s2",'
+        '"tokens":{"input_tokens":100,"output_tokens":10},"cost_usd":0.1,'
+        '"rework":{},"accuracy":{"tool_calls":1,"tool_error_rate":0,'
+        '"user_correction_turns":0},'
+        '"utilization":{"skills_invoked":{},'
+        '"agents_invoked":{"product-manager":2}}}\n'
+    )
+    data = _rollup(tmp_path / "digests")
+    # both the legacy-prefixed and already-stripped records fold into one key
+    assert data["utilization"]["agents_invoked"]["product-manager"] == 8
+    assert (
+        "agentic-dev-team:product-manager" not in data["utilization"]["agents_invoked"]
+    )
+    assert "product-manager" not in data["utilization"]["never_observed_agents"]
+
+
 def test_rollup_empty_missing_dir_yields_a_well_formed_empty_rollup(
     tmp_path: Path,
 ) -> None:
