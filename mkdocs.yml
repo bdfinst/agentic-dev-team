@@ -13,156 +13,157 @@ site_dir: site
 # step; this block keeps the build's own diagnostics visible. Cross-tree body
 # links to files outside the assembled site (scripts/, sibling plugins) only warn.
 validation:
-    nav:
-        not_found: warn
-        omitted_files: info
-    links:
-        not_found: warn
-        anchors: warn
-        absolute_links: warn
+  nav:
+    not_found: warn
+    omitted_files: info
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: warn
 
 extra_css:
-    - stylesheets/sidebar.css
+  - stylesheets/sidebar.css
 
 theme:
-    name: material
-    palette:
-        - media: "(prefers-color-scheme: light)"
-          scheme: default
-          primary: indigo
-          accent: indigo
-          toggle:
-              icon: material/brightness-7
-              name: Switch to dark mode
-        - media: "(prefers-color-scheme: dark)"
-          scheme: slate
-          primary: indigo
-          accent: indigo
-          toggle:
-              icon: material/brightness-4
-              name: Switch to light mode
-    features:
-        - navigation.tabs
-        - navigation.tabs.sticky
-        - navigation.sections
-        - navigation.expand
-        - navigation.top
-        - search.highlight
-        - search.share
-        - content.action.edit
-        - content.code.copy
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.action.edit
+    - content.code.copy
 
 plugins:
-    - search
+  - search
 
 markdown_extensions:
-    - admonition
-    - pymdownx.details
-    - pymdownx.superfences:
-          # Render ```mermaid fences as diagrams. Material for MkDocs loads
-          # Mermaid.js automatically once this custom fence is declared.
-          custom_fences:
-              - name: mermaid
-                class: mermaid
-                format: !!python/name:pymdownx.superfences.fence_code_format
-    - pymdownx.highlight:
-          anchor_linenums: true
-    - pymdownx.inlinehilite
-    - pymdownx.snippets
-    - pymdownx.tabbed:
-          alternate_style: true
-    - toc:
-          permalink: true
-    - tables
-    - attr_list
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      # Render ```mermaid fences as diagrams. Material for MkDocs loads
+      # Mermaid.js automatically once this custom fence is declared.
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+  - tables
+  - attr_list
 
 nav:
-    - Home: README.md
-    - Getting Started: GETTING-STARTED.md
-    - Contributing: CONTRIBUTING.md
+  - Home: README.md
+  - Getting Started: GETTING-STARTED.md
+  - Contributing: CONTRIBUTING.md
 
-    - dev-team Plugin:
-          - Overview: plugins/dev-team/README.md
-          - Architecture:
-                - Team Structure: plugins/dev-team/docs/team-structure.md
-                - Agent Architecture: plugins/dev-team/docs/agent-architecture.md
-                - Agent Info: plugins/dev-team/docs/agent_info.md
-          - Workflows & Skills:
-                - Workflows: plugins/dev-team/docs/workflows.md
-                - Skills: plugins/dev-team/docs/skills.md
-                - Code Review Process: plugins/dev-team/docs/code-review-process.md
-          - Model Routing:
-                - Model Routing: plugins/dev-team/docs/model-routing.md
-                - Model Routing Overrides: plugins/dev-team/docs/model-routing-overrides.md
-          - Evaluation:
-                - Eval System: plugins/dev-team/docs/eval-system.md
-                - Eval Running Guide: plugins/dev-team/docs/eval-running-guide.md
-                - Eval Maintenance: plugins/dev-team/docs/eval-maintenance.md
-                - Test Evaluation: plugins/dev-team/docs/test-evaluation.md
-          - Operations:
-                - Session Review: plugins/dev-team/docs/session-review.md
-                - Session Review OSS Complements: plugins/dev-team/docs/session-review-oss-complements.md
-                - Concurrent Use: plugins/dev-team/docs/concurrent-use.md
-                - Telemetry CI Access: plugins/dev-team/docs/telemetry-ci-access.md
-                - Telemetry Security: plugins/dev-team/docs/telemetry-repo-security.md
-                - CodeGraph Nudge: plugins/dev-team/docs/codegraph-nudge.md
+  - dev-team Plugin:
+      - Overview: plugins/dev-team/README.md
+      - Architecture:
+          - Team Structure: plugins/dev-team/docs/team-structure.md
+          - Agent Architecture: plugins/dev-team/docs/agent-architecture.md
+          - Agent Info: plugins/dev-team/docs/agent_info.md
+      - Workflows & Skills:
+          - Workflows: plugins/dev-team/docs/workflows.md
+          - Skills: plugins/dev-team/docs/skills.md
+          - Code Review Process: plugins/dev-team/docs/code-review-process.md
+      - Model Routing:
+          - Model Routing: plugins/dev-team/docs/model-routing.md
+          - Model Routing Overrides: plugins/dev-team/docs/model-routing-overrides.md
+      - Evaluation:
+          - Eval System: plugins/dev-team/docs/eval-system.md
+          - Eval Running Guide: plugins/dev-team/docs/eval-running-guide.md
+          - Eval Maintenance: plugins/dev-team/docs/eval-maintenance.md
+          - Test Evaluation: plugins/dev-team/docs/test-evaluation.md
+      - Operations:
+          - Session Review: plugins/dev-team/docs/session-review.md
+          - Session Review OSS Complements: plugins/dev-team/docs/session-review-oss-complements.md
+          - Concurrent Use: plugins/dev-team/docs/concurrent-use.md
+          - Telemetry CI Access: plugins/dev-team/docs/telemetry-ci-access.md
+          - Telemetry Security: plugins/dev-team/docs/telemetry-repo-security.md
+          - CodeGraph Nudge: plugins/dev-team/docs/codegraph-nudge.md
 
-    - security-assessment Plugin:
-          - Overview: plugins/security-assessment/README.md
-          - Architecture: plugins/security-assessment/CLAUDE.md
-          - User Guide: plugins/security-assessment/docs/user-guide-security-assessment.md
-          - Accepted Risks Format: plugins/security-assessment/docs/accepted-risks-format.md
-          - Comparative Testing: plugins/security-assessment/docs/comparative-testing.md
+  - security-assessment Plugin:
+      - Overview: plugins/security-assessment/README.md
+      - Architecture: plugins/security-assessment/CLAUDE.md
+      - User Guide: plugins/security-assessment/docs/user-guide-security-assessment.md
+      - Accepted Risks Format: plugins/security-assessment/docs/accepted-risks-format.md
+      - Comparative Testing: plugins/security-assessment/docs/comparative-testing.md
 
-    - marketplace-dev Plugin:
-          - Guide: plugins/marketplace-dev/CLAUDE.md
-          - Agent-type Decision Rules: plugins/marketplace-dev/knowledge/agent-type-decision-rules.md
+  - marketplace-dev Plugin:
+      - Guide: plugins/marketplace-dev/CLAUDE.md
+      - Agent-type Decision Rules: plugins/marketplace-dev/knowledge/agent-type-decision-rules.md
 
-    - Guides:
-          - Cloud Setup: docs/cloud-setup.md
-          - Using Skills in Web Environment: docs/using-plugin-skills-in-the-web-environment.md
-          - Marketplace Builder Playbook: docs/marketplace-builder-plugin-playbook.md
-          - CD Coverage Review: docs/continuous-delivery-coverage-review.md
+  - Guides:
+      - Cloud Setup: docs/cloud-setup.md
+      - Using Skills in Web Environment: docs/using-plugin-skills-in-the-web-environment.md
+      - Marketplace Builder Playbook: docs/marketplace-builder-plugin-playbook.md
+      - CD Coverage Review: docs/continuous-delivery-coverage-review.md
+      - Enforce Prefer-Python-over-Bash: docs/enforce-prefer-python-over-bash.md
 
-    - Architecture Decisions:
-          - Overview: docs/adr/README.md
-          - "ADR-0001: Record Architecture Decisions": docs/adr/0001-record-architecture-decisions.md
-          - "ADR-0002: CodeGraph Nudge Hook": docs/adr/0002-use-sentinel-file-and-argument-shape-heuristic-for-codegraph-nudge-hook.md
-          - "ADR-0003: ADR Tooling Workflow Skill": docs/adr/0003-document-adr-tooling-workflow-as-a-skill.md
-          - "ADR-0004: Pre-Dispatch Model Resolution": docs/adr/0004-pre-dispatch-model-resolution.md
-          - "ADR-0005: On-Demand Knowledge Indexing": docs/adr/0005-on-demand-knowledge-indexing.md
-          - "ADR-0006: Trunk Integration Topology": docs/adr/0006-per-increment-trunk-integration-topology.md
-          - "ADR-0007: Eval Confidence Pyramid": docs/adr/0007-eval-confidence-pyramid-tier-vocabulary.md
-          - "ADR-0008: Effort Bands over Model Names": docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md
-          - "ADR-0009: Human Consent Gate for Learning": docs/adr/0009-human-consent-gate-for-learning-loop.md
-          - "ADR-0010: Per-Session Analysis Granularity": docs/adr/0010-per-session-analysis-granularity.md
-          - "ADR-0011: Enforce Context Ceiling": docs/adr/0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md
-          - "ADR-0012: Auto-Bootstrap CodeGraph Index": docs/adr/0012-auto-bootstrap-codegraph-index-per-clone.md
+  - Architecture Decisions:
+      - Overview: docs/adr/README.md
+      - "ADR-0001: Record Architecture Decisions": docs/adr/0001-record-architecture-decisions.md
+      - "ADR-0002: CodeGraph Nudge Hook": docs/adr/0002-use-sentinel-file-and-argument-shape-heuristic-for-codegraph-nudge-hook.md
+      - "ADR-0003: ADR Tooling Workflow Skill": docs/adr/0003-document-adr-tooling-workflow-as-a-skill.md
+      - "ADR-0004: Pre-Dispatch Model Resolution": docs/adr/0004-pre-dispatch-model-resolution.md
+      - "ADR-0005: On-Demand Knowledge Indexing": docs/adr/0005-on-demand-knowledge-indexing.md
+      - "ADR-0006: Trunk Integration Topology": docs/adr/0006-per-increment-trunk-integration-topology.md
+      - "ADR-0007: Eval Confidence Pyramid": docs/adr/0007-eval-confidence-pyramid-tier-vocabulary.md
+      - "ADR-0008: Effort Bands over Model Names": docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md
+      - "ADR-0009: Human Consent Gate for Learning": docs/adr/0009-human-consent-gate-for-learning-loop.md
+      - "ADR-0010: Per-Session Analysis Granularity": docs/adr/0010-per-session-analysis-granularity.md
+      - "ADR-0011: Enforce Context Ceiling": docs/adr/0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md
+      - "ADR-0012: Auto-Bootstrap CodeGraph Index": docs/adr/0012-auto-bootstrap-codegraph-index-per-clone.md
 
-    - Experiments:
-          - FAQ: docs/experiments/FAQ.md
-          - TDD vs Non-TDD Report: docs/experiments/tdd-vs-nontdd-report.md
-          - "01 · 3 Sizes 3 Arms Experiment": docs/experiments/01-experiment-prompt-3sizes-3arms.md
-          - 3 Sizes 3 Arms Report: docs/experiments/3sizes-3arms-report.md
-          - "02 · When TDD Pays Experiment": docs/experiments/02-experiment-prompt-when-tdd-pays.md
-          - When TDD Pays Report: docs/experiments/when-tdd-pays-report.md
-          - When TDD Pays Summary: docs/experiments/when-tdd-pays-summary.md
-          - "03 · Ship Arm Manual Run": docs/experiments/03-ship-arm-manual-run-prompt.md
-          - "04 · Refactor Granularity Experiment": docs/experiments/04-experiment-prompt-refactor-granularity.md
-          - Refactor Granularity Report: docs/experiments/refactor-granularity-report.md
-          - Refactor Granularity Summary: docs/experiments/refactor-granularity-summary.md
-          - Refactor Granularity Progress: docs/experiments/refactor-granularity-progress.md
-          - Refactor Granularity Power Analysis: docs/experiments/refactor-granularity-power-analysis.md
-          - "05 · Workflow Matrix Experiment": docs/experiments/05-experiment-prompt-workflow-matrix.md
-          - Complexity Refactor Regression: docs/experiments/complexity-refactor-regression.md
+  - Experiments:
+      - FAQ: docs/experiments/FAQ.md
+      - TDD vs Non-TDD Report: docs/experiments/tdd-vs-nontdd-report.md
+      - "01 · 3 Sizes 3 Arms Experiment": docs/experiments/01-experiment-prompt-3sizes-3arms.md
+      - 3 Sizes 3 Arms Report: docs/experiments/3sizes-3arms-report.md
+      - "02 · When TDD Pays Experiment": docs/experiments/02-experiment-prompt-when-tdd-pays.md
+      - When TDD Pays Report: docs/experiments/when-tdd-pays-report.md
+      - When TDD Pays Summary: docs/experiments/when-tdd-pays-summary.md
+      - "03 · Ship Arm Manual Run": docs/experiments/03-ship-arm-manual-run-prompt.md
+      - "04 · Refactor Granularity Experiment": docs/experiments/04-experiment-prompt-refactor-granularity.md
+      - Refactor Granularity Report: docs/experiments/refactor-granularity-report.md
+      - Refactor Granularity Summary: docs/experiments/refactor-granularity-summary.md
+      - Refactor Granularity Progress: docs/experiments/refactor-granularity-progress.md
+      - Refactor Granularity Power Analysis: docs/experiments/refactor-granularity-power-analysis.md
+      - "05 · Workflow Matrix Experiment": docs/experiments/05-experiment-prompt-workflow-matrix.md
+      - Complexity Refactor Regression: docs/experiments/complexity-refactor-regression.md
 
-    - Specs:
-          - Plugin CLAUDE.md Size Reduction: docs/specs/plugin-claude-md-size-reduction.md
-          - Python Agent-Harness Pattern: docs/specs/python-agent-harness-pattern.md
-          - Insights Reports Prompt Idea: docs/specs/insights-reports/prompt-idea.md
+  - Specs:
+      - Plugin CLAUDE.md Size Reduction: docs/specs/plugin-claude-md-size-reduction.md
+      - Python Agent-Harness Pattern: docs/specs/python-agent-harness-pattern.md
+      - Insights Reports Prompt Idea: docs/specs/insights-reports/prompt-idea.md
 
-    - Changelog:
-          - Repository: CHANGELOG.md
-          - dev-team Plugin: plugins/dev-team/CHANGELOG.md
-          - security-assessment Plugin: plugins/security-assessment/CHANGELOG.md
-          - marketplace-dev Plugin: plugins/marketplace-dev/CHANGELOG.md
+  - Changelog:
+      - Repository: CHANGELOG.md
+      - dev-team Plugin: plugins/dev-team/CHANGELOG.md
+      - security-assessment Plugin: plugins/security-assessment/CHANGELOG.md
+      - marketplace-dev Plugin: plugins/marketplace-dev/CHANGELOG.md
