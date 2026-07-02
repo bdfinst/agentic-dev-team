@@ -14,5 +14,8 @@
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true
+  },
+  "worktree": {
+    "baseRef": "head"
   }
 }

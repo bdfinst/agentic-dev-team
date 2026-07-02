@@ -1,0 +1,9 @@
+Stryker.NET v4.7.0
+
+Discovered projects via SolutionPath:
+Property TargetPath=/Users/dev/repo/tests/Foo.Tests/bin/Debug/net10.0/Foo.Tests.dll
+Property TargetPath=/Users/dev/repo/tests/Foo.Tests.Mutation/bin/Debug/net10.0/Foo.Tests.Mutation.dll
+
+[13:20:14 INF] Analyzing project 'Foo.Tests.csproj'
+Testing mutants:
+....

@@ -4,9 +4,17 @@ Tool: [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/). 
 
 ## Install / detect
 
+The tool manifest is the **local** install path: `.config/dotnet-tools.json` lives in the repo, so `dotnet stryker` resolves via the manifest without depending on `$PATH`. A global install (`dotnet tool install -g dotnet-stryker`) is a fallback only — it depends on `~/.dotnet/tools` being on `PATH` and is the failure mode that motivated the "prefer local install" note in the skill.
+
 ```bash
 dotnet new tool-manifest        # if no .config/dotnet-tools.json yet
 dotnet tool install dotnet-stryker
+```
+
+Confirm the tool resolves before configuring a run:
+
+```bash
+dotnet stryker --version
 ```
 
 ## Environment preamble (macOS Homebrew)
@@ -59,6 +67,8 @@ If detected, take **all four** steps below. Missing any one recreates the fake-s
 
 4. In `stryker-config.json`, set `"additional-timeout": 30000` — headroom for ~5 hanging tests × 5 s `testTimeout` per mutant plus overhead. This is a **layered** cap on top of the per-mutant `timeout` documented in [`SKILL.md`](../../SKILL.md) Step 1b.
 
+The four steps above defend against the *fake-100 %-via-Timeout* variant of the MTP-runner incompatibility. The **complementary** *fake-0 %-via-Survived* variant (mutation-switch not observing mutations at runtime; every mutant reported `Survived`; final score `0.00 %`) is caught by [`SKILL.md`](../../SKILL.md) **Step 1c smoke gate** — run a single-file probe before any full run and parse `mutation-report.json` for `Killed > 0`. Do not skip Step 1c on xunit.v3 configurations; it is the specific safety net for issues [#554](https://github.com/bdfinst/agentic-dev-team/issues/554) and [#557](https://github.com/bdfinst/agentic-dev-team/issues/557).
+
 ## Pre-run: build first
 
 Always build before timing the baseline suite or invoking Stryker. A stale binary produces phantom failures — Stryker either aborts on load or reports every mutant as `Survived`. Baseline timing:
@@ -74,6 +84,30 @@ Every Stryker run block below assumes a fresh `dotnet build ... -c Debug --nolog
 
 Stryker.NET rejects **any unknown key** in `stryker-config.json` since v1.x — a JSON comment workaround like `"_note": "..."` or `"//": "..."` causes the entire run to fail with a clear error message. Do not embed intent comments in the config. Document config intent in the git commit message that introduces the config, or in a nearby `README.md`.
 
+### SolutionPath trap
+
+When `stryker-config.json` sets **both** `SolutionPath` and an explicit `test-projects` list, Stryker.NET evidently enumerates additional test projects from the solution and prefers them over the ones listed in `test-projects`. On a repo whose main test project is on xunit.v3 + MTP but whose configured `test-projects` points at a working xunit.v2 shim, this manifests as the shim's `InternalsVisibleTo` grant and successful smoke tests not helping — because Stryker isn't actually running the shim; it's running the main xunit.v3 test project it discovered via `SolutionPath`, and the fake-0 %-via-Survived MTP failure mode from #554 strikes anyway. The `--diag` output reveals this via a `Property TargetPath=` line naming the wrong test-project `.dll`. See issue [#557](https://github.com/bdfinst/agentic-dev-team/issues/557).
+
+Three remediation paths, in order of preference:
+
+1. **Remove `SolutionPath` from `stryker-config.json`.** Rely on `test-projects` only. Simplest fix; the plugin **recommends this path** for multi-project repos where the only reason `SolutionPath` was set was to help Stryker resolve source-project dependencies — the explicit `test-projects` list gives it what it needs. This is the path documented in the shipped wrapper.
+2. **Add the shim project to the solution and exclude the main test project from Stryker's discovery.** Requires per-repo solution-file surgery and a Stryker-side exclusion rule; brittle and not documented upstream.
+3. **Downgrade the main test project to xunit.v2** for the mutation window. Nuclear option — invasive to the main test suite for the duration of a mutation-testing session; only use when path 1 is genuinely impossible.
+
+### Reporters — use `dots` for log-tail parsing
+
+Configure Stryker with a **non-ANSI** reporter alongside JSON/HTML so status-loop tooling and log inspection can read progress deterministically:
+
+```json
+{
+  "stryker-config": {
+    "reporters": ["dots", "json", "html"]
+  }
+}
+```
+
+The default `progress` reporter uses ANSI in-place cursor updates that **do not survive log redirection** — a redirected run's log file has no per-mutant progress record. The `dots` reporter emits one `.` per completed mutant to stdout, which redirects cleanly. Any long-run inspection tooling (see [`SKILL.md` → Long-run inspection](../../SKILL.md#long-run-inspection)) that reads progress from a log tail depends on `dots` (or JSON) being configured.
+
 ### Probe file selection — C#-specific traps
 
 The language-agnostic probe rule (≥ 50 mutants, highest existing mutation score, avoid generated code / DTOs / near-0 %-coverage files) lives in [`../../SKILL.md`](../../SKILL.md) Step 2 — read it first. Two Stryker.NET-specific probe anti-patterns compound the general rule; picking either as a probe validates nothing and produces a mass-CompileError smoke plume:
@@ -84,6 +118,8 @@ The language-agnostic probe rule (≥ 50 mutants, highest existing mutation scor
 ## Run (scoped)
 
 Large C# repos take 60–90 min for a whole-project run. Always scope runs; if the repo has pre-generated shard configs, use them.
+
+> When capturing run output to a log file, do **not** use a bare `dotnet stryker ... 2>&1 | tee run.log` — the pipeline exit code is `tee`'s (always 0), so a Stryker failure is silently masked. Use `>run.log 2>&1` for one-shot runs or `set -o pipefail` for live tail. See [`SKILL.md` → Capturing run output safely](../../SKILL.md#capturing-run-output-safely).
 
 **Single file in `--scope` (Phase 4 per-Story gate):**
 
@@ -160,6 +196,35 @@ print(p.split('/**')[0])
   [[ "$changed_file" == ${prefix}/* ]] && echo "$cfg" && break
 done
 ```
+
+## Shipped wrapper — copy both files together
+
+The plugin ships two operational helper scripts under `plugins/dev-team/skills/mutation-testing/scripts/`:
+
+- **`csharp-stryker-net-wrapper.sh`** — hides `.sln` during the run + trap-restores it on any exit path (EXIT / INT / TERM), exports `DOTNET_ROOT` (Homebrew macOS default; respects a pre-set value), pre-builds `${SLN}` and optional `${SHIM_PROJECT}` **before** hiding, backgrounds Stryker so a wrapper-side SIGINT/SIGTERM kills the child too (no orphans), and redirects with `> "$LOGFILE" 2>&1` (never bare `| tee`).
+- **`csharp-stryker-net-status-loop.sh`** — status + red-flag inspection loop sourced by the wrapper. Ticks every `STATUS_INTERVAL` seconds emitting one status record plus zero-or-more `[RED-FLAG]` lines when known-broken patterns are observed (mutation-switch not observing; CompileError count over threshold; SolutionPath trap; Stryker died mid-run; parser drift).
+
+**Copy BOTH files together** into your repo's `scripts/` directory. The wrapper `. "$(dirname "${BASH_SOURCE[0]}")/csharp-stryker-net-status-loop.sh"` — copying only the wrapper hard-fails at `set -e` on the missing `source` when `STATUS_INTERVAL > 0` (the default). If you deliberately want the wrapper without the loop, set `STATUS_INTERVAL=0` in the header vars to disable the loop entirely; the source call is guarded on that check.
+
+Header vars (edit at the top of the wrapper for your repo):
+
+```bash
+SLN="Foo.sln"                                      # your solution file
+SHIM_PROJECT="tests/Foo.Tests.Mutation/Foo.Tests.Mutation.csproj"  # or "" if none
+STRYKER_BIN="dotnet-stryker"                       # local tool manifest or global
+LOGFILE="StrykerOutput/wrapper.log"
+STATUS_INTERVAL=600                                # 10-min default; 0 disables the loop
+COMPILE_ERROR_THRESHOLD=25                         # tune per repo
+```
+
+Run it in place of a bare `dotnet stryker`:
+
+```bash
+./scripts/csharp-stryker-net-wrapper.sh --config-file stryker-config.json \
+  --mutate "**/Validators/**/*.cs" -O StrykerOutput/slice-validators
+```
+
+The wrapper forwards `"$@"` to Stryker unchanged.
 
 ## Incremental runs with `--since`
 

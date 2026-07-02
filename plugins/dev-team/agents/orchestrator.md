@@ -69,6 +69,8 @@ During `/build`, the orchestrator executes the plan **wave by wave** (the plan's
 
 Effective concurrency 1 (fully-dependent plan, `--jobs 1`, or `DEV_TEAM_MAX_PARALLEL_BUILDS=1`) degrades to sequential single-worktree build with no fan-out or reconcile.
 
+**`worktree.baseRef` prerequisite (issue #553).** Worktree fan-out only works when Claude Code's `worktree.baseRef` setting is `"head"` — otherwise each subagent worktree branches from `origin/<default>` and cannot see the caller's uncommitted-to-remote spec, plan, or prior-wave commits. Users must set this in **`.claude/settings.json`** (project scope) or **`~/.claude/settings.json`** (user scope); plugin-scope `plugins/<name>/settings.json` and project-local `.claude/settings.local.json` are **not** honored by 2.1.198's worktree isolation. `/build`'s Step 4 detect-and-warn surfaces the requirement loudly on every invocation until the user sets it (or opts out with `DEV_TEAM_WORKTREE_BASE_FRESH=1`). Full audit trail: `docs/spikes/worktree-baseref-head-spike.md`.
+
 ## Task Size Gate
 
 Before routing any non-trivial task to the Three-Phase Workflow, classify its size
