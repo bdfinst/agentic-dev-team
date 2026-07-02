@@ -163,7 +163,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/knowledge-index.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_KNOWLEDGE_INDEX:-0}\" = \"1\" ]; then python3 hooks/knowledge_index.py; else bash hooks/knowledge-index.sh; fi'"
           },
           {
             "type": "command",
