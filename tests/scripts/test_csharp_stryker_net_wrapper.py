@@ -131,6 +131,14 @@ def _install_fakes(
 
     monkeypatch.setattr(wrapper, "build_project", fake_build)
     monkeypatch.setattr(wrapper, "run_stryker", fake_stryker)
+    # Critical: also stub out signal-handler installation. Without this,
+    # main() calls signal.signal(SIGINT, ...) which globally replaces the
+    # process's SIGINT handler with a handler that raises KeyboardInterrupt.
+    # That handler persists for the rest of the pytest session — subsequent
+    # tests can be killed by any spurious signal (verified: this caused
+    # test #42 in the Windows CI job to crash with "KeyboardInterrupt:
+    # signal 2" during unrelated status-loop tests).
+    monkeypatch.setattr(wrapper, "_install_signal_handlers", lambda: [])
 
 
 def run_wrapper(hermetic, *extra_args):

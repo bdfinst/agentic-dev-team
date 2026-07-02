@@ -312,9 +312,15 @@ def status_loop_start(
 
     ``output`` defaults to ``sys.stdout`` but can be overridden for tests.
     """
-    # Install signal handlers so the loop reaps on Ctrl-C / kill.
+    # Install signal handlers so the loop reaps on Ctrl-C / kill. Save the
+    # previous handlers so we restore them when the loop exits — critical
+    # when this function is called from another Python program (pytest,
+    # or wrapper.main() itself) so we don't leave the process's SIGINT/
+    # SIGTERM handling in a mutated state after the loop returns.
+    previous_handlers: list[tuple[int, object]] = []
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
+            previous_handlers.append((sig, signal.getsignal(sig)))
             signal.signal(sig, _stop_handler)
         except (ValueError, OSError):
             # Called from a thread on some platforms — non-main-thread
@@ -322,29 +328,38 @@ def status_loop_start(
             # terminates via the completion-marker check.
             pass
 
-    while not _STOP["requested"]:
-        print(emit_status_line(logfile), file=output, flush=True)
-        for line in check_red_flags(
-            logfile,
-            threshold,
-            stryker_pid,
-            expected_target=expected_target,
-            state_dir=state_dir,
-            drift_threshold=drift_threshold,
-        ):
-            print(line, file=output, flush=True)
+    try:
+        while not _STOP["requested"]:
+            print(emit_status_line(logfile), file=output, flush=True)
+            for line in check_red_flags(
+                logfile,
+                threshold,
+                stryker_pid,
+                expected_target=expected_target,
+                state_dir=state_dir,
+                drift_threshold=drift_threshold,
+            ):
+                print(line, file=output, flush=True)
 
-        # Exit condition — Stryker done and log carries a completion marker.
-        if stryker_pid is not None and not _pid_is_alive(stryker_pid):
-            if log_has_completion_marker(logfile):
-                break
+            # Exit condition — Stryker done and log carries a completion marker.
+            if stryker_pid is not None and not _pid_is_alive(stryker_pid):
+                if log_has_completion_marker(logfile):
+                    break
 
-        # Sleep in small slices so signal handlers wake up promptly.
-        remaining = float(interval)
-        slice_s = 0.1
-        while remaining > 0 and not _STOP["requested"]:
-            time.sleep(min(slice_s, remaining))
-            remaining -= slice_s
+            # Sleep in small slices so signal handlers wake up promptly.
+            remaining = float(interval)
+            slice_s = 0.1
+            while remaining > 0 and not _STOP["requested"]:
+                time.sleep(min(slice_s, remaining))
+                remaining -= slice_s
+    finally:
+        # Restore prior signal handlers so callers aren't left with our
+        # _stop_handler installed process-wide.
+        for sig, handler in previous_handlers:
+            try:
+                signal.signal(sig, handler)
+            except (ValueError, OSError, TypeError):
+                pass
 
 
 # =============================================================================
