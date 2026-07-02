@@ -567,3 +567,126 @@ def test_4_4_realistic_plan_with_all_three_525_patterns_passes_the_pre_pr_gate(
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert data["issues"] == [], data
+
+
+# ---------------------------------------------------------------------------
+# Step 5 — Issue #713: directory-style `**Files:**` declarations
+# Bug: BACKTICK_PATH_RE only captures backtick-quoted paths that end in a
+# dot-extension, so a `**Files:** `some/dir/`` declaration (a common way to
+# scope a slice that adds several new files under one folder) is invisible
+# to _parse_slice_files and check_scope's declared_paths, silently falling
+# through to the pre-#525 substring fallback / flagging every file as
+# out-of-plan.
+# ---------------------------------------------------------------------------
+
+
+def test_5_1_directory_declaration_satisfies_commit_discipline(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "new_feature").mkdir()
+    (tmp_path / "new_feature" / "SKILL.md").write_text("skill\n")
+    _git(tmp_path, "add", "new_feature/SKILL.md")
+    _git(tmp_path, "commit", "-q", "-m", "feat: add new-feature skill")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: add new-feature skill\n\n**Files:** `new_feature/`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert data["issues"] == [], data
+
+
+def test_5_2_directory_declaration_still_catches_real_gaps(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "unrelated.py").write_text("code\n")
+    _git(tmp_path, "add", "unrelated.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: add unrelated file")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] add new-feature skill\n\n**Files:** `new_feature/`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 1
+    data = json.loads(result.stdout)
+    errs = [
+        i
+        for i in data["issues"]
+        if i["severity"] == "error" and "'add new-feature skill'" in i["message"]
+    ]
+    assert len(errs) == 1, data
+
+
+def test_5_3a_check_scope_does_not_flag_file_under_declared_directory(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "initial")
+    plan = tmp_path / "plan.md"
+    make_plan(
+        plan,
+        "- [x] Slice 1: add new-feature skill\n\n**Files:** `new_feature/`",
+    )
+    _git(tmp_path, "add", "plan.md")
+    _git(tmp_path, "commit", "-q", "-m", "feat: add new-feature skill")
+    (tmp_path / "new_feature").mkdir()
+    (tmp_path / "new_feature" / "SKILL.md").write_text("skill\n")
+    _git(tmp_path, "add", "new_feature/SKILL.md")
+    _git(tmp_path, "commit", "-q", "-m", "feat: add new-feature skill impl")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert data["issues"] == [], data
+
+
+def test_5_3b_check_scope_still_flags_file_outside_declared_directory(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "initial")
+    plan = tmp_path / "plan.md"
+    make_plan(
+        plan,
+        "- [x] Slice 1: add new-feature skill\n\n**Files:** `new_feature/`",
+    )
+    _git(tmp_path, "add", "plan.md")
+    _git(tmp_path, "commit", "-q", "-m", "feat: add new-feature skill")
+    (tmp_path / "new_feature").mkdir()
+    (tmp_path / "new_feature" / "SKILL.md").write_text("skill\n")
+    _git(tmp_path, "add", "new_feature/SKILL.md")
+    (tmp_path / "extra.py").write_text("extra\n")
+    _git(tmp_path, "add", "extra.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: add new-feature skill plus extra")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 2
+    data = json.loads(result.stdout)
+    assert any(i.get("rule_id") == "llm-skipped" for i in data["issues"]), data
+
+
+def test_5_4_non_path_backtick_token_not_mis_captured_as_declared_path(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "unrelated.py").write_text("code\n")
+    _git(tmp_path, "add", "unrelated.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: unrelated change")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] wire up the hook\n\n**Files:** `runHook()`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    # `runHook()` has no extension and no trailing slash -> not captured as
+    # a declared path, so the slice falls back to substring matching on
+    # "wire up the hook" (which isn't in any commit subject) -> exit 1 with
+    # the substring-fallback message, proving the token was never absorbed
+    # into declared_paths.
+    assert result.returncode == 1
+    data = json.loads(result.stdout)
+    errs = [
+        i
+        for i in data["issues"]
+        if i["severity"] == "error" and "'wire up the hook'" in i["message"]
+    ]
+    assert len(errs) == 1, data
+    assert "whose subject contains" in errs[0]["message"], errs[0]
