@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 
-from conftest import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 MUTATION_TESTING = PLUGIN_ROOT / "skills" / "mutation-testing"
 SKILL = MUTATION_TESTING / "SKILL.md"

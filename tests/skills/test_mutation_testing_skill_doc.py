@@ -13,7 +13,7 @@ Ported from tests/skills/mutation_testing_skill_doc_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import (
+from skill_doc_helpers import (
     PLUGIN_ROOT,
     grep,
     section,

@@ -24,7 +24,7 @@ scripts. Splitting them out lets PR1 land without PR2's content.
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, first_line_outside_code, grep, section_outside_code
+from skill_doc_helpers import PLUGIN_ROOT, first_line_outside_code, grep, section_outside_code
 
 MUTATION_TESTING = PLUGIN_ROOT / "skills" / "mutation-testing"
 SKILL = MUTATION_TESTING / "SKILL.md"

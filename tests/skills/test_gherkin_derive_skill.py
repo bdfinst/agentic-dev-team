@@ -16,7 +16,7 @@ Ported from tests/skills/gherkin_derive_skill_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, frontmatter, grep
+from skill_doc_helpers import PLUGIN_ROOT, frontmatter, grep
 
 SKILL = PLUGIN_ROOT / "skills" / "gherkin-derive" / "SKILL.md"
 AGENT_REG = PLUGIN_ROOT / "knowledge" / "agent-registry.md"

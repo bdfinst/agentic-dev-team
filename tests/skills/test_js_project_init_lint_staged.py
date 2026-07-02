@@ -7,7 +7,7 @@ Ported from tests/skills/js_project_init_lint_staged_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 SKILL = PLUGIN_ROOT / "skills" / "js-project-init" / "SKILL.md"
 CFG = PLUGIN_ROOT / "skills" / "js-project-init" / "references" / "configs.md"

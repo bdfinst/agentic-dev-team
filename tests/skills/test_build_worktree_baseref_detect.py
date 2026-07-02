@@ -44,7 +44,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from conftest import PLUGIN_ROOT, grep, grep_multiline, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, grep_multiline, section
 
 SCRIPT = PLUGIN_ROOT / "scripts" / "build_worktree_baseref.py"
 BUILD_SKILL = PLUGIN_ROOT / "skills" / "build" / "SKILL.md"

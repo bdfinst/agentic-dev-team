@@ -14,7 +14,7 @@ Ported from tests/skills/coverage_delta_decouple_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep
+from skill_doc_helpers import PLUGIN_ROOT, grep
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-delta" / "SKILL.md"
 TEST_IMPROVE = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"

@@ -7,7 +7,7 @@ Ported from tests/skills/build_js_project_init_gate_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 BUILD = PLUGIN_ROOT / "skills" / "build" / "SKILL.md"
 

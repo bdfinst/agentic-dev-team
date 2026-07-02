@@ -12,7 +12,7 @@ Ported from tests/skills/quality_targets_converge_workflow_param_tests.bats
 
 from __future__ import annotations
 
-from conftest import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 SKILL = PLUGIN_ROOT / "skills" / "quality-targets-converge" / "SKILL.md"
 ARCH = PLUGIN_ROOT / "docs" / "agent-architecture.md"
