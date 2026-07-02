@@ -103,6 +103,59 @@ MUTATE_VALUE="$(extract_mutate_value "$COMMAND")"
 is_single_file_mutate "$MUTATE_VALUE" && exit 0
 
 # =============================================================================
+# Escape hatch — MUTATION_SMOKE_GATE_SKIP=1 bypasses the gate + audit-logs.
+# Runs BEFORE the report check so the bypass works even without a report.
+# =============================================================================
+
+# _sha256_first_16 <string>
+# Cross-platform sha256 helper — matches the fallback chain in
+# hooks/lib/review-gate-hash.sh. Emits the first 16 hex characters of the
+# sha256 of the input, or nothing if neither shasum nor sha256sum exists.
+_sha256_first_16() {
+    printf '%s' "$1" \
+      | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } \
+      | cut -c1-16
+}
+
+# _iso_utc_timestamp
+# Cross-platform ISO-8601 UTC timestamp (Z-suffixed). Uses python3 (already
+# a hard dependency) — GNU/BSD `date` flags diverge between macOS and Linux.
+_iso_utc_timestamp() {
+    python3 -c 'import datetime; print(datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00","Z"))'
+}
+
+# log_bypass_audit <raw-command>
+# Append one JSONL line to <PAYLOAD_CWD>/metrics/gate-bypass.jsonl with
+# timestamp + hook name + command_hash (sha256, first 16 chars) + cwd.
+# The raw command is NEVER written — only its hash — matching the
+# cost-meter's privacy boundary.
+log_bypass_audit() {
+    local audit_dir="$PAYLOAD_CWD/metrics"
+    local audit_file="$audit_dir/gate-bypass.jsonl"
+    local command_hash timestamp line
+    command_hash="$(_sha256_first_16 "$1")"
+    timestamp="$(_iso_utc_timestamp)"
+    if ! mkdir -p "$audit_dir" 2>/dev/null; then
+        printf 'mutation-testing-smoke-gate: cannot create %s (bypass still succeeds)\n' "$audit_dir" >&2
+        return 0
+    fi
+    line="$(jq -c -n \
+        --arg ts "$timestamp" \
+        --arg hook "mutation-testing-smoke-gate" \
+        --arg hash "$command_hash" \
+        --arg cwd "$PAYLOAD_CWD" \
+        '{timestamp: $ts, hook: $hook, command_hash: $hash, cwd: $cwd}')"
+    if ! printf '%s\n' "$line" >>"$audit_file" 2>/dev/null; then
+        printf 'mutation-testing-smoke-gate: cannot write to %s (bypass still succeeds)\n' "$audit_file" >&2
+    fi
+}
+
+if [ "${MUTATION_SMOKE_GATE_SKIP:-0}" = "1" ]; then
+    log_bypass_audit "$COMMAND"
+    exit 0
+fi
+
+# =============================================================================
 # Whole-scope run detected — check the smoke report.
 # =============================================================================
 
@@ -140,9 +193,26 @@ if [ ! -f "$REPORT_PATH" ]; then
     exit 2
 fi
 
+# Malformed JSON — advisory (not block, not silent-pass). A parse failure
+# means the tool wrote garbage; the gate can't reason about it. Surface
+# the anomaly and let the operator decide.
+if ! jq empty "$REPORT_PATH" 2>/dev/null; then
+    printf 'ADVISORY: mutation-testing-smoke-gate: report at %s is not valid JSON — cannot enforce gate; command not blocked\n' "$REPORT_PATH"
+    exit 0
+fi
+
+# Schema drift — valid JSON without the top-level mutants[] key. The real
+# mutation-testing-elements schema always has this field; a report that
+# lacks it isn't a report the gate can read. Advisory, not block.
+# ORDERING NOTE: this check MUST run before the counting logic below.
+# A test locks that ordering (schema-drift advisory must NOT say "no scored
+# mutants") — see tests/hooks/mutation_testing_smoke_gate.bats.
+if ! jq -e '.mutants' "$REPORT_PATH" >/dev/null 2>&1; then
+    printf 'ADVISORY: mutation-testing-smoke-gate: report at %s lacks the mutants[] key — not the mutation-testing-elements shape; cannot enforce gate\n' "$REPORT_PATH"
+    exit 0
+fi
+
 # Count mutants by status against the mutation-testing-elements schema.
-# .mutants[]? tolerates a missing key without erroring; the schema-drift
-# advisory (Step 1.3) handles that case explicitly.
 KILLED="$(jq -r '[.mutants[]? | select(.status=="Killed")] | length' "$REPORT_PATH" 2>/dev/null || echo 0)"
 SURVIVED="$(jq -r '[.mutants[]? | select(.status=="Survived")] | length' "$REPORT_PATH" 2>/dev/null || echo 0)"
 

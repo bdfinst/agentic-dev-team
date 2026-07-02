@@ -225,3 +225,173 @@ _write_report_raw() {
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+# =============================================================================
+# Step 1.3 — escape hatch + audit log + advisories + schema drift
+# =============================================================================
+
+@test "hook: MUTATION_SMOKE_GATE_SKIP=1 skips silently when gate would otherwise block" {
+  # No report → gate would block. Escape hatch overrides.
+  MUTATION_SMOKE_GATE_SKIP=1 _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "hook: escape hatch appends one line to metrics/gate-bypass.jsonl" {
+  MUTATION_SMOKE_GATE_SKIP=1 _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 0 ]
+  [ -f "$D/metrics/gate-bypass.jsonl" ]
+  # Exactly one line.
+  local lines
+  lines="$(wc -l < "$D/metrics/gate-bypass.jsonl" | awk '{print $1}')"
+  [ "$lines" -eq 1 ]
+}
+
+@test "hook: audit line contains timestamp, hook name, command_hash, cwd fields" {
+  MUTATION_SMOKE_GATE_SKIP=1 _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ -f "$D/metrics/gate-bypass.jsonl" ]
+  run jq -r '.hook' "$D/metrics/gate-bypass.jsonl"
+  [ "$output" = "mutation-testing-smoke-gate" ]
+  run jq -r '.timestamp' "$D/metrics/gate-bypass.jsonl"
+  [[ "$output" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]]
+  run jq -r '.command_hash' "$D/metrics/gate-bypass.jsonl"
+  [[ "$output" =~ ^[0-9a-f]{16}$ ]]
+  run jq -r '.cwd' "$D/metrics/gate-bypass.jsonl"
+  [ "$output" = "$D" ]
+}
+
+@test "hook: audit line command_hash is 16 hex characters" {
+  MUTATION_SMOKE_GATE_SKIP=1 _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  local hash
+  hash="$(jq -r '.command_hash' "$D/metrics/gate-bypass.jsonl")"
+  [[ "$hash" =~ ^[0-9a-f]{16}$ ]]
+  [ "${#hash}" -eq 16 ]
+}
+
+@test "hook: audit line does NOT contain the raw command string (privacy invariant)" {
+  MUTATION_SMOKE_GATE_SKIP=1 _dispatch \
+    "$(_payload "dotnet stryker --config-file secret-payload-42 --mutate '**/*.cs'")"
+  [ "$status" -eq 0 ]
+  # Audit file must NOT contain the distinctive marker anywhere.
+  ! grep -q "secret-payload-42" "$D/metrics/gate-bypass.jsonl"
+  # But command_hash IS present.
+  run jq -r '.command_hash' "$D/metrics/gate-bypass.jsonl"
+  [[ "$output" =~ ^[0-9a-f]{16}$ ]]
+}
+
+@test "hook: cwd is taken from the PreToolUse payload's .cwd field" {
+  # Payload cwd points at $D (default). Assert metrics/ was created there.
+  MUTATION_SMOKE_GATE_SKIP=1 _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ -f "$D/metrics/gate-bypass.jsonl" ]
+  run jq -r '.cwd' "$D/metrics/gate-bypass.jsonl"
+  [ "$output" = "$D" ]
+}
+
+@test "hook: cwd falls back to \$PWD when the payload lacks .cwd" {
+  # Payload has no .cwd. The hook should fall back to the process $PWD.
+  # Run under $D so $PWD is deterministic.
+  local other="$D/other-pwd"
+  mkdir -p "$other"
+  local payload
+  payload="$(_payload_no_cwd "dotnet stryker --config-file stryker-config.json")"
+  MUTATION_SMOKE_GATE_SKIP=1 run bash -c "cd '$other' && bash '$HOOK'" <<<"$payload"
+  [ "$status" -eq 0 ]
+  [ -f "$other/metrics/gate-bypass.jsonl" ]
+  run jq -r '.cwd' "$other/metrics/gate-bypass.jsonl"
+  [ "$output" = "$other" ]
+}
+
+@test "hook: escape hatch creates metrics/ if absent" {
+  # metrics/ doesn't exist yet (setup doesn't create it).
+  [ ! -d "$D/metrics" ]
+  MUTATION_SMOKE_GATE_SKIP=1 _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 0 ]
+  [ -d "$D/metrics" ]
+  [ -f "$D/metrics/gate-bypass.jsonl" ]
+}
+
+@test "hook: escape hatch tolerates a chmod 000 metrics/ (non-root only)" {
+  # Root bypasses filesystem permissions on POSIX — skip on root CI runners.
+  [[ "$(id -u)" -ne 0 ]] || skip "root bypasses directory permissions"
+
+  mkdir -p "$D/metrics"
+  chmod 000 "$D/metrics"
+
+  MUTATION_SMOKE_GATE_SKIP=1 _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+
+  # Restore perms so hermetic teardown can remove the tempdir.
+  chmod 755 "$D/metrics"
+
+  # Hook still exits 0 — audit failure is non-blocking.
+  [ "$status" -eq 0 ]
+}
+
+@test "hook: missing jq falls back to ADVISORY (exit 0, non-empty stdout, command not blocked)" {
+  # Point PATH at a directory with no jq. Keep /usr/bin & /bin for basics.
+  local nojq_bin="$D/no-jq-bin"
+  mkdir -p "$nojq_bin"
+  # /usr/bin/env is needed by the hook's shebang; symlink common tools but NOT jq.
+  for t in env bash grep cat printf python3 dirname cd mkdir touch date; do
+    if command -v "$t" >/dev/null 2>&1; then
+      ln -sf "$(command -v "$t")" "$nojq_bin/$t"
+    fi
+  done
+  local payload
+  payload="$(_payload "dotnet stryker --config-file stryker-config.json")"
+  run bash -c "PATH='$nojq_bin' bash '$HOOK'" <<<"$payload"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "ADVISORY"
+  echo "$output" | grep -qi "jq"
+}
+
+@test "hook: missing python3 falls back to ADVISORY" {
+  local nopy_bin="$D/no-python3-bin"
+  mkdir -p "$nopy_bin"
+  for t in env bash grep cat printf jq dirname cd mkdir touch date; do
+    if command -v "$t" >/dev/null 2>&1; then
+      ln -sf "$(command -v "$t")" "$nopy_bin/$t"
+    fi
+  done
+  local payload
+  payload="$(_payload "dotnet stryker --config-file stryker-config.json")"
+  run bash -c "PATH='$nopy_bin' bash '$HOOK'" <<<"$payload"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "ADVISORY"
+  echo "$output" | grep -qi "python3"
+}
+
+@test "hook: malformed report JSON falls back to ADVISORY (exit 0, not silent-pass, not block)" {
+  _write_report_raw "$D/StrykerOutput/smoke/reports/mutation-report.json" \
+    'this is { not: "valid JSON'
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 0 ]
+  # ADVISORY (not silent-pass — advisory has non-empty stdout).
+  echo "$output" | grep -q "ADVISORY"
+  # ...and NOT a block.
+  ! echo "$output" | grep -q "\[BLOCK\]"
+}
+
+@test "hook: advisory on malformed report names the report path" {
+  _write_report_raw "$D/StrykerOutput/smoke/reports/mutation-report.json" 'not-json'
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  echo "$output" | grep -q "mutation-report.json"
+}
+
+@test "hook: valid JSON missing mutants[] key falls back to ADVISORY (schema drift)" {
+  _write_report_raw "$D/StrykerOutput/smoke/reports/mutation-report.json" \
+    '{"schemaVersion":"1","somethingElse":42}'
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "ADVISORY"
+  ! echo "$output" | grep -q "\[BLOCK\]"
+}
+
+@test "hook: schema-drift advisory does NOT contain the 'no scored mutants' phrase" {
+  # Ordering-lock: schema-drift check MUST fire before the mutant-count block
+  # decision. A stray REFACTOR that reorders would silently downgrade drift
+  # into a 'no scored mutants' block; this test catches that.
+  _write_report_raw "$D/StrykerOutput/smoke/reports/mutation-report.json" \
+    '{"schemaVersion":"1","somethingElse":42}'
+  _dispatch "$(_payload "dotnet stryker --config-file stryker-config.json")"
+  ! echo "$output" | grep -q "no scored mutants"
+}
