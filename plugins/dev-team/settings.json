@@ -155,7 +155,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/eval-compliance-check.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_EVAL_COMPLIANCE_CHECK:-0}\" = \"1\" ]; then python3 hooks/eval_compliance_check.py; else bash hooks/eval-compliance-check.sh; fi'"
           },
           {
             "type": "command",
