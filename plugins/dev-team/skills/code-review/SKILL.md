@@ -12,7 +12,7 @@ argument-hint: >-
   [--init-risks] [--background]
 user-invocable: true
 allowed-tools: >-
-  Read, Edit, Grep, Glob, AskUserQuestion,
+  Read, Edit, Grep, Glob, AskUserQuestion, Agent,
   Bash(git diff *), Bash(npx *), Bash(npm run *),
   Bash(pnpm *), Bash(yarn *), Bash(tsc *), Bash(eslint *),
   Bash(git log *), Bash(gh run *), Bash(semgrep *),
@@ -39,7 +39,7 @@ Output templates and JSON schemas: [`output-format.md`](output-format.md). Examp
 Arguments: $ARGUMENTS
 
 | Flag | Behavior |
-|---|---|
+| --- | --- |
 | `--agent <name>` | Run only the named agent (delegates to `/review-agent`) |
 | `--since <ref>` | Review files changed since the ref (`git diff --name-only <ref>...HEAD`) |
 | `--path <dir>` | Review only files in this directory |
@@ -83,7 +83,7 @@ Priority order:
 **Scope validation** (full-repo paths only):
 
 | File count | Action |
-|---|---|
+| --- | --- |
 | ≤200 | Proceed |
 | 201–500 | Warn: "Reviewing {N} files — consider `--path` to narrow scope." Proceed. |
 | >500 | Warn + confirm: "Reviewing {N} files is expensive. Continue?" Wait. |
@@ -112,7 +112,7 @@ If `REVIEW-CONTEXT.md` exists at the repo root, read it and pass its contents to
 ### 1c. Probe for optional MCP tools
 
 | Tool | Check | Use |
-|---|---|---|
+| --- | --- | --- |
 | RoslynMCP | `get_code_metrics` / `search_symbols` available | C# metrics, compiler diagnostics |
 | Code knowledge graph | `list_repos` available | Cross-repo dependency mapping |
 | Documentation MCP | wiki/docs search available | Architecture docs |
@@ -197,7 +197,7 @@ Read `knowledge/review-rubric.md` for the formula. Compute the overall health sc
 Classify each issue by actionability:
 
 | Severity | Confidence | Actionable? |
-|---|---|---|
+| --- | --- | --- |
 | error or warning | high or medium | **Yes** — auto-apply |
 | error or warning | none | No — report only (human judgment) |
 | suggestion | any | No — report only |
@@ -238,7 +238,7 @@ if iteration > MAX_ITERATIONS AND actionable_issues > 0:
 **Exit conditions**:
 
 | Condition | Action |
-|---|---|
+| --- | --- |
 | Zero actionable issues | Exit → step 7 |
 | Iteration limit (5) | Exit → escalate |
 | Same issues persist | Exit — not converging |
