@@ -21,6 +21,22 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+try:
+    from token_efficiency_limits import (  # type: ignore[import-not-found]
+        CLAUDE_MD_CHAR_LIMIT,
+        FILE_LINE_LIMIT,
+    )
+except ImportError:
+    # Fail-open per the hook contract: never let a missing sibling module
+    # break advisory output. Mirror the shared defaults.
+    CLAUDE_MD_CHAR_LIMIT = 5000
+    FILE_LINE_LIMIT = 500
+
 
 # The .sh's awk pattern: function-declaration heuristics for common
 # languages. Three alternatives (top-level function keyword; const/let/var =
@@ -76,33 +92,26 @@ def _check_claude_md(path: Path) -> Optional[str]:
         char_count = len(path.read_bytes())
     except OSError:
         return None
-    if char_count > 5000:
+    if char_count > CLAUDE_MD_CHAR_LIMIT:
         return (
-            f"Token: CLAUDE.md is {char_count} chars (limit: 5000). "
+            f"Token: CLAUDE.md is {char_count} chars (limit: {CLAUDE_MD_CHAR_LIMIT}). "
             "Move detailed examples to docs/ or skills."
         )
     return None
 
 
-def _line_count(path: Path) -> int:
-    try:
-        return len(path.read_bytes().splitlines())
-    except OSError:
-        return 0
+def _line_count_from_lines(lines: List[str]) -> int:
+    return len(lines)
 
 
-def _long_functions(path: Path, limit: int = 50) -> List[str]:
+def _long_functions_from_lines(lines: List[str], limit: int = 50) -> List[str]:
     """Return a list of `  Line N: <name> (<len> lines)` for functions
     longer than `limit`. Mirrors the .sh's awk block."""
-    try:
-        text = path.read_text(errors="replace")
-    except OSError:
-        return []
     findings: List[str] = []
     func_start = 0
     func_name = ""
     lineno = 0
-    for line in text.splitlines():
+    for line in lines:
         lineno += 1
         if _FUNC_START_RE.search(line):
             if func_start > 0 and lineno - func_start > limit:
@@ -122,17 +131,24 @@ def _long_functions(path: Path, limit: int = 50) -> List[str]:
 
 
 def _check_source_file(path: Path) -> List[str]:
-    """Return warning lines for source-file length + long functions."""
+    """Return warning lines for source-file length + long functions.
+
+    Reads the file's content exactly once and reuses the resulting lines for
+    both checks (line-count, long-function scan)."""
     warnings: List[str] = []
     if path.suffix.lower() not in _SOURCE_EXTS:
         return warnings
-    lc = _line_count(path)
-    if lc > 500:
+    try:
+        lines = path.read_text(errors="replace").splitlines()
+    except OSError:
+        return warnings
+    lc = _line_count_from_lines(lines)
+    if lc > FILE_LINE_LIMIT:
         warnings.append(
-            f"Token: File is {lc} lines (limit: 500). Large files "
+            f"Token: File is {lc} lines (limit: {FILE_LINE_LIMIT}). Large files "
             "require more context tokens — consider splitting."
         )
-    long_funcs = _long_functions(path)
+    long_funcs = _long_functions_from_lines(lines)
     if long_funcs:
         warnings.append(
             "Token: Long functions detected (limit: 50 lines). "

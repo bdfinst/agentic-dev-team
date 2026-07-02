@@ -26,13 +26,20 @@ from typing import List, Optional
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "hooks" / "lib"),
+)
+from token_efficiency_limits import (  # noqa: E402
+    CLAUDE_MD_CHAR_LIMIT,
+    FILE_LINE_LIMIT,
+)
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-CLAUDE_MD_CHAR_LIMIT: int = 5000
 CLAUDE_MD_RULE_LIMIT: int = 200
-FILE_LINE_LIMIT: int = 500
 
 
 # ---------------------------------------------------------------------------
