@@ -172,6 +172,8 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
     tool_errors = Counter()        # by tool name
     tool_calls = Counter()         # by tool name (for ratios)
     correction_turns = 0
+    correction_by_skill = Counter()   # #711: correction attribution
+    correction_by_agent = Counter()
 
     # utilization
     skills_invoked = Counter()
@@ -179,6 +181,12 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
 
     # map tool_use id -> tool name, to attribute tool_result errors back
     pending_tool: dict[str, str] = {}
+    # #711: most-recently-invoked Skill/Agent on the main thread, sticky until
+    # superseded — used to attribute a correction turn to the artifact active
+    # when it happened. No "skill ended" event exists in the transcript
+    # format, so "most recent invocation" is the only signal available.
+    active_skill: str | None = None
+    active_agent: str | None = None
 
     for rec in _iter_records(paths):
         sid = rec.get("sessionId") or rec.get("session_id")
@@ -243,10 +251,12 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
                         s = inp.get("skill") or inp.get("name")
                         if isinstance(s, str) and s:
                             skills_invoked[_strip_ns(s)] += 1
+                            active_skill = _strip_ns(s)
                     elif name in ("Agent", "Task"):
                         a = inp.get("subagent_type")
                         if isinstance(a, str) and a:
                             agents_invoked[_strip_ns(a)] += 1
+                            active_agent = _strip_ns(a)
                     if name in _EDIT_TOOLS and inp.get("file_path"):
                         edits_per_file[os.path.basename(str(inp["file_path"]))] += 1
                     if name == "Bash" and isinstance(inp.get("command"), str):
@@ -282,6 +292,8 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
                                       for b in content)):
                 if _CORRECTION_RE.search(utext.lower()):
                     correction_turns += 1
+                    correction_by_skill[active_skill or "unattributed"] += 1
+                    correction_by_agent[active_agent or "unattributed"] += 1
 
     # repeated edits / retried bash (>1 occurrence)
     repeated_file_edits = {f: n for f, n in edits_per_file.items() if n > 1}
@@ -327,6 +339,8 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
             "tool_calls": total_calls,
             "tool_error_rate": round(total_errors / total_calls, 4) if total_calls else 0.0,
             "user_correction_turns": correction_turns,
+            "by_skill": dict(sorted(correction_by_skill.items())),
+            "by_agent": dict(sorted(correction_by_agent.items())),
         },
         "gate": {
             "commit_attempts": commit_attempts,
@@ -426,6 +440,7 @@ def sync_record(digest: dict, host: str, project: str,
     file names, paths, prompts, or code — same privacy boundary as the digest."""
     base = slim_record(digest)
     tok = digest.get("token", {})
+    acc = digest.get("accuracy", {})
     util = digest.get("utilization", {})
     by_model = {m: dict(sorted(v.items()))
                 for m, v in sorted(tok.get("by_model", {}).items())}
@@ -443,7 +458,14 @@ def sync_record(digest: dict, host: str, project: str,
         "by_model": by_model,
         "by_thread": tok.get("by_subagent", {}),
         "rework": base["rework"],
-        "accuracy": base["accuracy"],
+        # #711: by_skill/by_agent correction attribution comes from the FULL
+        # digest (not slim_record, which deliberately drops per-name maps) —
+        # same pattern already used above for by_thread.
+        "accuracy": {
+            **base["accuracy"],
+            "by_skill": dict(sorted(acc.get("by_skill", {}).items())),
+            "by_agent": dict(sorted(acc.get("by_agent", {}).items())),
+        },
         "gate": base["gate"],
         # Utilization carries the invoked NAME maps (registry ids, non-sensitive),
         # not slim counts, so a cross-host rollup can compute which skills/agents
@@ -538,6 +560,8 @@ def rollup(digests_root: Path, registry: dict) -> dict:
     tool_calls = 0
     err_weighted = 0.0
     corrections = 0
+    correction_by_skill = Counter()   # #711
+    correction_by_agent = Counter()
     skills_invoked = Counter()
     agents_invoked = Counter()
     by_host: dict[str, Counter] = defaultdict(Counter)
@@ -570,6 +594,10 @@ def rollup(digests_root: Path, registry: dict) -> dict:
         tool_calls += n
         err_weighted += (acc.get("tool_error_rate", 0.0) or 0.0) * n
         corrections += acc.get("user_correction_turns", 0) or 0
+        for name, k in (acc.get("by_skill", {}) or {}).items():
+            correction_by_skill[name] += k
+        for name, k in (acc.get("by_agent", {}) or {}).items():
+            correction_by_agent[name] += k
         u = r.get("utilization", {}) if isinstance(r.get("utilization"), dict) else {}
         for name, k in (u.get("skills_invoked", {}) or {}).items():
             skills_invoked[name] += k
@@ -597,6 +625,8 @@ def rollup(digests_root: Path, registry: dict) -> dict:
             "tool_calls": tool_calls,
             "tool_error_rate": round(err_weighted / tool_calls, 4) if tool_calls else 0.0,
             "user_correction_turns": corrections,
+            "by_skill": dict(sorted(correction_by_skill.items())),
+            "by_agent": dict(sorted(correction_by_agent.items())),
         },
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),

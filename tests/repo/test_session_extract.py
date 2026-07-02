@@ -70,6 +70,58 @@ def test_extract_accuracy_signals() -> None:
     assert accuracy["user_correction_turns"] == 1
 
 
+def test_extract_accuracy_correction_attribution_unattributed_without_tool_use() -> (
+    None
+):
+    # sample-transcript.jsonl's correction turn is preceded by no Skill/Agent
+    # tool_use block (only attributionSkill tags, which don't drive
+    # attribution per #182) -> attributed to "unattributed" (#711).
+    digest = _digest()
+    accuracy = digest["accuracy"]
+    assert accuracy["by_skill"] == {"unattributed": 1}
+    assert accuracy["by_agent"] == {"unattributed": 1}
+    # invariant (AC2): sum of by_skill/by_agent == the scalar
+    assert sum(accuracy["by_skill"].values()) == accuracy["user_correction_turns"]
+    assert sum(accuracy["by_agent"].values()) == accuracy["user_correction_turns"]
+
+
+def test_extract_accuracy_correction_attributed_to_most_recent_skill_and_agent(
+    tmp_path: Path,
+) -> None:
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(
+        '{"type":"assistant","sessionId":"s1","message":{"content":'
+        '[{"type":"tool_use","id":"u1","name":"Skill",'
+        '"input":{"skill":"dev-team:plan"}}]}}\n'
+        '{"type":"assistant","sessionId":"s1","message":{"content":'
+        '[{"type":"tool_use","id":"u2","name":"Agent",'
+        '"input":{"subagent_type":"dev-team:software-engineer","description":"x"}}]}}\n'
+        '{"type":"user","sessionId":"s1","message":{"content":'
+        '"No, actually revert that change"}}\n'
+        # a second correction with no intervening Skill/Agent invocation ->
+        # still attributed to the STICKY last-seen skill/agent, not reset.
+        '{"type":"user","sessionId":"s1","message":{"content":'
+        '"that is wrong, stop"}}\n'
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(EXTRACT),
+            "--transcript",
+            str(transcript),
+            "--plugin-root",
+            str(PLUGIN),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    accuracy = json.loads(result.stdout)["accuracy"]
+    assert accuracy["user_correction_turns"] == 2
+    assert accuracy["by_skill"] == {"plan": 2}
+    assert accuracy["by_agent"] == {"software-engineer": 2}
+
+
 def test_extract_utilization() -> None:
     digest = _digest()
     utilization = digest["utilization"]
