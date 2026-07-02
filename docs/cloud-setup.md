@@ -53,7 +53,7 @@ fi
 exit 0
 ```
 
-If you also want this repo's test/gate toolchain (`jq`, `shellcheck`, `bats`,
+If you also want this repo's test/gate toolchain (`jq`, `shellcheck`,
 the Python dev deps, `gh`) in the same step, paste the body of
 [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) instead — it installs the
 toolchain *and* the plugin, and follows the same exit-0 discipline. It also

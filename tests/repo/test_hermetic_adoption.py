@@ -4,10 +4,12 @@ its setup()/teardown() blocks. Issue #546 — without this, fixtures inherit
 git env vars git exports into pre-push hooks and corrupt the parent
 worktree's refs.
 
-Ported from tests/repo/hermetic_adoption_tests.bats (issue #671). The
-remaining .bats fixtures under tests/ are still bats files (this repo's
-bats retirement lands as later phases of epic #668), so this sensor keeps
-scanning *.bats files even though it itself is now pytest.
+Ported from tests/repo/hermetic_adoption_tests.bats (issue #671). bats-core
+itself (and tests/lib/hermetic.bash with it) is now fully retired (#677,
+closing epic #668) — there are no *.bats files left under tests/ for this
+sensor to scan, so it now passes vacuously. Left in place rather than
+deleted: it costs nothing to run and re-arms automatically if a *.bats file
+ever reappears.
 """
 
 from __future__ import annotations
@@ -19,11 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Files that legitimately do NOT need hermetic_setup. Add one line per
 # entry with a short rationale — no silent skips.
-_WHITELIST = {
-    # The hermetic helper's OWN tests source the helper directly and
-    # source-then-invoke it per-test rather than via bats setup/teardown.
-    "tests/lib/hermetic_tests.bats",
-}
+_WHITELIST: set[str] = set()
 
 # Only lines that START with (optionally-indented) `git <mutating-verb>` count
 # — this excludes JSON test payloads like `"command":"git commit -m x"` where

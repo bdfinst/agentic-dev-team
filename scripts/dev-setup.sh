@@ -58,13 +58,10 @@ apt_update_once() {
 }
 
 # Map a logical tool name to its package name for the active package manager.
-# Most names match; only the divergent ones need a case.
+# Every tool name currently matches its package name 1:1 (the one divergent
+# case, brew's bats -> bats-core, was retired with bats-core itself in #677).
 pkg_name() {
-  local tool="$1"
-  case "$PM:$tool" in
-    brew:bats) echo "bats-core" ;;
-    *) echo "$tool" ;;
-  esac
+  echo "$1"
 }
 
 install_pkg() {
@@ -128,7 +125,7 @@ if [ -z "$PM" ]; then
       ;;
   esac
 fi
-for tool in jq shellcheck bats python3; do
+for tool in jq shellcheck python3; do
   ensure_tool "$tool" required
 done
 # gh is used for PR operations in CI/cloud, not by the local gates — best effort.
@@ -175,7 +172,7 @@ fi
 # Re-check everything from scratch so the summary reflects the real end state,
 # not what we believe we installed.
 section "Verifying"
-for tool in jq shellcheck bats python3; do
+for tool in jq shellcheck python3; do
   if command -v "$tool" >/dev/null 2>&1; then
     ok "$tool"
   else

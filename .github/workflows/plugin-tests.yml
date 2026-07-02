@@ -48,7 +48,7 @@ jobs:
       - name: Shell checks (via ci-local)
         run: bash scripts/ci-local.sh --only=chk_shellcheck_helpers,chk_shellcheck_tests,chk_sa_shell_suite,chk_python_only
 
-  bats-tests:
+  content-guard-tests:
     name: Plugin content & hooks
     runs-on: ubuntu-latest
     steps:
@@ -66,18 +66,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-apt-
 
-      - name: Install bats + jq + pytest
-        # Across-file parallelism comes from scripts/run-bats-parallel.sh
-        # (xargs -P, built into the runner) — no GNU `parallel` package needed,
-        # so local pre-push and CI use the exact same portable mechanism. The
-        # job id stays `bats-tests`; its required-status-check context is the
-        # job name "Plugin content & hooks". `pytest` was added when the
-        # plugin's hook implementations moved from bash to Python (#572); the
-        # unit tests under plugins/dev-team/tests/ replace the retired
-        # `chk_model_routing` bats suite.
+      - name: Install jq + pytest
+        # `pytest` was added when the plugin's hook implementations moved
+        # from bash to Python (#572); the unit tests under
+        # plugins/dev-team/tests/ replace the retired `chk_model_routing`
+        # bats suite. bats-core itself is retired (#677) — every
+        # content-guard suite is now pytest, so this job no longer installs
+        # it. `pytest-asyncio` is required by tests/scripts/test_orchestrator.py's
+        # @pytest.mark.asyncio tests, folded into chk_hook_units by #677 when
+        # tests/scripts/ was wired into CI for the first time.
+        # --ignore-installed: pytest-asyncio pulls in typing-extensions, which
+        # the runner image already has via apt (no RECORD file, so pip can't
+        # uninstall it to upgrade in place) — install alongside it instead of
+        # trying to replace it.
         run: |
-          sudo apt-get update && sudo apt-get install -y bats jq python3-yaml python3-pip
-          sudo python3 -m pip install pytest
+          sudo apt-get update && sudo apt-get install -y jq python3-yaml python3-pip
+          sudo python3 -m pip install --ignore-installed pytest pytest-asyncio
 
       # Content-validation suites: repo invariants, knowledge-index shape,
       # agent knowledge-anchor citations (AC19), command/doc registry sync.
@@ -90,17 +94,16 @@ jobs:
       # real repo file by a path which resolves nowhere (a rename left behind, a
       # bare subdir path the runtime reads file-relative) fails here with the
       # exact references listed — the class that broke /ship's decision-defaults
-      # screen. Runs before the bats suite (which also asserts it) so a failure
-      # prints the offenders and fails fast.
-      # Markdown reference integrity, the dev-team content bats suites
+      # screen. Runs before the content-guard suite (which also asserts it) so a
+      # failure prints the offenders and fails fast.
+      # Markdown reference integrity, the dev-team content-guard pytest suites
       # (tests/repo + knowledge/agents/commands/docs/scripts), skills-catalog
-      # freshness, the rules-vs-prompts boundary sensor (#118), and the
-      # toolchain-free hook-conformance bats (model-routing #104, /version) —
-      # all defined once in scripts/ci-local.sh so CI and the local pre-push
-      # gate can't drift. Tests/hooks mutation-gate suites are still excluded
-      # (they need stryker/pitest); only the pure bash+python+jq ones run.
+      # freshness, and the rules-vs-prompts boundary sensor (#118) — all defined
+      # once in scripts/ci-local.sh so CI and the local pre-push gate can't
+      # drift. Tests/hooks mutation-gate suites are still excluded (they need
+      # stryker/pitest); only the pure bash+python+jq ones run.
       - name: Content + hook-conformance checks (via ci-local)
-        run: bash scripts/ci-local.sh --only=chk_md_references,chk_bats_repo,chk_bats_content_rest,chk_skills_index,chk_rules_vs_prompts,chk_hook_units
+        run: bash scripts/ci-local.sh --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units
 
   # Cost-regression gate (#140 mechanism, #171 real baseline). Isolated in its
   # own job so the read-only telemetry deploy key is never in scope for the
@@ -154,8 +157,8 @@ jobs:
 
   # Per-rule semgrep fixture measurement (#124): runs semgrep over the
   # positive/negative fixtures of the 36 custom rules to MEASURE real behaviour
-  # (not just file presence, which the bats job covers). Heavier than the
-  # bats/jq/python gate — semgrep install — so it is its own job.
+  # (not just file presence, which the content-guard-tests job covers). Heavier
+  # than the jq/python gate — semgrep install — so it is its own job.
   semgrep-fixtures:
     name: Semgrep rule fixtures
     runs-on: ubuntu-latest

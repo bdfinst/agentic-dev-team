@@ -44,8 +44,8 @@ Edit files directly in `plugins/dev-team/`. All plugin components (agents, skill
 
 The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these tools on every dev machine:
 
-- CLI: `shellcheck`, `bats`, `jq`, `python3` (macOS: `brew install shellcheck bats-core jq python3`). `shellcheck` still lints repo-root shell (`scripts/audit-rules-vs-prompts.sh`, etc.) and the `plugins/security-assessment/` plugin; the `plugins/dev-team/` plugin itself is now Python.
-- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML for a few bats content-guards that shell out to Python; pytest for the plugin's own unit tests; semgrep for the security-assessment suites; httpx for the red-team harness smoke test).
+- CLI: `shellcheck`, `jq`, `python3` (macOS: `brew install shellcheck jq python3`). `shellcheck` still lints repo-root shell (`scripts/audit-rules-vs-prompts.sh`, etc.) and the `plugins/security-assessment/` plugin; the `plugins/dev-team/` plugin itself is now Python.
+- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML for a few content-guard tests that shell out to Python; pytest for every content-guard suite and the plugin's own unit tests; semgrep for the security-assessment suites; httpx for the red-team harness smoke test).
 
 **One-shot setup:** `bash scripts/dev-setup.sh` validates this toolchain and installs anything missing (Homebrew on macOS, apt-get on Debian/Ubuntu, then the `requirements-dev.txt` deps). Safe to re-run.
 
@@ -61,12 +61,6 @@ The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these t
 - **Tests are pytest.** New tests land as `test_*.py` under the plugin's `tests/` tree.
 
 Repo-root `scripts/*.sh` (`ci-local.sh`, `dev-setup.sh`, `cost-regression-check.sh`, the various `assemble-docs.sh`/`eval-changed.sh`/`run-full-eval.sh` helpers) are OUT of this rule's scope — they orchestrate developer tooling around the plugin, not the plugin itself, and are not shipped downstream. Convert them opportunistically when you touch them.
-
-### Hermetic bats fixtures
-
-Every `.bats` file under `tests/` that runs state-mutating git commands (`init`, `commit`, `push`, `update-ref`, `checkout`, `branch`, `add`, `clone`, `merge`, `rebase`, `reset`, ...) **must** `load '../lib/hermetic'` and wire `hermetic_setup` + `hermetic_teardown` into its `setup()`/`teardown()` blocks. `tests/repo/test_hermetic_adoption.py` enforces this at CI time.
-
-Rationale: git exports `GIT_DIR`/`GIT_INDEX_FILE`/`GIT_WORK_TREE`/`GIT_PREFIX`/`GIT_REFLOG_ACTION` into the pre-push hook's environment. Without scrubbing, fixture bats tests inherit those vars and their `git init`/`git commit`/`git push` operations target the parent worktree's gitdir instead of their tempdirs, silently rewriting `refs/heads/*` on the pushing repo. See [`.triage/pre-push-corrupts-local-branch-refs.md`](.triage/pre-push-corrupts-local-branch-refs.md) and issue #546.
 
 ### Testing locally
 
@@ -139,7 +133,7 @@ skills and agents are plain files in this repo; run any workflow manually:
 - the catalog → `plugins/dev-team/knowledge/agent-registry.md`.
 
 **Test tooling in cloud.** The same `.claude/cloud-setup.sh` that installs the
-plugin also installs this repo's gates (`jq`, `shellcheck`, `bats`, the Python
+plugin also installs this repo's gates (`jq`, `shellcheck`, the Python
 dev deps, and `gh`) — one paste into the *Setup script* field covers both. There
 is no dedicated secrets store yet — treat env vars as visible to anyone who can
 edit the environment.

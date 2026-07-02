@@ -8,7 +8,11 @@ match contract: directory prefixes, exact files, globs, unmapped
 Ported from tests/scripts/ci_changed_only_tests.bats (issue #676). The
 underlying scripts/lib/ci-changed-only.sh stays bash — only the test
 harness moves to pytest, per issue #676's note that scripts/ci-local.sh and
-its lib are out of scope for this port (closing issue #677 handles that).
+its lib are out of scope for this port. Issue #677 retired the
+chk_bats_repo/chk_bats_content_rest mapping entries these tests used to
+exercise (folded into chk_hook_units) — the example suite names below were
+swapped for still-mapped suites; the matcher contract under test is
+unchanged.
 """
 
 from __future__ import annotations
@@ -49,18 +53,26 @@ def test_lib_sources_cleanly_and_exposes_the_matcher() -> None:
 
 
 def test_dir_prefix_path_a_change_under_the_directory_runs_the_suite() -> None:
-    r = _run_fn("ci_suite_has_changes", "chk_bats_repo", "tests/repo/foo_tests.bats")
+    r = _run_fn(
+        "ci_suite_has_changes",
+        "chk_shellcheck_helpers",
+        "plugins/security-assessment/scripts/foo.sh",
+    )
     assert r.returncode == 0
 
 
 def test_dir_prefix_path_a_change_outside_every_watched_dir_is_skipped() -> None:
-    r = _run_fn("ci_suite_has_changes", "chk_bats_repo", "scripts/eval_grade.py")
+    r = _run_fn(
+        "ci_suite_has_changes", "chk_shellcheck_helpers", "scripts/eval_grade.py"
+    )
     assert r.returncode == 1
 
 
 def test_dir_prefix_path_any_one_of_several_watched_dirs_matching_runs_it() -> None:
     r = _run_fn(
-        "ci_suite_has_changes", "chk_bats_content_rest", "tests/docs/some_doc_test.bats"
+        "ci_suite_has_changes",
+        "chk_sa_shell_suite",
+        "tests/security-assessment/run-all.sh",
     )
     assert r.returncode == 0
 
@@ -144,8 +156,8 @@ def test_unmapped_suite_runs_even_with_an_empty_changeset() -> None:
 
 
 def test_ci_watched_paths_pins_representative_suite_mappings() -> None:
-    r1 = _run_fn("ci_watched_paths", "chk_bats_repo")
-    assert "tests/repo/" in r1.stdout
+    r1 = _run_fn("ci_watched_paths", "chk_shellcheck_helpers")
+    assert "plugins/security-assessment/scripts/" in r1.stdout
 
     r2 = _run_fn("ci_watched_paths", "chk_cost_regression")
     assert "scripts/cost-regression-check.sh" in r2.stdout
@@ -178,5 +190,5 @@ def test_multi_file_changeset_no_matching_file_skips() -> None:
 
 
 def test_empty_changeset_skips_a_mapped_suite() -> None:
-    r = _run_fn("ci_suite_has_changes", "chk_bats_repo", "")
+    r = _run_fn("ci_suite_has_changes", "chk_shellcheck_helpers", "")
     assert r.returncode == 1
