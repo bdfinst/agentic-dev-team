@@ -463,6 +463,48 @@ class TestMainContract:
 
 
 # =============================================================================
+# default_concurrency + injection — cores-2 default (#667, #681)
+# =============================================================================
+class TestConcurrencyDefault:
+    """Step 2.1: wrapper injects a computed default `-c` value unless the
+    caller already forwards one. See plans/mutation-kill-slice-loop-
+    refinements.md Slice 2.
+    """
+
+    def test_injects_computed_default_when_no_concurrency_present(
+        self, hermetic, monkeypatch
+    ):
+        monkeypatch.setattr(os, "cpu_count", lambda: 8)
+        _install_fakes(monkeypatch, hermetic)
+        rc = run_wrapper(hermetic)
+        assert rc == 0
+        strykers = [c for c in hermetic.calls if c["kind"] == "stryker"]
+        argv = strykers[0]["stryker_args"]
+        assert argv == ["-c", "6"]
+
+    def test_does_not_override_existing_short_form_pass_through(
+        self, hermetic, monkeypatch
+    ):
+        monkeypatch.setattr(os, "cpu_count", lambda: 8)
+        _install_fakes(monkeypatch, hermetic)
+        rc = run_wrapper(hermetic, "-c", "3")
+        assert rc == 0
+        strykers = [c for c in hermetic.calls if c["kind"] == "stryker"]
+        argv = strykers[0]["stryker_args"]
+        assert argv == ["-c", "3"]
+
+    def test_default_concurrency_falls_back_when_cpu_count_is_none(self):
+        assert wrapper.default_concurrency(None) == 1
+
+    def test_default_concurrency_computes_cores_minus_two(self):
+        assert wrapper.default_concurrency(8) == 6
+
+    def test_default_concurrency_floors_at_one(self):
+        assert wrapper.default_concurrency(2) == 1
+        assert wrapper.default_concurrency(1) == 1
+
+
+# =============================================================================
 # Signal handling — POSIX only
 # =============================================================================
 # Windows signal semantics differ fundamentally from POSIX:
