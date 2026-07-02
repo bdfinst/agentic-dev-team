@@ -39,12 +39,12 @@ Before creating the PR, verify:
 
 ### 3. Present Options
 
-After confirming the base branch, present exactly four choices:
+After confirming the base branch, present exactly four choices. If this session entered a worktree via `EnterWorktree` for this branch, each option's cleanup step is performed with the paired `ExitWorktree` call below — never raw `git worktree remove`. If no worktree was entered via `EnterWorktree` (branch-workflow can also run directly in the primary checkout), the `ExitWorktree` steps are a no-op — skip them.
 
-1. **Merge locally** — Integrate feature branch into base, run tests on merged result, delete feature branch and worktree
-2. **Push and create PR** — Push branch and create pull request via `gh pr create`. Keep worktree (PR still in progress)
-3. **Keep as-is** — Preserve branch and worktree for later handling
-4. **Discard** — Permanently delete branch and all commits. **Requires the human to type "discard" to confirm.** Never discard without typed confirmation.
+1. **Merge locally** — Integrate feature branch into base, run tests on merged result, delete feature branch, then call `ExitWorktree(action="remove")`
+2. **Push and create PR** — Push branch and create pull request via `gh pr create`. Once the PR is opened, call `ExitWorktree(action="keep")` so the worktree persists on disk while the session's CWD bookkeeping is closed
+3. **Keep as-is** — Preserve branch and worktree for later handling; call `ExitWorktree(action="keep")` immediately after the option is confirmed — do not leave the worktree silently "entered" for the rest of the session
+4. **Discard** — Permanently delete branch and all commits. **Requires the human to type "discard" to confirm.** Never discard without typed confirmation. After confirmation, call `ExitWorktree(action="remove", discard_changes=true)`
 
 ### 3a. Pre-Switch Verification (Option 1 only)
 
@@ -73,7 +73,8 @@ Default: **squash merge** unless the human specifies otherwise.
 
 - Run tests on the merged result — **do not skip this**. Broken code must never reach base branches.
 - Delete the feature branch (remote and local) — only for options 1 and 4
-- Remove worktree if applicable (options 1 and 4 only; keep for option 2)
+- If a worktree was entered via `EnterWorktree` for this branch, call `ExitWorktree(action="remove")` for options 1 and 4 (never raw `git worktree remove`); options 2 and 3 use `ExitWorktree(action="keep")` as described in Section 3. If no worktree was entered via `EnterWorktree`, this step is a no-op.
+- After removal, verify no orphaned worktree or branch remains — e.g. `git worktree list` and `git branch` should show nothing for the deleted branch
 
 ## Integration
 

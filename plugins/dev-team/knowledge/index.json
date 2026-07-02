@@ -1699,7 +1699,7 @@
       "anchor": "2-create-the-pr"
     },
     "3. Present Options": {
-      "summary": "After confirming the base branch, present exactly four choices:",
+      "summary": "After confirming the base branch, present exactly four choices.",
       "anchor": "3-present-options"
     },
     "3a. Pre-Switch Verification (Option 1 only)": {
