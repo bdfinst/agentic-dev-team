@@ -55,7 +55,6 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
@@ -165,35 +164,16 @@ def _read_effort(agent_file: Path) -> str:
     return ""
 
 
-def _normalize_band(token: str) -> str:
-    if token in ("low", "haiku"):
-        return "low"
-    if token in ("medium", "sonnet"):
-        return "medium"
-    if token in ("high", "opus"):
-        return "high"
-    return ""
-
-
-def _load_json(path: Path) -> Optional[object]:
-    try:
-        with path.open("r", encoding="utf-8") as fh:
-            return json.load(fh)
-    except (OSError, json.JSONDecodeError, ValueError):
-        return None
-
-
-def _ladder_is_valid() -> bool:
-    data = _load_json(_ladder_json())
-    if not isinstance(data, list) or len(data) == 0:
-        return False
-    return all(isinstance(x, str) for x in data)
-
-
 def _snapshot_in_ladder(snap: str) -> bool:
-    if not _ladder_is_valid():
+    """True iff `snap` is a model ID present in the ladder file.
+
+    Delegates band-normalization/JSON-loading/ladder-validity to
+    hooks/lib/model_resolve.py (#732) rather than keeping local, driftable
+    copies of those helpers.
+    """
+    if not model_resolve.ladder_is_valid(_ladder_json()):
         return False
-    data = _load_json(_ladder_json())
+    data = model_resolve.load_json(_ladder_json())
     assert isinstance(data, list)
     return snap in data
 
@@ -314,6 +294,12 @@ def main() -> int:
     if tool_name != "Agent":
         return 0
 
+    if not _MODEL_RESOLVE_AVAILABLE:  # pragma: no cover
+        # Sibling hooks/lib/model_resolve.py should always ship alongside
+        # this file; if it's somehow missing, fail open rather than raise.
+        _emit_pass_through()
+        return 0
+
     tool_input = (
         payload.get("tool_input") if isinstance(payload.get("tool_input"), dict) else {}
     )
@@ -337,10 +323,10 @@ def main() -> int:
     reason = ""
     explicit_snapshot = ""
     if effort:
-        band = _normalize_band(effort)
+        band = model_resolve.normalize_band(effort)
         reason = "effort"
     elif requested_model:
-        band = _normalize_band(requested_model)
+        band = model_resolve.normalize_band(requested_model)
         if band:
             reason = "legacy-tier"
         else:
@@ -352,7 +338,7 @@ def main() -> int:
         # Explicit out-of-ladder snapshot → session fallback.
         if (
             explicit_snapshot
-            and _ladder_is_valid()
+            and model_resolve.ladder_is_valid(_ladder_json())
             and not _snapshot_in_ladder(explicit_snapshot)
             and session
         ):
@@ -371,7 +357,7 @@ def main() -> int:
     routing = _routing_json()
     default_snapshot = ""
     if routing.is_file():
-        data = _load_json(routing)
+        data = model_resolve.load_json(routing)
         if isinstance(data, dict):
             v = data.get(band)
             if isinstance(v, str):

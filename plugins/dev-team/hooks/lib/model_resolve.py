@@ -86,10 +86,14 @@ def _resolve_paths() -> Tuple[Path, Path]:
 
 
 # ---------------------------------------------------------------------------
-# _normalize_band — map a band or legacy tier to a canonical band.
+# normalize_band — map a band or legacy tier to a canonical band.
 # Returns "" for an unrecognized token (matches the .sh's echo "").
+#
+# Public (#732): also called directly by hooks/agent_model_resolve.py, which
+# used to keep its own copy of this function. Promoted so there is exactly
+# one implementation to keep in sync.
 # ---------------------------------------------------------------------------
-def _normalize_band(token: str) -> str:
+def normalize_band(token: str) -> str:
     if token in ("low", "haiku"):
         return "low"
     if token in ("medium", "sonnet"):
@@ -107,24 +111,34 @@ def _band_weight(band: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# _load_json — read a JSON file if present; return None on any failure.
+# load_json — read a JSON file if present; return None on any failure.
+#
+# Public (#732): also called directly by hooks/agent_model_resolve.py. The
+# exception tuple deliberately includes `ValueError` in addition to
+# `json.JSONDecodeError` (a `ValueError` subclass) so a mis-encoded file
+# (e.g. `UnicodeDecodeError`, also a `ValueError` subclass) degrades to None
+# rather than raising — this hook's fail-open posture requires it, and it
+# was the one behavior agent_model_resolve.py's now-removed local copy had
+# that this shared version previously lacked.
 # ---------------------------------------------------------------------------
-def _load_json(path: Path) -> Optional[object]:
+def load_json(path: Path) -> Optional[object]:
     try:
         with path.open("r", encoding="utf-8") as fh:
             return json.load(fh)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError, ValueError):
         return None
 
 
 # ---------------------------------------------------------------------------
-# _ladder_is_valid — true iff the ladder file exists and is a non-empty JSON
+# ladder_is_valid — true iff the ladder file exists and is a non-empty JSON
 # array of strings. Anything else degrades to the default map.
+#
+# Public (#732): also called directly by hooks/agent_model_resolve.py.
 # ---------------------------------------------------------------------------
-def _ladder_is_valid(ladder_path: Path) -> bool:
+def ladder_is_valid(ladder_path: Path) -> bool:
     if not ladder_path.exists():
         return False
-    data = _load_json(ladder_path)
+    data = load_json(ladder_path)
     if not isinstance(data, list):
         return False
     if len(data) == 0:
@@ -137,7 +151,7 @@ def _ladder_is_valid(ladder_path: Path) -> bool:
 # Returns "" when the band key is absent (matches jq's // empty behavior).
 # ---------------------------------------------------------------------------
 def _default_for_band(routing_path: Path, band: str) -> str:
-    data = _load_json(routing_path)
+    data = load_json(routing_path)
     if not isinstance(data, dict):
         return ""
     value = data.get(band)
@@ -164,9 +178,9 @@ def resolve_band(
         routing_path = routing_path or r
         ladder_path = ladder_path or l
 
-    if _ladder_is_valid(ladder_path):
-        ladder = _load_json(ladder_path)
-        # _ladder_is_valid guarantees list[str] with len ≥ 1.
+    if ladder_is_valid(ladder_path):
+        ladder = load_json(ladder_path)
+        # ladder_is_valid guarantees list[str] with len ≥ 1.
         assert isinstance(ladder, list)
         n = len(ladder)
         weight = _band_weight(band)
@@ -231,7 +245,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return EXIT_OK
 
     requested = args[0]
-    band = _normalize_band(requested)
+    band = normalize_band(requested)
     if not band:
         sys.stderr.write(
             f"Unknown effort band '{requested}'. Valid bands: low, medium, "
