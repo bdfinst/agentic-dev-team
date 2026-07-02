@@ -68,9 +68,13 @@ jobs:
         # it. `pytest-asyncio` is required by tests/scripts/test_orchestrator.py's
         # @pytest.mark.asyncio tests, folded into chk_hook_units by #677 when
         # tests/scripts/ was wired into CI for the first time.
+        # --ignore-installed: pytest-asyncio pulls in typing-extensions, which
+        # the runner image already has via apt (no RECORD file, so pip can't
+        # uninstall it to upgrade in place) — install alongside it instead of
+        # trying to replace it.
         run: |
           sudo apt-get update && sudo apt-get install -y jq python3-yaml python3-pip
-          sudo python3 -m pip install pytest pytest-asyncio
+          sudo python3 -m pip install --ignore-installed pytest pytest-asyncio
 
       # Content-validation suites: repo invariants, knowledge-index shape,
       # agent knowledge-anchor citations (AC19), command/doc registry sync.
