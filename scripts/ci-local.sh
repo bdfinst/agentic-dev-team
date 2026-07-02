@@ -165,7 +165,7 @@ chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.s
 chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh scripts/audit-rules-vs-prompts.sh; }
 chk_sa_shell_suite()     { bash tests/security-assessment/scripts/run-all.sh; }
 chk_bats_repo()          { run_bats tests/repo/; }
-chk_bats_content_rest()  { run_bats tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/; }
+chk_bats_content_rest()  { run_bats tests/knowledge/ tests/commands/ tests/docs/ tests/scripts/; }
 # chk_model_routing (formerly ran 4 bats files) — retired in #618. The bash
 # hooks under test have been ported to Python (#585 / #577 / #609), and their
 # unit tests now live in plugins/dev-team/tests/hooks/test_*.py (invoked via
@@ -213,7 +213,8 @@ chk_hook_units() {
     printf '%s∼ skipped (pytest not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
     return 0
   fi
-  python3 -m pytest plugins/dev-team/tests tests/repo
+  # tests/agents/ was ported from bats to pytest under issue #675 (epic #668).
+  python3 -m pytest plugins/dev-team/tests tests/repo tests/agents
 }
 
 # Ordered list of "label::function". Order defines both the replay order and the
