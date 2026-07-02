@@ -56,22 +56,17 @@ def _derive_python_source(test_file: str) -> str:
     return test_file
 
 
+def _is_python_source(line: str) -> bool:
+    """True for a non-test Python source path."""
+    if not line.endswith(".py"):
+        return False
+    if line.startswith("test_") or "_test.py" in line or "/test_" in line:
+        return False
+    return True
+
+
 def _changed_python_source() -> str:
-    for cmd in (
-        ["git", "diff", "--name-only", "HEAD"],
-        ["git", "diff", "--cached", "--name-only"],
-    ):
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        except (FileNotFoundError, OSError):
-            return ""
-        for line in proc.stdout.splitlines():
-            if not line.endswith(".py"):
-                continue
-            if line.startswith("test_") or "_test.py" in line or "/test_" in line:
-                continue
-            return line
-    return ""
+    return lib.first_changed_file(_is_python_source)
 
 
 def _mutmut_argv() -> List[str]:
