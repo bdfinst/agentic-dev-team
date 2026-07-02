@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +325,39 @@ def detect_adapter(command: str) -> str:
                 return "mutmut"
         return "none"
     return "none"
+
+
+# ---------------------------------------------------------------------------
+# First changed source file — shared by pitest / stryker-net / mutmut adapters
+#
+# Each adapter needs "the first non-test source file touched by this change"
+# to scope its mutation run (target class, --mutate pattern, --paths-to-mutate).
+# The traversal (git diff --name-only HEAD, falling back to --cached) is
+# identical across adapters; only the extension set and test-name exclusion
+# differ, so those are supplied as a single predicate.
+# ---------------------------------------------------------------------------
+
+
+def first_changed_file(is_source_predicate: Callable[[str], bool]) -> str:
+    """Return the first changed file for which `is_source_predicate` is True.
+
+    Checks `git diff --name-only HEAD` first, then falls back to
+    `git diff --cached --name-only` (mirrors the bash adapters' behaviour of
+    preferring unstaged/working-tree changes over already-staged ones).
+    Returns "" when git is unavailable or no line satisfies the predicate.
+    """
+    for cmd in (
+        ["git", "diff", "--name-only", "HEAD"],
+        ["git", "diff", "--cached", "--name-only"],
+    ):
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        except (FileNotFoundError, OSError):
+            return ""
+        for line in proc.stdout.splitlines():
+            if is_source_predicate(line):
+                return line
+    return ""
 
 
 # ---------------------------------------------------------------------------

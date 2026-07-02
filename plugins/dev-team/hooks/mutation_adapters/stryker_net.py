@@ -82,23 +82,18 @@ def _shard_for_file(changed_file: str) -> Optional[Path]:
     return None
 
 
+def _is_cs_source(line: str) -> bool:
+    """True for a non-test C# source path."""
+    if not line.endswith(".cs"):
+        return False
+    if "Test" in line or "Spec" in line:
+        return False
+    return True
+
+
 def _changed_cs_file() -> str:
     """Return the newest non-test C# file changed in HEAD (or cached), or ''."""
-    for cmd in (
-        ["git", "diff", "--name-only", "HEAD"],
-        ["git", "diff", "--cached", "--name-only"],
-    ):
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        except (FileNotFoundError, OSError):
-            return ""
-        for line in proc.stdout.splitlines():
-            if not line.endswith(".cs"):
-                continue
-            if "Test" in line or "Spec" in line:
-                continue
-            return line
-    return ""
+    return lib.first_changed_file(_is_cs_source)
 
 
 def stryker_net_run(output_file: Path) -> int:

@@ -95,23 +95,18 @@ def _is_gradle() -> bool:
     )
 
 
+def _is_pitest_source(line: str) -> bool:
+    """True for a non-test Java/Kotlin/Groovy/Scala source path."""
+    if not re.search(r"\.(java|kt|groovy|scala)$", line):
+        return False
+    if "Test" in line or "Spec" in line:
+        return False
+    return True
+
+
 def _changed_source_file() -> str:
     """Return the first non-test Java/Kotlin/Groovy/Scala file from git diff."""
-    for cmd in (
-        ["git", "diff", "--name-only", "HEAD"],
-        ["git", "diff", "--cached", "--name-only"],
-    ):
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        except (FileNotFoundError, OSError):
-            return ""
-        for line in proc.stdout.splitlines():
-            if not re.search(r"\.(java|kt|groovy|scala)$", line):
-                continue
-            if "Test" in line or "Spec" in line:
-                continue
-            return line
-    return ""
+    return lib.first_changed_file(_is_pitest_source)
 
 
 def _extract_test_class(command: str) -> str:
