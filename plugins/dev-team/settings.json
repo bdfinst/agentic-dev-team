@@ -151,7 +151,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/token-efficiency-review.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_TOKEN_EFFICIENCY_REVIEW:-0}\" = \"1\" ]; then python3 hooks/token_efficiency_review.py; else bash hooks/token-efficiency-review.sh; fi'"
           },
           {
             "type": "command",
