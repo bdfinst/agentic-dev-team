@@ -50,7 +50,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/contract-version-guard.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CONTRACT_VERSION_GUARD:-0}\" = \"1\" ]; then python3 hooks/contract_version_guard.py; else bash hooks/contract-version-guard.sh; fi'"
           }
         ]
       },
