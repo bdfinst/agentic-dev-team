@@ -214,7 +214,7 @@ async def admin_reload_model():
 ```
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-JWT_SECRET=Welcome2ACI-shared-2026
+JWT_SECRET=EXAMPLE-shared-jwt-secret-2026
 DATABASE_URL=postgres://fraud:fraud@db.internal/fraud
 ```
 
@@ -401,7 +401,7 @@ Non-AEAD cipher mode. **Remediation:** switch to `AES.MODE_GCM` with a 96-bit no
 |--------|------|-------------|-----------------|
 | `AKIAIOSFODNN7EXAMPLE` | AWS access key id | `config/.env.production:2` | Rotate + move to secrets manager |
 | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` | AWS secret key | `config/.env.production:3` | Rotate + move to secrets manager |
-| `Welcome2ACI-shared-2026` | JWT secret (shared) | `config/.env.production:6` | Rotate + split per-service |
+| `EXAMPLE-shared-jwt-secret-2026` | JWT secret (shared) | `config/.env.production:6` | Rotate + split per-service |
 | `postgres://fraud:fraud@…` | DB URL with creds | `config/.env.production:11` | Rotate + sslmode=require |
 | `NODE_TLS_REJECT_UNAUTHORIZED=0` | TLS disable flag | `config/.env.production:9` | Remove |
 | `test-fixture-api-key-abc123` | Test fixture | `tests/test_scorer.py:6` | **Suppressed** per business_logic.md §1 |
