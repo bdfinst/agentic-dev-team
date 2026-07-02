@@ -1,9 +1,9 @@
 #!/usr/bin/env bats
 # Issue #553 — plans/build-worktree-inherits-caller-head.md Slice 1.
 #
-# Step 1.1: plugins/dev-team/scripts/build-worktree-baseref.sh `detect`
+# Step 1.1: plugins/dev-team/scripts/build_worktree_baseref.py `detect`
 # subcommand. Prints exactly one of head|fresh|unset|unknown and exits 0
-# (degrade-never-abort — mirrors hooks/lib/model-resolve.sh's precedent).
+# (degrade-never-abort — mirrors hooks/lib/model_resolve.py's precedent).
 #
 # Env var seam (test-only injection, mirrors MODEL_ROUTING_JSON/
 # MODEL_LADDER_JSON in model-resolve.sh):
@@ -16,7 +16,7 @@
 
 load '../lib/hermetic'
 
-SCRIPT="$BATS_TEST_DIRNAME/../../plugins/dev-team/scripts/build-worktree-baseref.sh"
+SCRIPT="$BATS_TEST_DIRNAME/../../plugins/dev-team/scripts/build_worktree_baseref.py"
 BUILD_SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/build/SKILL.md"
 
 setup() {

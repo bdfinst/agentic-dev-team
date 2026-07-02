@@ -4,7 +4,7 @@
 
 > This file is extracted from `plugins/dev-team/CLAUDE.md` → Skills Registry. Edit the source table there; this file is a standalone reference copy for agents that need to load only the skills catalog.
 
-User-invocable workflows in `.claude/skills/`. All review skills are executed under orchestrator direction. Model assignment for every agent flows through the **Resolution Procedure** (`agents/orchestrator.md`), enforced by the PreToolUse hook `hooks/agent-model-resolve.sh`.
+User-invocable workflows in `.claude/skills/`. All review skills are executed under orchestrator direction. Model assignment for every agent flows through the **Resolution Procedure** (`agents/orchestrator.md`), enforced by the PreToolUse hook `hooks/agent_model_resolve.py`.
 
 > **Moved to the `marketplace-dev` plugin.** The plugin-authoring skills `agent-create`, `agent-skill-authoring`, `agent-add`, `agent-remove`, and `add-plugin` are no longer part of dev-team. They — plus a generalized `/plugin-audit` — now live in the companion `marketplace-dev` plugin, which builds and audits Claude Code plugins for any marketplace. Install it from the `bfinster` marketplace.
 

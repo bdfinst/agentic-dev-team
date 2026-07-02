@@ -5,14 +5,14 @@
 # the report aggregation.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-HOOK="$REPO_ROOT/plugins/dev-team/hooks/telemetry.sh"
+HOOK="$REPO_ROOT/plugins/dev-team/hooks/telemetry.py"
 REPORT="$REPO_ROOT/plugins/dev-team/hooks/lib/telemetry_report.py"
 
 setup() { D="$(mktemp -d)"; }
 teardown() { rm -rf "$D"; }
 
 _enable() { mkdir -p "$D/.claude"; echo '{"enabled":true}' > "$D/.claude/telemetry.json"; }
-_send() { echo "$1" | bash "$HOOK"; }
+_send() { echo "$1" | python3 "$HOOK"; }
 
 @test "telemetry: OFF by default — nothing is recorded" {
   _send "{\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"/specs\",\"cwd\":\"$D\"}"
@@ -28,7 +28,7 @@ _send() { echo "$1" | bash "$HOOK"; }
 }
 
 @test "telemetry: env DEV_TEAM_TELEMETRY=on also enables" {
-  run bash -c "DEV_TEAM_TELEMETRY=on; export DEV_TEAM_TELEMETRY; echo '{\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"/build\",\"cwd\":\"$D\"}' | bash '$HOOK'"
+  run bash -c "DEV_TEAM_TELEMETRY=on; export DEV_TEAM_TELEMETRY; echo '{\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"/build\",\"cwd\":\"$D\"}' | python3 '$HOOK'"
   [ "$status" -eq 0 ]
   [ "$(jq -r '.name' "$D/metrics/telemetry.jsonl")" = "build" ]
 }
@@ -108,17 +108,17 @@ EOF
   [[ "$output" == *"Nothing has left the machine"* ]]
 }
 
-@test "settings.json registers telemetry.sh on UserPromptSubmit and PreToolUse Bash" {
-  run jq -e '.hooks.UserPromptSubmit[].hooks[] | select(.command | contains("telemetry.sh"))' \
+@test "settings.json registers telemetry.py on UserPromptSubmit and PreToolUse Bash" {
+  run jq -e '.hooks.UserPromptSubmit[].hooks[] | select(.command | contains("telemetry.py"))' \
     "$REPO_ROOT/plugins/dev-team/settings.json"
   [ "$status" -eq 0 ]
-  run jq -e '.hooks.PreToolUse[] | select(.matcher=="Bash") | .hooks[] | select(.command | contains("telemetry.sh"))' \
+  run jq -e '.hooks.PreToolUse[] | select(.matcher=="Bash") | .hooks[] | select(.command | contains("telemetry.py"))' \
     "$REPO_ROOT/plugins/dev-team/settings.json"
   [ "$status" -eq 0 ]
 }
 
-@test "settings.json registers telemetry.sh on PreToolUse Skill (#135)" {
-  run jq -e '.hooks.PreToolUse[] | select(.matcher=="Skill") | .hooks[] | select(.command | contains("telemetry.sh"))' \
+@test "settings.json registers telemetry.py on PreToolUse Skill (#135)" {
+  run jq -e '.hooks.PreToolUse[] | select(.matcher=="Skill") | .hooks[] | select(.command | contains("telemetry.py"))' \
     "$REPO_ROOT/plugins/dev-team/settings.json"
   [ "$status" -eq 0 ]
 }

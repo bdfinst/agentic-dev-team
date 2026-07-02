@@ -39,7 +39,7 @@ The orchestrator classifies incoming requests, routes them to the appropriate pi
 
 ## Resolution Procedure
 
-Each agent declares an **effort band** (`effort: low|medium|high`) in its frontmatter — the reasoning effort its task needs, not a vendor model name. Band-to-model resolution is **enforced by a PreToolUse hook** (`hooks/agent-model-resolve.sh`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper (`hooks/lib/model-resolve.sh`). The LLM cannot bypass it.
+Each agent declares an **effort band** (`effort: low|medium|high`) in its frontmatter — the reasoning effort its task needs, not a vendor model name. Band-to-model resolution is **enforced by a PreToolUse hook** (`hooks/agent_model_resolve.py`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper (`hooks/lib/model_resolve.py`). The LLM cannot bypass it.
 
 When the orchestrator (or any caller) spawns a subagent via the Agent tool, the hook:
 
@@ -61,11 +61,11 @@ Each agent's `effort:` band is the authoritative routing input. Below is the rat
 
 ## Wave-Aware Build Dispatch
 
-During `/build`, the orchestrator executes the plan **wave by wave** (the plan's `## Parallelization` schedule from `scripts/plan-waves.sh`):
+During `/build`, the orchestrator executes the plan **wave by wave** (the plan's `## Parallelization` schedule from `scripts/plan_waves.py`):
 
-1. **Resolve** the wave schedule (`build-wave.sh`) and the effective concurrency (`build-jobs.sh` → `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)`).
+1. **Resolve** the wave schedule (`build_wave.py`) and the effective concurrency (`build_jobs.py` → `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)`).
 2. **Dispatch** each independent slice in the wave to its own git worktree (`isolation: "worktree"`) up to that concurrency — each runs full RED-GREEN-REFACTOR + inline review in isolation.
-3. **Barrier + reconcile** (`build-wave-reconcile.sh`): order-independently merge the wave's slice branches, gate on the full suite, and only then start the next wave. A failing slice or a reconcile conflict halts loudly (names the offender, preserves succeeded worktrees, prints the resume command) and starts no next-wave slice.
+3. **Barrier + reconcile** (`build_wave_reconcile.py`): order-independently merge the wave's slice branches, gate on the full suite, and only then start the next wave. A failing slice or a reconcile conflict halts loudly (names the offender, preserves succeeded worktrees, prints the resume command) and starts no next-wave slice.
 
 Effective concurrency 1 (fully-dependent plan, `--jobs 1`, or `DEV_TEAM_MAX_PARALLEL_BUILDS=1`) degrades to sequential single-worktree build with no fan-out or reconcile.
 
@@ -170,7 +170,7 @@ double-counts the work and leaves the two synthesis paths disconnected.
 
 ## Knowledge index — consumer usage pattern
 
-Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. `/model-routing-check` is the analogous diagnostic command; for routing, `/model-routing-check`; for knowledge freshness, `bash plugins/dev-team/hooks/lib/build-knowledge-index.sh --check`.
+Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. `/model-routing-check` is the analogous diagnostic command; for routing, `/model-routing-check`; for knowledge freshness, `bash plugins/dev-team/hooks/lib/build_knowledge_index.py --check`.
 
 ## Skills
 
@@ -261,7 +261,7 @@ Do **not** dispatch `security-engineer` on every task — its `effort: high` cos
 - **Doc review**: Before the human gate, invoke the tech-writer to review all documentation affected by the changes:
   - Any behavioral or architectural change → check `docs/agent-architecture.md`, `README.md`
   - Any configuration or tooling change → check `docs/agent-architecture.md` (Governance section)
-  - Any agent or skill change → check `CLAUDE.md`, `docs/agent_info.md`, `docs/team-structure.md`; regenerate `docs/skills.md` (generated — `hooks/lib/build-skills-index.sh`)
+  - Any agent or skill change → check `CLAUDE.md`, `docs/agent_info.md`, `docs/team-structure.md`; regenerate `docs/skills.md` (generated — `hooks/lib/build_skills_index.py`)
   - Tech-writer updates outdated sections and confirms all docs reflect current behavior before proceeding
 - **Human gate**: Human reviews the final output. If the plan was good, implementation review is lightweight.
 - **Context**: If implementation is large, compact mid-phase — update the plan progress file with completed steps and continue in a fresh context

@@ -1,12 +1,12 @@
 #!/usr/bin/env bats
 # #226 — /plan step 6 must gate GitHub issue creation on a GitHub origin:
-# classify via git-origin-host.sh, prompt only on github, show the count, default
+# classify via git_origin_host.py, prompt only on github, show the count, default
 # No, consent-gate /issues-from-plan, and skip non-interactively. Doc gate.
 
 SKILL="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/plan/SKILL.md"
 
-@test "step 6 classifies the origin via git-origin-host.sh" {
-  grep -q 'git-origin-host.sh' "$SKILL"
+@test "step 6 classifies the origin via git_origin_host.py" {
+  grep -q 'git_origin_host.py' "$SKILL"
 }
 
 @test "prompts only on a github origin" {

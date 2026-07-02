@@ -62,23 +62,15 @@ def repo(tmp_path: Path) -> Path:
 
 
 def _current_hash(repo: Path) -> str:
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
-    src_lib = (
-        _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "review-gate-hash.sh"
-    )
-    r = subprocess.run(
-        ["bash", str(src_lib)],
-        cwd=repo,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return r.stdout.strip()
+    """Compute the review-gate hash via the Python lib (authoritative)."""
+    import sys as _sys
+
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in _sys.path:
+        _sys.path.insert(0, str(lib_dir))
+    import review_gate_hash as _rgh  # type: ignore[import-not-found]
+
+    return _rgh.review_gate_hash(cwd=repo)
 
 
 # --- non-gate branches ----------------------------------------------------

@@ -15,11 +15,11 @@ ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/model-routing.
 }
 
 @test "orchestrator: Resolution Procedure names the resolver hook" {
-  grep -q "hooks/agent-model-resolve.sh" "$ORCH"
+  grep -q "hooks/agent_model_resolve.py" "$ORCH"
 }
 
 @test "orchestrator: Resolution Procedure names the resolver helper" {
-  grep -q "hooks/lib/model-resolve.sh" "$ORCH"
+  grep -q "hooks/lib/model_resolve.py" "$ORCH"
 }
 
 @test "orchestrator: Resolution Procedure names routing.json and the ladder" {
@@ -50,7 +50,7 @@ ROUTING_JSON="$BATS_TEST_DIRNAME/../../plugins/dev-team/knowledge/model-routing.
   ! grep -qE '^\|.*\bhaiku\b.*\|' "$CLAUDE_MD"
   ! grep -qE '^\|.*\bsonnet\b.*\|' "$CLAUDE_MD"
   ! grep -qE '^\|.*\bopus\b.*\| \(opus tier\)' "$CLAUDE_MD"
-  grep -q "hooks/agent-model-resolve.sh" "$CLAUDE_MD"
+  grep -q "hooks/agent_model_resolve.py" "$CLAUDE_MD"
 }
 
 @test "skills-registry.md: Slash Commands Registry contains a /model-routing-check row" {

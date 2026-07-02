@@ -18,7 +18,7 @@ Token-budget reference (CLAUDE.md baseline, full-load ceiling, per-agent and per
 
 ## Enforcement
 
-This protocol is backed by a `PreToolUse` hook — `hooks/context-ceiling-guard.sh`
+This protocol is backed by a `PreToolUse` hook — `hooks/context_ceiling_guard.py`
 (registered on `Agent` and `Skill`). Before a capability-loading call it reads the
 *actual* occupancy from the transcript's latest assistant-message usage
 (`input + cache_read + cache_creation` tokens) against the model's context window

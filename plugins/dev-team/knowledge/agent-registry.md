@@ -21,7 +21,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 
 ## Review Agents
 
-Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Each agent declares its reasoning-effort band (`effort: low|medium|high`) in frontmatter; the PreToolUse hook `hooks/agent-model-resolve.sh` resolves the band to the active model per the **Resolution Procedure** in `agents/orchestrator.md`. The band is the single source of truth — run `/model-routing-check` for the live band→model map rather than mirroring tiers here.
+Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Each agent declares its reasoning-effort band (`effort: low|medium|high`) in frontmatter; the PreToolUse hook `hooks/agent_model_resolve.py` resolves the band to the active model per the **Resolution Procedure** in `agents/orchestrator.md`. The band is the single source of truth — run `/model-routing-check` for the live band→model map rather than mirroring tiers here.
 
 | Agent | File | What It Checks |
 |-------|------|----------------|

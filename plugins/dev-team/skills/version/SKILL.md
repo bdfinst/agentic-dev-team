@@ -20,7 +20,7 @@ Arguments: none.
 Run the resolver and report its output verbatim:
 
 ```bash
-"$CLAUDE_PLUGIN_ROOT/hooks/lib/plugin-version.sh"
+"$CLAUDE_PLUGIN_ROOT/hooks/lib/plugin_version.py"
 ```
 
 The script reads `~/.claude/plugins/installed_plugins.json` (Claude Code's

@@ -11,7 +11,7 @@
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 METER="$REPO_ROOT/plugins/dev-team/hooks/lib/cost_meter.py"
-HOOK="$REPO_ROOT/plugins/dev-team/hooks/cost-meter.sh"
+HOOK="$REPO_ROOT/plugins/dev-team/hooks/cost_meter.py"
 
 setup() {
   CASE="$(mktemp -d)"
@@ -99,28 +99,28 @@ teardown() { rm -rf "$CASE"; }
 }
 
 @test "hook: Stop payload writes a metrics line under cwd/metrics" {
-  run bash -c "echo '{\"transcript_path\":\"$CASE/t.jsonl\",\"cwd\":\"$CASE\"}' | bash '$HOOK'"
+  run bash -c "echo '{\"transcript_path\":\"$CASE/t.jsonl\",\"cwd\":\"$CASE\"}' | python3 '$HOOK'"
   [ "$status" -eq 0 ]
   [ -f "$CASE/metrics/cost-metering.jsonl" ]
 }
 
 @test "hook: DEV_TEAM_COST_METER=off is a no-op" {
-  run bash -c "DEV_TEAM_COST_METER=off; export DEV_TEAM_COST_METER; echo '{\"transcript_path\":\"$CASE/t.jsonl\",\"cwd\":\"$CASE\"}' | bash '$HOOK'"
+  run bash -c "DEV_TEAM_COST_METER=off; export DEV_TEAM_COST_METER; echo '{\"transcript_path\":\"$CASE/t.jsonl\",\"cwd\":\"$CASE\"}' | python3 '$HOOK'"
   [ "$status" -eq 0 ]
   [ ! -f "$CASE/metrics/cost-metering.jsonl" ]
 }
 
 @test "hook: missing transcript fails open (exit 0, no write)" {
-  run bash -c "echo '{\"transcript_path\":\"/nope/x.jsonl\",\"cwd\":\"$CASE\"}' | bash '$HOOK'"
+  run bash -c "echo '{\"transcript_path\":\"/nope/x.jsonl\",\"cwd\":\"$CASE\"}' | python3 '$HOOK'"
   [ "$status" -eq 0 ]
   [ ! -f "$CASE/metrics/cost-metering.jsonl" ]
 }
 
-@test "settings.json registers cost-meter.sh on Stop and SubagentStop" {
-  run jq -e '.hooks.Stop[].hooks[] | select(.command | contains("cost-meter.sh"))' \
+@test "settings.json registers cost_meter.py on Stop and SubagentStop" {
+  run jq -e '.hooks.Stop[].hooks[] | select(.command | contains("cost_meter.py"))' \
     "$REPO_ROOT/plugins/dev-team/settings.json"
   [ "$status" -eq 0 ]
-  run jq -e '.hooks.SubagentStop[].hooks[] | select(.command | contains("cost-meter.sh"))' \
+  run jq -e '.hooks.SubagentStop[].hooks[] | select(.command | contains("cost_meter.py"))' \
     "$REPO_ROOT/plugins/dev-team/settings.json"
   [ "$status" -eq 0 ]
 }

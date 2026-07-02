@@ -43,32 +43,23 @@ Edit files directly in `plugins/dev-team/`. All plugin components (agents, skill
 
 The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these tools on every dev machine:
 
-- CLI: `shellcheck`, `bats`, `jq`, `python3` (macOS: `brew install shellcheck bats-core jq python3`)
-- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML is required — several bats suites shell out to Python scripts that import it; semgrep for the security-assessment suites; httpx for the red-team harness smoke test).
+- CLI: `shellcheck`, `bats`, `jq`, `python3` (macOS: `brew install shellcheck bats-core jq python3`). `shellcheck` still lints repo-root shell (`scripts/audit-rules-vs-prompts.sh`, etc.) and the `plugins/security-assessment/` plugin; the `plugins/dev-team/` plugin itself is now Python.
+- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML for a few bats content-guards that shell out to Python; pytest for the plugin's own unit tests; semgrep for the security-assessment suites; httpx for the red-team harness smoke test).
 
 **One-shot setup:** `bash scripts/dev-setup.sh` validates this toolchain and installs anything missing (Homebrew on macOS, apt-get on Debian/Ubuntu, then the `requirements-dev.txt` deps). Safe to re-run.
 
 `ci-local.sh` checks these up front and exits with an actionable message (pointing at `dev-setup.sh`) if any are missing.
 
-### Script authoring — Python for cross-OS scripts
+### Script authoring — Python only
 
-**Every new script in this repo is authored in Python 3.8+ using stdlib only.** See [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md) for the full decision, alternatives, and consequences. Concretely:
+**Every shipped script under `plugins/dev-team/` is Python 3.8+ using stdlib only.** See [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md) (the decision) and [ADR 0015](docs/adr/0015-bash-removal-complete.md) (the completion — bash removal via epic #572). Concretely:
 
-- **New shipped hooks, dev/CI helpers, and user-invocable tooling land as `.py` files.** No new `.sh` files enter `plugins/dev-team/` after ADR 0014.
-- **Stdlib only.** No `pip install`, no `requirements.txt` for scripts. `subprocess`, `signal`, `pathlib`, `argparse`, `json`, `hashlib`, `re` cover the vast majority of shell-script territory portably.
-- **Existing `.sh` scripts stay** until converted per the phased plan in issue #572 (bash → Python migration epic). When you make a substantive change to an existing bash script, prefer converting it to Python in the same PR over patching bash.
-- **Tests follow the shipped script.** New pytest for new Python; existing bats stays until its target script converts.
-- **Two-line install trampolines that must be shell** (e.g. `plugins/dev-team/install.sh`) are the sole exception — they exist to detect the shell environment before Python is guaranteed available.
+- **All shipped hooks + scripts are `.py` files.** No `.sh` remains in `plugins/dev-team/` except the `install.sh` trampoline (two-line shell → Python bootstrap so we can detect the shell environment before Python is guaranteed on PATH).
+- **Stdlib only.** No `pip install`, no `requirements.txt` for shipped code. `subprocess`, `signal`, `pathlib`, `argparse`, `json`, `hashlib`, `re` cover the vast majority of shell-script territory portably.
+- **Cross-OS by default.** Python runs natively on macOS, Linux, and Windows — no more Git Bash requirement for plugin hooks. When probing OS-specific paths (DOTNET_ROOT, tool install locations), use runtime probes (`subprocess`, `pathlib`) rather than hard-coding macOS or Linux paths.
+- **Tests are pytest.** New tests land as `test_*.py` under the plugin's `tests/` tree.
 
-Why Python: uniform behavior on macOS + Linux + Windows Git Bash + native Windows via one runtime. `python3` is already a hard dependency of every plugin hook — this consolidates on it rather than introducing anything new.
-
-### Shell-script portability (legacy bash, until converted per #572)
-
-These rules apply to **existing** `.sh` scripts until they convert to Python per the epic in #572. All existing bash must continue to run on **macOS, Linux, and Windows Git Bash**:
-
-- **macOS** ships bash 3.2, so stay 3.2-safe: no `mapfile`/`readarray`, `declare -A`, `${var,,}`, or `wait -n`; expand possibly-empty arrays with the empty-safe idiom `${arr[@]+"${arr[@]}"}` (bare `"${arr[@]}"` under `set -u` aborts on 3.2).
-- **macOS vs Linux command differences**: avoid Linux-only flags (`readlink -f`, `sed -i` semantics, `date +%N`, `stat -c`, `find -printf`, `timeout`) or guard them with a fallback (e.g. `recon-inventory.sh`'s `readlink -f || python3`, `_lib.sh`'s `date +%s%3N || python3`, `mutation-adapters/lib.sh`'s `timeout`→`gtimeout`→unbounded).
-- **Windows = Git Bash.** Native `cmd.exe`/PowerShell are not targets for legacy bash; the plugin's hooks and helper scripts run under [Git Bash](https://git-scm.com/download/win) (the POSIX shell Claude Code uses for its Bash tool on Windows). Each plugin's `install.sh` detects Windows-without-Git-Bash and tells the user to install it; `scripts/dev-setup.sh` does the same for contributors. New Python scripts don't need this — they run under native Python on any OS.
+Repo-root `scripts/*.sh` (`ci-local.sh`, `dev-setup.sh`, `cost-regression-check.sh`, the various `assemble-docs.sh`/`eval-changed.sh`/`run-full-eval.sh` helpers) are OUT of this rule's scope — they orchestrate developer tooling around the plugin, not the plugin itself, and are not shipped downstream. Convert them opportunistically when you touch them.
 
 ### Hermetic bats fixtures
 
@@ -93,7 +84,7 @@ claude plugin install --scope project dev-team@bfinster
 - **Agent**: Add a `.md` file to `plugins/dev-team/agents/`
 - **Agent-loaded skill**: Add a `SKILL.md` under `plugins/dev-team/skills/<name>/`
 - **User-invocable skill** (slash command): Add a `SKILL.md` under `plugins/dev-team/skills/<name>/` with `user-invocable: true` in frontmatter
-- **Hook**: Add a `.sh` script to `plugins/dev-team/hooks/` and register it in `plugins/dev-team/settings.json`
+- **Hook**: Add a `.py` file to `plugins/dev-team/hooks/` and register it in `plugins/dev-team/settings.json`
 
 After changes, run `/agent-audit` to verify structural compliance.
 

@@ -26,8 +26,8 @@ flowchart LR
     end
 
     subgraph plugin[Plugin enforcement surface]
-        HK[hooks/agent-model-resolve.sh<br/>PreToolUse, matcher Agent]
-        RS[hooks/lib/model-resolve.sh<br/>resolver helper]
+        HK[hooks/agent_model_resolve.py<br/>PreToolUse, matcher Agent]
+        RS[hooks/lib/model_resolve.py<br/>resolver helper]
     end
 
     subgraph state[Routing state]
@@ -39,7 +39,7 @@ flowchart LR
 
     subgraph diag[Diagnostics]
         MRC["/model-routing-check"]
-        SB["hooks/session-model-banner.sh<br/>SessionStart"]
+        SB["hooks/session_model_banner.py<br/>SessionStart"]
     end
 
     AF --> AT
@@ -100,7 +100,7 @@ silent; bumps are logged to disk for `/model-routing-check`.
 ## Contract
 
 Each agent declares `effort: low|medium|high` in its YAML frontmatter. The
-PreToolUse hook `hooks/agent-model-resolve.sh`, registered in `settings.json`
+PreToolUse hook `hooks/agent_model_resolve.py`, registered in `settings.json`
 under `matcher: "Agent"`, intercepts every sub-agent dispatch, strips any
 `<plugin>:` prefix from `subagent_type`, reads the agent's effort band, and
 resolves it to a concrete model before the harness sees the call.
@@ -143,7 +143,7 @@ The N=3 case reproduces today's haiku/sonnet/opus mapping exactly.
 
 ### Exit-code taxonomy
 
-The resolver helper `hooks/lib/model-resolve.sh`:
+The resolver helper `hooks/lib/model_resolve.py`:
 
 | Code | Meaning |
 | ---- | ------- |
@@ -204,8 +204,8 @@ truth. If a fourth band is ever warranted (e.g. a common 4+ model ladder), add
 it in lockstep:
 
 1. Extend `ALLOWED_BANDS` in `tests/agents/agent_effort_frontmatter_tests.bats`
-   and the weight table in `hooks/lib/model-resolve.sh` (`_band_weight`) and
-   `hooks/agent-model-resolve.sh` (`_normalize_band`).
+   and the weight table in `hooks/lib/model_resolve.py` (`_band_weight`) and
+   `hooks/agent_model_resolve.py` (`_normalize_band`).
 2. Add the band key to `knowledge/model-routing.json`.
 3. Update the band → model dump in `_dump_map`, this file, and the spec.
 

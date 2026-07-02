@@ -22,7 +22,7 @@ one report. It does not review files itself — it coordinates.
 
 This command is executed under orchestrator direction. Dispatch the agent with
 its effort band (from its `effort:` frontmatter); the PreToolUse hook
-`hooks/agent-model-resolve.sh` resolves it to the active snapshot per the
+`hooks/agent_model_resolve.py` resolves it to the active snapshot per the
 Resolution Procedure in `agents/orchestrator.md`.
 
 ## Orchestrator constraints

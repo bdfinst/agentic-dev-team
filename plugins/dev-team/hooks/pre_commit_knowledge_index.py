@@ -54,7 +54,7 @@ except ImportError:  # pragma: no cover
 
 _REMEDIATION = """knowledge/index.json is stale; the auto-rebuild ran but you must stage the result.
 
-  1. bash plugins/dev-team/hooks/lib/build-knowledge-index.sh
+  1. python3 plugins/dev-team/hooks/lib/build_knowledge_index.py
   2. git add plugins/dev-team/knowledge/index.json
 
 Diff (expected vs working tree):
@@ -110,11 +110,11 @@ def main() -> int:
 
     builder = os.environ.get(
         "KNOWLEDGE_INDEX_BUILDER",
-        str(_LIB_DIR / "build-knowledge-index.sh"),
+        str(_LIB_DIR / "build_knowledge_index.py"),
     )
     try:
         completed = subprocess.run(
-            ["bash", builder, "--check"],
+            [sys.executable, builder, "--check"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             check=False,

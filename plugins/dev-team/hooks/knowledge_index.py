@@ -80,13 +80,18 @@ def main() -> int:
 
     builder = os.environ.get(
         "KNOWLEDGE_INDEX_BUILDER",
-        str(_LIB_DIR / "build-knowledge-index.sh"),
+        str(_LIB_DIR / "build_knowledge_index.py"),
     )
+
+    # Dispatch on filename extension so tests can inject a bash fake via
+    # KNOWLEDGE_INDEX_BUILDER=/path/to/fake-builder.sh, while production uses
+    # the Python builder directly.
+    argv = [sys.executable, builder] if builder.endswith(".py") else ["bash", builder]
 
     # Rebuild. Capture stderr so we can summarize on failure.
     try:
         completed = subprocess.run(
-            ["bash", builder],
+            argv,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             check=False,

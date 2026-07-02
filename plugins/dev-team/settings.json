@@ -21,11 +21,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_SESSION_MODEL_BANNER:-0}\" = \"1\" ]; then python3 hooks/session_model_banner.py; else bash hooks/session-model-banner.sh; fi'"
+            "command": "python3 hooks/session_model_banner.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_BOOTSTRAP:-0}\" = \"1\" ]; then python3 hooks/codegraph_bootstrap.py; else bash hooks/codegraph-bootstrap.sh; fi'"
+            "command": "python3 hooks/codegraph_bootstrap.py"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/telemetry.sh"
+            "command": "python3 hooks/telemetry.py"
           }
         ]
       }
@@ -46,11 +46,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/pre-tool-guard.sh"
+            "command": "python3 hooks/pre_tool_guard.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CONTRACT_VERSION_GUARD:-0}\" = \"1\" ]; then python3 hooks/contract_version_guard.py; else bash hooks/contract-version-guard.sh; fi'"
+            "command": "python3 hooks/contract_version_guard.py"
           }
         ]
       },
@@ -59,27 +59,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_DESTRUCTIVE_GUARD:-0}\" = \"1\" ]; then python3 hooks/destructive_guard.py; else bash hooks/destructive-guard.sh; fi'"
+            "command": "python3 hooks/destructive_guard.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_PRE_COMMIT_REVIEW:-0}\" = \"1\" ]; then python3 hooks/pre_commit_review.py; else bash hooks/pre-commit-review.sh; fi'"
+            "command": "python3 hooks/pre_commit_review.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_PRE_COMMIT_KNOWLEDGE_INDEX:-0}\" = \"1\" ]; then python3 hooks/pre_commit_knowledge_index.py; else bash hooks/pre-commit-knowledge-index.sh; fi'"
+            "command": "python3 hooks/pre_commit_knowledge_index.py"
           },
           {
             "type": "command",
-            "command": "bash hooks/telemetry.sh"
+            "command": "python3 hooks/telemetry.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_VERIFY_GUARD:-0}\" = \"1\" ]; then python3 hooks/verify_guard.py; else bash hooks/verify-guard.sh; fi'"
+            "command": "python3 hooks/verify_guard.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_BASH_RETRY_GUARD:-0}\" = \"1\" ]; then python3 hooks/bash_retry_guard.py; else bash hooks/bash-retry-guard.sh; fi'"
+            "command": "python3 hooks/bash_retry_guard.py"
           },
           {
             "type": "command",
@@ -92,11 +92,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/telemetry.sh"
+            "command": "python3 hooks/telemetry.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CONTEXT_CEILING_GUARD:-0}\" = \"1\" ]; then python3 hooks/context_ceiling_guard.py; else bash hooks/context-ceiling-guard.sh; fi'"
+            "command": "python3 hooks/context_ceiling_guard.py"
           }
         ]
       },
@@ -105,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_NUDGE:-0}\" = \"1\" ]; then python3 hooks/codegraph_nudge.py; else bash hooks/codegraph-nudge.sh; fi'"
+            "command": "python3 hooks/codegraph_nudge.py"
           }
         ]
       },
@@ -114,7 +114,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_NUDGE:-0}\" = \"1\" ]; then python3 hooks/codegraph_nudge.py; else bash hooks/codegraph-nudge.sh; fi'"
+            "command": "python3 hooks/codegraph_nudge.py"
           }
         ]
       },
@@ -123,7 +123,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_NUDGE:-0}\" = \"1\" ]; then python3 hooks/codegraph_nudge.py; else bash hooks/codegraph-nudge.sh; fi'"
+            "command": "python3 hooks/codegraph_nudge.py"
           }
         ]
       },
@@ -132,11 +132,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_AGENT_MODEL_RESOLVE:-0}\" = \"1\" ]; then python3 hooks/agent_model_resolve.py; else bash hooks/agent-model-resolve.sh; fi'"
+            "command": "python3 hooks/agent_model_resolve.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CONTEXT_CEILING_GUARD:-0}\" = \"1\" ]; then python3 hooks/context_ceiling_guard.py; else bash hooks/context-ceiling-guard.sh; fi'"
+            "command": "python3 hooks/context_ceiling_guard.py"
           }
         ]
       }
@@ -147,27 +147,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_JS_FP_REVIEW:-0}\" = \"1\" ]; then python3 hooks/js_fp_review.py; else bash hooks/js-fp-review.sh; fi'"
+            "command": "python3 hooks/js_fp_review.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_TOKEN_EFFICIENCY_REVIEW:-0}\" = \"1\" ]; then python3 hooks/token_efficiency_review.py; else bash hooks/token-efficiency-review.sh; fi'"
+            "command": "python3 hooks/token_efficiency_review.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_EVAL_COMPLIANCE_CHECK:-0}\" = \"1\" ]; then python3 hooks/eval_compliance_check.py; else bash hooks/eval-compliance-check.sh; fi'"
+            "command": "python3 hooks/eval_compliance_check.py"
           },
           {
             "type": "command",
-            "command": "bash hooks/tdd-guard.sh"
+            "command": "python3 hooks/tdd_guard.py"
           },
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_KNOWLEDGE_INDEX:-0}\" = \"1\" ]; then python3 hooks/knowledge_index.py; else bash hooks/knowledge-index.sh; fi'"
+            "command": "python3 hooks/knowledge_index.py"
           },
           {
             "type": "command",
-            "command": "bash hooks/skills-index.sh"
+            "command": "python3 hooks/skills_index.py"
           }
         ]
       },
@@ -176,7 +176,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/mutation-gate.sh"
+            "command": "python3 hooks/mutation_gate.py"
           }
         ]
       },
@@ -185,7 +185,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_VERSION_CHECK:-0}\" = \"1\" ]; then python3 hooks/version_check.py; else bash hooks/version-check.sh; fi'"
+            "command": "python3 hooks/version_check.py"
           }
         ]
       },
@@ -194,7 +194,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CODEGRAPH_TURN_MARK:-0}\" = \"1\" ]; then python3 hooks/codegraph_turn_mark.py; else bash hooks/codegraph-turn-mark.sh; fi'"
+            "command": "python3 hooks/codegraph_turn_mark.py"
           }
         ]
       }
@@ -204,7 +204,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash hooks/session-learning-trigger.sh"
+            "command": "python3 hooks/session_learning_trigger.py"
           }
         ]
       }
@@ -215,7 +215,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_COST_METER:-0}\" = \"1\" ]; then python3 hooks/cost_meter.py; else bash hooks/cost-meter.sh; fi'"
+            "command": "python3 hooks/cost_meter.py"
           }
         ]
       }
@@ -226,7 +226,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_COST_METER:-0}\" = \"1\" ]; then python3 hooks/cost_meter.py; else bash hooks/cost-meter.sh; fi'"
+            "command": "python3 hooks/cost_meter.py"
           }
         ]
       }

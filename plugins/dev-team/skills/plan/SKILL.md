@@ -144,7 +144,7 @@ Feature: <feature name>
 ## Parallelization
 
 Each slice declares `Depends-on` (slice ids it must follow, or `none`). The build
-**waves** are derived from those declarations by `scripts/plan-waves.sh` — do not
+**waves** are derived from those declarations by `scripts/plan_waves.py` — do not
 hand-maintain them. Independent slices in the same wave can be built concurrently
 (`/build` dispatches them to isolated worktrees).
 
@@ -220,7 +220,7 @@ Create `plans/` if it doesn't exist. When writing the plan file, populate the `#
 Then derive the waves — never hand-author them:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/plan-waves.sh <plan-file>
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py <plan-file>
 ```
 
 Render the `## Parallelization` Mermaid DAG + wave table and the wave-grouped
@@ -248,10 +248,10 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 
 #### 5b. Dispatch the selected reviewers
 
-The personas are subagent **prompt templates** (no frontmatter), so the effort-band → model resolver hook (`hooks/agent-model-resolve.sh`, which keys on `subagent_type`) cannot route them. Resolve the band yourself before dispatch so they honor the same ladder and per-environment overrides as every other agent — do **not** hard-code a model. All five run at the `medium` band:
+The personas are subagent **prompt templates** (no frontmatter), so the effort-band → model resolver hook (`hooks/agent_model_resolve.py`, which keys on `subagent_type`) cannot route them. Resolve the band yourself before dispatch so they honor the same ladder and per-environment overrides as every other agent — do **not** hard-code a model. All five run at the `medium` band:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model-resolve.sh medium --caller plan-review
+bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-review
 ```
 
 Pass the resolved model id as the `model` override on each persona dispatch. (`medium` resolves to the same default the personas used before, but now flows through `.claude/model-ladder.json` / `knowledge/model-routing.json` instead of a literal.)
@@ -264,7 +264,7 @@ Pass the resolved model id as the `model` override on each persona dispatch. (`m
 | Strategic Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-strategic.md` | `medium` | Problem fit, scope, slice boundaries, risk, opportunity cost |
 | Parallelization Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-parallelization.md` | `medium` | Same-wave independence: file-overlap collisions (from `plan-waves.sh`), disjoint-file behavioral coupling, residual cycles/mis-layering |
 
-Pass each reviewer the full plan content. Also pass the Parallelization Critic the `scripts/plan-waves.sh` JSON for this plan (its `collisions` array is the deterministic input). Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate. It is the one reviewer that always runs (every tier). A `needs-revision` from the Parallelization Critic triggers plan revision (re-wave the colliding slices) before the human sees the plan.
+Pass each reviewer the full plan content. Also pass the Parallelization Critic the `scripts/plan_waves.py` JSON for this plan (its `collisions` array is the deterministic input). Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate. It is the one reviewer that always runs (every tier). A `needs-revision` from the Parallelization Critic triggers plan revision (re-wave the colliding slices) before the human sees the plan.
 
 **If any reviewer returns `needs-revision`**: Address all `blocker` issues by revising the plan. Re-run only the reviewers that flagged blockers. Repeat until all pass (max 2 iterations — escalate to user if still failing).
 
@@ -284,7 +284,7 @@ Pass each reviewer the full plan content. Also pass the Parallelization Critic t
 After approval, classify the origin remote — **only** offer issue creation on an actual GitHub host:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-origin-host.sh
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py
 ```
 
 - **`github`** → prompt **once**, showing the count: *"Open 1 parent issue and N linked slice issues from this plan? [y/N]"* (N = number of slices). The default is **No**. Invoke `/issues-from-plan` **only on explicit `y`**; on No (or anything else), create nothing and continue.

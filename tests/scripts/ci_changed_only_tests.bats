@@ -111,7 +111,7 @@ setup() {
 # --- multi-file changesets -------------------------------------------------
 
 @test "multi-file changeset: one matching file is enough to run" {
-  run ci_suite_has_changes chk_model_routing "README.md plugins/dev-team/hooks/agent-model-resolve.sh"
+  run ci_suite_has_changes chk_model_routing "README.md plugins/dev-team/hooks/agent_model_resolve.py"
   [ "$status" -eq 0 ]
 }
 

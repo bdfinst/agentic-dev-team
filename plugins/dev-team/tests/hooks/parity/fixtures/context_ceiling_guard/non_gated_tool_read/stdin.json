@@ -1,6 +1,0 @@
-{
-  "tool_name": "Read",
-  "session_id": "s1",
-  "transcript_path": "transcript.jsonl",
-  "tool_input": { "file_path": "/x" }
-}

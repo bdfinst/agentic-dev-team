@@ -16,7 +16,7 @@ allowed-tools: >-
 Role: worker. Reports runtime cost/token spend captured by the cost meter.
 
 Token usage is not available to hooks, so the `Stop`/`SubagentStop` hook
-(`hooks/cost-meter.sh`) records a per-session summary to
+(`hooks/cost_meter.py`) records a per-session summary to
 `metrics/cost-metering.jsonl` by parsing the session transcript, converting
 tokens to dollars via `knowledge/model-pricing.json`. This skill reports that
 data.

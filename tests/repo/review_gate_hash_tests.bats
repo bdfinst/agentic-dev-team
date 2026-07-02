@@ -5,8 +5,8 @@
 # one shared helper, so they cannot diverge.
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
-HOOK="$REPO_ROOT/plugins/dev-team/hooks/pre-commit-review.sh"
-GATEHASH="$REPO_ROOT/plugins/dev-team/hooks/lib/review-gate-hash.sh"
+HOOK="$REPO_ROOT/plugins/dev-team/hooks/pre_commit_review.py"
+GATEHASH="$REPO_ROOT/plugins/dev-team/hooks/lib/review_gate_hash.py"
 
 load '../lib/hermetic'
 
@@ -17,8 +17,8 @@ setup() {
 }
 teardown() { hermetic_teardown; }
 
-_commit_hook() { echo '{"tool_input":{"command":"git commit -m x"}}' | bash "$HOOK"; }
-_write_gate()  { bash "$GATEHASH" > .review-passed; }   # the writer side
+_commit_hook() { echo '{"tool_input":{"command":"git commit -m x"}}' | python3 "$HOOK"; }
+_write_gate()  { python3 "$GATEHASH" > .review-passed; }   # the writer side
 
 @test "gate: the exact staged content that was reviewed commits cleanly" {
   echo v1 > a.ts; git add a.ts

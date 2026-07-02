@@ -269,7 +269,7 @@ dotnet stryker --config-file stryker-config.shard-webapi.json
 dotnet stryker --config-file stryker-config.verification.json -O StrykerOutput/verification
 ```
 
-Adapter-side, `hooks/mutation-adapters/stryker-net.sh` reads `STRYKER_SINCE_TARGET` when `CI` is not `true` and appends `--since:$STRYKER_SINCE_TARGET` to the command line. Set the env var on dev machines; leave it unset in CI so the gate always runs the full scan.
+Adapter-side, `hooks/mutation_adapters/stryker_net.py` reads `STRYKER_SINCE_TARGET` when `CI` is not `true` and appends `--since:$STRYKER_SINCE_TARGET` to the command line. Set the env var on dev machines; leave it unset in CI so the gate always runs the full scan.
 
 ## Infrastructure exclusion `mutate` glob template
 

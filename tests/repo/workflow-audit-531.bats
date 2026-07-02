@@ -104,10 +104,10 @@ assert_gate_block_present() {
   [ "$count" -eq 0 ]
 }
 
-@test "531-2.1g: structural-gate preserves the bats step running eval_grader_tests.bats" {
+@test "531-2.1g: structural-gate preserves the pytest step running test_eval_grader.py" {
   block=$(structural_gate_block)
   assert_gate_block_present "$block"
-  count=$(echo "$block" | grep -c 'eval_grader_tests.bats' || true)
+  count=$(echo "$block" | grep -c 'test_eval_grader\.py' || true)
   [ "$count" -ge 1 ]
 }
 

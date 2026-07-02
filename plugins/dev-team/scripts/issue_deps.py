@@ -2,7 +2,7 @@
 """Python port of scripts/issue-deps.sh (#614 / #572 Phase 3).
 
 Per-slice sibling dependency sets for issue linking, derived from the plan's
-DAG (via plan-waves.sh), NOT from plan file order. Read-only: never edits the
+DAG (via plan_waves.py), NOT from plan file order. Read-only: never edits the
 plan or plan-waves output.
 
 Emits JSON mapping each slice id to its DIRECT predecessor slice ids:
@@ -14,8 +14,8 @@ and renders "depends on #N" links between siblings.
 
 Usage: issue_deps.py <plan.md>
 
-Delegates DAG analysis to plan-waves.sh — same reason as build_wave.py: until
-plan-waves.sh converts, calling into it preserves the single source of truth
+Delegates DAG analysis to plan_waves.py — same reason as build_wave.py: until
+plan_waves.py converts, calling into it preserves the single source of truth
 for cycle / missing / unknown-dep diagnostics.
 
 Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
@@ -35,9 +35,9 @@ def _here() -> Path:
 
 
 def _run_plan_waves(plan_file: str):
-    plan_waves = _here() / "plan-waves.sh"
+    plan_waves = _here() / "plan_waves.py"
     return subprocess.run(
-        ["bash", str(plan_waves), plan_file],
+        [sys.executable, str(plan_waves), plan_file],
         capture_output=True,
         text=True,
         check=False,
@@ -58,7 +58,7 @@ def main(argv: list) -> int:
     try:
         waves_json = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        print(f"issue-deps: plan-waves.sh emitted invalid JSON: {exc}", file=sys.stderr)
+        print(f"issue-deps: plan_waves.py emitted invalid JSON: {exc}", file=sys.stderr)
         return 1
 
     # `.slices | map_values(.depends_on)` in jq → { <sid>: [<dep>, …] }.

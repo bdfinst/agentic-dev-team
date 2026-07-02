@@ -881,7 +881,7 @@
   },
   "plugins/dev-team/knowledge/security-primitives-contract.md": {
     "Bypass path": {
-      "summary": "Edits to this file are guarded by `hooks/contract-version-guard.sh`.",
+      "summary": "Edits to this file are guarded by `hooks/contract_version_guard.py`.",
       "anchor": "bypass-path"
     },
     "Registries": {
@@ -1817,7 +1817,7 @@
       "anchor": "3-verify-acceptance-criteria-gate"
     },
     "4. Implement each step": {
-      "summary": "Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan-waves.sh`).",
+      "summary": "Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan_waves.py`).",
       "anchor": "4-implement-each-step"
     },
     "5. Run full test suite": {
@@ -2097,7 +2097,7 @@
       "anchor": "constraints"
     },
     "Enforcement": {
-      "summary": "This protocol is backed by a `PreToolUse` hook — `hooks/context-ceiling-guard.sh`",
+      "summary": "This protocol is backed by a `PreToolUse` hook — `hooks/context_ceiling_guard.py`",
       "anchor": "enforcement"
     },
     "Loading Decision Procedure": {

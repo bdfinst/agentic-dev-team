@@ -166,19 +166,16 @@ chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh scr
 chk_sa_shell_suite()     { bash tests/security-assessment/scripts/run-all.sh; }
 chk_bats_repo()          { run_bats tests/repo/; }
 chk_bats_content_rest()  { run_bats tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/; }
-chk_model_routing() {
-  run_bats \
-    tests/hooks/updated_input_contract_tests.bats \
-    tests/hooks/agent_model_resolve_hook_tests.bats \
-    tests/hooks/model_resolve_tests.bats \
-    tests/hooks/plugin_version_tests.bats
-}
+# chk_model_routing (formerly ran 4 bats files) — retired in #618. The bash
+# hooks under test have been ported to Python (#585 / #577 / #609), and their
+# unit tests now live in plugins/dev-team/tests/hooks/test_*.py (invoked via
+# chk_hook_units below).
 chk_cost_regression() { bash scripts/cost-regression-check.sh; }
 chk_eval_corpus()     { python3 scripts/eval_grade.py --check-corpus; }
 chk_oe_staleness()    { python3 scripts/oe_scoring_staleness.py --warn-only; }
 chk_citation_lint()   { python3 scripts/citation_lint.py --all; }  # advisory (#312)
 chk_md_references()   { python3 scripts/check_md_references.py; }
-chk_skills_index()    { bash plugins/dev-team/hooks/lib/build-skills-index.sh --check; }
+chk_skills_index()    { python3 plugins/dev-team/hooks/lib/build_skills_index.py --check; }
 chk_rules_vs_prompts() { bash scripts/audit-rules-vs-prompts.sh; }
 chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
 chk_harness_smoke()    { python3 tests/security-assessment/harness/smoke_test.py; }
@@ -204,30 +201,16 @@ chk_eslint() {
     printf '%s∼ skipped (npx not found)%s\n' "$yellow" "$reset"
   fi
 }
-# Python-hook parity harness (#574 / #572 Phase 0). Runs pytest against
-# plugins/dev-team/tests/hooks/parity/ — the gate that mechanically enforces
-# byte-equal parity between each .sh hook and its .py port during the
-# parallel-ship migration.
-#
-# Backward-compatible: when the harness directory is absent (which can happen
-# on a fresh clone before Phase 0 lands, or on a shallow checkout that omits
-# the plugin's tests dir), the check reports a skip and exits 0 — a green CI
-# on those checkouts is still meaningful.
-chk_parity() {
-  local parity_dir="plugins/dev-team/tests/hooks/parity"
-  if [ ! -d "$parity_dir" ]; then
-    printf '%s∼ skipped (parity harness dir absent — %s)%s\n' "$yellow" "$parity_dir" "$reset"
-    return 0
-  fi
-  if ! command -v python3 >/dev/null 2>&1; then
-    printf '%s∼ skipped (python3 not on PATH)%s\n' "$yellow" "$reset"
-    return 0
-  fi
+# plugins/dev-team/tests/hooks/parity/ (the .sh↔.py parity harness) was retired
+# in #618 (epic #572) once every shipped hook + script became Python-only. The
+# going-forward coverage lives in plugins/dev-team/tests/hooks/test_*.py and
+# tests/repo/test_*.py (pytest, invoked here via chk_hook_units + chk_eval_units).
+chk_hook_units() {
   if ! python3 -c 'import pytest' >/dev/null 2>&1; then
     printf '%s∼ skipped (pytest not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
     return 0
   fi
-  python3 -m pytest "$parity_dir"
+  python3 -m pytest plugins/dev-team/tests
 }
 
 # Ordered list of "label::function". Order defines both the replay order and the
@@ -238,7 +221,6 @@ CHECKS=(
   "security-assessment shell test suite (run-all.sh)::chk_sa_shell_suite"
   "bats — dev-team tests/repo::chk_bats_repo"
   "bats — dev-team content (knowledge/agents/commands/docs/scripts)::chk_bats_content_rest"
-  "bats — model-routing hook conformance::chk_model_routing"
   "cost-regression check::chk_cost_regression"
   "semgrep rule fixtures (audit-semgrep-fixtures.py)::chk_semgrep_fixtures"
   "red-team harness smoke (smoke_test.py)::chk_harness_smoke"
@@ -251,7 +233,7 @@ CHECKS=(
   "nav integrity (mkdocs nav → assembled file)::chk_nav_integrity"
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"
-  "python-hook parity harness (pytest tests/hooks/parity)::chk_parity"
+  "plugin hook + script unit tests (pytest plugins/dev-team/tests)::chk_hook_units"
 )
 
 # --only=fn[,fn...] : keep just the named checks (CI invokes per-job subsets).

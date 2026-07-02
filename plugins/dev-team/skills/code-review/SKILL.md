@@ -21,7 +21,7 @@ allowed-tools: >-
 
 # Code Review
 
-Role: orchestrator. Route work to review agents; do not review code yourself. Pass each agent's tier alias (from its `model:` frontmatter) when dispatching — the PreToolUse hook `hooks/agent-model-resolve.sh` resolves it to the active snapshot per the Resolution Procedure in `agents/orchestrator.md`.
+Role: orchestrator. Route work to review agents; do not review code yourself. Pass each agent's tier alias (from its `model:` frontmatter) when dispatching — the PreToolUse hook `hooks/agent_model_resolve.py` resolves it to the active snapshot per the Resolution Procedure in `agents/orchestrator.md`.
 
 Output templates and JSON schemas: [`output-format.md`](output-format.md). Example report: [`examples/sample-report.md`](examples/sample-report.md).
 
@@ -29,7 +29,7 @@ Output templates and JSON schemas: [`output-format.md`](output-format.md). Examp
 
 1. **Do not review code yourself.** Delegate all semantic analysis to review agents.
 2. **Minimize context per agent.** Pass only what each agent's `Context needs` field requires.
-3. **Route to the right model tier.** Each agent's `model:` frontmatter declares its tier alias (`haiku`/`sonnet`/`opus`); the PreToolUse hook `hooks/agent-model-resolve.sh` resolves it to the active snapshot per `agents/orchestrator.md` → Resolution Procedure. Do not override the frontmatter value.
+3. **Route to the right model tier.** Each agent's `model:` frontmatter declares its tier alias (`haiku`/`sonnet`/`opus`); the PreToolUse hook `hooks/agent_model_resolve.py` resolves it to the active snapshot per `agents/orchestrator.md` → Resolution Procedure. Do not override the frontmatter value.
 4. **Run deterministic gates first.** Lint, type-check, secret scan are cheaper than AI. Stop if they fail.
 5. **Return structured results.** Aggregate agent JSON; do not add your own findings.
 6. **Be concise.** Tables and JSON, no preambles, no filler.
@@ -168,7 +168,7 @@ Spawn agents as parallel subagents in a single message using the Agent tool.
   - `full-file` → complete files
   - `project-structure` → full files + directory tree
   - When reviewing full repository (clean auto-scope, `--all`, or `--path`), always pass full files.
-- **Model**: pass each agent's declared tier alias (`haiku`/`sonnet`/`opus`) from its `model:` frontmatter. The PreToolUse hook `hooks/agent-model-resolve.sh` resolves the tier to the active snapshot per `agents/orchestrator.md` → Resolution Procedure.
+- **Model**: pass each agent's declared tier alias (`haiku`/`sonnet`/`opus`) from its `model:` frontmatter. The PreToolUse hook `hooks/agent_model_resolve.py` resolves the tier to the active snapshot per `agents/orchestrator.md` → Resolution Procedure.
 - **Static analysis context**: if step 2b produced findings, inject into every agent's prompt using the format in `skills/static-analysis-integration/SKILL.md`: "These issues were detected by static analysis. Do not re-report them. Focus on semantic concerns."
 - **Per-agent output**: `{"agentName": "<name>", "status": "pass|warn|fail", "issues": [], "summary": "..."}` (full schema in `output-format.md`).
 
@@ -263,7 +263,7 @@ For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), g
 If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review-gate-hash.sh > .review-passed
+bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py > .review-passed
 ```
 
 Stage the exact changes you reviewed (`git add` them) before writing the gate, so the staged content the hook hashes matches what was reviewed. If `git diff --cached` is empty (you reviewed unstaged changes), stage them first — the gate binds to the staged patch by design.

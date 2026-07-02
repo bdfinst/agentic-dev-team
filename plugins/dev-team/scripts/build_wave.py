@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Python port of scripts/build-wave.sh (#611 / #572 Phase 3).
 
-Emit the build's wave schedule, derived from plan-waves.sh. Each wave lists
+Emit the build's wave schedule, derived from plan_waves.py. Each wave lists
 its members and a deterministic reconcile order (members sorted) so a wave
 merges reproducibly regardless of completion order:
 
@@ -10,13 +10,13 @@ merges reproducibly regardless of completion order:
       "collisions": [...] }
 
 Exits non-zero if the plan is invalid (cycle / missing / unknown — surfaced by
-plan-waves.sh) OR if any wave has a declared same-file collision: a wave with
+plan_waves.py) OR if any wave has a declared same-file collision: a wave with
 a collision must not be built concurrently, so the build refuses it here.
 
 Usage: build_wave.py <plan.md>
 
-Delegates DAG analysis to plan-waves.sh (the authoritative implementation
-until its own port lands per #572). Once plan-waves.sh is ported to Python,
+Delegates DAG analysis to plan_waves.py (the authoritative implementation
+until its own port lands per #572). Once plan_waves.py is ported to Python,
 switch the subprocess call for a direct import.
 
 Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
@@ -36,10 +36,10 @@ def _here() -> Path:
 
 
 def _run_plan_waves(plan_file: str) -> tuple[str, int, str]:
-    """Return (stdout, exit_code, stderr) from `plan-waves.sh <plan.md>`."""
-    plan_waves = _here() / "plan-waves.sh"
+    """Return (stdout, exit_code, stderr) from `plan_waves.py <plan.md>`."""
+    plan_waves = _here() / "plan_waves.py"
     completed = subprocess.run(
-        ["bash", str(plan_waves), plan_file],
+        [sys.executable, str(plan_waves), plan_file],
         capture_output=True,
         text=True,
         check=False,
@@ -73,14 +73,14 @@ def main(argv: list) -> int:
     plan_file = argv[1]
     stdout, code, stderr = _run_plan_waves(plan_file)
     if code != 0:
-        # Propagate plan-waves.sh's error output verbatim + exit code.
+        # Propagate plan_waves.py's error output verbatim + exit code.
         sys.stderr.write(stderr)
         return code
 
     try:
         waves_json = json.loads(stdout)
     except json.JSONDecodeError as exc:
-        print(f"build-wave: plan-waves.sh emitted invalid JSON: {exc}", file=sys.stderr)
+        print(f"build-wave: plan_waves.py emitted invalid JSON: {exc}", file=sys.stderr)
         return 1
 
     reshaped = _reshape(waves_json)
