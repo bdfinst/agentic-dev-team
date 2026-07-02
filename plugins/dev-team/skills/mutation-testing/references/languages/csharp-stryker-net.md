@@ -69,6 +69,29 @@ If detected, take **all four** steps below. Missing any one recreates the fake-s
 
 The four steps above defend against the *fake-100 %-via-Timeout* variant of the MTP-runner incompatibility. The **complementary** *fake-0 %-via-Survived* variant (mutation-switch not observing mutations at runtime; every mutant reported `Survived`; final score `0.00 %`) is caught by [`SKILL.md`](../../SKILL.md) **Step 1c smoke gate** — run a single-file probe before any full run and parse `mutation-report.json` for `Killed > 0`. Do not skip Step 1c on xunit.v3 configurations; it is the specific safety net for issues [#554](https://github.com/bdfinst/agentic-dev-team/issues/554) and [#557](https://github.com/bdfinst/agentic-dev-team/issues/557). Inside a Claude Code session the [`mutation_testing_smoke_gate`](../../../../hooks/mutation_testing_smoke_gate.py) PreToolUse hook enforces this step automatically — see SKILL.md § Step 1c for the operator-facing contract.
 
+## Default `coverage-analysis: perTest` for xunit.v2 / non-MTP projects
+
+For Stryker.NET projects that are **not** on xunit.v3 / the MTP runner (see the [xunit.v3 detection](#xunit-v3-detection-do-this-before-configuring-runs) section above, which stays mandatory for those projects), default `"coverage-analysis": "perTest"` in `stryker-config.json` rather than `"off"`. Per-test coverage tracking lets each mutant run only the tests that actually exercise the mutated line, instead of the full suite — a significant speedup on large suites.
+
+[#669](https://github.com/bdfinst/agentic-dev-team/issues/669) validated this against an xunit.v2-shim repo (the shim workaround from #554/#557, above) at two points, checking the two failure modes a static-analysis-based coverage tool is prone to:
+
+- **Reflection** (`MethodInfo.Invoke`) — a test invoking a private method via reflection correctly killed its target mutant under `perTest`.
+- **Container-resolution DI** (Autofac `container.Resolve<T>()`) — 14 tests building a real Autofac container and resolving decorated services were correctly attributed as covering the registration statements they exercise.
+
+Both risks checked out clean — zero mutants flipped from `Killed` to `Survived`/`NoCoverage` between the `"off"` baseline and `perTest`:
+
+| File | Baseline (`off`) | `perTest` |
+| --- | --- | --- |
+| DataFormatter.cs | 40 Killed / 2 Survived | 41 Killed / 1 Survived |
+| SystemConstants.cs | 78 Killed / 0 | 78 Killed / 0 — identical |
+| RequestContext.cs | 10 Killed / 0 | 10 Killed / 0 — identical |
+| PublicApiAttribute.cs | 1 Killed / 0 | 1 Killed / 0 — identical |
+| ComponentModule.cs | 48 Killed / 168 Survived | 48 Killed / 164 Survived / 4 NoCoverage — identical Killed count |
+
+Speed: the testing-phase wall-clock dropped roughly **5-6x** (~17-21 min under `off` → ~3-4 min under `perTest`; total run including build+shim went from ~19-24 min to ~6 min).
+
+This recommendation **does not apply to xunit.v3 / MTP-runner projects** — the [xunit.v3 detection](#xunit-v3-detection-do-this-before-configuring-runs) section's `"coverage-analysis": "off"` mandate above is unrelated and unaffected; #669 did not re-test that failure mode.
+
 ## Pre-run: build first
 
 Always build before timing the baseline suite or invoking Stryker. A stale binary produces phantom failures — Stryker either aborts on load or reports every mutant as `Survived`. Baseline timing:
