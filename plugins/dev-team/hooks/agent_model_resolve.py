@@ -147,15 +147,15 @@ def _read_effort(agent_file: Path) -> str:
         return ""
     if not lines:
         return ""
-    infm = False
+    in_frontmatter = False
     for idx, raw in enumerate(lines):
         line = raw.rstrip("\n")
         if idx == 0 and line == "---":
-            infm = True
+            in_frontmatter = True
             continue
-        if infm and line == "---":
+        if in_frontmatter and line == "---":
             return ""
-        if infm:
+        if in_frontmatter:
             m = _EFFORT_RE.match(line)
             if m:
                 val = m.group(1)

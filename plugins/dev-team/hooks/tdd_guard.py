@@ -44,6 +44,7 @@ _TEST_CONTENT_RE = re.compile(
 )
 
 _STATE_TTL_SECONDS = 240 * 60  # 4 hours
+_GREEN_PHASE_WINDOW_SECONDS = 300  # grace period after a test edit (RED->GREEN)
 
 
 def _extract_file_path(raw: str) -> str:
@@ -180,7 +181,7 @@ def main() -> int:
         return 0
 
     elapsed = now - last_time
-    if elapsed < 300 and last_edit:
+    if elapsed < _GREEN_PHASE_WINDOW_SECONDS and last_edit:
         # Recent test edit — GREEN phase is fine.
         return 0
 

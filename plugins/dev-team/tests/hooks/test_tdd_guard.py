@@ -216,6 +216,33 @@ def test_main_impl_without_recent_test_warns(monkeypatch, capsys, tmp_path):
     assert "File: calc.ts" in out
 
 
+def test_green_phase_window_seconds_constant_exists():
+    # Named sibling of _STATE_TTL_SECONDS — the GREEN-phase grace window
+    # should not be a bare magic number inline in main().
+    assert tdd_guard._GREEN_PHASE_WINDOW_SECONDS == 300
+
+
+def test_main_respects_green_phase_window_constant(monkeypatch, capsys, tmp_path):
+    # Shrinking the named window should shrink the GREEN-phase grace period
+    # accordingly, proving main() reads the constant rather than a literal.
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tdd_guard, "_GREEN_PHASE_WINDOW_SECONDS", 10)
+
+    state_dir = tmp_path / "tmp" / "tdd-guard"
+    state_dir.mkdir(parents=True)
+    state_file = tdd_guard._state_file()
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    tdd_guard._write_state(state_file, "src/calc.test.ts", int(time.time()) - 60)
+
+    src = tmp_path / "calc.ts"
+    src.write_text("export const add = (a, b) => a + b;\n")
+    _feed(monkeypatch, '{"tool_input":{"file_path":"' + str(src) + '"}}')
+    assert tdd_guard.main() == 0
+    out = capsys.readouterr().out
+    assert "TDD: Implementation file edited without a recent test edit." in out
+
+
 def test_main_impl_with_recent_test_is_silent(monkeypatch, capsys, tmp_path):
     monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
     monkeypatch.chdir(tmp_path)
