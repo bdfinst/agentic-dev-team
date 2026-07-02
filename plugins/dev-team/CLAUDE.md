@@ -54,8 +54,6 @@ See [knowledge/request-processing-flow.md](knowledge/request-processing-flow.md)
 
 Each agent declares an effort band (`effort: low|medium|high`). Resolution enforced by `hooks/agent_model_resolve.py` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
 
-Restricted-endpoint (proxy) failures: [proxy-connectivity.md](knowledge/proxy-connectivity.md).
-
 ## Context Management
 
 1. **[Context Loading Protocol](skills/context-loading-protocol/SKILL.md)** — decides *what* to load and *when*
@@ -77,7 +75,7 @@ Intervention commands: feedback keywords above, plus `override`, `pause`, `stop`
 
 ## Proxy Resilience
 
-Proxy 429s/refused conns: **[Proxy Resilience](skills/proxy-resilience/SKILL.md)**.
+429s: **[Proxy Resilience](skills/proxy-resilience/SKILL.md)**. Refused conns: [proxy-connectivity.md](knowledge/proxy-connectivity.md).
 
 ## Quality & Accuracy
 
@@ -91,4 +89,4 @@ Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` 
 
 Logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
 
-Every quantitative claim must name the instrument that measures it. **Instrumented:** token budgets (`scripts/measure-tokens.sh`) and per-agent accuracy (`/agent-eval`). **Not yet instrumented:** efficiency gains, hallucination rate, first-pass acceptance rate (#102, #106).
+Every quantitative claim names its measuring instrument. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), per-agent accuracy (`/agent-eval`). **Not yet:** efficiency gains, hallucination rate, first-pass acceptance (#102, #106).
