@@ -1,0 +1,86 @@
+name: Wrapper — Windows Git Bash
+
+# Verifies csharp-stryker-net-wrapper.sh + csharp-stryker-net-status-loop.sh
+# on Windows Git Bash (native, not WSL). Answers the deferred Windows
+# signal-handling question filed as #567 — the wrapper's EXIT/INT/TERM
+# trap, process-group SIGINT via `kill -INT -PGID`, and backgrounded-
+# Stryker PID reaping through `kill -0` have been verified on macOS + Linux
+# but never on Windows Git Bash's MSYS bash, whose job-control diverges
+# from POSIX.
+#
+# Refs: #564 (parent — the wrapper cross-platform work), #567 (the
+# tracking issue this job closes).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      # Only fires when the wrapper, status loop, their bats tests, or this
+      # workflow itself changes — avoids running Windows CI on every unrelated
+      # PR since Windows runners are slower + more expensive.
+      - "plugins/dev-team/skills/mutation-testing/scripts/csharp-stryker-net-*.sh"
+      - "tests/skills/mutation_testing_wrapper_tests.bats"
+      - "tests/skills/mutation_testing_wrapper_loop_integration_tests.bats"
+      - "tests/skills/mutation_testing_status_loop_tests.bats"
+      - "tests/fixtures/stryker-net-logs/**"
+      - ".github/workflows/wrapper-windows-git-bash.yml"
+
+concurrency:
+  group: wrapper-windows-git-bash-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bats-on-git-bash:
+    name: Bats on Git Bash (native Windows)
+    runs-on: windows-latest
+    # Default shell for `run:` steps → Git Bash (as opposed to PowerShell,
+    # which is the windows-latest default). Every step below runs under
+    # `C:\Program Files\Git\bin\bash.exe` — exactly the shell operators
+    # actually use with the wrapper on Windows.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      # bats + shellcheck + jq + python3 already ship with the windows-latest
+      # image via Chocolatey. `bats` here is the Windows package — verified
+      # by the setup step below (a hard-failure would surface the reference
+      # rot before the wrapper tests even run).
+      - name: Verify required tools are on PATH
+        run: |
+          set -euo pipefail
+          for t in bats shellcheck jq python3 shasum sha256sum; do
+            if command -v "$t" >/dev/null 2>&1; then
+              printf 'ok: %-11s %s\n' "$t" "$(command -v "$t")"
+            else
+              printf 'skip: %s not on PATH — tests that need it will `skip` themselves\n' "$t"
+            fi
+          done
+          # bats + jq are hard dependencies; shellcheck is soft (tests skip).
+          command -v bats >/dev/null
+          command -v jq >/dev/null
+          command -v python3 >/dev/null
+
+      # The three test files that exercise the wrapper end-to-end. Excludes
+      # tests/hooks/mutation_testing_smoke_gate.bats — the Claude-Code hook is
+      # not in the wrapper's cross-platform target audience (it only runs when
+      # Claude Code intercepts a Bash tool call, which is CC-scoped).
+      - name: Run wrapper + status-loop bats suites
+        run: |
+          set -euo pipefail
+          bats \
+            tests/skills/mutation_testing_wrapper_tests.bats \
+            tests/skills/mutation_testing_status_loop_tests.bats \
+            tests/skills/mutation_testing_wrapper_loop_integration_tests.bats
+
+      # Explicit shellcheck of the two shipped scripts. The wrapper's own
+      # bats file already includes a shellcheck test that skips when the
+      # tool is absent — this step confirms Git Bash on the Windows runner
+      # actually has shellcheck available AND the scripts pass under it.
+      - name: Shellcheck the shipped wrapper + status loop
+        run: |
+          set -euo pipefail
+          shellcheck plugins/dev-team/skills/mutation-testing/scripts/csharp-stryker-net-wrapper.sh
+          shellcheck plugins/dev-team/skills/mutation-testing/scripts/csharp-stryker-net-status-loop.sh
