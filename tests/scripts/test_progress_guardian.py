@@ -562,6 +562,7 @@ def test_4_4_realistic_plan_with_all_three_525_patterns_passes_the_pre_pr_gate(
         "- [ ] A2: bar\n"
         "- [ ] A3: baz\n"
     )
+    _write_verify_log(work, branch="feature")
 
     result = run_pg(plan, "--pre-pr", "--skip-llm")
     assert result.returncode == 0
@@ -588,7 +589,9 @@ def test_5_1_directory_declaration_satisfies_commit_discipline(tmp_path: Path) -
     _git(tmp_path, "add", "new_feature/SKILL.md")
     _git(tmp_path, "commit", "-q", "-m", "feat: add new-feature skill")
     plan = tmp_path / "plan.md"
-    plan.write_text("- [x] Slice 1: add new-feature skill\n\n**Files:** `new_feature/`\n")
+    plan.write_text(
+        "- [x] Slice 1: add new-feature skill\n\n**Files:** `new_feature/`\n"
+    )
 
     result = run_pg(plan, "--skip-llm")
     assert result.returncode == 0
@@ -690,3 +693,142 @@ def test_5_4_non_path_backtick_token_not_mis_captured_as_declared_path(
     ]
     assert len(errs) == 1, data
     assert "whose subject contains" in errs[0]["message"], errs[0]
+
+
+# ---------------------------------------------------------------------------
+# Step 6 — issue #727: pre-PR gate requires evidence of /verify for
+# runtime-surface changes (metrics/verify-log.jsonl)
+# ---------------------------------------------------------------------------
+
+
+def _write_verify_log(repo: Path, branch: str, outcome: str = "ran") -> None:
+    metrics_dir = repo / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "timestamp": "2026-07-02T00:00:00Z",
+        "plan": "plans/plan.md",
+        "slice": "1",
+        "branch": branch,
+        "files": ["a.py"],
+        "outcome": outcome,
+    }
+    log_path = metrics_dir / "verify-log.jsonl"
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry) + "\n")
+    # Commit it so it doesn't trip the uncommitted-changes check — the
+    # scenario under test is "does a committed verify-log entry satisfy
+    # the gate", isolated from check_uncommitted (issue #727).
+    _git(repo, "add", "metrics/verify-log.jsonl")
+    _git(repo, "commit", "-q", "-m", "chore: record verify-log entry")
+
+
+def _current_branch(repo: Path) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def test_6a_pre_pr_with_runtime_file_and_no_verify_log_exits_1(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "a.py").write_text("branch work\n")
+    _git(tmp_path, "add", "a.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: do thing")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    assert result.returncode == 1
+    data = json.loads(result.stdout)
+    assert any("verify-log" in i["message"] for i in data["issues"]), data
+
+
+def test_6b_pre_pr_with_runtime_file_and_matching_verify_log_entry_exits_0(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "a.py").write_text("branch work\n")
+    _git(tmp_path, "add", "a.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: do thing")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] do thing\n\n**Files:** `a.py`\n")
+    _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert data["issues"] == [], data
+
+
+def test_6c_pre_pr_with_verify_log_for_a_different_branch_still_fails(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "a.py").write_text("branch work\n")
+    _git(tmp_path, "add", "a.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: do thing")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] do thing\n\n**Files:** `a.py`\n")
+    _write_verify_log(tmp_path, branch="some-other-branch")
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    assert result.returncode == 1
+    data = json.loads(result.stdout)
+    assert any("verify-log" in i["message"] for i in data["issues"]), data
+
+
+def test_6d_pre_pr_with_test_only_changes_skips_the_verify_log_check(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "a.test.js").write_text("test('x', () => {})\n")
+    _git(tmp_path, "add", "a.test.js")
+    _git(tmp_path, "commit", "-q", "-m", "test: add test")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] add test\n\n**Files:** `a.test.js`\n")
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert data["issues"] == [], data
+
+
+def test_6e_pre_pr_with_docs_only_changes_skips_the_verify_log_check(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "notes.md").write_text("# Notes\n")
+    _git(tmp_path, "add", "notes.md")
+    _git(tmp_path, "commit", "-q", "-m", "docs: add notes")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] add notes\n\n**Files:** `notes.md`\n")
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert data["issues"] == [], data
+
+
+def test_6f_non_pre_pr_run_does_not_enforce_the_verify_log_check(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "a.py").write_text("branch work\n")
+    _git(tmp_path, "add", "a.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: do thing")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert data["issues"] == [], data

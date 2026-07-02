@@ -7,7 +7,7 @@ description: >-
   the plan", "start building", or after /plan has been approved.
 argument-hint: "[--plan <path>] [--yes]"
 user-invocable: true
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion, Skill(verify *)
 ---
 
 # Build
@@ -158,6 +158,22 @@ Within the RED/GREEN/REFACTOR mini-cycle below, repeated Write/Edit calls can ra
 
    `outcome` is `no-op` when the checkpoint passed clean (found nothing), `fixed` when it found and auto-fixed actionable issues, `escalated` when the loop didn't converge. This is the sensor that tells a build where review caught a real defect from one where every loop passed no-op — it turns the pipeline's "value untested" into "value measured" and feeds the plan/step tiering decisions. Disable with `DEV_TEAM_REVIEW_VALUE=off`.
 
+### 4.9. Verify runtime behavior before the slice is done (issue #727)
+
+A "done" step that only passed its own tests is not the same as a feature that works — a red suite catches structural regressions, not "it fails the first time someone actually runs it." Once a slice's steps are all `[x]` (sub-step 5) and its review checkpoint(s) have run (sub-steps 4/6), decide whether the slice has a runtime surface to exercise **before the slice may be marked `[x]` complete**:
+
+1. **Classify the slice's changed files**, per `knowledge/test-file-indicators.md`. If every changed file is a test file, or the rest are docs/config only (no source or runtime file changed), there is nothing for `/verify` to drive — record `outcome: "skipped"` with a `reason` (below) and continue.
+2. **Otherwise, invoke `/verify`** scoped to the slice's changed runtime files before the slice's checkbox is flipped to `[x]`. This generalizes the UI-only `/browse` smoke test (sub-step 4's UI bullet) into a universal completion criterion: APIs, CLIs, bots, and background jobs get the same "did this actually run" check UI changes already get.
+3. **Not bypassable by `--yes`, `DEV_TEAM_AUTO_APPROVE=1`, or no-TTY.** Contrast with the approval gates in Steps 2–3: those bypass a human judgment call when no human is present. This gate needs no human judgment — the agent runs `/verify` itself — so non-interactive mode never skips it. There is no override flag for this step.
+4. **A `/verify` failure is a failing test.** Per Step 5's "Quality ownership" language: do not mark the slice `[x]` or the plan `implemented`. Enter [Systematic Debugging](../systematic-debugging/SKILL.md), find the root cause, fix it, and re-run `/verify` before proceeding — never silently override.
+5. **Record the outcome.** Append exactly one JSON line per slice with a runtime surface to `metrics/verify-log.jsonl`, schema modeled on `metrics/review-value.jsonl` (sub-step 7):
+
+   ```json
+   {"timestamp":"<ISO8601>","plan":"<plan-file>","slice":"<N>","branch":"<branch>","files":["<changed runtime file>","..."],"outcome":"ran|skipped|failed-then-fixed","reason":"<set when outcome is skipped>"}
+   ```
+
+   `outcome` is `ran` (`/verify` executed and passed), `skipped` (no runtime surface in the diff — `reason` states why, e.g. `"tests-only"` or `"docs-only"`), or `failed-then-fixed` (`/verify` failed at least once before the fix landed). `python3 scripts/progress_guardian.py --pre-pr` reads this log: a branch with runtime-surface changes and no matching entry fails the pre-PR gate the same way an incomplete step or a missing commit does.
+
 ### 5. Run full test suite
 
 After all steps are complete, run the full test suite. Paste the output as final verification evidence.
@@ -201,8 +217,9 @@ Stop and ask the user when:
 
 - `/specs` produces the intent, architecture, and acceptance-criteria artifacts that inform the plan
 - `/plan` decomposes the feature into slices, authors each slice's Gherkin, and produces the plan this command executes
+- `/verify` exercises each runtime-surface slice end-to-end before it may be marked done (sub-step 4.9, issue #727)
 - `/code-review` runs the full review suite after implementation
 - `farley-score` scores the branch's tests (Farley Score) as the final pre-PR quality signal
 - `/pr` creates the pull request after a successful build
 - `/continue` can resume a partially completed build across sessions
-- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary
+- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary; `--pre-pr` also fails closed when runtime-surface changes have no matching `metrics/verify-log.jsonl` entry (issue #727)

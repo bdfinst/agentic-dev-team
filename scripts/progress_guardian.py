@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -450,6 +451,165 @@ def check_pre_pr(steps: List[Step]) -> List[dict]:
     return errors
 
 
+VERIFY_LOG_PATH = "metrics/verify-log.jsonl"
+
+# Test-file indicators — kept in sync with knowledge/test-file-indicators.md
+# so this Python check and the /build skill's prose classification agree on
+# what counts as "a test" (see issue #727).
+_TEST_NAME_RE = re.compile(r"\.(test|spec)\.[^./]+$")
+_TEST_DIR_FRAGMENTS = ("__tests__/",)
+_STEP_DEFINITION_RE = re.compile(
+    r"(\.steps\.[^./]+$|StepDefinitions\.[^./]+$|Steps\.[^./]+$)", re.IGNORECASE
+)
+_TEST_CLASS_NAME_RE = re.compile(r"(Test|Tests|TestCase|Spec)\.java$")
+_TEST_ATTRIBUTE_RE = re.compile(
+    r"\[Fact\]|\[Theory\]|\[TestCase\]|\[TestMethod\]|\[TestClass\]|"
+    r"(?<!Parameterized)(?<!Factory)\[Test\]|@Test\b|@ParameterizedTest|@TestFactory"
+)
+
+# Docs/config files never carry a runtime surface — no source ever executes
+# from them, so a diff touching only these (plus tests) has nothing for
+# /verify to drive.
+_DOC_CONFIG_SUFFIXES = {
+    ".md",
+    ".mdx",
+    ".txt",
+    ".rst",
+    ".adoc",
+    ".yml",
+    ".yaml",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".editorconfig",
+}
+_DOC_CONFIG_BASENAMES = {
+    "LICENSE",
+    "LICENSE.txt",
+    ".gitignore",
+    ".gitattributes",
+    "CODEOWNERS",
+}
+
+
+def _is_test_file(path: str, repo_root: str) -> bool:
+    """True when `path` looks like a test per knowledge/test-file-indicators.md."""
+    if path.endswith(".feature"):
+        return True
+    if _TEST_NAME_RE.search(path):
+        return True
+    if any(frag in path for frag in _TEST_DIR_FRAGMENTS):
+        return True
+    if _STEP_DEFINITION_RE.search(path):
+        return True
+    if _TEST_CLASS_NAME_RE.search(path):
+        return True
+    suffix = Path(path).suffix.lower()
+    if suffix in (".cs", ".java"):
+        # Attribute-based test detection needs the file's content — best
+        # effort only, and only when the file still exists on disk.
+        try:
+            content = (Path(repo_root) / path).read_text(
+                encoding="utf-8", errors="replace"
+            )
+        except OSError:
+            return False
+        if _TEST_ATTRIBUTE_RE.search(content):
+            return True
+    return False
+
+
+def _is_doc_or_config_file(path: str) -> bool:
+    if path.startswith("metrics/") and path.endswith(".jsonl"):
+        return True
+    if Path(path).name in _DOC_CONFIG_BASENAMES:
+        return True
+    return Path(path).suffix.lower() in _DOC_CONFIG_SUFFIXES
+
+
+def has_runtime_surface(changed_files: List[str], repo_root: str) -> bool:
+    """True when at least one changed file is neither a test file nor a
+    docs/config file — i.e. there is something for /verify to exercise.
+    """
+    return any(
+        not _is_test_file(f, repo_root) and not _is_doc_or_config_file(f)
+        for f in changed_files
+    )
+
+
+def _collect_branch_changed_files(repo_root: str) -> List[str]:
+    """All files changed on this branch: the committed diff since the
+    branch base, plus any currently uncommitted (staged/unstaged) files.
+    Mirrors check_scope's branch-scope resolution (issue #727).
+    """
+    base_ref = _branch_base_sha(repo_root)
+    if not base_ref:
+        base_ref = run_git(["rev-list", "--max-parents=0", "HEAD"], repo_root).strip()
+
+    diff_output = (
+        run_git(["diff", "--name-only", base_ref + "..HEAD"], repo_root)
+        if base_ref
+        else ""
+    )
+    changed_files = (
+        set(diff_output.strip().splitlines()) if diff_output.strip() else set()
+    )
+
+    status_output = run_git(["status", "--porcelain"], repo_root)
+    for line in status_output.strip().splitlines():
+        if line.strip():
+            parts = line.strip().split(None, 1)
+            if len(parts) == 2:
+                changed_files.add(parts[1].strip())
+
+    return sorted(changed_files)
+
+
+def check_verify_log(repo_root: str, changed_files: List[str]) -> List[dict]:
+    """Pre-PR gate (issue #727): if the branch touches any runtime-surface
+    file (not exclusively tests/docs/config), require at least one entry
+    in metrics/verify-log.jsonl for the current branch — evidence that
+    `/verify` ran (or was explicitly skipped with a reason) before the
+    slice was marked done. Fails closed, the same way an incomplete step
+    or a missing commit does.
+    """
+    if not changed_files or not has_runtime_surface(changed_files, repo_root):
+        return []
+
+    branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root).strip()
+    log_path = Path(repo_root) / VERIFY_LOG_PATH
+
+    entries: List[dict] = []
+    if log_path.exists():
+        for raw_line in log_path.read_text(encoding="utf-8").splitlines():
+            raw_line = raw_line.strip()
+            if not raw_line:
+                continue
+            try:
+                entries.append(json.loads(raw_line))
+            except ValueError:
+                continue
+
+    if any(entry.get("branch") == branch for entry in entries):
+        return []
+
+    return [
+        _make_error(
+            message=(
+                "Pre-PR gate: this branch touches runtime-surface file(s) but no "
+                f"entry in {VERIFY_LOG_PATH} matches branch '{branch}'. `/verify` "
+                "(or an explicit skip-with-reason) is required before a PR can be "
+                "opened."
+            ),
+            suggested_fix=(
+                "Run /verify against the branch's changed runtime files (or record "
+                "a skipped:<reason> entry if the diff genuinely has no runtime "
+                f"surface to drive), then append the outcome to {VERIFY_LOG_PATH}."
+            ),
+        )
+    ]
+
+
 def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
     """Detect files in the branch diff that aren't declared in the plan.
 
@@ -490,13 +650,19 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
             if len(parts) == 2:
                 changed_files.add(parts[1].strip())
 
-    # Exclude the plan file itself from scope check
+    # Exclude the plan file itself from scope check, along with append-only
+    # metrics artifacts (e.g. review-value.jsonl, verify-log.jsonl) — these
+    # are pipeline instrumentation the plan never declares by name, not
+    # plan-scoped work product (issue #727).
     plan_name = plan_path.name
     plan_rel = str(plan_path)
     changed_files = {
         f
         for f in changed_files
-        if f != plan_name and f != plan_rel and not f.endswith(plan_name)
+        if f != plan_name
+        and f != plan_rel
+        and not f.endswith(plan_name)
+        and not (f.startswith("metrics/") and f.endswith(".jsonl"))
     }
 
     if not changed_files:
@@ -644,6 +810,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.pre_pr:
             pre_pr_issues = check_pre_pr(steps)
             errors.extend(pre_pr_issues)
+
+            # 6. Verify-log gate (issue #727): runtime-surface changes need
+            # evidence /verify ran before the PR can be opened.
+            verify_changed_files = _collect_branch_changed_files(repo_root)
+            verify_issues = check_verify_log(repo_root, verify_changed_files)
+            errors.extend(verify_issues)
 
     result = build_result(errors, warnings)
     return main_exit(result)
