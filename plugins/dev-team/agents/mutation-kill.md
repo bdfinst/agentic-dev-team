@@ -281,6 +281,30 @@ above and move on.
 Never spend rounds trying to kill these — they inflate the round count and
 produce zero kills.
 
+## Convergence history across --all invocations
+
+After each file's per-file loop concludes during an `--all` run, write or update
+one entry for that file in `StrykerOutput/mutation-kill-convergence.json` (in the
+target repo, alongside the other `StrykerOutput/` artifacts):
+
+```json
+{ "file": "<path>", "status": "converged", "reason": null, "commit": "<sha>" }
+```
+
+Entry shape: `file` (path, matches the mutate-glob entry), `status`
+(`"converged"` or `"excluded"`), `reason` (string for `"excluded"`, `null` for
+`"converged"`), `commit` (the SHA of `HEAD` at the moment the entry is written).
+
+Two write triggers, each tied to an existing point in this file's own loop:
+
+- **Converged** — the [per-file loop](#loop-per-file)'s `survivors == 0` exit
+  (loop step 3) writes or updates the file's entry with `status: "converged"`,
+  `reason: null`, and the current commit SHA.
+- **Excluded** — a confirmed [infrastructure exclusion](#infrastructure-exclusion-detection-before-the-loop-starts)
+  or [structurally-unkillable exclusion](#structurally-unkillable-files) writes
+  or updates the file's entry with `status: "excluded"`, the same `reason` text
+  used in the `EXCLUDED <file> — <reason>` log line, and the current commit SHA.
+
 ## Parallelism
 
 With `--all`, run files in parallel via git worktrees (each shard gets its own
