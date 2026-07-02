@@ -178,6 +178,7 @@ chk_python_only() {
 }
 chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
 chk_harness_smoke()    { python3 tests/security-assessment/harness/smoke_test.py; }
+chk_harness_scope()    { python3 tests/security-assessment/harness/scope_enforcement_test.py; }
 # Lightweight nav gate: assemble the docs tree, then assert every mkdocs nav
 # entry resolves to a file (the breakage a deleted/renamed doc leaves behind).
 # The full mkdocs build + lychee body-link scan stay CI-only (link-check.yml) so
@@ -238,6 +239,7 @@ CHECKS=(
   "cost-regression check::chk_cost_regression"
   "semgrep rule fixtures (audit-semgrep-fixtures.py)::chk_semgrep_fixtures"
   "red-team harness smoke (smoke_test.py)::chk_harness_smoke"
+  "red-team harness scope enforcement (scope_enforcement_test.py)::chk_harness_scope"
   "rules-vs-prompts audit (audit-rules-vs-prompts.sh)::chk_rules_vs_prompts"
   "prefer-Python-over-bash audit (check-python-only.py)::chk_python_only"
   "eval corpus integrity (eval_grade.py --check-corpus)::chk_eval_corpus"
