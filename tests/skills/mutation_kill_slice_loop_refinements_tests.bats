@@ -59,3 +59,18 @@ CSHARP="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/refere
   echo "$section" | grep -q -- "!"
   echo "$section" | grep -qi "re-checked\|drop out\|permanent"
 }
+
+# --- Slice 4 · tiered mutation-level example commands (#683) ----------------
+
+@test "csharp-stryker-net.md shows both a Basic baseline and a Standard escalation example command" {
+  run cat "$CSHARP"
+  [ "$status" -eq 0 ]
+  content="$output"
+
+  # Basic baseline command.
+  echo "$content" | grep -q -- "--mutation-level Basic"
+
+  # Standard escalation command, scoped via --mutate to one file.
+  echo "$content" | grep -q -- "--mutation-level Standard"
+  echo "$content" | grep -q -- "--mutate"
+}
