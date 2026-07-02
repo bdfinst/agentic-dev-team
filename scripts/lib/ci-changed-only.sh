@@ -29,6 +29,7 @@ ci_watched_paths() {
     chk_eval_semver)        printf '%s' "evals/" ;;
     chk_eslint)             printf '%s' "plugins/dev-team/ *.js *.ts *.json" ;;
     chk_oe_staleness)       printf '%s' "" ;;  # advisory; intentionally always-run (no stable watched path)
+    chk_parity)             printf '%s' "plugins/dev-team/tests/hooks/parity/ plugins/dev-team/hooks/" ;;
     *)                      printf '%s' "" ;;
   esac
 }
