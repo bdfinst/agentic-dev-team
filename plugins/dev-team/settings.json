@@ -96,7 +96,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/context-ceiling-guard.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CONTEXT_CEILING_GUARD:-0}\" = \"1\" ]; then python3 hooks/context_ceiling_guard.py; else bash hooks/context-ceiling-guard.sh; fi'"
           }
         ]
       },
@@ -136,7 +136,7 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/context-ceiling-guard.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_CONTEXT_CEILING_GUARD:-0}\" = \"1\" ]; then python3 hooks/context_ceiling_guard.py; else bash hooks/context-ceiling-guard.sh; fi'"
           }
         ]
       }
