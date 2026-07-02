@@ -171,11 +171,49 @@ def _drift_counter_path(state_dir: Path, stryker_pid: Optional[int]) -> Path:
 
 
 def _pid_is_alive(pid: int) -> bool:
-    """Cross-platform 'signal 0' liveness check. Returns False on Windows
-    when the PID doesn't exist (OSError WinError 87); True when it does.
+    """Cross-platform PID-liveness check.
+
+    - POSIX: ``os.kill(pid, 0)`` — raises ``ProcessLookupError`` for dead
+      PIDs, ``PermissionError`` for existing-but-not-ours.
+    - Windows: ``os.kill(pid, 0)`` has undefined semantics (it can send
+      ``CTRL_C_EVENT`` to console-attached processes on some Python builds,
+      which interrupts the *current* process). Use ``ctypes.OpenProcess``
+      directly instead — no signal delivery, deterministic on any Windows
+      Python.
     """
     if pid <= 0:
         return False
+
+    if os.name == "nt":
+        # Windows: query the kernel for the process handle. If OpenProcess
+        # succeeds we have an existing PID (living or a zombie kept alive
+        # by an open handle elsewhere — either way, "alive enough" for the
+        # loop's died-mid-run red-flag test). If it fails we treat the PID
+        # as dead. Uses PROCESS_QUERY_LIMITED_INFORMATION (0x1000) — the
+        # minimum access right needed to open any process.
+        try:
+            import ctypes
+
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid)
+            )
+            if not handle:
+                return False
+            # If the process is a zombie, GetExitCodeProcess returns
+            # STILL_ACTIVE (259) while alive and something else after exit.
+            # Distinguishing is nice but not required for this check; the
+            # OpenProcess handle being non-null already answers "does a PID
+            # slot with this number exist right now."
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        except Exception:
+            # Any Windows-specific quirk — fall back to "alive" to avoid
+            # false died-mid-run red flags. That matches the POSIX
+            # "unknown-error" branch below.
+            return True
+
+    # POSIX path — signal 0 delivery is a no-op existence check.
     try:
         os.kill(pid, 0)
         return True
@@ -312,9 +350,15 @@ def status_loop_start(
 
     ``output`` defaults to ``sys.stdout`` but can be overridden for tests.
     """
-    # Install signal handlers so the loop reaps on Ctrl-C / kill.
+    # Install signal handlers so the loop reaps on Ctrl-C / kill. Save the
+    # previous handlers so we restore them when the loop exits — critical
+    # when this function is called from another Python program (pytest,
+    # or wrapper.main() itself) so we don't leave the process's SIGINT/
+    # SIGTERM handling in a mutated state after the loop returns.
+    previous_handlers: list[tuple[int, object]] = []
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
+            previous_handlers.append((sig, signal.getsignal(sig)))
             signal.signal(sig, _stop_handler)
         except (ValueError, OSError):
             # Called from a thread on some platforms — non-main-thread
@@ -322,29 +366,38 @@ def status_loop_start(
             # terminates via the completion-marker check.
             pass
 
-    while not _STOP["requested"]:
-        print(emit_status_line(logfile), file=output, flush=True)
-        for line in check_red_flags(
-            logfile,
-            threshold,
-            stryker_pid,
-            expected_target=expected_target,
-            state_dir=state_dir,
-            drift_threshold=drift_threshold,
-        ):
-            print(line, file=output, flush=True)
+    try:
+        while not _STOP["requested"]:
+            print(emit_status_line(logfile), file=output, flush=True)
+            for line in check_red_flags(
+                logfile,
+                threshold,
+                stryker_pid,
+                expected_target=expected_target,
+                state_dir=state_dir,
+                drift_threshold=drift_threshold,
+            ):
+                print(line, file=output, flush=True)
 
-        # Exit condition — Stryker done and log carries a completion marker.
-        if stryker_pid is not None and not _pid_is_alive(stryker_pid):
-            if log_has_completion_marker(logfile):
-                break
+            # Exit condition — Stryker done and log carries a completion marker.
+            if stryker_pid is not None and not _pid_is_alive(stryker_pid):
+                if log_has_completion_marker(logfile):
+                    break
 
-        # Sleep in small slices so signal handlers wake up promptly.
-        remaining = float(interval)
-        slice_s = 0.1
-        while remaining > 0 and not _STOP["requested"]:
-            time.sleep(min(slice_s, remaining))
-            remaining -= slice_s
+            # Sleep in small slices so signal handlers wake up promptly.
+            remaining = float(interval)
+            slice_s = 0.1
+            while remaining > 0 and not _STOP["requested"]:
+                time.sleep(min(slice_s, remaining))
+                remaining -= slice_s
+    finally:
+        # Restore prior signal handlers so callers aren't left with our
+        # _stop_handler installed process-wide.
+        for sig, handler in previous_handlers:
+            try:
+                signal.signal(sig, handler)
+            except (ValueError, OSError, TypeError):
+                pass
 
 
 # =============================================================================

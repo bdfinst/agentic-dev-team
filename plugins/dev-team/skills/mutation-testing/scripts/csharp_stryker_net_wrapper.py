@@ -244,11 +244,18 @@ def run_stryker(stryker_bin: str, stryker_args: Sequence[str], logfile: Path) ->
 _RUNNING_STRYKER: dict[str, Optional[subprocess.Popen]] = {"proc": None}
 
 
-def _install_signal_handlers() -> None:
+def _install_signal_handlers() -> list[tuple[int, object]]:
     """Install SIGINT + SIGTERM handlers that terminate any running Stryker
     subprocess before re-raising KeyboardInterrupt / exiting. On Windows,
     SIGTERM is delivered as SIGBREAK — signal.signal accepts SIGTERM but
     doesn't actually receive it; we register SIGBREAK too where available.
+
+    Returns a list of (signum, previous_handler) tuples so ``main()`` can
+    restore the process's prior handlers on exit. This matters when
+    ``main()`` is called from another Python program (e.g. pytest) that
+    itself installs signal handlers — leaving ours in place across the
+    caller's remaining lifetime causes KeyboardInterrupt storms on
+    unrelated later code.
     """
 
     def _handler(signum: int, _frame) -> None:
@@ -261,12 +268,28 @@ def _install_signal_handlers() -> None:
         # Re-raise as KeyboardInterrupt for main()'s finally to fire cleanly.
         raise KeyboardInterrupt(f"signal {signum}")
 
-    signal.signal(signal.SIGINT, _handler)
+    previous: list[tuple[int, object]] = []
+    signals_to_install = [signal.SIGINT]
     if hasattr(signal, "SIGTERM"):
-        signal.signal(signal.SIGTERM, _handler)
+        signals_to_install.append(signal.SIGTERM)
     if hasattr(signal, "SIGBREAK"):
         # Windows console Ctrl-Break.
-        signal.signal(signal.SIGBREAK, _handler)
+        signals_to_install.append(signal.SIGBREAK)
+    for sig in signals_to_install:
+        previous.append((sig, signal.getsignal(sig)))
+        signal.signal(sig, _handler)
+    return previous
+
+
+def _restore_signal_handlers(previous: list[tuple[int, object]]) -> None:
+    """Restore the signal handlers captured by _install_signal_handlers."""
+    for sig, handler in previous:
+        try:
+            signal.signal(sig, handler)
+        except (ValueError, OSError, TypeError):
+            # Non-main-thread invocation or platform quirk — leave whatever
+            # is now in place; better than crashing at cleanup time.
+            pass
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -294,7 +317,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return EXIT_STALE_HIDDEN_SLN
 
     # ---- Install signal handlers now that we're about to spawn children ----
-    _install_signal_handlers()
+    # Save previous handlers so we restore them on exit. Critical when main()
+    # is called from another Python program (pytest) — leaving our handlers
+    # in place across the caller's lifetime causes KeyboardInterrupt storms
+    # on unrelated later code.
+    previous_signal_handlers = _install_signal_handlers()
 
     exit_code: int = EXIT_OK
     try:
@@ -324,6 +351,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     finally:
         # ALWAYS restore .sln — no matter which exit path.
         restore_sln(sln, sln_hidden)
+        # Restore previous signal handlers — critical for library-style use.
+        _restore_signal_handlers(previous_signal_handlers)
 
     return exit_code
 
