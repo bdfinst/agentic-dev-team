@@ -54,7 +54,9 @@ def _make_branch(
     _git("commit", "-q", "-m", f"feat: {filename}", cwd=root)
 
 
-def _run(*args: str, cwd: Path) -> subprocess.CompletedProcess:
+def _run(
+    *args: str, cwd: Path, extra_env: dict | None = None
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(_SCRIPT_PY), *args],
         cwd=str(cwd),
@@ -69,6 +71,7 @@ def _run(*args: str, cwd: Path) -> subprocess.CompletedProcess:
             "GIT_AUTHOR_EMAIL": "t@t",
             "GIT_COMMITTER_NAME": "T",
             "GIT_COMMITTER_EMAIL": "t@t",
+            **(extra_env or {}),
         },
     )
 
@@ -196,3 +199,23 @@ def test_test_cmd_skipped_when_absent(tmp_path: Path) -> None:
     r = _run("--into", "integration", "--base", "main", "slice1", cwd=tmp_path)
     assert r.returncode == 0
     assert "gate skipped" in r.stdout
+
+
+def test_test_cmd_gate_times_out_instead_of_hanging_forever(tmp_path: Path) -> None:
+    """A hung --test-cmd must not block the pipeline indefinitely. A short
+    injected timeout should surface a clear timeout failure quickly."""
+    _init_repo(tmp_path)
+    _make_branch(tmp_path, "slice1", "one.txt", "1\n")
+    r = _run(
+        "--into",
+        "integration",
+        "--base",
+        "main",
+        "--test-cmd",
+        "sleep 30",
+        "slice1",
+        cwd=tmp_path,
+        extra_env={"BUILD_WAVE_RECONCILE_TEST_CMD_TIMEOUT": "1"},
+    )
+    assert r.returncode == 1
+    assert "TIMED OUT" in r.stderr or "timed out" in r.stderr.lower()
