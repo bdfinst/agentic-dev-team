@@ -214,18 +214,10 @@ chk_hook_units() {
     return 0
   fi
   # tests/agents/ and tests/commands/ were ported from bats to pytest under
-  # issue #675 (epic #668).
+  # issue #675 (epic #668). tests/repo/'s eval/cost/telemetry/workflow-audit
+  # suites were ported under #672 (epic #668) and already ran here — no
+  # separate check needed.
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands
-}
-# tests/repo/test_*.py — eval graders, cost regression, telemetry, and
-# workflow-audit content-guard suites ported from bats (#618, #672). Not
-# picked up by chk_bats_repo, which only globs *.bats.
-chk_eval_units() {
-  if ! python3 -c 'import pytest' >/dev/null 2>&1; then
-    printf '%s∼ skipped (pytest not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
-    return 0
-  fi
-  python3 -m pytest tests/repo
 }
 
 # Ordered list of "label::function". Order defines both the replay order and the
@@ -249,7 +241,6 @@ CHECKS=(
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"
   "plugin hook + script unit tests (pytest plugins/dev-team/tests)::chk_hook_units"
-  "eval/cost/telemetry unit tests (pytest tests/repo)::chk_eval_units"
 )
 
 # --only=fn[,fn...] : keep just the named checks (CI invokes per-job subsets).
