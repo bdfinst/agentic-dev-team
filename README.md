@@ -64,6 +64,7 @@ For bug fixes or simple tasks, skip `/specs` and start at `/plan` — or go stra
 | --- | --- |
 | `/code-review` | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
 | `/continue` | Resume an in-progress build or plan across sessions |
+| `/test-improve` | Consolidated analyze-then-improve test orchestrator (replaces `/test-modernize` and `/test-upgrade`). Seven phases with human gates; lightweight by default, opts into Gherkin / mutation / refactor-for-testability on demand |
 | `/browse` | Visual QA via Playwright |
 | `/benchmark` | Runtime performance metrics (Core Web Vitals, resource sizes) against baselines |
 | `/careful` / `/freeze` / `/guard` | Safety modes for production-critical sessions |

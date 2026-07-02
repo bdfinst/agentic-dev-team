@@ -935,10 +935,10 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 
 #### Wave 11
 
-- [ ] Slice 12: Docs, diagram, registries
-  - [ ] Step 12.1: Draw plugins/dev-team/docs/diagrams/test-improve-flow.svg
-  - [ ] Step 12.2: Add /test-improve section to workflows.md, skills.md, agent-architecture.md, test-evaluation.md, team-structure.md, README.md
-  - [ ] Step 12.3: Add /test-improve rows to skills-registry.md and agent-registry.md
+- [x] Slice 12: Docs, diagram, registries
+  - [x] Step 12.1: Draw plugins/dev-team/docs/diagrams/test-improve-flow.svg
+  - [x] Step 12.2: Add /test-improve section to workflows.md, skills.md, agent-architecture.md, test-evaluation.md, team-structure.md, README.md
+  - [x] Step 12.3: Add /test-improve rows to skills-registry.md and agent-registry.md
 
 #### Wave 12
 
@@ -963,5 +963,5 @@ Iteration 1 verdicts: 4 `needs-revision` (Acceptance, Design, UX, Strategic), 1 
 - [x] AC36–39: Phase 6 validate
 - [x] AC40 + AC40.1–40.6: Phase 7 report ships from the executive-summary template with 10 numbered sections; sections never disappear; parent-issue/FEATURE.md link update; regeneratable-from-memory contract
 - [x] AC41–44: --workflow parameterization
-- [ ] AC45–49: docs + diagrams + registries
+- [x] AC45–49: docs + diagrams + registries
 - [ ] AC50–53: /agent-audit + /agent-eval + bats gate

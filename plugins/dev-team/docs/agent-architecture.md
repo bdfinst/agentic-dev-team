@@ -48,6 +48,27 @@ Between phases, `dev-team:test-modernization-review` reads the just-completed ph
 
 For how `/test-modernize` composes with the rest of the test-evaluation tools, see [Test Evaluation and Architecture](test-evaluation.md).
 
+## Test improvement workflow (`/test-improve`)
+
+`/test-improve` is the **consolidated** analyze-then-improve orchestrator that replaces `/test-modernize` and `/test-upgrade` with a single command. It defaults to lightweight ceremony, prompts for heavier capabilities on demand, and always baselines coverage (and mutation, when enabled) before any test change.
+
+![/test-improve seven-phase workflow with human gates between each phase](diagrams/test-improve-flow.svg)
+
+Seven phases, each with a per-phase progress file at `memory/test-improve/<slug>/phase-<n>.md`:
+
+0. **Approach contract.** One batched prompt covers mutation on/off, BDD rubric, refactor mode, quality targets, and sink. Defaults are shown in `[brackets]`; pressing Enter accepts all of them in one keystroke. Answers are immutable for the run — `--from-phase` never re-prompts.
+1. **Analyze.** `/test-health` is the sole worker; it internally rolls up whatever sub-skills it needs. The Phase-0 mutation setting flows through.
+2. **Baseline.** `/coverage-baseline --workflow test-improve` unconditionally; `/mutation-testing --baseline --workflow test-improve` when mutation is on. No test file may be modified between Phase 0 and baseline artifact creation. Go stacks record an advisory-only marker; the honest score records hard kills with timeouts reported separately.
+3. **Derive Gherkin (2b — conditional).** `none` skips entirely; `xunit-with-annotations` writes `.feature` files with no runner dependency; `bdd-runner` wires the stack-native parser and generates pending step stubs.
+4. **Triage.** `/issues-from-assessment --workflow test-improve` partitions findings into `NO_REFACTOR` (Phase-4 Stories), `REFACTOR_REQUIRED` (deferred to Phase 5), and `LOW_VALUE` (advisory-only; never deleted by automation).
+5. **Improve without refactoring.** Per Story: `/build` (no-refactor) → `/coverage-delta --workflow test-improve --story <id>` → `mutation-kill` agent (`--file <story-file> --max-rounds 3`, `[c/r/w/q]` on residuals). End-of-phase review loop dispatches `/test-design --since` and `/code-review --since` in parallel over the Phase-4 diff, runs `/apply-fixes corrections/` then re-runs `/code-review`, caps at 2 iterations, escalates via `[r/w/q]`. Evidence persists to `phase-4-review.json` with `base_sha`, `head_sha`, `farley_score`, `smells`, `code_review`, `iterations`, `escalated`.
+6. **Refactor decision (4b).** Present the REFACTOR_REQUIRED list with seam / behavior / risk columns and prompt `[y] enter Phase 5 / [b] backlog and skip to Phase 6 / [q] quit`. The letter `y` is deliberately chosen over `r`, which is already claimed by mutation-kill's `[c/r/w/q]` (retry) and the review loop's `[r/w/q]` (revise).
+7. **Refactor-for-testability (5 — conditional on `[y]`).** Seam-only production-code changes; existing tests are immutable. Each Story precondition-checks the paired Phase-4 baseline is closed and green. Same end-of-phase review loop as Phase 4; evidence in `phase-5-review.json`.
+8. **Validate.** `/quality-targets-converge --workflow test-improve`. Mutation off = **skipped**, not waived. Go = advisory-only. Coverage < 90% in no-refactor mode surfaces the `[y/n]` re-run-in-refactor-allowed prompt, naming the backlogged items that would close the gap.
+9. **Report.** Copy `plugins/dev-team/skills/test-improve/templates/executive-summary.md` to `reports/test-improve/<repo-slug>-<date>.md`, interpolating every placeholder from `memory/test-improve/<slug>/`. All 10 numbered sections are always present; empty sections render `_Not applicable — <reason>._`. The parent tracker (or `plans/test-improve/FEATURE.md` in local-files mode) is updated with a link to the report. The report is regeneratable from memory: delete it and re-run Phase 7 to reproduce byte-for-byte.
+
+`/continue` resumes any phase from `memory/test-improve/<slug>/phase-<n>.md`; `/test-improve <repo> --from-phase <n>` does the same explicitly. `--analyze-only` runs Phase 0 + Phase 1 and exits before baseline capture.
+
 ## Context Management
 
 The Orchestrator manages context utilization using two operational skills.

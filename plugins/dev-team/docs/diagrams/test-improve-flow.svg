@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1010 1520" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">/test-improve seven-phase workflow</title>
+  <desc id="desc">Vertical flowchart of the /test-improve orchestrator. Phase 0 resolves the approach contract (mutation on/off, BDD rubric, refactor mode, quality targets, sink) in one batched prompt with all defaults previewed. Phase 1 delegates the full analysis to /test-health. Phase 2 captures the coverage baseline and, when mutation is on, the mutation baseline — before any test file is modified. Phase 2b is conditional and derives Gherkin only when the operator opted into xunit-with-annotations or bdd-runner. Phase 3 partitions findings into NO_REFACTOR (Phase-4 Stories) / REFACTOR_REQUIRED (deferred to Phase 5) / LOW_VALUE (advisory). Phase 4 iterates each Phase-4 Story: /build (no-refactor), per-Story /coverage-delta, per-Story mutation-kill agent. Phase 4 closes with an end-of-phase review loop (/test-design + /code-review in parallel, up to 2 iterations, [r/w/q] escalation). Phase 4b prompts [y/b/q] for whether to enter the optional Phase 5 (refactor-for-testability, seam-only). Phase 6 converges the four quality targets via /quality-targets-converge. Phase 7 ships the 10-section executive-summary report from the shipped template. Human gates appear between every phase. Resume any phase via memory/test-improve/&lt;slug&gt;/phase-&lt;n&gt;.md.</desc>
+  <defs>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.07"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#94A3B8"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#F59E0B"/>
+    </marker>
+  </defs>
+
+  <rect width="1010" height="1520" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="505" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#0F172A">/test-improve — seven-phase workflow</text>
+  <text x="505" y="46" text-anchor="middle" font-size="11" fill="#475569">Human gates between every phase; resume via memory/test-improve/&lt;slug&gt;/phase-&lt;n&gt;.md</text>
+
+  <!-- Phase 0 -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="68" width="810" height="86" rx="10" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
+    <text x="505" y="90" text-anchor="middle" font-size="13" font-weight="600" fill="#0F172A">Phase 0 — Approach contract</text>
+    <text x="505" y="110" text-anchor="middle" font-size="11" fill="#475569">Batched prompt (Enter accepts all defaults): mutation [off] · BDD rubric [none] · refactor [no-refactor] · quality targets · sink [local]</text>
+    <text x="505" y="128" text-anchor="middle" font-size="11" fill="#475569">Go stack: alpha go-mutesting advisory shown before mutation prompt</text>
+    <text x="505" y="146" text-anchor="middle" font-size="10" font-style="italic" fill="#475569">Persist to memory/test-improve/&lt;slug&gt;/phase-0.md — answers immutable for the run</text>
+  </g>
+
+  <!-- Arrow 0→1 -->
+  <line x1="505" y1="154" x2="505" y2="176" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Phase 1 -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="180" width="810" height="72" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+    <text x="505" y="202" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 1 — Analyze</text>
+    <text x="505" y="222" text-anchor="middle" font-size="11" fill="#1E40AF">/test-health (sole worker) → ordered improvement plan; mutation section respects Phase-0 setting</text>
+    <text x="505" y="240" text-anchor="middle" font-size="10" font-style="italic" fill="#1E40AF">Not called separately: /cd-test-architecture, /test-design, /mutation-testing</text>
+  </g>
+
+  <!-- Gate 1 -->
+  <g filter="url(#shadow)">
+    <polygon points="505,274 615,306 505,338 395,306" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
+    <text x="505" y="303" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Human gate</text>
+    <text x="505" y="318" text-anchor="middle" font-size="10" fill="#92400E">approve ordered plan</text>
+  </g>
+  <line x1="505" y1="252" x2="505" y2="272" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Phase 2 -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="354" width="810" height="80" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+    <text x="505" y="376" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 2 — Baseline (before any test edit)</text>
+    <text x="505" y="396" text-anchor="middle" font-size="11" fill="#1E40AF">/coverage-baseline --workflow test-improve → baseline-coverage.json</text>
+    <text x="505" y="414" text-anchor="middle" font-size="11" fill="#1E40AF">/mutation-testing --baseline --workflow test-improve → baseline-mutation.json (mutation-on only)</text>
+    <text x="505" y="430" text-anchor="middle" font-size="10" font-style="italic" fill="#1E40AF">Mutation off = skipped; Go = advisory-only marker; honest score = hard kills, timeouts separate</text>
+  </g>
+  <line x1="505" y1="338" x2="505" y2="352" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+
+  <!-- Phase 2b (conditional) -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="450" width="810" height="80" rx="10" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1.5" stroke-dasharray="6 3"/>
+    <text x="505" y="472" text-anchor="middle" font-size="13" font-weight="600" fill="#5B21B6">Phase 2b — Derive Gherkin (conditional)</text>
+    <text x="505" y="492" text-anchor="middle" font-size="11" fill="#6D28D9">none = skipped · xunit-with-annotations = .feature files, no runner · bdd-runner = native parser wired</text>
+    <text x="505" y="510" text-anchor="middle" font-size="11" fill="#6D28D9">/gherkin-derive --workflow test-improve → features/test-improve/ + gherkin.md</text>
+    <text x="505" y="526" text-anchor="middle" font-size="10" font-style="italic" fill="#6D28D9">Human gate: review .feature files (and parser wiring) before Phase 3</text>
+  </g>
+  <line x1="505" y1="434" x2="505" y2="448" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Phase 3 -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="546" width="810" height="86" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+    <text x="505" y="568" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 3 — Triage</text>
+    <text x="505" y="588" text-anchor="middle" font-size="11" fill="#1E40AF">/issues-from-assessment --workflow test-improve</text>
+    <text x="505" y="606" text-anchor="middle" font-size="11" fill="#1E40AF">NO_REFACTOR → Phase-4 Stories · REFACTOR_REQUIRED → deferred to Phase 5 · LOW_VALUE → advisory-only</text>
+    <text x="505" y="622" text-anchor="middle" font-size="10" font-style="italic" fill="#1E40AF">Human gate: approve NO_REFACTOR Story set</text>
+  </g>
+  <line x1="505" y1="530" x2="505" y2="544" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Phase 4 -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="648" width="810" height="118" rx="10" fill="#ECFDF5" stroke="#34D399" stroke-width="1.5"/>
+    <text x="505" y="670" text-anchor="middle" font-size="13" font-weight="600" fill="#065F46">Phase 4 — Improve without refactoring</text>
+    <text x="505" y="690" text-anchor="middle" font-size="11" fill="#047857">Per Story: /build (no-refactor) → /coverage-delta --workflow test-improve --story &lt;id&gt;</text>
+    <text x="505" y="708" text-anchor="middle" font-size="11" fill="#047857">mutation-kill agent --file &lt;story-file&gt; --max-rounds 3 → prompt [c/r/w/q] on residuals</text>
+    <text x="505" y="726" text-anchor="middle" font-size="11" font-style="italic" fill="#047857">End-of-phase review loop: /test-design --since ∥ /code-review --since → /apply-fixes → re-run</text>
+    <text x="505" y="744" text-anchor="middle" font-size="11" font-style="italic" fill="#047857">Cap 2 iterations → escalate [r/w/q] → phase-4-review.json (base_sha, farley_score, iterations, escalated…)</text>
+    <text x="505" y="760" text-anchor="middle" font-size="10" fill="#047857">Go mutation-kill = advisory only, no commit</text>
+  </g>
+  <line x1="505" y1="632" x2="505" y2="646" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Phase 4b decision -->
+  <g filter="url(#shadow)">
+    <polygon points="505,802 615,834 505,866 395,834" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
+    <text x="505" y="826" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Phase 4b</text>
+    <text x="505" y="840" text-anchor="middle" font-size="10" fill="#92400E">[y]=Phase 5</text>
+    <text x="505" y="854" text-anchor="middle" font-size="10" fill="#92400E">[b]=backlog · [q]=quit</text>
+  </g>
+  <line x1="505" y1="766" x2="505" y2="800" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Phase 5 (conditional on [y]) -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="882" width="440" height="112" rx="10" fill="#FDF4FF" stroke="#D8B4FE" stroke-width="1.5" stroke-dasharray="6 3"/>
+    <text x="280" y="904" text-anchor="middle" font-size="13" font-weight="600" fill="#6B21A8">Phase 5 — Refactor-for-testability</text>
+    <text x="280" y="922" text-anchor="middle" font-size="11" fill="#7E22CE">Only when [y] at Phase 4b</text>
+    <text x="280" y="940" text-anchor="middle" font-size="11" fill="#7E22CE">/build: seam introductions only</text>
+    <text x="280" y="956" text-anchor="middle" font-size="11" fill="#7E22CE">Existing tests are immutable</text>
+    <text x="280" y="974" text-anchor="middle" font-size="10" font-style="italic" fill="#7E22CE">Precondition: paired Phase-4 Story closed + green</text>
+    <text x="280" y="988" text-anchor="middle" font-size="10" font-style="italic" fill="#7E22CE">phase-5-review.json (same schema as Phase 4)</text>
+  </g>
+  <line x1="465" y1="854" x2="330" y2="880" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="380" y="874" text-anchor="middle" font-size="10" font-weight="600" fill="#0F172A">[y]</text>
+
+  <!-- Backlog branch (right side) -->
+  <g filter="url(#shadow)">
+    <rect x="530" y="882" width="440" height="112" rx="10" fill="#FEF3C7" stroke="#FCD34D" stroke-width="1.5"/>
+    <text x="750" y="904" text-anchor="middle" font-size="13" font-weight="600" fill="#78350F">[b] Backlog REFACTOR_REQUIRED items</text>
+    <text x="750" y="924" text-anchor="middle" font-size="11" fill="#92400E">→ refactor-backlog.md (or parent tracker)</text>
+    <text x="750" y="944" text-anchor="middle" font-size="11" fill="#92400E">Skip Phase 5; go directly to Phase 6</text>
+    <text x="750" y="968" text-anchor="middle" font-size="10" font-style="italic" fill="#92400E">[q] quits before Phase 6; report reflects Phase-4 only</text>
+  </g>
+  <line x1="545" y1="854" x2="680" y2="880" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="630" y="874" text-anchor="middle" font-size="10" font-weight="600" fill="#0F172A">[b]</text>
+
+  <!-- Phase 6 -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="1030" width="810" height="94" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+    <text x="505" y="1052" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A8A">Phase 6 — Validate</text>
+    <text x="505" y="1072" text-anchor="middle" font-size="11" fill="#1E40AF">/quality-targets-converge --workflow test-improve → coverage · mutants · determinism · speed</text>
+    <text x="505" y="1090" text-anchor="middle" font-size="11" fill="#1E40AF">Mutation off = skipped (not waived); Go = advisory-only</text>
+    <text x="505" y="1108" text-anchor="middle" font-size="10" font-style="italic" fill="#1E40AF">Coverage &lt; 90% in no-refactor mode → [y/n] re-run in refactor-allowed prompt lists backlogged items</text>
+  </g>
+  <line x1="280" y1="994" x2="450" y2="1028" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="750" y1="994" x2="560" y2="1028" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Phase 7 -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="1160" width="810" height="112" rx="10" fill="#ECFEFF" stroke="#67E8F9" stroke-width="1.5"/>
+    <text x="505" y="1182" text-anchor="middle" font-size="13" font-weight="600" fill="#155E75">Phase 7 — Executive-summary report</text>
+    <text x="505" y="1202" text-anchor="middle" font-size="11" fill="#0E7490">Copy templates/executive-summary.md → reports/test-improve/&lt;repo-slug&gt;-&lt;date&gt;.md</text>
+    <text x="505" y="1220" text-anchor="middle" font-size="11" fill="#0E7490">Interpolate every placeholder from memory/test-improve/&lt;slug&gt;/ files</text>
+    <text x="505" y="1238" text-anchor="middle" font-size="11" fill="#0E7490">10 numbered sections; empty sections render "Not applicable" (never omitted)</text>
+    <text x="505" y="1256" text-anchor="middle" font-size="10" font-style="italic" fill="#0E7490">Parent tracker (or plans/test-improve/FEATURE.md) is updated with a link to the report</text>
+  </g>
+  <line x1="505" y1="1124" x2="505" y2="1158" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Footer -->
+  <text x="505" y="1310" text-anchor="middle" font-size="11" font-weight="600" fill="#0F172A">Legend</text>
+  <rect x="120" y="1330" width="18" height="12" fill="#F8FAFC" stroke="#CBD5E1"/>
+  <text x="150" y="1341" font-size="10" fill="#334155">Phase-0 approach contract</text>
+  <rect x="330" y="1330" width="18" height="12" fill="#EFF6FF" stroke="#93C5FD"/>
+  <text x="360" y="1341" font-size="10" fill="#334155">Analyze / baseline / triage / validate</text>
+  <rect x="620" y="1330" width="18" height="12" fill="#ECFDF5" stroke="#34D399"/>
+  <text x="650" y="1341" font-size="10" fill="#334155">Phase 4 — improve (test edits only)</text>
+  <rect x="120" y="1352" width="18" height="12" fill="#FDF4FF" stroke="#D8B4FE" stroke-dasharray="4 2"/>
+  <text x="150" y="1363" font-size="10" fill="#334155">Phase 5 — conditional refactor-for-testability</text>
+  <rect x="420" y="1352" width="18" height="12" fill="#F5F3FF" stroke="#C4B5FD" stroke-dasharray="4 2"/>
+  <text x="450" y="1363" font-size="10" fill="#334155">Phase 2b — conditional Gherkin derivation</text>
+  <rect x="720" y="1352" width="18" height="12" fill="#ECFEFF" stroke="#67E8F9"/>
+  <text x="750" y="1363" font-size="10" fill="#334155">Phase 7 — report</text>
+  <polygon points="120,1382 138,1391 120,1400 102,1391" fill="#FFFBEB" stroke="#F59E0B"/>
+  <text x="150" y="1394" font-size="10" fill="#334155">Human gate</text>
+
+  <text x="505" y="1440" text-anchor="middle" font-size="10" font-style="italic" fill="#475569">Every phase writes memory/test-improve/&lt;slug&gt;/phase-&lt;n&gt;.md so /continue and --from-phase can resume</text>
+  <text x="505" y="1460" text-anchor="middle" font-size="10" font-style="italic" fill="#475569">Consolidates /test-modernize (heavier CD-modernization) and /test-upgrade (general-purpose improve)</text>
+</svg>

@@ -1,10 +1,13 @@
 # Top-level Workflows
 
-Two slash commands in this plugin are **orchestrator-only**: they do not
+Three slash commands in this plugin are **orchestrator-only**: they do not
 implement, review, or merge anything themselves — they sequence other skills
 and agents through their phases, holding the human gates between them.
 
 - [`/ship`](#ship) — spec → plan → build → review → PR, end-to-end.
+- [`/test-improve`](#test-improve) — seven-phase consolidated
+  analyze-then-improve orchestrator for legacy or in-flight test suites
+  (replaces `/test-modernize` and `/test-upgrade`).
 - [`/test-modernize`](#test-modernize) — five-phase legacy-test modernization
   for CD, from assessment to quality-target convergence.
 
@@ -177,12 +180,78 @@ PRs `/build` opened in Phases 4 and 5, and any waived targets with reasons.
 
 ---
 
+## `/test-improve`
+
+**File:** [`skills/test-improve/SKILL.md`](../skills/test-improve/SKILL.md)
+**Role:** orchestrator.
+
+Consolidated analyze-then-improve test orchestrator. Replaces
+`/test-modernize` and `/test-upgrade` with a single command that defaults to
+lightweight ceremony, prompts for heavier capabilities on demand, and always
+baselines coverage (and mutation, when enabled) before any test change.
+
+### Phases
+
+Each phase writes a progress file to
+`memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`)
+can resume.
+
+- **Phase 0 — Approach contract.** Batched prompt (Enter accepts all
+  defaults): mutation `[off]`, BDD rubric `[none]`, refactor `[no-refactor]`,
+  quality targets, sink (`--parent <url>` vs local files). Go stack shows the
+  alpha go-mutesting advisory before the mutation prompt. Answers are
+  immutable for the run.
+- **Phase 1 — Analyze.** Delegate to `/test-health` (sole worker). No
+  separate calls to `/cd-test-architecture`, `/test-design`,
+  `/mutation-testing`. Mutation section respects Phase-0 setting.
+- **Phase 2 — Baseline (before any test edit).**
+  `/coverage-baseline --workflow test-improve` unconditionally;
+  `/mutation-testing --baseline --workflow test-improve` when mutation is on.
+  Go = advisory-only marker. Honest score = hard kills, timeouts separate.
+- **Phase 2b — Derive Gherkin (conditional).** `none` skips entirely;
+  `xunit-with-annotations` writes `.feature` files without a runner;
+  `bdd-runner` wires the native parser.
+- **Phase 3 — Triage.** `/issues-from-assessment --workflow test-improve`
+  partitions findings into `NO_REFACTOR` (Phase-4 Stories) /
+  `REFACTOR_REQUIRED` (deferred to Phase 5) / `LOW_VALUE` (advisory-only).
+- **Phase 4 — Improve without refactoring.** Per Story: `/build`
+  (no-refactor) → `/coverage-delta --workflow test-improve --story <id>` →
+  `mutation-kill` agent (`--file <story-file> --max-rounds 3`, `[c/r/w/q]` on
+  residuals). End-of-phase review loop runs `/test-design --since` and
+  `/code-review --since` in parallel, `/apply-fixes` then re-run, cap 2
+  iterations, `[r/w/q]` escalation. Evidence in `phase-4-review.json`.
+- **Phase 4b — Refactor decision prompt.** `[y] enter Phase 5 / [b] backlog
+  and skip to Phase 6 / [q] quit`.
+- **Phase 5 — Refactor-for-testability (conditional).** Only when `[y]`.
+  Seam-only production-code changes; existing tests are immutable. Same
+  end-of-phase review loop; evidence in `phase-5-review.json`.
+- **Phase 6 — Validate.** `/quality-targets-converge --workflow test-improve`.
+  Mutation off = skipped (not waived). Go = advisory-only. Coverage < 90% in
+  no-refactor mode → `[y/n]` re-run-in-refactor-allowed prompt lists
+  backlogged items.
+- **Phase 7 — Executive-summary report.** Interpolates the shipped
+  `templates/executive-summary.md` from `memory/test-improve/<slug>/` files
+  to `reports/test-improve/<repo-slug>-<date>.md`. 10 numbered sections;
+  empty sections render "Not applicable" (never omitted). Parent tracker (or
+  `plans/test-improve/FEATURE.md`) is updated with a link to the report.
+  Report is regeneratable from memory.
+
+### Invocation
+
+`/test-improve <repo-path> [--parent <url>] [--analyze-only] [--from-phase <n>] [--stack <id>]`
+
+Flow diagram:
+[`diagrams/test-improve-flow.svg`](diagrams/test-improve-flow.svg).
+
+---
+
 ## Why these are documented together
 
-`/ship` and `/test-modernize` are the only two **multi-phase pipelines with
-inter-phase human gates** in the plugin. Every other slash command is either
-a single-step worker (e.g. `/coverage-baseline`, `/triage`) or a one-shot
-orchestrator that returns in a single pass (e.g. `/code-review`,
-`/test-design`). Knowing the phase order, the owning skill or agent for each
-step, and where the human gates fall is the difference between operating
-these workflows confidently and re-reading every SKILL.md each time.
+`/ship`, `/test-improve`, and `/test-modernize` are the **multi-phase
+pipelines with inter-phase human gates** in the plugin. Every other slash
+command is either a single-step worker (e.g. `/coverage-baseline`,
+`/triage`) or a one-shot orchestrator that returns in a single pass (e.g.
+`/code-review`, `/test-design`). Knowing the phase order, the owning skill
+or agent for each step, and where the human gates fall is the difference
+between operating these workflows confidently and re-reading every SKILL.md
+each time.
