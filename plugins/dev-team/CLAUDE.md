@@ -24,12 +24,13 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 
 ## Core Principles
 
-1. **Selective Agent Loading**: Only load necessary agents. Target < 10,000 tokens for simple tasks.
-2. **40% Context Window Rule**: Maintain context below 40%. Enforced by `hooks/context-ceiling-guard.sh` — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md).
-3. **Persona-Driven Behavior**: Each agent has behavioral specifications in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
-4. **Human-in-the-Loop**: Agents are autonomous but require oversight.
-5. **Dynamic Configuration**: Config changes recorded to `metrics/config-changelog.jsonl`.
-6. **ATDD**: `/plan` decomposes into vertical slices with Gherkin scenarios before any implementation. No code without a scenario.
+1. **Selective Agent Loading**: Load only necessary agents. Target < 10,000 tokens simple tasks.
+2. **40% Context Ceiling**: Enforced by `hooks/context-ceiling-guard.sh` — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md).
+3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
+4. **Human-in-the-Loop**: Autonomous agents, human oversight.
+5. **Dynamic Configuration**: Config changes → `metrics/config-changelog.jsonl`.
+6. **ATDD**: `/plan` decomposes into slices with Gherkin. No code without a scenario.
+7. **Python for cross-OS scripts**: New scripts in Python 3.8+ stdlib. See [ADR 0014](../../docs/adr/0014-python-for-cross-os-scripts.md); bash converts per #572.
 
 ## Team Organization
 

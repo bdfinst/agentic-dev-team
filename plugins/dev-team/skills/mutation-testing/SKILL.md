@@ -137,7 +137,7 @@ Real mutation runs take 15 min – several hours. During that window the tool em
 
 **This is a contract, not a mandated implementation.** Two examples the plugin ships:
 
-- **Portable bash wrapper** — a `trap`-restored shell script forks a background loop that polls the log file, greps for red-flag signatures, and emits one status + zero-or-more `[RED-FLAG]` lines per tick. Works outside Claude Code (CI, direct terminal). The Stryker.NET reference in [`references/languages/csharp-stryker-net.md`](references/languages/csharp-stryker-net.md) documents the shipped wrapper (`csharp-stryker-net-wrapper.sh`) + status loop (`csharp-stryker-net-status-loop.sh`).
+- **Portable Python wrapper** — a Python script that runs the tool as a subprocess, polls the log file, and emits one status + zero-or-more `[RED-FLAG]` lines per tick. Cross-platform via Python 3.8+ stdlib; works outside Claude Code (CI, direct terminal). The Stryker.NET reference in [`references/languages/csharp-stryker-net.md`](references/languages/csharp-stryker-net.md) documents the shipped wrapper (`csharp_stryker_net_wrapper.py`) + status loop (`csharp_stryker_net_status_loop.py`).
 - **In-session Monitor** — inside a Claude Code session, a `Monitor` tool call on the log file stream that emits an event on each recognized red-flag pattern. Cleaner integration but no coverage for out-of-session (CI, direct-terminal) operators.
 
 Per-language references may add tool-specific red-flag signatures — the language file lists them alongside the parse patterns.
@@ -147,7 +147,7 @@ Per-language references may add tool-specific red-flag signatures — the langua
 Extract surviving mutants. Map each to:
 
 | Field | Source |
-|---|---|
+| --- | --- |
 | File + line | Tool report |
 | Mutation operator | Tool report (`ConditionalBoundary`, `NegateConditional`, etc.) |
 | Original code | Read the source at that line |
@@ -159,7 +159,7 @@ Extract surviving mutants. Map each to:
 For each mutant, classify and act. **`NoCoverage` outranks `Survived`** — a survived mutant at least ran, so a tighter assertion can kill it; a no-coverage mutant was never reached at all, so writing a test that exercises the path is the higher-leverage move.
 
 | Classification | Meaning | Action |
-|---|---|---|
+| --- | --- | --- |
 | **NoCoverage** | No test exercises this code path at all | Add a test that reaches the path before worrying about killing the mutant — coverage is the prerequisite |
 | **Equivalent** | Mutation produces identical behavior | Mark excluded — no test can kill it |
 | **Missing assertion** | Test executes the code but doesn't assert on affected output | Strengthen the assertion |

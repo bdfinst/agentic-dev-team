@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """csharp_stryker_net_wrapper.py — reference wrapper for Stryker.NET.
 
-Python port of csharp-stryker-net-wrapper.sh (see the ``.sh`` alongside this
-file). The Python version is authoritatively cross-platform: macOS, Linux,
-Windows Git Bash, and native Windows all execute the same code path through
-Python 3's ``subprocess``, ``signal``, and ``pathlib`` — no MSYS bash fork
-emulation, no ``wait $!`` semantics divergence, no ``IFS=``/``shasum``-vs-
-``sha256sum`` fork-per-platform.
+Cross-platform authoritative: macOS, Linux, Windows Git Bash, and native
+Windows all execute the same code path through Python 3's ``subprocess``,
+``signal``, and ``pathlib``. Sole runtime dependency is ``python3`` (≥ 3.8)
+on PATH — no shell-tooling divergence.
 
 Copy this file AND ``csharp_stryker_net_status_loop.py`` together into your
-repo's ``scripts/`` directory, edit the header vars near the top of ``main``
-(or override via CLI flags / env vars), and run in place of a bare
-``dotnet stryker`` invocation.
+repo's ``scripts/`` directory, and run in place of a bare ``dotnet stryker``
+invocation (override defaults via CLI flags or the corresponding env vars).
 
 Contract preserved from the bash version:
 

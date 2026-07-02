@@ -197,16 +197,20 @@ print(p.split('/**')[0])
 done
 ```
 
-## Shipped wrapper — Python (recommended) or bash
+## Shipped wrapper
 
-The plugin ships two implementations of the wrapper + status loop under `plugins/dev-team/skills/mutation-testing/scripts/`:
+The plugin ships a Python wrapper + status loop under `plugins/dev-team/skills/mutation-testing/scripts/`:
 
-- **`csharp_stryker_net_wrapper.py`** + **`csharp_stryker_net_status_loop.py`** — **the recommended path**. Cross-platform authoritative: same code runs identically on macOS, Linux, Windows Git Bash, and native Windows via Python 3.8+'s stdlib. No shell-tooling divergence. Requires only `python3` on PATH.
-- `csharp-stryker-net-wrapper.sh` + `csharp-stryker-net-status-loop.sh` — the original bash implementation. Verified working on macOS + Linux + Windows Git Bash (see #567). Kept alongside the Python versions for one release cycle before removal per the [bash → Python migration epic](https://github.com/bdfinst/agentic-dev-team/issues/572).
+- **`csharp_stryker_net_wrapper.py`** — hides `.sln` during the run + restores on any exit path, exports `DOTNET_ROOT` (auto-probed across all supported platforms; a pre-set value is respected), pre-builds `${SLN}` and optional `${SHIM_PROJECT}` **before** hiding, runs Stryker as a subprocess so SIGINT/SIGTERM kill the child too (no orphans), and redirects log via file descriptor (never a bare `| tee`).
+- **`csharp_stryker_net_status_loop.py`** — status + red-flag inspection loop invoked by the wrapper. Ticks every `STATUS_INTERVAL` seconds emitting one status record plus zero-or-more `[RED-FLAG]` lines when known-broken patterns are observed (mutation-switch not observing; CompileError count over threshold; SolutionPath trap; Stryker died mid-run; parser drift).
 
-### Python wrapper — copy one file
+Cross-platform authoritative: same code runs identically on macOS, Linux, Windows Git Bash, and native Windows via Python 3.8+'s stdlib. Requires only `python3` on PATH — no bash-shell tooling, no MSYS quirks. See [ADR 0014](../../../../../../docs/adr/0014-python-for-cross-os-scripts.md).
+
+### Install
 
 Copy `csharp_stryker_net_wrapper.py` AND `csharp_stryker_net_status_loop.py` into your repo's `scripts/` directory. The wrapper imports the status loop by module name; both files must sit next to each other so Python can find the loop on `sys.path`.
+
+### Run
 
 Run in place of a bare `dotnet stryker`:
 
@@ -233,30 +237,6 @@ CLI flags (all optional; every one accepts an environment-variable equivalent so
 Everything after those flags forwards to Stryker unchanged.
 
 `DOTNET_ROOT` is auto-probed across the standard install locations on all supported platforms; a pre-set value is respected. When no SDK is found the wrapper exits 3 with an actionable message.
-
-### Bash wrapper — copy both files together
-
-The bash version remains available. **Copy BOTH files together** into your repo's `scripts/` directory. The wrapper sources the status loop via `. "$(dirname "${BASH_SOURCE[0]}")/csharp-stryker-net-status-loop.sh"` — copying only the wrapper hard-fails at `set -e` on the missing `source` when `STATUS_INTERVAL > 0` (the default). If you deliberately want the wrapper without the loop, set `STATUS_INTERVAL=0` in the header vars.
-
-Header vars (edit at the top of the wrapper for your repo):
-
-```bash
-SLN="Foo.sln"                                      # your solution file
-SHIM_PROJECT="tests/Foo.Tests.Mutation/Foo.Tests.Mutation.csproj"  # or "" if none
-STRYKER_BIN="dotnet-stryker"                       # local tool manifest or global
-LOGFILE="StrykerOutput/wrapper.log"
-STATUS_INTERVAL=600                                # 10-min default; 0 disables the loop
-COMPILE_ERROR_THRESHOLD=25                         # tune per repo
-```
-
-Run it in place of a bare `dotnet stryker`:
-
-```bash
-./scripts/csharp-stryker-net-wrapper.sh --config-file stryker-config.json \
-  --mutate "**/Validators/**/*.cs" -O StrykerOutput/slice-validators
-```
-
-The wrapper forwards `"$@"` to Stryker unchanged. Same contract as the Python version — same 5-detector red-flag set in the status loop, same `.sln` trap-restore, same exit codes.
 
 ## Incremental runs with `--since`
 
