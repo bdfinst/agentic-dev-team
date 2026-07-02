@@ -44,7 +44,7 @@ Concretely:
 - **Test infrastructure follows the same rule.** New pytest for new Python scripts; existing bats stays until the shipped script it tests converts.
 - **The bash 3.2 / macOS + Linux + Windows Git Bash portability rules in CLAUDE.md remain in force** for all existing bash. Once #572 completes, those rules retire.
 
-Enforcement: an audit script (`scripts/check-python-only.py`) flags any new `.sh` file added under `plugins/dev-team/` in a PR diff. Advisory in Phase 0-2; blocking once the epic's Phase 3 gate says so.
+Enforcement: an audit script (`scripts/check-python-only.py`) flags any new `.sh`/`.bats` file added repo-wide (outside an explicit allowlist) in a PR diff, wired into both `scripts/ci-local.sh` (pre-push) and CI (`.github/workflows/plugin-tests.yml`). Blocking by default as of issue #702, now that the epic's Phase 3 gate (ADR 0015) has landed — see [`docs/enforce-prefer-python-over-bash.md`](../enforce-prefer-python-over-bash.md) for the mechanism design and allowlist rationale.
 
 ## Consequences
 
