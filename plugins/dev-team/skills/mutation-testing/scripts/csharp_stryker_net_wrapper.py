@@ -296,6 +296,24 @@ _RUNNING_STRYKER_LOCK = threading.Lock()
 _RUNNING_STRYKER_PROCS: set[subprocess.Popen] = set()
 
 
+def _terminate_all_tracked_processes() -> None:
+    """Terminate every Stryker subprocess currently tracked in
+    ``_RUNNING_STRYKER_PROCS`` — there may be several concurrently, one per
+    in-flight slice under #561's slice-level parallelism. Split out from
+    ``_install_signal_handlers`` so it's directly unit-testable without
+    needing to actually deliver an OS signal (real signal delivery is
+    inherently platform-fragile — see ``TestSignalHandlingPOSIX``).
+    """
+    with _RUNNING_STRYKER_LOCK:
+        procs = list(_RUNNING_STRYKER_PROCS)
+    for proc in procs:
+        if proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+
+
 def _install_signal_handlers() -> list[tuple[int, object]]:
     """Install SIGINT + SIGTERM handlers that terminate every currently-
     running Stryker subprocess (there may be several concurrently, one per
@@ -313,14 +331,7 @@ def _install_signal_handlers() -> list[tuple[int, object]]:
     """
 
     def _handler(signum: int, _frame) -> None:
-        with _RUNNING_STRYKER_LOCK:
-            procs = list(_RUNNING_STRYKER_PROCS)
-        for proc in procs:
-            if proc.poll() is None:
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
+        _terminate_all_tracked_processes()
         # Re-raise as KeyboardInterrupt for main()'s finally to fire cleanly.
         raise KeyboardInterrupt(f"signal {signum}")
 
