@@ -185,7 +185,7 @@ def _rate(pricing: dict, model: str) -> dict | None:
     return None
 
 
-def _dig(rec: dict, *keys: str):
+def _first_present_field(rec: dict, *keys: str):
     """Return the first present key on rec or rec['message']."""
     for src in (
         rec,
@@ -198,16 +198,19 @@ def _dig(rec: dict, *keys: str):
 
 
 def _cost(usage: dict, rate: dict, pricing: dict) -> float:
-    inp = usage.get("input_tokens", 0) or 0
-    out = usage.get("output_tokens", 0) or 0
-    cw = usage.get("cache_creation_input_tokens", 0) or 0
-    cr = usage.get("cache_read_input_tokens", 0) or 0
+    input_tokens = usage.get("input_tokens", 0) or 0
+    output_tokens = usage.get("output_tokens", 0) or 0
+    cache_write_tokens = usage.get("cache_creation_input_tokens", 0) or 0
+    cache_read_tokens = usage.get("cache_read_input_tokens", 0) or 0
     in_rate = rate["input"]
     return (
-        inp / 1e6 * in_rate
-        + out / 1e6 * rate["output"]
-        + cw / 1e6 * in_rate * pricing.get("cache_write_multiplier", 1.25)
-        + cr / 1e6 * in_rate * pricing.get("cache_read_multiplier", 0.1)
+        input_tokens / 1e6 * in_rate
+        + output_tokens / 1e6 * rate["output"]
+        + cache_write_tokens
+        / 1e6
+        * in_rate
+        * pricing.get("cache_write_multiplier", 1.25)
+        + cache_read_tokens / 1e6 * in_rate * pricing.get("cache_read_multiplier", 0.1)
     )
 
 
@@ -246,10 +249,10 @@ def _accumulate_lines(
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
-        usage = _dig(rec, "usage")
+        usage = _first_present_field(rec, "usage")
         if not isinstance(usage, dict):
             continue
-        model = _dig(rec, "model") or "unknown"
+        model = _first_present_field(rec, "model") or "unknown"
         # Main-loop vs subagent: the native top-level `isSidechain` flag is true
         # on sidechain (subagent) turns. This is the only agent-level signal the
         # harness exposes (#170) — `agent_type`/`agent_id` are never present.

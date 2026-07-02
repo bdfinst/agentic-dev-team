@@ -1,13 +1,18 @@
-"""Unit tests for hooks/agent_model_resolve.py (#732 dedup fix).
+"""Unit tests for hooks/agent_model_resolve.py (#732).
 
-agent_model_resolve.py imports hooks/lib/model_resolve.py already — this
-suite guards against re-introducing local, drifted copies of
-normalize_band/load_json/ladder_is_valid instead of calling model_resolve's
-versions directly.
+Covers two independent #732 fixes:
+  * dedup fix — agent_model_resolve.py imports hooks/lib/model_resolve.py
+    already, so this suite guards against re-introducing local, drifted
+    copies of normalize_band/load_json/ladder_is_valid instead of calling
+    model_resolve's versions directly.
+  * naming cleanup — `_read_effort`'s cryptic `infm` flag (renamed to
+    describe what it actually tracks: whether the current line is inside
+    the YAML frontmatter block).
 """
 
 from __future__ import annotations
 
+import inspect
 import sys
 from pathlib import Path
 
@@ -15,11 +20,13 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _HOOKS_DIR = _REPO_ROOT / "plugins" / "dev-team" / "hooks"
-sys.path.insert(0, str(_HOOKS_DIR))
-sys.path.insert(0, str(_HOOKS_DIR / "lib"))
+if str(_HOOKS_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_DIR))
+if str(_HOOKS_DIR / "lib") not in sys.path:
+    sys.path.insert(0, str(_HOOKS_DIR / "lib"))
 
-import agent_model_resolve  # noqa: E402
-import model_resolve  # noqa: E402
+import agent_model_resolve  # type: ignore[import-not-found]  # noqa: E402
+import model_resolve  # type: ignore[import-not-found]  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -65,3 +72,39 @@ def test_snapshot_in_ladder_true_when_present(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("MODEL_LADDER_JSON", str(ladder))
     assert agent_model_resolve._snapshot_in_ladder("b") is True
     assert agent_model_resolve._snapshot_in_ladder("z") is False
+
+
+# ---------------------------------------------------------------------------
+# _read_effort — frontmatter parsing + naming cleanup
+# ---------------------------------------------------------------------------
+
+
+def test_read_effort_extracts_value_from_frontmatter(tmp_path):
+    agent_file = tmp_path / "reviewer.md"
+    agent_file.write_text('---\neffort: "medium"\n---\n\n# Reviewer\n')
+    assert agent_model_resolve._read_effort(agent_file) == "medium"
+
+
+def test_read_effort_returns_empty_when_no_frontmatter(tmp_path):
+    agent_file = tmp_path / "reviewer.md"
+    agent_file.write_text("# Reviewer\n\nNo frontmatter here.\n")
+    assert agent_model_resolve._read_effort(agent_file) == ""
+
+
+def test_read_effort_returns_empty_when_frontmatter_has_no_effort(tmp_path):
+    agent_file = tmp_path / "reviewer.md"
+    agent_file.write_text("---\nname: reviewer\n---\n")
+    assert agent_model_resolve._read_effort(agent_file) == ""
+
+
+def test_read_effort_returns_empty_for_missing_file(tmp_path):
+    assert agent_model_resolve._read_effort(tmp_path / "absent.md") == ""
+
+
+def test_read_effort_uses_descriptive_frontmatter_flag_name():
+    # Low-severity naming finding (#732): the loop's "are we inside the
+    # frontmatter block" flag was named `infm`. It should now be named
+    # descriptively rather than as a cryptic abbreviation.
+    source = inspect.getsource(agent_model_resolve._read_effort)
+    assert "infm" not in source
+    assert "in_frontmatter" in source
