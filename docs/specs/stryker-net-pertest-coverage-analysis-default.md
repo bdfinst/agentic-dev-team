@@ -9,8 +9,10 @@ Update the `csharp-stryker-net` Stryker.NET mutation-testing skill reference
 to recommend `"coverage-analysis": "perTest"` as the default `stryker-config.json`
 setting for xunit.v2 and xunit.v2-shim C# projects. Issue #669 ran the experiment
 this repo previously deferred (per #667): it validated that `perTest` produces
-mutation-kill counts identical to a full-suite `"off"` baseline on `slice-05-root`,
-including through the two known false-negative risks for static-analysis-based
+mutation-kill counts identical-or-improved versus a full-suite `"off"` baseline
+on `slice-05-root` — no regressions on any of the five validated files, one
+(`DataFormatter.cs`) improved by a single Killed mutant — including through
+the two known false-negative risks for static-analysis-based
 coverage tools — reflection via `MethodInfo.Invoke` and Autofac
 `container.Resolve<T>()` DI resolution — while cutting mutation-testing wall-clock
 time roughly 5-6x (~19-24 min → ~6 min). This spec turns that validated result into
@@ -60,9 +62,9 @@ changes.
 
 1. `csharp-stryker-net.md` contains a new section recommending
    `"coverage-analysis": "perTest"` as the default for xunit.v2 / xunit.v2-shim
-   Stryker.NET projects, citing issue #669's experiment result (identical Killed
-   counts across both rounds — DataFormatter/SystemConstants/RequestContext/
-   PublicApiAttribute/ComponentModule — and ~5-6x speedup) as evidence.
+   Stryker.NET projects, citing issue #669's experiment result (identical-or-improved
+   Killed counts across both rounds, no regressions — DataFormatter/SystemConstants/
+   RequestContext/PublicApiAttribute/ComponentModule — and ~5-6x speedup) as evidence.
 2. The new section explicitly states the recommendation does not apply to
    xunit.v3/MTP-runner projects, and cross-references the existing "xunit.v3
    detection" section's `"off"` mandate rather than restating it.
