@@ -39,5 +39,5 @@ The parity harness's job is now over — the `.sh` implementations it dispatched
 ## Non-goals
 
 - **Not migrating the ~130 content-guard bats to pytest** in this PR. That's a separate, orthogonal effort (test tooling only, no plugin runtime change).
-- **Not touching `plugins/security-assessment/` scripts** — different plugin, different owner, out of scope for #572.
+- **Not touching `plugins/security-assessment/` scripts** — different plugin, different owner, out of scope for #572. Concretely, this is why `plugins/dev-team/hooks/*.py` and `plugins/security-assessment/hooks/*.sh` use different hook file-naming conventions today: the divergence is this ADR's stated scope boundary, not an inconsistency to fix.
 - **Not migrating repo-root `scripts/*.sh`** (`ci-local.sh`, `dev-setup.sh`, `cost-regression-check.sh`, `assemble-docs.sh`, `run-full-eval.sh`, ...). These orchestrate developer tooling AROUND the plugin, not the plugin itself, and are not shipped downstream. Convert opportunistically when touched.
