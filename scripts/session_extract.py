@@ -155,6 +155,182 @@ def _iter_records(paths: list[Path]):
                 continue
 
 
+def _accumulate_token_signals(
+    usage: dict,
+    model,
+    skill,
+    is_sidechain: bool,
+    pricing: dict,
+    tokens_total: Counter,
+    by_model: "dict[str, Counter]",
+    by_skill: "dict[str, Counter]",
+    by_subagent: Counter,
+) -> float:
+    """Token-accounting concern: usage/cost totals split by model, skill, and
+    main-thread vs sidechain. Returns this record's cost (added to the running
+    cost_total by the caller)."""
+    by_subagent["sidechain" if is_sidechain else "main"] += 1
+    fields = (
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+    )
+    cost = _cost(usage, _rate(pricing, model or ""), pricing)
+    for f in fields:
+        v = usage.get(f, 0) or 0
+        tokens_total[f] += v
+        if model:
+            by_model[model][f] += v
+        if skill:
+            by_skill[skill][f] += v
+    if model:
+        by_model[model]["cost_micro"] += round(cost * 1e6)
+    if skill:
+        by_skill[skill]["cost_micro"] += round(cost * 1e6)
+    return cost
+
+
+def _accumulate_skill_agent_signals(
+    skill,
+    content,
+    skills_invoked: Counter,
+    agents_invoked: Counter,
+    active: "dict[str, str | None]",
+) -> None:
+    """Skill/agent-detection concern. `skill` is the legacy attributionSkill
+    tag (kept as a fallback — real transcripts don't emit it, #182);
+    `content`'s tool_use blocks are the primary signal: the Skill tool and the
+    Agent/Task tool that actually invoke them (#182). `active` tracks the
+    most-recently-invoked skill/agent (#711), sticky until superseded, for the
+    correction-turn concern to attribute against."""
+    if skill:
+        skills_invoked[skill] += 1
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            continue
+        name = block.get("name", "?")
+        inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
+        if name == "Skill":
+            s = inp.get("skill") or inp.get("name")
+            if isinstance(s, str) and s:
+                skills_invoked[_strip_ns(s)] += 1
+                active["skill"] = _strip_ns(s)
+        elif name in ("Agent", "Task"):
+            a = inp.get("subagent_type")
+            if isinstance(a, str) and a:
+                agents_invoked[_strip_ns(a)] += 1
+                active["agent"] = _strip_ns(a)
+
+
+def _track_tool_call(
+    block: dict, pending_tool: "dict[str, str]", tool_calls: Counter
+) -> None:
+    """Error-classification bookkeeping: count every tool invocation (the
+    error-rate denominator) and remember its id -> name so a later
+    tool_result can be attributed back to the tool that produced it."""
+    name = block.get("name", "?")
+    tool_calls[name] += 1
+    bid = block.get("id")
+    if bid:
+        pending_tool[bid] = name
+
+
+def _classify_tool_result(
+    block: dict,
+    pending_tool: "dict[str, str]",
+    tool_errors: Counter,
+    error_counts: Counter,
+) -> None:
+    """Error-classification concern: tally errors by tool, and detect the two
+    rework sub-signals (failed edits via old_string mismatches, and
+    permission denials) from a tool_result block."""
+    if not block.get("is_error"):
+        return
+    bid = block.get("tool_use_id")
+    tool_name = pending_tool.get(bid, "?")
+    tool_errors[tool_name] += 1
+    rcontent = _text_of(block.get("content"))
+    if tool_name in _EDIT_TOOLS and _OLDSTRING_RE.search(rcontent):
+        error_counts["failed_edits"] += 1
+    if _PERMISSION_RE.search(rcontent):
+        error_counts["permission_denials"] += 1
+
+
+def _track_edit(
+    block: dict, sid, edits_per_file: Counter, verify_edited_since: "dict[str, bool]"
+) -> None:
+    """Edit-tracking concern: count Edit/Write/... calls per file basename,
+    so repeated edits to the same file (a rework signal) can be derived. Also
+    marks this session's pending stuck-verify-loop streak (#708) as
+    consumed — an edit resets it, same as verify_guard.py's own reset."""
+    name = block.get("name", "?")
+    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
+    if name in _EDIT_TOOLS and inp.get("file_path"):
+        edits_per_file[os.path.basename(str(inp["file_path"]))] += 1
+    if name in _EDIT_TOOLS:
+        verify_edited_since[str(sid or "")] = True
+
+
+def _track_bash(
+    block: dict,
+    sid,
+    bash_commands: Counter,
+    bash_signal_counts: Counter,
+    last_verify_norm: "dict[str, str]",
+    verify_edited_since: "dict[str, bool]",
+) -> None:
+    """Bash-retry / commit-bypass / stuck-verify-loop concern (#111, #708):
+    normalize the command for near-identical retry detection, detect a
+    stuck-verify-loop repeat (the same normalized verify command run again
+    with no Edit/Write/... call since the previous run in this session), and
+    detect the review-gate bypass signal on `git commit` invocations."""
+    name = block.get("name", "?")
+    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
+    if name != "Bash" or not isinstance(inp.get("command"), str):
+        return
+    cmd = inp["command"].strip()
+    # near-identical retry detection: normalize whitespace
+    norm = re.sub(r"\s+", " ", cmd)
+    bash_commands[norm] += 1
+    if _VERIFY_RE.search(cmd):
+        skey = str(sid or "")
+        if last_verify_norm.get(skey) == norm and not verify_edited_since.get(
+            skey, False
+        ):
+            bash_signal_counts["repeated_verify_runs"] += 1
+        last_verify_norm[skey] = norm
+        verify_edited_since[skey] = False
+    # gate signal (#111): commit + review-gate bypass
+    if _COMMIT_RE.search(cmd):
+        bash_signal_counts["commit_attempts"] += 1
+        if _BYPASS_RE.search(cmd):
+            bash_signal_counts["commit_bypasses"] += 1
+
+
+def _detect_correction_turn(rec: dict, content) -> bool:
+    """Correction-turn concern: a real user message (not a tool_result
+    envelope) containing a correction keyword ("no", "actually", "revert",
+    ...)."""
+    if rec.get("type") != "user" or rec.get("isMeta"):
+        return False
+    utext = _text_of(content)
+    if not utext:
+        return False
+    # skip pure tool_result envelopes (no free-text user prompt)
+    if isinstance(content, list) and all(
+        isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+    ):
+        return False
+    return bool(_CORRECTION_RE.search(utext.lower()))
+
+
+def _slim(d: dict) -> dict:
+    return {k: dict(sorted(v.items())) for k, v in sorted(d.items())}
+
+
 def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
     tokens_total = Counter()
     cost_total = 0.0
@@ -164,7 +340,6 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
     sessions: set[str] = set()
 
     # rework / accuracy
-    failed_edits = 0
     edits_per_file = Counter()
     bash_commands = Counter()
     # repeated_verify_runs (#708): mirrors verify_guard.py's own stuck-loop
@@ -175,17 +350,15 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
     # ordinary RED/GREEN/REFACTOR re-run of the same command after a real
     # edit). Tracked per-session so interleaved transcripts (--all-projects)
     # don't cross-contaminate each other's state.
-    repeated_verify_runs = 0
     last_verify_norm: dict[str, str] = {}
     verify_edited_since: dict[str, bool] = {}
-    permission_denials = 0
+    bash_signal_counts = Counter()  # repeated_verify_runs, commit_attempts/bypasses
+    error_counts = Counter()  # failed_edits, permission_denials
     compaction_events = 0
-    commit_attempts = 0  # gate (#111): git commit invocations
-    commit_bypasses = 0  # gate (#111): commits that bypassed review
     tool_errors = Counter()  # by tool name
     tool_calls = Counter()  # by tool name (for ratios)
     correction_turns = 0
-    correction_by_skill = Counter()   # #711: correction attribution
+    correction_by_skill = Counter()  # #711: correction attribution
     correction_by_agent = Counter()
 
     # utilization
@@ -198,8 +371,7 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
     # superseded — used to attribute a correction turn to the artifact active
     # when it happened. No "skill ended" event exists in the transcript
     # format, so "most recent invocation" is the only signal available.
-    active_skill: str | None = None
-    active_agent: str | None = None
+    active: dict[str, str | None] = {"skill": None, "agent": None}
 
     for rec in _iter_records(paths):
         sid = rec.get("sessionId") or rec.get("session_id")
@@ -212,8 +384,6 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
         # Agent tool_use below. Kept here only as a fallback for records that do
         # carry it (and per-skill token attribution via by_skill).
         skill = rec.get("attributionSkill") or rec.get("attribution_skill")
-        if skill:
-            skills_invoked[skill] += 1
 
         # compaction markers
         if (
@@ -232,114 +402,58 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
         model = msg.get("model") or rec.get("model")
 
         if usage:
-            by_subagent["sidechain" if is_sidechain else "main"] += 1
-            fields = (
-                "input_tokens",
-                "output_tokens",
-                "cache_creation_input_tokens",
-                "cache_read_input_tokens",
+            cost_total += _accumulate_token_signals(
+                usage,
+                model,
+                skill,
+                is_sidechain,
+                pricing,
+                tokens_total,
+                by_model,
+                by_skill,
+                by_subagent,
             )
-            cost = _cost(usage, _rate(pricing, model or ""), pricing)
-            cost_total += cost
-            for f in fields:
-                v = usage.get(f, 0) or 0
-                tokens_total[f] += v
-                if model:
-                    by_model[model][f] += v
-                if skill:
-                    by_skill[skill][f] += v
-            if model:
-                by_model[model]["cost_micro"] += round(cost * 1e6)
-            if skill:
-                by_skill[skill]["cost_micro"] += round(cost * 1e6)
+
+        content = msg.get("content")
+        _accumulate_skill_agent_signals(
+            skill, content, skills_invoked, agents_invoked, active
+        )
 
         # walk content blocks for tool_use / tool_result
-        content = msg.get("content")
         if isinstance(content, list):
             for block in content:
                 if not isinstance(block, dict):
                     continue
                 btype = block.get("type")
                 if btype == "tool_use":
-                    name = block.get("name", "?")
-                    tool_calls[name] += 1
-                    bid = block.get("id")
-                    if bid:
-                        pending_tool[bid] = name
-                    inp = (
-                        block.get("input", {})
-                        if isinstance(block.get("input"), dict)
-                        else {}
+                    _track_tool_call(block, pending_tool, tool_calls)
+                    _track_edit(block, sid, edits_per_file, verify_edited_since)
+                    _track_bash(
+                        block,
+                        sid,
+                        bash_commands,
+                        bash_signal_counts,
+                        last_verify_norm,
+                        verify_edited_since,
                     )
-                    # Utilization (#182): the harness never records attributionSkill,
-                    # so skill/agent invocations are read from the tool_use that
-                    # actually invokes them — the Skill tool and the Agent/Task tool.
-                    if name == "Skill":
-                        s = inp.get("skill") or inp.get("name")
-                        if isinstance(s, str) and s:
-                            skills_invoked[_strip_ns(s)] += 1
-                            active_skill = _strip_ns(s)
-                    elif name in ("Agent", "Task"):
-                        a = inp.get("subagent_type")
-                        if isinstance(a, str) and a:
-                            agents_invoked[_strip_ns(a)] += 1
-                            active_agent = _strip_ns(a)
-                    if name in _EDIT_TOOLS and inp.get("file_path"):
-                        edits_per_file[os.path.basename(str(inp["file_path"]))] += 1
-                    if name in _EDIT_TOOLS:
-                        # An edit "consumes" any pending stuck-loop streak for
-                        # this session, same as verify_guard.py's own reset —
-                        # RED/GREEN/REFACTOR re-runs the same command but
-                        # always with a real edit in between.
-                        verify_edited_since[str(sid or "")] = True
-                    if name == "Bash" and isinstance(inp.get("command"), str):
-                        cmd = inp["command"].strip()
-                        # near-identical retry detection: normalize whitespace
-                        norm = re.sub(r"\s+", " ", cmd)
-                        bash_commands[norm] += 1
-                        if _VERIFY_RE.search(cmd):
-                            skey = str(sid or "")
-                            if last_verify_norm.get(
-                                skey
-                            ) == norm and not verify_edited_since.get(skey, False):
-                                repeated_verify_runs += 1
-                            last_verify_norm[skey] = norm
-                            verify_edited_since[skey] = False
-                        # gate signal (#111): commit + review-gate bypass
-                        if _COMMIT_RE.search(cmd):
-                            commit_attempts += 1
-                            if _BYPASS_RE.search(cmd):
-                                commit_bypasses += 1
                 elif btype == "tool_result":
-                    bid = block.get("tool_use_id")
-                    tool_name = pending_tool.get(bid, "?")
-                    rcontent = _text_of(block.get("content"))
-                    if block.get("is_error"):
-                        tool_errors[tool_name] += 1
-                        if tool_name in _EDIT_TOOLS and _OLDSTRING_RE.search(rcontent):
-                            failed_edits += 1
-                        if _PERMISSION_RE.search(rcontent):
-                            permission_denials += 1
+                    _classify_tool_result(
+                        block, pending_tool, tool_errors, error_counts
+                    )
 
-        # user-correction turns (real user messages only, not tool_results)
-        if rtype == "user" and not rec.get("isMeta"):
-            utext = _text_of(content)
-            # skip pure tool_result envelopes (no free-text user prompt)
-            if utext and not (
-                isinstance(content, list)
-                and all(
-                    isinstance(b, dict) and b.get("type") == "tool_result"
-                    for b in content
-                )
-            ):
-                if _CORRECTION_RE.search(utext.lower()):
-                    correction_turns += 1
-                    correction_by_skill[active_skill or "unattributed"] += 1
-                    correction_by_agent[active_agent or "unattributed"] += 1
+        if _detect_correction_turn(rec, content):
+            correction_turns += 1
+            correction_by_skill[active["skill"] or "unattributed"] += 1
+            correction_by_agent[active["agent"] or "unattributed"] += 1
 
     # repeated edits / retried bash (>1 occurrence)
     repeated_file_edits = {f: n for f, n in edits_per_file.items() if n > 1}
     retried_bash = sum(n - 1 for n in bash_commands.values() if n > 1)
+    failed_edits = error_counts["failed_edits"]
+    permission_denials = error_counts["permission_denials"]
+    repeated_verify_runs = bash_signal_counts["repeated_verify_runs"]
+    commit_attempts = bash_signal_counts["commit_attempts"]
+    commit_bypasses = bash_signal_counts["commit_bypasses"]
 
     # never-observed registry items
     reg_skills = set(registry.get("skills", []))
@@ -353,9 +467,6 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
 
     total_errors = sum(tool_errors.values())
     total_calls = sum(tool_calls.values())
-
-    def _slim(d: dict) -> dict:
-        return {k: dict(sorted(v.items())) for k, v in sorted(d.items())}
 
     return {
         "schema": "session-digest/v1",
@@ -613,7 +724,7 @@ def rollup(digests_root: Path, registry: dict) -> dict:
     tool_calls = 0
     err_weighted = 0.0
     corrections = 0
-    correction_by_skill = Counter()   # #711
+    correction_by_skill = Counter()  # #711
     correction_by_agent = Counter()
     skills_invoked = Counter()
     agents_invoked = Counter()
