@@ -1,0 +1,4 @@
+{
+  "tool_name": "Read",
+  "tool_input": { "file_path": "plugins/dev-team/skills/foo/SKILL.md" }
+}
