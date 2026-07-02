@@ -63,11 +63,11 @@
           },
           {
             "type": "command",
-            "command": "bash hooks/pre-commit-review.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_PRE_COMMIT_REVIEW:-0}\" = \"1\" ]; then python3 hooks/pre_commit_review.py; else bash hooks/pre-commit-review.sh; fi'"
           },
           {
             "type": "command",
-            "command": "bash hooks/pre-commit-knowledge-index.sh"
+            "command": "sh -c 'if [ \"${DEV_TEAM_PY_HOOK_PRE_COMMIT_KNOWLEDGE_INDEX:-0}\" = \"1\" ]; then python3 hooks/pre_commit_knowledge_index.py; else bash hooks/pre-commit-knowledge-index.sh; fi'"
           },
           {
             "type": "command",
