@@ -41,3 +41,21 @@ CSHARP="$BATS_TEST_DIRNAME/../../plugins/dev-team/skills/mutation-testing/refere
   # The CI/cgroup caveat for os.cpu_count().
   echo "$section" | grep -qi "cgroup"
 }
+
+# --- Slice 3 · convergence-derived glob negation example (#682) ------------
+
+@test "csharp-stryker-net.md infra-exclusion glob template shows a convergence-derived negation example" {
+  run awk '
+    /^## Infrastructure exclusion `mutate` glob template/ { f=1 }
+    /^## / && !/^## Infrastructure exclusion/ && f { if (NR > 1) exit }
+    f { print }
+  ' "$CSHARP"
+  [ "$status" -eq 0 ]
+  section="$output"
+
+  # A convergence-derived negation example, distinguished from the
+  # permanent infra-exclusion negations already in the template.
+  echo "$section" | grep -qi "convergence"
+  echo "$section" | grep -q -- "!"
+  echo "$section" | grep -qi "re-checked\|drop out\|permanent"
+}
