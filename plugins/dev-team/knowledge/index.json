@@ -1893,7 +1893,7 @@
       "anchor": "disable-off"
     },
     "Notes": {
-      "summary": "The `destructive-guard.sh` hook reads `hooks/careful-state.json`.",
+      "summary": "The `hooks/destructive_guard.py` hook reads `hooks/careful-state.json`.",
       "anchor": "notes"
     }
   },
@@ -2991,7 +2991,7 @@
       "anchor": "2-confirm"
     },
     "Notes": {
-      "summary": "The `pre-tool-guard.sh` hook reads `hooks/freeze-state.json` and blocks Write/Edit to files that do NOT match the allowed patterns.",
+      "summary": "The `hooks/pre_tool_guard.py` hook reads `hooks/freeze-state.json` and blocks Write/Edit to files that do NOT match the allowed patterns.",
       "anchor": "notes"
     }
   },
@@ -3539,7 +3539,7 @@
       "anchor": "4-review-with-user"
     },
     "5. Create Issues (parent spec, then slice children)": {
-      "summary": "Create the **parent** issue from the spec first, then one **child** issue per slice linked to it, then backfill the sibling `depends on #N` links from the `issue-deps.sh` map:",
+      "summary": "Create the **parent** issue from the spec first, then one **child** issue per slice linked to it, then backfill the sibling `depends on #N` links from the `scripts/issue_deps.py` map:",
       "anchor": "5-create-issues-parent-spec-then-slice-children"
     },
     "6. Present Results": {

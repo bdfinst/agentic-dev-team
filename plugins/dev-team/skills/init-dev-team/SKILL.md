@@ -84,7 +84,7 @@ command -v jq && jq --version
 If missing, install:
 
 | OS | Command |
-|----|---------|
+| ---- | --------- |
 | macOS | `brew install jq` |
 | Linux (apt) | `sudo apt-get install -y jq` |
 | Linux (dnf/yum) | `sudo dnf install -y jq` or `sudo yum install -y jq` |
@@ -105,7 +105,7 @@ command -v python3 && python3 --version
 If missing, install:
 
 | OS | Command |
-|----|---------|
+| ---- | --------- |
 | macOS | `brew install python3` |
 | Linux (apt) | `sudo apt-get install -y python3` |
 | Linux (dnf/yum) | `sudo dnf install -y python3` or `sudo yum install -y python3` |
@@ -206,7 +206,7 @@ clone bootstraps its own local index automatically (no per-developer
 `codegraph init`):
 
 1. **The committed `.codegraph/` directory** (its `.gitignore`). This is the
-   repo's opt-in signal. On a fresh clone the plugin's `codegraph-bootstrap.sh`
+   repo's opt-in signal. On a fresh clone the plugin's `hooks/codegraph_bootstrap.py`
    SessionStart hook sees `.codegraph/` but no local `*.db` and rebuilds the
    index automatically.
 2. **A project-root `.mcp.json`** registering the CodeGraph MCP server, so
@@ -312,7 +312,7 @@ cat package.json 2>/dev/null | grep -E '"vitest"|"jest"|"mocha"|"jasmine"' | hea
 Install the appropriate runner plugin:
 
 | Detected runner | Install command |
-|-----------------|----------------|
+| ----------------- | ---------------- |
 | vitest | `npm install --save-dev @stryker-mutator/vitest-runner` |
 | jest | `npm install --save-dev @stryker-mutator/jest-runner` |
 | mocha | `npm install --save-dev @stryker-mutator/mocha-runner` |

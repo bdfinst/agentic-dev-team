@@ -151,7 +151,7 @@ In every `.feature` file's header, include:
 # Public surface: <surface-id>
 ```
 
-This lets the gate-keeper review agent (`dev-team:test-modernization-review`) trace each scenario back to a component row.
+This lets the operator trace each scenario back to a component row at the Phase-2 human sign-off (Step 6), and lets `/feature-file-validation` — which `/code-review` invokes automatically whenever `.feature` or step-definition files are in the changeset — verify each scenario has matching test automation once the bound Stories are built.
 
 ### 5. Persist phase-2 progress
 
@@ -215,7 +215,7 @@ Record the **scenario → Story-id** map in `memory/<workflow>/<slug>/gherkin-bi
 }
 ```
 
-Append the Story creations to `phase-2.md` (one row per Story: title, phase tag, scenario count, tracker-id, predecessors). The map is the artifact `dev-team:test-modernization-review --phase 2` reads to verify every Scenario has a Story citing it.
+Append the Story creations to `phase-2.md` (one row per Story: title, phase tag, scenario count, tracker-id, predecessors). The map lets the operator confirm at the Phase-2 human sign-off that every Scenario has a Story citing it, and lets `/quality-targets-converge` check for an existing binding before proposing a new component-test Story for a coverage gap it finds later.
 
 ### 8. Report
 
@@ -233,5 +233,5 @@ Print:
   1. First pass (Steps 1–6) authors the `.feature` files and stops for sign-off.
   2. Second pass (Step 7), invoked by the orchestrator with `--create-stories` after the operator approves, creates the `[Component tests]` Stories bound to the approved scenarios. Splitting the passes ensures the Stories never reference un-reviewed scenarios.
 - The Stories produced here become the binding contract `/build` consumes in Phase 4 and Phase 5. Each Story's body cites the exact scenarios its tests must satisfy — the component tests are written **from the approved Gherkin**, not from the assessment.
-- `gherkin-bindings.json` is the inverse map (scenario → Story). `test-modernization-review --phase 2` uses it to verify every Scenario in every `.feature` has a Story citing it; `--phase 4` uses it to verify each `[Component tests]` Story's submitted test code references its scenarios.
+- `gherkin-bindings.json` is the inverse map (scenario → Story). The operator uses it at the Phase-2 human sign-off to confirm every Scenario in every `.feature` has a Story citing it; `/quality-targets-converge` consults it before proposing a new component-test Story for a coverage gap (see its "Gherkin binding for proposed component tests" step); and `/feature-file-validation` — run automatically by `/code-review` whenever `.feature` files are in the changeset — verifies each `[Component tests]` Story's submitted test code actually references its bound scenarios.
 - For UI patterns where the worker cannot infer the flow from the assessment alone, emit a stub `.feature` with the required header and a `# TODO: hand-author scenarios here` block — better to surface the gap than to invent steps. Stub `.feature` files do NOT generate Stories until the operator fills them in.

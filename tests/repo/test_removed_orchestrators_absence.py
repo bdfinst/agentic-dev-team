@@ -82,7 +82,9 @@ def test_docs_contain_zero_live_references_outside_changelog_spec_plan() -> None
     ]
     hits = sorted(
         h
-        for h in _grep_files(r"/test-modernize|/test-upgrade", paths)
+        for h in _grep_files(
+            r"/test-modernize|/test-upgrade|test-modernization-review", paths
+        )
         if not h.endswith("docs/diagrams/test-improve-flow.svg")
     )
     assert not hits, (
@@ -135,5 +137,7 @@ def test_worker_skill_md_files_contain_no_live_references() -> None:
         / "quality-targets-converge"
         / "SKILL.md",
     ]
-    hits = sorted(_grep_files(r"/test-modernize|/test-upgrade", paths))
+    hits = sorted(
+        _grep_files(r"/test-modernize|/test-upgrade|test-modernization-review", paths)
+    )
     assert not hits, "Unexpected live references in worker SKILLs:\n" + "\n".join(hits)

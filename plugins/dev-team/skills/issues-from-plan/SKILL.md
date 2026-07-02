@@ -77,11 +77,11 @@ Wait for approval before creating.
 
 ### 5. Create Issues (parent spec, then slice children)
 
-Create the **parent** issue from the spec first, then one **child** issue per slice linked to it, then backfill the sibling `depends on #N` links from the `issue-deps.sh` map:
+Create the **parent** issue from the spec first, then one **child** issue per slice linked to it, then backfill the sibling `depends on #N` links from the `scripts/issue_deps.py` map:
 
 1. **Parent (spec):** `gh issue create` from the spec (intent + acceptance summary); capture its number as `$PARENT`. If step 2 found no spec, skip everything — no parent, no children.
 2. **Children (slices):** for each slice, `gh issue create` with `Part of #$PARENT` in the body. Record the **slice-id → issue-number** mapping as you go.
-3. **DAG links:** for each slice, look up its predecessors from the `issue-deps.sh` map, translate them to the child issue numbers, and set the child's `## Depends On` to `depends on #N` for each (a slice with no predecessors says "none"). Links come from the DAG map, never from file order.
+3. **DAG links:** for each slice, look up its predecessors from the `scripts/issue_deps.py` map, translate them to the child issue numbers, and set the child's `## Depends On` to `depends on #N` for each (a slice with no predecessors says "none"). Links come from the DAG map, never from file order.
 4. **Partial-failure safety:** if any `gh` call fails partway, do **not** abort silently — report which issues were created (with numbers) and which were not, then let the plan flow continue. Never leave a half-created state unreported.
 
 ```bash
@@ -94,7 +94,7 @@ Part of #<parent>
 
 ## Depends On
 
-- #<number>: [brief reason]   <!-- from issue-deps.sh; "none" if no predecessors -->
+- #<number>: [brief reason]   <!-- from scripts/issue_deps.py; "none" if no predecessors -->
 
 ## Acceptance Criteria
 

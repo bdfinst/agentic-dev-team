@@ -24,7 +24,7 @@ When both conditions hold, the hook prints a one-line nudge to stderr:
 
 The hook **always exits 0** unless `/careful` mode is active, in which
 case it exits 2 (blocking the tool call) and appends `[blocked by /careful]`
-to the message. This matches the precedent set by `destructive-guard.sh`.
+to the message. This matches the precedent set by `hooks/destructive_guard.py`.
 
 ## Fail-open
 
@@ -35,7 +35,7 @@ never a gate. A broken hook must never block legitimate `Read` / `Grep` /
 
 ## Sentinel mechanism
 
-A companion hook, `codegraph-turn-mark.sh`, runs as a `PostToolUse` hook
+A companion hook, `hooks/codegraph_turn_mark.py`, runs as a `PostToolUse` hook
 on the matcher `mcp__codegraph__.*`. Each time a CodeGraph MCP tool
 completes, it writes a small JSON sentinel to
 `${CLAUDE_PROJECT_DIR}/.claude/codegraph-turn-state.json`:
