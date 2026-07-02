@@ -70,22 +70,23 @@ def _detect_windows_uname() -> str:
 
 
 def check_platform(result: Result) -> None:
-    """On Windows the plugin's hooks and helper scripts still target
-    Git Bash for shell scripts and native Python 3 for Python scripts.
-    Native cmd.exe / PowerShell cannot run the .sh hooks that remain
-    until #572 completes. This check ONLY fires on Windows so it's a
-    no-op on macOS and Linux (matching the .sh exactly)."""
+    """Report the Windows shell environment, informationally only.
+
+    Per ADR 0015 (docs/adr/0015-bash-removal-complete.md), every shipped
+    hook and helper script under plugins/dev-team/ is now Python 3.8+
+    stdlib-only — Windows CI is fully bash-free and nothing in the
+    runtime requires Git Bash on Windows anymore. Native Windows without
+    Git Bash is a legitimate install path, so this check never fails; it
+    only surfaces which shell Claude Code is running under. It's a no-op
+    on macOS and Linux."""
     if os.environ.get("OS", "") != "Windows_NT":
         return
     uname = _detect_windows_uname()
     if uname.startswith(("MINGW", "MSYS", "CYGWIN")):
         print(f"[ok]   Git Bash ({uname})")
-        result.pass_ += 1
-        return
-    print("[FAIL] Windows without Git Bash — this plugin's hooks and helper")
-    print("       scripts need a POSIX bash. Install Git for Windows (Git Bash)")
-    print("       from https://git-scm.com/download/win and run Claude Code from it.")
-    result.fail += 1
+    else:
+        print("[ok]   native Windows (no Git Bash required — plugin is Python-only)")
+    result.pass_ += 1
 
 
 # ---------------------------------------------------------------------------
