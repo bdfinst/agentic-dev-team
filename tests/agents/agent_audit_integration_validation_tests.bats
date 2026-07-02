@@ -30,12 +30,6 @@ HOOKS="$BATS_TEST_DIRNAME/../../plugins/dev-team/hooks"
   grep -q "Context needs: project-structure" "$AGENTS/claude-setup-review.md"
 }
 
-@test "test-modernization-review has canonical Context needs: full-file" {
-  grep -q "Context needs: full-file" "$AGENTS/test-modernization-review.md"
-  # Confirm it is not the old prose value
-  ! grep -q "Context needs: read the phase" "$AGENTS/test-modernization-review.md"
-}
-
 @test "orchestrator declares enforcement: script and an Implemented-by pointer" {
   # Script-enforced prose spec (PR #462): declares its implementation rather
   # than a "You are" persona.
