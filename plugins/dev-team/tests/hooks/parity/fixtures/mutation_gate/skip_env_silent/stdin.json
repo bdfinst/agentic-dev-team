@@ -1,0 +1,1 @@
+{ "tool_input": { "command": "npm test" }, "tool_response": { "exit_code": 0 } }
