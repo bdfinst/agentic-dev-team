@@ -278,6 +278,33 @@ def test_convergence_history_persisted_entry_shape_and_write_triggers(
     )
 
 
+def test_convergence_history_staleness_check_and_glob_shrinking_read_path(
+    text: str, flat: str
+) -> None:
+    """Slice 3, Step 3.2 (#682)."""
+    # Reads the convergence file before the baseline scan.
+    assert re.search(r"before the baseline scan", flat, re.IGNORECASE)
+    # Commit-SHA staleness check.
+    assert re.search(r"commit-SHA|last-commit SHA|git log -1", text, re.IGNORECASE)
+    assert re.search(r"stale", text, re.IGNORECASE)
+    # Glob-shrinking negation for both converged and excluded entries.
+    assert "!<file>" in text
+    assert re.search(
+        r"both.*converged.*excluded|converged.*and.*excluded.*shrink|"
+        r"regardless of.*status",
+        flat,
+        re.IGNORECASE,
+    )
+    # The SKIPPED log-line pair.
+    assert "SKIPPED <file> — already converged at" in text
+    assert "SKIPPED <file> — excluded:" in text
+    # Run-level summary line.
+    assert re.search(r"convergence: skipped", text, re.IGNORECASE)
+    # --since differentiation sentence.
+    assert re.search(r"--since", text)
+    assert re.search(r"complementary", flat, re.IGNORECASE)
+
+
 def test_registered_in_agent_registry() -> None:
     registry_text = REGISTRY.read_text(encoding="utf-8")
     assert "agents/mutation-kill.md" in registry_text
