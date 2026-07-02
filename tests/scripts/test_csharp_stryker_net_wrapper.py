@@ -645,12 +645,13 @@ class TestConcurrentRunStrykerTracking:
             time.sleep(0.01)
         assert len(fake_procs) == 2, "both slices should have spawned a process"
 
-        previous = wrapper._install_signal_handlers()
-        try:
-            with pytest.raises(KeyboardInterrupt):
-                os.kill(os.getpid(), signal.SIGINT)
-        finally:
-            wrapper._restore_signal_handlers(previous)
+        # Exercise the exact termination logic the SIGINT/SIGTERM handler
+        # runs, without actually delivering an OS signal — real signal
+        # delivery (os.kill(self, SIGINT)) is platform-fragile (it crashed
+        # the whole interpreter on native Windows CI rather than raising a
+        # catchable KeyboardInterrupt) and is already covered, opt-in and
+        # POSIX-only, by TestSignalHandlingPOSIX below.
+        wrapper._terminate_all_tracked_processes()
 
         for t in threads:
             t.join(timeout=5)
