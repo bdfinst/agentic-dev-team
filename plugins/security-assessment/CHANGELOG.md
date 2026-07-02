@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.0...security-assessment-v3.3.1) (2026-07-02)
+
+
+### Miscellaneous
+
+* remove ACI-branded references from shipped plugin content ([98a604c](https://github.com/bdfinst/agentic-dev-team/commit/98a604cef34b7f2d74df06ce3d5efc52a425e9ac)), closes [#678](https://github.com/bdfinst/agentic-dev-team/issues/678)
+
 ## [3.3.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.2.1...security-assessment-v3.3.0) (2026-06-19)
 
 
