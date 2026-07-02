@@ -20,6 +20,12 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_commit_review.py"
 
+_TESTS_LIB = Path(__file__).resolve().parents[2] / "tests" / "lib"
+if str(_TESTS_LIB) not in sys.path:
+    sys.path.insert(0, str(_TESTS_LIB))
+
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
+
 
 def _run(payload: dict, cwd: Path) -> subprocess.CompletedProcess[str]:
     proc_env = {
@@ -44,11 +50,7 @@ def _run(payload: dict, cwd: Path) -> subprocess.CompletedProcess[str]:
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     """A minimal hermetic git repo with one staged file."""
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=tmp_path)
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
     subprocess.run(
         ["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True
@@ -92,11 +94,7 @@ def test_no_verify_bypass(repo: Path) -> None:
 
 def test_commit_with_nothing_staged_silent(tmp_path: Path) -> None:
     """No staged files → nothing to gate."""
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=tmp_path)
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
     subprocess.run(
         ["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True
@@ -156,11 +154,7 @@ def test_stale_gate_file_blocks(repo: Path) -> None:
     (repo / ".review-passed").write_text(h)
     # Edit the staged file's content.
     (repo / "a.ts").write_text("v2-unreviewed\n")
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=repo)
     subprocess.run(["git", "add", "a.ts"], cwd=repo, env=env, check=True)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
@@ -175,11 +169,7 @@ def test_extra_staged_file_after_review_blocks(repo: Path) -> None:
     h = _current_hash(repo)
     (repo / ".review-passed").write_text(h)
     (repo / "b.ts").write_text("new\n")
-    env = {
-        **os.environ,
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
+    env = hermetic_git_env(home=repo)
     subprocess.run(["git", "add", "b.ts"], cwd=repo, env=env, check=True)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
