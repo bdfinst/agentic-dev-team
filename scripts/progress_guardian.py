@@ -34,9 +34,44 @@ STEP_PATTERN = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
 # Matches backtick-quoted paths in plan text (declared file references)
 BACKTICK_PATH_RE = re.compile(r"`([^`\s]+\.[a-zA-Z0-9_]+)`")
 
+# Matches backtick-quoted directory declarations (trailing '/'), e.g.
+# `plugins/dev-team/skills/new-feature/`. Kept separate from
+# BACKTICK_PATH_RE so extension-less, non-path backtick tokens (e.g.
+# `runHook()`, `SomeClass`) are never mistaken for declared paths — see
+# issue #713.
+BACKTICK_DIR_RE = re.compile(r"`([^`\s]+/)`")
+
 # Matches a slice's `**Files:** ...` declaration line. Captures the
-# remainder of the line so BACKTICK_PATH_RE can extract the paths from it.
+# remainder of the line so BACKTICK_PATH_RE/BACKTICK_DIR_RE can extract
+# the paths from it.
 SLICE_FILES_RE = re.compile(r"^\*\*Files:\*\*\s*(.+)$")
+
+
+def _extract_declared_paths(text: str) -> List[str]:
+    """Return backtick-quoted file paths and directory paths declared in
+    text: exact file paths (ending in a dot-extension) plus directory
+    declarations (ending in '/'). A directory declaration means "this
+    slice touches things under here" — matched with startswith, not
+    equality, by callers. Bare backtick-quoted tokens with no extension
+    and no trailing slash (e.g. `` `runHook()` ``) are not paths and are
+    intentionally excluded (see issue #713).
+    """
+    return BACKTICK_PATH_RE.findall(text) + BACKTICK_DIR_RE.findall(text)
+
+
+def _is_path_declared(file_path: str, declared_paths) -> bool:
+    """True if file_path exactly matches a declared file, or falls under
+    a declared directory (trailing '/') prefix. Single source of truth
+    shared by check_commit_discipline and check_scope so the two checks
+    cannot drift on what counts as "declared" (see issue #525/#713).
+    """
+    for declared in declared_paths:
+        if declared.endswith("/"):
+            if file_path.startswith(declared):
+                return True
+        elif file_path == declared:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +253,7 @@ def _parse_slice_files(plan_text: str, slice_header: str) -> List[str]:
             break
         fm = SLICE_FILES_RE.match(line)
         if fm:
-            return BACKTICK_PATH_RE.findall(fm.group(1))
+            return _extract_declared_paths(fm.group(1))
 
     # Fall back to inline layout: `**Files:**` line near a `- [x] <header>`.
     in_block = False
@@ -239,7 +274,7 @@ def _parse_slice_files(plan_text: str, slice_header: str) -> List[str]:
             break
         fm = SLICE_FILES_RE.match(line)
         if fm:
-            return BACKTICK_PATH_RE.findall(fm.group(1))
+            return _extract_declared_paths(fm.group(1))
     return []
 
 
@@ -321,8 +356,10 @@ def check_commit_discipline(
     for step in done_steps:
         declared = _parse_slice_files(plan_text, step.header) if plan_text else []
         if declared:
-            # File-path path: pass when any declared path was touched on this branch.
-            if any(p in branch_files for p in declared):
+            # File-path path: pass when any declared file was touched on
+            # this branch, or any branch file falls under a declared
+            # directory (see issue #713).
+            if any(_is_path_declared(bf, declared) for bf in branch_files):
                 continue
             errors.append(
                 _make_error(
@@ -424,7 +461,7 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
     LLM unavailability always produces a warning, never an error.
     """
     text = plan_path.read_text(encoding="utf-8")
-    declared_paths = set(BACKTICK_PATH_RE.findall(text))
+    declared_paths = set(_extract_declared_paths(text))
 
     # Single source of truth for base-ref resolution — shared with
     # check_commit_discipline so the two checks cannot drift on what
@@ -465,9 +502,14 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
     if not changed_files:
         return []
 
-    # If no declared paths, any changed file is potentially out-of-plan
+    # If no declared paths, any changed file is potentially out-of-plan.
+    # Otherwise a file is "declared" (not out-of-plan) if it exactly
+    # matches a declared file or falls under a declared directory prefix
+    # (see issue #713).
     out_of_plan = (
-        changed_files if not declared_paths else (changed_files - declared_paths)
+        changed_files
+        if not declared_paths
+        else {f for f in changed_files if not _is_path_declared(f, declared_paths)}
     )
 
     if not out_of_plan:
