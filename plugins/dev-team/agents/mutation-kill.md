@@ -83,7 +83,7 @@ truthiness check.
 Group survivors by mutation type and generate tests in this order:
 
 | Priority | Type | How to kill |
-|---|---|---|
+| --- | --- | --- |
 | 1 (easy) | String | Assert the exact string value from source |
 | 1 (easy) | ObjectInit (`new Foo {}`) | Assert ≥ 2 specific non-default fields |
 | 1 (easy) | Equality | Assert the boundary value; pair with one-off |
@@ -127,21 +127,38 @@ the build; `--no-build` runs against whatever binary happens to be on disk.
 After parsing the baseline report and before entering the file-by-file loop,
 scan the report for files that are almost certainly infrastructure — DI wiring,
 exception handlers, middleware, generated code — where mutations cannot be
-killed by the available test surface. Two signals in combination flag a file:
+killed by the available test surface. Two signals, **in combination, alone**
+are sufficient to flag a file — no filename match required:
 
 - `score < 15%`
 - `NoCoverage > 50%` of effective mutants (total − Ignored − CompileError)
 
-If both hold **and** the filename matches one of:
+**Failing either numeric signal alone must never trigger the question.** Both
+must hold before a file is even considered for the batched confirmation below.
+
+A filename match against one of these known DI/wiring/generated-code
+conventions is a **named hint**, not a requirement — it strengthens the
+confirmation wording for that file but is never itself sufficient, and its
+absence never blocks the question when both numeric signals hold:
 
 ```
-Startup.cs        Program.cs         *Filter.cs        *Middleware.cs
-*Logger*.cs       *HealthCheck*.cs   *.Designer.cs
+Startup.cs             Program.cs            *Filter.cs
+*Middleware.cs          *Logger*.cs           *HealthCheck*.cs
+*.Designer.cs           *Module.cs            *Container.cs
+*Registration.cs        *Bootstrap*.cs        *DependencyInjection*.cs
 ```
 
-… ask (once, batched for the whole scan): *"Are these mutations in DI
-registration, exception handlers, middleware, or generated code that this
-test surface cannot reach?"*
+Once both numeric signals hold for one or more files, ask **once, batched for
+the whole scan**, itemizing each flagged file with its specific trigger
+reason — named convention when the filename matches, signal-only otherwise:
+
+```
+Are these mutations in DI registration, exception handlers, middleware, or
+generated code that this test surface cannot reach?
+
+  <file1> — named convention: *Module.cs (score <n>%, NoCoverage <n>%)
+  <file2> — signal-only: score <n>%, NoCoverage <n>% (no filename match)
+```
 
 - **Yes** → add the file to the `mutate` exclusion list with a documented reason
   and log:
@@ -189,7 +206,7 @@ same survivors.
 ## Per-language translation
 
 | Language | Tool | Per-test flag | Test shape | Build verify | Test verify |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | JS/TS | Stryker | `coverageAnalysis: "perTest"` | `test('…', async () => { … })` (Vitest/Jest) | `npm run build` (if present) | `npm test -- --testPathPattern=<file>` |
 | Java | pitest | `withHistory` | `@Test void …()` (JUnit 5) | `mvn compile -pl <mod> -q` | `mvn test -pl <mod> -Dtest=<class>` |
 | C# | Stryker.NET | `coverage-analysis: perTest` | `[Fact]` (xUnit) / `[Test]` (NUnit) | `dotnet build <proj> --nologo` | `dotnet test <proj> --filter FullyQualifiedName~<class>` |
