@@ -111,7 +111,12 @@ teardown() {
     skip "shellcheck not installed"
   fi
   run shellcheck "$WRAPPER"
-  [ "$status" -eq 0 ]
+  if [ "$status" -ne 0 ]; then
+    # bats' default failure message doesn't include $output — surface it so
+    # a shellcheck finding is visible without spelunking the bats trace.
+    printf 'shellcheck exit=%s\n%s\n' "$status" "$output" >&2
+    return 1
+  fi
 }
 
 @test "wrapper: never pipes Stryker output to bare | tee" {

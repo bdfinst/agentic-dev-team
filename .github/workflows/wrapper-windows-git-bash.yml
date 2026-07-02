@@ -49,15 +49,11 @@ jobs:
       - uses: actions/checkout@v7
 
       # windows-latest ships jq + python3 + sha256sum out of the box, but
-      # NOT bats or shellcheck. shellcheck installs cleanly from Chocolatey;
-      # bats-core has no Chocolatey package (verified — first CI attempt at
-      # `choco install bats` fails with 'The package was not found'), so
-      # install it from the upstream tarball via the vendor-supplied
-      # install.sh. Both tools end up on PATH under Git Bash.
-      - name: Install shellcheck via Chocolatey
-        run: choco install shellcheck --no-progress -y
-        shell: pwsh
-
+      # NOT bats or shellcheck. Install both from their upstream release
+      # binaries to a userprofile-scoped dir, then append to $GITHUB_PATH.
+      # Pinned versions match what other jobs in this repo use — so a
+      # regression that only shows up on Windows is a real Windows issue,
+      # not "the CI installed a different lint tool."
       - name: Install bats-core from upstream tarball
         run: |
           set -euo pipefail
@@ -66,8 +62,22 @@ jobs:
           curl -fsSL "https://github.com/bats-core/bats-core/archive/refs/tags/v${BATS_VERSION}.tar.gz" \
             | tar -xz -C "$tmp"
           "$tmp/bats-core-${BATS_VERSION}/install.sh" "$USERPROFILE/.local/bats"
-          # Put the install's bin on PATH for subsequent steps.
           echo "$USERPROFILE/.local/bats/bin" >> "$GITHUB_PATH"
+
+      - name: Install shellcheck from upstream release
+        run: |
+          set -euo pipefail
+          # Chocolatey's `shellcheck` package is stuck at 0.9.0; upstream
+          # 0.11.0 (current stable) matches what the plugin is authored
+          # against. Fetch the Windows release binary directly.
+          SC_VERSION="v0.11.0"
+          tmp="$(mktemp -d)"
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/${SC_VERSION}/shellcheck-${SC_VERSION}.zip" \
+            -o "$tmp/shellcheck.zip"
+          (cd "$tmp" && unzip -q shellcheck.zip)
+          mkdir -p "$USERPROFILE/.local/shellcheck/bin"
+          cp "$tmp/shellcheck.exe" "$USERPROFILE/.local/shellcheck/bin/shellcheck.exe"
+          echo "$USERPROFILE/.local/shellcheck/bin" >> "$GITHUB_PATH"
 
       # Verify every dep is now on PATH under Git Bash (not just PowerShell —
       # Chocolatey installs into `C:\ProgramData\Chocolatey\bin` which Git
