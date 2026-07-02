@@ -36,6 +36,75 @@ WARN = [
 NONE: list = []
 
 
+def _call_make_issue(**kwargs) -> subprocess.CompletedProcess:
+    code = f"""
+import sys, json
+sys.path.insert(0, {str(SCRIPTS_DIR)!r})
+from lib.review_result import make_issue
+
+kwargs = json.loads(sys.argv[1])
+print(json.dumps(make_issue(**kwargs)))
+"""
+    return subprocess.run(
+        [sys.executable, "-c", code, json.dumps(kwargs)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_make_issue_returns_canonical_shape_with_default_confidence() -> None:
+    result = _call_make_issue(
+        severity="error", file="a.py", line=3, message="bad thing"
+    )
+    assert result.returncode == 0, result.stderr
+    data = json.loads(result.stdout)
+    assert data == {
+        "severity": "error",
+        "confidence": "high",
+        "file": "a.py",
+        "line": 3,
+        "message": "bad thing",
+        "suggestedFix": "",
+    }
+
+
+def test_make_issue_accepts_suggested_fix_and_confidence_override() -> None:
+    result = _call_make_issue(
+        severity="warning",
+        confidence="medium",
+        file="b.py",
+        line=0,
+        message="meh",
+        suggested_fix="do the thing",
+    )
+    data = json.loads(result.stdout)
+    assert data == {
+        "severity": "warning",
+        "confidence": "medium",
+        "file": "b.py",
+        "line": 0,
+        "message": "meh",
+        "suggestedFix": "do the thing",
+    }
+
+
+def test_make_issue_only_includes_rule_id_when_provided() -> None:
+    without = json.loads(_call_make_issue(severity="error", message="x").stdout)
+    assert "rule_id" not in without
+
+    with_rule = json.loads(
+        _call_make_issue(severity="error", message="x", rule_id="my-rule").stdout
+    )
+    assert with_rule["rule_id"] == "my-rule"
+
+
+def test_make_issue_defaults_file_and_line_when_omitted() -> None:
+    data = json.loads(_call_make_issue(severity="error", message="x").stdout)
+    assert data["file"] == ""
+    assert data["line"] == 0
+
+
 def _call_helper(errors: list, warnings: list) -> subprocess.CompletedProcess:
     code = f"""
 import sys, json
