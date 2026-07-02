@@ -50,3 +50,27 @@ def test_session_learning_trigger_py_is_registered_in_session_stop_hooks() -> No
     data = _load()
     commands = _commands(data["hooks"]["SessionStop"])
     assert any("session_learning_trigger.py" in cmd for cmd in commands)
+
+
+def test_verify_guard_py_is_registered_in_pre_tool_use_bash_hooks() -> None:
+    data = _load()
+    bash_entries = [
+        entry for entry in data["hooks"]["PreToolUse"] if entry.get("matcher") == "Bash"
+    ]
+    commands = _commands(bash_entries)
+    assert any("verify_guard.py" in cmd for cmd in commands)
+
+
+def test_verify_guard_edit_marker_py_is_registered_on_write_edit_notebookedit() -> None:
+    """#708: verify_guard.py's edit-since-last-verify signal is written by
+    this sibling hook, which must be wired to the tool matcher that covers
+    Edit, Write, AND NotebookEdit — not just the narrower Write|Edit matcher
+    used by the pre_tool_guard.py / contract_version_guard.py pair."""
+    data = _load()
+    entries = [
+        entry
+        for entry in data["hooks"]["PreToolUse"]
+        if entry.get("matcher") == "Write|Edit|NotebookEdit"
+    ]
+    commands = _commands(entries)
+    assert any("verify_guard_edit_marker.py" in cmd for cmd in commands)
