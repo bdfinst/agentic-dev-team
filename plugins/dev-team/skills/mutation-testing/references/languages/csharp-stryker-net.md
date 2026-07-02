@@ -138,6 +138,39 @@ The language-agnostic probe rule (≥ 50 mutants, highest existing mutation scor
 - **gRPC / Protobuf service implementations.** Stryker.NET's `ObjectInitializer` mutations target the auto-generated Protobuf message types. Because those types are code-generated, the mutations produce constructor / initializer forms that do not compile, yielding hundreds to thousands of `CompileError` mutants — no signal, only cost. Avoid these files as probes; scope them out of full runs unless you have a specific reason.
 - **Caching / key-building classes under `mutation-level: Standard`.** The `Standard` mutation level enables `LinqMutation` and `StringMutation` operators that generate calls to methods that **do not exist** — for example `StringBuilder.Prepend` (the method is `Insert(0, …)`) and `IDictionary.Sum` (there is no `Sum` extension in the target namespace). These produce 1000+ `CompileError` mutants on files that build hash keys or aggregate LINQ. Drop such files to `mutation-level: Basic` (or exclude them) before probing.
 
+### Tiered mutation-level: Basic baseline, Standard escalation
+
+Pairs with the mutation-kill agent's [tiered mutation-level](../../../../agents/mutation-kill.md#tiered-mutation-level-strykernet-only) rule: the baseline `--all` scan runs at `Basic`; only files with survivors remaining after Basic converges get a Standard-level pass scoped to that one file.
+
+**Basic baseline (whole scan):**
+
+```bash
+export DOTNET_ROOT="${DOTNET_ROOT:-/opt/homebrew/opt/dotnet/libexec}"
+dotnet build <solution> -c Debug --nologo
+dotnet stryker \
+  --config-file stryker-config.shard-<name>.json \
+  --mutation-level Basic \
+  --coverage-analysis perTest \
+  --reporter json \
+  -O StrykerOutput/baseline
+```
+
+**Standard escalation (single file, after Basic converges with survivors remaining):**
+
+```bash
+export DOTNET_ROOT="${DOTNET_ROOT:-/opt/homebrew/opt/dotnet/libexec}"
+dotnet build <solution> -c Debug --nologo
+dotnet stryker \
+  --config-file stryker-config.shard-<name>.json \
+  --mutation-level Standard \
+  --mutate "**/CacheKeyBuilder.cs" \
+  --coverage-analysis perTest \
+  --reporter json \
+  -O StrykerOutput/escalation-CacheKeyBuilder
+```
+
+If the Standard escalation run hits the caching/key-building `CompileError` trap above, drop back to the Basic-level results and exclude the file from further Standard-level attempts rather than retrying.
+
 ## Run (scoped)
 
 Large C# repos take 60–90 min for a whole-project run. Always scope runs; if the repo has pre-generated shard configs, use them.
