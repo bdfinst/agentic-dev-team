@@ -79,7 +79,7 @@ echo "Model Routing Check"
 echo "==================="
 echo
 echo "Effective band → model map:"
-bash "$RESOLVER" --dump-map
+python3 "$RESOLVER" --dump-map
 echo
 
 # Ladder section

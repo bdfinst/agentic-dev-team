@@ -165,6 +165,46 @@ def test_clean_prints_all_three_band_model_pairs(case: dict) -> None:
     assert "high" in result.stdout and "claude-opus-4-8" in result.stdout
 
 
+def test_band_model_map_section_is_exact_three_lines_no_garbage(
+    case: dict,
+) -> None:
+    """Regression test for #718: the exec block ran the Python resolver
+    through `bash` instead of `python3`, silently corrupting this section
+    with bash's line-by-line misinterpretation of Python syntax while the
+    command still exited 0. Anchor on the exact section contents so a
+    reintroduced `bash "$RESOLVER"` invocation fails this test."""
+    result = _run(case)
+    assert result.returncode == 0, result.stdout
+    lines = result.stdout.splitlines()
+    start = lines.index("Effective band → model map:") + 1
+    end = start
+    while end < len(lines) and lines[end].strip() != "":
+        end += 1
+    section = lines[start:end]
+    assert section == [
+        "  low     → claude-haiku-4-5-20251001",
+        "  medium  → claude-sonnet-4-6",
+        "  high    → claude-opus-4-8",
+    ], f"band->model map section corrupted: {section!r}"
+
+
+def test_clean_run_produces_no_stderr(case: dict) -> None:
+    """Regression test for #718: bash-interpreting the Python resolver
+    file emits `command not found` / syntax errors. Both stdout and
+    stderr are captured together elsewhere in this suite; here they are
+    kept separate so stray interpreter errors can't hide as stdout."""
+    env = dict(case["env"])
+    result = subprocess.run(
+        ["bash", str(case["exec_script"])],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == "", result.stderr
+
+
 def test_clean_prints_starter_ladder_seeded_from_defaults(case: dict) -> None:
     result = _run(case)
     assert result.returncode == 0, result.stdout
