@@ -26,6 +26,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -34,6 +37,28 @@ import tempfile
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
+
+# Hard ceiling per declared testCommand so a hung fixture test (deadlock,
+# server that never exits) can't block the harness indefinitely. Fixture
+# specs are trusted (evals/expected/*.json), but "trusted" isn't "always
+# terminates". Override (test-only injection seam) via
+# RUN_INTEGRATION_EVAL_CMD_TIMEOUT.
+_DEFAULT_CMD_TIMEOUT_SECONDS = 1800.0
+
+# Characters that require real shell interpretation (pipes, chaining,
+# redirects, expansion, globs, backticks). A testCommand containing none of
+# these is a plain word list and can run directly (no shell hop needed).
+_SHELL_METACHARACTERS_RE = re.compile(r"[|&;<>$`*?~]")
+
+
+def _cmd_timeout_seconds() -> float:
+    raw = os.environ.get("RUN_INTEGRATION_EVAL_CMD_TIMEOUT")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return _DEFAULT_CMD_TIMEOUT_SECONDS
 
 
 def _fail(msg: str) -> int:
@@ -144,24 +169,48 @@ def dispatch_orchestrator(workdir: Path, spec_path: Path, model: str) -> None:
 
 
 def run_commands(workdir: Path, commands: list[str]) -> list[dict]:
-    """Run each command in the worktree; record exit code + stderr first line."""
+    """Run each command in the worktree; record exit code + stderr first line.
+
+    Bounded by a hard timeout so a hung fixture command can't block the
+    harness indefinitely. A command with no shell metacharacters is a plain
+    word list and runs directly (list-form, shell=False); a command that
+    chains, pipes, redirects, or expands still needs the shell to interpret
+    it, so it runs via shell=True as before.
+    """
+    timeout = _cmd_timeout_seconds()
     results = []
     for cmd in commands:
-        proc = subprocess.run(
-            cmd, cwd=str(workdir), shell=True, capture_output=True, text=True
-        )
-        stderr_first = ""
-        if proc.stderr:
-            stderr_first = (
-                proc.stderr.strip().splitlines()[0] if proc.stderr.strip() else ""
+        use_shell = bool(_SHELL_METACHARACTERS_RE.search(cmd))
+        args = cmd if use_shell else shlex.split(cmd)
+        try:
+            proc = subprocess.run(
+                args,
+                cwd=str(workdir),
+                shell=use_shell,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
             )
-        results.append(
-            {
-                "command": cmd,
-                "exit_code": proc.returncode,
-                "stderr_first_line": stderr_first,
-            }
-        )
+            stderr_first = ""
+            if proc.stderr:
+                stderr_first = (
+                    proc.stderr.strip().splitlines()[0] if proc.stderr.strip() else ""
+                )
+            results.append(
+                {
+                    "command": cmd,
+                    "exit_code": proc.returncode,
+                    "stderr_first_line": stderr_first,
+                }
+            )
+        except subprocess.TimeoutExpired:
+            results.append(
+                {
+                    "command": cmd,
+                    "exit_code": -1,
+                    "stderr_first_line": f"command timed out after {timeout:g}s",
+                }
+            )
     return results
 
 

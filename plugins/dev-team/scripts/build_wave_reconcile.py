@@ -20,9 +20,32 @@ Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 from __future__ import annotations
 
 import argparse
+import os
+import re
+import shlex
 import subprocess
 import sys
 from typing import List, Sequence
+
+# Default hard ceiling for --test-cmd so a hung suite can never block the
+# wave pipeline indefinitely. Override (test-only injection seam) via
+# BUILD_WAVE_RECONCILE_TEST_CMD_TIMEOUT.
+_DEFAULT_TEST_CMD_TIMEOUT_SECONDS = 1800.0
+
+# Characters that require real shell interpretation (pipes, chaining,
+# redirects, expansion, globs, backticks). A --test-cmd containing none of
+# these is a plain word list and can run directly (no shell hop needed).
+_SHELL_METACHARACTERS_RE = re.compile(r"[|&;<>$`*?~]")
+
+
+def _test_cmd_timeout_seconds() -> float:
+    raw = os.environ.get("BUILD_WAVE_RECONCILE_TEST_CMD_TIMEOUT")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return _DEFAULT_TEST_CMD_TIMEOUT_SECONDS
 
 
 def _git(args: Sequence[str], capture: bool = True) -> subprocess.CompletedProcess:
@@ -87,14 +110,41 @@ def _merge_branch(branch: str) -> int:
 
 
 def _run_test_cmd(cmd: str) -> int:
-    """Run the caller-supplied gate. Bash used `eval` with stdout+stderr
-    silenced — mirror that exactly for byte-parity of the diagnostic line."""
-    proc = subprocess.run(
-        cmd,
-        shell=True,
-        capture_output=True,
-        check=False,
-    )
+    """Run the caller-supplied gate, bounded by a hard timeout so a hung
+    suite can never block the pipeline indefinitely.
+
+    Bash used `eval` with stdout+stderr silenced — mirror that exactly for
+    byte-parity of the diagnostic line. A command with no shell
+    metacharacters is a plain word list and runs directly (list-form,
+    shell=False); a command that chains, pipes, redirects, or expands
+    still needs the shell to interpret it (list-form can't express that
+    syntax), so it runs via shell=True as before.
+    """
+    timeout = _test_cmd_timeout_seconds()
+    use_shell = bool(_SHELL_METACHARACTERS_RE.search(cmd))
+    args: str | List[str] = cmd if use_shell else shlex.split(cmd)
+    try:
+        proc = subprocess.run(
+            args,
+            shell=use_shell,
+            capture_output=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"build-wave-reconcile: full-suite gate TIMED OUT after {timeout:g}s "
+            f"('{cmd}'). Halting before the next wave.",
+            file=sys.stderr,
+        )
+        return 1
+    except (OSError, ValueError) as e:
+        print(
+            f"build-wave-reconcile: full-suite gate FAILED ('{cmd}'): {e}. "
+            "Halting before the next wave.",
+            file=sys.stderr,
+        )
+        return 1
     if proc.returncode != 0:
         print(
             f"build-wave-reconcile: full-suite gate FAILED ('{cmd}'). "
