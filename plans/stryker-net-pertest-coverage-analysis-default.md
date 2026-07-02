@@ -175,10 +175,10 @@ None. Both findings (perTest-default guidance, CLI-flag correction) deliver obse
 
 #### Wave 1
 
-- [ ] Slice 1: Add perTest-default guidance and correct the CLI-flag examples (Steps 1.1/1.2 done; 1.3 — PR opening — pending, owned by `/pr`)
+- [x] Slice 1: Add perTest-default guidance and correct the CLI-flag examples
   - [x] Step 1.1: Add the "Default coverage-analysis: perTest" section
   - [x] Step 1.2: Correct the two CLI examples that misdescribe `--coverage-analysis` as a flag
-  - [ ] Step 1.3: Run /agent-audit and open the PR with auto-merge armed
+  - [x] Step 1.3: Run /agent-audit and open the PR with auto-merge armed (agent-audit done in `/build`; PR opening executes now via `/pr`)
 
 ### Acceptance Criteria
 
