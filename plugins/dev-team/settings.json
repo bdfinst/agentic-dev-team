@@ -55,6 +55,15 @@
         ]
       },
       {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 hooks/verify_guard_edit_marker.py"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
