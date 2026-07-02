@@ -44,6 +44,9 @@ jobs:
         shell: pwsh
 
       - name: Run wrapper + status-loop pytest suites
+        # -ra shows every non-passing test with short traceback + reason,
+        # so a CI failure surfaces the actual assertion / exception in the
+        # log without spelunking a raw job dump.
         run: |
-          python -m pytest tests/scripts/test_csharp_stryker_net_wrapper.py tests/scripts/test_csharp_stryker_net_status_loop.py -v
+          python -m pytest tests/scripts/test_csharp_stryker_net_wrapper.py tests/scripts/test_csharp_stryker_net_status_loop.py -v -ra --tb=short
         shell: pwsh
