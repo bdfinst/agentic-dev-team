@@ -27,26 +27,27 @@ adjacent refactor.
 
 ## Acceptance Criteria
 
-- [ ] `mutation-kill.md` documents the persisted convergence-history mechanism
+- [x] `mutation-kill.md` documents the persisted convergence-history mechanism
       (file path, entry shape, staleness check, glob-shrinking + skip-log
       behavior) — spec AC 1.
-- [ ] `mutation-kill.md` documents Basic → Standard tiering, including the
+- [x] `mutation-kill.md` documents Basic → Standard tiering, including the
       CompileError-trap interaction (drop to Basic-only + `EXCLUDED`, not a
       retry) — spec AC 2.
-- [ ] `mutation-kill.md`'s infra-exclusion section lists the five new filename
+- [x] `mutation-kill.md`'s infra-exclusion section lists the five new filename
       patterns and states the two numeric signals alone trigger the existing
       batched confirmation — spec AC 3.
-- [ ] `csharp_stryker_net_wrapper.py` injects a computed `-c` value unless the
+- [x] `csharp_stryker_net_wrapper.py` injects a computed `-c` value unless the
       caller already passed one (via `--stryker-concurrency`,
       `STRYKER_MUTANT_CONCURRENCY`, or pass-through `-c`/`--concurrency`);
       never overrides an explicit value — spec AC 4.
-- [ ] `csharp-stryker-net.md` documents tiering, the concurrency default, and
+- [x] `csharp-stryker-net.md` documents tiering, the concurrency default, and
       the convergence-glob template extension with runnable examples — spec
       AC 5.
-- [ ] `mutation_kill_agent_tests.bats` gains assertions for all three
+- [x] `mutation_kill_agent_tests.bats` gains assertions for all three
       `mutation-kill.md` additions; the file stays under its 500-line gate —
-      spec AC 6.
-- [ ] All pre-existing bats/pytest assertions for these files continue to pass
+      spec AC 6. (Ported to `tests/agents/test_mutation_kill_agent.py`,
+      issue #675.)
+- [x] All pre-existing bats/pytest assertions for these files continue to pass
       unchanged — spec AC 7.
 
 ## Slices
@@ -473,14 +474,15 @@ new mechanism).
 
 ## Pre-PR Quality Gate
 
-- [ ] All tests pass (`tests/agents/mutation_kill_agent_tests.bats`,
+- [x] All tests pass (`tests/agents/test_mutation_kill_agent.py` — ported from
+      `mutation_kill_agent_tests.bats`, issue #675 —,
       `tests/scripts/test_csharp_stryker_net_wrapper.py`,
       `tests/skills/mutation_kill_slice_loop_refinements_tests.bats`)
-- [ ] Type check passes (n/a — no typed build step for these files beyond
+- [x] Type check passes (n/a — no typed build step for these files beyond
       pytest's own import-time checks)
-- [ ] Linter passes (`shellcheck` n/a; Python via repo's standard lint step)
-- [ ] `/code-review` passes
-- [ ] Documentation updated (`csharp-stryker-net.md`, `mutation-kill.md`)
+- [x] Linter passes (`shellcheck` n/a; Python via repo's standard lint step)
+- [x] `/code-review` passes
+- [x] Documentation updated (`csharp-stryker-net.md`, `mutation-kill.md`)
 
 ## Risks & Open Questions
 
@@ -566,23 +568,23 @@ revision (see Risks & Open Questions) without requiring a second dispatch.
 
 #### Wave 1
 
-- [ ] Slice 1: Broaden infrastructure-exclusion heuristic
-  - [ ] Step 1.1: Extend the filename allowlist and loosen the trigger gate
-- [ ] Slice 2: Concurrency default fix
-  - [ ] Step 2.1: Inject a computed default concurrency
-  - [ ] Step 2.2: Add the --concurrency/env-var override surface
-  - [ ] Step 2.3: Document the default in the C# reference
+- [x] Slice 1: Broaden infrastructure-exclusion heuristic
+  - [x] Step 1.1: Extend the filename allowlist and loosen the trigger gate
+- [x] Slice 2: Concurrency default fix
+  - [x] Step 2.1: Inject a computed default concurrency
+  - [x] Step 2.2: Add the --concurrency/env-var override surface
+  - [x] Step 2.3: Document the default in the C# reference
 
 #### Wave 2
 
-- [ ] Slice 3: Convergence history across --all invocations
-  - [ ] Step 3.1: Document the convergence-history entry shape and write trigger
-  - [ ] Step 3.2: Document the staleness check and glob-shrinking read path
-  - [ ] Step 3.3: Extend the C# infra-exclusion glob template
+- [x] Slice 3: Convergence history across `--all` invocations
+  - [x] Step 3.1: Document the convergence-history entry shape and write trigger
+  - [x] Step 3.2: Document the staleness check and glob-shrinking read path
+  - [x] Step 3.3: Extend the C# infra-exclusion glob template
 
 #### Wave 3
 
-- [ ] Slice 4: Tiered mutation-level (Stryker.NET)
-  - [ ] Step 4.1: Document the Basic-first baseline and Standard-escalation rule
-  - [ ] Step 4.2: Document the CompileError-trap interaction and cross-reference concurrency
-  - [ ] Step 4.3: Document the tiering pattern in the C# reference with example commands
+- [x] Slice 4: Tiered mutation-level (Stryker.NET)
+  - [x] Step 4.1: Document the Basic-first baseline and Standard-escalation rule
+  - [x] Step 4.2: Document the CompileError-trap interaction and cross-reference concurrency
+  - [x] Step 4.3: Document the tiering pattern in the C# reference with example commands
