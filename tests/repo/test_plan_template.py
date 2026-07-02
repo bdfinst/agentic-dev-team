@@ -10,17 +10,15 @@ Ported from tests/repo/plan-template-tests.bats (#673).
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
+import sys
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLAN_SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "plan" / "SKILL.md"
 BUILD_SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "build" / "SKILL.md"
 GUARDIAN = REPO_ROOT / "scripts" / "progress_guardian.py"
-GUARDIAN_TESTS = REPO_ROOT / "tests" / "scripts" / "progress_guardian_tests.bats"
+GUARDIAN_TESTS = REPO_ROOT / "tests" / "scripts" / "test_progress_guardian.py"
 
 # ---------------------------------------------------------------------------
 # Slice 1 - /plan template + Step 4 prose
@@ -78,21 +76,21 @@ def test_526_2_1c_build_skill_still_contains_verify_acceptance_criteria_step() -
 # ---------------------------------------------------------------------------
 
 
-def test_526_3_1a_full_progress_guardian_bats_suite_still_passes_end_to_end() -> None:
-    # Runs the guardian's own regression suite. If either the removal of the
-    # /build AC-tick or any other post-#525 change accidentally regresses the
-    # guardian, this fails loudly with which of the 22 tests broke.
-    if shutil.which("bats") is None:
-        pytest.skip("bats not installed")
+def test_526_3_1a_full_progress_guardian_pytest_suite_still_passes_end_to_end() -> None:
+    # Runs the guardian's own regression suite (ported from bats to pytest in
+    # #676). If either the removal of the /build AC-tick or any other
+    # post-#525 change accidentally regresses the guardian, this fails loudly
+    # with which of the 22 tests broke.
     result = subprocess.run(
-        ["bats", "--tap", str(GUARDIAN_TESTS)],
+        [sys.executable, "-m", "pytest", str(GUARDIAN_TESTS), "-q"],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    ok_count = len(re.findall(r"^ok ", result.stdout, re.MULTILINE))
-    assert ok_count >= 22
+    match = re.search(r"(\d+) passed", result.stdout)
+    assert match is not None, result.stdout
+    assert int(match.group(1)) >= 22
 
 
 def test_526_3_1b_guardian_parse_plan_carries_in_acceptance_inner_skip_state() -> None:
