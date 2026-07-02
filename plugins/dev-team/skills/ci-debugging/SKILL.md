@@ -23,6 +23,7 @@ CI failures are diagnosed systematically, not by guessing. This skill prevents t
 ### 1. Read the failure
 
 Read the full CI log output. Identify:
+
 - **What failed**: test, lint, typecheck, build, deploy, or infrastructure
 - **When it started failing**: this commit, recent merge, or intermittent
 - **Error message**: exact error text, not a summary
@@ -32,10 +33,12 @@ Read the full CI log output. Identify:
 Before touching any code, state a hypothesis: "I believe X is failing because Y, and I can verify by Z."
 
 Good hypotheses are specific and falsifiable:
+
 - "The test fails because the database migration added a NOT NULL column and the test fixture doesn't set it"
 - "The build fails because Node 20 dropped support for this API and CI upgraded last week"
 
 Bad hypotheses:
+
 - "Something is wrong with the tests"
 - "CI is flaky"
 
@@ -44,7 +47,7 @@ Bad hypotheses:
 Compare local vs CI environments using this checklist:
 
 | Factor | Check |
-|--------|-------|
+| -------- | ------- |
 | **Runtime version** | Node, Python, Go, JDK, Ruby, .NET — exact version match? |
 | **OS and architecture** | macOS vs Linux, x86 vs ARM? |
 | **Dependency resolution** | Lockfile committed? Registry differences? Private packages accessible? |
@@ -59,9 +62,19 @@ Compare local vs CI environments using this checklist:
 ### 4. Reproduce locally
 
 Before fixing, reproduce the failure locally:
+
 1. Match the CI environment as closely as possible (same Node version, same env vars)
 2. Run the exact failing command from the CI log
 3. If it passes locally, the delta from step 3 is the cause
+
+### Monitoring long-running jobs
+
+Before calling `Monitor` on a job whose completion time matters:
+
+1. Check whether a duration signal exists (prior run duration from CI history/logs, a known job-type baseline, or an explicit estimate the user gave).
+2. If a signal exists, set `timeout_ms` to a safety margin over that estimate (e.g., double it), capped at the tool's documented max (3,600,000 ms / 1 hour).
+3. If no signal exists, don't guess — set `persistent: true` and pair it with a command that exits on the job's own terminal state (success/failure/timeout), never an unbounded `tail -f`/`while true` with no exit condition, so the monitor self-terminates instead of requiring a manual `TaskStop`.
+4. Never silently re-arm after a timeout without noting the estimate was wrong; if a re-arm is needed, widen the estimate or switch to `persistent: true` rather than repeating the same timeout.
 
 ### 5. Fix and verify
 
@@ -70,12 +83,13 @@ Fix the root cause. Verify the fix locally. Push and confirm CI passes.
 ## Anti-Patterns
 
 | Anti-pattern | Why it's wrong | What to do instead |
-|-------------|---------------|-------------------|
+| ------------- | --------------- | ------------------- |
 | Retry the build | Masks the root cause, wastes CI minutes | Read the logs, form a hypothesis |
 | Add retry/sleep to test | Hides race conditions, makes tests slow | Fix the shared state or ordering issue |
 | Skip the failing test | Reduces coverage, hides regressions | Fix the test or the code |
 | Push a speculative fix | Pollutes git history, might not work | Reproduce locally first |
 | Blame "flaky CI" | Normalizes unreliable pipelines | Every failure has a cause — find it |
+| Re-arming a timed-out Monitor call | Wastes a round-trip and leaves a gap in coverage | Estimate `timeout_ms` from a duration signal, or use `persistent: true` (see Monitoring long-running jobs) |
 
 ## Integration
 

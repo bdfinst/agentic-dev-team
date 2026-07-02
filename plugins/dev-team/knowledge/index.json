@@ -1974,6 +1974,10 @@
       "summary": "Before fixing, reproduce the failure locally:",
       "anchor": "4-reproduce-locally"
     },
+    "Monitoring long-running jobs": {
+      "summary": "Before calling `Monitor` on a job whose completion time matters:",
+      "anchor": "monitoring-long-running-jobs"
+    },
     "5. Fix and verify": {
       "summary": "Fix the root cause.",
       "anchor": "5-fix-and-verify"
