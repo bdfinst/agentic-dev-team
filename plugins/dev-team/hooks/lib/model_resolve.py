@@ -130,20 +130,30 @@ def load_json(path: Path) -> Optional[object]:
 
 
 # ---------------------------------------------------------------------------
+# _load_valid_ladder — parse the ladder file once and return it only if it's
+# a non-empty JSON array of strings; None otherwise (degrades to the default
+# map). resolve_band uses this directly so it never parses the ladder twice
+# (validate, then reload) in a single call.
+# ---------------------------------------------------------------------------
+def _load_valid_ladder(ladder_path: Path) -> Optional[List[str]]:
+    if not ladder_path.exists():
+        return None
+    data = load_json(ladder_path)
+    if not isinstance(data, list) or len(data) == 0:
+        return None
+    if not all(isinstance(x, str) for x in data):
+        return None
+    return data
+
+
+# ---------------------------------------------------------------------------
 # ladder_is_valid — true iff the ladder file exists and is a non-empty JSON
 # array of strings. Anything else degrades to the default map.
 #
 # Public (#732): also called directly by hooks/agent_model_resolve.py.
 # ---------------------------------------------------------------------------
 def ladder_is_valid(ladder_path: Path) -> bool:
-    if not ladder_path.exists():
-        return False
-    data = load_json(ladder_path)
-    if not isinstance(data, list):
-        return False
-    if len(data) == 0:
-        return False
-    return all(isinstance(x, str) for x in data)
+    return _load_valid_ladder(ladder_path) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -178,10 +188,8 @@ def resolve_band(
         routing_path = routing_path or r
         ladder_path = ladder_path or l
 
-    if ladder_is_valid(ladder_path):
-        ladder = load_json(ladder_path)
-        # ladder_is_valid guarantees list[str] with len ≥ 1.
-        assert isinstance(ladder, list)
+    ladder = _load_valid_ladder(ladder_path)
+    if ladder is not None:
         n = len(ladder)
         weight = _band_weight(band)
         idx = _round_half_up(weight, n)
