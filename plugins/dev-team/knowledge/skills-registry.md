@@ -38,7 +38,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/issues-from-plan` | `skills/issues-from-plan/SKILL.md` | orchestrator | Break a plan into independently-grabbable GitHub issues |
 | `/js-project-init` | `skills/js-project-init/SKILL.md` | worker | Initialize a new JavaScript project (ES modules, functional style, prettier, eslint, editorconfig, vitest, gitignore) |
 | `/model-routing-check` | `skills/model-routing-check/SKILL.md` | worker | Read-only diagnostic for effort-band model routing. Prints the effective band → model map, the ladder (or a ready-to-edit starter), the captured session model, and the most recent routing bumps from the resolver log. |
-| `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps |
+| `/plan` | `skills/plan/SKILL.md` | orchestrator | Decompose a feature into vertical slices — each with its Gherkin scenarios and TDD steps; persists slice Gherkin to `.feature` files when the project has a BDD convention |
 | `/pr` | `skills/pr/SKILL.md` | orchestrator | Run quality gates and create a pull request (enables auto-merge by default) |
 | `/quality-targets-converge` | `skills/quality-targets-converge/SKILL.md` | worker | Phase-6 of `/test-improve` — loop that picks the largest gap to the four quality targets (coverage / mutants / determinism / speed) and dispatches the smallest action to close it |
 | `/review` | `skills/review/SKILL.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
