@@ -3,10 +3,15 @@
 // these types (feat -> minor, fix -> patch, feat!/BREAKING CHANGE -> major), so
 // keeping messages conventional is what keeps automated releases working.
 //
-// NOTE: this guards *local commit messages*. Because the repo merges PRs via
-// squash (the squash commit uses the PR *title*), the PR title must also be a
-// Conventional Commit for release-please to pick it up — enforce that with a
-// PR-title check in CI (e.g. amannn/action-semantic-pull-request).
+// NOTE: this guards *local commit messages*. Because the repo rebase-merges,
+// every PR commit lands on main verbatim, so each one must be a Conventional
+// Commit for release-please to pick it up — the PR title lint workflow
+// enforces the same ruleset on the PR title.
 export default {
   extends: ['@commitlint/config-conventional'],
+  rules: {
+    // Allow the subject to start with a capital letter (config-conventional
+    // otherwise rejects sentence-case subjects).
+    'subject-case': [0],
+  },
 };
