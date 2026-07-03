@@ -23,7 +23,7 @@ and is not double-fixed here.
       `plugins/dev-team/agents/**/*.md`) invokes a `.py` script with a `bash` prefix.
 - [ ] A regression test fails if a future PR reintroduces `bash ... foo.py` in a shipped
       skill/agent doc.
-- [ ] `skills/plan/SKILL.md` step 5a's `complex` tier trigger no longer fires solely
+- [x] `skills/plan/SKILL.md` step 5a's `complex` tier trigger no longer fires solely
       because a plan states the default stance required by `/ship`'s gate — it fires
       only for a *non-default* or *contested* stance.
 - [ ] `skills/plan/SKILL.md` step 5b documents the id→tier mapping so the orchestrator
@@ -265,8 +265,8 @@ invocation (no usable TTY). All dispatched plan-review personas returned `approv
   - [x] Step 1.2: Fix the 7 bash-invokes-python occurrences
 
 #### Wave 2
-- [ ] Slice 2: Tighten `/plan` tier-classification wording (#778 item 2)
-  - [ ] Step 2.1: Reword the `complex` tier decision-axis trigger
+- [x] Slice 2: Tighten `/plan` tier-classification wording (#778 item 2)
+  - [x] Step 2.1: Reword the `complex` tier decision-axis trigger
 
 #### Wave 3
 - [ ] Slice 3: Document id→tier mapping for plan-review persona dispatch (#778 item 3)
@@ -276,7 +276,7 @@ invocation (no usable TTY). All dispatched plan-review personas returned `approv
 
 - [x] No shipped skill or agent doc invokes a `.py` script with a `bash` prefix.
 - [x] A regression test fails if a future PR reintroduces `bash ... foo.py` in a shipped skill/agent doc.
-- [ ] `skills/plan/SKILL.md` step 5a's `complex` tier trigger no longer fires solely because a plan states the default stance required by `/ship`'s gate.
+- [x] `skills/plan/SKILL.md` step 5a's `complex` tier trigger no longer fires solely because a plan states the default stance required by `/ship`'s gate.
 - [ ] `skills/plan/SKILL.md` step 5b documents the id→tier mapping so the orchestrator has an explicit, followable rule.
 
 ## Plan Review Summary
