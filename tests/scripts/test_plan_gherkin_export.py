@@ -1,0 +1,132 @@
+"""Unit tests for plugins/dev-team/scripts/plan_gherkin_export.py.
+
+Behavioral contract (Slice 2 of plans/plan-gherkin-feature-persistence.md):
+each `### Slice N:` section's fenced ```gherkin block is exported to
+`<dir>/<plan-slug>/slice-<N>-<slice-slug>.feature`, byte-for-byte identical
+to the fenced block modulo exactly one trailing newline, with no added
+header — and the run always reports what it did.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Ensure the script's dir is on the path so we can import it as a module.
+_SCRIPT_DIR = Path(__file__).resolve().parents[2] / "plugins" / "dev-team" / "scripts"
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+import plan_gherkin_export  # type: ignore[import-not-found]  # noqa: E402
+
+
+_SLICE_ONE_GHERKIN = """\
+Feature: Fancy widget
+  Scenario: it works
+    Given a widget
+    Then it works
+"""
+
+_SLICE_TWO_GHERKIN = """\
+Feature: CLI reporting
+  Scenario: the run reports
+    When the export runs
+    Then the output reports the destination
+"""
+
+
+def _plan_text(decision_line: str = "**Gherkin persistence**: features") -> str:
+    """A minimal two-slice plan in the plan-template shape."""
+    return (
+        "# Plan: Sample widget\n"
+        "\n"
+        "**Created**: 2026-07-03\n"
+        "**Status**: approved\n"
+        + (decision_line + "\n" if decision_line else "")
+        + "\n"
+        "## Goal\n"
+        "\n"
+        "Sample goal.\n"
+        "\n"
+        "## Slices\n"
+        "\n"
+        "### Slice 1: Fancy Widget API!\n"
+        "\n"
+        "**Depends-on:** none\n"
+        "**Files:** `a.py`\n"
+        "\n"
+        "**Behavior:**\n"
+        "\n"
+        "```gherkin\n"
+        + _SLICE_ONE_GHERKIN
+        + "```\n"
+        "\n"
+        "**Steps:**\n"
+        "\n"
+        "#### Step 1.1: Do the thing\n"
+        "\n"
+        "**Commit**: `feat: thing`\n"
+        "\n"
+        "### Slice 2: CLI & reporting\n"
+        "\n"
+        "**Depends-on:** 1\n"
+        "**Files:** `b.py`\n"
+        "\n"
+        "**Behavior:**\n"
+        "\n"
+        "```gherkin\n"
+        + _SLICE_TWO_GHERKIN
+        + "```\n"
+        "\n"
+        "## Parallelization\n"
+        "\n"
+        "```mermaid\n"
+        "graph TD\n"
+        "  S1 --> S2\n"
+        "```\n"
+    )
+
+
+def _write_plan(tmp_path: Path, name: str = "plan-sample-widget.md", **kwargs) -> Path:
+    plan = tmp_path / name
+    plan.write_text(_plan_text(**kwargs), encoding="utf-8")
+    return plan
+
+
+# ---------------------------------------------------------------------------
+# Step 2.1 — byte-for-byte export to exact filenames
+# ---------------------------------------------------------------------------
+
+
+def test_exports_each_slice_gherkin_to_exact_filenames(tmp_path: Path) -> None:
+    """plan-slug is the filename stem verbatim; slice-slug is the lowercased
+    title with non-alphanumeric runs collapsed to single hyphens, trimmed."""
+    plan = _write_plan(tmp_path)
+    plan_gherkin_export.export_plan(plan, tmp_path)
+    out_dir = tmp_path / "features" / "plan-sample-widget"
+    assert (out_dir / "slice-1-fancy-widget-api.feature").is_file()
+    assert (out_dir / "slice-2-cli-reporting.feature").is_file()
+    assert sorted(p.name for p in out_dir.iterdir()) == [
+        "slice-1-fancy-widget-api.feature",
+        "slice-2-cli-reporting.feature",
+    ]
+
+
+def test_exported_content_is_byte_for_byte_with_one_trailing_newline(
+    tmp_path: Path,
+) -> None:
+    """No header, comment, or annotation — the fenced block verbatim."""
+    plan = _write_plan(tmp_path)
+    plan_gherkin_export.export_plan(plan, tmp_path)
+    out_dir = tmp_path / "features" / "plan-sample-widget"
+    one = (out_dir / "slice-1-fancy-widget-api.feature").read_text(encoding="utf-8")
+    two = (out_dir / "slice-2-cli-reporting.feature").read_text(encoding="utf-8")
+    assert one == _SLICE_ONE_GHERKIN
+    assert two == _SLICE_TWO_GHERKIN
+
+
+def test_report_names_destination_and_written_count(tmp_path: Path) -> None:
+    plan = _write_plan(tmp_path)
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    assert "destination: features/plan-sample-widget" in report
+    assert "files written: 2" in report
