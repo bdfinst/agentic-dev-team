@@ -68,6 +68,43 @@ acceptance criteria, per-slice Gherkin + TDD steps, parallelization DAG, complex
 classification, pre-PR gate, skipped-findings, risks, and the machine-parseable
 Build Progress section).
 
+#### Resolve the Gherkin persistence decision
+
+Decide where each slice's Gherkin will additionally be persisted as `.feature`
+files. The plan file remains the authoring surface; the `.feature` files are
+derived copies, written only after approval (step 6).
+
+1. **Re-run?** If a plan file already exists at the resolved output path and
+   already records a `**Gherkin persistence**:` decision in its metadata block,
+   honor it — skip detection and every prompt below.
+   Editing that line is the supported way to change the decision before a re-run.
+2. **Detect the target project's BDD convention** — from the repo root, run:
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/detect_bdd_convention.py
+   ```
+
+   Precedence is conservative — feature-files > manifest > none: existing
+   `.feature` files beat a manifest dependency, and any ambiguity (multiple
+   roots, conflicting destinations) reports `none`. A non-zero exit is treated
+   as no-signal: surface the script's stderr in the run output and continue —
+   planning never dies on a detection failure.
+3. **Detected signal** → record the reported `dir` as the destination.
+4. **No signal + interactive** → prompt the operator once:
+   *"Persist Gherkin as .feature files? [y = features/<plan-slug>/ | n = plan file only | c = custom path]"*.
+   Validate a `c` answer before recording it: the path must be repo-relative
+   (not absolute, not outside the repository) and not under a vendored tree
+   (`node_modules/`, `vendor/`, `dist/`, `build/`, virtualenvs). On an invalid
+   path, state the rejection reason and re-prompt;
+   the re-prompt accepts `y` or `n` as an escape from retrying a custom path.
+5. **No signal + non-interactive** (the same triad step 6 uses: `--yes`,
+   `DEV_TEAM_AUTO_APPROVE=1`, or no usable TTY) → do **not** block: log
+   *"skipping the Gherkin persistence prompt (non-interactive) — plan file only"*
+   and record `plan-file-only`.
+6. **Record and echo.** Write the resolved decision into the plan's
+   `**Gherkin persistence**:` metadata line and echo the recorded decision in the
+   run output (e.g. `Recorded Gherkin persistence: features/<plan-slug>/`).
+
 ### 4. Create the plans directory
 
 Create `plans/` if it doesn't exist. When writing the plan file, populate the `## Build Progress` section by copying slice and step titles from `## Slices`. These are the checkboxes `/build` will update on disk as each step completes — a slice is checked off once all its steps are. Acceptance Criteria live only in the top-level `## Acceptance Criteria` section as PR-checklist material; the operator ticks each one at PR review time after behaviorally verifying it, not during build.
