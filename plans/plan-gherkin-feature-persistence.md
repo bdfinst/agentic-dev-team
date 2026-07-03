@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-03
 **Branch**: Issue-537
-**Status**: approved
+**Status**: in-progress
 **Spec**: `docs/specs/plan-gherkin-feature-persistence.md`
 
 ## Goal
@@ -406,18 +406,18 @@ Carried observations (aware, not actioned): the three invalid-path conditions sh
 ### Slices (grouped by wave)
 
 #### Wave 1
-- [ ] Slice 1: BDD convention detection script
-  - [ ] Step 1.1: Feature-file scan with vendored excludes and multi-root conservatism
-  - [ ] Step 1.2: Manifest detection, canonical mapping, precedence, and conflicts
-  - [ ] Step 1.3: CLI contract — JSON output, exit codes, bad-path handling
-- [ ] Slice 2: Deterministic Gherkin export script
-  - [ ] Step 2.1: Parse plan and export slice Gherkin byte-for-byte
-  - [ ] Step 2.2: Decision parsing, no-op modes, and overwrite reporting
-  - [ ] Step 2.3: Failure paths and CLI contract
+- [x] Slice 1: BDD convention detection script
+  - [x] Step 1.1: Feature-file scan with vendored excludes and multi-root conservatism
+  - [x] Step 1.2: Manifest detection, canonical mapping, precedence, and conflicts
+  - [x] Step 1.3: CLI contract — JSON output, exit codes, bad-path handling
+- [x] Slice 2: Deterministic Gherkin export script
+  - [x] Step 2.1: Parse plan and export slice Gherkin byte-for-byte
+  - [x] Step 2.2: Decision parsing, no-op modes, and overwrite reporting
+  - [x] Step 2.3: Failure paths and CLI contract
 
 #### Wave 2
-- [ ] Slice 3: `/plan` skill integration — decision recording, prompt, post-approval export
-  - [ ] Step 3.1: Plan template carries the persistence decision
-  - [ ] Step 3.2: Plan-creation detection, prompt, validation, fallback, re-run honor
-  - [ ] Step 3.3: Post-approval export invocation with constraint carve-out
-  - [ ] Step 3.4: Doc alignment — skills registry
+- [x] Slice 3: `/plan` skill integration — decision recording, prompt, post-approval export
+  - [x] Step 3.1: Plan template carries the persistence decision
+  - [x] Step 3.2: Plan-creation detection, prompt, validation, fallback, re-run honor
+  - [x] Step 3.3: Post-approval export invocation with constraint carve-out
+  - [x] Step 3.4: Doc alignment — skills registry
