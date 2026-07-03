@@ -78,6 +78,56 @@ class TestPlanCreationDetection:
         )
 
 
+class TestPostApprovalExport:
+    def test_export_instruction_sits_after_the_approval_gate(self) -> None:
+        gate = PLAN_SKILL.index("### 6. Present for approval")
+        export = PLAN_SKILL.index(
+            "${CLAUDE_PLUGIN_ROOT}/scripts/plan_gherkin_export.py"
+        )
+        assert export > gate, (
+            "the .feature export invocation must sit after the step-6 approval "
+            "gate — drafts never write files"
+        )
+
+    def test_shells_to_the_export_script_from_the_repo_root(self) -> None:
+        assert (
+            "${CLAUDE_PLUGIN_ROOT}/scripts/plan_gherkin_export.py" in PLAN_SKILL
+        ), "/plan must shell to the export script, not hand-copy Gherkin blocks"
+        after_gate = PLAN_SKILL[PLAN_SKILL.index("### 6. Present for approval"):]
+        assert grep(r"repo root", after_gate), (
+            "the export destinations resolve against the cwd — the invocation "
+            "must be pinned to the repo root"
+        )
+
+    def test_export_summary_is_shown_and_failure_surfaced(self) -> None:
+        after_gate = PLAN_SKILL[PLAN_SKILL.index("### 6. Present for approval"):]
+        assert grep(r"summary", after_gate), (
+            "the export's written/overwritten summary is shown to the operator"
+        )
+        assert grep(r"non-zero.*(failure|fail)|failure.*non-zero", after_gate), (
+            "a non-zero export exit is reported as a failure, never as success"
+        )
+
+    def test_tool_owned_directory_is_stated(self) -> None:
+        assert grep(r"tool-owned", PLAN_SKILL), (
+            "the skill must state <dir>/<plan-slug>/ is tool-owned (derived, "
+            "overwritable)"
+        )
+
+    def test_constraint_one_carries_a_narrow_carveout(self) -> None:
+        constraint = PLAN_SKILL[
+            PLAN_SKILL.index("**Do not implement.**"):PLAN_SKILL.index(
+                "**Every step must be TDD.**"
+            )
+        ]
+        assert "derived `.feature`" in constraint and "approv" in constraint, (
+            "constraint #1 must carry the explicit derived-.feature carve-out"
+        )
+        assert "plan_gherkin_export.py" in constraint, (
+            "the carve-out is narrow: post-approval, via the export script only"
+        )
+
+
 class TestTemplateCarriesPersistenceDecision:
     def test_metadata_block_has_gherkin_persistence_line(self) -> None:
         assert grep(r"^\*\*Gherkin persistence\*\*:", PLAN_TEMPLATE), (

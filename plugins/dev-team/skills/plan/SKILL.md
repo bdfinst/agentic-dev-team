@@ -19,7 +19,7 @@ You have been invoked with the `/plan` command.
 
 ## Orchestrator constraints
 
-1. **Do not implement.** Produce only the plan. No code, no scaffolding, no file edits beyond the plan file itself.
+1. **Do not implement.** Produce only the plan. No code, no scaffolding, no file edits beyond the plan file itself. One narrow carve-out: **after approval**, derived `.feature` files are written via the export script `plan_gherkin_export.py` (step 6) — never before approval, never by hand.
 2. **Every step must be TDD.** Each step follows RED → GREEN → REFACTOR.
 3. **Incremental.** Each step must leave the codebase in a working, committable state.
 4. **Human approval required.** Present the plan for approval before any implementation begins.
@@ -174,6 +174,23 @@ Pass each reviewer the full plan content. Also pass the Parallelization Critic t
 
 - **Interactive** (unchanged from prior behavior) → Display the plan and the review summary. Ask: "Approve this plan to begin implementation, or suggest changes?" Mark the plan status as `approved` once the user confirms. If the user requests changes, update the plan and re-present.
 - **Non-interactive** → do **not** prompt or block. Auto-approve: set `**Status**: approved` and append an explicit audit record to the plan so the bypass is **never silent** — add an `## Approval` section reading: `Auto-approved (non-interactive) at <date> — no human review gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.` Then continue.
+
+#### Post-approval: persist the Gherkin (`.feature` export)
+
+If the plan's recorded `**Gherkin persistence**:` decision is a destination
+directory, run the export **from the repo root** (destinations resolve against
+the invocation cwd):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_gherkin_export.py <plan-file>
+```
+
+Show its summary (destination, files written, overwritten, stale removed) to
+the operator. The `<dir>/<plan-slug>/` subdirectory is tool-owned — anything
+inside is derived and overwritable; files outside it are never touched.
+A non-zero exit is a failure: report it with the script's stderr — never claim
+success on a failed export. `plan-file-only` decisions skip cleanly (the
+script no-ops with a note).
 
 #### Post-approval: offer GitHub issues (GitHub origin only)
 
