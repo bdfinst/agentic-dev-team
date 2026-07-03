@@ -25,7 +25,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 ## Core Principles
 
 1. **Selective Agent Loading**: Load only necessary agents. Target < 10,000 tokens simple tasks.
-2. **40% Context Ceiling**: A conservative planning target, not an accuracy cliff — see [Context Loading Protocol → Why 40%](skills/context-loading-protocol/SKILL.md#why-40). Enforced by `hooks/context_ceiling_guard.py`, which auto-detects the model's context window and caps the ceiling at `min(40% of window, 150K tokens)` absolute.
+2. **40% Context Ceiling**: A conservative target, not an accuracy cliff — see [Why 40%](skills/context-loading-protocol/SKILL.md#why-40). Enforced by `hooks/context_ceiling_guard.py` (auto-detected window, 150K absolute cap).
 3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
 4. **Human-in-the-Loop**: Autonomous agents, human oversight.
 5. **Dynamic Configuration**: Config changes → `metrics/config-changelog.jsonl`.
@@ -61,17 +61,15 @@ Each agent declares an effort band (`effort: low|medium|high`). Resolution enfor
 
 Token budgets per agent: see [knowledge/agent-registry.md](knowledge/agent-registry.md).
 
-Operating rules: load on demand; trigger summarization at 40%; summarize phases to `memory/` before next-phase load; new conversations read from `memory/`.
+Operating rules: load on demand; summarize phases to `memory/` before next-phase load; new conversations read from `memory/`.
 
 ## Feedback & Learning
 
-Trigger keywords: `amend`, `learn`, `remember`, `forget`. Full procedure: **[Feedback & Learning](skills/feedback-learning/SKILL.md)**. Changes logged to `metrics/config-changelog.jsonl`.
+Trigger keywords: `amend`, `learn`, `remember`, `forget`. Full procedure: **[Feedback & Learning](skills/feedback-learning/SKILL.md)**.
 
 ## Human Oversight
 
-Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**.
-
-Intervention commands: feedback keywords above, plus `override`, `pause`, `stop`.
+Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**. Intervention commands: feedback keywords above, plus `override`, `pause`, `stop`.
 
 ## Proxy Resilience
 
@@ -83,10 +81,10 @@ All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKIL
 
 **Quality ownership.** Agents own the quality *state* — green means the whole suite, not just the diff. A red signal must be fixed or triaged, never stepped over.
 
-Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands (`/careful`/`/freeze`/`/guard`); `context_ceiling_guard.py` enforces the 40%-of-window ceiling (capped at 150K absolute tokens).
+Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands; `context_ceiling_guard.py` enforces the context ceiling (see above).
 
 ## Performance Metrics
 
 Logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
 
-Every quantitative claim must name the instrument that measures it. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), per-agent accuracy (`/agent-eval`). **Not yet:** efficiency gains, hallucination rate, first-pass acceptance (#102, #106).
+Every quantitative claim must name its measuring instrument. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), per-agent accuracy (`/agent-eval`). **Not yet:** efficiency gains, hallucination rate, first-pass acceptance (#102, #106).
