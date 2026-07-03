@@ -28,8 +28,14 @@ load (`DEV_TEAM_CONTEXT_STRICT=on`). Recovery skills (`/context-summarization`,
 never gated. The window auto-detects from the transcript's most recent
 `message.model` (Haiku family -> 200K; Opus/Sonnet/Fable families -> 1M;
 unrecognized/undetectable model -> 200K); set `DEV_TEAM_CONTEXT_WINDOW` to
-override detection explicitly.
-Knobs: `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40), `DEV_TEAM_CONTEXT_CEILING=off`.
+override detection explicitly. The effective threshold is
+`min(ceiling_pct × window, abs_ceiling)` — an absolute-token cap
+(`DEV_TEAM_CONTEXT_ABS_CEILING`, default 150000, matching Anthropic's
+server-side compaction default) keeps large windows from pushing the ceiling
+far past where compaction already kicks in; it's a no-op on the 200K base
+window (40% = 80K, already under the cap).
+Knobs: `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40), `DEV_TEAM_CONTEXT_ABS_CEILING`
+(default 150000), `DEV_TEAM_CONTEXT_CEILING=off`.
 The hook is a backstop measured from real usage; the budget estimate below is still
 the planning tool you apply *before* loading.
 
