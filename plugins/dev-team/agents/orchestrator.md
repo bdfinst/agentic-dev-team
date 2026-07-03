@@ -170,7 +170,7 @@ double-counts the work and leaves the two synthesis paths disconnected.
 
 ## Knowledge index — consumer usage pattern
 
-Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. `/model-routing-check` is the analogous diagnostic command; for routing, `/model-routing-check`; for knowledge freshness, `bash plugins/dev-team/hooks/lib/build_knowledge_index.py --check`.
+Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. `/model-routing-check` is the analogous diagnostic command; for routing, `/model-routing-check`; for knowledge freshness, `python3 plugins/dev-team/hooks/lib/build_knowledge_index.py --check`.
 
 ## Skills
 

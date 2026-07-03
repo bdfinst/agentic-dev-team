@@ -75,7 +75,7 @@ Create `plans/` if it doesn't exist. When writing the plan file, populate the `#
 Then derive the waves — never hand-author them:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py <plan-file>
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py <plan-file>
 ```
 
 Render the `## Parallelization` Mermaid DAG + wave table and the wave-grouped
@@ -106,7 +106,7 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 The personas are subagent **prompt templates** (no frontmatter), so the effort-band → model resolver hook (`hooks/agent_model_resolve.py`, which keys on `subagent_type`) cannot route them. Resolve the band yourself before dispatch so they honor the same ladder and per-environment overrides as every other agent — do **not** hard-code a model. All five run at the `medium` band:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-review
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-review
 ```
 
 Pass the resolved model id as the `model` override on each persona dispatch. (`medium` resolves to the same default the personas used before, but now flows through `.claude/model-ladder.json` / `knowledge/model-routing.json` instead of a literal.)
@@ -139,7 +139,7 @@ Pass each reviewer the full plan content. Also pass the Parallelization Critic t
 After approval, classify the origin remote — **only** offer issue creation on an actual GitHub host:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py
 ```
 
 - **`github`** → prompt **once**, showing the count: *"Open 1 parent issue and N linked slice issues from this plan? [y/N]"* (N = number of slices). The default is **No**. Invoke `/issues-from-plan` **only on explicit `y`**; on No (or anything else), create nothing and continue.
