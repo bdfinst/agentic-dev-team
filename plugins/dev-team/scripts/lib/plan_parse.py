@@ -26,6 +26,8 @@ from typing import Iterable, List, Optional, TextIO, Tuple
 
 
 _SLICE_RE = re.compile(r"^#+\s+[Ss]lice\s+([^:]+)")
+_SLICE_HEADING_RE = re.compile(r"^#{1,3}\s+[Ss]lice\s+([^:]+):\s*(.*)$")
+_HEADING_RE = re.compile(r"^#{1,3}\s")
 _STEP_RE = re.compile(r"^#{4,}\s")
 _DEPENDS_RE = re.compile(r"[Dd]epends-[Oo]n\**\s*:\s*(.*)")
 _FILES_RE = re.compile(r"[Ff]iles\**\s*:\s*(.*)")
@@ -104,6 +106,70 @@ def parse_slices(lines: Iterable[str]) -> List[Tuple[str, str, str]]:
 
     flush()
     return rows
+
+
+def slice_gherkin_blocks(
+    lines: Iterable[str],
+) -> List[Tuple[str, str, Optional[str]]]:
+    """Return `(id, title, gherkin)` per `### Slice <id>: <title>` heading.
+
+    `gherkin` is the raw content of the slice's first fenced ```gherkin
+    block (fences excluded, exactly one trailing newline), or None when the
+    slice has no such block. Fence-aware: heading-like lines inside fenced
+    code blocks never start or end a slice section.
+    """
+    blocks: List[Tuple[str, str, Optional[str]]] = []
+    current: Optional[dict] = None
+    in_fence = False
+    fence_is_gherkin = False
+    collected: List[str] = []
+
+    def flush() -> None:
+        if current is not None:
+            blocks.append((current["id"], current["title"], current["gherkin"]))
+
+    for raw in lines:
+        line = raw.rstrip("\n")
+
+        if in_fence:
+            if line.startswith("```"):
+                in_fence = False
+                if fence_is_gherkin and current is not None:
+                    current["gherkin"] = "\n".join(collected) + "\n"
+                fence_is_gherkin = False
+                collected = []
+            elif fence_is_gherkin:
+                collected.append(line)
+            continue
+
+        if line.startswith("```"):
+            in_fence = True
+            lang = line[3:].strip().lower()
+            fence_is_gherkin = (
+                lang == "gherkin"
+                and current is not None
+                and current["gherkin"] is None
+            )
+            collected = []
+            continue
+
+        match = _SLICE_HEADING_RE.match(line)
+        if match:
+            flush()
+            current = {
+                "id": match.group(1).strip(),
+                "title": match.group(2).strip(),
+                "gherkin": None,
+            }
+            continue
+
+        # Any other level-1..3 heading ends the current slice section.
+        if current is not None and _HEADING_RE.match(line):
+            flush()
+            current = None
+
+    flush()
+    return blocks
 
 
 def plan_parse(path: Path) -> str:
