@@ -556,3 +556,113 @@ def test_env_window_override_none_when_zero_or_negative(monkeypatch) -> None:
 def test_env_window_override_returns_explicit_value(monkeypatch) -> None:
     monkeypatch.setenv("DEV_TEAM_CONTEXT_WINDOW", "1000000")
     assert hook._env_window_override() == 1_000_000
+
+
+# ---------------------------------------------------------------------------
+# Absolute-token cap (#786)
+# ---------------------------------------------------------------------------
+
+
+def test_absolute_cap_fires_at_150k_on_a_1m_window(tmp_path: Path) -> None:
+    """On a 1M window, 40% would be 400K — but the 150K absolute cap binds
+    first, so occupancy at 150K (well under the 40% pct threshold) must
+    still trigger the warning."""
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 150_000)  # 15% of 1M — far below the 40% pct ceiling
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr != b""
+
+
+def test_absolute_cap_does_not_fire_just_under_150k_on_a_1m_window(
+    tmp_path: Path,
+) -> None:
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 149_999)
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr == b""
+
+
+def test_absolute_cap_is_a_noop_on_a_200k_window(tmp_path: Path) -> None:
+    """40% of 200K = 80K, well under the 150K default cap — behavior must be
+    identical to before the cap was introduced: unaffected right up to 80K,
+    and firing at 80K exactly as it always did."""
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 79_999)  # just under the 40% pct threshold
+    env = _base_env(tmp_path)
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr == b""
+
+    tr2 = tmp_path / "t2.jsonl"
+    _write_transcript(tr2, 80_000)  # exactly the 40% pct threshold
+    env2 = _base_env(tmp_path)
+    result2 = _run(_mkinput("Agent", {"subagent_type": "y"}, tr2), env2)
+    assert result2.returncode == 0
+    assert b"40%" in result2.stderr
+
+
+def test_dev_team_context_abs_ceiling_override_wins_over_default(
+    tmp_path: Path,
+) -> None:
+    """A custom DEV_TEAM_CONTEXT_ABS_CEILING replaces the 150K default cap."""
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 50_000)  # 5% of 1M — under both the pct ceiling
+    # and the default 150K abs cap, but over a custom 40K abs cap.
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+    env["DEV_TEAM_CONTEXT_ABS_CEILING"] = "40000"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr != b""
+
+
+def test_dev_team_context_abs_ceiling_override_can_raise_the_cap(
+    tmp_path: Path,
+) -> None:
+    """Raising the abs cap above the pct threshold makes the pct ceiling
+    binding again (min() picks the smaller of the two)."""
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 200_000)  # 20% of 1M — under the pct ceiling (40%)
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+    env["DEV_TEAM_CONTEXT_ABS_CEILING"] = "1000000"  # cap raised out of the way
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr == b""
+
+
+def test_malformed_abs_ceiling_falls_back_to_150000(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 150_000)  # over the 150K default cap on a 1M window
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+    env["DEV_TEAM_CONTEXT_ABS_CEILING"] = "not-a-number"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr != b""
+
+
+def test_absolute_cap_fail_open_when_transcript_missing(tmp_path: Path) -> None:
+    """Measurement failure still fails open even with a tiny abs cap that
+    would otherwise fire immediately."""
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+    env["DEV_TEAM_CONTEXT_ABS_CEILING"] = "1"
+    result = _run(
+        json.dumps(
+            {
+                "tool_name": "Agent",
+                "transcript_path": str(tmp_path / "nope.jsonl"),
+                "tool_input": {},
+            }
+        ),
+        env,
+    )
+    assert result.returncode == 0
+    assert result.stderr == b""

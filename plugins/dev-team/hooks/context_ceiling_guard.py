@@ -33,6 +33,14 @@ Env:
                                      200000; Opus/Sonnet/Fable families ->
                                      1000000; unrecognized or undetectable
                                      model -> 200000).
+    DEV_TEAM_CONTEXT_ABS_CEILING=N   absolute token cap on the threshold;
+                                     defaults to 150000 (Anthropic's
+                                     server-side compaction default). The
+                                     effective threshold is
+                                     min(ceiling_pct * window, abs_ceiling)
+                                     — a no-op on a 200K window (40% = 80K
+                                     < 150K) but caps a 1M window's 400K
+                                     percentage threshold down to 150K.
 
 Contract (docs/python-hook-contract.md):
     Input : PreToolUse JSON on stdin
@@ -418,10 +426,17 @@ def _resolve_verdict(payload: dict) -> Tuple[int, Optional[str], bool]:
     if window is None:
         window = _detect_window(transcript_path)
     ceiling = _positive_int_env("DEV_TEAM_CONTEXT_CEILING_PCT", 40)
+    abs_ceiling = _positive_int_env("DEV_TEAM_CONTEXT_ABS_CEILING", 150_000)
+
+    # Effective threshold = min(ceiling_pct * window, absolute cap). On a
+    # 200K window this is a no-op (40% = 80K < 150K); on a 1M window it caps
+    # the 400K percentage threshold down to 150K (#786).
+    pct_threshold_tokens = (ceiling * window) // 100
+    threshold_tokens = min(pct_threshold_tokens, abs_ceiling)
 
     # Bash: `pct=$((occ * 100 / window))` — integer truncation. Match exactly.
     pct = (occ * 100) // window
-    if pct < ceiling:
+    if occ < threshold_tokens:
         return 0, None, False
 
     label = _build_label(tool_name, tool_input)
