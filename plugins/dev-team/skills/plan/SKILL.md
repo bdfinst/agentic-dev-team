@@ -113,7 +113,7 @@ The personas are subagent **prompt templates** (no frontmatter), so the effort-b
 python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-review
 ```
 
-Pass the resolved model id as the `model` override on each persona dispatch. (`medium` resolves to the same default the personas used before, but now flows through `.claude/model-ladder.json` / `knowledge/model-routing.json` instead of a literal.)
+**Map the resolved id to a dispatch tier — do not pass the id through.** `model_resolve.py` returns a concrete model id (e.g. `claude-sonnet-4-6`), but the `Agent` tool's `model` parameter only accepts tier names (`sonnet | opus | haiku | fable`), not ids — passing the id verbatim is silently unfollowable. Map the id to the nearest tier by name substring: `*sonnet*` → `sonnet`, `*opus*` → `opus`, `*haiku*` → `haiku`, `*fable*` → `fable`. If the id matches none of the four substrings (e.g. a future, unrecognized model family), fall back to `sonnet` and note the mismatch in the dispatch output rather than passing the unrecognized string through. Pass the resulting tier name as the `model` override on each persona dispatch. This mapping is a known precision loss versus the ladder's exact id — `.claude/model-ladder.json` / `knowledge/model-routing.json` per-environment overrides still influence which model backs each tier at Anthropic's end, even though only the tier name crosses the dispatch boundary. (`medium` resolves to the same default the personas used before, but now flows through the ladder/routing files instead of a literal.)
 
 | Reviewer | Template | Effort | Focus |
 | ---------- | ---------- | -------- | ------- |
