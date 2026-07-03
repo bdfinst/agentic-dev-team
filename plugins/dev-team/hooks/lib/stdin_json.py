@@ -4,7 +4,9 @@ Every Claude Code hook receives its payload as JSON on stdin. Seven hooks
 (pre_commit_review.py, pre_commit_knowledge_index.py, knowledge_index.py,
 mutation_testing_smoke_gate.py, codegraph_nudge.py, codegraph_bootstrap.py,
 bash_retry_guard.py) each carried an identical copy of this read/parse/
-validate step (#732). This module is the shared extraction.
+validate step (#732). This module is the shared extraction. Also adopted by
+context_ceiling_guard.py (#779), replacing its own local copy of the same
+read/parse/validate step.
 
 Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 """
