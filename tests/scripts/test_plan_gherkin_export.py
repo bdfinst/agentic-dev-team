@@ -185,6 +185,21 @@ def test_symlinked_tool_owned_dir_is_refused(tmp_path: Path) -> None:
     assert (elsewhere / "victim.feature").is_file(), "the purge never follows links"
 
 
+def test_write_never_follows_a_planted_symlink(tmp_path: Path) -> None:
+    """A symlink pre-planted at a generated filename must not receive the
+    write — the link is removed and a regular file written in its place."""
+    victim = tmp_path / "victim.txt"
+    victim.write_text("precious\n", encoding="utf-8")
+    out_dir = tmp_path / "features" / "plan-sample-widget"
+    out_dir.mkdir(parents=True)
+    planted = out_dir / "slice-1-fancy-widget-api.feature"
+    planted.symlink_to(victim)
+    plan = _write_plan(tmp_path)
+    plan_gherkin_export.export_plan(plan, tmp_path)
+    assert victim.read_text(encoding="utf-8") == "precious\n"
+    assert planted.is_file() and not planted.is_symlink()
+
+
 def test_slice_id_is_slugified_in_the_filename(tmp_path: Path) -> None:
     """Ids and titles get the same slug treatment — a filename is always a
     single path component."""
