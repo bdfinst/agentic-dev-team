@@ -8,6 +8,10 @@ Use this structure when writing the plan file (step 3 of `SKILL.md`).
 **Created**: <date>
 **Branch**: <current branch>
 **Status**: draft
+**Gherkin persistence**: <destination dir | plan-file-only | custom: <path>>
+<!-- Recorded once at plan creation (detected convention, operator answer, or
+     headless default). Re-runs honor this line without re-prompting; editing
+     it is the supported way to change the decision. -->
 
 ## Goal
 
