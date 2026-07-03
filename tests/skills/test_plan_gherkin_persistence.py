@@ -14,6 +14,9 @@ PLAN_SKILL = (PLUGIN_ROOT / "skills" / "plan" / "SKILL.md").read_text()
 PLAN_TEMPLATE = (
     PLUGIN_ROOT / "skills" / "plan" / "references" / "plan-template.md"
 ).read_text()
+GHERKIN_REF = (
+    PLUGIN_ROOT / "skills" / "plan" / "references" / "gherkin-persistence.md"
+).read_text()
 SKILLS_REGISTRY = (PLUGIN_ROOT / "knowledge" / "skills-registry.md").read_text()
 
 
@@ -29,54 +32,61 @@ class TestRegistryMentionsPersistence:
         )
 
 
+class TestSkillPointsAtTheProcedure:
+    def test_step_three_references_the_extracted_procedure(self) -> None:
+        assert "references/gherkin-persistence.md" in PLAN_SKILL, (
+            "SKILL.md step 3 must point at the extracted persistence procedure"
+        )
+
+
 class TestPlanCreationDetection:
     def test_invokes_the_detection_script_via_plugin_root(self) -> None:
         assert (
-            "${CLAUDE_PLUGIN_ROOT}/scripts/detect_bdd_convention.py" in PLAN_SKILL
+            "${CLAUDE_PLUGIN_ROOT}/scripts/detect_bdd_convention.py" in GHERKIN_REF
         ), "/plan must shell to the detection script, not re-derive signals in prose"
 
     def test_states_the_conservative_precedence(self) -> None:
         assert grep(
             r"feature-files.*>.*manifest.*>.*none|"
             r"\.feature files.*>.*manifest.*>.*no signal",
-            PLAN_SKILL,
+            GHERKIN_REF,
         ), "the feature-files > manifest > none precedence must be stated"
 
     def test_detection_failure_falls_back_to_no_signal(self) -> None:
-        assert grep(r"non-zero", PLAN_SKILL) and "no-signal" in PLAN_SKILL, (
+        assert grep(r"non-zero", GHERKIN_REF) and "no-signal" in GHERKIN_REF, (
             "a non-zero detection exit must be treated as no-signal"
         )
-        assert "stderr" in PLAN_SKILL, "the detection failure's stderr is surfaced"
+        assert "stderr" in GHERKIN_REF, "the detection failure's stderr is surfaced"
 
     def test_prompt_hint_names_the_real_destination_shape(self) -> None:
-        assert "y = features/<plan-slug>/" in PLAN_SKILL, (
+        assert "y = features/<plan-slug>/" in GHERKIN_REF, (
             "the prompt hint must show the actual nested destination, "
             "not a bare features/"
         )
-        assert "n = plan file only" in PLAN_SKILL
-        assert "c = custom path" in PLAN_SKILL
+        assert "n = plan file only" in GHERKIN_REF
+        assert "c = custom path" in GHERKIN_REF
 
     def test_custom_path_is_validated_with_reprompt_and_escape(self) -> None:
-        assert grep(r"repo-relative", PLAN_SKILL), (
+        assert grep(r"repo-relative", GHERKIN_REF), (
             "custom paths must be validated as repo-relative"
         )
-        assert grep(r"vendored", PLAN_SKILL), (
+        assert grep(r"vendored", GHERKIN_REF), (
             "custom paths must be rejected under vendored trees"
         )
-        assert grep(r"re-prompt", PLAN_SKILL), (
+        assert grep(r"re-prompt", GHERKIN_REF), (
             "an invalid custom path re-prompts with the reason"
         )
-        assert grep(r"`y` or `n`.*escape|escape.*`y` or `n`", PLAN_SKILL), (
+        assert grep(r"`y` or `n`.*escape|escape.*`y` or `n`", GHERKIN_REF), (
             "the re-prompt accepts y or n as an escape from retrying"
         )
 
     def test_recorded_decision_is_echoed(self) -> None:
-        assert grep(r"[Ee]cho.*(decision|Gherkin persistence)", PLAN_SKILL), (
+        assert grep(r"[Ee]cho.*(decision|Gherkin persistence)", GHERKIN_REF), (
             "the resolved decision must be echoed in the run output"
         )
 
     def test_recorded_value_is_the_directory_only(self) -> None:
-        assert grep(r"export script appends `<plan-slug>/`", PLAN_SKILL), (
+        assert grep(r"export script appends `<plan-slug>/`", GHERKIN_REF), (
             "the metadata line records the destination directory only — the "
             "exporter appends <plan-slug>/, so recording the full landing "
             "path would double-nest"
@@ -84,14 +94,11 @@ class TestPlanCreationDetection:
 
     def test_headless_no_signal_skips_with_log_line(self) -> None:
         assert "skipping the Gherkin persistence prompt (non-interactive)" in (
-            PLAN_SKILL
+            GHERKIN_REF
         ), "non-interactive no-signal runs log the skip and never block"
 
     def test_headless_reuses_the_step_six_triad(self) -> None:
-        sub_step = PLAN_SKILL[
-            PLAN_SKILL.index("#### Resolve the Gherkin persistence decision"):
-            PLAN_SKILL.index("### 4.")
-        ]
+        sub_step = GHERKIN_REF
         for trigger in ("--yes", "DEV_TEAM_AUTO_APPROVE=1", "TTY"):
             assert trigger in sub_step, (
                 "the persistence sub-step must name the step-6 non-interactive "
@@ -102,9 +109,9 @@ class TestPlanCreationDetection:
         assert grep(
             r"already (exists and )?records? a .*(decision|Gherkin persistence)|"
             r"\*\*Gherkin persistence\*\*:.*before any prompt",
-            PLAN_SKILL,
+            GHERKIN_REF,
         ), "re-runs read the existing plan file's metadata line before prompting"
-        assert grep(r"[Ee]diting (that|the) (metadata )?line", PLAN_SKILL), (
+        assert grep(r"[Ee]diting (that|the) (metadata )?line", GHERKIN_REF), (
             "editing the metadata line is the documented way to change the decision"
         )
 
