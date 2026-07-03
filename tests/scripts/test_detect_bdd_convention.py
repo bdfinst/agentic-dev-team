@@ -9,6 +9,8 @@ signal, which prompts the operator) over a false positive (writing derived
 
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -393,3 +395,92 @@ class TestMappingDocSync:
                     rule.framework, rule.tokens, _BDD_FRAMEWORKS_DOC.name
                 )
             )
+
+
+# ---------------------------------------------------------------------------
+# CLI contract — JSON on stdout, exit codes, bad-path handling
+# ---------------------------------------------------------------------------
+
+_SCRIPT_PY = _SCRIPT_DIR / "detect_bdd_convention.py"
+
+
+def _run_cli(*args: str, cwd: "Path | None" = None) -> "subprocess.CompletedProcess":
+    return subprocess.run(
+        [sys.executable, str(_SCRIPT_PY), *args],
+        capture_output=True,
+        text=True,
+        cwd=str(cwd) if cwd is not None else None,
+        check=False,
+    )
+
+
+class TestCliContract:
+    def test_detection_emits_json_with_exactly_the_contract_keys(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(tmp_path, "features/login.feature", "Feature: login\n")
+
+        completed = _run_cli(str(tmp_path))
+
+        assert completed.returncode == 0
+        payload = json.loads(completed.stdout)
+        assert set(payload) == {"signal", "framework", "dir"}
+        assert payload == {
+            "signal": "feature-files",
+            "framework": None,
+            "dir": "features",
+        }
+
+    def test_a_manifest_signal_round_trips_through_the_cli(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(tmp_path, "go.mod", _GODOG_GO_MOD)
+
+        completed = _run_cli(str(tmp_path))
+
+        assert completed.returncode == 0
+        assert json.loads(completed.stdout) == {
+            "signal": "manifest",
+            "framework": "godog",
+            "dir": "features",
+        }
+
+    def test_no_signal_is_a_successful_result_not_an_error(
+        self, tmp_path: Path
+    ) -> None:
+        completed = _run_cli(str(tmp_path))
+
+        assert completed.returncode == 0
+        assert json.loads(completed.stdout) == {
+            "signal": "none",
+            "framework": None,
+            "dir": None,
+        }
+
+    def test_target_defaults_to_the_working_directory(self, tmp_path: Path) -> None:
+        _touch(tmp_path, "specs/features/login.feature", "Feature: login\n")
+
+        completed = _run_cli(cwd=tmp_path)
+
+        assert completed.returncode == 0
+        assert json.loads(completed.stdout)["dir"] == "specs/features"
+
+    def test_nonexistent_target_exits_nonzero_naming_the_path(
+        self, tmp_path: Path
+    ) -> None:
+        missing = tmp_path / "no-such-project"
+
+        completed = _run_cli(str(missing))
+
+        assert completed.returncode != 0
+        assert str(missing) in completed.stderr
+
+    def test_a_file_target_is_rejected_like_a_missing_one(
+        self, tmp_path: Path
+    ) -> None:
+        not_a_dir = _touch(tmp_path, "a-file.txt", "hello\n")
+
+        completed = _run_cli(str(not_a_dir))
+
+        assert completed.returncode != 0
+        assert str(not_a_dir) in completed.stderr

@@ -20,9 +20,11 @@ Stdlib-only. Python 3.8+. See docs/specs/plan-gherkin-feature-persistence.md.
 
 from __future__ import annotations
 
+import argparse
 import fnmatch
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Iterable, Iterator, List, NamedTuple, Optional, Tuple
 
@@ -192,3 +194,31 @@ def detect(root: Path) -> dict:
             "dir": destinations.pop(),
         }
     return {"signal": "none", "framework": None, "dir": None}
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="detect_bdd_convention.py",
+        description="Detect a target project's BDD convention and print it as JSON.",
+    )
+    parser.add_argument(
+        "target",
+        nargs="?",
+        default=".",
+        help="Project root to probe (default: current directory)",
+    )
+    args = parser.parse_args(argv)
+
+    target = Path(args.target)
+    if not target.is_dir():
+        sys.stderr.write(
+            "detect-bdd-convention: target is not a directory: {}\n".format(args.target)
+        )
+        return 2
+
+    print(json.dumps(detect(target), sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())
