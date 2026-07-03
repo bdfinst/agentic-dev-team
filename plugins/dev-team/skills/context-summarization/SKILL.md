@@ -17,13 +17,18 @@ Compress conversation history to keep context utilization below 40%. Uses forget
 
 ## When to Summarize
 
-| Utilization | Action |
+The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to
+multiples of the *effective ceiling* — `min(ceiling_pct% of window, 150K
+tokens)` — not raw window percentage, so the same table applies whether the
+threshold is percentage-bound (small windows) or absolute-bound (large
+windows):
+
+| Multiple of the effective ceiling | Action |
 | --- | --- |
-| < 30% | No action |
-| 30-40% | Prepare: identify summarization candidates |
-| 40-50% | Write summary to `memory/`, start fresh context window |
-| 50-65% | Summarize everything except current task |
-| 65%+ | Full summary to `memory/`, start new conversation |
+| < 1x | No action — below the ceiling |
+| 1x – 1.25x | Nudge: consider running `/context-summarization` |
+| 1.25x – 1.5x | Run `/context-summarization` now |
+| 1.5x+ | Full summary to `memory/`, start a new conversation |
 
 **Measuring utilization**: `utilization = (input + cache_read + cache_creation) / model_context_window` — the same formula `hooks/context_ceiling_guard.py` reads from the transcript's most recent assistant-message usage. The window is auto-detected from the session; the guard's effective ceiling is `min(ceiling_pct% of window, 150K tokens)`, so the trigger point stays conservative even on very large windows. Fallback signals: turn count > 40, many file reads accumulated, degraded output quality.
 

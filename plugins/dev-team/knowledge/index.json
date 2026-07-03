@@ -2197,7 +2197,7 @@
       "anchor": "constraints"
     },
     "When to Summarize": {
-      "summary": "| Utilization | Action |",
+      "summary": "The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to",
       "anchor": "when-to-summarize"
     },
     "The Three Gates": {
