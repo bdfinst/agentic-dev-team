@@ -227,20 +227,54 @@ def _write_bucket(marker: Path, bucket: int) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _band_for_pct(pct: int) -> Tuple[str, str]:
+    """Map occupancy percent to a Context Summarization action band.
+
+    Mirrors the action-band table in
+    skills/context-summarization/SKILL.md (`## When to Summarize`):
+    30-40% prepare, 40-50% summarize + fresh context, 50-65% summarize
+    everything but the current task, 65%+ full summary to memory/. The
+    guard only ever fires at or above the configured ceiling (default
+    40%), so the "<30%" band is unreachable at default settings but is
+    included for completeness when DEV_TEAM_CONTEXT_CEILING_PCT is
+    lowered below 30.
+    """
+    if pct >= 65:
+        return (
+            "65%+",
+            "write a full summary to memory/ and start a new conversation",
+        )
+    if pct >= 50:
+        return ("50-65%", "summarize everything except the current task")
+    if pct >= 40:
+        return (
+            "40-50%",
+            "write a summary to memory/ and start a fresh context window",
+        )
+    if pct >= 30:
+        return (
+            "30-40%",
+            "prepare: identify summarization candidates",
+        )
+    return ("<30%", "no action needed yet")
+
+
 def _format_message(
     pct: int,
     window: int,
     ceiling: int,
     label: str,
 ) -> str:
-    """Byte-identical to the .sh's heredoc when interpolated with the same
-    values. Preserving the exact wording keeps `bats` and `pytest` fixtures
-    interchangeable during the parallel-ship window."""
+    """Graduated warning message (#787): names the Context Summarization
+    action band (see `_band_for_pct`) that applies at the current
+    occupancy, escalating the wording as occupancy climbs further past
+    the ceiling instead of repeating one fixed message."""
+    band_name, action = _band_for_pct(pct)
     return (
         f"🪟 Context at {pct}% of the {window}-token window "
         f"(≥ {ceiling}% ceiling) before {label}.\n"
-        "Per the Context Loading Protocol, summarize before loading more: "
-        "run /context-summarization\n"
+        f"Per the Context Loading Protocol [{band_name} band]: {action}. "
+        "Run /context-summarization\n"
         "(write a memory/ progress file, continue in a fresh context) "
         "and defer non-essential agents/skills.\n"
         "Tune with DEV_TEAM_CONTEXT_WINDOW (set 1000000 on a 1M-context "
