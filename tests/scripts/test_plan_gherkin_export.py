@@ -130,3 +130,91 @@ def test_report_names_destination_and_written_count(tmp_path: Path) -> None:
     report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
     assert "destination: features/plan-sample-widget" in report
     assert "files written: 2" in report
+
+
+# ---------------------------------------------------------------------------
+# Step 2.2 — decision parsing, no-op modes, and overwrite reporting
+# ---------------------------------------------------------------------------
+
+
+def _tree_snapshot(root: Path) -> list:
+    return sorted(str(p.relative_to(root)) for p in root.rglob("*"))
+
+
+def test_plan_file_only_decision_writes_nothing_and_notes_it(tmp_path: Path) -> None:
+    plan = _write_plan(
+        tmp_path, decision_line="**Gherkin persistence**: plan-file-only"
+    )
+    before = _tree_snapshot(tmp_path)
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    assert _tree_snapshot(tmp_path) == before
+    assert "plan-file-only" in report
+    assert "nothing to export" in report
+
+
+def test_missing_decision_writes_nothing_and_notes_it(tmp_path: Path) -> None:
+    plan = _write_plan(tmp_path, decision_line="")
+    before = _tree_snapshot(tmp_path)
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    assert _tree_snapshot(tmp_path) == before
+    assert "no Gherkin persistence decision recorded" in report
+    assert "nothing to export" in report
+
+
+def test_custom_path_decision_resolves_to_its_path(tmp_path: Path) -> None:
+    plan = _write_plan(
+        tmp_path, decision_line="**Gherkin persistence**: custom: e2e/specs"
+    )
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    out_dir = tmp_path / "e2e" / "specs" / "plan-sample-widget"
+    assert (out_dir / "slice-1-fancy-widget-api.feature").is_file()
+    assert "destination: e2e/specs/plan-sample-widget" in report
+
+
+def test_reexport_overwrites_and_reports_count(tmp_path: Path) -> None:
+    plan = _write_plan(tmp_path)
+    out_dir = tmp_path / "features" / "plan-sample-widget"
+    out_dir.mkdir(parents=True)
+    (out_dir / "slice-1-fancy-widget-api.feature").write_text(
+        "Feature: outdated\n", encoding="utf-8"
+    )
+    (out_dir / "slice-2-cli-reporting.feature").write_text(
+        "Feature: outdated\n", encoding="utf-8"
+    )
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    content = (out_dir / "slice-1-fancy-widget-api.feature").read_text(
+        encoding="utf-8"
+    )
+    assert content == _SLICE_ONE_GHERKIN
+    assert "overwritten: 2" in report
+
+
+def test_reexport_removes_stale_features_and_reports_count(tmp_path: Path) -> None:
+    """Stale files from renamed or renumbered slices never linger."""
+    plan = _write_plan(tmp_path)
+    out_dir = tmp_path / "features" / "plan-sample-widget"
+    out_dir.mkdir(parents=True)
+    stale = out_dir / "slice-3-renamed-away.feature"
+    stale.write_text("Feature: stale\n", encoding="utf-8")
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    assert not stale.exists()
+    assert "slice-3-renamed-away.feature" in report
+    assert "stale removed: 1" in report
+
+
+def test_fresh_export_reports_zero_overwrites_and_removals(tmp_path: Path) -> None:
+    plan = _write_plan(tmp_path)
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    assert "overwritten: 0" in report
+    assert "stale removed: 0" in report
+
+
+def test_non_feature_files_in_tool_owned_dir_survive(tmp_path: Path) -> None:
+    """Only *.feature files are cleared from the tool-owned subdirectory."""
+    plan = _write_plan(tmp_path)
+    out_dir = tmp_path / "features" / "plan-sample-widget"
+    out_dir.mkdir(parents=True)
+    keeper = out_dir / "README.md"
+    keeper.write_text("not a derived file\n", encoding="utf-8")
+    plan_gherkin_export.export_plan(plan, tmp_path)
+    assert keeper.read_text(encoding="utf-8") == "not a derived file\n"

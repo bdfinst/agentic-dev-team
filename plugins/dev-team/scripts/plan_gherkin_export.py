@@ -30,6 +30,8 @@ _PERSISTENCE_RE = re.compile(r"^\*\*Gherkin persistence\*\*\s*:\s*(.*)$")
 _SECTION_HEADING_RE = re.compile(r"^##\s")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 
+PLAN_FILE_ONLY = "plan-file-only"
+
 
 def slugify(title: str) -> str:
     """Lowercase; collapse non-alphanumeric runs to one hyphen; trim hyphens."""
@@ -53,26 +55,62 @@ def read_persistence_decision(lines: Iterable[str]) -> Optional[str]:
     return None
 
 
+def resolve_destination(decision: str) -> Optional[str]:
+    """Map a recorded decision to a destination directory.
+
+    `plan-file-only` maps to None (nothing to export); a `custom: <path>`
+    value maps to its path; anything else is the destination directory
+    itself. Trailing slashes are dropped.
+    """
+    if decision == PLAN_FILE_ONLY:
+        return None
+    if decision.lower().startswith("custom:"):
+        decision = decision.split(":", 1)[1].strip()
+    return decision.rstrip("/") or None
+
+
 def export_plan(plan_path: Path, root: Path) -> List[str]:
     """Export the plan's slice Gherkin blocks under `root`; return report lines."""
     text = plan_path.read_text(encoding="utf-8")
     lines = text.split("\n")
 
-    dest = read_persistence_decision(lines).rstrip("/")
+    decision = read_persistence_decision(lines)
+    if decision is None:
+        return ["nothing to export: no Gherkin persistence decision recorded"]
+    dest = resolve_destination(decision)
+    if dest is None:
+        return ["nothing to export: Gherkin persistence is plan-file-only"]
+
     plan_slug = plan_path.stem
     target_dir = root / dest / plan_slug
-    target_dir.mkdir(parents=True, exist_ok=True)
 
+    features = [
+        ("slice-{}-{}.feature".format(sid, slugify(title)), gherkin)
+        for sid, title, gherkin in plan_parse.slice_gherkin_blocks(lines)
+        if gherkin is not None
+    ]
+
+    # The subdirectory is tool-owned: clear it of *.feature files before
+    # writing so stale files from renamed/renumbered slices never linger.
+    existing = sorted(target_dir.glob("*.feature")) if target_dir.is_dir() else []
+    new_names = {name for name, _ in features}
+    overwritten = sum(1 for p in existing if p.name in new_names)
+    stale = [p for p in existing if p.name not in new_names]
+    for path in existing:
+        path.unlink()
+
+    target_dir.mkdir(parents=True, exist_ok=True)
     report = ["destination: {}/{}".format(dest, plan_slug)]
-    written = 0
-    for sid, title, gherkin in plan_parse.slice_gherkin_blocks(lines):
-        if gherkin is None:
-            continue
-        name = "slice-{}-{}.feature".format(sid, slugify(title))
+    for name, gherkin in features:
         (target_dir / name).write_text(gherkin, encoding="utf-8")
         report.append("wrote: {}/{}/{}".format(dest, plan_slug, name))
-        written += 1
-    report.append("files written: {}".format(written))
+    for path in stale:
+        report.append("removed stale: {}/{}/{}".format(dest, plan_slug, path.name))
+    report.append(
+        "files written: {}, overwritten: {}, stale removed: {}".format(
+            len(features), overwritten, len(stale)
+        )
+    )
     return report
 
 
