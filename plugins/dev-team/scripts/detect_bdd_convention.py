@@ -143,12 +143,17 @@ def _package_json_declares(path: Path, token: str) -> bool:
 
 
 def _text_declares(path: Path, token: str) -> bool:
-    """True when `token` appears as a whole word in the manifest's text."""
+    """True when `token` appears as a standalone name in the manifest's text.
+
+    Hyphen/underscore continuations do not count: `behave-django` or
+    `pytest-bdd-ng` must not signal `behave` / `pytest-bdd`.
+    """
     try:
         text = path.read_text()
     except (OSError, UnicodeDecodeError):
         return False
-    return re.search(r"\b" + re.escape(token) + r"\b", text) is not None
+    pattern = r"(?<![\w-])" + re.escape(token) + r"(?![\w-])"
+    return re.search(pattern, text) is not None
 
 
 def scan_manifests(root: Path) -> List[Tuple[str, str]]:

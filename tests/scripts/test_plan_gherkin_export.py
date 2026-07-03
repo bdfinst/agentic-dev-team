@@ -120,10 +120,10 @@ def test_exported_content_is_byte_for_byte_with_one_trailing_newline(
     plan = _write_plan(tmp_path)
     plan_gherkin_export.export_plan(plan, tmp_path)
     out_dir = tmp_path / "features" / "plan-sample-widget"
-    one = (out_dir / "slice-1-fancy-widget-api.feature").read_text(encoding="utf-8")
-    two = (out_dir / "slice-2-cli-reporting.feature").read_text(encoding="utf-8")
-    assert one == _SLICE_ONE_GHERKIN
-    assert two == _SLICE_TWO_GHERKIN
+    one = (out_dir / "slice-1-fancy-widget-api.feature").read_bytes()
+    two = (out_dir / "slice-2-cli-reporting.feature").read_bytes()
+    assert one == _SLICE_ONE_GHERKIN.encode("utf-8")
+    assert two == _SLICE_TWO_GHERKIN.encode("utf-8")
 
 
 def test_report_names_destination_and_written_count(tmp_path: Path) -> None:
@@ -162,6 +162,48 @@ def test_missing_decision_writes_nothing_and_notes_it(tmp_path: Path) -> None:
     assert "nothing to export" in report
 
 
+def test_gherkin_less_slice_is_skipped_and_reported(tmp_path: Path) -> None:
+    """A slice without a fenced gherkin block yields no file but is never
+    silently dropped from the report."""
+    text = _plan_text() + (
+        "\n### Slice 3: No Contract Yet\n"
+        "\n"
+        "**Depends-on:** 2\n"
+        "**Files:** `c.py`\n"
+    )
+    plan = tmp_path / "plan-sample-widget.md"
+    plan.write_text(text, encoding="utf-8")
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    out_dir = tmp_path / "features" / "plan-sample-widget"
+    assert sorted(p.name for p in out_dir.iterdir()) == [
+        "slice-1-fancy-widget-api.feature",
+        "slice-2-cli-reporting.feature",
+    ]
+    assert "files written: 2" in report
+    assert "skipped (no gherkin block): slice 3" in report
+
+
+def test_prose_mention_of_the_marker_is_not_a_decision(tmp_path: Path) -> None:
+    """The decision is read from the metadata block only — a marker line in
+    later prose never counts."""
+    text = _plan_text(decision_line="").replace(
+        "Sample goal.", "Discusses the **Gherkin persistence**: features marker."
+    )
+    plan = tmp_path / "plan-sample-widget.md"
+    plan.write_text(text, encoding="utf-8")
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    assert "no Gherkin persistence decision recorded" in report
+
+
+def test_trailing_slash_destination_matches_bare_form(tmp_path: Path) -> None:
+    """`features/` (the prompt-flow shape) resolves like `features`."""
+    plan = _write_plan(tmp_path, decision_line="**Gherkin persistence**: features/")
+    report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
+    out_dir = tmp_path / "features" / "plan-sample-widget"
+    assert (out_dir / "slice-1-fancy-widget-api.feature").is_file()
+    assert "destination: features/plan-sample-widget" in report
+
+
 def test_custom_path_decision_resolves_to_its_path(tmp_path: Path) -> None:
     plan = _write_plan(
         tmp_path, decision_line="**Gherkin persistence**: custom: e2e/specs"
@@ -183,10 +225,8 @@ def test_reexport_overwrites_and_reports_count(tmp_path: Path) -> None:
         "Feature: outdated\n", encoding="utf-8"
     )
     report = "\n".join(plan_gherkin_export.export_plan(plan, tmp_path))
-    content = (out_dir / "slice-1-fancy-widget-api.feature").read_text(
-        encoding="utf-8"
-    )
-    assert content == _SLICE_ONE_GHERKIN
+    content = (out_dir / "slice-1-fancy-widget-api.feature").read_bytes()
+    assert content == _SLICE_ONE_GHERKIN.encode("utf-8")
     assert "overwritten: 2" in report
 
 
