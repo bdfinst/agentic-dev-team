@@ -20,7 +20,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Tuple
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
@@ -82,6 +82,107 @@ def resolve_destination(decision: str) -> Optional[str]:
     return decision.rstrip("/") or None
 
 
+def _resolve_target_dir(destination: str, plan_slug: str, root: Path) -> Path:
+    """Validate the destination and return the tool-owned directory.
+
+    The exporter defends itself regardless of what the skill prose
+    validated: the recorded destination must stay inside `root` (no absolute
+    paths, no `..`, no symlink escape), and the tool-owned directory itself
+    must not be a symlink — it is about to be purged of `*.feature` files.
+    """
+    dest_path = Path(destination)
+    if dest_path.is_absolute() or ".." in dest_path.parts:
+        raise ExportError(
+            "destination escapes the project root: {}".format(destination)
+        )
+    target_dir = root / dest_path / plan_slug
+    resolved_root = root.resolve()
+    resolved_target = target_dir.resolve()
+    if resolved_root != resolved_target and resolved_root not in (
+        resolved_target.parents
+    ):
+        raise ExportError(
+            "destination escapes the project root: {}".format(destination)
+        )
+    if target_dir.is_symlink():
+        raise ExportError(
+            "tool-owned directory is a symlink, refusing to purge through it: "
+            "{}".format(target_dir)
+        )
+    collision = _first_non_directory(target_dir)
+    if collision is not None:
+        raise ExportError(
+            "destination path collides with a non-directory file: {}".format(
+                collision
+            )
+        )
+    return target_dir
+
+
+def _collect_features(lines: List[str]) -> Tuple[List[Tuple[str, str]], List[str]]:
+    """Return `(features, skipped)`: exportable `(filename, gherkin)` pairs
+    and the ids of slices with no gherkin block. Ids get the same slug
+    treatment as titles so a filename is always a single path component."""
+    blocks = plan_parse.slice_gherkin_blocks(lines)
+    features = [
+        ("slice-{}-{}.feature".format(slugify(slice_id), slugify(title)), gherkin)
+        for slice_id, title, gherkin in blocks
+        if gherkin is not None
+    ]
+    skipped = [slice_id for slice_id, _, gherkin in blocks if gherkin is None]
+    return features, skipped
+
+
+def _sync_feature_dir(
+    target_dir: Path, features: List[Tuple[str, str]]
+) -> Tuple[int, List[str]]:
+    """Clear the tool-owned dir of regular `*.feature` files and write the
+    current set; return `(overwritten_count, stale_names_removed)`."""
+    existing = (
+        sorted(
+            p
+            for p in target_dir.glob("*.feature")
+            if p.is_file() and not p.is_symlink()
+        )
+        if target_dir.is_dir()
+        else []
+    )
+    new_names = {name for name, _ in features}
+    overwritten = sum(1 for p in existing if p.name in new_names)
+    stale = [p.name for p in existing if p.name not in new_names]
+    for path in existing:
+        # A file already gone is the desired post-state; tolerate races.
+        path.unlink(missing_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for name, gherkin in features:
+        # write_bytes keeps the content byte-for-byte (no newline translation)
+        (target_dir / name).write_bytes(gherkin.encode("utf-8"))
+    return overwritten, stale
+
+
+def _build_report(
+    destination: str,
+    plan_slug: str,
+    features: List[Tuple[str, str]],
+    overwritten: int,
+    stale: List[str],
+    skipped: List[str],
+) -> List[str]:
+    report = ["destination: {}/{}".format(destination, plan_slug)]
+    for name, _ in features:
+        report.append("wrote: {}/{}/{}".format(destination, plan_slug, name))
+    for name in stale:
+        report.append("removed stale: {}/{}/{}".format(destination, plan_slug, name))
+    for slice_id in skipped:
+        report.append("skipped (no gherkin block): slice {}".format(slice_id))
+    report.append(
+        "files written: {}, overwritten: {}, stale removed: {}".format(
+            len(features), overwritten, len(stale)
+        )
+    )
+    return report
+
+
 def export_plan(plan_path: Path, root: Path) -> List[str]:
     """Export the plan's slice Gherkin blocks under `root`; return report lines."""
     try:
@@ -93,54 +194,15 @@ def export_plan(plan_path: Path, root: Path) -> List[str]:
     decision = read_persistence_decision(lines)
     if decision is None:
         return ["nothing to export: no Gherkin persistence decision recorded"]
-    dest = resolve_destination(decision)
-    if dest is None:
+    destination = resolve_destination(decision)
+    if destination is None:
         return ["nothing to export: Gherkin persistence is plan-file-only"]
 
     plan_slug = plan_path.stem
-    target_dir = root / dest / plan_slug
-
-    collision = _first_non_directory(target_dir)
-    if collision is not None:
-        raise ExportError(
-            "destination path collides with a non-directory file: {}".format(
-                collision
-            )
-        )
-
-    blocks = plan_parse.slice_gherkin_blocks(lines)
-    features = [
-        ("slice-{}-{}.feature".format(sid, slugify(title)), gherkin)
-        for sid, title, gherkin in blocks
-        if gherkin is not None
-    ]
-    skipped = [sid for sid, _, gherkin in blocks if gherkin is None]
-
-    # The subdirectory is tool-owned: clear it of *.feature files before
-    # writing so stale files from renamed/renumbered slices never linger.
-    existing = sorted(target_dir.glob("*.feature")) if target_dir.is_dir() else []
-    new_names = {name for name, _ in features}
-    overwritten = sum(1 for p in existing if p.name in new_names)
-    stale = [p for p in existing if p.name not in new_names]
-    for path in existing:
-        path.unlink()
-
-    target_dir.mkdir(parents=True, exist_ok=True)
-    report = ["destination: {}/{}".format(dest, plan_slug)]
-    for name, gherkin in features:
-        # write_bytes keeps the content byte-for-byte (no newline translation)
-        (target_dir / name).write_bytes(gherkin.encode("utf-8"))
-        report.append("wrote: {}/{}/{}".format(dest, plan_slug, name))
-    for path in stale:
-        report.append("removed stale: {}/{}/{}".format(dest, plan_slug, path.name))
-    for sid in skipped:
-        report.append("skipped (no gherkin block): slice {}".format(sid))
-    report.append(
-        "files written: {}, overwritten: {}, stale removed: {}".format(
-            len(features), overwritten, len(stale)
-        )
-    )
-    return report
+    target_dir = _resolve_target_dir(destination, plan_slug, root)
+    features, skipped = _collect_features(lines)
+    overwritten, stale = _sync_feature_dir(target_dir, features)
+    return _build_report(destination, plan_slug, features, overwritten, stale, skipped)
 
 
 def main(argv: Optional[List[str]] = None) -> int:

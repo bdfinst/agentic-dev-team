@@ -229,7 +229,7 @@ Feature: Plan Gherkin export
 ### Slice 3: `/plan` skill integration — decision recording, prompt, post-approval export
 
 **Depends-on:** 1, 2
-**Files:** `plugins/dev-team/skills/plan/SKILL.md`, `plugins/dev-team/skills/plan/references/plan-template.md`, `tests/skills/test_plan_gherkin_persistence.py`, `plugins/dev-team/knowledge/skills-registry.md`
+**Files:** `plugins/dev-team/skills/plan/SKILL.md`, `plugins/dev-team/skills/plan/references/gherkin-persistence.md`, `plugins/dev-team/skills/plan/references/plan-template.md`, `tests/skills/test_plan_gherkin_persistence.py`, `plugins/dev-team/knowledge/skills-registry.md`
 
 **Behavior:**
 
@@ -389,7 +389,7 @@ None — the spec's Ambiguity Log classified no finding as `LOW_VALUE`.
 - **Overwrite scope**: `<dir>/<plan-slug>/` is treated as tool-owned; a manually created file inside it will be overwritten (with a logged count). Files outside that subdirectory are never touched. This is stated in the skill prose (step 3.3) rather than detected heuristically.
 - **Reqnroll destination when only a manifest exists**: `Features/` under the csproj's directory is the community convention, not a tool-enforced default. Mitigation: the conservative rule already covers doubt (any conflict → `none` → prompt).
 - **Cache-vs-repo drift**: the installed plugin cache (9.2.0) lags this repo's `plan/SKILL.md`; edits land in the repo working tree per project memory, and ship with the next release.
-- **`plan/SKILL.md` growth**: the file accretes another decision procedure (~160 lines today). Watch during review that the two added sub-steps stay tight; a future extraction into a reference file is available if it keeps growing.
+- **`plan/SKILL.md` growth**: materialized during build — the file crossed its 200-line extraction guard, so the decision procedure was extracted to `references/gherkin-persistence.md` (the plan-template.md pattern) with a pointer in step 3.
 
 ## Plan Review Summary
 

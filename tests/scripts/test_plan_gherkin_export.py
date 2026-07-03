@@ -133,6 +133,87 @@ def test_report_names_destination_and_written_count(tmp_path: Path) -> None:
     assert "files written: 2" in report
 
 
+def test_absolute_destination_is_rejected(tmp_path: Path) -> None:
+    """The script defends itself: a hand-edited absolute destination must
+    never escape the export root (pathlib joins discard the left operand)."""
+    plan = _write_plan(
+        tmp_path, decision_line="**Gherkin persistence**: custom: /somewhere/else"
+    )
+    before = _tree_snapshot(tmp_path)
+    try:
+        plan_gherkin_export.export_plan(plan, tmp_path)
+        raise AssertionError("absolute destination must raise ExportError")
+    except plan_gherkin_export.ExportError as exc:
+        assert "/somewhere/else" in str(exc)
+    assert _tree_snapshot(tmp_path) == before
+
+
+def test_parent_traversal_destination_is_rejected(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.feature").write_text("Feature: keep\n", encoding="utf-8")
+    plan = root / "plan-sample-widget.md"
+    plan.write_text(
+        _plan_text(decision_line="**Gherkin persistence**: custom: ../outside"),
+        encoding="utf-8",
+    )
+    try:
+        plan_gherkin_export.export_plan(plan, root)
+        raise AssertionError("parent-traversal destination must raise ExportError")
+    except plan_gherkin_export.ExportError as exc:
+        assert "../outside" in str(exc)
+    assert (outside / "keep.feature").is_file(), "nothing outside root is touched"
+
+
+def test_symlinked_tool_owned_dir_is_refused(tmp_path: Path) -> None:
+    """A symlink planted at the tool-owned path must not redirect the purge."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "victim.feature").write_text("Feature: victim\n", encoding="utf-8")
+    (tmp_path / "features").mkdir()
+    (tmp_path / "features" / "plan-sample-widget").symlink_to(
+        elsewhere, target_is_directory=True
+    )
+    plan = _write_plan(tmp_path)
+    try:
+        plan_gherkin_export.export_plan(plan, tmp_path)
+        raise AssertionError("symlinked tool-owned dir must raise ExportError")
+    except plan_gherkin_export.ExportError as exc:
+        assert "plan-sample-widget" in str(exc)
+    assert (elsewhere / "victim.feature").is_file(), "the purge never follows links"
+
+
+def test_slice_id_is_slugified_in_the_filename(tmp_path: Path) -> None:
+    """Ids and titles get the same slug treatment — a filename is always a
+    single path component."""
+    text = _plan_text().replace(
+        "### Slice 1: Fancy Widget API!", "### Slice x/../evil: Fancy Widget API!"
+    )
+    plan = tmp_path / "plan-sample-widget.md"
+    plan.write_text(text, encoding="utf-8")
+    plan_gherkin_export.export_plan(plan, tmp_path)
+    out_dir = tmp_path / "features" / "plan-sample-widget"
+    assert (out_dir / "slice-x-evil-fancy-widget-api.feature").is_file()
+    assert not (tmp_path / "features" / "evil-fancy-widget-api.feature").exists()
+
+
+def test_both_plan_walkers_agree_on_a_template_conformant_plan(
+    tmp_path: Path,
+) -> None:
+    """parse_slices (plan_waves) and slice_gherkin_blocks (export) recognize
+    the same slice ids for plans written in the template shape — their
+    grammars intentionally differ only on malformed input."""
+    lines = _plan_text().split("\n")
+    wave_ids = [row[0] for row in plan_gherkin_export.plan_parse.parse_slices(lines)]
+    export_ids = [
+        block[0]
+        for block in plan_gherkin_export.plan_parse.slice_gherkin_blocks(lines)
+    ]
+    assert wave_ids == export_ids == ["1", "2"]
+
+
 # ---------------------------------------------------------------------------
 # Step 2.2 — decision parsing, no-op modes, and overwrite reporting
 # ---------------------------------------------------------------------------

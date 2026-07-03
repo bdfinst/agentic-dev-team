@@ -98,11 +98,12 @@ class TestPlanCreationDetection:
         ), "non-interactive no-signal runs log the skip and never block"
 
     def test_headless_reuses_the_step_six_triad(self) -> None:
-        sub_step = GHERKIN_REF
+        # The whole reference file IS the persistence procedure, so the
+        # triad may appear anywhere in it.
         for trigger in ("--yes", "DEV_TEAM_AUTO_APPROVE=1", "TTY"):
-            assert trigger in sub_step, (
-                "the persistence sub-step must name the step-6 non-interactive "
-                "triad trigger '{}'".format(trigger)
+            assert trigger in GHERKIN_REF, (
+                "the persistence procedure must name the step-6 "
+                "non-interactive triad trigger '{}'".format(trigger)
             )
 
     def test_reruns_honor_the_recorded_decision(self) -> None:

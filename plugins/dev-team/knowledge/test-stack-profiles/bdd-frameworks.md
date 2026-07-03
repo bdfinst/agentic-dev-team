@@ -146,6 +146,7 @@ Same engine as Maven; only the wiring differs.
 - **Step stub (pending):**
   ```python
   # pytest-bdd
+  import pytest
   from pytest_bdd import given
 
   @given("a precondition")
