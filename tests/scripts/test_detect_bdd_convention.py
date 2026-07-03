@@ -21,6 +21,45 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import detect_bdd_convention  # type: ignore[import-not-found]  # noqa: E402
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_BDD_FRAMEWORKS_DOC = (
+    _REPO_ROOT
+    / "plugins"
+    / "dev-team"
+    / "knowledge"
+    / "test-stack-profiles"
+    / "bdd-frameworks.md"
+)
+
+_CUCUMBER_JS_PACKAGE_JSON = (
+    '{"devDependencies": {"@cucumber/cucumber": "^11.0.0"}}\n'
+)
+_REQNROLL_CSPROJ = (
+    "<Project>\n"
+    "  <ItemGroup>\n"
+    '    <PackageReference Include="Reqnroll.xUnit" Version="2.0.0" />\n'
+    "  </ItemGroup>\n"
+    "</Project>\n"
+)
+_CUCUMBER_JVM_POM = (
+    "<project>\n"
+    "  <dependencies>\n"
+    "    <dependency>\n"
+    "      <groupId>io.cucumber</groupId>\n"
+    "      <artifactId>cucumber-java</artifactId>\n"
+    "    </dependency>\n"
+    "  </dependencies>\n"
+    "</project>\n"
+)
+_CUCUMBER_JVM_GRADLE = (
+    "dependencies {\n"
+    "  testImplementation 'io.cucumber:cucumber-java:7.18.1'\n"
+    "}\n"
+)
+_GODOG_GO_MOD = (
+    "module example.com/svc\n\ngo 1.22\n\nrequire github.com/cucumber/godog v0.14.0\n"
+)
+
 
 def _touch(root: Path, relpath: str, content: str = "") -> Path:
     """Create (and return) a fixture file at root/relpath, making parents."""
@@ -124,3 +163,233 @@ class TestFeatureFileScan:
         _touch(tmp_path, "src/app.py", "print('hello')\n")
 
         assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
+
+# ---------------------------------------------------------------------------
+# Manifest signals — signal "manifest", canonical destination per stack
+# ---------------------------------------------------------------------------
+
+
+class TestManifestMapping:
+    @pytest.mark.parametrize(
+        "manifest_relpath, manifest_content, framework, destination",
+        [
+            (
+                "package.json",
+                _CUCUMBER_JS_PACKAGE_JSON,
+                "cucumber-js",
+                "features",
+            ),
+            (
+                "pyproject.toml",
+                '[project]\ndependencies = ["pytest-bdd>=7"]\n',
+                "pytest-bdd",
+                "features",
+            ),
+            (
+                "requirements.txt",
+                "behave==1.2.6\n",
+                "behave",
+                "features",
+            ),
+            (
+                "requirements-dev.txt",
+                "pytest-bdd>=7\n",
+                "pytest-bdd",
+                "features",
+            ),
+            (
+                "tests/Acceptance/Acceptance.csproj",
+                _REQNROLL_CSPROJ,
+                "reqnroll",
+                "tests/Acceptance/Features",
+            ),
+            (
+                "pom.xml",
+                _CUCUMBER_JVM_POM,
+                "cucumber-jvm",
+                "src/test/resources/features",
+            ),
+            (
+                "build.gradle",
+                _CUCUMBER_JVM_GRADLE,
+                "cucumber-jvm",
+                "src/test/resources/features",
+            ),
+            (
+                "build.gradle.kts",
+                'dependencies { testImplementation("io.cucumber:cucumber-java:7.18.1") }\n',
+                "cucumber-jvm",
+                "src/test/resources/features",
+            ),
+            (
+                "go.mod",
+                _GODOG_GO_MOD,
+                "godog",
+                "features",
+            ),
+        ],
+    )
+    def test_bdd_runner_dependency_maps_to_its_canonical_directory(
+        self,
+        tmp_path: Path,
+        manifest_relpath: str,
+        manifest_content: str,
+        framework: str,
+        destination: str,
+    ) -> None:
+        _touch(tmp_path, manifest_relpath, manifest_content)
+
+        assert detect_bdd_convention.detect(tmp_path) == {
+            "signal": "manifest",
+            "framework": framework,
+            "dir": destination,
+        }
+
+    def test_dependencies_key_counts_like_dev_dependencies(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(
+            tmp_path,
+            "package.json",
+            '{"dependencies": {"@cucumber/cucumber": "^11.0.0"}}\n',
+        )
+
+        result = detect_bdd_convention.detect(tmp_path)
+        assert result["signal"] == "manifest"
+        assert result["framework"] == "cucumber-js"
+
+    def test_reqnroll_csproj_at_the_repo_root_targets_root_features(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(tmp_path, "Acceptance.csproj", _REQNROLL_CSPROJ)
+
+        result = detect_bdd_convention.detect(tmp_path)
+        assert result["signal"] == "manifest"
+        assert result["dir"] == "Features"
+
+    def test_specflow_counts_as_a_bdd_signal_like_reqnroll(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(
+            tmp_path,
+            "tests/Acceptance/Acceptance.csproj",
+            '<Project><ItemGroup><PackageReference Include="SpecFlow.xUnit" /></ItemGroup></Project>\n',
+        )
+
+        result = detect_bdd_convention.detect(tmp_path)
+        assert result["signal"] == "manifest"
+        assert result["dir"] == "tests/Acceptance/Features"
+
+    def test_package_json_without_a_cucumber_dependency_is_no_signal(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(tmp_path, "package.json", '{"devDependencies": {"vitest": "^2.0.0"}}\n')
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
+    def test_a_vendored_manifest_is_not_a_signal(self, tmp_path: Path) -> None:
+        _touch(
+            tmp_path,
+            "node_modules/some-dep/package.json",
+            _CUCUMBER_JS_PACKAGE_JSON,
+        )
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
+    def test_unparseable_package_json_is_no_signal_not_a_crash(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(tmp_path, "package.json", "not json {\n")
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
+
+# ---------------------------------------------------------------------------
+# Precedence and conflict rules
+# ---------------------------------------------------------------------------
+
+
+class TestPrecedenceAndConflicts:
+    def test_existing_feature_files_beat_a_manifest_dependency(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(tmp_path, "e2e/features/login.feature", "Feature: login\n")
+        _touch(tmp_path, "package.json", _CUCUMBER_JS_PACKAGE_JSON)
+
+        assert detect_bdd_convention.detect(tmp_path) == {
+            "signal": "feature-files",
+            "framework": None,
+            "dir": "e2e/features",
+        }
+
+    def test_manifests_with_conflicting_destinations_yield_none(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(tmp_path, "pom.xml", _CUCUMBER_JVM_POM)
+        _touch(tmp_path, "package.json", _CUCUMBER_JS_PACKAGE_JSON)
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
+    def test_manifests_sharing_one_destination_are_not_a_conflict(
+        self, tmp_path: Path
+    ) -> None:
+        _touch(
+            tmp_path,
+            "pyproject.toml",
+            '[project]\ndependencies = ["pytest-bdd>=7"]\n',
+        )
+        _touch(tmp_path, "requirements.txt", "behave==1.2.6\n")
+
+        result = detect_bdd_convention.detect(tmp_path)
+        assert result["signal"] == "manifest"
+        assert result["dir"] == "features"
+        assert result["framework"] in ("behave", "pytest-bdd")
+
+    def test_two_reqnroll_csprojs_in_different_directories_yield_none(
+        self, tmp_path: Path
+    ) -> None:
+        """Same framework, multiple candidate destinations — the conflict rule
+        applies."""
+        _touch(tmp_path, "svc-a/Acceptance.csproj", _REQNROLL_CSPROJ)
+        _touch(tmp_path, "svc-b/Acceptance.csproj", _REQNROLL_CSPROJ)
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
+
+# ---------------------------------------------------------------------------
+# Sync-guard — the script's mapping must stay aligned with the knowledge doc
+# ---------------------------------------------------------------------------
+
+
+class TestMappingDocSync:
+    # The knowledge doc has no Python (pytest-bdd/behave) section today, so
+    # their dependency tokens cannot be anchored in it yet; their canonical
+    # destination is still guarded below. Remove entries here once the doc
+    # gains a Python section.
+    DOC_GAP_FRAMEWORKS = frozenset({"pytest-bdd", "behave"})
+
+    def test_every_mapping_destination_is_documented(self) -> None:
+        doc = _BDD_FRAMEWORKS_DOC.read_text()
+        for rule in detect_bdd_convention.MANIFEST_RULES:
+            destination = (
+                rule.destination or detect_bdd_convention.CSPROJ_FEATURES_SUBDIR
+            )
+            assert "`{}/`".format(destination) in doc, (
+                "{}: canonical destination `{}/` is not documented in {} — "
+                "update the doc or the mapping".format(
+                    rule.framework, destination, _BDD_FRAMEWORKS_DOC.name
+                )
+            )
+
+    def test_every_documented_framework_token_appears_in_the_doc(self) -> None:
+        doc = _BDD_FRAMEWORKS_DOC.read_text()
+        for rule in detect_bdd_convention.MANIFEST_RULES:
+            if rule.framework in self.DOC_GAP_FRAMEWORKS:
+                continue
+            assert any(token in doc for token in rule.tokens), (
+                "{}: none of its dependency tokens {} appear in {} — "
+                "update the doc or the mapping".format(
+                    rule.framework, rule.tokens, _BDD_FRAMEWORKS_DOC.name
+                )
+            )
