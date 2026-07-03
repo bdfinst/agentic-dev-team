@@ -108,6 +108,48 @@ def parse_slices(lines: Iterable[str]) -> List[Tuple[str, str, str]]:
     return rows
 
 
+class _SliceSection:
+    """The slice section currently being walked."""
+
+    def __init__(self, slice_id: str, title: str) -> None:
+        self.slice_id = slice_id
+        self.title = title
+        self.gherkin: Optional[str] = None
+
+    def wants_gherkin(self) -> bool:
+        return self.gherkin is None
+
+    def row(self) -> Tuple[str, str, Optional[str]]:
+        return (self.slice_id, self.title, self.gherkin)
+
+
+class _FenceState:
+    """Tracks fenced code blocks and collects a gherkin fence's content."""
+
+    def __init__(self) -> None:
+        self.active = False
+        self._collecting = False
+        self._lines: List[str] = []
+
+    def enter(self, line: str, wants_gherkin: bool) -> None:
+        self.active = True
+        self._collecting = wants_gherkin and line[3:].strip().lower() == "gherkin"
+        self._lines = []
+
+    def consume(self, line: str) -> Optional[str]:
+        """Advance one in-fence line; return the collected block (with one
+        trailing newline) when a collecting fence closes, else None."""
+        if line.startswith("```"):
+            self.active = False
+            block = "\n".join(self._lines) + "\n" if self._collecting else None
+            self._collecting = False
+            self._lines = []
+            return block
+        if self._collecting:
+            self._lines.append(line)
+        return None
+
+
 def slice_gherkin_blocks(
     lines: Iterable[str],
 ) -> List[Tuple[str, str, Optional[str]]]:
@@ -117,58 +159,47 @@ def slice_gherkin_blocks(
     block (fences excluded, exactly one trailing newline), or None when the
     slice has no such block. Fence-aware: heading-like lines inside fenced
     code blocks never start or end a slice section.
+
+    Grammar note — this walker intentionally differs from `parse_slices`:
+    it requires the template shape (H1–H3 heading, colon after the id) and
+    is fence-aware, while `parse_slices` keeps its looser, fence-blind
+    grammar bug-for-bug with the bash original because `plan_waves.py`
+    depends on it. For template-conformant plans the two agree on the slice
+    set (pinned by `test_both_plan_walkers_agree_on_a_template_conformant_plan`);
+    they diverge only on malformed input, where the exporter's stricter
+    read is the safer one.
     """
     blocks: List[Tuple[str, str, Optional[str]]] = []
-    current: Optional[dict] = None
-    in_fence = False
-    fence_is_gherkin = False
-    collected: List[str] = []
-
-    def flush() -> None:
-        if current is not None:
-            blocks.append((current["id"], current["title"], current["gherkin"]))
+    current: Optional[_SliceSection] = None
+    fence = _FenceState()
 
     for raw in lines:
         line = raw.rstrip("\n")
 
-        if in_fence:
-            if line.startswith("```"):
-                in_fence = False
-                if fence_is_gherkin and current is not None:
-                    current["gherkin"] = "\n".join(collected) + "\n"
-                fence_is_gherkin = False
-                collected = []
-            elif fence_is_gherkin:
-                collected.append(line)
+        if fence.active:
+            block = fence.consume(line)
+            if block is not None and current is not None:
+                current.gherkin = block
             continue
 
         if line.startswith("```"):
-            in_fence = True
-            lang = line[3:].strip().lower()
-            fence_is_gherkin = (
-                lang == "gherkin"
-                and current is not None
-                and current["gherkin"] is None
-            )
-            collected = []
+            fence.enter(line, current is not None and current.wants_gherkin())
             continue
 
         match = _SLICE_HEADING_RE.match(line)
         if match:
-            flush()
-            current = {
-                "id": match.group(1).strip(),
-                "title": match.group(2).strip(),
-                "gherkin": None,
-            }
+            if current is not None:
+                blocks.append(current.row())
+            current = _SliceSection(match.group(1).strip(), match.group(2).strip())
             continue
 
         # Any other level-1..3 heading ends the current slice section.
         if current is not None and _HEADING_RE.match(line):
-            flush()
+            blocks.append(current.row())
             current = None
 
-    flush()
+    if current is not None:
+        blocks.append(current.row())
     return blocks
 
 

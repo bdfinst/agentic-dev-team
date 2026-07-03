@@ -51,9 +51,8 @@ def _iter_project_files(root: Path) -> Iterator[Path]:
         for entry in sorted(directory.iterdir()):
             if entry.is_symlink():
                 continue
-            if entry.is_dir():
-                if not _is_vendored_dir(entry):
-                    pending.append(entry)
+            if entry.is_dir() and not _is_vendored_dir(entry):
+                pending.append(entry)
             elif entry.is_file():
                 yield entry
 

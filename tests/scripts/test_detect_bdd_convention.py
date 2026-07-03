@@ -376,6 +376,19 @@ class TestPrecedenceAndConflicts:
 
         assert detect_bdd_convention.detect(tmp_path) == _no_signal()
 
+    def test_feature_files_beat_even_conflicting_manifests(
+        self, tmp_path: Path
+    ) -> None:
+        """Precedence pins the evaluation order: an unambiguous .feature root
+        wins before the manifest conflict rule is ever consulted."""
+        _touch(tmp_path, "e2e/features/login.feature", "Feature: login\n")
+        _touch(tmp_path, "pom.xml", _CUCUMBER_JVM_POM)
+        _touch(tmp_path, "package.json", _CUCUMBER_JS_PACKAGE_JSON)
+
+        result = detect_bdd_convention.detect(tmp_path)
+        assert result["signal"] == "feature-files"
+        assert result["dir"] == "e2e/features"
+
     def test_two_reqnroll_csprojs_in_different_directories_yield_none(
         self, tmp_path: Path
     ) -> None:
