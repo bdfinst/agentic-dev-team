@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Python port of hooks/context-ceiling-guard.sh (#595 / #572 Phase 3).
 
-PreToolUse hook (Agent + Skill matchers). Enforces the 40% context-window
+PreToolUse hook (Agent + Skill matchers). Enforces the context-window
 ceiling from the Context Loading Protocol. Before a capability-loading call
 — an Agent dispatch or a Skill invocation — it reads the *real* context
 occupancy from the session transcript's most recent assistant-message usage
-(input + cache_read + cache_creation tokens) and compares to the model's
-context window. Over the ceiling it nudges the orchestrator to summarize
-(warn, the default) or blocks the load (strict mode).
+and compares it to the model's context window. Over the ceiling it nudges
+the orchestrator to summarize (warn, the default) or blocks the load
+(strict mode).
+
+Utilization formula (identical in skills/context-loading-protocol/SKILL.md
+and skills/context-summarization/SKILL.md — kept in sync by
+tests/hooks/test_context_ceiling_guard.py's formula-equality test):
+    utilization = (input + cache_read + cache_creation) / model_context_window
 
 Why occupancy from the transcript and not a self-estimate: the model has no
 reliable readout of its own context fill; the usage the harness recorded in
@@ -29,18 +34,28 @@ Env:
                                      override that always wins over
                                      auto-detection. When unset, the window is
                                      auto-detected from the transcript's most
-                                     recent `message.model` (Haiku family ->
-                                     200000; Opus/Sonnet/Fable families ->
-                                     1000000; unrecognized or undetectable
-                                     model -> 200000).
+                                     recent `message.model` by family/version
+                                     substring: Haiku family -> 200000;
+                                     current 1M families (Fable, Mythos,
+                                     Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6)
+                                     -> 1000000; unrecognized or undetectable
+                                     model -> 200000 (conservative fallback —
+                                     window is a fixed per-model property, and
+                                     an unrecognized model is never assumed to
+                                     be a large-window one).
     DEV_TEAM_CONTEXT_ABS_CEILING=N   absolute token cap on the threshold;
                                      defaults to 150000 (Anthropic's
                                      server-side compaction default). The
                                      effective threshold is
-                                     min(ceiling_pct * window, abs_ceiling)
+                                     min(ceiling_pct * window // 100, abs_ceiling)
                                      — a no-op on a 200K window (40% = 80K
                                      < 150K) but caps a 1M window's 400K
-                                     percentage threshold down to 150K.
+                                     percentage threshold down to 150K. The
+                                     warning names which bound is binding
+                                     (percentage or absolute) and the window's
+                                     provenance (override, detected, or
+                                     default) so the operator can see why the
+                                     threshold landed where it did.
 
 Contract (docs/python-hook-contract.md):
     Input : PreToolUse JSON on stdin
@@ -63,6 +78,12 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Tuple
 
+_LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]  # noqa: E402
+
 
 # Recovery skills that must never be gated — blocking them would deadlock a
 # session that has climbed over the ceiling.
@@ -82,25 +103,8 @@ _GATED_TOOLS = frozenset({"Agent", "Skill"})
 
 
 # ---------------------------------------------------------------------------
-# stdin + env parsing
+# env parsing
 # ---------------------------------------------------------------------------
-
-
-def _read_stdin() -> str:
-    try:
-        return sys.stdin.read()
-    except (OSError, ValueError):
-        return ""
-
-
-def _load_input(raw: str) -> Optional[dict]:
-    if not raw:
-        return None
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return None
-    return parsed if isinstance(parsed, dict) else None
 
 
 def _positive_int_env(name: str, default: int) -> int:
@@ -121,6 +125,16 @@ def _positive_int_env(name: str, default: int) -> int:
 # model -> context window auto-detection
 # ---------------------------------------------------------------------------
 
+# Window is a fixed per-model property, not a family-wide one: only the
+# specific model ids known today to ship a 1M window are listed. A future
+# model that merely shares a family name (e.g. a hypothetical small-window
+# "sonnet-6") must NOT be assumed 1M just because "sonnet" matches — that is
+# why this list is version-pinned rather than a bare family regex. Unknown
+# models fall back to the 200K default: over-nudging a 1M session is a minor
+# false-alarm; under-nudging a 200K session risks running well past the real
+# ceiling. See ADR 0011's dated amendment for the rationale change from a
+# pure env-var default to this per-model map.
+#
 # Family match order matters: Haiku is checked first so a hypothetical
 # "haiku-opus" alias (or similar) can't fall through to the 1M branch.
 _HAIKU_WINDOW = 200_000
@@ -128,14 +142,19 @@ _LARGE_WINDOW = 1_000_000
 _DEFAULT_WINDOW = 200_000
 
 _HAIKU_RE = re.compile(r"haiku", re.IGNORECASE)
-_LARGE_WINDOW_RE = re.compile(r"opus|sonnet|fable", re.IGNORECASE)
+_LARGE_WINDOW_RE = re.compile(
+    r"fable|mythos|opus-4-6|opus-4-7|opus-4-8|sonnet-5|sonnet-4-6",
+    re.IGNORECASE,
+)
 
 
 def _window_for_model(model: str) -> int:
-    """Map a model name to its context window via family substring match.
+    """Map a model name to its context window via family/version substring.
 
-    Haiku family -> 200K; Opus/Sonnet/Fable families -> 1M; anything else
-    (unrecognized model name) -> the 200K default.
+    Haiku family -> 200K. Current 1M-window models -> 1M: Fable (any
+    version), Mythos (any version), Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6.
+    Anything else (unrecognized model, or a same-family model outside the
+    pinned versions above) -> the 200K conservative default.
     """
     if _HAIKU_RE.search(model):
         return _HAIKU_WINDOW
@@ -144,14 +163,21 @@ def _window_for_model(model: str) -> int:
     return _DEFAULT_WINDOW
 
 
-def _detect_window(transcript_path: Path) -> int:
+def _detect_window(transcript_path: Path) -> Tuple[int, bool]:
     """Auto-detect the context window from the transcript's most recent
     `message.model`. Mirrors `_measure_occupancy`'s scan (last 400 lines,
     last matching row wins) so the detected model tracks the same session
     state as the occupancy measurement.
 
+    Returns (window, matched) — `matched` is True only when a model id was
+    found AND it matched a known family (Haiku or a pinned 1M version);
+    False when no model id was found, or the model id is unrecognized, in
+    which case `window` is the 200K conservative default either way. The
+    caller uses `matched` to report window provenance as "detected" vs
+    "default".
+
     Fail-open: any parse error, missing/malformed `model` field, or a
-    transcript with no model at all resolves to the 200K default — this
+    transcript with no model at all resolves to (200000, False) — this
     function never raises and never blocks.
     """
     lines = _tail_lines(transcript_path, 400)
@@ -173,8 +199,10 @@ def _detect_window(transcript_path: Path) -> int:
         if isinstance(model, str) and model:
             last_model = model
     if last_model is None:
-        return _DEFAULT_WINDOW
-    return _window_for_model(last_model)
+        return _DEFAULT_WINDOW, False
+    if _HAIKU_RE.search(last_model) or _LARGE_WINDOW_RE.search(last_model):
+        return _window_for_model(last_model), True
+    return _DEFAULT_WINDOW, False
 
 
 def _env_window_override() -> Optional[int]:
@@ -188,6 +216,20 @@ def _env_window_override() -> Optional[int]:
         return None
     value = int(raw)
     return value if value > 0 else None
+
+
+def _resolve_window(transcript_path: Path) -> Tuple[int, str]:
+    """Resolve the effective context window and its provenance tag.
+
+    Precedence: `DEV_TEAM_CONTEXT_WINDOW` env ("override") > detected from
+    the transcript model ("detected") > the 200K conservative default
+    ("default") when the model is missing/unrecognized.
+    """
+    override = _env_window_override()
+    if override is not None:
+        return override, "override"
+    window, matched = _detect_window(transcript_path)
+    return window, ("detected" if matched else "default")
 
 
 # ---------------------------------------------------------------------------
@@ -313,61 +355,101 @@ def _write_bucket(marker: Path, bucket: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _band_for_pct(pct: int) -> Tuple[str, str]:
-    """Map occupancy percent to a Context Summarization action band.
+def _resolve_bound(pct_threshold_tokens: int, abs_ceiling: int) -> str:
+    """Which of the two thresholds is binding for `min(pct, abs)` (#780).
 
-    Mirrors the action-band table in
-    skills/context-summarization/SKILL.md (`## When to Summarize`):
-    30-40% prepare, 40-50% summarize + fresh context, 50-65% summarize
-    everything but the current task, 65%+ full summary to memory/. The
-    guard only ever fires at or above the configured ceiling (default
-    40%), so the "<30%" band is unreachable at default settings but is
-    included for completeness when DEV_TEAM_CONTEXT_CEILING_PCT is
-    lowered below 30.
+    "percentage" when the percentage-of-window threshold is the smaller (or
+    equal — ties read as percentage, matching `min()`'s first-argument
+    preference), "absolute" when the absolute cap is strictly smaller. The
+    two framings never co-occur in the message — exactly one is reported.
     """
-    if pct >= 65:
-        return (
-            "65%+",
-            "write a full summary to memory/ and start a new conversation",
-        )
-    if pct >= 50:
-        return ("50-65%", "summarize everything except the current task")
-    if pct >= 40:
-        return (
-            "40-50%",
-            "write a summary to memory/ and start a fresh context window",
-        )
-    if pct >= 30:
-        return (
-            "30-40%",
-            "prepare: identify summarization candidates",
-        )
-    return ("<30%", "no action needed yet")
+    return "percentage" if pct_threshold_tokens <= abs_ceiling else "absolute"
+
+
+# Graduated bands (#781): keyed to multiples of the *effective* ceiling
+# (tokens), not raw window percentage — a band escalation always means
+# "occupancy climbed further past the same computed threshold", regardless
+# of which bound (percentage or absolute) produced that threshold.
+#   [1x,   1.25x) -> band 0, nudge
+#   [1.25x, 1.5x) -> band 1, run /context-summarization now
+#   [1.5x,   inf) -> band 2, full summary + fresh conversation (top band)
+# Integer math (eff * 5 // 4, eff * 3 // 2) avoids float imprecision.
+_BAND_NUDGE, _BAND_RUN_NOW, _BAND_FULL_SUMMARY = 0, 1, 2
+
+# Dedupe-key scale factor (#781): pct_bucket (occupancy % of window // 5)
+# tops out at 20 (100% // 5). 100 keeps `band * _BAND_SCALE` strictly above
+# any possible pct_bucket for every band >= 1, so a band transition always
+# wins the `max()` and forces a re-fire regardless of the coarser bucket.
+_BAND_SCALE = 100
+
+_BAND_ACTIONS = {
+    _BAND_NUDGE: (
+        "nudge",
+        "Consider running /context-summarization (write a memory/ progress "
+        "file, continue in a fresh context) and defer non-essential "
+        "agents/skills.",
+    ),
+    _BAND_RUN_NOW: (
+        "run-now",
+        "Run /context-summarization now — write a memory/ progress file "
+        "and continue in a fresh context.",
+    ),
+    _BAND_FULL_SUMMARY: (
+        "full-summary",
+        "Write a full summary to memory/ and start a new conversation now "
+        "— context is well past the effective ceiling.",
+    ),
+}
+
+
+def _band_for_threshold_multiple(occ: int, threshold_tokens: int) -> int:
+    """Map occupancy, as a multiple of the effective ceiling, to a band
+    index. Only called once occupancy has already cleared the ceiling
+    (`occ >= threshold_tokens`), so `threshold_tokens <= 0` never occurs on
+    that path — the guard is defensive only, not a documented behavior.
+    """
+    if threshold_tokens <= 0:
+        return _BAND_NUDGE
+    if occ >= threshold_tokens * 3 // 2:  # 1.5x
+        return _BAND_FULL_SUMMARY
+    if occ >= threshold_tokens * 5 // 4:  # 1.25x
+        return _BAND_RUN_NOW
+    return _BAND_NUDGE
 
 
 def _format_message(
-    pct: int,
+    occ: int,
     window: int,
-    ceiling: int,
+    threshold_tokens: int,
+    bound: str,
+    provenance: str,
     label: str,
 ) -> str:
-    """Graduated warning message (#787): names the Context Summarization
-    action band (see `_band_for_pct`) that applies at the current
-    occupancy, escalating the wording as occupancy climbs further past
-    the ceiling instead of repeating one fixed message."""
-    band_name, action = _band_for_pct(pct)
-    return (
-        f"🪟 Context at {pct}% of the {window}-token window "
-        f"(≥ {ceiling}% ceiling) before {label}.\n"
-        f"Per the Context Loading Protocol [{band_name} band]: {action}. "
-        "Run /context-summarization\n"
-        "(write a memory/ progress file, continue in a fresh context) "
-        "and defer non-essential agents/skills.\n"
-        "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) "
-        "/ DEV_TEAM_CONTEXT_CEILING_PCT;\n"
+    """Pinned message contract (#780) plus graduated band escalation
+    (#781): plain token counts (not percentages), the binding bound
+    (percentage vs absolute — never both), the window's provenance
+    (override/detected/default), and a Context Summarization action band
+    keyed to how far occupancy has climbed past the effective ceiling. The
+    top band (full-summary) leads with the directive and drops the knob
+    footer — at 1.5x the ceiling, tuning knobs are no longer the point."""
+    band = _band_for_threshold_multiple(occ, threshold_tokens)
+    band_name, action = _BAND_ACTIONS[band]
+    diagnostic = (
+        f"🪟 Context at {occ} of {window} tokens — over the effective "
+        f"ceiling of {threshold_tokens} tokens ({bound} bound; "
+        f"window {provenance}) before {label}."
+    )
+
+    if band == _BAND_FULL_SUMMARY:
+        return f"[{band_name}] {action}\n{diagnostic}"
+
+    knob_footer = (
+        "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) / "
+        "DEV_TEAM_CONTEXT_CEILING_PCT / DEV_TEAM_CONTEXT_ABS_CEILING;\n"
         "DEV_TEAM_CONTEXT_STRICT=on hard-blocks; "
         "DEV_TEAM_CONTEXT_CEILING=off disables."
     )
+    return f"{diagnostic}\n[{band_name}] {action}\n{knob_footer}"
 
 
 def _build_label(tool_name: str, tool_input: dict) -> str:
@@ -422,33 +504,42 @@ def _resolve_verdict(payload: dict) -> Tuple[int, Optional[str], bool]:
     if occ is None:
         return 0, None, False
 
-    window = _env_window_override()
-    if window is None:
-        window = _detect_window(transcript_path)
+    window, provenance = _resolve_window(transcript_path)
     ceiling = _positive_int_env("DEV_TEAM_CONTEXT_CEILING_PCT", 40)
     abs_ceiling = _positive_int_env("DEV_TEAM_CONTEXT_ABS_CEILING", 150_000)
 
     # Effective threshold = min(ceiling_pct * window, absolute cap). On a
     # 200K window this is a no-op (40% = 80K < 150K); on a 1M window it caps
-    # the 400K percentage threshold down to 150K (#786).
+    # the 400K percentage threshold down to 150K (#786/#780).
     pct_threshold_tokens = (ceiling * window) // 100
     threshold_tokens = min(pct_threshold_tokens, abs_ceiling)
+    bound = _resolve_bound(pct_threshold_tokens, abs_ceiling)
 
     # Bash: `pct=$((occ * 100 / window))` — integer truncation. Match exactly.
+    # Still computed for the per-session dedupe bucket even though the
+    # message itself now reports plain token counts, not a percentage.
     pct = (occ * 100) // window
     if occ < threshold_tokens:
         return 0, None, False
 
     label = _build_label(tool_name, tool_input)
-    msg = _format_message(pct, window, ceiling, label)
+    msg = _format_message(occ, window, threshold_tokens, bound, provenance, label)
 
     if os.environ.get("DEV_TEAM_CONTEXT_STRICT") == "on":
         return 2, f"{msg} [blocked: DEV_TEAM_CONTEXT_STRICT=on]", False
 
-    # Warn mode with per-session per-5%-bucket dedupe.
+    # Warn mode dedupe, re-keyed on band identity (#781): the dedupe key is
+    # max(band_index_scaled, pct_bucket). _BAND_SCALE (100) makes any band
+    # transition dominate the coarser 5%-of-window pct_bucket (whose max
+    # value is 20, well under 100), so an escalation always breaks through
+    # even when the pct_bucket hasn't moved — worked 1M-window case: fires
+    # at occ=150000 (band 0, pct_bucket 3, key 3), re-fires at occ=190000
+    # (band 1 starts at 187500, key 100 > 3), and again at occ=226000 (band
+    # 2 starts at 225000, key 200 > 100).
+    band = _band_for_threshold_multiple(occ, threshold_tokens)
     session = _sanitize_session(payload.get("session_id") or "")
     marker = _marker_path(session)
-    bucket = pct // 5
+    bucket = max(band * _BAND_SCALE, pct // 5)
     last_bucket = _read_last_bucket(marker)
     # Always write the marker (matches the .sh's `printf ... >"$marker"` that
     # runs before the bucket comparison).
@@ -460,8 +551,7 @@ def _resolve_verdict(payload: dict) -> Tuple[int, Optional[str], bool]:
 
 
 def main() -> int:
-    raw = _read_stdin()
-    payload = _load_input(raw)
+    payload = read_stdin_json()
     if payload is None:
         # Empty or malformed stdin → silent-pass, same as the .sh.
         return 0

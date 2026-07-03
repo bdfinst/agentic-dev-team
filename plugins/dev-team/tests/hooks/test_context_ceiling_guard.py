@@ -1,8 +1,8 @@
 """Unit tests for the Python port of hooks/context-ceiling-guard.sh (#595).
 
-Mirrors tests/hooks/context_ceiling_guard.bats one-for-one via subprocess
-dispatch + covers the internal helpers as white-box units. Byte-parity with
-the .sh is enforced separately by the parity harness.
+Originally mirrored tests/hooks/context_ceiling_guard.bats one-for-one via
+subprocess dispatch; the .bats file was retired under the bash-removal epic
+(ADR 0015) and this suite is now the sole source of truth.
 """
 
 from __future__ import annotations
@@ -24,16 +24,51 @@ import context_ceiling_guard as hook  # type: ignore[import-not-found]  # noqa: 
 
 _HOOK_PY = _HOOKS_DIR / "context_ceiling_guard.py"
 
+_PLUGIN_DIR = _HOOKS_DIR.parent
+_CONTEXT_SUMMARIZATION_SKILL = (
+    _PLUGIN_DIR / "skills" / "context-summarization" / "SKILL.md"
+)
+_CONTEXT_LOADING_PROTOCOL_SKILL = (
+    _PLUGIN_DIR / "skills" / "context-loading-protocol" / "SKILL.md"
+)
+
+# One utilization formula everywhere (#782): the exact same string must
+# appear in the hook docstring and both SKILL.md files, so the three can
+# never silently drift the way context-summarization/SKILL.md's old
+# `(input + output) / window` once did against the hook's real measurement.
+_UTILIZATION_FORMULA = (
+    "utilization = (input + cache_read + cache_creation) / model_context_window"
+)
+
+
+def test_utilization_formula_is_identical_across_hook_and_both_skills() -> None:
+    hook_text = _HOOK_PY.read_text(encoding="utf-8")
+    summarization_text = _CONTEXT_SUMMARIZATION_SKILL.read_text(encoding="utf-8")
+    loading_protocol_text = _CONTEXT_LOADING_PROTOCOL_SKILL.read_text(
+        encoding="utf-8"
+    )
+    for label, text in (
+        ("hooks/context_ceiling_guard.py", hook_text),
+        ("skills/context-summarization/SKILL.md", summarization_text),
+        ("skills/context-loading-protocol/SKILL.md", loading_protocol_text),
+    ):
+        assert _UTILIZATION_FORMULA in text, (
+            f"{label} is missing the canonical utilization formula "
+            f"({_UTILIZATION_FORMULA!r})"
+        )
+
 
 def _write_transcript(
-    path: Path, total: int, model: str = "claude-legacy-test-model"
+    path: Path, total: int, model: str = "claude-haiku-4-5"
 ) -> None:
     """Write a transcript whose latest usage line totals `total` prompt tokens.
 
-    `model` defaults to a name that matches neither the Haiku nor the
-    Opus/Sonnet/Fable family regex, so window auto-detection falls back to
-    the 200K default and existing ceiling-percentage fixtures are unaffected
-    by #785's detection feature.
+    `model` defaults to a Haiku id (200K window) rather than an unrecognized
+    placeholder — fixture re-baseline rule (#779): tests that aren't
+    specifically about window-family detection use a real, detectably-200K
+    model id AND pin `DEV_TEAM_CONTEXT_WINDOW=200000` explicitly (belt and
+    suspenders against a future default-window change); tests that ARE about
+    window detection pass an explicit `model=` and never pin the window.
     """
     line = {
         "message": {
@@ -85,7 +120,9 @@ def _base_env(tmp_path: Path) -> dict:
 def test_silent_below_the_ceiling(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 50_000)  # 50000/200000 = 25%
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), _base_env(tmp_path))
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
     assert result.stdout == b""
     assert result.stderr == b""
@@ -94,12 +131,14 @@ def test_silent_below_the_ceiling(tmp_path: Path) -> None:
 def test_warns_exit_0_on_agent_load_over_the_ceiling(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 100_000)  # 50%
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     result = _run(
         _mkinput("Agent", {"subagent_type": "dev-team:doc-review"}, tr),
-        _base_env(tmp_path),
+        env,
     )
     assert result.returncode == 0
-    assert b"50%" in result.stderr
+    assert b"100000 of 200000 tokens" in result.stderr
     assert b"context-summarization" in result.stderr
 
 
@@ -109,6 +148,7 @@ def test_blocks_exit_2_over_the_ceiling_under_strict_mode(
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 100_000)
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_STRICT"] = "on"
     result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
     assert result.returncode == 2
@@ -119,6 +159,7 @@ def test_never_gates_a_recovery_skill_even_strict(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 180_000)  # 90%
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_STRICT"] = "on"
     result = _run(
         _mkinput("Skill", {"skill": "dev-team:context-summarization"}, tr),
@@ -131,7 +172,9 @@ def test_never_gates_a_recovery_skill_even_strict(tmp_path: Path) -> None:
 def test_ignores_tools_other_than_agent_or_skill(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 180_000)
-    result = _run(_mkinput("Read", {"file_path": "/x"}, tr), _base_env(tmp_path))
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    result = _run(_mkinput("Read", {"file_path": "/x"}, tr), env)
     assert result.returncode == 0
     assert result.stderr == b""
 
@@ -140,6 +183,7 @@ def test_disabled_via_dev_team_context_ceiling_off(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 180_000)
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_CEILING"] = "off"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
@@ -160,10 +204,12 @@ def test_context_ceiling_pct_lowers_the_trigger_point(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 60_000)  # 30%
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "25"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    assert b"30%" in result.stderr
+    assert b"60000 of 200000 tokens" in result.stderr
+    assert b"ceiling of 50000 tokens" in result.stderr
 
 
 def test_fail_open_when_the_transcript_is_missing(tmp_path: Path) -> None:
@@ -193,10 +239,11 @@ def test_warn_dedupes_within_5_pt_bucket_rewarns_on_higher(
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 100_000)  # 50% → bucket 10
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
 
     result1 = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result1.returncode == 0
-    assert b"50%" in result1.stderr
+    assert b"100000 of 200000 tokens" in result1.stderr
 
     # Same bucket → suppressed.
     result2 = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
@@ -207,7 +254,7 @@ def test_warn_dedupes_within_5_pt_bucket_rewarns_on_higher(
     _write_transcript(tr, 140_000)  # 70% → bucket 14
     result3 = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result3.returncode == 0
-    assert b"70%" in result3.stderr
+    assert b"140000 of 200000 tokens" in result3.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +273,7 @@ def test_skill_recovery_stripped_plugin_prefix(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 180_000)
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_STRICT"] = "on"
     result = _run(_mkinput("Skill", {"skill": "any-plugin:continue"}, tr), env)
     assert result.returncode == 0
@@ -235,11 +283,12 @@ def test_malformed_ceiling_pct_falls_back_to_40(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 100_000)  # 50%
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "not-a-number"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    # 50% ≥ 40 (default) → warning fires
-    assert b"50%" in result.stderr
+    # 100000/200000 = 50% ≥ 40% (default) → warning fires
+    assert b"100000 of 200000 tokens" in result.stderr
 
 
 def test_malformed_window_falls_back_to_200000(tmp_path: Path) -> None:
@@ -249,7 +298,7 @@ def test_malformed_window_falls_back_to_200000(tmp_path: Path) -> None:
     env["DEV_TEAM_CONTEXT_WINDOW"] = "bogus"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    assert b"50%" in result.stderr
+    assert b"100000 of 200000 tokens" in result.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -359,77 +408,47 @@ def test_measure_occupancy_missing_file(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Graduated warning bands (#787)
+# Pinned message contract + absolute-ceiling bound framing (#780)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "pct,expected_band,expected_action_snippet",
-    [
-        (25, "<30%", "no action needed yet"),
-        (35, "30-40%", "prepare"),
-        (45, "40-50%", "fresh context window"),
-        (55, "50-65%", "everything except the current task"),
-        (70, "65%+", "full summary to memory/"),
-        (100, "65%+", "full summary to memory/"),
-    ],
-)
-def test_band_for_pct(pct, expected_band, expected_action_snippet):
-    band, action = hook._band_for_pct(pct)
-    assert band == expected_band
-    assert expected_action_snippet in action
+def test_resolve_bound_percentage_when_pct_threshold_is_smaller_or_equal():
+    assert hook._resolve_bound(80_000, 150_000) == "percentage"
+    assert hook._resolve_bound(150_000, 150_000) == "percentage"  # tie
 
 
-def test_format_message_names_the_band_action_at_boundaries():
-    msg_40 = hook._format_message(40, 200_000, 40, "loading agent 'x'")
-    assert "[40-50% band]" in msg_40
-    assert "fresh context window" in msg_40
-
-    msg_50 = hook._format_message(50, 200_000, 40, "loading agent 'x'")
-    assert "[50-65% band]" in msg_50
-    assert "everything except the current task" in msg_50
-
-    msg_65 = hook._format_message(65, 200_000, 40, "loading agent 'x'")
-    assert "[65%+ band]" in msg_65
-    assert "full summary to memory/" in msg_65
-    assert "new conversation" in msg_65
+def test_resolve_bound_absolute_when_abs_ceiling_is_smaller():
+    assert hook._resolve_bound(400_000, 150_000) == "absolute"
 
 
-def test_warn_message_escalates_band_as_occupancy_climbs(tmp_path: Path) -> None:
-    """End-to-end: crossing 40%, 50%, and 65% each names the matching
-    Context Summarization action band, not one fixed message."""
-    tr = tmp_path / "t.jsonl"
-    env = _base_env(tmp_path)
-
-    _write_transcript(tr, 90_000)  # 45% -> 40-50% band
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
-    assert result.returncode == 0
-    assert b"[40-50% band]" in result.stderr
-    assert b"fresh context window" in result.stderr
-
-    _write_transcript(tr, 110_000)  # 55% -> 50-65% band, new bucket
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
-    assert result.returncode == 0
-    assert b"[50-65% band]" in result.stderr
-    assert b"everything except the current task" in result.stderr
-
-    _write_transcript(tr, 140_000)  # 70% -> 65%+ band, new bucket
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
-    assert result.returncode == 0
-    assert b"[65%+ band]" in result.stderr
-    assert b"full summary to memory/" in result.stderr
-    assert b"new conversation" in result.stderr
+def test_format_message_matches_the_pinned_contract():
+    msg = hook._format_message(
+        100_000, 200_000, 80_000, "percentage", "detected", "loading agent 'x'"
+    )
+    assert (
+        "🪟 Context at 100000 of 200000 tokens — over the effective "
+        "ceiling of 80000 tokens (percentage bound; window detected)" in msg
+    )
 
 
-def test_prepare_band_fires_when_ceiling_lowered_below_40(tmp_path: Path) -> None:
-    tr = tmp_path / "t.jsonl"
-    _write_transcript(tr, 70_000)  # 35%
-    env = _base_env(tmp_path)
-    env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "30"
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
-    assert result.returncode == 0
-    assert b"[30-40% band]" in result.stderr
-    assert b"prepare" in result.stderr
+def test_format_message_bound_framings_never_co_occur():
+    pct_msg = hook._format_message(
+        100_000, 200_000, 80_000, "percentage", "override", "x"
+    )
+    assert "percentage bound" in pct_msg
+    assert "absolute bound" not in pct_msg
+
+    abs_msg = hook._format_message(
+        200_000, 1_000_000, 150_000, "absolute", "detected", "x"
+    )
+    assert "absolute bound" in abs_msg
+    assert "percentage bound" not in abs_msg
+
+
+@pytest.mark.parametrize("provenance", ["override", "detected", "default"])
+def test_format_message_names_window_provenance(provenance: str) -> None:
+    msg = hook._format_message(100_000, 200_000, 80_000, "percentage", provenance, "x")
+    assert f"window {provenance}" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -443,9 +462,21 @@ def test_prepare_band_fires_when_ceiling_lowered_below_40(tmp_path: Path) -> Non
         ("claude-haiku-4-5", 200_000),
         ("claude-3-5-haiku-20241022", 200_000),
         ("claude-opus-4-8", 1_000_000),
+        ("claude-opus-4-7", 1_000_000),
+        ("claude-opus-4-6", 1_000_000),
         ("claude-sonnet-5", 1_000_000),
+        ("claude-sonnet-4-6", 1_000_000),
+        ("claude-fable-5", 1_000_000),
         ("claude-fable-1", 1_000_000),
+        ("claude-mythos-1", 1_000_000),
         ("some-unrecognized-model", 200_000),
+        # Window is a fixed per-model property, not a family-wide one: a
+        # same-family model outside the pinned 1M versions must NOT be
+        # assumed 1M (#779) — these fall to the 200K conservative default.
+        ("claude-opus-4-5", 200_000),
+        ("claude-3-opus-20240229", 200_000),
+        ("claude-sonnet-4-5", 200_000),
+        ("claude-3-5-sonnet-20241022", 200_000),
     ],
 )
 def test_window_for_model(model: str, expected: int) -> None:
@@ -458,8 +489,15 @@ def test_window_for_model(model: str, expected: int) -> None:
         ("claude-haiku-4-5", 200_000),
         ("claude-3-5-haiku-20241022", 200_000),
         ("claude-opus-4-8", 1_000_000),
+        ("claude-opus-4-7", 1_000_000),
+        ("claude-opus-4-6", 1_000_000),
         ("claude-sonnet-5", 1_000_000),
-        ("claude-fable-1", 1_000_000),
+        ("claude-sonnet-4-6", 1_000_000),
+        ("claude-fable-5", 1_000_000),
+        ("claude-mythos-1", 1_000_000),
+        # Same-family, non-pinned versions must NOT auto-detect as 1M.
+        ("claude-opus-4-5", 200_000),
+        ("claude-sonnet-4-5", 200_000),
     ],
 )
 def test_detects_window_per_model_family_end_to_end(
@@ -472,7 +510,7 @@ def test_detects_window_per_model_family_end_to_end(
     assert result.returncode == 0
     expected_pct = (100_000 * 100) // expected_pct_denominator
     if expected_pct >= 40:
-        assert f"{expected_pct}%".encode() in result.stderr
+        assert f"100000 of {expected_pct_denominator} tokens".encode() in result.stderr
     else:
         assert result.stderr == b""
 
@@ -487,7 +525,8 @@ def test_env_override_wins_over_detection(tmp_path: Path) -> None:
     env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    assert b"50%" in result.stderr
+    assert b"100000 of 200000 tokens" in result.stderr
+    assert b"window override" in result.stderr
 
 
 def test_unrecognized_model_falls_back_to_200000(tmp_path: Path) -> None:
@@ -495,7 +534,8 @@ def test_unrecognized_model_falls_back_to_200000(tmp_path: Path) -> None:
     _write_transcript(tr, 100_000, model="gpt-5-turbo")  # unrecognized family
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), _base_env(tmp_path))
     assert result.returncode == 0
-    assert b"50%" in result.stderr  # 100000/200000 default
+    assert b"100000 of 200000 tokens" in result.stderr  # 100000/200000 default
+    assert b"window default" in result.stderr
 
 
 def test_detect_window_fail_open_on_missing_model_field(tmp_path: Path) -> None:
@@ -514,28 +554,29 @@ def test_detect_window_fail_open_on_missing_model_field(tmp_path: Path) -> None:
         )
         + "\n"
     )
-    assert hook._detect_window(tr) == 200_000
+    assert hook._detect_window(tr) == (200_000, False)
     result = _run(
         _mkinput("Agent", {"subagent_type": "x"}, tr), _base_env(tmp_path)
     )
     assert result.returncode == 0
-    assert b"50%" in result.stderr
+    assert b"100000 of 200000 tokens" in result.stderr
+    assert b"window default" in result.stderr
 
 
 def test_detect_window_fail_open_on_malformed_transcript(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     tr.write_text("not json at all\n")
-    assert hook._detect_window(tr) == 200_000
+    assert hook._detect_window(tr) == (200_000, False)
 
 
 def test_detect_window_fail_open_on_missing_transcript(tmp_path: Path) -> None:
-    assert hook._detect_window(tmp_path / "nope.jsonl") == 200_000
+    assert hook._detect_window(tmp_path / "nope.jsonl") == (200_000, False)
 
 
 def test_detect_window_fail_open_on_non_string_model(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     tr.write_text(json.dumps({"message": {"model": 12345}}) + "\n")
-    assert hook._detect_window(tr) == 200_000
+    assert hook._detect_window(tr) == (200_000, False)
 
 
 def test_env_window_override_none_when_unset(monkeypatch) -> None:
@@ -573,7 +614,10 @@ def test_absolute_cap_fires_at_150k_on_a_1m_window(tmp_path: Path) -> None:
     env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    assert result.stderr != b""
+    assert b"150000 of 1000000 tokens" in result.stderr
+    assert b"ceiling of 150000 tokens" in result.stderr
+    assert b"absolute bound" in result.stderr
+    assert b"percentage bound" not in result.stderr
 
 
 def test_absolute_cap_does_not_fire_just_under_150k_on_a_1m_window(
@@ -595,6 +639,7 @@ def test_absolute_cap_is_a_noop_on_a_200k_window(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 79_999)  # just under the 40% pct threshold
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
     assert result.stderr == b""
@@ -602,9 +647,11 @@ def test_absolute_cap_is_a_noop_on_a_200k_window(tmp_path: Path) -> None:
     tr2 = tmp_path / "t2.jsonl"
     _write_transcript(tr2, 80_000)  # exactly the 40% pct threshold
     env2 = _base_env(tmp_path)
+    env2["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     result2 = _run(_mkinput("Agent", {"subagent_type": "y"}, tr2), env2)
     assert result2.returncode == 0
-    assert b"40%" in result2.stderr
+    assert b"80000 of 200000 tokens" in result2.stderr
+    assert b"percentage bound" in result2.stderr
 
 
 def test_dev_team_context_abs_ceiling_override_wins_over_default(
@@ -666,3 +713,82 @@ def test_absolute_cap_fail_open_when_transcript_missing(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert result.stderr == b""
+
+
+# ---------------------------------------------------------------------------
+# Graduated bands keyed to multiples of the effective ceiling (#781)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "occ,threshold_tokens,expected_band",
+    [
+        (150_000, 150_000, hook._BAND_NUDGE),  # exactly 1x
+        (187_499, 150_000, hook._BAND_NUDGE),  # just under 1.25x
+        (187_500, 150_000, hook._BAND_RUN_NOW),  # exactly 1.25x
+        (224_999, 150_000, hook._BAND_RUN_NOW),  # just under 1.5x
+        (225_000, 150_000, hook._BAND_FULL_SUMMARY),  # exactly 1.5x
+        (500_000, 150_000, hook._BAND_FULL_SUMMARY),  # well past 1.5x
+    ],
+)
+def test_band_for_threshold_multiple(
+    occ: int, threshold_tokens: int, expected_band: int
+) -> None:
+    assert hook._band_for_threshold_multiple(occ, threshold_tokens) == expected_band
+
+
+def test_format_message_nudge_band_leads_with_diagnostic_and_keeps_footer():
+    msg = hook._format_message(150_000, 1_000_000, 150_000, "absolute", "detected", "x")
+    assert msg.startswith("🪟 Context at")
+    assert "[nudge]" in msg
+    assert "Tune with DEV_TEAM_CONTEXT_WINDOW" in msg
+
+
+def test_format_message_run_now_band_leads_with_diagnostic_and_keeps_footer():
+    msg = hook._format_message(190_000, 1_000_000, 150_000, "absolute", "detected", "x")
+    assert msg.startswith("🪟 Context at")
+    assert "[run-now]" in msg
+    assert "Run /context-summarization now" in msg
+    assert "Tune with DEV_TEAM_CONTEXT_WINDOW" in msg
+
+
+def test_format_message_full_summary_band_leads_with_directive_no_footer():
+    """Top band (#781): leads with the directive (before the diagnostic
+    line) and drops the knob footer entirely."""
+    msg = hook._format_message(226_000, 1_000_000, 150_000, "absolute", "detected", "x")
+    assert msg.startswith("[full-summary]")
+    directive_idx = msg.index("Write a full summary to memory/")
+    diagnostic_idx = msg.index("🪟 Context at")
+    assert directive_idx < diagnostic_idx
+    assert "Tune with DEV_TEAM_CONTEXT_WINDOW" not in msg
+
+
+def test_dedupe_rekeyed_on_band_identity_worked_1m_case(tmp_path: Path) -> None:
+    """Worked case from #781: on a 1M window with the 150K absolute cap
+    binding, band escalations always break through the coarser
+    5%-of-window pct_bucket — fires at 150000 (band 0), re-fires at 190000
+    (band 1, even though pct_bucket is unchanged), and again at 226000
+    (band 2)."""
+    tr = tmp_path / "t.jsonl"
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+
+    _write_transcript(tr, 150_000)  # band 0 (nudge)
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[nudge]" in result.stderr
+
+    # Same band, pct_bucket unchanged (15% -> still bucket 3) -> suppressed.
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr == b""
+
+    _write_transcript(tr, 190_000)  # band 1 (run-now) — pct_bucket still 3
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[run-now]" in result.stderr
+
+    _write_transcript(tr, 226_000)  # band 2 (full-summary)
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[full-summary]" in result.stderr
