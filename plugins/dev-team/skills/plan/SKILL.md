@@ -103,7 +103,11 @@ derived copies, written only after approval (step 6).
    and record `plan-file-only`.
 6. **Record and echo.** Write the resolved decision into the plan's
    `**Gherkin persistence**:` metadata line and echo the recorded decision in the
-   run output (e.g. `Recorded Gherkin persistence: features/<plan-slug>/`).
+   run output. The line records the destination **directory only** — the
+   export script appends `<plan-slug>/` itself, so a `y` answer records `features`
+   (files land in `features/<plan-slug>/`), never `features/<plan-slug>/`
+   verbatim (that would double-nest). Echo example:
+   `Recorded Gherkin persistence: features (files land in features/<plan-slug>/)`.
 
 ### 4. Create the plans directory
 

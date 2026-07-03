@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """detect_bdd_convention.py — detect a target project's BDD convention.
 
-Deterministic probe `/plan` shells to at plan-creation time (issue #537),
-reporting where derived .feature files should land:
+Deterministic probe `/plan` shells to at plan-creation time, reporting
+where derived .feature files should land:
 
     {"signal": "feature-files" | "manifest" | "none",
      "framework": <name or null>,
