@@ -106,6 +106,7 @@ nav:
           - Telemetry CI Access: plugins/dev-team/docs/telemetry-ci-access.md
           - Telemetry Security: plugins/dev-team/docs/telemetry-repo-security.md
           - CodeGraph Nudge: plugins/dev-team/docs/codegraph-nudge.md
+          - Context Management: plugins/dev-team/docs/context-management.md
 
   - security-assessment Plugin:
       - Overview: plugins/security-assessment/README.md
