@@ -57,6 +57,27 @@ def test_scanner_detects_a_synthetic_violation(tmp_path: Path) -> None:
     fixture = tmp_path / "dirty.md"
     fixture.write_text("bash ${CLAUDE_PLUGIN_ROOT}/scripts/whatever.py\n")
     violations = _find_violations([fixture])
-    assert len(violations) == 1
-    assert str(fixture) in violations[0]
-    assert "1:" in violations[0]
+    assert violations == [
+        f"{fixture}:1: bash ${{CLAUDE_PLUGIN_ROOT}}/scripts/whatever.py"
+    ]
+
+
+def test_scanner_aggregates_across_multiple_lines_and_files(tmp_path: Path) -> None:
+    first = tmp_path / "a.md"
+    first.write_text("intro\nbash ${CLAUDE_PLUGIN_ROOT}/scripts/one.py\n")
+    second = tmp_path / "b.md"
+    second.write_text("bash ${CLAUDE_PLUGIN_ROOT}/scripts/two.py\n")
+    violations = _find_violations([first, second])
+    assert violations == [
+        f"{first}:2: bash ${{CLAUDE_PLUGIN_ROOT}}/scripts/one.py",
+        f"{second}:1: bash ${{CLAUDE_PLUGIN_ROOT}}/scripts/two.py",
+    ]
+
+
+def test_scanner_does_not_match_pyc_or_embedded_py_substrings(tmp_path: Path) -> None:
+    fixture = tmp_path / "near_miss.md"
+    fixture.write_text(
+        "bash ${CLAUDE_PLUGIN_ROOT}/scripts/whatever.pyc\n"
+        "notbash ${CLAUDE_PLUGIN_ROOT}/scripts/whatever.py\n"
+    )
+    assert _find_violations([fixture]) == []
