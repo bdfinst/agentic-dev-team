@@ -95,7 +95,11 @@ Derive a **plan tier** from objective signals already on hand — the same `triv
 | ------ | --------- | ----------- |
 | `trivial` | 1 slice, ≤ 2 files, no `complex` step, touches no high-reversal-cost decision axis | **Acceptance Test Critic only** (1) |
 | `standard` | anything between — e.g. a single slice with a few files, or a small multi-slice plan within existing patterns | **Acceptance Test Critic + Design & Architecture Critic**, plus **UX Critic** if the plan has a user-facing/UI surface, plus **Parallelization Critic** if slice count > 1 (2–4) |
-| `complex` | > 1 wave, ≥ 4 slices, any `complex` step, a security-sensitive/cross-cutting change, or a stance on a high-reversal-cost decision axis | **all 5** |
+| `complex` | > 1 wave, ≥ 4 slices, any `complex` step, a security-sensitive/cross-cutting change, or a **non-default** stance on a high-reversal-cost decision axis, or the axis was **contested** at the `/ship` gate | **all 5** |
+
+Merely stating the default stance `/ship`'s gate already requires the plan to confirm (see `knowledge/decision-defaults.md`) is not, by itself, a `complex` signal — every `/ship`-driven plan states a default stance, and treating that as `complex` would defeat the tier system's own review-scaling goal. "Contested" means a recorded objection to the stance, e.g. a note in the plan's `## Risks & Open Questions` section — not an unrecorded verbal disagreement.
+
+**Worked example** (`Integration: auto-merge vs. direct-to-trunk` axis): a plan stating "open a PR and use auto-merge gated on green checks" (the documented default) does not trigger `complex` on this signal alone. A plan stating "merge directly to trunk, bypassing the PR gate" (a non-default stance) does trigger `complex`, as does a plan stating the default stance where a reviewer's recorded objection challenges it.
 
 When in doubt, classify up (standard rather than trivial, complex rather than standard).
 
