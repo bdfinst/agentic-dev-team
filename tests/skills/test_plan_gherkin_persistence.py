@@ -14,6 +14,19 @@ PLAN_SKILL = (PLUGIN_ROOT / "skills" / "plan" / "SKILL.md").read_text()
 PLAN_TEMPLATE = (
     PLUGIN_ROOT / "skills" / "plan" / "references" / "plan-template.md"
 ).read_text()
+SKILLS_REGISTRY = (PLUGIN_ROOT / "knowledge" / "skills-registry.md").read_text()
+
+
+class TestRegistryMentionsPersistence:
+    def test_plan_row_mentions_feature_persistence(self) -> None:
+        row = next(
+            line
+            for line in SKILLS_REGISTRY.splitlines()
+            if line.startswith("| `/plan` ")
+        )
+        assert ".feature" in row, (
+            "the /plan registry entry must mention .feature persistence"
+        )
 
 
 class TestPlanCreationDetection:
