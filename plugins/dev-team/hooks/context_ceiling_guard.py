@@ -25,9 +25,22 @@ Env:
     DEV_TEAM_CONTEXT_CEILING=off     disable entirely (default on)
     DEV_TEAM_CONTEXT_STRICT=on       block over the ceiling (default: warn)
     DEV_TEAM_CONTEXT_CEILING_PCT=N   ceiling percent (default 40)
-    DEV_TEAM_CONTEXT_WINDOW=N        context window in tokens; defaults to
-                                     200000 (every current Claude model's
-                                     base window). Set 1000000 on 1M models.
+    DEV_TEAM_CONTEXT_WINDOW=N        context window in tokens; an explicit
+                                     override that always wins over
+                                     auto-detection. When unset, the window is
+                                     auto-detected from the transcript's most
+                                     recent `message.model` (Haiku family ->
+                                     200000; Opus/Sonnet/Fable families ->
+                                     1000000; unrecognized or undetectable
+                                     model -> 200000).
+    DEV_TEAM_CONTEXT_ABS_CEILING=N   absolute token cap on the threshold;
+                                     defaults to 150000 (Anthropic's
+                                     server-side compaction default). The
+                                     effective threshold is
+                                     min(ceiling_pct * window, abs_ceiling)
+                                     — a no-op on a 200K window (40% = 80K
+                                     < 150K) but caps a 1M window's 400K
+                                     percentage threshold down to 150K.
 
 Contract (docs/python-hook-contract.md):
     Input : PreToolUse JSON on stdin
@@ -102,6 +115,79 @@ def _positive_int_env(name: str, default: int) -> int:
         return default
     value = int(raw)
     return value if value > 0 else default
+
+
+# ---------------------------------------------------------------------------
+# model -> context window auto-detection
+# ---------------------------------------------------------------------------
+
+# Family match order matters: Haiku is checked first so a hypothetical
+# "haiku-opus" alias (or similar) can't fall through to the 1M branch.
+_HAIKU_WINDOW = 200_000
+_LARGE_WINDOW = 1_000_000
+_DEFAULT_WINDOW = 200_000
+
+_HAIKU_RE = re.compile(r"haiku", re.IGNORECASE)
+_LARGE_WINDOW_RE = re.compile(r"opus|sonnet|fable", re.IGNORECASE)
+
+
+def _window_for_model(model: str) -> int:
+    """Map a model name to its context window via family substring match.
+
+    Haiku family -> 200K; Opus/Sonnet/Fable families -> 1M; anything else
+    (unrecognized model name) -> the 200K default.
+    """
+    if _HAIKU_RE.search(model):
+        return _HAIKU_WINDOW
+    if _LARGE_WINDOW_RE.search(model):
+        return _LARGE_WINDOW
+    return _DEFAULT_WINDOW
+
+
+def _detect_window(transcript_path: Path) -> int:
+    """Auto-detect the context window from the transcript's most recent
+    `message.model`. Mirrors `_measure_occupancy`'s scan (last 400 lines,
+    last matching row wins) so the detected model tracks the same session
+    state as the occupancy measurement.
+
+    Fail-open: any parse error, missing/malformed `model` field, or a
+    transcript with no model at all resolves to the 200K default — this
+    function never raises and never blocks.
+    """
+    lines = _tail_lines(transcript_path, 400)
+    last_model: Optional[str] = None
+    for raw in lines:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            row = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(row, dict):
+            continue
+        message = row.get("message")
+        if not isinstance(message, dict):
+            continue
+        model = message.get("model")
+        if isinstance(model, str) and model:
+            last_model = model
+    if last_model is None:
+        return _DEFAULT_WINDOW
+    return _window_for_model(last_model)
+
+
+def _env_window_override() -> Optional[int]:
+    """Explicit `DEV_TEAM_CONTEXT_WINDOW` override; `None` when unset or
+    invalid, in which case the caller falls through to auto-detection.
+    """
+    raw = os.environ.get("DEV_TEAM_CONTEXT_WINDOW")
+    if raw is None:
+        return None
+    if not re.fullmatch(r"[0-9]+", raw):
+        return None
+    value = int(raw)
+    return value if value > 0 else None
 
 
 # ---------------------------------------------------------------------------
@@ -227,24 +313,58 @@ def _write_bucket(marker: Path, bucket: int) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _band_for_pct(pct: int) -> Tuple[str, str]:
+    """Map occupancy percent to a Context Summarization action band.
+
+    Mirrors the action-band table in
+    skills/context-summarization/SKILL.md (`## When to Summarize`):
+    30-40% prepare, 40-50% summarize + fresh context, 50-65% summarize
+    everything but the current task, 65%+ full summary to memory/. The
+    guard only ever fires at or above the configured ceiling (default
+    40%), so the "<30%" band is unreachable at default settings but is
+    included for completeness when DEV_TEAM_CONTEXT_CEILING_PCT is
+    lowered below 30.
+    """
+    if pct >= 65:
+        return (
+            "65%+",
+            "write a full summary to memory/ and start a new conversation",
+        )
+    if pct >= 50:
+        return ("50-65%", "summarize everything except the current task")
+    if pct >= 40:
+        return (
+            "40-50%",
+            "write a summary to memory/ and start a fresh context window",
+        )
+    if pct >= 30:
+        return (
+            "30-40%",
+            "prepare: identify summarization candidates",
+        )
+    return ("<30%", "no action needed yet")
+
+
 def _format_message(
     pct: int,
     window: int,
     ceiling: int,
     label: str,
 ) -> str:
-    """Byte-identical to the .sh's heredoc when interpolated with the same
-    values. Preserving the exact wording keeps `bats` and `pytest` fixtures
-    interchangeable during the parallel-ship window."""
+    """Graduated warning message (#787): names the Context Summarization
+    action band (see `_band_for_pct`) that applies at the current
+    occupancy, escalating the wording as occupancy climbs further past
+    the ceiling instead of repeating one fixed message."""
+    band_name, action = _band_for_pct(pct)
     return (
         f"🪟 Context at {pct}% of the {window}-token window "
         f"(≥ {ceiling}% ceiling) before {label}.\n"
-        "Per the Context Loading Protocol, summarize before loading more: "
-        "run /context-summarization\n"
+        f"Per the Context Loading Protocol [{band_name} band]: {action}. "
+        "Run /context-summarization\n"
         "(write a memory/ progress file, continue in a fresh context) "
         "and defer non-essential agents/skills.\n"
-        "Tune with DEV_TEAM_CONTEXT_WINDOW (set 1000000 on a 1M-context "
-        "model) / DEV_TEAM_CONTEXT_CEILING_PCT;\n"
+        "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) "
+        "/ DEV_TEAM_CONTEXT_CEILING_PCT;\n"
         "DEV_TEAM_CONTEXT_STRICT=on hard-blocks; "
         "DEV_TEAM_CONTEXT_CEILING=off disables."
     )
@@ -302,12 +422,21 @@ def _resolve_verdict(payload: dict) -> Tuple[int, Optional[str], bool]:
     if occ is None:
         return 0, None, False
 
-    window = _positive_int_env("DEV_TEAM_CONTEXT_WINDOW", 200_000)
+    window = _env_window_override()
+    if window is None:
+        window = _detect_window(transcript_path)
     ceiling = _positive_int_env("DEV_TEAM_CONTEXT_CEILING_PCT", 40)
+    abs_ceiling = _positive_int_env("DEV_TEAM_CONTEXT_ABS_CEILING", 150_000)
+
+    # Effective threshold = min(ceiling_pct * window, absolute cap). On a
+    # 200K window this is a no-op (40% = 80K < 150K); on a 1M window it caps
+    # the 400K percentage threshold down to 150K (#786).
+    pct_threshold_tokens = (ceiling * window) // 100
+    threshold_tokens = min(pct_threshold_tokens, abs_ceiling)
 
     # Bash: `pct=$((occ * 100 / window))` — integer truncation. Match exactly.
     pct = (occ * 100) // window
-    if pct < ceiling:
+    if occ < threshold_tokens:
         return 0, None, False
 
     label = _build_label(tool_name, tool_input)
