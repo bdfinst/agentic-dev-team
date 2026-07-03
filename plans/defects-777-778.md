@@ -254,6 +254,14 @@ invocation (no usable TTY). All dispatched plan-review personas returned `approv
 - Slice 3's id→tier substring-mapping rule is a documented heuristic, not a code change to
   `model_resolve.py` — a future `--tier` output mode (suggested as an alternative fix in
   #778) is out of scope for this defect-fix plan.
+- `/code-review`'s doc-review pass (slice checkpoint) found `agents/orchestrator.md`'s
+  Phase 2 "Automated plan review" section describes a stale **4**-reviewer, fixed-set
+  system ("dispatch four plan review personas... the remaining three always run"),
+  contradicting `skills/plan/SKILL.md`'s actual tiered 1–5 reviewer system (5th reviewer,
+  Parallelization Critic, already existed pre-branch) and even disagreeing with itself
+  elsewhere in the same file ("three plan review personas"). Confirmed pre-existing at
+  base commit `c191ccd` — unrelated to #777/#778 and out of scope for this plan; filed as
+  a follow-up rather than fixed here to avoid scope creep on a defect-fix branch.
 
 ## Build Progress
 
