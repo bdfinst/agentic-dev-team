@@ -135,6 +135,35 @@ Same engine as Maven; only the wiring differs.
 
 ---
 
+## Python — pytest-bdd / behave
+
+- **Framework:** [pytest-bdd](https://github.com/pytest-dev/pytest-bdd) (scenarios run as ordinary pytest tests — preferred when pytest is already the runner) or [behave](https://github.com/behave/behave) (standalone Gherkin runner).
+- **Install:** `pip install pytest-bdd` or `pip install behave` (declare in `pyproject.toml` or `requirements*.txt`).
+- **Directory layout:**
+  - `features/` — `.feature` files (both tools' convention).
+  - pytest-bdd: step definitions in `tests/step_defs/test_*.py`, bound with `scenarios("../../features")`.
+  - behave: step definitions in `features/steps/*.py`.
+- **Step stub (pending):**
+  ```python
+  # pytest-bdd
+  from pytest_bdd import given
+
+  @given("a precondition")
+  def a_precondition():
+      pytest.skip("pending")  # marks the step (and scenario) pending
+
+  # behave
+  from behave import given
+
+  @given("a precondition")
+  def step_a_precondition(context):
+      raise NotImplementedError("pending")
+  ```
+- **Run:** `pytest` (pytest-bdd) or `behave --junit --junit-directory reports/` (behave).
+- **CI note:** pytest-bdd scenarios surface through the existing pytest JUnit reporter (`--junitxml`); behave's `--junit` flag writes per-feature JUnit XML the pipeline can pick up directly.
+
+---
+
 ## Go — Godog
 
 - **Framework:** [Godog](https://github.com/cucumber/godog) — the official Cucumber implementation for Go.

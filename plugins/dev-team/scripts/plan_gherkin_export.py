@@ -108,11 +108,13 @@ def export_plan(plan_path: Path, root: Path) -> List[str]:
             )
         )
 
+    blocks = plan_parse.slice_gherkin_blocks(lines)
     features = [
         ("slice-{}-{}.feature".format(sid, slugify(title)), gherkin)
-        for sid, title, gherkin in plan_parse.slice_gherkin_blocks(lines)
+        for sid, title, gherkin in blocks
         if gherkin is not None
     ]
+    skipped = [sid for sid, _, gherkin in blocks if gherkin is None]
 
     # The subdirectory is tool-owned: clear it of *.feature files before
     # writing so stale files from renamed/renumbered slices never linger.
@@ -126,10 +128,13 @@ def export_plan(plan_path: Path, root: Path) -> List[str]:
     target_dir.mkdir(parents=True, exist_ok=True)
     report = ["destination: {}/{}".format(dest, plan_slug)]
     for name, gherkin in features:
-        (target_dir / name).write_text(gherkin, encoding="utf-8")
+        # write_bytes keeps the content byte-for-byte (no newline translation)
+        (target_dir / name).write_bytes(gherkin.encode("utf-8"))
         report.append("wrote: {}/{}/{}".format(dest, plan_slug, name))
     for path in stale:
         report.append("removed stale: {}/{}/{}".format(dest, plan_slug, path.name))
+    for sid in skipped:
+        report.append("skipped (no gherkin block): slice {}".format(sid))
     report.append(
         "files written: {}, overwritten: {}, stale removed: {}".format(
             len(features), overwritten, len(stale)

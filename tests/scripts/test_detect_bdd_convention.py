@@ -346,7 +346,35 @@ class TestPrecedenceAndConflicts:
         result = detect_bdd_convention.detect(tmp_path)
         assert result["signal"] == "manifest"
         assert result["dir"] == "features"
-        assert result["framework"] in ("behave", "pytest-bdd")
+        # Tie-break is deterministic: alphabetically first framework wins.
+        assert result["framework"] == "behave"
+
+    def test_unrelated_dependencies_are_not_a_signal(self, tmp_path: Path) -> None:
+        _touch(tmp_path, "requirements.txt", "requests==2.32.0\nflask>=3\n")
+        _touch(
+            tmp_path,
+            "pyproject.toml",
+            '[project]\ndependencies = ["rich>=13"]\n',
+        )
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
+    def test_hyphenated_superstring_tokens_are_not_a_signal(
+        self, tmp_path: Path
+    ) -> None:
+        """`behave-django` / `pytest-bdd-ng` must not read as behave/pytest-bdd."""
+        _touch(tmp_path, "requirements.txt", "behave-django==1.5\npytest-bdd-ng\n")
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
+    def test_symlinked_feature_dirs_are_ignored(self, tmp_path: Path) -> None:
+        """Symlinks are skipped wholesale — conservative: no signal."""
+        real = tmp_path / ".git" / "real-features"  # only reachable via symlink
+        real.mkdir(parents=True)
+        (real / "login.feature").write_text("Feature: x\n", encoding="utf-8")
+        (tmp_path / "features").symlink_to(real, target_is_directory=True)
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
 
     def test_two_reqnroll_csprojs_in_different_directories_yield_none(
         self, tmp_path: Path
@@ -365,12 +393,6 @@ class TestPrecedenceAndConflicts:
 
 
 class TestMappingDocSync:
-    # The knowledge doc has no Python (pytest-bdd/behave) section today, so
-    # their dependency tokens cannot be anchored in it yet; their canonical
-    # destination is still guarded below. Remove entries here once the doc
-    # gains a Python section.
-    DOC_GAP_FRAMEWORKS = frozenset({"pytest-bdd", "behave"})
-
     def test_every_mapping_destination_is_documented(self) -> None:
         doc = _BDD_FRAMEWORKS_DOC.read_text()
         for rule in detect_bdd_convention.MANIFEST_RULES:
@@ -387,8 +409,6 @@ class TestMappingDocSync:
     def test_every_documented_framework_token_appears_in_the_doc(self) -> None:
         doc = _BDD_FRAMEWORKS_DOC.read_text()
         for rule in detect_bdd_convention.MANIFEST_RULES:
-            if rule.framework in self.DOC_GAP_FRAMEWORKS:
-                continue
             assert any(token in doc for token in rule.tokens), (
                 "{}: none of its dependency tokens {} appear in {} — "
                 "update the doc or the mapping".format(
