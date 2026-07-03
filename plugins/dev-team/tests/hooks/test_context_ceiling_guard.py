@@ -105,7 +105,7 @@ def test_warns_exit_0_on_agent_load_over_the_ceiling(tmp_path: Path) -> None:
         env,
     )
     assert result.returncode == 0
-    assert b"50%" in result.stderr
+    assert b"100000 of 200000 tokens" in result.stderr
     assert b"context-summarization" in result.stderr
 
 
@@ -175,7 +175,8 @@ def test_context_ceiling_pct_lowers_the_trigger_point(tmp_path: Path) -> None:
     env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "25"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    assert b"30%" in result.stderr
+    assert b"60000 of 200000 tokens" in result.stderr
+    assert b"ceiling of 50000 tokens" in result.stderr
 
 
 def test_fail_open_when_the_transcript_is_missing(tmp_path: Path) -> None:
@@ -209,7 +210,7 @@ def test_warn_dedupes_within_5_pt_bucket_rewarns_on_higher(
 
     result1 = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result1.returncode == 0
-    assert b"50%" in result1.stderr
+    assert b"100000 of 200000 tokens" in result1.stderr
 
     # Same bucket → suppressed.
     result2 = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
@@ -220,7 +221,7 @@ def test_warn_dedupes_within_5_pt_bucket_rewarns_on_higher(
     _write_transcript(tr, 140_000)  # 70% → bucket 14
     result3 = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result3.returncode == 0
-    assert b"70%" in result3.stderr
+    assert b"140000 of 200000 tokens" in result3.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -253,8 +254,8 @@ def test_malformed_ceiling_pct_falls_back_to_40(tmp_path: Path) -> None:
     env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "not-a-number"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    # 50% ≥ 40 (default) → warning fires
-    assert b"50%" in result.stderr
+    # 100000/200000 = 50% ≥ 40% (default) → warning fires
+    assert b"100000 of 200000 tokens" in result.stderr
 
 
 def test_malformed_window_falls_back_to_200000(tmp_path: Path) -> None:
@@ -264,7 +265,7 @@ def test_malformed_window_falls_back_to_200000(tmp_path: Path) -> None:
     env["DEV_TEAM_CONTEXT_WINDOW"] = "bogus"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    assert b"50%" in result.stderr
+    assert b"100000 of 200000 tokens" in result.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -374,79 +375,47 @@ def test_measure_occupancy_missing_file(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Graduated warning bands (#787)
+# Pinned message contract + absolute-ceiling bound framing (#780)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "pct,expected_band,expected_action_snippet",
-    [
-        (25, "<30%", "no action needed yet"),
-        (35, "30-40%", "prepare"),
-        (45, "40-50%", "fresh context window"),
-        (55, "50-65%", "everything except the current task"),
-        (70, "65%+", "full summary to memory/"),
-        (100, "65%+", "full summary to memory/"),
-    ],
-)
-def test_band_for_pct(pct, expected_band, expected_action_snippet):
-    band, action = hook._band_for_pct(pct)
-    assert band == expected_band
-    assert expected_action_snippet in action
+def test_resolve_bound_percentage_when_pct_threshold_is_smaller_or_equal():
+    assert hook._resolve_bound(80_000, 150_000) == "percentage"
+    assert hook._resolve_bound(150_000, 150_000) == "percentage"  # tie
 
 
-def test_format_message_names_the_band_action_at_boundaries():
-    msg_40 = hook._format_message(40, 200_000, 40, "loading agent 'x'")
-    assert "[40-50% band]" in msg_40
-    assert "fresh context window" in msg_40
-
-    msg_50 = hook._format_message(50, 200_000, 40, "loading agent 'x'")
-    assert "[50-65% band]" in msg_50
-    assert "everything except the current task" in msg_50
-
-    msg_65 = hook._format_message(65, 200_000, 40, "loading agent 'x'")
-    assert "[65%+ band]" in msg_65
-    assert "full summary to memory/" in msg_65
-    assert "new conversation" in msg_65
+def test_resolve_bound_absolute_when_abs_ceiling_is_smaller():
+    assert hook._resolve_bound(400_000, 150_000) == "absolute"
 
 
-def test_warn_message_escalates_band_as_occupancy_climbs(tmp_path: Path) -> None:
-    """End-to-end: crossing 40%, 50%, and 65% each names the matching
-    Context Summarization action band, not one fixed message."""
-    tr = tmp_path / "t.jsonl"
-    env = _base_env(tmp_path)
-    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
-
-    _write_transcript(tr, 90_000)  # 45% -> 40-50% band
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
-    assert result.returncode == 0
-    assert b"[40-50% band]" in result.stderr
-    assert b"fresh context window" in result.stderr
-
-    _write_transcript(tr, 110_000)  # 55% -> 50-65% band, new bucket
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
-    assert result.returncode == 0
-    assert b"[50-65% band]" in result.stderr
-    assert b"everything except the current task" in result.stderr
-
-    _write_transcript(tr, 140_000)  # 70% -> 65%+ band, new bucket
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
-    assert result.returncode == 0
-    assert b"[65%+ band]" in result.stderr
-    assert b"full summary to memory/" in result.stderr
-    assert b"new conversation" in result.stderr
+def test_format_message_matches_the_pinned_contract():
+    msg = hook._format_message(
+        100_000, 200_000, 80_000, "percentage", "detected", "loading agent 'x'"
+    )
+    assert (
+        "🪟 Context at 100000 of 200000 tokens — over the effective "
+        "ceiling of 80000 tokens (percentage bound; window detected)" in msg
+    )
 
 
-def test_prepare_band_fires_when_ceiling_lowered_below_40(tmp_path: Path) -> None:
-    tr = tmp_path / "t.jsonl"
-    _write_transcript(tr, 70_000)  # 35%
-    env = _base_env(tmp_path)
-    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
-    env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "30"
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
-    assert result.returncode == 0
-    assert b"[30-40% band]" in result.stderr
-    assert b"prepare" in result.stderr
+def test_format_message_bound_framings_never_co_occur():
+    pct_msg = hook._format_message(
+        100_000, 200_000, 80_000, "percentage", "override", "x"
+    )
+    assert "percentage bound" in pct_msg
+    assert "absolute bound" not in pct_msg
+
+    abs_msg = hook._format_message(
+        200_000, 1_000_000, 150_000, "absolute", "detected", "x"
+    )
+    assert "absolute bound" in abs_msg
+    assert "percentage bound" not in abs_msg
+
+
+@pytest.mark.parametrize("provenance", ["override", "detected", "default"])
+def test_format_message_names_window_provenance(provenance: str) -> None:
+    msg = hook._format_message(100_000, 200_000, 80_000, "percentage", provenance, "x")
+    assert f"window {provenance}" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -508,7 +477,7 @@ def test_detects_window_per_model_family_end_to_end(
     assert result.returncode == 0
     expected_pct = (100_000 * 100) // expected_pct_denominator
     if expected_pct >= 40:
-        assert f"{expected_pct}%".encode() in result.stderr
+        assert f"100000 of {expected_pct_denominator} tokens".encode() in result.stderr
     else:
         assert result.stderr == b""
 
@@ -523,7 +492,8 @@ def test_env_override_wins_over_detection(tmp_path: Path) -> None:
     env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    assert b"50%" in result.stderr
+    assert b"100000 of 200000 tokens" in result.stderr
+    assert b"window override" in result.stderr
 
 
 def test_unrecognized_model_falls_back_to_200000(tmp_path: Path) -> None:
@@ -531,7 +501,8 @@ def test_unrecognized_model_falls_back_to_200000(tmp_path: Path) -> None:
     _write_transcript(tr, 100_000, model="gpt-5-turbo")  # unrecognized family
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), _base_env(tmp_path))
     assert result.returncode == 0
-    assert b"50%" in result.stderr  # 100000/200000 default
+    assert b"100000 of 200000 tokens" in result.stderr  # 100000/200000 default
+    assert b"window default" in result.stderr
 
 
 def test_detect_window_fail_open_on_missing_model_field(tmp_path: Path) -> None:
@@ -550,28 +521,29 @@ def test_detect_window_fail_open_on_missing_model_field(tmp_path: Path) -> None:
         )
         + "\n"
     )
-    assert hook._detect_window(tr) == 200_000
+    assert hook._detect_window(tr) == (200_000, False)
     result = _run(
         _mkinput("Agent", {"subagent_type": "x"}, tr), _base_env(tmp_path)
     )
     assert result.returncode == 0
-    assert b"50%" in result.stderr
+    assert b"100000 of 200000 tokens" in result.stderr
+    assert b"window default" in result.stderr
 
 
 def test_detect_window_fail_open_on_malformed_transcript(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     tr.write_text("not json at all\n")
-    assert hook._detect_window(tr) == 200_000
+    assert hook._detect_window(tr) == (200_000, False)
 
 
 def test_detect_window_fail_open_on_missing_transcript(tmp_path: Path) -> None:
-    assert hook._detect_window(tmp_path / "nope.jsonl") == 200_000
+    assert hook._detect_window(tmp_path / "nope.jsonl") == (200_000, False)
 
 
 def test_detect_window_fail_open_on_non_string_model(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     tr.write_text(json.dumps({"message": {"model": 12345}}) + "\n")
-    assert hook._detect_window(tr) == 200_000
+    assert hook._detect_window(tr) == (200_000, False)
 
 
 def test_env_window_override_none_when_unset(monkeypatch) -> None:
@@ -609,7 +581,10 @@ def test_absolute_cap_fires_at_150k_on_a_1m_window(tmp_path: Path) -> None:
     env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    assert result.stderr != b""
+    assert b"150000 of 1000000 tokens" in result.stderr
+    assert b"ceiling of 150000 tokens" in result.stderr
+    assert b"absolute bound" in result.stderr
+    assert b"percentage bound" not in result.stderr
 
 
 def test_absolute_cap_does_not_fire_just_under_150k_on_a_1m_window(
@@ -642,7 +617,8 @@ def test_absolute_cap_is_a_noop_on_a_200k_window(tmp_path: Path) -> None:
     env2["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     result2 = _run(_mkinput("Agent", {"subagent_type": "y"}, tr2), env2)
     assert result2.returncode == 0
-    assert b"40%" in result2.stderr
+    assert b"80000 of 200000 tokens" in result2.stderr
+    assert b"percentage bound" in result2.stderr
 
 
 def test_dev_team_context_abs_ceiling_override_wins_over_default(
