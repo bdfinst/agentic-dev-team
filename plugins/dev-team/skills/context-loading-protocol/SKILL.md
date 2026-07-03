@@ -25,8 +25,10 @@ This protocol is backed by a `PreToolUse` hook — `hooks/context_ceiling_guard.
 and, at/above the ceiling, nudges you to summarize (warn, default) or blocks the
 load (`DEV_TEAM_CONTEXT_STRICT=on`). Recovery skills (`/context-summarization`,
 `/context-loading-protocol`, `/continue`, `/review-summary`, `/session-review`) are
-never gated. The window cannot be auto-detected on a 1M-context model (the
-transcript omits the `[1m]` suffix) — set `DEV_TEAM_CONTEXT_WINDOW=1000000` there.
+never gated. The window auto-detects from the transcript's most recent
+`message.model` (Haiku family -> 200K; Opus/Sonnet/Fable families -> 1M;
+unrecognized/undetectable model -> 200K); set `DEV_TEAM_CONTEXT_WINDOW` to
+override detection explicitly.
 Knobs: `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40), `DEV_TEAM_CONTEXT_CEILING=off`.
 The hook is a backstop measured from real usage; the budget estimate below is still
 the planning tool you apply *before* loading.

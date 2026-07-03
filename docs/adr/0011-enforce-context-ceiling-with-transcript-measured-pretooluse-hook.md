@@ -6,6 +6,8 @@ Date: 2026-06-25
 
 Accepted
 
+Refined by [16. Rely on harness-native compaction; the plugin performs structured summarization only](0016-rely-on-harness-native-compaction-the-plugin-performs-structured-summarization-only.md)
+
 ## Context
 
 CLAUDE.md states a **40% Context Window Rule** and the `context-loading-protocol` skill instructs the orchestrator to keep total context under that ceiling and to load agents/skills on demand rather than speculatively. Until now nothing enforced it: the rule lived only as guidance the orchestrator was asked to self-apply, and the protocol's own budget step is an *estimate* (baseline + history estimate + file sizes). If the orchestrator ignored the rule, context grew unchecked until the harness's own summarization kicked in — independent of the protocol.
