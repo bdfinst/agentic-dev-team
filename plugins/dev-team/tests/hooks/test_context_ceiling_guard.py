@@ -348,3 +348,77 @@ def test_measure_occupancy_uses_last_usage_line_only(tmp_path: Path) -> None:
 
 def test_measure_occupancy_missing_file(tmp_path: Path) -> None:
     assert hook._measure_occupancy(tmp_path / "nope.jsonl") is None
+
+
+# ---------------------------------------------------------------------------
+# Graduated warning bands (#787)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "pct,expected_band,expected_action_snippet",
+    [
+        (25, "<30%", "no action needed yet"),
+        (35, "30-40%", "prepare"),
+        (45, "40-50%", "fresh context window"),
+        (55, "50-65%", "everything except the current task"),
+        (70, "65%+", "full summary to memory/"),
+        (100, "65%+", "full summary to memory/"),
+    ],
+)
+def test_band_for_pct(pct, expected_band, expected_action_snippet):
+    band, action = hook._band_for_pct(pct)
+    assert band == expected_band
+    assert expected_action_snippet in action
+
+
+def test_format_message_names_the_band_action_at_boundaries():
+    msg_40 = hook._format_message(40, 200_000, 40, "loading agent 'x'")
+    assert "[40-50% band]" in msg_40
+    assert "fresh context window" in msg_40
+
+    msg_50 = hook._format_message(50, 200_000, 40, "loading agent 'x'")
+    assert "[50-65% band]" in msg_50
+    assert "everything except the current task" in msg_50
+
+    msg_65 = hook._format_message(65, 200_000, 40, "loading agent 'x'")
+    assert "[65%+ band]" in msg_65
+    assert "full summary to memory/" in msg_65
+    assert "new conversation" in msg_65
+
+
+def test_warn_message_escalates_band_as_occupancy_climbs(tmp_path: Path) -> None:
+    """End-to-end: crossing 40%, 50%, and 65% each names the matching
+    Context Summarization action band, not one fixed message."""
+    tr = tmp_path / "t.jsonl"
+    env = _base_env(tmp_path)
+
+    _write_transcript(tr, 90_000)  # 45% -> 40-50% band
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[40-50% band]" in result.stderr
+    assert b"fresh context window" in result.stderr
+
+    _write_transcript(tr, 110_000)  # 55% -> 50-65% band, new bucket
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[50-65% band]" in result.stderr
+    assert b"everything except the current task" in result.stderr
+
+    _write_transcript(tr, 140_000)  # 70% -> 65%+ band, new bucket
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[65%+ band]" in result.stderr
+    assert b"full summary to memory/" in result.stderr
+    assert b"new conversation" in result.stderr
+
+
+def test_prepare_band_fires_when_ceiling_lowered_below_40(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 70_000)  # 35%
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "30"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[30-40% band]" in result.stderr
+    assert b"prepare" in result.stderr
