@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-03
 **Branch**: claude/defects-777-778-pq6vo7
-**Status**: approved
+**Status**: in-progress
 
 ## Goal
 
@@ -26,7 +26,7 @@ and is not double-fixed here.
 - [x] `skills/plan/SKILL.md` step 5a's `complex` tier trigger no longer fires solely
       because a plan states the default stance required by `/ship`'s gate — it fires
       only for a *non-default* or *contested* stance.
-- [ ] `skills/plan/SKILL.md` step 5b documents the id→tier mapping so the orchestrator
+- [x] `skills/plan/SKILL.md` step 5b documents the id→tier mapping so the orchestrator
       has an explicit, followable rule instead of a silent mismatch when dispatching
       plan-review personas via the `Agent` tool.
 
@@ -269,15 +269,15 @@ invocation (no usable TTY). All dispatched plan-review personas returned `approv
   - [x] Step 2.1: Reword the `complex` tier decision-axis trigger
 
 #### Wave 3
-- [ ] Slice 3: Document id→tier mapping for plan-review persona dispatch (#778 item 3)
-  - [ ] Step 3.1: Document the id→tier mapping rule at the dispatch site
+- [x] Slice 3: Document id→tier mapping for plan-review persona dispatch (#778 item 3)
+  - [x] Step 3.1: Document the id→tier mapping rule at the dispatch site
 
 ### Acceptance Criteria
 
 - [x] No shipped skill or agent doc invokes a `.py` script with a `bash` prefix.
 - [x] A regression test fails if a future PR reintroduces `bash ... foo.py` in a shipped skill/agent doc.
 - [x] `skills/plan/SKILL.md` step 5a's `complex` tier trigger no longer fires solely because a plan states the default stance required by `/ship`'s gate.
-- [ ] `skills/plan/SKILL.md` step 5b documents the id→tier mapping so the orchestrator has an explicit, followable rule.
+- [x] `skills/plan/SKILL.md` step 5b documents the id→tier mapping so the orchestrator has an explicit, followable rule.
 
 ## Plan Review Summary
 
