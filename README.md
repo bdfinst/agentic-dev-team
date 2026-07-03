@@ -4,7 +4,7 @@
 [![Docs checks](https://github.com/bdfinst/agentic-dev-team/actions/workflows/link-check.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/link-check.yml)
 [![Docs deploy](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml)
 
-📖 **[Documentation](https://docs.bryanfinster.com/)**
+📖 **[Documentation](https://devteam.bryanfinster.com/)**
 
 Three Claude Code plugins for engineering workflows. Install one or all.
 
@@ -106,7 +106,7 @@ Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUT
 
 ## Documentation
 
-The full documentation — architecture, model routing, eval system, telemetry, ADRs, and experiment reports — lives at **[docs.bryanfinster.com](https://docs.bryanfinster.com/)**, with search and complete navigation.
+The full documentation — architecture, model routing, eval system, telemetry, ADRs, and experiment reports — lives at **[devteam.bryanfinster.com](https://devteam.bryanfinster.com/)**, with search and complete navigation.
 
 Start here:
 
