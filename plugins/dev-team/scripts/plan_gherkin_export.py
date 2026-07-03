@@ -20,7 +20,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, List, NamedTuple, Optional, Tuple
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
@@ -142,7 +142,7 @@ def _sync_feature_dir(
         sorted(
             p
             for p in target_dir.glob("*.feature")
-            if p.is_file() and not p.is_symlink()
+            if p.is_file() or p.is_symlink()
         )
         if target_dir.is_dir()
         else []
@@ -151,33 +151,38 @@ def _sync_feature_dir(
     overwritten = sum(1 for p in existing if p.name in new_names)
     stale = [p.name for p in existing if p.name not in new_names]
     for path in existing:
-        # A file already gone is the desired post-state; tolerate races.
+        # Unlinking a symlink removes the link, never its target. A file
+        # already gone is the desired post-state; tolerate races.
         path.unlink(missing_ok=True)
     target_dir.mkdir(parents=True, exist_ok=True)
     for name, gherkin in features:
+        path = target_dir / name
+        if path.is_symlink():
+            # Never write through a planted link — writes stay inside root.
+            path.unlink()
         # write_bytes keeps the content byte-for-byte (no newline translation)
-        (target_dir / name).write_bytes(gherkin.encode("utf-8"))
+        path.write_bytes(gherkin.encode("utf-8"))
     return overwritten, stale
 
 
-def _build_report(
-    destination: str,
-    plan_slug: str,
-    features: List[Tuple[str, str]],
-    overwritten: int,
-    stale: List[str],
-    skipped: List[str],
-) -> List[str]:
+class _ExportOutcome(NamedTuple):
+    features: List[Tuple[str, str]]
+    skipped: List[str]
+    overwritten: int
+    stale: List[str]
+
+
+def _build_report(destination: str, plan_slug: str, outcome: _ExportOutcome) -> List[str]:
     report = ["destination: {}/{}".format(destination, plan_slug)]
-    for name, _ in features:
+    for name, _ in outcome.features:
         report.append("wrote: {}/{}/{}".format(destination, plan_slug, name))
-    for name in stale:
+    for name in outcome.stale:
         report.append("removed stale: {}/{}/{}".format(destination, plan_slug, name))
-    for slice_id in skipped:
+    for slice_id in outcome.skipped:
         report.append("skipped (no gherkin block): slice {}".format(slice_id))
     report.append(
         "files written: {}, overwritten: {}, stale removed: {}".format(
-            len(features), overwritten, len(stale)
+            len(outcome.features), outcome.overwritten, len(outcome.stale)
         )
     )
     return report
@@ -202,7 +207,8 @@ def export_plan(plan_path: Path, root: Path) -> List[str]:
     target_dir = _resolve_target_dir(destination, plan_slug, root)
     features, skipped = _collect_features(lines)
     overwritten, stale = _sync_feature_dir(target_dir, features)
-    return _build_report(destination, plan_slug, features, overwritten, stale, skipped)
+    outcome = _ExportOutcome(features, skipped, overwritten, stale)
+    return _build_report(destination, plan_slug, outcome)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
