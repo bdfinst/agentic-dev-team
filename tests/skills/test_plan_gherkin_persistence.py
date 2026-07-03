@@ -75,10 +75,28 @@ class TestPlanCreationDetection:
             "the resolved decision must be echoed in the run output"
         )
 
+    def test_recorded_value_is_the_directory_only(self) -> None:
+        assert grep(r"export script appends `<plan-slug>/`", PLAN_SKILL), (
+            "the metadata line records the destination directory only — the "
+            "exporter appends <plan-slug>/, so recording the full landing "
+            "path would double-nest"
+        )
+
     def test_headless_no_signal_skips_with_log_line(self) -> None:
         assert "skipping the Gherkin persistence prompt (non-interactive)" in (
             PLAN_SKILL
         ), "non-interactive no-signal runs log the skip and never block"
+
+    def test_headless_reuses_the_step_six_triad(self) -> None:
+        sub_step = PLAN_SKILL[
+            PLAN_SKILL.index("#### Resolve the Gherkin persistence decision"):
+            PLAN_SKILL.index("### 4.")
+        ]
+        for trigger in ("--yes", "DEV_TEAM_AUTO_APPROVE=1", "TTY"):
+            assert trigger in sub_step, (
+                "the persistence sub-step must name the step-6 non-interactive "
+                "triad trigger '{}'".format(trigger)
+            )
 
     def test_reruns_honor_the_recorded_decision(self) -> None:
         assert grep(
