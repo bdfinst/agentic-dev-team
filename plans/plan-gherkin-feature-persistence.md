@@ -39,7 +39,7 @@ From the spec (`docs/specs/plan-gherkin-feature-persistence.md`), named for what
 ### Slice 1: BDD convention detection script
 
 **Depends-on:** none
-**Files:** `plugins/dev-team/scripts/detect_bdd_convention.py`, `tests/scripts/test_detect_bdd_convention.py`
+**Files:** `plugins/dev-team/scripts/detect_bdd_convention.py`, `tests/scripts/test_detect_bdd_convention.py`, `plugins/dev-team/knowledge/test-stack-profiles/bdd-frameworks.md`
 
 **Behavior:**
 
