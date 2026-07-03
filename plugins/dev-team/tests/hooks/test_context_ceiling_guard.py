@@ -25,11 +25,19 @@ import context_ceiling_guard as hook  # type: ignore[import-not-found]  # noqa: 
 _HOOK_PY = _HOOKS_DIR / "context_ceiling_guard.py"
 
 
-def _write_transcript(path: Path, total: int) -> None:
-    """Write a transcript whose latest usage line totals `total` prompt tokens."""
+def _write_transcript(
+    path: Path, total: int, model: str = "claude-legacy-test-model"
+) -> None:
+    """Write a transcript whose latest usage line totals `total` prompt tokens.
+
+    `model` defaults to a name that matches neither the Haiku nor the
+    Opus/Sonnet/Fable family regex, so window auto-detection falls back to
+    the 200K default and existing ceiling-percentage fixtures are unaffected
+    by #785's detection feature.
+    """
     line = {
         "message": {
-            "model": "claude-opus-4-8",
+            "model": model,
             "usage": {
                 "input_tokens": 2,
                 "cache_read_input_tokens": total - 2,
@@ -422,3 +430,129 @@ def test_prepare_band_fires_when_ceiling_lowered_below_40(tmp_path: Path) -> Non
     assert result.returncode == 0
     assert b"[30-40% band]" in result.stderr
     assert b"prepare" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# #785: context window auto-detection from transcript model
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model,expected",
+    [
+        ("claude-haiku-4-5", 200_000),
+        ("claude-3-5-haiku-20241022", 200_000),
+        ("claude-opus-4-8", 1_000_000),
+        ("claude-sonnet-5", 1_000_000),
+        ("claude-fable-1", 1_000_000),
+        ("some-unrecognized-model", 200_000),
+    ],
+)
+def test_window_for_model(model: str, expected: int) -> None:
+    assert hook._window_for_model(model) == expected
+
+
+@pytest.mark.parametrize(
+    "model,expected_pct_denominator",
+    [
+        ("claude-haiku-4-5", 200_000),
+        ("claude-3-5-haiku-20241022", 200_000),
+        ("claude-opus-4-8", 1_000_000),
+        ("claude-sonnet-5", 1_000_000),
+        ("claude-fable-1", 1_000_000),
+    ],
+)
+def test_detects_window_per_model_family_end_to_end(
+    tmp_path: Path, model: str, expected_pct_denominator: int
+) -> None:
+    """100_000 occupancy tokens against each family's detected window."""
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 100_000, model=model)
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), _base_env(tmp_path))
+    assert result.returncode == 0
+    expected_pct = (100_000 * 100) // expected_pct_denominator
+    if expected_pct >= 40:
+        assert f"{expected_pct}%".encode() in result.stderr
+    else:
+        assert result.stderr == b""
+
+
+def test_env_override_wins_over_detection(tmp_path: Path) -> None:
+    """An Opus transcript would auto-detect to 1M (10%, below ceiling); the
+    explicit override forces 200K (50%, over ceiling) and the override wins.
+    """
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 100_000, model="claude-opus-4-8")
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"50%" in result.stderr
+
+
+def test_unrecognized_model_falls_back_to_200000(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 100_000, model="gpt-5-turbo")  # unrecognized family
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), _base_env(tmp_path))
+    assert result.returncode == 0
+    assert b"50%" in result.stderr  # 100000/200000 default
+
+
+def test_detect_window_fail_open_on_missing_model_field(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(
+        json.dumps(
+            {
+                "message": {
+                    "usage": {
+                        "input_tokens": 2,
+                        "cache_read_input_tokens": 99_998,
+                        "cache_creation_input_tokens": 0,
+                    }
+                }
+            }
+        )
+        + "\n"
+    )
+    assert hook._detect_window(tr) == 200_000
+    result = _run(
+        _mkinput("Agent", {"subagent_type": "x"}, tr), _base_env(tmp_path)
+    )
+    assert result.returncode == 0
+    assert b"50%" in result.stderr
+
+
+def test_detect_window_fail_open_on_malformed_transcript(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("not json at all\n")
+    assert hook._detect_window(tr) == 200_000
+
+
+def test_detect_window_fail_open_on_missing_transcript(tmp_path: Path) -> None:
+    assert hook._detect_window(tmp_path / "nope.jsonl") == 200_000
+
+
+def test_detect_window_fail_open_on_non_string_model(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(json.dumps({"message": {"model": 12345}}) + "\n")
+    assert hook._detect_window(tr) == 200_000
+
+
+def test_env_window_override_none_when_unset(monkeypatch) -> None:
+    monkeypatch.delenv("DEV_TEAM_CONTEXT_WINDOW", raising=False)
+    assert hook._env_window_override() is None
+
+
+def test_env_window_override_none_when_malformed(monkeypatch) -> None:
+    monkeypatch.setenv("DEV_TEAM_CONTEXT_WINDOW", "bogus")
+    assert hook._env_window_override() is None
+
+
+def test_env_window_override_none_when_zero_or_negative(monkeypatch) -> None:
+    monkeypatch.setenv("DEV_TEAM_CONTEXT_WINDOW", "0")
+    assert hook._env_window_override() is None
+
+
+def test_env_window_override_returns_explicit_value(monkeypatch) -> None:
+    monkeypatch.setenv("DEV_TEAM_CONTEXT_WINDOW", "1000000")
+    assert hook._env_window_override() == 1_000_000

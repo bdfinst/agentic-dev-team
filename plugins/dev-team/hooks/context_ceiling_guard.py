@@ -25,9 +25,14 @@ Env:
     DEV_TEAM_CONTEXT_CEILING=off     disable entirely (default on)
     DEV_TEAM_CONTEXT_STRICT=on       block over the ceiling (default: warn)
     DEV_TEAM_CONTEXT_CEILING_PCT=N   ceiling percent (default 40)
-    DEV_TEAM_CONTEXT_WINDOW=N        context window in tokens; defaults to
-                                     200000 (every current Claude model's
-                                     base window). Set 1000000 on 1M models.
+    DEV_TEAM_CONTEXT_WINDOW=N        context window in tokens; an explicit
+                                     override that always wins over
+                                     auto-detection. When unset, the window is
+                                     auto-detected from the transcript's most
+                                     recent `message.model` (Haiku family ->
+                                     200000; Opus/Sonnet/Fable families ->
+                                     1000000; unrecognized or undetectable
+                                     model -> 200000).
 
 Contract (docs/python-hook-contract.md):
     Input : PreToolUse JSON on stdin
@@ -102,6 +107,79 @@ def _positive_int_env(name: str, default: int) -> int:
         return default
     value = int(raw)
     return value if value > 0 else default
+
+
+# ---------------------------------------------------------------------------
+# model -> context window auto-detection
+# ---------------------------------------------------------------------------
+
+# Family match order matters: Haiku is checked first so a hypothetical
+# "haiku-opus" alias (or similar) can't fall through to the 1M branch.
+_HAIKU_WINDOW = 200_000
+_LARGE_WINDOW = 1_000_000
+_DEFAULT_WINDOW = 200_000
+
+_HAIKU_RE = re.compile(r"haiku", re.IGNORECASE)
+_LARGE_WINDOW_RE = re.compile(r"opus|sonnet|fable", re.IGNORECASE)
+
+
+def _window_for_model(model: str) -> int:
+    """Map a model name to its context window via family substring match.
+
+    Haiku family -> 200K; Opus/Sonnet/Fable families -> 1M; anything else
+    (unrecognized model name) -> the 200K default.
+    """
+    if _HAIKU_RE.search(model):
+        return _HAIKU_WINDOW
+    if _LARGE_WINDOW_RE.search(model):
+        return _LARGE_WINDOW
+    return _DEFAULT_WINDOW
+
+
+def _detect_window(transcript_path: Path) -> int:
+    """Auto-detect the context window from the transcript's most recent
+    `message.model`. Mirrors `_measure_occupancy`'s scan (last 400 lines,
+    last matching row wins) so the detected model tracks the same session
+    state as the occupancy measurement.
+
+    Fail-open: any parse error, missing/malformed `model` field, or a
+    transcript with no model at all resolves to the 200K default — this
+    function never raises and never blocks.
+    """
+    lines = _tail_lines(transcript_path, 400)
+    last_model: Optional[str] = None
+    for raw in lines:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            row = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(row, dict):
+            continue
+        message = row.get("message")
+        if not isinstance(message, dict):
+            continue
+        model = message.get("model")
+        if isinstance(model, str) and model:
+            last_model = model
+    if last_model is None:
+        return _DEFAULT_WINDOW
+    return _window_for_model(last_model)
+
+
+def _env_window_override() -> Optional[int]:
+    """Explicit `DEV_TEAM_CONTEXT_WINDOW` override; `None` when unset or
+    invalid, in which case the caller falls through to auto-detection.
+    """
+    raw = os.environ.get("DEV_TEAM_CONTEXT_WINDOW")
+    if raw is None:
+        return None
+    if not re.fullmatch(r"[0-9]+", raw):
+        return None
+    value = int(raw)
+    return value if value > 0 else None
 
 
 # ---------------------------------------------------------------------------
@@ -277,8 +355,8 @@ def _format_message(
         "Run /context-summarization\n"
         "(write a memory/ progress file, continue in a fresh context) "
         "and defer non-essential agents/skills.\n"
-        "Tune with DEV_TEAM_CONTEXT_WINDOW (set 1000000 on a 1M-context "
-        "model) / DEV_TEAM_CONTEXT_CEILING_PCT;\n"
+        "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) "
+        "/ DEV_TEAM_CONTEXT_CEILING_PCT;\n"
         "DEV_TEAM_CONTEXT_STRICT=on hard-blocks; "
         "DEV_TEAM_CONTEXT_CEILING=off disables."
     )
@@ -336,7 +414,9 @@ def _resolve_verdict(payload: dict) -> Tuple[int, Optional[str], bool]:
     if occ is None:
         return 0, None, False
 
-    window = _positive_int_env("DEV_TEAM_CONTEXT_WINDOW", 200_000)
+    window = _env_window_override()
+    if window is None:
+        window = _detect_window(transcript_path)
     ceiling = _positive_int_env("DEV_TEAM_CONTEXT_CEILING_PCT", 40)
 
     # Bash: `pct=$((occ * 100 / window))` — integer truncation. Match exactly.
