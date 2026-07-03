@@ -263,7 +263,7 @@ For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), g
 If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py > .review-passed
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py > .review-passed
 ```
 
 Stage the exact changes you reviewed (`git add` them) before writing the gate, so the staged content the hook hashes matches what was reviewed. If `git diff --cached` is empty (you reviewed unstaged changes), stage them first — the gate binds to the staged patch by design.

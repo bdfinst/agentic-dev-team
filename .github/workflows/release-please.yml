@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  # On-demand runs (Actions tab → Release Please → Run workflow) for when a
+  # push-triggered run was missed or needs a retry after fixing secrets/config.
+  workflow_dispatch:
 
 permissions:
   contents: write

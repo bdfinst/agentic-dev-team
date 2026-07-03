@@ -75,7 +75,7 @@ Create `plans/` if it doesn't exist. When writing the plan file, populate the `#
 Then derive the waves — never hand-author them:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py <plan-file>
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py <plan-file>
 ```
 
 Render the `## Parallelization` Mermaid DAG + wave table and the wave-grouped
@@ -95,7 +95,11 @@ Derive a **plan tier** from objective signals already on hand — the same `triv
 | ------ | --------- | ----------- |
 | `trivial` | 1 slice, ≤ 2 files, no `complex` step, touches no high-reversal-cost decision axis | **Acceptance Test Critic only** (1) |
 | `standard` | anything between — e.g. a single slice with a few files, or a small multi-slice plan within existing patterns | **Acceptance Test Critic + Design & Architecture Critic**, plus **UX Critic** if the plan has a user-facing/UI surface, plus **Parallelization Critic** if slice count > 1 (2–4) |
-| `complex` | > 1 wave, ≥ 4 slices, any `complex` step, a security-sensitive/cross-cutting change, or a stance on a high-reversal-cost decision axis | **all 5** |
+| `complex` | > 1 wave, ≥ 4 slices, any `complex` step, a security-sensitive/cross-cutting change, or a **non-default** stance on a high-reversal-cost decision axis, or the axis was **contested** at the `/ship` gate | **all 5** |
+
+Every `/ship`-driven plan states a stance on the axes in `knowledge/decision-defaults.md` — merely restating the default is not, by itself, a `complex` signal (treating it as one would defeat the tier system's own review-scaling goal). "Contested" means a recorded objection to the stance, e.g. a note in the plan's `## Risks & Open Questions` section — not an unrecorded verbal disagreement.
+
+**Worked example** (`Integration: auto-merge vs. direct-to-trunk` axis): a plan stating "open a PR and use auto-merge gated on green checks" (the documented default) does not trigger `complex` on this signal alone. A plan stating "merge directly to trunk, bypassing the PR gate" (a non-default stance) does trigger `complex`, as does a plan stating the default stance where a reviewer's recorded objection challenges it.
 
 When in doubt, classify up (standard rather than trivial, complex rather than standard).
 
@@ -106,10 +110,10 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 The personas are subagent **prompt templates** (no frontmatter), so the effort-band → model resolver hook (`hooks/agent_model_resolve.py`, which keys on `subagent_type`) cannot route them. Resolve the band yourself before dispatch so they honor the same ladder and per-environment overrides as every other agent — do **not** hard-code a model. All five run at the `medium` band:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-review
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-review
 ```
 
-Pass the resolved model id as the `model` override on each persona dispatch. (`medium` resolves to the same default the personas used before, but now flows through `.claude/model-ladder.json` / `knowledge/model-routing.json` instead of a literal.)
+**Map the resolved id to a dispatch tier — do not pass the id through.** `model_resolve.py` returns a concrete model id (e.g. a `claude-sonnet-*` snapshot), but the `Agent` tool's `model` parameter only accepts tier names (`sonnet | opus | haiku | fable`), not ids — passing the id verbatim is silently unfollowable. Map the id to the nearest tier by name substring: `*sonnet*` → `sonnet`, `*opus*` → `opus`, `*haiku*` → `haiku`, `*fable*` → `fable`. If the id matches none of the four substrings (e.g. a future, unrecognized model family), fall back to `sonnet` and note the mismatch in the dispatch output rather than passing the unrecognized string through. Pass the resulting tier name as the `model` override on each persona dispatch. This mapping is a known precision loss versus the ladder's exact id — `.claude/model-ladder.json` / `knowledge/model-routing.json` per-environment overrides still influence which model backs each tier at Anthropic's end, even though only the tier name crosses the dispatch boundary. (`medium` resolves to the same default the personas used before, but now flows through the ladder/routing files instead of a literal.)
 
 | Reviewer | Template | Effort | Focus |
 | ---------- | ---------- | -------- | ------- |
@@ -139,7 +143,7 @@ Pass each reviewer the full plan content. Also pass the Parallelization Critic t
 After approval, classify the origin remote — **only** offer issue creation on an actual GitHub host:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py
 ```
 
 - **`github`** → prompt **once**, showing the count: *"Open 1 parent issue and N linked slice issues from this plan? [y/N]"* (N = number of slices). The default is **No**. Invoke `/issues-from-plan` **only on explicit `y`**; on No (or anything else), create nothing and continue.

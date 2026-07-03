@@ -88,7 +88,7 @@ Work the plan **wave by wave** (the plan's `## Parallelization` section, derived
 **Base-ref check (top-level session, before any subagent dispatch).** Worktree subagents (`isolation: "worktree"`) must branch from the caller's local HEAD, not `origin/<default>`, so the `docs/specs/<slug>.md` and `plans/<slug>.md` files `/ship` just produced are visible to them (issue #553). This is controlled by Claude Code's `worktree.baseRef` setting, which is honored only at project (`.claude/settings.json`) or user (`~/.claude/settings.json`) scope — **not** at plugin or project-local scope (`docs/spikes/worktree-baseref-head-spike.md`). `/build` cannot set this on the user's behalf, so it runs a read-only detect-and-warn **in this top-level `/build` session, before any subagent dispatch**, so the warning is visible in the human-facing transcript:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py detect   # prints head|fresh|unset|unknown
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py detect   # prints head|fresh|unset|unknown
 ```
 
 - **`head`** → no warning. Proceed.
