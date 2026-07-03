@@ -29,7 +29,7 @@ From the spec (`docs/specs/plan-gherkin-feature-persistence.md`), named for what
 - [ ] **Byte-for-byte-fidelity**: exported file content equals the slice's fenced Gherkin block exactly (modulo one trailing newline), no header — asserted by the export script's unit tests.
 - [ ] **Post-approval-writes-only**: `/plan` shells to the export script only after the step-6 approval gate, with an explicit constraint-#1 carve-out; drafts never write files.
 - [ ] **Overwrite-never-silent**: re-export replaces prior derived files under `<dir>/<plan-slug>/` and reports the overwrite count; a fresh export reports the files written.
-- [ ] **Write-failures-surface**: an export that cannot write (path collision with a non-directory, unwritable destination) exits non-zero naming the offending path; `/plan` surfaces the error instead of claiming success.
+- [ ] **Write-failures-surface**: an export whose destination path collides with a non-directory file, or whose plan file is unreadable, exits non-zero naming the offending path; `/plan` surfaces the error instead of claiming success.
 - [ ] **Detection-failure-falls-back**: a non-zero exit from the detection script is treated as no-signal (prompt or headless skip) with its stderr surfaced; planning never dies mid-run on it.
 - [ ] **Decision-recorded-and-honored**: the template metadata block carries `**Gherkin persistence**:`; a re-run that finds an existing plan file at the output path reads that line and honors it without re-prompting; editing the line is the documented way to change the decision.
 - [ ] **Repo-gates-green**: `scripts/ci-local.sh` passes — stdlib-only Python 3.8+ scripts, pytest-only tests, no new `.bats`.
@@ -74,9 +74,11 @@ Feature: BDD convention detection
       | cucumber-js  | package.json     | features                           |
       | pytest-bdd   | pyproject.toml   | features                           |
       | behave       | requirements.txt | features                           |
-      | Reqnroll     | test csproj      | Features under the test project    |
+      | pytest-bdd   | requirements-dev.txt | features                       |
+      | Reqnroll     | test csproj      | <csproj-directory>/Features        |
       | cucumber-jvm | pom.xml          | src/test/resources/features        |
       | cucumber-jvm | build.gradle     | src/test/resources/features        |
+      | cucumber-jvm | build.gradle.kts | src/test/resources/features        |
       | godog        | go.mod           | features                           |
 
   Scenario: feature files under multiple unrelated roots yield no signal
@@ -128,7 +130,7 @@ Feature: BDD convention detection
 #### Step 1.2: Manifest detection, canonical mapping, precedence, and conflicts
 
 **Complexity**: standard
-**RED**: per-stack fixtures (package.json, pyproject.toml, requirements.txt, csproj, pom.xml, build.gradle, go.mod) asserting each maps to its canonical destination; a fixture with both `.feature` files and a manifest dep asserting feature-files precedence; conflicting-destination manifests assert `none` while same-destination manifests (pytest-bdd + behave) assert `manifest`/`features`; a sync-guard test asserting every framework→destination pair in the script's mapping table also appears in `knowledge/test-stack-profiles/bdd-frameworks.md` (drift guard).
+**RED**: per-stack fixtures (package.json, pyproject.toml, requirements.txt, csproj, pom.xml, build.gradle, go.mod) asserting each maps to its canonical destination; a fixture with both `.feature` files and a manifest dep asserting feature-files precedence; conflicting-destination manifests assert `none` while same-destination manifests (pytest-bdd + behave) assert `manifest`/`features`; two Reqnroll test csprojs in different directories assert `none` (same framework, multiple candidate destinations — the conflict rule applies); a sync-guard test asserting every framework→destination pair in the script's mapping table also appears in `knowledge/test-stack-profiles/bdd-frameworks.md` (drift guard).
 **GREEN**: implement manifest probes and the precedence chain (`feature-files` > `manifest` > `none`) with a table-driven mapping.
 **REFACTOR**: keep the mapping one row per stack so adding a stack is one line plus one doc row.
 **Files**: `plugins/dev-team/scripts/detect_bdd_convention.py`, `tests/scripts/test_detect_bdd_convention.py`
@@ -167,7 +169,8 @@ Feature: Plan Gherkin export
     Given a destination subdirectory already containing derived .feature files from an earlier export
     When the export runs again
     Then the files are replaced with the current plan's Gherkin
-    And the output states how many existing files were overwritten
+    And derived files no longer produced by the current plan are removed
+    And the output states how many files were overwritten or removed
 
   Scenario: a plan-file-only decision exports nothing
     Given a plan file whose recorded Gherkin persistence decision is plan-file-only
@@ -199,7 +202,7 @@ Feature: Plan Gherkin export
 #### Step 2.1: Parse plan and export slice Gherkin byte-for-byte
 
 **Complexity**: standard
-**RED**: `tests/scripts/test_plan_gherkin_export.py` — fixture plan files asserting: each `### Slice N:` section's fenced ` ```gherkin ` block lands at `<dir>/<plan-slug>/slice-<N>-<slice-slug>.feature`; file content equals the fenced block byte-for-byte modulo one trailing newline (no header added); a summary line reports destination and file count.
+**RED**: `tests/scripts/test_plan_gherkin_export.py` — fixture plan files asserting: each `### Slice N:` section's fenced ` ```gherkin ` block lands at `<dir>/<plan-slug>/slice-<N>-<slice-slug>.feature`, where **plan-slug = the plan filename stem verbatim** and **slice-slug = the slice title lowercased with each run of non-alphanumeric characters collapsed to a single hyphen, leading/trailing hyphens trimmed** — exact filenames asserted in the fixtures; file content equals the fenced block byte-for-byte modulo one trailing newline (no header added); a summary line reports destination and file count.
 **GREEN**: implement `plan_gherkin_export.py` reusing the slice-section parsing conventions of `scripts/lib/plan_parse.py` (extend the lib where sharable rather than duplicating its walker).
 **REFACTOR**: hoist any duplicated slice-walking into `scripts/lib/plan_parse.py` helpers.
 **Files**: `plugins/dev-team/scripts/plan_gherkin_export.py`, `tests/scripts/test_plan_gherkin_export.py`, `plugins/dev-team/scripts/lib/plan_parse.py`
@@ -208,7 +211,7 @@ Feature: Plan Gherkin export
 #### Step 2.2: Decision parsing, no-op modes, and overwrite reporting
 
 **Complexity**: standard
-**RED**: tests asserting: the script reads the `**Gherkin persistence**:` metadata line (destination dir | plan-file-only | custom path); plan-file-only and missing-decision plans write nothing and exit 0 with an explanatory note; re-export over an existing `<dir>/<plan-slug>/` reports the overwrite count — never silent.
+**RED**: tests asserting: the script reads the `**Gherkin persistence**:` metadata line (destination dir | plan-file-only | custom path); plan-file-only and missing-decision plans write nothing and exit 0 with an explanatory note; re-export clears `<dir>/<plan-slug>/` of `*.feature` files before writing, so stale files from renamed/renumbered slices never linger, and reports both the overwrite count and any removed-stale count — never silent.
 **GREEN**: implement decision parsing and the overwrite counter.
 **REFACTOR**: none expected.
 **Files**: `plugins/dev-team/scripts/plan_gherkin_export.py`, `tests/scripts/test_plan_gherkin_export.py`
