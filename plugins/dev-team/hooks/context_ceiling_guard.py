@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Python port of hooks/context-ceiling-guard.sh (#595 / #572 Phase 3).
 
-PreToolUse hook (Agent + Skill matchers). Enforces the 40% context-window
+PreToolUse hook (Agent + Skill matchers). Enforces the context-window
 ceiling from the Context Loading Protocol. Before a capability-loading call
 — an Agent dispatch or a Skill invocation — it reads the *real* context
 occupancy from the session transcript's most recent assistant-message usage
-(input + cache_read + cache_creation tokens) and compares to the model's
-context window. Over the ceiling it nudges the orchestrator to summarize
-(warn, the default) or blocks the load (strict mode).
+and compares it to the model's context window. Over the ceiling it nudges
+the orchestrator to summarize (warn, the default) or blocks the load
+(strict mode).
+
+Utilization formula (identical in skills/context-loading-protocol/SKILL.md
+and skills/context-summarization/SKILL.md — kept in sync by
+tests/hooks/test_context_ceiling_guard.py's formula-equality test):
+    utilization = (input + cache_read + cache_creation) / model_context_window
 
 Why occupancy from the transcript and not a self-estimate: the model has no
 reliable readout of its own context fill; the usage the harness recorded in

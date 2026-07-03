@@ -24,6 +24,39 @@ import context_ceiling_guard as hook  # type: ignore[import-not-found]  # noqa: 
 
 _HOOK_PY = _HOOKS_DIR / "context_ceiling_guard.py"
 
+_PLUGIN_DIR = _HOOKS_DIR.parent
+_CONTEXT_SUMMARIZATION_SKILL = (
+    _PLUGIN_DIR / "skills" / "context-summarization" / "SKILL.md"
+)
+_CONTEXT_LOADING_PROTOCOL_SKILL = (
+    _PLUGIN_DIR / "skills" / "context-loading-protocol" / "SKILL.md"
+)
+
+# One utilization formula everywhere (#782): the exact same string must
+# appear in the hook docstring and both SKILL.md files, so the three can
+# never silently drift the way context-summarization/SKILL.md's old
+# `(input + output) / window` once did against the hook's real measurement.
+_UTILIZATION_FORMULA = (
+    "utilization = (input + cache_read + cache_creation) / model_context_window"
+)
+
+
+def test_utilization_formula_is_identical_across_hook_and_both_skills() -> None:
+    hook_text = _HOOK_PY.read_text(encoding="utf-8")
+    summarization_text = _CONTEXT_SUMMARIZATION_SKILL.read_text(encoding="utf-8")
+    loading_protocol_text = _CONTEXT_LOADING_PROTOCOL_SKILL.read_text(
+        encoding="utf-8"
+    )
+    for label, text in (
+        ("hooks/context_ceiling_guard.py", hook_text),
+        ("skills/context-summarization/SKILL.md", summarization_text),
+        ("skills/context-loading-protocol/SKILL.md", loading_protocol_text),
+    ):
+        assert _UTILIZATION_FORMULA in text, (
+            f"{label} is missing the canonical utilization formula "
+            f"({_UTILIZATION_FORMULA!r})"
+        )
+
 
 def _write_transcript(
     path: Path, total: int, model: str = "claude-haiku-4-5"

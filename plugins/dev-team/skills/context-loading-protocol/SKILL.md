@@ -19,27 +19,40 @@ Token-budget reference (CLAUDE.md baseline, full-load ceiling, per-agent and per
 ## Enforcement
 
 This protocol is backed by a `PreToolUse` hook — `hooks/context_ceiling_guard.py`
-(registered on `Agent` and `Skill`). Before a capability-loading call it reads the
-*actual* occupancy from the transcript's latest assistant-message usage
-(`input + cache_read + cache_creation` tokens) against the model's context window,
-which the hook auto-detects from the session. The effective ceiling is
-`min(ceiling_pct% of window, 150K tokens)` — an absolute cap so guidance stays
-conservative even on 1M-context models, matching the API's own default compaction
-threshold. As occupancy climbs, the hook issues graduated warnings before nudging
-you to summarize (warn, default) or, at/above the ceiling, blocking the load
-(`DEV_TEAM_CONTEXT_STRICT=on`). Recovery skills (`/context-summarization`,
-`/context-loading-protocol`, `/continue`, `/review-summary`, `/session-review`) are
-never gated. The window auto-detects from the transcript's most recent
-`message.model` (Haiku family -> 200K; Opus/Sonnet/Fable families -> 1M;
-unrecognized/undetectable model -> 200K); set `DEV_TEAM_CONTEXT_WINDOW` to
-override detection explicitly. The effective threshold is
-`min(ceiling_pct × window, abs_ceiling)` — an absolute-token cap
-(`DEV_TEAM_CONTEXT_ABS_CEILING`, default 150000, matching Anthropic's
-server-side compaction default) keeps large windows from pushing the ceiling
-far past where compaction already kicks in; it's a no-op on the 200K base
-window (40% = 80K, already under the cap).
+(registered on `Agent` and `Skill`). Before a capability-loading call it measures
+`utilization = (input + cache_read + cache_creation) / model_context_window` from
+the transcript's latest assistant-message usage against the model's context
+window, which the hook auto-detects from the session's most recent
+`message.model` by family/version substring: Haiku family -> 200K; current
+1M-window models -> 1M (Fable, Mythos, Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6);
+unrecognized model, or a same-family model outside those pinned versions ->
+200K conservative fallback (window is a fixed per-model property, so an
+unrecognized model is never assumed large — over-nudging is a minor false
+alarm, under-nudging risks running well past the real ceiling). Set
+`DEV_TEAM_CONTEXT_WINDOW` to override detection explicitly.
+
+The effective ceiling is `min(ceiling_pct% of window, 150K tokens)` — an
+absolute-token cap (`DEV_TEAM_CONTEXT_ABS_CEILING`, default 150000, matching
+Anthropic's server-side compaction default) that keeps large windows from
+pushing the trigger point far past where compaction already kicks in; it's a
+no-op on the 200K base window (40% = 80K, already under the cap). The warning
+names which bound is binding — percentage or absolute, never both — and the
+window's provenance (override, detected, or default).
+
+As occupancy climbs past the ceiling, the hook escalates through three
+Context Summarization action bands keyed to multiples of the effective
+ceiling — 1x nudge, 1.25x run `/context-summarization` now, 1.5x full
+summary + fresh conversation (see [Context Summarization → When to
+Summarize](../context-summarization/SKILL.md#when-to-summarize)) — before
+nudging (warn, default) or, at/above the ceiling under
+`DEV_TEAM_CONTEXT_STRICT=on`, blocking the load. Recovery skills
+(`/context-summarization`, `/context-loading-protocol`, `/continue`,
+`/review-summary`, `/session-review`) are never gated — blocking the path
+back under budget would deadlock the session.
+
 Knobs: `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40), `DEV_TEAM_CONTEXT_ABS_CEILING`
-(default 150000), `DEV_TEAM_CONTEXT_CEILING=off`.
+(default 150000), `DEV_TEAM_CONTEXT_WINDOW` (overrides auto-detection),
+`DEV_TEAM_CONTEXT_CEILING=off` (disables entirely).
 The hook is a backstop measured from real usage; the budget estimate below is still
 the planning tool you apply *before* loading.
 
