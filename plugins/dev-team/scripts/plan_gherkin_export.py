@@ -16,6 +16,7 @@ Spec: docs/specs/plan-gherkin-feature-persistence.md (component 2).
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -31,6 +32,18 @@ _SECTION_HEADING_RE = re.compile(r"^##\s")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 
 PLAN_FILE_ONLY = "plan-file-only"
+
+
+class ExportError(Exception):
+    """Fatal export failure; the message names the offending path."""
+
+
+def _first_non_directory(path: Path) -> Optional[Path]:
+    """Return the deepest existing segment of `path` that is not a directory."""
+    for candidate in (path, *path.parents):
+        if candidate.exists():
+            return None if candidate.is_dir() else candidate
+    return None
 
 
 def slugify(title: str) -> str:
@@ -71,7 +84,10 @@ def resolve_destination(decision: str) -> Optional[str]:
 
 def export_plan(plan_path: Path, root: Path) -> List[str]:
     """Export the plan's slice Gherkin blocks under `root`; return report lines."""
-    text = plan_path.read_text(encoding="utf-8")
+    try:
+        text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ExportError("cannot read plan file: {}".format(plan_path)) from exc
     lines = text.split("\n")
 
     decision = read_persistence_decision(lines)
@@ -83,6 +99,14 @@ def export_plan(plan_path: Path, root: Path) -> List[str]:
 
     plan_slug = plan_path.stem
     target_dir = root / dest / plan_slug
+
+    collision = _first_non_directory(target_dir)
+    if collision is not None:
+        raise ExportError(
+            "destination path collides with a non-directory file: {}".format(
+                collision
+            )
+        )
 
     features = [
         ("slice-{}-{}.feature".format(sid, slugify(title)), gherkin)
@@ -114,5 +138,22 @@ def export_plan(plan_path: Path, root: Path) -> List[str]:
     return report
 
 
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="plan_gherkin_export.py",
+        description="Export an approved plan's slice Gherkin blocks to .feature files.",
+    )
+    parser.add_argument("plan", type=Path, help="Path to the plan markdown file")
+    args = parser.parse_args(argv)
+    try:
+        report = export_plan(args.plan, Path.cwd())
+    except ExportError as exc:
+        sys.stderr.write("plan-gherkin-export: {}\n".format(exc))
+        return 2
+    for line in report:
+        print(line)
+    return 0
+
+
 if __name__ == "__main__":  # pragma: no cover
-    sys.exit(0)
+    sys.exit(main())
