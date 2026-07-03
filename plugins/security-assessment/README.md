@@ -72,11 +72,11 @@ Re-runnable on all platforms — each step skips tools that are already present.
 
 ```bash
 # From the marketplace
-claude plugin marketplace add https://github.com/bdfinst/dev-team
+claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
 claude plugin install security-assessment@bfinster
 
 # From a local clone
-claude plugin install --scope project /path/to/dev-team/plugins/security-assessment
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/security-assessment
 ```
 
 ### Verify
