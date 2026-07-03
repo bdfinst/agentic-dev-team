@@ -21,9 +21,13 @@ Token-budget reference (CLAUDE.md baseline, full-load ceiling, per-agent and per
 This protocol is backed by a `PreToolUse` hook — `hooks/context_ceiling_guard.py`
 (registered on `Agent` and `Skill`). Before a capability-loading call it reads the
 *actual* occupancy from the transcript's latest assistant-message usage
-(`input + cache_read + cache_creation` tokens) against the model's context window
-and, at/above the ceiling, nudges you to summarize (warn, default) or blocks the
-load (`DEV_TEAM_CONTEXT_STRICT=on`). Recovery skills (`/context-summarization`,
+(`input + cache_read + cache_creation` tokens) against the model's context window,
+which the hook auto-detects from the session. The effective ceiling is
+`min(ceiling_pct% of window, 150K tokens)` — an absolute cap so guidance stays
+conservative even on 1M-context models, matching the API's own default compaction
+threshold. As occupancy climbs, the hook issues graduated warnings before nudging
+you to summarize (warn, default) or, at/above the ceiling, blocking the load
+(`DEV_TEAM_CONTEXT_STRICT=on`). Recovery skills (`/context-summarization`,
 `/context-loading-protocol`, `/continue`, `/review-summary`, `/session-review`) are
 never gated. The window auto-detects from the transcript's most recent
 `message.model` (Haiku family -> 200K; Opus/Sonnet/Fable families -> 1M;
@@ -38,6 +42,20 @@ Knobs: `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40), `DEV_TEAM_CONTEXT_ABS_CEILIN
 (default 150000), `DEV_TEAM_CONTEXT_CEILING=off`.
 The hook is a backstop measured from real usage; the budget estimate below is still
 the planning tool you apply *before* loading.
+
+### Why 40%
+
+The 40% ceiling is a conservative planning target, not a claimed accuracy cliff.
+Chroma's [Context Rot study](https://www.trychroma.com/research/context-rot) found
+degradation across 18 models (including Claude 4) is gradual, not a sharp drop at
+any single percentage. Needle-in-a-haystack benchmarks like RULER and NoLiMa show a
+model's *effective* context is often only about half its advertised window, with
+sharp accuracy drops on non-lexical retrieval well before the window limit. Anthropic's
+[effective context engineering guidance](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+recommends proactive compaction well ahead of the limit — the Claude API's own
+compaction default is 150K absolute tokens even on 1M-window models. Given that
+evidence, budgeting to 40% of the window (capped at 150K absolute) leaves headroom
+before quality degrades, rather than chasing a precise threshold that doesn't exist.
 
 ## Loading Decision Procedure
 
@@ -81,7 +99,7 @@ Total = CLAUDE.md baseline
       + expected output (estimate)
 ```
 
-**Target: total < 40% of the model's context window.** For Claude with a 200K window, that's < 80K tokens. The config files are a small fraction; the real budget concern is conversation history + output accumulation over multi-turn tasks.
+**Target: total < 40% of the model's context window, capped at 150K absolute tokens.** For Claude with a 200K window, that's < 80K tokens; on a 1M-window model the cap (150K) binds before the percentage would. See [Why 40%](#why-40) for the rationale. The config files are a small fraction; the real budget concern is conversation history + output accumulation over multi-turn tasks.
 
 ### Step 5: Load via tool-based file reads
 

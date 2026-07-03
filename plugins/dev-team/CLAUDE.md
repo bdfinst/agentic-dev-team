@@ -25,7 +25,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 ## Core Principles
 
 1. **Selective Agent Loading**: Load only necessary agents. Target < 10,000 tokens simple tasks.
-2. **40% Context Ceiling**: Enforced by `hooks/context_ceiling_guard.py` — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md).
+2. **40% Context Ceiling**: A conservative planning target, not an accuracy cliff — see [Context Loading Protocol → Why 40%](skills/context-loading-protocol/SKILL.md#why-40). Enforced by `hooks/context_ceiling_guard.py`, which auto-detects the model's context window and caps the ceiling at `min(40% of window, 150K tokens)` absolute.
 3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
 4. **Human-in-the-Loop**: Autonomous agents, human oversight.
 5. **Dynamic Configuration**: Config changes → `metrics/config-changelog.jsonl`.
@@ -83,7 +83,7 @@ All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKIL
 
 **Quality ownership.** Agents own the quality *state* — green means the whole suite, not just the diff. A red signal must be fixed or triaged, never stepped over.
 
-Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands (`/careful`/`/freeze`/`/guard`); `context_ceiling_guard.py` enforces the 40% rule.
+Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands (`/careful`/`/freeze`/`/guard`); `context_ceiling_guard.py` enforces the 40%-of-window ceiling (capped at 150K absolute tokens).
 
 ## Performance Metrics
 
