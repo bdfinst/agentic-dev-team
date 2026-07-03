@@ -42,10 +42,15 @@ Env:
                                      defaults to 150000 (Anthropic's
                                      server-side compaction default). The
                                      effective threshold is
-                                     min(ceiling_pct * window, abs_ceiling)
+                                     min(ceiling_pct * window // 100, abs_ceiling)
                                      — a no-op on a 200K window (40% = 80K
                                      < 150K) but caps a 1M window's 400K
-                                     percentage threshold down to 150K.
+                                     percentage threshold down to 150K. The
+                                     warning names which bound is binding
+                                     (percentage or absolute) and the window's
+                                     provenance (override, detected, or
+                                     default) so the operator can see why the
+                                     threshold landed where it did.
 
 Contract (docs/python-hook-contract.md):
     Input : PreToolUse JSON on stdin
@@ -153,14 +158,21 @@ def _window_for_model(model: str) -> int:
     return _DEFAULT_WINDOW
 
 
-def _detect_window(transcript_path: Path) -> int:
+def _detect_window(transcript_path: Path) -> Tuple[int, bool]:
     """Auto-detect the context window from the transcript's most recent
     `message.model`. Mirrors `_measure_occupancy`'s scan (last 400 lines,
     last matching row wins) so the detected model tracks the same session
     state as the occupancy measurement.
 
+    Returns (window, matched) — `matched` is True only when a model id was
+    found AND it matched a known family (Haiku or a pinned 1M version);
+    False when no model id was found, or the model id is unrecognized, in
+    which case `window` is the 200K conservative default either way. The
+    caller uses `matched` to report window provenance as "detected" vs
+    "default".
+
     Fail-open: any parse error, missing/malformed `model` field, or a
-    transcript with no model at all resolves to the 200K default — this
+    transcript with no model at all resolves to (200000, False) — this
     function never raises and never blocks.
     """
     lines = _tail_lines(transcript_path, 400)
@@ -182,8 +194,10 @@ def _detect_window(transcript_path: Path) -> int:
         if isinstance(model, str) and model:
             last_model = model
     if last_model is None:
-        return _DEFAULT_WINDOW
-    return _window_for_model(last_model)
+        return _DEFAULT_WINDOW, False
+    if _HAIKU_RE.search(last_model) or _LARGE_WINDOW_RE.search(last_model):
+        return _window_for_model(last_model), True
+    return _DEFAULT_WINDOW, False
 
 
 def _env_window_override() -> Optional[int]:
@@ -197,6 +211,20 @@ def _env_window_override() -> Optional[int]:
         return None
     value = int(raw)
     return value if value > 0 else None
+
+
+def _resolve_window(transcript_path: Path) -> Tuple[int, str]:
+    """Resolve the effective context window and its provenance tag.
+
+    Precedence: `DEV_TEAM_CONTEXT_WINDOW` env ("override") > detected from
+    the transcript model ("detected") > the 200K conservative default
+    ("default") when the model is missing/unrecognized.
+    """
+    override = _env_window_override()
+    if override is not None:
+        return override, "override"
+    window, matched = _detect_window(transcript_path)
+    return window, ("detected" if matched else "default")
 
 
 # ---------------------------------------------------------------------------
@@ -322,58 +350,38 @@ def _write_bucket(marker: Path, bucket: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _band_for_pct(pct: int) -> Tuple[str, str]:
-    """Map occupancy percent to a Context Summarization action band.
+def _resolve_bound(pct_threshold_tokens: int, abs_ceiling: int) -> str:
+    """Which of the two thresholds is binding for `min(pct, abs)` (#780).
 
-    Mirrors the action-band table in
-    skills/context-summarization/SKILL.md (`## When to Summarize`):
-    30-40% prepare, 40-50% summarize + fresh context, 50-65% summarize
-    everything but the current task, 65%+ full summary to memory/. The
-    guard only ever fires at or above the configured ceiling (default
-    40%), so the "<30%" band is unreachable at default settings but is
-    included for completeness when DEV_TEAM_CONTEXT_CEILING_PCT is
-    lowered below 30.
+    "percentage" when the percentage-of-window threshold is the smaller (or
+    equal — ties read as percentage, matching `min()`'s first-argument
+    preference), "absolute" when the absolute cap is strictly smaller. The
+    two framings never co-occur in the message — exactly one is reported.
     """
-    if pct >= 65:
-        return (
-            "65%+",
-            "write a full summary to memory/ and start a new conversation",
-        )
-    if pct >= 50:
-        return ("50-65%", "summarize everything except the current task")
-    if pct >= 40:
-        return (
-            "40-50%",
-            "write a summary to memory/ and start a fresh context window",
-        )
-    if pct >= 30:
-        return (
-            "30-40%",
-            "prepare: identify summarization candidates",
-        )
-    return ("<30%", "no action needed yet")
+    return "percentage" if pct_threshold_tokens <= abs_ceiling else "absolute"
 
 
 def _format_message(
-    pct: int,
+    occ: int,
     window: int,
-    ceiling: int,
+    threshold_tokens: int,
+    bound: str,
+    provenance: str,
     label: str,
 ) -> str:
-    """Graduated warning message (#787): names the Context Summarization
-    action band (see `_band_for_pct`) that applies at the current
-    occupancy, escalating the wording as occupancy climbs further past
-    the ceiling instead of repeating one fixed message."""
-    band_name, action = _band_for_pct(pct)
+    """Pinned message contract (#780): plain token counts (not percentages),
+    the binding bound (percentage vs absolute — never both), and the
+    window's provenance (override/detected/default) so occupancy, the
+    computed ceiling, and where the window came from are all inspectable
+    from the warning text alone."""
     return (
-        f"🪟 Context at {pct}% of the {window}-token window "
-        f"(≥ {ceiling}% ceiling) before {label}.\n"
-        f"Per the Context Loading Protocol [{band_name} band]: {action}. "
-        "Run /context-summarization\n"
-        "(write a memory/ progress file, continue in a fresh context) "
-        "and defer non-essential agents/skills.\n"
-        "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) "
-        "/ DEV_TEAM_CONTEXT_CEILING_PCT;\n"
+        f"🪟 Context at {occ} of {window} tokens — over the effective "
+        f"ceiling of {threshold_tokens} tokens ({bound} bound; "
+        f"window {provenance}) before {label}.\n"
+        "Run /context-summarization (write a memory/ progress file, "
+        "continue in a fresh context) and defer non-essential agents/skills.\n"
+        "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) / "
+        "DEV_TEAM_CONTEXT_CEILING_PCT / DEV_TEAM_CONTEXT_ABS_CEILING;\n"
         "DEV_TEAM_CONTEXT_STRICT=on hard-blocks; "
         "DEV_TEAM_CONTEXT_CEILING=off disables."
     )
@@ -431,25 +439,26 @@ def _resolve_verdict(payload: dict) -> Tuple[int, Optional[str], bool]:
     if occ is None:
         return 0, None, False
 
-    window = _env_window_override()
-    if window is None:
-        window = _detect_window(transcript_path)
+    window, provenance = _resolve_window(transcript_path)
     ceiling = _positive_int_env("DEV_TEAM_CONTEXT_CEILING_PCT", 40)
     abs_ceiling = _positive_int_env("DEV_TEAM_CONTEXT_ABS_CEILING", 150_000)
 
     # Effective threshold = min(ceiling_pct * window, absolute cap). On a
     # 200K window this is a no-op (40% = 80K < 150K); on a 1M window it caps
-    # the 400K percentage threshold down to 150K (#786).
+    # the 400K percentage threshold down to 150K (#786/#780).
     pct_threshold_tokens = (ceiling * window) // 100
     threshold_tokens = min(pct_threshold_tokens, abs_ceiling)
+    bound = _resolve_bound(pct_threshold_tokens, abs_ceiling)
 
     # Bash: `pct=$((occ * 100 / window))` — integer truncation. Match exactly.
+    # Still computed for the per-session dedupe bucket even though the
+    # message itself now reports plain token counts, not a percentage.
     pct = (occ * 100) // window
     if occ < threshold_tokens:
         return 0, None, False
 
     label = _build_label(tool_name, tool_input)
-    msg = _format_message(pct, window, ceiling, label)
+    msg = _format_message(occ, window, threshold_tokens, bound, provenance, label)
 
     if os.environ.get("DEV_TEAM_CONTEXT_STRICT") == "on":
         return 2, f"{msg} [blocked: DEV_TEAM_CONTEXT_STRICT=on]", False
