@@ -361,6 +361,57 @@ def _resolve_bound(pct_threshold_tokens: int, abs_ceiling: int) -> str:
     return "percentage" if pct_threshold_tokens <= abs_ceiling else "absolute"
 
 
+# Graduated bands (#781): keyed to multiples of the *effective* ceiling
+# (tokens), not raw window percentage — a band escalation always means
+# "occupancy climbed further past the same computed threshold", regardless
+# of which bound (percentage or absolute) produced that threshold.
+#   [1x,   1.25x) -> band 0, nudge
+#   [1.25x, 1.5x) -> band 1, run /context-summarization now
+#   [1.5x,   inf) -> band 2, full summary + fresh conversation (top band)
+# Integer math (eff * 5 // 4, eff * 3 // 2) avoids float imprecision.
+_BAND_NUDGE, _BAND_RUN_NOW, _BAND_FULL_SUMMARY = 0, 1, 2
+
+# Dedupe-key scale factor (#781): pct_bucket (occupancy % of window // 5)
+# tops out at 20 (100% // 5). 100 keeps `band * _BAND_SCALE` strictly above
+# any possible pct_bucket for every band >= 1, so a band transition always
+# wins the `max()` and forces a re-fire regardless of the coarser bucket.
+_BAND_SCALE = 100
+
+_BAND_ACTIONS = {
+    _BAND_NUDGE: (
+        "nudge",
+        "Consider running /context-summarization (write a memory/ progress "
+        "file, continue in a fresh context) and defer non-essential "
+        "agents/skills.",
+    ),
+    _BAND_RUN_NOW: (
+        "run-now",
+        "Run /context-summarization now — write a memory/ progress file "
+        "and continue in a fresh context.",
+    ),
+    _BAND_FULL_SUMMARY: (
+        "full-summary",
+        "Write a full summary to memory/ and start a new conversation now "
+        "— context is well past the effective ceiling.",
+    ),
+}
+
+
+def _band_for_threshold_multiple(occ: int, threshold_tokens: int) -> int:
+    """Map occupancy, as a multiple of the effective ceiling, to a band
+    index. Only called once occupancy has already cleared the ceiling
+    (`occ >= threshold_tokens`), so `threshold_tokens <= 0` never occurs on
+    that path — the guard is defensive only, not a documented behavior.
+    """
+    if threshold_tokens <= 0:
+        return _BAND_NUDGE
+    if occ >= threshold_tokens * 3 // 2:  # 1.5x
+        return _BAND_FULL_SUMMARY
+    if occ >= threshold_tokens * 5 // 4:  # 1.25x
+        return _BAND_RUN_NOW
+    return _BAND_NUDGE
+
+
 def _format_message(
     occ: int,
     window: int,
@@ -369,22 +420,31 @@ def _format_message(
     provenance: str,
     label: str,
 ) -> str:
-    """Pinned message contract (#780): plain token counts (not percentages),
-    the binding bound (percentage vs absolute — never both), and the
-    window's provenance (override/detected/default) so occupancy, the
-    computed ceiling, and where the window came from are all inspectable
-    from the warning text alone."""
-    return (
+    """Pinned message contract (#780) plus graduated band escalation
+    (#781): plain token counts (not percentages), the binding bound
+    (percentage vs absolute — never both), the window's provenance
+    (override/detected/default), and a Context Summarization action band
+    keyed to how far occupancy has climbed past the effective ceiling. The
+    top band (full-summary) leads with the directive and drops the knob
+    footer — at 1.5x the ceiling, tuning knobs are no longer the point."""
+    band = _band_for_threshold_multiple(occ, threshold_tokens)
+    band_name, action = _BAND_ACTIONS[band]
+    diagnostic = (
         f"🪟 Context at {occ} of {window} tokens — over the effective "
         f"ceiling of {threshold_tokens} tokens ({bound} bound; "
-        f"window {provenance}) before {label}.\n"
-        "Run /context-summarization (write a memory/ progress file, "
-        "continue in a fresh context) and defer non-essential agents/skills.\n"
+        f"window {provenance}) before {label}."
+    )
+
+    if band == _BAND_FULL_SUMMARY:
+        return f"[{band_name}] {action}\n{diagnostic}"
+
+    knob_footer = (
         "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) / "
         "DEV_TEAM_CONTEXT_CEILING_PCT / DEV_TEAM_CONTEXT_ABS_CEILING;\n"
         "DEV_TEAM_CONTEXT_STRICT=on hard-blocks; "
         "DEV_TEAM_CONTEXT_CEILING=off disables."
     )
+    return f"{diagnostic}\n[{band_name}] {action}\n{knob_footer}"
 
 
 def _build_label(tool_name: str, tool_input: dict) -> str:
@@ -463,10 +523,18 @@ def _resolve_verdict(payload: dict) -> Tuple[int, Optional[str], bool]:
     if os.environ.get("DEV_TEAM_CONTEXT_STRICT") == "on":
         return 2, f"{msg} [blocked: DEV_TEAM_CONTEXT_STRICT=on]", False
 
-    # Warn mode with per-session per-5%-bucket dedupe.
+    # Warn mode dedupe, re-keyed on band identity (#781): the dedupe key is
+    # max(band_index_scaled, pct_bucket). _BAND_SCALE (100) makes any band
+    # transition dominate the coarser 5%-of-window pct_bucket (whose max
+    # value is 20, well under 100), so an escalation always breaks through
+    # even when the pct_bucket hasn't moved — worked 1M-window case: fires
+    # at occ=150000 (band 0, pct_bucket 3, key 3), re-fires at occ=190000
+    # (band 1 starts at 187500, key 100 > 3), and again at occ=226000 (band
+    # 2 starts at 225000, key 200 > 100).
+    band = _band_for_threshold_multiple(occ, threshold_tokens)
     session = _sanitize_session(payload.get("session_id") or "")
     marker = _marker_path(session)
-    bucket = pct // 5
+    bucket = max(band * _BAND_SCALE, pct // 5)
     last_bucket = _read_last_bucket(marker)
     # Always write the marker (matches the .sh's `printf ... >"$marker"` that
     # runs before the bucket comparison).

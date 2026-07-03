@@ -680,3 +680,82 @@ def test_absolute_cap_fail_open_when_transcript_missing(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert result.stderr == b""
+
+
+# ---------------------------------------------------------------------------
+# Graduated bands keyed to multiples of the effective ceiling (#781)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "occ,threshold_tokens,expected_band",
+    [
+        (150_000, 150_000, hook._BAND_NUDGE),  # exactly 1x
+        (187_499, 150_000, hook._BAND_NUDGE),  # just under 1.25x
+        (187_500, 150_000, hook._BAND_RUN_NOW),  # exactly 1.25x
+        (224_999, 150_000, hook._BAND_RUN_NOW),  # just under 1.5x
+        (225_000, 150_000, hook._BAND_FULL_SUMMARY),  # exactly 1.5x
+        (500_000, 150_000, hook._BAND_FULL_SUMMARY),  # well past 1.5x
+    ],
+)
+def test_band_for_threshold_multiple(
+    occ: int, threshold_tokens: int, expected_band: int
+) -> None:
+    assert hook._band_for_threshold_multiple(occ, threshold_tokens) == expected_band
+
+
+def test_format_message_nudge_band_leads_with_diagnostic_and_keeps_footer():
+    msg = hook._format_message(150_000, 1_000_000, 150_000, "absolute", "detected", "x")
+    assert msg.startswith("🪟 Context at")
+    assert "[nudge]" in msg
+    assert "Tune with DEV_TEAM_CONTEXT_WINDOW" in msg
+
+
+def test_format_message_run_now_band_leads_with_diagnostic_and_keeps_footer():
+    msg = hook._format_message(190_000, 1_000_000, 150_000, "absolute", "detected", "x")
+    assert msg.startswith("🪟 Context at")
+    assert "[run-now]" in msg
+    assert "Run /context-summarization now" in msg
+    assert "Tune with DEV_TEAM_CONTEXT_WINDOW" in msg
+
+
+def test_format_message_full_summary_band_leads_with_directive_no_footer():
+    """Top band (#781): leads with the directive (before the diagnostic
+    line) and drops the knob footer entirely."""
+    msg = hook._format_message(226_000, 1_000_000, 150_000, "absolute", "detected", "x")
+    assert msg.startswith("[full-summary]")
+    directive_idx = msg.index("Write a full summary to memory/")
+    diagnostic_idx = msg.index("🪟 Context at")
+    assert directive_idx < diagnostic_idx
+    assert "Tune with DEV_TEAM_CONTEXT_WINDOW" not in msg
+
+
+def test_dedupe_rekeyed_on_band_identity_worked_1m_case(tmp_path: Path) -> None:
+    """Worked case from #781: on a 1M window with the 150K absolute cap
+    binding, band escalations always break through the coarser
+    5%-of-window pct_bucket — fires at 150000 (band 0), re-fires at 190000
+    (band 1, even though pct_bucket is unchanged), and again at 226000
+    (band 2)."""
+    tr = tmp_path / "t.jsonl"
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+
+    _write_transcript(tr, 150_000)  # band 0 (nudge)
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[nudge]" in result.stderr
+
+    # Same band, pct_bucket unchanged (15% -> still bucket 3) -> suppressed.
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr == b""
+
+    _write_transcript(tr, 190_000)  # band 1 (run-now) — pct_bucket still 3
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[run-now]" in result.stderr
+
+    _write_transcript(tr, 226_000)  # band 2 (full-summary)
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"[full-summary]" in result.stderr
