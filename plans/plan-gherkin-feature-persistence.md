@@ -2,7 +2,7 @@
 
 **Created**: 2026-07-03
 **Branch**: Issue-537
-**Status**: in-progress
+**Status**: implemented
 **Spec**: `docs/specs/plan-gherkin-feature-persistence.md`
 
 ## Goal
