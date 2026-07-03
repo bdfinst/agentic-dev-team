@@ -70,6 +70,10 @@ compaction default is 150K absolute tokens even on 1M-window models. Given that
 evidence, budgeting to 40% of the window (capped at 150K absolute) leaves headroom
 before quality degrades, rather than chasing a precise threshold that doesn't exist.
 
+Full guide — warning-line field reference, concrete band fire-points per
+window size, knob table, troubleshooting: [Context
+Management](../../docs/context-management.md).
+
 ## Loading Decision Procedure
 
 ### Step 0: Confirm there is a task
