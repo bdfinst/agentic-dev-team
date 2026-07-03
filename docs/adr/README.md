@@ -15,3 +15,4 @@
 * [13. LLM-driven orchestration over deterministic workflow scripts](0013-llm-driven-orchestration-over-deterministic-workflow-scripts.md)
 * [14. Python for cross-OS scripts](0014-python-for-cross-os-scripts.md)
 * [15. Bash removal complete — plugins/dev-team is Python-native](0015-bash-removal-complete.md)
+* [16. Rely on harness-native compaction; the plugin performs structured summarization only](0016-rely-on-harness-native-compaction-the-plugin-performs-structured-summarization-only.md)

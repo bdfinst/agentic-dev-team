@@ -25,7 +25,9 @@ Compress conversation history to keep context utilization below 40%. Uses forget
 | 50-65% | Summarize everything except current task |
 | 65%+ | Full summary to `memory/`, start new conversation |
 
-**Measuring utilization**: `utilization = (input_tokens + output_tokens) / model_context_window`. For Claude 200K: `total_tokens / 200000`. Fallback signals: turn count > 40, many file reads accumulated, degraded output quality.
+**Measuring utilization**: `utilization = (input + cache_read + cache_creation) / model_context_window` — the same formula `hooks/context_ceiling_guard.py` reads from the transcript's most recent assistant-message usage. The window is auto-detected from the session; the guard's effective ceiling is `min(ceiling_pct% of window, 150K tokens)`, so the trigger point stays conservative even on very large windows. Fallback signals: turn count > 40, many file reads accumulated, degraded output quality.
+
+**Why 40%, not a higher number**: see [Context Loading Protocol → Why 40%](../context-loading-protocol/SKILL.md#why-40).
 
 ## The Three Gates
 
