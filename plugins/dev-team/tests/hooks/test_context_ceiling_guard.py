@@ -1,8 +1,8 @@
 """Unit tests for the Python port of hooks/context-ceiling-guard.sh (#595).
 
-Mirrors tests/hooks/context_ceiling_guard.bats one-for-one via subprocess
-dispatch + covers the internal helpers as white-box units. Byte-parity with
-the .sh is enforced separately by the parity harness.
+Originally mirrored tests/hooks/context_ceiling_guard.bats one-for-one via
+subprocess dispatch; the .bats file was retired under the bash-removal epic
+(ADR 0015) and this suite is now the sole source of truth.
 """
 
 from __future__ import annotations
@@ -26,14 +26,16 @@ _HOOK_PY = _HOOKS_DIR / "context_ceiling_guard.py"
 
 
 def _write_transcript(
-    path: Path, total: int, model: str = "claude-legacy-test-model"
+    path: Path, total: int, model: str = "claude-haiku-4-5"
 ) -> None:
     """Write a transcript whose latest usage line totals `total` prompt tokens.
 
-    `model` defaults to a name that matches neither the Haiku nor the
-    Opus/Sonnet/Fable family regex, so window auto-detection falls back to
-    the 200K default and existing ceiling-percentage fixtures are unaffected
-    by #785's detection feature.
+    `model` defaults to a Haiku id (200K window) rather than an unrecognized
+    placeholder — fixture re-baseline rule (#779): tests that aren't
+    specifically about window-family detection use a real, detectably-200K
+    model id AND pin `DEV_TEAM_CONTEXT_WINDOW=200000` explicitly (belt and
+    suspenders against a future default-window change); tests that ARE about
+    window detection pass an explicit `model=` and never pin the window.
     """
     line = {
         "message": {
@@ -85,7 +87,9 @@ def _base_env(tmp_path: Path) -> dict:
 def test_silent_below_the_ceiling(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 50_000)  # 50000/200000 = 25%
-    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), _base_env(tmp_path))
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
     assert result.stdout == b""
     assert result.stderr == b""
@@ -94,9 +98,11 @@ def test_silent_below_the_ceiling(tmp_path: Path) -> None:
 def test_warns_exit_0_on_agent_load_over_the_ceiling(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 100_000)  # 50%
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     result = _run(
         _mkinput("Agent", {"subagent_type": "dev-team:doc-review"}, tr),
-        _base_env(tmp_path),
+        env,
     )
     assert result.returncode == 0
     assert b"50%" in result.stderr
@@ -109,6 +115,7 @@ def test_blocks_exit_2_over_the_ceiling_under_strict_mode(
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 100_000)
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_STRICT"] = "on"
     result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
     assert result.returncode == 2
@@ -119,6 +126,7 @@ def test_never_gates_a_recovery_skill_even_strict(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 180_000)  # 90%
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_STRICT"] = "on"
     result = _run(
         _mkinput("Skill", {"skill": "dev-team:context-summarization"}, tr),
@@ -131,7 +139,9 @@ def test_never_gates_a_recovery_skill_even_strict(tmp_path: Path) -> None:
 def test_ignores_tools_other_than_agent_or_skill(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 180_000)
-    result = _run(_mkinput("Read", {"file_path": "/x"}, tr), _base_env(tmp_path))
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    result = _run(_mkinput("Read", {"file_path": "/x"}, tr), env)
     assert result.returncode == 0
     assert result.stderr == b""
 
@@ -140,6 +150,7 @@ def test_disabled_via_dev_team_context_ceiling_off(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 180_000)
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_CEILING"] = "off"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
@@ -160,6 +171,7 @@ def test_context_ceiling_pct_lowers_the_trigger_point(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 60_000)  # 30%
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "25"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
@@ -193,6 +205,7 @@ def test_warn_dedupes_within_5_pt_bucket_rewarns_on_higher(
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 100_000)  # 50% → bucket 10
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
 
     result1 = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result1.returncode == 0
@@ -226,6 +239,7 @@ def test_skill_recovery_stripped_plugin_prefix(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 180_000)
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_STRICT"] = "on"
     result = _run(_mkinput("Skill", {"skill": "any-plugin:continue"}, tr), env)
     assert result.returncode == 0
@@ -235,6 +249,7 @@ def test_malformed_ceiling_pct_falls_back_to_40(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 100_000)  # 50%
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "not-a-number"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
@@ -400,6 +415,7 @@ def test_warn_message_escalates_band_as_occupancy_climbs(tmp_path: Path) -> None
     Context Summarization action band, not one fixed message."""
     tr = tmp_path / "t.jsonl"
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
 
     _write_transcript(tr, 90_000)  # 45% -> 40-50% band
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
@@ -425,6 +441,7 @@ def test_prepare_band_fires_when_ceiling_lowered_below_40(tmp_path: Path) -> Non
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 70_000)  # 35%
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_CEILING_PCT"] = "30"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
@@ -443,9 +460,21 @@ def test_prepare_band_fires_when_ceiling_lowered_below_40(tmp_path: Path) -> Non
         ("claude-haiku-4-5", 200_000),
         ("claude-3-5-haiku-20241022", 200_000),
         ("claude-opus-4-8", 1_000_000),
+        ("claude-opus-4-7", 1_000_000),
+        ("claude-opus-4-6", 1_000_000),
         ("claude-sonnet-5", 1_000_000),
+        ("claude-sonnet-4-6", 1_000_000),
+        ("claude-fable-5", 1_000_000),
         ("claude-fable-1", 1_000_000),
+        ("claude-mythos-1", 1_000_000),
         ("some-unrecognized-model", 200_000),
+        # Window is a fixed per-model property, not a family-wide one: a
+        # same-family model outside the pinned 1M versions must NOT be
+        # assumed 1M (#779) — these fall to the 200K conservative default.
+        ("claude-opus-4-5", 200_000),
+        ("claude-3-opus-20240229", 200_000),
+        ("claude-sonnet-4-5", 200_000),
+        ("claude-3-5-sonnet-20241022", 200_000),
     ],
 )
 def test_window_for_model(model: str, expected: int) -> None:
@@ -458,8 +487,15 @@ def test_window_for_model(model: str, expected: int) -> None:
         ("claude-haiku-4-5", 200_000),
         ("claude-3-5-haiku-20241022", 200_000),
         ("claude-opus-4-8", 1_000_000),
+        ("claude-opus-4-7", 1_000_000),
+        ("claude-opus-4-6", 1_000_000),
         ("claude-sonnet-5", 1_000_000),
-        ("claude-fable-1", 1_000_000),
+        ("claude-sonnet-4-6", 1_000_000),
+        ("claude-fable-5", 1_000_000),
+        ("claude-mythos-1", 1_000_000),
+        # Same-family, non-pinned versions must NOT auto-detect as 1M.
+        ("claude-opus-4-5", 200_000),
+        ("claude-sonnet-4-5", 200_000),
     ],
 )
 def test_detects_window_per_model_family_end_to_end(
@@ -595,6 +631,7 @@ def test_absolute_cap_is_a_noop_on_a_200k_window(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 79_999)  # just under the 40% pct threshold
     env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
     assert result.stderr == b""
@@ -602,6 +639,7 @@ def test_absolute_cap_is_a_noop_on_a_200k_window(tmp_path: Path) -> None:
     tr2 = tmp_path / "t2.jsonl"
     _write_transcript(tr2, 80_000)  # exactly the 40% pct threshold
     env2 = _base_env(tmp_path)
+    env2["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     result2 = _run(_mkinput("Agent", {"subagent_type": "y"}, tr2), env2)
     assert result2.returncode == 0
     assert b"40%" in result2.stderr

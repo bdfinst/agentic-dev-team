@@ -29,10 +29,15 @@ Env:
                                      override that always wins over
                                      auto-detection. When unset, the window is
                                      auto-detected from the transcript's most
-                                     recent `message.model` (Haiku family ->
-                                     200000; Opus/Sonnet/Fable families ->
-                                     1000000; unrecognized or undetectable
-                                     model -> 200000).
+                                     recent `message.model` by family/version
+                                     substring: Haiku family -> 200000;
+                                     current 1M families (Fable, Mythos,
+                                     Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6)
+                                     -> 1000000; unrecognized or undetectable
+                                     model -> 200000 (conservative fallback —
+                                     window is a fixed per-model property, and
+                                     an unrecognized model is never assumed to
+                                     be a large-window one).
     DEV_TEAM_CONTEXT_ABS_CEILING=N   absolute token cap on the threshold;
                                      defaults to 150000 (Anthropic's
                                      server-side compaction default). The
@@ -63,6 +68,12 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Tuple
 
+_LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]  # noqa: E402
+
 
 # Recovery skills that must never be gated — blocking them would deadlock a
 # session that has climbed over the ceiling.
@@ -82,25 +93,8 @@ _GATED_TOOLS = frozenset({"Agent", "Skill"})
 
 
 # ---------------------------------------------------------------------------
-# stdin + env parsing
+# env parsing
 # ---------------------------------------------------------------------------
-
-
-def _read_stdin() -> str:
-    try:
-        return sys.stdin.read()
-    except (OSError, ValueError):
-        return ""
-
-
-def _load_input(raw: str) -> Optional[dict]:
-    if not raw:
-        return None
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return None
-    return parsed if isinstance(parsed, dict) else None
 
 
 def _positive_int_env(name: str, default: int) -> int:
@@ -121,6 +115,16 @@ def _positive_int_env(name: str, default: int) -> int:
 # model -> context window auto-detection
 # ---------------------------------------------------------------------------
 
+# Window is a fixed per-model property, not a family-wide one: only the
+# specific model ids known today to ship a 1M window are listed. A future
+# model that merely shares a family name (e.g. a hypothetical small-window
+# "sonnet-6") must NOT be assumed 1M just because "sonnet" matches — that is
+# why this list is version-pinned rather than a bare family regex. Unknown
+# models fall back to the 200K default: over-nudging a 1M session is a minor
+# false-alarm; under-nudging a 200K session risks running well past the real
+# ceiling. See ADR 0011's dated amendment for the rationale change from a
+# pure env-var default to this per-model map.
+#
 # Family match order matters: Haiku is checked first so a hypothetical
 # "haiku-opus" alias (or similar) can't fall through to the 1M branch.
 _HAIKU_WINDOW = 200_000
@@ -128,14 +132,19 @@ _LARGE_WINDOW = 1_000_000
 _DEFAULT_WINDOW = 200_000
 
 _HAIKU_RE = re.compile(r"haiku", re.IGNORECASE)
-_LARGE_WINDOW_RE = re.compile(r"opus|sonnet|fable", re.IGNORECASE)
+_LARGE_WINDOW_RE = re.compile(
+    r"fable|mythos|opus-4-6|opus-4-7|opus-4-8|sonnet-5|sonnet-4-6",
+    re.IGNORECASE,
+)
 
 
 def _window_for_model(model: str) -> int:
-    """Map a model name to its context window via family substring match.
+    """Map a model name to its context window via family/version substring.
 
-    Haiku family -> 200K; Opus/Sonnet/Fable families -> 1M; anything else
-    (unrecognized model name) -> the 200K default.
+    Haiku family -> 200K. Current 1M-window models -> 1M: Fable (any
+    version), Mythos (any version), Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6.
+    Anything else (unrecognized model, or a same-family model outside the
+    pinned versions above) -> the 200K conservative default.
     """
     if _HAIKU_RE.search(model):
         return _HAIKU_WINDOW
@@ -460,8 +469,7 @@ def _resolve_verdict(payload: dict) -> Tuple[int, Optional[str], bool]:
 
 
 def main() -> int:
-    raw = _read_stdin()
-    payload = _load_input(raw)
+    payload = read_stdin_json()
     if payload is None:
         # Empty or malformed stdin → silent-pass, same as the .sh.
         return 0
