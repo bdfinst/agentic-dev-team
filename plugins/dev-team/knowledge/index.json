@@ -4597,7 +4597,7 @@
       "anchor": "agent-context-injection"
     },
     "Related": {
-      "summary": "`references/tool-configs.md` — per-tool invocation commands, adapter scripts, install hints",
+      "summary": "`references/tool-configs.md` — per-tool invocation commands, adapter scripts, install hints; hosts the \"Build-time lanes\" registry for `/build`'s static self-heal pass",
       "anchor": "related"
     }
   },
