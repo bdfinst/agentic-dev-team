@@ -14,7 +14,7 @@ Defaults:
 - **Module system**: ES Modules (`"type": "module"`)
 - **Style**: functional — no classes, prefer `const`, no mutation
 - **Formatter**: Prettier (2-space indent, single quotes, trailing commas, 100-char width)
-- **Linter**: ESLint flat config with functional rules
+- **Linter**: oxlint — fast (Rust-based, ESLint-compatible) per-step linter for day-to-day `lint`/`lint:fix`; ESLint flat config with functional rules stays available as the deep pass (`lint:deep`) for plugin-only rules
 - **Editor**: EditorConfig (2-space, UTF-8, LF, trim trailing whitespace, final newline)
 - **Tests**: Vitest
 - **E2E** (frontend only): Playwright
@@ -46,29 +46,31 @@ Read the generated `package.json`, then edit to:
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "lint:deep": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{js,mjs,cjs}": ["prettier --write", "eslint --fix"],
+    "*.{js,mjs,cjs}": ["prettier --write", "oxlint --fix"],
     "*.{json,md,yaml,yml}": ["prettier --write"]
   }
 }
 ```
 
-`lint-staged` runs Prettier (and ESLint `--fix` on JS) against only the staged
+`lint-staged` runs Prettier (and oxlint `--fix` on JS) against only the staged
 files on each commit, so formatting/lint drift is corrected automatically before
-it lands — without scanning the whole tree.
+it lands — without scanning the whole tree. `lint:deep` runs the full ESLint
+pass for the framework-plugin rules oxlint lacks.
 
 Frontend projects also add: `"test:e2e": "playwright test"`.
 
 ### Step 3: Install dependencies
 
 ```bash
-npm install -D eslint prettier vitest @eslint/js eslint-config-prettier husky lint-staged
+npm install -D eslint prettier vitest @eslint/js eslint-config-prettier husky lint-staged oxlint
 ```
 
 `eslint-config-prettier` disables ESLint rules that conflict with Prettier. Do NOT install `eslint-plugin-prettier` — run Prettier as a separate step (`npm run format:check`), not through ESLint.
@@ -124,7 +126,7 @@ npm run test:e2e' > .husky/pre-push
 ```
 
 The pre-commit hook auto-fixes only the staged files (`prettier --write` +
-`eslint --fix`) so the commit loop stays fast and clean; the pre-push hook runs
+`oxlint --fix`) so the commit loop stays fast and clean; the pre-push hook runs
 the test suite to gate what goes upstream. Because lint-staged formats and lints
 on commit, the redundant `npm run format:check` and `npm run lint` steps are no
 longer needed on pre-push.

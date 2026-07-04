@@ -73,7 +73,50 @@ install; the commands above remain the source of truth for manual setup.
 
 ## JS/TS
 
-No lane registered — section added by #808.
+1. **Tools and roles** — **oxlint** (pin >= 1.0.0; Rust-based,
+   ESLint-compatible) is the lane's autofix-capable tool: the mechanical
+   pre-fix (`npx oxlint --fix`) covers a subset of its rules — partial
+   autofix; findings it cannot fix are reported fast and handed to the coding
+   agent — and the verify pass runs oxlint in check mode. **ESLint** is the
+   optional deep pass for framework-plugin rules oxlint lacks; it is not part
+   of the fast per-step loop (see the provider list below for how an
+   ESLint-configured project binds).
+2. **Repo-level install**:
+
+   ```bash
+   npm install --save-dev oxlint
+   ```
+
+   A devDependency pins the oxlint version in `package.json`/the lockfile —
+   versioned with the repo and reproducible for every contributor and CI.
+   Never `npm install -g oxlint`. One-command alternative: the
+   `js-project-init` scaffold installs oxlint and wires it as the default
+   linter for new projects.
+3. **Configuration** — oxlint honors `.oxlintrc.json` (ESLint-v8-compatible
+   shape; oxlint runs with sensible defaults when no config exists). When
+   ESLint coexists as the deep pass, add
+   [`eslint-plugin-oxlint`](https://github.com/oxc-project/eslint-plugin-oxlint)
+   to the ESLint config to turn off rules oxlint already covers, so the
+   ESLint pass only pays for the plugin-only remainder.
+4. **Verification**:
+
+   ```bash
+   npx --no-install oxlint --version
+   ```
+
+   Prints the pinned version when the lane's probe will detect oxlint (the
+   probe resolves the project-local `node_modules/.bin` first). Projects
+   bound to another provider verify the same way:
+   `npx --no-install biome --version` / `npx --no-install eslint --version`.
+5. **Opt-out** — `DEV_TEAM_STATIC_SELF_HEAL=off` skips the build-time pass
+   (see [Opting out](#opting-out)).
+6. **Recognized equivalent providers** (autofix slot; provider semantics live
+   in the build skill's `static-self-heal.md`):
+   - **oxlint** — default and last-resort provider; full-speed.
+   - **biome** — full-speed provider (fast, machine-readable).
+   - **eslint** — bound with demotion to slice-boundary granularity only
+     (fails the per-step latency budget), with one info line telling the
+     user the fast default (oxlint) exists.
 
 ## C#
 

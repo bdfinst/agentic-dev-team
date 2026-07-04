@@ -222,7 +222,33 @@ ruff check --output-format sarif .
 
 ## Tier 2 — optional SARIF adapters (shipped in P2 Step 3b)
 
-Placeholder — populated by Step 3b. Expected tools: checkov, kube-linter, bandit, gosec, bearer, osv-scanner, grype, trufflehog.
+Placeholder for the remaining Step 3b tools: checkov, kube-linter, bandit, gosec, bearer, osv-scanner, grype, trufflehog.
+
+### oxlint
+
+Primary JS/TS linter (Oxc project, Rust-based, ESLint-compatible) for `/code-review`'s full-repo pre-pass. Pin **oxlint >= 1.0.0**. Oxlint's CLI surface evolves quickly — verify the exact flag names (`--fix`, `--format sarif`) against the project's pinned version; verified against oxlint 1.72.0.
+
+```bash
+npx oxlint --format sarif .
+```
+
+- **Tier substitution**: #808 originally specified a Tier 3 bespoke JSON adapter (`--format json`, ≤ 40 LOC). At implementation time the pinned line had gained a native `sarif` output format (verified on 1.72.0), so per the issue's version-pin instruction oxlint lands as a SARIF-native entry instead — no adapter.
+- **Install**: `npm install --save-dev oxlint` — a project devDependency pins the version in `package.json`/lockfile, versioned with the repo and reproducible for every contributor and CI. Never `npm install -g oxlint`.
+- **Install hint**: `oxlint — JS/TS linting. install: npm install --save-dev oxlint`
+- **Detection**: `npx --no-install oxlint --version` (or `node_modules/.bin/oxlint`) — oxlint is a project-local npm devDependency, not a global binary, so PATH probes (`command -v`) would miss it.
+- **Capability tier**: JS/TS linting
+- **Adapter**: none; consumed raw by the shared SARIF parser (`sarif-parser.md`), which prefixes rule ids as `oxlint.js.<rule-id>` (`runs[*].tool.driver.name` is `oxlint`; SARIF `ruleId` values look like `eslint(no-unused-vars)`).
+- **Coexistence with legacy ESLint (Tier 4)**: this entry sits alongside the ESLint entry, not replacing it. When a project runs both, the same finding can arrive twice — the dedup chain (SKILL.md step 4) ranks oxlint ahead of the legacy JS tools. While both run, add [`eslint-plugin-oxlint`](https://github.com/oxc-project/eslint-plugin-oxlint) to the ESLint config to turn off ESLint rules oxlint already covers, so the ESLint pass only pays for the plugin-only remainder.
+
+#### When a project may drop ESLint entirely
+
+Decidable checklist — a project drops ESLint only when **all three** hold:
+
+1. Every rule enabled in the project's ESLint config is either implemented by the pinned oxlint version (per oxlint's supported-rules list) or explicitly acknowledged in the project as not relied on.
+2. No framework plugin in the ESLint config (React/Vue/Svelte/etc.) contributes an enabled rule oxlint lacks.
+3. A one-time dual run over the repo shows ESLint reporting no finding that oxlint misses.
+
+Otherwise run both, with `eslint-plugin-oxlint` suppressing the overlap. In the build-time lane's provider terms (§ Build-time lanes → JS/TS lane), this checklist is the decidable test for rebinding the autofix slot from eslint to oxlint.
 
 ## Tier 3 — bespoke JSON adapters (shipped in P2 Step 3b)
 
@@ -317,7 +343,28 @@ the self-heal pass with one info line — never a failure.
 
 ### JS/TS lane
 
-No lane registered — placeholder. Registered by #808.
+Registered by #808.
+
+- **Extensions**: `*.js`, `*.jsx`, `*.ts`, `*.tsx`, `*.mjs`, `*.cjs`
+- **Diagnostic slot**: none registered — the lane verifies with the bound autofix provider's own check mode (degradation-ladder rung 2 in `static-self-heal.md`).
+- **Autofix slot** — ordered provider list (default first; it doubles as the last-resort provider named by install hints):
+
+1. **oxlint** — default, last-resort provider. Pin **>= 1.0.0**; verify the exact flag names (`--fix`, `--format sarif`) against the project's pinned version — verified against oxlint 1.72.0.
+   - Fix pass (mechanical pre-fix): `npx oxlint --fix <scoped-files>`
+   - Verify pass (check mode): `npx oxlint <scoped-files>`
+   - Detection probe: `npx --no-install oxlint --version` — resolves the project-local `node_modules/.bin` first; oxlint is a project devDependency, never a global binary
+   - Install hint (rung 3): `oxlint — JS/TS linting. install: npm install --save-dev oxlint`
+   - Partial autofix: oxlint autofixes a subset of its rules — residue surviving the pre-fix goes to the coding agent on the same attempt, per the shared fix loop.
+2. **biome** — full-speed provider: fast and machine-readable, meets all four qualification-contract items at per-step granularity.
+   - Fix pass: `npx biome check --write <scoped-files>`
+   - Verify pass: `npx biome check <scoped-files>`
+   - Detection probe: `npx --no-install biome --version`
+3. **eslint** — bound with demotion: meets contract items (a), (b), and (d) but fails the per-step latency budget (item c). A project that arrives configured for ESLint binds it with the lane demoted to slice-boundary granularity only, and one info line tells the user the fast default (oxlint) exists.
+   - Fix pass: `npx eslint --fix <scoped-files>`
+   - Verify pass: `npx eslint <scoped-files>`
+   - Detection probe: `npx --no-install eslint --version`
+
+Rebinding the slot from eslint to oxlint (dropping ESLint) is decided by the checklist under the Tier 2 oxlint entry ("When a project may drop ESLint entirely"); while both tools run, `eslint-plugin-oxlint` suppresses the overlap.
 
 ### C# lane
 
