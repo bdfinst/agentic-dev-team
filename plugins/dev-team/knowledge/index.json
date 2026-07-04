@@ -4469,7 +4469,7 @@
       "anchor": "3-plan"
     },
     "4. Build": {
-      "summary": "Invoke `/build` to execute the approved plan with RED-GREEN-REFACTOR, inline review",
+      "summary": "Invoke `/build` to execute the approved plan in small per-behavior batches (code-first",
       "anchor": "4-build"
     },
     "5. Review": {

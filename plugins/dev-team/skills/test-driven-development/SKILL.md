@@ -1,6 +1,6 @@
 ---
 name: test-driven-development
-description: Enforce RED-GREEN-REFACTOR cycle with hard gates. Use this skill whenever writing new code, fixing bugs, or adding features — any time implementation code will be written or modified. Prevents the common LLM failure mode of writing implementation first and tests later (or never). Also use when reviewing code to verify TDD discipline was followed.
+description: Enforce the Classic TDD RED-GREEN-REFACTOR cycle with hard gates — the opt-in test-first cadence (the default build cadence is Code-First Small Batches per docs/experiments/RECOMMENDATIONS.md). Use when a plan's metadata records the tdd cadence, /build runs with --tdd, or the user explicitly wants test-first discipline for the code being written. Also use when reviewing code to verify TDD discipline was followed.
 role: worker
 user-invocable: true
 ---
@@ -10,6 +10,8 @@ user-invocable: true
 ## Overview
 
 Enforces strict RED-GREEN-REFACTOR discipline with verifiable gates. LLMs are especially prone to skipping tests or writing them after implementation — this skill exists because that tendency produces code that looks tested but isn't actually validated.
+
+**Positioning:** this is the plugin's **opt-in** cadence. The default build cadence is Code-First Small Batches — implement one behavior, write its test in the same cycle, refactor on every green (`docs/experiments/RECOMMENDATIONS.md` Rec 3: test-first ordering by itself buys nothing; the per-green refactoring is the mechanism, and it is mandatory in both cadences). Opt into this skill's test-first discipline via the plan's `**Cadence**: tdd` metadata or `/build --tdd`. When active, every rule below applies unchanged — including the Iron Law and its hard gates.
 
 ## Iron Law
 

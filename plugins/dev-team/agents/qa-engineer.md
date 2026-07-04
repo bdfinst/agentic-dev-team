@@ -152,7 +152,8 @@ If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
 - [`legacy-code`](../skills/legacy-code/SKILL.md) — characterization-first
   procedure when production code is untested or refactoring-resistant.
 - [`test-driven-development`](../skills/test-driven-development/SKILL.md) —
-  RED-GREEN-REFACTOR discipline for new code.
+  RED-GREEN-REFACTOR discipline for new code under the opt-in tdd cadence
+  (the default build cadence is Code-First Small Batches).
 
 ### Test review (backward-looking — "are these tests any good?")
 
