@@ -1,8 +1,8 @@
 # Experiment Prompt: Refactoring Granularity, the Test Safety Net, and Code/Test Authorship
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
-**Harness:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
-**Design + prior results:** [`02-final-results.md` § refactoring-cadence follow-up](02-final-results.md#proposed-follow-up-refactoring-cadence-and-the-test-safety-net)
+**Harness:** [`scripts/run_tdd_experiment.py`](../../../scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
+**Design + prior results:** [`02-final-results.md` § refactoring-cadence follow-up](../02-final-results.md#proposed-follow-up-refactoring-cadence-and-the-test-safety-net)
 
 This run resolves the open question from the *When Does TDD Pay Off?* study: the two
 refactor workflows (`tdd-refactor` 664, `test-after-refactor` 678) were statistically
@@ -92,7 +92,7 @@ spec, the 3-change chain.
 
 **Power (do this first, with code).** The n=3 cells could not resolve a 2% effect.
 1. Pull the per-cell cumulative-blast-radius values from the existing run1+run2 data under
-   `docs/experiments/data/` and estimate the within-cell SD.
+   `docs/experiments/agentic-workflow-evidence/data/` and estimate the within-cell SD.
 2. Size N for **80% power to detect a 5% difference** in blast radius (two-sided), and so
    that the ±5% TOST equivalence test is meaningful. Expect **N ≈ 12–15 per cell**.
 3. **Pre-register the exact N and the stopping rule** in the report before running. The
@@ -121,7 +121,7 @@ quality-at-fixed-cost and quality-per-dollar, never quality alone.
   measure: a modular design localizes a change to few files.
 - **Modularity (structural, new offline sensor):** after the build stage, run the repo's
   read-only review agents against the agent's production code and **count findings**, the
-  way [`complexity-refactor-regression.md`](../complexity-refactor-regression.md) established a
+  way [`complexity-refactor-regression.md`](../../complexity-refactor-regression.md) established a
   baseline (mean findings/solution):
   - `complexity-review` — cyclomatic complexity, nesting depth, function size, parameter
     count.
@@ -294,8 +294,8 @@ Write `docs/experiments/04-final-results.md`: the pre-registered N and power
 calc, the 2×2×2 results grid, the TOST verdict, the two-factor models, the churn mediation,
 the authorship effects, honest limitations (trials, model, single-task-family, sensor
 caveats), reproducibility commands, and a recommendation. Commit the report **and** the raw
-data under `docs/experiments/data/`. Mark the refactoring-cadence open question
-from [`02-final-results.md`](02-final-results.md) resolved and link the new report.
+data under `docs/experiments/agentic-workflow-evidence/data/`. Mark the refactoring-cadence open question
+from [`02-final-results.md`](../02-final-results.md) resolved and link the new report.
 
 ---
 
@@ -335,7 +335,7 @@ choose on the axes that *did* separate cleanly (cost, edge robustness under vagu
 - Harness extension: 4 new arms, `--authorship single|split`, the two new live sensors
   (refactor-granularity count, test-LOC churn), and the offline graders for the three axes
   (modularity findings, test-smell/Farley), all proven under `--skip-dispatch`.
-- Raw data JSONL under `docs/experiments/data/`, carrying all three axes per cell.
+- Raw data JSONL under `docs/experiments/agentic-workflow-evidence/data/`, carrying all three axes per cell.
 - One report with the 2×2×2 grid; the TOST verdict; the churn mediation; the authorship
   effects; the three-axis tables (modularity & changeability, test quality, cost) with every
   quality figure shown raw **and** per-dollar; the named efficient frontier; and the refactoring-cadence

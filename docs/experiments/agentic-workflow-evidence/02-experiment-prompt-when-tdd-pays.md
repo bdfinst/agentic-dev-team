@@ -1,10 +1,10 @@
 # Experiment Prompt: When Does TDD Actually Pay Off?
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
-**Harness:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
-**Motivation:** [`FAQ.md` Q1](FAQ.md),
-[`01-final-results.md`](01-final-results.md)
-**Prior run results:** [`02-final-results.md`](02-final-results.md)
+**Harness:** [`scripts/run_tdd_experiment.py`](../../../scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
+**Motivation:** [`FAQ.md` Q1](../FAQ.md),
+[`01-final-results.md`](../01-final-results.md)
+**Prior run results:** [`02-final-results.md`](../02-final-results.md)
 **Supersedes:** `ambiguous-requirements-experiment.md` (Axis A) and
 `experiment-prompt-design-discovery.md` (Axis B), merged here into one factorial.
 
@@ -341,7 +341,7 @@ dominance verdict (all three conditions: EDGE ≥ `test-after`, blast radius ≈
 `tdd-refactor`, cost < `tdd-refactor`), honest limitations (n, single model,
 autonomous-only, reviewer variance, trap+vagueness calibration), reproducibility
 commands, and a recommendation. Commit the report **and** raw data under
-`docs/experiments/data/`.
+`docs/experiments/agentic-workflow-evidence/data/`.
 
 ---
 
@@ -428,6 +428,6 @@ plain `test-after` and is simply `tdd-refactor` written in a different order.
   clean reference**.
 - The harness extension (clarity selection + CORE/EDGE grading + change-chain stages
   - blast-radius/radon/multi-rater instrumentation + `ship` plugin-home support).
-- Raw data JSONL under `docs/experiments/data/`.
+- Raw data JSONL under `docs/experiments/agentic-workflow-evidence/data/`.
 - One report with the clarity × workflow grid and the ambiguity-inference / changeability / refactoring-vs-ordering / clarity-interaction /
   spec-synthesis / test-after-refactor verdicts and recommendation.

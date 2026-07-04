@@ -7,7 +7,7 @@ resolving it further is not worth funding. This is the terminal report for the
 refactor-cadence/workflow-matrix experiment line (experiments 01–05); see
 [`README.md`](README.md) for the full narrative arc.
 
-**Data:** [`data/refactor-workflow-matrix.jsonl`](data/refactor-workflow-matrix.jsonl)
+**Data:** [`agentic-workflow-evidence/data/refactor-workflow-matrix.jsonl`](agentic-workflow-evidence/data/refactor-workflow-matrix.jsonl)
 **Model:** `claude-sonnet-4-6` (held fixed across all arms)
 **Harness:** [`scripts/run_refactor_experiment.py`](../../scripts/run_refactor_experiment.py),
 orchestrated by [`scripts/run_workflow_matrix.py`](../../scripts/run_workflow_matrix.py)

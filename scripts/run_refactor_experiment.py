@@ -675,7 +675,7 @@ def main(argv):
                     help="arm(s); default all")
     ap.add_argument("--trials", type=int, default=1)
     ap.add_argument("--model", default="claude-sonnet-4-6")
-    ap.add_argument("--out", default="docs/experiments/data/refactor-granularity.jsonl")
+    ap.add_argument("--out", default="docs/experiments/agentic-workflow-evidence/data/refactor-granularity.jsonl")
     ap.add_argument("--run-root", default="")
     ap.add_argument("--skip-dispatch", action="store_true",
                     help="run the full pipeline with NO model calls (free self-test)")

@@ -16,7 +16,7 @@ import statistics as st
 from collections import defaultdict
 
 ALPHA_Z, POWER_Z = 1.96, 0.842  # two-sided alpha=.05, power=.80
-DATA = "docs/experiments/data/tdd-pays-*.jsonl"
+DATA = "docs/experiments/agentic-workflow-evidence/data/tdd-pays-*.jsonl"
 CHANGE_STAGES = ("change1", "change2", "change3")
 
 

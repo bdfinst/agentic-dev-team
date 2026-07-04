@@ -113,12 +113,12 @@ Log the fast-path routing decision explicitly:
 ```
 Fast path: task classified trivial. Skipping /plan.
 Inputs: files_changed=<N>, loc_delta=<N>, decision_axis_triggered=false.
-Expected saving: ~65% fewer turns vs full pipeline (see docs/experiments/data/3sizes-3arms-summary.json).
+Expected saving: ~65% fewer turns vs full pipeline (see docs/experiments/agentic-workflow-evidence/data/3sizes-3arms-summary.json).
 ```
 
 ### Demonstration of saving
 
-From `docs/experiments/data/3sizes-3arms-summary.json` (small-kata tier, haiku-4.5):
+From `docs/experiments/agentic-workflow-evidence/data/3sizes-3arms-summary.json` (small-kata tier, haiku-4.5):
 
 | Path | Median turns | Median cost |
 |------|-------------|-------------|

@@ -2,8 +2,8 @@
 
 **Status: complete.** 7 arms × 4 tasks × 13 trials = **364 cells**, clear specs,
 build + 3-change chain, model `claude-sonnet-4-6`. Raw data:
-[`data/refactor-granularity-merged.jsonl`](data/refactor-granularity-merged.jsonl);
-machine summary: [`data/refactor-granularity-summary.json`](data/refactor-granularity-summary.json);
+[`agentic-workflow-evidence/data/refactor-granularity-merged.jsonl`](agentic-workflow-evidence/data/refactor-granularity-merged.jsonl);
+machine summary: [`agentic-workflow-evidence/data/refactor-granularity-summary.json`](agentic-workflow-evidence/data/refactor-granularity-summary.json);
 reproduce with `python3 scripts/analyze_refactor_experiment.py`.
 
 **Plain-language summary:** the Experiment 04 section of [`README.md`](README.md).

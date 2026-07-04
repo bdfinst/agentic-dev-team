@@ -1,7 +1,7 @@
 # Experiment Prompt: Which agentic workflow yields maintainable, well-tested code at minimum cost
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
-**Harness:** [`scripts/run_refactor_experiment.py`](../../scripts/run_refactor_experiment.py)
+**Harness:** [`scripts/run_refactor_experiment.py`](../../../scripts/run_refactor_experiment.py)
 **Lineage:** the single, consolidated experiment for the refactor-cadence line. It supersedes
 the earlier granularity / larger-corpus designs (former prompts 06 and the cadence-larger
 prompt), fixes the variables they left open (refactoring on, specs clear), and re-scopes
@@ -169,7 +169,7 @@ variance before funding it. It is **not** part of the base run.
 2. **1-task cost pilot** on the new arms (`--task fare --arm all-tests-first-single --arm
    all-tests-first-split --trials 1`) to get real per-cell cost.
 3. **Campaign:** one command —
-   [`scripts/run_workflow_matrix.py`](../../scripts/run_workflow_matrix.py). It runs the 7 arms
+   [`scripts/run_workflow_matrix.py`](../../../scripts/run_workflow_matrix.py). It runs the 7 arms
    × 4 tasks × 6 base trials, then **sequentially extends** only the arms whose cost-efficiency
    (quality-per-dollar) rank is still ambiguous, up to a 12-trial ceiling. Defaults to a **dry
    plan** (no dispatch); pass `--go` to run, `--analyze-only` to print the efficiency frontier

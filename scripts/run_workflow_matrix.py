@@ -26,7 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 HARNESS = ROOT / "scripts" / "run_refactor_experiment.py"
-DEFAULT_OUT = "docs/experiments/data/refactor-workflow-matrix.jsonl"
+DEFAULT_OUT = "docs/experiments/agentic-workflow-evidence/data/refactor-workflow-matrix.jsonl"
 
 # ── the 7 cells (prompt 05). no-refactor-* are excluded: refactoring is fixed on. ──
 # arm -> (workflow code, human label)

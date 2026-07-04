@@ -3,16 +3,16 @@
 **Status:** Complete — one campaign, three sizes, three arms, model fixed.
 **Date:** 2026-06-22
 **Model (fixed):** `claude-sonnet-4-6`
-**Design + prior results:** [`01-experiment-prompt-3sizes-3arms.md`](01-experiment-prompt-3sizes-3arms.md),
+**Design + prior results:** [`01-experiment-prompt-3sizes-3arms.md`](agentic-workflow-evidence/01-experiment-prompt-3sizes-3arms.md),
 `tdd-vs-test-after-experiment.md`,
 `tdd-vs-test-after-consolidated-report.md` (prior campaign; not migrated into this docs set)
 **Runner:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py)
 **Analyzer:** [`scripts/analyze_tdd_experiment.py`](../../scripts/analyze_tdd_experiment.py)
-**Raw data:** [`data/3sizes-small-sonnet-2026-06-22.jsonl`](data/3sizes-small-sonnet-2026-06-22.jsonl) (small),
-[`data/tdd-largetask-sonnet-2026-06-21.json`](data/tdd-largetask-sonnet-2026-06-21.json) (medium, folded in),
-[`data/3sizes-large-sonnet-2026-06-22.jsonl`](data/3sizes-large-sonnet-2026-06-22.jsonl) (large),
-[`data/3sizes-3arms-summary.json`](data/3sizes-3arms-summary.json) (cost/quality summary),
-[`data/3sizes-review-findings.json`](data/3sizes-review-findings.json) (review-agent findings, large tier)
+**Raw data:** [`agentic-workflow-evidence/data/3sizes-small-sonnet-2026-06-22.jsonl`](agentic-workflow-evidence/data/3sizes-small-sonnet-2026-06-22.jsonl) (small),
+[`agentic-workflow-evidence/data/tdd-largetask-sonnet-2026-06-21.json`](agentic-workflow-evidence/data/tdd-largetask-sonnet-2026-06-21.json) (medium, folded in),
+[`agentic-workflow-evidence/data/3sizes-large-sonnet-2026-06-22.jsonl`](agentic-workflow-evidence/data/3sizes-large-sonnet-2026-06-22.jsonl) (large),
+[`agentic-workflow-evidence/data/3sizes-3arms-summary.json`](agentic-workflow-evidence/data/3sizes-3arms-summary.json) (cost/quality summary),
+[`agentic-workflow-evidence/data/3sizes-review-findings.json`](agentic-workflow-evidence/data/3sizes-review-findings.json) (review-agent findings, large tier)
 
 ---
 
@@ -302,7 +302,7 @@ worktree, the produced code is not retained. For the review-grade lens, one
 build-stage solution per (arm × large task) was **regenerated and kept** with the
 harness's exact arm prompts (`/tmp/gen_solutions.py`), then graded by the 6-agent
 review panel; results are in
-[`data/3sizes-review-findings.json`](data/3sizes-review-findings.json).
+[`agentic-workflow-evidence/data/3sizes-review-findings.json`](agentic-workflow-evidence/data/3sizes-review-findings.json).
 
 **Fix landed:** the mutation/coverage test runs had no wall-clock cap, so a
 mutation that turned a roman-numeral subtractive loop infinite hung pytest

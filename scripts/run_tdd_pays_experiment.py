@@ -545,7 +545,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--experiments-dir", default="evals/experiments")
     ap.add_argument("--fixtures-dir", default="evals/fixtures")
     ap.add_argument("--run-root", default="")
-    ap.add_argument("--out", default="docs/experiments/data/tdd-pays.jsonl")
+    ap.add_argument("--out", default="docs/experiments/agentic-workflow-evidence/data/tdd-pays.jsonl")
     ap.add_argument("--only", default="", help="comma-separated experiment stems")
     ap.add_argument("--model", default=MODEL_DEFAULT)
     ap.add_argument("--ship-home-template", default="",
