@@ -132,3 +132,9 @@ command is either a single-step worker (e.g. `/coverage-baseline`,
 or agent for each step, and where the human gates fall is the difference
 between operating these workflows confidently and re-reading every SKILL.md
 each time.
+
+One cross-command lifecycle *is* documented separately: the defect workflow
+that connects `/triage`'s triage records, `/code-review`'s correction
+prompts, and `/apply-fixes` — from discovery to applied fix, including who
+owns leftover `corrections/` files — lives in
+[triage-workflow.md](triage-workflow.md).

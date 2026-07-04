@@ -211,6 +211,8 @@ Remaining issues (not auto-fixed) are tagged `[confidence: none]`, `[auto-fix fa
 
 For every unfixed actionable issue — plus suggestions worth addressing — a correction prompt JSON is written to `corrections/`. Each prompt includes priority, confidence, category, instruction, context, affected files, and `autoFixResult`. These can be addressed manually or with [`/apply-fixes`](../skills/apply-fixes/SKILL.md).
 
+The full lifecycle of these files — discovery to applied fix, including who owns a `corrections/*.json` after its branch merges — is documented in [triage-workflow.md](triage-workflow.md).
+
 ### 9. Pre-commit gate file
 
 When the review was auto-scoped to uncommitted changes and the final status is `pass` or `warn`, the orchestrator writes `.review-passed` — a SHA-256 hash of the reviewed file list:
@@ -272,6 +274,7 @@ checkouts (the normal team workflow) are unaffected.
 ## References
 
 - [Skill spec](../skills/code-review/SKILL.md) — operational detail for the orchestrator
+- [Triage workflow](triage-workflow.md) — the discovery-to-applied-fix lifecycle: `/triage`, correction prompts, `/apply-fixes`, and leftover-corrections ownership
 - [Concurrent use](concurrent-use.md) — one worktree per agent; why the gate is per-checkout
 - [Output format](../skills/code-review/output-format.md) — per-agent JSON, aggregated JSON, correction prompts
 - [Report template](../knowledge/review-template.md) — prose report structure
