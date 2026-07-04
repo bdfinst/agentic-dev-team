@@ -4,6 +4,9 @@ Five experiments, run in sequence, each answering the question the previous one
 left open. This page tells that story end to end; each experiment's own report
 has the full methodology and data. **[`05-final-results.md`](05-final-results.md)
 is the terminal result** — the answer this whole line of work was building toward.
+For the practical takeaways — end-to-end workflow guidance from requirements
+definition through review, synthesized across all five experiments — see
+**[`RECOMMENDATIONS.md`](RECOMMENDATIONS.md)**.
 
 All experiments hold the model fixed at `claude-sonnet-4-6` and grade against
 hidden acceptance tests injected only at grading time, so no arm can see (or
@@ -237,6 +240,9 @@ not funded).
 
 ## Supporting documents
 
+- [`RECOMMENDATIONS.md`](RECOMMENDATIONS.md) — the practical synthesis:
+  end-to-end workflow guidance (requirements → workflow choice → build cadence
+  → review) with each recommendation tied to the experiment that resolved it.
 - [`FAQ.md`](FAQ.md) — targeted Q&A against specific claims about TDD (e.g.,
   "TDD gradually discovers optimal design"), cross-referencing 01 and 02.
 - [`04-power-analysis.md`](04-power-analysis.md) —
