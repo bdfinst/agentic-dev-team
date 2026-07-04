@@ -18,7 +18,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/apply-fixes` | `skills/apply-fixes/SKILL.md` | implementation | Apply correction prompts from `/code-review` output |
 | `/benchmark` | `skills/benchmark/SKILL.md` | worker | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines |
 | `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
-| `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan with TDD, inline reviews, and verification evidence; ends with a Farley Score for the branch's tests before prompting for `/pr` |
+| `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan in small per-behavior batches (code-first default, TDD opt-in) with inline reviews and verification evidence; ends with a Farley Score for the branch's tests before prompting for `/pr` |
 | `/careful` | `skills/careful/SKILL.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
 | `/code-review` | `skills/code-review/SKILL.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
 | `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
@@ -48,7 +48,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/semgrep-analyze` | `skills/semgrep-analyze/SKILL.md` | worker | Run Semgrep SAST and return structured findings |
 | `/session-review` | `skills/session-review/SKILL.md` | orchestrator | Mine real session transcripts (via the deterministic `session_extract.py`) and dispatch `session-analysis` to suggest token/rework/accuracy improvements; suggests, never auto-applies |
 | `/setup` | `skills/setup/SKILL.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
-| `/ship` | `skills/ship/SKILL.md` | orchestrator | Run the full spec→plan→TDD build→code-review→PR(auto-merge) pipeline as one command, pausing at the existing human gates |
+| `/ship` | `skills/ship/SKILL.md` | orchestrator | Run the full spec→plan→build (code-first default, TDD opt-in)→code-review→PR(auto-merge) pipeline as one command, pausing at the existing human gates |
 | `/telemetry` | `skills/telemetry/SKILL.md` | worker | Manage and report the opt-in, privacy-clean usage telemetry beacon (on/off/status/report) |
 | `/test-audit-disable` | `skills/test-audit-disable/SKILL.md` | worker | Standalone worker — detect tests that cannot fail (no assertions, tautologies, self-equality, swallowed exceptions) and disable each by skip-and-tag with the reason; never deletes. Not part of the current `/test-improve` orchestrator flow |
 | `/test-design` | `skills/test-design/SKILL.md` | orchestrator | Deep test-design review: dispatch test-review + test-smell-review, score all existing tests (Farley Score), then run test-design-advisor for testability/refactor recommendations (advisory) |

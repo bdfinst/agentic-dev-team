@@ -1,7 +1,7 @@
 ---
 name: ship
 description: >-
-  Run the full spec-to-merge pipeline as one command: spec, plan, TDD build,
+  Run the full spec-to-merge pipeline as one command: spec, plan, small-batch build,
   code review, and a PR with auto-merge — pausing at the existing human gates.
   Use when the user says "ship this", "take this feature end to end",
   "implement this issue", "we need to build", or wants the
@@ -68,8 +68,8 @@ axis. **Human gate** — wait for plan approval before building.
 
 ### 4. Build
 
-Invoke `/build` to execute the approved plan with RED-GREEN-REFACTOR, inline review
-checkpoints, and verification evidence. Do not proceed until the build reports a green
+Invoke `/build` to execute the approved plan in small per-behavior batches (code-first
+default; TDD opt-in), with inline review checkpoints and verification evidence. Do not proceed until the build reports a green
 suite.
 
 ### 5. Review
