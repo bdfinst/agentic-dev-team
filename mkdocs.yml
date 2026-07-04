@@ -91,6 +91,7 @@ nav:
           - Workflows: plugins/dev-team/docs/workflows.md
           - Skills: plugins/dev-team/docs/skills.md
           - Code Review Process: plugins/dev-team/docs/code-review-process.md
+          - Triage Workflow: plugins/dev-team/docs/triage-workflow.md
       - Model Routing:
           - Model Routing: plugins/dev-team/docs/model-routing.md
           - Model Routing Overrides: plugins/dev-team/docs/model-routing-overrides.md
