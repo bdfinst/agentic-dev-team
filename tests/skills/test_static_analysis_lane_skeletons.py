@@ -1,9 +1,11 @@
 """#811 — the two skeletons the language issues (#807 Python, #808 JS/TS,
 #809 C#, #810 Java) plug into: the "Build-time lanes" registry section in
 static-analysis-integration's tool-configs.md and the per-language setup
-guide language-setup.md. Each carries one placeholder section per language
-so the four language branches land into disjoint regions, and zero lanes
-are registered — the mechanism is a structural no-op until they land.
+guide language-setup.md. Each carries one section per language so the four
+language branches land into disjoint regions. A language whose lane has not
+yet landed keeps its placeholder ("No lane registered") and is skipped by
+the mechanism; the C# lane is registered (guarded by
+test_static_analysis_csharp_lane.py).
 """
 
 from __future__ import annotations
@@ -18,7 +20,8 @@ LANGUAGE_SETUP = REFERENCES / "language-setup.md"
 SAI_SKILL = PLUGIN_ROOT / "skills" / "static-analysis-integration" / "SKILL.md"
 
 LANE_LANGUAGES = ("Python", "JS/TS", "C#", "Java")
-LANE_ISSUES = ("#807", "#808", "#809", "#810")
+PLACEHOLDER_LANGUAGES = ("Python", "JS/TS", "Java")
+PLACEHOLDER_ISSUES = ("#807", "#808", "#810")
 
 
 def _registry_section() -> str:
@@ -64,23 +67,23 @@ def test_registry_defers_mechanism_and_contract_to_the_build_reference():
     assert "static-self-heal.md" in _registry_section()
 
 
-def test_registry_has_one_placeholder_subsection_per_language():
+def test_registry_has_one_subsection_per_language():
     s = _registry_section()
     for lang in LANE_LANGUAGES:
-        assert grep(rf"^### {re.escape(lang)} lane", s), f"missing lane placeholder: {lang}"
+        assert grep(rf"^### {re.escape(lang)} lane", s), f"missing lane subsection: {lang}"
 
 
 def test_each_registry_placeholder_names_its_owning_language_issue():
     s = _registry_section()
-    for issue in LANE_ISSUES:
+    for issue in PLACEHOLDER_ISSUES:
         assert issue in s, f"registry placeholder missing owning issue: {issue}"
 
 
-def test_registry_has_zero_registered_lanes():
-    """Every lane subsection is still a placeholder — no provider row has
-    been registered, so the self-heal pass is a structural no-op."""
+def test_unregistered_lanes_remain_placeholders():
+    """A lane subsection whose language issue has not landed stays a
+    placeholder — the self-heal pass skips it with one info line."""
     s = _registry_section()
-    for lang in LANE_LANGUAGES:
+    for lang in PLACEHOLDER_LANGUAGES:
         lane = section_outside_code(
             s,
             rf"^### {re.escape(lang)} lane",
@@ -118,7 +121,7 @@ def test_guide_points_to_project_init_as_the_one_command_install_path():
     assert "/project-init" in _guide_text()
 
 
-def test_guide_has_one_placeholder_section_per_language():
+def test_guide_has_one_section_per_language():
     text = _guide_text()
     for lang in LANE_LANGUAGES:
         assert grep(rf"^## {re.escape(lang)}$", text), f"missing guide section: {lang}"
@@ -126,7 +129,7 @@ def test_guide_has_one_placeholder_section_per_language():
 
 def test_each_guide_placeholder_names_its_owning_language_issue():
     text = _guide_text()
-    for issue in LANE_ISSUES:
+    for issue in PLACEHOLDER_ISSUES:
         assert issue in text, f"guide placeholder missing owning issue: {issue}"
 
 
