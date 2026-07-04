@@ -21,14 +21,45 @@ orchestrated by [`scripts/run_workflow_matrix.py`](../../scripts/run_workflow_ma
 
 ## Bottom line
 
-**`continuous-single`** (write code, then tests, in small per-behavior batches, one
-agent) is the clear winner on quality-per-dollar, with **`tdd-refactor`** (classic
-Kent Beck TDD, one agent) a clear second. Both are statistically separated from
+Seven workflow arms were compared, each defined by test/code ordering × batch
+size × authorship (see [The four workflows](#the-four-workflows) for the full
+factor definitions):
+
+- **`tdd-refactor`** — classic Kent Beck TDD: for each behavior, write one
+  failing test, the minimum code to pass it, then refactor before the next
+  behavior; one agent writes code and tests.
+- **`continuous-single`** — code-first in small per-behavior batches: write the
+  code for one behavior, then its test, refactor after each green; one agent.
+- **`continuous-split`** — the same small-batch code-first loop, but tests are
+  written by a separate, context-isolated agent.
+- **`one-shot-single`** — write the entire implementation first, then the entire
+  test suite, with a single refactor pass at the end; one agent.
+- **`one-shot-split`** — the same all-code-then-all-tests flow, with a separate
+  context-isolated test author.
+- **`all-tests-first-single`** — write the entire failing test suite first, then
+  production code until it all passes, with a single refactor pass at the end;
+  one agent.
+- **`all-tests-first-split`** — the same all-tests-first flow, with a separate
+  context-isolated test author.
+
+**`continuous-single`** is the clear winner on quality-per-dollar, with
+**`tdd-refactor`** a clear second. Both are statistically separated from
 every other arm and from each other. The remaining five arms cluster together at
 roughly 1/4 to 1/5 the efficiency of the leaders, and **the data cannot — and does
 not need to — resolve their relative order**: none of them is a workflow worth
 recommending, so ranking "which loser loses less" has no decision value. See
 [Recommendation](#recommendation).
+
+**On refactoring cadence specifically: refactor on every small batch, not once
+at the end.** Both winning workflows refactor after each green increment; every
+arm that defers refactoring to a single end-of-build pass costs 2–4.5× more per
+cell and leaves the code measurably less changeable (blast radius ~50 vs. ~40
+LOC per follow-up change). Experiment 04's raw numbers should not be read as
+"skip refactoring": its blast metric charged the refactor's own churn against
+the refactoring arms and its 3-change horizon was too short for the payoff to
+surface (see that report's limitations). This experiment fixed refactoring "on"
+in every arm for exactly that reason, and among cadences, per-batch refactoring
+wins.
 
 ---
 
@@ -286,6 +317,15 @@ chain. **`tdd-refactor`** (classic TDD) is a reasonable second choice, particula
 if a team has process reasons to prefer test-first discipline; it costs ~60% more
 per cell for statistically indistinguishable maintainability and slightly lower
 mutation coverage.
+
+**Refactor on every small batch, not only at the end.** This is the shared trait
+of the two winners and the answer to the cadence question this experiment line
+set out to settle: refactoring after each green increment keeps follow-up
+changes localized, while deferring all refactoring to one end-of-build pass
+(the W3/W4 arms) costs more and produces worse changeability. Experiment 04's
+apparent "no refactoring scored best" result is an artifact of its metric and
+short change horizon (documented in its limitations section), not a reason to
+skip the refactor step.
 
 **Do not spend further campaign budget** distinguishing the remaining five
 workflows from each other. They are all inferior to the top two on the metric
