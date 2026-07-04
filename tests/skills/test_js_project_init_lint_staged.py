@@ -16,7 +16,7 @@ CFG = PLUGIN_ROOT / "skills" / "js-project-init" / "references" / "configs.md"
 def test_package_json_template_declares_a_lint_staged_block_with_per_extension_fix_commands():
     text = SKILL.read_text()
     assert '"lint-staged"' in text
-    assert '"*.{js,mjs,cjs}": ["prettier --write", "eslint --fix"]' in text
+    assert '"*.{js,mjs,cjs}": ["prettier --write", "oxlint --fix"]' in text
     assert '"*.{json,md,yaml,yml}": ["prettier --write"]' in text
 
 

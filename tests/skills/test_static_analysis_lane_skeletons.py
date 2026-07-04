@@ -2,12 +2,12 @@
 #809 C#, #810 Java) plug into: the "Build-time lanes" registry section in
 static-analysis-integration's tool-configs.md and the per-language setup
 guide language-setup.md. Each carries one section per language so the four
-language branches land into disjoint regions. A language whose lane has not
-yet landed keeps its placeholder ("No lane registered") and is skipped by
-the mechanism. Registered lanes get their own positive content gates
-(test_static_analysis_python_lane.py, test_static_analysis_csharp_lane.py,
-test_static_analysis_java_lane.py); lanes still pending stay placeholders
-guarded here.
+language branches land into disjoint regions. All four lanes are now
+registered; each has its own positive content gates
+(test_static_analysis_python_lane.py, test_static_analysis_js_lane.py,
+test_static_analysis_csharp_lane.py, test_static_analysis_java_lane.py).
+The placeholder guards below stay so any future lane added to
+LANE_LANGUAGES is held to the same skeleton contract until it registers.
 """
 
 from __future__ import annotations
@@ -23,12 +23,11 @@ SAI_SKILL = PLUGIN_ROOT / "skills" / "static-analysis-integration" / "SKILL.md"
 
 LANE_LANGUAGES = ("Python", "JS/TS", "C#", "Java")
 
-# Lanes whose owning issue has not yet landed on this branch — still
-# placeholders. Python (#807), C# (#809), and Java (#810) are registered;
-# their registered-row guards live in their own test modules.
-REGISTERED_LANGUAGES = ("Python", "C#", "Java")
-PLACEHOLDER_LANGUAGES = ("JS/TS",)
-PLACEHOLDER_ISSUES = ("#808",)
+# All four lanes (#807 Python, #808 JS/TS, #809 C#, #810 Java) are
+# registered; their registered-row guards live in their own test modules.
+REGISTERED_LANGUAGES = ("Python", "JS/TS", "C#", "Java")
+PLACEHOLDER_LANGUAGES = ()
+PLACEHOLDER_ISSUES = ()
 
 
 def _registry_section() -> str:
