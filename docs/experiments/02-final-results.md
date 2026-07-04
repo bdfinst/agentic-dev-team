@@ -4,8 +4,7 @@
 **Model (fixed):** `claude-sonnet-4-6`  
 **Branch:** `claude/vigilant-lamport-u7t3af-n9c3os`  
 **Related:** [`02-experiment-prompt-when-tdd-pays.md`](02-experiment-prompt-when-tdd-pays.md),
-[`tdd-vs-nontdd-report.md`](tdd-vs-nontdd-report.md),
-[`3sizes-3arms-report.md`](3sizes-3arms-report.md)
+[`01-final-results.md`](01-final-results.md)
 
 ---
 
@@ -456,8 +455,8 @@ deliberate trade-off.
 
 ### Prior context
 
-The two prior experiments ([`tdd-vs-nontdd-report.md`](tdd-vs-nontdd-report.md),
-[`3sizes-3arms-report.md`](3sizes-3arms-report.md)) found **no significant advantage
+The prior experiment line ([`01-final-results.md`](01-final-results.md), which
+subsumes an earlier two-arm TDD-vs-test-after cut of the same data) found **no significant advantage
 for test-first** across a range of task sizes. Both studies used clear specs and
 single-shot tasks with no change chain — precisely the conditions where TDD's claimed
 benefits (ambiguity resolution and design improvement under feedback) are absent.

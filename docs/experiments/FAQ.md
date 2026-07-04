@@ -1,8 +1,8 @@
 # TDD Experiment — FAQ
 
 Questions and answers about the TDD experiment findings. See the reports for
-detail: [`3sizes-3arms-report.md`](3sizes-3arms-report.md) (three-arm study),
-[`tdd-vs-nontdd-report.md`](tdd-vs-nontdd-report.md) (TDD vs non-TDD), and the
+detail: [`01-final-results.md`](01-final-results.md) (three-arm study, which
+subsumes the earlier two-arm TDD-vs-test-after cut of the same data), and the
 unified follow-up design [`02-experiment-prompt-when-tdd-pays.md`](02-experiment-prompt-when-tdd-pays.md).
 
 ---

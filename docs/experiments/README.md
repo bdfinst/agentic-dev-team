@@ -33,7 +33,7 @@ powered version of that question, expanded to a full 2×2×2 workflow matrix, is
 
 ## Experiment 01 — Does the full pipeline beat hand-driven coding?
 
-**[`3sizes-3arms-report.md`](3sizes-3arms-report.md)** · design:
+**[`01-final-results.md`](01-final-results.md)** · design:
 [`01-experiment-prompt-3sizes-3arms.md`](01-experiment-prompt-3sizes-3arms.md)
 
 **Question:** Does dev-team's `/plan`→`/build` pipeline produce better or
@@ -69,18 +69,19 @@ ordering. That's what Experiment 02 went to test directly — not "TDD vs.
 not-TDD" in the abstract, but *what about TDD's discipline actually produces
 the effect*.
 
-*(A precursor covering the small/medium tiers only, run before the large tier
-existed, is preserved at [`tdd-vs-nontdd-report.md`](tdd-vs-nontdd-report.md);
-its small-tier data was re-run at the fixed model for Experiment 01 rather than
-reused, since the precursor used a different model on that tier.)*
+*(A precursor two-arm report covering the small/medium tiers only, written
+before the large tier existed, was folded into this study; its small-tier data
+was re-run at the fixed model rather than reused, since the precursor used a
+different model on that tier.)*
 
 ---
 
 ## Experiment 02 (+ 03) — When does TDD actually pay off?
 
-**[`when-tdd-pays-report.md`](when-tdd-pays-report.md)** · design:
+**[`02-final-results.md`](02-final-results.md)** · design:
 [`02-experiment-prompt-when-tdd-pays.md`](02-experiment-prompt-when-tdd-pays.md) ·
-manual follow-up: [`03-ship-arm-manual-run-prompt.md`](03-ship-arm-manual-run-prompt.md)
+manual follow-up (Experiment 03): results in the ship-arm section of
+[`02-final-results.md`](02-final-results.md)
 
 **Question:** Crossing requirement clarity (clear vs. vague spec) with coding
 workflow (TDD-with-refactor, TDD-without-refactor, test-after,
@@ -122,9 +123,9 @@ agents)? That's Experiment 04.
 
 ## Experiment 04 — Refactoring cadence and authorship (corrected mid-flight)
 
-**[`refactor-granularity-report.md`](refactor-granularity-report.md)** · design:
+**[`04-final-results.md`](04-final-results.md)** · design:
 [`04-experiment-prompt-refactor-granularity.md`](04-experiment-prompt-refactor-granularity.md) ·
-power analysis: [`refactor-granularity-power-analysis.md`](refactor-granularity-power-analysis.md)
+power analysis: [`04-power-analysis.md`](04-power-analysis.md)
 
 **Question:** Crossing refactor granularity (none / one-shot / continuous) with
 authorship (single agent / independent coder+tester), plus a TDD reference arm
@@ -172,7 +173,7 @@ factorial (test ordering × batch size × authorship) built to answer one
 final, focused question.
 
 *(Related methodology validation, not part of this arc's main question but
-built on its findings: [`complexity-refactor-regression.md`](complexity-refactor-regression.md)
+built on its findings: [`complexity-refactor-regression.md`](../complexity-refactor-regression.md)
 confirms `/build`'s inline REFACTOR step, once wired to dispatch
 `complexity-review`, dropped mean complexity findings below the pre-wiring
 baseline — direct evidence the refactor-step mechanism identified here is
@@ -236,13 +237,10 @@ not funded).
 
 - [`FAQ.md`](FAQ.md) — targeted Q&A against specific claims about TDD (e.g.,
   "TDD gradually discovers optimal design"), cross-referencing 01 and 02.
-- [`refactor-granularity-power-analysis.md`](refactor-granularity-power-analysis.md) —
+- [`04-power-analysis.md`](04-power-analysis.md) —
   the pre-run correction that caught Experiment 04's design flaw before it ran
   at scale; worth reading as a methodology lesson independent of the results.
-- [`complexity-refactor-regression.md`](complexity-refactor-regression.md) —
-  confirms the refactor-step mechanism (identified in 02, tested in 04)
-  actually improves output when wired into the real `/build` skill, not just
-  the experiment harness.
-- [`refactor-granularity-progress.md`](refactor-granularity-progress.md) and
-  [`refactor-granularity-summary.md`](refactor-granularity-summary.md) —
-  plain-language summary and run-progress log for Experiment 04.
+- [`complexity-refactor-regression.md`](../complexity-refactor-regression.md)
+  (in the repo-level docs) — confirms the refactor-step mechanism (identified
+  in 02, tested in 04) actually improves output when wired into the real
+  `/build` skill, not just the experiment harness.

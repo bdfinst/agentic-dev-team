@@ -6,7 +6,7 @@ build + 3-change chain, model `claude-sonnet-4-6`. Raw data:
 machine summary: [`data/refactor-granularity-summary.json`](data/refactor-granularity-summary.json);
 reproduce with `python3 scripts/analyze_refactor_experiment.py`.
 
-**Plain-language summary:** [`refactor-granularity-summary.md`](refactor-granularity-summary.md).
+**Plain-language summary:** the Experiment 04 section of [`README.md`](README.md).
 
 ## Design
 
@@ -85,7 +85,7 @@ these tasks.
    multi-file tasks and a longer change horizon (6–10 changes) to surface a payoff.
 3. **Four tasks → underpowered for small effects.** The unit of inference is the task;
    four is too few to resolve a ~5% changeability difference (see
-   [`refactor-granularity-power-analysis.md`](refactor-granularity-power-analysis.md)).
+   [`04-power-analysis.md`](04-power-analysis.md)).
    The large, consistent effects here (refactor churn, split cost) are real; small ones
    are not resolvable.
 4. **Clear specs only** removes the vague-spec edge-inference signal that separated arms
