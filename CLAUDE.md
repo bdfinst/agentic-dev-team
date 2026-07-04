@@ -93,6 +93,8 @@ claude plugin install --scope project dev-team@bfinster
 
 After changes, run `/agent-audit` to verify structural compliance.
 
+[`plugins/dev-team/docs/developer-notes.md`](plugins/dev-team/docs/developer-notes.md) is the maintainer-facing entry point: an index of the plugin-development docs plus the playbook for adding a new static-analysis language.
+
 ### Releasing
 
 Releases are managed by release-please. Push conventional commits to main:

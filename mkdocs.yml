@@ -83,6 +83,7 @@ nav:
 
   - dev-team Plugin:
       - Overview: plugins/dev-team/README.md
+      - Developer Notes: plugins/dev-team/docs/developer-notes.md
       - Architecture:
           - Team Structure: plugins/dev-team/docs/team-structure.md
           - Agent Architecture: plugins/dev-team/docs/agent-architecture.md
