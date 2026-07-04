@@ -89,9 +89,10 @@ install; the commands above remain the source of truth for manual setup.
 
    A devDependency pins the oxlint version in `package.json`/the lockfile —
    versioned with the repo and reproducible for every contributor and CI.
-   Never `npm install -g oxlint`. One-command alternative: the
-   `js-project-init` scaffold installs oxlint and wires it as the default
-   linter for new projects.
+   Never `npm install -g oxlint`. One-command alternative: run
+   `/project-init` — for a new project its greenfield scaffold installs
+   oxlint and wires it as the default linter; for an existing repo it
+   installs oxlint only when the slot binds no provider.
 3. **Configuration** — oxlint honors `.oxlintrc.json` (ESLint-v8-compatible
    shape; oxlint runs with sensible defaults when no config exists). When
    ESLint coexists as the deep pass, add

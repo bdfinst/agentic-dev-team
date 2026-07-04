@@ -1,4 +1,5 @@
-"""#808 — js-project-init scaffolds oxlint as the default linter: the
+"""#808 — project-init's greenfield JS scaffold installs oxlint as the
+default linter: the
 devDependency install includes oxlint, the `lint`/`lint:fix` npm scripts run
 oxlint, lint-staged auto-fixes with oxlint, and ESLint stays one script away
 behind `lint:deep` for plugin-only rules. Documentation gate over the skill
@@ -9,7 +10,7 @@ from __future__ import annotations
 
 from skill_doc_helpers import PLUGIN_ROOT, grep
 
-SKILL = PLUGIN_ROOT / "skills" / "js-project-init" / "SKILL.md"
+SKILL = PLUGIN_ROOT / "skills" / "project-init" / "SKILL.md"
 
 
 def _text() -> str:

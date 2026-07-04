@@ -255,5 +255,5 @@ def test_guide_js_section_lists_the_provider_order_with_statuses():
     assert "slice-boundary" in providers
 
 
-def test_guide_js_section_points_to_the_scaffold_skill():
-    assert "js-project-init" in _guide_js_section()
+def test_guide_js_section_points_to_the_project_init_skill():
+    assert "/project-init" in _guide_js_section()

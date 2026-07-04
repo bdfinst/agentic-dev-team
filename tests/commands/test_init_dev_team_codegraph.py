@@ -150,7 +150,7 @@ def test_stale_state_override_documented(text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Step 9 — JS bootstrap via js-project-init when no package.json
+# Step 9 — JS bootstrap via project-init when no package.json
 # ---------------------------------------------------------------------------
 
 
@@ -160,13 +160,13 @@ def test_js_bootstrap_check_present(text: str) -> None:
 
 def test_js_bootstrap_announcement_present(text: str) -> None:
     assert (
-        "No package.json found. Running /dev-team:js-project-init first to "
+        "No package.json found. Running /dev-team:project-init first to "
         "scaffold the project." in text
     )
 
 
 def test_js_bootstrap_invokes_skill(text: str) -> None:
-    assert "/dev-team:js-project-init" in text
+    assert "/dev-team:project-init" in text
 
 
 def test_js_abort_message_present(text: str) -> None:
@@ -178,7 +178,7 @@ def test_js_abort_message_present(text: str) -> None:
 
 def test_js_failure_message_present(text: str) -> None:
     assert (
-        "Stryker skipped — js-project-init failed. See errors above and "
+        "Stryker skipped — project-init failed. See errors above and "
         "re-run /init-dev-team after resolving them." in text
     )
 

@@ -1,4 +1,4 @@
-"""#250 — js-project-init must scaffold lint-staged with a pre-commit
+"""#250 — project-init's greenfield JS scaffold must set up lint-staged with a pre-commit
 auto-fix hook and simplify the pre-push hook to the test suite only.
 Documentation gate over the skill prose and its config templates.
 
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
-SKILL = PLUGIN_ROOT / "skills" / "js-project-init" / "SKILL.md"
-CFG = PLUGIN_ROOT / "skills" / "js-project-init" / "references" / "configs.md"
+SKILL = PLUGIN_ROOT / "skills" / "project-init" / "SKILL.md"
+CFG = PLUGIN_ROOT / "skills" / "project-init" / "references" / "configs.md"
 
 
 def test_package_json_template_declares_a_lint_staged_block_with_per_extension_fix_commands():
@@ -36,7 +36,7 @@ def test_frontend_pre_push_retains_the_e2e_suite():
     assert "npm run test:e2e" in SKILL.read_text()
 
 
-def test_step_8_summary_lists_both_git_hooks():
+def test_skill_prose_names_both_git_hooks():
     text = SKILL.read_text()
     assert grep(r"pre-commit.*lint-staged", text, ignore_case=True)
     assert grep(r"pre-push.*test", text, ignore_case=True)

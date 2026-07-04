@@ -54,10 +54,10 @@ Before any implementation step runs, make sure a JS-flavored plan has a project 
 
 1. **Check for `package.json`** in the working directory. If it exists, **skip this gate silently** and continue to Step 2.
 2. **Check the plan file for JS/TS signals** — any of `.js`, `.mjs`, `.ts`, `.jsx`, `.tsx`, `node`, `npm`, `vitest`, `jest`, `eslint`. If none are present, the plan is non-JS: **skip this gate silently** and continue to Step 2.
-3. **Bootstrap** (only when `package.json` is absent **and** the plan is JS-flavored): print exactly one line — `No package.json found for a JS plan — bootstrapping with js-project-init.` — then invoke the `js-project-init` skill.
-4. **Halt on failure.** If `js-project-init` fails, **stop `/build`** and report the failure — do not proceed to Step 2 or any implementation step.
+3. **Bootstrap** (only when `package.json` is absent **and** the plan is JS-flavored): print exactly one line — `No package.json found for a JS plan — bootstrapping with project-init.` — then invoke the `project-init` skill.
+4. **Halt on failure.** If `project-init` fails, **stop `/build`** and report the failure — do not proceed to Step 2 or any implementation step.
 
-The user sees no more than one line of output before `js-project-init` runs, and nothing at all when the gate is skipped.
+The user sees no more than one line of output before `project-init` runs, and nothing at all when the gate is skipped.
 
 ### 2. Verify plan status
 

@@ -1,5 +1,5 @@
 """#251 — /build must gate on a JS bootstrap step (Step 1.5) that invokes
-js-project-init when a JS-flavored plan has no package.json, and skips
+project-init when a JS-flavored plan has no package.json, and skips
 silently otherwise. Documentation gate over the skill prose.
 
 Ported from tests/skills/build_js_project_init_gate_tests.bats (issue #674).
@@ -60,8 +60,8 @@ def test_gate_enumerates_js_ts_signals():
         assert sig in s, f"missing signal: {sig}"
 
 
-def test_gate_invokes_js_project_init_when_bootstrapping():
-    assert "js-project-init" in _step_1_5_section()
+def test_gate_invokes_project_init_when_bootstrapping():
+    assert "project-init" in _step_1_5_section()
 
 
 def test_gate_skips_silently_when_package_json_exists_or_plan_is_non_js():
@@ -72,7 +72,7 @@ def test_gate_emits_exactly_one_notice_line_before_bootstrapping():
     assert grep(r"one line", _step_1_5_section(), ignore_case=True)
 
 
-def test_gate_halts_build_when_js_project_init_fails():
+def test_gate_halts_build_when_project_init_fails():
     s = _step_1_5_section()
     assert grep(r"halt|stop", s, ignore_case=True)
     assert grep(r"fail", s, ignore_case=True)

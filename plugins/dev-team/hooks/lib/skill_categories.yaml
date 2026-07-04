@@ -43,7 +43,7 @@ categories:
     skills: [systematic-debugging, ci-debugging, triage]
 
   - name: Setup, Config & Plugin Management
-    skills: [init-dev-team, setup, js-project-init, upgrade, version, help]
+    skills: [init-dev-team, setup, project-init, upgrade, version, help]
 
   - name: Session, Context & Telemetry
     skills: [context-loading-protocol, context-summarization, session-review, telemetry,

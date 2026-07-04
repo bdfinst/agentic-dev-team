@@ -1,0 +1,200 @@
+{
+  "skill_name": "project-init",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need a new Node.js project for a CLI tool that processes CSV files. Just set up the project structure and tooling, I'll add the CSV logic myself.",
+      "expected_output": "A scaffolded JS project with package.json (type: module), eslint.config.js with functional rules, prettier.config.js, .editorconfig, .gitignore, vitest.config.js, and a starter src/index.js + src/index.test.js. No Playwright since this is a backend project. All lint/format/test commands should pass.",
+      "files": [],
+      "expectations": [
+        "package.json has \"type\": \"module\"",
+        "eslint.config.js exists and uses flat config format (export default [])",
+        "ESLint config bans ClassDeclaration and ClassExpression",
+        "prettier.config.js exists with singleQuote: true",
+        ".editorconfig exists with indent_size = 2",
+        ".gitignore includes node_modules and .env",
+        "vitest.config.js exists",
+        "No playwright.config.js (backend project)",
+        "src/index.js exports a pure function",
+        "src/index.test.js imports from src/index.js and has passing tests",
+        "npm run lint succeeds",
+        "npm test succeeds",
+        "The skill presented defaults and asked for confirmation before scaffolding"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Set up a new React project for a dashboard app. I want the full tooling — linting, formatting, testing, the works.",
+      "expected_output": "A scaffolded JS project with all standard configs plus Playwright for e2e testing. Should include playwright.config.js and an e2e/ directory. The package.json should have a test:e2e script.",
+      "files": [],
+      "expectations": [
+        "package.json has \"type\": \"module\"",
+        "playwright.config.js exists (frontend project detected)",
+        "e2e/ directory exists with at least one spec file",
+        "package.json scripts include test:e2e",
+        "eslint.config.js bans classes",
+        ".gitignore includes .env",
+        "vitest.config.js exists",
+        "The skill presented defaults and asked for confirmation before scaffolding"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Init a JS project but I want tabs instead of spaces, semicolons on, and 4-space tab width. Everything else can be default.",
+      "expected_output": "Standard scaffold but with customized formatting: prettier uses tabs, semicolons, tabWidth 4. EditorConfig uses tab indent. ESLint still has functional rules.",
+      "files": [],
+      "expectations": [
+        "prettier.config.js has useTabs: true",
+        "prettier.config.js has semi: true",
+        "prettier.config.js has tabWidth: 4",
+        ".editorconfig has indent_style = tab",
+        ".editorconfig has indent_size = 4 or tab_width = 4",
+        "eslint.config.js still bans ClassDeclaration",
+        "package.json has \"type\": \"module\"",
+        "npm run lint succeeds",
+        "npm test succeeds"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Get this repo ready for the plugin.",
+      "expected_output": "Python detected from pyproject.toml + .py sources. The three-column plan shows ruff and mypy (and pytest, since no test runner is present) under 'missing and will add'; after confirmation they are added to the project's dev-dependency mechanism, nothing user-level or global. Post-install probes (command -v ruff / command -v mypy) reported.",
+      "files": [
+        { "path": "pyproject.toml", "contents": "[project]\nname = \"csvkit-lite\"\nversion = \"0.1.0\"\n" },
+        { "path": "src/app.py", "contents": "def add(a, b):\n    return a + b\n" }
+      ],
+      "expectations": [
+        "Detected stack is Python only",
+        "A three-column plan (found and keeping / missing and will add / found but can't participate) is presented before any write or install",
+        "ruff, mypy, and pytest appear under 'missing and will add'",
+        "The install lands in the project's dev-dependency mechanism (pyproject.toml dev group or requirements-dev.txt)",
+        "No pip install --user, pipx, or other user-level/global install is run",
+        "pyproject.toml's existing [project] section is not rewritten",
+        "The skill ends by running command -v ruff and command -v mypy and reporting per-lane status"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Set up my project's toolchain.",
+      "expected_output": "C# detected from the .csproj. Nothing is installed — the skill verifies the .NET SDK is present (honoring the global.json pin) and that dotnet format responds, then reports the lane bound to the SDK-builtin tools.",
+      "files": [
+        { "path": "Api.csproj", "contents": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n  </PropertyGroup>\n</Project>" },
+        { "path": "global.json", "contents": "{ \"sdk\": { \"version\": \"8.0.100\" } }" },
+        { "path": "Program.cs", "contents": "System.Console.WriteLine(\"hi\");\n" }
+      ],
+      "expectations": [
+        "Detected stack is C# only",
+        "The plan states there is nothing to install for C#",
+        "The global.json SDK pin is honored, not overwritten",
+        "dotnet format --version is verified to respond",
+        "The probe command -v dotnet is run and per-lane status reported"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Install the linters for this repo.",
+      "expected_output": "Java detected from pom.xml + .java sources. After confirmation the skill verifies a JDK, runs the plugin's pinned-PMD installer into repo-local .pmd/, and adds .pmd/ to .gitignore. The user never invokes the installer script by hand.",
+      "files": [
+        { "path": "pom.xml", "contents": "<project><modelVersion>4.0.0</modelVersion><groupId>x</groupId><artifactId>demo</artifactId><version>1.0</version></project>" },
+        { "path": "src/main/java/App.java", "contents": "public class App { public static void main(String[] a) {} }" }
+      ],
+      "expectations": [
+        "Detected stack is Java only",
+        "The plan shows PMD under 'missing and will add' before anything runs",
+        "The pinned-PMD installer script is run for the user (no manual script invocation asked of them)",
+        "PMD lands in repo-local .pmd/, and .pmd/ is added to .gitignore",
+        "No user-level or global install occurs",
+        "The probe checks .pmd/pmd-bin-*/bin/pmd first, then command -v pmd, and reports status"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Get this repo ready for the dev-team toolchain.",
+      "expected_output": "Mixed Python + TypeScript repo: both lanes are detected and both appear in one three-column plan; each lane's missing tools are installed repo-level after a single confirmation.",
+      "files": [
+        { "path": "pyproject.toml", "contents": "[project]\nname = \"mixed\"\nversion = \"0.1.0\"\n" },
+        { "path": "etl/main.py", "contents": "print(\"etl\")\n" },
+        { "path": "tsconfig.json", "contents": "{ \"compilerOptions\": { \"strict\": true } }" },
+        { "path": "src/index.ts", "contents": "export const add = (a: number, b: number): number => a + b;\n" },
+        { "path": "package.json", "contents": "{ \"name\": \"mixed\", \"private\": true, \"type\": \"module\" }" }
+      ],
+      "expectations": [
+        "Both Python and JS/TS lanes are detected (multi-stack setup)",
+        "One three-column plan covers both lanes before any install",
+        "Python: ruff and mypy under 'missing and will add', installed into the project's dev-dependency mechanism",
+        "JS/TS: oxlint under 'missing and will add', installed with npm install --save-dev oxlint",
+        "Post-install probes run for both lanes and per-lane status is reported"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Set up my project's toolchain. (If asked which stack, answer: something else — it's a Rust project.)",
+      "expected_output": "The directory has no detectable stack, so the skill asks the user, presenting the four supported stacks plus 'something else'. On 'something else' it explains what's supported and exits gracefully — no files written, nothing installed.",
+      "files": [
+        { "path": "README.md", "contents": "# my project\n" }
+      ],
+      "expectations": [
+        "The skill asks the user instead of assuming a stack",
+        "The four supported stacks (JS/TS, Python, C#, Java) plus 'something else' are offered",
+        "On 'something else' the skill explains what's supported",
+        "The skill exits without writing any file or installing anything"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Get this repo ready for the plugin.",
+      "expected_output": "Brownfield Python repo already configured with black + flake8: the inventory binds the pair as the autofix slot's provider (bind-don't-replace), so the plan shows them under 'found and keeping' and installs nothing for that slot; only mypy (the empty diagnostic slot) appears under 'missing and will add'.",
+      "files": [
+        { "path": "pyproject.toml", "contents": "[project]\nname = \"legacy\"\nversion = \"2.3.0\"\n\n[tool.black]\nline-length = 100\n" },
+        { "path": ".flake8", "contents": "[flake8]\nmax-line-length = 100\n" },
+        { "path": "requirements-dev.txt", "contents": "black==24.4.2\nflake8==7.0.0\npytest==8.2.0\n" },
+        { "path": "legacy/core.py", "contents": "def run():\n    return 42\n" }
+      ],
+      "expectations": [
+        "black + flake8 are bound as the autofix slot's provider and shown under 'found and keeping' (with the partial-mapping caveat noted)",
+        "ruff is NOT installed — the bound pair satisfies the slot",
+        "mypy appears under 'missing and will add' (empty diagnostic slot) and is the only install",
+        "pytest is not re-added (a test runner is already present)",
+        "The install goes into requirements-dev.txt (the mechanism the project already uses)",
+        "pyproject.toml's [tool.black] section and .flake8 are left untouched"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Install the linters for this repo.",
+      "expected_output": "Brownfield Python repo with pyright configured: pyright fails the qualification contract (its recognition adapter does not exist yet), so the plan surfaces it under 'found but can't participate' with that reason stated and mypy offered alongside — never silently replaced. Only the 'missing and will add' column installs.",
+      "files": [
+        { "path": "pyproject.toml", "contents": "[project]\nname = \"typed-app\"\nversion = \"0.5.0\"\n" },
+        { "path": "pyrightconfig.json", "contents": "{ \"typeCheckingMode\": \"strict\" }" },
+        { "path": "app/main.py", "contents": "def greet(name: str) -> str:\n    return f\"hi {name}\"\n" }
+      ],
+      "expectations": [
+        "pyright is listed under 'found but can't participate' with the reason (no recognition adapter yet) stated",
+        "mypy is offered alongside as the diagnostic default, not silently swapped in",
+        "Only tools in 'missing and will add' are installed",
+        "pyrightconfig.json is left untouched",
+        "The user confirms the plan before any install runs"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Set up my project's toolchain.",
+      "expected_output": "Mixed brownfield repo with an existing eslint.config.js and pyproject.toml: tools-only mode installs missing dependencies without modifying either file; the plan shows the existing configs under 'found and keeping' and the summary names them as left alone.",
+      "files": [
+        { "path": "package.json", "contents": "{ \"name\": \"web\", \"private\": true, \"type\": \"module\", \"devDependencies\": { \"eslint\": \"^9.0.0\" } }" },
+        { "path": "eslint.config.js", "contents": "export default [{ rules: { 'prefer-const': 'error' } }];\n" },
+        { "path": "src/index.js", "contents": "export const id = (x) => x;\n" },
+        { "path": "pyproject.toml", "contents": "[project]\nname = \"web-tools\"\nversion = \"1.0.0\"\n\n[tool.ruff]\nline-length = 100\n" },
+        { "path": "tools/gen.py", "contents": "print(\"gen\")\n" }
+      ],
+      "expectations": [
+        "Tools-only mode: no scaffold, no config file created or overwritten",
+        "eslint.config.js and pyproject.toml appear under 'found and keeping' and are byte-identical afterwards",
+        "ESLint binds with demotion noted (slice-boundary granularity) and one info line mentions the fast default (oxlint)",
+        "ruff binds from the existing [tool.ruff] config — not reinstalled over",
+        "Only genuinely empty slots' defaults are installed, into devDependencies / the project's Python dev mechanism",
+        "The summary names the untouched configs explicitly"
+      ]
+    }
+  ]
+}
