@@ -858,6 +858,10 @@
     }
   },
   "plugins/dev-team/knowledge/review-rubric.md": {
+    "The review-agent panel is the primary quality gate": {
+      "summary": "The review-agent panel is the primary quality gate for structural quality",
+      "anchor": "the-review-agent-panel-is-the-primary-quality-gate"
+    },
     "Health Score Calculation": {
       "summary": "Collect the status from each agent: `pass`, `warn`, `fail`, `skip`.",
       "anchor": "health-score-calculation"
@@ -1001,6 +1005,10 @@
     "Standard": {
       "summary": "Everything between trivial and complex.",
       "anchor": "standard"
+    },
+    "Route (1:1 with classification — this file is the single source of truth)": {
+      "summary": "| Classification | Route |",
+      "anchor": "route-11-with-classification-this-file-is-the-single-source-of-truth"
     },
     "Bias rule": {
       "summary": "When signals are ambiguous or a signal is missing, **classify up** (standard rather",
@@ -4478,6 +4486,10 @@
     }
   },
   "plugins/dev-team/skills/specs/SKILL.md": {
+    "Positioning — what this skill is for": {
+      "summary": "This skill's value is **resolving ambiguity with a human before build begins**",
+      "anchor": "positioning-what-this-skill-is-for"
+    },
     "Step 0 — Existing-spec version check": {
       "summary": "Before drafting or updating a spec, check whether a spec file already exists for",
       "anchor": "step-0-existing-spec-version-check"

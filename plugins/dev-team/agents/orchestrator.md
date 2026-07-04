@@ -81,21 +81,36 @@ using `knowledge/task-size-classifier.md`. Whole-file load: all signal definitio
 1. **Screen decision axes first (decision-axis guardrail).** Read `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`. Whole-file load: all five axis definitions (triggers, defaults, confirm clauses) are needed to check the request against every axis. Check whether the task touches any high-reversal-cost axis (replace-vs-merge, format fidelity, migrate-vs-edit-stub, auto-merge-vs-direct, scope). If any axis is triggered → `decision_axis_triggered = true` → the task **cannot be trivial**, regardless of other signals.
 
 2. **Collect objective signals.** Gather `files_changed`, `loc_delta`, `slice_count`,
-   `wave_count`, `has_complex_step` per the classifier spec.
+   `wave_count`, `has_complex_step`, `single_module` per the classifier spec.
 
 3. **Classify.** Apply the rules in `knowledge/task-size-classifier.md`. Whole-file load: the ordered classification rules and bias rule. First match wins; bias to classify up when signals are ambiguous.
 
 4. **Log the decision** to `memory/decisions.md` (format in classifier spec).
 
-5. **Route:**
+5. **Route** (1:1 with the classifier — the classifier spec loaded in step 1 is the
+   single source of truth for both the classification and the route; Rec 2 of
+   `docs/experiments/RECOMMENDATIONS.md`: the pipeline's cost premium is 4.74× on
+   small tasks, 2.57× medium, 1.33× large, so the full pipeline is reserved for
+   large, multi-file work):
 
 | Classification | Route |
 |---|---|
 | `trivial` | **No-plan fast path** (see below) |
-| `standard` | Full Three-Phase Workflow |
+| `standard`, single-module fast-path eligible (per the classifier: `single_module` = true, `slice_count` ≤ 1, no `complex` step, no decision axis triggered) | **No-plan fast path** (see below) |
+| `standard`, otherwise | Full Three-Phase Workflow |
 | `complex` | Full Three-Phase Workflow |
 
-### No-plan fast path (trivial only)
+**Exclusions are absolute:** a task that triggers **any** high-reversal-cost
+decision axis never takes the fast path, regardless of size signals. The same
+goes for more than one slice, any `complex` step, or files spanning modules
+(`single_module` = false or undeterminable). When in doubt, the classifier's
+bias-up rule routes to the full workflow.
+
+6. **Surface the routing decision to the operator.** State the chosen route and
+   its rationale (the classification, the signals that drove it, and the rule
+   that fired) in the operator-facing response — not only in `memory/decisions.md`.
+
+### No-plan fast path (trivial and fast-path-eligible standard)
 
 Skips the Research and Plan phases. The task goes directly to implementation:
 
@@ -111,8 +126,8 @@ planning ceremony (design doc, three plan review personas, wave scheduling, huma
 Log the fast-path routing decision explicitly:
 
 ```
-Fast path: task classified trivial. Skipping /plan.
-Inputs: files_changed=<N>, loc_delta=<N>, decision_axis_triggered=false.
+Fast path: task classified <trivial | standard (single-module)>. Skipping /plan.
+Inputs: files_changed=<N>, loc_delta=<N>, single_module=<bool>, decision_axis_triggered=false.
 Expected saving: ~65% fewer turns vs full pipeline (see docs/experiments/agentic-workflow-evidence/data/3sizes-3arms-summary.json).
 ```
 
