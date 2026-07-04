@@ -199,8 +199,9 @@ arm (settled by Experiment 02), tests-frozen invariant enforced in every arm
 
 **What we found:**
 
-- **`continuous-single`** (code-first, small per-behavior batches, one agent)
-  and **`tdd-refactor`** (classic TDD) are clearly, statistically separated
+- **Code-First Small Batches (Single Agent)** (code-first, small per-behavior
+  batches, one agent; harness arm `continuous-single`)
+  and **Classic TDD** (harness arm `tdd-refactor`) are clearly, statistically separated
   winners on quality-per-dollar — cheapest ($0.99 and $1.59/cell), lowest
   blast radius, and their efficiency confidence intervals don't overlap each
   other or anything below them.
@@ -213,7 +214,8 @@ arm (settled by Experiment 02), tests-frozen invariant enforced in every arm
   losing arms actually post higher mutation scores than the two winners, but
   that doesn't matter once blast radius and cost dominate the composite.
 
-**The recommendation:** default to `continuous-single`; `tdd-refactor` is a
+**The recommendation:** default to Code-First Small Batches (Single Agent);
+Classic TDD is a
 reasonable second choice for teams with process reasons to prefer test-first
 discipline. See `05-final-results.md` for the full methodology, raw metrics,
 limitations, and future-work notes (a larger-corpus follow-up is scoped but
@@ -231,7 +233,7 @@ not funded).
 | Is TDD's advantage test-first ordering, or refactoring? | 02 (refactoring — isolated by removing it) |
 | Does the full `/specs` pipeline out-perform TDD at surfacing unstated decisions? | 03 (no) |
 | How much refactoring, by whom? | 04 (corrected mid-flight; refactoring didn't pay back in 3 changes on small tasks; split authorship cost 3× for no gain) |
-| Which complete workflow — ordering × batch size × authorship — wins on quality per dollar? | **05 (final): `continuous-single`, then `tdd-refactor`** |
+| Which complete workflow — ordering × batch size × authorship — wins on quality per dollar? | **05 (final): Code-First Small Batches (Single Agent), then Classic TDD** |
 
 ## Supporting documents
 
