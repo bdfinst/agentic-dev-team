@@ -1,6 +1,6 @@
 # Configuration File Templates
 
-Exact contents for each config file created by the js-project-init skill. Use these as-is unless the user requested customizations in Step 1.
+Exact contents for each config file created by the project-init skill. Use these as-is unless the user requested customizations at the confirmation gate.
 
 ## eslint.config.js
 

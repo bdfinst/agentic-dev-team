@@ -3563,48 +3563,6 @@
       "anchor": "6-present-results"
     }
   },
-  "plugins/dev-team/skills/js-project-init/SKILL.md": {
-    "Workflow": {
-      "summary": "Present the defaults above to the user and ask: \"Want to change anything, or should I go ahead?\" Include Playwright in the summary only if the user mentions a frontend project (React, Svelte, Angular, Vue, Next.js, Nuxt, SvelteKit, Astro, UI, web app, dashboard).",
-      "anchor": "workflow"
-    },
-    "Step 1: Present defaults and confirm": {
-      "summary": "Present the defaults above to the user and ask: \"Want to change anything, or should I go ahead?\" Include Playwright in the summary only if the user mentions a frontend project (React, Svelte, Angular, Vue, Next.js, Nuxt, SvelteKit, Astro, UI, web app, dashboard).",
-      "anchor": "step-1-present-defaults-and-confirm"
-    },
-    "Step 2: Initialize package.json": {
-      "summary": "Read the generated `package.json`, then edit to:",
-      "anchor": "step-2-initialize-packagejson"
-    },
-    "Step 3: Install dependencies": {
-      "summary": "`eslint-config-prettier` disables ESLint rules that conflict with Prettier.",
-      "anchor": "step-3-install-dependencies"
-    },
-    "Step 4: Create config files": {
-      "summary": "Templates: `references/configs.md`.",
-      "anchor": "step-4-create-config-files"
-    },
-    "Step 5: Create starter files": {
-      "summary": "Frontend projects also create `e2e/example.spec.js` — one Playwright placeholder.",
-      "anchor": "step-5-create-starter-files"
-    },
-    "Step 6: Git hooks": {
-      "summary": "Create both hooks (templates in `references/configs.md`):",
-      "anchor": "step-6-git-hooks"
-    },
-    "Step 7: Verify": {
-      "summary": "If any command fails, fix it before reporting success.",
-      "anchor": "step-7-verify"
-    },
-    "Step 8: Summary": {
-      "summary": "After everything passes, give the user:",
-      "anchor": "step-8-summary"
-    },
-    "Customization handling": {
-      "summary": "If the user changes Step 1 defaults:",
-      "anchor": "customization-handling"
-    }
-  },
   "plugins/dev-team/skills/legacy-code/SKILL.md": {
     "Overview": {
       "summary": "Techniques for safely modifying code that lacks tests or has poor structure.",
@@ -4015,6 +3973,72 @@
     "6. Report": {
       "summary": "Display the PR URL and a summary of the quality gate results.",
       "anchor": "6-report"
+    }
+  },
+  "plugins/dev-team/skills/project-init/SKILL.md": {
+    "Workflow": {
+      "summary": "Probe the working directory with cheap, deterministic filesystem signals —",
+      "anchor": "workflow"
+    },
+    "Step 1: Detect the stack": {
+      "summary": "Probe the working directory with cheap, deterministic filesystem signals —",
+      "anchor": "step-1-detect-the-stack"
+    },
+    "Step 2: Inventory the existing toolchain": {
+      "summary": "Stack detection says which lanes apply; the inventory then establishes, per",
+      "anchor": "step-2-inventory-the-existing-toolchain"
+    },
+    "Step 3: Confirm the three-column plan": {
+      "summary": "Detection is always confirmed, never assumed.",
+      "anchor": "step-3-confirm-the-three-column-plan"
+    },
+    "Step 4: Install missing tools (repo-level, per lane)": {
+      "summary": "Every install lands in the project, versioned with it, reproducible for",
+      "anchor": "step-4-install-missing-tools-repo-level-per-lane"
+    },
+    "Step 5: Verify — post-install probes": {
+      "summary": "Run each configured lane's detection probe exactly as the lane registry",
+      "anchor": "step-5-verify-post-install-probes"
+    },
+    "Step 6: Summary": {
+      "summary": "After every configured lane probes green, give the user:",
+      "anchor": "step-6-summary"
+    },
+    "Greenfield JS/TS scaffold": {
+      "summary": "Scaffold a new JavaScript project with opinionated defaults for ES modules,",
+      "anchor": "greenfield-jsts-scaffold"
+    },
+    "Scaffold step 1: Present defaults and confirm": {
+      "summary": "Present the defaults above as the three-column plan's **missing and will",
+      "anchor": "scaffold-step-1-present-defaults-and-confirm"
+    },
+    "Scaffold step 2: Initialize package.json": {
+      "summary": "Read the generated `package.json`, then edit to:",
+      "anchor": "scaffold-step-2-initialize-packagejson"
+    },
+    "Scaffold step 3: Install dependencies": {
+      "summary": "`eslint-config-prettier` disables ESLint rules that conflict with Prettier.",
+      "anchor": "scaffold-step-3-install-dependencies"
+    },
+    "Scaffold step 4: Create config files": {
+      "summary": "Templates: `references/configs.md`.",
+      "anchor": "scaffold-step-4-create-config-files"
+    },
+    "Scaffold step 5: Create starter files": {
+      "summary": "Frontend projects also create `e2e/example.spec.js` — one Playwright placeholder.",
+      "anchor": "scaffold-step-5-create-starter-files"
+    },
+    "Scaffold step 6: Git hooks": {
+      "summary": "Create both hooks (templates in `references/configs.md`):",
+      "anchor": "scaffold-step-6-git-hooks"
+    },
+    "Scaffold step 7: Verify": {
+      "summary": "If any command fails, fix it before reporting success.",
+      "anchor": "scaffold-step-7-verify"
+    },
+    "Customization handling": {
+      "summary": "If the user changes the scaffold defaults:",
+      "anchor": "customization-handling"
     }
   },
   "plugins/dev-team/skills/proxy-resilience/SKILL.md": {

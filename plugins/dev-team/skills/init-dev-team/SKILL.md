@@ -275,17 +275,17 @@ test -f package.json && echo "package.json found" || echo "no-package"
 
 If the result is `no-package`:
 
-1. Print: `No package.json found. Running /dev-team:js-project-init first to scaffold the project.`
-2. Invoke the `/dev-team:js-project-init` skill. It will scaffold a
+1. Print: `No package.json found. Running /dev-team:project-init first to scaffold the project.`
+2. Invoke the `/dev-team:project-init` skill. It will scaffold a
    functional ES-module project with prettier, eslint, editorconfig, and
    vitest (see the skill's own documentation for the full default set).
 3. After the skill returns:
    - If `package.json` now exists → proceed to "Check if already installed".
-   - If `package.json` still does not exist (user aborted js-project-init):
+   - If `package.json` still does not exist (user aborted project-init):
      print `Stryker skipped — no package.json. Re-run /init-dev-team after scaffolding your JS project.`
      and skip the rest of the JS/TS section.
    - If the skill reported an explicit failure: print
-     `Stryker skipped — js-project-init failed. See errors above and re-run /init-dev-team after resolving them.`
+     `Stryker skipped — project-init failed. See errors above and re-run /init-dev-team after resolving them.`
      and skip the rest of the JS/TS section.
 
 If the result is `package.json found`, proceed directly to "Check if already installed".
