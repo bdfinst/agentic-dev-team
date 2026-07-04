@@ -94,7 +94,7 @@ fix the plan and re-run before the human gate — those defeat safe concurrent b
 
 ### 5. Run plan review personas
 
-Before presenting to the user, dispatch the plan review personas in parallel as sub-agents. Each critically challenges the plan from a different perspective. **The reviewer set scales to plan complexity** — a one-function plan does not pay the same review ceremony as a complex feature (the fixed-overhead cost the TDD experiment surfaced; see `docs/experiments/tdd-vs-test-after-consolidated-report.md`).
+Before presenting to the user, dispatch the plan review personas in parallel as sub-agents. Each critically challenges the plan from a different perspective. **The reviewer set scales to plan complexity** — a one-function plan does not pay the same review ceremony as a complex feature (the fixed-overhead cost the TDD experiment surfaced; see `docs/experiments/01-final-results.md`).
 
 #### 5a. Classify the plan tier
 
