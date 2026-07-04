@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.3](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.2...security-assessment-v3.3.3) (2026-07-04)
+
+
+### Bug Fixes
+
+* point install link and SARIF informationUri at bdfinst/agentic-dev-team ([#805](https://github.com/bdfinst/agentic-dev-team/issues/805)) ([567652e](https://github.com/bdfinst/agentic-dev-team/commit/567652e6bc4143d9f3de4aad25eaaba4179ab41d))
+
 ## [3.3.2](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.1...security-assessment-v3.3.2) (2026-07-02)
 
 

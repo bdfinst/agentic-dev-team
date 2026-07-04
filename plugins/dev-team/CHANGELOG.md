@@ -1,5 +1,60 @@
 # Changelog
 
+## [9.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.2.0...dev-team-v9.3.0) (2026-07-04)
+
+
+### Features
+
+* add BDD feature-file scan to detect_bdd_convention ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([6067c1d](https://github.com/bdfinst/agentic-dev-team/commit/6067c1d1b960a4400868efe8f2d1ce7382c42821))
+* add plan_gherkin_export for byte-for-byte .feature persistence ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([5a70a14](https://github.com/bdfinst/agentic-dev-team/commit/5a70a14df418e417be5598d3c7438afc395af15b))
+* decision-aware no-op modes and overwrite reporting in plan_gherkin_export ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([1f30212](https://github.com/bdfinst/agentic-dev-team/commit/1f30212f36994242c66b832f604eb05e6ec3e00e))
+* detect BDD convention and record persistence decision in /plan ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([d3f87fc](https://github.com/bdfinst/agentic-dev-team/commit/d3f87fc5de8f0519decb43137873f3650205b883))
+* export approved plans' Gherkin via plan_gherkin_export post-approval ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([1344fa6](https://github.com/bdfinst/agentic-dev-team/commit/1344fa66476af369b4a0cb333c03e9a85c2cab06))
+* failure-path CLI contract for plan_gherkin_export ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([4f79afe](https://github.com/bdfinst/agentic-dev-team/commit/4f79afe217544c1a125fa026ed0e83e47656196f))
+* graduate context ceiling warning to summarization action bands ([29f5c3a](https://github.com/bdfinst/agentic-dev-team/commit/29f5c3a680157082488d05d315c4d906e748ff83))
+* **hooks:** add absolute-token cap to context ceiling guard ([0caa619](https://github.com/bdfinst/agentic-dev-team/commit/0caa619253b6974c49bd928c05f06077543d0cab)), closes [#786](https://github.com/bdfinst/agentic-dev-team/issues/786)
+* **hooks:** auto-detect context window from transcript model ([d1db9bd](https://github.com/bdfinst/agentic-dev-team/commit/d1db9bd17d463a03e586cbf06d5ce7270f5fa57d)), closes [#785](https://github.com/bdfinst/agentic-dev-team/issues/785)
+* **hooks:** graduated bands keyed to multiples of the effective ceiling ([0abf2b0](https://github.com/bdfinst/agentic-dev-team/commit/0abf2b0ae13b4ae45589fe22f97d9227b5bf919b)), closes [#781](https://github.com/bdfinst/agentic-dev-team/issues/781)
+* **hooks:** pin context-window detection to specific 1M model versions ([be80f77](https://github.com/bdfinst/agentic-dev-team/commit/be80f77126353c3718a9816b101299bae938fc90)), closes [#779](https://github.com/bdfinst/agentic-dev-team/issues/779)
+* **hooks:** pinned message contract with bound + window provenance ([2be8fe2](https://github.com/bdfinst/agentic-dev-team/commit/2be8fe2cb29723f8773071caf86ec17f78063005)), closes [#780](https://github.com/bdfinst/agentic-dev-team/issues/780)
+* JSON CLI contract for detect_bdd_convention ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([e770279](https://github.com/bdfinst/agentic-dev-team/commit/e77027956d208b24508dc67d2b00feb46a745ae6))
+* manifest signals and precedence in detect_bdd_convention ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([85a6c61](https://github.com/bdfinst/agentic-dev-team/commit/85a6c615973a48fd68d8e28a8dc495638854f423))
+* record Gherkin persistence decision in plan template ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([61a5ff6](https://github.com/bdfinst/agentic-dev-team/commit/61a5ff6b86b9e93ee1a7b60156faf5246041eec4))
+
+
+### Bug Fixes
+
+* byte-level export fidelity and manifest-matcher hardening from slice reviews ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([4c36c6a](https://github.com/bdfinst/agentic-dev-team/commit/4c36c6a7f20c993296ab43284e2f7d0a37643c19))
+* drop pinned model snapshot id from plan SKILL.md example ([#778](https://github.com/bdfinst/agentic-dev-team/issues/778)) ([32e11f2](https://github.com/bdfinst/agentic-dev-team/commit/32e11f2bc48fe8b8277d2c0206de8e2a6cc1172a))
+* harden plan_gherkin_export against escaping destinations ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([21b664d](https://github.com/bdfinst/agentic-dev-team/commit/21b664d3f41f79f8ea206a9e8a147eb9dedefbfc))
+* invoke shipped python scripts with python3, not bash ([#777](https://github.com/bdfinst/agentic-dev-team/issues/777)) ([82c63ea](https://github.com/bdfinst/agentic-dev-team/commit/82c63eac7c695d073d907c7bbb0e48a17b4e2dd7))
+* never write .feature exports through planted symlinks ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([ef138cf](https://github.com/bdfinst/agentic-dev-team/commit/ef138cfbc7d490a0624a5c92a4ef63d1ae728fb2))
+* pin directory-only persistence recording and triad guard ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([af0fda2](https://github.com/bdfinst/agentic-dev-team/commit/af0fda2eae3beb29ed8893f6b5145b0cfaa644c8))
+* point install link and SARIF informationUri at bdfinst/agentic-dev-team ([#805](https://github.com/bdfinst/agentic-dev-team/issues/805)) ([567652e](https://github.com/bdfinst/agentic-dev-team/commit/567652e6bc4143d9f3de4aad25eaaba4179ab41d))
+* restore exact claims-discipline wording in CLAUDE.md ([830677c](https://github.com/bdfinst/agentic-dev-team/commit/830677cb4ba08d534cb6e67c5d03abea435c3331))
+* tier classification no longer over-triggers on the /ship-required default stance ([#778](https://github.com/bdfinst/agentic-dev-team/issues/778)) ([6cbf2b8](https://github.com/bdfinst/agentic-dev-team/commit/6cbf2b89ce37183ae8003a07a79d0170c4d1d92a))
+
+
+### Code Refactoring
+
+* extract Gherkin persistence procedure to a plan reference file ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([c5c8a65](https://github.com/bdfinst/agentic-dev-team/commit/c5c8a6578786f148bf38fdd1a7e49127f3be1fd2))
+
+
+### Documentation
+
+* add Context Management user guide ([f9c7c70](https://github.com/bdfinst/agentic-dev-team/commit/f9c7c70df7157d078baba1b830293d9a7789277c)), closes [#783](https://github.com/bdfinst/agentic-dev-team/issues/783)
+* align context ceiling docs with auto-detected window, 150K cap, and evidence-based 40% rationale ([f714eae](https://github.com/bdfinst/agentic-dev-team/commit/f714eae1d90fb4c5bd039d11f9b751dcedbaaef3))
+* align skills, CLAUDE.md, and ADR 0011 with the shipped guard ([42fa885](https://github.com/bdfinst/agentic-dev-team/commit/42fa8859bf4b3d4650d8df1a6278d32bb580636a)), closes [#782](https://github.com/bdfinst/agentic-dev-team/issues/782)
+* document model id-to-tier mapping for plan-review persona dispatch ([#778](https://github.com/bdfinst/agentic-dev-team/issues/778)) ([83ec7a4](https://github.com/bdfinst/agentic-dev-team/commit/83ec7a4a963e8f7dcfe2e7fcd6d2bf3801ed6942))
+* note Gherkin .feature persistence in the /plan registry entry ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([5ebf2e3](https://github.com/bdfinst/agentic-dev-team/commit/5ebf2e331fd9923b904eadb1d0f6909efb18f508))
+* trim CLAUDE.md back under the 5000-char budget ([c4559be](https://github.com/bdfinst/agentic-dev-team/commit/c4559be5141a78cbd7aa403602da975e85de7655))
+
+
+### Miscellaneous
+
+* declare bdd-frameworks.md in slice 1 file surface ([#537](https://github.com/bdfinst/agentic-dev-team/issues/537)) ([d2c12d5](https://github.com/bdfinst/agentic-dev-team/commit/d2c12d547d6f828df1aa1597c36b193d268c7b78))
+* rebuild knowledge index for context-ceiling doc updates ([c44ea8f](https://github.com/bdfinst/agentic-dev-team/commit/c44ea8fda41c6ba9471052aa57b1d0915d47e740))
+
 ## [9.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.1.0...dev-team-v9.2.0) (2026-07-02)
 
 
