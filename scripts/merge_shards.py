@@ -30,6 +30,8 @@ def main():
     added = 0
     for shard in sorted(SHARD_DIR.glob("*.jsonl")):
         for r in load(shard):
+            if r.get("stub"):
+                continue
             key = (r.get("task"), r.get("arm"), r.get("trial"), r.get("stage"))
             if key not in seen:
                 seen[key] = r
