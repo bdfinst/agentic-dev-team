@@ -1,7 +1,7 @@
 # Experiment Prompt: Build-Pipeline vs. TDD vs. Non-TDD across Small / Medium / Large Tasks
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
-**Harness:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py)
+**Harness:** [`scripts/run_tdd_experiment.py`](../../../scripts/run_tdd_experiment.py)
 **Design + prior results:** `tdd-vs-test-after-experiment.md`,
 `tdd-vs-test-after-consolidated-report.md` (prior campaign; not migrated into this docs set)
 
@@ -111,7 +111,7 @@ Write `docs/experiments/<name>-report.md`: methodology delta, a per-size results
 table (the 3×3 grid), the paired stats, what separates (or doesn't), honest
 limitations (trials, model, sensor caveats), reproducibility commands, and a
 recommendation. Commit the report **and** the raw data under
-`docs/experiments/data/`.
+`docs/experiments/agentic-workflow-evidence/data/`.
 
 ---
 
@@ -135,5 +135,5 @@ recommendation. Commit the report **and** the raw data under
 
 ## Expected deliverables
 - `evals/experiments/exp-tdd-<large-task>.json` + fixtures for the new large tier.
-- Raw data JSONL per size under `docs/experiments/data/`.
+- Raw data JSONL per size under `docs/experiments/agentic-workflow-evidence/data/`.
 - One consolidated report with the 3×3 (size × arm) grid and the verdict.

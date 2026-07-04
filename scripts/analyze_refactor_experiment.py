@@ -14,8 +14,8 @@ import json
 import statistics as st
 from collections import defaultdict
 
-MERGED = "docs/experiments/data/refactor-granularity-merged.jsonl"
-OUT = "docs/experiments/data/refactor-granularity-summary.json"
+MERGED = "docs/experiments/agentic-workflow-evidence/data/refactor-granularity-merged.jsonl"
+OUT = "docs/experiments/agentic-workflow-evidence/data/refactor-granularity-summary.json"
 ARMS = ["tdd-refactor", "no-refactor-single", "one-shot-single", "continuous-single",
         "no-refactor-split", "one-shot-split", "continuous-split"]
 

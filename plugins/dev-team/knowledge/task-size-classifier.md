@@ -5,7 +5,7 @@ used by `/plan` (step 5a tier), `/build` (per-step review depth), and the
 orchestrator's no-plan fast path. **Never re-classify using a fresh LLM judgement** —
 derive the tier from the objective signals below.
 
-Calibrated from `docs/experiments/data/3sizes-3arms-summary.json`.
+Calibrated from `docs/experiments/agentic-workflow-evidence/data/3sizes-3arms-summary.json`.
 
 ## Inputs
 

@@ -3,7 +3,7 @@
 Questions and answers about the TDD experiment findings. See the reports for
 detail: [`01-final-results.md`](01-final-results.md) (three-arm study, which
 subsumes the earlier two-arm TDD-vs-test-after cut of the same data), and the
-unified follow-up design [`02-experiment-prompt-when-tdd-pays.md`](02-experiment-prompt-when-tdd-pays.md).
+unified follow-up design [`02-experiment-prompt-when-tdd-pays.md`](agentic-workflow-evidence/02-experiment-prompt-when-tdd-pays.md).
 
 ---
 
@@ -67,4 +67,4 @@ cannot refute the claim for a human on open-ended design, and it points at both
 An experiment designed to actually test this claim — crossing requirement clarity
 with workflow (a refactor-enforced arm) on open-design tasks, graded by a withheld
 change chain measuring *changeability* — is specified in
-[`02-experiment-prompt-when-tdd-pays.md`](02-experiment-prompt-when-tdd-pays.md).
+[`02-experiment-prompt-when-tdd-pays.md`](agentic-workflow-evidence/02-experiment-prompt-when-tdd-pays.md).

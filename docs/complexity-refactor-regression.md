@@ -29,7 +29,7 @@ Campaign B (6 tasks, `sonnet-4-6`, 1 trial), before the REFACTOR loop was wired.
 | csvlite | 11 | parse() monolith: line count, nesting depth, cyclomatic complexity |
 | **Mean** | **5.3** | |
 
-Data in: `docs/experiments/data/3sizes-3arms-summary.json` → `complexity_baseline`.
+Data in: `docs/experiments/agentic-workflow-evidence/data/3sizes-3arms-summary.json` → `complexity_baseline`.
 
 ## Representative example: csvlite (before → after)
 

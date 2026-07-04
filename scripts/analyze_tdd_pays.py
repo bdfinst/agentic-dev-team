@@ -2,7 +2,7 @@
 """Analyze JSONL output from the when-tdd-pays experiment.
 
 Usage:
-  python3 scripts/analyze_tdd_pays.py --data docs/experiments/data/tdd-pays-*.jsonl
+  python3 scripts/analyze_tdd_pays.py --data docs/experiments/agentic-workflow-evidence/data/tdd-pays-*.jsonl
 """
 import argparse
 import json

@@ -34,7 +34,7 @@ powered version of that question, expanded to a full 2×2×2 workflow matrix, is
 ## Experiment 01 — Does the full pipeline beat hand-driven coding?
 
 **[`01-final-results.md`](01-final-results.md)** · design:
-[`01-experiment-prompt-3sizes-3arms.md`](01-experiment-prompt-3sizes-3arms.md)
+[`01-experiment-prompt-3sizes-3arms.md`](agentic-workflow-evidence/01-experiment-prompt-3sizes-3arms.md)
 
 **Question:** Does dev-team's `/plan`→`/build` pipeline produce better or
 cheaper code than a single agent doing strict TDD, or a single agent writing
@@ -79,7 +79,7 @@ different model on that tier.)*
 ## Experiment 02 (+ 03) — When does TDD actually pay off?
 
 **[`02-final-results.md`](02-final-results.md)** · design:
-[`02-experiment-prompt-when-tdd-pays.md`](02-experiment-prompt-when-tdd-pays.md) ·
+[`02-experiment-prompt-when-tdd-pays.md`](agentic-workflow-evidence/02-experiment-prompt-when-tdd-pays.md) ·
 manual follow-up (Experiment 03): results in the ship-arm section of
 [`02-final-results.md`](02-final-results.md)
 
@@ -124,7 +124,7 @@ agents)? That's Experiment 04.
 ## Experiment 04 — Refactoring cadence and authorship (corrected mid-flight)
 
 **[`04-final-results.md`](04-final-results.md)** · design:
-[`04-experiment-prompt-refactor-granularity.md`](04-experiment-prompt-refactor-granularity.md) ·
+[`04-experiment-prompt-refactor-granularity.md`](agentic-workflow-evidence/04-experiment-prompt-refactor-granularity.md) ·
 power analysis: [`04-power-analysis.md`](04-power-analysis.md)
 
 **Question:** Crossing refactor granularity (none / one-shot / continuous) with
@@ -184,7 +184,7 @@ doing real work inside the actual plugin, not just the experiment harness.)*
 ## Experiment 05 — The final answer
 
 **[`05-final-results.md`](05-final-results.md)** · design:
-[`05-experiment-prompt-workflow-matrix.md`](05-experiment-prompt-workflow-matrix.md)
+[`05-experiment-prompt-workflow-matrix.md`](agentic-workflow-evidence/05-experiment-prompt-workflow-matrix.md)
 
 **Question:** To achieve code that is maintainable, well-structured, and
 tested with good tests **at minimum cost**, which agentic workflow works best?

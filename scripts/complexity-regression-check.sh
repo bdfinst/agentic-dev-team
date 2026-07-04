@@ -3,7 +3,7 @@
 #
 # Measures mean complexity-review findings/solution on the 6 Campaign B tasks
 # run test-first with the current plugin. Compares against the pre-P1-S1 baseline
-# (5.3 findings/solution) documented in docs/experiments/data/3sizes-3arms-summary.json.
+# (5.3 findings/solution) documented in docs/experiments/agentic-workflow-evidence/data/3sizes-3arms-summary.json.
 #
 # Usage:
 #   bash scripts/complexity-regression-check.sh [--model <model-id>]
@@ -12,7 +12,7 @@
 # Approx. cost: ~$2 (6 tasks × 1 trial × test-first arm only).
 # Approx. time: 15-30 minutes.
 #
-# Output: docs/experiments/data/complexity-regression-<date>.json
+# Output: docs/experiments/agentic-workflow-evidence/data/complexity-regression-<date>.json
 #         Exit 0 if mean findings < baseline; exit 1 if findings >= baseline.
 
 set -euo pipefail
@@ -67,7 +67,7 @@ python3 - <<'PYEOF'
 import json, sys, math
 from pathlib import Path
 
-raw = Path(f"docs/experiments/data/complexity-regression-raw-{sys.argv[1]}.jsonl")
+raw = Path(f"docs/experiments/agentic-workflow-evidence/data/complexity-regression-raw-{sys.argv[1]}.jsonl")
 if not raw.exists():
     print(f"ERROR: {raw} not found — did the experiment run complete?", file=sys.stderr)
     sys.exit(1)
@@ -96,7 +96,7 @@ import json, sys
 from pathlib import Path
 
 raw_date = '$DATE'
-raw = Path(f'docs/experiments/data/complexity-regression-raw-{raw_date}.jsonl')
+raw = Path(f'docs/experiments/agentic-workflow-evidence/data/complexity-regression-raw-{raw_date}.jsonl')
 if not raw.exists():
     sys.exit(1)
 records = [json.loads(l) for l in raw.read_text().splitlines() if l.strip()]
