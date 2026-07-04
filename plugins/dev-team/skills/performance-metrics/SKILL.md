@@ -145,11 +145,11 @@ right-sized with evidence rather than guessed.
 | --- | --- | --- |
 | `checkpoint` | string | `step` (per-step `complex` review) or `slice` (batched slice-boundary review) |
 | `step` | string | `N.M` for a per-step checkpoint; `all` for a batched slice checkpoint |
-| `agents_run` | string[] | Review agents dispatched at this checkpoint |
-| `issues_found` | number | Actionable issues the checkpoint surfaced |
+| `agents_run` | string[] | Review agents and static-analysis lane tools run at this checkpoint |
+| `issues_found` | number | Actionable issues the checkpoint surfaced (semantic review + static lanes) |
 | `issues_fixed` | number | Of those, how many were auto-fixed |
-| `fix_iterations` | number | Review-fix loop iterations consumed |
-| `outcome` | string | `no-op` (passed clean), `fixed` (found + fixed), `escalated` (loop didn't converge) |
+| `fix_iterations` | number | Review-fix and static self-heal fix-loop iterations consumed |
+| `outcome` | string | `no-op` (passed clean), `fixed` (found + fixed), `escalated` (a fix loop didn't converge — including a static lane capping out) |
 
 **Privacy:** counts and outcomes only — never prompt text, code, or file content,
 consistent with the cost meter's privacy boundary. Disable with
