@@ -196,6 +196,15 @@ else
   warn "semgrep not found — only needed if you run/modify the security-assessment plugin"
 fi
 
+# --- Java static-analysis lane (warn-only) ---------------------------------
+# PMD backs /build's Java lane in downstream Java projects; this repo has no
+# Java code, so absence never fails setup.
+if command -v pmd >/dev/null 2>&1; then
+  ok "pmd"
+else
+  warn "pmd not found — only needed for Java projects; install repo-locally with: python3 scripts/install-java-static-analysis.py"
+fi
+
 # --- summary ---------------------------------------------------------------
 section "Summary"
 if [ "$FAILURES" -eq 0 ]; then

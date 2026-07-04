@@ -36,6 +36,7 @@ Maintenance policies for adapters and rulesets live in `maintenance.md` — thos
 | trivy | `trivy config --format sarif --skip-update --offline-scan <path>` + `trivy fs --format sarif --skip-update --offline-scan <path>` | IaC + supply-chain |
 | hadolint | `hadolint --format sarif <Dockerfile>` | IaC (Dockerfile) |
 | actionlint | binary emits JSON; thin adapter maps to SARIF `result` (see `references/tool-configs.md`) | CI/CD |
+| pmd | `pmd check -d . -R <resolved-ruleset> -f sarif --no-progress` — language-conditional: dispatched (and hinted when missing) only when `.java` files are in the target set; detection probes the repo-local `.pmd/` bin before PATH; ruleset resolution in `references/tool-configs.md` | Java code quality |
 
 ### Tier 2 — optional SARIF adapters
 
