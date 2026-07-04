@@ -21,6 +21,18 @@ allowed-tools: >-
 
 # Code Review
 
+**The review-agent panel is the primary quality gate** (Rec 5,
+`docs/experiments/RECOMMENDATIONS.md`). The review-agent lens — SRP,
+complexity, coupling, duplication — was the only quality axis that separated
+workflow arms in the experiment line. Coverage and mutation scores saturate
+near-identically across every workflow shape and must **never** be used to
+rank workflow quality: the losing big-batch and split arms posted *higher*
+mutation scores (0.93–0.98) than the two winners (0.80–0.86). A higher
+coverage or mutation number is not evidence that code — or the workflow that
+produced it — is better. (The deterministic static-analysis pre-pass below is
+a different, complementary axis: mechanical findings cleared before the
+semantic panel runs, not a metric competing with it.)
+
 Role: orchestrator. Route work to review agents; do not review code yourself. Pass each agent's tier alias (from its `model:` frontmatter) when dispatching — the PreToolUse hook `hooks/agent_model_resolve.py` resolves it to the active snapshot per the Resolution Procedure in `agents/orchestrator.md`.
 
 Output templates and JSON schemas: [`output-format.md`](output-format.md). Example report: [`examples/sample-report.md`](examples/sample-report.md).

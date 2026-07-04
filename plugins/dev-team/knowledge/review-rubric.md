@@ -3,6 +3,18 @@
 The orchestrator reads this file during Step 5 to compute the overall
 health score from individual agent results.
 
+## The review-agent panel is the primary quality gate
+
+The review-agent panel is the primary quality gate for structural quality
+(Rec 5, `docs/experiments/RECOMMENDATIONS.md`). Coverage, mutation score, and
+the informational Farley Score are **saturating metrics**: every workflow
+shape drives them to near-identical values, so they cannot rank structural
+quality and must never gate or rank workflows. A higher mutation score must
+never be treated as evidence that a costlier workflow — or the code it
+produced — is better; in the experiment line the losing arms posted the
+higher mutation scores. Score health from the agent verdicts below, nothing
+else.
+
 ## Health Score Calculation
 
 Collect the status from each agent: `pass`, `warn`, `fail`, `skip`.
