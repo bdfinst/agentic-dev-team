@@ -51,6 +51,10 @@
           {
             "type": "command",
             "command": "python3 hooks/contract_version_guard.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 hooks/refactor_test_freeze_guard.py"
           }
         ]
       },
@@ -186,6 +190,10 @@
           {
             "type": "command",
             "command": "python3 hooks/mutation_gate.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 hooks/refactor_test_revert_guard.py"
           }
         ]
       },
