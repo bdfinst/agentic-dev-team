@@ -57,7 +57,7 @@ The `post-format` hook auto-formats files on every edit. It detects available fo
 | --- | --- | --- |
 | `tsc` | `tsconfig.json` | `npm install -D typescript` (project-local) |
 | `mypy` | `mypy.ini` or `pyproject.toml` [mypy] | `pip install mypy` |
-| `pylint` | `which pylint` | `pip install pylint` |
+| `ruff` | `which ruff` | `pip install ruff` (project venv / dev requirements) |
 | `golangci-lint` | `which golangci-lint` | `brew install golangci-lint` or [install docs](https://golangci-lint.run/welcome/install/) |
 
 ---

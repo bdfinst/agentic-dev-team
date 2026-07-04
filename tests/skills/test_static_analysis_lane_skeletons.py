@@ -4,8 +4,10 @@ static-analysis-integration's tool-configs.md and the per-language setup
 guide language-setup.md. Each carries one section per language so the four
 language branches land into disjoint regions. A language whose lane has not
 yet landed keeps its placeholder ("No lane registered") and is skipped by
-the mechanism; the C# lane (test_static_analysis_csharp_lane.py) and Java
-lane (test_static_analysis_java_lane.py) are registered.
+the mechanism. Registered lanes get their own positive content gates
+(test_static_analysis_python_lane.py, test_static_analysis_csharp_lane.py,
+test_static_analysis_java_lane.py); lanes still pending stay placeholders
+guarded here.
 """
 
 from __future__ import annotations
@@ -22,10 +24,11 @@ SAI_SKILL = PLUGIN_ROOT / "skills" / "static-analysis-integration" / "SKILL.md"
 LANE_LANGUAGES = ("Python", "JS/TS", "C#", "Java")
 
 # Lanes whose owning issue has not yet landed on this branch — still
-# placeholders. C# (#809) and Java (#810) are registered; their
-# registered-row guards live in their own test modules.
-PLACEHOLDER_LANGUAGES = ("Python", "JS/TS")
-PLACEHOLDER_ISSUES = ("#807", "#808")
+# placeholders. Python (#807), C# (#809), and Java (#810) are registered;
+# their registered-row guards live in their own test modules.
+REGISTERED_LANGUAGES = ("Python", "C#", "Java")
+PLACEHOLDER_LANGUAGES = ("JS/TS",)
+PLACEHOLDER_ISSUES = ("#808",)
 
 
 def _registry_section() -> str:
@@ -95,6 +98,18 @@ def test_unregistered_lanes_remain_placeholders():
             include_start_line=False,
         )
         assert "No lane registered" in lane, f"{lang} lane is not a placeholder"
+
+
+def test_registered_lanes_are_no_longer_placeholders():
+    s = _registry_section()
+    for lang in REGISTERED_LANGUAGES:
+        lane = section_outside_code(
+            s,
+            rf"^### {re.escape(lang)} lane",
+            boundary_pattern=r"^### ",
+            include_start_line=False,
+        )
+        assert "No lane registered" not in lane, f"{lang} lane still a placeholder"
 
 
 # --- per-language setup guide skeleton (language-setup.md)

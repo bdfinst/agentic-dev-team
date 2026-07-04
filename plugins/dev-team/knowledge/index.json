@@ -4553,7 +4553,7 @@
       "anchor": "tier-3-bespoke-json-adapters"
     },
     "Tier 4 — legacy (pre-SARIF)": {
-      "summary": "ESLint / tsc / pylint remain callable via native JSON for older flows.",
+      "summary": "ESLint / tsc remain callable via native JSON for older flows.",
       "anchor": "tier-4-legacy-pre-sarif"
     },
     "Execution flow": {

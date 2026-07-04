@@ -40,3 +40,14 @@ pytest>=7.0
 # for the first time — without this, those tests fail with "async def
 # functions are not natively supported."
 pytest-asyncio>=0.23
+
+# Required by the Python static-analysis lane (dev-team plugin): /build's
+# self-heal pass and /code-review's static pre-pass dispatch ruff (lint +
+# autofix, native SARIF; SARIF needs >= 0.3.1) whenever Python files are in
+# scope — including this repo's own Python sources.
+ruff>=0.3.1
+
+# Required by the same Python static-analysis lane: mypy (type checking,
+# diagnostic-only) feeds /code-review through the Tier 3 JSON adapter, which
+# needs the --output json flag introduced in 1.11.
+mypy>=1.11

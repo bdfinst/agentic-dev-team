@@ -15,7 +15,7 @@ allowed-tools: >-
   Bash(git diff *), Bash(npx *), Bash(npm run *),
   Bash(pnpm *), Bash(yarn *), Bash(tsc *), Bash(eslint *),
   Bash(git log *), Bash(gh run *), Bash(semgrep *),
-  Bash(pylint *), Skill(review-agent *)
+  Bash(ruff *), Bash(mypy *), Skill(review-agent *)
 ---
 
 # Review (alias)
@@ -35,7 +35,7 @@ This is an alias for `/code-review`. Read and follow
 > flow, so its `allowed-tools` and `argument-hint` MUST mirror
 > `skills/code-review/SKILL.md`. `allowed-tools` is an allowlist — omitting a tool
 > the canonical command needs (e.g. `Edit` for the fix loop, `AskUserQuestion`
-> for the fix/report prompt, `Bash(pylint *)` for Python lint) silently breaks
+> for the fix/report prompt, `Bash(ruff *)` for Python lint) silently breaks
 > that capability under `/review`.
 
 Arguments: $ARGUMENTS
