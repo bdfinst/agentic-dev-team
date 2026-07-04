@@ -1,9 +1,11 @@
-# Experiment 05 — Which Agentic Workflow Yields Maintainable, Well-Tested Code at Minimum Cost
+# Final Results — Which Agentic Workflow Yields Maintainable, Well-Tested Code at Minimum Cost
 
-**Status:** base campaign complete (672/672 rows, 168/168 cells). Ranking of the top
-two workflows is statistically resolved; ranking among the remaining five is not
-(see [Ranking ambiguity](#ranking-ambiguity)) — and, per the recommendation below,
-resolving it further is not worth funding.
+**Status: FINAL.** Base campaign complete (672/672 rows, 168/168 cells). Ranking of
+the top two workflows is statistically resolved; ranking among the remaining five is
+not (see [Ranking ambiguity](#ranking-ambiguity)) — and, per the recommendation below,
+resolving it further is not worth funding. This is the terminal report for the
+refactor-cadence/workflow-matrix experiment line (experiments 01–05); see
+[`README.md`](README.md) for the full narrative arc.
 
 **Data:** [`data/refactor-workflow-matrix.jsonl`](data/refactor-workflow-matrix.jsonl)
 **Model:** `claude-sonnet-4-6` (held fixed across all arms)
