@@ -1831,7 +1831,7 @@
       "anchor": "1-find-the-plan"
     },
     "1.5. JS project bootstrap gate": {
-      "summary": "Before any TDD step runs, make sure a JS-flavored plan has a project to build in.",
+      "summary": "Before any implementation step runs, make sure a JS-flavored plan has a project to build in.",
       "anchor": "15-js-project-bootstrap-gate"
     },
     "2. Verify plan status": {
@@ -1841,6 +1841,10 @@
     "3. Verify acceptance criteria (gate)": {
       "summary": "Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `${CLAUDE_PLUGIN_ROOT}/prompts/spec-reviewer.md` § Pre-build criteria verification mode).",
       "anchor": "3-verify-acceptance-criteria-gate"
+    },
+    "3.5. Resolve the cadence": {
+      "summary": "Resolve which per-behavior cycle every step runs, in precedence order (first match wins — the CLI flag wins over metadata):",
+      "anchor": "35-resolve-the-cadence"
     },
     "4. Implement each step": {
       "summary": "Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan_waves.py`).",

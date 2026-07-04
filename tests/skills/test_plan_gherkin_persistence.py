@@ -156,7 +156,7 @@ class TestPostApprovalExport:
     def test_constraint_one_carries_a_narrow_carveout(self) -> None:
         constraint = PLAN_SKILL[
             PLAN_SKILL.index("**Do not implement.**"):PLAN_SKILL.index(
-                "**Every step must be TDD.**"
+                "**Every step is one behavior with a full cycle.**"
             )
         ]
         assert "derived `.feature`" in constraint and "approv" in constraint, (
