@@ -101,7 +101,7 @@ Skips the Research and Plan phases. The task goes directly to implementation:
 
 1. **Load**: Software Engineer + relevant skill(s) only. No Architect, no plan review personas.
 2. **Implement** with TDD (RED-GREEN-REFACTOR) — same rules as Phase 3 of the full workflow.
-3. **Inline review**: standard three-stage inline review (spec-compliance → quality agents → browser for UI).
+3. **Inline review**: standard three-stage inline review, preceded by the deterministic static self-heal pass run to pass-or-cap (`skills/build/references/static-self-heal.md`) — then spec-compliance → quality agents → browser for UI.
 4. **Final gate**: run `/code-review` on all modified files. Same pass/warn/fail handling as Phase 3.
 5. **Branch Workflow**: create PR as normal.
 
@@ -250,7 +250,7 @@ Do **not** dispatch `security-engineer` on every task — its `effort: high` cos
 - **Subagent dispatch**: Use the `prompts/implementer.md` template when dispatching implementation subagents. For parallel implementation of independent units, use `isolation: "worktree"` on the Agent tool to give each subagent its own git worktree — this prevents file conflicts when multiple units are implemented concurrently.
 - **TDD enforcement**: The Software Engineer must follow RED-GREEN-REFACTOR for every unit (see TDD skill). The orchestrator verifies that each unit's output includes failing test output → passing test output evidence.
 - **Output**: Working code that passes all tests, acceptance criteria, and code review
-- **Three-stage inline review**: After each discrete unit of work completes, run spec-compliance first, then quality, then browser verification for UI changes:
+- **Three-stage inline review**: After each discrete unit of work completes, run the deterministic static self-heal pass to pass-or-cap (`skills/build/references/static-self-heal.md`), then spec-compliance, then quality, then browser verification for UI changes:
   1. **Stage 1 — Spec compliance**: Run `spec-compliance-review` using the `prompts/spec-reviewer.md` template. Does the code match the spec? If fail → fix before proceeding to Stage 2.
   2. **Stage 2 — Code quality**: Run the standard **Inline Review Checkpoint** (see below) using the `prompts/quality-reviewer.md` template. Is the code high quality?
   3. **Stage 3 — Browser verification (UI changes only)**: If the plan step involves UI components, run `/browse` in automated smoke test mode against the running dev server. Capture screenshots, verify rendering, and check basic interaction. If the dev server is not running, skip with a warning (do not fail). Timeout: 30 seconds. Failures enter the review loop (max 2 iterations). This stage is skipped for non-UI changes.
