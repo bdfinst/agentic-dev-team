@@ -1,11 +1,29 @@
 ---
 name: specs
-description: Collaborative workflow for producing the three specification artifacts (intent, architecture notes, acceptance criteria) that describe a change and its goals before any implementation begins. Use when starting any new feature or behavior change — do not write code until artifacts pass the consistency gate. BDD/Gherkin scenarios are authored later, per slice, in /plan.
+description: Collaborative workflow for producing the three specification artifacts (intent, architecture notes, acceptance criteria) that describe a change and its goals before any implementation begins. Its value is resolving ambiguity with a human before build starts — not synthesizing edge cases. Use when starting any new feature or behavior change — do not write code until artifacts pass the consistency gate. BDD/Gherkin scenarios are authored later, per slice, in /plan.
 role: worker
 user-invocable: true
 ---
 
 # Agent-Assisted Specification
+
+## Positioning — what this skill is for
+
+This skill's value is **resolving ambiguity with a human before build begins**
+(Rec 1, `docs/experiments/RECOMMENDATIONS.md`). No downstream workflow recovers
+information the spec never stated — under vague specs every workflow arm scored
+0% on acceptance tests probing an omitted decision. The Ambiguity Resolution
+Protocol below is the mechanism: it forces every gap to be either resolved by a
+human or documented as inferable before implementation starts.
+
+What this skill is **not** for: edge-case synthesis. Run to completion, the
+full `/specs`→`/plan`→`/build` pipeline's explicit acceptance-criteria
+synthesis does not out-perform TDD's failing-test discipline at surfacing
+unstated edge cases (25% vs. 33% pooled EDGE pass — Experiment 03, reported in
+`docs/experiments/02-final-results.md`). The two have different failure modes
+and both are worth keeping: `/specs` catches ambiguity a human must resolve;
+the build cadence's per-behavior tests catch edge cases the spec implies but
+never enumerates.
 
 ## Step 0 — Existing-spec version check
 
