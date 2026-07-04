@@ -40,6 +40,10 @@ evals/.eval-cache.json
 .review-passed
 feature-file-validation-workspace/
 
+# Repo-local pinned PMD distribution (installed by
+# scripts/install-java-static-analysis.py; large JVM binaries, never committed)
+.pmd/
+
 # Python caches
 __pycache__/
 *.py[cod]

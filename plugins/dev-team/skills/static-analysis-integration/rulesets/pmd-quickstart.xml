@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="dev-team-java-default"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+  <description>
+    Default Java ruleset for the dev-team static-analysis integration: wraps
+    PMD's documented quickstart set and excludes generated-output directories
+    so the full-repo /code-review walk reports no duplicate or noise findings
+    on copied sources. Projects override this file entirely by placing a
+    pmd-ruleset.xml at their repo root; custom rulesets carry their own
+    exclude-pattern entries. Test sources deliberately run the same rules as
+    production code.
+  </description>
+
+  <exclude-pattern>.*/target/.*</exclude-pattern>
+  <exclude-pattern>.*/build/.*</exclude-pattern>
+  <exclude-pattern>.*/out/.*</exclude-pattern>
+  <exclude-pattern>.*/\.gradle/.*</exclude-pattern>
+
+  <rule ref="rulesets/java/quickstart.xml" />
+
+</ruleset>

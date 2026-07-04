@@ -4,8 +4,8 @@ static-analysis-integration's tool-configs.md and the per-language setup
 guide language-setup.md. Each carries one section per language so the four
 language branches land into disjoint regions. A language whose lane has not
 yet landed keeps its placeholder ("No lane registered") and is skipped by
-the mechanism; the C# lane is registered (guarded by
-test_static_analysis_csharp_lane.py).
+the mechanism; the C# lane (test_static_analysis_csharp_lane.py) and Java
+lane (test_static_analysis_java_lane.py) are registered.
 """
 
 from __future__ import annotations
@@ -20,8 +20,12 @@ LANGUAGE_SETUP = REFERENCES / "language-setup.md"
 SAI_SKILL = PLUGIN_ROOT / "skills" / "static-analysis-integration" / "SKILL.md"
 
 LANE_LANGUAGES = ("Python", "JS/TS", "C#", "Java")
-PLACEHOLDER_LANGUAGES = ("Python", "JS/TS", "Java")
-PLACEHOLDER_ISSUES = ("#807", "#808", "#810")
+
+# Lanes whose owning issue has not yet landed on this branch — still
+# placeholders. C# (#809) and Java (#810) are registered; their
+# registered-row guards live in their own test modules.
+PLACEHOLDER_LANGUAGES = ("Python", "JS/TS")
+PLACEHOLDER_ISSUES = ("#807", "#808")
 
 
 def _registry_section() -> str:

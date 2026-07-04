@@ -158,6 +158,53 @@ dotnet build /p:ErrorLog=results.sarif,version=2.1
   lane's diagnostic (verify) source — see the C# lane row under "Build-time
   lanes" below.
 
+### pmd
+
+```bash
+pmd check -d . -R <resolved-ruleset> -f sarif --no-progress
+```
+
+- **Language-conditional**: dispatch pmd, and surface its missing-tool
+  install hint, only when `.java` files are in the target set — a non-Java
+  repo never sees a "pmd missing" warning (graceful-degradation constraint).
+- **Install**: repo-level, `python3 scripts/install-java-static-analysis.py`
+  — installs the pinned PMD distribution into the target repo's gitignored
+  `.pmd/` directory (`PMD_INSTALL_DIR` overrides). Never user-level/global.
+- **Install hint**: `pmd — Java code quality. install: python3 scripts/install-java-static-analysis.py` (surfaced only for Java target sets)
+- **Detection**: repo-local first — the `.pmd/pmd-bin-*/bin/pmd` launcher
+  (`pmd.bat` on Windows) — then `command -v pmd`; verify with `pmd --version`.
+- **Capability tier**: Java code quality
+- **Exit codes**: `pmd check` exits 0 on clean and **4 when violations are
+  found** — 4 is findings, not a tool failure; treat only other non-zero
+  codes as tool errors.
+- **Adapter**: none; SARIF renderer is native (PMD 6.36+; we pin 7.x) —
+  consumed raw by the shared SARIF parser.
+- **Dedup**: no dedup-chain slot needed — the only cross-duplicating source
+  is semgrep, which already outranks all language-specific sources; revisit
+  only if a second Java/C# source is added.
+
+#### Ruleset resolution (shared by both pmd invocations)
+
+The `/code-review` invocation above and the build-time Java lane below
+resolve `<resolved-ruleset>` identically, so the two layers never disagree
+about what a violation is:
+
+1. **Repo-root `pmd-ruleset.xml`**, when present — the project override,
+   matching the repo-root convention (`ruff.toml`, `.editorconfig`) the
+   other lanes honor. A custom `pmd-ruleset.xml` carries its own
+   `<exclude-pattern>` entries.
+2. Otherwise the **plugin's quickstart-wrapping default**:
+   `${CLAUDE_PLUGIN_ROOT}/skills/static-analysis-integration/rulesets/pmd-quickstart.xml`,
+   which references PMD's documented quickstart set
+   (`rulesets/java/quickstart.xml`) and ships `<exclude-pattern>` entries
+   for generated-output directories — `target/`, `build/`, `out/`,
+   `.gradle/` — so the full-repo walk produces no duplicate/noise findings
+   on copied sources.
+
+Test sources run the same ruleset as production code (recorded decision;
+revisit with a documented exclusion list only if real-world noise shows up
+on JUnit-style test classes).
+
 ## Tier 2 — optional SARIF adapters (shipped in P2 Step 3b)
 
 Placeholder — populated by Step 3b. Expected tools: checkov, kube-linter, bandit, gosec, bearer, osv-scanner, grype, trufflehog.
@@ -308,4 +355,56 @@ dotnet format analyzers <project-or-solution> --verify-no-changes --include <sam
 
 ### Java lane
 
-No lane registered — placeholder. Registered by #810.
+Registered by #810.
+
+- **Extensions**: `*.java`
+- **Autofix slot**: none — Java has no autofix tool fast enough for the
+  per-step loop. The lane is **diagnostic-only**: it runs the shared fix
+  loop minus the mechanical pre-fix (degradation rung 1 by construction).
+- **Diagnostic slot** — ordered provider list: **PMD** (default,
+  last-resort) → **checkstyle**.
+
+**PMD (default, last-resort provider)**
+
+- **Detection probe**: repo-local `.pmd/pmd-bin-*/bin/pmd` launcher
+  (`pmd.bat` on Windows) first, then `command -v pmd`; verify with
+  `pmd --version`.
+- **Invocation** (the mechanism resolves the changed-file set; write its
+  `.java` subset to a temp file — PMD's `-d` takes directories/paths, not a
+  shell-expanded word list, so `--file-list` is the robust scoped shape):
+
+  ```bash
+  pmd check --file-list "$TMP/pmd-files.txt" -R <resolved-ruleset> -f json --no-progress
+  ```
+
+- **Wrapper contracts**:
+  - **Empty file set → skip the invocation entirely.** PMD errors when
+    given no input files; an empty changed-`.java` set means "nothing to
+    check", not a tool failure. The mechanism's empty-partition guarantee
+    (a lane with no matching files is never dispatched) is load-bearing
+    for this tool.
+  - **Exit code 4 = violations found, not tool breakage.** `pmd check`
+    exits 0 on clean, 4 when findings exist; treat only other non-zero
+    codes as tool errors (degradation rung 4).
+- **Ruleset**: identical to the `/code-review` invocation — see
+  [Ruleset resolution](#ruleset-resolution-shared-by-both-pmd-invocations)
+  under the Tier 1 pmd entry.
+- **Install**: repo-level, `python3 scripts/install-java-static-analysis.py`
+  (pinned PMD into the gitignored `.pmd/` dir; `PMD_INSTALL_DIR` overrides).
+
+**checkstyle (recognized equivalent provider)**
+
+- **Qualification**: Tier 1 via native SARIF output (Checkstyle ≥ 10.3), no
+  adapter; recognition still requires this registry row — the lists are
+  small and explicit.
+- **Binding**: a project arriving with a repo-root `checkstyle.xml` binds
+  checkstyle (bind-don't-replace); PMD is installed only when the slot
+  binds no recognized provider.
+- **Detection probe**: `command -v checkstyle`, configured by the repo-root
+  `checkstyle.xml`.
+- **Invocation** (scoped): `checkstyle -f sarif -c checkstyle.xml <files>`.
+
+**SpotBugs is not a provider candidate** for this slot: it requires
+compiled bytecode, forcing a build step beyond what TDD's GREEN already
+produces — it belongs at the end-of-build `/code-review` pass (opt-in deep
+mode), tracked as a post-landing follow-up.

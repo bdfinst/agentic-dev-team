@@ -89,4 +89,62 @@ install or configure.
 
 ## Java
 
-No lane registered — section added by #810.
+Registered by #810.
+
+### Tools and roles
+
+- **PMD** — **diagnostic-only** (no autofix tool exists for a tight
+  per-step loop in Java). Syntax-tree based, so it needs no compile step:
+  fast enough for build-time checkpoints, and its native SARIF renderer
+  makes it a zero-adapter `/code-review` source. Findings go to the coding
+  agent to fix; PMD re-runs to confirm convergence.
+
+### Repo-level install
+
+From your project root (requires a JDK/JRE — `java` on PATH):
+
+```bash
+python3 scripts/install-java-static-analysis.py
+```
+
+Installs a pinned PMD distribution into the repo-local **`.pmd/`**
+directory (`PMD_INSTALL_DIR` overrides the target). Add `.pmd/` to your
+project's `.gitignore` — the distribution is large and must never be
+committed; the installer prints a reminder when the entry is missing. No
+PATH change is needed, and never install user-level/global. Re-running is
+idempotent: an existing install is detected and nothing is re-downloaded.
+
+Or run `/project-init` — the one-command path to the same repo-level
+install.
+
+### Configuration
+
+- **Repo-root `pmd-ruleset.xml`**, when present, is used by both the
+  build-time lane and the `/code-review` pass. Carry your own
+  `<exclude-pattern>` entries in it (generated-output dirs like `target/`).
+- Otherwise the plugin's quickstart-wrapping default ruleset applies —
+  PMD's quickstart rules plus excludes for `target/`, `build/`, `out/`,
+  and `.gradle/`. Test sources run the same rules as production code.
+
+### Verification
+
+Confirm the setup is detected (repo-local probe first, then PATH):
+
+```bash
+ls .pmd/pmd-bin-*/bin/pmd     # repo-local launcher (checked first)
+command -v pmd                # PATH fallback
+.pmd/pmd-bin-*/bin/pmd --version
+```
+
+### Opt-out
+
+Set `DEV_TEAM_STATIC_SELF_HEAL=off` to skip the build-time pass entirely —
+see [Opting out](#opting-out).
+
+### Recognized equivalent providers
+
+Diagnostic slot, in order: **PMD** (default, last-resort) → **checkstyle**.
+checkstyle qualifies as Tier 1 via native SARIF output (Checkstyle ≥ 10.3,
+no adapter); a project arriving with a repo-root `checkstyle.xml` binds it
+and PMD is not installed. SpotBugs is not a provider candidate — it needs
+compiled bytecode and belongs at the end-of-build `/code-review` pass only.
