@@ -773,6 +773,16 @@
       "anchor": "a10-ssrf"
     }
   },
+  "plugins/dev-team/knowledge/proxy-connectivity.md": {
+    "Root cause": {
+      "summary": "Sessions that route Anthropic API traffic (or Bash-invoked tools like `curl`,",
+      "anchor": "root-cause"
+    },
+    "Connection refused": {
+      "summary": "**Signature:** `ECONNREFUSED` / \"Connection refused\" / any TCP-level",
+      "anchor": "connection-refused"
+    }
+  },
   "plugins/dev-team/knowledge/release-strategies.md": {
     "Decouple deployment from release": {
       "summary": "| Technique | What it does | Use when |",
@@ -881,7 +891,7 @@
   },
   "plugins/dev-team/knowledge/security-primitives-contract.md": {
     "Bypass path": {
-      "summary": "Edits to this file are guarded by `hooks/contract-version-guard.sh`.",
+      "summary": "Edits to this file are guarded by `hooks/contract_version_guard.py`.",
       "anchor": "bypass-path"
     },
     "Registries": {
@@ -1181,6 +1191,10 @@
     "The rule in one line": {
       "summary": "When both agents run, `test-smell-review` defers the pure mechanics (missing",
       "anchor": "the-rule-in-one-line"
+    },
+    "test-smell-review ↔ test-design-advisor — remedy division": {
+      "summary": "`test-smell-review` and `test-design-advisor` both draw remedy guidance from the",
+      "anchor": "test-smell-review-test-design-advisor-remedy-division"
     }
   },
   "plugins/dev-team/knowledge/test-smells.md": {
@@ -1695,8 +1709,12 @@
       "anchor": "2-create-the-pr"
     },
     "3. Present Options": {
-      "summary": "After confirming the base branch, present exactly four choices:",
+      "summary": "After confirming the base branch, present exactly four choices.",
       "anchor": "3-present-options"
+    },
+    "3a. Pre-Switch Verification (Option 1 only)": {
+      "summary": "Before performing the checkout/merge that Option 1 (\"Merge locally\") requires, verify the working tree is safe to switch:",
+      "anchor": "3a-pre-switch-verification-option-1-only"
     },
     "4. Merge Strategy (for options 1 and 2)": {
       "summary": "| Situation | Strategy | Why |",
@@ -1774,6 +1792,10 @@
       "summary": "| Category | Description |",
       "anchor": "playwright-patterns"
     },
+    "Fast Feedback Loop": {
+      "summary": "A verification pass is usually a *sequence* of related checks, not one isolated check — keep the loop cheap:",
+      "anchor": "fast-feedback-loop"
+    },
     "Visual Verification Guidelines": {
       "summary": "When interpreting screenshots, describe:",
       "anchor": "visual-verification-guidelines"
@@ -1813,8 +1835,12 @@
       "anchor": "3-verify-acceptance-criteria-gate"
     },
     "4. Implement each step": {
-      "summary": "Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan-waves.sh`).",
+      "summary": "Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan_waves.py`).",
       "anchor": "4-implement-each-step"
+    },
+    "4.9. Verify runtime behavior before the slice is done (issue #727)": {
+      "summary": "A \"done\" step that only passed its own tests is not the same as a feature that works — a red suite catches structural regressions, not \"it fails the first time someone actually runs it.\" Once a slice's steps are all `[x]` (sub-step 5) and…",
+      "anchor": "49-verify-runtime-behavior-before-the-slice-is-done-issue-727"
     },
     "5. Run full test suite": {
       "summary": "After all steps are complete, run the full test suite.",
@@ -1867,7 +1893,7 @@
       "anchor": "disable-off"
     },
     "Notes": {
-      "summary": "The `destructive-guard.sh` hook reads `hooks/careful-state.json`.",
+      "summary": "The `hooks/destructive_guard.py` hook reads `hooks/careful-state.json`.",
       "anchor": "notes"
     }
   },
@@ -1885,8 +1911,12 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job).",
+      "summary": "Resolve the project's stack so the assessment can resolve concrete tools from `knowledge/test-stack-profiles/<stack>.md`.",
       "anchor": "steps"
+    },
+    "0. Detect stack": {
+      "summary": "Resolve the project's stack so the assessment can resolve concrete tools from `knowledge/test-stack-profiles/<stack>.md`.",
+      "anchor": "0-detect-stack"
     },
     "1. Inventory the application's components": {
       "summary": "Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job).",
@@ -1957,6 +1987,10 @@
     "4. Reproduce locally": {
       "summary": "Before fixing, reproduce the failure locally:",
       "anchor": "4-reproduce-locally"
+    },
+    "Monitoring long-running jobs": {
+      "summary": "Before calling `Monitor` on a job whose completion time matters:",
+      "anchor": "monitoring-long-running-jobs"
     },
     "5. Fix and verify": {
       "summary": "Fix the root cause.",
@@ -2089,8 +2123,12 @@
       "anchor": "constraints"
     },
     "Enforcement": {
-      "summary": "This protocol is backed by a `PreToolUse` hook — `hooks/context-ceiling-guard.sh`",
+      "summary": "This protocol is backed by a `PreToolUse` hook — `hooks/context_ceiling_guard.py`",
       "anchor": "enforcement"
+    },
+    "Why 40%": {
+      "summary": "The 40% ceiling is a conservative planning target, not a claimed accuracy cliff.",
+      "anchor": "why-40"
     },
     "Loading Decision Procedure": {
       "summary": "Before loading anything or reading files, confirm an actionable instruction exists.",
@@ -2113,7 +2151,7 @@
       "anchor": "step-3-select-skills"
     },
     "Step 4: Calculate token budget": {
-      "summary": "**Target: total < 40% of the model's context window.** For Claude with a 200K window, that's < 80K tokens.",
+      "summary": "**Target: total < 40% of the model's context window, capped at 150K absolute tokens.** For Claude with a 200K window, that's < 80K tokens; on a 1M-window model the cap (150K) binds before the percentage would.",
       "anchor": "step-4-calculate-token-budget"
     },
     "Step 5: Load via tool-based file reads": {
@@ -2159,7 +2197,7 @@
       "anchor": "constraints"
     },
     "When to Summarize": {
-      "summary": "| Utilization | Action |",
+      "summary": "The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to",
       "anchor": "when-to-summarize"
     },
     "The Three Gates": {
@@ -2957,7 +2995,7 @@
       "anchor": "2-confirm"
     },
     "Notes": {
-      "summary": "The `pre-tool-guard.sh` hook reads `hooks/freeze-state.json` and blocks Write/Edit to files that do NOT match the allowed patterns.",
+      "summary": "The `hooks/pre_tool_guard.py` hook reads `hooks/freeze-state.json` and blocks Write/Edit to files that do NOT match the allowed patterns.",
       "anchor": "notes"
     }
   },
@@ -3021,7 +3059,7 @@
       "anchor": "step-6-report"
     },
     "Key differences from `/gherkin-public`": {
-      "summary": "Does **not** require `memory/test-modernize/<slug>/phase-1.md` — derives the",
+      "summary": "Does **not** require any prior assessment file — derives the surface itself",
       "anchor": "key-differences-from-gherkin-public"
     },
     "Notes": {
@@ -3035,15 +3073,15 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Read `memory/test-modernize/<slug>/phase-1.md` for the components & patterns table.",
+      "summary": "Read `memory/<workflow>/<slug>/phase-1.md` for the components & patterns table.",
       "anchor": "steps"
     },
     "1. Load the component map": {
-      "summary": "Read `memory/test-modernize/<slug>/phase-1.md` for the components & patterns table.",
+      "summary": "Read `memory/<workflow>/<slug>/phase-1.md` for the components & patterns table.",
       "anchor": "1-load-the-component-map"
     },
     "2. Pick the output directory": {
-      "summary": "Prefer `features/test-modernize/` if `<repo>/features/` already exists (matches the repo's existing Gherkin layout).",
+      "summary": "Prefer `features/<workflow>/` if `<repo>/features/` already exists (matches the repo's existing Gherkin layout).",
       "anchor": "2-pick-the-output-directory"
     },
     "3. Author scenarios per public surface": {
@@ -3055,11 +3093,11 @@
       "anchor": "4-cite-the-assessment"
     },
     "5. Persist phase-2 progress": {
-      "summary": "Write `memory/test-modernize/<slug>/phase-2.md` with:",
+      "summary": "Write `memory/<workflow>/<slug>/phase-2.md` with:",
       "anchor": "5-persist-phase-2-progress"
     },
     "6. STOP for human sign-off": {
-      "summary": "This is the Phase-2 human gate the orchestrator (`/test-modernize`) enforces.",
+      "summary": "This is the Gherkin-review human gate the calling orchestrator (when one is used) enforces.",
       "anchor": "6-stop-for-human-sign-off"
     },
     "7. Create `[Component tests]` Stories bound to the approved scenarios": {
@@ -3463,12 +3501,16 @@
       "anchor": "6-backfill-predecessor-links"
     },
     "7. Persist phase-1 progress": {
-      "summary": "Write `memory/test-modernize/<slug>/phase-1.md` with:",
+      "summary": "Write `memory/<workflow>/<slug>/phase-1.md` with:",
       "anchor": "7-persist-phase-1-progress"
     },
     "8. Report": {
       "summary": "Print:",
       "anchor": "8-report"
+    },
+    "Examples / Integration": {
+      "summary": "`/test-improve` invokes this worker with `--workflow test-improve` from its Phase 3; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.",
+      "anchor": "examples-integration"
     },
     "Notes": {
       "summary": "This worker is the only place tracker-CLI knowledge sits.",
@@ -3501,7 +3543,7 @@
       "anchor": "4-review-with-user"
     },
     "5. Create Issues (parent spec, then slice children)": {
-      "summary": "Create the **parent** issue from the spec first, then one **child** issue per slice linked to it, then backfill the sibling `depends on #N` links from the `issue-deps.sh` map:",
+      "summary": "Create the **parent** issue from the spec first, then one **child** issue per slice linked to it, then backfill the sibling `depends on #N` links from the `scripts/issue_deps.py` map:",
       "anchor": "5-create-issues-parent-spec-then-slice-children"
     },
     "6. Present Results": {
@@ -3695,7 +3737,7 @@
       "anchor": "parse-arguments"
     },
     "Time estimation": {
-      "summary": "Use the heuristics in `references/tool-setup.md`.",
+      "summary": "See [`references/time-estimation.md`](references/time-estimation.md) for the formula, heuristic table, and how to estimate for a specific project.",
       "anchor": "time-estimation"
     },
     "Step 0: Confirmation gate": {
@@ -3703,31 +3745,51 @@
       "anchor": "step-0-confirmation-gate"
     },
     "Step 1: Detect or set up tooling": {
-      "summary": "Detect and install the tool for the project's language (Stryker for JS/TS, pitest for Java/Kotlin, mutmut for Python, Stryker.NET for C#, go-mutesting for Go).",
+      "summary": "**Prefer a local install** over a global one.",
       "anchor": "step-1-detect-or-set-up-tooling"
     },
     "Step 1b: Configure per-mutant timeout": {
       "summary": "Set a per-mutant wall-clock timeout before running.",
       "anchor": "step-1b-configure-per-mutant-timeout"
     },
+    "Step 1c: Smoke gate — verify the tool is actually observing mutations": {
+      "summary": "Before running the full scan, run the tool against **one covered file** and confirm the mutation-switch mechanism is actually observing mutations at runtime.",
+      "anchor": "step-1c-smoke-gate-verify-the-tool-is-actually-observing-mutations"
+    },
     "Step 2: Run the tool (scoped to target)": {
       "summary": "Run scoped to user-specified files or changed files.",
       "anchor": "step-2-run-the-tool-scoped-to-target"
+    },
+    "Capturing run output safely": {
+      "summary": "Do **not** wrap the mutation tool in a bare `<tool> 2>&1 | tee run.log` pipeline.",
+      "anchor": "capturing-run-output-safely"
+    },
+    "Probe file selection": {
+      "summary": "Before scoping the full run, pick a **probe file** — one file to shake out configuration and get a first honest signal.",
+      "anchor": "probe-file-selection"
+    },
+    "Long-run inspection": {
+      "summary": "Real mutation runs take 15 min – several hours.",
+      "anchor": "long-run-inspection"
     },
     "Step 3: Parse results": {
       "summary": "Extract surviving mutants.",
       "anchor": "step-3-parse-results"
     },
     "Step 4: Triage survivors": {
-      "summary": "For each survivor, classify and act:",
+      "summary": "For each mutant, classify and act.",
       "anchor": "step-4-triage-survivors"
+    },
+    "Mutation-type-aware triage": {
+      "summary": "Different mutation types fail for different reasons.",
+      "anchor": "mutation-type-aware-triage"
     },
     "Triage procedure": {
       "summary": "1.",
       "anchor": "triage-procedure"
     },
     "Weak vs strong test patterns": {
-      "summary": "Most survivors come from tests that execute code without meaningfully asserting on behavior:",
+      "summary": "Most survivors come from tests that execute code without meaningfully asserting on behavior.",
       "anchor": "weak-vs-strong-test-patterns"
     },
     "Step 5: Fix and verify": {
@@ -3735,7 +3797,7 @@
       "anchor": "step-5-fix-and-verify"
     },
     "Output format": {
-      "summary": "When `--emit-json <path>` is set, write a structured result document to `<path>`.",
+      "summary": "Report the **honest** figure as the operator's primary signal.",
       "anchor": "output-format"
     },
     "Machine-readable output": {
@@ -3846,6 +3908,10 @@
       "summary": "`/build` appends one entry per **inline review checkpoint** to",
       "anchor": "review-value-entry-348"
     },
+    "Verify Log Entry (#727)": {
+      "summary": "`/build` appends one entry per **slice with a runtime surface** to",
+      "anchor": "verify-log-entry-727"
+    },
     "When to Log": {
       "summary": "| Event | Action |",
       "anchor": "when-to-log"
@@ -3881,7 +3947,7 @@
       "anchor": "2-understand-the-task-and-cut-the-slices"
     },
     "3. Create the plan": {
-      "summary": "Write the plan file using this structure:",
+      "summary": "Write the plan file using the structure in `references/plan-template.md` (goal,",
       "anchor": "3-create-the-plan"
     },
     "4. Create the plans directory": {
@@ -3937,6 +4003,32 @@
     "6. Report": {
       "summary": "Display the PR URL and a summary of the quality gate results.",
       "anchor": "6-report"
+    }
+  },
+  "plugins/dev-team/skills/proxy-resilience/SKILL.md": {
+    "Overview": {
+      "summary": "A corporate proxy fronting Anthropic API traffic enforces its own rate",
+      "anchor": "overview"
+    },
+    "Detection Signals": {
+      "summary": "Treat an error as **proxy rate-limiting** when it shows *all* of:",
+      "anchor": "detection-signals"
+    },
+    "Backoff Schedule": {
+      "summary": "Apply exponential backoff **per call site** (one place repeatedly issuing",
+      "anchor": "backoff-schedule"
+    },
+    "Escalation Rule": {
+      "summary": "Once the retry budget (5 attempts) is exhausted at a call site:",
+      "anchor": "escalation-rule"
+    },
+    "Concurrency Guidance": {
+      "summary": "Parallel subagent/Task fan-out against a shared proxy allowlist is a likely",
+      "anchor": "concurrency-guidance"
+    },
+    "Anti-Patterns": {
+      "summary": "| Anti-pattern | Why it's wrong | What to do instead |",
+      "anchor": "anti-patterns"
     }
   },
   "plugins/dev-team/skills/quality-gate-pipeline/SKILL.md": {
@@ -4017,6 +4109,10 @@
     "8. Report": {
       "summary": "Print:",
       "anchor": "8-report"
+    },
+    "Examples / Integration": {
+      "summary": "`/test-improve` invokes this worker from Phase 6 with `--workflow test-improve`; paths resolve as `memory/test-improve/<slug>/` and `./plans/test-improve/phase-6/`.",
+      "anchor": "examples-integration"
     },
     "Notes": {
       "summary": "This worker does not write tests or edit production code.",
@@ -4657,11 +4753,11 @@
       "anchor": "3-choose-doubles"
     },
     "3b. Recommend fixture and interaction strategy": {
-      "summary": "Using `knowledge/test-strategy.md`, recommend per test group: fixture design + lifecycle (default Minimal + Fresh; escalate to Immutable Shared → Shared only under measured speed pressure), how the test is driven (scripted default; data-driven when variation is purely data), and SUT interaction (front-door by default; Layer Test for layered code; Back Door Manipulation only when the front door obscures intent).",
+      "summary": "**Under `/test-design`**, the smell agent has already named the smell and its remedy family (via `remedyFamily`, per `knowledge/test-review-division-of-labor.md` § \"test-smell-review ↔ test-design-advisor — remedy division\"); this step supplies the specific remedy pattern from that family and its per-behavior application.",
       "anchor": "3b-recommend-fixture-and-interaction-strategy"
     },
     "3c. Recommend verification and test structure": {
-      "summary": "Using `knowledge/result-verification.md`, recommend the assertion pattern that fixes verification smells: **Expected Object** for field-by-field clutter, **Custom Assertion / Verification Method** for repeated complex comparisons or poor failure messages, **Guard Assertion** before a precondition-dependent assertion, **Delta Assertion** against a baseline for shared/persistent fixtures — and verify one logical condition per test.",
+      "summary": "**Under `/test-design`**, the smell agent has already named the smell and its remedy family (via `remedyFamily`, per `knowledge/test-review-division-of-labor.md` § \"test-smell-review ↔ test-design-advisor — remedy division\"); this step supplies the specific remedy pattern from that family (result-verification and test-organization patterns) and its per-behavior application.",
       "anchor": "3c-recommend-verification-and-test-structure"
     },
     "4. Propose a behavior-preserving refactor sequence (only if blockers or test smells exist)": {
@@ -4702,9 +4798,9 @@
       "summary": "Spawn both as sub-agents in one batch:",
       "anchor": "2-dispatch-review-agents-parallel"
     },
-    "3. Score all existing tests (Farley Score)": {
-      "summary": "A user-requested test review reports a quality score for the whole suite, not",
-      "anchor": "3-score-all-existing-tests-farley-score"
+    "3. Score the in-scope tests (Farley Score)": {
+      "summary": "Using the file set already resolved in Step 1 (Step 1 is the single",
+      "anchor": "3-score-the-in-scope-tests-farley-score"
     },
     "4. Run the advisor (when applicable)": {
       "summary": "If `--advise` is set (or auto-triggered), use the Skill tool (`Skill(test-design-advisor ...)`) on the production code to produce testability assessment, pyramid",
@@ -4815,7 +4911,7 @@
       "anchor": "5-delegate-architecture-pipeline"
     },
     "6. Test-design + mutation health (ROI)": {
-      "summary": "Invoke `/test-design` on the target and consume its results: the suite-wide **Farley Score**, the dominant `test-review` / `test-smell-review` themes (weak assertions, non-determinism, fixture/structure smells, testability blockers), and the advisor's testability verdicts.",
+      "summary": "Invoke `/test-design` on the target, passing the same scope this run was",
       "anchor": "6-test-design-mutation-health-roi"
     },
     "7. Flaky-test + automation maturity": {
@@ -4843,57 +4939,7 @@
       "anchor": "integration"
     }
   },
-  "plugins/dev-team/skills/test-modernize/SKILL.md": {
-    "Orchestrator constraints": {
-      "summary": "1.",
-      "anchor": "orchestrator-constraints"
-    },
-    "Parse Arguments": {
-      "summary": "Arguments: $ARGUMENTS",
-      "anchor": "parse-arguments"
-    },
-    "Steps": {
-      "summary": "Resolve the sink and the inputs in a single batch:",
-      "anchor": "steps"
-    },
-    "0. Approach contract": {
-      "summary": "Resolve the sink and the inputs in a single batch:",
-      "anchor": "0-approach-contract"
-    },
-    "1. Analyze — `/cd-test-architecture` + `/issues-from-assessment`": {
-      "summary": "1.",
-      "anchor": "1-analyze-cd-test-architecture-issues-from-assessment"
-    },
-    "2. Specify public interface — `/gherkin-public` (two-pass)": {
-      "summary": "Phase 2 runs in two passes around the human gate so Stories never bind to un-reviewed scenarios.",
-      "anchor": "2-specify-public-interface-gherkin-public-two-pass"
-    },
-    "3. Audit + baseline coverage — `/test-audit-disable` + `/coverage-baseline`": {
-      "summary": "1.",
-      "anchor": "3-audit-baseline-coverage-test-audit-disable-coverage-baseline"
-    },
-    "3a. Review-the-phase loop (Phase 4 + Phase 5 use this identically)": {
-      "summary": "This is the shared end-of-phase review the orchestrator runs at the close of Phase 4 and Phase 5.",
-      "anchor": "3a-review-the-phase-loop-phase-4-phase-5-use-this-identically"
-    },
-    "4. Fix disabled tests + add no-refactor tests — `/build` + `/coverage-delta` + mutation gate": {
-      "summary": "**Pre-flight — resolve Phase-3 disabled tests.** Before any Phase-4 child issue runs, read `memory/test-modernize/<slug>/disabled-tests.json` and walk it entry-by-entry.",
-      "anchor": "4-fix-disabled-tests-add-no-refactor-tests-build-coverage-delta-mutation-gate"
-    },
-    "5. Refactor-for-testability + converge — `/build` + `/mutation-testing` + `/quality-targets-converge`": {
-      "summary": "For each Phase-5 child issue in dependency order:",
-      "anchor": "5-refactor-for-testability-converge-build-mutation-testing-quality-targets-converge"
-    },
-    "6. Report": {
-      "summary": "Report:",
-      "anchor": "6-report"
-    },
-    "Notes": {
-      "summary": "`/test-modernize` is sequencing only — every gate, fix loop, and evidence requirement comes from the underlying skills.",
-      "anchor": "notes"
-    }
-  },
-  "plugins/dev-team/skills/test-upgrade/SKILL.md": {
+  "plugins/dev-team/skills/test-improve/SKILL.md": {
     "Orchestrator constraints": {
       "summary": "1.",
       "anchor": "orchestrator-constraints"
@@ -4902,37 +4948,53 @@
       "summary": "Positional: `<repo-path>` (default: cwd).",
       "anchor": "parse-arguments"
     },
+    "Phase-start banner": {
+      "summary": "At the start of every phase (0..7), print a two-line banner:",
+      "anchor": "phase-start-banner"
+    },
+    "Steps": {
+      "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
+      "anchor": "steps"
+    },
     "Phase 0 — Approach contract": {
-      "summary": "Resolve everything in one batch, then persist it:",
+      "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
       "anchor": "phase-0-approach-contract"
     },
-    "Phase 1 — Analyze (`/test-health`)": {
-      "summary": "Delegate entirely to `/test-health`.",
-      "anchor": "phase-1-analyze-test-health"
+    "Phase 1 — Analyze via /test-health": {
+      "summary": "Delegate the entire analysis pass to **`/test-health`** — it is the **sole",
+      "anchor": "phase-1-analyze-via-test-health"
     },
-    "Phase 1b — Derive Gherkin (optional; skip when binding mode is `none`)": {
-      "summary": "When the binding mode chosen in Phase 0 is not `none`, delegate to",
-      "anchor": "phase-1b-derive-gherkin-optional-skip-when-binding-mode-is-none"
+    "Phase 2 — Baseline (coverage + mutation)": {
+      "summary": "Capture the objective starting point **before any file under the stack's test",
+      "anchor": "phase-2-baseline-coverage-mutation"
     },
-    "Phase 2 — Triage (`/issues-from-assessment`)": {
-      "summary": "Delegate to `/issues-from-assessment` to convert the health report into work",
-      "anchor": "phase-2-triage-issues-from-assessment"
+    "Phase 2b — Derive Gherkin (conditional)": {
+      "summary": "Gherkin derivation is **conditional on the Phase-0 BDD rubric answer**.",
+      "anchor": "phase-2b-derive-gherkin-conditional"
     },
-    "Phase 3 — Implement": {
-      "summary": "For each Story in dependency order (`NO_REFACTOR` first; `REFACTOR_REQUIRED` only",
-      "anchor": "phase-3-implement"
+    "Phase 3 — Triage (partition findings by gap class)": {
+      "summary": "Convert Phase 1's ordered improvement plan into actionable work items.",
+      "anchor": "phase-3-triage-partition-findings-by-gap-class"
     },
-    "Phase 4 — Validate (`/quality-targets-converge`)": {
-      "summary": "Delegate to `/quality-targets-converge`, which loops until all four targets are",
-      "anchor": "phase-4-validate-quality-targets-converge"
+    "Phase 4 — Improve without refactoring (build + mutation-kill + review loop)": {
+      "summary": "Iterate the approved Phase-4 Story set.",
+      "anchor": "phase-4-improve-without-refactoring-build-mutation-kill-review-loop"
     },
-    "Key differences from `/test-modernize`": {
-      "summary": "| `/test-modernize` | `/test-upgrade` |",
-      "anchor": "key-differences-from-test-modernize"
+    "Phase 4b — Refactor decision prompt": {
+      "summary": "With Phase 4 closed, present the **REFACTOR_REQUIRED** list deferred at",
+      "anchor": "phase-4b-refactor-decision-prompt"
     },
-    "Notes": {
-      "summary": "Every phase delegates to its worker; the orchestrator only sequences, gates, and persists progress.",
-      "anchor": "notes"
+    "Phase 5 — Refactor-for-testability (conditional)": {
+      "summary": "Phase 5 runs **only when the operator picked `[y]` at Phase 4b**.",
+      "anchor": "phase-5-refactor-for-testability-conditional"
+    },
+    "Phase 6 — Validate (converge quality targets)": {
+      "summary": "Verify the improved suite meets the Phase-0 quality targets.",
+      "anchor": "phase-6-validate-converge-quality-targets"
+    },
+    "Phase 7 — Executive-summary report": {
+      "summary": "Produce a stable executive-summary report from the shipped template.",
+      "anchor": "phase-7-executive-summary-report"
     }
   },
   "plugins/dev-team/skills/threat-modeling/SKILL.md": {

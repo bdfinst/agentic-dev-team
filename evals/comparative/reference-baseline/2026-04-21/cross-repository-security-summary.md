@@ -46,11 +46,11 @@ Both services ship the same architectural assumption: "something upstream of us 
 
 | Value | Type | Locations | Sev |
 |-------|------|-----------|:-:|
-| `Welcome2ACI-shared-2026` | JWT signing secret | `fraud-scoring/config/.env.production:6`, `auth-gateway/config/.env.staging:3` | CRITICAL |
+| `EXAMPLE-shared-jwt-secret-2026` | JWT signing secret | `fraud-scoring/config/.env.production:6`, `auth-gateway/config/.env.staging:3` | CRITICAL |
 | `NODE_TLS_REJECT_UNAUTHORIZED=0` | TLS-disable flag | `fraud-scoring/config/.env.production:9`, `auth-gateway/src/server.ts:10` | HIGH |
 | `fallback-secret-for-dev` | JWT fallback literal | `auth-gateway/src/routes/admin.ts:15` | HIGH |
 | `postgres://fraud:fraud@db.internal/fraud` | DB creds | `fraud-scoring/config/.env.production:11` | HIGH |
-| `AKIAIOSFODNN7EXAMPLE` / `wJalrXUtnFEMI/…KEY` | AWS access keys | `fraud-scoring/config/.env.production:2-3` | CRITICAL |
+| `AKIA_EXAMPLE_NOT_A_REAL_KEY` / `EXAMPLE-aws-secret-not-real-key` | AWS access keys | `fraud-scoring/config/.env.production:2-3` | CRITICAL |
 
 **Systemic pattern:** production credentials live in `config/.env.*` files, are committed to the repo, and are baked into Docker images via `COPY . .`. There is no evidence of a secrets manager, no `.gitignore` entry for env files, and no `.dockerignore`.
 
@@ -59,9 +59,9 @@ Both services ship the same architectural assumption: "something upstream of us 
 ## 4. Attack Chain Analysis
 
 ### Chain A — Shared secret → admin token forgery
-1. Attacker reads `Welcome2ACI-shared-2026` from `fraud-scoring/config/.env.production:6` (or the auth-gateway copy).
+1. Attacker reads `EXAMPLE-shared-jwt-secret-2026` from `fraud-scoring/config/.env.production:6` (or the auth-gateway copy).
 2. `POST /admin/issue-token` on auth-gateway with `{"email":"x"}` returns a signed `{sub:x, role:admin}` JWT.
-3. Every service in the organization that currently or later trusts `JWT_SECRET=Welcome2ACI-shared-2026` accepts that token.
+3. Every service in the organization that currently or later trusts `JWT_SECRET=EXAMPLE-shared-jwt-secret-2026` accepts that token.
 **Severity:** CRITICAL. Real today on auth-gateway; pre-positioned for fraud-scoring.
 
 ### Chain B — Anonymous feature poisoning → fraud approval (zero-credential path)

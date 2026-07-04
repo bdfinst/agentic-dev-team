@@ -1,10 +1,10 @@
 # Agentic Dev Team
 
-[![Tests](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml)
+[![Plugin tests](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/plugin-tests.yml)
 [![Docs checks](https://github.com/bdfinst/agentic-dev-team/actions/workflows/link-check.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/link-check.yml)
 [![Docs deploy](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/bdfinst/agentic-dev-team/actions/workflows/docs.yml)
 
-📖 **[Documentation](https://docs.bryanfinster.com/)**
+📖 **[Documentation](https://devteam.bryanfinster.com/)**
 
 Three Claude Code plugins for engineering workflows. Install one or all.
 
@@ -64,6 +64,7 @@ For bug fixes or simple tasks, skip `/specs` and start at `/plan` — or go stra
 | --- | --- |
 | `/code-review` | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
 | `/continue` | Resume an in-progress build or plan across sessions |
+| `/test-improve` | Consolidated analyze-then-improve test orchestrator. Seven phases with human gates; lightweight by default, opts into Gherkin / mutation / refactor-for-testability on demand |
 | `/browse` | Visual QA via Playwright |
 | `/benchmark` | Runtime performance metrics (Core Web Vitals, resource sizes) against baselines |
 | `/careful` / `/freeze` / `/guard` | Safety modes for production-critical sessions |
@@ -105,7 +106,7 @@ Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUT
 
 ## Documentation
 
-The full documentation — architecture, model routing, eval system, telemetry, ADRs, and experiment reports — lives at **[docs.bryanfinster.com](https://docs.bryanfinster.com/)**, with search and complete navigation.
+The full documentation — architecture, model routing, eval system, telemetry, ADRs, and experiment reports — lives at **[devteam.bryanfinster.com](https://devteam.bryanfinster.com/)**, with search and complete navigation.
 
 Start here:
 

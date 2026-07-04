@@ -5,8 +5,7 @@ description: >-
   from its build manifest, runs it, records the resulting line+branch
   percentages as the baseline, and posts the number to the parent issue (or
   local `FEATURE.md`). This number is the floor every later phase must improve
-  on. Used by `/test-upgrade` (default) and `/test-modernize` (Phase 3), each
-  via its own `--workflow` namespace.
+  on. Called by `/test-improve` (Phase 2) via `--workflow test-improve`.
 argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write
@@ -25,7 +24,7 @@ Arguments: $ARGUMENTS
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL on the resolved tracker (or empty for local-files mode).
 - `--repo-slug <slug>` — namespace under `memory/<workflow>/`.
-- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-upgrade`. `/test-modernize` passes `test-modernize` to keep its Phase-3 paths unchanged.
+- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-improve`. Orchestrators pass their own namespace (e.g. `/test-improve` passes `test-improve` for its Phase-2 baseline).
 
 If `<repo-path>` is absent, ask the operator.
 
@@ -84,9 +83,9 @@ Write `memory/<workflow>/<slug>/baseline-coverage.json`:
 }
 ```
 
-`disabled_test_count` is included **only** when `memory/<workflow>/<slug>/disabled-tests.json` exists (the `/test-modernize` path, where `/test-audit-disable` ran first); omit the field otherwise. `phase` carries the calling workflow's phase number when it has one, and may be omitted for workflows without numbered phases.
+`disabled_test_count` is included **only** when `memory/<workflow>/<slug>/disabled-tests.json` exists (present when a caller ran `/test-audit-disable` first); omit the field otherwise. `phase` carries the calling workflow's phase number when it has one, and may be omitted for workflows without numbered phases.
 
-Append a baseline summary to `memory/<workflow>/<slug>/phase-3.md` (for `/test-modernize`, one file owns the phase: this worker writes the coverage block, `/test-audit-disable` writes the audit block; other workflows just get the coverage block).
+Append a baseline summary to the workflow's baseline memory file (for `/test-improve`, `memory/<workflow>/<slug>/phase-2.md`; other workflows write to their own baseline phase file). Just the coverage block — auditing is a separate worker.
 
 ### 5. Post to the parent
 

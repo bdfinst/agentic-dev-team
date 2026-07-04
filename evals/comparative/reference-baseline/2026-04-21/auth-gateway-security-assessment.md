@@ -77,7 +77,7 @@ adminRoutes.post("/issue-token", (req, res) => {
 **Attack Scenario:**
 1. Attacker sends `curl -X POST http://auth-gateway/admin/issue-token -d '{"email":"a"}'`.
 2. Response contains a signed `{"sub":"a","role":"admin"}` JWT.
-3. Attacker presents that token to any service (today or in a future rollout) that expects `JWT_SECRET=Welcome2ACI-shared-2026` or the fallback literal.
+3. Attacker presents that token to any service (today or in a future rollout) that expects `JWT_SECRET=EXAMPLE-shared-jwt-secret-2026` or the fallback literal.
 4. Attacker is treated as admin with no other checks.
 
 **Remediation:**
@@ -269,7 +269,7 @@ Same pipeline as fraud-scoring report. Per-scan raw findings under `results/scan
 
 | Secret | Type | Location(s) | Rotation Status |
 |--------|------|-------------|-----------------|
-| `Welcome2ACI-shared-2026` | JWT secret (shared with fraud-scoring) | `config/.env.staging:3` | Rotate + split per-service |
+| `EXAMPLE-shared-jwt-secret-2026` | JWT secret (shared with fraud-scoring) | `config/.env.staging:3` | Rotate + split per-service |
 | `https://hooks.slack.com/services/T0XXXXXX/B0YYYYYY/zzzz…` | Slack webhook | `config/.env.staging:6` | Revoke + regenerate |
 | `fallback-secret-for-dev` | Hardcoded JWT fallback | `src/routes/admin.ts:15` | Delete code path |
 

@@ -1,13 +1,16 @@
 ---
 name: test-design
 description: >-
-  Deep test-design review: dispatch test-review (tactical quality) and
-  test-smell-review (xUnit smells, double selection, pyramid placement) in
-  parallel, then run the test-design-advisor skill to recommend how to test
-  hard-to-test code. Use when the user says "review my tests", "how should I
-  test this", "is this testable", "test design review", or before writing a
-  suite for an untested module. Advisory — it recommends, it does not edit.
+  Deep test-design review and forward-design advisor. Dispatches test-review
+  (tactical quality) and test-smell-review (xUnit smells, double selection,
+  pyramid placement) in parallel, and runs the test-design-advisor worker
+  to recommend how to test hard-to-test code. Use when the user says "review
+  my tests", "how should I test this", "is this testable", "design tests for
+  this", "what's the right test for X", "test design review", or before
+  writing a suite for an untested module. For a single unit, pass
+  --advise --path <file>. Advisory — it recommends, it does not edit.
 argument-hint: "[--path <dir>] [--since <ref>] [--advise]"
+role: orchestrator
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(git diff *), Skill, Agent
 ---
@@ -20,7 +23,7 @@ does not review files itself — it coordinates.
 
 This command is executed under orchestrator direction. Dispatch each agent with
 its tier alias (from its `model:` frontmatter); the PreToolUse hook
-`hooks/agent-model-resolve.sh` resolves it to the active snapshot per the
+`hooks/agent_model_resolve.py` resolves it to the active snapshot per the
 Resolution Procedure in `agents/orchestrator.md`.
 
 ## Orchestrator constraints
@@ -33,11 +36,14 @@ Resolution Procedure in `agents/orchestrator.md`.
    structured JSON, not file dumps.
 3. **No double-reporting.** Apply `knowledge/test-review-division-of-labor.md`:
    when the same line appears in both `test-review` and `test-smell-review`,
-   keep the design-level framing and drop the duplicate. The same rule covers
-   remedy overlap between `test-smell-review` and `test-design-advisor` — both
-   name fixture/verification/organization patterns from the same knowledge set;
-   report each remedy once, preferring the advisor's forward-looking sequence
-   when it subsumes the smell-review note.
+   keep the design-level framing and drop the duplicate — record every such
+   drop in the report's `### Suppressed duplicates` section (see step 6).
+   For `test-smell-review` and `test-design-advisor`, no de-duplication is
+   required: per the "test-smell-review ↔ test-design-advisor — remedy
+   division" section of the knowledge doc, the smell agent cites the remedy
+   family (via `remedyFamily`) and the advisor names the specific remedy
+   pattern and refactor sequence — smell rows and advisor rows join
+   structurally on `remedyFamily`, not by prose match.
 4. **Be concise.** One aggregated report. Issue messages one sentence;
    recommendations map to a concrete next edit.
 5. **MinimumCD vocabulary.** Layer labels in the aggregated report use the
@@ -65,7 +71,7 @@ Optional:
 
 - `--path <dir>`: target directory (default: current working directory)
 - `--since <ref>`: target files changed since a git ref (`git diff --name-only <ref>...HEAD`)
-- `--advise`: also run the test-design-advisor skill for forward-looking design (default on when the target has untested production code or few/no test files)
+- `--advise`: also run the test-design-advisor skill for forward-looking design (default on when the target has untested production code or few/no test files, **or when the target resolves to a single production file** — via `--path <file>` or a `--since` diff that touches exactly one production file; this is the path for forward-design on a single unit — the `test-design-advisor` skill has no user-facing slash command)
 
 ## Steps
 
@@ -74,6 +80,13 @@ Optional:
 Same auto-scope logic as `/code-review`: uncommitted changes if present, else
 all source files; honor `--since` and `--path`. Identify test files and the
 production code they cover.
+
+**Single-file → auto-`--advise`.** If the resolved target is exactly one
+production file (`--path <file>` pointing at a production source file, or a
+`--since` diff whose production set has one file), set `--advise` on for this
+run and record it in the report header. This is the entry path for
+forward-design on a single unit (the `test-design-advisor` worker skill has
+no user-facing slash command).
 
 ### 2. Dispatch review agents (parallel)
 
@@ -85,15 +98,24 @@ Spawn both as sub-agents in one batch:
 Each returns its standard JSON (`status`/`issues`/`summary`). If no test files
 exist, both skip — proceed to Step 4 with `--advise`.
 
-### 3. Score all existing tests (Farley Score)
+### 3. Score the in-scope tests (Farley Score)
 
-A user-requested test review reports a quality score for the whole suite, not
-just the changed slice. Use the Skill tool (`Skill(farley-score ...)`) over **all
-existing test files in the repository** (use the test-file indicators in
-`knowledge/test-file-indicators.md`) to produce the suite-level Farley Score, rating,
-and distribution. This headline score is independent of `--path` / `--since` —
-those scope the findings below; the score always reflects the full suite. If the
-repository has no test files, skip this step and note it in the report.
+Using the file set already resolved in Step 1 (Step 1 is the single
+scope-resolution authority in this skill), invoke `Skill(farley-score ...)`
+to produce the Farley Score, rating, and distribution. Label the score with
+the scope it was computed over:
+
+- No `--path` / no `--since` → every test file in the repository (test-file
+  indicators in `knowledge/test-file-indicators.md`); label `all tests`.
+- `--path <dir>` → tests under `<dir>` or covering production code under
+  `<dir>`; label `under <dir>`.
+- `--since <ref>` → tests touched in the diff plus tests covering production
+  files touched in the diff; label `changed since <ref>`.
+- `--path <dir>` and `--since <ref>` together → tests under `<dir>` that are
+  also touched (directly or via covered production code) since `<ref>` — the
+  intersection of both sets; label `under <dir>, changed since <ref>`.
+- Empty in-scope test set → skip the score and print `no in-scope test files`
+  in the report instead of a number.
 
 ### 4. Run the advisor (when applicable)
 
@@ -116,7 +138,13 @@ for a module):
 ## Test Design Review — <target>
 
 **Health**: <pass|attention|critical>   **Test files**: N   **Findings**: N
-**Farley Score (all existing tests)**: <score> (<rating>) — Exemplary N · Good N · Adequate N · Poor N
+**Farley Score (<scope>)**: <score> (<rating>) — Exemplary N · Good N · Adequate N · Poor N
+
+`<scope>` is the label produced by Step 3; render it verbatim. Concrete
+forms: `Farley Score (all tests)`, `Farley Score (under <dir>)`,
+`Farley Score (changed since <ref>)`, `Farley Score (under <dir>, changed since <ref>)`.
+When the in-scope set was empty, replace the whole line with
+`**Farley Score**: no in-scope test files`.
 
 ### Test type definitions used in this report
 <one-line glosses for MinimumCD terms appearing below; verbatim from
@@ -130,6 +158,14 @@ the terms actually used in the report>
 <testability table · pyramid placement (per-behavior, two-direction
 justification, NO target counts) · double strategy · refactor sequence ·
 E2E justification (only when E2E is recommended)>
+
+### Suppressed duplicates
+<Every drop constraint 3 performed at aggregation time. Each entry cites the
+finding's `file:line`, what was dropped (which agent's finding, keyed by
+smell/message), and the reason (e.g. "mechanics duplicate of Assertion
+Roulette owned by test-smell-review"). test-smell-review ↔ test-design-advisor
+overlaps are never listed here — they are joined structurally on
+`remedyFamily`, not dropped. Emit `_None._` when nothing was dropped.>
 
 ### Next steps
 - Mechanical fixes → /apply-fixes

@@ -20,8 +20,6 @@ ci_watched_paths() {
     chk_shellcheck_helpers) printf '%s' "plugins/security-assessment/scripts/" ;;
     chk_shellcheck_tests)   printf '%s' "tests/security-assessment/scripts/" ;;
     chk_sa_shell_suite)     printf '%s' "plugins/security-assessment/ tests/security-assessment/" ;;
-    chk_bats_repo)          printf '%s' "tests/repo/ plugins/dev-team/" ;;
-    chk_bats_content_rest)  printf '%s' "tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/ plugins/dev-team/" ;;
     chk_model_routing)      printf '%s' "tests/hooks/ plugins/dev-team/hooks/" ;;
     chk_cost_regression)    printf '%s' "scripts/cost-regression-check.sh scripts/session_extract.py" ;;
     chk_eval_corpus)        printf '%s' "evals/ scripts/eval_grade.py scripts/eval_graders/" ;;
@@ -29,6 +27,7 @@ ci_watched_paths() {
     chk_eval_semver)        printf '%s' "evals/" ;;
     chk_eslint)             printf '%s' "plugins/dev-team/ *.js *.ts *.json" ;;
     chk_oe_staleness)       printf '%s' "" ;;  # advisory; intentionally always-run (no stable watched path)
+    chk_parity)             printf '%s' "plugins/dev-team/tests/hooks/parity/ plugins/dev-team/hooks/" ;;
     *)                      printf '%s' "" ;;
   esac
 }

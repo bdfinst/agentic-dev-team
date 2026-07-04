@@ -15,6 +15,7 @@ You have been invoked with the `/export-pdf` command.
 Converter from Markdown to PDF. Uses `pandoc` when available (cleaner tables, wider Markdown support); falls back to `weasyprint` when pandoc is absent; skips with a warning when neither is installed.
 
 Used for:
+
 - Executive reports from `/security-assessment` (`memory/report-<slug>.md`)
 - Red-team reports from `/redteam-model` (`harness/redteam/results/adversarial-report.md`)
 - Cross-repo summaries from `/cross-repo-analysis`
@@ -27,6 +28,7 @@ Arguments: $ARGUMENTS
 **Positional:** `<report.md>` — path to the input Markdown file.
 
 **Flags:**
+
 - `--output <path>`: output PDF path. Default: same basename with `.pdf` extension.
 - `--css <path>`: custom CSS stylesheet. Default: `plugins/security-assessment/templates/report-css/default.css`.
 
@@ -61,21 +63,39 @@ pandoc "$INPUT" \
 
 **Fallback (weasyprint + python-markdown):**
 
+The input Markdown is derived from a scanned repo / probed model (see
+`08_report_generator.py`, `service-comm-parser.py`) — treat it as
+untrusted. Rendered HTML/CSS can reference remote resources (`<img
+src="https://...">`, CSS `url(...)`), and weasyprint fetches those by
+default, which is a plausible SSRF vector at PDF-conversion time. Pass a
+`url_fetcher` that blocks every non-local scheme so conversion never makes
+an outbound network request:
+
 ```bash
 python3 -c "
 import sys, markdown
 from weasyprint import HTML, CSS
+
+def _no_remote_fetch(url, *args, **kwargs):
+    if not url.startswith(('file://', 'data:')):
+        raise ValueError(f'blocked remote resource fetch during PDF export: {url}')
+    from weasyprint import default_url_fetcher
+    return default_url_fetcher(url, *args, **kwargs)
+
 with open('$INPUT') as f:
     md_text = f.read()
 html_body = markdown.markdown(md_text, extensions=['tables', 'fenced_code', 'codehilite'])
 html = f'<html><head><meta charset=\"utf-8\"></head><body>{html_body}</body></html>'
-HTML(string=html).write_pdf('$OUTPUT', stylesheets=[CSS(filename='$CSS')])
+HTML(string=html, url_fetcher=_no_remote_fetch).write_pdf(
+    '$OUTPUT', stylesheets=[CSS(filename='$CSS')]
+)
 "
 ```
 
 ### 4. Report
 
 On success:
+
 ```
 PDF written: /absolute/path/to/report.pdf
 ```
@@ -83,6 +103,7 @@ PDF written: /absolute/path/to/report.pdf
 Print the **absolute** path — some downstream tooling expects an absolute path.
 
 On graceful skip (neither tool):
+
 ```
 SKIP: pandoc and weasyprint both absent; PDF not produced.
       Install one:
@@ -97,6 +118,7 @@ Exit 0 in both cases (skip is not a failure).
 ## Escalation
 
 Stop and ask the user when:
+
 - Input file does not exist.
 - Output directory is not writable.
 - CSS file specified by `--css` does not exist (default CSS should always exist; if missing, report as a plugin install issue).

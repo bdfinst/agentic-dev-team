@@ -19,7 +19,7 @@ You have been invoked with the `/plan` command.
 
 ## Orchestrator constraints
 
-1. **Do not implement.** Produce only the plan. No code, no scaffolding, no file edits beyond the plan file itself.
+1. **Do not implement.** Produce only the plan. No code, no scaffolding, no file edits beyond the plan file itself. One narrow carve-out: **after approval**, derived `.feature` files are written via the export script `plan_gherkin_export.py` (step 6) — never before approval, never by hand.
 2. **Every step must be TDD.** Each step follows RED → GREEN → REFACTOR.
 3. **Incremental.** Each step must leave the codebase in a working, committable state.
 4. **Human approval required.** Present the plan for approval before any implementation begins.
@@ -63,170 +63,28 @@ Keep scenarios implementation-independent (no databases, selectors, or internal 
 
 ### 3. Create the plan
 
-Write the plan file using this structure:
+Write the plan file using the structure in `references/plan-template.md` (goal,
+acceptance criteria, per-slice Gherkin + TDD steps, parallelization DAG, complexity
+classification, pre-PR gate, skipped-findings, risks, and the machine-parseable
+Build Progress section).
 
-````markdown
-# Plan: <Task Title>
+#### Resolve the Gherkin persistence decision
 
-**Created**: <date>
-**Branch**: <current branch>
-**Status**: draft
-
-## Goal
-
-<One paragraph describing what this plan achieves and why.>
-
-## Acceptance Criteria
-
-- [ ] <Criterion 1 — observable, testable>
-- [ ] <Criterion 2>
-- [ ] <Criterion 3>
-
-## Slices
-
-A slice is a vertically deliverable increment. Each slice carries the Gherkin
-scenario(s) that define its behavior, followed by the TDD steps that satisfy them.
-Steps are numbered `<slice>.<step>` (1.1, 1.2, 2.1, …).
-
-### Slice 1: <Slice Name>
-
-**Depends-on:** none
-**Files:** `path/to/file.ts`, `path/to/file.test.ts`
-
-**Behavior:**
-
-```gherkin
-Feature: <feature name>
-
-  Scenario: <happy path>
-    Given <precondition>
-    When <action>
-    Then <observable outcome>
-
-  Scenario: <negative / edge / error case>
-    Given <precondition>
-    When <action>
-    Then <observable outcome>
-```
-
-**Steps:**
-
-#### Step 1.1: <Description>
-
-**Complexity**: <trivial | standard | complex>
-**RED**: Write test for <scenario / behavior>
-**GREEN**: Implement <minimal code to pass>
-**REFACTOR**: <What to clean up, or "None needed">
-**Files**: `path/to/file.ts`, `path/to/file.test.ts`
-**Commit**: `<draft commit message>`
-
-#### Step 1.2: <Description>
-
-...
-
-### Slice 2: <Slice Name>
-
-**Depends-on:** 1
-**Files:** `path/to/other.ts`
-
-**Behavior:**
-
-```gherkin
-...
-```
-
-**Steps:**
-
-#### Step 2.1: <Description>
-
-...
-
-## Parallelization
-
-Each slice declares `Depends-on` (slice ids it must follow, or `none`). The build
-**waves** are derived from those declarations by `scripts/plan-waves.sh` — do not
-hand-maintain them. Independent slices in the same wave can be built concurrently
-(`/build` dispatches them to isolated worktrees).
-
-```mermaid
-graph TD
-  S1[Slice 1] --> S2[Slice 2]
-```
-
-| Wave | Slices (parallel) |
-|------|-------------------|
-| 1 | 1 |
-| 2 | 2 |
-
-If `plan-waves.sh` reports a cycle, a missing `Depends-on`, an unknown reference,
-or a **same-wave file collision** (two slices in one wave declaring the same file),
-fix the plan before the human gate — those break safe concurrent delivery.
-
-## Complexity Classification
-
-Each step must include a complexity rating that controls review depth during `/build`:
-
-| Rating | Criteria | Review depth |
-|--------|----------|--------------|
-| `trivial` | Single-file rename, config change, typo fix, documentation-only | Skip inline review; covered by final `/code-review` |
-| `standard` | New function, test, module, or behavioral change within existing patterns | Spec-compliance + relevant quality agents |
-| `complex` | Architectural change, security-sensitive, cross-cutting concern, new abstraction | Full agent suite including opus-tier agents |
-
-When in doubt, classify up (standard rather than trivial, complex rather than standard).
-
-## Pre-PR Quality Gate
-
-- [ ] All tests pass
-- [ ] Type check passes (if applicable)
-- [ ] Linter passes
-- [ ] `/code-review` passes
-- [ ] Documentation updated (if applicable)
-
-## Skipped (low value)
-
-Findings classified `LOW_VALUE` — feasible but no signal (no branching logic, no
-observable outcome, coverage already provided by a higher-layer test). These are
-**skipped, not deferred**: they never appear in a slice or a work stream. Omit this
-section when there are none.
-
-| Finding | Rationale (one line) |
-|---|---|
-| <finding> | <why it delivers no signal> |
-
-## Risks & Open Questions
-
-- <Risk or question, with mitigation or who should answer>
-
-## Build Progress
-
-This section is the machine-parseable recovery handle. `/build` updates checkboxes here via Edit tool so progress survives a `/clear` or session restart. `/continue` reads this section to determine the resume point.
-
-### Slices (grouped by wave)
-
-#### Wave 1
-- [ ] Slice 1: <title>
-  - [ ] Step 1.1: <title>
-  - [ ] Step 1.2: <title>
-
-#### Wave 2
-- [ ] Slice 2: <title>
-  - [ ] Step 2.1: <title>
-
-### Acceptance Criteria
-
-- [ ] <Criterion 1 — mirrors the Acceptance Criteria section above>
-- [ ] <Criterion 2>
-- [ ] <Criterion 3>
-````
+Follow `references/gherkin-persistence.md`: honor a re-run's recorded
+decision, otherwise detect the project's BDD convention
+(`scripts/detect_bdd_convention.py`, conservative precedence), prompt once —
+or log a skip when non-interactive — and record + echo the resulting
+`**Gherkin persistence**:` metadata line (destination directory only). No
+`.feature` file is written before approval.
 
 ### 4. Create the plans directory
 
-Create `plans/` if it doesn't exist. When writing the plan file, populate the `## Build Progress` section by copying slice and step titles from `## Slices` and criteria from `## Acceptance Criteria`. These are the checkboxes `/build` will update on disk as each step completes — a slice is checked off once all its steps are.
+Create `plans/` if it doesn't exist. When writing the plan file, populate the `## Build Progress` section by copying slice and step titles from `## Slices`. These are the checkboxes `/build` will update on disk as each step completes — a slice is checked off once all its steps are. Acceptance Criteria live only in the top-level `## Acceptance Criteria` section as PR-checklist material; the operator ticks each one at PR review time after behaviorally verifying it, not during build.
 
 Then derive the waves — never hand-author them:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/plan-waves.sh <plan-file>
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py <plan-file>
 ```
 
 Render the `## Parallelization` Mermaid DAG + wave table and the wave-grouped
@@ -240,13 +98,17 @@ Before presenting to the user, dispatch the plan review personas in parallel as 
 
 #### 5a. Classify the plan tier
 
-Derive a **plan tier** from objective signals already on hand — the same `trivial | standard | complex` vocabulary `/build` uses for per-step review depth, so the concept is consistent across the pipeline. Inputs: the slice count and wave structure from the `plan-waves.sh` JSON, the file count, the per-step Complexity ratings, and whether the plan takes a stance on any high-reversal-cost axis in `knowledge/decision-defaults.md`.
+Derive a **plan tier** from objective signals already on hand — the same `trivial | standard | complex` vocabulary `/build` uses for per-step review depth, so the concept is consistent across the pipeline. Inputs: the slice count and wave structure from the `scripts/plan_waves.py` JSON, the file count, the per-step Complexity ratings, and whether the plan takes a stance on any high-reversal-cost axis in `knowledge/decision-defaults.md`.
 
 | Tier | Signals | Reviewers |
-|------|---------|-----------|
+| ------ | --------- | ----------- |
 | `trivial` | 1 slice, ≤ 2 files, no `complex` step, touches no high-reversal-cost decision axis | **Acceptance Test Critic only** (1) |
 | `standard` | anything between — e.g. a single slice with a few files, or a small multi-slice plan within existing patterns | **Acceptance Test Critic + Design & Architecture Critic**, plus **UX Critic** if the plan has a user-facing/UI surface, plus **Parallelization Critic** if slice count > 1 (2–4) |
-| `complex` | > 1 wave, ≥ 4 slices, any `complex` step, a security-sensitive/cross-cutting change, or a stance on a high-reversal-cost decision axis | **all 5** |
+| `complex` | > 1 wave, ≥ 4 slices, any `complex` step, a security-sensitive/cross-cutting change, or a **non-default** stance on a high-reversal-cost decision axis, or the axis was **contested** at the `/ship` gate | **all 5** |
+
+Every `/ship`-driven plan states a stance on the axes in `knowledge/decision-defaults.md` — merely restating the default is not, by itself, a `complex` signal (treating it as one would defeat the tier system's own review-scaling goal). "Contested" means a recorded objection to the stance, e.g. a note in the plan's `## Risks & Open Questions` section — not an unrecorded verbal disagreement.
+
+**Worked example** (`Integration: auto-merge vs. direct-to-trunk` axis): a plan stating "open a PR and use auto-merge gated on green checks" (the documented default) does not trigger `complex` on this signal alone. A plan stating "merge directly to trunk, bypassing the PR gate" (a non-default stance) does trigger `complex`, as does a plan stating the default stance where a reviewer's recorded objection challenges it.
 
 When in doubt, classify up (standard rather than trivial, complex rather than standard).
 
@@ -254,23 +116,23 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 
 #### 5b. Dispatch the selected reviewers
 
-The personas are subagent **prompt templates** (no frontmatter), so the effort-band → model resolver hook (`hooks/agent-model-resolve.sh`, which keys on `subagent_type`) cannot route them. Resolve the band yourself before dispatch so they honor the same ladder and per-environment overrides as every other agent — do **not** hard-code a model. All five run at the `medium` band:
+The personas are subagent **prompt templates** (no frontmatter), so the effort-band → model resolver hook (`hooks/agent_model_resolve.py`, which keys on `subagent_type`) cannot route them. Resolve the band yourself before dispatch so they honor the same ladder and per-environment overrides as every other agent — do **not** hard-code a model. All five run at the `medium` band:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model-resolve.sh medium --caller plan-review
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-review
 ```
 
-Pass the resolved model id as the `model` override on each persona dispatch. (`medium` resolves to the same default the personas used before, but now flows through `.claude/model-ladder.json` / `knowledge/model-routing.json` instead of a literal.)
+**Map the resolved id to a dispatch tier — do not pass the id through.** `model_resolve.py` returns a concrete model id (e.g. a `claude-sonnet-*` snapshot), but the `Agent` tool's `model` parameter only accepts tier names (`sonnet | opus | haiku | fable`), not ids — passing the id verbatim is silently unfollowable. Map the id to the nearest tier by name substring: `*sonnet*` → `sonnet`, `*opus*` → `opus`, `*haiku*` → `haiku`, `*fable*` → `fable`. If the id matches none of the four substrings (e.g. a future, unrecognized model family), fall back to `sonnet` and note the mismatch in the dispatch output rather than passing the unrecognized string through. Pass the resulting tier name as the `model` override on each persona dispatch. This mapping is a known precision loss versus the ladder's exact id — `.claude/model-ladder.json` / `knowledge/model-routing.json` per-environment overrides still influence which model backs each tier at Anthropic's end, even though only the tier name crosses the dispatch boundary. (`medium` resolves to the same default the personas used before, but now flows through the ladder/routing files instead of a literal.)
 
 | Reviewer | Template | Effort | Focus |
-|----------|----------|--------|-------|
+| ---------- | ---------- | -------- | ------- |
 | Acceptance Test Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-acceptance.md` | `medium` | Per-slice Gherkin quality (determinism, isolation, implementation-independence), scenario gaps, error paths, criteria coverage, TDD traceability |
 | Design & Architecture Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-design.md` | `medium` | Coupling, abstractions, structural risks, pattern adherence |
 | UX Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-ux.md` | `medium` | User journey, error UX, cognitive load, accessibility |
 | Strategic Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-strategic.md` | `medium` | Problem fit, scope, slice boundaries, risk, opportunity cost |
-| Parallelization Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-parallelization.md` | `medium` | Same-wave independence: file-overlap collisions (from `plan-waves.sh`), disjoint-file behavioral coupling, residual cycles/mis-layering |
+| Parallelization Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-parallelization.md` | `medium` | Same-wave independence: file-overlap collisions (from `scripts/plan_waves.py`), disjoint-file behavioral coupling, residual cycles/mis-layering |
 
-Pass each reviewer the full plan content. Also pass the Parallelization Critic the `scripts/plan-waves.sh` JSON for this plan (its `collisions` array is the deterministic input). Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate. It is the one reviewer that always runs (every tier). A `needs-revision` from the Parallelization Critic triggers plan revision (re-wave the colliding slices) before the human sees the plan.
+Pass each reviewer the full plan content. Also pass the Parallelization Critic the `scripts/plan_waves.py` JSON for this plan (its `collisions` array is the deterministic input). Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate. It is the one reviewer that always runs (every tier). A `needs-revision` from the Parallelization Critic triggers plan revision (re-wave the colliding slices) before the human sees the plan.
 
 **If any reviewer returns `needs-revision`**: Address all `blocker` issues by revising the plan. Re-run only the reviewers that flagged blockers. Repeat until all pass (max 2 iterations — escalate to user if still failing).
 
@@ -285,12 +147,29 @@ Pass each reviewer the full plan content. Also pass the Parallelization Critic t
 - **Interactive** (unchanged from prior behavior) → Display the plan and the review summary. Ask: "Approve this plan to begin implementation, or suggest changes?" Mark the plan status as `approved` once the user confirms. If the user requests changes, update the plan and re-present.
 - **Non-interactive** → do **not** prompt or block. Auto-approve: set `**Status**: approved` and append an explicit audit record to the plan so the bypass is **never silent** — add an `## Approval` section reading: `Auto-approved (non-interactive) at <date> — no human review gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.` Then continue.
 
+#### Post-approval: persist the Gherkin (`.feature` export)
+
+If the plan's recorded `**Gherkin persistence**:` decision is a destination
+directory, run the export **from the repo root** (destinations resolve against
+the invocation cwd):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_gherkin_export.py <plan-file>
+```
+
+Show its summary (destination, files written, overwritten, stale removed) to
+the operator. The `<dir>/<plan-slug>/` subdirectory is tool-owned — anything
+inside is derived and overwritable; files outside it are never touched.
+A non-zero exit is a failure: report it with the script's stderr — never claim
+success on a failed export. `plan-file-only` decisions skip cleanly (the
+script no-ops with a note).
+
 #### Post-approval: offer GitHub issues (GitHub origin only)
 
 After approval, classify the origin remote — **only** offer issue creation on an actual GitHub host:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-origin-host.sh
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py
 ```
 
 - **`github`** → prompt **once**, showing the count: *"Open 1 parent issue and N linked slice issues from this plan? [y/N]"* (N = number of slices). The default is **No**. Invoke `/issues-from-plan` **only on explicit `y`**; on No (or anything else), create nothing and continue.

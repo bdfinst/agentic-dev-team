@@ -1,9 +1,9 @@
 # Behavior spec for /coverage-delta's Phase-4 scoped-mutation measurement.
 # Source of record: plans/mutation-testing-every-phase.md (Slice 2) · issue #285
-# Enforced by: tests/skills/coverage_delta_mutation_tests.bats
+# Enforced by: tests/skills/test_coverage_delta_mutation.py
 #
 # This file is a Given/When/Then spec, not an eval-grader fixture (see
-# evals/skills/README.md). Executable enforcement is the bats contract named
+# evals/skills/README.md). Executable enforcement is the pytest contract named
 # above; non-drift is checked by tests/repo/feature_spec_refs_test.bats.
 
 Feature: Phase-4 coverage-delta measures mutation on the Story's files; never gates

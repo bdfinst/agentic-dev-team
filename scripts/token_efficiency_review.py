@@ -24,43 +24,22 @@ from pathlib import Path
 from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.review_result import build_result, main_exit, skipped_llm_warning
+from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
+
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "hooks" / "lib"),
+)
+from token_efficiency_limits import (  # noqa: E402
+    CLAUDE_MD_CHAR_LIMIT,
+    FILE_LINE_LIMIT,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-CLAUDE_MD_CHAR_LIMIT: int = 5000
 CLAUDE_MD_RULE_LIMIT: int = 200
-FILE_LINE_LIMIT: int = 500
-
-
-# ---------------------------------------------------------------------------
-# Issue helpers
-# ---------------------------------------------------------------------------
-
-
-def _issue(
-    severity: str,
-    confidence: str,
-    file: str,
-    line: int,
-    message: str,
-    suggested_fix: str = "",
-    rule_id: str = "",
-) -> dict:
-    """Return a canonical issue dict with all required fields."""
-    issue: dict = {
-        "severity": severity,
-        "confidence": confidence,
-        "file": file,
-        "line": line,
-        "message": message,
-        "suggestedFix": suggested_fix,
-    }
-    if rule_id:
-        issue["rule_id"] = rule_id
-    return issue
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +84,7 @@ def check_claude_md(path: Path) -> List[dict]:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         issues.append(
-            _issue(
+            make_issue(
                 "error",
                 "high",
                 str(path),
@@ -120,7 +99,7 @@ def check_claude_md(path: Path) -> List[dict]:
     char_count = len(text)
     if char_count > CLAUDE_MD_CHAR_LIMIT:
         issues.append(
-            _issue(
+            make_issue(
                 "error",
                 "high",
                 str(path),
@@ -139,7 +118,7 @@ def check_claude_md(path: Path) -> List[dict]:
     rule_count = _count_top_level_bullets(body)
     if rule_count > CLAUDE_MD_RULE_LIMIT:
         issues.append(
-            _issue(
+            make_issue(
                 "error",
                 "high",
                 str(path),
@@ -172,7 +151,7 @@ def check_line_counts(files: List[Path]) -> List[dict]:
         line_count = len(lines)
         if line_count > FILE_LINE_LIMIT:
             issues.append(
-                _issue(
+                make_issue(
                     "warning",
                     "high",
                     str(path),
@@ -258,7 +237,7 @@ def run_llm_review(path: Path) -> List[dict]:
         )
         if result.returncode != 0 or not result.stdout.strip():
             issues.append(
-                _issue(
+                make_issue(
                     "warning",
                     "high",
                     str(path),
@@ -282,7 +261,7 @@ def run_llm_review(path: Path) -> List[dict]:
             if not isinstance(f, dict):
                 continue
             issues.append(
-                _issue(
+                make_issue(
                     "warning",  # LLM findings are always warning severity
                     "medium",
                     str(path),
@@ -294,7 +273,7 @@ def run_llm_review(path: Path) -> List[dict]:
             )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         issues.append(
-            _issue(
+            make_issue(
                 "warning",
                 "high",
                 str(path),

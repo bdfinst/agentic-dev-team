@@ -156,12 +156,47 @@ consistent with the cost meter's privacy boundary. Disable with
 `DEV_TEAM_REVIEW_VALUE=off`. Report it with `/cost-report` (its "review value"
 section).
 
+### Verify Log Entry (#727)
+
+`/build` appends one entry per **slice with a runtime surface** to
+`metrics/verify-log.jsonl` (sub-step 4.9) — evidence that `/verify` actually
+exercised the change end-to-end before the slice was marked done, or was
+explicitly skipped because the diff had no runtime surface to drive. This is
+the sensor that closes the gap the #727 investigation found: a "done" feature
+that fails the first time it's really run means `/verify` was either skipped
+or never mandated in the first place.
+
+```json
+{
+  "timestamp": "2026-07-02T14:30:00Z",
+  "plan": "plans/add-auth.md",
+  "slice": "2",
+  "branch": "feat/add-auth",
+  "files": ["src/api/auth.py"],
+  "outcome": "ran",
+  "reason": null
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `branch` | string | Current branch name — `scripts/progress_guardian.py --pre-pr` matches on this |
+| `files` | string[] | The slice's changed runtime files that `/verify` was scoped to |
+| `outcome` | string | `ran` (`/verify` executed and passed), `skipped` (no runtime surface — see `reason`), or `failed-then-fixed` (`/verify` failed at least once before the fix landed) |
+| `reason` | string \| null | Required when `outcome` is `skipped` (e.g. `"tests-only"`, `"docs-only"`); `null` otherwise |
+
+**Not disableable.** Unlike Review Value logging (`DEV_TEAM_REVIEW_VALUE=off`),
+there is no env var to turn this off — `scripts/progress_guardian.py --pre-pr`
+fails closed on a branch with runtime-surface changes and no matching entry,
+and that gate is a correctness control, not a metrics-collection nicety.
+
 ## When to Log
 
 | Event | Action |
 | --- | --- |
 | Task completed | Log full task completion entry |
 | `/build` inline review checkpoint | Append a Review Value entry to `metrics/review-value.jsonl` (#348) |
+| `/build` slice with a runtime surface | Append a Verify Log entry to `metrics/verify-log.jsonl` (#727) |
 | Configuration change | Log in `metrics/config-changelog.jsonl` (see Feedback & Learning skill) |
 | Hallucination detected | Flag in task entry + log separately if correction applied |
 | Context summarization triggered | Increment counter in current task entry |

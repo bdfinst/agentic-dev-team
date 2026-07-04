@@ -1,4 +1,4 @@
-name: Eval
+name: Agent eval
 
 # Agent-eval regression gate (issue #99).
 #
@@ -54,7 +54,7 @@ jobs:
       # Restore the apt download cache so a warm run skips re-fetching the .deb
       # archives. apt-get update still refreshes the lists. (Issue #467.)
       - name: Cache apt packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             /var/cache/apt/archives
@@ -63,23 +63,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-apt-
 
-      - name: Install bats + jq
-        run: sudo apt-get update && sudo apt-get install -y bats jq
+      - name: Install jq + pytest
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq python3-pip
+          sudo python3 -m pip install pytest
 
+      # Delegate through ci-local.sh --only so this check stays in sync with
+      # the local gate — a rename of scripts/eval_grade.py can't silently break
+      # CI without breaking `bash scripts/ci-local.sh` too. (Issue #531.)
       - name: Eval corpus integrity check
-        run: python3 scripts/eval_grade.py --check-corpus
+        run: bash scripts/ci-local.sh --only=chk_eval_corpus
 
       - name: Grader, cache & integration-tier unit tests
         run: |
-          bats tests/repo/eval_grader_tests.bats \
-               tests/repo/eval_cache_tests.bats \
-               tests/repo/integration_tier_tests.bats \
-               tests/repo/citation_lint_tests.bats
+          python3 -m pytest tests/repo/test_eval_grader.py \
+                            tests/repo/test_eval_cache.py \
+                            tests/repo/test_integration_tier.py \
+                            tests/repo/test_citation_lint.py
 
       # Citation drift lint (#312). Advisory in Phase 1 — always exits 0, so it
       # surfaces drift warnings in the log without blocking the gate.
+      # Delegated through ci-local.sh --only for the same drift-safety reason
+      # as the corpus integrity check above. (Issue #531.)
       - name: Citation drift lint (advisory)
-        run: python3 scripts/citation_lint.py --all
+        run: bash scripts/ci-local.sh --only=chk_citation_lint
 
   semver-contract:
     # Job name is a REQUIRED status-check context (renovate-require-tests
@@ -171,7 +178,7 @@ jobs:
       # for the same branch. A miss here just means a full live dispatch.
       - name: Restore eval replay cache
         if: steps.cred.outputs.run_live == 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: evals/.eval-cache.json
           key: eval-cache-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}
@@ -423,7 +430,7 @@ jobs:
       # instead of paying full orchestrator cost.
       - name: Restore eval replay cache
         if: steps.gate.outputs.run_integration == 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: evals/.eval-cache.json
           key: eval-cache-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}

@@ -31,8 +31,55 @@ done
 [ -z "$BASE" ] && BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || true)"
 
 # 1. Deterministic CI mirror — blocks the push on failure.
+# Wrapped in a ref-integrity guard (issue #546): if any refs/heads/* changes
+# during ci-local's execution (because of a fixture bats bug or any other
+# reason), refuse the push loudly instead of proceeding on corrupted local
+# state. POSIX sh only — no [[, no arrays, no process substitution.
+PRE_REFS_FILE="$(mktemp -t prepush-refs-pre-XXXXXX)"
+POST_REFS_FILE="$(mktemp -t prepush-refs-post-XXXXXX)"
+trap 'rm -f "$PRE_REFS_FILE" "$POST_REFS_FILE"' EXIT
+git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$PRE_REFS_FILE"
+
 echo "pre-push: running local CI mirror (scripts/ci-local.sh)…"
-bash scripts/ci-local.sh "$BASE" "$HEAD" || exit 1
+# `|| true` so a non-zero exit from ci-local doesn't trip husky's `sh -e`
+# before we can capture the code and run the ref-integrity check.
+CI_EXIT=0
+bash scripts/ci-local.sh "$BASE" "$HEAD" || CI_EXIT=$?
+
+git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$POST_REFS_FILE"
+if ! cmp -s "$PRE_REFS_FILE" "$POST_REFS_FILE"; then
+  # Any drift is a corruption signal — refuse regardless of ci-local exit.
+  printf '\npre-push: ABORT — refs/heads/* changed during hook execution.\n' >&2
+  printf 'This usually means a fixture test corrupted your local refs. See issue #546.\n\n' >&2
+  # Emit each changed ref with pre / post SHA. Use awk on the two snapshot
+  # files: build a pre-map, then walk the post-map to detect mutation and
+  # creation; walk the pre-map for deletions.
+  awk '
+    NR==FNR { pre[$1]=$2; next }
+    {
+      post[$1]=$2
+      if (!($1 in pre)) {
+        printf "  %s: pre=<absent> post=%s (created)\n", $1, $2
+      } else if (pre[$1] != $2) {
+        printf "  %s: pre=%s post=%s\n", $1, pre[$1], $2
+      }
+    }
+    END {
+      for (ref in pre) {
+        if (!(ref in post)) {
+          printf "  %s: pre=%s post=<absent> (deleted)\n", ref, pre[ref]
+        }
+      }
+    }
+  ' "$PRE_REFS_FILE" "$POST_REFS_FILE" >&2
+  printf '\nRecover from your reflog:\n' >&2
+  printf '  git update-ref <refname> <pre-sha>       # for mutated / deleted refs\n' >&2
+  printf '  git update-ref -d <refname>              # for stray created refs\n' >&2
+  exit 1
+fi
+
+# Refs stable — honor ci-local's exit code (existing behavior).
+[ "$CI_EXIT" -ne 0 ] && exit "$CI_EXIT"
 
 # 2. Opt-in live agent-eval, diff-scoped to changed agents/skills.
 answer=n

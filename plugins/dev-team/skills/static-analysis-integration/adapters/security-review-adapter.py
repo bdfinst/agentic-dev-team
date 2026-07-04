@@ -54,9 +54,11 @@ _PLUGIN_ROOT = os.path.abspath(os.path.join(_ADAPTER_DIR, "..", "..", ".."))
 _DEFAULT_MAPPING_ABS = os.path.join(
     _PLUGIN_ROOT, "knowledge", "security-review-rule-map.yaml"
 )
-_DEFAULT_MAPPING_REL = (
-    "plugins/dev-team/knowledge/security-review-rule-map.yaml"
-)
+_DEFAULT_MAPPING_REL = "plugins/dev-team/knowledge/security-review-rule-map.yaml"
+
+# Stdlib-only YAML subset parser (ADR 0014/0015 — no third-party imports in
+# shipped plugins/dev-team/ code); lives at plugins/dev-team/hooks/lib/.
+sys.path.insert(0, os.path.join(_PLUGIN_ROOT, "hooks", "lib"))
 
 
 def _fail_mapping(path: str) -> None:
@@ -66,23 +68,19 @@ def _fail_mapping(path: str) -> None:
 
 def _load_mapping(path: str) -> Dict[str, str]:
     """Load the YAML mapping. Hard-fails with a specific ERROR on any issue."""
-    try:
-        import yaml  # local import so --help works without pyyaml
-    except ImportError as exc:  # pragma: no cover
-        print(
-            f"ERROR: pyyaml not installed; install with 'pip install pyyaml' ({exc})",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    from minimal_yaml import YamlError, parse_yaml  # local import; cheap, stdlib-only
+
     try:
         with open(path, "r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh)
+            data = parse_yaml(fh.read())
     except FileNotFoundError:
         _fail_mapping(path)
-    except yaml.YAMLError:
+    except YamlError:
         _fail_mapping(path)
-    if not isinstance(data, dict) or "mappings" not in data or not isinstance(
-        data.get("mappings"), dict
+    if (
+        not isinstance(data, dict)
+        or "mappings" not in data
+        or not isinstance(data.get("mappings"), dict)
     ):
         _fail_mapping(path)
     return {str(k): str(v) for k, v in data["mappings"].items()}
@@ -110,8 +108,7 @@ def resolve_rule_id(
         return mapping[category], None
     minted = _FALLBACK_NAMESPACE + category.lower()
     warning = (
-        f"WARN: category {category} not in mapping at {mapping_path}; "
-        f"minted {minted}"
+        f"WARN: category {category} not in mapping at {mapping_path}; minted {minted}"
     )
     return minted, warning
 
@@ -191,9 +188,7 @@ def main(argv=None) -> int:
                     file=sys.stderr,
                 )
                 return 1
-            rule_id, warning = resolve_rule_id(
-                issue["category"], mapping, args.mapping
-            )
+            rule_id, warning = resolve_rule_id(issue["category"], mapping, args.mapping)
             if warning:
                 print(warning, file=sys.stderr)
             finding = _build_finding(issue, rule_id)

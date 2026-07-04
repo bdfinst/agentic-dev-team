@@ -1,0 +1,52 @@
+name: Wrapper — Windows
+
+# Verifies csharp_stryker_net_wrapper.py + csharp_stryker_net_status_loop.py
+# on native Windows via Python's stdlib. Answers the deferred Windows
+# verification question filed as #567. Because the wrapper is now Python
+# (ADR 0014, #572, PR #573), the whole MSYS-bash class of friction is gone
+# — no `wait $!` hangs, no bats-on-Chocolatey install dance, no shellcheck-
+# version drift. Just pytest against the Python module.
+#
+# Refs: #567, #572, ADR 0014.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      # Only fires when the wrapper, status loop, their pytest tests, or
+      # this workflow itself changes — Windows runners are slower + more
+      # expensive; don't run on every unrelated PR.
+      - "plugins/dev-team/skills/mutation-testing/scripts/csharp_stryker_net_*.py"
+      - "tests/scripts/test_csharp_stryker_net_*.py"
+      - "tests/fixtures/stryker-net-logs/**"
+      - ".github/workflows/wrapper-windows.yml"
+
+concurrency:
+  group: wrapper-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest-on-windows:
+    name: Pytest on native Windows
+    runs-on: windows-latest
+    # GHA's default job timeout is 6 hours — way too generous. Python
+    # startup + pytest for ~51 tests finishes in ~5 seconds on Windows.
+    # Cap at 5 minutes so any regression / hang is reaped fast.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python + pytest
+        run: |
+          python --version
+          python -m pip install --upgrade pip pytest
+        shell: pwsh
+
+      - name: Run wrapper + status-loop pytest suites
+        # -ra shows every non-passing test with short traceback + reason,
+        # so a CI failure surfaces the actual assertion / exception in the
+        # log without spelunking a raw job dump.
+        run: |
+          python -m pytest tests/scripts/test_csharp_stryker_net_wrapper.py tests/scripts/test_csharp_stryker_net_status_loop.py -v -ra --tb=short
+        shell: pwsh

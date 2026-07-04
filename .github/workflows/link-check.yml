@@ -3,6 +3,13 @@ name: Docs checks
 # Catches broken documentation links before they merge — the class of breakage a
 # deleted or renamed doc leaves behind (e.g. a nav entry or README link pointing at
 # a file that no longer exists).
+#
+# Relationship to the local gate (issue #531): the `nav-integrity` job below is
+# the CI superset of `chk_nav_integrity` in `scripts/ci-local.sh`. Both assert
+# every nav entry resolves to a file (via `check_nav_integrity.py`); CI *also*
+# runs `mkdocs build` and offline `lychee` on top. Those two tools are kept
+# CI-only intentionally so contributors don't have to install them locally —
+# `chk_nav_integrity` is the fast subset every developer can run before pushing.
 
 on:
   # No 'paths' filter, on purpose. nav-integrity and body-links are REQUIRED
@@ -25,9 +32,9 @@ jobs:
     name: Docs nav integrity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -51,7 +58,7 @@ jobs:
     name: Docs link check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check documentation links
         uses: lycheeverse/lychee-action@v2

@@ -1,0 +1,4 @@
+Some unrecognized output that doesn't look like Stryker at all.
+No dots reporter. No summary lines. Nothing the loop knows how to parse.
+Log lines like these are what parser-drift would leave behind if Stryker's
+output format changed in a future release.

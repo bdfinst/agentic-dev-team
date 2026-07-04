@@ -28,6 +28,9 @@ from typing import List, Optional
 
 import yaml  # PyYAML — required dev dep
 
+sys.path.insert(0, str(Path(__file__).parent))
+from lib.review_result import make_issue
+
 # ---------------------------------------------------------------------------
 # Module-level constants (REFACTOR: extracted here for easy maintenance)
 # ---------------------------------------------------------------------------
@@ -55,32 +58,6 @@ PATH_REF_RE = re.compile(
 # ---------------------------------------------------------------------------
 
 
-def _make_error(
-    message: str, file: str = "", line: int = 0, suggested_fix: str = ""
-) -> dict:
-    return {
-        "severity": "error",
-        "confidence": "high",
-        "file": file,
-        "line": line,
-        "message": message,
-        "suggestedFix": suggested_fix,
-    }
-
-
-def _make_warning(
-    message: str, file: str = "", line: int = 0, suggested_fix: str = ""
-) -> dict:
-    return {
-        "severity": "warning",
-        "confidence": "high",
-        "file": file,
-        "line": line,
-        "message": message,
-        "suggestedFix": suggested_fix,
-    }
-
-
 def _parse_frontmatter(text: str) -> Optional[dict]:
     """Extract YAML frontmatter from markdown. Returns dict or None."""
     if not text.startswith("---"):
@@ -104,7 +81,8 @@ def check_claude_md_exists(root: Path) -> List[dict]:
     claude_md = root / "CLAUDE.md"
     if not claude_md.exists():
         return [
-            _make_error(
+            make_issue(
+                "error",
                 message=f"CLAUDE.md not found at {root}",
                 file=str(claude_md),
             )
@@ -127,7 +105,8 @@ def check_frontmatter(agents_dir: Path) -> List[dict]:
 
         if fm is None:
             errors.append(
-                _make_error(
+                make_issue(
+                    "error",
                     message=f"Could not parse YAML frontmatter in {agent_file.name}",
                     file=rel,
                 )
@@ -138,7 +117,8 @@ def check_frontmatter(agents_dir: Path) -> List[dict]:
         for field in REQUIRED_FIELDS:
             if field not in fm or fm[field] is None or str(fm[field]).strip() == "":
                 errors.append(
-                    _make_error(
+                    make_issue(
+                        "error",
                         message=f"Missing required frontmatter field '{field}' in {agent_file.name}",
                         file=rel,
                         suggested_fix=f"Add '{field}: <value>' to the frontmatter.",
@@ -150,7 +130,8 @@ def check_frontmatter(agents_dir: Path) -> List[dict]:
             effort_val = str(fm["effort"])
             if effort_val not in VALID_EFFORT:
                 errors.append(
-                    _make_error(
+                    make_issue(
+                        "error",
                         message=(
                             f"Invalid effort value '{effort_val}' in {agent_file.name}. "
                             f"Must be one of: {', '.join(VALID_EFFORT)}"
@@ -164,7 +145,8 @@ def check_frontmatter(agents_dir: Path) -> List[dict]:
         for field in UNSUPPORTED_FIELDS:
             if field in fm:
                 warnings.append(
-                    _make_warning(
+                    make_issue(
+                        "warning",
                         message=(
                             f"Plugin-unsupported field '{field}' in {agent_file.name}. "
                             f"This field is ignored for plugin agents."
@@ -194,7 +176,8 @@ def check_naming(agents_dir: Path) -> List[dict]:
         # Kebab-case filename check
         if not KEBAB_RE.match(fname):
             errors.append(
-                _make_error(
+                make_issue(
+                    "error",
                     message=(
                         f"Agent filename '{fname}' is not kebab-case. "
                         f"Filenames must match ^[a-z0-9]+(-[a-z0-9]+)*\\.md$"
@@ -214,7 +197,8 @@ def check_naming(agents_dir: Path) -> List[dict]:
             stem = agent_file.stem  # filename without .md
             if declared_name != stem:
                 errors.append(
-                    _make_error(
+                    make_issue(
+                        "error",
                         message=(
                             f"Agent name field '{declared_name}' does not match "
                             f"filename stem '{stem}' in {fname}"
@@ -248,7 +232,8 @@ def check_path_references(root: Path) -> List[dict]:
             resolved = root / ref_path
             if not resolved.exists():
                 errors.append(
-                    _make_error(
+                    make_issue(
+                        "error",
                         message=f"Unresolvable path reference '{ref_path}' in CLAUDE.md",
                         file=str(claude_md),
                         line=lineno,
@@ -281,7 +266,8 @@ def check_duplicate_names(agents_dir: Path) -> List[dict]:
     for name, files in name_to_files.items():
         if len(files) > 1:
             errors.append(
-                _make_error(
+                make_issue(
+                    "error",
                     message=(
                         f"Duplicate agent name '{name}' declared in multiple files: "
                         + ", ".join(files)
@@ -321,19 +307,22 @@ def check_llm(root: Path, skip_llm: bool, errors: List[dict]) -> List[dict]:
         )
         if result.returncode != 0 or not result.stdout.strip():
             return [
-                _make_warning(
+                make_issue(
+                    "warning",
                     message="LLM quality check unavailable (claude returned non-zero or empty output)",
                 )
             ]
         # LLM findings are always warnings
         return [
-            _make_warning(
+            make_issue(
+                "warning",
                 message=f"LLM quality review: {result.stdout.strip()[:500]}",
             )
         ]
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return [
-            _make_warning(
+            make_issue(
+                "warning",
                 message="LLM quality check unavailable (claude not on PATH or timed out)",
             )
         ]

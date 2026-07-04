@@ -23,7 +23,7 @@ Additional prose can live here and is ignored by the parser.
     {
       "rule_id": "semgrep.csharp.sqli.raw-sql-concat",
       "source_ref_glob": "src/Legacy/**/*.cs",
-      "reason": "Legacy reporting module scheduled for deletion Q3 2026 (ACI-RPT-1234).",
+      "reason": "Legacy reporting module scheduled for deletion Q3 2026 (TICKET-1234).",
       "expires": "2026-09-30"
     },
     {

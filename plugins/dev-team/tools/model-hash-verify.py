@@ -156,7 +156,7 @@ def sarif_from_findings(findings: list[Finding]) -> dict:
                     "driver": {
                         "name": "model-hash-verify",
                         "version": "1.0.0",
-                        "informationUri": "https://github.com/bdfinst/dev-team",
+                        "informationUri": "https://github.com/bdfinst/agentic-dev-team",
                         "rules": [
                             {"id": rid, "shortDescription": {"text": text}}
                             for rid, text in rules.items()

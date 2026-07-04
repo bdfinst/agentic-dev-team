@@ -22,7 +22,7 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 
 ## Review Agents
 
-Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them — they are never invoked directly by the user. Model assignment is enforced by the PreToolUse hook `hooks/agent-model-resolve.sh`; each agent's `model:` frontmatter declares its tier alias and the hook resolves it to the active snapshot per the Resolution Procedure in `agents/orchestrator.md`. For the full dispatch pipeline, see [Code Review Process](code-review-process.md).
+Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them — they are never invoked directly by the user. Model assignment is enforced by the PreToolUse hook `hooks/agent_model_resolve.py`; each agent's `model:` frontmatter declares its tier alias and the hook resolves it to the active snapshot per the Resolution Procedure in `agents/orchestrator.md`. For the full dispatch pipeline, see [Code Review Process](code-review-process.md).
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
@@ -36,11 +36,13 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `doc-review` | [`doc-review.md`](../agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
 | `domain-review` | [`domain-review.md`](../agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
 | `js-fp-review` | [`js-fp-review.md`](../agents/js-fp-review.md) | sonnet | Array mutations, impure patterns (JS/TS) |
+| `mutation-kill` | [`mutation-kill.md`](../agents/mutation-kill.md) | opus | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; not a reviewer, invoked per Story by `/test-improve` Phase 4 or directly |
 | `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
 | `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
 | `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
 | `refactor-opportunity-review` | [`refactor-opportunity-review.md`](../agents/refactor-opportunity-review.md) | sonnet | Post-GREEN refactoring opportunities |
 | `security-review` | [`security-review.md`](../agents/security-review.md) | opus | Injection, auth, data exposure |
+| `session-analysis` | [`session-analysis.md`](../agents/session-analysis.md) | sonnet | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
 | `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
 | `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
 | `svelte-review` | [`svelte-review.md`](../agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
@@ -93,6 +95,13 @@ Every agent file follows this structure:
 ```
 
 The `## Skills` section is the bridge between agents and skills. The agent defines *when and why* to invoke a skill; the skill defines *how* to execute it.
+
+## Non-standard frontmatter keys
+
+Two frontmatter keys appear alongside the standard `name`/`description`/`tools`/`effort`/`model` fields and are easy to mistake for schema drift when auditing agent files. Both are intentional internal tooling metadata:
+
+- **`cites:`** — a list of canonical skill/knowledge-file sources an agent's normative rules (MUST/SHOULD/SHALL thresholds) derive from, e.g. `cites: [owasp-detection, accepted-risks-schema]`. `scripts/citation_lint.py` reads this list and flags a warning when a stated numeric threshold doesn't appear in any cited source — catching silent drift when a canonical file changes but a reviewer agent's inline rule doesn't. See the script's module docstring for the full contract. Used by 22 agents today; see `tests/repo/test_citation_lint_corpus.py` for the regression guard over the real corpus.
+- **`enforcement: script`** — marks an agent whose behavior is deterministically implemented by a script rather than driven by free-form LLM reasoning from the persona prose alone. Agents carrying this key also carry a `> **Implemented by:** scripts/<name>.py` blockquote near the top of the file pointing at that implementation (e.g. `orchestrator.md` → `scripts/orchestrator.py`, `codebase-recon.md` → `scripts/codebase_recon.py`). Used by 5 agents today (`orchestrator`, `codebase-recon`, `claude-setup-review`, `progress-guardian`, `token-efficiency-review`).
 
 ## Add a Team Agent
 

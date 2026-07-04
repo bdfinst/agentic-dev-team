@@ -6,15 +6,17 @@ description: >-
   Jira). Dispatches by parent URL host to the tracker's own CLI (`az boards`,
   `gh`, `glab`, `acli`). When no parent URL is given, or when the required
   CLI is not installed, falls back to local plan files under
-  `./plans/test-modernize/` after informing the operator.
-argument-hint: "<assessment-path> [--parent <issue-url>] [--repo-slug <slug>] [--dry-run]"
+  `./plans/<workflow>/` after informing the operator. Multi-workflow: called
+  by `/test-improve` (Phase 3), via its own
+  `--workflow` namespace so memory paths and tracker labels never collide.
+argument-hint: "<assessment-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--dry-run]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write
 ---
 
 # Issues from Assessment
 
-Role: worker. Converts the assessment produced by `/cd-test-architecture` into the tracker artifacts the rest of the test-modernization workflow expects (Feature/Epic + Phase-tagged Stories + Tasks with predecessor links), or — when no tracker CLI is available — into local plan files with the same structure. Lifts the preview-then-confirm + `gh issue create` patterns from `/issues-from-plan`.
+Role: worker. Converts the assessment produced by `/cd-test-architecture` into the tracker artifacts the calling test-improvement workflow expects (Feature/Epic + Phase-tagged Stories + Tasks with predecessor links), or — when no tracker CLI is available — into local plan files with the same structure. Lifts the preview-then-confirm + `gh issue create` patterns from `/issues-from-plan`.
 
 You have been invoked with the `/issues-from-assessment` command.
 
@@ -24,10 +26,13 @@ Arguments: $ARGUMENTS
 
 - Positional: `<assessment-path>` — the file `/cd-test-architecture` wrote (`reports/cd-test-architecture-<app>.md`).
 - `--parent <issue-url>` — parent issue / Feature / Epic URL. Empty or omitted → local-files mode.
-- `--repo-slug <slug>` — slug used for the `memory/test-modernize/<slug>/` namespace. Defaults to the assessment file's `<app>` token.
+- `--repo-slug <slug>` — slug used for the `memory/<workflow>/<slug>/` namespace. Defaults to the assessment file's `<app>` token.
+- `--workflow <name>` — the workflow namespace under `memory/` and `./plans/`, and the leading tracker-label token. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
 - `--dry-run` — print the preview list and exit without creating anything.
 
 If `<assessment-path>` is absent or the file is missing, ask the operator to point at one.
+
+**Path + label templates.** Every filesystem path and every operator-visible tracker label in the Steps below carries `<workflow>` as a placeholder — the skill interpolates the resolved `--workflow` value at run time. No literal workflow name appears in a path or label string.
 
 ## Steps
 
@@ -47,10 +52,10 @@ Parse the `--parent` URL host. Pick the CLI and probe it:
 
 ```
 gh is not installed. Install it from https://cli.github.com/ and run `gh auth login`.
-Falling back to local-files mode — Stories will be written to ./plans/test-modernize/.
+Falling back to local-files mode — Stories will be written to ./plans/<workflow>/.
 ```
 
-Record the resolved sink in `memory/test-modernize/<slug>/phase-1.md` so subsequent workers (`/coverage-baseline`, `/coverage-delta`, `/quality-targets-converge`) reuse the same dispatch decision.
+Record the resolved sink in `memory/<workflow>/<slug>/phase-1.md` so subsequent workers (`/coverage-baseline`, `/coverage-delta`, `/quality-targets-converge`) reuse the same dispatch decision.
 
 ### 2. Read the assessment + derive children
 
@@ -86,14 +91,14 @@ Do not call any tracker CLI or write any plan files until the operator answers `
 If `--parent <url>` was provided, the parent already exists — capture its ID/number from the URL. Otherwise (local-files mode), create the parent **file**:
 
 ```
-./plans/test-modernize/FEATURE.md
+./plans/<workflow>/FEATURE.md
 ```
 
 Contents: the assessment summary (components table, target pre-merge gate, link to the MinimumCD component-test page), plus a placeholder block for running metric snapshots that `/coverage-baseline`, `/coverage-delta`, and `/quality-targets-converge` will append to.
 
 ### 5. Create the children — partial-failure safe
 
-Two modes share the same control flow; only the create-call differs.
+Two modes share the same control flow; only the create-call differs. Every tracker label carries `<workflow>` as its leading token so an operator scanning a mixed board can tell which workflow authored an issue.
 
 **Tracker mode.** For each child in dependency order, call the resolved CLI. Lift the GitHub pattern verbatim from `/issues-from-plan`:
 
@@ -127,7 +132,7 @@ Phase-<n>
 
 <which test layer, which doubles, which pipeline stage>
 EOF
-)" --label "test-modernize,phase-<n>,<minimumcd-type>"
+)" --label "<workflow>,phase-<n>,<minimumcd-type>"
 ```
 
 For the other trackers:
@@ -139,25 +144,25 @@ az boards work-item create \
   --type "User Story" --title "<title>" \
   --description "<body>" \
   --fields "Microsoft.VSTS.Common.AcceptanceCriteria=<gherkin>" \
-           "System.Tags=test-modernize; phase-<n>; <minimumcd-type>"
+           "System.Tags=<workflow>; phase-<n>; <minimumcd-type>"
 # Then `az boards work-item relation add` for parent + predecessor links.
 
 # GitLab — gitlab.com / self-hosted
 glab issue create --title "<title>" --description "<body>" \
-  --label "test-modernize,phase-<n>,<minimumcd-type>" \
+  --label "<workflow>,phase-<n>,<minimumcd-type>" \
   --linked-mr none
 # Predecessor links via `glab issue note add` referencing #<id>.
 
 # Jira — *.atlassian.net
 acli jira workitem create --type Story --summary "<title>" \
   --description "<body>" \
-  --label "test-modernize" --label "phase-<n>" --label "<minimumcd-type>"
+  --label "<workflow>" --label "phase-<n>" --label "<minimumcd-type>"
 # Parent + `is blocked by` links via `acli jira workitem link`.
 ```
 
-Record the **child-slug → tracker-id** map as you go (in `memory/test-modernize/<slug>/issue-map.json`).
+Record the **child-slug → tracker-id** map as you go (in `memory/<workflow>/<slug>/issue-map.json`).
 
-**Local-files mode.** Write one `./plans/test-modernize/phase-<n>/<child-slug>.md` per child. The file's body holds the same fields the tracker would (Phase, Depends On, Acceptance Criteria, Architectural Context, Testing Approach). Cross-Story predecessor links use **relative paths** (e.g. `Blocked by: ../phase-4/baseline-orders-api.md`). A `Status:` line at the top defaults to `Open` and gets flipped to `Done: <date>` by `/coverage-delta` and `/quality-targets-converge` when the matching gate passes.
+**Local-files mode.** Write one `./plans/<workflow>/phase-<n>/<child-slug>.md` per child. The file's body holds the same fields the tracker would (Phase, Depends On, Acceptance Criteria, Architectural Context, Testing Approach). Cross-Story predecessor links use **relative paths** (e.g. `Blocked by: ../phase-4/baseline-orders-api.md`). A `Status:` line at the top defaults to `Open` and gets flipped to `Done: <date>` by `/coverage-delta` and `/quality-targets-converge` when the matching gate passes.
 
 **Partial-failure safety.** If any CLI call (or file write) fails partway, do **not** abort silently. Report:
 
@@ -180,7 +185,7 @@ For local-files mode, the `Blocked by:` lines were written in Step 5 — no back
 
 ### 7. Persist phase-1 progress
 
-Write `memory/test-modernize/<slug>/phase-1.md` with:
+Write `memory/<workflow>/<slug>/phase-1.md` with:
 
 - Resolved sink (CLI + parent URL or `local-files`).
 - Phase counts per phase tag.
@@ -192,12 +197,18 @@ Write `memory/test-modernize/<slug>/phase-1.md` with:
 
 Print:
 
-- Parent: `<URL>` or `./plans/test-modernize/FEATURE.md`.
+- Parent: `<URL>` or `./plans/<workflow>/FEATURE.md`.
 - N children created across Phases 1, 2, 4, 5 (Phase-3 Stories are created by `/test-audit-disable` + `/coverage-baseline` later).
 - Any partial-failure messages from Step 5.
-- The path to `memory/test-modernize/<slug>/phase-1.md` for `/continue`.
+- The path to `memory/<workflow>/<slug>/phase-1.md` for `/continue`.
+
+## Examples / Integration
+
+- `/test-improve` invokes this worker with `--workflow test-improve` from its Phase 3; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.
+- `/test-improve` invokes this worker with `--workflow test-improve`; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`, keeping a mixed board unambiguous when both workflows are active.
 
 ## Notes
 
 - This worker is the only place tracker-CLI knowledge sits. Adding a new tracker means one new branch in Steps 1 + 5; no other skill changes.
 - `/issues-from-plan` (the existing GitHub-only issue creator) handles a *plan*; this worker handles a *test-architecture assessment*. The two are intentionally separate — overlap is only the `gh issue create` snippet.
+- Adding a new workflow caller means passing a new `--workflow <name>` value; no path or label edits inside this skill are required because both are templated.

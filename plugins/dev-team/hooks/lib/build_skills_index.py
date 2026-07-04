@@ -26,7 +26,8 @@ import os
 import sys
 from pathlib import Path
 
-import yaml
+from minimal_yaml import FrontmatterError as _NoMarkersError
+from minimal_yaml import YamlError, extract_frontmatter_block, parse_yaml
 
 PLUGIN_DIR = Path(__file__).resolve().parents[2]  # lib -> hooks -> dev-team
 SKILLS_DIR = Path(os.environ.get("SKILLS_INDEX_SKILLS_DIR", PLUGIN_DIR / "skills"))
@@ -45,7 +46,7 @@ HEADER = """\
 <!-- GENERATED FILE — do not edit by hand.
      Rows: each plugins/dev-team/skills/<name>/SKILL.md frontmatter (name, description).
      Grouping: plugins/dev-team/hooks/lib/skill_categories.yaml (by capability).
-     Regenerate: bash plugins/dev-team/hooks/lib/build-skills-index.sh
+     Regenerate: python3 plugins/dev-team/hooks/lib/build_skills_index.py
      A CI freshness gate (--check) fails if this file drifts from the skills on disk. -->
 
 Skills are the unified reusable capability layer in this system. Every skill lives \
@@ -67,14 +68,13 @@ class FrontmatterError(ValueError):
 def _frontmatter(path: Path) -> dict:
     """Parse the YAML frontmatter block of a SKILL.md (between the first `---`s)."""
     text = path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        raise FrontmatterError(f"{path}: no `---` frontmatter block")
-    end = text.find("\n---", 3)
-    if end == -1:
-        raise FrontmatterError(f"{path}: unterminated frontmatter block")
     try:
-        data = yaml.safe_load(text[3:end])
-    except yaml.YAMLError as e:
+        block = extract_frontmatter_block(text)
+    except _NoMarkersError as e:
+        raise FrontmatterError(f"{path}: {e}") from e
+    try:
+        data = parse_yaml(block)
+    except YamlError as e:
         # Almost always an unquoted scalar with a bare `: ` (e.g. a description
         # like "...agent: this skill..."). Use a `>-` block scalar to fix it.
         raise FrontmatterError(f"{path}: invalid frontmatter YAML: {e}") from e
@@ -90,8 +90,10 @@ def _cell(text: str) -> str:
 
 def _load_categories():
     """Ordered [(category_name, [skill, ...]), ...] from skill_categories.yaml."""
-    data = yaml.safe_load(CATEGORIES_FILE.read_text(encoding="utf-8")) or {}
-    return [(c["name"], list(c.get("skills") or [])) for c in (data.get("categories") or [])]
+    data = parse_yaml(CATEGORIES_FILE.read_text(encoding="utf-8")) or {}
+    return [
+        (c["name"], list(c.get("skills") or [])) for c in (data.get("categories") or [])
+    ]
 
 
 def _collect():
@@ -111,7 +113,9 @@ def _collect():
         desc = _cell(fm["description"])
         link = f"[`{folder}/SKILL.md`](../skills/{folder}/SKILL.md)"
         slash = fm.get("user-invocable") is True
-        buckets.setdefault(lookup.get(folder, OTHER), []).append((name, folder, link, desc, slash))
+        buckets.setdefault(lookup.get(folder, OTHER), []).append(
+            (name, folder, link, desc, slash)
+        )
     display = [(name, buckets[name]) for name in order if buckets.get(name)]
     if buckets.get(OTHER):
         display.append((OTHER, buckets[OTHER]))
@@ -170,7 +174,7 @@ def main(argv: list) -> int:
         sys.stderr.writelines(diff)
         sys.stderr.write(
             "\n[skills-index] docs/skills.md is stale. Regenerate: "
-            "bash plugins/dev-team/hooks/lib/build-skills-index.sh\n"
+            "python3 plugins/dev-team/hooks/lib/build_skills_index.py\n"
         )
         return 1
 

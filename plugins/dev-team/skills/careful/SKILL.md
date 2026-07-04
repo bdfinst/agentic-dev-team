@@ -58,6 +58,6 @@ rm -f hooks/careful-state.json
 
 ## Notes
 
-- The `destructive-guard.sh` hook reads `hooks/careful-state.json`. When active, matched commands exit with code 2 (block) instead of 0 (warn).
+- The `hooks/destructive_guard.py` hook reads `hooks/careful-state.json`. When active, matched commands exit with code 2 (block) instead of 0 (warn).
 - Careful mode persists across tool calls within a session.
 - See `hooks/destructive-commands.json` for the full list of detected patterns and the safe allowlist.

@@ -1,6 +1,6 @@
 ---
 name: platform-engineer
-description: Pipeline design, deployment strategy, observability, and reliability planning
+description: CI/CD pipeline design, deployment strategy (blue-green, canary, rolling), rollback planning, observability (SLOs, alerting, dashboards), and reliability/incident-mode design — dispatch when the user asks "how should we deploy this", "design the pipeline", "what's our rollback plan", "make this observable", or a plan step introduces new infrastructure, a new deployment target, or a production reliability concern
 tools: Read, Grep, Glob, Bash, Skill
 effort: medium
 ---

@@ -17,7 +17,7 @@ allowed-tools: Read, Glob, Grep, Bash, Write
 
 # Gherkin Public
 
-Role: worker. Phase-2 of `/test-modernize`. Reads the component map produced by `/cd-test-architecture` and writes `.feature` files at the **public boundary** of each component — the surface an external caller actually depends on. Internal steps are out of scope here; scenarios describe observable outputs.
+Role: worker. Standalone Gherkin authoring skill. Reads the component map produced by `/cd-test-architecture` and writes `.feature` files at the **public boundary** of each component — the surface an external caller actually depends on. Internal steps are out of scope here; scenarios describe observable outputs.
 
 You have been invoked with the `/gherkin-public` command.
 
@@ -26,7 +26,7 @@ You have been invoked with the `/gherkin-public` command.
 Arguments: $ARGUMENTS
 
 - Positional: `<repo-path>` — the repo under modernization.
-- `--repo-slug <slug>` — namespace under `memory/test-modernize/`. Defaults to the last path segment of `<repo-path>`.
+- `--repo-slug <slug>` — namespace under `memory/<workflow>/`. Defaults to the last path segment of `<repo-path>`.
 
 If `<repo-path>` is absent, ask the operator.
 
@@ -34,12 +34,12 @@ If `<repo-path>` is absent, ask the operator.
 
 ### 1. Load the component map
 
-Read `memory/test-modernize/<slug>/phase-1.md` for the components & patterns table. If it's missing, tell the operator Phase 1 has not run and stop.
+Read `memory/<workflow>/<slug>/phase-1.md` for the components & patterns table. If it's missing, tell the operator Phase 1 has not run and stop.
 
 ### 2. Pick the output directory
 
-- Prefer `features/test-modernize/` if `<repo>/features/` already exists (matches the repo's existing Gherkin layout).
-- Otherwise write to `<repo>/specs/test-modernize/`.
+- Prefer `features/<workflow>/` if `<repo>/features/` already exists (matches the repo's existing Gherkin layout).
+- Otherwise write to `<repo>/specs/<workflow>/`.
 - Create the directory if missing.
 
 ### 3. Author scenarios per public surface
@@ -145,17 +145,17 @@ Feature: <component> emits <event-type>
 In every `.feature` file's header, include:
 
 ```
-# Source: memory/test-modernize/<slug>/phase-1.md
+# Source: memory/<workflow>/<slug>/phase-1.md
 # Component: <name>
 # Pattern: <pattern>
 # Public surface: <surface-id>
 ```
 
-This lets the gate-keeper review agent (`dev-team:test-modernization-review`) trace each scenario back to a component row.
+This lets the operator trace each scenario back to a component row at the Phase-2 human sign-off (Step 6), and lets `/feature-file-validation` — which `/code-review` invokes automatically whenever `.feature` or step-definition files are in the changeset — verify each scenario has matching test automation once the bound Stories are built.
 
 ### 5. Persist phase-2 progress
 
-Write `memory/test-modernize/<slug>/phase-2.md` with:
+Write `memory/<workflow>/<slug>/phase-2.md` with:
 
 - Number of `.feature` files written + their paths.
 - Surface coverage per component (one row per component: surfaces touched / surfaces total).
@@ -164,7 +164,7 @@ Write `memory/test-modernize/<slug>/phase-2.md` with:
 
 ### 6. STOP for human sign-off
 
-This is the Phase-2 human gate the orchestrator (`/test-modernize`) enforces. Print the scenario inventory and wait. Do NOT proceed to Step 7 (Story creation) until the operator signs off on the scenarios. The Gherkin is the executable spec — Stories that bind to it must not be created from un-reviewed scenarios.
+This is the Gherkin-review human gate the calling orchestrator (when one is used) enforces. Print the scenario inventory and wait. Do NOT proceed to Step 7 (Story creation) until the operator signs off on the scenarios. The Gherkin is the executable spec — Stories that bind to it must not be created from un-reviewed scenarios.
 
 ### 7. Create `[Component tests]` Stories bound to the approved scenarios
 
@@ -186,7 +186,7 @@ Once the operator has approved the scenarios (orchestrator passes `--create-stor
   - runs deterministically with no off-machine dependencies (airplane test);
   - lands at the **component** layer per the MinimumCD taxonomy.
 
-  Source: `features/test-modernize/<surface>.feature`
+  Source: `features/<workflow>/<surface>.feature`
 
   - [ ] `Scenario: <success-path-summary>`
   - [ ] `Scenario: <failure-mode-summary>`
@@ -204,18 +204,18 @@ Once the operator has approved the scenarios (orchestrator passes `--create-stor
   <In-memory doubles for third-party dependencies + local containers / loopback for team-owned infrastructure. No off-machine calls.>
   ```
 
-Record the **scenario → Story-id** map in `memory/test-modernize/<slug>/gherkin-bindings.json`:
+Record the **scenario → Story-id** map in `memory/<workflow>/<slug>/gherkin-bindings.json`:
 
 ```json
 {
-  "features/test-modernize/orders-post.feature::accepts valid order": 311,
-  "features/test-modernize/orders-post.feature::rejects invalid total": 311,
-  "features/test-modernize/orders-get.feature::returns existing order": 312,
+  "features/<workflow>/orders-post.feature::accepts valid order": 311,
+  "features/<workflow>/orders-post.feature::rejects invalid total": 311,
+  "features/<workflow>/orders-get.feature::returns existing order": 312,
   …
 }
 ```
 
-Append the Story creations to `phase-2.md` (one row per Story: title, phase tag, scenario count, tracker-id, predecessors). The map is the artifact `dev-team:test-modernization-review --phase 2` reads to verify every Scenario has a Story citing it.
+Append the Story creations to `phase-2.md` (one row per Story: title, phase tag, scenario count, tracker-id, predecessors). The map lets the operator confirm at the Phase-2 human sign-off that every Scenario has a Story citing it, and lets `/quality-targets-converge` check for an existing binding before proposing a new component-test Story for a coverage gap it finds later.
 
 ### 8. Report
 
@@ -233,5 +233,5 @@ Print:
   1. First pass (Steps 1–6) authors the `.feature` files and stops for sign-off.
   2. Second pass (Step 7), invoked by the orchestrator with `--create-stories` after the operator approves, creates the `[Component tests]` Stories bound to the approved scenarios. Splitting the passes ensures the Stories never reference un-reviewed scenarios.
 - The Stories produced here become the binding contract `/build` consumes in Phase 4 and Phase 5. Each Story's body cites the exact scenarios its tests must satisfy — the component tests are written **from the approved Gherkin**, not from the assessment.
-- `gherkin-bindings.json` is the inverse map (scenario → Story). `test-modernization-review --phase 2` uses it to verify every Scenario in every `.feature` has a Story citing it; `--phase 4` uses it to verify each `[Component tests]` Story's submitted test code references its scenarios.
+- `gherkin-bindings.json` is the inverse map (scenario → Story). The operator uses it at the Phase-2 human sign-off to confirm every Scenario in every `.feature` has a Story citing it; `/quality-targets-converge` consults it before proposing a new component-test Story for a coverage gap (see its "Gherkin binding for proposed component tests" step); and `/feature-file-validation` — run automatically by `/code-review` whenever `.feature` files are in the changeset — verifies each `[Component tests]` Story's submitted test code actually references its bound scenarios.
 - For UI patterns where the worker cannot infer the flow from the assessment alone, emit a stub `.feature` with the required header and a `# TODO: hand-author scenarios here` block — better to surface the gap than to invent steps. Stub `.feature` files do NOT generate Stories until the operator fills them in.

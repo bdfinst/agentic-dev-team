@@ -68,7 +68,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="${MODEL_ROUTING_PLUGIN_DIR:-$SCRIPT_DIR/..}"
-RESOLVER="${MODEL_ROUTING_RESOLVER:-$PLUGIN_DIR/hooks/lib/model-resolve.sh}"
+RESOLVER="${MODEL_ROUTING_RESOLVER:-$PLUGIN_DIR/hooks/lib/model_resolve.py}"
 ROUTING_PATH="${MODEL_ROUTING_JSON:-$PLUGIN_DIR/knowledge/model-routing.json}"
 LADDER_PATH="${MODEL_LADDER_JSON:-.claude/model-ladder.json}"
 SESSION_PATH="${SESSION_MODEL_FILE:-.claude/session-model}"
@@ -79,7 +79,7 @@ echo "Model Routing Check"
 echo "==================="
 echo
 echo "Effective band → model map:"
-bash "$RESOLVER" --dump-map
+python3 "$RESOLVER" --dump-map
 echo
 
 # Ladder section

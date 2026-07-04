@@ -23,34 +23,7 @@ from pathlib import Path
 from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.review_result import build_result, main_exit
-
-
-# ---------------------------------------------------------------------------
-# Issue helpers
-# ---------------------------------------------------------------------------
-
-
-def _error(file: str, line: int, message: str, fix: str = "") -> dict:
-    return {
-        "severity": "error",
-        "confidence": "high",
-        "file": file,
-        "line": line,
-        "message": message,
-        "suggestedFix": fix,
-    }
-
-
-def _warning(file: str, line: int, message: str, fix: str = "") -> dict:
-    return {
-        "severity": "warning",
-        "confidence": "high",
-        "file": file,
-        "line": line,
-        "message": message,
-        "suggestedFix": fix,
-    }
+from lib.review_result import build_result, main_exit, make_issue
 
 
 # ---------------------------------------------------------------------------
@@ -119,10 +92,11 @@ def validate_phase_2(paths: dict) -> tuple:
             bindings = json.loads(bindings_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             errors.append(
-                _error(
-                    str(bindings_path),
-                    0,
-                    f"gherkin-bindings.json is not valid JSON: {bindings_path}",
+                make_issue(
+                    "error",
+                    file=str(bindings_path),
+                    line=0,
+                    message=f"gherkin-bindings.json is not valid JSON: {bindings_path}",
                 )
             )
             return errors, warnings
@@ -133,11 +107,12 @@ def validate_phase_2(paths: dict) -> tuple:
     for title in scenario_titles:
         if title.lower() not in bindings_keys_lower:
             errors.append(
-                _error(
-                    str(paths["bindings_json"]),
-                    0,
-                    f"Scenario '{title}' found in .feature file but missing from gherkin-bindings.json",
-                    "Add an entry for this scenario to gherkin-bindings.json",
+                make_issue(
+                    "error",
+                    file=str(paths["bindings_json"]),
+                    line=0,
+                    message=f"Scenario '{title}' found in .feature file but missing from gherkin-bindings.json",
+                    suggested_fix="Add an entry for this scenario to gherkin-bindings.json",
                 )
             )
 
@@ -145,11 +120,12 @@ def validate_phase_2(paths: dict) -> tuple:
     for key in bindings:
         if key.lower() not in scenario_titles_lower:
             warnings.append(
-                _warning(
-                    str(paths["bindings_json"]),
-                    0,
-                    f"Binding key '{key}' in gherkin-bindings.json does not match any Scenario in .feature files",
-                    "Remove orphaned binding or add matching Scenario to a .feature file",
+                make_issue(
+                    "warning",
+                    file=str(paths["bindings_json"]),
+                    line=0,
+                    message=f"Binding key '{key}' in gherkin-bindings.json does not match any Scenario in .feature files",
+                    suggested_fix="Remove orphaned binding or add matching Scenario to a .feature file",
                 )
             )
 
@@ -179,15 +155,23 @@ def validate_phase_3(paths: dict) -> tuple:
         entries = json.loads(disabled_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         errors.append(
-            _error(
-                str(disabled_path), 0, f"disabled-tests.json is not valid JSON: {exc}"
+            make_issue(
+                "error",
+                file=str(disabled_path),
+                line=0,
+                message=f"disabled-tests.json is not valid JSON: {exc}",
             )
         )
         return errors, warnings
 
     if not isinstance(entries, list):
         errors.append(
-            _error(str(disabled_path), 0, "disabled-tests.json must be a JSON array")
+            make_issue(
+                "error",
+                file=str(disabled_path),
+                line=0,
+                message="disabled-tests.json must be a JSON array",
+            )
         )
         return errors, warnings
 
@@ -195,20 +179,22 @@ def validate_phase_3(paths: dict) -> tuple:
         test_name = entry.get("test", f"entry[{i}]")
         if "reason" not in entry:
             errors.append(
-                _error(
-                    str(disabled_path),
-                    0,
-                    f"Entry '{test_name}' missing required field 'reason'",
-                    "Add a 'reason' field drawn from the cannot-fail taxonomy",
+                make_issue(
+                    "error",
+                    file=str(disabled_path),
+                    line=0,
+                    message=f"Entry '{test_name}' missing required field 'reason'",
+                    suggested_fix="Add a 'reason' field drawn from the cannot-fail taxonomy",
                 )
             )
         if "skip_tag" not in entry:
             errors.append(
-                _error(
-                    str(disabled_path),
-                    0,
-                    f"Entry '{test_name}' missing required field 'skip_tag'",
-                    "Add a 'skip_tag' field (e.g. '@skip-foo')",
+                make_issue(
+                    "error",
+                    file=str(disabled_path),
+                    line=0,
+                    message=f"Entry '{test_name}' missing required field 'skip_tag'",
+                    suggested_fix="Add a 'skip_tag' field (e.g. '@skip-foo')",
                 )
             )
 
@@ -248,11 +234,12 @@ def validate_phase_4(paths: dict) -> tuple:
     # Need phase-3 for baseline
     if not phase3_path.exists():
         errors.append(
-            _error(
-                str(phase3_path),
-                0,
-                f"phase-3.md not found at {phase3_path} — cannot establish baseline for phase-4 comparison",
-                "Ensure phase 3 was completed and phase-3.md contains a Coverage line",
+            make_issue(
+                "error",
+                file=str(phase3_path),
+                line=0,
+                message=f"phase-3.md not found at {phase3_path} — cannot establish baseline for phase-4 comparison",
+                suggested_fix="Ensure phase 3 was completed and phase-3.md contains a Coverage line",
             )
         )
         return errors, warnings
@@ -261,11 +248,12 @@ def validate_phase_4(paths: dict) -> tuple:
     baseline = parse_coverage_number(baseline_text)
     if baseline is None:
         errors.append(
-            _error(
-                str(phase3_path),
-                0,
-                "Could not parse coverage baseline from phase-3.md",
-                "Add a line like 'Coverage: 80%' to phase-3.md",
+            make_issue(
+                "error",
+                file=str(phase3_path),
+                line=0,
+                message="Could not parse coverage baseline from phase-3.md",
+                suggested_fix="Add a line like 'Coverage: 80%' to phase-3.md",
             )
         )
         return errors, warnings
@@ -274,11 +262,12 @@ def validate_phase_4(paths: dict) -> tuple:
     current = parse_coverage_number(current_text)
     if current is None:
         errors.append(
-            _error(
-                str(phase4_path),
-                0,
-                "Could not parse current coverage from phase-4.md",
-                "Add a line like 'Coverage: 82%' to phase-4.md",
+            make_issue(
+                "error",
+                file=str(phase4_path),
+                line=0,
+                message="Could not parse current coverage from phase-4.md",
+                suggested_fix="Add a line like 'Coverage: 82%' to phase-4.md",
             )
         )
         return errors, warnings
@@ -286,12 +275,13 @@ def validate_phase_4(paths: dict) -> tuple:
     if current < baseline:
         delta = baseline - current
         errors.append(
-            _error(
-                str(phase4_path),
-                0,
-                f"Coverage regression: phase-4 reports {current}% but phase-3 baseline was {baseline}% "
+            make_issue(
+                "error",
+                file=str(phase4_path),
+                line=0,
+                message=f"Coverage regression: phase-4 reports {current}% but phase-3 baseline was {baseline}% "
                 f"(delta: -{delta:.1f}%)",
-                "Add tests to recover the coverage regression before advancing",
+                suggested_fix="Add tests to recover the coverage regression before advancing",
             )
         )
 
@@ -348,11 +338,12 @@ def validate_phase_5(paths: dict) -> tuple:
         mv_match = measured_re.search(block_body)
         if not mv_match:
             errors.append(
-                _error(
-                    str(phase5_path),
-                    0,
-                    f"Quality target '{target_name}' missing required field 'measured_value'",
-                    "Add 'measured_value: <N>' to the target block",
+                make_issue(
+                    "error",
+                    file=str(phase5_path),
+                    line=0,
+                    message=f"Quality target '{target_name}' missing required field 'measured_value'",
+                    suggested_fix="Add 'measured_value: <N>' to the target block",
                 )
             )
             continue
@@ -368,12 +359,13 @@ def validate_phase_5(paths: dict) -> tuple:
                 na_match = next_action_re.search(block_body)
                 if not na_match:
                     errors.append(
-                        _error(
-                            str(phase5_path),
-                            0,
-                            f"Quality target '{target_name}' has measured_value {measured} below "
+                        make_issue(
+                            "error",
+                            file=str(phase5_path),
+                            line=0,
+                            message=f"Quality target '{target_name}' has measured_value {measured} below "
                             f"threshold {threshold} but is missing 'next_action'",
-                            "Add 'next_action: <description>' to explain how the gap will be closed",
+                            suggested_fix="Add 'next_action: <description>' to explain how the gap will be closed",
                         )
                     )
 
@@ -450,11 +442,12 @@ def main() -> int:
     if not phase_md.exists():
         result = build_result(
             errors=[
-                _error(
-                    str(phase_md),
-                    0,
-                    f"phase artifact not found at {phase_md}",
-                    f"Run phase {args.phase} of /test-modernize to create this file",
+                make_issue(
+                    "error",
+                    file=str(phase_md),
+                    line=0,
+                    message=f"phase artifact not found at {phase_md}",
+                    suggested_fix=f"Run phase {args.phase} of /test-modernize to create this file",
                 )
             ],
             warnings=[],

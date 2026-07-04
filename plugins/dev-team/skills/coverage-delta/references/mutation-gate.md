@@ -6,7 +6,7 @@ This file holds the implementation detail of Step 2b so the SKILL.md stays a thi
 
 ## Baseline-of-record per file
 
-For each file in `--story-files`, the baseline is the most recent entry in `memory/test-modernize/<slug>/mutation-history.json` for that file. Lookup procedure:
+For each file in `--story-files`, the baseline is the most recent entry in `memory/<workflow>/<slug>/mutation-history.json` for that file (with `<workflow>` resolved from the calling orchestrator's `--workflow` value — e.g. `test-improve`). Lookup procedure:
 
 1. Read `mutation-history.json` (if absent, every file is `first_measurement`).
 2. For each file `F`, filter entries where `entry.file == F`; pick the entry with the largest `captured_at` (ISO-8601 lexicographic sort).
@@ -37,7 +37,7 @@ After computing `survivors_after`, classify each file:
 `mutation-history.json` is written via temp-file-then-rename to keep parallel `/coverage-delta` writes from interleaving:
 
 ```bash
-HISTORY="memory/test-modernize/<slug>/mutation-history.json"
+HISTORY="memory/<workflow>/<slug>/mutation-history.json"
 TMP="$(mktemp "${HISTORY}.XXXXXX")"
 jq '. + [$new]' --argjson new "$NEW_ENTRY" "$HISTORY" > "$TMP" && mv -f "$TMP" "$HISTORY"
 ```
@@ -67,4 +67,4 @@ When the step is skipped (no `--story-files`), the block is `{"status": "ok", "m
 
 ## Worker/policy boundary
 
-The worker never halts on a status value. The exit code is `0` on every status above (including `net_new_survivors`) and non-zero ONLY on tool execution failure. The orchestrator (`/test-modernize` Phase 4) reads `status` from the result block and decides whether to pause Story close. This is the worker/policy separation `plugins/dev-team/CLAUDE.md` describes — measurement here, policy upstream.
+The worker never halts on a status value. The exit code is `0` on every status above (including `net_new_survivors`) and non-zero ONLY on tool execution failure. The orchestrator (`/test-improve` Phase 4) reads `status` from the result block and decides whether to pause Story close (typically via the `mutation-kill` agent's `[c/r/w/q]` prompt). This is the worker/policy separation `plugins/dev-team/CLAUDE.md` describes — measurement here, policy upstream.

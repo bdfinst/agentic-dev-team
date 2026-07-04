@@ -39,4 +39,4 @@ cp "${REPO_ROOT}/plugins/marketplace-dev/knowledge/agent-type-decision-rules.md"
 
 # GitHub Pages custom domain — published to the gh-pages root so GitHub binds it.
 # Must match the host in mkdocs.yml site_url.
-printf 'docs.bryanfinster.com\n' > "${OUT}/CNAME"
+printf 'devteam.bryanfinster.com\n' > "${OUT}/CNAME"

@@ -18,6 +18,8 @@ metrics/session-digest.jsonl
 metrics/telemetry.jsonl
 # Per-checkpoint review-value meter (runtime data; counts-only — #348)
 metrics/review-value.jsonl
+# Per-slice /verify evidence log (runtime data; counts-only — #727)
+metrics/verify-log.jsonl
 
 # Effort-band model routing (per-user, never checked in)
 # - ladder: optional ordered model list (.claude/model-ladder.json), hand-written by users behind restricted endpoints
@@ -76,6 +78,8 @@ memory/_*.sh
 
 # Runtime report output (ad-hoc competitive / comparative analyses)
 reports/
+# …but keep parity-fixture reports (see #574 / #572).
+!plugins/dev-team/tests/hooks/parity/fixtures/**/reports/
 
 # Scratch files
 xx

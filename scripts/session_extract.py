@@ -83,7 +83,7 @@ def _strip_ns(name: str) -> str:
     `agentic-dev-team:plan` -> `plan`; other names pass through."""
     for prefix in ("agentic-dev-team:", "dev-team:"):
         if name.startswith(prefix):
-            return name[len(prefix):]
+            return name[len(prefix) :]
     return name
 
 
@@ -131,9 +131,12 @@ def _cost(usage: dict, rate: dict, pricing: dict) -> float:
     cw = usage.get("cache_creation_input_tokens", 0) or 0
     cr = usage.get("cache_read_input_tokens", 0) or 0
     ir = rate.get("input", 0)
-    return (inp / 1e6 * ir + out / 1e6 * rate.get("output", 0)
-            + cw / 1e6 * ir * pricing.get("cache_write_multiplier", 1.25)
-            + cr / 1e6 * ir * pricing.get("cache_read_multiplier", 0.1))
+    return (
+        inp / 1e6 * ir
+        + out / 1e6 * rate.get("output", 0)
+        + cw / 1e6 * ir * pricing.get("cache_write_multiplier", 1.25)
+        + cr / 1e6 * ir * pricing.get("cache_read_multiplier", 0.1)
+    )
 
 
 def _iter_records(paths: list[Path]):
@@ -152,26 +155,211 @@ def _iter_records(paths: list[Path]):
                 continue
 
 
+def _accumulate_token_signals(
+    usage: dict,
+    model,
+    skill,
+    is_sidechain: bool,
+    pricing: dict,
+    tokens_total: Counter,
+    by_model: "dict[str, Counter]",
+    by_skill: "dict[str, Counter]",
+    by_subagent: Counter,
+) -> float:
+    """Token-accounting concern: usage/cost totals split by model, skill, and
+    main-thread vs sidechain. Returns this record's cost (added to the running
+    cost_total by the caller)."""
+    by_subagent["sidechain" if is_sidechain else "main"] += 1
+    fields = (
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+    )
+    cost = _cost(usage, _rate(pricing, model or ""), pricing)
+    for f in fields:
+        v = usage.get(f, 0) or 0
+        tokens_total[f] += v
+        if model:
+            by_model[model][f] += v
+        if skill:
+            by_skill[skill][f] += v
+    if model:
+        by_model[model]["cost_micro"] += round(cost * 1e6)
+    if skill:
+        by_skill[skill]["cost_micro"] += round(cost * 1e6)
+    return cost
+
+
+def _accumulate_skill_agent_signals(
+    skill,
+    content,
+    skills_invoked: Counter,
+    agents_invoked: Counter,
+    active: "dict[str, str | None]",
+) -> None:
+    """Skill/agent-detection concern. `skill` is the legacy attributionSkill
+    tag (kept as a fallback — real transcripts don't emit it, #182);
+    `content`'s tool_use blocks are the primary signal: the Skill tool and the
+    Agent/Task tool that actually invoke them (#182). `active` tracks the
+    most-recently-invoked skill/agent (#711), sticky until superseded, for the
+    correction-turn concern to attribute against."""
+    if skill:
+        skills_invoked[skill] += 1
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            continue
+        name = block.get("name", "?")
+        inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
+        if name == "Skill":
+            s = inp.get("skill") or inp.get("name")
+            if isinstance(s, str) and s:
+                skills_invoked[_strip_ns(s)] += 1
+                active["skill"] = _strip_ns(s)
+        elif name in ("Agent", "Task"):
+            a = inp.get("subagent_type")
+            if isinstance(a, str) and a:
+                agents_invoked[_strip_ns(a)] += 1
+                active["agent"] = _strip_ns(a)
+
+
+def _track_tool_call(
+    block: dict, pending_tool: "dict[str, str]", tool_calls: Counter
+) -> None:
+    """Error-classification bookkeeping: count every tool invocation (the
+    error-rate denominator) and remember its id -> name so a later
+    tool_result can be attributed back to the tool that produced it."""
+    name = block.get("name", "?")
+    tool_calls[name] += 1
+    bid = block.get("id")
+    if bid:
+        pending_tool[bid] = name
+
+
+def _classify_tool_result(
+    block: dict,
+    pending_tool: "dict[str, str]",
+    tool_errors: Counter,
+    error_counts: Counter,
+) -> None:
+    """Error-classification concern: tally errors by tool, and detect the two
+    rework sub-signals (failed edits via old_string mismatches, and
+    permission denials) from a tool_result block."""
+    if not block.get("is_error"):
+        return
+    bid = block.get("tool_use_id")
+    tool_name = pending_tool.get(bid, "?")
+    tool_errors[tool_name] += 1
+    rcontent = _text_of(block.get("content"))
+    if tool_name in _EDIT_TOOLS and _OLDSTRING_RE.search(rcontent):
+        error_counts["failed_edits"] += 1
+    if _PERMISSION_RE.search(rcontent):
+        error_counts["permission_denials"] += 1
+
+
+def _track_edit(
+    block: dict, sid, edits_per_file: Counter, verify_edited_since: "dict[str, bool]"
+) -> None:
+    """Edit-tracking concern: count Edit/Write/... calls per file basename,
+    so repeated edits to the same file (a rework signal) can be derived. Also
+    marks this session's pending stuck-verify-loop streak (#708) as
+    consumed — an edit resets it, same as verify_guard.py's own reset."""
+    name = block.get("name", "?")
+    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
+    if name in _EDIT_TOOLS and inp.get("file_path"):
+        edits_per_file[os.path.basename(str(inp["file_path"]))] += 1
+    if name in _EDIT_TOOLS:
+        verify_edited_since[str(sid or "")] = True
+
+
+def _track_bash(
+    block: dict,
+    sid,
+    bash_commands: Counter,
+    bash_signal_counts: Counter,
+    last_verify_norm: "dict[str, str]",
+    verify_edited_since: "dict[str, bool]",
+) -> None:
+    """Bash-retry / commit-bypass / stuck-verify-loop concern (#111, #708):
+    normalize the command for near-identical retry detection, detect a
+    stuck-verify-loop repeat (the same normalized verify command run again
+    with no Edit/Write/... call since the previous run in this session), and
+    detect the review-gate bypass signal on `git commit` invocations."""
+    name = block.get("name", "?")
+    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
+    if name != "Bash" or not isinstance(inp.get("command"), str):
+        return
+    cmd = inp["command"].strip()
+    # near-identical retry detection: normalize whitespace
+    norm = re.sub(r"\s+", " ", cmd)
+    bash_commands[norm] += 1
+    if _VERIFY_RE.search(cmd):
+        skey = str(sid or "")
+        if last_verify_norm.get(skey) == norm and not verify_edited_since.get(
+            skey, False
+        ):
+            bash_signal_counts["repeated_verify_runs"] += 1
+        last_verify_norm[skey] = norm
+        verify_edited_since[skey] = False
+    # gate signal (#111): commit + review-gate bypass
+    if _COMMIT_RE.search(cmd):
+        bash_signal_counts["commit_attempts"] += 1
+        if _BYPASS_RE.search(cmd):
+            bash_signal_counts["commit_bypasses"] += 1
+
+
+def _detect_correction_turn(rec: dict, content) -> bool:
+    """Correction-turn concern: a real user message (not a tool_result
+    envelope) containing a correction keyword ("no", "actually", "revert",
+    ...)."""
+    if rec.get("type") != "user" or rec.get("isMeta"):
+        return False
+    utext = _text_of(content)
+    if not utext:
+        return False
+    # skip pure tool_result envelopes (no free-text user prompt)
+    if isinstance(content, list) and all(
+        isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+    ):
+        return False
+    return bool(_CORRECTION_RE.search(utext.lower()))
+
+
+def _slim(d: dict) -> dict:
+    return {k: dict(sorted(v.items())) for k, v in sorted(d.items())}
+
+
 def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
     tokens_total = Counter()
     cost_total = 0.0
     by_model: dict[str, Counter] = defaultdict(Counter)
     by_skill: dict[str, Counter] = defaultdict(Counter)
-    by_subagent = Counter()        # main-thread vs sidechain message counts
+    by_subagent = Counter()  # main-thread vs sidechain message counts
     sessions: set[str] = set()
 
     # rework / accuracy
-    failed_edits = 0
     edits_per_file = Counter()
     bash_commands = Counter()
-    verify_runs = 0
-    permission_denials = 0
+    # repeated_verify_runs (#708): mirrors verify_guard.py's own stuck-loop
+    # detection — a "repeat" is the same normalized verify command run again
+    # with NO Edit/Write/NotebookEdit/MultiEdit call since the previous verify
+    # run in the same session (NOT a raw tally of every verify-class command,
+    # despite the metric's pre-#708 name — that raw tally double-counted the
+    # ordinary RED/GREEN/REFACTOR re-run of the same command after a real
+    # edit). Tracked per-session so interleaved transcripts (--all-projects)
+    # don't cross-contaminate each other's state.
+    last_verify_norm: dict[str, str] = {}
+    verify_edited_since: dict[str, bool] = {}
+    bash_signal_counts = Counter()  # repeated_verify_runs, commit_attempts/bypasses
+    error_counts = Counter()  # failed_edits, permission_denials
     compaction_events = 0
-    commit_attempts = 0            # gate (#111): git commit invocations
-    commit_bypasses = 0            # gate (#111): commits that bypassed review
-    tool_errors = Counter()        # by tool name
-    tool_calls = Counter()         # by tool name (for ratios)
+    tool_errors = Counter()  # by tool name
+    tool_calls = Counter()  # by tool name (for ratios)
     correction_turns = 0
+    correction_by_skill = Counter()  # #711: correction attribution
+    correction_by_agent = Counter()
 
     # utilization
     skills_invoked = Counter()
@@ -179,6 +367,11 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
 
     # map tool_use id -> tool name, to attribute tool_result errors back
     pending_tool: dict[str, str] = {}
+    # #711: most-recently-invoked Skill/Agent on the main thread, sticky until
+    # superseded — used to attribute a correction turn to the artifact active
+    # when it happened. No "skill ended" event exists in the transcript
+    # format, so "most recent invocation" is the only signal available.
+    active: dict[str, str | None] = {"skill": None, "agent": None}
 
     for rec in _iter_records(paths):
         sid = rec.get("sessionId") or rec.get("session_id")
@@ -191,101 +384,76 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
         # Agent tool_use below. Kept here only as a fallback for records that do
         # carry it (and per-skill token attribution via by_skill).
         skill = rec.get("attributionSkill") or rec.get("attribution_skill")
-        if skill:
-            skills_invoked[skill] += 1
 
         # compaction markers
-        if (rtype in ("compaction", "summary") or rec.get("isCompactSummary")
-                or rec.get("compactMetadata")):
+        if (
+            rtype in ("compaction", "summary")
+            or rec.get("isCompactSummary")
+            or rec.get("compactMetadata")
+        ):
             compaction_events += 1
 
         msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
-        usage = msg.get("usage") if isinstance(msg.get("usage"), dict) else \
-            (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
+        usage = (
+            msg.get("usage")
+            if isinstance(msg.get("usage"), dict)
+            else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
+        )
         model = msg.get("model") or rec.get("model")
 
         if usage:
-            by_subagent["sidechain" if is_sidechain else "main"] += 1
-            fields = ("input_tokens", "output_tokens",
-                      "cache_creation_input_tokens", "cache_read_input_tokens")
-            cost = _cost(usage, _rate(pricing, model or ""), pricing)
-            cost_total += cost
-            for f in fields:
-                v = usage.get(f, 0) or 0
-                tokens_total[f] += v
-                if model:
-                    by_model[model][f] += v
-                if skill:
-                    by_skill[skill][f] += v
-            if model:
-                by_model[model]["cost_micro"] += round(cost * 1e6)
-            if skill:
-                by_skill[skill]["cost_micro"] += round(cost * 1e6)
+            cost_total += _accumulate_token_signals(
+                usage,
+                model,
+                skill,
+                is_sidechain,
+                pricing,
+                tokens_total,
+                by_model,
+                by_skill,
+                by_subagent,
+            )
+
+        content = msg.get("content")
+        _accumulate_skill_agent_signals(
+            skill, content, skills_invoked, agents_invoked, active
+        )
 
         # walk content blocks for tool_use / tool_result
-        content = msg.get("content")
         if isinstance(content, list):
             for block in content:
                 if not isinstance(block, dict):
                     continue
                 btype = block.get("type")
                 if btype == "tool_use":
-                    name = block.get("name", "?")
-                    tool_calls[name] += 1
-                    bid = block.get("id")
-                    if bid:
-                        pending_tool[bid] = name
-                    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-                    # Utilization (#182): the harness never records attributionSkill,
-                    # so skill/agent invocations are read from the tool_use that
-                    # actually invokes them — the Skill tool and the Agent/Task tool.
-                    if name == "Skill":
-                        s = inp.get("skill") or inp.get("name")
-                        if isinstance(s, str) and s:
-                            skills_invoked[_strip_ns(s)] += 1
-                    elif name in ("Agent", "Task"):
-                        a = inp.get("subagent_type")
-                        if isinstance(a, str) and a:
-                            agents_invoked[_strip_ns(a)] += 1
-                    if name in _EDIT_TOOLS and inp.get("file_path"):
-                        edits_per_file[os.path.basename(str(inp["file_path"]))] += 1
-                    if name == "Bash" and isinstance(inp.get("command"), str):
-                        cmd = inp["command"].strip()
-                        # near-identical retry detection: normalize whitespace
-                        norm = re.sub(r"\s+", " ", cmd)
-                        bash_commands[norm] += 1
-                        if _VERIFY_RE.search(cmd):
-                            verify_runs += 1
-                        # gate signal (#111): commit + review-gate bypass
-                        if _COMMIT_RE.search(cmd):
-                            commit_attempts += 1
-                            if _BYPASS_RE.search(cmd):
-                                commit_bypasses += 1
+                    _track_tool_call(block, pending_tool, tool_calls)
+                    _track_edit(block, sid, edits_per_file, verify_edited_since)
+                    _track_bash(
+                        block,
+                        sid,
+                        bash_commands,
+                        bash_signal_counts,
+                        last_verify_norm,
+                        verify_edited_since,
+                    )
                 elif btype == "tool_result":
-                    bid = block.get("tool_use_id")
-                    tool_name = pending_tool.get(bid, "?")
-                    rcontent = _text_of(block.get("content"))
-                    if block.get("is_error"):
-                        tool_errors[tool_name] += 1
-                        if tool_name in _EDIT_TOOLS and _OLDSTRING_RE.search(rcontent):
-                            failed_edits += 1
-                        if _PERMISSION_RE.search(rcontent):
-                            permission_denials += 1
+                    _classify_tool_result(
+                        block, pending_tool, tool_errors, error_counts
+                    )
 
-        # user-correction turns (real user messages only, not tool_results)
-        if rtype == "user" and not rec.get("isMeta"):
-            utext = _text_of(content)
-            # skip pure tool_result envelopes (no free-text user prompt)
-            if utext and not (isinstance(content, list)
-                              and all(isinstance(b, dict)
-                                      and b.get("type") == "tool_result"
-                                      for b in content)):
-                if _CORRECTION_RE.search(utext.lower()):
-                    correction_turns += 1
+        if _detect_correction_turn(rec, content):
+            correction_turns += 1
+            correction_by_skill[active["skill"] or "unattributed"] += 1
+            correction_by_agent[active["agent"] or "unattributed"] += 1
 
     # repeated edits / retried bash (>1 occurrence)
     repeated_file_edits = {f: n for f, n in edits_per_file.items() if n > 1}
     retried_bash = sum(n - 1 for n in bash_commands.values() if n > 1)
+    failed_edits = error_counts["failed_edits"]
+    permission_denials = error_counts["permission_denials"]
+    repeated_verify_runs = bash_signal_counts["repeated_verify_runs"]
+    commit_attempts = bash_signal_counts["commit_attempts"]
+    commit_bypasses = bash_signal_counts["commit_bypasses"]
 
     # never-observed registry items
     reg_skills = set(registry.get("skills", []))
@@ -299,9 +467,6 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
 
     total_errors = sum(tool_errors.values())
     total_calls = sum(tool_calls.values())
-
-    def _slim(d: dict) -> dict:
-        return {k: dict(sorted(v.items())) for k, v in sorted(d.items())}
 
     return {
         "schema": "session-digest/v1",
@@ -318,20 +483,26 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
             "failed_edits": failed_edits,
             "repeated_file_edits": dict(sorted(repeated_file_edits.items())),
             "retried_bash_commands": retried_bash,
-            "repeated_verify_runs": verify_runs,
+            "repeated_verify_runs": repeated_verify_runs,
             "permission_denials": permission_denials,
             "compaction_events": compaction_events,
         },
         "accuracy": {
             "tool_errors_by_tool": dict(sorted(tool_errors.items())),
             "tool_calls": total_calls,
-            "tool_error_rate": round(total_errors / total_calls, 4) if total_calls else 0.0,
+            "tool_error_rate": round(total_errors / total_calls, 4)
+            if total_calls
+            else 0.0,
             "user_correction_turns": correction_turns,
+            "by_skill": dict(sorted(correction_by_skill.items())),
+            "by_agent": dict(sorted(correction_by_agent.items())),
         },
         "gate": {
             "commit_attempts": commit_attempts,
             "commit_bypasses": commit_bypasses,
-            "bypass_rate": round(commit_bypasses / commit_attempts, 4) if commit_attempts else 0.0,
+            "bypass_rate": round(commit_bypasses / commit_attempts, 4)
+            if commit_attempts
+            else 0.0,
         },
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),
@@ -345,6 +516,7 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
 # --------------------------------------------------------------------------
 # Transcript-directory resolution.
 # --------------------------------------------------------------------------
+
 
 def resolve_transcripts(args) -> list[Path]:
     """Robustly find the current project's transcript files.
@@ -417,8 +589,9 @@ def _project_and_ts(path: Path) -> tuple[str, str]:
     return project or "unknown", last_ts
 
 
-def sync_record(digest: dict, host: str, project: str,
-                session_id: str, ts: str) -> dict:
+def sync_record(
+    digest: dict, host: str, project: str, session_id: str, ts: str
+) -> dict:
     """One per-session, metrics-only record for cross-machine aggregation (#178).
 
     Identity (host / project basename / session_id / ts) plus the slim metric
@@ -426,9 +599,11 @@ def sync_record(digest: dict, host: str, project: str,
     file names, paths, prompts, or code — same privacy boundary as the digest."""
     base = slim_record(digest)
     tok = digest.get("token", {})
+    acc = digest.get("accuracy", {})
     util = digest.get("utilization", {})
-    by_model = {m: dict(sorted(v.items()))
-                for m, v in sorted(tok.get("by_model", {}).items())}
+    by_model = {
+        m: dict(sorted(v.items())) for m, v in sorted(tok.get("by_model", {}).items())
+    }
     return {
         "schema": "session-sync/v1",
         "host": host,
@@ -443,7 +618,14 @@ def sync_record(digest: dict, host: str, project: str,
         "by_model": by_model,
         "by_thread": tok.get("by_subagent", {}),
         "rework": base["rework"],
-        "accuracy": base["accuracy"],
+        # #711: by_skill/by_agent correction attribution comes from the FULL
+        # digest (not slim_record, which deliberately drops per-name maps) —
+        # same pattern already used above for by_thread.
+        "accuracy": {
+            **base["accuracy"],
+            "by_skill": dict(sorted(acc.get("by_skill", {}).items())),
+            "by_agent": dict(sorted(acc.get("by_agent", {}).items())),
+        },
         "gate": base["gate"],
         # Utilization carries the invoked NAME maps (registry ids, non-sensitive),
         # not slim counts, so a cross-host rollup can compute which skills/agents
@@ -474,8 +656,11 @@ def cmd_sync(args, pricing: dict, registry: dict, host: str) -> int:
     host digest file. The watermark dedups by session_id + byte size, so re-runs
     re-emit only changed sessions and skip everything else."""
     out = Path(args.sync_out)
-    wm_path = Path(args.watermark) if args.watermark else (
-        Path.home() / ".claude" / ".dev-team" / "telemetry-sync.json")
+    wm_path = (
+        Path(args.watermark)
+        if args.watermark
+        else (Path.home() / ".claude" / ".dev-team" / "telemetry-sync.json")
+    )
     wm = _load_watermark(wm_path)
     synced = wm["synced"]
 
@@ -507,8 +692,9 @@ def cmd_sync(args, pricing: dict, registry: dict, host: str) -> int:
 
     wm_path.parent.mkdir(parents=True, exist_ok=True)
     wm_path.write_text(json.dumps(wm, indent=2, sort_keys=True) + "\n")
-    print(f"synced {emitted} new/changed session(s) of {len(paths)} considered "
-          f"-> {out}")
+    print(
+        f"synced {emitted} new/changed session(s) of {len(paths)} considered -> {out}"
+    )
     return 0
 
 
@@ -538,6 +724,8 @@ def rollup(digests_root: Path, registry: dict) -> dict:
     tool_calls = 0
     err_weighted = 0.0
     corrections = 0
+    correction_by_skill = Counter()  # #711
+    correction_by_agent = Counter()
     skills_invoked = Counter()
     agents_invoked = Counter()
     by_host: dict[str, Counter] = defaultdict(Counter)
@@ -549,8 +737,12 @@ def rollup(digests_root: Path, registry: dict) -> dict:
         hosts.add(host)
         projects.add(project)
         t = r.get("tokens", {}) if isinstance(r.get("tokens"), dict) else {}
-        for k in ("input_tokens", "output_tokens",
-                  "cache_creation_input_tokens", "cache_read_input_tokens"):
+        for k in (
+            "input_tokens",
+            "output_tokens",
+            "cache_creation_input_tokens",
+            "cache_read_input_tokens",
+        ):
             tok[k] += t.get(k, 0) or 0
         cr += t.get("cache_read_input_tokens", 0) or 0
         cc += t.get("cache_creation_input_tokens", 0) or 0
@@ -570,11 +762,22 @@ def rollup(digests_root: Path, registry: dict) -> dict:
         tool_calls += n
         err_weighted += (acc.get("tool_error_rate", 0.0) or 0.0) * n
         corrections += acc.get("user_correction_turns", 0) or 0
+        for name, k in (acc.get("by_skill", {}) or {}).items():
+            correction_by_skill[name] += k
+        for name, k in (acc.get("by_agent", {}) or {}).items():
+            correction_by_agent[name] += k
         u = r.get("utilization", {}) if isinstance(r.get("utilization"), dict) else {}
+        # Re-strip namespace prefixes at rollup time too: historical per-session
+        # digests may have been written before `_strip_ns` existed (or before a
+        # given prefix was added to its known list), so a raw `agentic-dev-team:x`
+        # key can coexist with an already-stripped `x` key across different hosts'
+        # digest files. Without renormalizing here, `x` is undercounted and can
+        # wrongly surface in never_observed_* even though it was actually invoked
+        # (#712).
         for name, k in (u.get("skills_invoked", {}) or {}).items():
-            skills_invoked[name] += k
+            skills_invoked[_strip_ns(name)] += k
         for name, k in (u.get("agents_invoked", {}) or {}).items():
-            agents_invoked[name] += k
+            agents_invoked[_strip_ns(name)] += k
 
     never_skills = sorted(set(registry.get("skills", [])) - set(skills_invoked))
     never_agents = sorted(set(registry.get("agents", [])) - set(agents_invoked))
@@ -595,8 +798,12 @@ def rollup(digests_root: Path, registry: dict) -> dict:
         "rework": dict(sorted(rew.items())),
         "accuracy": {
             "tool_calls": tool_calls,
-            "tool_error_rate": round(err_weighted / tool_calls, 4) if tool_calls else 0.0,
+            "tool_error_rate": round(err_weighted / tool_calls, 4)
+            if tool_calls
+            else 0.0,
             "user_correction_turns": corrections,
+            "by_skill": dict(sorted(correction_by_skill.items())),
+            "by_agent": dict(sorted(correction_by_agent.items())),
         },
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),
@@ -610,8 +817,18 @@ def rollup(digests_root: Path, registry: dict) -> dict:
 def cmd_rollup(args, registry: dict) -> int:
     root = Path(args.rollup)
     if not root.is_dir():
-        print(json.dumps({"schema": "telemetry-rollup/v1", "sessions": 0,
-                          "hosts": [], "projects": []}, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "schema": "telemetry-rollup/v1",
+                    "sessions": 0,
+                    "hosts": [],
+                    "projects": [],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     out = json.dumps(rollup(root, registry), indent=2, sort_keys=True)
     if args.out:
@@ -631,8 +848,14 @@ def cmd_rollup(args, registry: dict) -> int:
 # whether that gate earns its place.
 # --------------------------------------------------------------------------
 
-_REWORK_KEYS = ("failed_edits", "repeated_file_edits", "retried_bash_commands",
-                "repeated_verify_runs", "permission_denials", "compaction_events")
+_REWORK_KEYS = (
+    "failed_edits",
+    "repeated_file_edits",
+    "retried_bash_commands",
+    "repeated_verify_runs",
+    "permission_denials",
+    "compaction_events",
+)
 
 
 def _session_rework(rec: dict) -> int:
@@ -658,8 +881,11 @@ def correlate_gate_rework(digests_root: Path) -> dict:
         gate = rec.get("gate", {}) if isinstance(rec.get("gate"), dict) else {}
         if int(gate.get("commit_attempts", 0) or 0) <= 0:
             continue  # only sessions that actually committed are comparable
-        (bypass_rework if int(gate.get("commit_bypasses", 0) or 0) > 0
-         else clean_rework).append(_session_rework(rec))
+        (
+            bypass_rework
+            if int(gate.get("commit_bypasses", 0) or 0) > 0
+            else clean_rework
+        ).append(_session_rework(rec))
 
     def _mean(xs):
         return round(sum(xs) / len(xs), 4) if xs else 0.0
@@ -668,11 +894,15 @@ def correlate_gate_rework(digests_root: Path) -> dict:
     if not bypass_rework or not clean_rework:
         interp = "insufficient data — need committing sessions in BOTH groups"
     elif mb > mc:
-        interp = ("bypassing the review gate correlates with MORE rework "
-                  f"({mb} vs {mc}) — evidence the gate guards real risk")
+        interp = (
+            "bypassing the review gate correlates with MORE rework "
+            f"({mb} vs {mc}) — evidence the gate guards real risk"
+        )
     elif mb < mc:
-        interp = ("bypassing correlates with LESS rework "
-                  f"({mb} vs {mc}) — the gate may be ceremony for these cases")
+        interp = (
+            "bypassing correlates with LESS rework "
+            f"({mb} vs {mc}) — the gate may be ceremony for these cases"
+        )
     else:
         interp = "no difference in rework between bypass and non-bypass sessions"
 
@@ -689,9 +919,15 @@ def correlate_gate_rework(digests_root: Path) -> dict:
 
 def cmd_correlate(args) -> int:
     root = Path(args.correlate)
-    result = (correlate_gate_rework(root) if root.is_dir()
-              else {"schema": "gate-correlation/v1", "committing_sessions": 0,
-                    "interpretation": "no digests directory"})
+    result = (
+        correlate_gate_rework(root)
+        if root.is_dir()
+        else {
+            "schema": "gate-correlation/v1",
+            "committing_sessions": 0,
+            "interpretation": "no digests directory",
+        }
+    )
     out = json.dumps(result, indent=2, sort_keys=True)
     if args.out:
         Path(args.out).write_text(out + "\n")
@@ -718,17 +954,22 @@ def cost_log(digests_root: Path) -> list[dict]:
             sid = rec.get("session_id")
             if sid:
                 by_id[str(sid)] = rec  # last write wins -> dedup on session_id
-    recs = sorted(by_id.values(),
-                  key=lambda r: (r.get("ts") or "", str(r.get("session_id"))))
-    return [{"ts": r.get("ts"),
-             "total": {"cost_usd": r.get("cost_usd", 0.0) or 0.0}}
-            for r in recs]
+    recs = sorted(
+        by_id.values(), key=lambda r: (r.get("ts") or "", str(r.get("session_id")))
+    )
+    return [
+        {"ts": r.get("ts"), "total": {"cost_usd": r.get("cost_usd", 0.0) or 0.0}}
+        for r in recs
+    ]
 
 
 def cmd_cost_log(args) -> int:
     root = Path(args.cost_log)
-    lines = ("\n".join(json.dumps(rec, sort_keys=True) for rec in cost_log(root))
-             if root.is_dir() else "")
+    lines = (
+        "\n".join(json.dumps(rec, sort_keys=True) for rec in cost_log(root))
+        if root.is_dir()
+        else ""
+    )
     if args.out:
         Path(args.out).write_text(lines + ("\n" if lines else ""))
     elif lines:
@@ -759,19 +1000,28 @@ _FRICTION_SIGNALS = [
 ]
 
 
-def _lever_for(rate: float, matchable: bool,
-               rare_rate: float, frequent_rate: float) -> tuple[str, str]:
+def _lever_for(
+    rate: float, matchable: bool, rare_rate: float, frequent_rate: float
+) -> tuple[str, str]:
     if rate < rare_rate:
         return "hint", "rare — surface as a hint only"
     if matchable and rate >= frequent_rate:
-        return "hook", "frequent and deterministically matchable — promote to a hook (validate via /agent-eval)"
+        return (
+            "hook",
+            "frequent and deterministically matchable — promote to a hook (validate via /agent-eval)",
+        )
     if matchable:
-        return "instruction-rule", "recurring and matchable but below the hook threshold — an instruction-file rule for now (/feedback-learning)"
-    return "instruction-rule", "recurring but judgment-shaped (no reliable matcher) — an instruction-file rule (/feedback-learning)"
+        return (
+            "instruction-rule",
+            "recurring and matchable but below the hook threshold — an instruction-file rule for now (/feedback-learning)",
+        )
+    return (
+        "instruction-rule",
+        "recurring but judgment-shaped (no reliable matcher) — an instruction-file rule (/feedback-learning)",
+    )
 
 
-def escalate(roll: dict, rare_rate: float = 0.25,
-             frequent_rate: float = 1.0) -> dict:
+def escalate(roll: dict, rare_rate: float = 0.25, frequent_rate: float = 1.0) -> dict:
     """Turn rollup recurrence into ranked lever recommendations (#179)."""
     sessions = max(int(roll.get("sessions", 0)), 0)
     recs = []
@@ -781,15 +1031,17 @@ def escalate(roll: dict, rare_rate: float = 0.25,
             continue
         rate = round(count / sessions, 4) if sessions else 0.0
         lever, rationale = _lever_for(rate, matchable, rare_rate, frequent_rate)
-        recs.append({
-            "signal": key,
-            "label": label,
-            "count": count,
-            "per_session_rate": rate,
-            "matchable": matchable,
-            "lever": lever,
-            "rationale": rationale,
-        })
+        recs.append(
+            {
+                "signal": key,
+                "label": label,
+                "count": count,
+                "per_session_rate": rate,
+                "matchable": matchable,
+                "lever": lever,
+                "rationale": rationale,
+            }
+        )
     # rank by per-session rate (worst first), then count
     recs.sort(key=lambda r: (-r["per_session_rate"], -r["count"]))
     return {
@@ -805,7 +1057,9 @@ def cmd_escalate(args, registry: dict) -> int:
     roll = rollup(root, registry) if root.is_dir() else {"sessions": 0}
     out = json.dumps(
         escalate(roll, rare_rate=args.rare_rate, frequent_rate=args.frequent_rate),
-        indent=2, sort_keys=True)
+        indent=2,
+        sort_keys=True,
+    )
     if args.out:
         Path(args.out).write_text(out + "\n")
     else:
@@ -821,60 +1075,104 @@ def load_registry(plugin_root: Path | None) -> dict:
     skills_dir = plugin_root / "skills"
     agents_dir = plugin_root / "agents"
     skills = sorted(p.name for p in skills_dir.iterdir()) if skills_dir.is_dir() else []
-    agents = sorted(p.stem for p in agents_dir.glob("*.md")) if agents_dir.is_dir() else []
+    agents = (
+        sorted(p.stem for p in agents_dir.glob("*.md")) if agents_dir.is_dir() else []
+    )
     return {"skills": skills, "agents": agents}
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--transcript", action="append",
-                    help="explicit transcript JSONL file(s); repeatable")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--transcript",
+        action="append",
+        help="explicit transcript JSONL file(s); repeatable",
+    )
     ap.add_argument("--project-dir", help="a directory of *.jsonl transcripts")
     ap.add_argument("--cwd", help="project cwd to match (default: $PWD)")
-    ap.add_argument("--projects-root",
-                    help="root of Claude Code project transcripts "
-                         "(default: ~/.claude/projects)")
+    ap.add_argument(
+        "--projects-root",
+        help="root of Claude Code project transcripts (default: ~/.claude/projects)",
+    )
     ap.add_argument("--pricing", help="model-pricing.json for cost (optional)")
     ap.add_argument("--plugin-root", help="dev-team plugin root for the registry")
     ap.add_argument("-o", "--out", help="write digest here (default: stdout)")
-    ap.add_argument("--append", metavar="LOG",
-                    help="append one metrics-only summary record to a trend "
-                         "stream (append-only JSONL), e.g. metrics/session-digest.jsonl")
-    ap.add_argument("--all-projects", action="store_true",
-                    help="aggregate transcripts across ALL projects, not just the "
-                         "current cwd's project (Delta D, #178)")
-    ap.add_argument("--sync-out", metavar="FILE",
-                    help="cross-project incremental SYNC mode (#178): append one "
-                         "metrics-only record per new/changed session to FILE "
-                         "(the host digest), tracked by --watermark")
-    ap.add_argument("--watermark", metavar="FILE",
-                    help="watermark JSON for incremental sync "
-                         "(default: ~/.claude/.dev-team/telemetry-sync.json)")
+    ap.add_argument(
+        "--append",
+        metavar="LOG",
+        help="append one metrics-only summary record to a trend "
+        "stream (append-only JSONL), e.g. metrics/session-digest.jsonl",
+    )
+    ap.add_argument(
+        "--all-projects",
+        action="store_true",
+        help="aggregate transcripts across ALL projects, not just the "
+        "current cwd's project (Delta D, #178)",
+    )
+    ap.add_argument(
+        "--sync-out",
+        metavar="FILE",
+        help="cross-project incremental SYNC mode (#178): append one "
+        "metrics-only record per new/changed session to FILE "
+        "(the host digest), tracked by --watermark",
+    )
+    ap.add_argument(
+        "--watermark",
+        metavar="FILE",
+        help="watermark JSON for incremental sync "
+        "(default: ~/.claude/.dev-team/telemetry-sync.json)",
+    )
     ap.add_argument("--host", help="host label for sync records (default: hostname)")
-    ap.add_argument("--rollup", metavar="DIR",
-                    help="union read (#178): aggregate all hosts' "
-                         "DIR/<host>/session-digest.jsonl into one cross-machine view")
-    ap.add_argument("--cost-log", metavar="DIR",
-                    help="cost-meter baseline (#171): from DIR/<host>/session-digest.jsonl "
-                         "emit a time-ordered per-session cost series "
-                         "({\"total\":{\"cost_usd\":..}}) for `cost_meter.py regression`")
-    ap.add_argument("--escalate", metavar="DIR",
-                    help="Delta C (#179): rank friction signals from DIR's rollup "
-                         "and recommend a lever (hint / instruction-rule / hook)")
-    ap.add_argument("--correlate", metavar="DIR",
-                    help="process eval (#111): from DIR's digests, compare rework "
-                         "between review-gate-bypass and non-bypass sessions")
-    ap.add_argument("--rare-rate", type=float, default=0.25,
-                    help="per-session rate below which a friction is a hint (default 0.25)")
-    ap.add_argument("--frequent-rate", type=float, default=1.0,
-                    help="per-session rate at/above which a matchable friction "
-                         "becomes a hook (default 1.0)")
+    ap.add_argument(
+        "--rollup",
+        metavar="DIR",
+        help="union read (#178): aggregate all hosts' "
+        "DIR/<host>/session-digest.jsonl into one cross-machine view",
+    )
+    ap.add_argument(
+        "--cost-log",
+        metavar="DIR",
+        help="cost-meter baseline (#171): from DIR/<host>/session-digest.jsonl "
+        "emit a time-ordered per-session cost series "
+        '({"total":{"cost_usd":..}}) for `cost_meter.py regression`',
+    )
+    ap.add_argument(
+        "--escalate",
+        metavar="DIR",
+        help="Delta C (#179): rank friction signals from DIR's rollup "
+        "and recommend a lever (hint / instruction-rule / hook)",
+    )
+    ap.add_argument(
+        "--correlate",
+        metavar="DIR",
+        help="process eval (#111): from DIR's digests, compare rework "
+        "between review-gate-bypass and non-bypass sessions",
+    )
+    ap.add_argument(
+        "--rare-rate",
+        type=float,
+        default=0.25,
+        help="per-session rate below which a friction is a hint (default 0.25)",
+    )
+    ap.add_argument(
+        "--frequent-rate",
+        type=float,
+        default=1.0,
+        help="per-session rate at/above which a matchable friction "
+        "becomes a hook (default 1.0)",
+    )
     args = ap.parse_args(argv)
 
-    pricing_path = Path(args.pricing) if args.pricing else (
-        Path(__file__).resolve().parent.parent
-        / "plugins/dev-team/knowledge/model-pricing.json")
+    pricing_path = (
+        Path(args.pricing)
+        if args.pricing
+        else (
+            Path(__file__).resolve().parent.parent
+            / "plugins/dev-team/knowledge/model-pricing.json"
+        )
+    )
     pricing = _load_pricing(pricing_path)
     registry = load_registry(Path(args.plugin_root) if args.plugin_root else None)
 
@@ -897,11 +1195,15 @@ def main(argv=None) -> int:
     # Cross-project incremental sync mode (Delta D, #178).
     if args.sync_out:
         import socket
+
         host = args.host or socket.gethostname()
         return cmd_sync(args, pricing, registry, host)
 
-    paths = (resolve_all_transcripts(args) if args.all_projects
-             else resolve_transcripts(args))
+    paths = (
+        resolve_all_transcripts(args)
+        if args.all_projects
+        else resolve_transcripts(args)
+    )
 
     digest = extract(paths, pricing, registry)
     digest["transcripts"] = len(paths)
@@ -924,6 +1226,7 @@ def slim_record(digest: dict) -> dict:
     raw prompt/code content. `recorded_at` is the only wall-clock field and lives
     on the trend log, never in the deterministic digest output."""
     from datetime import datetime, timezone
+
     tok = digest.get("token", {})
     rew = digest.get("rework", {})
     acc = digest.get("accuracy", {})
@@ -935,9 +1238,15 @@ def slim_record(digest: dict) -> dict:
         "schema": "session-digest/v1",
         "sessions": digest.get("sessions", 0),
         "transcripts": digest.get("transcripts", 0),
-        "tokens": {k: totals.get(k, 0) for k in (
-            "input_tokens", "output_tokens",
-            "cache_creation_input_tokens", "cache_read_input_tokens")},
+        "tokens": {
+            k: totals.get(k, 0)
+            for k in (
+                "input_tokens",
+                "output_tokens",
+                "cache_creation_input_tokens",
+                "cache_read_input_tokens",
+            )
+        },
         "cost_usd": tok.get("cost_usd", 0.0),
         "cache_hit_ratio": tok.get("cache_hit_ratio", 0.0),
         "rework": {

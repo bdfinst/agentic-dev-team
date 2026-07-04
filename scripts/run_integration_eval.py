@@ -26,6 +26,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -34,6 +37,28 @@ import tempfile
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
+
+# Hard ceiling per declared testCommand so a hung fixture test (deadlock,
+# server that never exits) can't block the harness indefinitely. Fixture
+# specs are trusted (evals/expected/*.json), but "trusted" isn't "always
+# terminates". Override (test-only injection seam) via
+# RUN_INTEGRATION_EVAL_CMD_TIMEOUT.
+_DEFAULT_CMD_TIMEOUT_SECONDS = 1800.0
+
+# Characters that require real shell interpretation (pipes, chaining,
+# redirects, expansion, globs, backticks). A testCommand containing none of
+# these is a plain word list and can run directly (no shell hop needed).
+_SHELL_METACHARACTERS_RE = re.compile(r"[|&;<>$`*?~]")
+
+
+def _cmd_timeout_seconds() -> float:
+    raw = os.environ.get("RUN_INTEGRATION_EVAL_CMD_TIMEOUT")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return _DEFAULT_CMD_TIMEOUT_SECONDS
 
 
 def _fail(msg: str) -> int:
@@ -50,48 +75,85 @@ def check_prerequisites(skip_dispatch: bool) -> list[str]:
     if not registry.exists():
         missing.append(
             "the grader registry scripts/eval_graders/ (#309) — integration is "
-            "a registered grader")
+            "a registered grader"
+        )
     else:
         try:
             sys.path.insert(0, str(SCRIPTS))
             from eval_graders import is_registered  # noqa: E402
+
             if not is_registered("integration"):
-                missing.append(
-                    "the 'integration' grader in the registry (#309/#313)")
+                missing.append("the 'integration' grader in the registry (#309/#313)")
         except ImportError:
             missing.append("an importable grader registry (#309)")
     if not (SCRIPTS / "eval_cache.py").exists():
         missing.append(
             "scripts/eval_cache.py, the fingerprint replay cache (#311) — "
-            "without replay every integration run pays full orchestrator cost")
+            "without replay every integration run pays full orchestrator cost"
+        )
     if not skip_dispatch and shutil.which("claude") is None:
         missing.append(
             "the `claude` CLI (needed to dispatch the orchestrator; pass "
-            "--skip-dispatch to run the harness without a model)")
+            "--skip-dispatch to run the harness without a model)"
+        )
     return missing
+
+
+def _is_within(dest: Path, target: Path) -> bool:
+    """True iff `target` is dest itself or a real descendant of dest.
+
+    Both paths must already be resolved (absolute, symlinks/`..` collapsed).
+    Deliberately NOT `str(target).startswith(str(dest))`: that naive
+    string-prefix check has no separator boundary, so a sibling directory
+    whose name merely starts with dest's name (e.g. dest=".../out", target
+    ".../out-evil/pwned.txt") would incorrectly pass — the classic
+    zip-slip-guard-bypass pattern. `relative_to` enforces a real path-segment
+    containment check.
+    """
+    try:
+        target.relative_to(dest)
+        return True
+    except ValueError:
+        return False
 
 
 def extract_golden_repo(tarball: Path, dest: Path) -> None:
     """Extract the golden-repo snapshot into dest (created fresh)."""
     dest.mkdir(parents=True, exist_ok=True)
+    resolved_dest = dest.resolve()
     with tarfile.open(tarball) as tf:
         # Guard against path traversal in the archive.
         for member in tf.getmembers():
             target = (dest / member.name).resolve()
-            if not str(target).startswith(str(dest.resolve())):
+            if not _is_within(resolved_dest, target):
                 raise RuntimeError(f"unsafe path in tarball: {member.name}")
         tf.extractall(dest)  # noqa: S202 - members validated above
 
 
 def init_worktree(workdir: Path) -> None:
     """Make the extracted snapshot a git worktree (baseline commit)."""
-    quiet = {"cwd": str(workdir), "check": True,
-             "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    quiet = {
+        "cwd": str(workdir),
+        "check": True,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+    }
     subprocess.run(["git", "init"], **quiet)
     subprocess.run(["git", "add", "-A"], **quiet)
     subprocess.run(
-        ["git", "-c", "user.email=eval@dev-team", "-c", "user.name=eval",
-         "commit", "-m", "golden-repo baseline", "--allow-empty"], **quiet)
+        [
+            "git",
+            "-c",
+            "user.email=eval@dev-team",
+            "-c",
+            "user.name=eval",
+            "commit",
+            "-m",
+            "golden-repo baseline",
+            "--allow-empty",
+        ],
+        **quiet,
+    )
 
 
 def dispatch_orchestrator(workdir: Path, spec_path: Path, model: str) -> None:
@@ -99,33 +161,67 @@ def dispatch_orchestrator(workdir: Path, spec_path: Path, model: str) -> None:
     prompt = (
         f"Implement the spec in {spec_path.name} using the full plan -> build -> "
         f"review pipeline. The working directory is a fresh git worktree; make "
-        f"the declared test commands pass.")
+        f"the declared test commands pass."
+    )
     subprocess.run(
-        ["claude", "-p", prompt, "--model", model],
-        cwd=str(workdir), check=False)
+        ["claude", "-p", prompt, "--model", model], cwd=str(workdir), check=False
+    )
 
 
 def run_commands(workdir: Path, commands: list[str]) -> list[dict]:
-    """Run each command in the worktree; record exit code + stderr first line."""
+    """Run each command in the worktree; record exit code + stderr first line.
+
+    Bounded by a hard timeout so a hung fixture command can't block the
+    harness indefinitely. A command with no shell metacharacters is a plain
+    word list and runs directly (list-form, shell=False); a command that
+    chains, pipes, redirects, or expands still needs the shell to interpret
+    it, so it runs via shell=True as before.
+    """
+    timeout = _cmd_timeout_seconds()
     results = []
     for cmd in commands:
-        proc = subprocess.run(
-            cmd, cwd=str(workdir), shell=True,
-            capture_output=True, text=True)
-        stderr_first = ""
-        if proc.stderr:
-            stderr_first = proc.stderr.strip().splitlines()[0] if \
-                proc.stderr.strip() else ""
-        results.append({
-            "command": cmd,
-            "exit_code": proc.returncode,
-            "stderr_first_line": stderr_first,
-        })
+        use_shell = bool(_SHELL_METACHARACTERS_RE.search(cmd))
+        args = cmd if use_shell else shlex.split(cmd)
+        try:
+            proc = subprocess.run(
+                args,
+                cwd=str(workdir),
+                shell=use_shell,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            stderr_first = ""
+            if proc.stderr:
+                stderr_first = (
+                    proc.stderr.strip().splitlines()[0] if proc.stderr.strip() else ""
+                )
+            results.append(
+                {
+                    "command": cmd,
+                    "exit_code": proc.returncode,
+                    "stderr_first_line": stderr_first,
+                }
+            )
+        except subprocess.TimeoutExpired:
+            results.append(
+                {
+                    "command": cmd,
+                    "exit_code": -1,
+                    "stderr_first_line": f"command timed out after {timeout:g}s",
+                }
+            )
     return results
 
 
-def run_fixture(stem: str, target: str, ispec: dict, fixtures_dir: Path,
-                skip_dispatch: bool, model: str) -> dict:
+def run_fixture(
+    stem: str,
+    target: str,
+    ispec: dict,
+    fixtures_dir: Path,
+    skip_dispatch: bool,
+    model: str,
+) -> dict:
     """Run one integration target; return its recorded actual (results list)."""
     fixture_dir = fixtures_dir / stem
     tarball = fixture_dir / ispec["goldenRepo"]
@@ -153,12 +249,16 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--expected-dir", default="evals/expected")
     ap.add_argument("--fixtures-dir", default="evals/fixtures")
     ap.add_argument("--out", default="actuals.json")
-    ap.add_argument("--only", default="",
-                    help="comma-separated integration target names to run")
+    ap.add_argument(
+        "--only", default="", help="comma-separated integration target names to run"
+    )
     ap.add_argument("--model", default="claude-sonnet-4-6")
-    ap.add_argument("--skip-dispatch", action="store_true",
-                    help="do not dispatch the orchestrator (harness self-test); "
-                         "test commands run against the golden repo as-is")
+    ap.add_argument(
+        "--skip-dispatch",
+        action="store_true",
+        help="do not dispatch the orchestrator (harness self-test); "
+        "test commands run against the golden repo as-is",
+    )
     args = ap.parse_args(argv)
 
     missing = check_prerequisites(args.skip_dispatch)
@@ -188,11 +288,14 @@ def main(argv: list[str]) -> int:
         for target, ispec in integration.items():
             if only and target not in only:
                 continue
-            print(f"· integration {stem}::{target} "
-                  f"({'no-dispatch' if args.skip_dispatch else 'dispatch'})",
-                  file=sys.stderr)
-            actual = run_fixture(stem, target, ispec, fixtures_dir,
-                                 args.skip_dispatch, args.model)
+            print(
+                f"· integration {stem}::{target} "
+                f"({'no-dispatch' if args.skip_dispatch else 'dispatch'})",
+                file=sys.stderr,
+            )
+            actual = run_fixture(
+                stem, target, ispec, fixtures_dir, args.skip_dispatch, args.model
+            )
             actuals.setdefault(stem, {}).setdefault("integration", {})[target] = actual
             ran += 1
 

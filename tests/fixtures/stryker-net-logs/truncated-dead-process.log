@@ -1,0 +1,8 @@
+Stryker.NET v4.7.0
+
+[13:20:14 INF] Analyzing project 'Calculator.Tests.csproj'
+[13:20:20 INF] Building project 'Calculator.Tests.csproj'
+[13:20:25 INF] Testing 100 mutants
+
+Testing mutants:
+.....

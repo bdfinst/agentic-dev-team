@@ -1,0 +1,76 @@
+{
+  "source": "/code-review backstop, branch Issue-537 (Gherkin .feature persistence)",
+  "note": "Suggestion-severity findings not auto-applied by the fix loop (rubric: suggestions are report-only). Each entry is a self-contained correction prompt.",
+  "corrections": [
+    {
+      "agent": "performance-review",
+      "file": "plugins/dev-team/scripts/detect_bdd_convention.py",
+      "prompt": "detect() walks the tree twice when no .feature files exist (scan_feature_dir then scan_manifests). Collect .feature parents and manifest candidates in ONE _iter_project_files pass, then decide precedence from the collected sets. Keep the existing tests green."
+    },
+    {
+      "agent": "performance-review",
+      "file": "plugins/dev-team/scripts/detect_bdd_convention.py",
+      "prompt": "Extend VENDORED_DIR_NAMES with target, __pycache__, .tox, .next, out, coverage — target/ also matters for correctness (copied .feature resources in Maven builds skew the signal). Add a fixture test per new exclusion."
+    },
+    {
+      "agent": "concurrency-review",
+      "file": "plugins/dev-team/scripts/plan_gherkin_export.py",
+      "prompt": "Invert _sync_feature_dir to write-then-clean: mkdir, write all new files (overwrite in place), then unlink only the stale set. Shrinks the window where an interruption leaves the tool-owned dir emptied. Report counts are computed before deletion, so report output is unchanged."
+    },
+    {
+      "agent": "security-review",
+      "file": "plugins/dev-team/scripts/detect_bdd_convention.py",
+      "prompt": "Cap manifest reads: skip files over ~5MB in _text_declares/_package_json_declares (stat before read) so a pathological huge file matching a manifest glob cannot exhaust memory."
+    },
+    {
+      "agent": "security-review",
+      "file": "plugins/dev-team/scripts/plan_gherkin_export.py",
+      "prompt": "Strip C0 control characters and ESC from plan-derived values (destination, slice ids) before interpolating them into report lines, so ANSI sequences in a plan file cannot reach the consuming terminal."
+    },
+    {
+      "agent": "arch-review",
+      "file": "plugins/dev-team/scripts/plan_gherkin_export.py",
+      "prompt": "Add an explicit --root argument (default: git rev-parse --show-toplevel, fallback cwd) and include the resolved absolute destination in the report, so the run-from-repo-root invariant is enforced in tested code rather than skill prose."
+    },
+    {
+      "agent": "arch-review + claude-setup-review",
+      "file": "plugins/dev-team/skills/plan/SKILL.md",
+      "prompt": "allowed-tools omits a Bash(python3 *) pattern while the skill shells to five plugin scripts (pre-existing gap, extended by this branch). Add the narrowest workable pattern covering all five invocations in one change."
+    },
+    {
+      "agent": "token-efficiency-review",
+      "file": "plugins/dev-team/skills/plan/references/plan-template.md",
+      "prompt": "Trim the 3-line HTML comment under the Gherkin persistence metadata line to one line — it is copied into every generated plan, and gherkin-persistence.md already explains re-run semantics."
+    },
+    {
+      "agent": "naming-review",
+      "file": "tests/scripts/test_detect_bdd_convention.py",
+      "prompt": "Rename the _touch helper to _write_fixture (it writes content and creates parents, not shell-touch semantics), and rename the one/two locals in the byte-fidelity test to slice_one_bytes/slice_two_bytes."
+    },
+    {
+      "agent": "test-review",
+      "file": "tests/scripts/test_detect_bdd_convention.py",
+      "prompt": "test_every_documented_framework_token_appears_in_the_doc asserts any(token in doc), not every token — rename to test_each_rule_has_at_least_one_token_documented or tighten to all()."
+    },
+    {
+      "agent": "test-review",
+      "file": "tests/scripts/test_plan_gherkin_export.py",
+      "prompt": "Parametrize test_trailing_slash_destination_matches_bare_form over both 'features/' and 'custom: e2e/specs/' so the custom branch's trailing-slash normalization is asserted too."
+    },
+    {
+      "agent": "test-smell-review",
+      "file": "tests/scripts/conftest.py",
+      "prompt": "Extract the duplicated sys.path preamble and _run_cli subprocess helper from test_detect_bdd_convention.py and test_plan_gherkin_export.py into tests/scripts/conftest.py before a third script test copies them again."
+    },
+    {
+      "agent": "test-smell-review",
+      "file": "tests/skills/test_plan_gherkin_persistence.py",
+      "prompt": "Split the compound assertion in test_detection_failure_falls_back_to_no_signal into two asserts with their own messages; drop the redundant key-set assertion in test_detection_emits_json_with_exactly_the_contract_keys (the full-dict equality implies it)."
+    },
+    {
+      "agent": "complexity-review",
+      "file": "plugins/dev-team/scripts/detect_bdd_convention.py",
+      "prompt": "Optionally move csproj destination resolution onto ManifestRule (resolve_destination(manifest_path, root)) so scan_manifests reduces to match-then-append."
+    }
+  ]
+}

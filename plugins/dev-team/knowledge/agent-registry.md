@@ -5,7 +5,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 ## Team Agents
 
 | Agent | File | ~Tokens | Primary Focus |
-|-------|------|---------|---------------|
+| ------- | ------ | --------- | --------------- |
 | ADR Author | `agents/adr-author.md` | 320 | Creates and manages Architecture Decision Records |
 | Architect | `agents/architect.md` | 360 | System design, architecture |
 | Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis. |
@@ -21,10 +21,10 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 
 ## Review Agents
 
-Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Each agent declares its reasoning-effort band (`effort: low|medium|high`) in frontmatter; the PreToolUse hook `hooks/agent-model-resolve.sh` resolves the band to the active model per the **Resolution Procedure** in `agents/orchestrator.md`. The band is the single source of truth — run `/model-routing-check` for the live band→model map rather than mirroring tiers here.
+Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Each agent declares its reasoning-effort band (`effort: low|medium|high`) in frontmatter; the PreToolUse hook `hooks/agent_model_resolve.py` resolves the band to the active model per the **Resolution Procedure** in `agents/orchestrator.md`. The band is the single source of truth — run `/model-routing-check` for the live band→model map rather than mirroring tiers here.
 
 | Agent | File | What It Checks |
-|-------|------|----------------|
+| ------- | ------ | ---------------- |
 | a11y-review | `agents/a11y-review.md` | WCAG 2.1 AA, ARIA, keyboard nav, focus management |
 | arch-review | `agents/arch-review.md` | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
 | claude-setup-review | `agents/claude-setup-review.md` | CLAUDE.md completeness, rules, skills, path accuracy |
@@ -35,7 +35,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | doc-review | `agents/doc-review.md` | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
 | domain-review | `agents/domain-review.md` | Domain boundaries, abstraction leaks, entity/DTO confusion |
 | js-fp-review | `agents/js-fp-review.md` | Array mutations, impure patterns, global state |
-| mutation-kill | `agents/mutation-kill.md` | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; gates on hard kills only (Go advisory). Not a reviewer; invoked by `/test-upgrade` or directly |
+| mutation-kill | `agents/mutation-kill.md` | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; gates on hard kills only (Go advisory). Not a reviewer; invoked per Story by `/test-improve` Phase 4 or directly |
 | naming-review | `agents/naming-review.md` | Intent-revealing names, boolean prefixes, magic values |
 | performance-review | `agents/performance-review.md` | Resource leaks, N+1 queries, unbounded growth |
 | progress-guardian | `agents/progress-guardian.md` | Plan adherence, commit discipline, scope creep detection |
@@ -45,7 +45,6 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — first gate before quality review |
 | structure-review | `agents/structure-review.md` | SRP violations, DRY, coupling, file organization |
 | svelte-review | `agents/svelte-review.md` | Svelte reactivity pitfalls, closure state leaks |
-| test-modernization-review | `agents/test-modernization-review.md` | Gate-keeper for `/test-modernize` — verifies each phase's deliverable matches its acceptance criteria before the workflow advances |
 | test-review | `agents/test-review.md` | Coverage gaps, assertion quality, test hygiene |
 | test-smell-review | `agents/test-smell-review.md` | xUnit test smells, test-double selection, test-pyramid layer placement |
 | token-efficiency-review | `agents/token-efficiency-review.md` | File/function size, LLM anti-patterns, token usage |
@@ -55,7 +54,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 Skills are reusable knowledge modules in `.claude/skills/` that agents reference. They define patterns, guidelines, and project structures without being tied to any single agent persona.
 
 | Skill | File | ~Tokens | Used By |
-|-------|------|---------|---------|
+| ------- | ------ | --------- | --------- |
 | ADR Tools | `skills/adr-tools/SKILL.md` | ~1,350 | Orchestrator, adr-author, Software Engineer, Architect |
 | Artifact Lifecycle | `skills/artifact-lifecycle/SKILL.md` | ~600 | Orchestrator, `/artifact-lifecycle` command |
 | API Design | `skills/api-design/SKILL.md` | 600 | Architect, Software Engineer |
@@ -66,8 +65,8 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
 | Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | 600 | Orchestrator |
 | Context Summarization | `skills/context-summarization/SKILL.md` | 500 | Orchestrator |
-| Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~600 | `/test-modernize` (Phase 3), QA Engineer, Platform Engineer |
-| Coverage Delta | `skills/coverage-delta/SKILL.md` | ~450 | `/test-modernize` (Phases 4–5), QA Engineer |
+| Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~600 | `/test-improve` (Phase 2), QA Engineer, Platform Engineer |
+| Coverage Delta | `skills/coverage-delta/SKILL.md` | ~450 | `/test-improve` (Phase 4), QA Engineer |
 | Design Doc | `skills/design-doc/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
 | Design Interrogation | `skills/design-interrogation/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
 | Design It Twice | `skills/design-it-twice/SKILL.md` | 550 | Architect, Software Engineer |
@@ -79,28 +78,28 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Farley Score | `skills/farley-score/SKILL.md` | 600 | QA Engineer, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
 | Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,010 | Orchestrator |
-| Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~700 | `/test-upgrade` (Phase 1b), QA Engineer, standalone |
-| Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | `/test-modernize` (Phase 2), QA Engineer, Product Manager |
+| Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~700 | `/test-improve` (Phase 2b, conditional), QA Engineer, standalone |
+| Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | Standalone worker; QA Engineer, Product Manager |
 | Governance & Compliance | `skills/governance-compliance/SKILL.md` | 990 | QA Engineer, Technical Writer |
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 420 | Architect, Software Engineer |
 | Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 1,020 | Orchestrator, Product Manager |
-| Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~750 | `/test-modernize` (Phase 1), QA Engineer |
+| Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~750 | `/test-improve` (Phase 3), QA Engineer |
 | Legacy Code | `skills/legacy-code/SKILL.md` | 700 | Software Engineer, QA Engineer, Architect |
 | Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~400 | Architect, Software Engineer, Tech Writer |
 | Mutation Testing | `skills/mutation-testing/SKILL.md` | 700 | QA Engineer, Software Engineer |
 | Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, Platform Engineer, `/benchmark` command |
 | Performance Metrics | `skills/performance-metrics/SKILL.md` | 890 | Orchestrator |
+| Proxy Resilience | `skills/proxy-resilience/SKILL.md` | ~800 | All agents (any session running against a corporate Anthropic proxy) |
 | Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | 900 | All agents |
-| Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~750 | `/test-modernize` (Phase 5), QA Engineer, Software Engineer |
+| Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~750 | `/test-improve` (Phase 6), QA Engineer, Software Engineer |
 | Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~4,500 | Orchestrator, Software Engineer, Architect |
 | Specs | `skills/specs/SKILL.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
 | Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 650 | Orchestrator, `/code-review` |
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 600 | Software Engineer, QA Engineer |
-| Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~650 | `/test-modernize` (Phase 3), QA Engineer |
+| Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~650 | Standalone worker; QA Engineer |
 | Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~700 | QA Engineer, Software Engineer, `/test-design` command |
 | Test Health | `skills/test-health/SKILL.md` | ~900 | QA Engineer, `/test-health` command |
-| Test Modernize | `skills/test-modernize/SKILL.md` | ~900 | Orchestrator, QA Engineer, `/test-modernize` command |
-| Test Upgrade | `skills/test-upgrade/SKILL.md` | ~900 | Orchestrator, QA Engineer, `/test-upgrade` command |
+| Test Improve | `skills/test-improve/SKILL.md` | ~1200 | Orchestrator, QA Engineer, `/test-improve` command |
 | Test-Driven Development | `skills/test-driven-development/SKILL.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
 | Threat Modeling | `skills/threat-modeling/SKILL.md` | 600 | Security Engineer, Architect |
 | Ubiquitous Language | `skills/ubiquitous-language/SKILL.md` | ~800 | Architect, domain-review, Product Manager |
@@ -110,7 +109,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 Concrete prompt templates in `prompts/` that the orchestrator and `/code-review` use when dispatching subagents, making behavior reproducible.
 
 | Template | File | Used By |
-|----------|------|---------|
+| ---------- | ------ | --------- |
 | Implementer | `prompts/implementer.md` | Orchestrator (Phase 3 implementation dispatch) |
 | Plan Review — Acceptance | `prompts/plan-review-acceptance.md` | Orchestrator (Phase 2 plan review persona) |
 | Plan Review — Design | `prompts/plan-review-design.md` | Orchestrator (Phase 2 plan review persona) |
@@ -126,8 +125,8 @@ Concrete prompt templates in `prompts/` that the orchestrator and `/code-review`
 Knowledge files in `knowledge/` provide progressive disclosure — agents read them on demand during analysis rather than carrying all detection patterns inline.
 
 | Name | File | ~Tokens | Used By |
-|------|------|---------|---------|
-| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 23 review agents (a11y-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-modernization-review, test-review, test-smell-review, token-efficiency-review) |
+| ------ | ------ | --------- | --------- |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 22 review agents (a11y-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review) |
 | Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
 | CD Maturity Model | `knowledge/cd-maturity-model.md` | ~870 | Platform Engineer, QA Engineer |
@@ -170,7 +169,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 Language-specific review agents in `templates/agents/`. Scaffolded into projects by `/setup` when the matching stack is detected. Not bundled as always-on.
 
 | Template | File | Activates When |
-|----------|------|---------------|
+| ---------- | ------ | --------------- |
 | angular-testing | `templates/agents/angular-testing.md` | Angular in deps |
 | csharp-quality | `templates/agents/csharp-quality.md` | C#/.NET stack |
 | esm-enforcer | `templates/agents/esm-enforcer.md` | Any JS/TS project (always-on) |

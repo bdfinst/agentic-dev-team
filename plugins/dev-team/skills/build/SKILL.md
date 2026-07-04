@@ -7,7 +7,7 @@ description: >-
   the plan", "start building", or after /plan has been approved.
 argument-hint: "[--plan <path>] [--yes]"
 user-invocable: true
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion, Skill(verify *)
 ---
 
 # Build
@@ -24,6 +24,7 @@ You have been invoked with the `/build` command.
 4. **Verification evidence required.** Paste fresh test output before claiming a step is done.
 5. **Review checkpoints (granularity scales with complexity).** Run inline review (spec-compliance first, then quality agents) per step for `complex` steps; batch `standard`/`trivial` steps into one review at the slice boundary. Record each checkpoint's find/fix/no-op outcome to `metrics/review-value.jsonl`. The final `/code-review` is the backstop.
 6. **Be concise.** Report step status and verification evidence, no narration.
+7. **Diagnose before retry.** When any bash command run during the build fails (a script, a test run, a build-tooling invocation), read the exit code and error text and state a one-line cause hypothesis before correcting and re-issuing it. Never re-run a failed command unmodified. If the shallow diagnosis reveals a real defect rather than a shell-level mistake (bad path, typo, missing arg), escalate to Systematic Debugging per the Escalation section below.
 
 ## Parse Arguments
 
@@ -82,27 +83,57 @@ If any criteria are flagged:
 
 ### 4. Implement each step
 
-Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan-waves.sh`). Within a wave, independent slices may build concurrently; across waves a barrier holds the next wave until the current one reconciles green.
+Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan_waves.py`). Within a wave, independent slices may build concurrently; across waves a barrier holds the next wave until the current one reconciles green.
+
+**Base-ref check (top-level session, before any subagent dispatch).** Worktree subagents (`isolation: "worktree"`) must branch from the caller's local HEAD, not `origin/<default>`, so the `docs/specs/<slug>.md` and `plans/<slug>.md` files `/ship` just produced are visible to them (issue #553). This is controlled by Claude Code's `worktree.baseRef` setting, which is honored only at project (`.claude/settings.json`) or user (`~/.claude/settings.json`) scope — **not** at plugin or project-local scope (`docs/spikes/worktree-baseref-head-spike.md`). `/build` cannot set this on the user's behalf, so it runs a read-only detect-and-warn **in this top-level `/build` session, before any subagent dispatch**, so the warning is visible in the human-facing transcript:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py detect   # prints head|fresh|unset|unknown
+```
+
+- **`head`** → no warning. Proceed.
+- **`fresh`**, **`unset`**, or **`unknown`** (detection failed — e.g. `jq` unavailable; treated fail-safe) → unless `DEV_TEAM_WORKTREE_BASE_FRESH=1` is set, print a loud warning naming the exact file to edit and a paste-ready snippet, then continue:
+
+  ```
+  ⚠ worktree.baseRef is not "head" (detected: <value>) — worktree subagents
+  will branch from origin/<default>, not your current HEAD. Any
+  uncommitted-to-origin spec/plan/WIP files will be invisible to them.
+
+  Add this to .claude/settings.json (project) or ~/.claude/settings.json
+  (user) — plugin and project-local settings.json are NOT honored for
+  this key:
+
+    { "worktree": { "baseRef": "head" } }
+
+  To keep fresh-from-origin worktrees deliberately, set
+  DEV_TEAM_WORKTREE_BASE_FRESH=1 to silence this warning.
+  ```
+
+  If detection returned `unknown`, the warning additionally states that `worktree.baseRef could not be detected`.
+
+**`/build` never mutates a settings file.** The check is read-only end to end — it never writes `.claude/settings.json`, `~/.claude/settings.json`, or any other settings file. There is nothing to restore and no crash-recovery surface.
 
 **Resolve the wave schedule and concurrency first:**
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-wave.sh <plan-file>          # ordered waves + members
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-jobs.sh --wave-width <W> [--jobs N]  # effective concurrency
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_wave.py <plan-file>          # ordered waves + members
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py --wave-width <W> [--jobs N]  # effective concurrency
 ```
 
-`build-jobs.sh` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)` (default max **2**; non-positive/non-integer clamp to 1). **Sequential fallback:** when effective concurrency is **1** (a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
+`build_jobs.py` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)` (default max **2**; non-positive/non-integer clamp to 1). **Sequential fallback:** when effective concurrency is **1** (a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
 
 **Concurrent dispatch (effective concurrency > 1):**
 
 1. Dispatch each independent slice in the wave to its **own** git worktree (`isolation: "worktree"`), up to the effective concurrency. Each slice's changes stay isolated until reconcile, and each slice still runs its full RED-GREEN-REFACTOR and inline review gates.
 2. **Report the concrete level and cost**, e.g. *"building wave 2 — 2 slices concurrently; faster wall-clock but burns token budget faster."*
-3. **Barrier + reconcile** once the wave's slices finish: `build-wave-reconcile.sh --into <integration> --base <ref> --test-cmd "<full suite>" <slice-branch>...` merges them order-independently and gates on the full suite before any next-wave slice starts.
+3. **Barrier + reconcile** once the wave's slices finish: `build_wave_reconcile.py --into <integration> --base <ref> --test-cmd "<full suite>" <slice-branch>...` merges them order-independently and gates on the full suite before any next-wave slice starts.
 4. **Loud halt, never silent:**
    - A **failing slice** → exit non-zero naming it, list which same-wave slices succeeded and where their (preserved) worktrees are, print the resume command, and start no next-wave slice. Resume rebuilds only the incomplete slice.
    - A **reconcile conflict** (two same-wave diffs touch one file) → exit non-zero naming the file, pick no side, start no next-wave slice.
 
 For each step within a slice, dispatch implementation following the implementer template (`${CLAUDE_PLUGIN_ROOT}/prompts/implementer.md`). Pass the implementer its step **and the slice's Gherkin scenario(s)** — the scenarios are the behavioral contract the step's test must satisfy.
+
+Within the RED/GREEN/REFACTOR mini-cycle below, repeated Write/Edit calls can race a `PostToolUse` hook that rewrites files (e.g., a formatter): an `Edit` failing on a stale `old_string` is expected to self-correct by re-`Read`ing the file before the next `Edit` attempt, not to escalate immediately.
 
 1. **RED** — Write the failing test described in the step, covering the slice scenario it traces to. Run the test suite. **Hard gate: the new test must fail.** Paste the failing output. If the test passes without new code, the behavior already exists — pick a different test. Do NOT proceed to GREEN without pasted failing output.
 2. **GREEN** — Write the minimum implementation to make the failing test pass. Do not add behavior beyond what the test requires. Run the test suite. **Hard gate: all tests must pass.** Paste the passing output. Do NOT proceed without pasted passing output.
@@ -116,7 +147,6 @@ For each step within a slice, dispatch implementation following the implementer 
 5. **Mark step done** — Use the Edit tool to update the plan file's `## Build Progress` section on disk:
    - Change `- [ ] Step N.M: <title>` to `- [x] Step N.M: <title>` for the completed step.
    - When every step under a slice is `[x]`, check off the parent `- [ ] Slice N: <title>`.
-   - For each acceptance criterion verified by this step, change `- [ ]` to `- [x]` in the Build Progress `### Acceptance Criteria` subsection.
    - After all slices are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
    - This disk write is the durable commit. If a `/clear` occurs, `/continue` reads `## Build Progress` to determine the resume point without needing conversation history.
 6. **Slice review checkpoint (batched).** When every step under the current slice is `[x]` **and** the slice had any deferred `standard` (or unspecified) steps, run **one** review pass over the slice's accumulated changed files: `/review-agent spec-compliance-review`, then the quality review agents relevant to what changed. Apply the same review-fix loop (up to 5 iterations; escalate if it doesn't converge). `trivial`-only and all-`complex` slices have nothing to batch — skip this pass. Then **record the checkpoint outcome** (sub-step 7).
@@ -127,6 +157,22 @@ For each step within a slice, dispatch implementation following the implementer 
    ```
 
    `outcome` is `no-op` when the checkpoint passed clean (found nothing), `fixed` when it found and auto-fixed actionable issues, `escalated` when the loop didn't converge. This is the sensor that tells a build where review caught a real defect from one where every loop passed no-op — it turns the pipeline's "value untested" into "value measured" and feeds the plan/step tiering decisions. Disable with `DEV_TEAM_REVIEW_VALUE=off`.
+
+### 4.9. Verify runtime behavior before the slice is done (issue #727)
+
+A "done" step that only passed its own tests is not the same as a feature that works — a red suite catches structural regressions, not "it fails the first time someone actually runs it." Once a slice's steps are all `[x]` (sub-step 5) and its review checkpoint(s) have run (sub-steps 4/6), decide whether the slice has a runtime surface to exercise **before the slice may be marked `[x]` complete**:
+
+1. **Classify the slice's changed files**, per `knowledge/test-file-indicators.md`. If every changed file is a test file, or the rest are docs/config only (no source or runtime file changed), there is nothing for `/verify` to drive — record `outcome: "skipped"` with a `reason` (below) and continue.
+2. **Otherwise, invoke `/verify`** scoped to the slice's changed runtime files before the slice's checkbox is flipped to `[x]`. This generalizes the UI-only `/browse` smoke test (sub-step 4's UI bullet) into a universal completion criterion: APIs, CLIs, bots, and background jobs get the same "did this actually run" check UI changes already get.
+3. **Not bypassable by `--yes`, `DEV_TEAM_AUTO_APPROVE=1`, or no-TTY.** Contrast with the approval gates in Steps 2–3: those bypass a human judgment call when no human is present. This gate needs no human judgment — the agent runs `/verify` itself — so non-interactive mode never skips it. There is no override flag for this step.
+4. **A `/verify` failure is a failing test.** Per Step 5's "Quality ownership" language: do not mark the slice `[x]` or the plan `implemented`. Enter [Systematic Debugging](../systematic-debugging/SKILL.md), find the root cause, fix it, and re-run `/verify` before proceeding — never silently override.
+5. **Record the outcome.** Append exactly one JSON line per slice with a runtime surface to `metrics/verify-log.jsonl`, schema modeled on `metrics/review-value.jsonl` (sub-step 7):
+
+   ```json
+   {"timestamp":"<ISO8601>","plan":"<plan-file>","slice":"<N>","branch":"<branch>","files":["<changed runtime file>","..."],"outcome":"ran|skipped|failed-then-fixed","reason":"<set when outcome is skipped>"}
+   ```
+
+   `outcome` is `ran` (`/verify` executed and passed), `skipped` (no runtime surface in the diff — `reason` states why, e.g. `"tests-only"` or `"docs-only"`), or `failed-then-fixed` (`/verify` failed at least once before the fix landed). `python3 scripts/progress_guardian.py --pre-pr` reads this log: a branch with runtime-surface changes and no matching entry fails the pre-PR gate the same way an incomplete step or a missing commit does.
 
 ### 5. Run full test suite
 
@@ -157,7 +203,7 @@ Invoke the [Feedback & Learning](../feedback-learning/SKILL.md) skill at task co
 
 ## Escalation
 
-A failure is a debugging task first, not a hand-back. Before escalating any test or review failure, run a [Systematic Debugging](../systematic-debugging/SKILL.md) pass — reproduce, find the root cause, state it in one sentence — and escalate **with that diagnosis**, never just an attempt count.
+A failure is a debugging task first, not a hand-back. Before escalating any test, review, or bash/command failure, run a [Systematic Debugging](../systematic-debugging/SKILL.md) pass — reproduce, find the root cause, state it in one sentence — and escalate **with that diagnosis**, never just an attempt count.
 
 Stop and ask the user when:
 
@@ -165,13 +211,15 @@ Stop and ask the user when:
 - The plan requires architectural decisions not covered by the plan
 - A review checkpoint fails after 2 correction iterations *and* the root cause is understood but unresolvable within scope
 - You discover the plan is incomplete or contradictory
+- The `verify_guard.py` hook blocks a verify command (`[BLOCK]` on a test/lint/build re-run) — this is the deterministic signal that the same command has run repeatedly with no intervening code change, i.e. a stuck loop rather than RED/GREEN/REFACTOR. Run the Systematic Debugging pass above instead of retrying the command again, and escalate with the diagnosis if it's still unresolvable in scope.
 
 ## Integration
 
 - `/specs` produces the intent, architecture, and acceptance-criteria artifacts that inform the plan
 - `/plan` decomposes the feature into slices, authors each slice's Gherkin, and produces the plan this command executes
+- `/verify` exercises each runtime-surface slice end-to-end before it may be marked done (sub-step 4.9, issue #727)
 - `/code-review` runs the full review suite after implementation
 - `farley-score` scores the branch's tests (Farley Score) as the final pre-PR quality signal
 - `/pr` creates the pull request after a successful build
 - `/continue` can resume a partially completed build across sessions
-- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary
+- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary; `--pre-pr` also fails closed when runtime-surface changes have no matching `metrics/verify-log.jsonl` entry (issue #727)

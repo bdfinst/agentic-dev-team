@@ -1,5 +1,209 @@
 # Changelog
 
+## [9.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.1.0...dev-team-v9.2.0) (2026-07-02)
+
+
+### Features
+
+* extend check_md_references.py to validate anchor fragments ([f7dd077](https://github.com/bdfinst/agentic-dev-team/commit/f7dd07779d54092a1fdf12577b2edd8e05c0153e))
+
+
+### Bug Fixes
+
+* **build:** mandate /verify before a runtime-surface slice is done ([1ca3665](https://github.com/bdfinst/agentic-dev-team/commit/1ca366580c552c9df8edd6d9037287015e2f46ce))
+* **claude-md:** restore claims-discipline sensor phrase after trim ([91ae4c5](https://github.com/bdfinst/agentic-dev-team/commit/91ae4c528e3e3340a70be1ae89786ec274db6ec1))
+* **docs:** use fully-qualified dev-team:tech-writer in dispatch prose ([f0ca139](https://github.com/bdfinst/agentic-dev-team/commit/f0ca13905dadca5a0964d6b0b78161e1791564e7)), closes [#720](https://github.com/bdfinst/agentic-dev-team/issues/720)
+* **hooks:** escalate verify-guard to a hard block for stuck loops ([3fd772c](https://github.com/bdfinst/agentic-dev-team/commit/3fd772c622efab0fcb2e1d0498ffcb310a13d61f)), closes [#708](https://github.com/bdfinst/agentic-dev-team/issues/708)
+* **hooks:** purge stale bash-retry/verify-guard state files on write ([66cf777](https://github.com/bdfinst/agentic-dev-team/commit/66cf7778aaae8530aec5dc56bb3a8d488051ce8b))
+* **hooks:** replace third-party PyYAML with a minimal stdlib parser ([bba1f9b](https://github.com/bdfinst/agentic-dev-team/commit/bba1f9b984b19e6a538e5853bce0c2be00ef8d80))
+* **hooks:** require a logged reason for --no-verify/-n commit bypass ([4e3470c](https://github.com/bdfinst/agentic-dev-team/commit/4e3470c9cd3855971085c13a6e76235475c59860)), closes [#709](https://github.com/bdfinst/agentic-dev-team/issues/709)
+* **hooks:** use in-process hashing in verify_guard_state instead of cksum ([08ee6e0](https://github.com/bdfinst/agentic-dev-team/commit/08ee6e05d260c0f6cb72cfdb35a91695d6a09e31))
+* **install:** retire Git Bash hard-requirement on Windows ([5704a04](https://github.com/bdfinst/agentic-dev-team/commit/5704a04cbf262c85a24339f0249f61d94277c9b4))
+* **model-routing-check:** invoke resolver with python3, not bash ([340f14c](https://github.com/bdfinst/agentic-dev-team/commit/340f14c5628f91c766acd8a7af4e8af94fa7d2f4)), closes [#718](https://github.com/bdfinst/agentic-dev-team/issues/718)
+* **mutation-testing:** avoid real OS signal delivery in portable test ([f11beaa](https://github.com/bdfinst/agentic-dev-team/commit/f11beaaffaa6118dbece785fec5732afb3b4f82a))
+* **mutation-testing:** terminate all live Stryker procs on signal, not one ([6de8d95](https://github.com/bdfinst/agentic-dev-team/commit/6de8d959bac2e9f5f11116e27a437f5bbfb68172))
+* **proxy-resilience:** consolidate proxy pointers to stay under CLAUDE.md budget ([4943e4e](https://github.com/bdfinst/agentic-dev-team/commit/4943e4e43a65df4c0e600fc6ead53a24b5b99d77))
+* **scripts:** bound shell subprocess calls with a timeout ([cb5e802](https://github.com/bdfinst/agentic-dev-team/commit/cb5e80296e4858a74a8107ffaa5b75503b7b8934))
+* **skills:** add diagnose-before-retry rule to /build ([c896654](https://github.com/bdfinst/agentic-dev-team/commit/c896654cbbe92b2d8b735995479ffdd6e01d0b98)), closes [#710](https://github.com/bdfinst/agentic-dev-team/issues/710)
+* **skills:** add pre-switch verification to branch-workflow ([4be5516](https://github.com/bdfinst/agentic-dev-team/commit/4be5516a2fd0145c394ffa17f94ce3f2a07a6b7c)), closes [#714](https://github.com/bdfinst/agentic-dev-team/issues/714)
+* **skills:** extend quality-gate-pipeline with external UI citation guidance ([91746bb](https://github.com/bdfinst/agentic-dev-team/commit/91746bb86e7375fdc5aa989382911d62b7bacf44)), closes [#728](https://github.com/bdfinst/agentic-dev-team/issues/728)
+* **skills:** pair branch-workflow cleanup with EnterWorktree/ExitWorktree ([3751720](https://github.com/bdfinst/agentic-dev-team/commit/37517208a0f6f172c3f8709f9d756c3c497e0aa2)), closes [#716](https://github.com/bdfinst/agentic-dev-team/issues/716)
+* **telemetry:** resolve dead-surface audit of never-invoked agents ([#712](https://github.com/bdfinst/agentic-dev-team/issues/712)) ([9b8a7c2](https://github.com/bdfinst/agentic-dev-team/commit/9b8a7c24e2744a9c6c11b6f385613a287b461847))
+* **tests:** extend hermetic-adoption gate to plugins/dev-team/tests/**/*.py ([649c4ce](https://github.com/bdfinst/agentic-dev-team/commit/649c4ce82667eeab811d5ed34e1a4b8deff9cfc7)), closes [#715](https://github.com/bdfinst/agentic-dev-team/issues/715)
+
+
+### Code Refactoring
+
+* **hooks:** dedupe model-band helpers into model_resolve ([758a28b](https://github.com/bdfinst/agentic-dev-team/commit/758a28b0d0a9315f9b95b736d55883e68b22124d))
+* **hooks:** dedupe stdin-JSON-read helper into hooks/lib/stdin_json.py ([dbfb953](https://github.com/bdfinst/agentic-dev-team/commit/dbfb9532a64df584f2dc1c62d12184bec32ab2a9))
+* **hooks:** rename magic numbers and cryptic identifiers in 4 hooks ([b3d8d07](https://github.com/bdfinst/agentic-dev-team/commit/b3d8d07f5732a82f4587c704d378b07a937e7b67))
+* **hooks:** share the 5000-char / 500-line token-efficiency thresholds ([7a44221](https://github.com/bdfinst/agentic-dev-team/commit/7a44221a74060138d997e6e31e8e80fb1fd38f48))
+* **hooks:** stop double-parsing the ladder JSON in resolve_band() ([b73a444](https://github.com/bdfinst/agentic-dev-team/commit/b73a444f274d64d6252d29d9f0f3025d7c729bb5))
+* **mutation-adapters:** dedupe first-changed-source-file lookup ([935ad37](https://github.com/bdfinst/agentic-dev-team/commit/935ad375414575497adf2286e8b926cf592c2a07))
+* **scripts:** dedupe issue-dict builders into review_result.make_issue ([ed212e1](https://github.com/bdfinst/agentic-dev-team/commit/ed212e15d27e31313ba525dbaf4621621e4337be))
+* **skills:** extract plan file template to references/plan-template.md ([dad1b07](https://github.com/bdfinst/agentic-dev-team/commit/dad1b0763d3c183d5f1f4bf972e9dfa6fb200288))
+
+
+### Performance Improvements
+
+* **hooks:** rotate disposed entries out of pending-review.jsonl ([12c9a41](https://github.com/bdfinst/agentic-dev-team/commit/12c9a41ca2db4e1079672122ed8b8dc7269531ea))
+* **hooks:** tail-read cost meter transcript instead of full re-parse ([0e73d8c](https://github.com/bdfinst/agentic-dev-team/commit/0e73d8c89a802b92de3d402ebe11485fab02a02d))
+
+
+### Documentation
+
+* **agents,skills:** recover from Edit stale-old_string via re-Read ([f5fa055](https://github.com/bdfinst/agentic-dev-team/commit/f5fa05557bee2f428884f809c4eb5a1362721486)), closes [#726](https://github.com/bdfinst/agentic-dev-team/issues/726)
+* **agents:** sync agent_info.md review-agent table with agent-registry.md ([1e5dadd](https://github.com/bdfinst/agentic-dev-team/commit/1e5dadd41b59042d18be7a4966e917507f2c5baa))
+* **ci-debugging:** add Monitor timeout_ms guidance for long-running jobs ([a814a67](https://github.com/bdfinst/agentic-dev-team/commit/a814a67f7ffe6178d922a0c4832c21a72e9ade68)), closes [#721](https://github.com/bdfinst/agentic-dev-team/issues/721)
+* document frontmatter extension keys, drop stale skip-guard, clarify ADR 0015 scope ([680c060](https://github.com/bdfinst/agentic-dev-team/commit/680c0607c68174db1c508373e43e65c29599b896))
+* fix bash-migration doc drift (dead agent refs, stale .sh names, ADR TOC) ([c991c3d](https://github.com/bdfinst/agentic-dev-team/commit/c991c3dd1aa28b3e669deb348501e855ee08c145))
+* **knowledge:** document proxy connection-refused retry/surface policy ([7607bba](https://github.com/bdfinst/agentic-dev-team/commit/7607bba116313026b4c75cd96fcd49e949ca7fab)), closes [#724](https://github.com/bdfinst/agentic-dev-team/issues/724)
+* **proxy-resilience:** add backoff/retry ceiling convention for proxy rate limits ([f3ded18](https://github.com/bdfinst/agentic-dev-team/commit/f3ded1851f60f2e28316ca416f756d4e7b590370)), closes [#723](https://github.com/bdfinst/agentic-dev-team/issues/723)
+* **skills:** add fast feedback loop guidance to browser-testing ([7fe8b43](https://github.com/bdfinst/agentic-dev-team/commit/7fe8b4338bbad52cd66344ab1e0973640b59f81f)), closes [#725](https://github.com/bdfinst/agentic-dev-team/issues/725)
+
+## [9.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.0.0...dev-team-v9.1.0) (2026-07-02)
+
+
+### Features
+
+* **mutation-testing:** first-class Stryker.NET slicing + slice-level parallelism ([#561](https://github.com/bdfinst/agentic-dev-team/issues/561)) ([1cc52b0](https://github.com/bdfinst/agentic-dev-team/commit/1cc52b0636b117a2185613bdfc72c003eed7a951))
+
+
+### Bug Fixes
+
+* **skills:** grant code-review the Agent tool it already instructs ([37568f4](https://github.com/bdfinst/agentic-dev-team/commit/37568f4f84d11621b12ab97e44a6171b91db0132)), closes [#730](https://github.com/bdfinst/agentic-dev-team/issues/730)
+
+## [9.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.4.0...dev-team-v9.0.0) (2026-07-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mutation-testing:** The shipped bash scripts (csharp-stryker-net-wrapper.sh, csharp-stryker-net-status-loop.sh) are removed. Downstream .NET operators who copied them into their repo's scripts/ must migrate to csharp_stryker_net_wrapper.py + csharp_stryker_net_status_loop.py. See plugins/dev-team/skills/mutation-testing/references/languages/csharp-stryker-net.md for the current install + run instructions.
+* **test-improve:** consolidate /test-modernize and /test-upgrade into /test-improve ([#536](https://github.com/bdfinst/agentic-dev-team/issues/536)) (#566)
+
+### Features
+
+* **agents:** mutation-kill catches DI-wiring files by signal alone ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([1206210](https://github.com/bdfinst/agentic-dev-team/commit/1206210465589567916ef44268cb34f4ccf33a92))
+* **agents:** mutation-kill escalation respects the Standard CompileError trap ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([ff470c5](https://github.com/bdfinst/agentic-dev-team/commit/ff470c5c39ee8a04e986305b29f7436b1993c054))
+* **agents:** mutation-kill persists per-file convergence history ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([b072919](https://github.com/bdfinst/agentic-dev-team/commit/b072919849e816f47015daf2fb145570622b38ea))
+* **agents:** mutation-kill shrinks --mutate glob from convergence history ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([b71fd9a](https://github.com/bdfinst/agentic-dev-team/commit/b71fd9a0e9e80de8de3d3e8ba3cc302d7bc51f51))
+* **agents:** mutation-kill tiers Basic-then-Standard mutation levels ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([8c25d33](https://github.com/bdfinst/agentic-dev-team/commit/8c25d33fc52e75eae4eb6e6e2cfdb0bde0c5d0b4))
+* **hooks:** port agent-model-resolve to python ([#585](https://github.com/bdfinst/agentic-dev-team/issues/585)) ([e9c9396](https://github.com/bdfinst/agentic-dev-team/commit/e9c93964fbc8acf0aa3bb37c774ef0cd900f4143)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port bash-retry-guard to python ([#591](https://github.com/bdfinst/agentic-dev-team/issues/591)) ([#629](https://github.com/bdfinst/agentic-dev-team/issues/629)) ([4ea68d8](https://github.com/bdfinst/agentic-dev-team/commit/4ea68d8e91f643ef8c399c9246ee7fccd2bb44ee)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port codegraph-bootstrap to python ([#592](https://github.com/bdfinst/agentic-dev-team/issues/592)) ([#632](https://github.com/bdfinst/agentic-dev-team/issues/632)) ([189ac4d](https://github.com/bdfinst/agentic-dev-team/commit/189ac4dab8fd6d5f40a5943b1245111c29b41f13)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port codegraph-nudge to python ([#593](https://github.com/bdfinst/agentic-dev-team/issues/593)) ([#634](https://github.com/bdfinst/agentic-dev-team/issues/634)) ([9507ddf](https://github.com/bdfinst/agentic-dev-team/commit/9507ddfa65aecb84f4789737c00fb2467649d452)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port codegraph-turn-mark to python ([#594](https://github.com/bdfinst/agentic-dev-team/issues/594)) ([#638](https://github.com/bdfinst/agentic-dev-team/issues/638)) ([f3bbb4d](https://github.com/bdfinst/agentic-dev-team/commit/f3bbb4df57a66aabc5b8a0f73986abeb85f0c5b2)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port context-ceiling-guard to python ([#595](https://github.com/bdfinst/agentic-dev-team/issues/595)) ([#644](https://github.com/bdfinst/agentic-dev-team/issues/644)) ([05a57dd](https://github.com/bdfinst/agentic-dev-team/commit/05a57dd6cbe44b5fb6bbfe5439f6756c1b21783a)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port contract-version-guard to python ([#596](https://github.com/bdfinst/agentic-dev-team/issues/596)) ([dffa130](https://github.com/bdfinst/agentic-dev-team/commit/dffa130a0734c26b3b451d0a21e59abdf903720d)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port cost-meter dispatcher to python ([#597](https://github.com/bdfinst/agentic-dev-team/issues/597)) ([f6859b5](https://github.com/bdfinst/agentic-dev-team/commit/f6859b597b9d410fe5597c306e6527da31791447)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port destructive-guard to python ([#598](https://github.com/bdfinst/agentic-dev-team/issues/598)) ([#654](https://github.com/bdfinst/agentic-dev-team/issues/654)) ([1f94854](https://github.com/bdfinst/agentic-dev-team/commit/1f9485433bed5f5130400dda4665fb2d3ac6a716)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port eval-compliance-check to python ([#599](https://github.com/bdfinst/agentic-dev-team/issues/599)) ([e1ed65d](https://github.com/bdfinst/agentic-dev-team/commit/e1ed65d848f7d74053c61d62cb7929d851daf7d6)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port js-fp-review to python ([#600](https://github.com/bdfinst/agentic-dev-team/issues/600)) ([bab8507](https://github.com/bdfinst/agentic-dev-team/commit/bab85073b40bab41d3e1cb506a228948c5e17082)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port knowledge-index hook to python ([#580](https://github.com/bdfinst/agentic-dev-team/issues/580)) ([#639](https://github.com/bdfinst/agentic-dev-team/issues/639)) ([fb15a9d](https://github.com/bdfinst/agentic-dev-team/commit/fb15a9d4c94a30aae746d4bfe1575a40e018da45)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port knowledge-index-paths shared lib to python ([#575](https://github.com/bdfinst/agentic-dev-team/issues/575)) ([#621](https://github.com/bdfinst/agentic-dev-team/issues/621)) ([ff1ebbb](https://github.com/bdfinst/agentic-dev-team/commit/ff1ebbb7b55263c9ebc5d684f2265f4b60bfeaae)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port pre-commit-detect + review-gate-hash shared libs to python ([#576](https://github.com/bdfinst/agentic-dev-team/issues/576)) ([#623](https://github.com/bdfinst/agentic-dev-team/issues/623)) ([7dd297a](https://github.com/bdfinst/agentic-dev-team/commit/7dd297a8dfd046a520847a69bea5781812058cc2)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port pre-commit-knowledge-index to python ([#582](https://github.com/bdfinst/agentic-dev-team/issues/582)) ([#643](https://github.com/bdfinst/agentic-dev-team/issues/643)) ([2c98625](https://github.com/bdfinst/agentic-dev-team/commit/2c9862558af7250a0f869a89469db807db494f94)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port pre-commit-review to python ([#583](https://github.com/bdfinst/agentic-dev-team/issues/583)) ([#646](https://github.com/bdfinst/agentic-dev-team/issues/646)) ([42c47bd](https://github.com/bdfinst/agentic-dev-team/commit/42c47bdc2e0099d63cd1864f1ae0dbcaf9fed216)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** port session-model-banner to python ([#586](https://github.com/bdfinst/agentic-dev-team/issues/586)) ([5c4cb5e](https://github.com/bdfinst/agentic-dev-team/commit/5c4cb5e2ab879f256819cfad1e5078eeb8572430)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** python hook contract + parity harness + reference port ([#574](https://github.com/bdfinst/agentic-dev-team/issues/574)) ([#620](https://github.com/bdfinst/agentic-dev-team/issues/620)) ([b1ccc82](https://github.com/bdfinst/agentic-dev-team/commit/b1ccc8261a8d3edd6339e645b7c2b62cff85e3e1)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** python port of token-efficiency-review ([#607](https://github.com/bdfinst/agentic-dev-team/issues/607)) ([#647](https://github.com/bdfinst/agentic-dev-team/issues/647)) ([db40b79](https://github.com/bdfinst/agentic-dev-team/commit/db40b79a11ee5cdacd8adf5e03402986fa7c0e0d)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** python port of verify-guard ([#608](https://github.com/bdfinst/agentic-dev-team/issues/608)) ([#651](https://github.com/bdfinst/agentic-dev-team/issues/651)) ([2b2a461](https://github.com/bdfinst/agentic-dev-team/commit/2b2a4612b034843d87e5419996f6e48e46b75911)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **hooks:** python port of version-check ([#609](https://github.com/bdfinst/agentic-dev-team/issues/609)) ([#628](https://github.com/bdfinst/agentic-dev-team/issues/628)) ([ec80ed3](https://github.com/bdfinst/agentic-dev-team/commit/ec80ed3ec035df7e2974188844df03d7aa22ad3d)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **install:** port install.sh to python + shell trampoline ([#616](https://github.com/bdfinst/agentic-dev-team/issues/616)) ([d5ed5fc](https://github.com/bdfinst/agentic-dev-team/commit/d5ed5fce8d214da092f7e01a948c17d4458e35a3)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **mutation-testing:** pretooluse hook enforces step 1c smoke gate ([#565](https://github.com/bdfinst/agentic-dev-team/issues/565)) ([#569](https://github.com/bdfinst/agentic-dev-team/issues/569)) ([2b62b50](https://github.com/bdfinst/agentic-dev-team/commit/2b62b50ec9ec5240f59a571f6a43a25e892f667f))
+* **mutation-testing:** python port of wrapper + status loop ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572) phase 1) ([#573](https://github.com/bdfinst/agentic-dev-team/issues/573)) ([620e8d8](https://github.com/bdfinst/agentic-dev-team/commit/620e8d858c2be5c99b7fa36a82927f16de660764))
+* **mutation-testing:** reference wrapper + status loop for .NET long runs (closes [#558](https://github.com/bdfinst/agentic-dev-team/issues/558), [#559](https://github.com/bdfinst/agentic-dev-team/issues/559)) ([#563](https://github.com/bdfinst/agentic-dev-team/issues/563)) ([e3e4b2f](https://github.com/bdfinst/agentic-dev-team/commit/e3e4b2fa60c7831124d469e38c6a1f27354cffa4))
+* **mutation-testing:** workflow-enforced smoke gate + solution-path warning (closes [#554](https://github.com/bdfinst/agentic-dev-team/issues/554), [#557](https://github.com/bdfinst/agentic-dev-team/issues/557)) ([#562](https://github.com/bdfinst/agentic-dev-team/issues/562)) ([3151e2d](https://github.com/bdfinst/agentic-dev-team/commit/3151e2df0f2f0187b98043d3637369f0e3ea5948))
+* **scripts:** --stryker-concurrency/STRYKER_MUTANT_CONCURRENCY override for wrapper default ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([8a53dd1](https://github.com/bdfinst/agentic-dev-team/commit/8a53dd179a179a9fd2ec01f4db52411494be082c))
+* **scripts:** port build-worktree-baseref to python ([#587](https://github.com/bdfinst/agentic-dev-team/issues/587)) ([eda5527](https://github.com/bdfinst/agentic-dev-team/commit/eda552763e2c7ff4b1b0998ccd9e7c8510711141)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **scripts:** python port of build-jobs ([#610](https://github.com/bdfinst/agentic-dev-team/issues/610)) ([#642](https://github.com/bdfinst/agentic-dev-team/issues/642)) ([77ceb14](https://github.com/bdfinst/agentic-dev-team/commit/77ceb149d21b22837353913b26dc13badb638284)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **scripts:** python port of build-wave ([#611](https://github.com/bdfinst/agentic-dev-team/issues/611)) ([#631](https://github.com/bdfinst/agentic-dev-team/issues/631)) ([13fbc3e](https://github.com/bdfinst/agentic-dev-team/commit/13fbc3e5ca7d317ac43c3b0ea9ec48c505bb977b)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **scripts:** python port of build-wave-reconcile ([#612](https://github.com/bdfinst/agentic-dev-team/issues/612)) ([#637](https://github.com/bdfinst/agentic-dev-team/issues/637)) ([bd57b1d](https://github.com/bdfinst/agentic-dev-team/commit/bd57b1d6838ea8aee10a136ab0d1a5e8eff1b041)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **scripts:** python port of git-origin-host ([#613](https://github.com/bdfinst/agentic-dev-team/issues/613)) ([#622](https://github.com/bdfinst/agentic-dev-team/issues/622)) ([3b2f0d8](https://github.com/bdfinst/agentic-dev-team/commit/3b2f0d8af5ca391619cade00fe786e3d21d0d60e)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **scripts:** python port of issue-deps ([#614](https://github.com/bdfinst/agentic-dev-team/issues/614)) ([#653](https://github.com/bdfinst/agentic-dev-team/issues/653)) ([e3e26f0](https://github.com/bdfinst/agentic-dev-team/commit/e3e26f010d31a3bdd728683ef9eacd8501ca8e73)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **scripts:** python port of recon-inventory ([#615](https://github.com/bdfinst/agentic-dev-team/issues/615)) ([6c956ac](https://github.com/bdfinst/agentic-dev-team/commit/6c956ac892b79d4ffbb818a894014ec9a3272326)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **scripts:** stryker.net wrapper defaults concurrency to cores-2 ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([ab4ca3f](https://github.com/bdfinst/agentic-dev-team/commit/ab4ca3fd000d06a85c62016479f912340ef0a3d7))
+* **skills:** python port of collect-domain-signals ([#617](https://github.com/bdfinst/agentic-dev-team/issues/617)) ([#657](https://github.com/bdfinst/agentic-dev-team/issues/657)) ([585a755](https://github.com/bdfinst/agentic-dev-team/commit/585a755d843cdd680137eed536776e9d137bd19d)), closes [#572](https://github.com/bdfinst/agentic-dev-team/issues/572)
+* **test-improve:** consolidate /test-modernize and /test-upgrade into /test-improve ([#536](https://github.com/bdfinst/agentic-dev-team/issues/536)) ([#566](https://github.com/bdfinst/agentic-dev-team/issues/566)) ([d6563f5](https://github.com/bdfinst/agentic-dev-team/commit/d6563f526ef0aa6e80e732f46e863c560f9b25f3))
+* **test-improve:** scaffold + worker parameterization (Slices 1, 11 of [#536](https://github.com/bdfinst/agentic-dev-team/issues/536)) ([#555](https://github.com/bdfinst/agentic-dev-team/issues/555)) ([d8a6ad1](https://github.com/bdfinst/agentic-dev-team/commit/d8a6ad1d7256c9dcca3589bd0b33ef6261b955bc))
+
+
+### Bug Fixes
+
+* **agents:** correct quality-targets-converge/SKILL.md cross-reference path ([1f2faf2](https://github.com/bdfinst/agentic-dev-team/commit/1f2faf2f58445158012558a0268a8c2c9da04780))
+* **build:** worktree agents inherit caller HEAD via detect-and-warn ([#553](https://github.com/bdfinst/agentic-dev-team/issues/553)) ([#560](https://github.com/bdfinst/agentic-dev-team/issues/560)) ([2655c83](https://github.com/bdfinst/agentic-dev-team/commit/2655c83384ccb0caa353826321439a8e98c143ef))
+* **ci:** cross-platform pytest fixtures for the wrapper on windows ([#619](https://github.com/bdfinst/agentic-dev-team/issues/619)) ([4dfe28f](https://github.com/bdfinst/agentic-dev-team/commit/4dfe28f5b088c8924a5ec4746b61516769f7ed24))
+* **mutation-testing:** probe dotnet-root across macos + linux + windows git bash ([#564](https://github.com/bdfinst/agentic-dev-team/issues/564)) ([#568](https://github.com/bdfinst/agentic-dev-team/issues/568)) ([143bbd9](https://github.com/bdfinst/agentic-dev-team/commit/143bbd9147bd3759b6863a8c9d5ac75fe9b86c5c))
+
+
+### Code Refactoring
+
+* **mutation-testing:** remove bash wrapper + tests, adopt python-only ([#581](https://github.com/bdfinst/agentic-dev-team/issues/581)) ([f2fb9e9](https://github.com/bdfinst/agentic-dev-team/commit/f2fb9e9da67d53e9e4328b5b2041e7a4ac3e18ea))
+* **test-design:** resolve smell-review/advisor remedy overlap at source ([#534](https://github.com/bdfinst/agentic-dev-team/issues/534)) ([#547](https://github.com/bdfinst/agentic-dev-team/issues/547)) ([e31b09c](https://github.com/bdfinst/agentic-dev-team/commit/e31b09c4154295901d0f58e98def1df6fb54f7bc))
+
+
+### Documentation
+
+* **mutation-testing:** document convergence-derived glob negations ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([045dc5f](https://github.com/bdfinst/agentic-dev-team/commit/045dc5f33350a3c502283ee788bb82c4aec1d944))
+* **mutation-testing:** document tiered mutation-level example commands ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([03b79db](https://github.com/bdfinst/agentic-dev-team/commit/03b79dbc8e0d432353720e01d94ca3e024eb9324))
+* **mutation-testing:** document wrapper concurrency default ([#667](https://github.com/bdfinst/agentic-dev-team/issues/667)) ([9061fc6](https://github.com/bdfinst/agentic-dev-team/commit/9061fc680a55875f443f990e7d88f66aecfd6686))
+* **mutation-testing:** fix cross-reference direction and soften overclaimed parity wording ([6927c59](https://github.com/bdfinst/agentic-dev-team/commit/6927c59433ae8b4de7d1ca59f06c3257981a884f))
+* **mutation-testing:** fix intra-file anchor slug for the new perTest section ([d2000d1](https://github.com/bdfinst/agentic-dev-team/commit/d2000d1332cf341ff218d5b5ba61440c912e4b82))
+* **mutation-testing:** recommend coverage-analysis perTest default for xunit.v2-shim Stryker.NET projects ([0770c27](https://github.com/bdfinst/agentic-dev-team/commit/0770c27e0c2a4928d131053084aad478351d186a))
+* **mutation-testing:** recommend local install with language-specific install commands ([#556](https://github.com/bdfinst/agentic-dev-team/issues/556)) ([d277694](https://github.com/bdfinst/agentic-dev-team/commit/d277694d6e8395858630f109a84938f3fdc28c9b))
+* **mutation-testing:** stop showing coverage-analysis as a Stryker.NET CLI flag ([47e8825](https://github.com/bdfinst/agentic-dev-team/commit/47e8825051905244c4cde954e6302d0993f5683f))
+* **mutation-testing:** warn that '&lt;tool&gt; | tee' masks exit code ([#550](https://github.com/bdfinst/agentic-dev-team/issues/550)) ([#552](https://github.com/bdfinst/agentic-dev-team/issues/552)) ([b65e90e](https://github.com/bdfinst/agentic-dev-team/commit/b65e90e739d644f62635774a9f943993b3bb3bf1))
+* update cross-references to bats files ported in [#671](https://github.com/bdfinst/agentic-dev-team/issues/671) ([c8ed195](https://github.com/bdfinst/agentic-dev-team/commit/c8ed195cfdf6a0c3db06d6b5d274aa8587164f1d))
+
+
+### Miscellaneous
+
+* **572:** remove all shipped bash + parity harness; close epic ([#618](https://github.com/bdfinst/agentic-dev-team/issues/618)) ([d6af7e2](https://github.com/bdfinst/agentic-dev-team/commit/d6af7e266bce71cf000af25deed6ae346928ffc6))
+* **hooks:** port model-resolve shared lib to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572).C0) ([#626](https://github.com/bdfinst/agentic-dev-team/issues/626)) ([9d6715d](https://github.com/bdfinst/agentic-dev-team/commit/9d6715d3fc2f44f0376caf13365e5d1950765a46)), closes [#577](https://github.com/bdfinst/agentic-dev-team/issues/577)
+* **hooks:** port mutation-adapters lib + 4 adapters to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572).D0) ([#625](https://github.com/bdfinst/agentic-dev-team/issues/625)) ([4308291](https://github.com/bdfinst/agentic-dev-team/commit/430829117d1171f6e3f861c0fa6e9b483e244ec1)), closes [#578](https://github.com/bdfinst/agentic-dev-team/issues/578)
+* **hooks:** port mutation-gate to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572)) ([#655](https://github.com/bdfinst/agentic-dev-team/issues/655)) ([b0681b7](https://github.com/bdfinst/agentic-dev-team/commit/b0681b708b842051af11c70652e2e769d6573da4)), closes [#588](https://github.com/bdfinst/agentic-dev-team/issues/588)
+* **hooks:** port post-format to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572)) ([#630](https://github.com/bdfinst/agentic-dev-team/issues/630)) ([b6bae0c](https://github.com/bdfinst/agentic-dev-team/commit/b6bae0cb414b3b67112497a5a8f95a29197fddb0)), closes [#601](https://github.com/bdfinst/agentic-dev-team/issues/601)
+* **hooks:** port pre-tool-guard to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572)) ([#633](https://github.com/bdfinst/agentic-dev-team/issues/633)) ([ee51a0c](https://github.com/bdfinst/agentic-dev-team/commit/ee51a0c5f8f9fe038f1e7299989a19f46c97b665)), closes [#602](https://github.com/bdfinst/agentic-dev-team/issues/602)
+* **hooks:** port session-learning-trigger to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572)) ([#636](https://github.com/bdfinst/agentic-dev-team/issues/636)) ([b0715c3](https://github.com/bdfinst/agentic-dev-team/commit/b0715c3157a21e79260f327f602cc33e1e50fc7d)), closes [#603](https://github.com/bdfinst/agentic-dev-team/issues/603)
+* **hooks:** port skills-index dispatcher to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572)) ([#641](https://github.com/bdfinst/agentic-dev-team/issues/641)) ([c65b096](https://github.com/bdfinst/agentic-dev-team/commit/c65b096323fdda028dbdd8f14cef5cd83846e2e3)), closes [#604](https://github.com/bdfinst/agentic-dev-team/issues/604)
+* **hooks:** port tdd-guard to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572)) ([#645](https://github.com/bdfinst/agentic-dev-team/issues/645)) ([8cf5bb4](https://github.com/bdfinst/agentic-dev-team/commit/8cf5bb44047c2618cb3bb2a2a42ea8497ba409c9)), closes [#605](https://github.com/bdfinst/agentic-dev-team/issues/605)
+* **hooks:** port telemetry dispatcher to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572)) ([#648](https://github.com/bdfinst/agentic-dev-team/issues/648)) ([52f411a](https://github.com/bdfinst/agentic-dev-team/commit/52f411a07a0eca703ea291abb0e6704cd5d1b60b)), closes [#606](https://github.com/bdfinst/agentic-dev-team/issues/606)
+* **hooks:** remove mutation-testing-smoke-gate.sh; python default ([#584](https://github.com/bdfinst/agentic-dev-team/issues/584)) ([95404df](https://github.com/bdfinst/agentic-dev-team/commit/95404dffe899cf15db8513352462af0c123e6522))
+* remove ACI-branded references from shipped plugin content ([98a604c](https://github.com/bdfinst/agentic-dev-team/commit/98a604cef34b7f2d74df06ce3d5efc52a425e9ac)), closes [#678](https://github.com/bdfinst/agentic-dev-team/issues/678)
+* **scripts:** port plan-parse shared lib to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572).E0) ([#627](https://github.com/bdfinst/agentic-dev-team/issues/627)) ([c9c4e57](https://github.com/bdfinst/agentic-dev-team/commit/c9c4e57cd436301333e1730538afb633c05b76d4)), closes [#579](https://github.com/bdfinst/agentic-dev-team/issues/579)
+* **scripts:** port plan-waves to python ([#572](https://github.com/bdfinst/agentic-dev-team/issues/572)) ([#649](https://github.com/bdfinst/agentic-dev-team/issues/649)) ([3e88ff5](https://github.com/bdfinst/agentic-dev-team/commit/3e88ff5ca76ccfd9885818436e343f09deb45750)), closes [#589](https://github.com/bdfinst/agentic-dev-team/issues/589)
+
+## [8.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.4...dev-team-v8.4.0) (2026-07-01)
+
+
+### Features
+
+* **mutation-testing:** 8 improvements from .NET mutation drive ([#544](https://github.com/bdfinst/agentic-dev-team/issues/544)) ([6648b80](https://github.com/bdfinst/agentic-dev-team/commit/6648b8035770b7c50f4644101cd627a1ffa3376e))
+* **mutation-testing:** honest score, timeout warning, NoCoverage-first triage, ([#521](https://github.com/bdfinst/agentic-dev-team/issues/521)) ([#545](https://github.com/bdfinst/agentic-dev-team/issues/545)) ([069cd00](https://github.com/bdfinst/agentic-dev-team/commit/069cd00b19e66191ca864bb8949633a75f7dd388))
+* **mutmut:** add Python mutation testing adapter + dispatch wiring ([#518](https://github.com/bdfinst/agentic-dev-team/issues/518)) ([69da27f](https://github.com/bdfinst/agentic-dev-team/commit/69da27f7d21da6cfac04c2c60cf72f18cd6ce475))
+* **stack-aware:** wire reference loading into three test-strategy skills/agents ([#524](https://github.com/bdfinst/agentic-dev-team/issues/524)) ([#530](https://github.com/bdfinst/agentic-dev-team/issues/530)) ([2f97705](https://github.com/bdfinst/agentic-dev-team/commit/2f97705541cbd19e93f9b1dd2310213cbda9610d))
+
+
+### Bug Fixes
+
+* **knowledge:** correct misrouted csharp-http-client-testing.md references ([#520](https://github.com/bdfinst/agentic-dev-team/issues/520)) ([0a3a70d](https://github.com/bdfinst/agentic-dev-team/commit/0a3a70d2ebf48ef0ed2c8680a7d344def424a95a))
+* **pitest:** class scoping, withHistory, per-mutant timeout, multi-module Maven ([#517](https://github.com/bdfinst/agentic-dev-team/issues/517)) ([e85ae92](https://github.com/bdfinst/agentic-dev-team/commit/e85ae92cdffdd6b6ee416332301c33dc43bf8bb8))
+* **plan:** remove AC mirror from Build Progress template ([#526](https://github.com/bdfinst/agentic-dev-team/issues/526)) ([#538](https://github.com/bdfinst/agentic-dev-team/issues/538)) ([f60df58](https://github.com/bdfinst/agentic-dev-team/commit/f60df58590c8cb0b97053203a516cb20c9d72bc7))
+* **stryker-js:** raise timeout 60s→300s, read per-mutant timeoutMS from config ([#516](https://github.com/bdfinst/agentic-dev-team/issues/516)) ([6dce929](https://github.com/bdfinst/agentic-dev-team/commit/6dce929773f49c9263cba6f6b0534cda85de04b2))
+* **stryker-net:** shard-aware execution prevents mutation gate timeouts on large C# repos ([#515](https://github.com/bdfinst/agentic-dev-team/issues/515)) ([c8f6624](https://github.com/bdfinst/agentic-dev-team/commit/c8f66245136ae5d80b67b8abde66b58b7f7d936e))
+* **test-design:** scope farley score to --path and --since ([#533](https://github.com/bdfinst/agentic-dev-team/issues/533)) ([#542](https://github.com/bdfinst/agentic-dev-team/issues/542)) ([00925d8](https://github.com/bdfinst/agentic-dev-team/commit/00925d8642a38e0e4b64821807acd0af9e3f4e8a))
+
+
+### Code Refactoring
+
+* **mutation-testing:** split SKILL into language-agnostic workflow + per-language KBs ([#523](https://github.com/bdfinst/agentic-dev-team/issues/523)) ([9ae29e2](https://github.com/bdfinst/agentic-dev-team/commit/9ae29e28323f218d42fc10f6098d684587e497ed))
+* **test-design:** demote test-design-advisor from user-invocable ([#532](https://github.com/bdfinst/agentic-dev-team/issues/532)) ([#539](https://github.com/bdfinst/agentic-dev-team/issues/539)) ([5b3782b](https://github.com/bdfinst/agentic-dev-team/commit/5b3782b662999e8aeb353e42aa7b01e64111bdac))
+
+
+### Documentation
+
+* **mutation-testing:** correct Stryker.NET reference (xunit.v3, DOTNET_ROOT, CLI, verbosity) ([#540](https://github.com/bdfinst/agentic-dev-team/issues/540)) ([d9c0f1c](https://github.com/bdfinst/agentic-dev-team/commit/d9c0f1c01177a95f1894197b39d36a2bc7781fef)), closes [#522](https://github.com/bdfinst/agentic-dev-team/issues/522)
+
 ## [8.3.4](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v8.3.3...dev-team-v8.3.4) (2026-06-29)
 
 

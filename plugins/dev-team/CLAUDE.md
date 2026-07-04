@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Fully automated development team using persona-driven AI agents. The Orchestrator dispatches tasks to specialized agents based on classification, complexity, and expertise.
+Fully automated development team using persona-driven AI agents. The Orchestrator dispatches tasks to specialized agents by classification, complexity, and expertise.
 
 ## North Star
 
@@ -24,12 +24,13 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 
 ## Core Principles
 
-1. **Selective Agent Loading**: Only load necessary agents. Target < 10,000 tokens for simple tasks.
-2. **40% Context Window Rule**: Maintain context below 40%. Enforced by `hooks/context-ceiling-guard.sh` — see [Context Loading Protocol](skills/context-loading-protocol/SKILL.md).
-3. **Persona-Driven Behavior**: Each agent has behavioral specifications in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
-4. **Human-in-the-Loop**: Agents are autonomous but require oversight.
-5. **Dynamic Configuration**: Config changes recorded to `metrics/config-changelog.jsonl`.
-6. **ATDD**: `/plan` decomposes into vertical slices with Gherkin scenarios before any implementation. No code without a scenario.
+1. **Selective Agent Loading**: Load only necessary agents. Target < 10,000 tokens simple tasks.
+2. **40% Context Ceiling**: A conservative target, not an accuracy cliff — see [Context Management](docs/context-management.md) for the guide and evidence. Enforced by `hooks/context_ceiling_guard.py`.
+3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
+4. **Human-in-the-Loop**: Autonomous agents, human oversight.
+5. **Dynamic Configuration**: Config changes → `metrics/config-changelog.jsonl`.
+6. **ATDD**: `/plan` decomposes into slices with Gherkin. No code without a scenario.
+7. **Python for cross-OS scripts**: shipped hooks/scripts are Python 3.8+ stdlib-only (ADR 0014, 0015).
 
 ## Team Organization
 
@@ -43,7 +44,7 @@ Teams can create `REVIEW-CONTEXT.md` in the project root with domain knowledge c
 
 ## Skills Registry
 
-See [knowledge/skills-registry.md](knowledge/skills-registry.md) for the full command reference. All review skills run under orchestrator direction with model assignment flowing through the Resolution Procedure (`agents/orchestrator.md`).
+See [knowledge/skills-registry.md](knowledge/skills-registry.md) for the full command reference. All review skills run under orchestrator direction via the Resolution Procedure (`agents/orchestrator.md`).
 
 ## Request Processing Flow
 
@@ -51,7 +52,7 @@ See [knowledge/request-processing-flow.md](knowledge/request-processing-flow.md)
 
 ## Model Routing
 
-Each agent declares an effort band (`effort: low|medium|high`). Resolution enforced by `hooks/agent-model-resolve.sh` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
+Each agent declares an effort band (`effort: low|medium|high`). Resolution enforced by `hooks/agent_model_resolve.py` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
 
 ## Context Management
 
@@ -60,17 +61,19 @@ Each agent declares an effort band (`effort: low|medium|high`). Resolution enfor
 
 Token budgets per agent: see [knowledge/agent-registry.md](knowledge/agent-registry.md).
 
-Operating rules: load on demand; trigger summarization at 40%; summarize phases to `memory/` before next-phase load; new conversations read from `memory/`.
+Operating rules: load on demand; summarize phases to `memory/` before next-phase load; new conversations read from `memory/`.
 
 ## Feedback & Learning
 
-Trigger keywords: `amend`, `learn`, `remember`, `forget`. Full procedure: **[Feedback & Learning](skills/feedback-learning/SKILL.md)**. Changes logged to `metrics/config-changelog.jsonl`.
+Trigger keywords: `amend`, `learn`, `remember`, `forget`. Full procedure: **[Feedback & Learning](skills/feedback-learning/SKILL.md)**.
 
 ## Human Oversight
 
-Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**.
+Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**. Intervention commands: feedback keywords above, plus `override`, `pause`, `stop`.
 
-Intervention commands: `amend`, `learn`, `remember`, `forget`, `override`, `pause`, `stop`.
+## Proxy Resilience
+
+429s: **[Proxy Resilience](skills/proxy-resilience/SKILL.md)**. Refused conns: [proxy-connectivity.md](knowledge/proxy-connectivity.md).
 
 ## Quality & Accuracy
 
@@ -78,10 +81,10 @@ All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKIL
 
 **Quality ownership.** Agents own the quality *state* — green means the whole suite, not just the diff. A red signal must be fixed or triaged, never stepped over.
 
-Hooks: `pre-tool-guard.sh` blocks sensitive path writes; `destructive-guard.sh` warns on destructive commands (use `/careful`/`/freeze`/`/guard` to escalate); `context-ceiling-guard.sh` enforces the 40% rule.
+Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands; `context_ceiling_guard.py` enforces the context ceiling (see above).
 
 ## Performance Metrics
 
 Logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
 
-Every quantitative claim must name the instrument that measures it. **Instrumented:** token budgets (`scripts/measure-tokens.sh`) and per-agent accuracy (`/agent-eval`). **Not yet instrumented:** efficiency gains, hallucination rate, first-pass acceptance rate (#102, #106).
+Every quantitative claim must name the instrument that measures it. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), per-agent accuracy (`/agent-eval`). **Not yet:** efficiency gains, hallucination rate, first-pass acceptance (#102, #106).

@@ -1,9 +1,9 @@
 # Behavior spec for /quality-targets-converge's mutation-history reuse rule.
 # Source of record: plans/mutation-testing-every-phase.md (Slice 4) · issue #287
-# Enforced by: tests/skills/quality_targets_converge_mutation_reuse_tests.bats
+# Enforced by: tests/skills/test_quality_targets_converge_mutation_reuse.py
 #
 # This file is a Given/When/Then spec, not an eval-grader fixture (see
-# evals/skills/README.md). Executable enforcement is the bats contract named
+# evals/skills/README.md). Executable enforcement is the pytest contract named
 # above; non-drift is checked by tests/repo/feature_spec_refs_test.bats.
 
 Feature: /quality-targets-converge avoids re-measuring files Phase 4 already covered

@@ -27,3 +27,16 @@ httpx>=0.27
 # Required by scripts/codebase_recon.py to validate the recon envelope against
 # plugins/dev-team/knowledge/schemas/recon-envelope-v1.json before writing.
 jsonschema>=4.0
+
+# Required by the Python-hook parity harness (plugins/dev-team/tests/hooks/parity/)
+# introduced in #574 as Phase 0 of the bash → python migration (#572). Every
+# Python-hook slice from #572 lives or dies by this suite; the harness itself
+# is stdlib-only but its test runner is pytest.
+pytest>=7.0
+
+# Required by tests/scripts/test_orchestrator.py's @pytest.mark.asyncio tests
+# (orchestrator.py's concurrent-dispatch coroutines). Folded into
+# chk_hook_units by #677 (epic #668) when tests/scripts/ was wired into CI
+# for the first time — without this, those tests fail with "async def
+# functions are not natively supported."
+pytest-asyncio>=0.23

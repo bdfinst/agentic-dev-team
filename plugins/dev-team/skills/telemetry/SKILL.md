@@ -13,7 +13,7 @@ allowed-tools: >-
 # Telemetry (#106)
 
 Role: worker. Manages consent for and reports the local, opt-in telemetry
-beacon. The beacon (`hooks/telemetry.sh`) records MINIMAL events — a command
+beacon. The beacon (`hooks/telemetry.py`) records MINIMAL events — a command
 NAME, a skill NAME (including agent-/auto-invoked skills), a gate name +
 outcome, and the plugin version — to `metrics/telemetry.jsonl`. No prompts,
 paths, code, or payloads are ever recorded, and there is **no network egress**:

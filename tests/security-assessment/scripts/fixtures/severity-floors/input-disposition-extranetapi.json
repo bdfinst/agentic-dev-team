@@ -9,12 +9,10 @@
       "verdict": "true_positive",
       "exploitability": {
         "score": 9,
-        "rationale": "hardcoded-creds floor=9. Plaintext OAuth-style client secret in the base config file. Anyone with git read has it. Used via DI into BillersClientLibrary -> Billers API (api-billers-*-dmz.nfr02dmz.aciworldwide.com). Covers all environments that don't override the key."
+        "rationale": "hardcoded-creds floor=9. Plaintext OAuth-style client secret in the base config file. Anyone with git read has it. Used via DI into BillersClientLibrary -> Billers API (api-billers-*-dmz.internal.example.com). Covers all environments that don't override the key."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "none \u2014 checked into source"
-      ],
+      "compensating_controls": ["none \u2014 checked into source"],
       "suppression": null
     },
     {
@@ -25,9 +23,7 @@
         "rationale": "Dedup with sec-appsettings.json-511 \u2014 same finding, different detector."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "none"
-      ],
+      "compensating_controls": ["none"],
       "suppression": "dedup:sec-appsettings.json-511"
     },
     {
@@ -38,9 +34,7 @@
         "rationale": "iPerceptions site-survey keys are intentionally public (embedded in the client-side HTML tag). Committing to config is a policy violation, not a security finding. Still flagging LOW for policy consistency."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "Public key by vendor design"
-      ],
+      "compensating_controls": ["Public key by vendor design"],
       "suppression": null
     },
     {
@@ -51,9 +45,7 @@
         "rationale": "Dedup with sec-appsettings.json-498."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "Public key by vendor design"
-      ],
+      "compensating_controls": ["Public key by vendor design"],
       "suppression": "dedup:sec-appsettings.json-498"
     },
     {
@@ -61,7 +53,7 @@
       "verdict": "true_positive",
       "exploitability": {
         "score": 9,
-        "rationale": "hardcoded-creds floor=9. Working SQL credentials (endavauser/Jupiter2020$) against SPDDB02E1A.devspeedpay.com. Dev SQL instance is internal-only but accessible from corp network; contains representative data for NextGen. Rotate + purge from git history."
+        "rationale": "hardcoded-creds floor=9. Working SQL credentials (EXAMPLE_dbuser/EXAMPLE_dbpass) against devdb01.internal.example.com. Dev SQL instance is internal-only but accessible from corp network; contains representative data. Rotate + purge from git history."
       },
       "reachability": "reached",
       "compensating_controls": [
@@ -104,9 +96,7 @@
         "rationale": "Padding-oracle-friendly error differentiation. Fixing this alone does not close the authentication gap but materially harms the oracle. High-value quick fix: collapse all three warnings into a single 'Invalid envelope' message."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "none"
-      ],
+      "compensating_controls": ["none"],
       "suppression": null
     },
     {
@@ -180,7 +170,7 @@
       "verdict": "true_positive",
       "exploitability": {
         "score": 7,
-        "rationale": "info-leak-unauth floor=5; raised to 7: IsDevelopment() bypass means a mis-deployed container with ASPNETCORE_ENVIRONMENT=Development in production disables the Referer/Origin check AND the password-reset URL host check (ForgotPasswordController.cs). Easy to get wrong; easy to exploit. Mitigation: remove the dev bypass; dev hosts already EndsWith 'localhost' or 'nprd-speedpay.com' and pass naturally."
+        "rationale": "info-leak-unauth floor=5; raised to 7: IsDevelopment() bypass means a mis-deployed container with ASPNETCORE_ENVIRONMENT=Development in production disables the Referer/Origin check AND the password-reset URL host check (ForgotPasswordController.cs). Easy to get wrong; easy to exploit. Mitigation: remove the dev bypass; dev hosts already EndsWith 'localhost' or 'dev.example.com' and pass naturally."
       },
       "reachability": "reached",
       "compensating_controls": [
@@ -193,12 +183,10 @@
       "verdict": "true_positive",
       "exploitability": {
         "score": 7,
-        "rationale": "EndsWith match without a dot-boundary permits domain suffix attacks: `my-speedpay.com`, `attacker-speedpay.com`, `wwwspeedpay.com.attacker.net` (if DnsSafeHost returns non-canonical form), etc. Fix: compare against DNS labels: host == safe OR host.EndsWith('.'+safe)."
+        "rationale": "EndsWith match without a dot-boundary permits domain suffix attacks: `my-example.com`, `attacker-example.com`, `wwwexample.com.attacker.net` (if DnsSafeHost returns non-canonical form), etc. Fix: compare against DNS labels: host == safe OR host.EndsWith('.'+safe)."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "none"
-      ],
+      "compensating_controls": ["none"],
       "suppression": null
     },
     {
@@ -209,9 +197,7 @@
         "rationale": "info-leak-unauth floor=5 suppressed to 4: X-Request-Id is a conventional trace-correlation header; most systems trust it. Log-forging potential is real but downstream Serilog JSON sink escapes content. Fix: validate header against `[A-Za-z0-9-_]{1,64}` regex."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "Serilog JSON formatter escapes on output"
-      ],
+      "compensating_controls": ["Serilog JSON formatter escapes on output"],
       "suppression": null
     },
     {
@@ -222,9 +208,7 @@
         "rationale": "IsTokenValid actually validates signature via Jose before returning a decoded token. A bogus token fails and decodedToken is null. So the baggage is only set from validly-signed tokens \u2014 no spoofing. The concern is that this happens at middleware stage before the ApiAuthorizationFilter does its full user-context build. Doesn't grant access, just sets telemetry earlier. Low severity."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "IsTokenValid validates signature"
-      ],
+      "compensating_controls": ["IsTokenValid validates signature"],
       "suppression": null
     },
     {
@@ -287,11 +271,11 @@
       "verdict": "true_positive",
       "exploitability": {
         "score": 7,
-        "rationale": "Password-reset-link host injection. Depends on the ExtranetUrlHelper.IsSafeAndWellFormedUrl EndsWith/dev-bypass pattern. An attacker-origin of `attacker-speedpay.com` satisfies EndsWith('speedpay.com') and causes the reset link to point at the attacker. User clicks reset link; attacker captures the token and can reset the password. Classic."
+        "rationale": "Password-reset-link host injection. Depends on the ExtranetUrlHelper.IsSafeAndWellFormedUrl EndsWith/dev-bypass pattern. An attacker-origin of `attacker-example.com` satisfies EndsWith('example.com') and causes the reset link to point at the attacker. User clicks reset link; attacker captures the token and can reset the password. Classic."
       },
       "reachability": "reached",
       "compensating_controls": [
-        "safeHosts include only speedpay.com and nprd-speedpay.com",
+        "safeHosts include only example.com and dev.example.com",
         "but the EndsWith match is the bypass primitive"
       ],
       "suppression": null
@@ -314,12 +298,10 @@
       "verdict": "likely_true_positive",
       "exploitability": {
         "score": 5,
-        "rationale": "AnySiteMarker in ValidateResetPasswordToken relaxes site scope. Whether cross-site replay is actually possible depends on the downstream userRepository implementation (not in this repo \u2014 lives in Aci.Speedpay.UserService.Domain package). Recommend audit of the package's token scoping."
+        "rationale": "AnySiteMarker in ValidateResetPasswordToken relaxes site scope. Whether cross-site replay is actually possible depends on the downstream userRepository implementation (not in this repo \u2014 lives in a separate UserService.Domain package). Recommend audit of the package's token scoping."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "token is bound to userId"
-      ],
+      "compensating_controls": ["token is bound to userId"],
       "suppression": null
     },
     {
@@ -380,12 +362,10 @@
       "verdict": "false_positive",
       "exploitability": {
         "score": 1,
-        "rationale": "Multi-stage Dockerfile. Release stage (the actual runtime image) runs as USER speedpay (uid 1100). USER root in intermediate stages is normal."
+        "rationale": "Multi-stage Dockerfile. Release stage (the actual runtime image) runs as USER appuser (uid 1100). USER root in intermediate stages is normal."
       },
       "reachability": "not-relevant",
-      "compensating_controls": [
-        "Release stage is non-root"
-      ],
+      "compensating_controls": ["Release stage is non-root"],
       "suppression": "false-positive-multistage-build"
     },
     {
@@ -396,9 +376,7 @@
         "rationale": "find -exec sh -c '...' {} pattern on controlled .deps.json filenames is not exploitable; filenames are build-deterministic."
       },
       "reachability": "not-relevant",
-      "compensating_controls": [
-        "filenames are controlled build artifacts"
-      ],
+      "compensating_controls": ["filenames are controlled build artifacts"],
       "suppression": "false-positive-controlled-filenames"
     },
     {
@@ -420,11 +398,11 @@
       "verdict": "true_positive",
       "exploitability": {
         "score": 8,
-        "rationale": "tls-disabled floor=7 raised to 8: agentCardAssist -> Semafone is the PCI pause-and-resume tokenization vendor. Disabling cert validation on the tokenization handoff breaks the cardholder-data trust chain. PCI DSS 4.0 Requirement 4.2.1 explicitly requires strong crypto + cert validation for CHD in transit."
+        "rationale": "tls-disabled floor=7 raised to 8: agentCardAssist -> external tokenization vendor for PCI pause-and-resume. Disabling cert validation on the tokenization handoff breaks the cardholder-data trust chain. PCI DSS 4.0 Requirement 4.2.1 explicitly requires strong crypto + cert validation for CHD in transit."
       },
       "reachability": "reached",
       "compensating_controls": [
-        "aci2.preprod.semafone.cloud is a preprod URL \u2014 prod overlay must point at prod Semafone endpoint"
+        "tokenizer2.preprod.example.com is a preprod URL \u2014 prod overlay must point at the prod tokenizer endpoint"
       ],
       "suppression": null
     },
@@ -436,9 +414,7 @@
         "rationale": "tls-disabled floor=5. Same pattern as Billers and agentCardAssist but for moBills (Walletron-owned subsidiary)."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "Octopus overlay may override"
-      ],
+      "compensating_controls": ["Octopus overlay may override"],
       "suppression": null
     },
     {
@@ -449,9 +425,7 @@
         "rationale": "QE-environment URL hard-coded in base config. If prod overlay misses this key, prod traffic flows to QE Billers and exposes the committed ClientSecret to an environment it wasn't meant for. Not directly exploitable without the Octopus variable set misconfiguration."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "Octopus overlay should supply prod URL"
-      ],
+      "compensating_controls": ["Octopus overlay should supply prod URL"],
       "suppression": null
     },
     {
@@ -459,7 +433,7 @@
       "verdict": "true_positive",
       "exploitability": {
         "score": 5,
-        "rationale": "tls-disabled floor=5. HSTS excluded for speedpay.com + www.speedpay.com. If the API is ever served through those hostnames, HSTS is not enforced and a MITM downgrade to HTTP is possible on first visit. Intended to support the static marketing domain, but the API should simply not be routed via those hosts."
+        "rationale": "tls-disabled floor=5. HSTS excluded for example.com + www.example.com. If the API is ever served through those hostnames, HSTS is not enforced and a MITM downgrade to HTTP is possible on first visit. Intended to support the static marketing domain, but the API should simply not be routed via those hosts."
       },
       "reachability": "reached",
       "compensating_controls": [
@@ -488,9 +462,7 @@
         "rationale": "The HTML file is served as a raw static asset by UseStaticFiles. No C# reference substitutes the {{...}} tokens. Dead template; not a rendering sink."
       },
       "reachability": "not-reached",
-      "compensating_controls": [
-        "No substitution logic"
-      ],
+      "compensating_controls": ["No substitution logic"],
       "suppression": "false-positive-dead-template"
     },
     {
@@ -501,9 +473,7 @@
         "rationale": "Test-fixture GUIDs used as map keys/values. Not production secrets."
       },
       "reachability": "not-reached",
-      "compensating_controls": [
-        "test code path"
-      ],
+      "compensating_controls": ["test code path"],
       "suppression": "false-positive-test-fixture"
     },
     {
@@ -514,9 +484,7 @@
         "rationale": "Test-only AES key material. Used exclusively in unit tests. Not production."
       },
       "reachability": "not-reached",
-      "compensating_controls": [
-        "test code path"
-      ],
+      "compensating_controls": ["test code path"],
       "suppression": "false-positive-test-fixture"
     },
     {
@@ -527,9 +495,7 @@
         "rationale": "ToLowerInvariant is safe for the current GUID-shaped session id contract. Noted as a brittleness risk."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "session id is always lowercase GUID"
-      ],
+      "compensating_controls": ["session id is always lowercase GUID"],
       "suppression": null
     },
     {
@@ -540,9 +506,7 @@
         "rationale": "Server-side session grace period extends beyond JWT exp. Intentional (allows clock-skew + network retry). 60s grace in prod is short and acceptable."
       },
       "reachability": "reached",
-      "compensating_controls": [
-        "JWT also carries exp claim; both must pass"
-      ],
+      "compensating_controls": ["JWT also carries exp claim; both must pass"],
       "suppression": null
     },
     {

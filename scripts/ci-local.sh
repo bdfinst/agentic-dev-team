@@ -22,13 +22,34 @@
 # the core count (portable across Linux + macOS, no bash-4 features). Output is
 # buffered per check and replayed in declared order, so the log stays readable
 # and the pass/fail summary is deterministic — same "run everything, collect all
-# failures" contract as the old serial runner, just faster. The bats suites also
-# parallelize across files via scripts/run-bats-parallel.sh, which uses `xargs -P`
-# (built into macOS + Linux) — no GNU `parallel` package required.
+# failures" contract as the old serial runner, just faster.
 #
 # Exit codes: 0 = all checks passed, 1 = one or more failed, 2 = missing tool.
 
 set -uo pipefail
+
+# --- git env scrub (issue #546) -------------------------------------------
+# Git exports GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE / GIT_PREFIX /
+# GIT_REFLOG_ACTION into the pre-push hook's environment. Left in place,
+# fixture tests that run `git init` / `git commit` / `git push` inherit
+# them and target the parent worktree's gitdir instead of their tempdirs,
+# silently rewriting refs/heads/*. Scrub at the boundary so no child
+# process can see them.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_REFLOG_ACTION
+
+# CI_LOCAL_PROBE_ENV=1 short-circuits ci-local to report the state of the
+# five scrubbed vars and exit 0. Used by tests/scripts/test_ci_local_hermetic.py
+# to assert the scrub happened without running the full suite. Deliberately
+# NARROW — only reports the exact names the unset targeted so the probe
+# cannot exfiltrate unrelated GIT_* secrets (GIT_HTTP_EXTRAHEADER carries
+# bearer tokens, GIT_ASKPASS carries credential-helper paths, etc.).
+if [ "${CI_LOCAL_PROBE_ENV:-}" = "1" ]; then
+  for _v in GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_REFLOG_ACTION; do
+    eval "_val=\${$_v-__unset__}"
+    printf '%s=%s\n' "$_v" "$_val"
+  done
+  exit 0
+fi
 
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
@@ -69,7 +90,7 @@ section() { printf '\n%s== %s ==%s\n' "$bold" "$1" "$reset"; }
 # tools per job, so a full-toolchain gate here would false-fail those jobs.
 if [ -z "$ONLY" ]; then
   missing=()
-  for t in shellcheck bats jq python3 semgrep; do
+  for t in shellcheck jq python3 semgrep; do
     command -v "$t" >/dev/null 2>&1 || missing+=("$t")
   done
   if [ "${#missing[@]}" -gt 0 ]; then
@@ -100,10 +121,6 @@ fi
 JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
 case "$JOBS" in ''|*[!0-9]*) JOBS=2 ;; esac
 [ "$JOBS" -ge 1 ] || JOBS=2
-
-# bats files are fanned across cores by scripts/run-bats-parallel.sh (xargs -P),
-# which needs no GNU `parallel` package — portable on every macOS + Linux box.
-run_bats() { bash scripts/run-bats-parallel.sh -j "$JOBS" "$@"; }
 
 # --- --changed-only resolution ---------------------------------------------
 # Source the suite->path mapping + matcher (pure logic, unit-tested separately),
@@ -141,24 +158,27 @@ fi
 chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.sh; }
 chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh scripts/audit-rules-vs-prompts.sh; }
 chk_sa_shell_suite()     { bash tests/security-assessment/scripts/run-all.sh; }
-chk_bats_repo()          { run_bats tests/repo/; }
-chk_bats_content_rest()  { run_bats tests/knowledge/ tests/agents/ tests/commands/ tests/docs/ tests/scripts/; }
-chk_model_routing() {
-  run_bats \
-    tests/hooks/updated_input_contract_tests.bats \
-    tests/hooks/agent_model_resolve_hook_tests.bats \
-    tests/hooks/model_resolve_tests.bats \
-    tests/hooks/plugin_version_tests.bats
-}
+# chk_model_routing (formerly ran 4 bats files) — retired in #618. The bash
+# hooks under test have been ported to Python (#585 / #577 / #609), and their
+# unit tests now live in plugins/dev-team/tests/hooks/test_*.py (invoked via
+# chk_hook_units below).
 chk_cost_regression() { bash scripts/cost-regression-check.sh; }
 chk_eval_corpus()     { python3 scripts/eval_grade.py --check-corpus; }
 chk_oe_staleness()    { python3 scripts/oe_scoring_staleness.py --warn-only; }
 chk_citation_lint()   { python3 scripts/citation_lint.py --all; }  # advisory (#312)
 chk_md_references()   { python3 scripts/check_md_references.py; }
-chk_skills_index()    { bash plugins/dev-team/hooks/lib/build-skills-index.sh --check; }
+chk_skills_index()    { python3 plugins/dev-team/hooks/lib/build_skills_index.py --check; }
 chk_rules_vs_prompts() { bash scripts/audit-rules-vs-prompts.sh; }
+chk_python_only() {
+  if [ -n "$BASE" ]; then
+    python3 scripts/check-python-only.py --base "$BASE"
+  else
+    python3 scripts/check-python-only.py  # defaults to origin/main, blocking
+  fi
+}
 chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
 chk_harness_smoke()    { python3 tests/security-assessment/harness/smoke_test.py; }
+chk_harness_scope()    { python3 tests/security-assessment/harness/scope_enforcement_test.py; }
 # Lightweight nav gate: assemble the docs tree, then assert every mkdocs nav
 # entry resolves to a file (the breakage a deleted/renamed doc leaves behind).
 # The full mkdocs build + lychee body-link scan stay CI-only (link-check.yml) so
@@ -181,6 +201,34 @@ chk_eslint() {
     printf '%s∼ skipped (npx not found)%s\n' "$yellow" "$reset"
   fi
 }
+# plugins/dev-team/tests/hooks/parity/ (the .sh↔.py parity harness) was retired
+# in #618 (epic #572) once every shipped hook + script became Python-only. The
+# going-forward coverage lives in plugins/dev-team/tests/hooks/test_*.py and
+# tests/repo/test_*.py (pytest, both invoked here via chk_hook_units). Every
+# content-guard *.bats fixture suite has now been ported to pytest (epic
+# #668) and bats-core itself is retired (#677) — chk_hook_units is the sole
+# content-guard gate; there is no separate bats check left to fold in.
+chk_hook_units() {
+  if ! python3 -c 'import pytest' >/dev/null 2>&1; then
+    printf '%s∼ skipped (pytest not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
+    return 0
+  fi
+  # tests/agents/, tests/commands/, tests/docs/, tests/knowledge/, and
+  # tests/bats/ were ported from bats to pytest under issue #675 (epic
+  # #668). tests/repo/'s eval/cost/telemetry/workflow-audit suites were
+  # ported under #672 (epic #668) and already ran here. tests/skills/ was
+  # ported under issue #674. tests/scripts/ was ported under issue #676 and
+  # is folded in here for the first time by #677 (its former bats runner,
+  # chk_bats_content_rest, retired with bats-core itself) — excluding the
+  # csharp_stryker_net_* wrapper tests, which stay on their own dedicated
+  # Windows workflow (wrapper-windows.yml) because they are timing/signal
+  # sensitive and not portable to this runner, matching the pre-existing
+  # tests/hooks/ exclusion below.
+  python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
+    tests/docs tests/knowledge tests/bats tests/skills tests/scripts \
+    --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
+    --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py
+}
 
 # Ordered list of "label::function". Order defines both the replay order and the
 # summary order (declared order, independent of completion order).
@@ -188,13 +236,12 @@ CHECKS=(
   "shellcheck — security-assessment helper scripts::chk_shellcheck_helpers"
   "shellcheck — test scripts::chk_shellcheck_tests"
   "security-assessment shell test suite (run-all.sh)::chk_sa_shell_suite"
-  "bats — dev-team tests/repo::chk_bats_repo"
-  "bats — dev-team content (knowledge/agents/commands/docs/scripts)::chk_bats_content_rest"
-  "bats — model-routing hook conformance::chk_model_routing"
   "cost-regression check::chk_cost_regression"
   "semgrep rule fixtures (audit-semgrep-fixtures.py)::chk_semgrep_fixtures"
   "red-team harness smoke (smoke_test.py)::chk_harness_smoke"
+  "red-team harness scope enforcement (scope_enforcement_test.py)::chk_harness_scope"
   "rules-vs-prompts audit (audit-rules-vs-prompts.sh)::chk_rules_vs_prompts"
+  "prefer-Python-over-bash audit (check-python-only.py)::chk_python_only"
   "eval corpus integrity (eval_grade.py --check-corpus)::chk_eval_corpus"
   "OE scoring staleness (advisory; oe_scoring_staleness.py)::chk_oe_staleness"
   "citation drift lint (citation_lint.py, advisory)::chk_citation_lint"
@@ -203,6 +250,7 @@ CHECKS=(
   "nav integrity (mkdocs nav → assembled file)::chk_nav_integrity"
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"
+  "plugin hook + script unit tests (pytest plugins/dev-team/tests)::chk_hook_units"
 )
 
 # --only=fn[,fn...] : keep just the named checks (CI invokes per-job subsets).

@@ -6,6 +6,8 @@ Date: 2026-06-25
 
 Accepted
 
+Refined by [16. Rely on harness-native compaction; the plugin performs structured summarization only](0016-rely-on-harness-native-compaction-the-plugin-performs-structured-summarization-only.md)
+
 ## Context
 
 CLAUDE.md states a **40% Context Window Rule** and the `context-loading-protocol` skill instructs the orchestrator to keep total context under that ceiling and to load agents/skills on demand rather than speculatively. Until now nothing enforced it: the rule lived only as guidance the orchestrator was asked to self-apply, and the protocol's own budget step is an *estimate* (baseline + history estimate + file sizes). If the orchestrator ignored the rule, context grew unchecked until the harness's own summarization kicked in — independent of the protocol.
@@ -35,4 +37,34 @@ Add `hooks/context-ceiling-guard.sh`, a `PreToolUse` hook registered on `Agent` 
 - The 40% rule is now a measured backstop, not just prose — capability loads over budget surface a concrete nudge (or block) tied to real occupancy.
 - The window default (200000) over-nudges on a 1M-context session until `DEV_TEAM_CONTEXT_WINDOW` is set; warn-by-default keeps that harmless, and the caveat is documented in the skill, CLAUDE.md, and `docs/agent-architecture.md`.
 - The hook reads `tail -n 400` of the transcript per gated call; bounded, but adds a small jq cost to `Agent`/`Skill` dispatches (not to Read/Grep/Glob).
-- Behavior is configurable and reversible via env vars; no schema or contract changes. Tests live in `tests/hooks/context_ceiling_guard.bats`.
+- Behavior is configurable and reversible via env vars; no schema or contract changes. Tests live in `plugins/dev-team/tests/hooks/test_context_ceiling_guard.py` (the original `.bats` suite was retired under the bash-removal epic, ADR 0015).
+
+## Amendment (2026-07-03)
+
+The model-id→window map this ADR rejected in 2026-06-25 (citing ADR 8's ban
+on pinning `claude-*` snapshot ids in plugin source) is now the shipped
+mechanism (#775, #779). Two things changed the calculus:
+
+- **Every current frontier model actually has a 1M window**, so the
+  "every model shares the same 200000-token base window" premise that made
+  the map carry no information is no longer true — the map now carries real
+  information.
+- **ADR 8's ban targets agent frontmatter** (`model: haiku/sonnet/opus`
+  tier aliases baking a vendor's lineup into ~33 agent files), not a hook
+  reading transcript-reported model ids at runtime to size a threshold. A
+  hook's family/version regex is read-only classification of harness
+  output, not a checked-in declaration that churns with every model
+  release — the two are not the same kind of coupling ADR 8 was guarding
+  against.
+
+The map is **version-pinned, not family-wide**: it lists specific 1M-window
+model ids (Fable, Mythos, Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6) rather than
+matching "opus"/"sonnet"/"fable" as bare family names. Window is a fixed
+per-model property — a future same-family model is not guaranteed to share
+its predecessor's window, so a bare family match would risk silently
+mis-sizing the threshold. Unrecognized models (including a same-family
+model outside the pinned versions) fall back to the conservative 200K
+default. This preserves the original warn-by-default posture's asymmetry:
+over-nudging a large-window session is a minor false alarm, while
+under-nudging a small-window session risks running well past the real
+ceiling — so an unknown model is never assumed large.
