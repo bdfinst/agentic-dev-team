@@ -187,7 +187,8 @@ This context goes to **all** review agents, not just security-review.
 
 ## Related
 
-- `references/tool-configs.md` — per-tool invocation commands, adapter scripts, install hints
+- `references/tool-configs.md` — per-tool invocation commands, adapter scripts, install hints; hosts the "Build-time lanes" registry for `/build`'s static self-heal pass
+- `references/language-setup.md` — user-facing per-language setup guide for the build-time self-heal pass and this pre-pass
 - `references/sarif-parser.md` — normalized mapping from SARIF `result` to unified finding envelope v1.0
 - `evals/static-analysis-tools/tier1-mocks/` — tier-1 mocked SARIF fixtures
 - `evals/static-analysis-tools/tier2-integration/` — tier-2 real-binary integration tests (nightly CI)

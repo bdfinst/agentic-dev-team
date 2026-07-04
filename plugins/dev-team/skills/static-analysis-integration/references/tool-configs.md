@@ -162,3 +162,39 @@ pylint --output-format=json <target-py-files>
 | `type` | `severity` (`error`→`error`, `warning`/`convention`→`warning`, `refactor`/`info`→`suggestion`) |
 
 Legacy adapters emit the same unified finding envelope as SARIF tools. Migrate to SARIF-native invocation when upstream support lands.
+
+## Build-time lanes
+
+The registry for `/build`'s static self-heal pass: one subsection per
+language lane, filled in by the issue that registers the lane with the lane's
+file extensions, each capability slot's (**autofix** / **diagnostic**)
+ordered provider list — default provider first; it doubles as the last-resort
+provider named by install hints — and each provider's detection probe
+(repo-local locations first, then PATH).
+
+Everything else — what a lane is, scoping, the shared fix loop, the
+2-attempt cap, detection/provider binding, the provider qualification
+contract, the degradation ladder, granularity, and ordering — is specified
+once, in `${CLAUDE_PLUGIN_ROOT}/skills/build/references/static-self-heal.md`.
+Rows registered here must satisfy that contract and must not restate the
+mechanism. User-facing setup for each lane lives in
+[`language-setup.md`](language-setup.md).
+
+A language whose subsection still reads "No lane registered" is skipped by
+the self-heal pass with one info line — never a failure.
+
+### Python lane
+
+No lane registered — placeholder. Registered by #807.
+
+### JS/TS lane
+
+No lane registered — placeholder. Registered by #808.
+
+### C# lane
+
+No lane registered — placeholder. Registered by #809.
+
+### Java lane
+
+No lane registered — placeholder. Registered by #810.
