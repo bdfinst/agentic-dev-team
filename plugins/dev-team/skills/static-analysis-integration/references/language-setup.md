@@ -47,7 +47,45 @@ No lane registered — section added by #808.
 
 ## C#
 
-No lane registered — section added by #809.
+The C# lane rides the .NET SDK — there is no separate linter binary to
+install or configure.
+
+1. **Tools and roles**
+   - `dotnet format` — autofix-capable: Roslyn-analyzer-driven whitespace,
+     style, and analyzer code-fixes. The build-time lane's mechanical
+     pre-fix (`whitespace` + `style` at every checkpoint; `analyzers` at the
+     slice boundary).
+   - Roslyn **ErrorLog SARIF** — diagnostic-only: native SARIF exported by
+     the `dotnet build` the TDD loop already runs when passed
+     `/p:ErrorLog=results.sarif,version=2.1`. Also the lane's Tier 1
+     `/code-review` source.
+2. **Repo-level install** — nothing to install: both pieces ship with the
+   .NET SDK the project already requires (SDK ≥ 6 for built-in
+   `dotnet format`; .NET 5 SDK / Roslyn 3.8+ for the SARIF v2.1 export).
+   Where the SDK version matters, pin it repo-level with `global.json`
+   (`dotnet new globaljson --sdk-version <version>`) — never a
+   user-level/global toolchain assumption. `/project-init` is the
+   one-command path: it verifies SDK presence and honors an existing
+   `global.json` pin.
+3. **Configuration** — the tools honor the project's `.editorconfig`;
+   `dotnet format` runs against it at its default `--severity warn`.
+   Third-party Roslyn analyzers (StyleCop.Analyzers, SonarAnalyzer.CSharp,
+   …) are added as `PackageReference`s in the `.csproj` and automatically
+   ride the same ErrorLog SARIF.
+4. **Verification** — the lane's detection probe is `command -v dotnet`
+   (one SDK probe covers both tools). Confirm the pieces work:
+
+   ```bash
+   command -v dotnet
+   dotnet format --version
+   dotnet build /p:ErrorLog=results.sarif,version=2.1   # writes results.sarif
+   ```
+
+5. **Opt-out** — set `DEV_TEAM_STATIC_SELF_HEAL=off` to skip the build-time
+   self-heal pass entirely (see [Opting out](#opting-out) above).
+6. **Recognized equivalent providers** — none. `dotnet format` is
+   SDK-builtin, and analyzer alternatives join via the `.csproj`, not via
+   lane providers.
 
 ## Java
 

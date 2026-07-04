@@ -112,6 +112,52 @@ Severity: all actionlint findings map to `warning` by default; upgrade to
 - **Capability tier**: CI-CD
 - **Adapter**: thin JSON → SARIF wrapper (see `adapters/actionlint-to-sarif.sh` — created in P2 Step 3b alongside the optional adapters).
 
+### Roslyn ErrorLog (C#)
+
+C#'s primary static analysis (Roslyn analyzers) is built into the compiler:
+`dotnet build` exports native SARIF when passed the `ErrorLog` property — a
+build-flag change on the build the pipeline already runs, not a separate tool
+invocation.
+
+```bash
+dotnet build /p:ErrorLog=results.sarif,version=2.1
+```
+
+- **Install**: nothing beyond the .NET SDK a C# project already requires
+  (SDK ≥ 6 for built-in `dotnet format`; Roslyn 3.8+ / .NET 5 SDK or later for
+  the SARIF v2.1 export). Where the SDK version matters it is repo-pinned via
+  `global.json` — the .NET-native repo-level pin. No standalone install script.
+- **Install hint**: `dotnet — .NET SDK (C# build, format, ErrorLog SARIF). install: https://dotnet.microsoft.com/download`
+- **Detection**: `command -v dotnet` — **language-conditional**: probe and hint
+  only when `.cs` files are in the target set, so a non-C# repo never sees a
+  "dotnet missing" warning. A missing SDK degrades to `status: skip` with the
+  hint above — never a pipeline failure.
+- **Capability tier**: SAST (C# compiler + analyzer diagnostics)
+- **Adapter**: none; native SARIF v2.1, consumed raw by the shared SARIF parser.
+- **Reuse rule (`/code-review`)**: the full-repo pass invokes
+  `dotnet build /p:ErrorLog=...` for any C# project in scope unless a SARIF
+  produced from the current HEAD commit already exists (e.g. a CI artifact) —
+  **same-commit** is the reuse test.
+- **Incremental-build caveat**: the SARIF is rewritten only when the compiler
+  actually runs; an up-to-date incremental build skips compilation and leaves
+  the previous file in place (still valid for the code on disk). Pass the flag
+  on **every** build invocation. A *missing* SARIF (no compile has happened
+  yet) degrades to skip — never a pipeline failure.
+- **Scope (v1): single-project builds.** `ErrorLog` is a per-project compiler
+  property: in a multi-project solution each project's compilation writes its
+  own log — a relative path resolves per project directory, and an absolute
+  path is overwritten by whichever project compiles last. Multi-project
+  solutions are a documented gap; the v2 plan of record is a per-project path
+  via `Directory.Build.props` with `$(MSBuildProjectName)` in the ErrorLog path
+  (e.g. `<ErrorLog>$(MSBuildProjectName).sarif,version=2.1</ErrorLog>` — one
+  SARIF per project, no overwrite risk) plus a glob-collect.
+- **Dedup-chain placement**: none needed — the only cross-duplicating source is
+  semgrep, which already outranks all language-specific sources; revisit only
+  if a second Java/C# source is ever added.
+- **Build-time (`/build`) consumption**: the same SARIF doubles as the C#
+  lane's diagnostic (verify) source — see the C# lane row under "Build-time
+  lanes" below.
+
 ## Tier 2 — optional SARIF adapters (shipped in P2 Step 3b)
 
 Placeholder — populated by Step 3b. Expected tools: checkov, kube-linter, bandit, gosec, bearer, osv-scanner, grype, trufflehog.
@@ -193,7 +239,72 @@ No lane registered — placeholder. Registered by #808.
 
 ### C# lane
 
-No lane registered — placeholder. Registered by #809.
+- **Extensions**: `.cs`
+- **Autofix slot** (ordered provider list): `dotnet format` — the default and
+  only provider; SDK-builtin (.NET SDK ≥ 6), so the last-resort provider the
+  install hint names is the SDK itself.
+- **Diagnostic slot**: the Roslyn ErrorLog SARIF exported by the
+  GREEN-confirming `dotnet build` (see the Tier 1 "Roslyn ErrorLog (C#)"
+  entry above for the flag and caveats) — not a separate scoped invocation.
+  Scoping is post-hoc filtering to the changed set and freshness is
+  build-then-filter, per the C# accommodation in
+  `${CLAUDE_PLUGIN_ROOT}/skills/build/references/static-self-heal.md` — not
+  restated here.
+- **Detection probe** (one probe covers both slots): `command -v dotnet`.
+
+`dotnet format` operates on an **MSBuild project or solution**, not on bare
+file paths — `--include` is a filter of relative paths *within* that
+project/solution, not the operand. When no project/solution argument is
+given, the tool searches the working directory and errors on zero or multiple
+candidates, so pass the project/solution explicitly whenever auto-discovery
+is ambiguous.
+
+**Fix pass** — scoped to the checkpoint's changed `.cs` files (paths relative
+to the project/solution root); the `whitespace` and `style` subcommands run
+at every checkpoint:
+
+```bash
+dotnet format whitespace <project-or-solution> --include <changed .cs files>
+dotnet format style <project-or-solution> --include <changed .cs files>
+```
+
+At the slice-boundary checkpoint, additionally run the `analyzers`
+subcommand, whose Roslyn workspace-load + implicit-restore cost amortizes
+over the slice — no per-step analyzer visibility is lost, because the
+ErrorLog SARIF from the GREEN-confirming build still surfaces analyzer
+diagnostics at every step at zero cost:
+
+```bash
+dotnet format analyzers <project-or-solution> --include <slice's changed .cs files>
+```
+
+**Verify pass** — same subcommand split; `--verify-no-changes` formats
+nothing and exits non-zero (with diagnostics; add `--report <path>` for a
+JSON report) if any changes would have been made:
+
+```bash
+dotnet format whitespace <project-or-solution> --verify-no-changes --include <same files>
+dotnet format style <project-or-solution> --verify-no-changes --include <same files>
+# slice boundary only:
+dotnet format analyzers <project-or-solution> --verify-no-changes --include <same files>
+```
+
+- **Severity threshold**: honor the project's `.editorconfig` at the tool's
+  default `--severity warn` — the project's own config is the contract,
+  consistent with how the other lanes' tools use project config.
+- **Never invoke with an empty `--include` list** — per the CLI, an empty
+  include set means "format all files in the project/solution". The
+  mechanism's empty-partition guarantee (a lane with no matching changed
+  files is never dispatched) is load-bearing for this lane.
+- **Division of labor**: `dotnet format` applies only the fixes it has
+  code-fixes for; diagnostics it can't fix surface via the ErrorLog SARIF
+  from the next `dotnet build` and reach the coding agent as the lane's
+  diagnostic findings on the same attempt — the two pieces are complementary,
+  not redundant.
+- **Recognized equivalent providers**: none — `dotnet format` is SDK-builtin,
+  and third-party Roslyn analyzers (StyleCop.Analyzers etc.) automatically
+  ride the same ErrorLog SARIF once referenced in the project's `.csproj`.
+  C# equivalents join via the `.csproj`, not via lane providers.
 
 ### Java lane
 
