@@ -16,7 +16,7 @@ allowed-tools: >-
   Bash(git diff *), Bash(npx *), Bash(npm run *),
   Bash(pnpm *), Bash(yarn *), Bash(tsc *), Bash(eslint *),
   Bash(git log *), Bash(gh run *), Bash(semgrep *),
-  Bash(pylint *), Skill(review-agent *)
+  Bash(ruff *), Bash(mypy *), Skill(review-agent *)
 ---
 
 # Code Review
@@ -48,7 +48,7 @@ Arguments: $ARGUMENTS
 | `--init-risks` | Scaffold `ACCEPTED-RISKS.md` from `templates/ACCEPTED-RISKS.md.tmpl` if absent. Exits non-zero without overwriting if present. Schema: `knowledge/accepted-risks-schema.md`. |
 | `--force` | Skip pre-flight gates **and the documentation-only short-circuit** (forces a full review of doc-only changes). **Requires `--reason "<text>"`** — logged to `metrics/override-audit.jsonl`. |
 | `--reason "<text>"` | Override justification (required with `--force`) |
-| `--static-analysis` / `--no-static-analysis` | Force on/off the static analysis pre-pass (Semgrep, ESLint, TypeScript, pylint). Auto-enabled when tools are detected. |
+| `--static-analysis` / `--no-static-analysis` | Force on/off the static analysis pre-pass (Semgrep, ESLint, TypeScript, Ruff, mypy). Auto-enabled when tools are detected. |
 | `--background` | Drift review mode — review default branch for documentation, naming, and structural drift. Runs doc-review, arch-review, naming-review, structure-review only. Skips pre-flight gates. |
 | (no flags) | **Auto-scope**: review uncommitted changes if any exist, otherwise full repository |
 

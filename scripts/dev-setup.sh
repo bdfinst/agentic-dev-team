@@ -205,6 +205,17 @@ else
   warn "pmd not found — only needed for Java projects; install repo-locally with: python3 scripts/install-java-static-analysis.py"
 fi
 
+# ruff + mypy arrive via requirements-dev.txt (pip), like semgrep — verify the
+# CLIs the Python static-analysis lane probes for.
+for pytool in ruff mypy; do
+  if command -v "$pytool" >/dev/null 2>&1; then
+    ok "$pytool"
+  else
+    err "$pytool not found (declared in requirements-dev.txt)"
+    note_failure
+  fi
+done
+
 # --- summary ---------------------------------------------------------------
 section "Summary"
 if [ "$FAILURES" -eq 0 ]; then

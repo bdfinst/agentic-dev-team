@@ -101,7 +101,7 @@ Missing tools are skipped silently. Gate failures stop the pipeline — no agent
 
 ### 2b. Static analysis pre-pass
 
-If static analysis tools are available (Semgrep, ESLint, TypeScript, pylint), they run against the target files and collect structured findings. Results are **deduplicated across tools** and injected into each agent's prompt as pre-confirmed context:
+If static analysis tools are available (Semgrep, ESLint, TypeScript, Ruff, mypy), they run against the target files and collect structured findings. Results are **deduplicated across tools** and injected into each agent's prompt as pre-confirmed context:
 
 > "These issues were detected by static analysis tools. Do not re-report them. Focus on semantic and architectural concerns."
 

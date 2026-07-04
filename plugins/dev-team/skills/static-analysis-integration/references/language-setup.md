@@ -39,7 +39,37 @@ source of truth for the manual commands.
 
 ## Python
 
-No lane registered — section added by #807.
+1. **Tools and roles** — **Ruff** (autofix-capable): lint plus mechanical
+   fixes; runs the lane's pre-fix (`ruff check --fix`) and verify
+   (`ruff check`). **mypy** (diagnostic-only): type checking; it has no
+   autofix — its findings are handed to the coding agent.
+2. **Repo-level install** — add both to the project's own dev-dependency
+   mechanism so the toolchain is versioned with the repo and reproducible
+   for every contributor and CI: `requirements-dev.txt`, a `pyproject.toml`
+   dev dependency group, or `python3 -m pip install ruff mypy` inside the
+   project venv. Never `pip install --user` or a global pipx install.
+3. **Configuration** — Ruff honors the project's `ruff.toml`/`pyproject.toml`
+   when present (Ruff's default config discovery — no override flags) and
+   falls back to Ruff's defaults; the plugin pins no curated rule set — the
+   project owns its quality bar. mypy honors `mypy.ini`/`pyproject.toml`
+   (`[tool.mypy]`).
+4. **Verification** — the lane's detection probes are `command -v ruff` and
+   `command -v mypy`; run them (with the project venv active) to confirm
+   the setup will be detected.
+5. **Opt-out** — `DEV_TEAM_STATIC_SELF_HEAL=off` skips the build-time
+   static self-heal pass entirely (see [Opting out](#opting-out)).
+6. **Recognized equivalent providers** — autofix slot: ruff (default,
+   last-resort) → black + flake8, qualified only as a combined pair (black
+   is the format-autofix half, flake8 the lint-diagnostic half — a partial
+   mapping, not 1:1 with ruff's rule surface). Diagnostic slot: mypy
+   (default, last-resort) → pyright, gated: recognition requires a ≤ 40 LOC
+   Tier 3 adapter in `static-analysis-integration`, which does not exist
+   yet. A project arriving with black + flake8 (or pyright) present and
+   configured gets them bound; ruff/mypy are installed only into slots that
+   bind no recognized provider.
+
+Run `/project-init` for the one-command path to the same repo-level
+install; the commands above remain the source of truth for manual setup.
 
 ## JS/TS
 
