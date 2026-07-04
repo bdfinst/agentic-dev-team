@@ -2,8 +2,7 @@
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
 **Harness:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
-**Design + prior results:** [`when-tdd-pays-report.md` § refactoring-cadence follow-up](when-tdd-pays-report.md#proposed-follow-up-refactoring-cadence-and-the-test-safety-net),
-[`when-tdd-pays-summary.md`](when-tdd-pays-summary.md)
+**Design + prior results:** [`02-final-results.md` § refactoring-cadence follow-up](02-final-results.md#proposed-follow-up-refactoring-cadence-and-the-test-safety-net)
 
 This run resolves the open question from the *When Does TDD Pay Off?* study: the two
 refactor workflows (`tdd-refactor` 664, `test-after-refactor` 678) were statistically
@@ -122,7 +121,7 @@ quality-at-fixed-cost and quality-per-dollar, never quality alone.
   measure: a modular design localizes a change to few files.
 - **Modularity (structural, new offline sensor):** after the build stage, run the repo's
   read-only review agents against the agent's production code and **count findings**, the
-  way [`complexity-refactor-regression.md`](complexity-refactor-regression.md) established a
+  way [`complexity-refactor-regression.md`](../complexity-refactor-regression.md) established a
   baseline (mean findings/solution):
   - `complexity-review` — cyclomatic complexity, nesting depth, function size, parameter
     count.
@@ -291,13 +290,12 @@ row counts / `pgrep`); never kill the session's own `claude` process.
   test-churn sensor is non-zero.
 
 ### 5. Report
-Write `docs/experiments/refactor-granularity-report.md`: the pre-registered N and power
+Write `docs/experiments/04-final-results.md`: the pre-registered N and power
 calc, the 2×2×2 results grid, the TOST verdict, the two-factor models, the churn mediation,
 the authorship effects, honest limitations (trials, model, single-task-family, sensor
 caveats), reproducibility commands, and a recommendation. Commit the report **and** the raw
-data under `docs/experiments/data/`. Update
-[`when-tdd-pays-summary.md` § Open question](when-tdd-pays-summary.md) to mark the refactoring-cadence question resolved
-and link the new report.
+data under `docs/experiments/data/`. Mark the refactoring-cadence open question
+from [`02-final-results.md`](02-final-results.md) resolved and link the new report.
 
 ---
 

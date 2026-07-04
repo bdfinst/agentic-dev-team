@@ -124,6 +124,7 @@ nav:
       - Using Skills in Web Environment: docs/using-plugin-skills-in-the-web-environment.md
       - Marketplace Builder Playbook: docs/marketplace-builder-plugin-playbook.md
       - CD Coverage Review: docs/continuous-delivery-coverage-review.md
+      - Complexity Refactor Regression: docs/complexity-refactor-regression.md
       - Enforce Prefer-Python-over-Bash: docs/enforce-prefer-python-over-bash.md
 
   - Architecture Decisions:
@@ -142,21 +143,17 @@ nav:
       - "ADR-0012: Auto-Bootstrap CodeGraph Index": docs/adr/0012-auto-bootstrap-codegraph-index-per-clone.md
 
   - Experiments:
+      - Narrative (start here): docs/experiments/README.md
       - FAQ: docs/experiments/FAQ.md
-      - TDD vs Non-TDD Report: docs/experiments/tdd-vs-nontdd-report.md
-      - "01 · 3 Sizes 3 Arms Experiment": docs/experiments/01-experiment-prompt-3sizes-3arms.md
-      - 3 Sizes 3 Arms Report: docs/experiments/3sizes-3arms-report.md
-      - "02 · When TDD Pays Experiment": docs/experiments/02-experiment-prompt-when-tdd-pays.md
-      - When TDD Pays Report: docs/experiments/when-tdd-pays-report.md
-      - When TDD Pays Summary: docs/experiments/when-tdd-pays-summary.md
-      - "03 · Ship Arm Manual Run": docs/experiments/03-ship-arm-manual-run-prompt.md
-      - "04 · Refactor Granularity Experiment": docs/experiments/04-experiment-prompt-refactor-granularity.md
-      - Refactor Granularity Report: docs/experiments/refactor-granularity-report.md
-      - Refactor Granularity Summary: docs/experiments/refactor-granularity-summary.md
-      - Refactor Granularity Progress: docs/experiments/refactor-granularity-progress.md
-      - Refactor Granularity Power Analysis: docs/experiments/refactor-granularity-power-analysis.md
-      - "05 · Workflow Matrix Experiment": docs/experiments/05-experiment-prompt-workflow-matrix.md
-      - Complexity Refactor Regression: docs/experiments/complexity-refactor-regression.md
+      - "01 · 3 Sizes 3 Arms — Design": docs/experiments/01-experiment-prompt-3sizes-3arms.md
+      - "01 · 3 Sizes 3 Arms — Results": docs/experiments/01-final-results.md
+      - "02 · When TDD Pays — Design": docs/experiments/02-experiment-prompt-when-tdd-pays.md
+      - "02 · When TDD Pays — Results": docs/experiments/02-final-results.md
+      - "04 · Refactor Granularity — Design": docs/experiments/04-experiment-prompt-refactor-granularity.md
+      - "04 · Refactor Granularity — Results": docs/experiments/04-final-results.md
+      - "04 · Refactor Granularity — Power Analysis": docs/experiments/04-power-analysis.md
+      - "05 · Workflow Matrix — Design": docs/experiments/05-experiment-prompt-workflow-matrix.md
+      - "05 · Workflow Matrix — Final Results": docs/experiments/05-final-results.md
 
   - Specs:
       - Plugin CLAUDE.md Size Reduction: docs/specs/plugin-claude-md-size-reduction.md

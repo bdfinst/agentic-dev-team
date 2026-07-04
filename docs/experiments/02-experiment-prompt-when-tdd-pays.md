@@ -2,9 +2,9 @@
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
 **Harness:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
-**Motivation:** [`FAQ.md` Q1](FAQ.md), [`tdd-vs-nontdd-report.md`](tdd-vs-nontdd-report.md),
-[`3sizes-3arms-report.md`](3sizes-3arms-report.md)
-**Prior run results:** [`when-tdd-pays-report.md`](when-tdd-pays-report.md)
+**Motivation:** [`FAQ.md` Q1](FAQ.md),
+[`01-final-results.md`](01-final-results.md)
+**Prior run results:** [`02-final-results.md`](02-final-results.md)
 **Supersedes:** `ambiguous-requirements-experiment.md` (Axis A) and
 `experiment-prompt-design-discovery.md` (Axis B), merged here into one factorial.
 
@@ -334,7 +334,7 @@ session's own `claude`.
 
 ### 7. Report
 
-Write `docs/experiments/when-tdd-pays-report.md`: the clarity × workflow grid, the
+Write `docs/experiments/02-final-results.md`: the clarity × workflow grid, the
 ambiguity-inference / changeability / clarity-interaction verdicts and the refactoring-vs-ordering mechanism isolation, the spec-synthesis
 `ship`-vs-`tdd-refactor` spec-synthesis verdict, the test-after-refactor `test-after-refactor`
 dominance verdict (all three conditions: EDGE ≥ `test-after`, blast radius ≈
