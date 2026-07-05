@@ -92,6 +92,17 @@ not fixable in this plugin repo** (no plugin setting, hook, or config removes th
 inherited identity or tools). It is being reported upstream to Claude Code; until
 then, run benchmark harnesses locally.
 
+**Reusable workaround — the `/headless-run` skill.** When you must run a one-shot
+headless invocation (a harness case) with maximum isolation, use
+[`plugins/dev-team/skills/headless-run/SKILL.md`](../plugins/dev-team/skills/headless-run/SKILL.md).
+Its helper (`skills/headless-run/scripts/isolated_dispatch.py`) mints a fresh
+`--session-id <uuid>`, a clean temp `HOME` + `CLAUDE_CONFIG_DIR`, and a **scrubbed
+env** (dropping inherited `CLAUDE_*` session/Remote vars), runs
+`--output-format json` with a timeout and no `--resume`. It directly fixes the
+reused-`session_id` symptom; it cannot remove the Remote-injected MCP tools
+(those are not env-carried), so the fully-supported path is still a local
+checkout — see the skill's honest upstream caveat.
+
 The existing isolation precedent is `scripts/run_tdd_experiment.py`: its
 `make_cell_home()` / `cell_env()` / `dispatch()` trio (~lines 155–234) mints a
 fresh per-cell `HOME` + `CLAUDE_CONFIG_DIR`, runs `claude -p …
