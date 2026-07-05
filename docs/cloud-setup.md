@@ -29,29 +29,40 @@ below run fine from the Setup script.
 
 ## The snippet to paste into the Setup script field
 
-claude.ai/code → Environment → **Setup script**. The script below checks whether
-the plugin is already installed and always exits without error (a non-zero exit
-**fails** session startup). It uses a repo-committed bootstrap when one exists,
-and otherwise installs the plugin directly:
+claude.ai/code → Environment → **Setup script**. The script below always exits
+without error (a non-zero exit **fails** session startup). It uses a
+repo-committed bootstrap when one exists, and otherwise installs the plugin
+directly. It **refreshes** the plugin (re-pulls the catalog and `plugin update`)
+rather than only installing — because `plugin install` is a no-op once a version
+is cached, and the reused environment snapshot would otherwise pin the first
+version forever (see [Keeping the plugin version current](#keeping-the-plugin-version-current)):
 
 ```bash
 #!/bin/bash
 set -uo pipefail
 MARKETPLACE_REPO="bdfinst/agentic-dev-team"
 PLUGIN="dev-team@bfinster"
+MARKET="bfinster"
 ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 BOOTSTRAP="$ROOT/.claude/scripts/dev-team-bootstrap.sh"
 if [ -f "$BOOTSTRAP" ]; then
   bash "$BOOTSTRAP" || echo "[setup] bootstrap reported issues — continuing."
   exit 0
 fi
-echo "[setup] no $BOOTSTRAP — installing dev-team inline for this session."
+echo "[setup] no $BOOTSTRAP — installing/refreshing dev-team inline for this session."
 if command -v claude >/dev/null 2>&1; then
-  claude plugin marketplace add "$MARKETPLACE_REPO" >/dev/null 2>&1 || true
-  claude plugin install "$PLUGIN" >/dev/null 2>&1 || true
+  claude plugin marketplace add    "$MARKETPLACE_REPO" >/dev/null 2>&1 || true
+  claude plugin marketplace update "$MARKET"           >/dev/null 2>&1 || true
+  claude plugin install "$PLUGIN"                      >/dev/null 2>&1 || true
+  claude plugin update  "$PLUGIN"                      >/dev/null 2>&1 || true
 fi
 exit 0
 ```
+
+> Pasting the body of [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh)
+> instead does all of the above **and** enables marketplace auto-update (via
+> `.claude/enable-plugin-autoupdate.py`), so later releases refresh at launch
+> without a snapshot rebuild.
 
 If you also want this repo's test/gate toolchain (`jq`, `shellcheck`,
 the Python dev deps, `gh`) in the same step, paste the body of
@@ -81,6 +92,46 @@ claude -p "List the names of every skill available to you, one per line." \
 A non-zero count means the plugin loaded this session. (Re-verified in a live
 cloud session on 2026-06-21: CLI present at v2.1.185, Setup-script install
 yielded 86 `dev-team:*` skills including `dev-team:ship`, loaded same-session.)
+
+## Keeping the plugin version current
+
+Installing once is not enough to stay current. Three things conspire to pin a
+stale version:
+
+1. **The environment filesystem is snapshotted and reused** — including
+   `~/.claude/plugins/cache/`. Whatever version installs first is frozen into the
+   snapshot and handed to every later session.
+2. **`claude plugin install` is a no-op on an already-installed plugin** — it does
+   not upgrade — and `marketplace add` on a known marketplace does not re-pull the
+   catalog.
+3. **Auto-update is off by default**, so the CLI never refreshes on its own.
+
+The fix has three layers, all wired into `.claude/cloud-setup.sh` and the
+`.claude/install-dev-team.sh` SessionStart hook:
+
+- **Refresh, don't just install.** Both run `claude plugin marketplace update
+  bfinster` and `claude plugin update dev-team@bfinster` on every invocation, and
+  the SessionStart hook no longer no-ops when a version is already present.
+- **Enable marketplace auto-update.** Both call
+  [`.claude/enable-plugin-autoupdate.py`](../.claude/enable-plugin-autoupdate.py),
+  which sets `extraKnownMarketplaces.bfinster.autoUpdate: true` in the config
+  `settings.json` — the same flag the `/plugin` UI and `/upgrade` toggle. This is
+  the key lever: it makes the CLI re-pull and upgrade **at launch, within the
+  existing snapshot**, so a routine release lands without a snapshot rebuild.
+- **Manual escape hatch.** `/upgrade` updates on demand in any single session.
+
+Two things this does **not** do:
+
+- **It does not touch your local machine.** Both scripts run only in cloud
+  contexts — the Setup script is pasted into the cloud UI, and the SessionStart
+  hook is gated on `DEV_TEAM_CLOUD_INSTALL=1` (unset locally by design). Neither
+  edits your local `~/.claude/settings.json`. To get the same auto-update
+  behavior on your own machine, run it once locally: `/upgrade` (consent to
+  auto-update) or `python3 .claude/enable-plugin-autoupdate.py`.
+- **It cannot outrun releases.** "Current" means the latest **released tag**
+  (`marketplace.json`'s `source.ref`, which release-please bumps on merge). A
+  missed release makes every session lag until it is cut — that is a release
+  concern, not an install one.
 
 ## Caveats
 

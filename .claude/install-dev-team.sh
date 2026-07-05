@@ -31,18 +31,19 @@ JSON
   exit 0
 fi
 
-# Already installed? quiet no-op.
-if claude plugin list 2>/dev/null | grep -qi 'dev-team'; then
-  exit 0
-fi
-
-# Install idempotently, time-boxed so it can never hang session start.
-# (A plugin installed at SessionStart takes effect on the NEXT session.)
+# Install AND refresh, time-boxed so it can never hang session start. We do NOT
+# no-op when the plugin is already present: a reused environment snapshot pins
+# whatever version installed first, so every session must re-pull the marketplace
+# catalog and upgrade. (A SessionStart install/upgrade takes effect on the NEXT
+# session; enabling auto-update below refreshes at launch to close that gap.)
 _tmo() {
   if command -v timeout >/dev/null 2>&1; then timeout 120 "$@"
   elif command -v gtimeout >/dev/null 2>&1; then gtimeout 120 "$@"
   else "$@"; fi
 }
-_tmo claude plugin marketplace add bdfinst/agentic-dev-team >/dev/null 2>&1 || true
-_tmo claude plugin install dev-team@bfinster >/dev/null 2>&1 || true
+_tmo claude plugin marketplace add    bdfinst/agentic-dev-team >/dev/null 2>&1 || true
+_tmo claude plugin marketplace update bfinster                 >/dev/null 2>&1 || true
+_tmo claude plugin install dev-team@bfinster                   >/dev/null 2>&1 || true
+_tmo claude plugin update  dev-team@bfinster                   >/dev/null 2>&1 || true
+python3 "$(dirname "$0")/enable-plugin-autoupdate.py" >/dev/null 2>&1 || true
 exit 0
