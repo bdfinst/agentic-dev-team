@@ -46,6 +46,15 @@
     "agentCount": 11,
     "contextStrategy": "diff-only|full-file|mixed"
   },
+  "topFindings": [
+    {
+      "severity": "error|warning|suggestion",
+      "agents": ["structure-review", "complexity-review"],
+      "file": "src/api/handler.ts",
+      "line": 15,
+      "message": "God object: handler mixes routing, validation, and persistence"
+    }
+  ],
   "summary": "WARN (N agents passed, N warned, N failed). N total issues."
 }
 ```
@@ -55,6 +64,15 @@ The `tokenEstimate` field provides rough cost observability:
 - `totalInputFiles`: approximate character count of all input files passed to agents
 - `agentCount`: number of agents that ran (not skipped)
 - `contextStrategy`: whether diff-only, full-file, or a mix was used
+
+The `topFindings` array is the consolidated cross-agent view — one entry per
+distinct `file:line`, so a finding surfaced by several agents appears once:
+
+- `severity` is the **single highest** enum (`error` > `warning` > `suggestion`)
+  for that finding — never a slash- or comma-joined string.
+- `agents` is an explicit array of the reporting agents. Multi-agent
+  attribution lives here; never join multiple values into `severity` or an
+  `agent` scalar.
 
 ## Correction prompt JSON
 
@@ -102,7 +120,10 @@ Each agent declares a `Context needs` field that controls what input it receives
 
 ## Review Findings prompt (interactive — step 6)
 
-When actionable issues exist, present this prompt before any fix action:
+When actionable issues exist, present this prompt before any fix action. **This
+prompt is bypassed under `--json` (or `--yes`)**: those runs are contractually
+non-interactive and default to report-only (no code modified) — see SKILL.md
+step 6, exception (a).
 
 ```text
 ## Review Findings
