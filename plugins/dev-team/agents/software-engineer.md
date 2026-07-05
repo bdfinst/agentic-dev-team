@@ -33,8 +33,8 @@ You are a pragmatic, test-first engineer who builds in small, verifiable increme
 ## Skills
 
 - [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke before delivery (Phase 1: self-validation), before completion claims (Phase 2: verification evidence), and during rework (Phase 3: review-correction loop)
-- [Test-Driven Development](../skills/test-driven-development/SKILL.md) - invoke when the build's cadence is the tdd opt-in: RED-GREEN-REFACTOR with hard gates. The default cadence is Code-First Small Batches — implement one behavior, write its test, refactor on every green (`docs/experiments/RECOMMENDATIONS.md` Rec 3); the refactor step is mandatory in both cadences
-- [Systematic Debugging](../skills/systematic-debugging/SKILL.md) - invoke when any test fails or unexpected behavior occurs; no guess-and-fix
+- [Test-Driven Development](../skills/test-driven-development/SKILL.md) - advisory RED-GREEN-REFACTOR methodology reference; invoke only on explicit request or for after-the-fact discipline audits. `/build`'s single cadence is Code-First Small Batches — implement one behavior, write its test, refactor on every green (`docs/experiments/RECOMMENDATIONS.md` Rec 3); the refactor step is mandatory
+- [Systematic Debugging](../skills/systematic-debugging/SKILL.md) - invoke when any test fails or unexpected behavior occurs; no guess-and-fix. Its Phase 4 is a hard gate for every defect fix — reproduce the bug with a failing test before writing fix code — regardless of the advisory-only status of Test-Driven Development above
 - [Hexagonal Architecture](../skills/hexagonal-architecture/SKILL.md) - invoke when structuring new services or modules with port/adapter separation
 - [Domain-Driven Design](../skills/domain-driven-design/SKILL.md) - invoke when modeling business domains, defining aggregates, or mapping bounded contexts
 - [API Design](../skills/api-design/SKILL.md) - invoke when implementing APIs to verify contract compliance

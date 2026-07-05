@@ -16,3 +16,4 @@
 * [14. Python for cross-OS scripts](0014-python-for-cross-os-scripts.md)
 * [15. Bash removal complete — plugins/dev-team is Python-native](0015-bash-removal-complete.md)
 * [16. Rely on harness-native compaction; the plugin performs structured summarization only](0016-rely-on-harness-native-compaction-the-plugin-performs-structured-summarization-only.md)
+* [17. Single build cadence — remove the Classic TDD opt-in](0017-single-build-cadence-remove-classic-tdd-opt-in.md)

@@ -64,7 +64,7 @@ Each agent's `effort:` band is the authoritative routing input. Below is the rat
 During `/build`, the orchestrator executes the plan **wave by wave** (the plan's `## Parallelization` schedule from `scripts/plan_waves.py`):
 
 1. **Resolve** the wave schedule (`build_wave.py`) and the effective concurrency (`build_jobs.py` → `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)`).
-2. **Dispatch** each independent slice in the wave to its own git worktree (`isolation: "worktree"`) up to that concurrency — each runs its full per-behavior cycle (code-first default; TDD opt-in) + inline review in isolation.
+2. **Dispatch** each independent slice in the wave to its own git worktree (`isolation: "worktree"`) up to that concurrency — each runs its full per-behavior cycle (Code-First Small Batches) + inline review in isolation.
 3. **Barrier + reconcile** (`build_wave_reconcile.py`): order-independently merge the wave's slice branches, gate on the full suite, and only then start the next wave. A failing slice or a reconcile conflict halts loudly (names the offender, preserves succeeded worktrees, prints the resume command) and starts no next-wave slice.
 
 Effective concurrency 1 (fully-dependent plan, `--jobs 1`, or `DEV_TEAM_MAX_PARALLEL_BUILDS=1`) degrades to sequential single-worktree build with no fan-out or reconcile.
@@ -115,7 +115,7 @@ bias-up rule routes to the full workflow.
 Skips the Research and Plan phases. The task goes directly to implementation:
 
 1. **Load**: Software Engineer + relevant skill(s) only. No Architect, no plan review personas.
-2. **Implement** in small per-behavior batches using the resolved cadence — Code-First Small Batches by default, Classic TDD as the opt-in — same rules as Phase 3 of the full workflow.
+2. **Implement** in small per-behavior batches using Code-First Small Batches — the sole build cadence — same rules as Phase 3 of the full workflow.
 3. **Inline review**: standard three-stage inline review, preceded by the deterministic static self-heal pass run to pass-or-cap (`skills/build/references/static-self-heal.md`) — then spec-compliance → quality agents → browser for UI.
 4. **Final gate**: run `/code-review` on all modified files. Same pass/warn/fail handling as Phase 3.
 5. **Branch Workflow**: create PR as normal.
@@ -263,7 +263,7 @@ Do **not** dispatch `security-engineer` on every task — its `effort: high` cos
 - **Agents**: Software Engineer (primary), QA Engineer (validation), others as needed
 - **Input**: Plan progress file from Phase 2
 - **Subagent dispatch**: Use the `prompts/implementer.md` template when dispatching implementation subagents. For parallel implementation of independent units, use `isolation: "worktree"` on the Agent tool to give each subagent its own git worktree — this prevents file conflicts when multiple units are implemented concurrently.
-- **Cadence enforcement**: The Software Engineer follows the resolved per-behavior cadence for every unit — Code-First Small Batches (IMPLEMENT → TEST → REFACTOR) by default, Classic TDD (RED → GREEN → REFACTOR) when opted in (`docs/experiments/RECOMMENDATIONS.md` Rec 3). The orchestrator verifies that each unit's output includes the cadence's verification evidence: green full-suite output, preceded by failing-test output under the tdd opt-in.
+- **Cadence enforcement**: The Software Engineer follows the single per-behavior cadence for every unit — Code-First Small Batches (IMPLEMENT → TEST → REFACTOR), per `docs/experiments/RECOMMENDATIONS.md` Rec 3. The orchestrator verifies that each unit's output includes the cadence's verification evidence: green full-suite output. Defect fixes are the one exception — they follow `systematic-debugging`'s mandatory Phase 4 gate, which requires a failing test that reproduces the bug before any fix code is written.
 - **Output**: Working code that passes all tests, acceptance criteria, and code review
 - **Three-stage inline review**: After each discrete unit of work completes, run the deterministic static self-heal pass to pass-or-cap (`skills/build/references/static-self-heal.md`), then spec-compliance, then quality, then browser verification for UI changes:
   1. **Stage 1 — Spec compliance**: Run `spec-compliance-review` using the `prompts/spec-reviewer.md` template. Does the code match the spec? If fail → fix before proceeding to Stage 2.

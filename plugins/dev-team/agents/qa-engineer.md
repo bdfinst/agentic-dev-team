@@ -152,8 +152,9 @@ If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
 - [`legacy-code`](../skills/legacy-code/SKILL.md) — characterization-first
   procedure when production code is untested or refactoring-resistant.
 - [`test-driven-development`](../skills/test-driven-development/SKILL.md) —
-  RED-GREEN-REFACTOR discipline for new code under the opt-in tdd cadence
-  (the default build cadence is Code-First Small Batches).
+  advisory RED-GREEN-REFACTOR methodology reference, invoked on explicit
+  request or for after-the-fact discipline audits; `/build`'s single cadence
+  is Code-First Small Batches and does not dispatch into this skill.
 
 ### Test review (backward-looking — "are these tests any good?")
 
@@ -186,7 +187,9 @@ If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
 - [`quality-gate-pipeline`](../skills/quality-gate-pipeline/SKILL.md) —
   three-phase quality gate at delivery.
 - [`systematic-debugging`](../skills/systematic-debugging/SKILL.md) —
-  4-phase debugging protocol for test/defect investigation.
+  4-phase debugging protocol for test/defect investigation. Phase 4 is a hard
+  gate for every defect fix — reproduce with a failing test before the fix —
+  independent of `test-driven-development`'s advisory-only status above.
 - [`governance-compliance`](../skills/governance-compliance/SKILL.md) —
   multi-layer validation enforcement.
 - [`specs`](../skills/specs/SKILL.md) — invoke after the consistency gate
