@@ -45,5 +45,8 @@ _tmo claude plugin marketplace add    bdfinst/agentic-dev-team >/dev/null 2>&1 |
 _tmo claude plugin marketplace update bfinster                 >/dev/null 2>&1 || true
 _tmo claude plugin install dev-team@bfinster                   >/dev/null 2>&1 || true
 _tmo claude plugin update  dev-team@bfinster                   >/dev/null 2>&1 || true
-python3 "$(dirname "$0")/enable-plugin-autoupdate.py" >/dev/null 2>&1 || true
+# Enable auto-update via the plugin's own script (single source of truth, shared
+# with /upgrade). No consent prompt: running this cloud-gated hook is the opt-in.
+_root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+python3 "$_root/plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py" --enable >/dev/null 2>&1 || true
 exit 0

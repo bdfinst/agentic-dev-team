@@ -60,9 +60,9 @@ exit 0
 ```
 
 > Pasting the body of [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh)
-> instead does all of the above **and** enables marketplace auto-update (via
-> `.claude/enable-plugin-autoupdate.py`), so later releases refresh at launch
-> without a snapshot rebuild.
+> instead does all of the above **and** enables marketplace auto-update (via the
+> plugin's own `skills/upgrade/scripts/enable_autoupdate.py`), so later releases
+> refresh at launch without a snapshot rebuild.
 
 If you also want this repo's test/gate toolchain (`jq`, `shellcheck`,
 the Python dev deps, `gh`) in the same step, paste the body of
@@ -112,12 +112,14 @@ The fix has three layers, all wired into `.claude/cloud-setup.sh` and the
 - **Refresh, don't just install.** Both run `claude plugin marketplace update
   bfinster` and `claude plugin update dev-team@bfinster` on every invocation, and
   the SessionStart hook no longer no-ops when a version is already present.
-- **Enable marketplace auto-update.** Both call
-  [`.claude/enable-plugin-autoupdate.py`](../.claude/enable-plugin-autoupdate.py),
-  which sets `extraKnownMarketplaces.bfinster.autoUpdate: true` in the config
-  `settings.json` — the same flag the `/plugin` UI and `/upgrade` toggle. This is
-  the key lever: it makes the CLI re-pull and upgrade **at launch, within the
-  existing snapshot**, so a routine release lands without a snapshot rebuild.
+- **Enable marketplace auto-update.** Both call the plugin's own
+  [`skills/upgrade/scripts/enable_autoupdate.py`](../plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py)
+  (`--enable`), which sets `extraKnownMarketplaces.bfinster.autoUpdate: true` in
+  the config `settings.json` — the same flag the `/plugin` UI and `/upgrade`
+  toggle. This is the key lever: it makes the CLI re-pull and upgrade **at launch,
+  within the existing snapshot**, so a routine release lands without a snapshot
+  rebuild. `/upgrade` runs the very same script (its `--check`/`--enable` modes),
+  so there is one implementation of the flag, not two.
 - **Manual escape hatch.** `/upgrade` updates on demand in any single session.
 
 Two things this does **not** do:
@@ -127,7 +129,7 @@ Two things this does **not** do:
   hook is gated on `DEV_TEAM_CLOUD_INSTALL=1` (unset locally by design). Neither
   edits your local `~/.claude/settings.json`. To get the same auto-update
   behavior on your own machine, run it once locally: `/upgrade` (consent to
-  auto-update) or `python3 .claude/enable-plugin-autoupdate.py`.
+  auto-update) or `python3 plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py --enable`.
 - **It cannot outrun releases.** "Current" means the latest **released tag**
   (`marketplace.json`'s `source.ref`, which release-please bumps on merge). A
   missed release makes every session lag until it is cut — that is a release
