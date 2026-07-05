@@ -1,6 +1,6 @@
 ---
 name: test-driven-development
-description: Enforce the Classic TDD RED-GREEN-REFACTOR cycle with hard gates — the opt-in test-first cadence (the default build cadence is Code-First Small Batches per docs/experiments/RECOMMENDATIONS.md). Use when a plan's metadata records the tdd cadence, /build runs with --tdd, or the user explicitly wants test-first discipline for the code being written. Also use when reviewing code to verify TDD discipline was followed.
+description: Advisory reference for the Classic RED-GREEN-REFACTOR TDD discipline with hard gates — not a build cadence toggle. The plugin's single build cadence is Code-First Small Batches (docs/experiments/RECOMMENDATIONS.md Rec 3); /build does not dispatch into this skill. Use on explicit user request when someone wants test-first discipline for the code being written, or when reviewing code to verify TDD discipline was followed by hand.
 role: worker
 user-invocable: true
 ---
@@ -11,7 +11,7 @@ user-invocable: true
 
 Enforces strict RED-GREEN-REFACTOR discipline with verifiable gates. LLMs are especially prone to skipping tests or writing them after implementation — this skill exists because that tendency produces code that looks tested but isn't actually validated.
 
-**Positioning:** this is the plugin's **opt-in** cadence. The default build cadence is Code-First Small Batches — implement one behavior, write its test in the same cycle, refactor on every green (`docs/experiments/RECOMMENDATIONS.md` Rec 3: test-first ordering by itself buys nothing; the per-green refactoring is the mechanism, and it is mandatory in both cadences). Opt into this skill's test-first discipline via the plan's `**Cadence**: tdd` metadata or `/build --tdd`. When active, every rule below applies unchanged — including the Iron Law and its hard gates.
+**Positioning:** this is an **advisory methodology reference**, not a build cadence. `/build` runs a single cadence — Code-First Small Batches: implement one behavior, write its test in the same cycle, refactor on every green (`docs/experiments/RECOMMENDATIONS.md` Rec 3: test-first ordering by itself buys nothing; the per-green refactoring is the mechanism, and it is mandatory). `/build` never dispatches into this skill automatically. Use it only when a human explicitly asks for test-first discipline outside of `/build`, or when auditing existing code for TDD discipline after the fact. When applied, every rule below still holds — including the Iron Law and its hard gates.
 
 ## Iron Law
 

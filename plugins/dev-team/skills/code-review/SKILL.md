@@ -186,6 +186,8 @@ Spawn agents as parallel subagents in a single message using the Agent tool.
 - **Static analysis context**: if step 2b produced findings, inject into every agent's prompt using the format in `skills/static-analysis-integration/SKILL.md`: "These issues were detected by static analysis. Do not re-report them. Focus on semantic concerns."
 - **Per-agent output**: `{"agentName": "<name>", "status": "pass|warn|fail", "issues": [], "summary": "..."}` (full schema in `output-format.md`).
 
+**Graph-assisted architectural review**: if the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__*` tools — fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify CLI — `graphify query`/`path`/`explain` — architecture and cross-artifact questions), pass availability to agents doing structural/architectural review (`arch-review`, `component-architecture-review`, `structure-review`, `domain-review`) so they may consult the graph for impact/dependency context before flagging findings. See `knowledge/codegraph-vs-graphify.md` for when to use which. Never assume either tool exists — agents fall back to Read/Grep/Glob when absent.
+
 Wait for all agents to complete before aggregating.
 
 ### 5. Aggregate results

@@ -68,8 +68,8 @@ axis. **Human gate** — wait for plan approval before building.
 
 ### 4. Build
 
-Invoke `/build` to execute the approved plan in small per-behavior batches (code-first
-default; TDD opt-in), with inline review checkpoints and verification evidence. Do not proceed until the build reports a green
+Invoke `/build` to execute the approved plan in small per-behavior batches (code-first),
+with inline review checkpoints and verification evidence. Do not proceed until the build reports a green
 suite.
 
 ### 5. Review
