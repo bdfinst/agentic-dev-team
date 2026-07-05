@@ -1,10 +1,12 @@
-"""#813 — Code-First Small Batches is the default build cadence.
+"""#813 / ADR 0017 — Code-First Small Batches is the sole build cadence.
 
 Rec 3/4 (`docs/experiments/RECOMMENDATIONS.md`): one agent per unit of work
 implements one behavior, writes its test, keeps the suite green, refactors on
-every green — never deferring or skipping the refactor. Classic TDD stays as
-an explicit opt-in with its RED hard gate. Tests are frozen during REFACTOR,
-enforced mechanically via the phase state `/build` records.
+every green — never deferring or skipping the refactor. Classic TDD's
+RED-GREEN-REFACTOR opt-in was removed entirely by ADR 0017
+(`docs/adr/0017-single-build-cadence-remove-classic-tdd-opt-in.md`); there is
+no `--tdd` flag and no per-plan cadence to resolve. Tests are frozen during
+REFACTOR, enforced mechanically via the phase state `/build` records.
 """
 
 from __future__ import annotations
@@ -42,35 +44,14 @@ class TestBuildDefaultCadence:
             r"(full suite|all tests).{0,120}(pasted|paste)", flat, re.IGNORECASE
         )
 
-    def test_classic_tdd_is_an_explicit_opt_in_with_its_red_hard_gate(self) -> None:
-        assert "--tdd" in BUILD
+    def test_no_tdd_opt_in_flag_or_cadence_choice_remains(self) -> None:
+        """ADR 0017 removed the dual-cadence opt-in — there is exactly one cadence."""
+        assert "--tdd" not in BUILD
+        assert "**Cadence**" not in BUILD
         flat = _flat(BUILD)
-        assert re.search(r"RED\s*(→|->)\s*GREEN\s*(→|->)\s*REFACTOR", flat)
-        assert re.search(r"hard gate.{0,200}fail", flat, re.IGNORECASE) or re.search(
-            r"fail.{0,200}hard gate", flat, re.IGNORECASE
-        )
-
-    def test_cadence_metadata_and_cli_precedence(self) -> None:
-        assert "**Cadence**" in BUILD
-        flat = _flat(BUILD)
-        assert re.search(r"(CLI |--tdd )?flag wins|CLI-over-metadata", flat, re.IGNORECASE)
-
-    def test_resolved_cadence_is_printed_at_build_start(self) -> None:
-        flat = _flat(BUILD)
-        assert re.search(
-            r"resolved cadence.{0,120}(print|state|announc)", flat, re.IGNORECASE
-        ) or re.search(
-            r"(print|state|announc).{0,120}resolved cadence", flat, re.IGNORECASE
-        )
-
-    def test_legacy_plans_are_inferred_not_silently_switched(self) -> None:
-        flat = _flat(BUILD)
-        assert re.search(r"RED/GREEN.{0,200}(infer|tdd)", flat, re.IGNORECASE)
-        assert re.search(
-            r"(state|print|announc)\w*\s(the\s)?inference.{0,120}build output",
-            flat,
-            re.IGNORECASE,
-        ), "the cadence inference and its basis must be stated in the build output"
+        assert not re.search(
+            r"RED\s*(→|->)\s*GREEN\s*(→|->)\s*REFACTOR", flat
+        ), "classic TDD's RED-GREEN-REFACTOR cycle should no longer be documented as an option"
 
 
 class TestRefactorOnEveryGreen:
@@ -83,9 +64,12 @@ class TestRefactorOnEveryGreen:
             re.IGNORECASE,
         )
 
-    def test_both_cadences_carry_the_refactor_step(self) -> None:
-        flat = _flat(BUILD)
-        assert re.search(r"(both|either) cadence", flat, re.IGNORECASE)
+    def test_refactor_step_is_mandated_in_both_build_and_implementer_docs(self) -> None:
+        """The single cadence's refactor mandate must be documented consistently
+        in both the orchestrator-facing build doc and the implementer prompt."""
+        for text in (BUILD, IMPLEMENTER):
+            flat = _flat(text)
+            assert re.search(r"never (deferred|skipped)", flat, re.IGNORECASE)
 
 
 class TestTestsFrozenDuringRefactor:
@@ -125,10 +109,11 @@ class TestImplementerDefaultCycle:
         flat = _flat(IMPLEMENTER)
         assert re.search(r"IMPLEMENT\s*(→|->)\s*TEST\s*(→|->)\s*REFACTOR", flat)
 
-    def test_tdd_variant_keeps_the_red_hard_gate(self) -> None:
+    def test_implementer_states_there_is_no_cadence_to_resolve(self) -> None:
+        """ADR 0017: the implementer prompt must not describe a cadence choice."""
+        assert "--tdd" not in IMPLEMENTER
         flat = _flat(IMPLEMENTER)
-        assert re.search(r"RED", IMPLEMENTER)
-        assert re.search(r"must fail", flat, re.IGNORECASE)
+        assert re.search(r"no cadence to resolve", flat, re.IGNORECASE)
 
     def test_big_batch_shapes_are_named_as_prohibited_in_both_files(self) -> None:
         for text in (BUILD, IMPLEMENTER):
@@ -146,18 +131,20 @@ class TestImplementerDefaultCycle:
 
 
 class TestPlanCarriesTheCadence:
-    def test_plan_constraint_states_code_first_default_and_tdd_opt_in(self) -> None:
-        flat = _flat(PLAN)
+    def test_plan_constraint_states_code_first_as_the_only_cadence(self) -> None:
         assert "Code-First Small Batches" in PLAN
-        assert re.search(r"opt-in", flat, re.IGNORECASE)
+        assert "docs/experiments/RECOMMENDATIONS.md" in PLAN
 
-    def test_template_has_the_cadence_metadata_line(self) -> None:
-        assert re.search(r"\*\*Cadence\*\*: ?<?(code-first|tdd)", PLAN_TEMPLATE)
-        assert "code-first" in PLAN_TEMPLATE and "tdd" in PLAN_TEMPLATE
+    def test_template_has_no_cadence_metadata_line(self) -> None:
+        """ADR 0017 removed the per-plan cadence choice, so the template
+        carries no **Cadence** metadata field."""
+        assert not re.search(r"\*\*Cadence\*\*:", PLAN_TEMPLATE)
 
-    def test_template_step_labels_support_both_cadences(self) -> None:
-        flat = _flat(PLAN_TEMPLATE)
+    def test_template_step_labels_use_the_single_cadence(self) -> None:
         assert "**IMPLEMENT**" in PLAN_TEMPLATE
         assert "**TEST**" in PLAN_TEMPLATE
         assert "**REFACTOR**" in PLAN_TEMPLATE
-        assert re.search(r"RED.{0,200}GREEN", flat)
+        flat = _flat(PLAN_TEMPLATE)
+        assert not re.search(
+            r"RED.{0,200}GREEN", flat
+        ), "template should not carry classic-TDD RED/GREEN labeling"
