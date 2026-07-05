@@ -70,6 +70,38 @@ claude -p "List the names of every skill available to you, one per line." \
 
 A non-zero count (≈86) means the plugin loaded this session.
 
+### Headless / benchmarking caveat — don't nest `claude -p` inside a Remote session
+
+The probe above is a *one-shot* headless call, which is fine. But a **headless
+benchmark harness** — one that shells out to `claude -p "/code-review … --json"`
+to score runs (e.g. the #821 benchmark harness) — must be run from a **plain
+local CLI checkout, not nested inside a live Claude Code Remote session.**
+
+A nested `claude -p` launched inside a running Remote session is **not
+process-isolated the way you'd expect**: it inherits the parent's identity and
+tool surface from the surrounding Remote runtime. The two tell-tale symptoms:
+
+- **Shared `session_id`** — the nested run reports the *same* `session_id` as the
+  parent instead of minting a fresh one, so runs are not independent.
+- **Remote-injected tool surface** — the nested run sees Remote-runtime tools
+  (`CronCreate`, `PushNotification`, `ScheduleWakeup`, etc.) that a local CLI
+  session would never expose, changing the tool set under test.
+
+This inheritance is an **upstream Claude Code / Remote-runtime behavior — it is
+not fixable in this plugin repo** (no plugin setting, hook, or config removes the
+inherited identity or tools). It is being reported upstream to Claude Code; until
+then, run benchmark harnesses locally.
+
+The existing isolation precedent is `scripts/run_tdd_experiment.py`: its
+`make_cell_home()` / `cell_env()` / `dispatch()` trio (~lines 155–234) mints a
+fresh per-cell `HOME` + `CLAUDE_CONFIG_DIR`, runs `claude -p …
+--output-format json` with **no `--resume`**, a distinct `cwd`, and a hard
+`timeout`. That isolates config/memory/telemetry carryover — but note
+`cell_env()` does `env = dict(os.environ)`, so it inherits (does **not** scrub)
+the surrounding Remote session env; run nested inside a Remote session it would
+still exhibit the shared `session_id` and Remote tool surface. That is exactly
+why the leak is upstream and why the harness must run from a local checkout.
+
 ---
 
 ## 3. Option B (fallback) — run the skill from its files (no install)
