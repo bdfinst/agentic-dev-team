@@ -109,7 +109,8 @@ user), `cost-report`, `agent-readiness` (scores *your* repo — contrast
 - **Project onboarding** — user-invoked *after adding the plugin to a repo*; they
   configure the target repo, not the plugin: `setup` (detect stack; generate
   CLAUDE.md, hooks, templates) and `project-init` (detect stack, inventory/install
-  static-analysis tools). See the open gap below — a command that needs a missing
+  static-analysis tools, offer opt-in graph-tools — CodeGraph and/or Graphify, see
+  `plugins/dev-team/knowledge/codegraph-vs-graphify.md`). See the open gap below — a command that needs a missing
   tool should prompt the user to run these.
 - **Harness plumbing** — context management, rarely typed directly:
   `context-loading-protocol`, `context-summarization`

@@ -22,6 +22,7 @@ topic.
 | Eval upkeep | [`eval-maintenance.md`](eval-maintenance.md) | Grading rules, the calibration trap, and corpus discipline. |
 | Adapter & ruleset lifecycle | [`static-analysis-integration/maintenance.md`](../skills/static-analysis-integration/maintenance.md) | Ownership, drift detection, and deprecation for shipped adapters and rulesets. |
 | Adding agents, skills, or hooks | [root `CLAUDE.md`](../../../CLAUDE.md) § "Adding agents, skills, or hooks" | Where each artifact type lives and the structural audit to run afterwards. |
+| Code knowledge graphs | [`codegraph-vs-graphify.md`](../knowledge/codegraph-vs-graphify.md) | When to use CodeGraph vs Graphify, how `/project-init` installs each, and the CLAUDE.md-preservation guard. |
 | Script conventions | [ADR 0014](../../../docs/adr/0014-python-for-cross-os-scripts.md), [ADR 0015](../../../docs/adr/0015-bash-removal-complete.md) | Why every shipped script is Python 3.8+ stdlib-only, and the completed bash removal. |
 
 The rest of this page covers the one extension path that touches several of
