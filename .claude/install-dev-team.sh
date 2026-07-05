@@ -43,10 +43,17 @@ _tmo() {
 }
 _tmo claude plugin marketplace add    bdfinst/agentic-dev-team >/dev/null 2>&1 || true
 _tmo claude plugin marketplace update bfinster                 >/dev/null 2>&1 || true
-_tmo claude plugin install dev-team@bfinster                   >/dev/null 2>&1 || true
-_tmo claude plugin update  dev-team@bfinster                   >/dev/null 2>&1 || true
+# We install at user scope (the CLI default), so update/enable are pinned to it —
+# `claude plugin update` needs an explicit --scope or it assumes user and fails
+# noisily against a different scope (see the /upgrade skill).
+_tmo claude plugin install               dev-team@bfinster >/dev/null 2>&1 || true
+_tmo claude plugin update  --scope user  dev-team@bfinster >/dev/null 2>&1 || true
 # Enable auto-update via the plugin's own script (single source of truth, shared
 # with /upgrade). No consent prompt: running this cloud-gated hook is the opt-in.
 _root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
-python3 "$_root/plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py" --enable >/dev/null 2>&1 || true
+_scripts="$_root/plugins/dev-team/skills/upgrade/scripts"
+python3 "$_scripts/enable_autoupdate.py" --enable >/dev/null 2>&1 || true
+# Surface version drift (an update that lands next launch, or a blocked refresh)
+# as a SessionStart advisory; prints nothing when already current.
+python3 "$_scripts/check_version_drift.py" --session-start 2>/dev/null || true
 exit 0

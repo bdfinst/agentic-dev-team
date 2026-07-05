@@ -51,18 +51,21 @@ if [ -f "$BOOTSTRAP" ]; then
 fi
 echo "[setup] no $BOOTSTRAP — installing/refreshing dev-team inline for this session."
 if command -v claude >/dev/null 2>&1; then
-  claude plugin marketplace add    "$MARKETPLACE_REPO" >/dev/null 2>&1 || true
-  claude plugin marketplace update "$MARKET"           >/dev/null 2>&1 || true
-  claude plugin install "$PLUGIN"                      >/dev/null 2>&1 || true
-  claude plugin update  "$PLUGIN"                      >/dev/null 2>&1 || true
+  claude plugin marketplace add    "$MARKETPLACE_REPO"    >/dev/null 2>&1 || true
+  claude plugin marketplace update "$MARKET"              >/dev/null 2>&1 || true
+  claude plugin install              "$PLUGIN"            >/dev/null 2>&1 || true
+  claude plugin update  --scope user "$PLUGIN"            >/dev/null 2>&1 || true
+  # Enable auto-update so later releases refresh at launch without a snapshot rebuild.
+  AU="$ROOT/plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py"
+  [ -f "$AU" ] && python3 "$AU" --enable >/dev/null 2>&1 || true
 fi
 exit 0
 ```
 
-> Pasting the body of [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh)
-> instead does all of the above **and** enables marketplace auto-update (via the
-> plugin's own `skills/upgrade/scripts/enable_autoupdate.py`), so later releases
-> refresh at launch without a snapshot rebuild.
+> This snippet now enables marketplace auto-update itself (via the plugin's
+> `skills/upgrade/scripts/enable_autoupdate.py`). Pasting the body of
+> [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) instead additionally
+> installs this repo's test/gate toolchain and reports version drift — see below.
 
 If you also want this repo's test/gate toolchain (`jq`, `shellcheck`,
 the Python dev deps, `gh`) in the same step, paste the body of
@@ -120,6 +123,13 @@ The fix has three layers, all wired into `.claude/cloud-setup.sh` and the
   within the existing snapshot**, so a routine release lands without a snapshot
   rebuild. `/upgrade` runs the very same script (its `--check`/`--enable` modes),
   so there is one implementation of the flag, not two.
+- **Drift advisory.** Both also run the plugin's
+  [`skills/upgrade/scripts/check_version_drift.py`](../plugins/dev-team/skills/upgrade/scripts/check_version_drift.py),
+  which compares the installed version against the refreshed catalog and surfaces
+  a "v{installed} → v{latest}; restart or run `/upgrade`" advisory. This is the
+  safety net for the one case the refresh can't fix silently: a **restrictive
+  network policy** that blocks the catalog/update fetch, or an update that only
+  applies on the next launch. It says nothing when already current.
 - **Manual escape hatch.** `/upgrade` updates on demand in any single session.
 
 Two things this does **not** do:
