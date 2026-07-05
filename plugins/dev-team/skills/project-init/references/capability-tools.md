@@ -38,8 +38,12 @@ repo-local install for a general-purpose CLI like `gh` or `semgrep`. So:
 | **hadolint** | `/docker-image-audit` | A `Dockerfile`, `*.dockerfile`, or `compose.y*ml` present | macOS: `brew install hadolint`. Linux/Windows: official release binary from `hadolint/hadolint`. | `hadolint --version` |
 | **trivy** | `/docker-image-audit` | Same docker signal as hadolint | macOS: `brew install trivy`. Linux/Windows: official install script / release binary from `aquasecurity/trivy`. | `trivy --version` |
 | **grype** | `/docker-image-audit` | Same docker signal as hadolint | macOS: `brew install grype`. Linux/Windows: official install script / release binary from `anchore/grype`. | `grype --version` |
+| **codegraph** | code-intelligence (`codegraph_context`/`codegraph_explore` MCP tools, `codegraph-nudge` hook) | Universal — opt-in, confirmable, offered on every repo like semgrep | Install/init is a multi-step state machine, not a single command — see Step 4c and [`codegraph-vs-graphify.md`](../../../knowledge/codegraph-vs-graphify.md). Manual install: `https://github.com/colbymchenry/codegraph#installation`. | `command -v codegraph`, `.codegraph/` present |
+| **graphify** | `/graphify` (native skill, this repo's own `.claude/skills/graphify/`), architecture/onboarding questions spanning code + docs | Universal — opt-in, confirmable | `uv tool install graphifyy` (fallback `pipx install graphifyy`, fallback `python3 -m pip install --user graphifyy`), then `graphify install --project` and `graphify hook install` — see Step 4c for the CLAUDE.md corruption guard this install requires. | `graphify --version` |
 
 macOS one-liner for the docker scanners: `brew install hadolint trivy grype`.
+
+**codegraph and graphify get their own step (4c)**, not just a table row: codegraph's install+init flow is a stateful branch (installed × initialized), and graphify's install writes to the target repo's own `CLAUDE.md` and needs a corruption guard — both too complex for a single table row's install command. See `SKILL.md` Step 4c.
 
 ## OS awareness
 
