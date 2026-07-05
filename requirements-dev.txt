@@ -41,6 +41,13 @@ pytest>=7.0
 # functions are not natively supported."
 pytest-asyncio>=0.23
 
+# Parallelizes the content-guard pytest run (chk_hook_units in scripts/ci-local.sh)
+# across cores. The suite is the local/CI wall-clock long pole; ci-local.sh runs it
+# with `-n auto --dist loadfile` when this is present and falls back to a serial run
+# when it is not. loadfile keeps each file's tests on one worker so order-dependent
+# git-subprocess suites stay deterministic.
+pytest-xdist>=3.0
+
 # Required by the Python static-analysis lane (dev-team plugin): /build's
 # self-heal pass and /code-review's static pre-pass dispatch ruff (lint +
 # autofix, native SARIF; SARIF needs >= 0.3.1) whenever Python files are in
