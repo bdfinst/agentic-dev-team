@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.2.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.2.0...dev-team-v10.2.1) (2026-07-05)
+
+
+### Bug Fixes
+
+* guard claude-setup-review against Read-on-directory EISDIR ([49f0075](https://github.com/bdfinst/agentic-dev-team/commit/49f0075ac63af3a7730b12a125e31c748f154d4b))
+* harden code-review against EISDIR on --path dirs and json non-determinism ([a3dce5f](https://github.com/bdfinst/agentic-dev-team/commit/a3dce5f21d3e1905f599904e144ffcc8a6692145))
+
 ## [10.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.1.0...dev-team-v10.2.0) (2026-07-05)
 
 
