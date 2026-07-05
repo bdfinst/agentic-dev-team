@@ -116,9 +116,6 @@ user), `cost-report`, `agent-readiness` (scores *your* repo — contrast
 
 ## Open gaps / defects
 
-- **`design-it-twice` ↔ architect** ([#833](https://github.com/bdfinst/agentic-dev-team/issues/833)) —
-  the skill advertises Architect-agent triggering the architect's `## Skills`
-  list doesn't wire.
 - **`adr-author` ↔ `adr-tools`** ([#837](https://github.com/bdfinst/agentic-dev-team/issues/837)) —
   the adr-author agent lacks `Bash`/`Skill`, so it can't drive the `adr` CLI it's
   meant to author through and hand-rolls numbering instead.
