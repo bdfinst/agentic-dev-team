@@ -74,6 +74,13 @@ distinct `file:line`, so a finding surfaced by several agents appears once:
   attribution lives here; never join multiple values into `severity` or an
   `agent` scalar.
 
+**`--json` output contract.** When `--json` is set, the object above is the
+run's *only* output: printed to stdout, and no `corrections/*.json` files or
+`.review-passed` gate file are written — regardless of scope (`--path`,
+`--since`, `--all`, auto-scope) or how many issues were found. This holds
+whether `--json` was reached directly or via `/pr`'s call into `/code-review
+--json` (see SKILL.md steps 7–9).
+
 ## Correction prompt JSON
 
 ```json
