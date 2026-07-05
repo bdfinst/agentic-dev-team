@@ -69,6 +69,45 @@ agents or knowledge — the right-hand column is what the first draft missed.
 | `test-driven-development` | Classic TDD cycle with hard gates (opt-in cadence). | `build`, `systematic-debugging` | qa-engineer, software-engineer agents |
 | `ubiquitous-language` | Build/refresh the domain glossary. | `code-review`, `domain-analysis`, `domain-driven-design`, `specs` | domain-review agent |
 
+## Functional split — workflow initiators vs standalone
+
+The same 26 unreferenced commands divided by *function* rather than raw
+out-degree: does invoking it start or steer a chain that hands into other
+commands (nothing references it *because* it is the front door), or does it do
+its whole job by itself?
+
+### Workflow initiators (11)
+
+| Command | Workflow it initiates |
+|---|---|
+| `review` | The review pipeline (pure alias for `/code-review`) |
+| `branch-workflow` | Branch completion: review → PR → merge → cleanup |
+| `design-interrogation` | Spec hardening, feeding `/plan` and `/specs` |
+| `frontend-architecture` | Component review, handing fixes to `/apply-fixes` / `/build` |
+| `agent-audit` | Toolkit compliance audit, flowing into `/build` / `/code-review` fixes |
+| `semgrep-analyze` | SAST pass whose findings feed `/code-review`'s security context |
+| `test-driven-development` | The opt-in TDD cadence that steers `/build` |
+| `ubiquitous-language` | Glossary build, feeding `/domain-analysis` / `/domain-driven-design` / `/specs` |
+| `governance-compliance` | Compliance review via `/feedback-learning` + `/quality-gate-pipeline` |
+| `human-oversight-protocol` | Approval-gate protocol (borderline: invoked *at* gates mid-flow more than it initiates one) |
+| `setup` | One-shot project onboarding ending at `/pr` (borderline: one-shot, but the start of using the plugin at all) |
+
+### Standalone (15)
+
+Self-contained — they produce their result and stop:
+
+`adr-tools`, `api-design`, `benchmark`, `ci-debugging`, `competitive-analysis`,
+`design-it-twice`, `docker-image-audit`, `docker-image-create`, `guard`,
+`help`, `mermaid-diagramming`, `model-routing-check`, `proxy-resilience`,
+`threat-modeling`, `upgrade`
+
+Two commands appear here despite outgoing edges in the raw graph — a deliberate
+reclassification after reading what the edges do: `guard` names
+`careful`/`freeze`/`unfreeze` only because it is a composite toggle of them
+(one action, not a flow), and `benchmark` uses `/browse` as an instrument to
+drive the page it measures, not as a handoff. By pure out-degree the split is
+13/13 (the two tables above); this section is the functional 11/15 view.
+
 ## Zero references anywhere (11) — the real audit shortlist
 
 No command, agent, or curated-knowledge reference at all. These are reachable
