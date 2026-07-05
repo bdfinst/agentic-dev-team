@@ -224,10 +224,21 @@ chk_hook_units() {
   # Windows workflow (wrapper-windows.yml) because they are timing/signal
   # sensitive and not portable to this runner, matching the pre-existing
   # tests/hooks/ exclusion below.
+  # This suite is the wall-clock long pole. Parallelize it across cores when
+  # pytest-xdist is installed (declared in requirements-dev.txt); fall back to a
+  # serial run when it is absent so the gate never hard-depends on xdist.
+  # --dist loadfile keeps every test from one file on a single worker, preserving
+  # intra-file execution order — the git-subprocess suites (e.g. progress_guardian)
+  # are order-sensitive and race when their tests are split across workers.
+  parallel=()
+  if python3 -c 'import xdist' >/dev/null 2>&1; then
+    parallel=(-n auto --dist loadfile)
+  fi
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
     tests/docs tests/knowledge tests/bats tests/skills tests/scripts \
     --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
-    --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py
+    --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py \
+    ${parallel[@]+"${parallel[@]}"}
 }
 
 # Ordered list of "label::function". Order defines both the replay order and the
