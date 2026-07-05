@@ -30,6 +30,8 @@ Return `{"status": "skip", "issues": [], "summary": "Not a Claude Code project"}
 - No CLAUDE.md, `.claude/` directory, agent files, or `.clinerules` file exists
 - Target is clearly not a Claude Code-enabled project
 
+Check existence with `Glob` only — e.g. `Glob("CLAUDE.md")`, `Glob(".claude/**")`, `Glob("**/agents/*.md")`, `Glob(".clinerules")`. Never `Read` a directory path (the repo root, `.claude/`, `agents/`) to see what it contains — `Read` on a directory fails with `EISDIR`. `Read` only specific files `Glob` has confirmed exist.
+
 ## Detect — CLAUDE.md
 
 - Missing or malformed
@@ -59,7 +61,7 @@ Accuracy:
 
 ## Detect — Agent frontmatter schema
 
-Apply to every `.md` file found in `agents/` directories within the target. Check against the official Claude Code sub-agent specification.
+Apply to every `.md` file found in `agents/` directories within the target — enumerate them with `Glob("**/agents/*.md")`, never by `Read`ing the directory. Check against the official Claude Code sub-agent specification.
 
 ### Required fields
 
