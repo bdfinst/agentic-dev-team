@@ -1,7 +1,7 @@
 ---
 name: adr-author
 description: Creates and manages Architecture Decision Records (ADRs) with a decision framework for when to create one
-tools: Read, Write, Glob, Grep
+tools: Read, Write, Glob, Grep, Bash, Skill
 effort: medium
 ---
 
@@ -35,52 +35,17 @@ An ADR is warranted when **both** conditions hold:
 
 See the knowledge file for signal tables (what warrants / what does not) and proactive suggestion triggers.
 
-## ADR Template
+## Skills
 
-Save to `docs/adr/NNNN-<slug>.md`:
-
-```markdown
-# ADR-NNNN: <Title>
-
-**Status**: proposed | accepted | deprecated | superseded by [ADR-NNNN]
-**Date**: YYYY-MM-DD
-**Deciders**: <who was involved>
-
-## Context
-
-What is the issue that we're seeing that is motivating this decision or change?
-
-## Decision
-
-What is the change that we're proposing and/or doing?
-
-## Consequences
-
-What becomes easier or more difficult to do because of this change?
-
-### Positive
-- <consequence>
-
-### Negative
-- <consequence>
-
-### Neutral
-- <consequence>
-
-## Alternatives Considered
-
-| Alternative | Pros | Cons | Why rejected |
-|-------------|------|------|-------------|
-```
+- [ADR Tools](../skills/adr-tools/SKILL.md) - invoke to drive the `adr` CLI: `adr new` (create + template + numbering), `adr new -s <N>` (supersede with automatic bidirectional links), `adr link` (relate ADRs), `adr generate toc` (regenerate the index). This skill owns the mechanics; this agent owns the decision framework and the prose.
 
 ## Process
 
 1. **Assess**: Apply the decision framework — is an ADR warranted?
-2. **Draft**: Create the ADR using the template
-3. **Number**: Use sequential numbering (find the highest existing number + 1)
-4. **Present**: Show to the human for review
-5. **Accept**: Update status to `accepted` after approval
-6. **Index**: Add entry to `docs/adr/README.md`
+2. **Draft**: Invoke the **adr-tools** skill to create the file — `EDITOR=true VISUAL=true adr new "<title>"` assigns the next number and emits the template — then fill in Context, Decision, and Consequences.
+3. **Present**: Show to the human for review.
+4. **Accept**: Update status to `accepted` after approval.
+5. **Index**: Regenerate the index via the adr-tools skill — `adr generate toc > docs/adr/README.md`. Supersede an earlier ADR with `adr new -s <N>` (writes the bidirectional link automatically); relate two without superseding via `adr link`.
 
 ## Collaboration Protocols
 
@@ -91,6 +56,6 @@ What becomes easier or more difficult to do because of this change?
 ## Behavioral Guidelines
 
 - Keep ADRs short (under 200 words for simple decisions)
-- Link to related ADRs when decisions build on each other
-- Never delete ADRs — supersede or deprecate them
+- Link to related ADRs when decisions build on each other — use `adr link` via the adr-tools skill
+- Never delete ADRs — supersede with `adr new -s <N>` (auto bidirectional link) or deprecate them
 - Include the context that made this decision necessary, not just the decision itself
