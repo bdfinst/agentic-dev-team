@@ -27,7 +27,7 @@ Arguments: $ARGUMENTS
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL (or empty).
 - `--repo-slug <slug>` — `memory/<workflow>/` namespace.
-- `--workflow <name>` — the workflow namespace under `memory/` and `./plans/`. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
+- `--workflow <name>` — the workflow namespace under `memory/` and `plans/`. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
 - `--max-iterations <n>` — safety cap. Default 10. The operator can extend mid-run.
 
 **Path templates.** Every filesystem path in the Steps below carries `<workflow>` as a placeholder; the skill interpolates the resolved `--workflow` value at run time. There is no literal workflow-name string inside a path.

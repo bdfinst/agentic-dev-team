@@ -27,7 +27,7 @@ Arguments: $ARGUMENTS
 - Positional: `<assessment-path>` — the file `/cd-test-architecture` wrote (`reports/cd-test-architecture-<app>.md`).
 - `--parent <issue-url>` — parent issue / Feature / Epic URL. Empty or omitted → local-files mode.
 - `--repo-slug <slug>` — slug used for the `memory/<workflow>/<slug>/` namespace. Defaults to the assessment file's `<app>` token.
-- `--workflow <name>` — the workflow namespace under `memory/` and `./plans/`, and the leading tracker-label token. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
+- `--workflow <name>` — the workflow namespace under `memory/` and `plans/`, and the leading tracker-label token. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
 - `--dry-run` — print the preview list and exit without creating anything.
 
 If `<assessment-path>` is absent or the file is missing, ask the operator to point at one.

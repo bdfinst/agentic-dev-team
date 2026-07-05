@@ -83,8 +83,9 @@ memory/_*.sh
 # Runtime report output (ad-hoc competitive / comparative analyses)
 reports/
 
-# Spec working files — specs live as GitHub issues; local drafts stay untracked
+# Spec/plan working files — specs live as GitHub issues; local drafts stay untracked
 docs/specs/
+plans/
 # …but keep parity-fixture reports (see #574 / #572).
 !plugins/dev-team/tests/hooks/parity/fixtures/**/reports/
 
