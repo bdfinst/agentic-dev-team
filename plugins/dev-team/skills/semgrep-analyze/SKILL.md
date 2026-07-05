@@ -65,10 +65,10 @@ If `--programmatic` is set, return the JSON above and stop — do not
 add installation guidance or prose.
 
 Otherwise (human-facing run), also tell the user: **Run `/project-init` to set
-up this repo's tooling as the one-stop entry point, or install semgrep directly
-— `pip install semgrep` (also `pipx install semgrep` or `brew install semgrep`).**
-(`/project-init` does not install semgrep today; it is the discoverable entry
-point for repo tooling — the direct install command is the fallback.)
+up this repo's tooling as the one-stop entry point — it installs semgrep as a
+capability tool (see its `references/capability-tools.md`) — or install semgrep
+directly — `pip install semgrep` (also `pipx install semgrep` or `brew install
+semgrep`).** (The direct install command is the fallback.)
 
 Stop.
 

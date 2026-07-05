@@ -7,11 +7,13 @@ state-mutating operations. Modeled on
 tests/skills/test_build_project_init_gate.py and using the shared
 skill_doc_helpers (`PLUGIN_ROOT`, `grep`).
 
-#838 does NOT expand what `/project-init` installs. For tools it does not
-install (semgrep, hadolint/trivy/grype, `adr`, `gh`) the pointer surfaces
-onboarding as the discoverable entry point while the tool-specific install
-command stays as the direct fallback — so the remediation is honest, not a
-false claim that onboarding installs that exact tool.
+The #838 follow-up expands what `/project-init` installs: it now installs
+the capability tools (semgrep, hadolint/trivy/grype, `adr`, `gh`, plus
+Playwright) via its `references/capability-tools.md` registry. The
+remediation shape is unchanged — onboarding is the discoverable first stop
+and the tool-specific install command stays as the direct fallback — but
+the old "onboarding does not install that tool" caveat is now false and
+must be gone from every site.
 
 The enforced list is explicit (not auto-discovered from the tree) so it
 reads as a reviewable contract: a new tool-dependent skill is added here on
@@ -53,6 +55,26 @@ def test_missing_tool_remediation_routes_to_onboarding(rel, pattern):
     assert grep(pattern, text), (
         f"{rel}: missing-required-tool remediation does not reference an "
         f"onboarding command (expected /{pattern.replace('/', '')})"
+    )
+
+
+# Sites whose remediation used to carry a "project-init does not install this
+# tool" caveat — now false, since the #838 follow-up made project-init install
+# the capability tools. The caveat must be gone.
+_CAVEAT_SITES = (
+    "semgrep-analyze/SKILL.md",
+    "adr-tools/SKILL.md",
+    "docker-image-audit/SKILL.md",
+    "static-analysis-integration/SKILL.md",
+)
+
+
+@pytest.mark.parametrize("rel", _CAVEAT_SITES)
+def test_no_site_claims_project_init_does_not_install_the_tool(rel):
+    text = (SKILLS / rel).read_text()
+    assert not grep(r"does\s*\**\s*not\s*\**\s*install", text, ignore_case=True), (
+        f"{rel}: still claims project-init does not install the tool — "
+        f"the #838 follow-up made project-init install the capability tools"
     )
 
 

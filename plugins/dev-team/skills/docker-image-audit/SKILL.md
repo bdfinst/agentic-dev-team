@@ -21,7 +21,7 @@ command -v hadolint && command -v trivy && command -v grype
 | **trivy** | `brew install trivy` | Vulnerability scanning |
 | **grype** | `brew install grype` | Second-opinion CVE scanning |
 
-If any tool is missing, run `/project-init` to set up this repo's tooling as the entry point, or install these Docker tools directly per `references/install-guide.md` (multi-platform). (`/project-init` does not install hadolint/trivy/grype today — it is the discoverable entry point; the install-guide is the direct path for these tools.) The skill degrades gracefully — hadolint alone covers static analysis; Trivy + Grype require a built image. **If no tools are installed, still run the structural analysis (Step 2b). A tool-free audit is better than no audit.**
+If any tool is missing, run `/project-init` to set up this repo's tooling — it installs hadolint/trivy/grype as capability tools when a Dockerfile is present (see its `references/capability-tools.md`) — or install these Docker tools directly per `references/install-guide.md` (multi-platform; the install-guide is the fallback). The skill degrades gracefully — hadolint alone covers static analysis; Trivy + Grype require a built image. **If no tools are installed, still run the structural analysis (Step 2b). A tool-free audit is better than no audit.**
 
 ## Workflow
 
