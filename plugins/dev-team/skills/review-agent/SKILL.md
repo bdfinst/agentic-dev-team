@@ -56,8 +56,8 @@ Optional:
 ### 1. Load agent definition
 
 Read `.claude/agents/<name>.md`. If the file doesn't exist, list available
-review agents from `.claude/agents/` (those declaring `Model tier:`) and
-ask the user to pick one.
+review agents from `.claude/agents/` (the Review Agents section of
+`knowledge/agent-registry.md` is the roster) and ask the user to pick one.
 
 ### 2. Determine target files
 

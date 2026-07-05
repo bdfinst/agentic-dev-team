@@ -164,9 +164,11 @@ If Semgrep already ran in the pre-flight gate, reuse those findings. Do not run 
 
 If `--background`: run only `doc-review`, `arch-review`, `naming-review`, `structure-review`. Skip all others.
 
-Otherwise enumerate review agents from `agents/*.md` (identified by a `Model tier:` field in body). All are enabled by default.
+Otherwise enumerate review agents from `agents/*.md` (the Review Agents section of `knowledge/agent-registry.md` is the roster). All are enabled by default.
 
 **Language-agnostic agents always run** regardless of tech stack: `doc-review`, `arch-review`, `claude-setup-review`, `token-efficiency-review`.
+
+**Frontend component files in scope** (`.jsx`, `.tsx`, `.vue`, `.svelte`, Angular `*.component.ts` + their templates, or `.js`/`.ts` modules that render UI): always include `component-architecture-review` — the same lens `/frontend-architecture` runs standalone — scoped to those files in step 4.
 
 If `review-config.json` exists at the repo root, honor its per-agent `"enabled": false` flags.
 
