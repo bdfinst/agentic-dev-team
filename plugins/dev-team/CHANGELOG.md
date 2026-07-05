@@ -1,5 +1,27 @@
 # Changelog
 
+## [10.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.0.0...dev-team-v10.1.0) (2026-07-05)
+
+
+### Features
+
+* add /headless-run skill for isolated headless claude -p dispatch ([33e857d](https://github.com/bdfinst/agentic-dev-team/commit/33e857db9a0c37b65d64fcdd0ea4d2a28b2f89bd)), closes [#842](https://github.com/bdfinst/agentic-dev-team/issues/842)
+* **project-init:** install capability tools beyond the static-analysis lanes ([e68ebd9](https://github.com/bdfinst/agentic-dev-team/commit/e68ebd9d424964fc9b49ae1974e1cea6c73e7dec)), closes [#838](https://github.com/bdfinst/agentic-dev-team/issues/838)
+
+
+### Bug Fixes
+
+* give adr-author Bash and Skill so it drives the adr-tools CLI ([715fa39](https://github.com/bdfinst/agentic-dev-team/commit/715fa3959450df0c7950ea9816c8433e746b18c5)), closes [#837](https://github.com/bdfinst/agentic-dev-team/issues/837)
+* harden the /code-review skill's tools, output paths, and --json contract ([c979587](https://github.com/bdfinst/agentic-dev-team/commit/c9795870642b3789cf01e0594bd2629a53e9c073)), closes [#834](https://github.com/bdfinst/agentic-dev-team/issues/834) [#835](https://github.com/bdfinst/agentic-dev-team/issues/835) [#836](https://github.com/bdfinst/agentic-dev-team/issues/836) [#841](https://github.com/bdfinst/agentic-dev-team/issues/841) [#843](https://github.com/bdfinst/agentic-dev-team/issues/843)
+* point cross-skill capability-tools references at the plugin-root path ([180e644](https://github.com/bdfinst/agentic-dev-team/commit/180e64461a42b48fb8d74b14d7e1efb2a3916fab)), closes [#838](https://github.com/bdfinst/agentic-dev-team/issues/838)
+* route missing-tool commands to the onboarding command ([4c31199](https://github.com/bdfinst/agentic-dev-team/commit/4c311991c14c2d78011915c4407769e58ee68785)), closes [#838](https://github.com/bdfinst/agentic-dev-team/issues/838)
+* wire design-it-twice into the architect agent's skill dispatch ([43af8c8](https://github.com/bdfinst/agentic-dev-team/commit/43af8c894d0af35b49024784be83897eae62734d)), closes [#833](https://github.com/bdfinst/agentic-dev-team/issues/833)
+
+
+### Miscellaneous
+
+* regenerate knowledge and skills indexes ([2ec8ed7](https://github.com/bdfinst/agentic-dev-team/commit/2ec8ed770ea2b58cea1440de4c7ac7e457cfb35c))
+
 ## [10.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.3.0...dev-team-v10.0.0) (2026-07-05)
 
 
