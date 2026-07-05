@@ -61,9 +61,13 @@ fi
 if command -v claude >/dev/null 2>&1; then
   claude plugin marketplace add    bdfinst/agentic-dev-team >/dev/null 2>&1 || true
   claude plugin marketplace update bfinster                 >/dev/null 2>&1 || true
-  claude plugin install dev-team@bfinster                   >/dev/null 2>&1 || true
-  claude plugin update  dev-team@bfinster                   >/dev/null 2>&1 || true
+  # Install at user scope (the CLI default); update is pinned to it because
+  # `claude plugin update` needs an explicit --scope or it assumes user.
+  claude plugin install              dev-team@bfinster >/dev/null 2>&1 || true
+  claude plugin update  --scope user dev-team@bfinster >/dev/null 2>&1 || true
   python3 plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py --enable || true
+  # Report version drift (pending-restart update or a blocked refresh); silent when current.
+  python3 plugins/dev-team/skills/upgrade/scripts/check_version_drift.py || true
 else
   echo "cloud setup: claude CLI not found — skipping plugin install (run skills from files)."
 fi
