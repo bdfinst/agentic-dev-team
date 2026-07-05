@@ -8,10 +8,6 @@ Use this structure when writing the plan file (step 3 of `SKILL.md`).
 **Created**: <date>
 **Branch**: <current branch>
 **Status**: draft
-**Cadence**: <code-first | tdd>
-<!-- code-first (default): each step is IMPLEMENT → TEST → REFACTOR.
-     tdd (opt-in): each step is RED → GREEN → REFACTOR with the failing-test
-     RED hard gate. /build honors this line; its --tdd flag wins on conflict. -->
 **Gherkin persistence**: <destination dir | plan-file-only | custom: <path>>
 <!-- Recorded once at plan creation (detected convention, operator answer, or
      headless default). Re-runs honor this line without re-prompting; editing
@@ -64,12 +60,6 @@ Feature: <feature name>
 **REFACTOR**: <What to clean up — runs every cycle; never "skip">
 **Files**: `path/to/file.ts`, `path/to/file.test.ts`
 **Commit**: `<draft commit message>`
-
-<!-- For a `**Cadence**: tdd` plan, label the phases RED / GREEN / REFACTOR
-     instead:
-     **RED**: Write failing test for <scenario / behavior>
-     **GREEN**: Implement <minimal code to pass>
-     **REFACTOR**: <What to clean up — runs every cycle; never "skip"> -->
 
 #### Step 1.2: <Description>
 
