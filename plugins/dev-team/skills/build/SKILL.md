@@ -155,7 +155,7 @@ Work each step **one behavior at a time** in the resolved cadence — never all 
 
 1. **First phase — IMPLEMENT (`code-first`, default) or RED (`tdd`).** Code-first: implement exactly one behavior from the step — no cleanup, no behavior beyond what the step requires. TDD: write the failing test covering the slice scenario the step traces to; run the suite. **Hard gate (`tdd` only): the new test must fail — paste the failing output.** If the test passes without new code, the behavior already exists — pick a different test. Do NOT proceed without pasted failing output.
 2. **Second phase — TEST (`code-first`) or GREEN (`tdd`).** Code-first: write the test covering the behavior's slice scenario, immediately after the code. TDD: write the minimum implementation to make the failing test pass. Either way, run the full test suite. **Hard gate: all tests must pass — paste the passing output.** Do NOT proceed to REFACTOR without pasted passing output.
-3. **REFACTOR (both cadences — every green, never skipped).** Clean up structure, naming, duplication without changing behavior. Runs in **every** per-behavior cycle: never deferred to an end-of-build pass, never made conditional on task size or complexity (`docs/experiments/RECOMMENDATIONS.md` Rec 4 — deleting just this step erased TDD's changeability advantage entirely). **Tests are frozen for the phase** — a refactor must never change a test (enforced by the freeze/revert guards; recovery: return to the TEST phase, change the test there, re-verify green, re-enter REFACTOR). Run tests again — they must still pass. If tests break, undo and try a smaller change.
+3. **REFACTOR (both cadences — every green, never skipped).** Clean up structure, naming, duplication without changing behavior. Runs in **every** per-behavior cycle: never deferred to an end-of-build pass, never made conditional on task size or complexity (`docs/experiments/RECOMMENDATIONS.md` Rec 4 — deleting just this step erased TDD's changeability advantage entirely). **Tests are frozen for the phase** — a refactor must never change a test (enforced by the freeze/revert guards; recovery: return to the TEST phase, change the test there, re-verify green, re-enter REFACTOR). Run tests again — they must still pass. If tests break, undo and try a smaller change. A no-op refactor (nothing worth changing, stated in one line) satisfies the phase — the mandate is the check on every green, not a diff — and any refactor made stays within the code the step touched; adjacent-file cleanups are follow-ups, not refactors.
 4. **Inline review checkpoint — granularity scales with complexity.** *Where* the checkpoint runs depends on the step's **Complexity** classification (review *depth* still scales too):
    - **trivial**: Skip inline review. The final `/code-review` (step 6) covers all modified files.
    - **standard**: **Defer** review to the slice boundary (sub-step 6) — do not review now. Track the step's changed files so the slice checkpoint reviews them in one batch. Per-step review on standard steps is N near-identical passes where one at slice end largely does the same work, and the final `/code-review` (step 6) remains the backstop. This is the batching win — fewer review dispatches per multi-step slice at bounded quality risk.
@@ -230,6 +230,17 @@ Stop and ask the user when:
 - A review checkpoint fails after 2 correction iterations *and* the root cause is understood but unresolvable within scope
 - You discover the plan is incomplete or contradictory
 - The `verify_guard.py` hook blocks a verify command (`[BLOCK]` on a test/lint/build re-run) — this is the deterministic signal that the same command has run repeatedly with no intervening code change, i.e. a stuck loop rather than a progressing per-behavior cycle. Run the Systematic Debugging pass above instead of retrying the command again, and escalate with the diagnosis if it's still unresolvable in scope.
+
+**Non-interactive runs: an escalation is a hard stop, not another auto-approval.**
+The approval gates in Steps 2–3 auto-proceed because they bypass a judgment call the
+human delegated by going non-interactive; an escalation exists because the agent hit
+something it cannot safely decide — that authority was never delegated. When any
+condition above fires and no user can answer (`--yes`, `DEV_TEAM_AUTO_APPROVE=1`, or
+no TTY): write the escalation (trigger, one-sentence root-cause diagnosis, options
+considered) to `memory/build-escalation-<plan-slug>.md`, leave the plan status
+unchanged, report the halt as the build result, and stop. Never resolve an escalation
+by picking an interpretation and continuing, and never proceed to `/pr` over an
+unresolved escalation.
 
 ## Integration
 

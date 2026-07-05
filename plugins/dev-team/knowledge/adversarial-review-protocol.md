@@ -15,6 +15,10 @@ After the initial review pass, re-examine findings with the following questions.
 
 Repeat until the challenger finds no new issues, or a maximum of 3 rounds is reached. Each agent's own `## Self-Challenge` questions sharpen this loop for that agent's domain — run them as part of the same pass.
 
+The challenger verifies; it does not fill a quota. Zero new findings after an honest
+pass is a passing outcome — never manufacture a finding to prove the loop ran, and
+never upgrade a `suggestion` to justify the round.
+
 ## Output
 
 After the challenger pass, append to the `summary` field in your JSON output:

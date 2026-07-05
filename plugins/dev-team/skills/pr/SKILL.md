@@ -93,6 +93,13 @@ Analyze the diff against the base branch (`git diff <base>...HEAD`) and commit h
 - **Title**: Short, imperative (<70 chars)
 - **Summary**: 1-3 bullet points of what changed and why
 - **Test plan**: How to verify the changes
+- **Decisions & assumptions**: Collect everything decided without a human in the
+  loop, from the run's artifacts: the plan's `## Approval` auto-approval record and
+  any auto-passed gate lines from the build output; the plan's stated stances on
+  `knowledge/decision-defaults.md` axes; the spec's `## Ambiguity Log` entries
+  classified `inferable`; `assumptions` entries from implementer step outputs;
+  auto-applied review fixes with `confidence: medium`; and deferred follow-ups.
+  Omit the section only when every gate had an interactive human approval.
 
 ### 4. Create the PR
 
@@ -112,6 +119,10 @@ Use the structured template:
 - [x] Type check: clean
 - [x] Lint: clean
 - [x] Code review: <status>
+
+## Decisions & Assumptions
+<!-- Everything decided without a human in the loop. An empty section means a fully human-gated run. -->
+- <axis or assumption> — <stance taken> — <one-line rationale / recommended-default basis>
 
 ## Test Plan
 - [ ] <verification step 1>

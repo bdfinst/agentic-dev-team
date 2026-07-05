@@ -73,6 +73,11 @@ Failures from `/browse` enter the same review-fix loop (max 2 iterations).
 - Do not run agents whose file scope does not match the diff.
 - Do not skip the fix loop on findings classified as actionable.
 - Do not auto-apply fixes for findings with `confidence: none` — these require human judgment.
+- Enumerate every auto-applied fix whose confidence was `medium` in the `summary`
+  field — medium is defined by the review agents as "direction clear but context may
+  differ" (e.g. a rename where domain terminology may vary), so in a non-interactive
+  run these acknowledged-uncertain changes must surface in the build output and PR
+  body rather than landing silently.
 - Be concise. The result is structured; no narration.
 
 ## Output format

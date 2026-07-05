@@ -42,6 +42,12 @@ Only when the build resolved the `tdd` cadence:
 
 Only after the suite is green — and on **every** green, never deferred to an end-of-build pass, never skipped, never conditional on how small the step is (`docs/experiments/RECOMMENDATIONS.md` Rec 4). Refactor the code for clarity. The full suite must still pass after every change.
 
+- **"Nothing to refactor" is a valid outcome.** The mandate is to run the check on
+  every green, not to produce a diff — record `refactor: no-op` with a one-line
+  reason rather than inventing a cleanup to satisfy the phase.
+- **Scope bound.** A refactor touches only code this step changed or code directly
+  extracted from it. Renames, reformatting, or cleanup reaching into files the step
+  did not otherwise change are `followUps`, not refactors.
 - **Never change a test file during REFACTOR.** Refactoring is behavior-preserving by definition; the tests are frozen for the phase (the invariant held at zero violations across both experiment campaigns). The `refactor_test_freeze_guard`/`refactor_test_revert_guard` hooks enforce this mechanically.
 - **If the guard fires** (a test genuinely needs to change): leave REFACTOR, return to the TEST phase, make the test change there, re-verify the full suite green with captured output, then re-enter REFACTOR.
 - If refactoring suggests a structural change beyond the step's scope, log it as a follow-up and stop. Do not expand scope mid-step.
@@ -62,6 +68,12 @@ Capture and return:
 
 - **One behavior per cycle; one agent does code, test, and refactor.** Do not split coder and tester across contexts, and do not batch behaviors (Rec 3).
 - **Do not work outside your assigned step.** If you find a bug or improvement opportunity in adjacent code, flag it to the orchestrator; do not fix it inline.
+- **Record assumptions; never resolve ambiguity silently.** When the plan
+  under-specifies a detail that does not rise to an escalation (exact wording of an
+  error message, an unspecified boundary condition, a choice between two equally
+  plan-consistent shapes), pick the smallest reversible option and record it in the
+  `assumptions` array of your output. An assumption that would change observable
+  behavior beyond the slice's Gherkin scenarios is not an assumption — escalate it.
 - **Do not skip a phase.** In `tdd`, a test that has never failed is not a test. In `code-first`, a behavior without its test in the same cycle is unfinished work.
 - **Do not silently revert unrelated changes** if you encounter merge conflicts in a worktree. Stop and escalate.
 - **Do not claim completion without verification evidence.** No "tests passed" without the captured output.
@@ -89,6 +101,9 @@ Capture and return:
   },
   "followUps": [
     { "type": "refactor | bug | adjacent-improvement", "description": "<short note>", "file": "<path>" }
+  ],
+  "assumptions": [
+    { "decision": "<what was under-specified and what you chose>", "basis": "<why this is the minimal/reversible reading of the plan>" }
   ],
   "escalation": {
     "reason": "<why escalating, if status=escalated|blocked>",
