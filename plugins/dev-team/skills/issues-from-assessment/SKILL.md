@@ -51,7 +51,8 @@ Parse the `--parent` URL host. Pick the CLI and probe it:
 **If the probe fails**, tell the operator exactly what's missing and the canonical install / auth command, then fall back to local-files mode automatically. Example:
 
 ```
-gh is not installed. Install it from https://cli.github.com/ and run `gh auth login`.
+gh is not installed. Run `/project-init` to set up this repo's tooling, or install
+gh directly from https://cli.github.com/ and run `gh auth login`.
 Falling back to local-files mode — Stories will be written to ./plans/<workflow>/.
 ```
 

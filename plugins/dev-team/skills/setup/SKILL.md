@@ -122,7 +122,7 @@ Based on detected stack, generate the appropriate PostToolUse hook entry for the
 | Java/Kotlin | `.java`, `.kt` | `google-java-format -i "$FILE"` / `ktlint -F "$FILE"` |
 | C# | `.cs` | `dotnet format --include "$FILE"` |
 
-Only include branches for the detected stack. Verify the formatter tool is installed before adding it (check `npx prettier --version`, `ruff --version`, etc.). If not installed, warn the user.
+Only include branches for the detected stack. Verify the formatter tool is installed before adding it (check `npx prettier --version`, `ruff --version`, etc.). If not installed, warn the user and point them at `/project-init` to install the repo's lane tooling (ruff, etc.).
 
 ### 6. Generate /pr command
 
