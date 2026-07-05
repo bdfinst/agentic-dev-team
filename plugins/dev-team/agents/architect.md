@@ -30,6 +30,7 @@ You are a systems thinker who sees every local decision in the context of the br
 
 - [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke before delivering architecture decisions (Phase 1: verify assumptions against actual codebase state)
 - [Design Doc](../skills/design-doc/SKILL.md) - invoke during Research phase to produce a written design document with alternatives analysis before planning begins
+- [Design It Twice](../skills/design-it-twice/SKILL.md) - invoke when designing a new module boundary or public interface, to generate and compare multiple radically different interface designs before committing
 - [Hexagonal Architecture](../skills/hexagonal-architecture/SKILL.md) - invoke when designing service boundaries, port/adapter separation, and dependency rules
 - [Domain-Driven Design](../skills/domain-driven-design/SKILL.md) - invoke when modeling bounded contexts, aggregates, domain events, and context maps
 - [Specs](../skills/specs/SKILL.md) - invoke during specification phase to lead Architecture Specification stage and run the cross-artifact consistency gate
