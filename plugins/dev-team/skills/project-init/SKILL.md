@@ -1,6 +1,6 @@
 ---
 name: project-init
-description: Get a repository ready for the dev-team toolchain in one command — detect the tech stack (JS/TS, Python, C#, Java), inventory the static-analysis tools the project already has, confirm a plan, and install only what's missing, repo-level. For JavaScript it scaffolds a new project with ES modules, functional style, prettier, oxlint, editorconfig, vitest, and gitignore. Use this skill whenever the user wants to start a new JS project, scaffold a Node.js app, create a new package, bootstrap a JavaScript repo, or says things like "init a new project", "set up a JS project", "create a new node app", "start a new frontend project", or "bootstrap a new package". Also trigger when the user says "set up my project's toolchain", "install the linters for this repo", "get this repo ready for the plugin", or asks to add standard tooling (linting, formatting, testing) to a new or existing project in any supported language.
+description: Get a repository ready for the dev-team toolchain in one command — detect the tech stack (JS/TS, Python, C#, Java), inventory the static-analysis tools the project already has, confirm a plan, and install only what's missing, repo-level. Also installs the detection-gated capability tools other skills depend on — semgrep, Playwright + Chromium, adr, gh, and the docker scanners (hadolint/trivy/grype). For JavaScript it scaffolds a new project with ES modules, functional style, prettier, oxlint, editorconfig, vitest, and gitignore. Use this skill whenever the user wants to start a new JS project, scaffold a Node.js app, create a new package, bootstrap a JavaScript repo, or says things like "init a new project", "set up a JS project", "create a new node app", "start a new frontend project", or "bootstrap a new package". Also trigger when the user says "set up my project's toolchain", "install the linters for this repo", "get this repo ready for the plugin", or asks to add standard tooling (linting, formatting, testing) to a new or existing project in any supported language.
 role: worker
 user-invocable: true
 ---
@@ -10,7 +10,10 @@ user-invocable: true
 One command to get a repository ready for the dev-team toolchain, whatever
 the stack. Detect the project's language(s), inventory the static-analysis
 tools already present, confirm a three-column plan, then install only the
-missing tools — always repo-level, never user-level or global.
+missing tools — lane tools and Playwright always repo-level, never
+user-level or global. It then installs the detection-gated **capability
+tools** other skills depend on (semgrep, Playwright, adr, gh, docker
+scanners — see Step 4b), which are user/system-level CLIs by nature.
 
 Supported stacks: **JS/TS**, **Python**, **C#**, **Java** — the four lanes
 registered in
@@ -134,6 +137,42 @@ pipx install, never `npm install -g`.
   idempotent). Add the `.pmd/` entry to the project's `.gitignore` if it
   is missing.
 
+### Step 4b: Install capability tools
+
+Beyond the four static-analysis lanes, other skills and agents depend on a
+set of **capability tools**. `references/capability-tools.md` is their single
+source of truth — a registry of *tool | skills that need it | offer-when
+signal | OS-aware install command | verify probe*. This step installs the
+warranted ones so the "run `/project-init`" pointer those skills print is
+honest.
+
+**Run the detection signals** (cheap, deterministic — no builds, no network):
+
+| Capability | Skills served | Offer-when signal |
+|---|---|---|
+| semgrep | `/semgrep-analyze`, security-assessment | any source lane detected (universal SAST) — always offer, opt-in |
+| Playwright + Chromium | `/benchmark`, `/browse`, `/browser-testing`, `/performance-benchmark` | frontend signals (React/Svelte/Vue/Angular/Next/Nuxt/SvelteKit/Astro, or an `e2e/` dir, or `playwright.config.*`) in an existing project |
+| adr | `/adr-tools`, adr-author | `docs/adr/`, `docs/decisions/`, or existing ADR `*.md` files present |
+| gh | `/issues-from-assessment` and other issue/PR skills | git repo with a GitHub remote (`git remote -v` shows `github.com`) |
+| docker scanners (hadolint, trivy, grype) | `/docker-image-audit` | a `Dockerfile`/`*.dockerfile`/`compose.y*ml` present |
+
+**Present the warranted capability tools as their own group** in the Step 3
+three-column plan — a "capability tools" block alongside the lane columns —
+and **confirm before installing**, same gate as the lanes. Install only the
+tools whose signal fired *and* that the user confirmed *and* that are still
+missing (skip any already on `PATH`). Use the OS-aware install command from
+`references/capability-tools.md` for each — never inline a different command.
+
+**Install-level honesty.** The "always repo-level, never user/system" rule
+of the lanes applies to the lane tools **plus Playwright**. The other
+capability tools are general-purpose CLIs that are **user/system-level by
+nature** — there is no repo-local install for `gh`, `semgrep`, `adr`, or the
+docker scanners, so they install via the OS package manager (or pipx / user
+pip on Linux). **Playwright is the repo-level exception among capability
+tools**: it installs as an `npm` devDependency (`@playwright/test`), versioned
+with the project like a lane tool — only its Chromium download is machine-level.
+State this explicitly to the user when the capability group installs.
+
 ### Step 5: Verify — post-install probes
 
 Run each configured lane's detection probe exactly as the lane registry
@@ -148,6 +187,20 @@ tools:
 | C# | `command -v dotnet` |
 | Java | `.pmd/pmd-bin-*/bin/pmd` launcher first, then `command -v pmd` |
 
+Then probe every capability tool that Step 4b installed, using its verify
+command from `references/capability-tools.md`:
+
+| Capability | Probe |
+|---|---|
+| semgrep | `semgrep --version` |
+| Playwright | `npx --no-install playwright --version` |
+| adr | `adr help` |
+| gh | `gh --version` |
+| docker scanners | `hadolint --version`, `trivy --version`, `grype --version` |
+
+A capability tool that was offered but not confirmed, or whose signal never
+fired, is simply not probed — it is not a failure.
+
 ### Step 6: Summary
 
 After every configured lane probes green, give the user:
@@ -158,6 +211,9 @@ After every configured lane probes green, give the user:
   report).
 - Any **found but can't participate** entry, with its reason and the
   default offered alongside.
+- **Capability tools** (Step 4b): which were offered, which were installed,
+  and which were skipped (signal didn't fire, or the user declined) — noting
+  Playwright is repo-level and the rest are user/system-level CLIs.
 - Files created (greenfield only).
 
 ## Greenfield JS/TS scaffold

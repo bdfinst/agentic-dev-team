@@ -180,14 +180,15 @@ onboarding command first — the consistent, discoverable one-command entry poin
 
 > Run `/project-init` (or `/setup`) to set up this repo's tooling, or install directly: `<raw install hint>`.
 
-Onboarding ownership today: `/project-init` installs the static-analysis lane
-tools (ruff, mypy, oxlint, dotnet-format, PMD) and Playwright + Chromium in the
-greenfield JS scaffold. It does **not** install semgrep, hadolint/trivy/grype,
-`adr`, or `gh`. For those tools the pointer still surfaces onboarding as the
-discoverable entry point, while the tool-specific install command stays as the
-direct fallback — never claim onboarding installs a tool it does not. Machine
-output (e.g. semgrep-analyze's `--programmatic` JSON) stays prose-free: the
-onboarding pointer lives only in the human-facing branch.
+Onboarding ownership: `/project-init` installs the static-analysis lane tools
+(ruff, mypy, oxlint, dotnet-format, PMD) **and** the detection-gated capability
+tools other skills depend on — semgrep, hadolint/trivy/grype, `adr`, `gh`, and
+Playwright + Chromium — per its
+`skills/project-init/references/capability-tools.md` registry. The pointer
+names `/project-init` as the one-command entry point and the tool-specific
+install command stays as the direct fallback. Machine output (e.g.
+semgrep-analyze's `--programmatic` JSON) stays prose-free: the onboarding
+pointer lives only in the human-facing branch.
 
 ## Agent context injection
 
