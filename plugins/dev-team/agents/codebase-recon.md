@@ -31,7 +31,7 @@ Artifacts written:
 
 ## Graph tools
 
-Before falling back to multi-file Read/Grep for structural or architecture questions (Steps 4 and beyond), check whether the target repo already has a graph built: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions). See `knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. **Neither is required** — recon must produce a complete, correct artifact using plain Read/Grep/Glob when neither tool is present.
+Before falling back to multi-file Read/Grep for structural or architecture questions (Steps 4 and beyond), check whether the target repo already has a graph built: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions). See `knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. Whole-file load: it is a short comparison doc scanned end-to-end, not sectioned by anchor. **Neither is required** — recon must produce a complete, correct artifact using plain Read/Grep/Glob when neither tool is present.
 
 ## Seven-step procedure
 
