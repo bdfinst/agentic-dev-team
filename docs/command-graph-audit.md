@@ -59,7 +59,7 @@ agents or knowledge — the right-hand column is what the first draft missed.
 | `benchmark` | Web-page runtime performance metrics. | `browse`, `build` | — |
 | `branch-workflow` | PR creation, merge strategy, cleanup. | `code-review` | orchestrator agent |
 | `design-interrogation` | Interview the user to surface hidden decisions. | `plan`, `specs` | product-manager agent |
-| `frontend-architecture` | Component-architecture review dispatch. | `apply-fixes`, `build`, `code-review`, `plan` | — |
+| `frontend-architecture` | Component-architecture review dispatch. | `apply-fixes`, `build`, `code-review`, `plan` | lens wired into `/code-review` (component-architecture-review runs when UI files are in scope, 2026-07-05) |
 | `governance-compliance` | Audit logging, gates, ethics procedures. | `feedback-learning`, `quality-gate-pipeline` | platform-engineer, qa-engineer, security-engineer, tech-writer agents |
 | `guard` | careful + freeze composite. | `careful`, `freeze`, `unfreeze` | — |
 | `human-oversight-protocol` | Approval gates and intervention commands. | `feedback-learning` | orchestrator, product-manager agents |
@@ -69,7 +69,7 @@ agents or knowledge — the right-hand column is what the first draft missed.
 | `test-driven-development` | Classic TDD cycle with hard gates (opt-in cadence). | `build`, `systematic-debugging` | qa-engineer, software-engineer agents |
 | `ubiquitous-language` | Build/refresh the domain glossary. | `code-review`, `domain-analysis`, `domain-driven-design`, `specs` | domain-review agent |
 
-## Zero references anywhere (12) — the real audit shortlist
+## Zero references anywhere (11) — the real audit shortlist
 
 No command, agent, or curated-knowledge reference at all. These are reachable
 only by a user typing them. Zero wiring is not the same as dead — several are
@@ -78,12 +78,16 @@ keep/cut is decided purely by intent and usage telemetry
 (`/artifact-lifecycle` over `metrics/artifact-usage.json`):
 
 `benchmark`, `competitive-analysis`, `design-it-twice`, `docker-image-create`,
-`frontend-architecture`, `guard`, `help`, `mermaid-diagramming`,
-`proxy-resilience`, `review`, `setup`, `upgrade`
+`guard`, `help`, `mermaid-diagramming`, `proxy-resilience`, `review`, `setup`,
+`upgrade`
+
+(`frontend-architecture` left this list on 2026-07-05: its lens now runs inside
+`/code-review` whenever frontend component files are in scope, though the
+standalone command itself still has no callers.)
 
 Of these, `help`, `upgrade`, `guard`, and `review` are plausibly intentional
 user-only utilities (`review` is a pure alias, `guard` a pure composite —
-their value is discoverability). The other eight warrant a usage-telemetry
+their value is discoverability). The other seven warrant a usage-telemetry
 check.
 
 ## Notes for the audit

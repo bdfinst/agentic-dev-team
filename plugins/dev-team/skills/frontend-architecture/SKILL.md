@@ -20,6 +20,11 @@ Role: orchestrator. This command scopes the changeset to frontend component
 files and dispatches the `component-architecture-review` agent, then aggregates
 one report. It does not review files itself — it coordinates.
 
+`/code-review` dispatches the same agent automatically whenever frontend
+component files are in its target set, so ordinary reviews already carry this
+lens. Use this command for a standalone, frontend-only pass (e.g. before
+extracting a component library) or to scope beyond a diff.
+
 This command is executed under orchestrator direction. Dispatch the agent with
 its effort band (from its `effort:` frontmatter); the PreToolUse hook
 `hooks/agent_model_resolve.py` resolves it to the active snapshot per the
