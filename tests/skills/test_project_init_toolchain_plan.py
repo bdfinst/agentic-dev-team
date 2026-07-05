@@ -102,10 +102,21 @@ def test_java_wraps_the_pinned_pmd_installer_script():
     assert ".gitignore" in s
 
 
+# Capability tools are user/system-level by nature (per capability-tools.md's
+# "Install-level honesty" section) — there is no repo-local install for a
+# general-purpose CLI like semgrep, codegraph, or graphify, so their fallback
+# chains legitimately use pipx/--user. Only fenced blocks that install one of
+# these known capability tools are exempt; lane tools (Python/JS/TS/C#/Java)
+# must still always install repo-level.
+_USER_LEVEL_CAPABILITY_TOOL_MARKERS = ("semgrep", "graphifyy", "codegraph")
+
+
 def test_no_user_level_or_global_install_commands_in_any_code_block():
     fenced = re.findall(r"^```.*?\n(.*?)^```", _text(), re.MULTILINE | re.DOTALL)
     assert fenced, "expected fenced install commands in the skill body"
     for block in fenced:
+        if any(marker in block for marker in _USER_LEVEL_CAPABILITY_TOOL_MARKERS):
+            continue
         assert "--user" not in block, f"user-level install found: {block!r}"
         assert "pipx" not in block, f"pipx install found: {block!r}"
         assert not grep(r"npm install (-g|--global)", block), (
