@@ -1,10 +1,14 @@
-"""Doc-inspection tests for the state-aware CodeGraph step in
-/init-dev-team. The command is an LLM-interpreted markdown spec; the only
+"""Doc-inspection tests for the state-aware CodeGraph step (Step 4c) in
+/project-init. The command is an LLM-interpreted markdown spec; the only
 stable test surface is the literal strings the spec must contain. Each test
 pins one specific string the implementer must preserve.
 
-Ported from tests/commands/init_dev_team_codegraph_test.bats (issue #675:
-bats -> pytest).
+CodeGraph's install/init state machine originally lived in
+/init-dev-team's Step 2.5 and was migrated to /project-init's Step 4c
+(issue #846), replacing the old "commit .mcp.json to share with the team"
+behavior with a personal/user-scope MCP registration instead. This file was
+ported and retargeted from
+tests/commands/test_init_dev_team_codegraph.py accordingly.
 """
 
 from __future__ import annotations
@@ -14,7 +18,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CMD = REPO_ROOT / "plugins" / "dev-team" / "skills" / "init-dev-team" / "SKILL.md"
+CMD = REPO_ROOT / "plugins" / "dev-team" / "skills" / "project-init" / "SKILL.md"
 
 
 @pytest.fixture(scope="module")
@@ -77,29 +81,37 @@ def test_init_failure_message_present(text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Share-with-the-team step (after a successful init): commit .mcp.json so
-# clones auto-bootstrap. See ADR 0012.
+# MCP registration (personal, user-scope — replaces the old "share with the
+# team" committed .mcp.json behavior). See ADR 0012 and the #846 migration.
 # ---------------------------------------------------------------------------
 
 
-def test_share_step_heading_present(text: str) -> None:
-    assert "Share CodeGraph with the team" in text
-
-
-def test_share_step_writes_mcp_json(text: str) -> None:
-    assert '"command":"codegraph","args":["serve","--mcp"]' in text
-
-
-def test_share_step_merge_preserves_existing_servers(text: str) -> None:
-    # Deep-merge so an existing mcpServers entry is not clobbered.
-    assert ". * $add" in text
-
-
-def test_share_step_commit_guidance_present(text: str) -> None:
+def test_mcp_registration_heading_present(text: str) -> None:
     assert (
-        "commit it with .codegraph/.gitignore so teammates auto-bootstrap "
-        "CodeGraph on clone" in text
+        "Register the MCP server at user scope (never a repo file)" in text
     )
+
+
+def test_mcp_registration_command_documented(text: str) -> None:
+    assert "claude mcp add codegraph -- codegraph serve --mcp" in text
+
+
+def test_mcp_registration_is_not_committed(text: str) -> None:
+    assert (
+        "Do not attempt to write `.mcp.json` in the project root, and do\n"
+        "not run `git add`/`git commit` for anything under `.codegraph/`."
+        in text
+    )
+
+
+def test_no_committed_mcp_json_write(text: str) -> None:
+    # The old shared-.mcp.json write must not reappear.
+    assert '"command":"codegraph","args":["serve","--mcp"]' not in text
+
+
+def test_no_share_with_team_heading(text: str) -> None:
+    # The old "Share CodeGraph with the team" step is intentionally gone.
+    assert "Share CodeGraph with the team" not in text
 
 
 # ---------------------------------------------------------------------------
@@ -147,43 +159,3 @@ def test_stale_state_override_documented(text: str) -> None:
     # installed=true AND init_declined is ignored when initialized=true. We
     # check for a single heading that introduces this rule.
     assert "Stale-state override" in text
-
-
-# ---------------------------------------------------------------------------
-# Step 9 — JS bootstrap via project-init when no package.json
-# ---------------------------------------------------------------------------
-
-
-def test_js_bootstrap_check_present(text: str) -> None:
-    assert "test -f package.json" in text
-
-
-def test_js_bootstrap_announcement_present(text: str) -> None:
-    assert (
-        "No package.json found. Running /dev-team:project-init first to "
-        "scaffold the project." in text
-    )
-
-
-def test_js_bootstrap_invokes_skill(text: str) -> None:
-    assert "/dev-team:project-init" in text
-
-
-def test_js_abort_message_present(text: str) -> None:
-    assert (
-        "Stryker skipped — no package.json. Re-run /init-dev-team after "
-        "scaffolding your JS project." in text
-    )
-
-
-def test_js_failure_message_present(text: str) -> None:
-    assert (
-        "Stryker skipped — project-init failed. See errors above and "
-        "re-run /init-dev-team after resolving them." in text
-    )
-
-
-def test_js_package_present_path_unchanged(text: str) -> None:
-    # The pre-existing 'Check if already installed (project-local)' section
-    # must still be present and follow the new bootstrap block.
-    assert "Check if already installed (project-local)" in text
