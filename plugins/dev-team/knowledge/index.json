@@ -1333,7 +1333,7 @@
   },
   "plugins/dev-team/skills/adr-tools/SKILL.md": {
     "Pre-flight": {
-      "summary": "If the pre-flight reports `adr` missing, run `/project-init` to set up this repo's tooling as the entry point, then install the `adr` CLI directly — see [npryce/adr-tools](https://github.com/npryce/adr-tools).",
+      "summary": "If the pre-flight reports `adr` missing, run `/project-init` to set up this repo's tooling — it installs the `adr` CLI as a capability tool (see its `references/capability-tools.md`) — or install it directly: see [npryce/adr-tools](https://github.com/npryce/adr-tools) (the CLI link is the fallback).",
       "anchor": "pre-flight"
     },
     "Editor caveat — the most common failure": {
@@ -3259,6 +3259,28 @@
       "anchor": "error-handling"
     }
   },
+  "plugins/dev-team/skills/headless-run/SKILL.md": {
+    "When to use it": {
+      "summary": "Use it for **scripted, one-shot headless invocations** — above all a benchmark",
+      "anchor": "when-to-use-it"
+    },
+    "Isolation guarantees": {
+      "summary": "The helper builds each dispatch to leak as little parent state as possible:",
+      "anchor": "isolation-guarantees"
+    },
+    "Honest upstream caveat": {
+      "summary": "The `session_id` and **tool-surface** inheritance is an **upstream Claude Code /",
+      "anchor": "honest-upstream-caveat"
+    },
+    "How to invoke the helper": {
+      "summary": "Run the shipped script, passing the prompt (a slash command works) and optional",
+      "anchor": "how-to-invoke-the-helper"
+    },
+    "Output": {
+      "summary": "Report the printed JSON result (or the timeout/error line) and the fresh",
+      "anchor": "output"
+    }
+  },
   "plugins/dev-team/skills/help/SKILL.md": {
     "Worker constraints": {
       "summary": "1.",
@@ -3995,6 +4017,10 @@
     "Step 4: Install missing tools (repo-level, per lane)": {
       "summary": "Every install lands in the project, versioned with it, reproducible for",
       "anchor": "step-4-install-missing-tools-repo-level-per-lane"
+    },
+    "Step 4b: Install capability tools": {
+      "summary": "Beyond the four static-analysis lanes, other skills and agents depend on a",
+      "anchor": "step-4b-install-capability-tools"
     },
     "Step 5: Verify — post-install probes": {
       "summary": "Run each configured lane's detection probe exactly as the lane registry",
