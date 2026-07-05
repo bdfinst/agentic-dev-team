@@ -1,5 +1,55 @@
 # Changelog
 
+## [10.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.3.0...dev-team-v10.0.0) (2026-07-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* the /js-project-init slash command is removed; use /project-init. The old natural-language trigger phrases still resolve via the renamed skill's description.
+
+### Features
+
+* add Python static-analysis lane (Ruff + mypy) ([e8d9de3](https://github.com/bdfinst/agentic-dev-team/commit/e8d9de34e76d2d5fb5d30dcef684d53878f0fc8c)), closes [#807](https://github.com/bdfinst/agentic-dev-team/issues/807)
+* **build:** code-first implementer cycle; forbid test edits during refactor ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([6a41b10](https://github.com/bdfinst/agentic-dev-team/commit/6a41b10286a89e027c4a4159175733852346e2db))
+* **build:** default cadence is Code-First Small Batches; TDD opt-in ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([4d3331f](https://github.com/bdfinst/agentic-dev-team/commit/4d3331fcaa3526f9a2d45964ccc3826ac941c9a5))
+* **build:** run static self-heal mechanism at review checkpoints ([#811](https://github.com/bdfinst/agentic-dev-team/issues/811)) ([a3dd9ba](https://github.com/bdfinst/agentic-dev-team/commit/a3dd9ba4111a4bda565a2e10c7830a9c7256fb86))
+* **code-review:** dispatch component-architecture-review on UI components ([fb5c47b](https://github.com/bdfinst/agentic-dev-team/commit/fb5c47b00ff79757d3169497aa02a1fd44c41c78))
+* generalize js-project-init into project-init ([#822](https://github.com/bdfinst/agentic-dev-team/issues/822)) ([887062e](https://github.com/bdfinst/agentic-dev-team/commit/887062e5c688ee3530f7e36a0ffdb7c8f845a0c6))
+* **hooks:** block test-file edits during refactor phase with recovery guidance ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([7be2569](https://github.com/bdfinst/agentic-dev-team/commit/7be256928c865dc601620de51558ca40728a7e75))
+* **hooks:** register tests-frozen freeze and revert guards ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([974afff](https://github.com/bdfinst/agentic-dev-team/commit/974afff6cf2ae2c9d680c8129ed0aa80c783ac60))
+* **hooks:** revert Bash-mediated test edits during refactor phase ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([f0b1d89](https://github.com/bdfinst/agentic-dev-team/commit/f0b1d89cd23c4586cb067295fc4654fe61fedb45))
+* **hooks:** shared test-file classifier + phase-state reader ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([207d9a0](https://github.com/bdfinst/agentic-dev-team/commit/207d9a070bda5f9b85a3573e80c6c307a90d56de))
+* **orchestrator:** fast-path single-module standard tasks per Rec 2 ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([6d9cc54](https://github.com/bdfinst/agentic-dev-team/commit/6d9cc54ca0c9abd3ce3255b26109df98cc6e217f))
+* **plan:** cadence metadata + code-first step template ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([aba40ab](https://github.com/bdfinst/agentic-dev-team/commit/aba40abc7b05bf7f4dd6a76e1e802bf2b372b0cf))
+* **static-analysis:** add build-time lane registry and language-setup skeletons ([#811](https://github.com/bdfinst/agentic-dev-team/issues/811)) ([2bae49c](https://github.com/bdfinst/agentic-dev-team/commit/2bae49c6aed13f524997e03faf1cbec4f0c24587))
+* **static-analysis:** add Java lane with PMD diagnostic and Tier 1 SARIF source ([253944e](https://github.com/bdfinst/agentic-dev-team/commit/253944e0bcc51c2aaa660ce0dcc106f1116e8395)), closes [#810](https://github.com/bdfinst/agentic-dev-team/issues/810)
+* **static-analysis:** register C# lane via dotnet format and Roslyn ErrorLog SARIF ([0266fe0](https://github.com/bdfinst/agentic-dev-team/commit/0266fe0c3fc4995747dde1dea5adf9812ac1b132)), closes [#809](https://github.com/bdfinst/agentic-dev-team/issues/809)
+* **static-analysis:** register oxlint as the JS/TS lane and /code-review source ([#808](https://github.com/bdfinst/agentic-dev-team/issues/808)) ([ebed57e](https://github.com/bdfinst/agentic-dev-team/commit/ebed57e70bd70bd66cbe18bf6639ac4a10c14d73))
+
+
+### Bug Fixes
+
+* **plan:** cite 01-final-results.md instead of retired consolidated report ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([6e17cdd](https://github.com/bdfinst/agentic-dev-team/commit/6e17cddc92fb639b74bbafb2315c2f8118ed4772))
+* surface headless assumptions and escalations to the PR ([#825](https://github.com/bdfinst/agentic-dev-team/issues/825)) ([e893f43](https://github.com/bdfinst/agentic-dev-team/commit/e893f43450a9e2953398ee29f1d7bd1444541715))
+
+
+### Documentation
+
+* add Developer Notes page with add-a-language playbook ([#812](https://github.com/bdfinst/agentic-dev-team/issues/812)) ([e38c438](https://github.com/bdfinst/agentic-dev-team/commit/e38c43826d6c2f2280faced58f2d56e116070ee8))
+* cadence-claim sweep for code-first default; rebuild knowledge index ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([7af590d](https://github.com/bdfinst/agentic-dev-team/commit/7af590df4b160866f4c552129cb73482aed86ee6))
+* **code-review:** review agents are the quality gate; coverage/mutation saturate ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([c7dc66d](https://github.com/bdfinst/agentic-dev-team/commit/c7dc66d9f2de441132c4c7997eb1feee9d1f7b49))
+* document the /triage → corrections → /apply-fixes workflow end to end ([b7dbd43](https://github.com/bdfinst/agentic-dev-team/commit/b7dbd4359bb2ec08eb14ecabeb74bee9fa164660)), closes [#819](https://github.com/bdfinst/agentic-dev-team/issues/819)
+* drop issue refs and inline rationale from CLAUDE.md rules ([21199b7](https://github.com/bdfinst/agentic-dev-team/commit/21199b75f06b771d4a8da60bdfea320daae316d8))
+* move experiment pre-registrations and data into an evidence folder ([e2633fa](https://github.com/bdfinst/agentic-dev-team/commit/e2633fa8b0c2dea2213981bef1a34949c39fb42a))
+* **specs:** state ambiguity-resolution positioning per Rec 1 ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([8d5d15d](https://github.com/bdfinst/agentic-dev-team/commit/8d5d15d05c4062e7073948358f969c7b1ff0f69c))
+
+
+### Miscellaneous
+
+* gitignore plans/ — plan drafts stay untracked like docs/specs ([9e2b416](https://github.com/bdfinst/agentic-dev-team/commit/9e2b416b3f5ce3b26703635e4c583c87e25ff5d8))
+* regenerate skills index after specs description update ([#813](https://github.com/bdfinst/agentic-dev-team/issues/813)) ([524a905](https://github.com/bdfinst/agentic-dev-team/commit/524a9058b5a4bce84880c1aa7c5a1d00ddbb890a))
+* retire tracked working documents; require npm ci in new worktrees ([59e3867](https://github.com/bdfinst/agentic-dev-team/commit/59e3867a99a914135c1439529e44b546224bba4f))
+
 ## [9.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v9.2.0...dev-team-v9.3.0) (2026-07-04)
 
 
