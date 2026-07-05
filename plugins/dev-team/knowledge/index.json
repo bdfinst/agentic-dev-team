@@ -5247,7 +5247,7 @@
       "anchor": "1-read-current-version"
     },
     "2. Check auto-update status and ask the user": {
-      "summary": "First, check the current auto-update status by running the script below and reporting it to the user.",
+      "summary": "First, report the current auto-update status (`enabled`, `disabled`, or `unknown`):",
       "anchor": "2-check-auto-update-status-and-ask-the-user"
     },
     "3. Run the update": {
