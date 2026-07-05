@@ -10,8 +10,6 @@ slice title lowercased with each run of non-alphanumeric characters
 collapsed to a single hyphen, leading/trailing hyphens trimmed.
 
 Uses `scripts/lib/plan_parse.py` for the slice-walking stage.
-
-Spec: docs/specs/plan-gherkin-feature-persistence.md (component 2).
 """
 
 from __future__ import annotations
