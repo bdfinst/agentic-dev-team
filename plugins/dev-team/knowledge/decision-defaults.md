@@ -12,6 +12,14 @@ exists to prevent. State your best answer for each axis and let the user overrid
 These are defaults, not laws — an explicit user instruction always wins. The point is
 to resolve the axis *before* building, not to relitigate it mid-stream.
 
+**Non-interactive runs.** When no human can answer the upfront batch (headless
+`/plan`/`/build`, `--yes`, `DEV_TEAM_AUTO_APPROVE=1`), surfacing degrades to
+recording: take the recommended default for every ambiguous axis, state each axis and
+stance in the plan (and, via `/pr`, the PR body) — and **never take a non-default
+stance on any axis without an explicit user instruction**. A non-default stance with
+nobody present to confirm it is a guess, not a decision; if the task appears to
+require one, that is an escalation, not an assumption.
+
 ## Destructive shape: replace vs. merge
 
 Trigger: a request writes config, settings, dotfiles, or installer output where prior

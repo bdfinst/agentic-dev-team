@@ -42,6 +42,11 @@ Search for specification artifacts produced by `/specs` — look for files match
 
 If no spec artifacts are found, ask the user: "No specification artifacts found for this task. Run `/specs` first to produce them, or continue planning without specs?"
 
+**Non-interactive** (per step 6's interactivity rule): do not prompt — log
+`No spec artifacts found — continuing without specs (non-interactive).`, proceed, and
+record the absence in the plan's `## Risks & Open Questions` so it reaches the PR's
+Decisions & Assumptions section.
+
 If the user chooses to continue without specs, proceed. Otherwise, stop and let them run `/specs` first.
 
 ### 2. Understand the task and cut the slices
