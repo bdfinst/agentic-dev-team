@@ -1,0 +1,91 @@
+name: Issue title lint
+
+# Specs become epic issues and plan slices become sub-issues; downstream those
+# titles seed branch names, PR titles, and (via the landed commits) release
+# versions. So issue titles must follow the SAME Conventional Commits ruleset as
+# commits (commitlint.config.js). GitHub has no "required check" for issues, so
+# this is a visible backstop: it labels a non-conforming title and comments the
+# fix once, then clears the label when the title is corrected. The primary,
+# proactive enforcement is in the issue-creating skills (issues-from-plan,
+# issues-from-assessment), which lint titles before `gh issue create`.
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-title-lint-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint-issue-title:
+    name: Issue title lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          # Single source of truth for the Node version — read from .nvmrc.
+          node-version-file: .nvmrc
+      - run: npm ci
+        env:
+          HUSKY: 0
+      - name: Lint issue title against commitlint.config.js
+        id: lint
+        env:
+          # Pass via env, never interpolate untrusted issue input into the shell.
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          set +e
+          report="$(printf '%s' "$ISSUE_TITLE" | npx commitlint --verbose 2>&1)"
+          rc=$?
+          printf '%s\n' "$report"
+          {
+            echo "rc=$rc"
+            echo "report<<COMMITLINT_EOF"
+            printf '%s\n' "$report"
+            echo "COMMITLINT_EOF"
+          } >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Flag or clear the issue based on the result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.issue.number }}
+          RC: ${{ steps.lint.outputs.rc }}
+          REPORT: ${{ steps.lint.outputs.report }}
+        run: |
+          label="needs-conventional-title"
+          # Ensure the label exists (idempotent); ignore "already exists".
+          gh label create "$label" --color FBCA04 \
+            --description "Issue title does not follow Conventional Commits" --force >/dev/null 2>&1 || true
+
+          if [ "$RC" = "0" ]; then
+            # Passing: clear the flag if it was set. No comment on success.
+            gh issue edit "$NUM" --remove-label "$label" >/dev/null 2>&1 || true
+            exit 0
+          fi
+
+          # Failing: comment only on the first detection (label not already
+          # present) so successive bad edits don't spam the thread. Build the
+          # body with tilde code fences (not backticks) so the shell never reads
+          # the markdown as command substitution.
+          had_label="$(gh issue view "$NUM" --json labels --jq '.labels[].name' 2>/dev/null | grep -Fxq "$label" && echo yes || echo no)"
+          gh issue edit "$NUM" --add-label "$label" >/dev/null 2>&1 || true
+          if [ "$had_label" = "no" ]; then
+            {
+              echo "⚠️ **This issue title is not a Conventional Commit.**"
+              echo
+              echo "Specs become epics and plan slices become sub-issues, and these titles seed branch names, PR titles, and release versions — so they must follow the same commitlint ruleset as commits (for example: feat:, fix:, docs:, chore:)."
+              echo
+              echo "~~~"
+              printf '%s\n' "$REPORT"
+              echo "~~~"
+              echo
+              echo "Edit the title to fix; this check re-runs on every edit and clears the label once it passes."
+            } > issue-title-comment.md
+            gh issue comment "$NUM" --body-file issue-title-comment.md
+          fi
