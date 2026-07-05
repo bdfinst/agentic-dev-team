@@ -66,7 +66,7 @@ add installation guidance or prose.
 
 Otherwise (human-facing run), also tell the user: **Run `/project-init` to set
 up this repo's tooling as the one-stop entry point — it installs semgrep as a
-capability tool (see its `references/capability-tools.md`) — or install semgrep
+capability tool (see its `${CLAUDE_PLUGIN_ROOT}/skills/project-init/references/capability-tools.md`) — or install semgrep
 directly — `pip install semgrep` (also `pipx install semgrep` or `brew install
 semgrep`).** (The direct install command is the fallback.)
 

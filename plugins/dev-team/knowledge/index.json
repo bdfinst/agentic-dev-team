@@ -1333,7 +1333,7 @@
   },
   "plugins/dev-team/skills/adr-tools/SKILL.md": {
     "Pre-flight": {
-      "summary": "If the pre-flight reports `adr` missing, run `/project-init` to set up this repo's tooling — it installs the `adr` CLI as a capability tool (see its `references/capability-tools.md`) — or install it directly: see [npryce/adr-tools](https://github.com/npryce/adr-tools) (the CLI link is the fallback).",
+      "summary": "If the pre-flight reports `adr` missing, run `/project-init` to set up this repo's tooling — it installs the `adr` CLI as a capability tool (see its `${CLAUDE_PLUGIN_ROOT}/skills/project-init/references/capability-tools.md`) — or install it directly: see [npryce/adr-tools](https://github.com/npryce/adr-tools) (the CLI link is the fallback).",
       "anchor": "pre-flight"
     },
     "Editor caveat — the most common failure": {

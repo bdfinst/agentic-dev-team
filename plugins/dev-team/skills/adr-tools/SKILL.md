@@ -17,7 +17,7 @@ cat .adr-dir 2>/dev/null   # project's configured ADR directory
 ls "$(cat .adr-dir 2>/dev/null || echo docs/adr)/" 2>/dev/null | head -3
 ```
 
-If the pre-flight reports `adr` missing, run `/project-init` to set up this repo's tooling — it installs the `adr` CLI as a capability tool (see its `references/capability-tools.md`) — or install it directly: see [npryce/adr-tools](https://github.com/npryce/adr-tools) (the CLI link is the fallback).
+If the pre-flight reports `adr` missing, run `/project-init` to set up this repo's tooling — it installs the `adr` CLI as a capability tool (see its `${CLAUDE_PLUGIN_ROOT}/skills/project-init/references/capability-tools.md`) — or install it directly: see [npryce/adr-tools](https://github.com/npryce/adr-tools) (the CLI link is the fallback).
 
 Project convention is `docs/adr/`. `adr-tools` stores the directory in `.adr-dir` at the project root — `adr` reads that file to find the ADRs no matter what subdirectory you're in. If `.adr-dir` is missing, run `adr init docs/adr` once. Do not init silently into a different path — confirm with the user if existing ADRs live somewhere unexpected.
 
