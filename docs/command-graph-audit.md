@@ -1,139 +1,151 @@
-# Command graph audit — top-level and isolated commands
+# Command taxonomy — what each user-invocable command is *for*
 
 Generated 2026-07-05 from the working tree (`plugins/dev-team/skills/`, 81
-user-invocable skills). Revised twice after review caught reference forms the
-first pass missed; the method below is the corrected one.
+user-invocable skills). This report classifies every user-invocable command by
+**purpose** — the question "what is this command for" — rather than by graph
+topology (who-calls-what). The earlier who-calls-what wiring analysis is kept,
+condensed, as an appendix, because it surfaced two real defects.
 
-## Method
+The three lists a maintainer actually reasons about:
 
-Three reference classes are checked, because a command can be wired into the
-system without another command ever naming it:
+1. **Orchestration workflows** — invoking it starts or steers a chain that hands
+   work between skills/agents/gates toward a deliverable (a PR, a spec set, a
+   passing suite, a triage record).
+2. **Standalone utilities** — the user calls it, it does its one job, and stops.
+3. **Plugin lifecycle & self-maintenance** — it acts on the dev-team plugin
+   itself: install it, upgrade it, or audit/eval/tune it as a product.
 
-1. **Command → command** — another user-invocable SKILL.md references it, in any
-   of the observed forms: `/name`, `dev-team:name`, `Skill(name ...)`,
-   "the `name` skill", or a backticked `` `name` `` citation (e.g. "schema in
-   `performance-metrics`"). Every bare-name mention of a listed command in every
-   other command body was manually classified to catch novel forms.
-2. **Agent / knowledge → command** — an agent's routing table or a curated
-   knowledge file dispatches or links the skill (e.g. orchestrator's skill
-   table, an agent's "invoke when…" list). Exhaustive catalogs that list every
-   skill by design (`knowledge/skills-registry.md`, `knowledge/agent-registry.md`,
-   `knowledge/index.json`, `docs/skills.md`, `hooks/lib/skill_categories.yaml`)
-   are excluded — appearing there carries no signal.
-3. **Everything else** (README, workflow docs) is user documentation of entry
-   points and is not counted as wiring.
+A residual fourth group (internal workers, project onboarding, harness plumbing)
+is user-invocable but is not a natural user entry point; it is listed last so the
+taxonomy stays honest and totals 81.
 
-**Corrections over the first drafts** (kept so the earlier versions can't
-mislead): `farley-score` was wrongly listed isolated — it is dispatched by
-`/test-design` (`Skill(farley-score ...)`) and `/build` step 7. `legacy-code`
-was wrongly listed top-level. `performance-metrics` was wrongly listed
-top-level — `/build`, `/cost-report`, and `/harness-audit` all cite its
-`review-value.jsonl` schema.
+## 1. Orchestration workflows — drive an outcome (22)
 
-## Isolated in the command graph — no command callers or callees (13)
+### Core delivery pipeline
 
-Nothing in the *command* graph routes into them, but most are wired in via
-agents or knowledge — the right-hand column is what the first draft missed.
-
-| Command | Description | Referenced by (agents / knowledge) |
-|---|---|---|
-| `adr-tools` | ADR CLI mechanics (npryce adr-tools). | `knowledge/adr-decision-criteria.md` (pairs with adr-author agent) |
-| `api-design` | Contract-first API design. | architect, software-engineer agents ("invoke when…") |
-| `ci-debugging` | Systematic CI/CD failure diagnosis. | qa-engineer agent |
-| `competitive-analysis` | Gap analysis vs external plugins/tools. | — |
-| `design-it-twice` | N parallel interface designs, compare and synthesize. | — |
-| `docker-image-audit` | Scan images/Dockerfiles (hadolint, Trivy, Grype). | `knowledge/deployment-pipeline.md` |
-| `docker-image-create` | Generate production multi-stage Dockerfiles. | — |
-| `help` | List all slash commands. | — |
-| `mermaid-diagramming` | Mermaid diagrams in the project theme. | — |
-| `model-routing-check` | Read-only effort-band routing diagnostic. | orchestrator agent (twice) |
-| `proxy-resilience` | Backoff/retry convention for corporate-proxy failures. | — |
-| `threat-modeling` | STRIDE threat analysis. | architect, security-engineer agents |
-| `upgrade` | Apply plugin updates. | — |
-
-## Top-level in the command graph — no command callers, has callees (13)
-
-| Command | Description | Calls | Referenced by (agents / knowledge) |
-|---|---|---|---|
-| `agent-audit` | Structural compliance audit of agents/skills/hooks. | `build`, `code-review` | orchestrator agent |
-| `benchmark` | Web-page runtime performance metrics. | `browse`, `build` | — |
-| `branch-workflow` | PR creation, merge strategy, cleanup. | `code-review` | orchestrator agent |
-| `design-interrogation` | Interview the user to surface hidden decisions. | `plan`, `specs` | product-manager agent |
-| `frontend-architecture` | Component-architecture review dispatch. | `apply-fixes`, `build`, `code-review`, `plan` | lens wired into `/code-review` (component-architecture-review runs when UI files are in scope, 2026-07-05) |
-| `governance-compliance` | Audit logging, gates, ethics procedures. | `feedback-learning`, `quality-gate-pipeline` | platform-engineer, qa-engineer, security-engineer, tech-writer agents |
-| `guard` | careful + freeze composite. | `careful`, `freeze`, `unfreeze` | — |
-| `human-oversight-protocol` | Approval gates and intervention commands. | `feedback-learning` | orchestrator, product-manager agents |
-| `review` | Alias for `/code-review`. | `code-review` | — |
-| `semgrep-analyze` | Semgrep run with structured findings. | `code-review` | orchestrator agent |
-| `setup` | Detect stack; generate CLAUDE.md, hooks, templates. | `pr` | — |
-| `test-driven-development` | Classic TDD cycle with hard gates (opt-in cadence). | `build`, `systematic-debugging` | qa-engineer, software-engineer agents |
-| `ubiquitous-language` | Build/refresh the domain glossary. | `code-review`, `domain-analysis`, `domain-driven-design`, `specs` | domain-review agent |
-
-## Functional split — workflow initiators vs standalone
-
-The same 26 unreferenced commands divided by *function* rather than raw
-out-degree: does invoking it start or steer a chain that hands into other
-commands (nothing references it *because* it is the front door), or does it do
-its whole job by itself?
-
-### Workflow initiators (11)
-
-| Command | Workflow it initiates |
+| Command | Outcome it drives |
 |---|---|
-| `review` | The review pipeline (pure alias for `/code-review`) |
+| `ship` | Umbrella: spec → plan → build → review → PR → auto-merge, pausing at human gates |
+| `specs` | The three spec artifacts, through the cross-artifact consistency gate |
+| `design-doc` | Research-phase design doc (approval gate) → feeds `plan` |
+| `plan` | Structured implementation plan → feeds `build` |
+| `build` | Executes the plan (Code-First Small Batches by default; Classic TDD opt-in) with inline review checkpoints |
+| `code-review` | Runs all enabled review agents over the diff |
+| `review` | Pure alias for `code-review` |
+| `apply-fixes` | Applies `code-review` corrections back to the working tree |
+| `pr` | Pre-PR quality gate (tests, typecheck, lint, review) → opens the PR |
 | `branch-workflow` | Branch completion: review → PR → merge → cleanup |
-| `design-interrogation` | Spec hardening, feeding `/plan` and `/specs` |
-| `frontend-architecture` | Component review, handing fixes to `/apply-fixes` / `/build` |
-| `agent-audit` | Toolkit compliance audit, flowing into `/build` / `/code-review` fixes |
-| `semgrep-analyze` | SAST pass whose findings feed `/code-review`'s security context |
-| `test-driven-development` | The opt-in TDD cadence that steers `/build` |
-| `ubiquitous-language` | Glossary build, feeding `/domain-analysis` / `/domain-driven-design` / `/specs` |
-| `governance-compliance` | Compliance review via `/feedback-learning` + `/quality-gate-pipeline` |
-| `human-oversight-protocol` | Approval-gate protocol (borderline: invoked *at* gates mid-flow more than it initiates one) |
-| `setup` | One-shot project onboarding ending at `/pr` (borderline: one-shot, but the start of using the plugin at all) |
+| `continue` | Resumes an in-progress pipeline from phase files in `memory/` |
+| `triage` | Bug → root cause → portable triage record with a TDD fix plan |
 
-### Standalone (15)
+### Review gates/lenses inside the pipeline
 
-Self-contained — they produce their result and stop:
+| Command | Role in the flow |
+|---|---|
+| `frontend-architecture` | Reviews component changes during `code-review` and rejects bad component design so the coding agent fixes it — a gate in the review→fix loop, runs whenever frontend component files are in scope |
 
-`adr-tools`, `api-design`, `benchmark`, `ci-debugging`, `competitive-analysis`,
-`design-it-twice`, `docker-image-audit`, `docker-image-create`, `guard`,
-`help`, `mermaid-diagramming`, `model-routing-check`, `proxy-resilience`,
-`threat-modeling`, `upgrade`
+### Test & quality orchestrations
 
-Two commands appear here despite outgoing edges in the raw graph — a deliberate
-reclassification after reading what the edges do: `guard` names
-`careful`/`freeze`/`unfreeze` only because it is a composite toggle of them
-(one action, not a flow), and `benchmark` uses `/browse` as an instrument to
-drive the page it measures, not as a handoff. By pure out-degree the split is
-13/13 (the two tables above); this section is the functional 11/15 view.
+These dispatch sub-agents/workers and roll up a report or drive convergence.
 
-## Zero references anywhere (11) — the real audit shortlist
+| Command | Outcome it drives |
+|---|---|
+| `test-improve` | Analyze → improve the suite; dispatches coverage/gherkin/mutation workers |
+| `test-design` | Fans out test-review + test-smell-review + the test-design advisor |
+| `test-health` | Project-wide test-strategy audit rollup (shape, quadrants, coverage + mutation) |
+| `cd-test-architecture` | Assess tests → recommend a CD-aligned architecture (feeds `issues-from-assessment`) |
+| `domain-analysis` | Strategic DDD health assessment → friction / value-stream report |
+| `exploratory-testing` / `explore` | Charter-driven probe → adversarial expansion → auto-triaged report |
+| `quality-gate-pipeline` | Unified multi-gate self-validation + review-correction loop |
+| `systematic-debugging` | Four-phase reproduce → investigate → root-cause → fix protocol |
 
-No command, agent, or curated-knowledge reference at all. These are reachable
-only by a user typing them. Zero wiring is not the same as dead — several are
-deliberately user-only utilities — but nothing breaks if one is removed, so
-keep/cut is decided purely by intent and usage telemetry
-(`/artifact-lifecycle` over `metrics/artifact-usage.json`):
+## 2. Standalone utilities — one job, then stop (35)
 
-`benchmark`, `competitive-analysis`, `design-it-twice`, `docker-image-create`,
-`guard`, `help`, `mermaid-diagramming`, `proxy-resilience`, `review`, `setup`,
-`upgrade`
+**Modes & session controls:** `careful`, `freeze`, `unfreeze`, `guard`, `browse`
 
-(`frontend-architecture` left this list on 2026-07-05: its lens now runs inside
-`/code-review` whenever frontend component files are in scope, though the
-standalone command itself still has no callers.)
+**Info / status:** `help`, `version` (report the installed plugin version for the
+user), `cost-report`, `agent-readiness` (scores *your* repo — contrast
+`harness-audit`, which audits the plugin)
 
-Of these, `help`, `upgrade`, `guard`, and `review` are plausibly intentional
-user-only utilities (`review` is a pure alias, `guard` a pure composite —
-their value is discoverability). The other seven warrant a usage-telemetry
-check.
+**Single-purpose analysis & advisory:** `benchmark`, `docker-image-audit`,
+`docker-image-create`, `mermaid-diagramming`, `semgrep-analyze`, `api-design`,
+`threat-modeling`, `ci-debugging`, `proxy-resilience`, `farley-score`,
+`mutation-testing`, `feature-file-validation`, `adr-tools`, `ubiquitous-language`,
+`hexagonal-architecture`, `domain-driven-design`, `legacy-code`, `design-it-twice`,
+`design-interrogation`, `review-agent`, `review-summary`, `governance-compliance`,
+`human-oversight-protocol`, `gherkin-public`, `semantic-scan`,
+`test-driven-development` (an opt-in cadence *mode* that steers `build`)
 
-## Notes for the audit
+## 3. Plugin lifecycle & self-maintenance — acts on the plugin itself (12)
 
-- The remaining 55 commands are referenced by at least one other command and
-  are load-bearing in the command graph; removing any requires updating callers.
-- Lesson encoded in the method above: a "who calls this" audit over skills must
-  match dispatch forms (`Skill(name)`, "the `name` skill", backticked schema/doc
-  citations) and must include agent routing tables — the `/name` form alone
-  misclassified three commands across the first two drafts.
+### Manage the installed plugin
+
+| Command | Purpose |
+|---|---|
+| `upgrade` | Check for and apply plugin updates via the official mechanism |
+| `init-dev-team` | Install the plugin's required tools (jq, python3, language toolchains) |
+
+### Develop & improve the plugin
+
+| Command | What it maintains |
+|---|---|
+| `agent-audit` | Structural compliance of agents / skills / hooks |
+| `agent-eval` | Runs eval fixtures against the review agents; grades detection accuracy |
+| `harness-audit` | Review-agent effectiveness, model routing, orchestration complexity → simplification candidates |
+| `model-routing-check` | Read-only effort-band model-routing diagnostic |
+| `competitive-analysis` | Gap analysis of this plugin vs external plugins/tools |
+| `artifact-lifecycle` | Finds stale / archive-candidate skills & agents from usage data |
+| `session-review` | Mines session transcripts → plugin-improvement suggestions |
+| `feedback-learning` | `amend`/`learn`/`remember`/`forget` → tunes agent/skill configs |
+| `telemetry` | Manages the opt-in usage-telemetry beacon |
+| `performance-metrics` | Logs per-task token/cost/rework metrics that feed the improvement loop |
+
+## Not user entry points (12)
+
+- **Internal workers** — dispatched by the orchestrators in list 1; user-invocable
+  only for isolated testing: `coverage-baseline`, `coverage-delta`,
+  `quality-targets-converge`, `issues-from-plan`, `issues-from-assessment`,
+  `test-audit-disable`, `gherkin-derive`, `semantic-duplication-scan`
+- **Project onboarding** — user-invoked *after adding the plugin to a repo*; they
+  configure the target repo, not the plugin: `setup` (detect stack; generate
+  CLAUDE.md, hooks, templates) and `project-init` (detect stack, inventory/install
+  static-analysis tools). See the open gap below — a command that needs a missing
+  tool should prompt the user to run these.
+- **Harness plumbing** — context management, rarely typed directly:
+  `context-loading-protocol`, `context-summarization`
+
+## Open gaps / defects
+
+- **`design-it-twice` ↔ architect** ([#833](https://github.com/bdfinst/agentic-dev-team/issues/833)) —
+  the skill advertises Architect-agent triggering the architect's `## Skills`
+  list doesn't wire.
+- **`adr-author` ↔ `adr-tools`** ([#837](https://github.com/bdfinst/agentic-dev-team/issues/837)) —
+  the adr-author agent lacks `Bash`/`Skill`, so it can't drive the `adr` CLI it's
+  meant to author through and hand-rolls numbering instead.
+- **Missing-tool → onboarding prompt** ([#838](https://github.com/bdfinst/agentic-dev-team/issues/838)) — commands that need an absent
+  tool hand-roll their own install hint (`semgrep-analyze` → "pip install
+  semgrep"; `benchmark`/`browse` → "npx playwright install"; `docker-image-audit`
+  → "read install-guide.md") instead of prompting the user to run `/project-init`
+  (or `/setup`). Only `build`'s self-heal path routes to `project-init`. Expected
+  behavior: any command that hits a missing required tool should point the user at
+  the onboarding command, consistently.
+
+## Appendix — command-graph wiring notes (condensed)
+
+The prior analysis of this file walked the *command* call graph (which SKILL.md
+references which, plus agent/knowledge routing). Its durable findings:
+
+- **Reference forms must all be matched.** A "who calls this" audit over skills
+  has to match every dispatch form — `Skill(name)`, "the `name` skill", and
+  backticked schema/doc citations — and must include agent routing tables. The
+  `/name` form alone misclassified three commands across the first drafts
+  (`farley-score`, `legacy-code`, `performance-metrics`).
+- **Exhaustive catalogs carry no signal.** `knowledge/skills-registry.md`,
+  `knowledge/agent-registry.md`, `knowledge/index.json`, `docs/skills.md`, and
+  `hooks/lib/skill_categories.yaml` list every skill by design; appearing there
+  is not "wiring."
+- **Graph-isolated ≠ dead.** Most commands with no *command* callers are reached
+  by users directly (list 2) or wired via agents/knowledge. The genuinely
+  zero-reference commands are the user-only utilities in lists 2 and 3; nothing
+  breaks if one is removed, so keep/cut is an intent + telemetry decision
+  (`/artifact-lifecycle` over `metrics/artifact-usage.json`).
