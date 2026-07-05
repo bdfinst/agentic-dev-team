@@ -1,5 +1,38 @@
 # Changelog
 
+## [10.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.1.0...dev-team-v10.2.0) (2026-07-05)
+
+
+### Features
+
+* **project-init:** wip graph-tools consolidation (codegraph + graphify) ([543f2b2](https://github.com/bdfinst/agentic-dev-team/commit/543f2b29bc059275fe01e31dddf7f738099b3a59))
+
+
+### Bug Fixes
+
+* harden cloud plugin freshness (scope-aware update, drift advisory, snippet auto-update) ([43fea0a](https://github.com/bdfinst/agentic-dev-team/commit/43fea0a69522b23da0678f1efbcf5e1842de84fb))
+
+
+### Code Refactoring
+
+* complete Classic TDD cadence removal; codify defect-fix test-first rule ([6dba0d4](https://github.com/bdfinst/agentic-dev-team/commit/6dba0d42cd76717b200ec1998c805020dea0628e))
+* de-duplicate /setup vs /project-init; expand /init-dev-team scope ([93a4345](https://github.com/bdfinst/agentic-dev-team/commit/93a4345457ca3521859cd69c948b0a57f6d54f24))
+* remove Classic TDD opt-in cadence; wire graph guidance into recon/architect ([93669b0](https://github.com/bdfinst/agentic-dev-team/commit/93669b0a31f7c9d933c123cdb85f034cb4b211de))
+* single source of truth for the plugin auto-update flag ([cfaaf18](https://github.com/bdfinst/agentic-dev-team/commit/cfaaf189006852372b405e5abba88005d7815a8b))
+
+
+### Documentation
+
+* add codegraph-vs-graphify comparison; wip build cadence cleanup ([02900fb](https://github.com/bdfinst/agentic-dev-team/commit/02900fb2edddddc6e418a0422ca57ab4f630015e))
+* align command taxonomy and developer-notes index with the graph-tools step ([3d873a3](https://github.com/bdfinst/agentic-dev-team/commit/3d873a30831827c919a588d4221e321f4fc719ac))
+
+
+### Miscellaneous
+
+* regenerate knowledge index for the /upgrade skill edit ([b51dc98](https://github.com/bdfinst/agentic-dev-team/commit/b51dc983b887bda37f254f44d80b9db23f205739))
+* regenerate knowledge/index.json ([24e2601](https://github.com/bdfinst/agentic-dev-team/commit/24e2601217edb7d12b4a3e523998feee2c9070a8))
+* regenerate skills index; fix knowledge-anchor citations ([9b287eb](https://github.com/bdfinst/agentic-dev-team/commit/9b287eb2e72af5f4e986b0de84dd08067416843e))
+
 ## [10.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.0.0...dev-team-v10.1.0) (2026-07-05)
 
 
