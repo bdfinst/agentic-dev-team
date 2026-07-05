@@ -32,15 +32,19 @@ function."
 
 ### CodeGraph
 
-- Offered opt-in during `/init-dev-team`'s "Step 2.5 — Offer CodeGraph"
-  ([`skills/init-dev-team/SKILL.md`](../skills/init-dev-team/SKILL.md)):
+- Offered opt-in during `/project-init`'s "Step 4c — Offer graph-tools"
+  ([`skills/project-init/SKILL.md`](../skills/project-init/SKILL.md)):
   the skill checks `command -v codegraph` and the presence of `.codegraph/`,
   then prompts to install and/or run `codegraph init -i`, recording the
   choice in `.claude/init-state.json`.
-- Once initialized, a project-root `.mcp.json` registers a `codegraph`
-  MCP server (`codegraph serve --mcp`), exposing `mcp__codegraph__*` tools
-  (e.g. `codegraph_context`, `codegraph_explore`) to any Claude Code session
-  opened in that project.
+- **Strictly personal, user-level tooling — never committed.** Once
+  initialized, the skill prints the manual command
+  (`claude mcp add codegraph -- codegraph serve --mcp`) for the user to
+  register the `codegraph` MCP server at **user scope**, exposing
+  `mcp__codegraph__*` tools (e.g. `codegraph_context`, `codegraph_explore`)
+  to Claude Code sessions on that machine. Nothing is written to a
+  project-tracked `.mcp.json`, and `.codegraph/` is never committed — only
+  `.codegraph/codegraph.db` stays gitignored and machine-local, per project.
 - `hooks/codegraph_nudge.py` (PreToolUse on `Read`/`Grep`/`Glob`) recommends
   the `codegraph_*` MCP tools over multi-file Read/Grep/Glob exploration
   whenever `.codegraph/` exists and no CodeGraph tool has been used yet in
@@ -81,7 +85,7 @@ function."
 
 Both are optional and independently adopted per project:
 
-- CodeGraph requires an explicit `/init-dev-team` opt-in and a successful
+- CodeGraph requires an explicit `/project-init` opt-in and a successful
   `codegraph init`; a project can decline both the install and the init
   prompts and never have `.codegraph/`.
 - Graphify requires someone to run `/graphify` (or `graphify extract`) at

@@ -173,6 +173,164 @@ tools**: it installs as an `npm` devDependency (`@playwright/test`), versioned
 with the project like a lane tool — only its Chromium download is machine-level.
 State this explicitly to the user when the capability group installs.
 
+### Step 4c: Offer graph-tools (codegraph and/or graphify)
+
+Two optional, non-overlapping code-intelligence tools. Neither is required,
+a project may have one, both, or neither. Before offering either, show the
+user the "When to use which" section of
+`${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md` so they can pick
+with intent rather than installing both reflexively. Both are opt-in,
+confirmed individually, same gate as the lanes and Step 4b.
+
+#### CodeGraph — strictly personal, never committed
+
+CodeGraph (<https://github.com/colbymchenry/codegraph>) is a third-party
+SQLite knowledge graph of every symbol, edge, and file in the workspace.
+**It is user-level tooling only** — nothing it produces or registers is
+ever written into a repo-tracked file. `.codegraph/codegraph.db` stays
+gitignored and machine-local, exactly as it already does.
+
+**Classify state** (run both, record results as `installed` and `initialized`):
+
+```bash
+command -v codegraph > /dev/null 2>&1 && echo "installed" || echo "not-installed"
+[ -d "${PWD}/.codegraph" ] && echo "initialized" || echo "not-initialized"
+```
+
+Read `.claude/init-state.json` if it exists (top-level `codegraph` key holds
+the four state booleans: `install_accepted`, `install_declined`,
+`init_accepted`, `init_declined`).
+
+**Branch on (installed, initialized):**
+
+| installed | initialized | Action |
+|-----------|-------------|--------|
+| any       | true        | Print "CodeGraph: initialized ✓" and continue. State file untouched. |
+| true      | false       | **Init prompt branch** (below). |
+| false     | false       | **Install prompt branch** (below). |
+
+**Stale-state override.** Before consulting the recorded state, apply these
+rules: `install_declined` is ignored when `installed=true` (the user has
+since installed CodeGraph); `init_declined` is ignored when
+`initialized=true` (the project got initialized by other means). The live
+filesystem/PATH check supersedes the recorded preference.
+
+**Install prompt branch** (installed=false, initialized=false):
+
+- If `.codegraph.install_declined == true`: print
+  `CodeGraph: previously declined install (remove the codegraph key from .claude/init-state.json to re-prompt)`
+  and continue.
+- Otherwise prompt: `Install CodeGraph for code intelligence? (y/N)`
+  - On `y`/`Y`: print
+    `CodeGraph install instructions: https://github.com/colbymchenry/codegraph#installation`.
+    Merge `{"codegraph": {"install_accepted": true}}` into
+    `.claude/init-state.json`.
+  - On any other response (including empty): merge
+    `{"codegraph": {"install_declined": true}}` and continue silently.
+
+**Init prompt branch** (installed=true, initialized=false):
+
+- If `.codegraph.init_declined == true`: print
+  `CodeGraph: previously declined init (remove the codegraph key from .claude/init-state.json to re-prompt)`
+  and continue.
+- Otherwise prompt:
+  `CodeGraph is installed but not initialized in this project. Initialize now? (y/N)`
+  - On `y`/`Y`:
+    1. Print: `Running 'codegraph init -i' in this project...`
+    2. Execute `codegraph init -i` with the current working directory as
+       cwd. Surface its stdout/stderr to the user.
+    3. On exit 0: print `CodeGraph: initialized ✓`, merge
+       `{"codegraph": {"init_accepted": true}}` into
+       `.claude/init-state.json`, then register the MCP server (below).
+    4. On non-zero exit N: print
+       `CodeGraph init failed (exit code N). See output above. Continuing without CodeGraph.`
+       Do NOT modify `.claude/init-state.json`.
+  - On any other response: merge `{"codegraph": {"init_declined": true}}`
+    and continue silently.
+
+**Register the MCP server at user scope (never a repo file).** After a
+successful init, CodeGraph must be registered the same way any personal MCP
+server is added for this Claude Code installation — **not** written into a
+project's `.mcp.json`, and no `.codegraph/` directory is ever committed.
+Print the manual command for the user to run themselves at user scope:
+
+```
+claude mcp add codegraph -- codegraph serve --mcp
+```
+
+Note the exact CLI flag for user-scope registration may vary by Claude Code
+version — point the user at `claude mcp add --help` if the command above is
+rejected. Do not attempt to write `.mcp.json` in the project root, and do
+not run `git add`/`git commit` for anything under `.codegraph/`.
+
+`.claude/init-state.json` uses a top-level `codegraph` key so future plugins
+can claim sibling keys without collision. Always merge into existing JSON
+rather than overwriting it.
+
+#### Graphify — native integration, opt-in, with a CLAUDE.md guard
+
+Graphify (`graphifyy` on PyPI) is a multi-modal knowledge graph tool
+(code + docs + schemas + infra + images/video). Unlike CodeGraph it is a
+**repo-level native integration** — its installer writes a `/graphify`
+skill, PreToolUse nudge hooks into `.claude/settings.json`, and a
+`## graphify` section into the project's own `CLAUDE.md`.
+
+Prompt: `Install graphify for architecture/onboarding-level code intelligence? (y/N)`
+On any response other than `y`/`Y`, skip silently.
+
+**Install (fallback chain):**
+
+```bash
+command -v uv > /dev/null 2>&1 && uv tool install graphifyy \
+  || command -v pipx > /dev/null 2>&1 && pipx install graphifyy \
+  || python3 -m pip install --user graphifyy
+```
+
+**Native integration, with the CLAUDE.md corruption guard.** Graphify's
+`install --project` updater matches the literal `## graphify` header and
+replaces everything between it and the next `##` heading — a known bug can
+over-delete, taking unrelated pre-existing content with it. Guard every run:
+
+1. **Snapshot** the project's `CLAUDE.md` before installing — a plain file
+   copy (e.g. `cp CLAUDE.md /tmp/claude-md-pre-graphify.bak`, or a
+   project-local temp path), regardless of whether the repo is git-tracked.
+   `git stash` is unsafe mid-flow and must not be used.
+2. Run the installer:
+
+   ```bash
+   graphify install --project
+   graphify hook install
+   ```
+
+3. **Diff** the snapshot against the post-install `CLAUDE.md`. If any line
+   present in the snapshot is missing from the new file, treat it as the
+   known corruption bug. (`scripts/lib/claude_md_guard.py` implements this
+   snapshot/diff/restore logic in isolation and is unit-tested at
+   `tests/scripts/test_claude_md_guard.py` — reuse its
+   `run_install_with_guard` function rather than re-deriving the diff by
+   hand.)
+4. **On detected corruption:** restore the snapshot, then append the
+   canonical `## graphify` section text at EOF yourself. Source the
+   canonical text either by capturing graphify's own generated section from
+   a clean scratch-dir install first, or by reusing the fixed template that
+   matches this repo's own root `CLAUDE.md` `## graphify` section (see
+   `/home/user/agentic-dev-team/CLAUDE.md` for the canonical section this
+   repo already carries).
+5. **On no corruption detected:** leave the installer's output as-is —
+   nothing further to do.
+
+**Gitignore advice.** `graphify hook install` creates machine-specific
+generated git hooks. Tell the user to gitignore them the same way this
+repo's own root `.gitignore` does for its own graphify hooks:
+
+```gitignore
+graphify-out/
+.husky/post-commit
+.husky/post-checkout
+```
+
+(Or `.git/hooks/post-*` if the target repo does not use husky.)
+
 ### Step 5: Verify — post-install probes
 
 Run each configured lane's detection probe exactly as the lane registry
@@ -197,6 +355,8 @@ command from `references/capability-tools.md`:
 | adr | `adr help` |
 | gh | `gh --version` |
 | docker scanners | `hadolint --version`, `trivy --version`, `grype --version` |
+| codegraph | `command -v codegraph`, `.codegraph/` present |
+| graphify | `graphify --version` |
 
 A capability tool that was offered but not confirmed, or whose signal never
 fired, is simply not probed — it is not a failure.
@@ -214,6 +374,11 @@ After every configured lane probes green, give the user:
 - **Capability tools** (Step 4b): which were offered, which were installed,
   and which were skipped (signal didn't fire, or the user declined) — noting
   Playwright is repo-level and the rest are user/system-level CLIs.
+- **Graph tools** (Step 4c): CodeGraph state (installed/initialized, MCP
+  registration command printed or skipped) and graphify state (installed,
+  native integration applied, whether the CLAUDE.md corruption guard fired
+  and repaired anything) — noting CodeGraph is strictly user-level/personal
+  and graphify is the repo-level native integration.
 - Files created (greenfield only).
 
 ## Greenfield JS/TS scaffold
