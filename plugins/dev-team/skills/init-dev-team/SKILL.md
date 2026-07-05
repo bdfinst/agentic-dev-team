@@ -5,7 +5,10 @@ description: >-
   Linux, Windows Git Bash): installs jq and python3 as hard dependencies, then
   prompts for language selection (JS/TS, Java, C#) to install the matching
   mutation testing tool (Stryker, pitest, Stryker.NET). Run this when the
-  mutation gate reports a missing tool.
+  mutation gate reports a missing tool. When run inside the agentic-dev-team
+  repo itself, it also detects that and bootstraps this repo's own plugin-dev
+  toolchain (shellcheck, jq, python3, Python dev deps) by calling
+  `scripts/dev-setup.sh` before the mutation-tool flow.
 user-invocable: true
 allowed-tools: Read, Bash, Write
 ---
@@ -68,6 +71,36 @@ Use the first one found. If none are found, tell the user:
 "No Windows package manager detected. Install winget (built into Windows 10/11
 via the App Installer), Chocolatey (<https://chocolatey.org>), or Scoop
 (<https://scoop.sh>), then re-run `/init-dev-team`."
+
+## Step 1.5 — Detect the agentic-dev-team repo and delegate to dev-setup.sh
+
+Before installing anything, check whether this invocation is running inside
+the agentic-dev-team plugin-dev repo itself (as opposed to a downstream
+project that merely has the plugin installed):
+
+```bash
+test -f requirements-dev.txt && test -f plugins/dev-team/.claude-plugin/plugin.json && echo "in-repo" || echo "downstream"
+```
+
+- **`in-repo`**: print "Detected the agentic-dev-team repo — running
+  scripts/dev-setup.sh to bootstrap the plugin-dev toolchain (shellcheck, jq,
+  python3, Python dev dependencies)." Then run:
+
+  ```bash
+  bash scripts/dev-setup.sh
+  ```
+
+  Surface its stdout/stderr to the user. `dev-setup.sh` is a separate,
+  intentionally-kept bash entry point — it works before Claude Code or the
+  plugin is installed, and is reused as a generic template by
+  `/new-marketplace` for other marketplace repos (see the note at the top of
+  `scripts/dev-setup.sh`). This skill calls it rather than reimplementing its
+  install logic. After it runs, still execute Step 2's jq/python3 checks below
+  — they are idempotent and confirm dev-setup.sh's work rather than
+  duplicating installation, so running both is a harmless double-check, not
+  redundant install logic.
+- **`downstream`**: no plugin-dev repo detected — proceed exactly as before
+  with Step 2 (existing downstream-user behavior, unchanged).
 
 ## Step 2 — Install hard dependencies (jq and python3)
 
