@@ -99,7 +99,7 @@ Releases are managed by release-please. Push conventional commits to main:
 
 A release PR is opened automatically. Merging it creates a GitHub Release with a version tag.
 
-**Every commit landed on `main` must be conventional.** This repo rebase-merges PRs (see [Working Rules](#working-rules) — squash and merge-commit are disabled because they synthesize unsigned commits that the branch ruleset rejects). Rebase-merge lands each PR commit on `main` verbatim, so **release-please reads every commit**, not just the PR title. Two consequences:
+**Every commit landed on `main` must be conventional.** This repo rebase-merges PRs (see [Working Rules](#working-rules)). Rebase-merge lands each PR commit on `main` verbatim, so **release-please reads every commit**, not just the PR title. Two consequences:
 
 - Squash your work-in-progress locally (`git rebase -i`) before opening the PR so only conventional-prefixed commits land — noise commits like `fix typo` or `wip` will confuse the changelog. Prefix genuinely non-shipping commits inside a PR with `chore:` so release-please ignores them.
 - If a release is silently missed (nothing conventional landed), recover with a follow-up commit carrying a `Release-As: X.Y.Z` footer.
