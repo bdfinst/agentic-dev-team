@@ -16,7 +16,7 @@ This skill provides reusable patterns for browser-based testing and visual verif
 
 ## Prerequisites
 
-Playwright must be installed with at least the Chromium browser:
+Playwright must be installed with at least the Chromium browser — `/project-init` installs it for frontend projects, or install manually:
 
 ```bash
 npx playwright install chromium

@@ -172,6 +172,23 @@ mypy — Python type checking. install: python3 -m pip install mypy (project ven
 
 Print install-hints grouped by capability tier (secrets / IaC / CI-CD / supply-chain / SAST / data-flow). Required tools carry a `[REQUIRED]` prefix; absence of a required tool is a hard failure at install time, absence of an optional tool is a warning. Tier-implementation labels ("SARIF adapter", "bespoke-JSON adapter", "legacy") are internal vocabulary and never surface in user-facing text.
 
+### Missing-tool remediation convention (#838)
+
+When a command hits a **missing REQUIRED tool**, the remediation must name the
+onboarding command first — the consistent, discoverable one-command entry point
+— and give the raw install hint alongside it:
+
+> Run `/project-init` (or `/setup`) to set up this repo's tooling, or install directly: `<raw install hint>`.
+
+Onboarding ownership today: `/project-init` installs the static-analysis lane
+tools (ruff, mypy, oxlint, dotnet-format, PMD) and Playwright + Chromium in the
+greenfield JS scaffold. It does **not** install semgrep, hadolint/trivy/grype,
+`adr`, or `gh`. For those tools the pointer still surfaces onboarding as the
+discoverable entry point, while the tool-specific install command stays as the
+direct fallback — never claim onboarding installs a tool it does not. Machine
+output (e.g. semgrep-analyze's `--programmatic` JSON) stays prose-free: the
+onboarding pointer lives only in the human-facing branch.
+
 ## Agent context injection
 
 When findings are passed to review agents, format them so agents don't re-report confirmed static findings:

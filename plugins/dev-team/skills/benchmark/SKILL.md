@@ -38,7 +38,7 @@ If no URL is provided, look for a `performance-budget.json` file and benchmark a
 
 ## Prerequisites Check
 
-1. Verify Playwright is installed: `npx playwright --version`. If not installed, tell the user: "Playwright is required. Run `npx playwright install chromium` first."
+1. Verify Playwright is installed: `npx playwright --version`. If not installed, tell the user: "Playwright is required. Run `/project-init` to set up this repo's tooling (it installs Playwright + Chromium for frontend projects), or install directly: `npx playwright install chromium`."
 2. If the URL is localhost, verify the dev server is running by attempting a fetch. If not running, tell the user: "Dev server doesn't appear to be running at <url>. Start it first."
 
 ## Steps

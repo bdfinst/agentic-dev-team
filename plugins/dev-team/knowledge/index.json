@@ -1333,7 +1333,7 @@
   },
   "plugins/dev-team/skills/adr-tools/SKILL.md": {
     "Pre-flight": {
-      "summary": "Project convention is `docs/adr/`.",
+      "summary": "If the pre-flight reports `adr` missing, run `/project-init` to set up this repo's tooling as the entry point, then install the `adr` CLI directly — see [npryce/adr-tools](https://github.com/npryce/adr-tools).",
       "anchor": "pre-flight"
     },
     "Editor caveat — the most common failure": {
@@ -1793,7 +1793,7 @@
       "anchor": "overview"
     },
     "Prerequisites": {
-      "summary": "Playwright must be installed with at least the Chromium browser:",
+      "summary": "Playwright must be installed with at least the Chromium browser — `/project-init` installs it for frontend projects, or install manually:",
       "anchor": "prerequisites"
     },
     "Playwright Patterns": {
@@ -2075,7 +2075,7 @@
       "anchor": "6a-review-fix-loop"
     },
     "7. Generate report": {
-      "summary": "Read `knowledge/review-template.md` for the structure.",
+      "summary": "**Output paths.** All file artifacts (`./corrections/*.json`, `./.review-passed`) are repo-relative to the target repository's working directory (the cwd `/code-review` was invoked in).",
       "anchor": "7-generate-report"
     },
     "8. Save correction prompts for remaining issues": {
@@ -3781,7 +3781,7 @@
   },
   "plugins/dev-team/skills/performance-benchmark/SKILL.md": {
     "Prerequisites": {
-      "summary": "A running dev server (or accessible URL) for the pages being benchmarked.",
+      "summary": "Installed by `/project-init` for frontend projects, or install manually:",
       "anchor": "prerequisites"
     },
     "Metrics collected": {
@@ -4631,6 +4631,10 @@
     "Install-hint format": {
       "summary": "Examples:",
       "anchor": "install-hint-format"
+    },
+    "Missing-tool remediation convention (#838)": {
+      "summary": "When a command hits a **missing REQUIRED tool**, the remediation must name the",
+      "anchor": "missing-tool-remediation-convention-838"
     },
     "Agent context injection": {
       "summary": "When findings are passed to review agents, format them so agents don't re-report confirmed static findings:",

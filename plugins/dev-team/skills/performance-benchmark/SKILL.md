@@ -15,6 +15,8 @@ Measures **runtime performance** (what the user experiences) — complements the
 
 ## Prerequisites
 
+Installed by `/project-init` for frontend projects, or install manually:
+
 ```bash
 npx playwright install chromium
 ```

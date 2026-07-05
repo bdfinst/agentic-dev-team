@@ -42,7 +42,9 @@ npx playwright --version 2>/dev/null
 ```
 
 If Playwright is not available, ask the user:
-> Playwright is required for browser interaction. Install it now?
+> Playwright is required for browser interaction. Run `/project-init` to set up
+> this repo's tooling (installs Playwright + Chromium for frontend projects), or
+> install it directly now:
 >
 > ```
 > npx playwright install chromium
@@ -139,7 +141,7 @@ If the user's goal appears to be testing or verification, note any issues found 
 - **Navigation timeout**: Report the URL that failed and suggest checking if the server is running
 - **Element not found**: Report the selector that failed and suggest inspecting the page structure
 - **CAPTCHA or auth wall**: Report that manual intervention is needed — instruct the user to complete the challenge in their browser, then re-run `/browse` to continue
-- **Playwright not installed**: Guide the user through `npx playwright install chromium`
+- **Playwright not installed**: Point the user at `/project-init` to set up the repo's tooling, or guide them through `npx playwright install chromium`
 
 ## Automated Smoke Test Mode
 
