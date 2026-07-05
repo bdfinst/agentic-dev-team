@@ -1,10 +1,14 @@
 ---
 name: setup
 description: >-
-  Detect a project's tech stack and auto-generate project-level CLAUDE.md,
-  PostToolUse hooks, and language-specific agent templates in one shot. Use
-  this when onboarding a new project, or when the user says "setup",
-  "bootstrap", "configure this project", or "detect my stack".
+  Generate dev-team-specific project configuration — project-level CLAUDE.md,
+  the PostToolUse formatting hook, language-specific agent template
+  activation, and a generated `/pr` command — from the stack signal
+  `/dev-team:project-init` already established. This is NOT where toolchain
+  detection/installation lives (that's `/project-init`); `/setup` only
+  consumes it. Use this when onboarding a new project to the dev-team
+  plugin's own config, or when the user says "setup", "bootstrap", "configure
+  this project for dev-team", or "activate agent templates".
 argument-hint: "[--dry-run]"
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(jq *), Bash(ls *), Bash(mkdir *), Bash(cat *), Bash(test *), Bash(node *)
@@ -12,7 +16,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(jq *), Bash(ls *), Bash(mkdir
 
 # Project Setup
 
-Role: orchestrator. This command bootstraps project-level configuration by detecting the tech stack and generating appropriate files.
+Role: orchestrator. This command bootstraps dev-team-specific project
+configuration — CLAUDE.md, the PostToolUse formatting hook, agent template
+activation, and the generated `/pr` command. It delegates all tech-stack
+detection and toolchain install/inventory work to `/dev-team:project-init`,
+which is the canonical source of truth for that; `/setup` never re-derives it.
 
 You have been invoked with the `/setup` command.
 
@@ -30,28 +38,26 @@ Arguments: $ARGUMENTS
 
 ## Steps
 
-### 1. Detect tech stack
+### 1. Invoke `/dev-team:project-init` for stack detection and toolchain
 
-Search the project root for manifest files and record findings:
+Run `/dev-team:project-init` first. It owns all tech-stack detection,
+tool inventory, the three-column confirm plan, and installation (JS/TS
+scaffold, Python/C#/Java lane tools, capability tools, graph-tools). Let it
+run to completion — including its own user confirmation gate — before
+continuing.
 
-| Indicator file | Stack |
-|----------------|-------|
-| `package.json` | Node/JavaScript |
-| `tsconfig.json` | TypeScript |
-| `pyproject.toml`, `requirements.txt`, `setup.py` | Python |
-| `go.mod` | Go |
-| `Cargo.toml` | Rust |
-| `Gemfile` | Ruby |
-| `pom.xml`, `build.gradle`, `build.gradle.kts` | Java/Kotlin |
-| `*.csproj`, `*.sln` | C#/.NET |
-| `angular.json` | Angular |
-| `Dockerfile`, `docker-compose.yml` | Container |
+### 2. Record the stack signal for dev-team's own use
 
-Also detect frameworks within each stack:
-
-- **Node**: check `package.json` dependencies for `react`, `vue`, `svelte`, `@angular/core`, `express`, `fastify`, `nestjs`, `next`, `vitest`, `jest`, `mocha`
-- **Python**: check for `django`, `flask`, `fastapi`, `pytest` in deps
-- **Go**: check for `gin`, `echo`, `fiber` in `go.mod`
+`/setup` still needs a small, cheap signal of its own to populate
+`.claude/project-stack.json` and to drive Step 3's template selection. Reuse
+project-init's documented detection-signal table
+(`skills/project-init/SKILL.md` Step 1 and Step 2) by reference rather than
+re-deriving a second independent detection pass — probe for the same
+indicator files project-init already classified (`package.json`,
+`tsconfig.json`, `pyproject.toml`/`requirements*.txt`, `*.csproj`/`*.sln`,
+`pom.xml`/`build.gradle*`) plus the handful of framework dependency checks
+(`react`, `vue`, `svelte`, `@angular/core`, `next`, `django`, `flask`,
+`fastapi`) that project-init's stack table doesn't itself need to record.
 
 Write findings to `.claude/project-stack.json`:
 
@@ -69,14 +75,11 @@ Write findings to `.claude/project-stack.json`:
 }
 ```
 
-### 2. JS/TS-specific flow
-
-If a JavaScript or TypeScript project is detected:
-
-1. **ES Modules check**: Read `package.json` and verify `"type": "module"` is set. If missing, report it and ask the user whether to add it.
-2. **TypeScript check**: If `package.json` exists but `tsconfig.json` does not, ask: "This is a JavaScript project. Would you like to add TypeScript?" If yes, scaffold a `tsconfig.json` with strict mode and note that `ts-enforcer` template should be activated.
-3. **Require/module.exports scan**: Run a quick grep for `require(` and `module.exports` in source files (exclude `node_modules`). Report any findings as migration candidates.
-4. Always mark `esm-enforcer` template for activation. (`functional-patterns` is superseded by the built-in `js-fp-review` agent — do not activate it.)
+This step does not install anything and does not repeat project-init's
+JS/TS ES-module/TypeScript/require-scan checks or its formatter-selection
+logic — those are entirely project-init's job (Step 4/Scaffold steps and
+Step 4b/4c there). It only records the signal `/setup` needs for its own
+template selection below.
 
 ### 3. Select agent templates
 
@@ -110,19 +113,14 @@ If `.claude/CLAUDE.md` already exists, ask whether to merge or skip.
 
 ### 5. Generate PostToolUse formatting hook
 
-Based on detected stack, generate the appropriate PostToolUse hook entry for the project's `.claude/settings.json`. Use the formatting table:
-
-| Stack | Extensions | Formatter command |
-|-------|-----------|-------------------|
-| Node/TypeScript | `.ts`, `.tsx`, `.js`, `.jsx` | `npx prettier --write "$FILE" && npx eslint --fix "$FILE"` |
-| Python | `.py` | `ruff format "$FILE" && ruff check --fix "$FILE"` |
-| Go | `.go` | `gofmt -w "$FILE"` |
-| Rust | `.rs` | `rustfmt "$FILE"` |
-| Ruby | `.rb` | `bundle exec rubocop -A "$FILE"` |
-| Java/Kotlin | `.java`, `.kt` | `google-java-format -i "$FILE"` / `ktlint -F "$FILE"` |
-| C# | `.cs` | `dotnet format --include "$FILE"` |
-
-Only include branches for the detected stack. Verify the formatter tool is installed before adding it (check `npx prettier --version`, `ruff --version`, etc.). If not installed, warn the user and point them at `/project-init` to install the repo's lane tooling (ruff, etc.).
+Wire a PostToolUse hook entry for the project's `.claude/settings.json` that
+runs the formatter for the detected stack, mapped by extension (Node/TS →
+prettier + eslint, Python → ruff, Go → gofmt, Rust → rustfmt, Ruby →
+rubocop, Java/Kotlin → google-java-format/ktlint, C# → dotnet format). The
+tool itself is `/project-init`'s responsibility to install — since Step 1
+already ran it, the formatter should be present. Only if a formatter is
+still missing (check e.g. `npx prettier --version`, `ruff --version`), warn
+the user and re-point them at `/project-init` rather than installing it here.
 
 ### 6. Generate /pr command
 

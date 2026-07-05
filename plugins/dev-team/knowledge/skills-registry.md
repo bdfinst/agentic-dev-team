@@ -48,7 +48,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/semantic-scan` | `skills/semantic-scan/SKILL.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
 | `/semgrep-analyze` | `skills/semgrep-analyze/SKILL.md` | worker | Run Semgrep SAST and return structured findings |
 | `/session-review` | `skills/session-review/SKILL.md` | orchestrator | Mine real session transcripts (via the deterministic `session_extract.py`) and dispatch `session-analysis` to suggest token/rework/accuracy improvements; suggests, never auto-applies |
-| `/setup` | `skills/setup/SKILL.md` | orchestrator | Detect tech stack, generate project-level config, hooks, and agent templates |
+| `/setup` | `skills/setup/SKILL.md` | orchestrator | Generate dev-team-specific project config (CLAUDE.md, PostToolUse formatting hook, agent template activation, generated `/pr` command) from the stack signal `/project-init` establishes; invokes `/project-init` first for all stack detection/toolchain install |
 | `/ship` | `skills/ship/SKILL.md` | orchestrator | Run the full spec→plan→build (Code-First Small Batches)→code-review→PR(auto-merge) pipeline as one command, pausing at the existing human gates |
 | `/telemetry` | `skills/telemetry/SKILL.md` | worker | Manage and report the opt-in, privacy-clean usage telemetry beacon (on/off/status/report) |
 | `/test-audit-disable` | `skills/test-audit-disable/SKILL.md` | worker | Standalone worker — detect tests that cannot fail (no assertions, tautologies, self-equality, swallowed exceptions) and disable each by skip-and-tag with the reason; never deletes. Not part of the current `/test-improve` orchestrator flow |
