@@ -2,12 +2,13 @@
 
 Generated 2026-07-05 from the working tree (`plugins/dev-team/skills/`, epic/823 branch,
 81 user-invocable skills). A command "calls" another when its SKILL.md body references
-it as `/name` or `dev-team:name`. **Caveat:** an edge counts any textual reference —
-actual dispatch *and* prose mentions ("use after `/plan`") — so these lists are
-conservative: an isolated command truly has zero cross-references, but a command's
-outgoing edges may include mention-only links.
+it as `/name`, `dev-team:name`, `Skill(name ...)`, or "the `name` skill" / "skill
+`name`". **Caveat:** an edge counts any such reference — actual dispatch *and* prose
+mentions ("use after `/plan`") — so these lists are conservative: an isolated command
+truly has zero cross-references, but a command's outgoing edges may include
+mention-only links.
 
-## Isolated commands — no callers, no callees (14)
+## Isolated commands — no callers, no callees (13)
 
 Fully self-contained leaves: nothing routes into them and they route nowhere.
 Prime candidates for the stale/keep audit — if one is unused, removing it breaks no
@@ -22,7 +23,6 @@ other command.
 | `design-it-twice` | Generate multiple radically different interface designs via parallel sub-agents, then compare and synthesize. |
 | `docker-image-audit` | Audit Docker images/Dockerfiles for vulnerabilities, bloat, and best-practice violations (hadolint, Trivy, Grype). |
 | `docker-image-create` | Generate production-ready multi-stage Dockerfiles from project source. |
-| `farley-score` | Evaluate test quality against Dave Farley's 8 properties with a weighted score. |
 | `help` | List all available slash commands with their descriptions. |
 | `mermaid-diagramming` | Create Mermaid diagrams using the project's blue-gray theme. |
 | `model-routing-check` | Read-only diagnostic for effort-band model routing. |
@@ -30,7 +30,7 @@ other command.
 | `threat-modeling` | Structured STRIDE security analysis for threats, attack surfaces, and mitigations. |
 | `upgrade` | Check for and apply plugin updates via the official plugin update mechanism. |
 
-## Top-level commands with outgoing calls — entry points only (15)
+## Top-level commands with outgoing calls — entry points only (14)
 
 Never referenced by another command, but fan out into the graph. These are
 user-facing entry points; auditing one means checking its callees still exist and
@@ -46,7 +46,6 @@ the workflow it fronts is still current.
 | `governance-compliance` | Audit logging, quality gates, and ethics procedures for the agent team. | `feedback-learning`, `quality-gate-pipeline` |
 | `guard` | Activate careful mode and freeze mode together (production-critical sessions). | `careful`, `freeze`, `unfreeze` |
 | `human-oversight-protocol` | Approval gates, intervention commands, and transparency requirements. | `feedback-learning` |
-| `legacy-code` | Safely modify code that lacks tests. | `hexagonal-architecture`, `mutation-testing`, `quality-gate-pipeline`, `specs` |
 | `performance-metrics` | Log task completion data to `metrics/`. | `build`, `cost-report`, `plan` |
 | `review` | Alias for `/code-review`. | `code-review` |
 | `semgrep-analyze` | Run Semgrep static analysis on target files, return structured findings. | `code-review` |
@@ -59,7 +58,12 @@ the workflow it fronts is still current.
 - The isolated set overlaps heavily with utility/one-shot tools (Docker pair, help,
   upgrade, diagnostics). Their health signal is usage telemetry
   (`/artifact-lifecycle` reads `metrics/artifact-usage.json`), not graph position.
+- Earlier drafts of this report listed `farley-score` as isolated and `legacy-code`
+  as top-level; both were artifacts of matching only the `/name` form. `farley-score`
+  is dispatched by `/test-design` (`Skill(farley-score ...)`) and `/build` step 7
+  ("invoke the `farley-score` skill"); `legacy-code` is likewise referenced by
+  another command in skill-invocation form.
 - `review` is a pure alias; `guard` is a pure composite — both are thin wrappers whose
   value is discoverability.
-- The remaining 52 commands (not listed) are referenced by at least one other command
+- The remaining 54 commands (not listed) are referenced by at least one other command
   and are load-bearing in the graph; removing any of them requires updating callers.
