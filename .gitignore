@@ -49,6 +49,16 @@ __pycache__/
 *.py[cod]
 *.pyo
 
+# Graphify knowledge-graph output — a large, generated per-repo artifact.
+# Built on demand (`graphify extract .`); the committed CLAUDE.md section +
+# .claude hooks take over once graphify-out/graph.json exists.
+graphify-out/
+# Graphify's git hooks embed a machine-specific Python path, so they're
+# generated per-clone by `graphify hook install` (run from dev-setup.sh), not
+# committed — like .git/hooks. The portable wiring under .claude/ IS committed.
+.husky/post-commit
+.husky/post-checkout
+
 # Runtime joern / CPG cache + workspace
 memory/cpg/
 memory/raw/

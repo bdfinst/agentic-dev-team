@@ -48,6 +48,7 @@ The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these t
 
 - CLI: `shellcheck`, `jq`, `python3` (macOS: `brew install shellcheck jq python3`). `shellcheck` still lints repo-root shell (`scripts/audit-rules-vs-prompts.sh`, etc.) and the `plugins/security-assessment/` plugin; the `plugins/dev-team/` plugin itself is now Python.
 - Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML for a few content-guard tests that shell out to Python; pytest for every content-guard suite and the plugin's own unit tests; semgrep for the security-assessment suites; httpx for the red-team harness smoke test).
+- Graphify (optional, code knowledge graph): `uv tool install graphifyy` (or `pipx install graphifyy`). Its native Claude wiring is committed once — the `## graphify` section at the end of this file, `.claude/skills/graphify/`, and the PreToolUse nudge hooks in `.claude/settings.json`. `dev-setup.sh` installs graphify and runs `graphify hook install` (never `graphify install --project`, which rewrites this curated file); graphify targets `.husky/post-commit` + `.husky/post-checkout` here because git hooks route through husky, and those embed a machine-specific Python path so they're gitignored and regenerated per-clone. Build the graph on demand with `graphify extract .` (writes `graphify-out/graph.json`, gitignored). Codegraph stays a personal, user-level MCP — not committed. When to use which: **codegraph** for fast structural queries while editing (callers/impact); **graphify** for architecture/onboarding across code + docs + infra.
 
 **One-shot setup:** `bash scripts/dev-setup.sh` validates this toolchain and installs anything missing (Homebrew on macOS, apt-get on Debian/Ubuntu, then the `requirements-dev.txt` deps). Safe to re-run.
 
@@ -152,3 +153,13 @@ Setup-script install plus the file-based fallback), see
 [`docs/using-plugin-skills-in-the-web-environment.md`](docs/using-plugin-skills-in-the-web-environment.md).
 
 See `plugins/dev-team/CLAUDE.md` for the full orchestration pipeline configuration.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

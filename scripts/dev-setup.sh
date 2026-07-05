@@ -168,6 +168,57 @@ else
   warn "skipping requirements-dev.txt — pip not available"
 fi
 
+# --- Graphify (code knowledge graph) ---------------------------------------
+# Graphify turns the repo into a queryable multi-modal knowledge graph. We use
+# its native Claude integration: `graphify install --project` writes the
+# /graphify skill + a CLAUDE.md section + PreToolUse nudge hooks (all committed,
+# so this only refreshes them), and the graph is rebuilt on commit. Install as
+# an isolated CLI app (uv/pipx), NOT into the repo's Python env. Optional and
+# best-effort throughout: absence never fails setup.
+section "Graphify (code knowledge graph)"
+GRAPHIFY_SPEC="graphifyy"
+if command -v graphify >/dev/null 2>&1; then
+  ok "graphify ($(graphify --version 2>/dev/null | head -1))"
+elif command -v uv >/dev/null 2>&1; then
+  printf '  installing %s via uv …\n' "$GRAPHIFY_SPEC"
+  if uv tool install "$GRAPHIFY_SPEC" >/dev/null 2>&1; then
+    ok "graphify installed via uv"
+  else
+    warn "uv tool install failed (optional) — install manually: uv tool install $GRAPHIFY_SPEC"
+  fi
+elif command -v pipx >/dev/null 2>&1; then
+  printf '  installing %s via pipx …\n' "$GRAPHIFY_SPEC"
+  if pipx install "$GRAPHIFY_SPEC" >/dev/null 2>&1; then
+    ok "graphify installed via pipx"
+  else
+    warn "pipx install failed (optional) — install manually: pipx install $GRAPHIFY_SPEC"
+  fi
+elif python3 -m pip --version >/dev/null 2>&1; then
+  printf '  installing %s via pip --user …\n' "$GRAPHIFY_SPEC"
+  if python3 -m pip install --quiet --user "$GRAPHIFY_SPEC" >/dev/null 2>&1; then
+    ok "graphify installed via pip --user"
+  else
+    warn "pip install failed (optional) — install manually: pip install --user $GRAPHIFY_SPEC"
+  fi
+else
+  warn "no uv/pipx/pip to install graphify (optional) — see https://github.com/Graphify-Labs/graphify"
+fi
+
+# Regenerate graphify's git hooks for this clone. NOTE: we deliberately do NOT
+# run `graphify install --project` — its CLAUDE.md editor rewrites our curated
+# file (it treats a prior graphify mention as an anchor and drops everything to
+# the next heading). The .claude wiring is committed once instead. `hook install`
+# only (re)writes .husky/post-commit + post-checkout, which graphify targets
+# directly because git hooks route through husky (core.hooksPath); those carry a
+# machine-specific Python path, so they're gitignored and regenerated per-clone.
+if command -v graphify >/dev/null 2>&1; then
+  if graphify hook install >/dev/null 2>&1; then
+    ok "graphify git hooks installed (rebuild-on-commit)"
+  else
+    warn "graphify hook install failed (optional)"
+  fi
+fi
+
 # --- verification ----------------------------------------------------------
 # Re-check everything from scratch so the summary reflects the real end state,
 # not what we believe we installed.
@@ -194,6 +245,14 @@ if command -v semgrep >/dev/null 2>&1 || python3 -c "import semgrep" >/dev/null 
   ok "semgrep"
 else
   warn "semgrep not found — only needed if you run/modify the security-assessment plugin"
+fi
+
+# graphify (optional). Native integration; build the repo graph on demand with
+# `graphify extract .` — the committed CLAUDE.md section + hooks then take over.
+if command -v graphify >/dev/null 2>&1; then
+  ok "graphify"
+else
+  warn "graphify not found (optional) — a code knowledge graph for this repo; see CLAUDE.md Prerequisites"
 fi
 
 # --- Java static-analysis lane (warn-only) ---------------------------------
