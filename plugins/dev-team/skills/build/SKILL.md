@@ -2,12 +2,12 @@
 name: build
 description: >-
   Execute an approved implementation plan in small per-behavior batches.
-  Reads the plan, resolves the cadence (Code-First Small Batches by default;
-  Classic TDD via --tdd or plan metadata), implements each step one behavior
-  at a time with a refactor on every green, runs inline review checkpoints,
-  and produces verification evidence. Use when the user says "build this",
-  "implement the plan", "start building", or after /plan has been approved.
-argument-hint: "[--plan <path>] [--yes] [--tdd]"
+  Reads the plan, implements each step one behavior at a time in the
+  Code-First Small Batches cadence with a refactor on every green, runs
+  inline review checkpoints, and produces verification evidence. Use when
+  the user says "build this", "implement the plan", "start building", or
+  after /plan has been approved.
+argument-hint: "[--plan <path>] [--yes]"
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion, Skill(verify *)
 ---
@@ -21,7 +21,7 @@ You have been invoked with the `/build` command.
 ## Orchestrator constraints
 
 1. **Follow the plan exactly.** If the plan is wrong, stop and ask the user — do not deviate silently.
-2. **Every step is small per-behavior batches, one agent.** The default cadence is **Code-First Small Batches** — each behavior follows IMPLEMENT → TEST → REFACTOR (the statistically separated winner of the workflow experiments; `docs/experiments/RECOMMENDATIONS.md` Rec 3). **Classic TDD** (RED → GREEN → REFACTOR, with its failing-test-first RED hard gate) is an explicit opt-in via `--tdd` or the plan's `**Cadence**:` metadata. In **both cadences**: one agent writes the code, the test, and the refactor for a unit of work; the refactor runs on **every** green — never deferred to an end-of-build pass, never skipped, never made conditional on task size or complexity (Rec 4); tests are frozen during REFACTOR; and big-batch shapes are prohibited — never all the code then all the tests, never all the tests then all the code.
+2. **Every step is small per-behavior batches, one agent.** The cadence is **Code-First Small Batches** — each behavior follows IMPLEMENT → TEST → REFACTOR (the statistically separated winner of the workflow experiments; `docs/experiments/RECOMMENDATIONS.md` Rec 3). One agent writes the code, the test, and the refactor for a unit of work; the refactor runs on **every** green — never deferred to an end-of-build pass, never skipped, never made conditional on task size or complexity (Rec 4); tests are frozen during REFACTOR; and big-batch shapes are prohibited — never all the code then all the tests, never all the tests then all the code.
 3. **Incremental.** Each step must leave the codebase in a working, committable state.
 4. **Verification evidence required.** Paste fresh test output before claiming a step is done.
 5. **Review checkpoints (granularity scales with complexity).** Run inline review (static self-heal pass first, then spec-compliance, then quality agents) per step for `complex` steps; batch `standard`/`trivial` steps into one review at the slice boundary. Record each checkpoint's find/fix/no-op outcome to `metrics/review-value.jsonl`. The final `/code-review` is the backstop.
@@ -34,7 +34,6 @@ Arguments: $ARGUMENTS
 
 - `--plan <path>`: Path to the plan file. If omitted, search `plans/` for the most recently modified plan with status `approved`.
 - `--yes`: Auto-approve the build's approval gates (steps 2 and 3) without prompting (non-interactive opt-in).
-- `--tdd`: Run every step in the Classic TDD cadence (RED → GREEN → REFACTOR). The CLI flag wins over the plan's `**Cadence**:` metadata when the two conflict (see step 3.5).
 
 **Interactivity.** The run is **non-interactive** when any of these hold: `--yes` was passed, `DEV_TEAM_AUTO_APPROVE=1` is set, or stdin is not a usable TTY (`test -t 0` is false — the headless/CI/automation case). The approval gates in steps 2 and 3 use this: interactive runs prompt exactly as before; non-interactive runs auto-proceed and **record the bypass in the build output** rather than hanging.
 
@@ -84,17 +83,6 @@ If any criteria are flagged:
    - If the user revises, update the plan file and re-verify
 3. **Non-interactive** (see Parse Arguments) → do **not** block. Proceed and record the bypass in the build output: `Acceptance-criteria gate auto-passed with N flagged criterion(s) (non-interactive) — no human gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.` Include the flagged findings in the record so the bypass is auditable.
 
-### 3.5. Resolve the cadence
-
-Resolve which per-behavior cycle every step runs, in precedence order (first match wins — the CLI flag wins over metadata):
-
-1. **`--tdd` flag** → `tdd`.
-2. **Plan metadata** — a `**Cadence**: code-first | tdd` line in the plan header → that value.
-3. **Legacy-plan inference** — a plan that predates cadence metadata is inferred from its own step text, never silently switched: step text using RED/GREEN phase language → `tdd`; step text with neither cadence's phase language → `code-first`. State the inference and its basis in the build output (e.g. `Cadence inferred: tdd — plan steps use RED/GREEN language.` or `Cadence inferred: code-first — no RED/GREEN signal in plan steps.`).
-4. **Default** → `code-first` (Code-First Small Batches, `docs/experiments/RECOMMENDATIONS.md` Rec 3).
-
-Print the resolved cadence at build start (one line, e.g. `Cadence: code-first (default)`) and name it in each step's cycle output so every checkpoint is attributable to a cadence.
-
 ### 4. Implement each step
 
 Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan_waves.py`). Within a wave, independent slices may build concurrently; across waves a barrier holds the next wave until the current one reconciles green.
@@ -138,7 +126,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py --wave-width <W> [--jobs N] 
 
 **Concurrent dispatch (effective concurrency > 1):**
 
-1. Dispatch each independent slice in the wave to its **own** git worktree (`isolation: "worktree"`), up to the effective concurrency. Each slice's changes stay isolated until reconcile, and each slice still runs its full per-behavior cycle (in the resolved cadence) and inline review gates.
+1. Dispatch each independent slice in the wave to its **own** git worktree (`isolation: "worktree"`), up to the effective concurrency. Each slice's changes stay isolated until reconcile, and each slice still runs its full per-behavior cycle and inline review gates.
 2. **Report the concrete level and cost**, e.g. *"building wave 2 — 2 slices concurrently; faster wall-clock but burns token budget faster."*
 3. **Barrier + reconcile** once the wave's slices finish: `build_wave_reconcile.py --into <integration> --base <ref> --test-cmd "<full suite>" <slice-branch>...` merges them order-independently and gates on the full suite before any next-wave slice starts.
 4. **Loud halt, never silent:**
@@ -149,13 +137,13 @@ For each step within a slice, dispatch implementation following the implementer 
 
 Within the per-behavior mini-cycle below, repeated Write/Edit calls can race a `PostToolUse` hook that rewrites files (e.g., a formatter): an `Edit` failing on a stale `old_string` is expected to self-correct by re-`Read`ing the file before the next `Edit` attempt, not to escalate immediately.
 
-**Phase-state bookkeeping (guard input).** `/build` owns `memory/build-phase.json` as mechanical step bookkeeping: write `{"phase": "<implement|test|refactor|red|green>", "step": "<N.M>", "written_at": "<ISO8601>", "test_files_staged": []}` at **each** phase transition, and clear the file at step completion. At the **TEST → REFACTOR transition** (GREEN → REFACTOR under `tdd`), additionally stage the step's test files — `git add` them, including new/untracked ones — and record their paths in `test_files_staged`: the index becomes the refactor baseline the `refactor_test_freeze_guard` / `refactor_test_revert_guard` hooks enforce the tests-frozen invariant against.
+**Phase-state bookkeeping (guard input).** `/build` owns `memory/build-phase.json` as mechanical step bookkeeping: write `{"phase": "<implement|test|refactor>", "step": "<N.M>", "written_at": "<ISO8601>", "test_files_staged": []}` at **each** phase transition, and clear the file at step completion. At the **TEST → REFACTOR transition**, additionally stage the step's test files — `git add` them, including new/untracked ones — and record their paths in `test_files_staged`: the index becomes the refactor baseline the `refactor_test_freeze_guard` / `refactor_test_revert_guard` hooks enforce the tests-frozen invariant against.
 
-Work each step **one behavior at a time** in the resolved cadence — never all the code then all the tests, never all the tests then all the code:
+Work each step **one behavior at a time** — never all the code then all the tests, never all the tests then all the code:
 
-1. **First phase — IMPLEMENT (`code-first`, default) or RED (`tdd`).** Code-first: implement exactly one behavior from the step — no cleanup, no behavior beyond what the step requires. TDD: write the failing test covering the slice scenario the step traces to; run the suite. **Hard gate (`tdd` only): the new test must fail — paste the failing output.** If the test passes without new code, the behavior already exists — pick a different test. Do NOT proceed without pasted failing output.
-2. **Second phase — TEST (`code-first`) or GREEN (`tdd`).** Code-first: write the test covering the behavior's slice scenario, immediately after the code. TDD: write the minimum implementation to make the failing test pass. Either way, run the full test suite. **Hard gate: all tests must pass — paste the passing output.** Do NOT proceed to REFACTOR without pasted passing output.
-3. **REFACTOR (both cadences — every green, never skipped).** Clean up structure, naming, duplication without changing behavior. Runs in **every** per-behavior cycle: never deferred to an end-of-build pass, never made conditional on task size or complexity (`docs/experiments/RECOMMENDATIONS.md` Rec 4 — deleting just this step erased TDD's changeability advantage entirely). **Tests are frozen for the phase** — a refactor must never change a test (enforced by the freeze/revert guards; recovery: return to the TEST phase, change the test there, re-verify green, re-enter REFACTOR). Run tests again — they must still pass. If tests break, undo and try a smaller change. A no-op refactor (nothing worth changing, stated in one line) satisfies the phase — the mandate is the check on every green, not a diff — and any refactor made stays within the code the step touched; adjacent-file cleanups are follow-ups, not refactors.
+1. **First phase — IMPLEMENT.** Implement exactly one behavior from the step — no cleanup, no behavior beyond what the step requires.
+2. **Second phase — TEST.** Write the test covering the behavior's slice scenario, immediately after the code. Run the full test suite. **Hard gate: all tests must pass — paste the passing output.** Do NOT proceed to REFACTOR without pasted passing output.
+3. **REFACTOR (every green, never skipped).** Clean up structure, naming, duplication without changing behavior. Runs in **every** per-behavior cycle: never deferred to an end-of-build pass, never made conditional on task size or complexity (`docs/experiments/RECOMMENDATIONS.md` Rec 4 — deleting just this step erased the cadence's changeability advantage entirely). **Tests are frozen for the phase** — a refactor must never change a test (enforced by the freeze/revert guards; recovery: return to the TEST phase, change the test there, re-verify green, re-enter REFACTOR). Run tests again — they must still pass. If tests break, undo and try a smaller change. A no-op refactor (nothing worth changing, stated in one line) satisfies the phase — the mandate is the check on every green, not a diff — and any refactor made stays within the code the step touched; adjacent-file cleanups are follow-ups, not refactors.
 4. **Inline review checkpoint — granularity scales with complexity.** *Where* the checkpoint runs depends on the step's **Complexity** classification (review *depth* still scales too):
    - **trivial**: Skip inline review. The final `/code-review` (step 6) covers all modified files.
    - **standard**: **Defer** review to the slice boundary (sub-step 6) — do not review now. Track the step's changed files so the slice checkpoint reviews them in one batch. Per-step review on standard steps is N near-identical passes where one at slice end largely does the same work, and the final `/code-review` (step 6) remains the backstop. This is the batching win — fewer review dispatches per multi-step slice at bounded quality risk.
