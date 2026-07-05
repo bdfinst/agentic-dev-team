@@ -1,7 +1,6 @@
-"""Verifies the .NET smoke fixture and PR-body evidence draft for issue
-#524 (Slice 4 of plans/stack-aware-reference-loading.md). Structural
-checks only — whether the LLM-produced excerpts are semantically correct
-is the human merge reviewer's call.
+"""Verifies the .NET smoke fixture for issue #524. Structural checks
+only — whether the LLM-produced excerpts are semantically correct is the
+human merge reviewer's call.
 
 Ported from tests/bats/stack-aware-dotnet-fixture.bats (issue #675:
 bats -> pytest).
@@ -14,7 +13,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = REPO_ROOT / "evals" / "fixtures" / "dotnet-http-smoke"
-PR_BODY = REPO_ROOT / "plans" / "pr-bodies" / "524.md"
 
 
 def test_fixture_directory_exists_and_contains_csproj() -> None:
@@ -56,22 +54,3 @@ def test_fixture_client_class_accepts_httpclient_as_constructor_parameter() -> N
         pattern.search(p.read_text(encoding="utf-8")) for p in FIXTURE_DIR.glob("*.cs")
     )
     assert found
-
-
-def test_pr_body_draft_exists() -> None:
-    assert PR_BODY.is_file()
-
-
-def test_pr_body_draft_contains_evidence_heading() -> None:
-    text = PR_BODY.read_text(encoding="utf-8")
-    assert re.search(r"^## Evidence", text, re.MULTILINE)
-
-
-def test_pr_body_draft_cites_dotnet_stack_profile_path() -> None:
-    text = PR_BODY.read_text(encoding="utf-8")
-    assert "knowledge/test-stack-profiles/dotnet.md" in text
-
-
-def test_pr_body_draft_cites_csharp_http_client_reference_path() -> None:
-    text = PR_BODY.read_text(encoding="utf-8")
-    assert "knowledge/references/csharp-http-client-testing.md" in text

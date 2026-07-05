@@ -5,7 +5,7 @@ Depends on: slices 1 (hermetic helper), 2 (ci-local env scrub), 4 (ref
 guard). This test drives a real `git push` inside a hermetic scratch repo -
 the same class of operation that caused the original incident - so it is
 guarded from itself by the hermetic_env fixture and only enabled after
-slices 1-4 land. See docs/specs/pre-push-hook-hermetic-fixtures.md.
+slices 1-4 land.
 
 Ported from tests/repo/pre_push_end_to_end_tests.bats (#673).
 """

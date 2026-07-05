@@ -35,7 +35,6 @@ FILES = [
     "plugins/dev-team/skills/model-routing-check/SKILL.md",
     "plugins/dev-team/skills/session-review/SKILL.md",
     "plugins/dev-team/skills/init-dev-team/SKILL.md",
-    "docs/specs/model-complexity-routing.md",
     "docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md",
 ]
 

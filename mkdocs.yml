@@ -157,11 +157,6 @@ nav:
       - "05 · Workflow Matrix — Design": docs/experiments/agentic-workflow-evidence/05-experiment-prompt-workflow-matrix.md
       - "05 · Workflow Matrix — Final Results": docs/experiments/05-final-results.md
 
-  - Specs:
-      - Plugin CLAUDE.md Size Reduction: docs/specs/plugin-claude-md-size-reduction.md
-      - Python Agent-Harness Pattern: docs/specs/python-agent-harness-pattern.md
-      - Insights Reports Prompt Idea: docs/specs/insights-reports/prompt-idea.md
-
   - Changelog:
       - Repository: CHANGELOG.md
       - dev-team Plugin: plugins/dev-team/CHANGELOG.md

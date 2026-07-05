@@ -15,7 +15,7 @@ ambiguity (multiple unrelated .feature roots) reports "none". Vendored and
 generated trees (node_modules/, vendor/, dist/, build/, .git/, virtualenvs)
 are never treated as a signal.
 
-Stdlib-only. Python 3.8+. See docs/specs/plan-gherkin-feature-persistence.md.
+Stdlib-only. Python 3.8+.
 """
 
 from __future__ import annotations
