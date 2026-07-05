@@ -13,6 +13,8 @@ Enforces strict RED-GREEN-REFACTOR discipline with verifiable gates. LLMs are es
 
 **Positioning:** this is an **advisory methodology reference**, not a build cadence. `/build` runs a single cadence — Code-First Small Batches: implement one behavior, write its test in the same cycle, refactor on every green (`docs/experiments/RECOMMENDATIONS.md` Rec 3: test-first ordering by itself buys nothing; the per-green refactoring is the mechanism, and it is mandatory). `/build` never dispatches into this skill automatically. Use it only when a human explicitly asks for test-first discipline outside of `/build`, or when auditing existing code for TDD discipline after the fact. When applied, every rule below still holds — including the Iron Law and its hard gates.
 
+**Defect fixes are not covered by this advisory status.** General feature development under `/build` uses Code-First Small Batches and never requires the full RED-GREEN-REFACTOR cycle in this skill. Fixing a bug is different and is **mandatory, not optional**: always reproduce the defect with a failing test before writing the fix. That hard gate lives in `skills/systematic-debugging/SKILL.md` Phase 4, not here — this skill remains advisory-only for new-feature construction.
+
 ## Iron Law
 
 **No production code without a failing test first.** If you didn't watch the test fail, you don't know if it tests the right thing. Code written before tests must be deleted and reimplemented from the test — no exceptions.
