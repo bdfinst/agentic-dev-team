@@ -71,7 +71,7 @@ def test_plugin_claude_md_names_the_code_first_default_citing_recommendations() 
     flat = re.sub(r"\s+", " ", claude_md)
     assert "Code-First Small Batches" in claude_md
     assert "docs/experiments/RECOMMENDATIONS.md" in claude_md
-    assert re.search(r"opt-in", flat, re.IGNORECASE)
+    assert re.search(r"sole build cadence", flat, re.IGNORECASE)
 
 
 def test_orchestrator_fast_path_uses_the_resolved_cadence() -> None:
@@ -80,7 +80,7 @@ def test_orchestrator_fast_path_uses_the_resolved_cadence() -> None:
     end = orchestrator.index("### Demonstration of saving")
     section = re.sub(r"\s+", " ", orchestrator[start:end])
     assert re.search(r"code-first", section, re.IGNORECASE)
-    assert re.search(r"opt-in", section, re.IGNORECASE)
+    assert re.search(r"sole build cadence", section, re.IGNORECASE)
 
 
 def test_request_processing_flow_states_the_default_cadence() -> None:

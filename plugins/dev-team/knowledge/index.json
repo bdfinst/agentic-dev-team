@@ -247,6 +247,40 @@
       "anchor": "the-e2e-justification-gate"
     }
   },
+  "plugins/dev-team/knowledge/codegraph-vs-graphify.md": {
+    "What each tool is": {
+      "summary": "Third-party tool (<https://github.com/colbymchenry/codegraph>).",
+      "anchor": "what-each-tool-is"
+    },
+    "CodeGraph": {
+      "summary": "Third-party tool (<https://github.com/colbymchenry/codegraph>).",
+      "anchor": "codegraph"
+    },
+    "Graphify": {
+      "summary": "A knowledge-graph tool (`graphifyy` on PyPI) that is multi-modal: it ingests",
+      "anchor": "graphify"
+    },
+    "How each is installed and invoked here": {
+      "summary": "Offered opt-in during `/project-init`'s \"Step 4c — Offer graph-tools\"",
+      "anchor": "how-each-is-installed-and-invoked-here"
+    },
+    "CodeGraph (2)": {
+      "summary": "Offered opt-in during `/project-init`'s \"Step 4c — Offer graph-tools\"",
+      "anchor": "codegraph-1"
+    },
+    "Graphify (2)": {
+      "summary": "A repo-level tool with its own native `/graphify` skill",
+      "anchor": "graphify-1"
+    },
+    "When to use which": {
+      "summary": "**CodeGraph** for fast structural queries while editing — callers,",
+      "anchor": "when-to-use-which"
+    },
+    "Neither is guaranteed to be present": {
+      "summary": "Both are optional and independently adopted per project:",
+      "anchor": "neither-is-guaranteed-to-be-present"
+    }
+  },
   "plugins/dev-team/knowledge/component-test-patterns.md": {
     "Identify the Component's Pattern": {
       "summary": "| If the component… | Pattern | Group |",
@@ -1841,10 +1875,6 @@
     "3. Verify acceptance criteria (gate)": {
       "summary": "Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `${CLAUDE_PLUGIN_ROOT}/prompts/spec-reviewer.md` § Pre-build criteria verification mode).",
       "anchor": "3-verify-acceptance-criteria-gate"
-    },
-    "3.5. Resolve the cadence": {
-      "summary": "Resolve which per-behavior cycle every step runs, in precedence order (first match wins — the CLI flag wins over metadata):",
-      "anchor": "35-resolve-the-cadence"
     },
     "4. Implement each step": {
       "summary": "Work the plan **wave by wave** (the plan's `## Parallelization` section, derived by `scripts/plan_waves.py`).",
@@ -3448,6 +3478,10 @@
       "summary": "Run the following and record the result:",
       "anchor": "step-1-detect-os"
     },
+    "Step 1.5 — Detect the agentic-dev-team repo and delegate to dev-setup.sh": {
+      "summary": "Before installing anything, check whether this invocation is running inside",
+      "anchor": "step-15-detect-the-agentic-dev-team-repo-and-delegate-to-dev-setupsh"
+    },
     "Step 2 — Install hard dependencies (jq and python3)": {
       "summary": "These are required by the mutation gate regardless of language.",
       "anchor": "step-2-install-hard-dependencies-jq-and-python3"
@@ -3459,22 +3493,6 @@
     "python3": {
       "summary": "Check if already installed:",
       "anchor": "python3"
-    },
-    "Step 2.5 — Offer CodeGraph": {
-      "summary": "CodeGraph (<https://github.com/colbymchenry/codegraph>) is a third-party SQLite",
-      "anchor": "step-25-offer-codegraph"
-    },
-    "Install prompt branch (installed=false, initialized=false)": {
-      "summary": "If `.codegraph.install_declined == true`: print",
-      "anchor": "install-prompt-branch-installedfalse-initializedfalse"
-    },
-    "Init prompt branch (installed=true, initialized=false)": {
-      "summary": "If `.codegraph.init_declined == true`: print",
-      "anchor": "init-prompt-branch-installedtrue-initializedfalse"
-    },
-    "Share CodeGraph with the team (after a successful init)": {
-      "summary": "The CodeGraph database (`.codegraph/codegraph.db`) is derived from source and",
-      "anchor": "share-codegraph-with-the-team-after-a-successful-init"
     },
     "Step 3 — Select languages": {
       "summary": "Ask the user which language ecosystems they are working with.",
@@ -4022,6 +4040,10 @@
       "summary": "Beyond the four static-analysis lanes, other skills and agents depend on a",
       "anchor": "step-4b-install-capability-tools"
     },
+    "Step 4c: Offer graph-tools (codegraph and/or graphify)": {
+      "summary": "Two optional, non-overlapping code-intelligence tools.",
+      "anchor": "step-4c-offer-graph-tools-codegraph-andor-graphify"
+    },
     "Step 5: Verify — post-install probes": {
       "summary": "Run each configured lane's detection probe exactly as the lane registry",
       "anchor": "step-5-verify-post-install-probes"
@@ -4461,16 +4483,16 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Search the project root for manifest files and record findings:",
+      "summary": "Run `/dev-team:project-init` first.",
       "anchor": "steps"
     },
-    "1. Detect tech stack": {
-      "summary": "Search the project root for manifest files and record findings:",
-      "anchor": "1-detect-tech-stack"
+    "1. Invoke `/dev-team:project-init` for stack detection and toolchain": {
+      "summary": "Run `/dev-team:project-init` first.",
+      "anchor": "1-invoke-dev-teamproject-init-for-stack-detection-and-toolchain"
     },
-    "2. JS/TS-specific flow": {
-      "summary": "If a JavaScript or TypeScript project is detected:",
-      "anchor": "2-jsts-specific-flow"
+    "2. Record the stack signal for dev-team's own use": {
+      "summary": "`/setup` still needs a small, cheap signal of its own to populate",
+      "anchor": "2-record-the-stack-signal-for-dev-teams-own-use"
     },
     "3. Select agent templates": {
       "summary": "Based on detected stack, select applicable templates from `templates/agents/`:",
@@ -4481,7 +4503,7 @@
       "anchor": "4-generate-project-level-claudemd"
     },
     "5. Generate PostToolUse formatting hook": {
-      "summary": "Based on detected stack, generate the appropriate PostToolUse hook entry for the project's `.claude/settings.json`.",
+      "summary": "Wire a PostToolUse hook entry for the project's `.claude/settings.json` that",
       "anchor": "5-generate-posttooluse-formatting-hook"
     },
     "6. Generate /pr command": {
@@ -4519,7 +4541,7 @@
       "anchor": "3-plan"
     },
     "4. Build": {
-      "summary": "Invoke `/build` to execute the approved plan in small per-behavior batches (code-first",
+      "summary": "Invoke `/build` to execute the approved plan in small per-behavior batches (code-first),",
       "anchor": "4-build"
     },
     "5. Review": {
