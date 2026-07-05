@@ -112,13 +112,11 @@ nav:
 
   - security-assessment Plugin:
       - Overview: plugins/security-assessment/README.md
-      - Architecture: plugins/security-assessment/CLAUDE.md
       - User Guide: plugins/security-assessment/docs/user-guide-security-assessment.md
       - Accepted Risks Format: plugins/security-assessment/docs/accepted-risks-format.md
       - Comparative Testing: plugins/security-assessment/docs/comparative-testing.md
 
   - marketplace-dev Plugin:
-      - Guide: plugins/marketplace-dev/CLAUDE.md
       - Agent-type Decision Rules: plugins/marketplace-dev/knowledge/agent-type-decision-rules.md
 
   - Guides:

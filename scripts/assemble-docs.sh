@@ -26,13 +26,12 @@ cp -r "${REPO_ROOT}/plugins/dev-team/docs"      "${OUT}/plugins/dev-team/docs"
 # security-assessment plugin docs
 mkdir -p "${OUT}/plugins/security-assessment"
 cp "${REPO_ROOT}/plugins/security-assessment/README.md"    "${OUT}/plugins/security-assessment/README.md"
-cp "${REPO_ROOT}/plugins/security-assessment/CLAUDE.md"    "${OUT}/plugins/security-assessment/CLAUDE.md"
 cp "${REPO_ROOT}/plugins/security-assessment/CHANGELOG.md" "${OUT}/plugins/security-assessment/CHANGELOG.md"
 cp -r "${REPO_ROOT}/plugins/security-assessment/docs"      "${OUT}/plugins/security-assessment/docs"
 
-# marketplace-dev plugin docs (CLAUDE.md is the guide; no README/docs tree)
+# marketplace-dev plugin docs (no README/docs tree; CLAUDE.md is an agent
+# instruction file and is intentionally NOT published to the docs site)
 mkdir -p "${OUT}/plugins/marketplace-dev/knowledge"
-cp "${REPO_ROOT}/plugins/marketplace-dev/CLAUDE.md"        "${OUT}/plugins/marketplace-dev/CLAUDE.md"
 cp "${REPO_ROOT}/plugins/marketplace-dev/CHANGELOG.md"     "${OUT}/plugins/marketplace-dev/CHANGELOG.md"
 cp "${REPO_ROOT}/plugins/marketplace-dev/knowledge/agent-type-decision-rules.md" \
    "${OUT}/plugins/marketplace-dev/knowledge/agent-type-decision-rules.md"
