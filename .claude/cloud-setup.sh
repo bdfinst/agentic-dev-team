@@ -52,9 +52,18 @@ fi
 # The plugin must be on disk before Claude boots to be enumerated. This setup
 # script runs pre-boot, so installing here is the supported way to get the
 # plugin's skills/agents in the current session. Best-effort: never fail startup.
+#
+# Freshness matters: the environment filesystem (including ~/.claude/plugins/
+# cache) is snapshotted and reused, and `plugin install` is a no-op once a
+# version is cached — so we must REFRESH, not just install. Re-pull the
+# marketplace catalog and `plugin update` on every run, then enable auto-update
+# so future releases refresh at launch even when this script is not re-run.
 if command -v claude >/dev/null 2>&1; then
-  claude plugin marketplace add bdfinst/agentic-dev-team >/dev/null 2>&1 || true
-  claude plugin install dev-team@bfinster >/dev/null 2>&1 || true
+  claude plugin marketplace add    bdfinst/agentic-dev-team >/dev/null 2>&1 || true
+  claude plugin marketplace update bfinster                 >/dev/null 2>&1 || true
+  claude plugin install dev-team@bfinster                   >/dev/null 2>&1 || true
+  claude plugin update  dev-team@bfinster                   >/dev/null 2>&1 || true
+  python3 .claude/enable-plugin-autoupdate.py || true
 else
   echo "cloud setup: claude CLI not found — skipping plugin install (run skills from files)."
 fi
