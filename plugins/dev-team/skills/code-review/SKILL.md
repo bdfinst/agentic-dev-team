@@ -12,7 +12,7 @@ argument-hint: >-
   [--init-risks] [--background]
 user-invocable: true
 allowed-tools: >-
-  Read, Edit, Grep, Glob, AskUserQuestion, Agent,
+  Read, Write, Edit, Grep, Glob, AskUserQuestion, Agent,
   Bash(git diff *), Bash(npx *), Bash(npm run *),
   Bash(pnpm *), Bash(yarn *), Bash(tsc *), Bash(eslint *),
   Bash(git log *), Bash(gh run *), Bash(semgrep *),
@@ -56,7 +56,7 @@ Arguments: $ARGUMENTS
 | `--since <ref>` | Review files changed since the ref (`git diff --name-only <ref>...HEAD`) |
 | `--path <dir>` | Review only files in this directory |
 | `--all` | Force full-repository review even when uncommitted changes exist |
-| `--json` | Output aggregated JSON instead of prose (for CI integration) |
+| `--json` | Output aggregated JSON to **stdout** instead of prose. Contractually non-interactive (for CI): never prompts; defaults to report-only (no code modified). |
 | `--init-risks` | Scaffold `ACCEPTED-RISKS.md` from `templates/ACCEPTED-RISKS.md.tmpl` if absent. Exits non-zero without overwriting if present. Schema: `knowledge/accepted-risks-schema.md`. |
 | `--force` | Skip pre-flight gates **and the documentation-only short-circuit** (forces a full review of doc-only changes). **Requires `--reason "<text>"`** — logged to `metrics/override-audit.jsonl`. |
 | `--reason "<text>"` | Override justification (required with `--force`) |
@@ -164,7 +164,7 @@ If Semgrep already ran in the pre-flight gate, reuse those findings. Do not run 
 
 If `--background`: run only `doc-review`, `arch-review`, `naming-review`, `structure-review`. Skip all others.
 
-Otherwise enumerate review agents from `agents/*.md` (the Review Agents section of `knowledge/agent-registry.md` is the roster). All are enabled by default.
+Otherwise read the roster from the **Review Agents** section of `knowledge/agent-registry.md` — each row names an agent and its `agents/<name>.md` file. **Never `Read` the bare `agents/` directory** (it throws `EISDIR`); if you must confirm files on disk, list them with `Glob("agents/*.md")`, never a directory `Read`. All are enabled by default.
 
 **Language-agnostic agents always run** regardless of tech stack: `doc-review`, `arch-review`, `claude-setup-review`, `token-efficiency-review`.
 
@@ -218,6 +218,10 @@ Classify each issue by actionability:
 
 **Actionable issues** drive the fix loop.
 
+#### 5c. Consolidate cross-agent findings
+
+When multiple agents flag the same `file:line`, emit one `topFindings` entry: `severity` = the single **highest** enum for that finding, `agents` = an array of the reporting agents (e.g. `["structure-review", "complexity-review"]`). Never pack multiple values into `severity` or any agent scalar — no slash- or comma-joined strings. Every scalar field stays single-valued; multi-agent attribution lives only in the `agents: []` array. Schema: [`output-format.md`](output-format.md#aggregated-json-result---json-flag).
+
 ### 6. Present findings and ask for direction
 
 If zero actionable issues, skip to step 7.
@@ -227,7 +231,10 @@ Otherwise present the Review Findings prompt (template: [`output-format.md`](out
 - "Fix" / "apply" / "yes" → step 6a
 - "Report" / "no" / "don't fix" → step 7 (no code modified)
 
-**Exception — non-interactive mode**: if running inside `/build` or `/pr`, skip this prompt and proceed to the fix loop. The caller owns the human gate (the orchestrator's Phase 3 approval for `/build`; the pre-PR confirmation for `/pr`).
+**Exception — non-interactive mode**: skip this prompt when the run is non-interactive.
+
+- (a) If `--json` (or `--yes`), **default to report only** — proceed to step 7 and emit the aggregated JSON; **never modify code** without an explicit caller opt-in. `--json` is contractually non-interactive (CI-safe): it never blocks on this prompt.
+- (b) If running inside `/build` or `/pr`, proceed to the fix loop. The caller owns the human gate (the orchestrator's Phase 3 approval for `/build`; the pre-PR confirmation for `/pr`).
 
 ### 6a. Review-fix loop
 
@@ -262,15 +269,17 @@ Track each iteration for the report — template in [`output-format.md`](output-
 
 ### 7. Generate report
 
+**Output paths.** All file artifacts (`./corrections/*.json`, `./.review-passed`) are repo-relative to the target repository's working directory (the cwd `/code-review` was invoked in). Never prepend a scratchpad, sandbox, or session root onto an already-absolute path, and never join two absolute paths. `--json` prints to **stdout** and writes no file.
+
 Read `knowledge/review-template.md` for the structure.
 
-If `--json`, emit the aggregated JSON object per the schema in [`output-format.md`](output-format.md#aggregated-json-result---json-flag) and stop.
+If `--json`, emit the aggregated JSON object per the schema in [`output-format.md`](output-format.md#aggregated-json-result---json-flag) to **stdout** (no file is written) and stop.
 
 Otherwise emit the prose summary using the Code Review Summary template in [`output-format.md`](output-format.md#code-review-summary-report-step-7-prose-mode). Append the iteration table.
 
 ### 8. Save correction prompts for remaining issues
 
-For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), generate one correction prompt per issue using the Correction prompt schema in [`output-format.md`](output-format.md#correction-prompt-json). Save to `corrections/`. These can be addressed manually or via `/apply-fixes`.
+For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), generate one correction prompt per issue using the Correction prompt schema in [`output-format.md`](output-format.md#correction-prompt-json). Save to `./corrections/` **in the target repository's working directory** (the cwd `/code-review` was invoked in). Write all output artifacts only to these repo-relative paths — never prepend a scratchpad, sandbox, or session root, and never join two absolute paths. These can be addressed manually or via `/apply-fixes`.
 
 ### 9. Write pre-commit gate file
 

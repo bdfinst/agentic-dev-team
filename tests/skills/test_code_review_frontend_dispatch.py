@@ -42,6 +42,14 @@ def test_code_review_enumerates_agents_from_the_registry_not_model_tier():
     assert "agent-registry.md" in CODE_REVIEW
 
 
+def test_code_review_enumeration_never_reads_the_agents_directory():
+    # Step 3 must name a Read-safe mechanism; a bare agents/ Read throws
+    # EISDIR (#841). The registry is the primary source; Glob is the only
+    # sanctioned filesystem-listing fallback.
+    assert 'Glob("agents/*.md")' in CODE_REVIEW
+    assert "EISDIR" in CODE_REVIEW
+
+
 def test_review_agent_skill_does_not_key_on_retired_model_tier_line():
     assert "Model tier" not in REVIEW_AGENT
 
