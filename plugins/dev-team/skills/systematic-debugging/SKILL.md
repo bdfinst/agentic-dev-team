@@ -65,7 +65,9 @@ When LLMs hit failures, they tend to guess at fixes — changing code, re-runnin
 ### Phase 4: Fix
 **Goal**: Make the smallest change that addresses the root cause.
 
-1. Write or modify a test that captures the bug (it should fail now)
+**Iron Law of Phase 4: no fix without a failing test that reproduces the defect first.** This is a hard gate, not the advisory test-driven-development skill's opt-in discipline — it applies to every defect fix regardless of the build's cadence.
+
+1. Write or modify a test that captures the bug (it should fail now) — do not write fix code before this test exists and fails for the right reason
 2. Apply the fix — one change, targeting the root cause
 3. Run the test — it should pass
 4. Run the full suite — no regressions

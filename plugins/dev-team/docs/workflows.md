@@ -28,7 +28,7 @@ wants the spec → plan → build → PR flow without re-assembling it each time
 | 1 | **Approach contract** — screen request against [`knowledge/decision-defaults.md`](../knowledge/decision-defaults.md); resolve ambiguous high-reversal-cost axes in one batch. | (orchestrator only) | yes, if a blocker remains |
 | 2 | **Spec** *(skipped with `--skip-spec`)* — produce Intent, Architecture, Acceptance Criteria. | [`/specs`](../skills/specs/SKILL.md) | **yes** — operator approves the spec |
 | 3 | **Plan** — decompose into vertical slices with Gherkin scenarios; a tier-scaled set of plan-review personas (1–5, by plan complexity) runs in parallel before the gate. | [`/plan`](../skills/plan/SKILL.md) | **yes** — operator approves the plan |
-| 4 | **Build** — small per-behavior batches per slice (code-first default; TDD opt-in), inline review checkpoints, verification evidence. Do not proceed until the suite is green. | [`/build`](../skills/build/SKILL.md) | no |
+| 4 | **Build** — small per-behavior batches per slice (Code-First Small Batches), inline review checkpoints, verification evidence. Do not proceed until the suite is green. | [`/build`](../skills/build/SKILL.md) | no |
 | 5 | **Review** — run quality-review agents and let the auto-fix loop converge. Only judgment-call findings escalate to the operator. | [`/code-review`](../skills/code-review/SKILL.md) | no |
 | 6 | **PR** — pre-PR quality gate, open PR, arm auto-merge by default (`--no-auto-merge` to opt out). | [`/pr`](../skills/pr/SKILL.md) | **yes** — the PR is the final review artifact |
 | 7 | **Report** — PR URL, quality-gate result, whether auto-merge is armed. | (orchestrator only) | — |
