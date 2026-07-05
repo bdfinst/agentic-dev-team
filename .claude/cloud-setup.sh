@@ -63,7 +63,7 @@ if command -v claude >/dev/null 2>&1; then
   claude plugin marketplace update bfinster                 >/dev/null 2>&1 || true
   claude plugin install dev-team@bfinster                   >/dev/null 2>&1 || true
   claude plugin update  dev-team@bfinster                   >/dev/null 2>&1 || true
-  python3 .claude/enable-plugin-autoupdate.py || true
+  python3 plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py --enable || true
 else
   echo "cloud setup: claude CLI not found — skipping plugin install (run skills from files)."
 fi

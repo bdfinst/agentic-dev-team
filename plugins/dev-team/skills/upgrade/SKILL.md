@@ -42,46 +42,10 @@ Report:
 
 ### 2. Check auto-update status and ask the user
 
-First, check the current auto-update status by running the script below and reporting it to the user.
+First, report the current auto-update status (`enabled`, `disabled`, or `unknown`):
 
 ```bash
-python3 - <<'PY'
-import json, os
-
-PLUGIN = "dev-team"
-home = os.path.expanduser("~")
-cwd = os.getcwd()
-
-def load(path):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return None
-    except json.JSONDecodeError as e:
-        print(f"unknown ({path} is not valid JSON)")
-        raise SystemExit(0)
-
-installed = (load(os.path.join(home, ".claude", "plugins", "installed_plugins.json")) or {}).get("plugins", {})
-market = next((pid.split("@", 1)[1] for pid in installed if pid.split("@", 1)[0] == PLUGIN and "@" in pid), None)
-if not market:
-    print("unknown (marketplace not found)")
-    raise SystemExit(0)
-
-candidates = [
-    os.path.join(cwd, ".claude", "settings.json"),
-    os.path.join(cwd, ".claude", "settings.local.json"),
-    os.path.join(home, ".claude", "settings.json"),
-]
-for path in candidates:
-    data = load(path)
-    if data and market in (data.get("extraKnownMarketplaces") or {}):
-        flag = data["extraKnownMarketplaces"][market].get("autoUpdate")
-        print("enabled" if flag is True else "disabled")
-        raise SystemExit(0)
-
-print("disabled")
-PY
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/upgrade/scripts/enable_autoupdate.py" --check
 ```
 
 Then ask the user:
@@ -94,67 +58,14 @@ Wait for the user's answer before continuing. If they say **yes**, run the enabl
 **Enable block** (run only if the user consents):
 
 ```bash
-python3 - <<'PY'
-import json, os
-
-PLUGIN = "dev-team"
-home = os.path.expanduser("~")
-cwd = os.getcwd()
-
-def load(path):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return None
-    except json.JSONDecodeError as e:
-        print(f"  ! {path} is not valid JSON ({e}); skipping")
-        return None
-
-installed = (load(os.path.join(home, ".claude", "plugins", "installed_plugins.json")) or {}).get("plugins", {})
-market = next((pid.split("@", 1)[1] for pid in installed if pid.split("@", 1)[0] == PLUGIN and "@" in pid), None)
-if not market:
-    print(f"  ! Could not resolve the marketplace for '{PLUGIN}'; skipping.")
-    raise SystemExit(0)
-
-candidates = [
-    os.path.join(cwd, ".claude", "settings.json"),
-    os.path.join(cwd, ".claude", "settings.local.json"),
-    os.path.join(home, ".claude", "settings.json"),
-]
-target = None
-for path in candidates:
-    data = load(path)
-    if data and market in (data.get("extraKnownMarketplaces") or {}):
-        target = [path, data]
-        break
-
-if target is None:
-    reg = load(os.path.join(home, ".claude", "plugins", "known_marketplaces.json")) or {}
-    entry = reg.get(market)
-    if not entry:
-        print(f"  ! Marketplace '{market}' not found in settings or registry; skipping.")
-        raise SystemExit(0)
-    path = os.path.join(home, ".claude", "settings.json")
-    data = load(path) or {}
-    data.setdefault("extraKnownMarketplaces", {})[market] = {"source": entry["source"]}
-    target = [path, data]
-
-path, data = target
-mk = data["extraKnownMarketplaces"][market]
-if mk.get("autoUpdate") is True:
-    print(f"  auto-update already enabled for '{market}' ({path})")
-else:
-    mk["autoUpdate"] = True
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    print(f"  enabled auto-update for '{market}' in {path}")
-    print("  (takes effect on next Claude Code launch / plugin operation)")
-PY
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/upgrade/scripts/enable_autoupdate.py" --enable
 ```
 
-Report the one-line result to the user, then continue to step 3.
+This sets `extraKnownMarketplaces.<marketplace>.autoUpdate: true` (project settings first, else the config-dir user settings, seeding the entry from the marketplace registry when needed). It is idempotent — re-running reports "already enabled". Report the one-line result to the user, then continue to step 3.
+
+> The same script backs the cloud bootstrap (`.claude/cloud-setup.sh`,
+> `.claude/install-dev-team.sh`), which runs `--enable` non-interactively — one
+> implementation of the flag, no duplication to keep in sync.
 
 ### 3. Run the update
 
