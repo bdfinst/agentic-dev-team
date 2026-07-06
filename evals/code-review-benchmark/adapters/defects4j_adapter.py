@@ -123,12 +123,16 @@ def checkout(
     defects4j_bin: str = "defects4j",
     run_fn=DEFAULT_RUN_FN,
     timeout: int = 600,
+    env: Optional[Dict[str, str]] = None,
 ) -> bool:
     """`defects4j checkout -p <project> -v <bug_id>b -w <workdir>`.
 
     Returns True on a zero exit code, False on any failure — never raises.
     `defects4j_bin` defaults to the bare command name (PATH lookup); pass
-    an explicit path for an auto-provisioned cache clone.
+    an explicit path for an auto-provisioned cache clone. `env` (#951),
+    when given, is the JAVA_HOME/PERL5LIB-resolved env from
+    `bootstrap.resolve_defects4j_env()`; `None` preserves the inherited
+    environment (subprocess default).
     """
     argv = [
         defects4j_bin,
@@ -141,7 +145,7 @@ def checkout(
         workdir,
     ]
     try:
-        proc = run_fn(timeout, argv, capture_output=True, text=True)
+        proc = run_fn(timeout, argv, capture_output=True, text=True, env=env)
     except (OSError, ValueError):
         return False
     return proc.returncode == 0
@@ -154,6 +158,7 @@ def run_tests(
     run_fn=DEFAULT_RUN_FN,
     compile_timeout: int = 300,
     test_timeout: int = 600,
+    env: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """Configure (`defects4j compile`) and run (`defects4j test`) the buggy checkout.
 
@@ -164,7 +169,10 @@ def run_tests(
     is folded into the returned dict, same contract as `checkout()`/
     `describe()` above. `defects4j_bin` defaults to the bare command name
     (PATH lookup); pass an explicit path for an auto-provisioned cache
-    clone.
+    clone. `env` (#951), when given, is the JAVA_HOME/PERL5LIB-resolved
+    env from `bootstrap.resolve_defects4j_env()`, threaded to both the
+    compile and test subprocess calls; `None` preserves the inherited
+    environment (subprocess default).
     """
     try:
         compile_proc = run_fn(
@@ -173,6 +181,7 @@ def run_tests(
             cwd=checkout_dir,
             capture_output=True,
             text=True,
+            env=env,
         )
     except (OSError, ValueError) as exc:
         return {
@@ -191,6 +200,7 @@ def run_tests(
             cwd=checkout_dir,
             capture_output=True,
             text=True,
+            env=env,
         )
     except (OSError, ValueError) as exc:
         return {
@@ -222,11 +232,17 @@ def describe(
     defects4j_bin: str = "defects4j",
     run_fn=DEFAULT_RUN_FN,
     timeout: int = 60,
+    env: Optional[Dict[str, str]] = None,
 ) -> Optional[str]:
-    """Best-effort `defects4j info -p <project> -b <bug_id>`. `None` on any failure."""
+    """Best-effort `defects4j info -p <project> -b <bug_id>`. `None` on any failure.
+
+    `env` (#951), when given, is the JAVA_HOME/PERL5LIB-resolved env from
+    `bootstrap.resolve_defects4j_env()`; `None` preserves the inherited
+    environment (subprocess default).
+    """
     argv = [defects4j_bin, "info", "-p", case.project, "-b", case.bug_id]
     try:
-        proc = run_fn(timeout, argv, capture_output=True, text=True)
+        proc = run_fn(timeout, argv, capture_output=True, text=True, env=env)
     except (OSError, ValueError):
         return None
     if proc.returncode != 0:
