@@ -1,7 +1,9 @@
 """Tests for scripts/eval_cache.py — the per-pair fingerprint replay cache that
-lets the live eval gate skip unchanged pairs (issue #311). Hermetic: every
-test builds a tiny self-contained corpus + plugin tree under a tmp repo root,
-so no model and no real corpus is touched.
+lets the live eval gate skip unchanged pairs (issue #311), and the model-aware
+fingerprint dimension (issue #881) that keeps per-band calibration results
+memoized independently per model. Hermetic: every test builds a tiny
+self-contained corpus + plugin tree under a tmp repo root, so no real model
+dispatch and no real corpus is touched.
 
 Ported from tests/repo/eval_cache_tests.bats (issue #572: bash -> Python).
 """
@@ -168,3 +170,77 @@ def test_cache_file_lives_at_evals_dot_eval_cache_json(corpus: Path) -> None:
     _write_passing_actuals(corpus)
     _run(corpus, "--store", "--actuals", str(corpus / "actuals.json"))
     assert (corpus / "evals" / ".eval-cache.json").is_file()
+
+
+# --------------------------------------------------------------------------
+# Model-aware fingerprint (#881, band calibration slice 2).
+# --------------------------------------------------------------------------
+
+MODEL_A = "claude-haiku-4-5-20251001"
+MODEL_B = "claude-sonnet-4-6"
+
+
+def test_different_model_is_a_cache_miss(corpus: Path) -> None:
+    """A PASS memoized at one model does not replay for another model."""
+    _write_passing_actuals(corpus)
+    _run(corpus, "--store", "--actuals", str(corpus / "actuals.json"), "--model", MODEL_A)
+    res = _run(corpus, "--plan", "--model", MODEL_B)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert "miss demo::demo-review" in out
+
+
+def test_same_model_replay_is_unaffected(corpus: Path) -> None:
+    """Same-model replay with unchanged transitive inputs still hits."""
+    _write_passing_actuals(corpus)
+    _run(corpus, "--store", "--actuals", str(corpus / "actuals.json"), "--model", MODEL_A)
+    res = _run(corpus, "--plan", "--model", MODEL_A, "--replay-out", str(corpus / "replay.json"))
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert "1 cache hit" in out
+    assert "miss demo::demo-review" not in out
+    replay = json.loads((corpus / "replay.json").read_text())
+    assert replay["demo"]["agents"]["demo-review"]["status"] == "fail"
+
+
+def test_model_dimension_changes_fingerprint(corpus: Path) -> None:
+    """The fingerprint itself differs across models for the same inputs."""
+    a = _run(corpus, "--fingerprint", "demo::demo-review", "--model", MODEL_A)
+    b = _run(corpus, "--fingerprint", "demo::demo-review", "--model", MODEL_B)
+    sha_a = next(l for l in a.stdout.splitlines() if l.startswith("fingerprint: "))
+    sha_b = next(l for l in b.stdout.splitlines() if l.startswith("fingerprint: "))
+    assert sha_a != sha_b
+
+
+def test_legacy_entry_without_model_dimension_busts_once(corpus: Path) -> None:
+    """A cache entry stored before the model dimension existed (no "model" key,
+    sha computed without folding in any model identity) is a guaranteed miss
+    the first time it is replayed against a model-aware fingerprint — then a
+    fresh --store re-populates it as model-aware, and it replays normally
+    thereafter."""
+    cache_path = corpus / "evals" / ".eval-cache.json"
+    legacy_sha = "0" * 64  # any old-format SHA never matches a fresh model-aware one
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps({
+        "version": 1,
+        "entries": {
+            "demo::demo-review": {
+                "sha": legacy_sha,
+                "passed": True,
+                "actual": {"status": "fail", "issues": [], "summary": ""},
+                "recorded_at": "2020-01-01T00:00:00Z",
+            }
+        },
+    }))
+    # One-time bust: the legacy entry (no model dimension) cannot match any
+    # freshly computed, model-aware fingerprint.
+    res = _run(corpus, "--plan", "--model", MODEL_A)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert "miss demo::demo-review" in out
+    # Re-store under the model-aware scheme, then replay hits normally.
+    _write_passing_actuals(corpus)
+    _run(corpus, "--store", "--actuals", str(corpus / "actuals.json"), "--model", MODEL_A)
+    res = _run(corpus, "--plan", "--model", MODEL_A)
+    out = res.stdout + res.stderr
+    assert "miss demo::demo-review" not in out
