@@ -5,12 +5,13 @@ description: >-
   adding or modifying a review agent, to validate detection accuracy, or
   when the user says "run the evals", "test the agents", "check for
   regressions", or "how accurate is the agent".
-argument-hint: "[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--integration] [--no-cache] [--verbose]"
+argument-hint: "[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--integration] [--ablation <agent>] [--no-cache] [--verbose]"
 user-invocable: true
 allowed-tools: >-
   Read, Grep, Glob,
   Bash(readlink *, ls *, date *, mkdir *, command -v claude, claude -p *,
        python3 scripts/eval_cache.py *, python3 scripts/run_integration_eval.py *,
+       python3 scripts/eval_variance.py *, python3 scripts/eval_ablation.py *,
        python3 scripts/citation_lint.py *),
   Skill(review-agent *), Skill(test-design-advisor *)
 ---
@@ -63,6 +64,16 @@ Arguments: $ARGUMENTS
   graded by the `integration` grader). Cannot be combined with `--agent`
   or `--skill` — integration fixtures target the orchestrator, not a
   single reviewer.
+- `--ablation <agent>`: Causal drop-candidate evidence (#868). Implies the
+  integration tier and runs it **twice** — a baseline arm (full review-agent
+  roster) and an ablated arm (roster minus `<agent>`) — K=3 trials per arm,
+  then reports the outcome delta (issues caught, `testCommands` results,
+  token cost). See *Ablation mode* below for the full procedure. Rejected
+  in combination with `--agent`/`--skill` (integration fixtures target the
+  orchestrator) and with more than one target agent — v1 supports exactly
+  one ablated agent per run: "error: --ablation supports exactly one agent
+  per run (v1); combining with --agent/--skill or naming multiple agents
+  is not supported."
 - `--no-cache`: Bypass the fingerprint replay cache (see *Cache*
   below). Default is cache-on, so a pair whose transitive inputs are
   unchanged replays from `evals/.eval-cache.json` at zero token cost.
@@ -96,6 +107,100 @@ When the operator does not specify a tier, run **unit** and report in the
 final table how many fixtures would have routed to integration (the count of
 expected JSON files whose `integration` block is non-empty). That nudge keeps
 integration coverage visible without forcing every run to pay for it.
+
+## Ablation mode (`--ablation <agent>`, #868)
+
+Gives `/harness-audit` **causal** drop-candidate evidence instead of the
+correlational usage data it derives from `metrics/review-value.jsonl` alone:
+does removing this agent from the roster actually change integration-tier
+pipeline outcomes?
+
+**OPT-IN / LABEL-GATED — same policy as the integration tier (#134).** Before
+doing anything else, confirm the opt-in gate is present (a `run-integration`
+/ live-eval label on the invoking issue or PR, or the operator explicitly
+confirming a live, cost-incurring run in this session). If the gate is
+absent:
+
+```text
+refused: --ablation requires the label-gated live-eval opt-in (#134) — the
+same policy that gates the integration tier. Add the `run-integration` label
+or have the operator explicitly confirm a live run, then retry. Nothing was
+dispatched; nothing was written to metrics/.
+```
+
+Stop there — dispatch nothing, write nothing to `metrics/`.
+
+**Argument validation.** Reject before any dispatch if `--ablation` is
+combined with `--agent`/`--skill`, or if more than one agent is named (v1 is
+single-agent only — see *Parse Arguments* above for the exact error text).
+
+**Fixtures.** Default to every expected JSON with a non-empty `integration`
+block (narrow with `--fixture <name>`).
+
+**Cost estimate + explicit confirmation — before any dispatch.** Two arms
+(baseline, ablated) × K=3 trials each × the number of selected fixtures is
+6× the integration tier's normal per-fixture cost. Print an estimate before
+dispatching the first trial of either arm:
+
+```text
+Ablation cost estimate: <agent> × <N> fixture(s) × 2 arms × 3 trials = <6·N>
+integration dispatch(es). Prior integration runs on this fixture set
+averaged ~<tokens> tokens/dispatch (or: "no prior run recorded — using the
+integration tier's stated per-dispatch heuristic"), so expect roughly
+<estimate> tokens total. Proceed? [y/N]
+```
+
+Declining aborts immediately — zero tokens spent, nothing written.
+
+**Dispatch — cache bypassed.** Both arms must be live to be comparable, so
+skip the fingerprint-replay cache pre-flight entirely for ablation arms (same
+stance as the plain integration tier). For each selected fixture, run 3
+trials of each arm, writing each trial's actuals to its own file under a
+per-arm trials directory:
+
+```bash
+# baseline arm (full roster) — repeat 3x into baseline-trials/trial-<n>.json
+python3 scripts/run_integration_eval.py --fixtures-dir evals/fixtures \
+  --expected-dir evals/expected --only <fixture> --model <model> \
+  --out baseline-trials/trial-1.json
+# ...trial-2.json, trial-3.json
+
+# ablated arm (roster minus <agent>) — repeat 3x into ablated-trials/
+python3 scripts/run_integration_eval.py --fixtures-dir evals/fixtures \
+  --expected-dir evals/expected --only <fixture> --model <model> \
+  --ablate-agent <agent> --out ablated-trials/trial-1.json
+# ...trial-2.json, trial-3.json
+```
+
+`--ablate-agent <agent>` scopes `DEV_TEAM_ABLATE_AGENT=<agent>` to that one
+subprocess's environment — no file mutation, no cleanup risk; the roster
+reverts the instant the subprocess exits. Never edit an agent/skill file to
+achieve the exclusion.
+
+**Delta computation and persistence.** Hand both trial directories to
+`scripts/eval_ablation.py --mode agent` — the deterministic, model-free half
+that grades each arm (pass@k over the 3 trials, per the same machinery
+`eval_variance.py` uses for `--trials`) and computes the delta:
+
+```bash
+python3 scripts/eval_ablation.py --mode agent \
+  --expected-dir evals/expected \
+  --baseline-trials-dir baseline-trials --ablated-trials-dir ablated-trials \
+  --ablated-agent <agent> --model <model> \
+  --append metrics/eval-ablation.jsonl
+```
+
+This appends one `schema: "eval-ablation/v1"` JSONL record (`recorded_at`,
+`ablated_agent`, `fixtures`, `model`, `baseline`/`ablated`/`delta` — each
+covering `issues_caught`, `test_commands`(_passed for delta), `tokens` — and
+`verdict`). **A failing baseline arm blocks any drop/retain claim**: the
+script itself forces `verdict: "baseline failed — inconclusive"` when the
+baseline didn't pass every trial — report that plainly, do not paraphrase it
+into a drop/retain recommendation.
+
+**Console report.** Show a small table: baseline vs ablated vs delta for the
+three dimensions, the verdict, and the path (`metrics/eval-ablation.jsonl`)
+the record was appended to.
 
 ## Cache (fingerprint replay)
 
@@ -201,6 +306,12 @@ If `--skill` is specified, filter to fixtures where that skill is in
 If `--fixture` is specified, filter to that fixture only.
 
 ### 3. Run agents against fixtures
+
+If `--ablation <agent>` is set, skip the rest of this section and follow
+*Ablation mode* above in full (opt-in gate check, argument validation, cost
+estimate + confirmation, two-arm × 3-trial dispatch, delta computation and
+persistence, console report). Do not fall through to plain `--integration`
+handling below.
 
 If `--integration` is set, skip the rest of this section and dispatch
 through `python3 scripts/run_integration_eval.py` for every fixture whose

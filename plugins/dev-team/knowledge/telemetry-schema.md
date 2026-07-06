@@ -265,6 +265,30 @@ Multi-trial pass@k stability trend for `/agent-eval` fixtures.
 
 ---
 
+## `eval-ablation.jsonl`
+
+Causal per-agent ablation evidence from `/agent-eval --ablation <agent>` (#868):
+a controlled baseline-vs-ablated integration-tier delta (issues caught,
+`testCommands` results, token cost), not accumulated usage data.
+
+| Field | Type | Values / source |
+|---|---|---|
+| `schema` | string | `eval-ablation/v1` |
+| `recorded_at` | string | ISO-8601 UTC |
+| `ablated_agent` | string | Target agent name |
+| `fixtures` | array of strings | Integration fixtures exercised |
+| `model` | string | Model version(s) used for orchestrator/builder dispatch — deltas are model-dependent, always recorded |
+| `baseline` | object | `{issues_caught, test_commands: [{command, exit_code}], tokens, grade}` — full roster arm |
+| `ablated` | object | Same shape as `baseline` — roster-minus-target-agent arm |
+| `delta` | object | `{issues_caught, test_commands_passed, tokens}` (ablated − baseline) |
+| `verdict` | string | e.g. `"no measured impact — supports drop"` / `"agent is load-bearing — retain"` / `"baseline failed — inconclusive"` |
+
+- **Emitter:** `scripts/eval_ablation.py --mode agent`.
+- **Consent:** unconditional (eval infra, not user-session telemetry); opt-in/label-gated dispatch per the live-eval cost policy (#134) — the record is only ever written after an explicit operator-confirmed live run.
+- **Consumers:** `skills/harness-audit/SKILL.md` (Step 3 drop-candidate recommendations cite the measured delta/verdict when a record exists).
+
+---
+
 ## `refactor-freeze.jsonl`
 
 Audit log for the tests-frozen-during-REFACTOR invariant (`#813`) — both the

@@ -44,7 +44,7 @@ Arguments: $ARGUMENTS
 
 Read metrics JSONL files from `metrics/`. Full field reference for every
 stream below: `${CLAUDE_PLUGIN_ROOT}/knowledge/telemetry-schema.md` — read it
-instead of re-deriving a schema from the emitter. Four complementary streams
+instead of re-deriving a schema from the emitter. Five complementary streams
 exist:
 
 - `metrics/*-task-log.jsonl` — **self-reported** task logs (whatever the model
@@ -68,6 +68,11 @@ exist:
   without causes, join on `session_id` (when present on both streams) to
   attribute friction to a specific hook/rule instead of reasoning from counts
   alone.
+- `metrics/eval-ablation.jsonl` — **causal** per-agent ablation evidence from
+  `/agent-eval --ablation <agent>` (#868): a controlled baseline-vs-ablated
+  integration-tier delta, not accumulated usage data. When a record exists
+  for a drop-candidate agent, Step 3 cites its measured delta/verdict instead
+  of relying on `review-value.jsonl` alone.
 
 If no metrics data exists or insufficient data is available (fewer than 10 review runs logged), report:
 
@@ -141,6 +146,36 @@ Flag **high-value checkpoints**: `fix_rate ≥ 50%` — these are earning their 
 **Drop-candidate recommendations** (P2-S3):
 For each drop candidate emit a recommendation in this form:
 > `<checkpoint>/<agents>` fixed 0/<N> runs (fix rate 0%) — candidate to drop. To act: remove this checkpoint type from the relevant `/build` step-complexity tier or exclude these agents from the checkpoint's dispatch list. Do not auto-edit skills; present for human decision.
+
+**Cite ablation evidence when available (#868).** `review-value.jsonl` alone is
+observational — a zero fix-rate agent might have been shielded by another
+agent, dispatched against the wrong changesets, or never given a defect to
+catch. Before finalizing each per-agent drop-candidate recommendation, check
+for causal evidence:
+
+```bash
+for agent in <each single-agent drop candidate>; do
+  python3 scripts/eval_ablation.py --find-latest "$agent" \
+    --jsonl metrics/eval-ablation.jsonl
+done
+```
+
+- **Record found** — cite it in the recommendation instead of (or alongside)
+  the fix-rate line: `<agent> — ablation run <recorded_at> (model
+  <model>): delta {issues_caught: <n>, test_commands_passed: <n>, tokens:
+  <n>}, verdict "<verdict>". <If verdict is "baseline failed —
+  inconclusive": state the evidence is unusable and the fix-rate signal
+  above is the only basis for this recommendation.>`
+- **No record found** — state the evidence is correlational-only and name
+  the exact command that would upgrade it: `No ablation evidence for
+  <agent> — this recommendation is based on correlational usage data only.
+  Run \`/agent-eval --ablation <agent>\` to get a controlled baseline-vs-
+  ablated delta before acting.`
+
+This applies only to drop candidates that resolve to a **single** review
+agent (multi-agent checkpoint combinations have no single-agent ablation
+record to cite — note that explicitly rather than guessing which member
+agent a record might apply to).
 
 Do not modify any skill or agent file. The report is the only artifact.
 
@@ -267,12 +302,16 @@ Write the report to the output path using this structure:
 |------------|--------|------|-------|-------|-----------|----------|
 
 ### Drop Candidates (fix rate 0%, N ≥ 5 runs)
-| Checkpoint | Agents | Runs | Recommendation |
-|------------|--------|------|----------------|
+| Checkpoint | Agents | Runs | Ablation evidence | Recommendation |
+|------------|--------|------|--------------------|-----------------|
 
 > To act on a drop candidate: remove the checkpoint type from the relevant `/build`
 > step-complexity tier or exclude the agents from that checkpoint's dispatch list.
 > Requires human decision — do not auto-edit skills.
+>
+> "Ablation evidence" column: the cited `metrics/eval-ablation.jsonl` verdict +
+> date for single-agent candidates, or "correlational only — run
+> `/agent-eval --ablation <agent>`" when no record exists.
 
 ### High-Value Checkpoints (fix rate ≥ 50%)
 | Checkpoint | Agents | Runs | Fix rate | Issues fixed |
