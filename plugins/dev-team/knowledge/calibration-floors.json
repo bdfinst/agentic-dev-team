@@ -1,0 +1,28 @@
+{
+  "_comment": "Calibration floor policy for eval-graded review agents/skills (issue #880, slice 1 of epic #879). riskClass drives the minimum acceptable eval pass rate (floor, 0-1) for that target. high: correctness-critical review classes named explicitly by the epic (security-review, concurrency-review, arch-review, domain-review) -- floor 1.0, zero tolerance for miscalibration. standard: the remaining review agents whose frontmatter declares effort: medium (or, for orchestrator, effort: medium with no lower-effort signal) -- floor 0.9. advisory: effort: low review agents (lexical/config/style-leaning checks) plus skills that self-describe as advisory (test-design-advisor) -- floor 0.8. Guarded by tests/repo/test_calibration_floors_sync.py via scripts/check_calibration_floors_sync.py. No eval runs are introduced by this slice -- later slices (#881-#883) wire the floors into actual gating.",
+  "security-review": { "riskClass": "high", "floor": 1.0 },
+  "concurrency-review": { "riskClass": "high", "floor": 1.0 },
+  "arch-review": { "riskClass": "high", "floor": 1.0 },
+  "domain-review": { "riskClass": "high", "floor": 1.0 },
+
+  "a11y-review": { "riskClass": "standard", "floor": 0.9 },
+  "complexity-review": { "riskClass": "standard", "floor": 0.9 },
+  "component-architecture-review": { "riskClass": "standard", "floor": 0.9 },
+  "correctness-review": { "riskClass": "standard", "floor": 0.9 },
+  "doc-review": { "riskClass": "standard", "floor": 0.9 },
+  "naming-review": { "riskClass": "standard", "floor": 0.9 },
+  "orchestrator": { "riskClass": "standard", "floor": 0.9 },
+  "performance-review": { "riskClass": "standard", "floor": 0.9 },
+  "refactor-opportunity-review": { "riskClass": "standard", "floor": 0.9 },
+  "session-analysis": { "riskClass": "standard", "floor": 0.9 },
+  "spec-compliance-review": { "riskClass": "standard", "floor": 0.9 },
+  "structure-review": { "riskClass": "standard", "floor": 0.9 },
+  "test-review": { "riskClass": "standard", "floor": 0.9 },
+  "test-smell-review": { "riskClass": "standard", "floor": 0.9 },
+
+  "claude-setup-review": { "riskClass": "advisory", "floor": 0.8 },
+  "js-fp-review": { "riskClass": "advisory", "floor": 0.8 },
+  "svelte-review": { "riskClass": "advisory", "floor": 0.8 },
+  "token-efficiency-review": { "riskClass": "advisory", "floor": 0.8 },
+  "test-design-advisor": { "riskClass": "advisory", "floor": 0.8 }
+}
