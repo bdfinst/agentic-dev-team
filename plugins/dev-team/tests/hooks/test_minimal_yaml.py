@@ -113,11 +113,11 @@ def test_frontmatter_folded_block_scalar_description():
 
 
 def test_frontmatter_block_scalar_ignores_hash_as_literal_not_comment():
-    """Inside a `>-` body, `#` is literal text, never a comment (matches the
-    real init-dev-team SKILL.md, which has 'C#' inside its description)."""
+    """Inside a `>-` body, `#` is literal text, never a comment (a real skill
+    description can legitimately contain 'C#')."""
     block = extract_frontmatter_block(
         "---\n"
-        "name: init-dev-team\n"
+        "name: setup\n"
         "description: >-\n"
         "  prompts for language selection (JS/TS, Java, C#) to install the matching\n"
         "  tool.\n"
@@ -198,6 +198,62 @@ def test_skill_categories_shape_sequence_of_two_key_mappings_with_flow_list():
         "name": "Build & Ship",
         "skills": ["build", "test-driven-development", "continue"],
     }
+
+
+def test_flow_sequence_with_opening_bracket_on_its_own_line():
+    # A common auto-formatter output shape: `key:` then `[` alone on the next
+    # line, one item per line, rather than `key: [a, b]` with the bracket on
+    # the key's own line. The parser must merge and parse this the same way.
+    text = (
+        "categories:\n"
+        "  - name: Specs & Planning\n"
+        "    skills:\n"
+        "      [\n"
+        "        specs,\n"
+        "        plan,\n"
+        "        design-doc,\n"
+        "      ]\n"
+    )
+    data = parse_yaml(text)
+    assert data["categories"][0]["skills"] == ["specs", "plan", "design-doc"]
+
+
+def test_flow_mapping_with_opening_brace_on_its_own_line():
+    # Symmetry with the sequence case above: _parse_node's fix branches on
+    # `[` OR `{`, so a flow mapping split the same way must work too.
+    text = "k:\n  {\n    a: 1,\n    b: 2,\n  }\n"
+    assert parse_yaml(text) == {"k": {"a": 1, "b": 2}}
+
+
+def test_flow_sequence_tolerates_a_trailing_comma():
+    assert parse_yaml("k: [a, b, c,]\n") == {"k": ["a", "b", "c"]}
+
+
+def test_flow_sequence_tolerates_a_trailing_comma_with_one_element():
+    assert parse_yaml("k: [a,]\n") == {"k": ["a"]}
+
+
+def test_flow_mapping_tolerates_a_trailing_comma():
+    assert parse_yaml("k: { a: 1, b: 2, }\n") == {"k": {"a": 1, "b": 2}}
+
+
+def test_flow_mapping_tolerates_a_trailing_comma_with_one_element():
+    assert parse_yaml("k: { a: 1, }\n") == {"k": {"a": 1}}
+
+
+def test_nested_flow_collection_with_trailing_comma_inside_multiline_sequence():
+    # Combines both fixes: bracket-on-its-own-line plus a trailing comma on
+    # an inner flow collection.
+    text = "k:\n  [\n    a,\n    { x: 1, },\n  ]\n"
+    assert parse_yaml(text) == {"k": ["a", {"x": 1}]}
+
+
+def test_unterminated_multiline_flow_sequence_raises_yaml_error():
+    # The merge-continuation path (_next_line) must still surface an
+    # unterminated flow collection as an error, not silently truncate it.
+    text = "k:\n  [\n    a,\n    b,\n"
+    with pytest.raises(YamlError):
+        parse_yaml(text)
 
 
 # ---------------------------------------------------------------------------

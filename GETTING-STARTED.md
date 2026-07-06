@@ -15,15 +15,13 @@ claude plugin install dev-team@bfinster
 
 The `owner/repo` shorthand and the full `https://github.com/bdfinst/agentic-dev-team` URL are equivalent. For self-hosted or other git hosts, install scopes (`user`/`project`/`local`), and the upgrade/re-point commands, see the [plugin install guide](plugins/dev-team/README.md#install).
 
-Then, in your project, install tool dependencies and generate config:
+Then, in your project, run one command to install tool dependencies and generate config:
 
 ```text
-/init-dev-team
 /setup
 ```
 
-- **`/init-dev-team`** installs the plugin's tool dependencies — `jq`, `python3`, and language-specific mutation tooling (Stryker, pitest, Stryker.NET) — plus an optional CodeGraph index for code intelligence.
-- **`/setup`** detects your stack and generates project-level config and hooks, including the automated pre-commit review gate.
+**`/setup`** installs the plugin's tool dependencies — `jq`, `python3`, and language-specific mutation tooling (Stryker, pitest, Stryker.NET) — then detects your stack and generates project-level config and hooks, including the automated pre-commit review gate. (CodeGraph/Graphify code-intelligence indexing is offered separately by `/project-init`, which `/setup` invokes for stack detection.)
 
 After `/setup`, run `/specs` to start a feature, or ask a question and let the Orchestrator route it.
 
@@ -183,7 +181,7 @@ As the platform engineer, design the CI/CD pipeline for the new microservice
 The commands above support a change in flight. These workflows do the opposite: point them at an **existing codebase** with no feature in progress and they report what to improve. They are read-only and advisory — each produces a report or scored assessment, none of them edit your code. Use them to take stock of a project you've inherited, to set a quality baseline, or as a periodic health check.
 
 | Workflow | What it reports | Run it when |
-|----------|-----------------|-------------|
+| ---------- | ----------------- | ------------- |
 | `/test-health` | Whole-suite test-strategy audit — suite shape, coverage-to-quadrant mapping, flaky tests, maturity — ending in an ordered plan. Rolls up `/test-design` + `/mutation-testing`, so start here. | "How healthy is our test suite?" |
 | `/test-design` | A **Farley Score** (1–10 across Farley's 8 properties) for every test, plus per-file smells and testability blockers. | You want a quality score and per-test fixes without the full audit. |
 | `/mutation-testing` | Whether tests actually catch bugs — mutates critical modules and triages survivors. | Coverage looks high but assertions feel weak. |

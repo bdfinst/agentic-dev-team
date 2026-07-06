@@ -3735,56 +3735,6 @@
       "anchor": "escalation-paths"
     }
   },
-  "plugins/dev-team/skills/init-dev-team/SKILL.md": {
-    "Worker constraints": {
-      "summary": "1.",
-      "anchor": "worker-constraints"
-    },
-    "Step 1 — Detect OS": {
-      "summary": "Run the following and record the result:",
-      "anchor": "step-1-detect-os"
-    },
-    "Step 1.5 — Detect the agentic-dev-team repo and delegate to dev-setup.sh": {
-      "summary": "Before installing anything, check whether this invocation is running inside",
-      "anchor": "step-15-detect-the-agentic-dev-team-repo-and-delegate-to-dev-setupsh"
-    },
-    "Step 2 — Install hard dependencies (jq and python3)": {
-      "summary": "These are required by the mutation gate regardless of language.",
-      "anchor": "step-2-install-hard-dependencies-jq-and-python3"
-    },
-    "jq": {
-      "summary": "Check if already installed:",
-      "anchor": "jq"
-    },
-    "python3": {
-      "summary": "Check if already installed:",
-      "anchor": "python3"
-    },
-    "Step 3 — Select languages": {
-      "summary": "Ask the user which language ecosystems they are working with.",
-      "anchor": "step-3-select-languages"
-    },
-    "Step 4 — Install per-language mutation tools": {
-      "summary": "Run only the sections for the languages the user selected.",
-      "anchor": "step-4-install-per-language-mutation-tools"
-    },
-    "JS/TS — Stryker": {
-      "summary": "**Prerequisites check:**",
-      "anchor": "jsts-stryker"
-    },
-    "Java / Kotlin — pitest": {
-      "summary": "**Prerequisites check:**",
-      "anchor": "java-kotlin-pitest"
-    },
-    "C# / .NET — Stryker.NET": {
-      "summary": "**Prerequisites check:**",
-      "anchor": "c-net-strykernet"
-    },
-    "Step 5 — Summary": {
-      "summary": "Print a summary of what was installed:",
-      "anchor": "step-5-summary"
-    }
-  },
   "plugins/dev-team/skills/issues-from-assessment/SKILL.md": {
     "Parse Arguments": {
       "summary": "Arguments: $ARGUMENTS",
@@ -4749,36 +4699,52 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Run `/dev-team:project-init` first.",
+      "summary": "Run the following and record the result:",
       "anchor": "steps"
     },
-    "1. Invoke `/dev-team:project-init` for stack detection and toolchain": {
-      "summary": "Run `/dev-team:project-init` first.",
-      "anchor": "1-invoke-dev-teamproject-init-for-stack-detection-and-toolchain"
+    "1. Detect OS": {
+      "summary": "Run the following and record the result:",
+      "anchor": "1-detect-os"
     },
-    "2. Record the stack signal for dev-team's own use": {
+    "2. Detect the agentic-dev-team repo and delegate to dev-setup.sh": {
+      "summary": "Before installing anything, check whether this invocation is running inside",
+      "anchor": "2-detect-the-agentic-dev-team-repo-and-delegate-to-dev-setupsh"
+    },
+    "3. Install hard dependencies (jq and python3)": {
+      "summary": "These are required by the mutation gate regardless of language.",
+      "anchor": "3-install-hard-dependencies-jq-and-python3"
+    },
+    "4. Invoke `/dev-team:project-init` for stack detection and toolchain": {
+      "summary": "Run `/dev-team:project-init` and let it complete, including its confirmation",
+      "anchor": "4-invoke-dev-teamproject-init-for-stack-detection-and-toolchain"
+    },
+    "5. Record the stack signal for dev-team's own use": {
       "summary": "`/setup` still needs a small, cheap signal of its own to populate",
-      "anchor": "2-record-the-stack-signal-for-dev-teams-own-use"
+      "anchor": "5-record-the-stack-signal-for-dev-teams-own-use"
     },
-    "3. Select agent templates": {
+    "6. Install per-language mutation tooling": {
+      "summary": "Determine which of the language sections below to run from the stack signal",
+      "anchor": "6-install-per-language-mutation-tooling"
+    },
+    "7. Select agent templates": {
       "summary": "Based on detected stack, select applicable templates from `templates/agents/`:",
-      "anchor": "3-select-agent-templates"
+      "anchor": "7-select-agent-templates"
     },
-    "4. Generate project-level CLAUDE.md": {
+    "8. Generate project-level CLAUDE.md": {
       "summary": "If `.claude/CLAUDE.md` does not already exist in the target project, generate one containing:",
-      "anchor": "4-generate-project-level-claudemd"
+      "anchor": "8-generate-project-level-claudemd"
     },
-    "5. Generate PostToolUse formatting hook": {
+    "9. Generate PostToolUse formatting hook": {
       "summary": "Wire a PostToolUse hook entry for the project's `.claude/settings.json` that",
-      "anchor": "5-generate-posttooluse-formatting-hook"
+      "anchor": "9-generate-posttooluse-formatting-hook"
     },
-    "6. Generate /pr command": {
+    "10. Generate /pr command": {
       "summary": "Create a project-specific `skills/pr/SKILL.md` if one doesn't exist, referencing the project's test/lint/typecheck commands.",
-      "anchor": "6-generate-pr-command"
+      "anchor": "10-generate-pr-command"
     },
-    "7. Report": {
-      "summary": "Display a summary of everything created:",
-      "anchor": "7-report"
+    "11. Report": {
+      "summary": "Display a summary of everything installed and created:",
+      "anchor": "11-report"
     }
   },
   "plugins/dev-team/skills/ship/SKILL.md": {

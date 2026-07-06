@@ -11,48 +11,115 @@
 
 categories:
   - name: Specs & Planning
-    skills: [specs, plan, design-doc, design-interrogation, design-it-twice, api-design,
-             gherkin-derive, gherkin-public, feature-file-validation, issues-from-plan,
-             issues-from-assessment]
+    skills:
+      [
+        specs,
+        plan,
+        design-doc,
+        design-interrogation,
+        design-it-twice,
+        api-design,
+        gherkin-derive,
+        gherkin-public,
+        feature-file-validation,
+        issues-from-plan,
+        issues-from-assessment,
+      ]
 
   - name: Build & Ship
-    skills: [build, test-driven-development, continue, pr, ship, branch-workflow]
+    skills:
+      [build, test-driven-development, continue, pr, ship, branch-workflow]
 
   - name: Code Review & Static Analysis
-    skills: [code-review, review, review-agent, review-summary, apply-fixes,
-             semgrep-analyze, semantic-scan, semantic-duplication-scan,
-             static-analysis-integration, frontend-architecture]
+    skills:
+      [
+        code-review,
+        review,
+        review-agent,
+        review-summary,
+        apply-fixes,
+        semgrep-analyze,
+        semantic-scan,
+        semantic-duplication-scan,
+        static-analysis-integration,
+        frontend-architecture,
+      ]
 
   - name: Testing & Coverage
-    skills: [test-design, test-design-advisor, test-health, test-modernize, test-upgrade,
-             test-audit-disable, mutation-testing, farley-score, cd-test-architecture,
-             exploratory-testing, explore, coverage-baseline, coverage-delta,
-             quality-targets-converge, legacy-code]
+    skills:
+      [
+        test-design,
+        test-design-advisor,
+        test-health,
+        test-modernize,
+        test-upgrade,
+        test-audit-disable,
+        mutation-testing,
+        farley-score,
+        cd-test-architecture,
+        exploratory-testing,
+        explore,
+        coverage-baseline,
+        coverage-delta,
+        quality-targets-converge,
+        legacy-code,
+      ]
 
   - name: Security
     skills: [threat-modeling, docker-image-audit, governance-compliance]
 
   - name: Architecture & Domain Modeling
-    skills: [domain-driven-design, domain-analysis, hexagonal-architecture, adr-tools,
-             ubiquitous-language, mermaid-diagramming]
+    skills:
+      [
+        domain-driven-design,
+        domain-analysis,
+        hexagonal-architecture,
+        adr-tools,
+        ubiquitous-language,
+        mermaid-diagramming,
+      ]
 
   - name: Performance, Containers & Browser
-    skills: [docker-image-create, benchmark, performance-benchmark, browse, browser-testing]
+    skills:
+      [
+        docker-image-create,
+        benchmark,
+        performance-benchmark,
+        browse,
+        browser-testing,
+      ]
 
   - name: Debugging & Diagnostics
     skills: [systematic-debugging, ci-debugging, triage]
 
   - name: Setup, Config & Plugin Management
-    skills: [init-dev-team, setup, project-init, upgrade, version, help]
+    skills: [setup, project-init, upgrade, version, help]
 
   - name: Session, Context & Telemetry
-    skills: [context-loading-protocol, handoff, session-review, telemetry,
-             cost-report, artifact-lifecycle, performance-metrics]
+    skills:
+      [
+        context-loading-protocol,
+        handoff,
+        session-review,
+        telemetry,
+        cost-report,
+        artifact-lifecycle,
+        performance-metrics,
+      ]
 
   - name: Safety Modes
     skills: [careful, freeze, unfreeze, guard]
 
   - name: Harness Governance & Tuning
-    skills: [agent-audit, agent-eval, harness-audit, model-routing-check, agent-readiness,
-             competitive-analysis, feedback-learning, human-oversight-protocol,
-             quality-gate-pipeline]
+    skills:
+      [
+        agent-audit,
+        agent-eval,
+        harness-audit,
+        model-routing-check,
+        agent-readiness,
+        competitive-analysis,
+        feedback-learning,
+        human-oversight-protocol,
+        quality-gate-pipeline,
+      ]

@@ -58,7 +58,7 @@ When the gate fires:
    - `ok` — `delta <= 0`.
    - `net_new_survivors` — `delta > 0`. The result block lists each new survivor by `file:line:operator`.
    - `first_measurement` — no prior entry.
-   - `tool_unavailable` — `/mutation-testing` returned the `no_tool_installed` envelope. The result block names `/init-dev-team` as the install path and includes `language: "<detected>"`. If a prior history entry recorded a different tool, surface that as `prior_tool: "<name>"` so the operator sees the disappearance.
+   - `tool_unavailable` — `/mutation-testing` returned the `no_tool_installed` envelope. The result block names `/setup` as the install path and includes `language: "<detected>"`. If a prior history entry recorded a different tool, surface that as `prior_tool: "<name>"` so the operator sees the disappearance.
    - `skipped_empty_scope` — `--story-files` expanded to zero files. No mutation run; one history entry recorded with this status.
 5. Append per-file entries to `mutation-history.json` via **temp-file-then-rename** (write to `<path>.tmp` then `mv -f <path>.tmp <path>`). This keeps parallel `/coverage-delta` writes from interleaving when two Phase-4 Stories close within the same second. Direct overwrite of `mutation-history.json` is forbidden.
 

@@ -14,13 +14,13 @@
 # Usage:
 #   bash scripts/dev-setup.sh
 #
-# Relationship to /init-dev-team: when that skill (plugins/dev-team/skills/
-# init-dev-team/SKILL.md) detects it is running inside this repo, it shells
-# out to this script rather than reimplementing its install logic. This
-# script stays a separate bash entry point on purpose — it must work before
-# Claude Code or the plugin is installed, and it is reused as a generic
-# template by /new-marketplace for other marketplace repos — so it does not
-# become a wrapper around the skill.
+# Relationship to /setup: when that skill (plugins/dev-team/skills/setup/
+# SKILL.md) detects it is running inside this repo, it shells out to this
+# script rather than reimplementing its install logic. This script stays a
+# separate bash entry point on purpose — it must work before Claude Code or
+# the plugin is installed, and it is reused as a generic template by
+# /new-marketplace for other marketplace repos — so it does not become a
+# wrapper around the skill.
 #
 # Exit codes:
 #   0  every requirement is satisfied

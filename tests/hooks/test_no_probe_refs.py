@@ -43,13 +43,13 @@ def test_the_fake_curl_shim_no_longer_exists() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_init_dev_team_skill_md_does_not_reference_the_model_probe() -> None:
-    skill = REPO_ROOT / "plugins" / "dev-team" / "skills" / "init-dev-team" / "SKILL.md"
+def test_setup_skill_md_does_not_reference_the_model_probe() -> None:
+    skill = REPO_ROOT / "plugins" / "dev-team" / "skills" / "setup" / "SKILL.md"
     text = skill.read_text()
     assert not re.search(r"model-probe|/v1/models", text)
 
 
-def test_init_dev_team_linux_sh_does_not_reference_the_model_probe() -> None:
-    script = REPO_ROOT / "init-dev-team-linux.sh"
+def test_setup_prereqs_linux_sh_does_not_reference_the_model_probe() -> None:
+    script = REPO_ROOT / "setup-prereqs-linux.sh"
     text = script.read_text()
     assert not re.search(r"model-probe|/v1/models|SKIP_PROBE", text)

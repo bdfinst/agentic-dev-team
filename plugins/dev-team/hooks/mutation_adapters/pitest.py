@@ -46,7 +46,7 @@ def pitest_detect() -> bool:
             continue
     print(
         lib.emit_advisory(
-            "MUTATION GATE ADVISORY: pitest not found. Run /init-dev-team to "
+            "MUTATION GATE ADVISORY: pitest not found. Run /setup to "
             "configure it, or add the pitest-maven plugin to pom.xml / pitest "
             "plugin to build.gradle manually."
         )

@@ -154,11 +154,11 @@ def test_skill_documents_temp_file_then_rename_idiom_for_mutation_history_json()
     )
 
 
-# --- Tool-unavailable degradation surfaces /init-dev-team ------------------
+# --- Tool-unavailable degradation surfaces /setup --------------------------
 
 
-def test_skill_tool_unavailable_result_block_names_init_dev_team_as_install_path():
-    assert "/init-dev-team" in _text()
+def test_skill_tool_unavailable_result_block_names_setup_as_install_path():
+    assert "/setup" in _text()
 
 
 def test_skill_documents_tool_disappears_mid_run_scenario_records_prior_tool():

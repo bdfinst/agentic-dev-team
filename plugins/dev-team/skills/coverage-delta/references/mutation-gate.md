@@ -29,7 +29,7 @@ After computing `survivors_after`, classify each file:
 | `first_measurement` | baseline is `null` | Record entry with `survivors_before: null, delta: null`. |
 | `ok` | `survivors_after <= baseline` | Record entry with `delta = survivors_after - baseline`. |
 | `net_new_survivors` | `survivors_after > baseline` | Record entry with positive `delta`. The result block lists each new survivor (`file:line:operator`). |
-| `tool_unavailable` | `/mutation-testing` returned `error: "no_tool_installed"` | Record entry with `prior_tool` (if the most recent history entry recorded a tool name); the result block names `/init-dev-team`. |
+| `tool_unavailable` | `/mutation-testing` returned `error: "no_tool_installed"` | Record entry with `prior_tool` (if the most recent history entry recorded a tool name); the result block names `/setup`. |
 | `skipped_empty_scope` | `--story-files` glob expanded to zero files | Record one history entry per Story (not per file) with this status. |
 
 ## Atomic-write semantics
