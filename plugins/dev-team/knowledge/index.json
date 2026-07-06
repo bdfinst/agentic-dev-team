@@ -581,6 +581,32 @@
       "anchor": "ubiquitous-language-drift"
     }
   },
+  "plugins/dev-team/knowledge/evidence-bundle.md": {
+    "The four fixed sections": {
+      "summary": "Always present, in this order, with these exact headers.",
+      "anchor": "the-four-fixed-sections"
+    },
+    "Skeleton": {
+      "summary": "No coverage tool detected:",
+      "anchor": "skeleton"
+    },
+    "Degradation examples": {
+      "summary": "No coverage tool detected:",
+      "anchor": "degradation-examples"
+    },
+    "Line budget": {
+      "summary": "Target **under ~40 lines** in a PR body.",
+      "anchor": "line-budget"
+    },
+    "Assembly is per-command, not handed off": {
+      "summary": "`/build` assembles its bundle from its own run's Step 5/6/7 outputs at Step 8.",
+      "anchor": "assembly-is-per-command-not-handed-off"
+    },
+    "Boundaries": {
+      "summary": "Does not persist to `metrics/` or `memory/` — every underlying datum already",
+      "anchor": "boundaries"
+    }
+  },
   "plugins/dev-team/knowledge/exploratory-testing-field-guide.md": {
     "1. Charter Quality (§2.3–2.4)": {
       "summary": "**Format**: `Explore [target] with [approach] to discover [concern]`",
@@ -1979,6 +2005,10 @@
     "7. Final test quality score (branch)": {
       "summary": "Produce a Farley Score for the tests written on this branch — the last quality signal before `/pr`.",
       "anchor": "7-final-test-quality-score-branch"
+    },
+    "7.5. Assemble the evidence bundle": {
+      "summary": "Before the completion report, assemble a structured evidence bundle per",
+      "anchor": "75-assemble-the-evidence-bundle"
     },
     "8. Update plan status": {
       "summary": "Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file.",
