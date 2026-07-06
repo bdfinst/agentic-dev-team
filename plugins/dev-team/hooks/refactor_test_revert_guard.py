@@ -28,6 +28,21 @@ sys.path.insert(0, str(_LIB_DIR))
 
 from refactor_test_freeze_guard import audit  # noqa: E402
 from test_file_classify import is_test_file, read_build_phase  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+from stdin_json import read_stdin_json  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr. Also degrades silently (no
+    error, no extra output) on a tree that predates #859/PR #887 and lacks
+    the boundary-events channel — attempt-and-degrade, same pattern #862
+    uses."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
+
 
 RECOVERY = (
     "tests are frozen during REFACTOR; return to the TEST phase, make the "
@@ -53,7 +68,9 @@ def _git(project_dir: Path, args: List[str]) -> Optional[str]:
 
 
 def evaluate(
-    project_dir: Path, now: Optional[float] = None
+    project_dir: Path,
+    now: Optional[float] = None,
+    session_id: Optional[str] = None,
 ) -> Tuple[int, List[str]]:
     """Return (exit_code, stdout_lines). Always exits 0 — advisory only."""
     state, error = read_build_phase(project_dir, now=now)
@@ -91,6 +108,14 @@ def evaluate(
                 )
                 continue
             audit(project_dir, "revert", "revert", file=dirty, step=step)
+            emit_boundary_event(
+                project_dir,
+                "refactor_test_revert_guard",
+                "Bash",
+                "revert",
+                "restore-baseline",
+                session_id,
+            )
             lines.append(
                 "ADVISORY: restored test file '{}' to its TEST-phase baseline "
                 "({}).".format(dirty, RECOVERY)
@@ -124,6 +149,14 @@ def evaluate(
             )
             continue
         audit(project_dir, "revert", "remove", file=rel, step=step)
+        emit_boundary_event(
+            project_dir,
+            "refactor_test_revert_guard",
+            "Bash",
+            "revert",
+            "remove-untracked-test",
+            session_id,
+        )
         lines.append(
             "ADVISORY: removed test file '{}' created during REFACTOR "
             "({}).".format(rel, RECOVERY)
@@ -133,14 +166,14 @@ def evaluate(
 
 def main() -> int:
     project_dir = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+    # The guard inspects disk state, not the payload — but stdin must still
+    # be drained (so the hook runner never blocks on a full pipe) and the
+    # session_id, when present, is worth threading into the boundary-events
+    # emission for cross-stream joins with session-digest.jsonl.
+    payload = read_stdin_json()
+    session_id = payload.get("session_id") if isinstance(payload, dict) else None
     try:
-        # Payload is unused — the guard inspects disk state — but stdin must
-        # be drained so the hook runner never blocks on a full pipe.
-        sys.stdin.read()
-    except OSError:
-        pass
-    try:
-        exit_code, lines = evaluate(project_dir)
+        exit_code, lines = evaluate(project_dir, session_id=session_id)
     except Exception as exc:  # fail open — never revert, never block
         audit(project_dir, "revert", "fail-open", reason="internal error: {}".format(exc))
         return 0

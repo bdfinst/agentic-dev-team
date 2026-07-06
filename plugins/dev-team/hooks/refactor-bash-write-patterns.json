@@ -1,0 +1,29 @@
+{
+  "_comment": "Regex library for refactor_test_bash_guard.py (#906). Each entry recognizes one Bash file-modifying shape and extracts the apparent write target via a named 'target' capture group. First match wins, in list order. Ambiguous/unparseable commands (no entry matches) are never blocked - false-negative-favoring by design, see the issue's Non-goals.",
+  "patterns": [
+    {
+      "id": "sed-i",
+      "regex": "\\bsed\\s+-i(?:\\.\\S+)?\\s+(?:-e\\s+)?(?:'[^']*'|\"[^\"]*\")\\s+(?P<target>[^\\s;&|]+)"
+    },
+    {
+      "id": "perl-i",
+      "regex": "\\bperl\\s+-i(?:\\.\\S+)?\\s+(?:-[a-zA-Z]+\\s+)*(?:'[^']*'|\"[^\"]*\")\\s+(?P<target>[^\\s;&|]+)"
+    },
+    {
+      "id": "tee",
+      "regex": "\\btee\\s+(?:-a\\s+)?(?P<target>[^\\s;&|]+)"
+    },
+    {
+      "id": "redirect",
+      "regex": "(?<![\\w&])>{1,2}(?!\\S*&)\\s*(?P<target>[^\\s;&|>]+)"
+    },
+    {
+      "id": "mv-cp",
+      "regex": "\\b(?:mv|cp)\\s+(?:-\\S+\\s+)*(?P<src>[^\\s;&|]+)\\s+(?P<target>[^\\s;&|]+)\\s*(?:[;&|]|$)"
+    },
+    {
+      "id": "python-open-write",
+      "regex": "open\\(\\s*['\"](?P<target>[^'\"]+)['\"]\\s*,\\s*['\"](?:w|a|wb|ab|w\\+|a\\+)['\"]"
+    }
+  ]
+}

@@ -76,6 +76,10 @@
           },
           {
             "type": "command",
+            "command": "python3 hooks/refactor_test_bash_guard.py"
+          },
+          {
+            "type": "command",
             "command": "python3 hooks/pre_commit_review.py"
           },
           {
