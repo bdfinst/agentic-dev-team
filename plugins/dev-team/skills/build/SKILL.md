@@ -201,9 +201,31 @@ Produce a Farley Score for the tests written on this branch — the last quality
 3. If no test files changed on the branch, print one line — `No tests written on this branch — skipping Farley Score.` — and continue to Step 8.
 4. Otherwise invoke the `farley-score` skill scoped to those files. Present the suite-level Farley Score, rating, and distribution as the final pre-PR signal. This is **informational** — a low score does not block `/pr`, but surface it so the user can decide whether to revise before opening the PR.
 
+### 7.5. Assemble the evidence bundle
+
+Before the completion report, assemble a structured evidence bundle per
+`${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md` — **no new checks, no
+re-execution**; it renders data this run already produced:
+
+- **Checks run**: the Step 5 full-suite command + result, the Step 6
+  `/code-review` status, the Step 7 Farley Score command/output (or its
+  skip line when no tests changed).
+- **Scope notes**: review agents dispatched vs. skipped across the build's
+  checkpoints (sub-steps 4/6), and any gate reported "not applicable."
+- **Untested regions**: read `baseline-coverage.json` / `coverage-history.json`
+  if present (from `/coverage-baseline` / `/coverage-delta`); otherwise state
+  "not measured — no coverage tool detected."
+- **Residual risks**: derived-first from this run's `metrics/review-value.jsonl`
+  entries with `outcome: "escalated"`, any non-interactive gate-bypass audit
+  lines printed in Steps 2–3, and any `/verify` `failed-then-fixed` entries in
+  `metrics/verify-log.jsonl`. "None identified" only when all of those are empty.
+
+Follow the degradation rule: every one of the four section headers appears in
+the completion report even when a section has nothing to show — it states why.
+
 ### 8. Update plan status
 
-Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file. Briefly confirm completion, report the branch Farley Score, and direct the user to `/pr`.
+Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file. Briefly confirm completion, report the branch Farley Score, include the Step 7.5 evidence bundle in the completion report, and direct the user to `/pr`.
 
 ### 9. Learning loop
 
@@ -239,6 +261,7 @@ unresolved escalation.
 - `/verify` exercises each runtime-surface slice end-to-end before it may be marked done (sub-step 4.9, issue #727)
 - `/code-review` runs the full review suite after implementation
 - `farley-score` scores the branch's tests (Farley Score) as the final pre-PR quality signal
-- `/pr` creates the pull request after a successful build
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md` defines the structured evidence bundle assembled in Step 7.5 and surfaced in the Step 8 completion report
+- `/pr` creates the pull request after a successful build, assembling its own evidence bundle independently (no handoff file)
 - `/continue` can resume a partially completed build across sessions
 - `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary; `--pre-pr` also fails closed when runtime-surface changes have no matching `metrics/verify-log.jsonl` entry (issue #727)

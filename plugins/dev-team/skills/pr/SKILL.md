@@ -100,6 +100,21 @@ Analyze the diff against the base branch (`git diff <base>...HEAD`) and commit h
   classified `inferable`; `assumptions` entries from implementer step outputs;
   auto-applied review fixes with `confidence: medium`; and deferred follow-ups.
   Omit the section only when every gate had an interactive human approval.
+- **Evidence bundle**: Assemble per `${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md`
+  from the Step 2 quality-gate results plus on-disk pipeline data — **no new
+  checks, no re-execution**:
+  - **Checks run**: the exact Step 2 commands (test/typecheck/lint/`/code-review
+    --json`) and their results.
+  - **Scope notes**: gates skipped as not-applicable in Step 2 (e.g. no
+    `tsconfig.json` → type check skipped), plus `--skip-review` if passed.
+  - **Untested regions**: read `baseline-coverage.json` / `coverage-history.json`
+    if present; otherwise "not measured — no coverage tool detected."
+  - **Residual risks**: derived-first from `metrics/review-value.jsonl` entries
+    with `outcome: "escalated"`, gate-bypass audit lines, and negative coverage
+    deltas; "None identified" only when all derived sources are empty.
+  - This command assembles from its own runtime's live data — it never reads a
+    handoff file from a prior `/build` run, so running `/pr` standalone still
+    produces a complete (possibly more-degraded) bundle.
 
 ### 4. Create the PR
 
@@ -127,6 +142,20 @@ Use the structured template:
 ## Test Plan
 - [ ] <verification step 1>
 - [ ] <verification step 2>
+
+## Evidence Bundle
+<!-- Per ${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md. All four headers always appear; a section with no data states why instead of being omitted. -->
+**Checks run**
+- `<command>` — <result>
+
+**Scope notes**
+- <what this gate does not cover for this diff>
+
+**Untested regions**
+- <coverage % + delta, or "not measured — <reason>">
+
+**Residual risks**
+- <deferred/escalated finding, waiver, or bypass line — or "None identified">
 ```
 
 ### 5. Enable auto-merge (default)
