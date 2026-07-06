@@ -11,10 +11,11 @@ contains feature files.
 ## Indicators by language
 
 | Language | A file is a test when it… |
-|---|---|
+| --- | --- |
 | **JS/TS** | matches `*.test.*`, `*.spec.*`, or lives inside `__tests__/` |
 | **C#** | is a `.cs` file containing `[Fact]`, `[Theory]`, `[Test]`, `[TestCase]`, `[TestMethod]`, or `[TestClass]` |
 | **Java** | is a `.java` file containing `@Test`, `@ParameterizedTest`, `@TestFactory`, or a class name ending in `Test`, `Tests`, `TestCase`, or `Spec` |
+| **Python** | matches `test_*.py` or `*_test.py` (pytest/unittest convention) |
 | **BDD/Gherkin** | is a `.feature` file, or a step-definition file (`*.steps.*`, `*StepDefinitions.*`, `*Steps.*`) |
 
 When a target contains none of the above, an agent scoped to test files

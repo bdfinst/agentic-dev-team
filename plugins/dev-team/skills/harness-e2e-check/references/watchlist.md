@@ -19,8 +19,7 @@ and gives every future run a place to add newly-found ones.
 ## Open
 
 | # | Found in | Description | How to re-check | On fix |
-|---|----------|--------------|------------------|--------|
-| [#913](https://github.com/bdfinst/agentic-dev-team/issues/913) | Step 4 (refactor-freeze) | `is_test_file()` has no Python (`test_*.py`/`*_test.py`) detection — Python test files get zero freeze protection. | `python3 -c "from plugins.dev_team...` — inspect `hooks/lib/test_file_classify.py::is_test_file` for a Python branch; grep `knowledge/test-file-indicators.md` for a Python row. | Add a unit test for the Python case to `tests/hooks/test_test_file_classify.py`. |
+| --- | ---------- | -------------- | ------------------ | -------- |
 | [#914](https://github.com/bdfinst/agentic-dev-team/issues/914) | Step 4 (refactor-freeze) | Bash guard's first-match-wins pattern order can miss a real `mv`/`cp` target when an earlier `redirect` match wins on a harmless part of the same compound command. | `tests/hooks/test_refactor_test_bash_guard.py::test_compound_command_dangerous_target_after_earlier_redirect_match` is marked `xfail(strict=True)` — it will flip to a hard failure (XPASS) the moment this is fixed. | Remove the `xfail` marker from that test — `strict=True` means CI itself will demand this the moment the fix lands. |
 | [#915](https://github.com/bdfinst/agentic-dev-team/issues/915) | Step 3 (`/build` smoke test) | `/build` SKILL.md contradicts itself on when a slice's parent checkbox may flip to `[x]` (sub-step 5 says "immediately"; sub-steps 4.9/4.10 say "not until `/verify`+`Invariants` pass"). | Run `/harness-e2e-check` Step 3 with the `make_toy_repo.py` fixture (Slice 2 declares `Invariants`) and watch whether the parent checkbox flips before or after the invariants gate. | Re-run Step 3 once and confirm the contradiction is gone (no manual self-correction needed); no automatable pytest exists for SKILL.md prose — this stays a live-run check. |
 | [#916](https://github.com/bdfinst/agentic-dev-team/issues/916) | Step 3 (`/build` smoke test) | Step 7's branch-base fallback chain (`git merge-base HEAD origin/HEAD` → `origin/main` → `main` → `master` → `develop`) has no path for a no-remote/single-branch repo — silently reports "0 changed test files" instead of flagging the resolution failure. | `make_toy_repo.py`'s fixture never creates/switches branches by design (bait for this exact gap) — re-run Step 3's Farley Score sub-step and check whether `<base>` resolves to `HEAD` itself. | Same as #915 — live-run check, no unit test (Step 7 has no backing script, it's SKILL.md prose). |
@@ -28,4 +27,6 @@ and gives every future run a place to add newly-found ones.
 
 ## Closed
 
-_(none yet)_
+| # | Found in | Description | Closed |
+|---|----------|--------------|--------|
+| [#913](https://github.com/bdfinst/agentic-dev-team/issues/913) | Step 4 (refactor-freeze) | `is_test_file()` had no Python (`test_*.py`/`*_test.py`) detection — Python test files got zero freeze protection. | closed (verified 2026-07-06, fix/913-python-test-file-detection) — added a `_PYTHON_NAME_RE` branch to `hooks/lib/test_file_classify.py::is_test_file`, a Python row in `knowledge/test-file-indicators.md`, and unit tests in `tests/hooks/test_test_file_classify.py`. |
