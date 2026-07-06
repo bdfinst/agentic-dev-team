@@ -41,8 +41,27 @@ repo-local `.cache/` on first use — no manual cloning required:
   silently overridden).
 
 Auto-provisioning does **not** remove every system-level prerequisite:
-Defects4J's `init.sh` still needs Perl (+ its cpan modules), Java, `git`,
-and `svn` on the machine; `git` itself is needed for both clones.
+Defects4J's `init.sh` still needs `wget`, Perl (+ its cpan modules), a
+Java 11 JDK, `git`, and `svn` on the machine; `git` itself is needed for
+both clones. Confirmed live on a real machine: `brew install wget
+openjdk@11 cpanminus` + `cpanm --local-lib=~/perl5 --installdeps .` (run
+inside `.cache/defects4j`) covers all of it on macOS.
+
+Two of those (Java 11, the Perl CPAN modules) are resolved **inside the
+harness itself** (#951), not via your shell profile — every `defects4j`
+subprocess call gets a scoped `env` override, built by
+`adapters/bootstrap.build_defects4j_env()`:
+
+- **Java 11**: tries `/usr/libexec/java_home -v 11` (macOS), then `brew
+  --prefix openjdk@11` (the common case for a keg-only Homebrew install).
+- **Perl CPAN deps**: `~/perl5/lib/perl5` if present (the `cpanm
+  --local-lib=~/perl5` convention above).
+
+This never touches your actual `JAVA_HOME`/`PATH`/`PERL5LIB` or `~/.zshrc`
+— only the subprocess environment `defects4j` itself runs under. If
+neither resolves, `defects4j` calls fall back to your inherited
+environment unchanged (today's behavior, and where you'd see the Perl/Java
+errors this was built to avoid).
 
 - The `claude` CLI available on `PATH` (used headlessly via
   `plugins/dev-team/skills/headless-run/scripts/isolated_dispatch.py`'s
@@ -166,7 +185,7 @@ about hitting rate limits on the underlying `claude -p` dispatches.
 ```
 adapters/
   common.py              # BenchmarkCase, unified_diff_hunks(), run_with_timeout
-  bootstrap.py            # auto-clone/init both dataset homes into .cache/ (#949)
+  bootstrap.py            # auto-clone/init both dataset homes into .cache/ (#949); resolves Java 11 + Perl CPAN env for defects4j subprocess calls (#951)
   defects4j_adapter.py    # active-bugs.csv + .src.patch -> BenchmarkCase; run_tests() = compile+test
   bugsjs_adapter.py       # Projects.csv + <Project>_bugs.csv + git tags -> BenchmarkCase; run_tests() = npm install+test
 runner.py                 # checkout -> scope -> dispatch -> parse -> score -> JSONL
