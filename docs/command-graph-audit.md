@@ -113,7 +113,7 @@ user), `cost-report`, `agent-readiness` (scores *your* repo — contrast
   `plugins/dev-team/knowledge/codegraph-vs-graphify.md`). See the open gap below — a command that needs a missing
   tool should prompt the user to run these.
 - **Harness plumbing** — context management, rarely typed directly:
-  `context-loading-protocol`, `context-summarization`
+  `context-loading-protocol`, `handoff`
 
 ## Open gaps / defects
 

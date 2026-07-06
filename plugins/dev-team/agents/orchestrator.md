@@ -192,7 +192,7 @@ Knowledge references in this file and any agent that consumes them cite a sectio
 Whole-file load: each linked SKILL.md is loaded in full when invoked; per-section anchors don't apply to skill bodies because the skill machinery consumes the whole file.
 
 - [Context Loading Protocol](../skills/context-loading-protocol/SKILL.md) - invoke at the start of every task to decide which agents and skills to load, and at phase transitions to unload/swap
-- [Context Summarization](../skills/context-summarization/SKILL.md) - invoke when context utilization signals are present (high turn count, degraded output quality) or at phase transitions
+- [Handoff](../skills/handoff/SKILL.md) - invoke when context utilization signals are present (high turn count, degraded output quality) or at phase transitions (continue mode); invoke when splitting off a distinguishable out-of-scope side-task to an independent session (fork mode)
 - [Feedback & Learning](../skills/feedback-learning/SKILL.md) - invoke when user uses amend/learn/remember/forget keywords, or during learning loop at task completion
 - [Human Oversight Protocol](../skills/human-oversight-protocol/SKILL.md) - invoke when approval gates fire, when user issues override/pause/stop, or when escalating decisions
 - [Performance Metrics](../skills/performance-metrics/SKILL.md) - invoke at task completion to log metrics, and during learning loop to review trends

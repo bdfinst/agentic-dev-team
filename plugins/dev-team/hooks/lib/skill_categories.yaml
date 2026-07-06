@@ -46,7 +46,7 @@ categories:
     skills: [init-dev-team, setup, project-init, upgrade, version, help]
 
   - name: Session, Context & Telemetry
-    skills: [context-loading-protocol, context-summarization, session-review, telemetry,
+    skills: [context-loading-protocol, handoff, session-review, telemetry,
              cost-report, artifact-lifecycle, performance-metrics]
 
   - name: Safety Modes

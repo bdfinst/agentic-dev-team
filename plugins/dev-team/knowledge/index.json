@@ -2359,48 +2359,6 @@
       "anchor": "output"
     }
   },
-  "plugins/dev-team/skills/context-summarization/SKILL.md": {
-    "Constraints": {
-      "summary": "Summaries replace conversation history; never reload prior turns",
-      "anchor": "constraints"
-    },
-    "When to Summarize": {
-      "summary": "The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to",
-      "anchor": "when-to-summarize"
-    },
-    "The Three Gates": {
-      "summary": "Apply in order to all context older than the last 3-5 turns:",
-      "anchor": "the-three-gates"
-    },
-    "1. Forget Gate -- Discard": {
-      "summary": "Exploratory dead ends and rejected approaches",
-      "anchor": "1-forget-gate-discard"
-    },
-    "2. Input Gate -- Preserve": {
-      "summary": "Current task definition and acceptance criteria",
-      "anchor": "2-input-gate-preserve"
-    },
-    "3. Output Gate -- Keep Verbatim": {
-      "summary": "Last 3-5 conversation turns",
-      "anchor": "3-output-gate-keep-verbatim"
-    },
-    "Writing Summaries": {
-      "summary": "Write the summary to `memory/{date}-{task-slug}.md` using the Task Summary template in `references/summary-templates.md`.",
-      "anchor": "writing-summaries"
-    },
-    "Phase Progress Files": {
-      "summary": "Each phase produces a progress file that onboards the next phase's agent without replaying history.",
-      "anchor": "phase-progress-files"
-    },
-    "Using Summaries in New Conversations": {
-      "summary": "1.",
-      "anchor": "using-summaries-in-new-conversations"
-    },
-    "Cleanup": {
-      "summary": "1.",
-      "anchor": "cleanup"
-    }
-  },
   "plugins/dev-team/skills/continue/SKILL.md": {
     "Orchestrator constraints": {
       "summary": "1.",
@@ -3399,6 +3357,76 @@
     "3. Confirm": {
       "summary": "Display:",
       "anchor": "3-confirm"
+    }
+  },
+  "plugins/dev-team/skills/handoff/SKILL.md": {
+    "Mode Selection": {
+      "summary": "Keyed off whether a **stated purpose** exists for an independent/fresh session:",
+      "anchor": "mode-selection"
+    },
+    "Constraints": {
+      "summary": "Summaries/handoff artifacts replace conversation history; never reload prior turns",
+      "anchor": "constraints"
+    },
+    "The Three Gates": {
+      "summary": "Apply in order to all context older than the last 3-5 turns, in both modes:",
+      "anchor": "the-three-gates"
+    },
+    "1. Forget Gate -- Discard": {
+      "summary": "Exploratory dead ends and rejected approaches",
+      "anchor": "1-forget-gate-discard"
+    },
+    "2. Input Gate -- Preserve": {
+      "summary": "Current task definition and acceptance criteria",
+      "anchor": "2-input-gate-preserve"
+    },
+    "3. Output Gate -- Keep Verbatim": {
+      "summary": "Last 3-5 conversation turns",
+      "anchor": "3-output-gate-keep-verbatim"
+    },
+    "Redaction": {
+      "summary": "Before writing any output in either mode, redact secrets, API keys, tokens, and PII from the content.",
+      "anchor": "redaction"
+    },
+    "Continue Mode": {
+      "summary": "Compress conversation history to keep context utilization below 40% while continuing the *same* task in a fresh window.",
+      "anchor": "continue-mode"
+    },
+    "When to Summarize": {
+      "summary": "The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to",
+      "anchor": "when-to-summarize"
+    },
+    "Writing Summaries": {
+      "summary": "**Destination**: `memory/{date}-{task-slug}.md`",
+      "anchor": "writing-summaries"
+    },
+    "Phase Progress Files": {
+      "summary": "Each phase produces a progress file that onboards the next phase's agent without replaying history.",
+      "anchor": "phase-progress-files"
+    },
+    "Using Summaries in New Conversations": {
+      "summary": "1.",
+      "anchor": "using-summaries-in-new-conversations"
+    },
+    "Cleanup (Time-Based)": {
+      "summary": "1.",
+      "anchor": "cleanup-time-based"
+    },
+    "Fork Mode": {
+      "summary": "Split off a distinguishable, out-of-scope side-task into an independent session — a sibling running in parallel, or a child (e.g.",
+      "anchor": "fork-mode"
+    },
+    "Requires a Stated Purpose": {
+      "summary": "Fork mode always needs a one-line purpose describing the side-task.",
+      "anchor": "requires-a-stated-purpose"
+    },
+    "Writing the Fork Artifact": {
+      "summary": "**Destination**: the OS temp dir (e.g.",
+      "anchor": "writing-the-fork-artifact"
+    },
+    "Cleanup (Event-Based, Never Time-Based)": {
+      "summary": "Fork-mode artifacts are deleted **on consumption**, not on a schedule:",
+      "anchor": "cleanup-event-based-never-time-based"
     }
   },
   "plugins/dev-team/skills/harness-audit/SKILL.md": {
