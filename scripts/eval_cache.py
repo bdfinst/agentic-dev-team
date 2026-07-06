@@ -11,16 +11,32 @@ Fingerprint
 -----------
 For a pair ``<stem>::<target>`` the SHA-256 is computed over, in order:
 
-  1. the target's root definition (agent ``agents/<t>.md`` or skill
+  1. the resolved model identity the pair was (or will be) graded under
+     (``--model``; see below),
+  2. the target's root definition (agent ``agents/<t>.md`` or skill
      ``skills/<t>/SKILL.md``),
-  2. the **transitive closure** of dependency files reachable from it
+  3. the **transitive closure** of dependency files reachable from it
      (``knowledge/*.md`` it reads, ``skills/*`` it invokes — recursively),
-  3. the fixture file(s) for the stem,
-  4. the expected JSON,
-  5. the grader version (hash of the eval_graders package sources).
+  4. the fixture file(s) for the stem,
+  5. the expected JSON,
+  6. the grader version (hash of the eval_graders package sources).
 
 Any change to any contributing input changes the SHA, which busts the cache and
 forces a live dispatch. An unchanged SHA with a stored PASS replays.
+
+Model dimension (#881, band calibration slice 2)
+-------------------------------------------------
+The fingerprint includes the resolved model identity (``--model``, e.g.
+``claude-sonnet-4-6``), so a PASS memoized for one model never replays for a
+different model — each model's per-band calibration results memoize
+independently. ``--model`` defaults to ``"unspecified"`` when the caller does
+not pass one (all such callers share that one bucket). Because this dimension
+is new, every cache entry written before this change busts exactly once on
+first replay attempt after upgrade — there is no stored model to compare
+against, so the recomputed SHA (which now folds in a model) never matches the
+old stored SHA (which never did). This is a one-time, self-healing cost: the
+next ``--store`` re-populates the entry with a model-aware SHA and it replays
+normally from then on.
 
 Cache
 -----
@@ -35,6 +51,9 @@ CLI
                            write a plan JSON and a prefilled replay actuals file.
 ``--store --actuals F``    grade F and write each PASSing pair to the cache with
                            its current fingerprint and full actuals.
+``--model M``              resolved model identity to fold into the fingerprint
+                           (default "unspecified"); applies to --fingerprint,
+                           --plan and --store alike.
 """
 
 from __future__ import annotations
@@ -194,10 +213,19 @@ def contributing_files(pair: str, dirs: Dirs) -> list[Path]:
     return ordered
 
 
-def compute_fingerprint(pair: str, dirs: Dirs):
-    """Return (sha_hex, [relative file strings]) for a pair."""
+DEFAULT_MODEL = "unspecified"
+
+
+def compute_fingerprint(pair: str, dirs: Dirs, model: str = DEFAULT_MODEL):
+    """Return (sha_hex, [relative file strings]) for a pair.
+
+    ``model`` is the resolved model identity the pair is graded under (#881).
+    It is folded into the SHA as its own dimension so a PASS memoized at one
+    model is never treated as a hit for a different model.
+    """
     files = contributing_files(pair, dirs)
     h = hashlib.sha256()
+    h.update(f"model:{model}\0".encode())
     h.update(f"grader:{grader_version(dirs.graders)}\0".encode())
     rels: list[str] = []
     for f in files:
@@ -248,12 +276,13 @@ def cache_get(cache: dict, pair: str, sha: str):
     return entry.get("actual")
 
 
-def cache_put(cache: dict, pair: str, sha: str, actual: dict) -> None:
+def cache_put(cache: dict, pair: str, sha: str, actual: dict, model: str = DEFAULT_MODEL) -> None:
     from datetime import datetime, timezone
     cache.setdefault("entries", {})[pair] = {
         "sha": sha,
         "passed": True,
         "actual": actual,
+        "model": model,
         "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
@@ -294,6 +323,9 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--cache", help="cache file (default: <repo>/evals/.eval-cache.json)")
     ap.add_argument("--only", default="",
                     help="comma-separated agent/skill names to scope to")
+    ap.add_argument("--model", default=DEFAULT_MODEL,
+                    help="resolved model identity (#881) — a fingerprint dimension; "
+                         f"defaults to {DEFAULT_MODEL!r} when omitted")
     ap.add_argument("--fingerprint", metavar="PAIR",
                     help="print the SHA + contributing files for <stem>::<target>")
     ap.add_argument("--plan", action="store_true",
@@ -318,8 +350,9 @@ def main(argv: list[str]) -> int:
     only = {s.strip() for s in args.only.split(",") if s.strip()} or None
 
     if args.fingerprint:
-        sha, files = compute_fingerprint(args.fingerprint, dirs)
+        sha, files = compute_fingerprint(args.fingerprint, dirs, args.model)
         print(f"pair:        {args.fingerprint}")
+        print(f"model:       {args.model}")
         print(f"fingerprint: {sha}")
         print(f"grader:      {grader_version(dirs.graders)[:16]}…")
         print("contributing files:")
@@ -333,7 +366,7 @@ def main(argv: list[str]) -> int:
         cache = load_cache(cache_path)
         hits, misses, fingerprints = {}, [], {}
         for pair, block in corpus_pairs(dirs, only):
-            sha, _ = compute_fingerprint(pair, dirs)
+            sha, _ = compute_fingerprint(pair, dirs, args.model)
             fingerprints[pair] = sha
             actual = cache_get(cache, pair, sha)
             if actual is not None:
@@ -384,8 +417,8 @@ def main(argv: list[str]) -> int:
                 actual = entry.get("skills", {}).get(name)
             if actual is None:
                 continue
-            sha, _ = compute_fingerprint(pair, dirs)
-            cache_put(cache, pair, sha, actual)
+            sha, _ = compute_fingerprint(pair, dirs, args.model)
+            cache_put(cache, pair, sha, actual, args.model)
             stored += 1
         save_cache(cache_path, cache)
         print(f"cache: stored {stored} passing pair(s) → {cache_path}")
