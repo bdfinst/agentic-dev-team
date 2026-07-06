@@ -89,8 +89,12 @@ def test_ensure_defects4j_home_returns_explicit_home_unchanged_without_cloning(
 ) -> None:
     fake = _FakeRun()
     result = bootstrap.ensure_defects4j_home("/some/existing/home", run_fn=fake)
-    assert result == {"home": "/some/existing/home", "bin": "defects4j"}
-    assert fake.calls == []
+    assert result["home"] == "/some/existing/home"
+    assert result["bin"] == "defects4j"
+    assert isinstance(
+        result["env"], dict
+    )  # #951 env resolution, contents machine-dependent
+    assert not any(c["argv"][0] in ("git", "bash") for c in fake.calls)
 
 
 def test_ensure_defects4j_home_clones_and_inits_when_missing(tmp_path: Path) -> None:
@@ -103,17 +107,20 @@ def test_ensure_defects4j_home_clones_and_inits_when_missing(tmp_path: Path) -> 
             (dest / "framework" / "projects").mkdir(parents=True)
             (dest / "framework" / "bin").mkdir(parents=True)
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="")
-        # `bash init.sh` -> "download" the defects4j binary.
-        assert argv == ["bash", "init.sh"]
-        assert kwargs.get("cwd") == str(dest)
-        (dest / "framework" / "bin" / "defects4j").write_text("#!/bin/sh\n")
-        return subprocess.CompletedProcess(args=argv, returncode=0, stdout="")
+        if argv[0] == "bash":
+            # `bash init.sh` -> "download" the defects4j binary.
+            assert argv == ["bash", "init.sh"]
+            assert kwargs.get("cwd") == str(dest)
+            (dest / "framework" / "bin" / "defects4j").write_text("#!/bin/sh\n")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="")
+        # #951 JAVA_HOME probes (/usr/libexec/java_home, brew) — simulate
+        # "not found" so env resolution no-ops without a real subprocess.
+        return subprocess.CompletedProcess(args=argv, returncode=1, stdout="")
 
     result = bootstrap.ensure_defects4j_home(None, run_fn=run_fn, cache_dir=tmp_path)
-    assert result == {
-        "home": str(dest),
-        "bin": str(dest / "framework" / "bin" / "defects4j"),
-    }
+    assert result["home"] == str(dest)
+    assert result["bin"] == str(dest / "framework" / "bin" / "defects4j")
+    assert isinstance(result["env"], dict)
     assert (dest / ".d4j-init-complete").is_file()
 
 
@@ -128,11 +135,11 @@ def test_ensure_defects4j_home_skips_init_when_marker_already_present(
 
     fake = _FakeRun()
     result = bootstrap.ensure_defects4j_home(None, run_fn=fake, cache_dir=tmp_path)
-    assert result == {
-        "home": str(dest),
-        "bin": str(dest / "framework" / "bin" / "defects4j"),
-    }
-    assert fake.calls == []  # neither clone nor init.sh re-run
+    assert result["home"] == str(dest)
+    assert result["bin"] == str(dest / "framework" / "bin" / "defects4j")
+    assert isinstance(result["env"], dict)
+    # neither clone nor init.sh re-run — only #951's env-resolution probes may fire
+    assert not any(c["argv"][0] in ("git", "bash") for c in fake.calls)
 
 
 def test_ensure_defects4j_home_none_on_clone_failure(tmp_path: Path) -> None:
@@ -165,7 +172,11 @@ def test_ensure_defects4j_home_skips_clone_when_projects_dir_already_exists(
     (dest / "framework" / "bin").mkdir(parents=True)
 
     def run_fn(timeout, argv, **kwargs):
-        assert argv == ["bash", "init.sh"]  # clone must be skipped entirely
+        assert argv[0] != "git"  # clone must be skipped entirely
+        if argv[0] != "bash":
+            # #951 JAVA_HOME probes — simulate "not found."
+            return subprocess.CompletedProcess(args=argv, returncode=1, stdout="")
+        assert argv == ["bash", "init.sh"]
         (dest / "framework" / "bin" / "defects4j").write_text("#!/bin/sh\n")
         return subprocess.CompletedProcess(args=argv, returncode=0, stdout="")
 
