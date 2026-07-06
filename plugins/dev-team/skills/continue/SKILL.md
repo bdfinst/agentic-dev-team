@@ -28,14 +28,14 @@ You have been invoked with the `/continue` command.
 
 ### 1. Scan for in-progress work
 
-Read all files in `memory/` looking for phase progress files. These follow the pattern:
+Find phase progress files with `Glob("memory/*.md")` — never `Read` the bare `memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`). These follow the pattern:
 
 - `memory/research-progress-*.md` — Research phase output
 - `memory/plan-progress-*.md` — Plan phase output
 - `memory/implementation-progress-*.md` — Implementation phase output
 - `memory/decisions.md` — Accumulated decision log
 
-Also check:
+Also check (same rule — `Glob`, not a directory `Read`):
 
 - `plans/` directory for active plan files
 - `docs/specs/` for design documents without corresponding implementation
