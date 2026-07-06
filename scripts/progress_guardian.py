@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import re
 import subprocess
@@ -61,16 +62,22 @@ def _extract_declared_paths(text: str) -> List[str]:
 
 
 def _is_path_declared(file_path: str, declared_paths) -> bool:
-    """True if file_path exactly matches a declared file, or falls under
-    a declared directory (trailing '/') prefix. Single source of truth
-    shared by check_commit_discipline and check_scope so the two checks
-    cannot drift on what counts as "declared" (see issue #525/#713).
+    """True if file_path exactly matches a declared file, falls under
+    a declared directory (trailing '/') prefix, or matches a declared glob
+    pattern (fnmatch, stdlib — issue #865 AC9, e.g. `src/auth/**`). Single
+    source of truth shared by check_commit_discipline, check_scope, and
+    check_declared_scope_adherence so these checks cannot drift on what
+    counts as "declared" (see issue #525/#713/#865).
     """
     for declared in declared_paths:
         if declared.endswith("/"):
             if file_path.startswith(declared):
                 return True
         elif file_path == declared:
+            return True
+        elif any(ch in declared for ch in "*?[") and fnmatch.fnmatch(
+            file_path, declared
+        ):
             return True
     return False
 
@@ -585,6 +592,70 @@ def check_verify_log(repo_root: str, changed_files: List[str]) -> List[dict]:
     ]
 
 
+def _all_slice_headers(steps: List[Step]) -> List[str]:
+    """Return the subset of Build Progress checkbox headers that are slice
+    headers (`"Slice N: <title>"`), not step headers — the shape
+    `_parse_slice_files` expects (issue #865 AC8)."""
+    return [s.header for s in steps if s.header.startswith("Slice ")]
+
+
+def check_declared_scope_adherence(
+    steps: List[Step], plan_path: Path, repo_root: str, plan_text: str
+) -> List[dict]:
+    """Issue #865 AC8: compare the branch diff against the union of every
+    slice's declared `**Files:**` scope (fnmatch-aware, glob-capable).
+
+    This is a **named WARNING only** — never a pre-PR gate failure. When a
+    plan opts into `Scope enforcement: freeze` (see `build_slice_scope.py`),
+    freeze itself is the real enforcement mechanism (a blocked Write/Edit);
+    this check exists for the *unfrozen* case, where out-of-scope edits are
+    otherwise invisible until `/code-review` or a human catches them.
+
+    Deterministic — no LLM call, unlike `check_scope` (which reasons about
+    *all* backtick-quoted paths in the plan prose). A plan with no slice
+    declaring `**Files:**` has nothing to compare against and returns `[]`.
+    """
+    declared: List[str] = []
+    for header in _all_slice_headers(steps):
+        declared.extend(_parse_slice_files(plan_text, header))
+    if not declared:
+        return []
+
+    changed_files = _collect_branch_changed_files(repo_root)
+    plan_name = plan_path.name
+    changed_files = [
+        f
+        for f in changed_files
+        if f != plan_name
+        and not f.endswith(plan_name)
+        and not (f.startswith("metrics/") and f.endswith(".jsonl"))
+        and not f.startswith("memory/")
+    ]
+    if not changed_files:
+        return []
+
+    out_of_scope = sorted(f for f in changed_files if not _is_path_declared(f, declared))
+    if not out_of_scope:
+        return []
+
+    return [
+        make_issue(
+            "warning",
+            message=(
+                "Scope adherence: out-of-scope edit(s) without freeze: "
+                f"{', '.join(out_of_scope)} not covered by any slice's declared "
+                f"Files ({', '.join(sorted(set(declared)))})."
+            ),
+            suggested_fix=(
+                "Reconcile the plan's Files declarations, or engage scope "
+                "enforcement (`**Scope enforcement:** freeze`) so out-of-scope "
+                "writes are blocked rather than merely warned about."
+            ),
+            rule_id="declared-scope-warning",
+        )
+    ]
+
+
 def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
     """Detect files in the branch diff that aren't declared in the plan.
 
@@ -800,6 +871,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             verify_changed_files = _collect_branch_changed_files(repo_root)
             verify_issues = check_verify_log(repo_root, verify_changed_files)
             errors.extend(verify_issues)
+
+            # 7. Declared-scope adherence (issue #865 AC8): named warning
+            # only, never a gate failure — freeze (when engaged) is the
+            # real enforcement mechanism.
+            warnings.extend(
+                check_declared_scope_adherence(
+                    steps, plan_path, repo_root, plan_text
+                )
+            )
 
     result = build_result(errors, warnings)
     return main_exit(result)

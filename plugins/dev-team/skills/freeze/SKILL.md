@@ -56,3 +56,4 @@ Display:
 - Freeze state persists across tool calls within a session.
 - If a session crashes while frozen, use `/unfreeze` in the next session to clear stale state.
 - Multiple patterns can be provided as comma-separated: `/freeze src/auth/**,src/middleware/**`
+- `/build` can also engage this same `freeze-state.json` contract automatically, per slice, when a plan opts into `**Scope enforcement:** freeze` and declares slice-level `**Files:**` (issue #865) — see `scripts/build_slice_scope.py` and the `build` skill's "Slice dispatch bookkeeping" section. That path is opt-in metadata, not a manual `/freeze` invocation, but writes/clears the identical file this command does.
