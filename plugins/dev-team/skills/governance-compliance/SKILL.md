@@ -26,7 +26,7 @@ Requirements and procedures for audit logging, multi-layer quality assurance, an
 | --- | --- | --- |
 | Task start/completion | `metrics/{date}-task-log.jsonl` | 90 days |
 | Configuration change | `metrics/config-changelog.jsonl` | Indefinite |
-| Human approval/override | `metrics/config-changelog.jsonl` | Indefinite |
+| Human approval/override | `metrics/config-changelog.jsonl` — `proposed`/`evidence_shown`/`risks_surfaced` required (schema: [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)) | Indefinite |
 | Hallucination detection | Task log entry (`hallucination_detected` flag) | 90 days |
 | Context summarization | `memory/{date}-{task-slug}.md` | 90 days (30 active + 60 archive) |
 
@@ -36,6 +36,12 @@ Requirements and procedures for audit logging, multi-layer quality assurance, an
 - **Timestamped**: Every entry has an ISO 8601 timestamp
 - **Attributed**: Every entry identifies which agent acted and who approved
 - **Complete**: No decision-making gap should exist between log entries
+- **Reconstructable**: For every `approval`/`override` gate-decision entry, the
+  decision, the proposal, the evidence, and the surfaced risks must all be
+  recoverable from the entry alone — see [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)
+  for the field schema. Entries predating this schema (no `proposed`/`evidence_shown`/
+  `risks_surfaced`) remain valid — never migrated — and are not reconstructable
+  to this standard; treat them as historical, not as a compliance gap.
 
 ### Compliance Queries
 
@@ -44,6 +50,13 @@ To answer "why did the system do X?", trace through:
 1. Task log: which agents were involved
 2. Config changelog: what configuration was active at the time
 3. Memory summaries: what context the agents were working with
+
+For a gate decision specifically ("what was this approval/override based on?"),
+also check gate-record completeness: does the `approval`/`override` entry carry
+`proposed`, `evidence_shown`, and `risks_surfaced`? An entry missing all three is
+either a pre-schema entry (acceptable) or a write site that skipped the schema
+(a gap — see human-oversight-protocol's Audit trail for the required write
+sites).
 
 ## Quality Assurance
 
@@ -129,6 +142,7 @@ For periodic review (monthly recommended):
 
 - [ ] All tasks in the review period have corresponding log entries
 - [ ] No gaps in the config changelog
+- [ ] Gate-record completeness: `approval`/`override` entries from this period carry `proposed`/`evidence_shown`/`risks_surfaced` (pre-schema entries are exempt, not counted as gaps)
 - [ ] Memory summaries exist for long-running tasks
 - [ ] No sensitive data present in metrics/ or memory/ files
 - [ ] Hallucination rate reviewed qualitatively (no sensor yet — see CLAUDE.md "Claims discipline")
