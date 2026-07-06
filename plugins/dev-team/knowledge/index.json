@@ -603,6 +603,16 @@
       "anchor": "5-implicit-expectations"
     }
   },
+  "plugins/dev-team/knowledge/failure-routing.md": {
+    "Classification Table": {
+      "summary": "| Signature pattern | Class | Route | Escalation |",
+      "anchor": "classification-table"
+    },
+    "Notes": {
+      "summary": "`/build`: classification *is* the diagnosis step orchestrator constraint 7",
+      "anchor": "notes"
+    }
+  },
   "plugins/dev-team/knowledge/fixture-construction.md": {
     "1. Construction patterns (how the fixture object is built)": {
       "summary": "| Pattern | What it is | Use when | Cost / risk |",

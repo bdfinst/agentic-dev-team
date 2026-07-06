@@ -139,6 +139,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Design Smells | `knowledge/design-smells.md` | ~600 | structure-review, complexity-review, naming-review |
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
 | Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~900 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
+| Failure Routing | `knowledge/failure-routing.md` | ~600 | `/build` (step 4 repair iterations), `/apply-fixes` (step 4 annotation) |
 | Fixture Construction | `knowledge/fixture-construction.md` | ~750 | test-design-advisor, test-smell-review, test-review |
 | Frontend Component Architecture | `knowledge/frontend-component-architecture.md` | ~900 | component-architecture-review, `/frontend-architecture` |
 | Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |

@@ -126,7 +126,7 @@ Unless skipped, run after each fix:
 2. **Build** — run the project's build command
 3. **Tests** — run the project's test command
 
-If validation fails, report the failure and continue to the next fix.
+If validation fails, read `${CLAUDE_PLUGIN_ROOT}/knowledge/failure-routing.md` and classify the failing output/exit code by its regex table — deterministic pattern match only, no LLM call. This skill has neither `Agent` nor `Skill` in `allowed-tools`, so a non-inline route (test-generation, security-engineer, human arbitration) is never dispatched — **annotate only**: report the failure's class and recommended route in the Fix Summary (e.g. "security-finding — route to security-engineer via orchestrator") and continue to the next fix. `unclassified` failures report exactly as before, with no added text.
 
 ### 5. Track and report
 
@@ -147,8 +147,10 @@ Total: N | Applied: N | Skipped: N | Failed: N | Validation Failed: N
 [category] instruction (reason)
 
 --- FAILED ---
-[category] instruction (reason)
+[category] instruction (reason) [class: <failure-class>, route: <recommended route>]
 ```
+
+The `[class: ..., route: ...]` tag is present only when validation failed and the failure matched a signature in `failure-routing.md`; an `unclassified` failure omits the tag, matching prior output exactly.
 
 Move successfully applied prompt files to a `completed/` subdirectory.
 
