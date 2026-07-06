@@ -12,6 +12,9 @@ _mkdocs_src/
 .claude/metrics/*.json
 .claude/metrics/*.log
 
+# EnterWorktree tool scratch dirs (per-agent git worktrees, not repo content)
+.claude/worktrees/
+
 # Session-review trend digest (per-run runtime data; consumed locally — #129)
 metrics/session-digest.jsonl
 # Opt-in telemetry beacon event log (local-only; never checked in — #135)
