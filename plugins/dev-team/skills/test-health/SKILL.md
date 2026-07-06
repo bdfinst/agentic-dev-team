@@ -32,27 +32,23 @@ Target repo/subtree path (default: cwd). Detect the test runner, coverage tool, 
 
 ## Steps
 
-### 1. Pain-point calibration (non-blocking)
-
-In the first response, ask **one** optional question — "What hurts most about testing here right now (slow suite / flaky CI / fear of changing code / low confidence / something else)?" — then **continue the audit immediately** without waiting for an answer. If the user answers later, weight the improvement plan toward it.
-
-### 2. Trivial-suite short-circuit
+### 1. Trivial-suite short-circuit
 
 If the suite is tiny (few test files), shows no shape pathology, and follows clear conventions, **stop here** and return a one-paragraph summary ("suite is small and healthy; nothing structural to fix; revisit when it grows") instead of the full diagnostic.
 
-### 3. Derive the test shape + architecture fit
+### 2. Derive the test shape + architecture fit
 
 Inventory tests by layer (unit / integration / component / contract / E2E). Derive the actual **shape** and compare it to the shape the architecture *should* produce, using the *Other shapes* + *Shape ↔ architecture fit* tables in `test-pyramid.md`. Report the mismatch (e.g. tall pyramid over thin-glue code, or ice-cream cone), not the silhouette alone.
 
-### 4. Quadrant coverage
+### 3. Quadrant coverage
 
 Classify coverage across the four quadrants (`testing-quadrants.md`) as strong / thin / empty, and for each gap name the **business impact** of leaving it empty (e.g. empty Q3 → no human catches confusing flows; empty Q4 → non-functional failures reach prod).
 
-### 5. Delegate architecture + pipeline
+### 4. Delegate architecture + pipeline
 
 Invoke `cd-test-architecture` on the target. Summarize its findings (which tests can't run in a clean pre-merge gate, target architecture, migration path) in one section — **do not re-derive**.
 
-### 6. Test-design + mutation health (ROI)
+### 5. Test-design + mutation health (ROI)
 
 Invoke `/test-design` on the target, passing the same scope this run was
 invoked with — the dispatch must be explicit so a subtree audit never
@@ -71,20 +67,20 @@ advisor's testability verdicts. Then invoke `mutation-testing` on the
 framing). Roll both up: where is coverage high but mutation-weak
 (assertions that don't catch bugs)? Where do test-design smells
 concentrate? Where is critical logic under-covered? Prioritize by risk,
-not by raw %. Both feed the ordered plan (Step 8) — summarize the themes
+not by raw %. Both feed the ordered plan (Step 7) — summarize the themes
 and link to the `/test-design` report for per-file detail; do not
 reproduce it.
 
-### 7. Flaky-test + automation maturity
+### 6. Flaky-test + automation maturity
 
 Flag flakiness signals (`test-smells.md` project/behavior smells: order-dependence, unstubbed clock/RNG, real I/O at unit level) and a management recommendation (quarantine + fix, don't `retry`). Assess automation maturity with `test-automation-maturity.md`: report the rung and the single-point-of-change metric, scaled by suite size (graduated thresholds).
 
-### 8. Classify gaps + recommend removals
+### 7. Classify gaps + recommend removals
 
-Classify every gap the audit surfaces into one of three classes, so the improvement plan (Step 9) only ever plans work that delivers signal:
+Classify every gap the audit surfaces into one of three classes, so the improvement plan (Step 8) only ever plans work that delivers signal:
 
 | Class | Meaning | Action |
-|---|---|---|
+| --- | --- | --- |
 | `NO_REFACTOR` | A test can be added against the code as it stands | Plan it |
 | `REFACTOR_REQUIRED` | Production code needs a testability change before a meaningful test is possible | Plan the production-code change first |
 | `LOW_VALUE` | Technically feasible but delivers no signal — **skip, never plan** | List for removal, not for work |
@@ -97,11 +93,11 @@ A finding is `LOW_VALUE` only when **all three** hold:
 
 For existing tests that meet all three criteria, emit a **Recommended removals** table: the redundant test, the higher-layer test that already covers it, and a one-line rationale. These are the suite's `LOW_VALUE` tests — keeping them costs maintenance for no defect-localization gain.
 
-### 9. Ordered improvement plan
+### 8. Ordered improvement plan
 
-Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1. `LOW_VALUE` findings never appear here — they live only in the Recommended removals table.
+Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 5. `LOW_VALUE` findings never appear here — they live only in the Recommended removals table.
 
-### 10. Report
+### 9. Report
 
 Write `reports/test-health-<date>.md`.
 
@@ -141,4 +137,4 @@ mutation ROI hotspots · under-covered critical logic>
 ## Integration
 
 - **Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.
-- `/test-design` runs inside this flow (Step 6) and also stands alone for a focused per-file review. For *forward* design of a specific module, use `test-design-advisor`. This skill is the strategic rollup that consumes their output.
+- `/test-design` runs inside this flow (Step 5) and also stands alone for a focused per-file review. For *forward* design of a specific module, use `test-design-advisor`. This skill is the strategic rollup that consumes their output.

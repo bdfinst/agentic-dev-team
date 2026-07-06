@@ -5211,48 +5211,44 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "In the first response, ask **one** optional question — \"What hurts most about testing here right now (slow suite / flaky CI / fear of changing code / low confidence / something else)?\" — then **continue the audit immediately** without waiting for an answer.",
+      "summary": "If the suite is tiny (few test files), shows no shape pathology, and follows clear conventions, **stop here** and return a one-paragraph summary (\"suite is small and healthy; nothing structural to fix; revisit when it grows\") instead of the full diagnostic.",
       "anchor": "steps"
     },
-    "1. Pain-point calibration (non-blocking)": {
-      "summary": "In the first response, ask **one** optional question — \"What hurts most about testing here right now (slow suite / flaky CI / fear of changing code / low confidence / something else)?\" — then **continue the audit immediately** without waiting for an answer.",
-      "anchor": "1-pain-point-calibration-non-blocking"
-    },
-    "2. Trivial-suite short-circuit": {
+    "1. Trivial-suite short-circuit": {
       "summary": "If the suite is tiny (few test files), shows no shape pathology, and follows clear conventions, **stop here** and return a one-paragraph summary (\"suite is small and healthy; nothing structural to fix; revisit when it grows\") instead of the full diagnostic.",
-      "anchor": "2-trivial-suite-short-circuit"
+      "anchor": "1-trivial-suite-short-circuit"
     },
-    "3. Derive the test shape + architecture fit": {
+    "2. Derive the test shape + architecture fit": {
       "summary": "Inventory tests by layer (unit / integration / component / contract / E2E).",
-      "anchor": "3-derive-the-test-shape-architecture-fit"
+      "anchor": "2-derive-the-test-shape-architecture-fit"
     },
-    "4. Quadrant coverage": {
+    "3. Quadrant coverage": {
       "summary": "Classify coverage across the four quadrants (`testing-quadrants.md`) as strong / thin / empty, and for each gap name the **business impact** of leaving it empty (e.g.",
-      "anchor": "4-quadrant-coverage"
+      "anchor": "3-quadrant-coverage"
     },
-    "5. Delegate architecture + pipeline": {
+    "4. Delegate architecture + pipeline": {
       "summary": "Invoke `cd-test-architecture` on the target.",
-      "anchor": "5-delegate-architecture-pipeline"
+      "anchor": "4-delegate-architecture-pipeline"
     },
-    "6. Test-design + mutation health (ROI)": {
+    "5. Test-design + mutation health (ROI)": {
       "summary": "Invoke `/test-design` on the target, passing the same scope this run was",
-      "anchor": "6-test-design-mutation-health-roi"
+      "anchor": "5-test-design-mutation-health-roi"
     },
-    "7. Flaky-test + automation maturity": {
+    "6. Flaky-test + automation maturity": {
       "summary": "Flag flakiness signals (`test-smells.md` project/behavior smells: order-dependence, unstubbed clock/RNG, real I/O at unit level) and a management recommendation (quarantine + fix, don't `retry`).",
-      "anchor": "7-flaky-test-automation-maturity"
+      "anchor": "6-flaky-test-automation-maturity"
     },
-    "8. Classify gaps + recommend removals": {
-      "summary": "Classify every gap the audit surfaces into one of three classes, so the improvement plan (Step 9) only ever plans work that delivers signal:",
-      "anchor": "8-classify-gaps-recommend-removals"
+    "7. Classify gaps + recommend removals": {
+      "summary": "Classify every gap the audit surfaces into one of three classes, so the improvement plan (Step 8) only ever plans work that delivers signal:",
+      "anchor": "7-classify-gaps-recommend-removals"
     },
-    "9. Ordered improvement plan": {
-      "summary": "Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 6 and weighted by the pain point from Step 1.",
-      "anchor": "9-ordered-improvement-plan"
+    "8. Ordered improvement plan": {
+      "summary": "Produce a risk-ordered, incremental plan — each item a concrete next move (which layer to add, which shape to correct, which quadrant to fill, which abstraction to extract, which weak-assertion or smell cluster to fix), driven by the test-design themes and mutation hotspots from Step 5.",
+      "anchor": "8-ordered-improvement-plan"
     },
-    "10. Report": {
+    "9. Report": {
       "summary": "Write `reports/test-health-<date>.md`.",
-      "anchor": "10-report"
+      "anchor": "9-report"
     },
     "Output": {
       "summary": "**Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.",
