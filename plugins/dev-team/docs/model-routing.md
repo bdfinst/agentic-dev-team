@@ -245,6 +245,23 @@ This is slice 1 of epic #879 (band calibration): a pure policy artifact plus
 its guard test, `tests/repo/test_calibration_floors_sync.py`
 (`scripts/check_calibration_floors_sync.py`), which keeps the table in sync
 with the fixture-bearing `applicableAgents`/`applicableSkills` names declared
-across `evals/expected/*.json` and with the agents/skills present on disk. No
-eval run consumes these floors yet — later slices in the epic wire them into
-actual gating.
+across `evals/expected/*.json` and with the agents/skills present on disk.
+
+## Band calibration (`/agent-eval --calibrate`)
+
+Slice 3 of epic #879 (issue #882) wires the floors above into an actual
+check: `/agent-eval --calibrate [--agent <name>]` (dispatched through
+`scripts/agent_calibrate.py`) walks a target's declared `effort:` band
+against the cheapest band whose eval fixtures (quarantined pairs excluded)
+clear its calibration floor, resolving each band via `hooks/lib/
+model_resolve.py` exactly as a real dispatch would. It reports one of
+`aligned | downgrade-available | upgrade-required | floor-failure |
+uncalibratable` per target, prints a cost preflight before any dispatch, and
+refuses `--in-session` (calibration must grade what's on disk). Output lands
+at `.claude/evals/reports/<timestamp>-calibration.md` (per-band pass rates
+and, on drift, a ready-to-apply `effort:` diff) and
+`.claude/evals/calibration-records.json` (one record per target — the input
+a future staleness check, #883, will consume). This run never edits any file
+under `plugins/dev-team/agents/` or `plugins/dev-team/skills/` — report-only,
+always. See [agent-eval's SKILL.md](../skills/agent-eval/SKILL.md#calibration-mode)
+for the full procedure.
