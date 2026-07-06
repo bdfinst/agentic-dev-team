@@ -83,6 +83,16 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
 
 
 # Recovery skills that must never be gated — blocking them would deadlock a
@@ -561,6 +571,14 @@ def main() -> int:
         # The .sh uses `printf '%s\n' "$msg" >&2` — write to stderr with a
         # trailing newline.
         sys.stderr.write(message + "\n")
+    if exit_code == 2 or message is not None:
+        cwd = payload.get("cwd") or "."
+        session_id = payload.get("session_id")
+        tool = payload.get("tool_name") or "unknown"
+        decision = "block" if exit_code == 2 else "warn"
+        emit_boundary_event(
+            cwd, "context_ceiling_guard", tool, decision, "context-ceiling", session_id
+        )
     return exit_code
 
 

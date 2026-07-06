@@ -42,7 +42,10 @@ Arguments: $ARGUMENTS
 
 ### 1. Check for metrics data
 
-Read metrics JSONL files from `metrics/`. Three complementary streams exist:
+Read metrics JSONL files from `metrics/`. Full field reference for every
+stream below: `${CLAUDE_PLUGIN_ROOT}/knowledge/telemetry-schema.md` — read it
+instead of re-deriving a schema from the emitter. Four complementary streams
+exist:
 
 - `metrics/*-task-log.jsonl` — **self-reported** task logs (whatever the model
   chose to record about itself).
@@ -58,6 +61,13 @@ Read metrics JSONL files from `metrics/`. Three complementary streams exist:
   (absent or `last_used_at` > 30 days ago). Cross-reference with
   `never_observed_*` in `session-digest.jsonl` for corroboration. See
   `knowledge/artifact-lifecycle.md` for the lifecycle threshold definitions.
+- `metrics/boundary-events.jsonl` — **boundary-level (policy-gateway) events**
+  (#859): every guard hook's `block`/`warn`/`bypass` decision plus
+  `intervention` keywords, each with the emitting `hook` and a `matched_rule`
+  rule ID. Where `session-digest.jsonl`'s `rework` counts show outcomes
+  without causes, join on `session_id` (when present on both streams) to
+  attribute friction to a specific hook/rule instead of reasoning from counts
+  alone.
 
 If no metrics data exists or insufficient data is available (fewer than 10 review runs logged), report:
 

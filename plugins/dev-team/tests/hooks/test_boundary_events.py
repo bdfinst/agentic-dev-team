@@ -1,0 +1,491 @@
+"""Unit + end-to-end tests for hooks/lib/boundary_events.py (#859).
+
+Covers:
+  - the emit helper itself: append, dir creation, compact single-line JSON,
+    fail-open on OSError / arbitrary exceptions.
+  - one block, one warn, one bypass, and one intervention emission, driven
+    end-to-end through the real hooks (destructive_guard.py, verify_guard.py,
+    pre_commit_review.py, telemetry.py).
+  - fail-open: with the emit helper monkeypatched to raise, each hook's
+    exit code / stdout / stderr are unaffected.
+  - append-only valid JSONL across two consecutive emissions.
+  - the "never free text" privacy boundary: sentinel strings fed through
+    commands/prompts never appear anywhere in boundary-events.jsonl, and
+    every emitted event has exactly the documented schema keys with
+    `decision` inside the enum.
+  - knowledge/telemetry-schema.md documents every `metrics/*.jsonl`/`.json`
+    path referenced in shipped code (coverage cross-check).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_PLUGIN_DIR = _REPO_ROOT / "plugins" / "dev-team"
+_HOOKS_DIR = _PLUGIN_DIR / "hooks"
+_LIB_DIR = _HOOKS_DIR / "lib"
+_TESTS_LIB = _PLUGIN_DIR / "tests" / "lib"
+
+for _p in (_HOOKS_DIR, _LIB_DIR, _TESTS_LIB):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
+import boundary_events  # type: ignore[import-not-found]  # noqa: E402
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
+
+_DECISION_ENUM = {"block", "warn", "bypass", "intervention"}
+_SCHEMA_FIELDS = {"ts", "hook", "tool", "decision", "matched_rule", "plugin_version"}
+_OPTIONAL_FIELDS = {"session_id"}
+
+
+def _read_jsonl(path: Path) -> list:
+    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    return [json.loads(ln) for ln in lines]
+
+
+# ---------------------------------------------------------------------------
+# emit_boundary_event() — the helper itself
+# ---------------------------------------------------------------------------
+
+
+def test_emit_appends_one_compact_jsonl_line(tmp_path: Path) -> None:
+    boundary_events.emit_boundary_event(
+        tmp_path, "destructive_guard", "Bash", "warn", "file_destruction:rm-rf"
+    )
+    log = tmp_path / "metrics" / "boundary-events.jsonl"
+    assert log.is_file()
+    raw = log.read_text(encoding="utf-8")
+    lines = raw.splitlines()
+    assert len(lines) == 1
+    assert raw.endswith("\n")
+    # Compact separators: no space after ',' or ':'.
+    assert ", " not in lines[0]
+    assert '": ' not in lines[0]
+    event = json.loads(lines[0])
+    assert event["hook"] == "destructive_guard"
+    assert event["tool"] == "Bash"
+    assert event["decision"] == "warn"
+    assert event["matched_rule"] == "file_destruction:rm-rf"
+    assert "ts" in event and "plugin_version" in event
+
+
+def test_emit_creates_metrics_dir_when_absent(tmp_path: Path) -> None:
+    assert not (tmp_path / "metrics").exists()
+    boundary_events.emit_boundary_event(tmp_path, "verify_guard", "Bash", "block", "x")
+    assert (tmp_path / "metrics").is_dir()
+
+
+def test_emit_appends_not_overwrites_across_two_calls(tmp_path: Path) -> None:
+    boundary_events.emit_boundary_event(tmp_path, "h1", "Bash", "warn", "r1")
+    boundary_events.emit_boundary_event(tmp_path, "h2", "Bash", "block", "r2")
+    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 2
+    assert events[0]["hook"] == "h1"
+    assert events[1]["hook"] == "h2"
+
+
+def test_emit_includes_session_id_when_given(tmp_path: Path) -> None:
+    boundary_events.emit_boundary_event(
+        tmp_path, "verify_guard", "Bash", "block", "verify-repeat-threshold", "sess-1"
+    )
+    event = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")[0]
+    assert event["session_id"] == "sess-1"
+
+
+def test_emit_omits_session_id_when_absent(tmp_path: Path) -> None:
+    boundary_events.emit_boundary_event(tmp_path, "verify_guard", "Bash", "block", "r")
+    event = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")[0]
+    assert "session_id" not in event
+
+
+def test_emit_fails_open_on_unwritable_metrics_dir(tmp_path: Path) -> None:
+    """A metrics/ that can't be created (e.g. a file occupying its path)
+    must not raise — the caller's exit code must never be affected."""
+    (tmp_path / "metrics").write_text("not a directory")
+    # Must not raise.
+    boundary_events.emit_boundary_event(tmp_path, "h", "Bash", "warn", "r")
+
+
+def test_emit_fails_open_on_arbitrary_exception(tmp_path: Path, monkeypatch) -> None:
+    def _boom(*_a, **_k):
+        raise RuntimeError("disk is on fire")
+
+    monkeypatch.setattr(boundary_events, "_isoformat_utc", _boom)
+    # Must not raise.
+    boundary_events.emit_boundary_event(tmp_path, "h", "Bash", "warn", "r")
+    assert not (tmp_path / "metrics" / "boundary-events.jsonl").exists()
+
+
+def test_emit_swallows_bad_cwd_type(monkeypatch) -> None:
+    """An unusable `cwd` (e.g. None with no real cwd fallback failing) must
+    still not raise — fail-open covers the whole call, not just I/O."""
+    boundary_events.emit_boundary_event(None, "h", "Bash", "warn", "r")
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: one block, one warn, one bypass, one intervention through the
+# real hooks.
+# ---------------------------------------------------------------------------
+
+
+def _run_hook(hook_name: str, payload: dict, env_extra: dict | None = None):
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "LANG": "C.UTF-8",
+    }
+    if env_extra:
+        env.update(env_extra)
+    return subprocess.run(
+        [sys.executable, str(_HOOKS_DIR / hook_name)],
+        input=json.dumps(payload).encode(),
+        env=env,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+
+
+def test_destructive_guard_warn_emits_boundary_event(tmp_path: Path) -> None:
+    result = _run_hook(
+        "destructive_guard.py",
+        {"tool_input": {"command": "kill -9 1234"}, "cwd": str(tmp_path)},
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    event = events[0]
+    assert event["hook"] == "destructive_guard"
+    assert event["tool"] == "Bash"
+    assert event["decision"] == "warn"
+    assert "Process destruction" in event["matched_rule"]
+
+
+def test_destructive_guard_block_emits_boundary_event(tmp_path: Path) -> None:
+    careful_state = _HOOKS_DIR / "careful-state.json"
+    original = careful_state.read_text() if careful_state.is_file() else None
+    try:
+        careful_state.write_text(json.dumps({"active": True}), encoding="utf-8")
+        result = _run_hook(
+            "destructive_guard.py",
+            {"tool_input": {"command": "rm -rf /"}, "cwd": str(tmp_path)},
+        )
+        assert result.returncode == 2
+        events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+        assert len(events) == 1
+        assert events[0]["decision"] == "block"
+        assert events[0]["hook"] == "destructive_guard"
+    finally:
+        if original is None:
+            careful_state.unlink(missing_ok=True)
+        else:
+            careful_state.write_text(original, encoding="utf-8")
+
+
+def test_verify_guard_block_emits_boundary_event(tmp_path: Path) -> None:
+    env = {"TMPDIR": str(tmp_path)}
+    payload = {
+        "session_id": "boundary-verify-1",
+        "cwd": str(tmp_path),
+        "tool_input": {"command": "npm test"},
+    }
+    for _ in range(3):
+        result = _run_hook("verify_guard.py", payload, env)
+    assert result.returncode == 2
+    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    block_events = [e for e in events if e["decision"] == "block"]
+    assert len(block_events) == 1
+    assert block_events[0]["hook"] == "verify_guard"
+    assert block_events[0]["matched_rule"] == "verify-repeat-threshold"
+    assert block_events[0]["session_id"] == "boundary-verify-1"
+
+
+def _init_git_repo(root: Path) -> dict:
+    env = hermetic_git_env(home=root)
+    env.update(
+        {
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+        }
+    )
+    subprocess.run(["git", "init", "--quiet", "-b", "main"], cwd=root, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=root, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=root, env=env, check=True)
+    (root / "file.txt").write_text("hello\n")
+    subprocess.run(["git", "add", "-A"], cwd=root, env=env, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "-m", "init"], cwd=root, env=env, check=True
+    )
+    (root / "file.txt").write_text("hello again\n")
+    subprocess.run(["git", "add", "-A"], cwd=root, env=env, check=True)
+    return env
+
+
+def test_pre_commit_review_block_emits_boundary_event(tmp_path: Path) -> None:
+    env = _init_git_repo(tmp_path)
+    result = subprocess.run(
+        [sys.executable, str(_HOOKS_DIR / "pre_commit_review.py")],
+        input=json.dumps(
+            {
+                "tool_input": {"command": 'git commit -m "wip"'},
+                "cwd": str(tmp_path),
+            }
+        ).encode(),
+        env=env,
+        cwd=str(tmp_path),
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["hook"] == "pre_commit_review"
+    assert events[0]["decision"] == "block"
+    assert events[0]["matched_rule"] == "pre-commit-review"
+
+
+def test_pre_commit_review_bypass_emits_boundary_event(tmp_path: Path) -> None:
+    env = _init_git_repo(tmp_path)
+    env["GATE_BYPASS_REASON"] = "hotfix, review to follow"
+    result = subprocess.run(
+        [sys.executable, str(_HOOKS_DIR / "pre_commit_review.py")],
+        input=json.dumps(
+            {
+                "tool_input": {"command": 'git commit --no-verify -m "wip"'},
+                "cwd": str(tmp_path),
+            }
+        ).encode(),
+        env=env,
+        cwd=str(tmp_path),
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["hook"] == "pre_commit_review"
+    assert events[0]["decision"] == "bypass"
+    assert events[0]["matched_rule"] == "--no-verify"
+    # The existing gate-bypass-audit.jsonl accountability record is untouched.
+    audit = _read_jsonl(tmp_path / "metrics" / "gate-bypass-audit.jsonl")
+    assert len(audit) == 1
+    assert audit[0]["reason"] == "hotfix, review to follow"
+
+
+def test_intervention_keyword_emits_event(tmp_path: Path) -> None:
+    for prompt, keyword in (("override", "override"), ("pause", "pause"), ("stop", "stop")):
+        result = _run_hook(
+            "telemetry.py",
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "prompt": prompt,
+                "cwd": str(tmp_path),
+                "session_id": "s-intervention",
+            },
+        )
+        assert result.returncode == 0
+        events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+        assert events[-1]["decision"] == "intervention"
+        assert events[-1]["matched_rule"] == keyword
+        assert events[-1]["hook"] == "telemetry"
+        assert events[-1]["tool"] == "UserPromptSubmit"
+
+
+def test_intervention_with_payload_records_only_keyword(tmp_path: Path) -> None:
+    """`override: some secret reason` must record only `override`, never
+    the payload after the colon."""
+    result = _run_hook(
+        "telemetry.py",
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "override: SENTINEL-PAYLOAD-TEXT",
+            "cwd": str(tmp_path),
+        },
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["matched_rule"] == "override"
+    raw = (tmp_path / "metrics" / "boundary-events.jsonl").read_text()
+    assert "SENTINEL-PAYLOAD-TEXT" not in raw
+
+
+def test_non_intervention_prompt_emits_nothing(tmp_path: Path) -> None:
+    """The word 'stop' mid-sentence (not anchored at the start) must not
+    fire an intervention event — grammar-anchored, not substring match."""
+    result = _run_hook(
+        "telemetry.py",
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "please don't stop working on this",
+            "cwd": str(tmp_path),
+        },
+    )
+    assert result.returncode == 0
+    assert not (tmp_path / "metrics" / "boundary-events.jsonl").exists()
+
+
+def test_ordinary_prompt_emits_nothing(tmp_path: Path) -> None:
+    result = _run_hook(
+        "telemetry.py",
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "please implement feature X",
+            "cwd": str(tmp_path),
+        },
+    )
+    assert result.returncode == 0
+    assert not (tmp_path / "metrics" / "boundary-events.jsonl").exists()
+
+
+# ---------------------------------------------------------------------------
+# Fail-open: telemetry failure must never change the hooked tool call's
+# exit code / stdout / stderr.
+# ---------------------------------------------------------------------------
+
+
+def test_destructive_guard_behavior_unaffected_when_metrics_unwritable(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "metrics").write_text("occupied by a file, not a directory")
+    result = _run_hook(
+        "destructive_guard.py",
+        {"tool_input": {"command": "kill -9 1234"}, "cwd": str(tmp_path)},
+    )
+    assert result.returncode == 0
+    assert b"CAUTION: Destructive command detected (Process destruction: kill -9)." in (
+        result.stdout
+    )
+
+
+def test_emit_helper_monkeypatched_to_raise_does_not_change_hook_behavior(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """Each hook wraps the shared helper in a local safety net (#859): even
+    if the underlying `boundary_events.emit_boundary_event` itself is
+    broken/monkeypatched to raise, the hook's own `emit_boundary_event`
+    (the module-level wrapper every call site uses) swallows it — main()'s
+    exit code and stdout are unaffected."""
+    if str(_HOOKS_DIR) not in sys.path:
+        sys.path.insert(0, str(_HOOKS_DIR))
+    import destructive_guard  # type: ignore[import-not-found]  # noqa: E402
+    import io
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("telemetry exploded")
+
+    # Patch the underlying (imported-as-_emit_boundary_event) implementation
+    # that destructive_guard's local emit_boundary_event() wrapper delegates
+    # to — this simulates the shared helper itself misbehaving.
+    monkeypatch.setattr(destructive_guard, "_emit_boundary_event", _boom)
+    monkeypatch.setattr(
+        "sys.stdin",
+        io.StringIO(
+            json.dumps({"tool_input": {"command": "kill -9 1"}, "cwd": str(tmp_path)})
+        ),
+    )
+    result = destructive_guard.main()
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "CAUTION: Destructive command detected (Process destruction: kill -9)." in out
+
+
+# ---------------------------------------------------------------------------
+# Privacy: no free text anywhere in the stream.
+# ---------------------------------------------------------------------------
+
+
+def test_no_free_text_leaks_into_boundary_events(tmp_path: Path) -> None:
+    sentinel = "SENTINEL-DO-NOT-LOG-THIS-COMMAND-TEXT"
+    # destructive_guard: pattern match still fires on the destructive
+    # substring even embedded in a sentinel-laden command.
+    _run_hook(
+        "destructive_guard.py",
+        {
+            "tool_input": {"command": f"kill -9 1234 # {sentinel}"},
+            "cwd": str(tmp_path),
+        },
+    )
+    _run_hook(
+        "telemetry.py",
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": f"override: {sentinel}",
+            "cwd": str(tmp_path),
+        },
+    )
+    raw = (tmp_path / "metrics" / "boundary-events.jsonl").read_text(encoding="utf-8")
+    assert sentinel not in raw
+    for event in _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl"):
+        keys = set(event.keys())
+        assert keys <= (_SCHEMA_FIELDS | _OPTIONAL_FIELDS)
+        assert _SCHEMA_FIELDS <= keys
+        assert event["decision"] in _DECISION_ENUM
+
+
+# ---------------------------------------------------------------------------
+# Schema doc completeness (#859 acceptance criterion).
+# ---------------------------------------------------------------------------
+
+
+def test_schema_doc_covers_all_metrics_paths() -> None:
+    """Every `metrics/*.jsonl` / `metrics/*.json` path string referenced in
+    shipped plugin code (hooks/skills/agents/knowledge) must have a
+    corresponding section in knowledge/telemetry-schema.md."""
+    schema_doc = _PLUGIN_DIR / "knowledge" / "telemetry-schema.md"
+    schema_text = schema_doc.read_text(encoding="utf-8")
+
+    pattern = re.compile(r"metrics/([A-Za-z0-9_.{}-]+\.(?:jsonl|json))")
+    found: set[str] = set()
+    search_dirs = ["hooks", "skills", "agents", "knowledge"]
+    for sub in search_dirs:
+        root = _PLUGIN_DIR / sub
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.is_dir() or "__pycache__" in path.parts:
+                continue
+            if path.suffix not in (".py", ".md", ".json"):
+                continue
+            if path == schema_doc:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for match in pattern.finditer(text):
+                found.add(match.group(1))
+
+    # Dated task-log files (metrics/2026-02-20-task-log.jsonl, etc.) are one
+    # family — normalize any concrete date-stamped name to the documented
+    # placeholder form.
+    normalized = set()
+    date_stamped = re.compile(r"^\d{4}-\d{2}-\d{2}-task-log\.jsonl$")
+    for name in found:
+        if date_stamped.match(name):
+            normalized.add("{date}-task-log.jsonl")
+        else:
+            normalized.add(name)
+
+    missing = [name for name in sorted(normalized) if name not in schema_text]
+    assert not missing, (
+        "knowledge/telemetry-schema.md is missing coverage for: "
+        f"{missing} — add a section documenting each stream's schema."
+    )
+
+
+def test_schema_doc_documents_boundary_events_fields() -> None:
+    schema_doc = _PLUGIN_DIR / "knowledge" / "telemetry-schema.md"
+    text = schema_doc.read_text(encoding="utf-8")
+    assert "boundary-events.jsonl" in text
+    for field in _SCHEMA_FIELDS | _OPTIONAL_FIELDS:
+        assert field in text, f"telemetry-schema.md missing field `{field}`"
+    for decision in _DECISION_ENUM:
+        assert decision in text

@@ -30,6 +30,9 @@ def _run(payload: dict, *, tmp: Path, threshold: str | None = None):
     }
     if threshold is not None:
         env["DEV_TEAM_VERIFY_THRESHOLD"] = threshold
+    # Boundary events (#859) resolve metrics/ from payload["cwd"] — default
+    # it to the isolated `tmp` dir so tests never write into the real repo.
+    payload = {"cwd": str(tmp), **payload}
     return subprocess.run(
         [sys.executable, str(_HOOK_PY)],
         input=json.dumps(payload).encode(),
@@ -46,6 +49,7 @@ def _run_edit_marker(payload: dict, *, tmp: Path):
         "LANG": "C.UTF-8",
         "TMPDIR": str(tmp),
     }
+    payload = {"cwd": str(tmp), **payload}
     return subprocess.run(
         [sys.executable, str(_EDIT_MARKER_PY)],
         input=json.dumps(payload).encode(),

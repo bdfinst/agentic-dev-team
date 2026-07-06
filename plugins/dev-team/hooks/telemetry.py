@@ -39,10 +39,34 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
+
 
 _SLASH_CMD_RE = re.compile(r"^/([a-zA-Z][a-zA-Z0-9_-]*)")
 _SKILL_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_:-]*$")
 _NO_VERIFY_RE = re.compile(r"(?:^|\s)-n(?:\s|$)")
+
+# Human-intervention keyword grammar (#859, Ambiguity Log): anchored
+# whole-prompt match — same grammar-match-only posture as _SLASH_CMD_RE —
+# substring matching would flood the stream with false positives on
+# ordinary prose ("stop" mid-sentence must NOT match). An optional
+# `:`-suffixed payload following the keyword is captured by the prompt
+# but deliberately discarded — never logged.
+_INTERVENTION_RE = re.compile(r"^\s*(override|pause|stop)\b", re.IGNORECASE)
 
 
 def _isoformat_utc() -> str:
@@ -180,14 +204,33 @@ def main() -> int:
     if not cwd.is_dir():
         cwd = Path.cwd()
 
+    event_name = payload.get("hook_event_name") or ""
+    session_id = payload.get("session_id")
+
+    # Boundary events (#859) are ALWAYS-ON — unlike telemetry.jsonl below,
+    # they are not gated by DEV_TEAM_TELEMETRY consent (Ambiguity Log:
+    # safety/accountability channel must have no observability holes; no
+    # free text is ever recorded, only the matched keyword).
+    if event_name == "UserPromptSubmit":
+        prompt = payload.get("prompt") or ""
+        if isinstance(prompt, str):
+            intervention = _INTERVENTION_RE.match(prompt)
+            if intervention:
+                emit_boundary_event(
+                    cwd,
+                    "telemetry",
+                    "UserPromptSubmit",
+                    "intervention",
+                    intervention.group(1).lower(),
+                    session_id,
+                )
+
     if not _consent_enabled(cwd):
         return 0
 
     hook_dir = Path(__file__).resolve().parent
     version = _load_plugin_version(hook_dir)
     log = cwd / "metrics" / "telemetry.jsonl"
-
-    event_name = payload.get("hook_event_name") or ""
 
     if event_name == "UserPromptSubmit":
         prompt = payload.get("prompt") or ""

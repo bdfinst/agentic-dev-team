@@ -10,9 +10,16 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
+
+# Boundary events (#859) are ALWAYS-ON and resolve their metrics/ dir from
+# the hook payload's "cwd" (falling back to the process's actual OS cwd when
+# absent) — isolate every subprocess run to a scratch dir so tests never
+# write metrics/boundary-events.jsonl into the real repo checkout.
+_BOUNDARY_EVENTS_SCRATCH_CWD = tempfile.mkdtemp(prefix="dev-team-context-ceiling-test-")
 
 
 _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
@@ -90,6 +97,7 @@ def _mkinput(tool_name: str, tool_input: dict, transcript: Path) -> str:
             "session_id": "s1",
             "transcript_path": str(transcript),
             "tool_input": tool_input,
+            "cwd": _BOUNDARY_EVENTS_SCRATCH_CWD,
         }
     )
 

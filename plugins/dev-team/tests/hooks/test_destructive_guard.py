@@ -13,11 +13,24 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
 if str(_HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_DIR))
 
 import destructive_guard  # type: ignore[import-not-found]  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_boundary_events(monkeypatch):
+    """This suite calls destructive_guard.main() in-process with no `cwd`
+    in the payload — without this, emit_boundary_event (#859) would resolve
+    metrics/ against the test process's real OS cwd (the repo checkout).
+    Boundary-event emission itself is covered end-to-end in
+    tests/hooks/test_boundary_events.py.
+    """
+    monkeypatch.setattr(destructive_guard, "emit_boundary_event", lambda *a, **k: None)
 
 
 def _feed(monkeypatch, payload: dict) -> None:
