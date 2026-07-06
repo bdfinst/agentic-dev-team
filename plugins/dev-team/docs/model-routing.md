@@ -261,7 +261,37 @@ refuses `--in-session` (calibration must grade what's on disk). Output lands
 at `.claude/evals/reports/<timestamp>-calibration.md` (per-band pass rates
 and, on drift, a ready-to-apply `effort:` diff) and
 `.claude/evals/calibration-records.json` (one record per target — the input
-a future staleness check, #883, will consume). This run never edits any file
+the staleness check below consumes). This run never edits any file
 under `plugins/dev-team/agents/` or `plugins/dev-team/skills/` — report-only,
 always. See [agent-eval's SKILL.md](../skills/agent-eval/SKILL.md#calibration-mode)
 for the full procedure.
+
+## Recalibration staleness advisory (`/model-routing-check`)
+
+Slice 4 of epic #879 (issue #883) is the recalibration trigger: routing-map
+edits and model releases invalidate a target's last calibration, and this
+surfaces that drift instead of leaving it silent. `/model-routing-check`'s
+fifth section reads `knowledge/calibration-floors.json` for the target
+universe and `.claude/evals/calibration-records.json` for each target's last
+calibration record (both written by slice 1 `#880` and slice 3 `#882`
+respectively), and recomputes the current content hash of
+`knowledge/model-routing.json` + `.claude/model-ladder.json` using the exact
+same `routing_hash()` construction `scripts/agent_calibrate.py` used to stamp
+the record. Three states per target:
+
+- **`calibration-current`** — the record's `routing_hash` matches the
+  current hash. Nothing to do.
+- **`calibration-stale`** — the routing map or ladder changed since the
+  target was last calibrated (hash drift). Flagged with a pointer to
+  `/agent-eval --calibrate --agent <target>`.
+- **`never-calibrated`** — the target has a floors entry but no calibration
+  record yet. Listed with the same pointer.
+
+**This is advisory only — it never blocks dispatch.** Even when every
+calibration record is stale (or none exist at all), `hooks/
+agent_model_resolve.py`'s dispatch behavior is completely unchanged; the
+advisory is a read-only diagnostic, matching the model-resolution hook's
+fail-open contract. See [model-routing-check's SKILL.md](
+../skills/model-routing-check/SKILL.md) for the exec block and the
+`CALIBRATION_FLOORS_JSON`/`CALIBRATION_RECORDS_JSON` test-only injection
+seams.
