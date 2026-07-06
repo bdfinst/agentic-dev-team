@@ -153,6 +153,14 @@ def test_defects4j_checkout_uses_explicit_bin(d4j_home: Path) -> None:
     assert fake.calls[0]["argv"][0] == "/cache/defects4j/framework/bin/defects4j"
 
 
+def test_defects4j_checkout_passes_env_through(d4j_home: Path) -> None:
+    cases = defects4j_adapter.list_bugs("Lang", str(d4j_home))
+    fake = _FakeRun(returncode=0)
+    custom_env = {"JAVA_HOME": "/opt/openjdk11", "PERL5LIB": "/home/x/perl5"}
+    defects4j_adapter.checkout(cases[0], "/tmp/workdir", env=custom_env, run_fn=fake)
+    assert fake.calls[0]["kwargs"]["env"] == custom_env
+
+
 def test_defects4j_checkout_false_on_nonzero_exit(d4j_home: Path) -> None:
     cases = defects4j_adapter.list_bugs("Lang", str(d4j_home))
     fake = _FakeRun(returncode=1)
@@ -219,6 +227,15 @@ def test_defects4j_run_tests_uses_explicit_bin(d4j_home: Path, tmp_path: Path) -
         "compile",
     ]
     assert fake.calls[1]["argv"] == ["/cache/defects4j/framework/bin/defects4j", "test"]
+
+
+def test_defects4j_run_tests_passes_env_through(d4j_home: Path, tmp_path: Path) -> None:
+    cases = defects4j_adapter.list_bugs("Lang", str(d4j_home))
+    fake = _SequencedFakeRun([(0, ""), (0, "")])
+    custom_env = {"JAVA_HOME": "/opt/openjdk11"}
+    defects4j_adapter.run_tests(cases[0], str(tmp_path), env=custom_env, run_fn=fake)
+    assert fake.calls[0]["kwargs"]["env"] == custom_env
+    assert fake.calls[1]["kwargs"]["env"] == custom_env
 
 
 def test_defects4j_run_tests_not_reproduced_without_failing_tests_file(

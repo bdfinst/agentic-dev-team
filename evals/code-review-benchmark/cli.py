@@ -54,11 +54,19 @@ def _list_cases(
 
 
 def _make_checkout_fn(
-    dataset: str, case: Any, home: str, defects4j_bin: str = "defects4j"
+    dataset: str,
+    case: Any,
+    home: str,
+    defects4j_bin: str = "defects4j",
+    defects4j_env: Optional[Dict[str, str]] = None,
 ):
     if dataset == "defects4j":
         return lambda workdir: defects4j_adapter.checkout(
-            case, workdir, defects4j_home=home, defects4j_bin=defects4j_bin
+            case,
+            workdir,
+            defects4j_home=home,
+            defects4j_bin=defects4j_bin,
+            env=defects4j_env,
         )
     return lambda workdir: bugsjs_adapter.checkout(case, workdir, bugsjs_home=home)
 
@@ -70,7 +78,11 @@ def _make_ground_truth_fn(dataset: str, case: Any):
 
 
 def _make_test_fn(
-    dataset: str, case: Any, enabled: bool, defects4j_bin: str = "defects4j"
+    dataset: str,
+    case: Any,
+    enabled: bool,
+    defects4j_bin: str = "defects4j",
+    defects4j_env: Optional[Dict[str, str]] = None,
 ) -> Optional[Callable[[str], Dict[str, Any]]]:
     """Build `run_case`'s `test_fn`, or `None` when verification is disabled.
 
@@ -80,7 +92,7 @@ def _make_test_fn(
         return None
     if dataset == "defects4j":
         return lambda checkout_dir: defects4j_adapter.run_tests(
-            case, checkout_dir, defects4j_bin=defects4j_bin
+            case, checkout_dir, defects4j_bin=defects4j_bin, env=defects4j_env
         )
     return lambda checkout_dir: bugsjs_adapter.run_tests(case, checkout_dir)
 
@@ -94,6 +106,7 @@ def run(args: argparse.Namespace) -> int:
         return 0
 
     defects4j_bin = "defects4j"
+    defects4j_env: Optional[Dict[str, str]] = None
     if args.dataset == "defects4j":
         explicit_home = args.defects4j_home or os.environ.get("DEFECTS4J_HOME")
         resolved = bootstrap.ensure_defects4j_home(explicit_home)
@@ -106,6 +119,7 @@ def run(args: argparse.Namespace) -> int:
             return 1
         home = resolved["home"]
         defects4j_bin = resolved["bin"]
+        defects4j_env = resolved["env"]
     else:
         explicit_home = args.bugsjs_home or os.environ.get("BUGSJS_HOME")
         cloned_home = bootstrap.ensure_bugsjs_home(explicit_home)
@@ -166,10 +180,16 @@ def run(args: argparse.Namespace) -> int:
             executor.submit(
                 runner.run_case,
                 case_dict,
-                checkout_fn=_make_checkout_fn(args.dataset, case, home, defects4j_bin),
+                checkout_fn=_make_checkout_fn(
+                    args.dataset, case, home, defects4j_bin, defects4j_env
+                ),
                 ground_truth_fn=_make_ground_truth_fn(args.dataset, case),
                 test_fn=_make_test_fn(
-                    args.dataset, case, not args.no_verify_tests, defects4j_bin
+                    args.dataset,
+                    case,
+                    not args.no_verify_tests,
+                    defects4j_bin,
+                    defects4j_env,
                 ),
                 dispatch_fn=dispatch_fn,
                 results_dir=results_dir,
