@@ -162,7 +162,7 @@ Within the per-behavior mini-cycle below, repeated Write/Edit calls can race a `
 
 Work each step **one behavior at a time** — never all the code then all the tests, never all the tests then all the code:
 
-1. **First phase — IMPLEMENT.** Implement exactly one behavior from the step — no cleanup, no behavior beyond what the step requires.
+1. **First phase — IMPLEMENT.** Implement exactly one behavior from the step — no cleanup, no behavior beyond what the step requires. Apply the implementer's [Per-Edit Authoring Discipline](../../agents/software-engineer.md#per-edit-authoring-discipline) checklist (Surgical Changes, Simplicity First, Think Before Coding) at this phase, not deferred to review.
 2. **Second phase — TEST.** Write the test covering the behavior's slice scenario, immediately after the code. Run the full test suite. **Hard gate: all tests must pass — paste the passing output.** Do NOT proceed to REFACTOR without pasted passing output.
 
    **Before each repair iteration** (here and in the review-fix loop, sub-step 4), read `${CLAUDE_PLUGIN_ROOT}/knowledge/failure-routing.md` and classify the failing output/exit code by its regex table — deterministic pattern match only, no LLM call, no extra dispatch. Follow the matched route (inline fix / systematic-debugging / test-generation / security-engineer dispatch / human arbitration); `unclassified` falls through to the generic loop below, unchanged. A route switch spends from the same iteration budget — it never resets or raises the cap.
