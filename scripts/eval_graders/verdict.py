@@ -37,6 +37,18 @@ def grade_verdict(spec: dict, actual: dict) -> list[str]:
                 f"{rng.get('max', '∞')}, got {count}"
             )
 
+    # `minConfidenceAnyOf` (issue #885): assert at least one issue carries a
+    # confidence in the given set — used by fixtures that require the agent
+    # to flag a known defect at high-or-medium confidence without pinning an
+    # exact count (an agent may reasonably report the same defect more than
+    # once, or bundle it with a related finding).
+    min_conf = spec.get("minConfidenceAnyOf")
+    if min_conf and not any(i.get("confidence") in min_conf for i in issues):
+        fails.append(
+            f"minConfidenceAnyOf: expected at least one issue with "
+            f"confidence in {min_conf!r}, found none"
+        )
+
     text = " ".join(str(i.get("message", "")) for i in issues)
     text += " " + str(actual.get("summary", ""))
     for kw in spec.get("mustMention", []):

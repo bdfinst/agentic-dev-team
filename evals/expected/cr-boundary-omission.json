@@ -1,0 +1,14 @@
+{
+  "fixture": "cr-boundary-omission",
+  "description": "Regression fixture for #885/#852 Defects4J commons-lang LANG-747: hex-digit overflow check only tests digit count, dropping the documented sign-bit boundary case (8 hex digits with firstSigDigit > '7')",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": { "error": { "min": 1, "max": 4 } },
+      "minConfidenceAnyOf": ["high", "medium"],
+      "mustMention": ["firstSigDigit"]
+    }
+  }
+}

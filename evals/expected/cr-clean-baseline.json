@@ -1,0 +1,11 @@
+{
+  "fixture": "cr-clean-baseline",
+  "description": "False-positive budget: a real, already-shipped repo utility (plugins/dev-team/hooks/lib/knowledge_index_paths.py) with no known correctness defects. Noise budget for #885: at most 2 unmatched findings allowed on a clean, well-reviewed file",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 2 }
+    }
+  }
+}
