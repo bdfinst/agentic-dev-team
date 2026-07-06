@@ -21,6 +21,21 @@ import time
 from pathlib import Path
 from typing import Optional, Tuple
 
+_LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
+
 
 _SOURCE_SUFFIXES = {
     ".ts",
@@ -161,6 +176,12 @@ def main() -> int:
     file_path = _extract_file_path(raw)
     if not file_path:
         return 0
+    try:
+        _payload = json.loads(raw)
+    except (TypeError, ValueError):
+        _payload = {}
+    cwd = (_payload.get("cwd") if isinstance(_payload, dict) else None) or "."
+    session_id = _payload.get("session_id") if isinstance(_payload, dict) else None
     if not Path(file_path).is_file():
         return 0
     if not _is_source_file(file_path):
@@ -191,6 +212,7 @@ def main() -> int:
     print(f"  File: {basename}")
     print("  Write a failing test FIRST, then implement. RED before GREEN.")
     print("  If this is a refactor with passing tests, run the test suite to confirm.")
+    emit_boundary_event(cwd, "tdd_guard", "Write", "warn", "tdd-red-before-green", session_id)
     return 0
 
 

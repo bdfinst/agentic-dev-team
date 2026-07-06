@@ -19,6 +19,21 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+_LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
+
 
 _DEFAULT_BLOCKED = [
     ".env",
@@ -120,12 +135,16 @@ def evaluate(
     file_path: str,
     guards_path: Path,
     freeze_path: Path,
+    cwd: str = ".",
+    session_id: Optional[str] = None,
 ) -> tuple:
     """Return (exit_code, [stdout_lines]) for a single file_path decision.
 
     - exit_code 0 with `[warning]` lines means "allow with warning".
     - exit_code 0 with `[]` means "silent pass".
     - exit_code 2 with `[block message]` means "block".
+
+    Emits a boundary event (#859) for every warn/block decision.
     """
     if not file_path:
         return 0, []
@@ -146,6 +165,7 @@ def evaluate(
         )
         if not matched:
             allowed_display = "\n".join(allowed)
+            emit_boundary_event(cwd, "pre_tool_guard", "Write", "block", "freeze-scope-lock", session_id)
             return 2, [
                 "BLOCKED: Freeze mode is active. Only files matching the allowed patterns can be edited.",
                 f"File: {file_path}",
@@ -158,6 +178,7 @@ def evaluate(
     if _matches_any(lower_filename, blocked_patterns) or _matches_any(
         lower_path, blocked_patterns
     ):
+        emit_boundary_event(cwd, "pre_tool_guard", "Write", "block", "sensitive-path", session_id)
         return 2, [
             f"BLOCKED: Write to '{file_path}' is not allowed.",
             "This path matches a sensitive-file pattern in .claude/hooks/guards.json.",
@@ -165,6 +186,7 @@ def evaluate(
         ]
 
     if _matches_any(lower_path, warn_patterns):
+        emit_boundary_event(cwd, "pre_tool_guard", "Write", "warn", "protected-config", session_id)
         return 0, [
             f"WARNING: '{file_path}' is a protected configuration file.",
             "Verify this change is intentional before writing.",
@@ -178,11 +200,19 @@ def main() -> int:
     file_path = _extract_file_path(raw)
     if not file_path:
         return 0
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        payload = {}
+    cwd = (payload.get("cwd") if isinstance(payload, dict) else None) or "."
+    session_id = payload.get("session_id") if isinstance(payload, dict) else None
     script_dir = Path(__file__).resolve().parent
     exit_code, lines = evaluate(
         file_path,
         script_dir / "guards.json",
         script_dir / "freeze-state.json",
+        cwd,
+        session_id,
     )
     for line in lines:
         print(line)

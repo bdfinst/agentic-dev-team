@@ -17,6 +17,12 @@ Role: orchestrator. Mines ground-truth session transcripts and routes
 suggestions into existing machinery — it **suggests, never auto-applies**, and
 preserves every human gate.
 
+Every `metrics/*.jsonl`/`.json` schema referenced below (including
+`pending-review.jsonl` and the boundary-level `boundary-events.jsonl` block/
+warn/bypass/intervention causes, #859) is documented in full at
+`${CLAUDE_PLUGIN_ROOT}/knowledge/telemetry-schema.md` — read it before
+reasoning about a stream's fields ad hoc.
+
 You have been invoked with the `/session-review` command.
 
 ## Orchestrator constraints
@@ -68,7 +74,8 @@ findings that are waiting for review.
 
 ### `pending-review.jsonl` Schema
 
-Each line is a JSON object:
+Full field reference: `${CLAUDE_PLUGIN_ROOT}/knowledge/telemetry-schema.md`
+(`pending-review.jsonl` section). Summary — each line is a JSON object:
 
 ```json
 {

@@ -35,6 +35,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+_LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
+
 # Matches the .sh's SCRIPT_DIR / REPO_ROOT resolution.
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parents[2]
@@ -284,6 +299,7 @@ def main() -> int:
 
     file_path = tool_input.get("file_path") or tool_input.get("path") or ""
     tool_name = payload.get("tool_name") or ""
+    session_id = payload.get("session_id")
 
     if not isinstance(file_path, str) or not file_path:
         return 0
@@ -321,6 +337,10 @@ def main() -> int:
             new_version = _extract_version(new_content)
             if not new_version:
                 sys.stderr.write(_msg_initial_add() + "\n")
+                emit_boundary_event(
+                    _REPO_ROOT, "contract_version_guard", tool_name, "block",
+                    "contract-version-missing", session_id,
+                )
                 return 2
         return 0
 
@@ -336,6 +356,10 @@ def main() -> int:
 
     if not new_version:
         sys.stderr.write(_msg_removed_version() + "\n")
+        emit_boundary_event(
+            _REPO_ROOT, "contract_version_guard", tool_name, "block",
+            "contract-version-removed", session_id,
+        )
         return 2
 
     head_body = _body_digest(head_content)
@@ -347,6 +371,10 @@ def main() -> int:
 
     if head_version == new_version:
         sys.stderr.write(_msg_missing_bump(head_version, new_version) + "\n")
+        emit_boundary_event(
+            _REPO_ROOT, "contract_version_guard", tool_name, "block",
+            "contract-version-missing-bump", session_id,
+        )
         return 2
 
     return 0

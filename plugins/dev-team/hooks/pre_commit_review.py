@@ -52,6 +52,9 @@ try:
     )
     from review_gate_hash import review_gate_hash  # type: ignore[import-not-found]
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
+    from boundary_events import (  # type: ignore[import-not-found]
+        emit_boundary_event as _emit_boundary_event,
+    )
 except ImportError:  # pragma: no cover
 
     def is_git_commit_command(_: str) -> bool:  # type: ignore[misc]
@@ -68,6 +71,18 @@ except ImportError:  # pragma: no cover
 
     def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
         return None
+
+    def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
+        return None
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
 
 
 _BLOCK_MESSAGE = (
@@ -163,6 +178,9 @@ def main() -> int:
         return 0
     command = str(tool_input.get("command") or "")
 
+    cwd = payload.get("cwd") or "."
+    session_id = payload.get("session_id")
+
     if not is_git_commit_command(command):
         return 0
 
@@ -172,10 +190,12 @@ def main() -> int:
         return 0
 
     if has_bypass_flag(command):
+        flag = bypass_flag_name(command) or "--no-verify"
         reason = os.environ.get("GATE_BYPASS_REASON", "").strip()
         if reason:
-            _record_bypass_audit(
-                bypass_flag_name(command) or "--no-verify", reason, len(staged)
+            _record_bypass_audit(flag, reason, len(staged))
+            emit_boundary_event(
+                cwd, "pre_commit_review", "Bash", "bypass", flag, session_id
             )
             return 0
         sys.stdout.write(_BYPASS_BLOCK_MESSAGE)
@@ -201,6 +221,9 @@ def main() -> int:
     # writes to stdout, not stderr, so Claude sees it in the tool-call
     # feedback stream).
     sys.stdout.write(_BLOCK_MESSAGE)
+    emit_boundary_event(
+        cwd, "pre_commit_review", "Bash", "block", "pre-commit-review", session_id
+    )
     return 2
 
 
