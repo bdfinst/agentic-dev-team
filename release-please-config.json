@@ -15,7 +15,6 @@
       "release-type": "simple",
       "package-name": "dev-team",
       "component": "dev-team",
-      "release-as": "10.3.0",
       "extra-files": [
         ".claude-plugin/plugin.json",
         {
