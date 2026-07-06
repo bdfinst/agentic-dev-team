@@ -19,6 +19,16 @@ sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
 import pre_tool_guard  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _no_boundary_events(monkeypatch):
+    """evaluate() defaults cwd="." — without this, emit_boundary_event
+    (#859) would resolve metrics/ against the test process's real OS cwd.
+    Boundary-event emission itself is covered end-to-end in
+    tests/hooks/test_boundary_events.py.
+    """
+    monkeypatch.setattr(pre_tool_guard, "emit_boundary_event", lambda *a, **k: None)
+
+
 # ---------------------------------------------------------------------------
 # _extract_file_path
 # ---------------------------------------------------------------------------

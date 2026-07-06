@@ -1053,6 +1053,80 @@
       "anchor": "decision-log-entry"
     }
   },
+  "plugins/dev-team/knowledge/telemetry-schema.md": {
+    "`boundary-events.jsonl`": {
+      "summary": "**Added by #859.** The boundary-level (policy-gateway) channel: every guard",
+      "anchor": "boundary-eventsjsonl"
+    },
+    "`telemetry.jsonl`": {
+      "summary": "Opt-in usage beacon: which slash commands / skills get invoked, and whether",
+      "anchor": "telemetryjsonl"
+    },
+    "`cost-metering.jsonl`": {
+      "summary": "Per-session token/cost summary, incrementally accumulated from the",
+      "anchor": "cost-meteringjsonl"
+    },
+    "`artifact-usage.json`": {
+      "summary": "Not JSONL — a single JSON object keyed by skill/agent name, upserted on",
+      "anchor": "artifact-usagejson"
+    },
+    "`gate-bypass-audit.jsonl`": {
+      "summary": "Accountability record for `git commit --no-verify`/`-n` bypasses of the",
+      "anchor": "gate-bypass-auditjsonl"
+    },
+    "`gate-bypass.jsonl`": {
+      "summary": "Accountability record for `MUTATION_SMOKE_GATE_SKIP=1` bypasses of the",
+      "anchor": "gate-bypassjsonl"
+    },
+    "`config-changelog.jsonl`": {
+      "summary": "Audit trail for `/feedback-learning` config changes and human-oversight",
+      "anchor": "config-changelogjsonl"
+    },
+    "`session-digest.jsonl`": {
+      "summary": "Trend digest from `/session-review` (backed by `scripts/session_extract.py`):",
+      "anchor": "session-digestjsonl"
+    },
+    "`review-value.jsonl`": {
+      "summary": "Whether a `/build` inline review checkpoint actually changed anything —",
+      "anchor": "review-valuejsonl"
+    },
+    "`verify-log.jsonl`": {
+      "summary": "Evidence that `/verify` actually ran (or was legitimately skipped) before a",
+      "anchor": "verify-logjsonl"
+    },
+    "`override-audit.jsonl`": {
+      "summary": "Audit trail for `/code-review --force --reason \"<text>\"`, which skips all",
+      "anchor": "override-auditjsonl"
+    },
+    "`eval-variance.jsonl`": {
+      "summary": "Multi-trial pass@k stability trend for `/agent-eval` fixtures.",
+      "anchor": "eval-variancejsonl"
+    },
+    "`refactor-freeze.jsonl`": {
+      "summary": "Audit log for the tests-frozen-during-REFACTOR invariant (`#813`) — both the",
+      "anchor": "refactor-freezejsonl"
+    },
+    "`contract-version-guard-audit.jsonl`": {
+      "summary": "Audit log for release-please's bypass of the security-primitives-contract",
+      "anchor": "contract-version-guard-auditjsonl"
+    },
+    "`learning-loop-state.json`": {
+      "summary": "Not JSONL — a single current-value JSON file: a counter gating when",
+      "anchor": "learning-loop-statejson"
+    },
+    "`pending-review.jsonl`": {
+      "summary": "Queued findings from the background session-analysis dispatch, before",
+      "anchor": "pending-reviewjsonl"
+    },
+    "`metrics/{date}-task-log.jsonl` (e.g. `2026-02-20-task-log.jsonl`)": {
+      "summary": "Self-reported per-task completion log, one file per calendar date.",
+      "anchor": "metricsdate-task-logjsonl-eg-2026-02-20-task-logjsonl"
+    },
+    "Adding a new stream": {
+      "summary": "1.",
+      "anchor": "adding-a-new-stream"
+    }
+  },
   "plugins/dev-team/knowledge/test-automation-maturity.md": {
     "Maturity scale (diagnose from evidence, lowest rung first)": {
       "summary": "| Rung | Signal in the suite | Risk |",
@@ -4465,7 +4539,7 @@
       "anchor": "0-queued-findings-surface-pending-review-queue-before-fresh-analysis"
     },
     "`pending-review.jsonl` Schema": {
-      "summary": "Each line is a JSON object:",
+      "summary": "Full field reference: `${CLAUDE_PLUGIN_ROOT}/knowledge/telemetry-schema.md`",
       "anchor": "pending-reviewjsonl-schema"
     },
     "1. Cross-machine Telemetry — validate config, then sync (#178)": {

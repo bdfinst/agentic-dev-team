@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,12 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _HOOK_PY = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "destructive_guard.py"
 _CAREFUL_STATE = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "careful-state.json"
+
+# Boundary events (#859) resolve metrics/ from payload["cwd"] (falling back
+# to the process's actual OS cwd when absent) — isolate every subprocess run
+# to a scratch dir so tests never write metrics/boundary-events.jsonl into
+# the real repo checkout.
+_BOUNDARY_EVENTS_SCRATCH_CWD = tempfile.mkdtemp(prefix="dev-team-destructive-guard-test-")
 
 
 @pytest.fixture(autouse=True)
@@ -40,6 +47,7 @@ def _run(payload: dict) -> subprocess.CompletedProcess:
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "LANG": "C.UTF-8",
     }
+    payload = {"cwd": _BOUNDARY_EVENTS_SCRATCH_CWD, **payload}
     return subprocess.run(
         [sys.executable, str(_HOOK_PY)],
         input=json.dumps(payload).encode(),

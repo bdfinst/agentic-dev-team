@@ -25,9 +25,20 @@ from pathlib import Path
 _HOOK_DIR = Path(__file__).resolve().parent
 # Add the plugin hooks dir to sys.path so the mutation_adapters package resolves.
 sys.path.insert(0, str(_HOOK_DIR))
+sys.path.insert(0, str(_HOOK_DIR / "lib"))
 
 from mutation_adapters import lib as adapter_lib  # noqa: E402
 from mutation_adapters import mutmut, pitest, stryker, stryker_net  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
 
 
 _JQ_MISSING_MESSAGE = (
@@ -167,6 +178,10 @@ def main() -> int:
         if isinstance(data, list) and data:
             reason = adapter_lib.format_blocking_reason(zero_kills_file, command)
             _emit_block_pretty(reason)
+            emit_boundary_event(
+                payload.get("cwd") or ".", "mutation_gate", "Bash", "block",
+                "mutation-gate-zero-kills", payload.get("session_id"),
+            )
 
     return 0
 

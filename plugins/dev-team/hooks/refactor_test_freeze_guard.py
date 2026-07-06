@@ -26,6 +26,16 @@ sys.path.insert(0, str(_LIB_DIR))
 
 from stdin_json import read_stdin_json  # noqa: E402
 from test_file_classify import is_test_file, read_build_phase  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
 
 AUDIT_RELPATH = Path("metrics") / "refactor-freeze.jsonl"
 
@@ -108,6 +118,12 @@ def main() -> int:
         payload = read_stdin_json()
         file_path = _extract_file_path(payload)
         exit_code, lines = evaluate(file_path, project_dir)
+        if exit_code == 2:
+            session_id = payload.get("session_id") if isinstance(payload, dict) else None
+            emit_boundary_event(
+                project_dir, "refactor_test_freeze_guard", "Write", "block",
+                "refactor-test-freeze", session_id,
+            )
     except Exception as exc:  # fail open — a broken guard never blocks work
         audit(project_dir, "freeze", "fail-open", reason="internal error: {}".format(exc))
         return 0

@@ -38,10 +38,25 @@ _LIB_DIR = _HOOK_DIR / "lib"
 sys.path.insert(0, str(_LIB_DIR))
 try:
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
+    from boundary_events import (  # type: ignore[import-not-found]
+        emit_boundary_event as _emit_boundary_event,
+    )
 except ImportError:  # pragma: no cover
 
     def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
         return None
+
+    def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
+        return None
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
 
 
 # Verify-family commands — the verify-guard hook handles retry-nudging for
@@ -184,6 +199,7 @@ def main() -> int:
         print(f"bash-retry-guard: This command has run {count} consecutive times.")
         print("  If it keeps failing, investigate the root cause rather than retrying.")
         print("  Set DEV_TEAM_BASH_RETRY_THRESHOLD=0 to disable this warning.")
+        emit_boundary_event(cwd, "bash_retry_guard", "Bash", "warn", "bash-retry-threshold", session_id)
 
     return 0
 
