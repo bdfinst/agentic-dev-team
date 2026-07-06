@@ -5396,13 +5396,17 @@
       "summary": "Create an ordered list of RED-GREEN cycles, each a vertical slice:",
       "anchor": "3-design-tdd-fix-plan"
     },
-    "4. Write the Triage Record": {
-      "summary": "**Resolve the slug** from the bug title/description with this 8-step algorithm:",
-      "anchor": "4-write-the-triage-record"
+    "4. Verification Checkpoint": {
+      "summary": "**Hard gate — cannot be skipped implicitly.** Before writing a `confirmed`",
+      "anchor": "4-verification-checkpoint"
     },
-    "5. Present Results": {
+    "5. Write the Triage Record": {
+      "summary": "**Resolve the slug** from the bug title/description with this 8-step algorithm:",
+      "anchor": "5-write-the-triage-record"
+    },
+    "6. Present Results": {
       "summary": "Print exactly two lines:",
-      "anchor": "5-present-results"
+      "anchor": "6-present-results"
     }
   },
   "plugins/dev-team/skills/ubiquitous-language/SKILL.md": {
