@@ -69,6 +69,20 @@ If detected, take **all four** steps below. Missing any one recreates the fake-s
 
 The four steps above defend against the *fake-100 %-via-Timeout* variant of the MTP-runner incompatibility. The **complementary** *fake-0 %-via-Survived* variant (mutation-switch not observing mutations at runtime; every mutant reported `Survived`; final score `0.00 %`) is caught by [`SKILL.md`](../../SKILL.md) **Step 1c smoke gate** — run a single-file probe before any full run and parse `mutation-report.json` for `Killed > 0`. Do not skip Step 1c on xunit.v3 configurations; it is the specific safety net for issues [#554](https://github.com/bdfinst/agentic-dev-team/issues/554) and [#557](https://github.com/bdfinst/agentic-dev-team/issues/557). Inside a Claude Code session the [`mutation_testing_smoke_gate`](../../../../hooks/mutation_testing_smoke_gate.py) PreToolUse hook enforces this step automatically — see SKILL.md § Step 1c for the operator-facing contract.
 
+## .NET 10 targets: default `vstest` runner can silently fake a 0% score
+
+On **.NET 10** test-project targets (and possibly .NET 9), Stryker.NET's bundled default `vstest` test runner can silently fail to capture coverage — it ships a `net8.0` `vstest.console.dll` that cannot correctly execute newer-TFM test assemblies. The observable symptom is a **fake `Killed: 0` / `Survived: N` / 0.00 % score**, even though the same tests pass fine under a direct `dotnet test`. This is the complementary failure mode to the [xunit.v3 detection](#xunitv3-detection-do-this-before-configuring-runs) section above (that one produces a fake **100 %** via `Timeout`; this one produces a fake **0 %** via `Survived`) — both are caught by [`SKILL.md`](../../SKILL.md) **Step 1c smoke gate**, but this one is easy to mistake for a legitimately weak test suite rather than a broken runner.
+
+**Recommend `-t mtp` (the Microsoft Testing Platform runner) as the default for .NET 10+ targets, not an afterthought:**
+
+```bash
+export DOTNET_ROOT="${DOTNET_ROOT:-/opt/homebrew/opt/dotnet/libexec}"
+dotnet build <solution> -c Debug --nologo
+dotnet stryker -t mtp --mutate "**/ChangedFile.cs" -O StrykerOutput/probe
+```
+
+If a smoke probe (Step 1c) or full run reports `Killed: 0` alongside `Survived > 0` on a .NET 10 target using the default runner, retry with `-t mtp` before assuming the test suite doesn't cover the mutated code — a real coverage-capture bug, not a real test gap, is the more likely explanation on this TFM.
+
 ## Default `coverage-analysis: perTest` for xunit.v2 / non-MTP projects
 
 For Stryker.NET projects that are **not** on xunit.v3 / the MTP runner (see the [xunit.v3 detection](#xunitv3-detection-do-this-before-configuring-runs) section above, which stays mandatory for those projects), default `"coverage-analysis": "perTest"` in `stryker-config.json` rather than `"off"`. Per-test coverage tracking lets each mutant run only the tests that actually exercise the mutated line, instead of the full suite — a significant speedup on large suites.
