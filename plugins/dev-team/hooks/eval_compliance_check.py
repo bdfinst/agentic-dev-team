@@ -18,10 +18,11 @@ Refs: #572 (bash → Python migration epic).
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
 
 
 def _read_stdin() -> str:
@@ -68,7 +69,53 @@ def _grep_matches(content: str, pattern: str) -> bool:
     return re.search(pattern, content) is not None
 
 
-def _agent_checks(content: str, agent_name: str, file_path: str) -> str:
+def _project_root(payload: dict) -> Path:
+    """Resolve the project root the same way for every hook that needs one
+    (docs/python-hook-contract.md § Environment variables): prefer
+    ``CLAUDE_PROJECT_DIR``, fall back to the stdin payload's ``cwd``, then
+    ``Path.cwd()``. Never raises."""
+    env_root = os.environ.get("CLAUDE_PROJECT_DIR")
+    if env_root:
+        return Path(env_root)
+    cwd = payload.get("cwd")
+    if isinstance(cwd, str) and cwd:
+        return Path(cwd)
+    return Path.cwd()
+
+
+def _fixtured_agents(project_root: Path) -> Set[str]:
+    """Scan ``evals/expected/*.json`` for ``applicableAgents`` (#860).
+
+    Returns the empty set when ``evals/expected/`` does not exist — the
+    normal shape for a cache-only plugin install (no ``evals/`` dir ships)
+    — so the EVAL REQUIRED advisory below silently degrades to nothing
+    rather than erroring."""
+    expected_dir = project_root / "evals" / "expected"
+    if not expected_dir.is_dir():
+        return set()
+
+    agents: Set[str] = set()
+    for fixture_file in expected_dir.glob("*.json"):
+        try:
+            data = json.loads(fixture_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        applicable = data.get("applicableAgents")
+        if isinstance(applicable, list):
+            for entry in applicable:
+                if isinstance(entry, str):
+                    agents.add(entry)
+    return agents
+
+
+def _agent_checks(
+    content: str,
+    agent_name: str,
+    file_path: str,
+    eval_required: bool = False,
+) -> str:
     """Return the full stdout block for an agent-file update.
 
     Order of checks matches the .sh; the FAILS and WARNS strings accumulate
@@ -172,6 +219,12 @@ def _agent_checks(content: str, agent_name: str, file_path: str) -> str:
     parts.append("\n")
     parts.append(f"  Agent file changed: {agent_name}\n")
     parts.append(f"  ACTION REQUIRED: Run /agent-audit {file_path}\n")
+    if eval_required:
+        parts.append(
+            f"  EVAL REQUIRED: this agent has eval fixtures — run "
+            f"/agent-eval --agent {agent_name} and record the result "
+            f"before adopting this change.\n"
+        )
     parts.append(
         "  DOC SYNC REQUIRED: Update .claude/CLAUDE.md and "
         "docs/agent_info.md to reflect any changes.\n"
@@ -316,7 +369,12 @@ def main() -> int:
 
     if file_type == "agent":
         agent_name = Path(file_path).stem
-        sys.stdout.write(_agent_checks(content, agent_name, file_path))
+        fixtured = _fixtured_agents(_project_root(payload))
+        sys.stdout.write(
+            _agent_checks(
+                content, agent_name, file_path, eval_required=agent_name in fixtured
+            )
+        )
     elif file_type == "skill":
         skill_name = Path(file_path).stem
         block = _skill_checks(content, skill_name)
