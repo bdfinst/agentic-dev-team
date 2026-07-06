@@ -112,22 +112,33 @@ def _load_patterns() -> List[Tuple[str, str]]:
     return pairs if pairs else list(_DEFAULT_PATTERNS)
 
 
-def _extract_target(
+def _extract_all_targets(
     command: str, patterns: List[Tuple[str, str]]
-) -> Optional[Tuple[str, str]]:
-    """Return (rule_id, raw_target) for the first pattern that matches, or
-    None when the command is unparseable/ambiguous — never raises."""
+) -> List[Tuple[str, str]]:
+    """Return (rule_id, raw_target) for every occurrence of every pattern
+    that matches the command, evaluated independently rather than
+    short-circuited at the first hit (#914).
+
+    A compound command (`;`/`&&`/`|`-joined) can carry a harmless match for
+    an earlier-listed pattern (e.g. a `redirect` onto a scratch file) while,
+    elsewhere in the same string, a later-listed pattern (e.g. `mv-cp`)
+    matches a genuinely dangerous target — stopping at the first *pattern*
+    match let the earlier, unrelated hit mask the real one. The same masking
+    can happen within a single rule too (e.g. two `mv` segments, only the
+    second targeting a test file), so every occurrence of a matching pattern
+    is collected via `re.finditer`, not just its first occurrence via
+    `re.search`. Never raises."""
+    matches: List[Tuple[str, str]] = []
     for rule_id, regex in patterns:
         try:
-            match = re.search(regex, command)
+            found = list(re.finditer(regex, command))
         except re.error:
             continue
-        if match is None:
-            continue
-        target = match.groupdict().get("target")
-        if target:
-            return rule_id, target
-    return None
+        for match in found:
+            target = match.groupdict().get("target")
+            if target:
+                matches.append((rule_id, target))
+    return matches
 
 
 def _normalize_target(target: str) -> str:
@@ -177,33 +188,30 @@ def evaluate(
     if state is None or state.get("phase") != "refactor":
         return 0, [], None
 
-    match = _extract_target(command, _load_patterns())
-    if match is None:
-        return 0, [], None
-    rule_id, raw_target = match
-
     staged = state.get("test_files_staged", [])
-    rel_target = _resolve_relative(raw_target, project_dir)
-    if not _matches_staged_or_new_test(rel_target, staged):
-        return 0, [], None
+    for rule_id, raw_target in _extract_all_targets(command, _load_patterns()):
+        rel_target = _resolve_relative(raw_target, project_dir)
+        if not _matches_staged_or_new_test(rel_target, staged):
+            continue
 
-    step = state.get("step") if isinstance(state.get("step"), str) else None
-    audit(project_dir, "bash-freeze", "block", file=rel_target, step=step)
-    step_label = " (step {})".format(step) if step else ""
-    return (
-        2,
-        [
-            "[BLOCK] Tests are frozen during REFACTOR{}.".format(step_label),
-            "A refactor step must never change a test — refactoring is",
-            "behavior-preserving by definition (tests-frozen invariant, Rec 4,",
-            "docs/experiments/RECOMMENDATIONS.md).",
-            "File: {}".format(rel_target),
-            "Recovery: leave REFACTOR and return to the TEST phase, make the",
-            "test change there, re-verify the full suite green (pasted",
-            "evidence), then re-enter REFACTOR.",
-        ],
-        rule_id,
-    )
+        step = state.get("step") if isinstance(state.get("step"), str) else None
+        audit(project_dir, "bash-freeze", "block", file=rel_target, step=step)
+        step_label = " (step {})".format(step) if step else ""
+        return (
+            2,
+            [
+                "[BLOCK] Tests are frozen during REFACTOR{}.".format(step_label),
+                "A refactor step must never change a test — refactoring is",
+                "behavior-preserving by definition (tests-frozen invariant, Rec 4,",
+                "docs/experiments/RECOMMENDATIONS.md).",
+                "File: {}".format(rel_target),
+                "Recovery: leave REFACTOR and return to the TEST phase, make the",
+                "test change there, re-verify the full suite green (pasted",
+                "evidence), then re-enter REFACTOR.",
+            ],
+            rule_id,
+        )
+    return 0, [], None
 
 
 def main() -> int:
@@ -219,7 +227,9 @@ def main() -> int:
                 command = raw
         exit_code, lines, rule_id = evaluate(command, project_dir)
         if exit_code == 2:
-            session_id = payload.get("session_id") if isinstance(payload, dict) else None
+            session_id = (
+                payload.get("session_id") if isinstance(payload, dict) else None
+            )
             emit_boundary_event(
                 project_dir,
                 "refactor_test_bash_guard",
