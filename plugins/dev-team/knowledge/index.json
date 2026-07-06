@@ -3564,6 +3564,10 @@
       "summary": "The helper builds each dispatch to leak as little parent state as possible:",
       "anchor": "isolation-guarantees"
     },
+    "Auth vs. isolation (#957)": {
+      "summary": "The fresh `HOME` also wipes `~/.claude.json`, which holds account/",
+      "anchor": "auth-vs-isolation-957"
+    },
     "Honest upstream caveat": {
       "summary": "The `session_id` and **tool-surface** inheritance is an **upstream Claude Code /",
       "anchor": "honest-upstream-caveat"

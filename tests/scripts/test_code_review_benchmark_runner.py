@@ -272,6 +272,58 @@ def test_extract_review_json_none_on_garbage() -> None:
     assert runner._extract_review_json(None) is None
 
 
+def test_make_isolated_dispatch_fn_carries_over_auth_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`make_isolated_dispatch_fn()`'s dispatch closure must call
+    `copy_auth_state()` (#957) so the harness's own runs keep the
+    operator's real Claude Code login — unlike the standalone
+    `isolated_dispatch.py` script/skill, where this is opt-in."""
+    calls = []
+
+    class _FakeIsolatedDispatch:
+        @staticmethod
+        def make_cell_home():
+            home = tmp_path / "cell-home"
+            home.mkdir(exist_ok=True)
+            return home
+
+        @staticmethod
+        def copy_auth_state(home):
+            calls.append(("copy_auth_state", home))
+            return True
+
+        @staticmethod
+        def new_session_id():
+            return "11111111-1111-1111-1111-111111111111"
+
+        @staticmethod
+        def build_env(home):
+            return {}
+
+        @staticmethod
+        def build_cmd(prompt, session_id, model, cwd=None):
+            return ["claude", "-p", prompt]
+
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _FakeIsolatedDispatch
+    )
+
+    import subprocess as subprocess_module
+
+    def fake_run(cmd, **kwargs):
+        return subprocess_module.CompletedProcess(
+            args=cmd, returncode=0, stdout=json.dumps({"result": "{}"})
+        )
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    dispatch_fn("/code-review --json", str(tmp_path))
+
+    assert calls == [("copy_auth_state", tmp_path / "cell-home")]
+
+
 def test_append_and_resume_roundtrip(tmp_path: Path) -> None:
     hit_record = {
         "dataset": "defects4j",

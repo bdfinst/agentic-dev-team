@@ -107,3 +107,54 @@ def test_build_cmd_skip_permissions_flag_is_gated():
     without_skip = mod.build_cmd("p", sid, "sonnet", skip_permissions=False)
     assert "--dangerously-skip-permissions" in with_skip
     assert "--dangerously-skip-permissions" not in without_skip
+
+
+def test_copy_auth_state_copies_claude_json_into_cell_home(tmp_path):
+    mod = _load()
+    source_home = tmp_path / "real-home"
+    source_home.mkdir()
+    (source_home / ".claude.json").write_text('{"userID": "abc"}', encoding="utf-8")
+
+    cell_home = tmp_path / "cell-home"
+    cell_home.mkdir()
+
+    assert mod.copy_auth_state(cell_home, source_home=source_home) is True
+    copied = (cell_home / ".claude.json").read_text(encoding="utf-8")
+    assert copied == '{"userID": "abc"}'
+
+
+def test_copy_auth_state_false_when_source_missing(tmp_path):
+    mod = _load()
+    source_home = tmp_path / "no-claude-json-here"
+    source_home.mkdir()
+    cell_home = tmp_path / "cell-home"
+    cell_home.mkdir()
+
+    assert mod.copy_auth_state(cell_home, source_home=source_home) is False
+    assert not (cell_home / ".claude.json").exists()
+
+
+def test_main_preserve_auth_flag_defaults_off(monkeypatch, tmp_path):
+    mod = _load()
+    captured = {}
+
+    def fake_run(prompt, cwd, model, timeout, preserve_auth=False):
+        captured["preserve_auth"] = preserve_auth
+        return 0
+
+    monkeypatch.setattr(mod, "run", fake_run)
+    mod.main(["say hi"])
+    assert captured["preserve_auth"] is False
+
+
+def test_main_preserve_auth_flag_can_be_enabled(monkeypatch, tmp_path):
+    mod = _load()
+    captured = {}
+
+    def fake_run(prompt, cwd, model, timeout, preserve_auth=False):
+        captured["preserve_auth"] = preserve_auth
+        return 0
+
+    monkeypatch.setattr(mod, "run", fake_run)
+    mod.main(["say hi", "--preserve-auth"])
+    assert captured["preserve_auth"] is True

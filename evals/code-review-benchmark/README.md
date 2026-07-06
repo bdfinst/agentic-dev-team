@@ -65,7 +65,13 @@ errors this was built to avoid).
 
 - The `claude` CLI available on `PATH` (used headlessly via
   `plugins/dev-team/skills/headless-run/scripts/isolated_dispatch.py`'s
-  session-isolation approach — see #842).
+  session-isolation approach — see #842), authenticated via `claude login`
+  (a subscription). Each dispatch runs in a fresh, isolated `HOME` (no
+  shared memory/conversation history), but carries your real
+  `~/.claude.json` login state into that sandbox (`copy_auth_state()`,
+  #957) so it doesn't need `ANTHROPIC_API_KEY` — this also means your
+  configured `mcpServers` list rides along into the dispatch, a deliberate
+  tradeoff over stricter isolation.
 
 ## Invocation contract (confirmed against the real skill, not assumed)
 

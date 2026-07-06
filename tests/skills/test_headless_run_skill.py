@@ -87,3 +87,10 @@ def test_body_references_the_helper_script_by_plugin_root_path():
 
 def test_registered_in_skills_registry():
     assert "skills/headless-run/SKILL.md" in SKILLS_REG.read_text()
+
+
+def test_body_documents_preserve_auth_tradeoff():
+    text = _text()
+    assert grep(r"--preserve-auth", text)
+    assert grep(r"mcpServers", text)
+    assert grep(r"ANTHROPIC_API_KEY", text)
