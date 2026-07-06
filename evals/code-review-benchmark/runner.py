@@ -83,7 +83,7 @@ def _build_scoped_dir(checkout_dir: str, files: List[str]) -> str:
     return scoped
 
 
-def _skip_record(
+def skip_record(
     case: Dict[str, Any], reason: str, raw_output_path: Optional[str] = None
 ) -> Dict[str, Any]:
     return {
@@ -103,6 +103,7 @@ def run_case(
     dispatch_fn: Callable[[str, str], Dict[str, Any]],
     results_dir: Any,
     ground_truth_fn: Optional[Callable[[str], List[Any]]] = None,
+    test_fn: Optional[Callable[[str], Dict[str, Any]]] = None,
     scope: str = "fix-only",
     tolerance: int = scorer.DEFAULT_TOLERANCE,
     workdir_root: Optional[str] = None,
@@ -113,7 +114,11 @@ def run_case(
     (used only when `case["ground_truth_hunks"]` is empty, e.g. BugsJS, whose
     ground truth requires the post-checkout git history) are pre-bound
     closures the caller builds per case — this function has no knowledge of
-    which dataset/adapter it's running.
+    which dataset/adapter it's running. `test_fn(checkout_dir) -> dict`,
+    when supplied, is called against the full checkout (before any
+    `fix-only` scoping copies files out) as a diagnostic sanity check that
+    the buggy revision reproduces a failing test; it never gates or skips
+    the case, and its result lands in the record as `test_verification`.
     """
     results_dir = Path(results_dir)
     raw_dir = results_dir / "raw"
@@ -123,7 +128,7 @@ def run_case(
     review_dir: Optional[str] = None
     try:
         if not checkout_fn(checkout_dir):
-            return _skip_record(case, "checkout failed")
+            return skip_record(case, "checkout failed")
 
         ground_truth_hunks = list(case.get("ground_truth_hunks") or [])
         if not ground_truth_hunks and ground_truth_fn is not None:
@@ -132,9 +137,21 @@ def run_case(
                 h.to_dict() if hasattr(h, "to_dict") else h for h in hunks
             ]
         if not ground_truth_hunks:
-            return _skip_record(case, "no ground-truth hunks")
+            return skip_record(case, "no ground-truth hunks")
 
         ground_truth_files = sorted({h["file"] for h in ground_truth_hunks})
+
+        test_verification: Optional[Dict[str, Any]] = None
+        if test_fn is not None:
+            try:
+                test_verification = test_fn(checkout_dir)
+            except Exception as exc:  # noqa: BLE001 - a broken test_fn must not crash the case
+                test_verification = {
+                    "configured": False,
+                    "ran": False,
+                    "reproduced": False,
+                    "error": str(exc),
+                }
 
         if scope == "full-repo":
             review_dir = checkout_dir
@@ -149,7 +166,7 @@ def run_case(
 
         review_json = _extract_review_json(dispatch_result.get("result_text"))
         if review_json is None:
-            return _skip_record(case, "unparseable --json output", str(raw_path))
+            return skip_record(case, "unparseable --json output", str(raw_path))
 
         findings = _flatten_findings(review_json)
         scored = scorer.score(ground_truth_hunks, findings, tolerance=tolerance)
@@ -164,6 +181,7 @@ def run_case(
             "findings": findings,
             "unmatched_findings": scored["unmatched"],
             "raw_output_path": str(raw_path),
+            "test_verification": test_verification,
         }
     finally:
         shutil.rmtree(checkout_dir, ignore_errors=True)

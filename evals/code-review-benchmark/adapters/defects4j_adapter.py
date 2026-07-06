@@ -18,7 +18,7 @@ from __future__ import annotations
 import csv
 import shutil
 from pathlib import Path
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from .common import BenchmarkCase, run_with_timeout, unified_diff_hunks
 
@@ -133,6 +133,73 @@ def checkout(
     except (OSError, ValueError):
         return False
     return proc.returncode == 0
+
+
+def run_tests(
+    case: BenchmarkCase,
+    checkout_dir: str,
+    run_fn=DEFAULT_RUN_FN,
+    compile_timeout: int = 300,
+    test_timeout: int = 600,
+) -> Dict[str, Any]:
+    """Configure (`defects4j compile`) and run (`defects4j test`) the buggy checkout.
+
+    Diagnostic sanity check, not a gate: confirms the buggy revision
+    actually reproduces a failing test via Defects4J's own bookkeeping
+    (`<checkout_dir>/failing_tests`), which lists trigger tests as lines
+    `--- <test.class>::<method>`. Never raises — any subprocess/OS failure
+    is folded into the returned dict, same contract as `checkout()`/
+    `describe()` above.
+    """
+    try:
+        compile_proc = run_fn(
+            compile_timeout,
+            ["defects4j", "compile"],
+            cwd=checkout_dir,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, ValueError) as exc:
+        return {
+            "configured": False,
+            "ran": False,
+            "reproduced": False,
+            "error": str(exc),
+        }
+    if compile_proc.returncode != 0:
+        return {"configured": False, "ran": False, "reproduced": False}
+
+    try:
+        test_proc = run_fn(
+            test_timeout,
+            ["defects4j", "test"],
+            cwd=checkout_dir,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, ValueError) as exc:
+        return {
+            "configured": True,
+            "ran": False,
+            "reproduced": False,
+            "error": str(exc),
+        }
+
+    failing_tests: List[str] = []
+    failing_tests_path = Path(checkout_dir) / "failing_tests"
+    if failing_tests_path.is_file():
+        failing_tests = [
+            line[len("---") :].strip()
+            for line in failing_tests_path.read_text(encoding="utf-8").splitlines()
+            if line.startswith("---")
+        ]
+
+    return {
+        "configured": True,
+        "ran": test_proc.returncode == 0,
+        "reproduced": bool(failing_tests),
+        "failing_tests": failing_tests,
+    }
 
 
 def describe(
