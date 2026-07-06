@@ -8,6 +8,10 @@ argument-hint: "[--path <dir>]"
 
 # Test Health
 
+Role: worker. This command produces a strategic test-health report — it does
+not edit code or tests; fixes go to `/apply-fixes`, refactors to `/plan` /
+`/build`.
+
 ## Overview
 
 An **advisory, project-wide** skill: it produces the *strategic-health* view of a test suite that a team needs periodically — the suite's **shape** vs. its architecture, **Agile Testing Quadrant** coverage, **coverage + mutation** health rolled up to ROI, flaky-test management, and **automation maturity** — then an ordered improvement plan. It complements, and does not duplicate, `cd-test-architecture`: that skill owns the CD-determinism + pipeline-placement assessment, which this skill **delegates to** rather than re-deriving.

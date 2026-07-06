@@ -7,6 +7,9 @@ user-invocable: true
 
 # Legacy Code
 
+Role: worker. This command applies characterization-testing and
+dependency-breaking techniques directly to the code under change.
+
 ## Overview
 
 Techniques for safely modifying code that lacks tests or has poor structure. Based on the principle that legacy code is code without tests (Michael Feathers' definition) — regardless of age. The goal is to get code under test before changing it, then improve structure incrementally.

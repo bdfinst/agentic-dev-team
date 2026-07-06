@@ -7,6 +7,9 @@ user-invocable: true
 
 # Domain Analysis
 
+Role: worker. This command produces a domain-health report — it is analytical,
+not prescriptive; it does not redesign code or write implementation.
+
 ## Overview
 
 Assess the domain health of an existing multi-component system. Produce a structured report covering bounded context boundaries, context map relationships, domain event flows, value stream throughput, and a friction report identifying where the architecture inhibits continuous delivery.

@@ -1,11 +1,15 @@
 ---
 name: specs
 description: Collaborative workflow for producing the three specification artifacts (intent, architecture notes, acceptance criteria) that describe a change and its goals before any implementation begins. Its value is resolving ambiguity with a human before build starts — not synthesizing edge cases. Use when starting any new feature or behavior change — do not write code until artifacts pass the consistency gate. BDD/Gherkin scenarios are authored later, per slice, in /plan.
-role: worker
+role: orchestrator
 user-invocable: true
 ---
 
 # Agent-Assisted Specification
+
+Role: orchestrator. This command produces specification artifacts and gates
+progression to `/plan` — it does not write implementation code, author
+per-slice Gherkin scenarios, or begin building.
 
 ## Positioning — what this skill is for
 

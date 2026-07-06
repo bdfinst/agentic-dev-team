@@ -69,6 +69,28 @@ def _grep_matches(content: str, pattern: str) -> bool:
     return re.search(pattern, content) is not None
 
 
+def _split_frontmatter(content: str) -> "tuple[str, str]":
+    """Split a SKILL.md file into (frontmatter, body). If the file has no
+    `---`-delimited frontmatter block, frontmatter is '' and body is the
+    whole content."""
+    if content.startswith("---"):
+        end = content.find("\n---", 3)
+        if end != -1:
+            return content[3:end], content[end + 4 :]
+    return "", content
+
+
+def _is_user_invocable(frontmatter: str) -> bool:
+    """True when the skill's frontmatter declares `user-invocable: true`
+    (i.e. it's a slash command, not a purely agent-loaded knowledge skill)."""
+    return (
+        re.search(
+            r"^user-invocable:\s*true\s*$", frontmatter, re.MULTILINE | re.IGNORECASE
+        )
+        is not None
+    )
+
+
 def _project_root(payload: dict) -> Path:
     """Resolve the project root the same way for every hook that needs one
     (docs/python-hook-contract.md § Environment variables): prefer
@@ -247,7 +269,30 @@ def _skill_checks(content: str, skill_name: str) -> str:
         warnings.append(f"  WARN: {msg}\n")
 
     # 1. Role declaration (WARN)
-    if not _grep_i_matches(
+    #
+    # User-invocable skills (slash commands) are workflow initiators — they
+    # need an explicit `Role:` line in the SKILL.md *body* (immediately after
+    # the H1, matching /plan, /build, /code-review, /pr, /ship). A
+    # frontmatter-only `role:` field is not sufficient for these: it's easy
+    # to add without ever stating the orchestration-discipline contract the
+    # body line carries (see agents/orchestrator.md). Agent-loaded,
+    # non-user-invocable knowledge skills are exempt from the stricter body
+    # check — a frontmatter `role:` (or nothing, for pure reference material)
+    # is fine for those.
+    frontmatter, body = _split_frontmatter(content)
+    if _is_user_invocable(frontmatter):
+        if not re.search(
+            r"^Role:\s*(orchestrator|worker|implementation)\b",
+            body,
+            re.MULTILINE,
+        ):
+            warn(
+                f"{skill_name}: Missing explicit 'Role:' line in the skill body "
+                f"(user-invocable workflow skills must declare Role: orchestrator, "
+                f"worker, or implementation right after the H1 — a frontmatter-only "
+                f"`role:` field does not satisfy this)."
+            )
+    elif not _grep_i_matches(
         content,
         r"role:\s*(orchestrator|worker|implementation)",
     ):

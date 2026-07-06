@@ -242,13 +242,23 @@ those agents run under `/code-review` for semantic depth.
 Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and check:
 
 1. **Role declaration**: Does the skill declare its role?
-   - All skills MUST have a `Role:` line (orchestrator, worker, or
-     implementation)
+   - **User-invocable skills** (`user-invocable: true` — slash commands and
+     workflow initiators) MUST have an explicit `Role:` line in the SKILL.md
+     **body**, immediately after the H1 (matching `/plan`, `/build`,
+     `/code-review`, `/pr`, `/ship`): `Role: orchestrator`, `Role: worker`, or
+     `Role: implementation`. A frontmatter-only `role:` field (lowercase key)
+     does NOT satisfy this — it's easy to add without stating the
+     orchestration-discipline contract the body line carries. WARN if a
+     user-invocable skill has no body `Role:` line.
+   - **Agent-loaded, non-user-invocable knowledge skills** (no
+     `user-invocable: true`) are exempt from the body-line requirement — a
+     frontmatter `role:` field, or no role at all for pure reference
+     material, is acceptable. WARN only if such a skill has no role
+     declared anywhere (frontmatter or body).
    - Orchestrators route work and aggregate results — they must not
      review or modify code
    - Workers perform semantic analysis using agent definitions
    - Implementation skills modify code following correction prompts
-   - WARN if role is missing
 
 2. **Constraints section**: Does the skill declare its boundaries?
    - All skills SHOULD have a constraints section matching their role
