@@ -25,19 +25,21 @@ in shipped code against this doc's coverage and fails on omission.
 ## `boundary-events.jsonl`
 
 **Added by #859.** The boundary-level (policy-gateway) channel: every guard
-hook's block/warn/bypass decision, plus human-intervention keywords.
+hook's block/warn/bypass decision, plus human-intervention keywords. Extended
+by #906 with a fifth decision, `revert`, for hooks that don't warn or block
+but actively correct state after the fact.
 
 | Field | Type | Values / source |
 |---|---|---|
 | `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
 | `hook` | string | Emitting hook's module name, e.g. `destructive_guard`, `verify_guard`, `pre_commit_review`, `telemetry` |
 | `tool` | string | Hooked tool/event: `Bash`, `Write`, `Edit`, `Skill`, `Agent`, `UserPromptSubmit` |
-| `decision` | string enum | `block` \| `warn` \| `bypass` \| `intervention` |
+| `decision` | string enum | `block` \| `warn` \| `bypass` \| `intervention` \| `revert` |
 | `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, or intervention keyword) — never free text |
 | `plugin_version` | string | From `.claude-plugin/plugin.json` |
 | `session_id` | string, optional | Opaque per-session ID, when present in the hook payload — enables joins with `session-digest.jsonl` |
 
-- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), and the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`).
+- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), and the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`).
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
 - **Fail-open:** every exception in the emit helper is swallowed — never changes the calling hook's exit code, stdout, or stderr.
 - **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, future `agent-telemetry` cross-machine aggregation (#178).
@@ -292,18 +294,19 @@ a controlled baseline-vs-ablated integration-tier delta (issues caught,
 ## `refactor-freeze.jsonl`
 
 Audit log for the tests-frozen-during-REFACTOR invariant (`#813`) — both the
-enforcement decision and any fail-open diagnostic.
+enforcement decision and any fail-open diagnostic. Extended by `#906` with
+`bash-freeze`, the preventive PreToolUse(Bash) sibling of `freeze`.
 
 | Field | Type | Values / source |
 |---|---|---|
 | `timestamp` | string | ISO-8601 |
-| `hook` | string | `freeze` or `revert` |
+| `hook` | string | `freeze` \| `bash-freeze` \| `revert` |
 | `event` | string enum | `block` \| `fail-open` \| `revert` \| `remove` |
 | `file` | string, optional | File path involved |
 | `step` | string, optional | Plan step label |
 | `reason` | string, optional | Fail-open diagnostic (existing precedent — internal-error text, not a rule ID; unchanged by #859) |
 
-- **Emitter:** `hooks/refactor_test_freeze_guard.py::audit()`, `hooks/refactor_test_revert_guard.py` (via the same `audit()` import).
+- **Emitter:** `hooks/refactor_test_freeze_guard.py::audit()`, `hooks/refactor_test_revert_guard.py` and `hooks/refactor_test_bash_guard.py` (both via the same `audit()` import).
 - **Consent:** unconditional (fails open, audits itself).
 - **Consumers:** none automated yet; inspected manually when the freeze invariant is investigated.
 

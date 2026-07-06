@@ -41,7 +41,7 @@ for _p in (_HOOKS_DIR, _LIB_DIR, _TESTS_LIB):
 import boundary_events  # type: ignore[import-not-found]  # noqa: E402
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
 
-_DECISION_ENUM = {"block", "warn", "bypass", "intervention"}
+_DECISION_ENUM = {"block", "warn", "bypass", "intervention", "revert"}
 _SCHEMA_FIELDS = {"ts", "hook", "tool", "decision", "matched_rule", "plugin_version"}
 _OPTIONAL_FIELDS = {"session_id"}
 

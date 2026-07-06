@@ -74,6 +74,13 @@ def _audit_events(repo: Path):
     return [json.loads(line) for line in path.read_text().splitlines() if line]
 
 
+def _boundary_events(repo: Path):
+    path = repo / "metrics" / "boundary-events.jsonl"
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line]
+
+
 def test_baseline_carryover_is_never_reverted(repo):
     _write_state(repo)
     code, lines = guard.evaluate(repo, now=_NOW)
@@ -96,6 +103,21 @@ def test_post_baseline_change_is_restored_with_advisory_and_audit(repo):
     assert events[0]["file"] == "src/thing.test.js"
 
 
+def test_post_baseline_restore_emits_a_revert_boundary_event(repo):
+    """#906: restoring a dirtied baseline test file emits one boundary
+    event with decision "revert" and matched_rule "restore-baseline"."""
+    _write_state(repo)
+    (repo / "src" / "thing.test.js").write_text("test('weakened', () => {});\n")
+    guard.evaluate(repo, now=_NOW, session_id="sess-1")
+    events = _boundary_events(repo)
+    assert len(events) == 1
+    assert events[0]["decision"] == "revert"
+    assert events[0]["hook"] == "refactor_test_revert_guard"
+    assert events[0]["tool"] == "Bash"
+    assert events[0]["matched_rule"] == "restore-baseline"
+    assert events[0]["session_id"] == "sess-1"
+
+
 def test_deleted_baseline_test_file_is_restored(repo):
     _write_state(repo)
     (repo / "src" / "thing.test.js").unlink()
@@ -114,6 +136,37 @@ def test_test_file_created_during_refactor_is_removed(repo):
     events = _audit_events(repo)
     assert [e["event"] for e in events] == ["remove"]
     assert events[0]["file"] == "src/rogue.spec.js"
+
+
+def test_new_test_file_removal_emits_a_revert_boundary_event(repo):
+    """#906: removing an untracked test file created during REFACTOR emits
+    one boundary event with decision "revert" and matched_rule
+    "remove-untracked-test"."""
+    _write_state(repo)
+    rogue = repo / "src" / "rogue.spec.js"
+    rogue.write_text("test('unreviewed', () => {});\n")
+    guard.evaluate(repo, now=_NOW, session_id="sess-2")
+    events = _boundary_events(repo)
+    assert len(events) == 1
+    assert events[0]["decision"] == "revert"
+    assert events[0]["hook"] == "refactor_test_revert_guard"
+    assert events[0]["matched_rule"] == "remove-untracked-test"
+    assert events[0]["session_id"] == "sess-2"
+
+
+def test_boundary_event_channel_absence_degrades_silently(repo, monkeypatch):
+    """Soft dependency on #859/PR #887 (attempt-and-degrade, same pattern
+    #862 uses): even if the boundary-events channel raises internally, the
+    revert guard's own behavior, stdout, and exit code are unaffected."""
+    _write_state(repo)
+    (repo / "src" / "thing.test.js").write_text("test('weakened', () => {});\n")
+    monkeypatch.setattr(
+        guard, "_emit_boundary_event", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    code, lines = guard.evaluate(repo, now=_NOW)
+    assert code == 0
+    assert (repo / "src" / "thing.test.js").read_text() == _BASELINE_CONTENT
+    assert any(line.startswith("ADVISORY:") for line in lines)
 
 
 def test_untracked_non_test_file_is_left_alone(repo):
