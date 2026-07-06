@@ -52,7 +52,7 @@ Feature: Phase-4 coverage-delta measures mutation on the Story's files; never ga
     Then /coverage-delta's result block has status:"tool_unavailable" and language:"<detected>"
     And mutation-history gets an entry: {story:"S-6", file:"src/order.ts", status:"tool_unavailable"}
     And exit code is 0
-    And the result block names "/init-dev-team" as the installation path
+    And the result block names "/setup" as the installation path
 
   Scenario: tool present at one Story, absent at a later Story
     Given mutation-history shows a prior tool:"stryker" entry for src/order.ts

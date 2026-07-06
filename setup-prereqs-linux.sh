@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# init-dev-team-linux.sh — Linux replica of the dev-team plugin's /init-dev-team skill.
+# setup-prereqs-linux.sh — Linux replica of /setup's prerequisite-install
+# steps (dev-team plugin).
 #
 # Non-interactive: installs ALL dev-team prerequisites by default.
 #   * hard deps: jq, python3
@@ -10,11 +11,13 @@
 #       Java   -> pitest         (needs mvn/gradle + build file)
 #       C#     -> Stryker.NET    (needs dotnet)
 #
-# Mirrors plugins/dev-team/skills/init-dev-team/SKILL.md, Linux paths only.
-# WSL reports "Linux" and is handled here. macOS/Windows are out of scope.
+# Mirrors plugins/dev-team/skills/setup/SKILL.md's Steps 1-6 (prerequisite
+# install only — not the project-config steps that follow it), Linux paths
+# only. WSL reports "Linux" and is handled here. macOS/Windows are out of
+# scope (those paths live in /setup itself, run interactively via Claude Code).
 #
 # Usage:
-#   ./init-dev-team-linux.sh
+#   ./setup-prereqs-linux.sh
 #
 # Env toggles:
 #   NO_CODEGRAPH=1 never auto-init CodeGraph
@@ -37,7 +40,7 @@ OS="$(uname -s)"
 if [ "$OS" != "Linux" ]; then
   warn "This script targets Linux only (uname -s = '$OS')."
   warn "For macOS use brew; for Windows Git Bash use winget/choco/scoop."
-  warn "See plugins/dev-team/skills/init-dev-team/SKILL.md for those paths."
+  warn "See plugins/dev-team/skills/setup/SKILL.md for those paths."
   exit 1
 fi
 
@@ -107,7 +110,7 @@ elif have codegraph; then
     say "CodeGraph: initialized ✓"
     # Share with the team: the .db is machine-local (gitignored), so commit a
     # project-root .mcp.json registering the MCP server. Every clone then
-    # auto-bootstraps its own index via codegraph-bootstrap.sh. Merge without
+    # auto-bootstraps its own index via codegraph_bootstrap.py. Merge without
     # clobbering existing servers.
     MCP_BLOCK='{"mcpServers":{"codegraph":{"type":"stdio","command":"codegraph","args":["serve","--mcp"]}}}'
     if have jq; then
@@ -216,11 +219,16 @@ say ""
 say "--- C#/.NET — Stryker.NET ---"
 if ! have dotnet; then
   say "dotnet not found — skipping Stryker.NET."
-elif dotnet tool list --global 2>/dev/null | grep -q stryker \
-  || dotnet tool list --local 2>/dev/null | grep -q stryker; then
-  say "dotnet-stryker already installed."
+elif dotnet tool list --local 2>/dev/null | grep -q stryker; then
+  say "dotnet-stryker already installed as a local (project-manifest) tool."
   SUMMARY_CS="✓ installed"
 else
+  # A global install does NOT satisfy this check (issue #937) — it doesn't
+  # propagate to teammates who clone the repo and run `dotnet tool restore`,
+  # so it must never substitute for the local .config/dotnet-tools.json entry.
+  if dotnet tool list --global 2>/dev/null | grep -q stryker; then
+    say "dotnet-stryker found globally installed too (informational only — installing the local/project tool below regardless)."
+  fi
   [ -f .config/dotnet-tools.json ] || dotnet new tool-manifest || true
   if dotnet tool install dotnet-stryker; then
     ver="$(dotnet stryker --version 2>/dev/null || echo installed)"

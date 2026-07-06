@@ -40,7 +40,7 @@ def stryker_detect() -> bool:
             pass
     print(
         lib.emit_advisory(
-            "MUTATION GATE ADVISORY: Stryker not installed. Run /init-dev-team to "
+            "MUTATION GATE ADVISORY: Stryker not installed. Run /setup to "
             "install it, or add @stryker-mutator/core manually."
         )
     )

@@ -48,7 +48,7 @@ def stryker_net_detect() -> bool:
             pass
     print(
         lib.emit_advisory(
-            "MUTATION GATE ADVISORY: Stryker.NET not installed. Run /init-dev-team "
+            "MUTATION GATE ADVISORY: Stryker.NET not installed. Run /setup "
             "to install it, or run: dotnet tool install dotnet-stryker"
         )
     )

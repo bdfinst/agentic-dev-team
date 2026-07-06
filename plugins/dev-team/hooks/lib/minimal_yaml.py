@@ -171,6 +171,16 @@ def _split_top_level(s: str, sep: str) -> List[str]:
     return parts
 
 
+def _drop_trailing_comma_part(parts: List[str]) -> List[str]:
+    """A trailing comma before the closing bracket/brace (`[a, b,]`) is valid
+    flow-collection syntax and common auto-formatter output — `_split_top_level`
+    sees it as one extra empty part at the end; drop it. A genuinely blank
+    part anywhere else is left alone (surfaces as a normal parse issue)."""
+    if parts and parts[-1].strip() == "":
+        return parts[:-1]
+    return parts
+
+
 def _parse_flow(text: str) -> Any:
     if text.startswith("["):
         if not text.endswith("]"):
@@ -178,7 +188,8 @@ def _parse_flow(text: str) -> Any:
         inner = text[1:-1].strip()
         if not inner:
             return []
-        return [_parse_scalar(p.strip()) for p in _split_top_level(inner, ",")]
+        parts = _drop_trailing_comma_part(_split_top_level(inner, ","))
+        return [_parse_scalar(p.strip()) for p in parts]
     if text.startswith("{"):
         if not text.endswith("}"):
             raise YamlError(f"unterminated flow mapping: {text!r}")
@@ -186,7 +197,8 @@ def _parse_flow(text: str) -> Any:
         if not inner:
             return {}
         result = {}
-        for part in _split_top_level(inner, ","):
+        parts = _drop_trailing_comma_part(_split_top_level(inner, ","))
+        for part in parts:
             kv = _split_key_value(part.strip())
             if kv is None:
                 raise YamlError(f"malformed flow-mapping entry: {part!r}")
@@ -320,11 +332,22 @@ def _parse_node(lines: List[str], i: int, indent: int) -> Tuple[Any, int]:
     nxt = _next_line(lines, i)
     if nxt is None:
         return None, i
-    li, content, _j = nxt
+    li, content, j = nxt
     if li != indent:
         return None, i
     if content == "-" or content.startswith("- "):
         return _parse_sequence(lines, i, indent)
+    if content.startswith("[") or content.startswith("{"):
+        # A flow collection whose opening bracket is on its own line, e.g.
+        #   skills:
+        #     [
+        #       a,
+        #       b,
+        #     ]
+        # rather than `skills: [a, b]` — `_next_line` already merged the
+        # continuation lines (unbalanced-bracket depth tracking), so `content`
+        # is the complete flow text; just hand it to the scalar/flow parser.
+        return _parse_scalar(content), j
     return _parse_mapping(lines, i, indent)
 
 

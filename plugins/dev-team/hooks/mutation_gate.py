@@ -43,7 +43,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
 
 _JQ_MISSING_MESSAGE = (
     "MUTATION GATE ADVISORY: jq is required but not installed. Run "
-    "/init-dev-team to install it, or: brew install jq (macOS) / apt install jq "
+    "/setup to install it, or: brew install jq (macOS) / apt install jq "
     "(Linux) / winget install jqlang.jq (Windows)."
 )
 
@@ -128,7 +128,7 @@ def main() -> int:
     if adapter == "none":
         _emit_advisory_pretty(
             "MUTATION GATE ADVISORY: no mutation testing adapter for this "
-            "language. Run /init-dev-team to install one (supports JS/TS via "
+            "language. Run /setup to install one (supports JS/TS via "
             "Stryker, Java via pitest, C# via Stryker.NET)."
         )
         return 0
@@ -179,8 +179,12 @@ def main() -> int:
             reason = adapter_lib.format_blocking_reason(zero_kills_file, command)
             _emit_block_pretty(reason)
             emit_boundary_event(
-                payload.get("cwd") or ".", "mutation_gate", "Bash", "block",
-                "mutation-gate-zero-kills", payload.get("session_id"),
+                payload.get("cwd") or ".",
+                "mutation_gate",
+                "Bash",
+                "block",
+                "mutation-gate-zero-kills",
+                payload.get("session_id"),
             )
 
     return 0

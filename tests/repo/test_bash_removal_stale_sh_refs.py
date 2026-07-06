@@ -83,7 +83,7 @@ STALE_REFS = [
         "plugins/dev-team/scripts/issue_deps.py",
     ),
     StaleRef(
-        "plugins/dev-team/skills/init-dev-team/SKILL.md",
+        "setup-prereqs-linux.sh",
         "codegraph-bootstrap.sh",
         "plugins/dev-team/hooks/codegraph_bootstrap.py",
     ),

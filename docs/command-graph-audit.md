@@ -1,6 +1,6 @@
 # Command taxonomy — what each user-invocable command is *for*
 
-Generated 2026-07-05 from the working tree (`plugins/dev-team/skills/`, 81
+Generated 2026-07-05 from the working tree (`plugins/dev-team/skills/`, 80
 user-invocable skills). This report classifies every user-invocable command by
 **purpose** — the question "what is this command for" — rather than by graph
 topology (who-calls-what). The earlier who-calls-what wiring analysis is kept,
@@ -17,14 +17,14 @@ The three lists a maintainer actually reasons about:
 
 A residual fourth group (internal workers, project onboarding, harness plumbing)
 is user-invocable but is not a natural user entry point; it is listed last so the
-taxonomy stays honest and totals 81.
+taxonomy stays honest and totals 80.
 
 ## 1. Orchestration workflows — drive an outcome (22)
 
 ### Core delivery pipeline
 
 | Command | Outcome it drives |
-|---|---|
+| --- | --- |
 | `ship` | Umbrella: spec → plan → build → review → PR → auto-merge, pausing at human gates |
 | `specs` | The three spec artifacts, through the cross-artifact consistency gate |
 | `design-doc` | Research-phase design doc (approval gate) → feeds `plan` |
@@ -49,7 +49,7 @@ taxonomy stays honest and totals 81.
 These dispatch sub-agents/workers and roll up a report or drive convergence.
 
 | Command | Outcome it drives |
-|---|---|
+| --- | --- |
 | `test-improve` | Analyze → improve the suite; dispatches coverage/gherkin/mutation workers |
 | `test-design` | Fans out test-review + test-smell-review + the test-design advisor |
 | `test-health` | Project-wide test-strategy audit rollup (shape, quadrants, coverage + mutation) |
@@ -76,19 +76,18 @@ user), `cost-report`, `agent-readiness` (scores *your* repo — contrast
 `human-oversight-protocol`, `gherkin-public`, `semantic-scan`,
 `test-driven-development` (an opt-in cadence *mode* that steers `build`)
 
-## 3. Plugin lifecycle & self-maintenance — acts on the plugin itself (12)
+## 3. Plugin lifecycle & self-maintenance — acts on the plugin itself (11)
 
 ### Manage the installed plugin
 
 | Command | Purpose |
-|---|---|
+| --- | --- |
 | `upgrade` | Check for and apply plugin updates via the official mechanism |
-| `init-dev-team` | Install the plugin's required tools (jq, python3, language toolchains) |
 
 ### Develop & improve the plugin
 
 | Command | What it maintains |
-|---|---|
+| --- | --- |
 | `agent-audit` | Structural compliance of agents / skills / hooks |
 | `agent-eval` | Runs eval fixtures against the review agents; grades detection accuracy |
 | `harness-audit` | Review-agent effectiveness, model routing, orchestration complexity → simplification candidates |
@@ -107,8 +106,10 @@ user), `cost-report`, `agent-readiness` (scores *your* repo — contrast
   `quality-targets-converge`, `issues-from-plan`, `issues-from-assessment`,
   `test-audit-disable`, `gherkin-derive`, `semantic-duplication-scan`
 - **Project onboarding** — user-invoked *after adding the plugin to a repo*; they
-  configure the target repo, not the plugin: `setup` (detect stack; generate
-  CLAUDE.md, hooks, templates) and `project-init` (detect stack, inventory/install
+  configure the target repo, not the plugin: `setup` (install plugin
+  prerequisites — jq, python3, per-language mutation tooling; detect stack;
+  generate CLAUDE.md, hooks, templates — absorbed the former `init-dev-team`
+  command) and `project-init` (detect stack, inventory/install
   static-analysis tools, offer opt-in graph-tools — CodeGraph and/or Graphify, see
   `plugins/dev-team/knowledge/codegraph-vs-graphify.md`). See the open gap below — a command that needs a missing
   tool should prompt the user to run these.

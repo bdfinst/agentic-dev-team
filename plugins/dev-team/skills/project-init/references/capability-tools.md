@@ -30,7 +30,7 @@ repo-local install for a general-purpose CLI like `gh` or `semgrep`. So:
 ## Registry
 
 | Tool | Skills that need it | Offer-when signal | OS-aware install command | Verify probe |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | **semgrep** | `/semgrep-analyze`, security-assessment | Any source lane detected (universal SAST) — opt-in, confirmable | macOS: `brew install semgrep`. Linux: `pipx install semgrep` (fallback `python3 -m pip install --user semgrep`). Windows: `pipx install semgrep`. | `semgrep --version` |
 | **Playwright + Chromium** | `/benchmark`, `/browse`, `/browser-testing`, `/performance-benchmark` | Frontend signals in an **existing** project: React/Svelte/Vue/Angular/Next/Nuxt/SvelteKit/Astro deps, or an `e2e/` dir, or a `playwright.config.*` file. (Greenfield JS scaffold installs it separately.) | Repo-level (npm devDependency): `npm i -D @playwright/test && npx playwright install chromium` | `npx --no-install playwright --version` |
 | **adr** (npryce/adr-tools) | `/adr-tools`, adr-author agent | `docs/adr/`, `docs/decisions/`, or existing ADR `*.md` files present | macOS: `brew install adr-tools`. Linux/Windows: `git clone https://github.com/npryce/adr-tools` and put its `src/` on `PATH` (e.g. symlink into `~/.local/bin`). | `adr help` |
@@ -47,7 +47,7 @@ macOS one-liner for the docker scanners: `brew install hadolint trivy grype`.
 
 ## OS awareness
 
-Mirror the OS detection used by `init-dev-team` — `uname -s` → `Darwin`
+Mirror the OS detection used by `/setup` — `uname -s` → `Darwin`
 (macOS, brew), `Linux` (apt/dnf/yum/pacman, else pipx/user-pip/binary),
 `MINGW*`/`MSYS*` (Windows Git Bash, winget/choco/scoop). WSL reports `Linux`
 and follows the Linux column. When no package manager is detected, print the

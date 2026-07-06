@@ -35,7 +35,7 @@ claude plugin marketplace add bdfinst/agentic-dev-team
 claude plugin install dev-team@bfinster
 ```
 
-Then run `/init-dev-team` and `/setup` in your project. Optional plugins (`security-assessment`, `marketplace-dev`), self-hosted git hosts, install scopes, and the `/upgrade` flow are all covered in the [Getting Started guide](GETTING-STARTED.md).
+Then run `/setup` in your project. Optional plugins (`security-assessment`, `marketplace-dev`), self-hosted git hosts, install scopes, and the `/upgrade` flow are all covered in the [Getting Started guide](GETTING-STARTED.md).
 
 ## Dev team workflow
 

@@ -35,7 +35,7 @@ def mutmut_detect() -> bool:
         pass
     print(
         lib.emit_advisory(
-            "MUTATION GATE ADVISORY: mutmut not installed. Run /init-dev-team to "
+            "MUTATION GATE ADVISORY: mutmut not installed. Run /setup to "
             "install it, or: pip install mutmut"
         )
     )
