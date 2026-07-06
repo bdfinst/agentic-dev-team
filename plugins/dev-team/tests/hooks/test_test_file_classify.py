@@ -72,6 +72,32 @@ def test_java_plain_class_is_not():
     assert is_test_file("src/Thing.java", content="class Thing {}") is False
 
 
+def test_python_test_prefix_is_a_test_file():
+    assert is_test_file("tests/test_calc.py") is True
+
+
+def test_python_test_suffix_is_a_test_file():
+    assert is_test_file("tests/calc_test.py") is True
+
+
+def test_python_test_prefix_is_case_insensitive():
+    assert is_test_file("tests/TEST_calc.py") is True
+
+
+def test_python_bare_test_name_is_not_a_test_file():
+    # "test.py" has no "_" separator — not the pytest/unittest convention.
+    assert is_test_file("src/test.py") is False
+
+
+def test_python_plain_module_is_not_a_test_file():
+    assert is_test_file("src/calc.py") is False
+
+
+def test_python_name_containing_test_substring_is_not_a_test_file():
+    assert is_test_file("src/contest.py") is False
+    assert is_test_file("src/testing.py") is False
+
+
 def test_unreadable_content_probe_is_not_a_test_file(tmp_path):
     # .cs with no content passed and no file on disk — probe fails, not a test.
     assert is_test_file(str(tmp_path / "Ghost.cs")) is False
