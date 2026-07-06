@@ -3044,9 +3044,33 @@
       "summary": "Preference and convention changes: apply after diff preview",
       "anchor": "approval-rules"
     },
+    "Evaluate — the eval gate (#860)": {
+      "summary": "A change that mutates a review agent's effective behavior — a direct edit to",
+      "anchor": "evaluate-the-eval-gate-860"
+    },
+    "1. Determine whether the change is gated": {
+      "summary": "Scan `evals/expected/*.json` for `applicableAgents` arrays.",
+      "anchor": "1-determine-whether-the-change-is-gated"
+    },
+    "2. Get the pre-score": {
+      "summary": "Read `evals/baseline.json`, filtered to pairs whose agent is the touched",
+      "anchor": "2-get-the-pre-score"
+    },
+    "3. Pause for approval, then dispatch the targeted eval": {
+      "summary": "Before dispatching *any* live `/agent-eval` run (pre-run or post-run), show",
+      "anchor": "3-pause-for-approval-then-dispatch-the-targeted-eval"
+    },
+    "4. Compare and decide adoption": {
+      "summary": "| `eval_post` vs `eval_pre` | `eval_verdict` | Default `adoption_status` |",
+      "anchor": "4-compare-and-decide-adoption"
+    },
     "Audit Trail": {
       "summary": "All changes are logged in `metrics/config-changelog.jsonl` (one JSON object per line, append-only).",
       "anchor": "audit-trail"
+    },
+    "Change-contract schema extension (#860)": {
+      "summary": "The nine fields below are **required only for entries that gate through",
+      "anchor": "change-contract-schema-extension-860"
     },
     "Rollback": {
       "summary": "1.",
@@ -3334,29 +3358,33 @@
       "summary": "Read metrics JSONL files from `metrics/`.",
       "anchor": "1-check-for-metrics-data"
     },
-    "2. Analyze review agent effectiveness": {
+    "2. Check for a stale baseline (re-baseline detection, #860)": {
+      "summary": "Report-only — this step never edits `evals/baseline.json` or re-runs evals",
+      "anchor": "2-check-for-a-stale-baseline-re-baseline-detection-860"
+    },
+    "3. Analyze review agent effectiveness": {
       "summary": "For each review agent in the registry (`knowledge/agent-registry.md`):",
-      "anchor": "2-analyze-review-agent-effectiveness"
+      "anchor": "3-analyze-review-agent-effectiveness"
     },
-    "3. Analyze review-value fix rates": {
+    "4. Analyze review-value fix rates": {
       "summary": "Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `performance-metrics`).",
-      "anchor": "3-analyze-review-value-fix-rates"
+      "anchor": "4-analyze-review-value-fix-rates"
     },
-    "4. Analyze model routing": {
+    "5. Analyze model routing": {
       "summary": "For each agent listed in `knowledge/agent-registry.md` (with model tier from its `model:` frontmatter, resolved via the PreToolUse hook per `agents/orchestrator.md` → Resolution Procedure):",
-      "anchor": "4-analyze-model-routing"
+      "anchor": "5-analyze-model-routing"
     },
-    "5. Analyze orchestration complexity": {
+    "6. Analyze orchestration complexity": {
       "summary": "Review the current pipeline for components that may be unnecessary overhead:",
-      "anchor": "5-analyze-orchestration-complexity"
+      "anchor": "6-analyze-orchestration-complexity"
     },
-    "6. Produce report": {
+    "7. Produce report": {
       "summary": "Write the report to the output path using this structure:",
-      "anchor": "6-produce-report"
+      "anchor": "7-produce-report"
     },
-    "7. Present results": {
+    "8. Present results": {
       "summary": "Display a summary of the report and the file path.",
-      "anchor": "7-present-results"
+      "anchor": "8-present-results"
     },
     "Error Handling": {
       "summary": "Missing metrics files: Report what's missing, suggest how to generate data",

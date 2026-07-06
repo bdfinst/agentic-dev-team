@@ -119,19 +119,31 @@ def _assemble(passes: dict, trials: dict, flap_threshold: float) -> dict:
 
 
 def write_baseline(report: dict, target_path, demote_below: float,
-                   min_trials: int, harvest_id: str | None = None) -> tuple[list, list]:
+                   min_trials: int, harvest_id: str | None = None,
+                   model: str | None = None) -> tuple[list, list]:
     """Trust-gated baseline write (#230). A pair is **added** only when it passed
     every trial (pass@k == 1.0); **removed** only when it failed consistently
     (pass@k <= demote_below) over >= min_trials AND is not flaky. A flaky pair is
     never removed — it is quarantined instead (write_quarantine). So a single
     noisy trial (trials < min_trials) can add but never delete. Returns
-    (added, removed) relative to the prior baseline."""
+    (added, removed) relative to the prior baseline.
+
+    `model` (#860) stamps the base model that produced this measured baseline
+    into the record, so `/harness-audit` can detect a stale baseline (scored
+    on a model that has since been upgraded) and prompt a re-baseline. When
+    omitted, a pre-existing `model` field is carried forward unchanged (a
+    baseline write that only tops up pairs shouldn't silently blank the
+    field); when there is no prior value either, the field is left unset —
+    the pre-migration case `/harness-audit` treats as "no prompt"."""
     from datetime import datetime, timezone
     target = Path(target_path)
     existing: set = set()
+    existing_model: str | None = None
     if target.exists():
         try:
-            existing = set(json.loads(target.read_text()).get("passing", []))
+            existing_data = json.loads(target.read_text())
+            existing = set(existing_data.get("passing", []))
+            existing_model = existing_data.get("model")
         except (OSError, json.JSONDecodeError):
             existing = set()
     by_pair = report["by_pair"]
@@ -152,6 +164,9 @@ def write_baseline(report: dict, target_path, demote_below: float,
         "trials": report.get("trials", 0),
         "passing": sorted(merged),
     }
+    resolved_model = model or existing_model
+    if resolved_model:
+        record["model"] = resolved_model  # re-baseline detection input (#860)
     if harvest_id:
         record["harvest_id"] = harvest_id  # provenance: which harvest measured this (#232)
     target.write_text(json.dumps(record, indent=2) + "\n")
@@ -229,6 +244,10 @@ def main(argv=None) -> int:
                     help="write the flaky-pair quarantine the grader excludes (#231)")
     ap.add_argument("--harvest-id",
                     help="stamp this harvest id into the written artifacts (#232 provenance)")
+    ap.add_argument("--model",
+                    help="base model that produced this measured baseline; stamped into "
+                         "the --write-baseline record's `model` field so /harness-audit "
+                         "can detect a stale baseline after a model upgrade (#860)")
     args = ap.parse_args(argv)
 
     if args.trials_root:
@@ -261,7 +280,7 @@ def main(argv=None) -> int:
     if args.write_baseline:
         added, removed = write_baseline(report, args.write_baseline,
                                         args.demote_below, args.min_trials,
-                                        args.harvest_id)
+                                        args.harvest_id, args.model)
         print(f"Baseline (trust-gated) → {args.write_baseline}: "
               f"+{len(added)} / -{len(removed)} "
               f"(min_trials={args.min_trials}, demote_below={args.demote_below}); "
