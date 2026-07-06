@@ -1,5 +1,21 @@
 # Changelog
 
+## [10.3.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.0...dev-team-v10.3.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* add explicit fallback for degenerate branch-base resolution in /build Step 7 ([744d321](https://github.com/bdfinst/agentic-dev-team/commit/744d32174de187e87e9c8b166f9d34529db01f6d)), closes [#916](https://github.com/bdfinst/agentic-dev-team/issues/916)
+* auto-detect src-layout Python projects for mypy invocation ([c35cbbc](https://github.com/bdfinst/agentic-dev-team/commit/c35cbbc6f8799a74db91120c167fa7e10a688d9c)), closes [#917](https://github.com/bdfinst/agentic-dev-team/issues/917)
+* clarify slice-checkbox flip must wait for verify and invariants ([7f9c33b](https://github.com/bdfinst/agentic-dev-team/commit/7f9c33b4831da59a2d8cedd224c7c97fc93262a3)), closes [#915](https://github.com/bdfinst/agentic-dev-team/issues/915)
+* detect Python test files in is_test_file() ([3bd7090](https://github.com/bdfinst/agentic-dev-team/commit/3bd7090c34440734fc9e551a344ea5f90236649a)), closes [#913](https://github.com/bdfinst/agentic-dev-team/issues/913)
+* evaluate all bash write patterns instead of first-match-wins ([e107114](https://github.com/bdfinst/agentic-dev-team/commit/e107114f3b222245a0a4ad8132b3ab39ad4d0e30)), closes [#914](https://github.com/bdfinst/agentic-dev-team/issues/914)
+
+
+### Miscellaneous
+
+* merge /init-dev-team into /setup as a single provisioning command ([a5086c3](https://github.com/bdfinst/agentic-dev-team/commit/a5086c393305d8a2707d16cf17089ec92d8a7ca7)), closes [#937](https://github.com/bdfinst/agentic-dev-team/issues/937)
+
 ## [10.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.2.1...dev-team-v10.3.0) (2026-07-06)
 
 
