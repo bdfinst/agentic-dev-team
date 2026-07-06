@@ -20,8 +20,9 @@ import argparse
 import os
 import random
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -67,6 +68,19 @@ def _make_ground_truth_fn(dataset: str, case: Any):
     return None
 
 
+def _make_test_fn(
+    dataset: str, case: Any, enabled: bool
+) -> Optional[Callable[[str], Dict[str, Any]]]:
+    """Build `run_case`'s `test_fn`, or `None` when verification is disabled.
+
+    Diagnostic only (see runner.run_case) — never gates/skips a case.
+    """
+    if not enabled:
+        return None
+    adapter = defects4j_adapter if dataset == "defects4j" else bugsjs_adapter
+    return lambda checkout_dir: adapter.run_tests(case, checkout_dir)
+
+
 def run(args: argparse.Namespace) -> int:
     results_dir = Path(args.results_dir)
 
@@ -109,30 +123,50 @@ def run(args: argparse.Namespace) -> int:
         model=args.model, timeout=args.timeout
     )
 
-    processed = 0
+    pending = []
     for case in cases:
         case_dict = case.to_dict()
-        key = runner.case_key(case_dict)
-        if key in already:
+        if runner.case_key(case_dict) in already:
             continue
+        pending.append((case, case_dict))
 
-        record = runner.run_case(
-            case_dict,
-            checkout_fn=_make_checkout_fn(args.dataset, case, home),
-            ground_truth_fn=_make_ground_truth_fn(args.dataset, case),
-            dispatch_fn=dispatch_fn,
-            results_dir=results_dir,
-            scope="full-repo" if args.full_repo else "fix-only",
-            tolerance=args.tolerance,
-        )
-        runner.append_result(record, results_dir)
-        processed += 1
-        status = (
-            "HIT"
-            if record.get("hit")
-            else ("SKIP" if record.get("skipped") else "MISS")
-        )
-        print(f"[{processed}/{len(cases)}] {key}: {status}")
+    processed = 0
+    total = len(pending)
+    workers = max(1, args.workers)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(
+                runner.run_case,
+                case_dict,
+                checkout_fn=_make_checkout_fn(args.dataset, case, home),
+                ground_truth_fn=_make_ground_truth_fn(args.dataset, case),
+                test_fn=_make_test_fn(args.dataset, case, not args.no_verify_tests),
+                dispatch_fn=dispatch_fn,
+                results_dir=results_dir,
+                scope="full-repo" if args.full_repo else "fix-only",
+                tolerance=args.tolerance,
+            ): case_dict
+            for case, case_dict in pending
+        }
+        # Drain in the main thread as futures complete: keeps append_result()/
+        # print() single-threaded (no lock needed) and isolates one case's
+        # crash from aborting the rest of the batch.
+        for future in as_completed(futures):
+            case_dict = futures[future]
+            key = runner.case_key(case_dict)
+            try:
+                record = future.result()
+            except Exception as exc:  # noqa: BLE001 - one case's crash must not abort the batch
+                record = runner.skip_record(case_dict, f"internal error: {exc}")
+
+            runner.append_result(record, results_dir)
+            processed += 1
+            status = (
+                "HIT"
+                if record.get("hit")
+                else ("SKIP" if record.get("skipped") else "MISS")
+            )
+            print(f"[{processed}/{total}] {key}: {status}")
 
     path = report.write_report(results_dir)
     print(f"Wrote {path}")
@@ -174,6 +208,21 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument(
         "--timeout", type=int, default=900, help="Per-case dispatch timeout, seconds."
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Number of bug cases to run concurrently (thread pool).",
+    )
+    parser.add_argument(
+        "--no-verify-tests",
+        action="store_true",
+        help=(
+            "Skip building/installing deps and running the project's own "
+            "test suite per case (on by default; diagnostic only, never "
+            "gates scoring)."
+        ),
     )
     parser.add_argument(
         "--defects4j-home", help="Defects4J framework checkout (or set DEFECTS4J_HOME)."

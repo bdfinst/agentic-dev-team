@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .common import BenchmarkCase, Hunk, run_with_timeout, unified_diff_hunks
 
@@ -130,6 +130,75 @@ def checkout(
     except (OSError, ValueError):
         return False
     return checkout_proc.returncode == 0
+
+
+def run_tests(
+    case: BenchmarkCase,
+    checkout_dir: str,
+    run_fn=DEFAULT_RUN_FN,
+    install_timeout: int = 300,
+    test_timeout: int = 600,
+) -> Dict[str, Any]:
+    """Configure (`npm ci`/`npm install`) and run (`npm test`) the buggy checkout.
+
+    Diagnostic sanity check, not a gate: a non-zero `npm test` exit on the
+    buggy revision is the expected signal that the bug reproduces. Never
+    raises — any subprocess/OS failure is folded into the returned dict,
+    same contract as `checkout()`/`ground_truth()` above.
+    """
+    if not (Path(checkout_dir) / "package.json").is_file():
+        return {
+            "configured": False,
+            "ran": False,
+            "reproduced": False,
+            "error": "no package.json",
+        }
+
+    install_cmd = (
+        ["npm", "ci"]
+        if (Path(checkout_dir) / "package-lock.json").is_file()
+        else ["npm", "install"]
+    )
+    try:
+        install_proc = run_fn(
+            install_timeout,
+            install_cmd,
+            cwd=checkout_dir,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, ValueError) as exc:
+        return {
+            "configured": False,
+            "ran": False,
+            "reproduced": False,
+            "error": str(exc),
+        }
+    if install_proc.returncode != 0:
+        return {"configured": False, "ran": False, "reproduced": False}
+
+    try:
+        test_proc = run_fn(
+            test_timeout,
+            ["npm", "test"],
+            cwd=checkout_dir,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, ValueError) as exc:
+        return {
+            "configured": True,
+            "ran": False,
+            "reproduced": False,
+            "error": str(exc),
+        }
+
+    return {
+        "configured": True,
+        "ran": True,
+        "reproduced": test_proc.returncode != 0,
+        "exit_code": test_proc.returncode,
+    }
 
 
 def _is_test_path(path: str) -> bool:

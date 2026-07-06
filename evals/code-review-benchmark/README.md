@@ -95,6 +95,8 @@ python3 cli.py --report-only
 | `--tolerance N` | Line-range tolerance for hit scoring (default 3) |
 | `--model` | Model tier passed to the `/code-review` dispatch (default `sonnet`) |
 | `--timeout` | Per-case dispatch timeout in seconds (default 900) |
+| `--workers` | Number of bug cases run concurrently, thread pool (default 4) |
+| `--no-verify-tests` | Skip building/installing deps and running the project's own test suite per case (on by default; diagnostic only — see below) |
 | `--defects4j-home`, `--bugsjs-home` | Dataset home dirs (or the matching env vars) |
 | `--results-dir` | Where `results.jsonl`/`skipped.jsonl`/`report.md`/`raw/` are written (default `./results`) |
 | `--report-only` | Only (re)generate `report.md` from existing results |
@@ -102,7 +104,8 @@ python3 cli.py --report-only
 ## Output artifacts (`results/`, gitignored)
 
 - `results.jsonl` — one record per attempted bug: `{dataset, project, bug_id,
-  hit, ground_truth_hunks, findings, unmatched_findings, raw_output_path}`.
+  hit, ground_truth_hunks, findings, unmatched_findings, raw_output_path,
+  test_verification}`.
 - `skipped.jsonl` — one record per bug that couldn't be checked out or
   scored: `{dataset, project, bug_id, reason}`.
 - `raw/<dataset>-<project>-<bug_id>.txt` — the dispatch's raw stdout,
@@ -112,13 +115,41 @@ python3 cli.py --report-only
   findings per hit run — "unmatched," not "false positive": the review may
   have found a real, different issue).
 
+## Test verification (diagnostic, not a gate)
+
+By default, before dispatching `/code-review`, each case configures and runs
+the checked-out project's own test suite against the full checkout (not the
+`fix-only` scoped copy, which won't have build files):
+
+- **Defects4J**: `defects4j compile` then `defects4j test`, reading
+  `<checkout>/failing_tests` for the reproduced trigger test(s).
+- **BugsJS**: `npm ci` (if `package-lock.json` exists) or `npm install`,
+  then `npm test`; a non-zero exit is the expected "bug reproduces" signal.
+
+The result lands on the record as `test_verification: {configured, ran,
+reproduced, ...}` (`None` when disabled). It is **never** used to skip or
+exclude a case from scoring — Defects4J/BugsJS checkouts can fail to build
+for reasons unrelated to the actual bug (JDK mismatch, npm registry
+hiccup), and the harness's actual purpose (`/code-review` recall) must not
+be silently distorted by environment noise. Disable it with
+`--no-verify-tests` for a faster, cheaper smoke run. `report.md` summarizes
+reproduced-vs-not when any case ran verification.
+
+## Parallel execution
+
+Cases run concurrently across a thread pool (`--workers`, default 4) — each
+case does its own checkout into a private temp dir and its own subprocess
+calls (git/defects4j/npm/`claude`), so cases don't share mutable state.
+Raise `--workers` for a faster full sweep; keep it low if you're worried
+about hitting rate limits on the underlying `claude -p` dispatches.
+
 ## Layout
 
 ```
 adapters/
   common.py              # BenchmarkCase, unified_diff_hunks(), run_with_timeout
-  defects4j_adapter.py    # active-bugs.csv + .src.patch -> BenchmarkCase
-  bugsjs_adapter.py       # Projects.csv + <Project>_bugs.csv + git tags -> BenchmarkCase
+  defects4j_adapter.py    # active-bugs.csv + .src.patch -> BenchmarkCase; run_tests() = compile+test
+  bugsjs_adapter.py       # Projects.csv + <Project>_bugs.csv + git tags -> BenchmarkCase; run_tests() = npm install+test
 runner.py                 # checkout -> scope -> dispatch -> parse -> score -> JSONL
 scorer.py                 # hit/miss/tolerance/unmatched-findings
 report.py                 # results.jsonl + skipped.jsonl -> report.md

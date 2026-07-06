@@ -75,6 +75,67 @@ def test_report_recall_math_and_missed_defects(tmp_path: Path) -> None:
     assert "defects4j / Lang / bug 9: checkout failed" in text
 
 
+def test_report_test_verification_section_when_present(tmp_path: Path) -> None:
+    _write_jsonl(
+        tmp_path / "results.jsonl",
+        [
+            {
+                "dataset": "bugsjs",
+                "project": "Bower",
+                "bug_id": "1",
+                "hit": True,
+                "ground_truth_hunks": [],
+                "findings": [],
+                "unmatched_findings": [],
+                "raw_output_path": "r1.txt",
+                "test_verification": {
+                    "configured": True,
+                    "ran": True,
+                    "reproduced": True,
+                },
+            },
+            {
+                "dataset": "bugsjs",
+                "project": "Bower",
+                "bug_id": "2",
+                "hit": False,
+                "ground_truth_hunks": [],
+                "findings": [],
+                "unmatched_findings": [],
+                "raw_output_path": "r2.txt",
+                "test_verification": {
+                    "configured": True,
+                    "ran": True,
+                    "reproduced": False,
+                },
+            },
+        ],
+    )
+    text = report.build_report(tmp_path)
+    assert "## Test verification" in text
+    assert "Buggy revision reproduced a failing test: 1/2" in text
+
+
+def test_report_omits_test_verification_section_when_absent(tmp_path: Path) -> None:
+    _write_jsonl(
+        tmp_path / "results.jsonl",
+        [
+            {
+                "dataset": "bugsjs",
+                "project": "Bower",
+                "bug_id": "1",
+                "hit": True,
+                "ground_truth_hunks": [],
+                "findings": [],
+                "unmatched_findings": [],
+                "raw_output_path": "r1.txt",
+            }
+        ],
+    )
+    text = report.build_report(tmp_path)
+    assert "## Test verification" not in text
+
+
 def test_report_no_results_is_well_formed(tmp_path: Path) -> None:
     text = report.build_report(tmp_path)
     assert "Overall recall: n/a (0 attempted)" in text

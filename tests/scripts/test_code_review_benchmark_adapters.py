@@ -41,6 +41,22 @@ class _FakeRun:
         )
 
 
+class _SequencedFakeRun:
+    """Injected `run_fn` returning a different canned (returncode, stdout) per call,
+    in call order — for `run_tests()`, whose configure/run steps need distinct results."""
+
+    def __init__(self, results: List[tuple]) -> None:
+        self._results = list(results)
+        self.calls: List[dict] = []
+
+    def __call__(self, timeout, argv, **kwargs):
+        self.calls.append({"timeout": timeout, "argv": list(argv), "kwargs": kwargs})
+        returncode, stdout = self._results.pop(0)
+        return subprocess.CompletedProcess(
+            args=list(argv), returncode=returncode, stdout=stdout, stderr=""
+        )
+
+
 # ---------------------------------------------------------------------------
 # Defects4J
 # ---------------------------------------------------------------------------
@@ -130,6 +146,54 @@ def test_defects4j_describe_returns_stdout_on_success(d4j_home: Path) -> None:
     assert defects4j_adapter.describe(cases[0], run_fn=fake) == "Bug info text"
 
 
+def test_defects4j_run_tests_configure_failure_short_circuits(
+    d4j_home: Path, tmp_path: Path
+) -> None:
+    cases = defects4j_adapter.list_bugs("Lang", str(d4j_home))
+    fake = _SequencedFakeRun([(1, "")])
+    result = defects4j_adapter.run_tests(cases[0], str(tmp_path), run_fn=fake)
+    assert result == {"configured": False, "ran": False, "reproduced": False}
+    assert len(fake.calls) == 1  # `defects4j test` never runs after a failed compile
+    assert fake.calls[0]["argv"] == ["defects4j", "compile"]
+
+
+def test_defects4j_run_tests_reproduced_parses_failing_tests(
+    d4j_home: Path, tmp_path: Path
+) -> None:
+    (tmp_path / "failing_tests").write_text(
+        "--- org.apache.commons.lang3.math.NumberUtilsTest::testCreateNumber\n"
+        "java.lang.AssertionError\n"
+        "\tat org.apache.commons.lang3.math.NumberUtilsTest.testCreateNumber\n",
+        encoding="utf-8",
+    )
+    cases = defects4j_adapter.list_bugs("Lang", str(d4j_home))
+    fake = _SequencedFakeRun([(0, ""), (0, "")])
+    result = defects4j_adapter.run_tests(cases[0], str(tmp_path), run_fn=fake)
+    assert result == {
+        "configured": True,
+        "ran": True,
+        "reproduced": True,
+        "failing_tests": [
+            "org.apache.commons.lang3.math.NumberUtilsTest::testCreateNumber"
+        ],
+    }
+    assert fake.calls[1]["argv"] == ["defects4j", "test"]
+
+
+def test_defects4j_run_tests_not_reproduced_without_failing_tests_file(
+    d4j_home: Path, tmp_path: Path
+) -> None:
+    cases = defects4j_adapter.list_bugs("Lang", str(d4j_home))
+    fake = _SequencedFakeRun([(0, ""), (0, "")])
+    result = defects4j_adapter.run_tests(cases[0], str(tmp_path), run_fn=fake)
+    assert result == {
+        "configured": True,
+        "ran": True,
+        "reproduced": False,
+        "failing_tests": [],
+    }
+
+
 # ---------------------------------------------------------------------------
 # BugsJS
 # ---------------------------------------------------------------------------
@@ -216,3 +280,63 @@ def test_bugsjs_ground_truth_empty_on_git_failure(bugsjs_home: Path) -> None:
     cases = bugsjs_adapter.list_bugs("Bower", str(bugsjs_home))
     fake = _FakeRun(returncode=1)
     assert bugsjs_adapter.ground_truth(cases[0], "/tmp/bower-work", run_fn=fake) == []
+
+
+def test_bugsjs_run_tests_no_package_json_short_circuits(
+    bugsjs_home: Path, tmp_path: Path
+) -> None:
+    cases = bugsjs_adapter.list_bugs("Bower", str(bugsjs_home))
+    fake = _SequencedFakeRun([])
+    result = bugsjs_adapter.run_tests(cases[0], str(tmp_path), run_fn=fake)
+    assert result == {
+        "configured": False,
+        "ran": False,
+        "reproduced": False,
+        "error": "no package.json",
+    }
+    assert fake.calls == []
+
+
+def test_bugsjs_run_tests_uses_npm_ci_when_lockfile_present(
+    bugsjs_home: Path, tmp_path: Path
+) -> None:
+    (tmp_path / "package.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "package-lock.json").write_text("{}", encoding="utf-8")
+    cases = bugsjs_adapter.list_bugs("Bower", str(bugsjs_home))
+    fake = _SequencedFakeRun([(0, ""), (1, "")])
+    result = bugsjs_adapter.run_tests(cases[0], str(tmp_path), run_fn=fake)
+    assert fake.calls[0]["argv"] == ["npm", "ci"]
+    assert fake.calls[1]["argv"] == ["npm", "test"]
+    assert result == {
+        "configured": True,
+        "ran": True,
+        "reproduced": True,
+        "exit_code": 1,
+    }
+
+
+def test_bugsjs_run_tests_uses_npm_install_without_lockfile(
+    bugsjs_home: Path, tmp_path: Path
+) -> None:
+    (tmp_path / "package.json").write_text("{}", encoding="utf-8")
+    cases = bugsjs_adapter.list_bugs("Bower", str(bugsjs_home))
+    fake = _SequencedFakeRun([(0, ""), (0, "")])
+    result = bugsjs_adapter.run_tests(cases[0], str(tmp_path), run_fn=fake)
+    assert fake.calls[0]["argv"] == ["npm", "install"]
+    assert result == {
+        "configured": True,
+        "ran": True,
+        "reproduced": False,
+        "exit_code": 0,
+    }
+
+
+def test_bugsjs_run_tests_install_failure_short_circuits(
+    bugsjs_home: Path, tmp_path: Path
+) -> None:
+    (tmp_path / "package.json").write_text("{}", encoding="utf-8")
+    cases = bugsjs_adapter.list_bugs("Bower", str(bugsjs_home))
+    fake = _SequencedFakeRun([(1, "")])
+    result = bugsjs_adapter.run_tests(cases[0], str(tmp_path), run_fn=fake)
+    assert result == {"configured": False, "ran": False, "reproduced": False}
+    assert len(fake.calls) == 1  # `npm test` never runs after a failed install

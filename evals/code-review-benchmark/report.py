@@ -123,6 +123,18 @@ def build_report(results_dir: Any) -> str:
             lines.append("")
     lines.append("")
 
+    verified = [r for r in results if r.get("test_verification") is not None]
+    if verified:
+        reproduced = sum(
+            1 for r in verified if r["test_verification"].get("reproduced")
+        )
+        lines.append("## Test verification")
+        lines.append("")
+        lines.append(
+            f"Buggy revision reproduced a failing test: {reproduced}/{len(verified)}"
+        )
+        lines.append("")
+
     lines.append("## Noise summary")
     lines.append("")
     hit_records = [r for r in results if r.get("hit")]

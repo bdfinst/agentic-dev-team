@@ -189,6 +189,79 @@ def test_run_case_full_repo_scope_passes_full_checkout(tmp_path: Path) -> None:
     assert seen_cwd["cwd"]
 
 
+def test_run_case_records_test_verification_against_full_checkout(
+    tmp_path: Path,
+) -> None:
+    seen_checkout_dir = {}
+
+    def checkout_fn(workdir: str) -> bool:
+        _seed_checkout(workdir, ["src/Foo.java"])
+        return True
+
+    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+        return _dispatch_result()
+
+    def test_fn(checkout_dir: str) -> Dict[str, Any]:
+        # Called against the full checkout, not the fix-only scoped copy —
+        # assert while the checkout dir still exists (run_case tears it
+        # down in its `finally` before returning).
+        seen_checkout_dir["found_unrelated_file"] = (
+            Path(checkout_dir) / "src" / "Foo.java"
+        ).is_file()
+        return {"configured": True, "ran": True, "reproduced": True}
+
+    record = runner.run_case(
+        _CASE,
+        checkout_fn=checkout_fn,
+        dispatch_fn=dispatch_fn,
+        test_fn=test_fn,
+        results_dir=tmp_path,
+    )
+    assert record["test_verification"] == {
+        "configured": True,
+        "ran": True,
+        "reproduced": True,
+    }
+    assert seen_checkout_dir["found_unrelated_file"] is True
+
+
+def test_run_case_test_fn_exception_does_not_crash_the_case(tmp_path: Path) -> None:
+    def checkout_fn(workdir: str) -> bool:
+        _seed_checkout(workdir, ["src/Foo.java"])
+        return True
+
+    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+        return _dispatch_result()
+
+    def test_fn(checkout_dir: str) -> Dict[str, Any]:
+        raise RuntimeError("boom")
+
+    record = runner.run_case(
+        _CASE,
+        checkout_fn=checkout_fn,
+        dispatch_fn=dispatch_fn,
+        test_fn=test_fn,
+        results_dir=tmp_path,
+    )
+    assert record["skipped"] is False
+    assert record["test_verification"]["configured"] is False
+    assert record["test_verification"]["error"] == "boom"
+
+
+def test_run_case_test_verification_none_without_test_fn(tmp_path: Path) -> None:
+    def checkout_fn(workdir: str) -> bool:
+        _seed_checkout(workdir, ["src/Foo.java"])
+        return True
+
+    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+        return _dispatch_result()
+
+    record = runner.run_case(
+        _CASE, checkout_fn=checkout_fn, dispatch_fn=dispatch_fn, results_dir=tmp_path
+    )
+    assert record["test_verification"] is None
+
+
 def test_extract_review_json_handles_markdown_fence() -> None:
     fenced = "```json\n" + json.dumps(_REVIEW_JSON) + "\n```"
     assert runner._extract_review_json(fenced) == _REVIEW_JSON
