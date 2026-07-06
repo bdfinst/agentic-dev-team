@@ -189,7 +189,7 @@ Work each step **one behavior at a time** — never all the code then all the te
    - **UI changes (any complexity)**: After the relevant review passes (per-step for complex, at the slice checkpoint for standard), run browser verification via `/browse` in automated smoke test mode. Skip with warning if the dev server is not running. See `agents/orchestrator.md` Stage 3.
 5. **Mark step done** — Use the Edit tool to update the plan file's `## Build Progress` section on disk:
    - Change `- [ ] Step N.M: <title>` to `- [x] Step N.M: <title>` for the completed step.
-   - When every step under a slice is `[x]`, check off the parent `- [ ] Slice N: <title>`.
+   - When every step under a slice is `[x]`, that is not the same as the slice being done — check off the parent `- [ ] Slice N: <title>` only after sub-steps 4.9 (verify) and 4.10 (invariants) both pass, if applicable; a slice with no runtime surface and no declared invariants has nothing further to wait on and may be checked off once its steps and review checkpoint(s) are done.
    - After all slices are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
    - This disk write is the durable commit. If a `/clear` occurs, `/continue` reads `## Build Progress` to determine the resume point without needing conversation history.
    - **Clear freeze scope (issue #865).** When every step under the slice is `[x]` and freeze was engaged for it (dispatch bookkeeping above), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py clear --hooks-dir <worktree>/hooks` before starting the next slice. A slice that never engaged freeze has nothing to clear.
