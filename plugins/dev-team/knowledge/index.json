@@ -3575,7 +3575,7 @@
       "anchor": "gate-classification"
     },
     "Standard approval gates": {
-      "summary": "These actions always require human approval:",
+      "summary": "These actions always require human approval.",
       "anchor": "standard-approval-gates"
     },
     "Agent-specific gates": {
@@ -3611,11 +3611,11 @@
       "anchor": "decision-logging"
     },
     "Decision visibility (Notify level)": {
-      "summary": "All oversight events logged to `metrics/config-changelog.jsonl` with:",
+      "summary": "**Canonical schema.** This section is the single canonical definition of the",
       "anchor": "decision-visibility-notify-level"
     },
     "Audit trail": {
-      "summary": "All oversight events logged to `metrics/config-changelog.jsonl` with:",
+      "summary": "**Canonical schema.** This section is the single canonical definition of the",
       "anchor": "audit-trail"
     },
     "Output": {

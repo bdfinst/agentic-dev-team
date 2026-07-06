@@ -65,6 +65,13 @@ Read the plan file. If the status is not `approved`:
 - **Interactive** → ask the user: "This plan has status '<status>'. Approve it before building, or continue anyway?"
 - **Non-interactive** (see Parse Arguments) → do **not** block. Auto-approve and continue, and print an explicit audit line into the build output: `Auto-approved plan status '<status>' (non-interactive) — no human gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.`
 
+Either path appends an `approval` entry to `metrics/config-changelog.jsonl` per the
+[human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)
+schema — `proposed` states the plan status being approved, `evidence_shown` points at
+the plan file, `risks_surfaced` is `[]` unless the plan's status itself signals a risk
+(e.g. resuming an `in-progress` plan). The non-interactive path writes the same three
+fields; `description` names the bypass trigger.
+
 ### 3. Verify acceptance criteria (gate)
 
 Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `${CLAUDE_PLUGIN_ROOT}/prompts/spec-reviewer.md` § Pre-build criteria verification mode). Pass the plan's acceptance criteria and per-step test expectations.
@@ -82,6 +89,15 @@ If any criteria are flagged:
    - If the user overrides, log the override in the build output and continue
    - If the user revises, update the plan file and re-verify
 3. **Non-interactive** (see Parse Arguments) → do **not** block. Proceed and record the bypass in the build output: `Acceptance-criteria gate auto-passed with N flagged criterion(s) (non-interactive) — no human gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.` Include the flagged findings in the record so the bypass is auditable.
+
+Whichever path is taken (proceed, revise, or override), append an `approval` entry to
+`metrics/config-changelog.jsonl` per the [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)
+schema — `proposed` is the acceptance-criteria set under review, `evidence_shown`
+points at the plan file (and, for an interactive override, the reviewer's findings if
+written to `memory/`), and `risks_surfaced` lists the flagged criteria (`[]` if none
+were flagged). An interactive `override` (user overrides the reviewer's findings) is
+logged as `type: "override"` instead, with `proposed` recording the reviewer's
+flagged concern and `description` recording the user's decision to proceed anyway.
 
 ### 4. Implement each step
 
