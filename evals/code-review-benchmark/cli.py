@@ -7,11 +7,10 @@ Usage:
     python3 cli.py --dataset defects4j --limit-projects 2 --full-repo
     python3 cli.py --report-only
 
-Prerequisites (not installed in this repo/sandbox — see README.md):
-    Defects4J: `defects4j` on PATH, `--defects4j-home`/`DEFECTS4J_HOME` set to
-    a full framework checkout.
-    BugsJS: `--bugsjs-home`/`BUGSJS_HOME` set to a local clone of
-    `BugsJS/bug-dataset`.
+Both dataset homes are auto-provisioned into a gitignored
+`evals/code-review-benchmark/.cache/` on first use — see README.md — unless
+`--defects4j-home`/`DEFECTS4J_HOME` or `--bugsjs-home`/`BUGSJS_HOME` points
+at an existing checkout, in which case that's used as-is.
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import report
 import runner
-from adapters import bugsjs_adapter, defects4j_adapter
+from adapters import bootstrap, bugsjs_adapter, defects4j_adapter
 
 DEFAULT_RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
@@ -54,10 +53,12 @@ def _list_cases(
     return cases
 
 
-def _make_checkout_fn(dataset: str, case: Any, home: str):
+def _make_checkout_fn(
+    dataset: str, case: Any, home: str, defects4j_bin: str = "defects4j"
+):
     if dataset == "defects4j":
         return lambda workdir: defects4j_adapter.checkout(
-            case, workdir, defects4j_home=home
+            case, workdir, defects4j_home=home, defects4j_bin=defects4j_bin
         )
     return lambda workdir: bugsjs_adapter.checkout(case, workdir, bugsjs_home=home)
 
@@ -69,7 +70,7 @@ def _make_ground_truth_fn(dataset: str, case: Any):
 
 
 def _make_test_fn(
-    dataset: str, case: Any, enabled: bool
+    dataset: str, case: Any, enabled: bool, defects4j_bin: str = "defects4j"
 ) -> Optional[Callable[[str], Dict[str, Any]]]:
     """Build `run_case`'s `test_fn`, or `None` when verification is disabled.
 
@@ -77,8 +78,11 @@ def _make_test_fn(
     """
     if not enabled:
         return None
-    adapter = defects4j_adapter if dataset == "defects4j" else bugsjs_adapter
-    return lambda checkout_dir: adapter.run_tests(case, checkout_dir)
+    if dataset == "defects4j":
+        return lambda checkout_dir: defects4j_adapter.run_tests(
+            case, checkout_dir, defects4j_bin=defects4j_bin
+        )
+    return lambda checkout_dir: bugsjs_adapter.run_tests(case, checkout_dir)
 
 
 def run(args: argparse.Namespace) -> int:
@@ -89,14 +93,38 @@ def run(args: argparse.Namespace) -> int:
         print(f"Wrote {path}")
         return 0
 
-    home = (
-        args.defects4j_home or os.environ.get("DEFECTS4J_HOME")
-        if args.dataset == "defects4j"
-        else args.bugsjs_home or os.environ.get("BUGSJS_HOME")
-    )
+    defects4j_bin = "defects4j"
+    if args.dataset == "defects4j":
+        explicit_home = args.defects4j_home or os.environ.get("DEFECTS4J_HOME")
+        resolved = bootstrap.ensure_defects4j_home(explicit_home)
+        if resolved is None:
+            print(
+                "code-review-benchmark: could not auto-clone/initialize Defects4J "
+                "— see README.md prerequisites.",
+                file=sys.stderr,
+            )
+            return 1
+        home = resolved["home"]
+        defects4j_bin = resolved["bin"]
+    else:
+        explicit_home = args.bugsjs_home or os.environ.get("BUGSJS_HOME")
+        cloned_home = bootstrap.ensure_bugsjs_home(explicit_home)
+        if cloned_home is None:
+            print(
+                "code-review-benchmark: could not auto-clone BugsJS/bug-dataset "
+                "— see README.md prerequisites.",
+                file=sys.stderr,
+            )
+            return 1
+        home = cloned_home
 
     adapter = defects4j_adapter if args.dataset == "defects4j" else bugsjs_adapter
-    if not adapter.detect(home):
+    detect_ok = (
+        adapter.detect(home, defects4j_bin)
+        if args.dataset == "defects4j"
+        else adapter.detect(home)
+    )
+    if not detect_ok:
         tool = (
             "defects4j (+ DEFECTS4J_HOME)"
             if args.dataset == "defects4j"
@@ -138,9 +166,11 @@ def run(args: argparse.Namespace) -> int:
             executor.submit(
                 runner.run_case,
                 case_dict,
-                checkout_fn=_make_checkout_fn(args.dataset, case, home),
+                checkout_fn=_make_checkout_fn(args.dataset, case, home, defects4j_bin),
                 ground_truth_fn=_make_ground_truth_fn(args.dataset, case),
-                test_fn=_make_test_fn(args.dataset, case, not args.no_verify_tests),
+                test_fn=_make_test_fn(
+                    args.dataset, case, not args.no_verify_tests, defects4j_bin
+                ),
                 dispatch_fn=dispatch_fn,
                 results_dir=results_dir,
                 scope="full-repo" if args.full_repo else "fix-only",

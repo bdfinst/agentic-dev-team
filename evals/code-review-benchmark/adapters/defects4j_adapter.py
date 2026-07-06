@@ -25,13 +25,22 @@ from .common import BenchmarkCase, run_with_timeout, unified_diff_hunks
 DEFAULT_RUN_FN = run_with_timeout
 
 
-def detect(defects4j_home: Optional[str]) -> bool:
-    """True when `defects4j` is on PATH and `defects4j_home` looks like a real checkout."""
-    if shutil.which("defects4j") is None:
-        return False
+def detect(defects4j_home: Optional[str], defects4j_bin: Optional[str] = None) -> bool:
+    """True when a `defects4j` binary is reachable and `defects4j_home` looks like a real checkout.
+
+    `defects4j_bin`, when given, is an explicit path to the executable
+    (e.g. an auto-provisioned cache clone's `framework/bin/defects4j`) and
+    is checked directly instead of requiring `defects4j` on `PATH` — a
+    fresh auto-clone won't be on `PATH`. Omitting it preserves the
+    original PATH-based lookup.
+    """
     if not defects4j_home:
         return False
-    return (Path(defects4j_home) / "framework" / "projects").is_dir()
+    if not (Path(defects4j_home) / "framework" / "projects").is_dir():
+        return False
+    if defects4j_bin:
+        return Path(defects4j_bin).is_file()
+    return shutil.which("defects4j") is not None
 
 
 def _active_bugs_csv(defects4j_home: str, project: str) -> Path:
@@ -111,15 +120,18 @@ def checkout(
     case: BenchmarkCase,
     workdir: str,
     defects4j_home: Optional[str] = None,
+    defects4j_bin: str = "defects4j",
     run_fn=DEFAULT_RUN_FN,
     timeout: int = 600,
 ) -> bool:
     """`defects4j checkout -p <project> -v <bug_id>b -w <workdir>`.
 
     Returns True on a zero exit code, False on any failure — never raises.
+    `defects4j_bin` defaults to the bare command name (PATH lookup); pass
+    an explicit path for an auto-provisioned cache clone.
     """
     argv = [
-        "defects4j",
+        defects4j_bin,
         "checkout",
         "-p",
         case.project,
@@ -138,6 +150,7 @@ def checkout(
 def run_tests(
     case: BenchmarkCase,
     checkout_dir: str,
+    defects4j_bin: str = "defects4j",
     run_fn=DEFAULT_RUN_FN,
     compile_timeout: int = 300,
     test_timeout: int = 600,
@@ -149,12 +162,14 @@ def run_tests(
     (`<checkout_dir>/failing_tests`), which lists trigger tests as lines
     `--- <test.class>::<method>`. Never raises — any subprocess/OS failure
     is folded into the returned dict, same contract as `checkout()`/
-    `describe()` above.
+    `describe()` above. `defects4j_bin` defaults to the bare command name
+    (PATH lookup); pass an explicit path for an auto-provisioned cache
+    clone.
     """
     try:
         compile_proc = run_fn(
             compile_timeout,
-            ["defects4j", "compile"],
+            [defects4j_bin, "compile"],
             cwd=checkout_dir,
             capture_output=True,
             text=True,
@@ -172,7 +187,7 @@ def run_tests(
     try:
         test_proc = run_fn(
             test_timeout,
-            ["defects4j", "test"],
+            [defects4j_bin, "test"],
             cwd=checkout_dir,
             capture_output=True,
             text=True,
@@ -204,11 +219,12 @@ def run_tests(
 
 def describe(
     case: BenchmarkCase,
+    defects4j_bin: str = "defects4j",
     run_fn=DEFAULT_RUN_FN,
     timeout: int = 60,
 ) -> Optional[str]:
     """Best-effort `defects4j info -p <project> -b <bug_id>`. `None` on any failure."""
-    argv = ["defects4j", "info", "-p", case.project, "-b", case.bug_id]
+    argv = [defects4j_bin, "info", "-p", case.project, "-b", case.bug_id]
     try:
         proc = run_fn(timeout, argv, capture_output=True, text=True)
     except (OSError, ValueError):

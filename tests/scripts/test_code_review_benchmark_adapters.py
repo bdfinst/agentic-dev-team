@@ -111,6 +111,19 @@ def test_defects4j_detect_false_without_home(monkeypatch: pytest.MonkeyPatch) ->
     assert defects4j_adapter.detect("/nonexistent") is False
 
 
+def test_defects4j_detect_uses_explicit_bin_path_instead_of_path_lookup(
+    d4j_home: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Not on PATH at all — but an explicit defects4j_bin path is checked instead.
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    missing_bin = tmp_path / "no-such-binary"
+    assert defects4j_adapter.detect(str(d4j_home), str(missing_bin)) is False
+
+    real_bin = tmp_path / "defects4j"
+    real_bin.write_text("#!/bin/sh\n")
+    assert defects4j_adapter.detect(str(d4j_home), str(real_bin)) is True
+
+
 def test_defects4j_checkout_builds_expected_argv(d4j_home: Path) -> None:
     cases = defects4j_adapter.list_bugs("Lang", str(d4j_home))
     fake = _FakeRun(returncode=0)
@@ -126,6 +139,18 @@ def test_defects4j_checkout_builds_expected_argv(d4j_home: Path) -> None:
         "-w",
         "/tmp/workdir",
     ]
+
+
+def test_defects4j_checkout_uses_explicit_bin(d4j_home: Path) -> None:
+    cases = defects4j_adapter.list_bugs("Lang", str(d4j_home))
+    fake = _FakeRun(returncode=0)
+    defects4j_adapter.checkout(
+        cases[0],
+        "/tmp/workdir",
+        defects4j_bin="/cache/defects4j/framework/bin/defects4j",
+        run_fn=fake,
+    )
+    assert fake.calls[0]["argv"][0] == "/cache/defects4j/framework/bin/defects4j"
 
 
 def test_defects4j_checkout_false_on_nonzero_exit(d4j_home: Path) -> None:
@@ -178,6 +203,22 @@ def test_defects4j_run_tests_reproduced_parses_failing_tests(
         ],
     }
     assert fake.calls[1]["argv"] == ["defects4j", "test"]
+
+
+def test_defects4j_run_tests_uses_explicit_bin(d4j_home: Path, tmp_path: Path) -> None:
+    cases = defects4j_adapter.list_bugs("Lang", str(d4j_home))
+    fake = _SequencedFakeRun([(0, ""), (0, "")])
+    defects4j_adapter.run_tests(
+        cases[0],
+        str(tmp_path),
+        defects4j_bin="/cache/defects4j/framework/bin/defects4j",
+        run_fn=fake,
+    )
+    assert fake.calls[0]["argv"] == [
+        "/cache/defects4j/framework/bin/defects4j",
+        "compile",
+    ]
+    assert fake.calls[1]["argv"] == ["/cache/defects4j/framework/bin/defects4j", "test"]
 
 
 def test_defects4j_run_tests_not_reproduced_without_failing_tests_file(
