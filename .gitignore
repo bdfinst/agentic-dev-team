@@ -20,6 +20,8 @@ metrics/telemetry.jsonl
 metrics/review-value.jsonl
 # Per-slice /verify evidence log (runtime data; counts-only — #727)
 metrics/verify-log.jsonl
+# Boundary-level policy-gateway event log (runtime data; rule-IDs-only — #859)
+metrics/boundary-events.jsonl
 
 # Effort-band model routing (per-user, never checked in)
 # - ladder: optional ordered model list (.claude/model-ladder.json), hand-written by users behind restricted endpoints

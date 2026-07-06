@@ -57,7 +57,7 @@ Each agent declares an effort band (`effort: low|medium|high`). Resolution enfor
 ## Context Management
 
 1. **[Context Loading Protocol](skills/context-loading-protocol/SKILL.md)** — decides *what* to load and *when*
-2. **[Context Summarization](skills/context-summarization/SKILL.md)** — decides *when* to compress and *how*
+2. **[Handoff](skills/handoff/SKILL.md)** — decides *when*/*how* to compress (continue) or fork side-work (fork)
 
 Token budgets per agent: see [knowledge/agent-registry.md](knowledge/agent-registry.md).
 

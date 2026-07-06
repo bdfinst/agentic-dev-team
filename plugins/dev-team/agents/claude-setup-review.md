@@ -3,7 +3,7 @@ name: claude-setup-review
 description: CLAUDE.md completeness, rules, skills, path accuracy, and agent frontmatter schema compliance
 tools: Read, Grep, Glob
 effort: low
-cites: [adversarial-review-protocol]
+cites: [adversarial-review-protocol, directory-enumeration]
 enforcement: script
 ---
 
@@ -30,7 +30,7 @@ Return `{"status": "skip", "issues": [], "summary": "Not a Claude Code project"}
 - No CLAUDE.md, `.claude/` directory, agent files, or `.clinerules` file exists
 - Target is clearly not a Claude Code-enabled project
 
-Check existence with `Glob` only — e.g. `Glob("CLAUDE.md")`, `Glob(".claude/**")`, `Glob("**/agents/*.md")`, `Glob(".clinerules")`. Never `Read` a directory path (the repo root, `.claude/`, `agents/`) to see what it contains — `Read` on a directory fails with `EISDIR`. `Read` only specific files `Glob` has confirmed exist.
+Check existence with `Glob` only — e.g. `Glob("CLAUDE.md")`, `Glob(".claude/**")`, `Glob("**/agents/*.md")`, `Glob(".clinerules")`. Never `Read` a directory path (the repo root, `.claude/`, `agents/`) to see what it contains — `Read` on a directory fails with `EISDIR`. `Read` only specific files `Glob` has confirmed exist. See `knowledge/directory-enumeration.md` for the shared rule (Whole-file load: a short single-rule reference).
 
 ## Detect — CLAUDE.md
 
@@ -61,7 +61,7 @@ Accuracy:
 
 ## Detect — Agent frontmatter schema
 
-Apply to every `.md` file found in `agents/` directories within the target — enumerate them with `Glob("**/agents/*.md")`, never by `Read`ing the directory. Check against the official Claude Code sub-agent specification.
+Apply to every `.md` file found in `agents/` directories within the target — enumerate them with `Glob("**/agents/*.md")`, never by `Read`ing the directory (`knowledge/directory-enumeration.md` — Whole-file load: a short single-rule reference). Check against the official Claude Code sub-agent specification.
 
 ### Required fields
 

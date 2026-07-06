@@ -10,9 +10,16 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
+
+# Boundary events (#859) are ALWAYS-ON and resolve their metrics/ dir from
+# the hook payload's "cwd" (falling back to the process's actual OS cwd when
+# absent) — isolate every subprocess run to a scratch dir so tests never
+# write metrics/boundary-events.jsonl into the real repo checkout.
+_BOUNDARY_EVENTS_SCRATCH_CWD = tempfile.mkdtemp(prefix="dev-team-context-ceiling-test-")
 
 
 _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
@@ -26,7 +33,7 @@ _HOOK_PY = _HOOKS_DIR / "context_ceiling_guard.py"
 
 _PLUGIN_DIR = _HOOKS_DIR.parent
 _CONTEXT_SUMMARIZATION_SKILL = (
-    _PLUGIN_DIR / "skills" / "context-summarization" / "SKILL.md"
+    _PLUGIN_DIR / "skills" / "handoff" / "SKILL.md"
 )
 _CONTEXT_LOADING_PROTOCOL_SKILL = (
     _PLUGIN_DIR / "skills" / "context-loading-protocol" / "SKILL.md"
@@ -34,7 +41,7 @@ _CONTEXT_LOADING_PROTOCOL_SKILL = (
 
 # One utilization formula everywhere (#782): the exact same string must
 # appear in the hook docstring and both SKILL.md files, so the three can
-# never silently drift the way context-summarization/SKILL.md's old
+# never silently drift the way handoff/SKILL.md's old
 # `(input + output) / window` once did against the hook's real measurement.
 _UTILIZATION_FORMULA = (
     "utilization = (input + cache_read + cache_creation) / model_context_window"
@@ -49,7 +56,7 @@ def test_utilization_formula_is_identical_across_hook_and_both_skills() -> None:
     )
     for label, text in (
         ("hooks/context_ceiling_guard.py", hook_text),
-        ("skills/context-summarization/SKILL.md", summarization_text),
+        ("skills/handoff/SKILL.md", summarization_text),
         ("skills/context-loading-protocol/SKILL.md", loading_protocol_text),
     ):
         assert _UTILIZATION_FORMULA in text, (
@@ -90,6 +97,7 @@ def _mkinput(tool_name: str, tool_input: dict, transcript: Path) -> str:
             "session_id": "s1",
             "transcript_path": str(transcript),
             "tool_input": tool_input,
+            "cwd": _BOUNDARY_EVENTS_SCRATCH_CWD,
         }
     )
 
@@ -139,7 +147,7 @@ def test_warns_exit_0_on_agent_load_over_the_ceiling(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert b"100000 of 200000 tokens" in result.stderr
-    assert b"context-summarization" in result.stderr
+    assert b"handoff" in result.stderr
 
 
 def test_blocks_exit_2_over_the_ceiling_under_strict_mode(
@@ -162,7 +170,7 @@ def test_never_gates_a_recovery_skill_even_strict(tmp_path: Path) -> None:
     env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
     env["DEV_TEAM_CONTEXT_STRICT"] = "on"
     result = _run(
-        _mkinput("Skill", {"skill": "dev-team:context-summarization"}, tr),
+        _mkinput("Skill", {"skill": "dev-team:handoff"}, tr),
         env,
     )
     assert result.returncode == 0
@@ -344,7 +352,7 @@ def test_sanitize_session(raw: str, expected: str) -> None:
     "tool_input,expected",
     [
         ({"skill": "plan"}, "plan"),
-        ({"skill": "dev-team:context-summarization"}, "context-summarization"),
+        ({"skill": "dev-team:handoff"}, "handoff"),
         ({"name": "plan"}, "plan"),
         ({"name": "foo:bar:baz"}, "baz"),
         ({}, ""),
@@ -748,7 +756,7 @@ def test_format_message_run_now_band_leads_with_diagnostic_and_keeps_footer():
     msg = hook._format_message(190_000, 1_000_000, 150_000, "absolute", "detected", "x")
     assert msg.startswith("🪟 Context at")
     assert "[run-now]" in msg
-    assert "Run /context-summarization now" in msg
+    assert "Run /handoff now" in msg
     assert "Tune with DEV_TEAM_CONTEXT_WINDOW" in msg
 
 

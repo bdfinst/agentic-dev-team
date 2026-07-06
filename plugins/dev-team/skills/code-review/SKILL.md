@@ -92,7 +92,7 @@ Priority order:
 3. `--all` — all source files
 4. **Auto-scope** (no flags): run `git diff --name-only` + `git diff --cached --name-only`, combine and dedupe. If non-empty, review those files. If empty, review the full repository.
 
-**Never `Read` a directory path directly to enumerate its contents** — `Read` on a directory throws `EISDIR` (the same hazard step 3 avoids for agent-roster enumeration). This applies to `--path <dir>`, `--all`, and the full-repository fallback alike: always list files with `Glob` (e.g. `Glob("<dir>/**/*")`), never a bare `Read` on the directory itself.
+**Never `Read` a directory path directly to enumerate its contents** — `Read` on a directory throws `EISDIR` (the same hazard step 3 avoids for agent-roster enumeration). This applies to `--path <dir>`, `--all`, and the full-repository fallback alike: always list files with `Glob` (e.g. `Glob("<dir>/**/*")`), never a bare `Read` on the directory itself. See `${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md` for the shared rule.
 
 **Scope validation** (full-repo paths only):
 
@@ -166,7 +166,7 @@ If Semgrep already ran in the pre-flight gate, reuse those findings. Do not run 
 
 If `--background`: run only `doc-review`, `arch-review`, `naming-review`, `structure-review`. Skip all others.
 
-Otherwise read the roster from the **Review Agents** section of `knowledge/agent-registry.md` — each row names an agent and its `agents/<name>.md` file. **Never `Read` the bare `agents/` directory** (it throws `EISDIR`); if you must confirm files on disk, list them with `Glob("agents/*.md")`, never a directory `Read`. All are enabled by default.
+Otherwise read the roster from the **Review Agents** section of `knowledge/agent-registry.md` — each row names an agent and its `agents/<name>.md` file. **Never `Read` the bare `agents/` directory** (it throws `EISDIR`); if you must confirm files on disk, list them with `Glob("agents/*.md")`, never a directory `Read` (see `${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`). All are enabled by default.
 
 **Language-agnostic agents always run** regardless of tech stack: `doc-review`, `arch-review`, `claude-setup-review`, `token-efficiency-review`.
 

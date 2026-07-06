@@ -523,6 +523,20 @@
       "anchor": "what-not-to-flag-1"
     }
   },
+  "plugins/dev-team/knowledge/directory-enumeration.md": {
+    "The rule": {
+      "summary": "**Never `Read` a directory path to check whether something exists or to see",
+      "anchor": "the-rule"
+    },
+    "Why this is shared, not local": {
+      "summary": "This same hazard has been independently discovered and locally patched three",
+      "anchor": "why-this-is-shared-not-local"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "Cited by `skills/code-review/SKILL.md` and by review-agent/skill Skip or",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/domain-modeling.md": {
     "Exploration Patterns": {
       "summary": "Map the project structure before detecting issues.",
@@ -581,6 +595,32 @@
       "anchor": "ubiquitous-language-drift"
     }
   },
+  "plugins/dev-team/knowledge/evidence-bundle.md": {
+    "The four fixed sections": {
+      "summary": "Always present, in this order, with these exact headers.",
+      "anchor": "the-four-fixed-sections"
+    },
+    "Skeleton": {
+      "summary": "No coverage tool detected:",
+      "anchor": "skeleton"
+    },
+    "Degradation examples": {
+      "summary": "No coverage tool detected:",
+      "anchor": "degradation-examples"
+    },
+    "Line budget": {
+      "summary": "Target **under ~40 lines** in a PR body.",
+      "anchor": "line-budget"
+    },
+    "Assembly is per-command, not handed off": {
+      "summary": "`/build` assembles its bundle from its own run's Step 5/6/7 outputs at Step 8.",
+      "anchor": "assembly-is-per-command-not-handed-off"
+    },
+    "Boundaries": {
+      "summary": "Does not persist to `metrics/` or `memory/` — every underlying datum already",
+      "anchor": "boundaries"
+    }
+  },
   "plugins/dev-team/knowledge/exploratory-testing-field-guide.md": {
     "1. Charter Quality (§2.3–2.4)": {
       "summary": "**Format**: `Explore [target] with [approach] to discover [concern]`",
@@ -601,6 +641,16 @@
     "5. Implicit Expectations": {
       "summary": "Stakeholders never state these because they assume they're obvious — highest-value adversarial targets:",
       "anchor": "5-implicit-expectations"
+    }
+  },
+  "plugins/dev-team/knowledge/failure-routing.md": {
+    "Classification Table": {
+      "summary": "| Signature pattern | Class | Route | Escalation |",
+      "anchor": "classification-table"
+    },
+    "Notes": {
+      "summary": "`/build`: classification *is* the diagnosis step orchestrator constraint 7",
+      "anchor": "notes"
     }
   },
   "plugins/dev-team/knowledge/fixture-construction.md": {
@@ -1053,6 +1103,84 @@
       "anchor": "decision-log-entry"
     }
   },
+  "plugins/dev-team/knowledge/telemetry-schema.md": {
+    "`boundary-events.jsonl`": {
+      "summary": "**Added by #859.** The boundary-level (policy-gateway) channel: every guard",
+      "anchor": "boundary-eventsjsonl"
+    },
+    "`telemetry.jsonl`": {
+      "summary": "Opt-in usage beacon: which slash commands / skills get invoked, and whether",
+      "anchor": "telemetryjsonl"
+    },
+    "`cost-metering.jsonl`": {
+      "summary": "Per-session token/cost summary, incrementally accumulated from the",
+      "anchor": "cost-meteringjsonl"
+    },
+    "`artifact-usage.json`": {
+      "summary": "Not JSONL — a single JSON object keyed by skill/agent name, upserted on",
+      "anchor": "artifact-usagejson"
+    },
+    "`gate-bypass-audit.jsonl`": {
+      "summary": "Accountability record for `git commit --no-verify`/`-n` bypasses of the",
+      "anchor": "gate-bypass-auditjsonl"
+    },
+    "`gate-bypass.jsonl`": {
+      "summary": "Accountability record for `MUTATION_SMOKE_GATE_SKIP=1` bypasses of the",
+      "anchor": "gate-bypassjsonl"
+    },
+    "`config-changelog.jsonl`": {
+      "summary": "Audit trail for `/feedback-learning` config changes and human-oversight",
+      "anchor": "config-changelogjsonl"
+    },
+    "`session-digest.jsonl`": {
+      "summary": "Trend digest from `/session-review` (backed by `scripts/session_extract.py`):",
+      "anchor": "session-digestjsonl"
+    },
+    "`review-value.jsonl`": {
+      "summary": "Whether a `/build` inline review checkpoint actually changed anything —",
+      "anchor": "review-valuejsonl"
+    },
+    "`verify-log.jsonl`": {
+      "summary": "Evidence that `/verify` actually ran (or was legitimately skipped) before a",
+      "anchor": "verify-logjsonl"
+    },
+    "`override-audit.jsonl`": {
+      "summary": "Audit trail for `/code-review --force --reason \"<text>\"`, which skips all",
+      "anchor": "override-auditjsonl"
+    },
+    "`eval-variance.jsonl`": {
+      "summary": "Multi-trial pass@k stability trend for `/agent-eval` fixtures.",
+      "anchor": "eval-variancejsonl"
+    },
+    "`eval-ablation.jsonl`": {
+      "summary": "Causal per-agent ablation evidence from `/agent-eval --ablation <agent>` (#868):",
+      "anchor": "eval-ablationjsonl"
+    },
+    "`refactor-freeze.jsonl`": {
+      "summary": "Audit log for the tests-frozen-during-REFACTOR invariant (`#813`) — both the",
+      "anchor": "refactor-freezejsonl"
+    },
+    "`contract-version-guard-audit.jsonl`": {
+      "summary": "Audit log for release-please's bypass of the security-primitives-contract",
+      "anchor": "contract-version-guard-auditjsonl"
+    },
+    "`learning-loop-state.json`": {
+      "summary": "Not JSONL — a single current-value JSON file: a counter gating when",
+      "anchor": "learning-loop-statejson"
+    },
+    "`pending-review.jsonl`": {
+      "summary": "Queued findings from the background session-analysis dispatch, before",
+      "anchor": "pending-reviewjsonl"
+    },
+    "`metrics/{date}-task-log.jsonl` (e.g. `2026-02-20-task-log.jsonl`)": {
+      "summary": "Self-reported per-task completion log, one file per calendar date.",
+      "anchor": "metricsdate-task-logjsonl-eg-2026-02-20-task-logjsonl"
+    },
+    "Adding a new stream": {
+      "summary": "1.",
+      "anchor": "adding-a-new-stream"
+    }
+  },
   "plugins/dev-team/knowledge/test-automation-maturity.md": {
     "Maturity scale (diagnose from evidence, lowest rung first)": {
       "summary": "| Rung | Signal in the suite | Risk |",
@@ -1482,6 +1610,10 @@
       "summary": "`/agent-eval` dispatches at one of three tiers, in increasing confidence and",
       "anchor": "confidence-pyramid"
     },
+    "Ablation mode (`--ablation <agent>`, #868)": {
+      "summary": "Gives `/harness-audit` **causal** drop-candidate evidence instead of the",
+      "anchor": "ablation-mode-ablation-agent-868"
+    },
     "Cache (fingerprint replay)": {
       "summary": "`scripts/eval_cache.py` SHAs each `fixture::target` over the target's",
       "anchor": "cache-fingerprint-replay"
@@ -1507,7 +1639,7 @@
       "anchor": "2-load-fixtures-and-expected-results"
     },
     "3. Run agents against fixtures": {
-      "summary": "If `--integration` is set, skip the rest of this section and dispatch",
+      "summary": "If `--ablation <agent>` is set, skip the rest of this section and follow",
       "anchor": "3-run-agents-against-fixtures"
     },
     "4. Grade each result": {
@@ -1884,6 +2016,10 @@
       "summary": "A \"done\" step that only passed its own tests is not the same as a feature that works — a red suite catches structural regressions, not \"it fails the first time someone actually runs it.\" Once a slice's steps are all `[x]` (sub-step 5) and…",
       "anchor": "49-verify-runtime-behavior-before-the-slice-is-done-issue-727"
     },
+    "4.10. Run slice invariants (issue #865)": {
+      "summary": "When the slice declares `**Invariants:**`, run them **after** the slice's own suite is green (sub-step 5) and its review checkpoint(s) have run (sub-steps 4/6) — invariants check what must stay green *beyond* the slice's new acceptance…",
+      "anchor": "410-run-slice-invariants-issue-865"
+    },
     "5. Run full test suite": {
       "summary": "After all steps are complete, run the full test suite.",
       "anchor": "5-run-full-test-suite"
@@ -1895,6 +2031,10 @@
     "7. Final test quality score (branch)": {
       "summary": "Produce a Farley Score for the tests written on this branch — the last quality signal before `/pr`.",
       "anchor": "7-final-test-quality-score-branch"
+    },
+    "7.5. Assemble the evidence bundle": {
+      "summary": "Before the completion report, assemble a structured evidence bundle per",
+      "anchor": "75-assemble-the-evidence-bundle"
     },
     "8. Update plan status": {
       "summary": "Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file.",
@@ -2233,59 +2373,17 @@
       "anchor": "output"
     }
   },
-  "plugins/dev-team/skills/context-summarization/SKILL.md": {
-    "Constraints": {
-      "summary": "Summaries replace conversation history; never reload prior turns",
-      "anchor": "constraints"
-    },
-    "When to Summarize": {
-      "summary": "The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to",
-      "anchor": "when-to-summarize"
-    },
-    "The Three Gates": {
-      "summary": "Apply in order to all context older than the last 3-5 turns:",
-      "anchor": "the-three-gates"
-    },
-    "1. Forget Gate -- Discard": {
-      "summary": "Exploratory dead ends and rejected approaches",
-      "anchor": "1-forget-gate-discard"
-    },
-    "2. Input Gate -- Preserve": {
-      "summary": "Current task definition and acceptance criteria",
-      "anchor": "2-input-gate-preserve"
-    },
-    "3. Output Gate -- Keep Verbatim": {
-      "summary": "Last 3-5 conversation turns",
-      "anchor": "3-output-gate-keep-verbatim"
-    },
-    "Writing Summaries": {
-      "summary": "Write the summary to `memory/{date}-{task-slug}.md` using the Task Summary template in `references/summary-templates.md`.",
-      "anchor": "writing-summaries"
-    },
-    "Phase Progress Files": {
-      "summary": "Each phase produces a progress file that onboards the next phase's agent without replaying history.",
-      "anchor": "phase-progress-files"
-    },
-    "Using Summaries in New Conversations": {
-      "summary": "1.",
-      "anchor": "using-summaries-in-new-conversations"
-    },
-    "Cleanup": {
-      "summary": "1.",
-      "anchor": "cleanup"
-    }
-  },
   "plugins/dev-team/skills/continue/SKILL.md": {
     "Orchestrator constraints": {
       "summary": "1.",
       "anchor": "orchestrator-constraints"
     },
     "Steps": {
-      "summary": "Read all files in `memory/` looking for phase progress files.",
+      "summary": "Find phase progress files with `Glob(\"memory/*.md\")` — never `Read` the bare `memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`).",
       "anchor": "steps"
     },
     "1. Scan for in-progress work": {
-      "summary": "Read all files in `memory/` looking for phase progress files.",
+      "summary": "Find phase progress files with `Glob(\"memory/*.md\")` — never `Read` the bare `memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`).",
       "anchor": "1-scan-for-in-progress-work"
     },
     "2. Check git state": {
@@ -2970,9 +3068,41 @@
       "summary": "Preference and convention changes: apply after diff preview",
       "anchor": "approval-rules"
     },
+    "Evaluate — the eval gate (#860)": {
+      "summary": "A change that mutates a review agent's effective behavior — a direct edit to",
+      "anchor": "evaluate-the-eval-gate-860"
+    },
+    "1. Determine whether the change is gated": {
+      "summary": "Scan `evals/expected/*.json` for `applicableAgents` arrays.",
+      "anchor": "1-determine-whether-the-change-is-gated"
+    },
+    "2. Get the pre-score": {
+      "summary": "Read `evals/baseline.json`, filtered to pairs whose agent is the touched",
+      "anchor": "2-get-the-pre-score"
+    },
+    "3. Pause for approval, then dispatch the targeted eval": {
+      "summary": "Before dispatching *any* live `/agent-eval` run (pre-run or post-run), show",
+      "anchor": "3-pause-for-approval-then-dispatch-the-targeted-eval"
+    },
+    "4. Compare and decide adoption": {
+      "summary": "| `eval_post` vs `eval_pre` | `eval_verdict` | Default `adoption_status` |",
+      "anchor": "4-compare-and-decide-adoption"
+    },
     "Audit Trail": {
       "summary": "All changes are logged in `metrics/config-changelog.jsonl` (one JSON object per line, append-only).",
       "anchor": "audit-trail"
+    },
+    "The `evidence` field (validated-outcome weighting, #866)": {
+      "summary": "Every new `amend`/`learn`/`remember` entry names how its own effect can be",
+      "anchor": "the-evidence-field-validated-outcome-weighting-866"
+    },
+    "Validation verdicts and rollback proposals (#866)": {
+      "summary": "`/harness-audit` reads this changelog and appends new `type: \"validation\"`",
+      "anchor": "validation-verdicts-and-rollback-proposals-866"
+    },
+    "Change-contract schema extension (#860)": {
+      "summary": "The nine fields below are **required only for entries that gate through",
+      "anchor": "change-contract-schema-extension-860"
     },
     "Rollback": {
       "summary": "1.",
@@ -3243,6 +3373,76 @@
       "anchor": "3-confirm"
     }
   },
+  "plugins/dev-team/skills/handoff/SKILL.md": {
+    "Mode Selection": {
+      "summary": "Keyed off whether a **stated purpose** exists for an independent/fresh session:",
+      "anchor": "mode-selection"
+    },
+    "Constraints": {
+      "summary": "Summaries/handoff artifacts replace conversation history; never reload prior turns",
+      "anchor": "constraints"
+    },
+    "The Three Gates": {
+      "summary": "Apply in order to all context older than the last 3-5 turns, in both modes:",
+      "anchor": "the-three-gates"
+    },
+    "1. Forget Gate -- Discard": {
+      "summary": "Exploratory dead ends and rejected approaches",
+      "anchor": "1-forget-gate-discard"
+    },
+    "2. Input Gate -- Preserve": {
+      "summary": "Current task definition and acceptance criteria",
+      "anchor": "2-input-gate-preserve"
+    },
+    "3. Output Gate -- Keep Verbatim": {
+      "summary": "Last 3-5 conversation turns",
+      "anchor": "3-output-gate-keep-verbatim"
+    },
+    "Redaction": {
+      "summary": "Before writing any output in either mode, redact secrets, API keys, tokens, and PII from the content.",
+      "anchor": "redaction"
+    },
+    "Continue Mode": {
+      "summary": "Compress conversation history to keep context utilization below 40% while continuing the *same* task in a fresh window.",
+      "anchor": "continue-mode"
+    },
+    "When to Summarize": {
+      "summary": "The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to",
+      "anchor": "when-to-summarize"
+    },
+    "Writing Summaries": {
+      "summary": "**Destination**: `memory/{date}-{task-slug}.md`",
+      "anchor": "writing-summaries"
+    },
+    "Phase Progress Files": {
+      "summary": "Each phase produces a progress file that onboards the next phase's agent without replaying history.",
+      "anchor": "phase-progress-files"
+    },
+    "Using Summaries in New Conversations": {
+      "summary": "1.",
+      "anchor": "using-summaries-in-new-conversations"
+    },
+    "Cleanup (Time-Based)": {
+      "summary": "1.",
+      "anchor": "cleanup-time-based"
+    },
+    "Fork Mode": {
+      "summary": "Split off a distinguishable, out-of-scope side-task into an independent session — a sibling running in parallel, or a child (e.g.",
+      "anchor": "fork-mode"
+    },
+    "Requires a Stated Purpose": {
+      "summary": "Fork mode always needs a one-line purpose describing the side-task.",
+      "anchor": "requires-a-stated-purpose"
+    },
+    "Writing the Fork Artifact": {
+      "summary": "**Destination**: the OS temp dir (e.g.",
+      "anchor": "writing-the-fork-artifact"
+    },
+    "Cleanup (Event-Based, Never Time-Based)": {
+      "summary": "Fork-mode artifacts are deleted **on consumption**, not on a schedule:",
+      "anchor": "cleanup-event-based-never-time-based"
+    }
+  },
   "plugins/dev-team/skills/harness-audit/SKILL.md": {
     "Orchestrator constraints": {
       "summary": "1.",
@@ -3260,29 +3460,37 @@
       "summary": "Read metrics JSONL files from `metrics/`.",
       "anchor": "1-check-for-metrics-data"
     },
-    "2. Analyze review agent effectiveness": {
+    "2. Check for a stale baseline (re-baseline detection, #860)": {
+      "summary": "Report-only — this step never edits `evals/baseline.json` or re-runs evals",
+      "anchor": "2-check-for-a-stale-baseline-re-baseline-detection-860"
+    },
+    "3. Analyze review agent effectiveness": {
       "summary": "For each review agent in the registry (`knowledge/agent-registry.md`):",
-      "anchor": "2-analyze-review-agent-effectiveness"
+      "anchor": "3-analyze-review-agent-effectiveness"
     },
-    "3. Analyze review-value fix rates": {
+    "4. Analyze review-value fix rates": {
       "summary": "Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `performance-metrics`).",
-      "anchor": "3-analyze-review-value-fix-rates"
+      "anchor": "4-analyze-review-value-fix-rates"
     },
-    "4. Analyze model routing": {
+    "5. Lesson Validation — validated-outcome weighting (#866)": {
+      "summary": "Close the loop on `/feedback-learning` lessons: does an adopted lesson",
+      "anchor": "5-lesson-validation-validated-outcome-weighting-866"
+    },
+    "6. Analyze model routing": {
       "summary": "For each agent listed in `knowledge/agent-registry.md` (with model tier from its `model:` frontmatter, resolved via the PreToolUse hook per `agents/orchestrator.md` → Resolution Procedure):",
-      "anchor": "4-analyze-model-routing"
+      "anchor": "6-analyze-model-routing"
     },
-    "5. Analyze orchestration complexity": {
+    "7. Analyze orchestration complexity": {
       "summary": "Review the current pipeline for components that may be unnecessary overhead:",
-      "anchor": "5-analyze-orchestration-complexity"
+      "anchor": "7-analyze-orchestration-complexity"
     },
-    "6. Produce report": {
+    "8. Produce report": {
       "summary": "Write the report to the output path using this structure:",
-      "anchor": "6-produce-report"
+      "anchor": "8-produce-report"
     },
-    "7. Present results": {
+    "9. Present results": {
       "summary": "Display a summary of the report and the file path.",
-      "anchor": "7-present-results"
+      "anchor": "9-present-results"
     },
     "Error Handling": {
       "summary": "Missing metrics files: Report what's missing, suggest how to generate data",
@@ -3417,7 +3625,7 @@
       "anchor": "gate-classification"
     },
     "Standard approval gates": {
-      "summary": "These actions always require human approval:",
+      "summary": "These actions always require human approval.",
       "anchor": "standard-approval-gates"
     },
     "Agent-specific gates": {
@@ -3453,11 +3661,11 @@
       "anchor": "decision-logging"
     },
     "Decision visibility (Notify level)": {
-      "summary": "All oversight events logged to `metrics/config-changelog.jsonl` with:",
+      "summary": "**Canonical schema.** This section is the single canonical definition of the",
       "anchor": "decision-visibility-notify-level"
     },
     "Audit trail": {
-      "summary": "All oversight events logged to `metrics/config-changelog.jsonl` with:",
+      "summary": "**Canonical schema.** This section is the single canonical definition of the",
       "anchor": "audit-trail"
     },
     "Output": {
@@ -4437,7 +4645,7 @@
       "anchor": "0-queued-findings-surface-pending-review-queue-before-fresh-analysis"
     },
     "`pending-review.jsonl` Schema": {
-      "summary": "Each line is a JSON object:",
+      "summary": "Full field reference: `${CLAUDE_PLUGIN_ROOT}/knowledge/telemetry-schema.md`",
       "anchor": "pending-reviewjsonl-schema"
     },
     "1. Cross-machine Telemetry — validate config, then sync (#178)": {

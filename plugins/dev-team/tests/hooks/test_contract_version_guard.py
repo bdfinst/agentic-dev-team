@@ -183,6 +183,22 @@ def _run_hook_from(
     target_py = target_hooks / "contract_version_guard.py"
     if not target_py.exists():
         target_py.write_bytes((_HOOKS_DIR / "contract_version_guard.py").read_bytes())
+    target_lib = target_hooks / "lib"
+    target_lib.mkdir(parents=True, exist_ok=True)
+    target_boundary_events = target_lib / "boundary_events.py"
+    if not target_boundary_events.exists():
+        target_boundary_events.write_bytes(
+            (_HOOKS_DIR / "lib" / "boundary_events.py").read_bytes()
+        )
+    # The plugin manifest path is resolved relative to hooks/lib/, i.e.
+    # hooks/../.claude-plugin/plugin.json — create a minimal one so
+    # emit_boundary_event's version lookup doesn't hit a missing-file path
+    # (harmless either way since it's fail-open, but keeps behavior tidy).
+    manifest_dir = repo_root / "plugins" / "dev-team" / ".claude-plugin"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = manifest_dir / "plugin.json"
+    if not manifest_path.exists():
+        manifest_path.write_text('{"version": "0.0.0-test"}')
     env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": str(repo_root),

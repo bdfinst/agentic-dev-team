@@ -40,13 +40,13 @@ names which bound is binding — percentage or absolute, never both — and the
 window's provenance (override, detected, or default).
 
 As occupancy climbs past the ceiling, the hook escalates through three
-Context Summarization action bands keyed to multiples of the effective
-ceiling — 1x nudge, 1.25x run `/context-summarization` now, 1.5x full
-summary + fresh conversation (see [Context Summarization → When to
-Summarize](../context-summarization/SKILL.md#when-to-summarize)) — before
+Handoff action bands keyed to multiples of the effective
+ceiling — 1x nudge, 1.25x run `/handoff` now, 1.5x full
+summary + fresh conversation (see [Handoff → When to
+Summarize](../handoff/SKILL.md#when-to-summarize)) — before
 nudging (warn, default) or, at/above the ceiling under
 `DEV_TEAM_CONTEXT_STRICT=on`, blocking the load. Recovery skills
-(`/context-summarization`, `/context-loading-protocol`, `/continue`,
+(`/handoff`, `/context-loading-protocol`, `/continue`,
 `/review-summary`, `/session-review`) are never gated — blocking the path
 back under budget would deadlock the session.
 
@@ -168,7 +168,7 @@ Key rules:
 Since tokens can't be literally removed from context:
 
 1. **Phase transitions** — summarize completed phase output into `memory/` and start a new conversation for the next phase.
-2. **Within a conversation** — stop referencing the agent/skill; the orchestrator mentally notes it's no longer active. Use the Context Summarization skill to compress stale content.
+2. **Within a conversation** — stop referencing the agent/skill; the orchestrator mentally notes it's no longer active. Use the Handoff skill (continue mode) to compress stale content.
 3. **Multi-turn accumulation** — when conversation history crosses **30%** utilization, trigger summarization before loading additional agents.
 
 ## Anti-patterns

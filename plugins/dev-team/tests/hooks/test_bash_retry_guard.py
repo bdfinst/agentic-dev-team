@@ -38,6 +38,9 @@ def _run(payload: dict, env: dict, tmpdir: Path) -> subprocess.CompletedProcess[
         "GIT_CONFIG_SYSTEM": "/dev/null",
         **env,
     }
+    # Boundary events (#859) resolve metrics/ from payload["cwd"] — default
+    # it to the isolated `tmpdir` so tests never write into the real repo.
+    payload = {"cwd": str(tmpdir), **payload}
     return subprocess.run(
         ["python3", str(_HOOK)],
         input=json.dumps(payload),

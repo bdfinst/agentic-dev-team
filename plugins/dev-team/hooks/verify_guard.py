@@ -45,6 +45,16 @@ from verify_guard_state import (  # noqa: E402  (import after sys.path setup)
     state_key,
     write_state,
 )
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
 
 
 # Verify-class command detector — mirrors `session_extract.py::_VERIFY_RE`.
@@ -134,6 +144,9 @@ def main() -> int:
             "re-running the same command."
         )
         print("  To suppress this warning, set DEV_TEAM_VERIFY_THRESHOLD=0.")
+        emit_boundary_event(
+            cwd, "verify_guard", "Bash", "warn", "verify-repeat-threshold", session_id
+        )
         return 0
 
     print(
@@ -157,6 +170,9 @@ def main() -> int:
         "again."
     )
     print("  To suppress this block, set DEV_TEAM_VERIFY_THRESHOLD=0.")
+    emit_boundary_event(
+        cwd, "verify_guard", "Bash", "block", "verify-repeat-threshold", session_id
+    )
     return 2
 
 

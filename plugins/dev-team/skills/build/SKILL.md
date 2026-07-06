@@ -65,6 +65,13 @@ Read the plan file. If the status is not `approved`:
 - **Interactive** → ask the user: "This plan has status '<status>'. Approve it before building, or continue anyway?"
 - **Non-interactive** (see Parse Arguments) → do **not** block. Auto-approve and continue, and print an explicit audit line into the build output: `Auto-approved plan status '<status>' (non-interactive) — no human gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.`
 
+Either path appends an `approval` entry to `metrics/config-changelog.jsonl` per the
+[human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)
+schema — `proposed` states the plan status being approved, `evidence_shown` points at
+the plan file, `risks_surfaced` is `[]` unless the plan's status itself signals a risk
+(e.g. resuming an `in-progress` plan). The non-interactive path writes the same three
+fields; `description` names the bypass trigger.
+
 ### 3. Verify acceptance criteria (gate)
 
 Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `${CLAUDE_PLUGIN_ROOT}/prompts/spec-reviewer.md` § Pre-build criteria verification mode). Pass the plan's acceptance criteria and per-step test expectations.
@@ -82,6 +89,15 @@ If any criteria are flagged:
    - If the user overrides, log the override in the build output and continue
    - If the user revises, update the plan file and re-verify
 3. **Non-interactive** (see Parse Arguments) → do **not** block. Proceed and record the bypass in the build output: `Acceptance-criteria gate auto-passed with N flagged criterion(s) (non-interactive) — no human gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.` Include the flagged findings in the record so the bypass is auditable.
+
+Whichever path is taken (proceed, revise, or override), append an `approval` entry to
+`metrics/config-changelog.jsonl` per the [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)
+schema — `proposed` is the acceptance-criteria set under review, `evidence_shown`
+points at the plan file (and, for an interactive override, the reviewer's findings if
+written to `memory/`), and `risks_surfaced` lists the flagged criteria (`[]` if none
+were flagged). An interactive `override` (user overrides the reviewer's findings) is
+logged as `type: "override"` instead, with `proposed` recording the reviewer's
+flagged concern and `description` recording the user's decision to proceed anyway.
 
 ### 4. Implement each step
 
@@ -133,6 +149,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py --wave-width <W> [--jobs N] 
    - A **failing slice** → exit non-zero naming it, list which same-wave slices succeeded and where their (preserved) worktrees are, print the resume command, and start no next-wave slice. Resume rebuilds only the incomplete slice.
    - A **reconcile conflict** (two same-wave diffs touch one file) → exit non-zero naming the file, pick no side, start no next-wave slice.
 
+**Slice dispatch bookkeeping (issue #865).** Before a slice's first step begins:
+
+1. **Freeze scope (opt-in only).** Check whether the plan opts into scope enforcement: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py enabled <plan-file>` (exit 0 = engaged). Declaring slice-level `**Files:**` alone never freezes anything — only a `**Scope enforcement:** freeze` metadata line does (Ambiguity Log Q1). When engaged **and** the dispatching slice declares `**Files:**`, run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py engage <plan-file> --slice <id> --hooks-dir <worktree>/hooks` — this writes `hooks/freeze-state.json` with `allowed_patterns` set to the slice's declared paths plus the fixed bookkeeping allowlist (the plan file, `memory/**`, `metrics/**`), so `hooks/pre_tool_guard.py` blocks any Write/Edit outside that scope without also blocking `/build`'s own progress writes. Clear it at slice completion (sub-step 5 below): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py clear --hooks-dir <worktree>/hooks`.
+2. **Rollback point.** When the slice declares `**Rollback point:**`, resolve the symbolic value to a concrete SHA and record it: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_rollback_point.py resolve --symbolic <value> --repo <worktree> --slice-start <HEAD-at-dispatch> --wave-start <wave-start-ref> --plan-start <plan-start-ref>`, then `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_rollback_point.py record --path memory/build-rollback.json --slice <id> --symbolic <value> --sha <resolved-sha>`. This is the boundary a dead-end escalation (issue #864) names verbatim: "revert to `<sha>` (`<symbolic>`)" — retrieve it with the script's `get` subcommand. A slice without `Rollback point` records nothing.
+
 For each step within a slice, dispatch implementation following the implementer template (`${CLAUDE_PLUGIN_ROOT}/prompts/implementer.md`). Pass the implementer its step **and the slice's Gherkin scenario(s)** — the scenarios are the behavioral contract the step's test must satisfy.
 
 Within the per-behavior mini-cycle below, repeated Write/Edit calls can race a `PostToolUse` hook that rewrites files (e.g., a formatter): an `Edit` failing on a stale `old_string` is expected to self-correct by re-`Read`ing the file before the next `Edit` attempt, not to escalate immediately.
@@ -143,11 +164,27 @@ Work each step **one behavior at a time** — never all the code then all the te
 
 1. **First phase — IMPLEMENT.** Implement exactly one behavior from the step — no cleanup, no behavior beyond what the step requires. Apply the implementer's [Per-Edit Authoring Discipline](../../agents/software-engineer.md#per-edit-authoring-discipline) checklist (Surgical Changes, Simplicity First, Think Before Coding) at this phase, not deferred to review.
 2. **Second phase — TEST.** Write the test covering the behavior's slice scenario, immediately after the code. Run the full test suite. **Hard gate: all tests must pass — paste the passing output.** Do NOT proceed to REFACTOR without pasted passing output.
+
+   **Before each repair iteration** (here and in the review-fix loop, sub-step 4), read `${CLAUDE_PLUGIN_ROOT}/knowledge/failure-routing.md` and classify the failing output/exit code by its regex table — deterministic pattern match only, no LLM call, no extra dispatch. Follow the matched route (inline fix / systematic-debugging / test-generation / security-engineer dispatch / human arbitration); `unclassified` falls through to the generic loop below, unchanged. A route switch spends from the same iteration budget — it never resets or raises the cap.
+
+   **2a. Repair loop on failure — failure-signature dead-end detection (issue #864).** Whichever route the classification above sends the failure down, repair it in place rather than handing back a bare failure:
+
+   - **Compute a failure signature after every repair iteration** (an edit followed by a re-run): the pair of (1) the sorted, deduplicated set of failing test identifiers, using the runner's native IDs (pytest node IDs, jest/vitest full test names, `go test` names, etc.), and (2) the error class per failing test (assertion failure vs. exception type vs. compile/collection error, e.g. `AssertionError`, `TypeError`, `SyntaxError`).
+   - **Normalize before comparing.** Strip volatile output first — timestamps, durations, memory addresses, temp paths, PIDs/ports, random seeds — so two runs identical except for that noise produce the same signature. Never compare raw output.
+   - **Track signatures as in-context iteration state** — a small per-step table (iteration → signature) held for the duration of this repair loop. This is not a `memory/` file; the durable record on dead-end is the checkpoint commit below (plus the existing `memory/build-escalation-<plan-slug>.md` record on a non-interactive halt).
+   - **Two identical consecutive signatures is a dead-end.** If iteration N+1's normalized signature equals iteration N's, stop — do not dispatch a third attempt against the unchanged signature.
+   - **A changed signature continues repair normally.** Fewer or different failing tests, or a different error class, is progress: keep repairing, and restart the dead-end comparison from the new signature. **No new iteration cap** — the review loop's 5-iteration cap (sub-step 4) is untouched; this is a no-progress cutoff, not a count cap, so a repair loop that keeps changing its signature may run as long as it keeps progressing. A route switch (per the classification above) spends from this same budget — it never resets or raises it.
+   - **On dead-end, commit a checkpoint before escalating.** Commit the current working tree as-is (no per-iteration snapshots in v1) on the working branch — **never `main`** — with a conventional message explicitly marked as a dead-end checkpoint, e.g. `chore(build): dead-end checkpoint — step <N>, <M> tests still failing`. If an earlier iteration was strictly better than the current one, name that regression in the escalation rather than reverting to it.
+   - **Escalate with the best candidate, not a bare failure**, stating all three: (a) **improved** — tests that were failing at repair start and now pass, (b) **remaining** — the current (unchanged) failing signature, (c) the **checkpoint commit ref**.
+   - **Cite the architecture-questioning rule at 3+ failed attempts.** Count every repair iteration that ended with a real edit and a re-run that failed to reach green (regardless of whether its signature changed) as one failed fix attempt. When 3 or more distinct fix attempts have failed by the time the dead-end fires, the escalation must explicitly cite [Systematic Debugging](../systematic-debugging/SKILL.md)'s rule: "After 3+ failed fix attempts, question the architecture — stop patching."
+   - **This is a hard stop, matching the Escalation section below**: leave plan status unchanged and never proceed to `/pr` over the unresolved escalation. A red checkpoint commit is never presented as done.
+   - **Out of scope / unchanged**: `hooks/verify_guard.py` is not modified and continues to own the separate, syntactic case — the same verify command re-run with zero intervening edits. This repair loop fires only when edits *do* happen but the failure signature doesn't change.
+
 3. **REFACTOR (every green, never skipped).** Clean up structure, naming, duplication without changing behavior. Runs in **every** per-behavior cycle: never deferred to an end-of-build pass, never made conditional on task size or complexity (`docs/experiments/RECOMMENDATIONS.md` Rec 4 — deleting just this step erased the cadence's changeability advantage entirely). **Tests are frozen for the phase** — a refactor must never change a test (enforced by the freeze/revert guards; recovery: return to the TEST phase, change the test there, re-verify green, re-enter REFACTOR). Run tests again — they must still pass. If tests break, undo and try a smaller change. A no-op refactor (nothing worth changing, stated in one line) satisfies the phase — the mandate is the check on every green, not a diff — and any refactor made stays within the code the step touched; adjacent-file cleanups are follow-ups, not refactors.
 4. **Inline review checkpoint — granularity scales with complexity.** *Where* the checkpoint runs depends on the step's **Complexity** classification (review *depth* still scales too):
    - **trivial**: Skip inline review. The final `/code-review` (step 6) covers all modified files.
    - **standard**: **Defer** review to the slice boundary (sub-step 6) — do not review now. Track the step's changed files so the slice checkpoint reviews them in one batch. Per-step review on standard steps is N near-identical passes where one at slice end largely does the same work, and the final `/code-review` (step 6) remains the backstop. This is the batching win — fewer review dispatches per multi-step slice at bounded quality risk.
-   - **complex**: Review **now, per step** — smaller blast radius per fix. Run the static self-heal pass to completion first — pass, or cap-and-escalate, per `references/static-self-heal.md` — then `/review-agent spec-compliance-review`, then the full quality agent suite including opus-tier agents (security-review, domain-review, arch-review), with the review-fix loop (up to 5 iterations per `agents/orchestrator.md`). Escalate to user if the loop doesn't converge. Then **record the checkpoint outcome** (sub-step 7).
+   - **complex**: Review **now, per step** — smaller blast radius per fix. Run the static self-heal pass to completion first — pass, or cap-and-escalate, per `references/static-self-heal.md` — then `/review-agent spec-compliance-review`, then the full quality agent suite including opus-tier agents (security-review, domain-review, arch-review), with the review-fix loop (up to 5 iterations per `agents/orchestrator.md`). Before each review-fix iteration, classify the finding/failure via `${CLAUDE_PLUGIN_ROOT}/knowledge/failure-routing.md` and follow its route (see the TEST-phase note above) — a security-finding class dispatches security-engineer, a reviewer-conflict class routes to human arbitration, `unclassified` stays in the generic loop. Escalate to user if the loop doesn't converge. Then **record the checkpoint outcome** (sub-step 7).
    - If no complexity is specified, default to **standard**.
    - **UI changes (any complexity)**: After the relevant review passes (per-step for complex, at the slice checkpoint for standard), run browser verification via `/browse` in automated smoke test mode. Skip with warning if the dev server is not running. See `agents/orchestrator.md` Stage 3.
 5. **Mark step done** — Use the Edit tool to update the plan file's `## Build Progress` section on disk:
@@ -155,6 +192,7 @@ Work each step **one behavior at a time** — never all the code then all the te
    - When every step under a slice is `[x]`, check off the parent `- [ ] Slice N: <title>`.
    - After all slices are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
    - This disk write is the durable commit. If a `/clear` occurs, `/continue` reads `## Build Progress` to determine the resume point without needing conversation history.
+   - **Clear freeze scope (issue #865).** When every step under the slice is `[x]` and freeze was engaged for it (dispatch bookkeeping above), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py clear --hooks-dir <worktree>/hooks` before starting the next slice. A slice that never engaged freeze has nothing to clear.
 6. **Slice review checkpoint (batched).** When every step under the current slice is `[x]` **and** the slice had any deferred `standard` (or unspecified) steps, run **one** review pass over the slice's accumulated changed files: the static self-heal pass first (`references/static-self-heal.md`), then `/review-agent spec-compliance-review`, then the quality review agents relevant to what changed. Apply the same review-fix loop (up to 5 iterations; escalate if it doesn't converge). `trivial`-only and all-`complex` slices have nothing to batch — skip this pass. Then **record the checkpoint outcome** (sub-step 7).
 7. **Record review value (#348).** For **each** checkpoint that runs (per-step `complex` in sub-step 4, and per-slice in sub-step 6), append one JSON line to `metrics/review-value.jsonl` capturing whether review actually changed anything — counts and outcomes only, never code or file content (consistent with the cost meter's privacy boundary). Schema in `performance-metrics`:
 
@@ -180,6 +218,16 @@ A "done" step that only passed its own tests is not the same as a feature that w
 
    `outcome` is `ran` (`/verify` executed and passed), `skipped` (no runtime surface in the diff — `reason` states why, e.g. `"tests-only"` or `"docs-only"`), or `failed-then-fixed` (`/verify` failed at least once before the fix landed). `python3 scripts/progress_guardian.py --pre-pr` reads this log: a branch with runtime-surface changes and no matching entry fails the pre-PR gate the same way an incomplete step or a missing commit does.
 
+### 4.10. Run slice invariants (issue #865)
+
+When the slice declares `**Invariants:**`, run them **after** the slice's own suite is green (sub-step 5) and its review checkpoint(s) have run (sub-steps 4/6) — invariants check what must stay green *beyond* the slice's new acceptance tests, so they gate on top of everything else, not instead of it:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/run_invariants.py --plan <plan-file> --slice <id> --repo <worktree>
+```
+
+A non-zero exit **fails the slice gate exactly like a red test** — fix it or escalate (Escalation section below), never step over it, and never flip the slice checkbox to `[x]` until it's green. A slice with no `Invariants` line runs its gate unchanged (the script itself no-ops with "No invariants declared" — nothing to enforce). Invariant commands run as-is from the repo root; the plan author owns their portability, same trust model as the plan's own test commands.
+
 ### 5. Run full test suite
 
 After all steps are complete, run the full test suite. Paste the output as final verification evidence.
@@ -199,9 +247,31 @@ Produce a Farley Score for the tests written on this branch — the last quality
 3. If no test files changed on the branch, print one line — `No tests written on this branch — skipping Farley Score.` — and continue to Step 8.
 4. Otherwise invoke the `farley-score` skill scoped to those files. Present the suite-level Farley Score, rating, and distribution as the final pre-PR signal. This is **informational** — a low score does not block `/pr`, but surface it so the user can decide whether to revise before opening the PR.
 
+### 7.5. Assemble the evidence bundle
+
+Before the completion report, assemble a structured evidence bundle per
+`${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md` — **no new checks, no
+re-execution**; it renders data this run already produced:
+
+- **Checks run**: the Step 5 full-suite command + result, the Step 6
+  `/code-review` status, the Step 7 Farley Score command/output (or its
+  skip line when no tests changed).
+- **Scope notes**: review agents dispatched vs. skipped across the build's
+  checkpoints (sub-steps 4/6), and any gate reported "not applicable."
+- **Untested regions**: read `baseline-coverage.json` / `coverage-history.json`
+  if present (from `/coverage-baseline` / `/coverage-delta`); otherwise state
+  "not measured — no coverage tool detected."
+- **Residual risks**: derived-first from this run's `metrics/review-value.jsonl`
+  entries with `outcome: "escalated"`, any non-interactive gate-bypass audit
+  lines printed in Steps 2–3, and any `/verify` `failed-then-fixed` entries in
+  `metrics/verify-log.jsonl`. "None identified" only when all of those are empty.
+
+Follow the degradation rule: every one of the four section headers appears in
+the completion report even when a section has nothing to show — it states why.
+
 ### 8. Update plan status
 
-Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file. Briefly confirm completion, report the branch Farley Score, and direct the user to `/pr`.
+Use the Edit tool to change `**Status**: in-progress` to `**Status**: implemented` in the plan file. Briefly confirm completion, report the branch Farley Score, include the Step 7.5 evidence bundle in the completion report, and direct the user to `/pr`.
 
 ### 9. Learning loop
 
@@ -218,6 +288,7 @@ Stop and ask the user when:
 - A review checkpoint fails after 2 correction iterations *and* the root cause is understood but unresolvable within scope
 - You discover the plan is incomplete or contradictory
 - The `verify_guard.py` hook blocks a verify command (`[BLOCK]` on a test/lint/build re-run) — this is the deterministic signal that the same command has run repeatedly with no intervening code change, i.e. a stuck loop rather than a progressing per-behavior cycle. Run the Systematic Debugging pass above instead of retrying the command again, and escalate with the diagnosis if it's still unresolvable in scope.
+- **The step-4 repair loop hits a failure-signature dead-end** (issue #864): two consecutive repair iterations produce the same normalized failure signature (failing test IDs + error class, volatile output stripped). This is a hard stop, not another auto-approval: commit the current working tree as a checkpoint on the working branch — never `main` — with a conventional message explicitly marked as a dead-end checkpoint (e.g. `chore(build): dead-end checkpoint — step <N>, <M> tests still failing`), then escalate stating (a) **improved** — tests that went failing → passing since repair start, (b) **remaining** — the current failing signature, (c) the **checkpoint commit ref**. If 3 or more distinct fix attempts have failed, the escalation must also cite [Systematic Debugging](../systematic-debugging/SKILL.md)'s "3+ failed fix attempts → question the architecture" rule. Leave plan status unchanged and never proceed to `/pr` over this escalation.
 
 **Non-interactive runs: an escalation is a hard stop, not another auto-approval.**
 The approval gates in Steps 2–3 auto-proceed because they bypass a judgment call the
@@ -237,6 +308,8 @@ unresolved escalation.
 - `/verify` exercises each runtime-surface slice end-to-end before it may be marked done (sub-step 4.9, issue #727)
 - `/code-review` runs the full review suite after implementation
 - `farley-score` scores the branch's tests (Farley Score) as the final pre-PR quality signal
-- `/pr` creates the pull request after a successful build
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md` defines the structured evidence bundle assembled in Step 7.5 and surfaced in the Step 8 completion report
+- `/pr` creates the pull request after a successful build, assembling its own evidence bundle independently (no handoff file)
 - `/continue` can resume a partially completed build across sessions
-- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary; `--pre-pr` also fails closed when runtime-surface changes have no matching `metrics/verify-log.jsonl` entry (issue #727)
+- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary; `--pre-pr` also fails closed when runtime-surface changes have no matching `metrics/verify-log.jsonl` entry (issue #727), and warns (never fails) on out-of-scope edits against declared slice `Files` (issue #865)
+- `scripts/build_slice_scope.py`, `scripts/build_rollback_point.py`, and `scripts/run_invariants.py` implement the plan-as-contract fields (issue #865): opt-in freeze scope, rollback-point resolution/recording, and the slice invariants gate, respectively

@@ -1,11 +1,14 @@
 # Summary & Progress File Templates
 
-These templates structure output written to `memory/` during context summarization.
+These templates structure output written by the `handoff` skill — continue-mode
+templates go to `memory/`; fork-mode templates go to the OS temp dir.
 
-- **Task Summary** -- general-purpose summary for any completed or paused task.
-- **Research Progress File** -- output of the Research phase; onboards the Planner.
-- **Plan Progress File** -- output of the Plan phase; onboards the Implementer.
-- **Implementation Progress File** -- mid-phase compaction during long implementations.
+- **Task Summary** -- general-purpose summary for any completed or paused task (continue mode).
+- **Research Progress File** -- output of the Research phase; onboards the Planner (continue mode).
+- **Plan Progress File** -- output of the Plan phase; onboards the Implementer (continue mode).
+- **Implementation Progress File** -- mid-phase compaction during long implementations (continue mode).
+- **Fork Handoff** -- artifact for splitting off an out-of-scope side-task to an independent session (fork mode).
+- **Fork Hand-Back** -- artifact a forked session writes when reporting results back to its parent (fork mode).
 
 ---
 
@@ -153,3 +156,74 @@ Be concise in summaries -- preserve decisions and artifacts, discard process nar
 ## Test Results
 - [Which tests pass, which fail, what needs attention]
 ```
+
+---
+
+## Fork Handoff
+
+**File naming**: `{tmpdir}/handoff-{purpose-slug}-{date}.md` (e.g.,
+`/tmp/handoff-flaky-test-repro-2026-07-06.md`) — never `memory/`.
+
+```markdown
+# Fork Handoff: [Stated Purpose]
+
+## Date
+[ISO date]
+
+## Purpose
+[The one-line stated purpose this fork exists for — required, not inferred]
+
+## Scope (Just This Slice)
+[Only the context relevant to the stated purpose -- not the full parent session]
+
+## Pointers, Not Duplication
+- [Existing artifact/file/doc]: [what it already covers -- link or cite, don't copy]
+- [Existing artifact/file/doc]: [what it already covers -- link or cite, don't copy]
+
+## Suggested Skills
+- [Skill]: [why the receiving session likely needs it loaded]
+
+## Key Context to Start
+- [Anything the receiving session needs to begin without replaying the parent's history]
+
+## Hand-Back Expected
+- [ ] Yes -- see Fork Hand-Back template; delete this file once the hand-back is read
+- [ ] No -- this is a one-way split; delete this file once the receiving session confirms it has consumed it
+```
+
+Redact secrets, API keys, tokens, and PII before writing -- this file lives outside the repo's trust boundary.
+
+**Cleanup**: event-based only. Delete on consumption (receiving session merges its result back, or the parent reads the hand-back). Never sweep on a schedule.
+
+---
+
+## Fork Hand-Back
+
+Written by the forked/child session when it reports results back to its parent.
+
+**File naming**: `{tmpdir}/handoff-{purpose-slug}-handback-{date}.md`
+
+```markdown
+# Fork Hand-Back: [Stated Purpose]
+
+## Date
+[ISO date]
+
+## Result Summary
+[1-3 sentences: what the fork accomplished]
+
+## Changes / Findings
+- [File path or artifact]: [what changed and why, or what was found]
+
+## Merge Guidance
+[What the parent session should do with this -- apply a diff, adopt a decision,
+just note a finding -- in a shape the parent can act on without replaying the
+fork's history]
+
+## Open Items
+[Anything unresolved that the parent still needs to decide or follow up on]
+```
+
+Redact secrets, API keys, tokens, and PII before writing.
+
+**Cleanup**: delete this file once the parent session has read it and merged/noted the result -- never time-based.

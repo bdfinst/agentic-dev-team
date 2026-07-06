@@ -7,6 +7,10 @@ user-invocable: true
 
 # Mutation Testing
 
+Role: worker. This command runs the mutation tool and triages survivors
+directly — it does not generate or estimate mutations, and it does not
+replace the tests it validates.
+
 Wraps a real mutation tool (Stryker, pitest, mutmut, Stryker.NET, go-mutesting) and adds AI triage of survivors. The tool generates mutations and reports survivors; the AI classifies survivors and writes fix tests. **Never estimate or guess mutation outcomes** — if no tool is available, help set one up; do not substitute reasoning for execution.
 
 This file describes the language-agnostic workflow and the data contract. **Per-language detail — install, run commands, timeout flag names, native-report mapping — lives in [`references/languages/`](references/languages/).** Detect the language first via [`references/tool-detection.md`](references/tool-detection.md), then load the matching language file.

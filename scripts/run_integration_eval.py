@@ -156,16 +156,93 @@ def init_worktree(workdir: Path) -> None:
     )
 
 
-def dispatch_orchestrator(workdir: Path, spec_path: Path, model: str) -> None:
-    """Dispatch the orchestrator to implement the frozen spec in the worktree."""
+def _tokens_from_claude_json(stdout: str) -> int:
+    """Best-effort token-usage extraction from `claude -p --output-format json`.
+
+    The envelope shape has varied across CLI versions; this stays defensive
+    (never raises) since token accounting is a reporting nicety, not a
+    correctness requirement of the integration tier.
+    """
+    if not stdout:
+        return 0
+    try:
+        payload = json.loads(stdout)
+    except (json.JSONDecodeError, ValueError):
+        return 0
+    usage = payload.get("usage") if isinstance(payload, dict) else None
+    if isinstance(usage, dict):
+        total = 0
+        for key in ("input_tokens", "output_tokens", "cache_creation_input_tokens",
+                    "cache_read_input_tokens"):
+            val = usage.get(key)
+            if isinstance(val, (int, float)):
+                total += int(val)
+        if total:
+            return total
+    for key in ("total_tokens", "tokens"):
+        val = payload.get(key) if isinstance(payload, dict) else None
+        if isinstance(val, (int, float)):
+            return int(val)
+    return 0
+
+
+def _count_issues_caught(workdir: Path) -> int:
+    """Sum `issues_found` from a review-value log written inside the worktree.
+
+    `/build`'s inline review checkpoints append one JSON line per checkpoint to
+    `metrics/review-value.jsonl` (#348) — this is the same "issues caught at
+    review checkpoints" signal the ablation feature (#868) diffs between arms.
+    Absent file/malformed lines count as zero rather than erroring: a build
+    that never triggers a checkpoint is a legitimate (if uninteresting) result.
+    """
+    log = workdir / "metrics" / "review-value.jsonl"
+    if not log.exists():
+        return 0
+    total = 0
+    for line in log.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        found = entry.get("issues_found")
+        if isinstance(found, (int, float)):
+            total += int(found)
+    return total
+
+
+def dispatch_orchestrator(
+    workdir: Path, spec_path: Path, model: str, ablate_agent: str = ""
+) -> int:
+    """Dispatch the orchestrator to implement the frozen spec in the worktree.
+
+    When `ablate_agent` is set, `DEV_TEAM_ABLATE_AGENT` is injected into the
+    subprocess environment only (never written to disk) so the orchestrator's
+    inline review dispatch can exclude that agent for the lifetime of this one
+    dispatch (#868 agent-ablation mode). Returns the best-effort token count
+    reported by `--output-format json` (0 if unavailable/unparseable).
+    """
     prompt = (
         f"Implement the spec in {spec_path.name} using the full plan -> build -> "
         f"review pipeline. The working directory is a fresh git worktree; make "
         f"the declared test commands pass."
     )
-    subprocess.run(
-        ["claude", "-p", prompt, "--model", model], cwd=str(workdir), check=False
+    env = os.environ.copy()
+    if ablate_agent:
+        env["DEV_TEAM_ABLATE_AGENT"] = ablate_agent
+    else:
+        env.pop("DEV_TEAM_ABLATE_AGENT", None)
+    proc = subprocess.run(
+        ["claude", "-p", prompt, "--model", model, "--output-format", "json"],
+        cwd=str(workdir),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
     )
+    return _tokens_from_claude_json(proc.stdout)
 
 
 def run_commands(workdir: Path, commands: list[str]) -> list[dict]:
@@ -221,8 +298,15 @@ def run_fixture(
     fixtures_dir: Path,
     skip_dispatch: bool,
     model: str,
+    ablate_agent: str = "",
 ) -> dict:
-    """Run one integration target; return its recorded actual (results list)."""
+    """Run one integration target; return its recorded actual.
+
+    Shape: ``{"results": [...], "tokens": N, "issues_caught": N}``. `results`
+    is graded by the `integration` grader (unchanged shape); `tokens` and
+    `issues_caught` are additive fields the grader ignores but the #868
+    agent-ablation delta computation consumes.
+    """
     fixture_dir = fixtures_dir / stem
     tarball = fixture_dir / ispec["goldenRepo"]
     spec_path = fixture_dir / ispec["spec"]
@@ -232,13 +316,16 @@ def run_fixture(
     try:
         extract_golden_repo(tarball, workdir)
         init_worktree(workdir)
+        tokens = 0
+        issues_caught = 0
         if not skip_dispatch:
             # Stage the frozen spec into the worktree so the orchestrator sees it.
             if spec_path.exists():
                 shutil.copy2(spec_path, workdir / spec_path.name)
-            dispatch_orchestrator(workdir, spec_path, model)
+            tokens = dispatch_orchestrator(workdir, spec_path, model, ablate_agent)
+            issues_caught = _count_issues_caught(workdir)
         results = run_commands(workdir, commands)
-        return {"results": results}
+        return {"results": results, "tokens": tokens, "issues_caught": issues_caught}
     finally:
         # Tear the worktree down unconditionally (acceptance: even on failure).
         shutil.rmtree(workdir, ignore_errors=True)
@@ -258,6 +345,14 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="do not dispatch the orchestrator (harness self-test); "
         "test commands run against the golden repo as-is",
+    )
+    ap.add_argument(
+        "--ablate-agent",
+        default="",
+        help="(#868) exclude this review agent from the orchestrator's inline "
+        "review dispatch for this run only, via the DEV_TEAM_ABLATE_AGENT "
+        "env var scoped to the dispatch subprocess. Empty (default) runs the "
+        "full roster.",
     )
     args = ap.parse_args(argv)
 
@@ -294,7 +389,13 @@ def main(argv: list[str]) -> int:
                 file=sys.stderr,
             )
             actual = run_fixture(
-                stem, target, ispec, fixtures_dir, args.skip_dispatch, args.model
+                stem,
+                target,
+                ispec,
+                fixtures_dir,
+                args.skip_dispatch,
+                args.model,
+                args.ablate_agent,
             )
             actuals.setdefault(stem, {}).setdefault("integration", {})[target] = actual
             ran += 1

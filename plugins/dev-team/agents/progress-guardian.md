@@ -3,7 +3,7 @@ name: progress-guardian
 description: Tracks plan step completion, enforces commit discipline, and gates plan changes through human approval
 tools: Read, Grep, Glob
 effort: medium
-cites: [adversarial-review-protocol]
+cites: [adversarial-review-protocol, directory-enumeration]
 enforcement: script
 ---
 
@@ -27,7 +27,7 @@ Context needs: full-file (reads plan + git state)
 
 Produces `{"status": "skip", "issues": [], "summary": "No active plan found"}` when:
 
-- No plan files exist in `plans/` or `memory/`
+- No plan files exist in `plans/` or `memory/` — check with `Glob("plans/**")` / `Glob("memory/**")`, never a bare `Read` of the directory (`knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference)
 - The current task has no associated plan
 
 ## What the script detects
@@ -55,6 +55,7 @@ Pre-PR gate (`--pre-pr` flag):
 
 - Any `[ ]` unchecked step blocks the PR
 - Uncommitted changes block the PR
+- Declared-scope adherence (issue #865): out-of-scope edits against a slice's declared `**Files:**` are a **named warning**, never a gate failure — freeze (opt-in via plan metadata) is the actual enforcement mechanism
 
 ## Verify by dispatch (read-only)
 

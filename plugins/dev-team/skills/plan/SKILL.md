@@ -97,6 +97,13 @@ Render the `## Parallelization` Mermaid DAG + wave table and the wave-grouped
 (cycle, missing `Depends-on`, or unknown reference) or reports a `collisions` entry,
 fix the plan and re-run before the human gate — those defeat safe concurrent build.
 
+**`scope_mismatches` (#865) is fix-or-acknowledge, not fix-before-gate.** For a slice
+declaring slice-level `**Files:**`, this JSON array compares it against the union of
+the slice's per-step `**Files**:` lines (`under_declared`/`over_declared`, `[]` when
+matching or undeclared). Unlike `collisions`, don't block on it — surface it at the
+human gate (step 6); if the author proceeds unreconciled, record it in `## Risks &
+Open Questions`.
+
 ### 5. Run plan review personas
 
 Before presenting to the user, dispatch the plan review personas in parallel as sub-agents. Each critically challenges the plan from a different perspective. **The reviewer set scales to plan complexity** — a one-function plan does not pay the same review ceremony as a complex feature (the fixed-overhead cost the TDD experiment surfaced; see `docs/experiments/01-final-results.md`).
@@ -147,10 +154,12 @@ Pass each reviewer the full plan content. Also pass the Parallelization Critic t
 
 **Gate check before presenting.** Verify the `## Skipped (low value)` section captures every `LOW_VALUE` finding — no slice or TDD step may carry one. If a `LOW_VALUE` finding leaked into a work stream, move it to the Skipped section before the plan reaches the human.
 
+**Surface any `scope_mismatches` (#865)** alongside the review summary, same visibility as `collisions` — never blocking. Unreconciled on approval → append it to `## Risks & Open Questions`.
+
 **First determine interactivity.** The run is **non-interactive** when any of these hold: `--yes` was passed, `DEV_TEAM_AUTO_APPROVE=1` is set in the environment, or stdin is not a usable TTY (`test -t 0` is false — the headless/CI/automation case). Otherwise it is **interactive**. This is the same non-interactive principle the GitHub-issue prompt below already follows; the approval gate now follows it too, so a headless `/plan`→`/build` run never hangs waiting for input.
 
-- **Interactive** (unchanged from prior behavior) → Display the plan and the review summary. Ask: "Approve this plan to begin implementation, or suggest changes?" Mark the plan status as `approved` once the user confirms. If the user requests changes, update the plan and re-present.
-- **Non-interactive** → do **not** prompt or block. Auto-approve: set `**Status**: approved` and append an explicit audit record to the plan so the bypass is **never silent** — add an `## Approval` section reading: `Auto-approved (non-interactive) at <date> — no human review gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.` Then continue.
+- **Interactive** (unchanged from prior behavior) → Display the plan and the review summary. Ask: "Approve this plan to begin implementation, or suggest changes?" Mark the plan status as `approved` once the user confirms. If the user requests changes, update the plan and re-present. This is the Phase 2→3 gate: append an `approval` entry to `metrics/config-changelog.jsonl` per the [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail) schema — `proposed` names the plan (e.g. "Approve plan for <task>"), `evidence_shown` points at the plan file (and any spec artifact), `risks_surfaced` lists the plan's `## Risks & Open Questions` items (`[]` if none).
+- **Non-interactive** → do **not** prompt or block. Auto-approve: set `**Status**: approved` and append an explicit audit record to the plan so the bypass is **never silent** — add an `## Approval` section reading: `Auto-approved (non-interactive) at <date> — no human review gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.` Then continue, appending the same three-field `metrics/config-changelog.jsonl` entry; `description` states the bypass trigger.
 
 #### Post-approval: persist the Gherkin (`.feature` export)
 

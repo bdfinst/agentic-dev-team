@@ -113,6 +113,91 @@ def test_no_slices_yields_empty():
 
 
 # ---------------------------------------------------------------------------
+# Behavioural tests — issue #865: plan-as-contract optional fields
+# ---------------------------------------------------------------------------
+
+
+def test_slice_with_no_optional_fields_parses_unchanged():
+    """A slice using none of the three new fields still parses via
+    parse_slices exactly as before, and parse_slice_optional_fields reports
+    empty invariants/rollback for it."""
+    md = """### Slice 1: First
+**Depends-on:** none
+**Files:** `one.ts`
+"""
+    assert _rows(md) == [("1", "none", "one.ts")]
+    fields = plan_parse.parse_slice_optional_fields(md.splitlines())
+    assert fields["1"] == {"invariants": [], "rollback_point": ""}
+
+
+def test_invariants_and_rollback_point_are_collected_per_slice():
+    md = """### Slice 1: First
+**Depends-on:** none
+**Files:** `a.ts`
+**Invariants:** `npm test -- --grep "session"`, `python3 scripts/check_md_references.py`
+**Rollback point:** slice-start
+"""
+    fields = plan_parse.parse_slice_optional_fields(md.splitlines())
+    assert fields["1"]["invariants"] == [
+        'npm test -- --grep "session"',
+        "python3 scripts/check_md_references.py",
+    ]
+    assert fields["1"]["rollback_point"] == "slice-start"
+
+
+def test_rollback_point_accepts_explicit_ref():
+    md = """### Slice 1: First
+**Depends-on:** none
+**Rollback point:** abc1234
+"""
+    fields = plan_parse.parse_slice_optional_fields(md.splitlines())
+    assert fields["1"]["rollback_point"] == "abc1234"
+
+
+def test_invariants_comma_split_fallback_when_no_backticks():
+    md = """### Slice 1: First
+**Depends-on:** none
+**Invariants:** npm test, python3 scripts/check.py
+"""
+    fields = plan_parse.parse_slice_optional_fields(md.splitlines())
+    assert fields["1"]["invariants"] == ["npm test", "python3 scripts/check.py"]
+
+
+def test_optional_fields_are_slice_level_only_step_level_ignored():
+    md = """### Slice 1: First
+**Depends-on:** none
+#### Step 1.1: do it
+**Invariants:** `should-be-ignored`
+**Rollback point:** should-be-ignored
+"""
+    fields = plan_parse.parse_slice_optional_fields(md.splitlines())
+    assert fields["1"] == {"invariants": [], "rollback_point": ""}
+
+
+def test_step_files_union_collects_per_step_files_only():
+    md = """### Slice 1: First
+**Depends-on:** none
+**Files:** `slice-level.ts`
+#### Step 1.1: do it
+**Files**: `a.ts`
+#### Step 1.2: do more
+**Files**: `b.ts`, `a.ts`
+"""
+    result = plan_parse.parse_step_files(md.splitlines())
+    assert result == {"1": ["`a.ts`", "`b.ts`, `a.ts`"]}
+    union = plan_parse.step_files_union(md.splitlines())
+    assert union == {"1": ["a.ts", "b.ts"]}
+
+
+def test_step_files_union_empty_when_no_step_files():
+    md = """### Slice 1: First
+**Depends-on:** none
+**Files:** `slice-level.ts`
+"""
+    assert plan_parse.step_files_union(md.splitlines()) == {}
+
+
+# ---------------------------------------------------------------------------
 # Byte-parity against the bash implementation
 # ---------------------------------------------------------------------------
 

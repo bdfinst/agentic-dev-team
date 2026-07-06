@@ -31,6 +31,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | complexity-review | `agents/complexity-review.md` | Function size, cyclomatic complexity, nesting, parameters |
 | component-architecture-review | `agents/component-architecture-review.md` | Reusable component extraction, frontend UI duplication, prop drilling, component granularity, inconsistent component APIs |
 | concurrency-review | `agents/concurrency-review.md` | Race conditions, async pitfalls, shared state |
+| correctness-review | `agents/correctness-review.md` | Functional/behavioral defects — implementation diverges from evident intent |
 | data-flow-tracer | `agents/data-flow-tracer.md` | Data flow tracing through architecture layers (analysis-only) |
 | doc-review | `agents/doc-review.md` | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
 | domain-review | `agents/domain-review.md` | Domain boundaries, abstraction leaks, entity/DTO confusion |
@@ -64,7 +65,6 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | Platform Engineer, Software Engineer, QA Engineer |
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
 | Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | 600 | Orchestrator |
-| Context Summarization | `skills/context-summarization/SKILL.md` | 500 | Orchestrator |
 | Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~600 | `/test-improve` (Phase 2), QA Engineer, Platform Engineer |
 | Coverage Delta | `skills/coverage-delta/SKILL.md` | ~450 | `/test-improve` (Phase 4), QA Engineer |
 | Design Doc | `skills/design-doc/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
@@ -77,10 +77,11 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Exploratory Testing | `skills/exploratory-testing/SKILL.md` | ~900 | QA Engineer, `/explore` command |
 | Farley Score | `skills/farley-score/SKILL.md` | 600 | QA Engineer, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
 | Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
-| Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,010 | Orchestrator |
+| Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,400 | Orchestrator |
 | Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~700 | `/test-improve` (Phase 2b, conditional), QA Engineer, standalone |
 | Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | Standalone worker; QA Engineer, Product Manager |
 | Governance & Compliance | `skills/governance-compliance/SKILL.md` | 990 | QA Engineer, Technical Writer |
+| Handoff | `skills/handoff/SKILL.md` | 500 | Orchestrator |
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 420 | Architect, Software Engineer |
 | Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 1,020 | Orchestrator, Product Manager |
 | Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~750 | `/test-improve` (Phase 3), QA Engineer |
@@ -126,7 +127,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 
 | Name | File | ~Tokens | Used By |
 | ------ | ------ | --------- | --------- |
-| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 22 review agents (a11y-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review) |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 23 review agents (a11y-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review) |
 | Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
 | CD Maturity Model | `knowledge/cd-maturity-model.md` | ~870 | Platform Engineer, QA Engineer |
@@ -139,6 +140,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Design Smells | `knowledge/design-smells.md` | ~600 | structure-review, complexity-review, naming-review |
 | Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
 | Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~900 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
+| Failure Routing | `knowledge/failure-routing.md` | ~600 | `/build` (step 4 repair iterations), `/apply-fixes` (step 4 annotation) |
 | Fixture Construction | `knowledge/fixture-construction.md` | ~750 | test-design-advisor, test-smell-review, test-review |
 | Frontend Component Architecture | `knowledge/frontend-component-architecture.md` | ~900 | component-architecture-review, `/frontend-architecture` |
 | Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |

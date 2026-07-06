@@ -3,7 +3,7 @@ name: spec-compliance-review
 description: Verify implementation matches specification before quality review agents run
 tools: Read, Grep, Glob
 effort: medium
-cites: [adversarial-review-protocol]
+cites: [adversarial-review-protocol, directory-enumeration]
 ---
 
 # Spec Compliance Review
@@ -69,7 +69,7 @@ This agent answers one question: **does the code do what the spec says?** It run
 
 Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` when:
 
-- No plan file (with its slice scenarios), spec, design doc, or acceptance criteria can be located for the target
+- No plan file (with its slice scenarios), spec, design doc, or acceptance criteria can be located for the target — locate with `Glob("docs/specs/**/*.md")` / `Glob("plans/**")`, never a bare `Read` of the directory (`knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference)
 - Target is a standalone script or utility with no associated specification
 
 ## Severity Rules

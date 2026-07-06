@@ -38,5 +38,25 @@
     "rm -rf .nuxt",
     "rm -rf .turbo",
     "rm -rf target"
+  ],
+  "escalations": [
+    {
+      "pattern": "git push --force",
+      "base_action": "warn",
+      "escalate_to": "block",
+      "when": { "target_branch": "default" }
+    },
+    {
+      "pattern": "git branch -D",
+      "base_action": "warn",
+      "escalate_to": "block",
+      "when": { "target_branch": "default" }
+    },
+    {
+      "pattern": "git reset --hard",
+      "base_action": "warn",
+      "escalate_to": "block",
+      "when": { "current_branch": "default" }
+    }
   ]
 }

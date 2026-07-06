@@ -10,7 +10,7 @@ the orchestrator to summarize (warn, the default) or blocks the load
 (strict mode).
 
 Utilization formula (identical in skills/context-loading-protocol/SKILL.md
-and skills/context-summarization/SKILL.md — kept in sync by
+and skills/handoff/SKILL.md — kept in sync by
 tests/hooks/test_context_ceiling_guard.py's formula-equality test):
     utilization = (input + cache_read + cache_creation) / model_context_window
 
@@ -23,7 +23,7 @@ Posture: warn-by-default, fail-open. Writes the message to stderr and exits
 unmeasurable context → exit 0 — a measurement failure never blocks a
 session.
 
-Recovery skills are never gated: blocking /context-summarization (the way
+Recovery skills are never gated: blocking /handoff (the way
 back under budget) would deadlock the session.
 
 Env:
@@ -83,13 +83,23 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
 
 
 # Recovery skills that must never be gated — blocking them would deadlock a
 # session that has climbed over the ceiling.
 _RECOVERY_SKILLS = frozenset(
     {
-        "context-summarization",
+        "handoff",
         "context-loading-protocol",
         "continue",
         "review-summary",
@@ -371,7 +381,7 @@ def _resolve_bound(pct_threshold_tokens: int, abs_ceiling: int) -> str:
 # "occupancy climbed further past the same computed threshold", regardless
 # of which bound (percentage or absolute) produced that threshold.
 #   [1x,   1.25x) -> band 0, nudge
-#   [1.25x, 1.5x) -> band 1, run /context-summarization now
+#   [1.25x, 1.5x) -> band 1, run /handoff now
 #   [1.5x,   inf) -> band 2, full summary + fresh conversation (top band)
 # Integer math (eff * 5 // 4, eff * 3 // 2) avoids float imprecision.
 _BAND_NUDGE, _BAND_RUN_NOW, _BAND_FULL_SUMMARY = 0, 1, 2
@@ -385,13 +395,13 @@ _BAND_SCALE = 100
 _BAND_ACTIONS = {
     _BAND_NUDGE: (
         "nudge",
-        "Consider running /context-summarization (write a memory/ progress "
+        "Consider running /handoff (write a memory/ progress "
         "file, continue in a fresh context) and defer non-essential "
         "agents/skills.",
     ),
     _BAND_RUN_NOW: (
         "run-now",
-        "Run /context-summarization now — write a memory/ progress file "
+        "Run /handoff now — write a memory/ progress file "
         "and continue in a fresh context.",
     ),
     _BAND_FULL_SUMMARY: (
@@ -428,7 +438,7 @@ def _format_message(
     """Pinned message contract (#780) plus graduated band escalation
     (#781): plain token counts (not percentages), the binding bound
     (percentage vs absolute — never both), the window's provenance
-    (override/detected/default), and a Context Summarization action band
+    (override/detected/default), and a Handoff action band
     keyed to how far occupancy has climbed past the effective ceiling. The
     top band (full-summary) leads with the directive and drops the knob
     footer — at 1.5x the ceiling, tuning knobs are no longer the point."""
@@ -561,6 +571,14 @@ def main() -> int:
         # The .sh uses `printf '%s\n' "$msg" >&2` — write to stderr with a
         # trailing newline.
         sys.stderr.write(message + "\n")
+    if exit_code == 2 or message is not None:
+        cwd = payload.get("cwd") or "."
+        session_id = payload.get("session_id")
+        tool = payload.get("tool_name") or "unknown"
+        decision = "block" if exit_code == 2 else "warn"
+        emit_boundary_event(
+            cwd, "context_ceiling_guard", tool, decision, "context-ceiling", session_id
+        )
     return exit_code
 
 

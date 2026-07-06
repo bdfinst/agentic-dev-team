@@ -83,6 +83,77 @@ def test_variance_per_agent_stability_summary(case: Path) -> None:
     assert data["by_agent"]["b"]["flaky_fixtures"] == 1
 
 
+def test_write_baseline_stamps_model_field(case: Path) -> None:
+    """#860 — /harness-audit re-baseline detection reads `model` off the
+    baseline; --write-baseline must stamp it when --model is passed."""
+    baseline = case / "baseline.json"
+    res = subprocess.run(
+        [
+            sys.executable,
+            str(VARIANCE),
+            "--trials-dir",
+            str(case / "trials"),
+            "--expected-dir",
+            str(case / "expected"),
+            "--write-baseline",
+            str(baseline),
+            "--model",
+            "claude-sonnet-5",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    data = json.loads(baseline.read_text())
+    assert data["model"] == "claude-sonnet-5"
+
+
+def test_write_baseline_omits_model_when_never_provided(case: Path) -> None:
+    """Pre-migration baselines (no --model ever passed) get no `model` field —
+    /harness-audit treats an absent field as "no re-baseline prompt"."""
+    baseline = case / "baseline.json"
+    res = subprocess.run(
+        [
+            sys.executable,
+            str(VARIANCE),
+            "--trials-dir",
+            str(case / "trials"),
+            "--expected-dir",
+            str(case / "expected"),
+            "--write-baseline",
+            str(baseline),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    data = json.loads(baseline.read_text())
+    assert "model" not in data
+
+
+def test_write_baseline_carries_forward_prior_model_when_omitted(case: Path) -> None:
+    """A top-up run that doesn't pass --model must not blank a prior value."""
+    baseline = case / "baseline.json"
+    baseline.write_text(json.dumps({"passing": [], "model": "claude-opus-4"}))
+    res = subprocess.run(
+        [
+            sys.executable,
+            str(VARIANCE),
+            "--trials-dir",
+            str(case / "trials"),
+            "--expected-dir",
+            str(case / "expected"),
+            "--write-baseline",
+            str(baseline),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    data = json.loads(baseline.read_text())
+    assert data["model"] == "claude-opus-4"
+
+
 def test_variance_append_writes_a_metrics_only_trend_record(case: Path) -> None:
     trend = case / "trend.jsonl"
     res = subprocess.run(

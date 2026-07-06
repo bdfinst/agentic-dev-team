@@ -12,6 +12,12 @@ Use this structure when writing the plan file (step 3 of `SKILL.md`).
 <!-- Recorded once at plan creation (detected convention, operator answer, or
      headless default). Re-runs honor this line without re-prompting; editing
      it is the supported way to change the decision. -->
+**Scope enforcement**: <freeze | none> <!-- OPTIONAL. Omit or set `none` for
+     today's behavior. `freeze` opts every slice declaring `**Files:**` into
+     `/build` auto-freezing its worktree to the declared scope at dispatch
+     (see Slice 2's `**Files:**` line below) — declared Files alone, without
+     this line, only feeds `plan_waves.py`'s scope-mismatch warnings, never
+     freeze. -->
 
 ## Goal
 
@@ -69,6 +75,21 @@ Feature: <feature name>
 
 **Depends-on:** 1
 **Files:** `path/to/other.ts`
+**Invariants:** `<runnable shell command>`, `<another command>`
+**Rollback point:** slice-start
+<!-- All three of Files/Invariants/Rollback point are OPTIONAL — a slice
+     that omits them parses, reviews, and builds exactly as today.
+     - **Files**: declared write scope for the slice (glob patterns
+       accepted, e.g. `src/auth/**`). Feeds `plan_waves.py`'s
+       declared-vs-inferred scope-mismatch check; only auto-freezes when
+       the plan sets `**Scope enforcement:** freeze` above.
+     - **Invariants**: runnable shell commands (exit 0 = green) that must
+       stay green *beyond* this slice's own new acceptance tests — run by
+       `/build`'s slice gate after the slice's own suite passes.
+     - **Rollback point**: the commit boundary to revert to if the slice
+       dead-ends — `slice-start` (default: HEAD at slice dispatch),
+       `wave-start`, `plan-start`, or an explicit ref. `/build` resolves it
+       to a concrete SHA at dispatch and records it. -->
 
 **Behavior:**
 
@@ -100,8 +121,14 @@ graph TD
 | 2 | 2 |
 
 If `scripts/plan_waves.py` reports a cycle, a missing `Depends-on`, an unknown reference,
-or a **same-wave file collision** (two slices in one wave declaring the same file),
+or a **same-wave file collision** (two slices in one wave declaring the same file —
+now computed conservatively over each slice's declared **and** inferred files),
 fix the plan before the human gate — those break safe concurrent delivery.
+
+A `scope_mismatches` entry (a slice's declared `Files` disagreeing with the union
+of its steps' `**Files**:` lines) is **fix-or-acknowledge, not fix-before-gate**:
+shown as a warning at the human gate (step 6), and recorded in `## Risks & Open
+Questions` if the author proceeds without reconciling it.
 
 ## Complexity Classification
 
