@@ -16,21 +16,34 @@ The harness (adapters, runner, scorer, report generator) is implemented and
 unit-tested against **real** fixture data (a real Defects4J patch, a real
 `active-bugs.csv`, a real BugsJS `Projects.csv`/`<Project>_bugs.csv`) — see
 `tests/scripts/test_code_review_benchmark_*.py`. **A live end-to-end sweep
-against the actual datasets has not been run** — neither `defects4j` nor a
-`BugsJS/bug-dataset` checkout exists in this repo's dev environment.
-Running one and reporting the real recall number back on #821 is the
+against the actual datasets has not been run** — both dataset homes are
+now auto-provisioned (#949) rather than requiring a pre-existing checkout,
+but running that first live sweep in an environment with real network
+access and reporting the real recall number back on #821 is still the
 natural next step.
 
 ## Prerequisites
 
-- **Defects4J**: `defects4j` on `PATH`, and `DEFECTS4J_HOME` (or
-  `--defects4j-home`) pointing at a full framework checkout (has
-  `framework/projects/<Project>/active-bugs.csv` and
-  `framework/projects/<Project>/patches/<bug_id>.src.patch` per project).
-  See <https://github.com/rjust/defects4j>.
-- **BugsJS**: `BUGSJS_HOME` (or `--bugsjs-home`) pointing at a local clone of
-  <https://github.com/BugsJS/bug-dataset> (has `main.py`, `Projects.csv`, and
-  `Projects/<Project>/<Project>_bugs.csv` per project).
+Both dataset homes are **auto-provisioned** (#949) into a gitignored,
+repo-local `.cache/` on first use — no manual cloning required:
+
+- **Defects4J**: cloned from <https://github.com/rjust/defects4j> into
+  `.cache/defects4j`, then its `./init.sh` is run once (downloads the Major
+  mutation tool + supporting libraries — slow and network-heavy; a
+  `.cache/defects4j/.d4j-init-complete` marker file means later runs skip
+  straight to using it). The resolved `framework/bin/defects4j` binary is
+  used directly — it's never required on `PATH`.
+- **BugsJS**: cloned from <https://github.com/BugsJS/bug-dataset> into
+  `.cache/bugsjs-bug-dataset`.
+- Pass `--defects4j-home`/`DEFECTS4J_HOME` or `--bugsjs-home`/`BUGSJS_HOME`
+  to use an existing checkout instead (skips auto-provisioning entirely —
+  an explicit-but-broken path still fails loudly rather than being
+  silently overridden).
+
+Auto-provisioning does **not** remove every system-level prerequisite:
+Defects4J's `init.sh` still needs Perl (+ its cpan modules), Java, `git`,
+and `svn` on the machine; `git` itself is needed for both clones.
+
 - The `claude` CLI available on `PATH` (used headlessly via
   `plugins/dev-team/skills/headless-run/scripts/isolated_dispatch.py`'s
   session-isolation approach — see #842).
@@ -153,6 +166,7 @@ about hitting rate limits on the underlying `claude -p` dispatches.
 ```
 adapters/
   common.py              # BenchmarkCase, unified_diff_hunks(), run_with_timeout
+  bootstrap.py            # auto-clone/init both dataset homes into .cache/ (#949)
   defects4j_adapter.py    # active-bugs.csv + .src.patch -> BenchmarkCase; run_tests() = compile+test
   bugsjs_adapter.py       # Projects.csv + <Project>_bugs.csv + git tags -> BenchmarkCase; run_tests() = npm install+test
 runner.py                 # checkout -> scope -> dispatch -> parse -> score -> JSONL
