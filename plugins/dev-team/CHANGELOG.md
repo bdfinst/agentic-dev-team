@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.3.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.1...dev-team-v10.3.2) (2026-07-06)
+
+
+### Bug Fixes
+
+* add unconfirmed outcome to /triage's root-cause schema ([460f649](https://github.com/bdfinst/agentic-dev-team/commit/460f649fb21e05f7f117ab968cf4ca7f7f2e611d)), closes [#918](https://github.com/bdfinst/agentic-dev-team/issues/918) [#924](https://github.com/bdfinst/agentic-dev-team/issues/924) [#925](https://github.com/bdfinst/agentic-dev-team/issues/925) [#926](https://github.com/bdfinst/agentic-dev-team/issues/926) [#927](https://github.com/bdfinst/agentic-dev-team/issues/927)
+* remove test-health pain-point calibration question ([c5d8f7c](https://github.com/bdfinst/agentic-dev-team/commit/c5d8f7c1e89a47c5445fcc9e091100de935c9f48)), closes [#939](https://github.com/bdfinst/agentic-dev-team/issues/939)
+
 ## [10.3.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.0...dev-team-v10.3.1) (2026-07-06)
 
 
