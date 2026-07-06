@@ -38,10 +38,25 @@ _LIB_DIR = _HOOK_DIR / "lib"
 sys.path.insert(0, str(_LIB_DIR))
 try:
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
+    from boundary_events import (  # type: ignore[import-not-found]
+        emit_boundary_event as _emit_boundary_event,
+    )
 except ImportError:  # pragma: no cover
 
     def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
         return None
+
+    def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
+        return None
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -251,14 +266,24 @@ def main() -> int:
         / "mutation-report.json"
     )
 
+    session_id = payload.get("session_id")
+
     if not report_path.is_file():
         print_block_message(f"no smoke report at {report_path}")
+        emit_boundary_event(
+            payload_cwd, "mutation_testing_smoke_gate", "Bash", "block",
+            "mutation-smoke-report-missing", session_id,
+        )
         return 2
 
     try:
         report_text = report_path.read_text(encoding="utf-8")
     except OSError:
         print_block_message(f"no smoke report at {report_path}")
+        emit_boundary_event(
+            payload_cwd, "mutation_testing_smoke_gate", "Bash", "block",
+            "mutation-smoke-report-missing", session_id,
+        )
         return 2
 
     try:
@@ -292,11 +317,19 @@ def main() -> int:
             f"killed=0 survived={survived} — mutation-switch not observing mutations at runtime "
             "(see #554, #557 and SKILL.md Step 1c diagnostic checklist)"
         )
+        emit_boundary_event(
+            payload_cwd, "mutation_testing_smoke_gate", "Bash", "block",
+            "mutation-smoke-switch-not-observed", session_id,
+        )
         return 2
 
     # Killed==0 && Survived==0 → empty mutants[] or only NoCoverage/CompileError.
     print_block_message(
         "no scored mutants in smoke report — pick a different probe file with real test coverage"
+    )
+    emit_boundary_event(
+        payload_cwd, "mutation_testing_smoke_gate", "Bash", "block",
+        "mutation-smoke-no-scored-mutants", session_id,
     )
     return 2
 

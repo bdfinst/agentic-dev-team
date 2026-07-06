@@ -25,8 +25,22 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _SCRIPT_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (#859): even a misbehaving helper must never affect
+    this hook's exit code, stdout, or stderr."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - fail-open by design
+        pass
+
 _COMMANDS_FILE = _SCRIPT_DIR / "destructive-commands.json"
 _CAREFUL_FILE = _SCRIPT_DIR / "careful-state.json"
 
@@ -173,6 +187,9 @@ def main() -> int:
     if not command:
         return 0
 
+    cwd = payload.get("cwd") or "."
+    session_id = payload.get("session_id")
+
     lower_command = command.lower()
 
     (
@@ -207,11 +224,13 @@ def main() -> int:
         _emit(f"Command: {command}")
         _emit("Careful mode is active. This command has been blocked.")
         _emit("Use /careful off to disable careful mode, or confirm with the user.")
+        emit_boundary_event(cwd, "destructive_guard", "Bash", "block", match, session_id)
         return 2
 
     _emit(f"CAUTION: Destructive command detected ({match}).")
     _emit(f"Command: {command}")
     _emit("This action is hard to reverse. Confirm with the user before proceeding.")
+    emit_boundary_event(cwd, "destructive_guard", "Bash", "warn", match, session_id)
     return 0
 
 
