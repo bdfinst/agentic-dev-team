@@ -11,6 +11,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
@@ -72,6 +74,26 @@ def test_each_recognized_shape_blocks_a_staged_test_file(tmp_path):
         assert code == 2, command
         assert lines[0].startswith("[BLOCK]"), command
         assert matched_rule == rule_id, command
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "issue #914: _extract_target() is first-pattern-wins, so an earlier "
+        "'redirect' match on a harmless target short-circuits before the "
+        "later 'mv-cp' match on the real, dangerous target is ever tried. "
+        "Remove this xfail once #914 lands — strict=True turns an "
+        "unexpected pass into a hard CI failure so this can't go stale."
+    ),
+)
+def test_compound_command_dangerous_target_after_earlier_redirect_match(tmp_path):
+    _write_state(tmp_path)
+    code, _lines, _matched_rule = guard.evaluate(
+        "echo done > /tmp/log.txt; mv src/scratch.js src/thing.test.js",
+        tmp_path,
+        now=_NOW,
+    )
+    assert code == 2
 
 
 def test_block_names_the_file_and_recovery(tmp_path):

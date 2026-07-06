@@ -3501,6 +3501,60 @@
       "anchor": "error-handling"
     }
   },
+  "plugins/dev-team/skills/harness-e2e-check/SKILL.md": {
+    "Worker constraints": {
+      "summary": "1.",
+      "anchor": "worker-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "The 8 items": {
+      "summary": "Each item mirrors one from issue #907's original test plan.",
+      "anchor": "the-8-items"
+    },
+    "Item 1 — Full automated suite": {
+      "summary": "Run the repo's actual CI-equivalent gate (`scripts/ci-local.sh`, or the",
+      "anchor": "item-1-full-automated-suite"
+    },
+    "Item 2 — Structural gates": {
+      "summary": "Run `scripts/check_md_references.py`, the `knowledge/index.json` freshness",
+      "anchor": "item-2-structural-gates"
+    },
+    "Item 3 — `/build` end-to-end smoke test": {
+      "summary": "Then drive a real `/build` run against `<scratch>/toy-repo/plans/calc-ops.md`",
+      "anchor": "item-3-build-end-to-end-smoke-test"
+    },
+    "Item 4 — Refactor-freeze smoke test": {
+      "summary": "In the same toy repo, during a REFACTOR-phase step: attempt a `Write`/`Edit`",
+      "anchor": "item-4-refactor-freeze-smoke-test"
+    },
+    "Item 5 — `feedback-learning` + `harness-audit` combined run": {
+      "summary": "Confirm verdict `\"validated\"`, and that the changelog append stayed",
+      "anchor": "item-5-feedback-learning-harness-audit-combined-run"
+    },
+    "Item 6 — `/agent-eval` combined mode check": {
+      "summary": "Confirm `--calibrate` and `--ablation` reject being combined, and each still",
+      "anchor": "item-6-agent-eval-combined-mode-check"
+    },
+    "Item 7 — `/model-routing-check` full chain": {
+      "summary": "Run `/model-routing-check` for real (it has its own embedded exec script +",
+      "anchor": "item-7-model-routing-check-full-chain"
+    },
+    "Item 8 — `/handoff` rename verification": {
+      "summary": "Covered permanently by",
+      "anchor": "item-8-handoff-rename-verification"
+    },
+    "Output format": {
+      "summary": "One line per item (`✅ item N — <one-line evidence>` or `❌ item N —",
+      "anchor": "output-format"
+    },
+    "Hardening over time": {
+      "summary": "This skill is meant to get stricter every time it finds something, not stay",
+      "anchor": "hardening-over-time"
+    }
+  },
   "plugins/dev-team/skills/headless-run/SKILL.md": {
     "When to use it": {
       "summary": "Use it for **scripted, one-shot headless invocations** — above all a benchmark",
