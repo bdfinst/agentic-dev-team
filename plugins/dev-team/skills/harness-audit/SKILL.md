@@ -9,7 +9,7 @@ description: >-
   use /agent-readiness).
 argument-hint: "[--output <path>]"
 user-invocable: true
-allowed-tools: Read, Glob, Grep, Bash(date *), Write
+allowed-tools: Read, Glob, Grep, Bash(date *, python3 *, jq *), Write
 ---
 
 # Harness Audit
@@ -90,7 +90,7 @@ section.
    before the `model` field existed carries no false signal either way.
 3. Read the current session's model from `metrics/session-digest.jsonl`
    (the most recent record's model field) or session metadata.
-4. Compare. **On mismatch**, the report (Step 7) gains a **Re-baseline
+4. Compare. **On mismatch**, the report (Step 8) gains a **Re-baseline
    Required** section instructing the operator to re-run the eval suite and
    re-write the baseline (`/agent-eval` full suite + `eval_variance.py
    --write-baseline --model <current-model>`) before trusting any pre/post
@@ -144,7 +144,64 @@ For each drop candidate emit a recommendation in this form:
 
 Do not modify any skill or agent file. The report is the only artifact.
 
-### 5. Analyze model routing
+### 5. Lesson Validation — validated-outcome weighting (#866)
+
+Close the loop on `/feedback-learning` lessons: does an adopted lesson
+measurably help, or should it become a rollback candidate? This step is
+**report-only**, consistent with the orchestrator constraints above — it
+never edits an agent, skill, or CLAUDE.md file, and a `harmful` verdict is
+always a *proposal*, never an automatic rollback.
+
+Reads `metrics/config-changelog.jsonl` (written by `/feedback-learning`,
+schema in [feedback-learning](../feedback-learning/SKILL.md) → Audit Trail)
+and `metrics/session-digest.jsonl` (this command's existing Step 1 input).
+Both are metrics-only — no prompt or code content, consistent with the
+session-review privacy boundary.
+
+Run the deterministic helper (pure stdlib, zero model tokens for the
+computation):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/harness-audit/scripts/lesson_validate.py \
+  --changelog metrics/config-changelog.jsonl \
+  --digest metrics/session-digest.jsonl \
+  --apply -o memory/lesson-validation.json
+```
+
+- **`--apply`** appends new `type: "validation"` entries to
+  `metrics/config-changelog.jsonl` for every newly-judged lesson — this is an
+  **append-only** write (new lines only); it never rewrites or deletes an
+  existing line. Verify this yourself if in doubt: a byte-for-byte diff of the
+  file before and after the run must show only appended lines.
+- Every **adopted lesson with structured evidence** (`amend`/`learn`/`remember`
+  entries whose `evidence` field is an object, not the literal string
+  `"unmeasurable"` and not absent) whose observation window has elapsed gets a
+  verdict:
+  - **validated** — the watched metric moved in the expected `direction`.
+  - **neutral** — the window elapsed, adequate data exists, no meaningful
+    movement either way.
+  - **harmful** — the watched metric moved against the expected `direction`.
+  - **insufficient data** — fewer than `window_sessions` digest records exist
+    on either side of adoption. This is a data condition, **never** reported
+    as `neutral` — small-N honesty over a false-precision judgment.
+  - Comparison is **direction-only** on window means (v1 — no significance
+    testing; the digest carries small-N aggregate counts where formal testing
+    would be false precision).
+- Entries marked `"unmeasurable"` and **legacy** entries (written before the
+  `evidence` field existed, so the key is absent) are **surfaced as counts
+  only** — they never receive a verdict and are never proposed for rollback
+  on evidence grounds.
+- Each **harmful** verdict emits a **rollback proposal** carrying the
+  original entry's `timestamp`, `file_modified`, `section_modified`, and
+  `previous_value` — enough for `/feedback-learning`'s existing
+  [Rollback](../feedback-learning/SKILL.md#rollback) flow to act on it after
+  a human approves. Never auto-apply.
+
+Include a **Lesson Validation** section in the report (Step 8) summarizing
+verdict counts, the unmeasurable/legacy counts, and the full list of rollback
+proposals.
+
+### 6. Analyze model routing
 
 For each agent listed in `knowledge/agent-registry.md` (with model tier from its `model:` frontmatter, resolved via the PreToolUse hook per `agents/orchestrator.md` → Resolution Procedure):
 
@@ -152,7 +209,7 @@ For each agent listed in `knowledge/agent-registry.md` (with model tier from its
 2. **Under-tiered agents**: Agents on haiku that frequently miss issues caught by human review may need a higher tier.
 3. **Cost distribution**: Which agents consume the most tokens? Are the most expensive agents also the most valuable?
 
-### 6. Analyze orchestration complexity
+### 7. Analyze orchestration complexity
 
 Review the current pipeline for components that may be unnecessary overhead:
 
@@ -160,7 +217,7 @@ Review the current pipeline for components that may be unnecessary overhead:
 2. **Review checkpoint frequency**: Are inline reviews running on every step? If most steps are trivial, the complexity classification (see `skills/plan/SKILL.md` § Complexity Classification) should be catching this.
 3. **Unused skills**: Skills loaded but never applied in logged sessions.
 
-### 7. Produce report
+### 8. Produce report
 
 Write the report to the output path using this structure:
 
@@ -221,6 +278,27 @@ Write the report to the output path using this structure:
 | Checkpoint | Agents | Runs | Fix rate | Issues fixed |
 |------------|--------|------|----------|--------------|
 
+## Lesson Validation (validated-outcome weighting, #866)
+
+> Source: `metrics/config-changelog.jsonl` × `metrics/session-digest.jsonl`.
+> Report-only — verdicts are appended as new `type: "validation"` entries;
+> harmful verdicts are rollback *proposals*, never automatic.
+
+### Verdicts
+| Lesson (`timestamp`) | Metric | Direction | Verdict |
+|---|---|---|---|
+
+### Rollback Proposals (harmful verdicts — human approval required)
+| Lesson (`timestamp`) | File | Section | Recommendation |
+|---|---|---|---|
+
+> To act on a rollback proposal: run `/feedback-learning` and confirm the
+> rollback against the `timestamp` above. Never applied automatically.
+
+### Unmeasurable / Legacy (surfaced, not judged)
+- Unmeasurable lessons: <count>
+- Legacy lessons (no `evidence` field): <count>
+
 ## Model Routing Recommendations
 
 | Agent | Current tier | Suggested tier | Rationale |
@@ -238,13 +316,15 @@ Write the report to the output path using this structure:
 - Review-value drop candidates: <count>
 - Review-value high-value checkpoints: <count>
 - Re-baseline required: <yes/no>
+- Lessons validated / neutral / harmful / insufficient data: <count> / <count> / <count> / <count>
+- Rollback proposals (harmful verdicts): <count>
 
 ## Next Steps
 
 <Actionable recommendations prioritized by impact>
 ```
 
-### 8. Present results
+### 9. Present results
 
 Display a summary of the report and the file path. Do not repeat the full report in chat — the file is the artifact.
 

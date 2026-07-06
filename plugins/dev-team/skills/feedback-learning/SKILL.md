@@ -168,14 +168,19 @@ All changes are logged in `metrics/config-changelog.jsonl` (one JSON object per 
   "section_modified": "Agent Overrides > Software Engineer",
   "previous_value": "",
   "new_value": "- Prefer functional programming patterns over OOP",
-  "approved_by": "user"
+  "approved_by": "user",
+  "evidence": {
+    "metrics": ["rework"],
+    "direction": "decrease",
+    "window_sessions": 10
+  }
 }
 ```
 
 | Field | Required | Description |
 | --- | --- | --- |
 | `timestamp` | Yes | ISO 8601 |
-| `type` | Yes | `amend`, `learn`, `remember`, `forget`, `rollback` |
+| `type` | Yes | `amend`, `learn`, `remember`, `forget`, `rollback`, `validation` |
 | `trigger` | Yes | `user` or `system` (learning loop) |
 | `description` | Yes | Human-readable summary |
 | `file_modified` | Yes | Path of the file changed |
@@ -183,6 +188,77 @@ All changes are logged in `metrics/config-changelog.jsonl` (one JSON object per 
 | `previous_value` | Yes | Content before (empty string if new) |
 | `new_value` | Yes | Content after (empty string if removed) |
 | `approved_by` | Yes | `user` or `auto` |
+| `evidence` | Yes on `amend`/`learn`/`remember` entries (#866) | Either a structured object or the literal string `"unmeasurable"` — see below. Never silently absent. |
+
+### The `evidence` field (validated-outcome weighting, #866)
+
+Every new `amend`/`learn`/`remember` entry names how its own effect can be
+checked, so `/harness-audit` can later close the loop instead of letting
+lessons accumulate on the strength of the approval that admitted them alone.
+
+**Structured case** — the lesson is expected to move a metric in
+`metrics/session-digest.jsonl`:
+
+```json
+"evidence": {
+  "metrics": ["rework"],
+  "direction": "decrease",
+  "window_sessions": 10
+}
+```
+
+- `metrics`: one or more metric names resolvable in a `session-digest.jsonl`
+  record (e.g. `rework`, `accuracy`, `cost_usd`, or a dotted path such as
+  `rework.failed_edits`).
+- `direction`: `"increase"` or `"decrease"` — which way the metric should move
+  if the lesson helped.
+- `window_sessions`: integer N — how many digest records after adoption to
+  observe before judging. **Default: 10** (mirrors `/harness-audit`'s existing
+  "minimum 10 logged review runs" floor).
+
+**Unmeasurable case** — when no digest metric can plausibly reflect the
+lesson's effect (most prose `memory/` notes land here), write the literal
+string instead of an object:
+
+```json
+"evidence": "unmeasurable"
+```
+
+**Default when the author names no metric**: `evidence: rework` with
+`direction: "decrease"` and `window_sessions: 10` — most lessons aim to
+reduce rework, so this is the default rather than refusing to log the
+lesson. Authors can still explicitly set a different metric, direction, or
+`"unmeasurable"`.
+
+**Prose lessons (`memory/` notes) are in scope.** The `evidence` field
+attaches at this changelog layer regardless of which resolution-order
+destination the lesson was written to; a memory-note lesson typically carries
+`"unmeasurable"`. Anything not logged to `metrics/config-changelog.jsonl` is
+out of scope by construction.
+
+**Legacy entries** (written before this field existed) have no `evidence`
+key at all. `/harness-audit` surfaces them as a count — it never assigns
+them a verdict or proposes a rollback on evidence grounds.
+
+### Validation verdicts and rollback proposals (#866)
+
+`/harness-audit` reads this changelog and appends new `type: "validation"`
+entries recording a verdict (`validated` / `neutral` / `harmful` / `insufficient
+data`) for every matured, structured-evidence lesson — see
+[harness-audit](../harness-audit/SKILL.md) → Lesson Validation. These
+verdict entries are **new appended lines**, never edits to the original
+entry; the changelog stays append-only.
+
+A `harmful` verdict produces a **rollback proposal** in the harness-audit
+report (never an automatic rollback). To action one:
+
+1. Locate the original entry by the proposal's `references_timestamp`.
+2. Follow the existing [Rollback](#rollback) procedure below using that
+   entry's `file_modified` / `section_modified` / `previous_value`.
+3. Log the rollback as usual — a new `type: "rollback"` entry.
+
+A human always decides whether to apply a harmful-verdict rollback; the
+validation pass only ever proposes.
 
 ### Change-contract schema extension (#860)
 
@@ -331,3 +407,5 @@ content entries safely).
 - Never auto-apply without user preview for structural modifications
 - Behavioral tweaks (tone, preferences) can be auto-applied; structural changes (new sections, removed overrides) require approval
 - The changelog is append-only — never delete entries
+- Every new `amend`/`learn`/`remember` entry carries an `evidence` field — a structured object or `"unmeasurable"`, never silently absent (#866)
+- A `harmful` validation verdict from `/harness-audit` is a rollback *proposal* only — never auto-apply it without user confirmation
