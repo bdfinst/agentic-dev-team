@@ -30,8 +30,16 @@ Stdlib only, Python 3.8+ (ADR 0014 / 0015). uuid/tempfile/subprocess are fine
 in a shipped script — the no-random/no-Date restriction applies only to
 Workflow scripts, not shipped Python.
 
+Auth (#957): the fresh HOME also wipes `~/.claude.json`'s account/
+subscription markers, so a dispatch reports "Not logged in" unless
+`ANTHROPIC_API_KEY` is set. Pass `--preserve-auth` to copy that file into
+the cell home first — see `copy_auth_state()`'s docstring for the tradeoff
+(it also carries over `mcpServers`). Off by default here; the
+code-review-benchmark harness turns it on unconditionally.
+
 Usage:
     isolated_dispatch.py <prompt> [--cwd DIR] [--model MODEL] [--timeout SECS]
+        [--preserve-auth]
 
 Exits non-zero on dispatch error or timeout.
 """
@@ -98,9 +106,37 @@ def make_cell_home(root: Optional[Path] = None) -> Path:
     Like run_tdd_experiment.make_cell_home, but a self-contained tempdir the
     caller cleans up. A fresh HOME means no shared config, memory/, or telemetry
     state bleeds in from the parent."""
-    base = Path(tempfile.mkdtemp(prefix="headless-run-", dir=str(root) if root else None))
+    base = Path(
+        tempfile.mkdtemp(prefix="headless-run-", dir=str(root) if root else None)
+    )
     (base / ".claude").mkdir(parents=True, exist_ok=True)
     return base
+
+
+def copy_auth_state(home: Path, source_home: Optional[Path] = None) -> bool:
+    """Copy `<source_home or Path.home()>/.claude.json` into the fresh cell
+    home so the dispatch keeps its Claude Code OAuth login (#957).
+
+    A fresh `HOME` wipes out this file, which holds account/subscription
+    markers (`userID`, `hasAvailableSubscription`, etc.) Claude Code checks
+    before its actual (Keychain-backed, `HOME`-independent) token lookup —
+    without it, every dispatch reports "Not logged in" unless
+    `ANTHROPIC_API_KEY` is set. Best-effort: returns `False` (never raises)
+    if the source file doesn't exist.
+
+    Deliberately copies the whole file, not a filtered subset — it also
+    carries over `mcpServers` and other app state into the dispatch. That
+    trades a bit of the tool-surface isolation this script exists for
+    (#842) for actually working when the operator authenticates via
+    `claude login` rather than an API key. Opt-in here via `--preserve-auth`
+    (other callers keep today's stricter default); the code-review
+    benchmark harness turns it on unconditionally (see `runner.py`).
+    """
+    source = (source_home or Path.home()) / ".claude.json"
+    if not source.is_file():
+        return False
+    shutil.copy(source, Path(home) / ".claude.json")
+    return True
 
 
 def build_env(home: Path, base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
@@ -195,12 +231,18 @@ def _normalize_result(stdout: str) -> Dict:
     return result
 
 
-def run(prompt: str, cwd: str, model: str, timeout: int) -> int:
+def run(
+    prompt: str, cwd: str, model: str, timeout: int, preserve_auth: bool = False
+) -> int:
     """Do one isolated dispatch end-to-end; print the normalized JSON result.
 
     Returns a process exit code: 0 on a clean parse with is_error false,
-    non-zero on timeout, parse failure, or a dispatch that reported an error."""
+    non-zero on timeout, parse failure, or a dispatch that reported an error.
+    `preserve_auth` copies the real `~/.claude.json` into the fresh cell home
+    first — see `copy_auth_state()` (#957)."""
     home = make_cell_home()
+    if preserve_auth:
+        copy_auth_state(home)
     session_id = new_session_id()
     env = build_env(home)
     cmd = build_cmd(prompt, session_id, model, cwd=cwd)
@@ -242,8 +284,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "--timeout", type=int, default=900, help="Subprocess timeout, seconds."
     )
+    parser.add_argument(
+        "--preserve-auth",
+        action="store_true",
+        help=(
+            "Copy ~/.claude.json into the fresh cell home so the dispatch "
+            "keeps its Claude Code OAuth login (#957) instead of requiring "
+            "ANTHROPIC_API_KEY. Also carries over mcpServers and other app "
+            "state into the dispatch — off by default."
+        ),
+    )
     args = parser.parse_args(argv)
-    return run(args.prompt, args.cwd, args.model, args.timeout)
+    return run(
+        args.prompt,
+        args.cwd,
+        args.model,
+        args.timeout,
+        preserve_auth=args.preserve_auth,
+    )
 
 
 if __name__ == "__main__":

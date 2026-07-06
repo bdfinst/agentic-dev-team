@@ -256,12 +256,17 @@ def make_isolated_dispatch_fn(
     Reuses `isolated_dispatch`'s scrubbed-env / fresh-session-id isolation
     (the #842 fix) but — unlike `isolated_dispatch.run()` — keeps the
     wrapper JSON's `result` field, which is where `/code-review --json`'s
-    actual payload lives as the model's final text.
+    actual payload lives as the model's final text. Also carries over the
+    operator's real Claude Code login (`copy_auth_state()`, #957) —
+    unconditionally, unlike the standalone script's opt-in `--preserve-auth`
+    — since running this harness at all presupposes the operator's own
+    subscription rather than an `ANTHROPIC_API_KEY`.
     """
     isolated_dispatch = _load_isolated_dispatch()
 
     def dispatch(prompt: str, cwd: str) -> Dict[str, Any]:
         home = isolated_dispatch.make_cell_home()
+        isolated_dispatch.copy_auth_state(home)
         session_id = isolated_dispatch.new_session_id()
         env = isolated_dispatch.build_env(home)
         cmd = isolated_dispatch.build_cmd(prompt, session_id, model, cwd=cwd)
