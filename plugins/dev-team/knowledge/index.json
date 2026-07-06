@@ -1618,6 +1618,10 @@
       "summary": "`scripts/eval_cache.py` SHAs each `fixture::target` over the target's",
       "anchor": "cache-fingerprint-replay"
     },
+    "Calibration mode": {
+      "summary": "`--calibrate [--agent <name>]` is a distinct run mode (band calibration slice",
+      "anchor": "calibration-mode"
+    },
     "Cites: enforcement (drift prevention for the evals themselves)": {
       "summary": "This skill grades reviewers; if a reviewer carries thresholds with no",
       "anchor": "cites-enforcement-drift-prevention-for-the-evals-themselves"

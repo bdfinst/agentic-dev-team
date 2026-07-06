@@ -49,6 +49,8 @@ When the orchestrator (or any caller) spawns a subagent via the Agent tool, the 
 4. Appends one JSONL event to `.claude/metrics/model-routing.log` only when the resolved model differs from the band's shipped default (a ladder bump), always for a legacy-tier dispatch, and for a session-model fallback.
 5. **Fails open** (pass-through) on any error — a missing routing.json or an unreadable agent file never blocks dispatch. There is no deny branch.
 
+`/agent-eval --calibrate` (band calibration slice 3, #882) validates the declared `effort:` band itself against `knowledge/calibration-floors.json` — walking bands cheapest-first through this same resolution path and reporting whether a cheaper band would still clear the target's floor. It is report-only and never edits agent/skill files; see [model-routing.md](../docs/model-routing.md#band-calibration-agent-eval-calibrate).
+
 Legacy `model: haiku|sonnet|opus` agents still resolve (tier→band) for this deprecation release; `/agent-audit` warns. For triage, run `/model-routing-check` — read-only diagnostic that prints the effective band→model map, the ladder (or a starter), the session model, and recent bumps. See `docs/model-routing.md` for the contract and `docs/model-routing-overrides.md` for ladder authoring. See [ADR 0008](../../../docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md) (effort bands) and [ADR 0004](../../../docs/adr/0004-pre-dispatch-model-resolution.md) (pre-dispatch enforcement) for rationale.
 
 ### Effort-band guidance (informational)

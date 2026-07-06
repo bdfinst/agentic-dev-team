@@ -5,14 +5,14 @@ description: >-
   adding or modifying a review agent, to validate detection accuracy, or
   when the user says "run the evals", "test the agents", "check for
   regressions", or "how accurate is the agent".
-argument-hint: "[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--integration] [--ablation <agent>] [--no-cache] [--verbose]"
+argument-hint: "[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--integration] [--ablation <agent>] [--calibrate] [--no-cache] [--verbose]"
 user-invocable: true
 allowed-tools: >-
   Read, Grep, Glob,
   Bash(readlink *, ls *, date *, mkdir *, command -v claude, claude -p *,
        python3 scripts/eval_cache.py *, python3 scripts/run_integration_eval.py *,
        python3 scripts/eval_variance.py *, python3 scripts/eval_ablation.py *,
-       python3 scripts/citation_lint.py *),
+       python3 scripts/citation_lint.py *, python3 scripts/agent_calibrate.py *),
   Skill(review-agent *), Skill(test-design-advisor *)
 ---
 
@@ -79,6 +79,14 @@ Arguments: $ARGUMENTS
   unchanged replays from `evals/.eval-cache.json` at zero token cost.
   Use `--no-cache` when you suspect cache corruption or want a clean
   cost baseline.
+- `--calibrate [--agent <name>]`: Validate that a target's declared
+  `effort:` band is the cheapest band whose fixtures clear its floor
+  (see *Calibration mode* below). **Unit tier only** — error if
+  combined with `--integration`. Without `--agent`, sweeps every
+  agent/skill on disk. **Mutually exclusive with `--ablation`** — these
+  are two distinct run modes with different dispatch shapes (band-ladder
+  sweep vs. two-arm integration diff); combining them errors before any
+  dispatch with a message naming both flags.
 - `--verbose`: Show full agent output for each fixture
 - No arguments: run all agents against all applicable fixtures
 
@@ -131,7 +139,8 @@ dispatched; nothing was written to metrics/.
 Stop there — dispatch nothing, write nothing to `metrics/`.
 
 **Argument validation.** Reject before any dispatch if `--ablation` is
-combined with `--agent`/`--skill`, or if more than one agent is named (v1 is
+combined with `--agent`/`--skill`, with `--calibrate` (a distinct run mode —
+see *Calibration mode* below), or if more than one agent is named (v1 is
 single-agent only — see *Parse Arguments* above for the exact error text).
 
 **Fixtures.** Default to every expected JSON with a non-empty `integration`
@@ -223,6 +232,54 @@ Default behaviour (cache-on):
 `--no-cache` skips steps 1-3 and dispatches everything. Use it only when you
 suspect the cache is wrong; the cache busts automatically on any input
 change, so there is normally no operator decision to make.
+
+## Calibration mode
+
+`--calibrate [--agent <name>]` is a distinct run mode (band calibration slice
+3, issue #882 of epic #879) — it does not grade a normal fixture run, it
+validates the *routing decision itself*: is a target's declared `effort:`
+band the cheapest one whose eval fixtures clear its floor in
+`knowledge/calibration-floors.json` (#880)? All logic is dispatched through
+`python3 scripts/agent_calibrate.py`.
+
+1. **Refuses `--in-session`.** Calibration must grade what is currently on
+   disk, not a stale in-session load, so `--calibrate --in-session` stops
+   immediately with an error stating calibration requires fresh-subprocess
+   dispatch (same rationale as the default *Dispatch mode* above, just
+   non-negotiable here).
+2. **Cost preflight, printed before any dispatch.** Worst case is
+   `fixtures × 3 bands` minus cache hits (queried per band-model via
+   `scripts/eval_cache.py`'s fingerprint cache, #881) — printed as
+   `cost preflight: N dispatch(es) worst-case (...)`.
+3. **Walks bands cheapest-first** — low, medium, high — resolving each via
+   `hooks/lib/model_resolve.py` (honors `.claude/model-ladder.json` when
+   present, else `knowledge/model-routing.json`'s default map). Stops at the
+   first band whose pass rate, quarantined fixtures excluded, clears the
+   target's floor.
+4. **Verdicts:**
+   - `aligned` — the first band clearing the floor is the declared band.
+   - `downgrade-available` — a cheaper band clears the floor; the report
+     carries a ready-to-apply `effort:` frontmatter diff.
+   - `upgrade-required` — the declared band's own pass rate does not clear
+     the floor, but a more expensive band does; diff recommends the pricier
+     band.
+   - `floor-failure` — no band (low/medium/high) clears the floor.
+   - `uncalibratable` — the target has zero eval fixtures; listed with its
+     fixture-gap count.
+5. **Quarantine.** Reuses the flaky-pair list `scripts/eval_variance.py`
+   already writes (`memory/eval-variance.json`, `eval-variance/v1` schema) —
+   a quarantined `<stem>::<target>` pair never counts toward any band's pass
+   rate, and is named in the report.
+6. **Report and record, never a file edit.** Writes
+   `.claude/evals/reports/<timestamp>-calibration.md` (per-band pass-rate
+   table, declared vs. calibrated band, verdict, apply-ready diff, excluded
+   quarantined fixtures, uncalibratable targets) and a per-target calibration
+   record (declared/calibrated band, verdict, a content hash over
+   `knowledge/model-routing.json` + `.claude/model-ladder.json`) to
+   `.claude/evals/calibration-records.json` — the input a future staleness
+   check (#883) will read. **This run never edits any file under
+   `plugins/dev-team/agents/` or `plugins/dev-team/skills/`** — the diff in
+   the report is for a human (or a future slice) to apply by hand.
 
 ## Cites: enforcement (drift prevention for the evals themselves)
 
