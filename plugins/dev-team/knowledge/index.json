@@ -523,6 +523,20 @@
       "anchor": "what-not-to-flag-1"
     }
   },
+  "plugins/dev-team/knowledge/directory-enumeration.md": {
+    "The rule": {
+      "summary": "**Never `Read` a directory path to check whether something exists or to see",
+      "anchor": "the-rule"
+    },
+    "Why this is shared, not local": {
+      "summary": "This same hazard has been independently discovered and locally patched three",
+      "anchor": "why-this-is-shared-not-local"
+    },
+    "How this connects to the rest of the toolkit": {
+      "summary": "Cited by `skills/code-review/SKILL.md` and by review-agent/skill Skip or",
+      "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
   "plugins/dev-team/knowledge/domain-modeling.md": {
     "Exploration Patterns": {
       "summary": "Map the project structure before detecting issues.",
@@ -2365,11 +2379,11 @@
       "anchor": "orchestrator-constraints"
     },
     "Steps": {
-      "summary": "Read all files in `memory/` looking for phase progress files.",
+      "summary": "Find phase progress files with `Glob(\"memory/*.md\")` — never `Read` the bare `memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`).",
       "anchor": "steps"
     },
     "1. Scan for in-progress work": {
-      "summary": "Read all files in `memory/` looking for phase progress files.",
+      "summary": "Find phase progress files with `Glob(\"memory/*.md\")` — never `Read` the bare `memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`).",
       "anchor": "1-scan-for-in-progress-work"
     },
     "2. Check git state": {
