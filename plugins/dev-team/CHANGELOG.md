@@ -1,5 +1,41 @@
 # Changelog
 
+## [10.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.2.1...dev-team-v10.3.0) (2026-07-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* the user-invocable `/context-summarization` command no longer exists; use `/handoff` instead. Chose an outright rename over a deprecated alias because this is a young, actively-developed plugin with no external consumers depending on command stability across releases, and the two skills share their entire mechanic (forget/ input/output gates writing structured markdown for another session) -- a thin alias would mean carrying dead command-name plumbing for a release cycle for no real backward-compat benefit.
+
+### Features
+
+* add --ablation mode to /agent-eval for causal drop-candidate evidence ([3463958](https://github.com/bdfinst/agentic-dev-team/commit/34639588e8f8171e88ac6e6be0f7042090c0426a)), closes [#868](https://github.com/bdfinst/agentic-dev-team/issues/868)
+* add --calibrate band ladder mode to /agent-eval ([b7f35cd](https://github.com/bdfinst/agentic-dev-team/commit/b7f35cd72a3a59132f916c7b7b31157098f77b8c))
+* add /harness-e2e-check as a repeatable on-demand integration test ([4c0099a](https://github.com/bdfinst/agentic-dev-team/commit/4c0099ad8a8c718150c150ba3f178d81f4d1a567))
+* add boundary-events telemetry channel and intervention events ([343a4a8](https://github.com/bdfinst/agentic-dev-team/commit/343a4a87ebaa13e3af2f33911d0c0b661e43a8a9)), closes [#859](https://github.com/bdfinst/agentic-dev-team/issues/859)
+* add branch/remote-aware risk escalation to destructive_guard ([a0e4912](https://github.com/bdfinst/agentic-dev-team/commit/a0e491222774ebc97ff2b196a024e362b143dbe5)), closes [#862](https://github.com/bdfinst/agentic-dev-team/issues/862)
+* add calibration floors policy table and guard test ([39d6bca](https://github.com/bdfinst/agentic-dev-team/commit/39d6bcac3f04022c3a1f2b93d2ff39b5f9c88c0c))
+* add correctness-review agent for functional-defect detection ([093cb7b](https://github.com/bdfinst/agentic-dev-team/commit/093cb7b67d97091e200feb2f8b140d5d17938d9c)), closes [#885](https://github.com/bdfinst/agentic-dev-team/issues/885)
+* add deterministic failure-class routing to build and apply-fixes repair loops ([30969ed](https://github.com/bdfinst/agentic-dev-team/commit/30969ed43d616117609622ed1cbfb2d450d1bbd2)), closes [#861](https://github.com/bdfinst/agentic-dev-team/issues/861)
+* add failure-signature dead-end detection to /build repair loop ([19cfa87](https://github.com/bdfinst/agentic-dev-team/commit/19cfa87e701e333d416b2717bfd8475e4c641486)), closes [#864](https://github.com/bdfinst/agentic-dev-team/issues/864)
+* add invariants, rollback points, and declared file scope to plan slices ([b33d561](https://github.com/bdfinst/agentic-dev-team/commit/b33d561dc69192f571090d35936683cb8b5cba88)), closes [#865](https://github.com/bdfinst/agentic-dev-team/issues/865)
+* add per-edit authoring-discipline checklist to software-engineer agent ([6f8fe5c](https://github.com/bdfinst/agentic-dev-team/commit/6f8fe5c88f8e75cb98ab5c5e6a6139fe56b19471)), closes [#886](https://github.com/bdfinst/agentic-dev-team/issues/886)
+* add preventive Bash-aware test-freeze guard and boundary-events wiring for revert guard ([9bf96c3](https://github.com/bdfinst/agentic-dev-team/commit/9bf96c3b522a545c8926f3d84480fa73415a8f25))
+* add proposed/evidence/risk fields to gate-decision audit records ([0da7a70](https://github.com/bdfinst/agentic-dev-team/commit/0da7a70838e86cef229639fe0a5cf4add9761c2e)), closes [#867](https://github.com/bdfinst/agentic-dev-team/issues/867)
+* add recalibration staleness advisory to /model-routing-check ([11964d3](https://github.com/bdfinst/agentic-dev-team/commit/11964d38e53537e4eb25ca9f7c55ef0569cafba6))
+* add shared directory-enumeration guidance for existence-checking agents ([030237d](https://github.com/bdfinst/agentic-dev-team/commit/030237d9b5cea0aa8b371bd37dadb66f25011a26)), closes [#878](https://github.com/bdfinst/agentic-dev-team/issues/878)
+* add structured evidence bundles to build output and PR bodies ([16887d1](https://github.com/bdfinst/agentic-dev-team/commit/16887d132560dc3167c6c2f2d146a850b18e1651)), closes [#863](https://github.com/bdfinst/agentic-dev-team/issues/863)
+* add validated-outcome weighting to feedback-learning lessons ([e37d871](https://github.com/bdfinst/agentic-dev-team/commit/e37d8713427af2a9ab2d84b6aca07ae12fa33611))
+* gate feedback-learning agent mutations on /agent-eval change contracts ([7d4554b](https://github.com/bdfinst/agentic-dev-team/commit/7d4554b15ee316c3cf3f6f0ce3672fa8ebe08124))
+* rename context-summarization skill to handoff, add fork mode ([941e25d](https://github.com/bdfinst/agentic-dev-team/commit/941e25de1ea1c1a096c7d9144234936191771dab)), closes [#853](https://github.com/bdfinst/agentic-dev-team/issues/853)
+
+
+### Bug Fixes
+
+* add missing Role declarations to /specs, /design-doc, and workflow skills ([03ab5bd](https://github.com/bdfinst/agentic-dev-team/commit/03ab5bd819b0ea31a40c7749ef0c1ddbfe1e5117)), closes [#884](https://github.com/bdfinst/agentic-dev-team/issues/884)
+* correct misrouted watchlist.md reference in skills-registry.md ([056054b](https://github.com/bdfinst/agentic-dev-team/commit/056054b6671894fdbd5a577f02c2eac6fd484651))
+* reclassify correctness-review to high-risk calibration floor ([b491625](https://github.com/bdfinst/agentic-dev-team/commit/b491625dbbf8440d7272efcfba04c93984f7387c))
+
 ## [10.2.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.2.0...dev-team-v10.2.1) (2026-07-05)
 
 
