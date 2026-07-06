@@ -817,6 +817,94 @@ def test_6e_pre_pr_with_docs_only_changes_skips_the_verify_log_check(
     assert data["issues"] == [], data
 
 
+def test_865_1_pre_pr_with_matching_declared_scope_emits_no_warning(
+    tmp_path: Path,
+) -> None:
+    """Issue #865 AC8: a branch that only touches declared Files gets no
+    scope-adherence warning."""
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "a.py").write_text("branch work\n")
+    _git(tmp_path, "add", "a.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: do thing")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+    _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert not any(
+        i.get("rule_id") == "declared-scope-warning" for i in data["issues"]
+    ), data
+
+
+def test_865_2_pre_pr_with_out_of_scope_edit_emits_named_warning_not_a_gate_failure(
+    tmp_path: Path,
+) -> None:
+    """Out-of-scope edits without freeze are a NAMED WARNING, never a
+    pre-PR gate failure (#865 Ambiguity Log Q2)."""
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "a.py").write_text("branch work\n")
+    (tmp_path / "extra.py").write_text("out of scope\n")
+    _git(tmp_path, "add", "a.py", "extra.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: do thing plus extra")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+    _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    # Not a gate failure — exit 2 (warn) or better, never 1 (fail) for this
+    # reason. (--skip-llm's existing check_scope may also warn; either way
+    # returncode must never be 1 here.)
+    assert result.returncode != 1
+    data = json.loads(result.stdout)
+    warning = next(
+        i for i in data["issues"] if i.get("rule_id") == "declared-scope-warning"
+    )
+    assert warning["severity"] == "warning"
+    assert "extra.py" in warning["message"]
+
+
+def test_865_3_pre_pr_with_no_slice_declaring_files_emits_no_warning(
+    tmp_path: Path,
+) -> None:
+    """A plan where no slice declares Files has nothing to compare against."""
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "a.py").write_text("branch work\n")
+    _git(tmp_path, "add", "a.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: do thing")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n")
+    _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    data = json.loads(result.stdout)
+    assert not any(
+        i.get("rule_id") == "declared-scope-warning" for i in data["issues"]
+    ), data
+
+
+def test_865_4_glob_pattern_in_files_covers_matching_file(tmp_path: Path) -> None:
+    """Issue #865 AC9: glob patterns (fnmatch) are accepted in Files."""
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "session.py").write_text("branch work\n")
+    _git(tmp_path, "add", "session.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: do thing")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `*.py`\n")
+    _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    data = json.loads(result.stdout)
+    assert not any(
+        i.get("rule_id") == "declared-scope-warning" for i in data["issues"]
+    ), data
+
+
 def test_6f_non_pre_pr_run_does_not_enforce_the_verify_log_check(
     tmp_path: Path,
 ) -> None:

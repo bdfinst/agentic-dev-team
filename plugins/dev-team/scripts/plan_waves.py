@@ -22,6 +22,7 @@ Uses `scripts/lib/plan_parse.py` for the parser stage.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -43,15 +44,66 @@ def _die(message: str) -> None:
     sys.exit(2)
 
 
+def _is_glob(pattern: str) -> bool:
+    return any(ch in pattern for ch in "*?[")
+
+
+def _file_covered(file_path: str, patterns: List[str]) -> bool:
+    """True when `file_path` exactly matches a declared pattern, or a
+    declared glob pattern (fnmatch, stdlib — #865 AC9) matches it."""
+    for pattern in patterns:
+        if pattern == file_path:
+            return True
+        if _is_glob(pattern) and fnmatch.fnmatch(file_path, pattern):
+            return True
+    return False
+
+
+def _pattern_covers_any(pattern: str, files: List[str]) -> bool:
+    """True when a declared `pattern` is satisfied by at least one inferred
+    file — an exact-match hit, or (for a glob pattern) any fnmatch hit."""
+    for file_path in files:
+        if pattern == file_path:
+            return True
+        if _is_glob(pattern) and fnmatch.fnmatch(file_path, pattern):
+            return True
+    return False
+
+
+def _scope_mismatch(sid: str, declared: List[str], inferred: List[str]) -> Dict:
+    """Return a `scope_mismatches` entry for `sid`, or `None` when the
+    declared and inferred sets reconcile (#865 AC3). `under_declared` is the
+    dangerous direction: a step plans to touch a file the slice never
+    declared. `over_declared` is a declared path/pattern nothing inferred
+    actually touches."""
+    under_declared = sorted(f for f in inferred if not _file_covered(f, declared))
+    over_declared = sorted(p for p in declared if not _pattern_covers_any(p, inferred))
+    if not under_declared and not over_declared:
+        return None
+    return {
+        "slice": sid,
+        "declared": sorted(declared),
+        "inferred": sorted(inferred),
+        "under_declared": under_declared,
+        "over_declared": over_declared,
+    }
+
+
 def compute_waves(plan_path: Path) -> dict:
     """Return the plan-waves/v1 JSON payload for `plan_path`."""
-    rows = plan_parse.parse_slices(plan_path.read_text().splitlines())
+    plan_lines = plan_path.read_text().splitlines()
+    rows = plan_parse.parse_slices(plan_lines)
+    inferred_by_slice = plan_parse.step_files_union(plan_lines)
 
     slices: Dict[str, dict] = {}
     order: List[str] = []
     for sid, deps_raw, files_raw in rows:
         files = [f for f in _TOKEN_SPLIT_RE.split(files_raw) if f]
-        slices[sid] = {"deps_raw": deps_raw, "files": files}
+        slices[sid] = {
+            "deps_raw": deps_raw,
+            "files": files,
+            "inferred_files": inferred_by_slice.get(sid, []),
+        }
         order.append(sid)
 
     if not slices:
@@ -89,17 +141,36 @@ def compute_waves(plan_path: Path) -> dict:
 
     wave_of = {s: i for i, wave in enumerate(waves, 1) for s in wave}
 
+    # Conservative same-wave collision detection (#865): compare the union of
+    # each slice's declared + inferred files, not declared alone, so a step
+    # that plans to touch a file its slice never declared still trips a
+    # collision against another slice's overlapping write.
+    combined_files = {
+        sid: set(slices[sid]["files"]) | set(slices[sid]["inferred_files"])
+        for sid in order
+    }
+
     collisions: List[dict] = []
     for i, wave in enumerate(waves, 1):
         for a in range(len(wave)):
             for b in range(a + 1, len(wave)):
-                shared = sorted(
-                    set(slices[wave[a]]["files"]) & set(slices[wave[b]]["files"])
-                )
+                shared = sorted(combined_files[wave[a]] & combined_files[wave[b]])
                 for f in shared:
                     collisions.append(
                         {"wave": i, "slices": [wave[a], wave[b]], "file": f}
                     )
+
+    # Declared-vs-inferred scope mismatches (#865 AC3) — only for slices that
+    # declare slice-level Files; a slice with no declaration has nothing to
+    # reconcile against.
+    scope_mismatches: List[dict] = []
+    for sid in order:
+        declared = slices[sid]["files"]
+        if not declared:
+            continue
+        entry = _scope_mismatch(sid, declared, slices[sid]["inferred_files"])
+        if entry is not None:
+            scope_mismatches.append(entry)
 
     return {
         "schema": "plan-waves/v1",
@@ -113,6 +184,7 @@ def compute_waves(plan_path: Path) -> dict:
             for sid in order
         },
         "collisions": collisions,
+        "scope_mismatches": scope_mismatches,
     }
 
 

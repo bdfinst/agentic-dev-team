@@ -133,6 +133,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py --wave-width <W> [--jobs N] 
    - A **failing slice** → exit non-zero naming it, list which same-wave slices succeeded and where their (preserved) worktrees are, print the resume command, and start no next-wave slice. Resume rebuilds only the incomplete slice.
    - A **reconcile conflict** (two same-wave diffs touch one file) → exit non-zero naming the file, pick no side, start no next-wave slice.
 
+**Slice dispatch bookkeeping (issue #865).** Before a slice's first step begins:
+
+1. **Freeze scope (opt-in only).** Check whether the plan opts into scope enforcement: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py enabled <plan-file>` (exit 0 = engaged). Declaring slice-level `**Files:**` alone never freezes anything — only a `**Scope enforcement:** freeze` metadata line does (Ambiguity Log Q1). When engaged **and** the dispatching slice declares `**Files:**`, run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py engage <plan-file> --slice <id> --hooks-dir <worktree>/hooks` — this writes `hooks/freeze-state.json` with `allowed_patterns` set to the slice's declared paths plus the fixed bookkeeping allowlist (the plan file, `memory/**`, `metrics/**`), so `hooks/pre_tool_guard.py` blocks any Write/Edit outside that scope without also blocking `/build`'s own progress writes. Clear it at slice completion (sub-step 5 below): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py clear --hooks-dir <worktree>/hooks`.
+2. **Rollback point.** When the slice declares `**Rollback point:**`, resolve the symbolic value to a concrete SHA and record it: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_rollback_point.py resolve --symbolic <value> --repo <worktree> --slice-start <HEAD-at-dispatch> --wave-start <wave-start-ref> --plan-start <plan-start-ref>`, then `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_rollback_point.py record --path memory/build-rollback.json --slice <id> --symbolic <value> --sha <resolved-sha>`. This is the boundary a dead-end escalation (issue #864) names verbatim: "revert to `<sha>` (`<symbolic>`)" — retrieve it with the script's `get` subcommand. A slice without `Rollback point` records nothing.
+
 For each step within a slice, dispatch implementation following the implementer template (`${CLAUDE_PLUGIN_ROOT}/prompts/implementer.md`). Pass the implementer its step **and the slice's Gherkin scenario(s)** — the scenarios are the behavioral contract the step's test must satisfy.
 
 Within the per-behavior mini-cycle below, repeated Write/Edit calls can race a `PostToolUse` hook that rewrites files (e.g., a formatter): an `Edit` failing on a stale `old_string` is expected to self-correct by re-`Read`ing the file before the next `Edit` attempt, not to escalate immediately.
@@ -171,6 +176,7 @@ Work each step **one behavior at a time** — never all the code then all the te
    - When every step under a slice is `[x]`, check off the parent `- [ ] Slice N: <title>`.
    - After all slices are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
    - This disk write is the durable commit. If a `/clear` occurs, `/continue` reads `## Build Progress` to determine the resume point without needing conversation history.
+   - **Clear freeze scope (issue #865).** When every step under the slice is `[x]` and freeze was engaged for it (dispatch bookkeeping above), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py clear --hooks-dir <worktree>/hooks` before starting the next slice. A slice that never engaged freeze has nothing to clear.
 6. **Slice review checkpoint (batched).** When every step under the current slice is `[x]` **and** the slice had any deferred `standard` (or unspecified) steps, run **one** review pass over the slice's accumulated changed files: the static self-heal pass first (`references/static-self-heal.md`), then `/review-agent spec-compliance-review`, then the quality review agents relevant to what changed. Apply the same review-fix loop (up to 5 iterations; escalate if it doesn't converge). `trivial`-only and all-`complex` slices have nothing to batch — skip this pass. Then **record the checkpoint outcome** (sub-step 7).
 7. **Record review value (#348).** For **each** checkpoint that runs (per-step `complex` in sub-step 4, and per-slice in sub-step 6), append one JSON line to `metrics/review-value.jsonl` capturing whether review actually changed anything — counts and outcomes only, never code or file content (consistent with the cost meter's privacy boundary). Schema in `performance-metrics`:
 
@@ -195,6 +201,16 @@ A "done" step that only passed its own tests is not the same as a feature that w
    ```
 
    `outcome` is `ran` (`/verify` executed and passed), `skipped` (no runtime surface in the diff — `reason` states why, e.g. `"tests-only"` or `"docs-only"`), or `failed-then-fixed` (`/verify` failed at least once before the fix landed). `python3 scripts/progress_guardian.py --pre-pr` reads this log: a branch with runtime-surface changes and no matching entry fails the pre-PR gate the same way an incomplete step or a missing commit does.
+
+### 4.10. Run slice invariants (issue #865)
+
+When the slice declares `**Invariants:**`, run them **after** the slice's own suite is green (sub-step 5) and its review checkpoint(s) have run (sub-steps 4/6) — invariants check what must stay green *beyond* the slice's new acceptance tests, so they gate on top of everything else, not instead of it:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/run_invariants.py --plan <plan-file> --slice <id> --repo <worktree>
+```
+
+A non-zero exit **fails the slice gate exactly like a red test** — fix it or escalate (Escalation section below), never step over it, and never flip the slice checkbox to `[x]` until it's green. A slice with no `Invariants` line runs its gate unchanged (the script itself no-ops with "No invariants declared" — nothing to enforce). Invariant commands run as-is from the repo root; the plan author owns their portability, same trust model as the plan's own test commands.
 
 ### 5. Run full test suite
 
@@ -279,4 +295,5 @@ unresolved escalation.
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md` defines the structured evidence bundle assembled in Step 7.5 and surfaced in the Step 8 completion report
 - `/pr` creates the pull request after a successful build, assembling its own evidence bundle independently (no handoff file)
 - `/continue` can resume a partially completed build across sessions
-- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary; `--pre-pr` also fails closed when runtime-surface changes have no matching `metrics/verify-log.jsonl` entry (issue #727)
+- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary; `--pre-pr` also fails closed when runtime-surface changes have no matching `metrics/verify-log.jsonl` entry (issue #727), and warns (never fails) on out-of-scope edits against declared slice `Files` (issue #865)
+- `scripts/build_slice_scope.py`, `scripts/build_rollback_point.py`, and `scripts/run_invariants.py` implement the plan-as-contract fields (issue #865): opt-in freeze scope, rollback-point resolution/recording, and the slice invariants gate, respectively

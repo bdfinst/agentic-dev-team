@@ -55,6 +55,7 @@ Pre-PR gate (`--pre-pr` flag):
 
 - Any `[ ]` unchecked step blocks the PR
 - Uncommitted changes block the PR
+- Declared-scope adherence (issue #865): out-of-scope edits against a slice's declared `**Files:**` are a **named warning**, never a gate failure — freeze (opt-in via plan metadata) is the actual enforcement mechanism
 
 ## Verify by dispatch (read-only)
 

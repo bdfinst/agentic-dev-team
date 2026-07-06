@@ -1994,6 +1994,10 @@
       "summary": "A \"done\" step that only passed its own tests is not the same as a feature that works — a red suite catches structural regressions, not \"it fails the first time someone actually runs it.\" Once a slice's steps are all `[x]` (sub-step 5) and…",
       "anchor": "49-verify-runtime-behavior-before-the-slice-is-done-issue-727"
     },
+    "4.10. Run slice invariants (issue #865)": {
+      "summary": "When the slice declares `**Invariants:**`, run them **after** the slice's own suite is green (sub-step 5) and its review checkpoint(s) have run (sub-steps 4/6) — invariants check what must stay green *beyond* the slice's new acceptance…",
+      "anchor": "410-run-slice-invariants-issue-865"
+    },
     "5. Run full test suite": {
       "summary": "After all steps are complete, run the full test suite.",
       "anchor": "5-run-full-test-suite"
