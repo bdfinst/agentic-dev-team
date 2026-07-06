@@ -1,11 +1,15 @@
 ---
 name: design-doc
 description: Produce a written design document in docs/specs/ with user approval before planning begins. Use this skill during the Research phase when a feature request, architectural change, or non-trivial task enters the pipeline. Ensures misunderstandings are caught before any planning or implementation work starts. Also use when the user says "brainstorm", "design", "spec", or "let's think through this".
-role: worker
+role: orchestrator
 user-invocable: true
 ---
 
 # Design Document
+
+Role: orchestrator. This command produces a design document and gates
+progression to Phase 2 (Plan) — it does not write implementation code,
+scaffold a project, or take any implementation action.
 
 ## Overview
 

@@ -7,6 +7,9 @@ user-invocable: true
 
 # Branch Workflow
 
+Role: worker. This command performs PR creation, merge, and branch cleanup
+directly via git/gh commands.
+
 ## Overview
 
 The three-phase workflow ends at the Phase 3 human gate. This skill formalizes what happens after approval: PR creation, merge decision, and branch cleanup. Without this, branches linger and merge conflicts accumulate.

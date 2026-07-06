@@ -7,6 +7,9 @@ user-invocable: true
 
 # CD Test Architecture
 
+Role: worker. This command assesses and reports — it does not write tests or
+refactor code; it hands the migration steps to `/plan` or `/build`.
+
 ## Overview
 
 An **advisory, application-level** skill: it assesses how an existing application is tested, classifies that against a CD-aligned test taxonomy, finds the tests that can't run in a clean CI gate, and recommends a target architecture plus a migration path. It does not write tests or refactor code.

@@ -7,6 +7,9 @@ user-invocable: true
 
 # Threat Modeling
 
+Role: worker. This command performs STRIDE analysis directly and documents
+threats/mitigations — it does not implement the mitigations it identifies.
+
 ## Overview
 
 Structured security analysis for identifying threats, attack surfaces, and mitigations during design or review phases. Ensures security considerations are addressed before implementation, not after.
