@@ -21,9 +21,12 @@ Refs: #572 (bash → Python migration epic).
 from __future__ import annotations
 
 import json
+import os
+import re
+import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _SCRIPT_DIR / "lib"
@@ -40,9 +43,11 @@ def emit_boundary_event(*args, **kwargs) -> None:
         _emit_boundary_event(*args, **kwargs)
     except Exception:  # noqa: BLE001 - fail-open by design
         pass
-
 _COMMANDS_FILE = _SCRIPT_DIR / "destructive-commands.json"
 _CAREFUL_FILE = _SCRIPT_DIR / "careful-state.json"
+
+_PROBE_TIMEOUT_SECONDS = 1.0
+_OVERRIDE_ENV_VAR = "DEV_TEAM_GUARD_OVERRIDE"
 
 
 # Inline fallbacks — kept in the exact order the .sh's here-docs use so
@@ -154,6 +159,78 @@ def _load_patterns() -> Tuple[
     )
 
 
+# --- Context probes (#862) -------------------------------------------------
+#
+# Cheap, stdlib-only, fail-safe probes of git/environment state. Each git
+# probe is a single `subprocess.run` with a short timeout; any failure (not a
+# repo, git binary missing, non-zero exit, timeout) returns None rather than
+# raising. Probes are only invoked after a destructive pattern match, and
+# only for patterns that carry an escalation rule (see `_load_escalations`
+# and `main`) — commands with no match, or matched commands with no
+# escalation rule, never pay the subprocess cost.
+
+
+def _run_git(args: List[str]) -> Optional[str]:
+    """Run a single git subprocess with a short timeout. None on any failure."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            timeout=_PROBE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    output = result.stdout.strip()
+    return output or None
+
+
+def _current_branch() -> Optional[str]:
+    """Current checked-out branch name, or None (detached HEAD, no repo, etc.)."""
+    branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+    if branch is None or branch == "HEAD":
+        return None
+    return branch
+
+
+def _default_branch() -> Optional[str]:
+    """Resolved default branch name, or None when it cannot be determined.
+
+    Primary source: `git symbolic-ref --short refs/remotes/origin/HEAD`
+    (e.g. "origin/main" -> "main"). Falls back to a local `main`/`master`
+    existence heuristic when the symbolic ref is unset (common on fresh
+    clones): if exactly one of the two exists as a local branch, use it;
+    if both or neither resolve, treat the default branch as unresolved.
+    """
+    symbolic = _run_git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+    if symbolic:
+        return symbolic.rsplit("/", 1)[-1]
+
+    candidates = [
+        name
+        for name in ("main", "master")
+        if _run_git(["rev-parse", "--verify", "--quiet", f"refs/heads/{name}"])
+        is not None
+    ]
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def _remote_url() -> Optional[str]:
+    """The `origin` remote URL, or None (no remote, not a repo, etc.)."""
+    return _run_git(["remote", "get-url", "origin"])
+
+
+def _ci_active() -> bool:
+    """Whether the `CI` environment variable is set to a truthy value."""
+    value = os.environ.get("CI", "")
+    return value.strip().lower() not in ("", "0", "false")
+
+
 def _matches_any(cmd_lower: str, patterns: List[str]) -> Optional[str]:
     """Return the first pattern whose lowercase substring appears in `cmd_lower`."""
     for pattern in patterns:
@@ -178,6 +255,120 @@ def _first_match(cmd_lower: str, groups: List[Tuple[List[str], str]]) -> Optiona
 def _emit(text: str) -> None:
     """Print with trailing newline — matches the .sh's `echo` behavior."""
     sys.stdout.write(text + "\n")
+
+
+def _matched_pattern_text(match: str) -> str:
+    """Recover the raw pattern text from a `_first_match` "category: pattern" label."""
+    _, _, pattern = match.partition(": ")
+    return pattern
+
+
+# --- Escalation evaluator (#862) --------------------------------------------
+
+
+def _load_escalations() -> List[Dict[str, Any]]:
+    """Load the optional "escalations" list from destructive-commands.json.
+
+    Absent key, missing/unreadable file, or malformed entries -> []. This
+    keeps a JSON config without an "escalations" key byte-compatible with
+    pre-#862 behavior (no rules -> no escalation lookups ever succeed).
+    """
+    data = _load_json(_COMMANDS_FILE)
+    if data is None:
+        return []
+    raw = data.get("escalations")
+    if not isinstance(raw, list):
+        return []
+    return [
+        rule
+        for rule in raw
+        if isinstance(rule, dict) and isinstance(rule.get("pattern"), str)
+    ]
+
+
+def _find_escalation_rule(
+    escalations: List[Dict[str, Any]], pattern: str
+) -> Optional[Dict[str, Any]]:
+    for rule in escalations:
+        if rule.get("pattern") == pattern:
+            return rule
+    return None
+
+
+def _branch_named_in_command(command_lower: str, branch: str) -> bool:
+    """Whether `branch` appears as a whole path segment/token in the command.
+
+    Word-boundary aware so "main" does not match inside "feature/main-fix".
+    """
+    escaped = re.escape(branch.lower())
+    return re.search(rf"(?<![\w/-]){escaped}(?![\w/-])", command_lower) is not None
+
+
+def _condition_target_branch_default(
+    command: str,
+    command_lower: str,
+    pattern: str,
+    current_branch: Optional[str],
+    default_branch: Optional[str],
+) -> bool:
+    """`target_branch: "default"` — the command's target resolves to the default branch.
+
+    High-confidence evidence only: either the default branch name appears
+    explicitly as the command's target (e.g. `git push --force origin main`,
+    `git branch -D main`), or the command has no explicit target (bare
+    `git push --force`) and the current branch (HEAD) equals the default
+    branch. Any unresolved probe -> False (fail-safe, no escalation).
+    """
+    if default_branch is None:
+        return False
+    if _branch_named_in_command(command_lower, default_branch):
+        return True
+    remainder = command_lower.replace(pattern.lower(), "", 1).strip()
+    if remainder == "":
+        return current_branch is not None and current_branch == default_branch
+    return False
+
+
+def _condition_current_branch_default(
+    current_branch: Optional[str], default_branch: Optional[str]
+) -> bool:
+    """`current_branch: "default"` — HEAD is currently the default branch."""
+    if current_branch is None or default_branch is None:
+        return False
+    return current_branch == default_branch
+
+
+def _rule_escalates(
+    rule: Dict[str, Any],
+    command: str,
+    command_lower: str,
+    pattern: str,
+    current_branch: Optional[str],
+    default_branch: Optional[str],
+) -> bool:
+    """Evaluate a rule's `when` conditions. Unknown/unresolvable -> False."""
+    when = rule.get("when")
+    if not isinstance(when, dict) or not when:
+        return False
+    if when.get("target_branch") == "default":
+        if not _condition_target_branch_default(
+            command, command_lower, pattern, current_branch, default_branch
+        ):
+            return False
+    if when.get("current_branch") == "default":
+        if not _condition_current_branch_default(current_branch, default_branch):
+            return False
+    # Only the two recognized condition keys are supported today; an
+    # unrecognized key alone would otherwise vacuously escalate.
+    known_keys = {"target_branch", "current_branch"}
+    if not set(when.keys()) & known_keys:
+        return False
+    return True
+
+
+def _override_active() -> bool:
+    """One-shot escalation bypass via `DEV_TEAM_GUARD_OVERRIDE=1` (#862)."""
+    return os.environ.get(_OVERRIDE_ENV_VAR, "").strip() == "1"
 
 
 def main() -> int:
@@ -227,10 +418,60 @@ def main() -> int:
         emit_boundary_event(cwd, "destructive_guard", "Bash", "block", match, session_id)
         return 2
 
+    # Escalation evaluator (#862) — only consulted for matched commands, and
+    # only probes git/environment state when the matched pattern carries an
+    # escalation rule, so non-matching and non-escalating commands pay zero
+    # added subprocess cost.
+    pattern = _matched_pattern_text(match)
+    escalations = _load_escalations()
+    rule = _find_escalation_rule(escalations, pattern)
+    escalated = False
+    current_branch: Optional[str] = None
+    default_branch: Optional[str] = None
+    if rule is not None:
+        current_branch = _current_branch()
+        default_branch = _default_branch()
+        escalated = _rule_escalates(
+            rule, command, lower_command, pattern, current_branch, default_branch
+        )
+
+    override = escalated and _override_active()
+
+    # Only escalated matches get their own event here — a rule that exists
+    # but doesn't escalate falls through to the plain "warn" emission below,
+    # and emitting both would double-log one decision.
+    if escalated:
+        emit_boundary_event(
+            cwd,
+            "destructive_guard",
+            "Bash",
+            "block" if not override else "bypass",
+            pattern,
+            session_id,
+        )
+
+    if escalated and not override:
+        _emit(f"BLOCKED: Destructive command detected ({match}).")
+        _emit(f"Command: {command}")
+        _emit(
+            f"This command targets the default branch ({default_branch}); "
+            "force-push, reset, and branch-delete are hard-blocked on the "
+            "default branch regardless of careful mode."
+        )
+        _emit(
+            f"Set {_OVERRIDE_ENV_VAR}=1 for this single command to override, "
+            "or confirm with the user."
+        )
+        return 2
+
     _emit(f"CAUTION: Destructive command detected ({match}).")
     _emit(f"Command: {command}")
     _emit("This action is hard to reverse. Confirm with the user before proceeding.")
-    emit_boundary_event(cwd, "destructive_guard", "Bash", "warn", match, session_id)
+    # An escalated-and-overridden match already emitted its own "bypass"
+    # event above; only emit "warn" here for the plain, non-escalated case
+    # so one decision never produces two events.
+    if not escalated:
+        emit_boundary_event(cwd, "destructive_guard", "Bash", "warn", match, session_id)
     return 0
 
 
