@@ -1138,6 +1138,10 @@
       "summary": "Multi-trial pass@k stability trend for `/agent-eval` fixtures.",
       "anchor": "eval-variancejsonl"
     },
+    "`eval-ablation.jsonl`": {
+      "summary": "Causal per-agent ablation evidence from `/agent-eval --ablation <agent>` (#868):",
+      "anchor": "eval-ablationjsonl"
+    },
     "`refactor-freeze.jsonl`": {
       "summary": "Audit log for the tests-frozen-during-REFACTOR invariant (`#813`) — both the",
       "anchor": "refactor-freezejsonl"
@@ -1592,6 +1596,10 @@
       "summary": "`/agent-eval` dispatches at one of three tiers, in increasing confidence and",
       "anchor": "confidence-pyramid"
     },
+    "Ablation mode (`--ablation <agent>`, #868)": {
+      "summary": "Gives `/harness-audit` **causal** drop-candidate evidence instead of the",
+      "anchor": "ablation-mode-ablation-agent-868"
+    },
     "Cache (fingerprint replay)": {
       "summary": "`scripts/eval_cache.py` SHAs each `fixture::target` over the target's",
       "anchor": "cache-fingerprint-replay"
@@ -1617,7 +1625,7 @@
       "anchor": "2-load-fixtures-and-expected-results"
     },
     "3. Run agents against fixtures": {
-      "summary": "If `--integration` is set, skip the rest of this section and dispatch",
+      "summary": "If `--ablation <agent>` is set, skip the rest of this section and follow",
       "anchor": "3-run-agents-against-fixtures"
     },
     "4. Grade each result": {
