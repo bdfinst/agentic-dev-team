@@ -22,14 +22,11 @@ from typing import List, Optional, Tuple
 STALE_AFTER_SECONDS = 4 * 60 * 60
 
 _JS_TS_NAME_RE = re.compile(r"\.(test|spec)\.[^./]+$", re.IGNORECASE)
-_STEP_DEF_RE = re.compile(
-    r"(\.steps\.[^./]+$|StepDefinitions\.[^./]+$|Steps\.[^./]+$)"
-)
-_CSHARP_MARKER_RE = re.compile(
-    r"\[(Fact|Theory|Test|TestCase|TestMethod|TestClass)\]"
-)
+_STEP_DEF_RE = re.compile(r"(\.steps\.[^./]+$|StepDefinitions\.[^./]+$|Steps\.[^./]+$)")
+_CSHARP_MARKER_RE = re.compile(r"\[(Fact|Theory|Test|TestCase|TestMethod|TestClass)\]")
 _JAVA_MARKER_RE = re.compile(r"@(Test|ParameterizedTest|TestFactory)\b")
 _JAVA_CLASS_SUFFIXES = ("Test", "Tests", "TestCase", "Spec")
+_PYTHON_NAME_RE = re.compile(r"^(test_.+|.+_test)\.py$", re.IGNORECASE)
 
 #: How much of a file to read when a content probe is needed.
 _CONTENT_PROBE_BYTES = 256 * 1024
@@ -66,6 +63,10 @@ def is_test_file(path: str, content: Optional[str] = None) -> bool:
     if _JS_TS_NAME_RE.search(name):
         return True
     if "/__tests__/" in posix or posix.startswith("__tests__/"):
+        return True
+
+    # Python — test_*.py or *_test.py (pytest/unittest convention).
+    if _PYTHON_NAME_RE.match(name):
         return True
 
     suffix = p.suffix.lower()
