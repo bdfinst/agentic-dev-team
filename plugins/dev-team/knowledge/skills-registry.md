@@ -11,7 +11,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 ## Command Table
 
 | Command | File | Role | What It Does |
-|---------|------|------|--------------|
+| --------- | ------ | ------ | -------------- |
 | `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance |
 | `/agent-eval` | `skills/agent-eval/SKILL.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
 | `/agent-readiness` | `skills/agent-readiness/SKILL.md` | worker | Score how agent-ready the current project repo is against the Agent-Readiness Scorecard; emits a tiered JSON/Markdown report (scores your project, not the plugin — use `/harness-audit` for that) |
@@ -32,7 +32,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/gherkin-public` | `skills/gherkin-public/SKILL.md` | worker | Standalone worker — author Gherkin scenarios for the entire public interface (API endpoints, UI flows, batch-job entry points, library exports, event types) at the observable boundary. Standalone; not part of the current `/test-improve` orchestrator flow |
 | `/guard` | `skills/guard/SKILL.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
 | `/harness-audit` | `skills/harness-audit/SKILL.md` | orchestrator | Analyze harness effectiveness and flag stale components |
-| `/harness-e2e-check` | `skills/harness-e2e-check/SKILL.md` | worker | On-demand end-to-end integration check of the harness's own mechanisms (failure-class routing, dead-end detection, evidence bundles, invariants/rollback, refactor-freeze guard family, lesson-validation weighting, calibration/model-routing chain, handoff rename) — originated as issue #907's post-merge test plan, kept repeatable via `references/watchlist.md`'s regression tracking |
+| `/harness-e2e-check` | `skills/harness-e2e-check/SKILL.md` | worker | On-demand end-to-end integration check of the harness's own mechanisms (failure-class routing, dead-end detection, evidence bundles, invariants/rollback, refactor-freeze guard family, lesson-validation weighting, calibration/model-routing chain, handoff rename) — originated as issue #907's post-merge test plan, kept repeatable via `skills/harness-e2e-check/references/watchlist.md`'s regression tracking |
 | `/headless-run` | `skills/headless-run/SKILL.md` | worker | Run a Claude Code skill/command headlessly in an isolated subprocess (fresh `--session-id`, clean HOME/config, scrubbed env, JSON result, timeout) so a benchmark harness (e.g. #821 running `/code-review` per case) doesn't inherit the parent Remote session identity/tool surface — the reusable #842 workaround |
 | `/help` | `skills/help/SKILL.md` | worker | List all available slash commands with descriptions |
 | `/init-dev-team` | `skills/init-dev-team/SKILL.md` | worker | Install plugin prerequisites (jq, python3, mutation tools) and bootstraps a JS project via `project-init` when JS/TS is selected but `package.json` is absent. CodeGraph/graphify offers now live in `/project-init` (Step 4c). |
