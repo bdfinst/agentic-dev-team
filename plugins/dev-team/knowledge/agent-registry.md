@@ -64,7 +64,6 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | Platform Engineer, Software Engineer, QA Engineer |
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
 | Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | 600 | Orchestrator |
-| Context Summarization | `skills/context-summarization/SKILL.md` | 500 | Orchestrator |
 | Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~600 | `/test-improve` (Phase 2), QA Engineer, Platform Engineer |
 | Coverage Delta | `skills/coverage-delta/SKILL.md` | ~450 | `/test-improve` (Phase 4), QA Engineer |
 | Design Doc | `skills/design-doc/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
@@ -81,6 +80,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~700 | `/test-improve` (Phase 2b, conditional), QA Engineer, standalone |
 | Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | Standalone worker; QA Engineer, Product Manager |
 | Governance & Compliance | `skills/governance-compliance/SKILL.md` | 990 | QA Engineer, Technical Writer |
+| Handoff | `skills/handoff/SKILL.md` | 500 | Orchestrator |
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 420 | Architect, Software Engineer |
 | Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 1,020 | Orchestrator, Product Manager |
 | Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~750 | `/test-improve` (Phase 3), QA Engineer |

@@ -5,8 +5,8 @@ why the ceiling is set where it is, how to read the warning it prints, and
 how to tune or troubleshoot it. For the runtime procedure this backs
 (what to load, when), see [Context Loading
 Protocol](../skills/context-loading-protocol/SKILL.md); for the
-compression procedure it nudges toward, see [Context
-Summarization](../skills/context-summarization/SKILL.md).
+compression procedure it nudges toward, see
+[Handoff](../skills/handoff/SKILL.md).
 
 ## What the guard is, and the evidence behind it
 
@@ -53,7 +53,7 @@ The warning follows one pinned template, field by field:
 | `{provenance}` | Where `{window}` came from — `override` (`DEV_TEAM_CONTEXT_WINDOW` set), `detected` (matched a pinned model family/version), or `default` (unrecognized model, or no model info — falls back to 200K). |
 | `{label}` | What triggered the check — `loading agent '<name>'` or `invoking skill '<name>'`. |
 
-A second line follows, naming the Context Summarization action band for
+A second line follows, naming the Handoff action band for
 the current occupancy (see below), and — for the two lower bands — a
 knob-tuning footer.
 
@@ -65,8 +65,8 @@ on the percentage bound or the absolute bound:
 
 | Band | Multiple of `{eff}` | Action |
 | --- | --- | --- |
-| nudge | 1x – 1.25x | Consider running `/context-summarization`. |
-| run-now | 1.25x – 1.5x | Run `/context-summarization` now. |
+| nudge | 1x – 1.25x | Consider running `/handoff`. |
+| run-now | 1.25x – 1.5x | Run `/handoff` now. |
 | full-summary (top band) | 1.5x+ | Write a full summary to `memory/` and start a new conversation. Leads with the directive; no knob footer. |
 
 Concrete fire-points at default settings (`DEV_TEAM_CONTEXT_CEILING_PCT=40`,
@@ -91,7 +91,7 @@ Concrete fire-points at default settings (`DEV_TEAM_CONTEXT_CEILING_PCT=40`,
   resolve to a silent `exit 0`. A measurement failure is never treated as
   "over the ceiling."
 - **Recovery skills are never gated**, strict mode included —
-  `/context-summarization`, `/context-loading-protocol`, `/continue`,
+  `/handoff`, `/context-loading-protocol`, `/continue`,
   `/review-summary`, `/session-review` always proceed, so the path back
   under budget can never deadlock.
 - **Per-session dedupe.** Repeated warnings at the same band and the same
@@ -126,7 +126,7 @@ same-family model outside that pinned list (e.g. an older Opus or Sonnet
 snapshot) intentionally falls back to 200K rather than being assumed large.
 Override with `DEV_TEAM_CONTEXT_WINDOW=1000000` if you know better.
 
-**"I ran `/context-summarization` but the guard still warned."** Recovery
+**"I ran `/handoff` but the guard still warned."** Recovery
 skills are exempt from gating, but only the skills listed above — check the
 skill name doesn't have a plugin prefix mismatch (`plugin:continue` is
 recognized as the recovery `continue`, stripped of its plugin prefix).

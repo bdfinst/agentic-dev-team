@@ -85,7 +85,7 @@ Logged at the end of each task:
   },
   "cost_usd": 0.043,
   "llm": "opus",
-  "context_summarizations": 0,
+  "handoffs": 0,
   "phases": 2,
   "rework_cycles": 1,
   "accepted": true,
@@ -109,7 +109,7 @@ Logged at the end of each task:
 | `tokens.total` | number | Sum of input + output |
 | `cost_usd` | number | Estimated cost based on token rates |
 | `llm` | string | Model ID used |
-| `context_summarizations` | number | Times summarization was triggered |
+| `handoffs` | number | Times the handoff skill was triggered (either mode) |
 | `phases` | number | Number of loading phases |
 | `rework_cycles` | number | Number of revision cycles |
 | `accepted` | boolean | Whether the user accepted the output |
