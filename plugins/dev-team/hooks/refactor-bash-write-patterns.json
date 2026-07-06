@@ -1,5 +1,5 @@
 {
-  "_comment": "Regex library for refactor_test_bash_guard.py (#906). Each entry recognizes one Bash file-modifying shape and extracts the apparent write target via a named 'target' capture group. First match wins, in list order. Ambiguous/unparseable commands (no entry matches) are never blocked - false-negative-favoring by design, see the issue's Non-goals.",
+  "_comment": "Regex library for refactor_test_bash_guard.py (#906). Each entry recognizes one Bash file-modifying shape and extracts the apparent write target via a named 'target' capture group. Every occurrence of every entry is evaluated independently against the full command (#914) - a command blocks if ANY occurrence's target resolves to a frozen test file, so an earlier benign match (e.g. 'redirect' onto a scratch file, or an earlier 'mv-cp' onto a non-test file) in a compound command can never mask a later, genuinely dangerous match (same entry or a different one) elsewhere in the same string. Ambiguous/unparseable commands (no entry matches) are never blocked - false-negative-favoring by design, see the issue's Non-goals.",
   "patterns": [
     {
       "id": "sed-i",
