@@ -76,24 +76,63 @@ def test_each_recognized_shape_blocks_a_staged_test_file(tmp_path):
         assert matched_rule == rule_id, command
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "issue #914: _extract_target() is first-pattern-wins, so an earlier "
-        "'redirect' match on a harmless target short-circuits before the "
-        "later 'mv-cp' match on the real, dangerous target is ever tried. "
-        "Remove this xfail once #914 lands — strict=True turns an "
-        "unexpected pass into a hard CI failure so this can't go stale."
-    ),
-)
 def test_compound_command_dangerous_target_after_earlier_redirect_match(tmp_path):
+    """#914 regression: a benign 'redirect' match earlier in a compound
+    command must never mask a later, genuinely dangerous 'mv-cp' match on a
+    frozen test file — all patterns are evaluated, not just the first hit."""
     _write_state(tmp_path)
-    code, _lines, _matched_rule = guard.evaluate(
+    code, _lines, matched_rule = guard.evaluate(
         "echo done > /tmp/log.txt; mv src/scratch.js src/thing.test.js",
         tmp_path,
         now=_NOW,
     )
     assert code == 2
+    assert matched_rule == "mv-cp"
+
+
+def test_compound_command_double_ampersand_delimiter_still_blocks(tmp_path):
+    """#914 regression, `&&` delimiter: the masking bug isn't specific to
+    `;` — any compound-command delimiter must reach the later target."""
+    _write_state(tmp_path)
+    code, _lines, matched_rule = guard.evaluate(
+        "echo done > /tmp/log.txt && mv src/scratch.js src/thing.test.js",
+        tmp_path,
+        now=_NOW,
+    )
+    assert code == 2
+    assert matched_rule == "mv-cp"
+
+
+def test_compound_command_dangerous_target_before_later_benign_redirect(tmp_path):
+    """#914 regression, reverse order: the dangerous target appearing
+    textually FIRST (with a benign redirect afterward) must still block —
+    matching isn't just fixed for one direction of ordering."""
+    _write_state(tmp_path)
+    code, _lines, matched_rule = guard.evaluate(
+        "mv src/scratch.js src/thing.test.js; echo done > /tmp/log.txt",
+        tmp_path,
+        now=_NOW,
+    )
+    assert code == 2
+    assert matched_rule == "mv-cp"
+
+
+def test_compound_command_same_rule_repeated_only_second_occurrence_dangerous(
+    tmp_path,
+):
+    """#914 regression, same-rule masking: two segments both match the
+    `mv-cp` pattern; the first targets a non-test file and the second a
+    frozen test file. `re.search` (single match per pattern) would only see
+    the first, benign occurrence and miss the second — every occurrence of
+    every pattern must be evaluated, not just the first per rule_id."""
+    _write_state(tmp_path)
+    code, _lines, matched_rule = guard.evaluate(
+        "mv src/a.js src/scratch.js; mv src/b.js src/thing.test.js",
+        tmp_path,
+        now=_NOW,
+    )
+    assert code == 2
+    assert matched_rule == "mv-cp"
 
 
 def test_block_names_the_file_and_recovery(tmp_path):
@@ -134,6 +173,19 @@ def test_unparseable_commands_never_block(tmp_path):
         assert guard.evaluate(command, tmp_path, now=_NOW) == (0, [], None), command
 
 
+def test_compound_command_with_only_benign_targets_is_a_no_op(tmp_path):
+    """#914 regression, other direction: evaluating every pattern (instead
+    of stopping at the first match) must not turn a compound command with
+    only benign targets into a false-positive block."""
+    _write_state(tmp_path)
+    result = guard.evaluate(
+        "echo done > /tmp/log.txt; mv src/scratch.js src/other-scratch.js",
+        tmp_path,
+        now=_NOW,
+    )
+    assert result == (0, [], None)
+
+
 def test_matching_shape_on_a_non_test_target_is_a_no_op(tmp_path):
     _write_state(tmp_path)
     code, lines, matched_rule = guard.evaluate(
@@ -145,16 +197,16 @@ def test_matching_shape_on_a_non_test_target_is_a_no_op(tmp_path):
 def test_matching_shape_outside_refactor_phase_is_a_no_op(tmp_path):
     for phase in ("implement", "test", "red", "green"):
         _write_state(tmp_path, phase=phase)
-        result = guard.evaluate(
-            "sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW
-        )
+        result = guard.evaluate("sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW)
         assert result == (0, [], None), phase
 
 
 def test_no_op_when_no_phase_is_recorded(tmp_path):
-    assert guard.evaluate(
-        "sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW
-    ) == (0, [], None)
+    assert guard.evaluate("sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW) == (
+        0,
+        [],
+        None,
+    )
 
 
 def test_stale_refactor_state_does_not_linger(tmp_path):
@@ -202,9 +254,7 @@ def test_malformed_state_fails_open_with_an_audit_line(tmp_path):
     path = tmp_path / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True)
     path.write_text("{not json")
-    result = guard.evaluate(
-        "sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW
-    )
+    result = guard.evaluate("sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW)
     assert result == (0, [], None)
     events = _audit_events(tmp_path)
     assert [e["event"] for e in events] == ["fail-open"]
