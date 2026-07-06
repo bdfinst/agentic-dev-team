@@ -3112,6 +3112,14 @@
       "summary": "All changes are logged in `metrics/config-changelog.jsonl` (one JSON object per line, append-only).",
       "anchor": "audit-trail"
     },
+    "The `evidence` field (validated-outcome weighting, #866)": {
+      "summary": "Every new `amend`/`learn`/`remember` entry names how its own effect can be",
+      "anchor": "the-evidence-field-validated-outcome-weighting-866"
+    },
+    "Validation verdicts and rollback proposals (#866)": {
+      "summary": "`/harness-audit` reads this changelog and appends new `type: \"validation\"`",
+      "anchor": "validation-verdicts-and-rollback-proposals-866"
+    },
     "Change-contract schema extension (#860)": {
       "summary": "The nine fields below are **required only for entries that gate through",
       "anchor": "change-contract-schema-extension-860"
@@ -3414,21 +3422,25 @@
       "summary": "Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `performance-metrics`).",
       "anchor": "4-analyze-review-value-fix-rates"
     },
-    "5. Analyze model routing": {
+    "5. Lesson Validation — validated-outcome weighting (#866)": {
+      "summary": "Close the loop on `/feedback-learning` lessons: does an adopted lesson",
+      "anchor": "5-lesson-validation-validated-outcome-weighting-866"
+    },
+    "6. Analyze model routing": {
       "summary": "For each agent listed in `knowledge/agent-registry.md` (with model tier from its `model:` frontmatter, resolved via the PreToolUse hook per `agents/orchestrator.md` → Resolution Procedure):",
-      "anchor": "5-analyze-model-routing"
+      "anchor": "6-analyze-model-routing"
     },
-    "6. Analyze orchestration complexity": {
+    "7. Analyze orchestration complexity": {
       "summary": "Review the current pipeline for components that may be unnecessary overhead:",
-      "anchor": "6-analyze-orchestration-complexity"
+      "anchor": "7-analyze-orchestration-complexity"
     },
-    "7. Produce report": {
+    "8. Produce report": {
       "summary": "Write the report to the output path using this structure:",
-      "anchor": "7-produce-report"
+      "anchor": "8-produce-report"
     },
-    "8. Present results": {
+    "9. Present results": {
       "summary": "Display a summary of the report and the file path.",
-      "anchor": "8-present-results"
+      "anchor": "9-present-results"
     },
     "Error Handling": {
       "summary": "Missing metrics files: Report what's missing, suggest how to generate data",
