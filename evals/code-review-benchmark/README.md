@@ -78,6 +78,11 @@ python3 cli.py --dataset bugsjs --project Bower --resume
 # Everything Defects4J has, capped to the first 2 projects, full-repo scope
 python3 cli.py --dataset defects4j --limit-projects 2 --full-repo
 
+# Full sweep: every project in both datasets (same --results-dir, so
+# results.jsonl accumulates across both runs and report.md covers both)
+python3 cli.py --dataset defects4j --workers 4
+python3 cli.py --dataset bugsjs --workers 4
+
 # Regenerate report.md from existing results.jsonl without re-dispatching
 python3 cli.py --report-only
 ```
