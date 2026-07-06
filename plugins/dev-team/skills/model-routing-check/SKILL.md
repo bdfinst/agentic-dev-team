@@ -28,7 +28,7 @@ Arguments: none.
 
 ## What it shows
 
-Four sections, in order:
+Five sections, in order:
 
 1. **Effective band → model map** — the result of resolving each effort
    band (`low`, `medium`, `high`) through the shipped default map in
@@ -44,6 +44,17 @@ Four sections, in order:
    `.claude/metrics/model-routing.log`, formatted as
    `<ts>  <band> → <served>  [<reason>]  session=<session>  caller=<caller>`.
    Raise `MODEL_BUMP_TAIL` to see more.
+5. **Recalibration staleness advisory** — **advisory only, never blocks
+   dispatch** (fail-open, matching the model-resolution hook's contract).
+   For every target with an entry in `knowledge/calibration-floors.json`
+   (#880), compares its last calibration record's routing/ladder content
+   hash (written by `/agent-eval --calibrate`, #882) against the current
+   hash of `knowledge/model-routing.json` + `.claude/model-ladder.json`.
+   Three states per target: `calibration-current` (hash matches),
+   `calibration-stale` (hash drift since the last calibration — routing map
+   or ladder changed), and `never-calibrated` (no record exists yet). Stale
+   and never-calibrated rows point at `/agent-eval --calibrate --agent
+   <target>`.
 
 ## How to fix common findings
 
@@ -74,6 +85,8 @@ LADDER_PATH="${MODEL_LADDER_JSON:-.claude/model-ladder.json}"
 SESSION_PATH="${SESSION_MODEL_FILE:-.claude/session-model}"
 BUMP_LOG_PATH="${MODEL_BUMP_LOG:-.claude/metrics/model-routing.log}"
 TAIL_N="${MODEL_BUMP_TAIL:-10}"
+FLOORS_PATH="${CALIBRATION_FLOORS_JSON:-$PLUGIN_DIR/knowledge/calibration-floors.json}"
+RECORDS_PATH="${CALIBRATION_RECORDS_JSON:-.claude/evals/calibration-records.json}"
 
 echo "Model Routing Check"
 echo "==================="
@@ -118,6 +131,68 @@ if [[ -f "$BUMP_LOG_PATH" ]]; then
 else
   echo "Recent routing bumps: none recorded"
 fi
+echo
+
+# Recalibration staleness advisory (advisory only — never blocks dispatch;
+# fail-open, matching the model-resolution hook's contract).
+echo "Recalibration staleness advisory (advisory only — never blocks dispatch):"
+python3 - "$ROUTING_PATH" "$LADDER_PATH" "$FLOORS_PATH" "$RECORDS_PATH" <<'PYEOF'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+routing_path = Path(sys.argv[1])
+ladder_path = Path(sys.argv[2])
+floors_path = Path(sys.argv[3])
+records_path = Path(sys.argv[4])
+
+
+def routing_hash(routing_path, ladder_path):
+    # Mirrors scripts/agent_calibrate.py's routing_hash() exactly: a
+    # sha256 over routing bytes, a null separator, ladder bytes when the
+    # ladder exists, and a trailing null separator.
+    h = hashlib.sha256()
+    for p in (routing_path, ladder_path):
+        if p is not None and p.exists():
+            try:
+                h.update(p.read_bytes())
+            except OSError:
+                pass
+        h.update(b"\0")
+    return h.hexdigest()
+
+
+def load_json(path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+floors = load_json(floors_path)
+if not isinstance(floors, dict):
+    floors = {}
+targets = sorted(k for k in floors if not k.startswith("_"))
+
+records = load_json(records_path)
+if not isinstance(records, dict):
+    records = {}
+
+current_hash = routing_hash(routing_path, ladder_path if ladder_path.exists() else None)
+
+if not targets:
+    print("  no calibration-floors.json entries found")
+else:
+    for target in targets:
+        record = records.get(target)
+        if not isinstance(record, dict) or "routing_hash" not in record:
+            print(f"  {target:<32} never-calibrated   -> run /agent-eval --calibrate --agent {target}")
+        elif record["routing_hash"] != current_hash:
+            print(f"  {target:<32} calibration-stale  -> run /agent-eval --calibrate --agent {target}")
+        else:
+            print(f"  {target:<32} calibration-current")
+PYEOF
 ```
 <!-- END EXEC -->
 
@@ -126,7 +201,14 @@ fi
 - Defaults to `N=10` bump events in the tail. Override with
   `MODEL_BUMP_TAIL=<n>`.
 - `MODEL_ROUTING_PLUGIN_DIR`, `MODEL_ROUTING_RESOLVER`, `MODEL_ROUTING_JSON`,
-  `MODEL_LADDER_JSON`, `SESSION_MODEL_FILE`, and `MODEL_BUMP_LOG` are
-  **test-only** injection seams. Do not set them by hand in normal use.
+  `MODEL_LADDER_JSON`, `SESSION_MODEL_FILE`, `MODEL_BUMP_LOG`,
+  `CALIBRATION_FLOORS_JSON`, and `CALIBRATION_RECORDS_JSON` are **test-only**
+  injection seams. Do not set them by hand in normal use.
 - For the ladder schema, resolution precedence, and restricted-endpoint
   setup, see `docs/model-routing.md` and `docs/model-routing-overrides.md`.
+- The recalibration staleness advisory is read-only and fail-open: a missing
+  `calibration-floors.json` or `calibration-records.json` is reported (empty
+  or all-`never-calibrated`) rather than erroring, and it never affects
+  `hooks/agent_model_resolve.py`'s dispatch behavior. See `docs/model-
+  routing.md`'s "Recalibration staleness advisory" section and
+  `skills/agent-eval/SKILL.md#calibration-mode` for `/agent-eval --calibrate`.

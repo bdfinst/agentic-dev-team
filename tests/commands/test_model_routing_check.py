@@ -9,6 +9,7 @@ bats -> pytest).
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -63,6 +64,10 @@ def case(tmp_path: Path) -> dict:
     env["SESSION_MODEL_FILE"] = str(tmp_path / ".claude" / "session-model")
     env["MODEL_BUMP_LOG"] = str(tmp_path / ".claude" / "metrics" / "model-routing.log")
     env["MODEL_ROUTING_RESOLVER"] = str(RESOLVER)
+    env["CALIBRATION_FLOORS_JSON"] = str(tmp_path / "knowledge" / "calibration-floors.json")
+    env["CALIBRATION_RECORDS_JSON"] = str(
+        tmp_path / ".claude" / "evals" / "calibration-records.json"
+    )
 
     return {
         "tmp_path": tmp_path,
@@ -70,6 +75,28 @@ def case(tmp_path: Path) -> dict:
         "env": env,
         "command_text": command_text,
     }
+
+
+def _routing_hash(routing_path: Path, ladder_path: Path | None) -> str:
+    """Mirrors scripts/agent_calibrate.py's routing_hash() exactly."""
+    h = hashlib.sha256()
+    for p in (routing_path, ladder_path):
+        if p is not None and p.exists():
+            h.update(p.read_bytes())
+        h.update(b"\0")
+    return h.hexdigest()
+
+
+def _write_floors(case: dict, entries: dict) -> None:
+    Path(case["env"]["CALIBRATION_FLOORS_JSON"]).write_text(
+        json.dumps(entries), encoding="utf-8"
+    )
+
+
+def _write_records(case: dict, records: dict) -> None:
+    records_path = Path(case["env"]["CALIBRATION_RECORDS_JSON"])
+    records_path.parent.mkdir(parents=True, exist_ok=True)
+    records_path.write_text(json.dumps(records), encoding="utf-8")
 
 
 def _run(case: dict, extra_env: dict | None = None) -> subprocess.CompletedProcess:
@@ -314,3 +341,135 @@ def test_model_bump_tail_30_shows_all_25_no_showing_last_line(
     assert "caller=caller-0" in result.stdout
     assert "caller=caller-24" in result.stdout
     assert "Showing last 10 of 25" not in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# Recalibration staleness advisory (issue #883, slice 4 of epic #879)
+# ---------------------------------------------------------------------------
+
+
+def test_doc_body_documents_recalibration_staleness_advisory(case: dict) -> None:
+    text = case["command_text"].lower()
+    assert "recalibration staleness advisory" in text
+    assert "never blocks dispatch" in text
+    assert "calibration-stale" in text
+    assert "never-calibrated" in text
+
+
+def test_doc_body_documents_five_sections(case: dict) -> None:
+    assert "Five sections" in case["command_text"]
+
+
+def test_routing_map_changed_since_last_calibration_flags_stale(case: dict) -> None:
+    """Gherkin: Routing map changed since last calibration."""
+    _write_floors(case, {"security-review": {"riskClass": "high", "floor": 1.0}})
+    routing_path = Path(case["env"]["MODEL_ROUTING_JSON"])
+    ladder_path = Path(case["env"]["MODEL_LADDER_JSON"])
+    stale_hash = _routing_hash(routing_path, None)  # hash of a prior, different state
+    _write_records(
+        case,
+        {
+            "security-review": {
+                "target": "security-review",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "declared_band": "high",
+                "calibrated_band": "high",
+                "verdict": "aligned",
+                "routing_hash": "not-the-current-hash-" + stale_hash[:8],
+            }
+        },
+    )
+
+    result = _run(case)
+    assert result.returncode == 0, result.stdout
+    assert "security-review" in result.stdout
+    assert "calibration-stale" in result.stdout
+    assert "/agent-eval --calibrate --agent security-review" in result.stdout
+
+
+def test_target_never_calibrated_is_listed(case: dict) -> None:
+    """Gherkin: Target never calibrated."""
+    _write_floors(case, {"naming-review": {"riskClass": "standard", "floor": 0.9}})
+    # No calibration-records.json written at all.
+
+    result = _run(case)
+    assert result.returncode == 0, result.stdout
+    assert "naming-review" in result.stdout
+    assert "never-calibrated" in result.stdout
+    assert "/agent-eval --calibrate --agent naming-review" in result.stdout
+
+
+def test_calibration_current_when_hash_matches(case: dict) -> None:
+    routing_path = Path(case["env"]["MODEL_ROUTING_JSON"])
+    ladder_path = Path(case["env"]["MODEL_LADDER_JSON"])
+    _write_floors(case, {"doc-review": {"riskClass": "standard", "floor": 0.9}})
+    current_hash = _routing_hash(routing_path, None)  # ladder doesn't exist yet
+    _write_records(
+        case,
+        {
+            "doc-review": {
+                "target": "doc-review",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "declared_band": "medium",
+                "calibrated_band": "medium",
+                "verdict": "aligned",
+                "routing_hash": current_hash,
+            }
+        },
+    )
+
+    result = _run(case)
+    assert result.returncode == 0, result.stdout
+    assert "doc-review" in result.stdout
+    assert "calibration-current" in result.stdout
+
+
+def test_advisory_never_blocks_even_when_every_record_is_stale(case: dict) -> None:
+    """Gherkin: Advisory never blocks — the model-resolution hook's dispatch
+    behavior (here, the band -> model map this same command prints) is
+    unchanged regardless of how many targets are stale/never-calibrated."""
+    _write_floors(
+        case,
+        {
+            "security-review": {"riskClass": "high", "floor": 1.0},
+            "concurrency-review": {"riskClass": "high", "floor": 1.0},
+        },
+    )
+    _write_records(
+        case,
+        {
+            "security-review": {
+                "target": "security-review",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "declared_band": "high",
+                "calibrated_band": "high",
+                "verdict": "aligned",
+                "routing_hash": "definitely-stale",
+            },
+            "concurrency-review": {
+                "target": "concurrency-review",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "declared_band": "high",
+                "calibrated_band": "high",
+                "verdict": "aligned",
+                "routing_hash": "also-stale",
+            },
+        },
+    )
+
+    result = _run(case)
+    assert result.returncode == 0, result.stdout
+    assert result.stdout.count("calibration-stale") == 2
+    # The band -> model map (a stand-in for hook dispatch resolution) is
+    # still printed correctly, unaffected by the advisory findings.
+    assert "low" in result.stdout and "claude-haiku-4-5-20251001" in result.stdout
+    assert "medium" in result.stdout and "claude-sonnet-4-6" in result.stdout
+    assert "high" in result.stdout and "claude-opus-4-8" in result.stdout
+
+
+def test_no_floors_entries_prints_graceful_message(case: dict) -> None:
+    """No calibration-floors.json at all — advisory degrades gracefully,
+    never errors."""
+    result = _run(case)
+    assert result.returncode == 0, result.stdout
+    assert "no calibration-floors.json entries found" in result.stdout
