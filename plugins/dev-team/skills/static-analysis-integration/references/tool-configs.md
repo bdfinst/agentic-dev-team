@@ -257,7 +257,7 @@ Placeholder — populated by Step 3b. Expected tools: detect-secrets, depcheck, 
 ### mypy
 
 ```bash
-mypy --output json . 2>&1 | python3 adapters/mypy-adapter.py
+mypy $(python3 adapters/mypy-src-layout.py .) --output json . 2>&1 | python3 adapters/mypy-adapter.py
 ```
 
 - **Minimum version**: 1.11 — the first release with `--output json`. Older mypy rejects the flag; the adapter detects the rejection and degrades to a skip-with-warning (exit 0, zero findings) — never a pipeline failure.
@@ -266,6 +266,7 @@ mypy --output json . 2>&1 | python3 adapters/mypy-adapter.py
 - **Detection**: `command -v mypy`
 - **Capability tier**: Python type checking
 - **Presence**: language-conditional, like ruff — dispatched only when `.py` files are in the target set.
+- **src/-layout auto-detection**: `../adapters/mypy-src-layout.py` (invoked as `python3 adapters/mypy-src-layout.py <project-root>`) detects a plain `src/` layout — a `src/` directory holding `.py` modules with no `__init__.py` anywhere under it, and no project-level mypy package-base config (`mypy.ini`/`.mypy.ini` present, or a `[mypy]` section in `setup.cfg`/`tox.ini`, or a `[tool.mypy]` section in `pyproject.toml`) — and prints `--explicit-package-bases` (mypy >= 0.990) so mypy can resolve the layout without requiring `__init__.py` files or hand-written config. Prints nothing when the layout doesn't apply or the project already owns its mypy config ("bind, don't replace"). Without this, a project on this layout hits a stable, deterministic `mypy` failure — `Source file found twice under different module names: "calc" and "src.calc"` — the moment any checked file imports a `src/` module by its dotted `src.` path; degradation rung 4 then silently drops all mypy coverage for the run.
 - **Adapter**: `../adapters/mypy-adapter.py` (≤ 40 LOC) maps mypy's JSONL diagnostics to the unified finding envelope:
 
 | mypy JSON field | Unified finding field | Notes |
@@ -336,8 +337,9 @@ the self-heal pass with one info line — never a failure.
   2. **black + flake8** — qualifies only as a **combined pair**: black fills the format-autofix half (`black <scoped-files>`), flake8 the lint-diagnostic half (`flake8 <scoped-files>`). Probes `command -v black` **and** `command -v flake8`; both must be present for the pair to bind. Qualification: qualified as a pair, with a recorded caveat — a **partial mapping**, not 1:1 with ruff's rule surface; the binding info line must say so.
 - **Diagnostic slot** — ordered provider list:
   1. **mypy** (default, last-resort provider) — probe `command -v mypy`. Qualification: qualified; diagnostic-only — no autofix, no mechanical pre-fix; findings go to the coding agent inside the shared fix loop.
-     - Verify: `mypy --follow-imports=silent <scoped-files>`
+     - Verify: `mypy $(python3 adapters/mypy-src-layout.py <project-root>) --follow-imports=silent <scoped-files>`
      - `--follow-imports=silent` keeps a scoped run honest: imported modules are still analyzed for type context, but errors are reported only in the scoped files — without it a scoped pass reports errors in unchanged followed modules, polluting the loop.
+     - The `$(...)` prefix is the src/-layout auto-detection documented in the mypy Tier 3 entry above (`../adapters/mypy-src-layout.py`) — prints `--explicit-package-bases` when the project needs it, nothing otherwise. Same detection, same script, for both the build-time lane and the `/code-review` backstop.
   2. **pyright** — Qualification: **gated** — machine-readable output qualifies it in principle, but recognition requires a ≤ 40 LOC Tier 3 adapter in this skill's `adapters/`, which does not exist yet; until that adapter lands, pyright binds nothing and is reported honestly with the mypy default offered alongside.
 - **`/code-review` counterparts**: ruff is the Tier 1 native-SARIF source and mypy the Tier 3 JSON adapter documented above — same tools, full-repo invocations.
 

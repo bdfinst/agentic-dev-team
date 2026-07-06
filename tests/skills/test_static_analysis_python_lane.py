@@ -20,6 +20,7 @@ SAI_SKILL = SAI / "SKILL.md"
 TOOL_CONFIGS = SAI / "references" / "tool-configs.md"
 LANGUAGE_SETUP = SAI / "references" / "language-setup.md"
 MYPY_ADAPTER = SAI / "adapters" / "mypy-adapter.py"
+MYPY_SRC_LAYOUT = SAI / "adapters" / "mypy-src-layout.py"
 REQUIREMENTS_DEV = REPO_ROOT / "requirements-dev.txt"
 DEV_SETUP = REPO_ROOT / "scripts" / "dev-setup.sh"
 
@@ -51,28 +52,36 @@ def _flat(text: str) -> str:
 
 def _ruff_entry() -> str:
     return section_outside_code(
-        _configs_text(), r"^### ruff$", boundary_pattern=r"^#{2,3} ",
+        _configs_text(),
+        r"^### ruff$",
+        boundary_pattern=r"^#{2,3} ",
         include_start_line=True,
     )
 
 
 def _mypy_entry() -> str:
     return section_outside_code(
-        _configs_text(), r"^### mypy$", boundary_pattern=r"^#{2,3} ",
+        _configs_text(),
+        r"^### mypy$",
+        boundary_pattern=r"^#{2,3} ",
         include_start_line=True,
     )
 
 
 def _python_lane() -> str:
     return section_outside_code(
-        _configs_text(), r"^### Python lane$", boundary_pattern=r"^#{2,3} ",
+        _configs_text(),
+        r"^### Python lane$",
+        boundary_pattern=r"^#{2,3} ",
         include_start_line=False,
     )
 
 
 def _python_guide() -> str:
     return section_outside_code(
-        LANGUAGE_SETUP.read_text(), r"^## Python$", boundary_pattern=r"^## ",
+        LANGUAGE_SETUP.read_text(),
+        r"^## Python$",
+        boundary_pattern=r"^## ",
         include_start_line=False,
     )
 
@@ -82,7 +91,9 @@ def _python_guide() -> str:
 
 def test_skill_tier1_table_lists_ruff():
     tier1 = section_outside_code(
-        _skill_text(), r"^### Tier 1", boundary_pattern=r"^### ",
+        _skill_text(),
+        r"^### Tier 1",
+        boundary_pattern=r"^### ",
         include_start_line=True,
     )
     assert grep(r"^\|\s*ruff\s*\|", tier1)
@@ -125,7 +136,9 @@ def test_ruff_honors_project_config_with_no_plugin_curated_rule_set():
 
 def test_skill_tier3_registers_the_mypy_adapter():
     tier3 = section_outside_code(
-        _skill_text(), r"^### Tier 3", boundary_pattern=r"^### ",
+        _skill_text(),
+        r"^### Tier 3",
+        boundary_pattern=r"^### ",
         include_start_line=True,
     )
     flat = _flat(tier3)
@@ -152,6 +165,19 @@ def test_mypy_entry_maps_rule_ids_into_the_mypy_python_namespace():
 
 def test_mypy_adapter_exists_next_to_the_tier3_precedent():
     assert MYPY_ADAPTER.is_file()
+
+
+def test_mypy_src_layout_detector_exists_and_is_documented():
+    """#917: a plain src/-layout project (no __init__.py, no mypy
+    package-base config) makes mypy fail outright the moment any checked
+    file imports a src/ module by its dotted path. The detector script
+    prints --explicit-package-bases for that layout; both mypy invocation
+    sites (this Tier 3 entry and the build-time lane below) splice it in."""
+    assert MYPY_SRC_LAYOUT.is_file()
+    entry = _flat(_mypy_entry())
+    assert "adapters/mypy-src-layout.py" in entry
+    assert "--explicit-package-bases" in entry
+    assert "Source file found twice under different module names" in entry
 
 
 # --- pylint: retired outright, replaced by Ruff
@@ -187,8 +213,14 @@ def test_python_lane_autofix_slot_runs_ruff_fix_then_verify():
 
 def test_python_lane_diagnostic_slot_is_mypy_with_scoped_follow_imports():
     lane = _flat(_python_lane())
-    assert "mypy --follow-imports=silent <scoped-files>" in lane
+    assert "--follow-imports=silent <scoped-files>" in lane
     assert "diagnostic-only" in lane
+
+
+def test_python_lane_diagnostic_slot_verify_carries_the_src_layout_detector():
+    lane = _flat(_python_lane())
+    assert "adapters/mypy-src-layout.py" in lane
+    assert "mypy $(python3 adapters/mypy-src-layout.py" in lane
 
 
 def test_python_lane_carries_both_detection_probes():
