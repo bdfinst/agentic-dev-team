@@ -1,0 +1,4 @@
+ID;Number of tests;Number of passed tests;Number of pending tests;Number of failed tests;Number of lines;Number of total lines coverage;Number of statements;Number of total statements coverage;Number of functions;Number of total functions coverage;Number of branches;Number of total branches coverage;Bug category;Bugfix patterns
+1;247;181;19;50;2883;1630;2892;1635;593;274;1189;447;incorrect feature implementation --> incorrect data processing;IF-APCJ,IF-CC,IF-RBR
+2;412;353;19;43;3797;2979;3807;2984;786;606;1581;1007;incomplete feature implementation --> configuration processing;IF-CC,IF-APC,IF-ABR
+3;440;383;19;41;3850;3102;3864;3110;796;633;1595;1059;incorrect feature implementation --> incorrect data processing;AS-CE
