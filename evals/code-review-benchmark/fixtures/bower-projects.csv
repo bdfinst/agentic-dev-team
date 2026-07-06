@@ -1,0 +1,11 @@
+Name;Repository url;Number of bugs
+Express;https://github.com/BugsJS/express;27
+Shields;https://github.com/BugsJS/shields;4
+Bower;https://github.com/BugsJS/bower;3
+Hexo;https://github.com/BugsJS/hexo;12
+Karma;https://github.com/BugsJS/karma;22
+Hessian.js;https://github.com/BugsJS/hessian.js;9
+Eslint;https://github.com/BugsJS/eslint;333
+Node-redis;https://github.com/BugsJS/node_redis;7
+Pencilblue;https://github.com/BugsJS/pencilblue;7
+Mongoose;https://github.com/BugsJS/mongoose;29
