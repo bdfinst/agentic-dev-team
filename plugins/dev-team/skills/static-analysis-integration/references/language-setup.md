@@ -52,7 +52,11 @@ source of truth for the manual commands.
    when present (Ruff's default config discovery — no override flags) and
    falls back to Ruff's defaults; the plugin pins no curated rule set — the
    project owns its quality bar. mypy honors `mypy.ini`/`pyproject.toml`
-   (`[tool.mypy]`).
+   (`[tool.mypy]`). A plain `src/`-layout project (modules with no
+   `__init__.py`, no mypy package-base config) needs no manual setup
+   either — both mypy invocations auto-detect the layout and add
+   `--explicit-package-bases` for you; see the mypy Tier 3 entry in
+   `tool-configs.md`.
 4. **Verification** — the lane's detection probes are `command -v ruff` and
    `command -v mypy`; run them (with the project venv active) to confirm
    the setup will be detected.
