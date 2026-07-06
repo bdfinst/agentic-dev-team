@@ -229,3 +229,22 @@ it in lockstep:
 
 These exist so bats tests can isolate filesystem state without touching the
 real `.claude/` directory. Setting them at runtime is not supported.
+
+## Calibration floors
+
+`knowledge/calibration-floors.json` is a separate policy table from the
+routing files above — it does not affect model selection. It declares, per
+eval-graded review agent or advisory skill, a `riskClass`
+(`high|standard|advisory`) and a `floor`: the minimum acceptable eval pass
+rate (0-1) for that target. `high` (`security-review`, `concurrency-review`,
+`arch-review`, `domain-review`) is floor `1.0`; the remaining review agents
+are `standard` at `0.9`; low-effort/lexical review agents and advisory-only
+skills (e.g. `test-design-advisor`) are `advisory` at `0.8`.
+
+This is slice 1 of epic #879 (band calibration): a pure policy artifact plus
+its guard test, `tests/repo/test_calibration_floors_sync.py`
+(`scripts/check_calibration_floors_sync.py`), which keeps the table in sync
+with the fixture-bearing `applicableAgents`/`applicableSkills` names declared
+across `evals/expected/*.json` and with the agents/skills present on disk. No
+eval run consumes these floors yet — later slices in the epic wire them into
+actual gating.
