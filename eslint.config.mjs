@@ -91,8 +91,12 @@ export default tseslint.config(
   },
 
   // First-party JavaScript (this config file, and any future js/cjs/mjs).
+  // `evals/fixtures/**` is excluded here (not from linting entirely — see the
+  // "clean" block below): dirty .js/.cjs/.mjs fixtures are, like their .ts
+  // counterparts, intentionally-flawed review-agent eval inputs, not source.
   {
     files: ["**/*.{js,cjs,mjs}"],
+    ignores: [`${fixturesRel}/**`],
     extends: [eslint.configs.recommended],
   },
 
