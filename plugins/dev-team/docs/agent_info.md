@@ -32,6 +32,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `complexity-review` | [`complexity-review.md`](../agents/complexity-review.md) | haiku | Function size, cyclomatic complexity, nesting |
 | `component-architecture-review` | [`component-architecture-review.md`](../agents/component-architecture-review.md) | sonnet | Reusable component extraction, UI duplication, prop drilling, component APIs |
 | `concurrency-review` | [`concurrency-review.md`](../agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
+| `correctness-review` | [`correctness-review.md`](../agents/correctness-review.md) | opus | Functional/behavioral defects — implementation diverges from evident intent |
 | `data-flow-tracer` | [`data-flow-tracer.md`](../agents/data-flow-tracer.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
 | `doc-review` | [`doc-review.md`](../agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
 | `domain-review` | [`domain-review.md`](../agents/domain-review.md) | opus | Abstraction leaks, boundary violations |

@@ -1,0 +1,14 @@
+{
+  "fixture": "cr-missing-guard",
+  "description": "Regression fixture for #885/#852 bower Bug-1: a documented `isCacheable` guard exists but is never called before caching a resolution, so non-cacheable (file:// / branch) sources get cached as moving targets",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": { "error": { "min": 1, "max": 4 } },
+      "minConfidenceAnyOf": ["high", "medium"],
+      "mustMention": ["isCacheable"]
+    }
+  }
+}

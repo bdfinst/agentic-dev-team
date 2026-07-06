@@ -1,0 +1,14 @@
+{
+  "fixture": "cr-missing-assignment",
+  "description": "Regression fixture for #885/#852 hessian.js Bug-1: `keys` is read in a write loop but never assigned from `this._classRefFields[className]` before the loop, leaving it stale/undefined",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": { "error": { "min": 1, "max": 4 } },
+      "minConfidenceAnyOf": ["high", "medium"],
+      "mustMention": ["keys"]
+    }
+  }
+}

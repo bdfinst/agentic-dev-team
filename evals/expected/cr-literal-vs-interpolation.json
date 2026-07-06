@@ -1,0 +1,14 @@
+{
+  "fixture": "cr-literal-vs-interpolation",
+  "description": "Regression fixture for #885/#852 shields Bug-1: cache key template literal writes `match[0]` as a literal string instead of interpolating it, so every request collides on one cache key",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": { "error": { "min": 1, "max": 4 } },
+      "minConfidenceAnyOf": ["high", "medium"],
+      "mustMention": ["cacheKey"]
+    }
+  }
+}

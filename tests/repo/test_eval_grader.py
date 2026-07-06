@@ -177,6 +177,80 @@ def test_severity_count_out_of_range_fails(case: Path) -> None:
     assert "severities.error" in out
 
 
+def test_min_confidence_any_of_passes_when_one_issue_matches(case: Path) -> None:
+    # issue #885: correctness-review fixtures assert at least one issue at
+    # high-or-medium confidence, without pinning an exact per-confidence count.
+    _write(
+        case,
+        "expected/ar-demo.json",
+        """{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": {
+    "arch-review": {
+      "expectedStatus": "fail",
+      "minConfidenceAnyOf": ["high", "medium"]
+    }
+  }
+}
+""",
+    )
+    _write(
+        case,
+        "actuals.json",
+        """{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail",
+  "issues": [{ "severity": "error", "confidence": "high", "message": "layer violation" }],
+  "summary": "" } } } }
+""",
+    )
+    res = _grade(
+        case,
+        "--expected-dir",
+        str(case / "expected"),
+        "--actuals",
+        str(case / "actuals.json"),
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_min_confidence_any_of_fails_when_no_issue_matches(case: Path) -> None:
+    _write(
+        case,
+        "expected/ar-demo.json",
+        """{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": {
+    "arch-review": {
+      "expectedStatus": "fail",
+      "minConfidenceAnyOf": ["high", "medium"]
+    }
+  }
+}
+""",
+    )
+    _write(
+        case,
+        "actuals.json",
+        """{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail",
+  "issues": [{ "severity": "error", "confidence": "none", "message": "layer violation" }],
+  "summary": "" } } } }
+""",
+    )
+    res = _grade(
+        case,
+        "--expected-dir",
+        str(case / "expected"),
+        "--actuals",
+        str(case / "actuals.json"),
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode == 1, out
+    assert "minConfidenceAnyOf" in out
+
+
 def test_baseline_isolates_regressions(case: Path) -> None:
     """Baseline says arch-review WAS passing; a new failure is a [REGRESSION]."""
     (case / "baseline.json").write_text('{ "passing": ["ar-demo::arch-review"] }')
