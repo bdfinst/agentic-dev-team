@@ -50,6 +50,9 @@ Optional:
 
 - `--since <ref>`: Review files changed since a git ref
 - `--path <dir>`: Target directory (default: current working directory)
+- `--internal`: This is an orchestrator-internal dispatch (e.g. `/build`'s
+  Phase 3 inline checkpoints) — skip the `DEV_TEAM_REPORTS/` report write in
+  step 4b. `/build` is the only sanctioned caller of this flag today.
 
 ## Steps
 
@@ -96,3 +99,20 @@ Before reporting, consult `ACCEPTED-RISKS.md` at the repo root if present. For e
 ### 4. Report
 
 Display the result as a formatted summary with issues grouped by file. Include suggested fixes inline. If any issues were suppressed by ACCEPTED-RISKS, list them in a dedicated trailing section with rule ids for audit.
+
+### 4b. Write the durable report (skip when `--internal`)
+
+When `--internal` was **not** passed, write the same formatted summary shown
+in step 4 to `DEV_TEAM_REPORTS/<agent-name>.md` in the target repository's
+working directory (creating `DEV_TEAM_REPORTS/` if absent), overwriting any
+existing file at that path — write it even when the review found zero
+issues. Print one confirmation line after the chat summary: `Report
+written: DEV_TEAM_REPORTS/<agent-name>.md`, or `Report written:
+DEV_TEAM_REPORTS/<agent-name>.md (replaced previous run)` when a file
+already existed at that path. If the write fails (permission/read-only):
+report `Cannot write DEV_TEAM_REPORTS/<agent-name>.md: <error>` to chat, and
+still return the JSON result and chat summary unchanged — the write failure
+is non-fatal and never blocks or alters the primary output.
+
+When `--internal` **was** passed, skip this step entirely — behavior stays
+exactly as today (JSON + chat summary only).
