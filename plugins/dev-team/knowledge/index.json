@@ -893,6 +893,46 @@
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
+  "plugins/dev-team/knowledge/report-template.md": {
+    "Reference sentence": {
+      "summary": "Every report-writing skill that adopts this contract points at it with this",
+      "anchor": "reference-sentence"
+    },
+    "Header block": {
+      "summary": "Every report opens with:",
+      "anchor": "header-block"
+    },
+    "Empty-section rule": {
+      "summary": "Scope: **header/footer fields only** — the fields in the Header block above",
+      "anchor": "empty-section-rule"
+    },
+    "Default section ordering": {
+      "summary": "For a **new** report-writing skill with no established structure of its own,",
+      "anchor": "default-section-ordering"
+    },
+    "Provenance (closing section)": {
+      "summary": "Every report closes with a Provenance section, generalized from",
+      "anchor": "provenance-closing-section"
+    },
+    "Related": {
+      "summary": "`knowledge/review-template.md` — the equivalent shared contract for",
+      "anchor": "related"
+    }
+  },
+  "plugins/dev-team/knowledge/report-to-pdf.md": {
+    "Recipe": {
+      "summary": "`report.pdf` is written to the current directory.",
+      "anchor": "recipe"
+    },
+    "Why this toolchain": {
+      "summary": "**No LaTeX assumption.** `pdflatex`/`xelatex` are not installed by default",
+      "anchor": "why-this-toolchain"
+    },
+    "Related": {
+      "summary": "`knowledge/report-template.md` — the shared header/footer/empty-section",
+      "anchor": "related"
+    }
+  },
   "plugins/dev-team/knowledge/request-processing-flow.md": {
     "Request Processing Flow": {
       "summary": "For trivial tasks (typo fix, simple query), the Orchestrator routes directly to a single agent.",
@@ -2137,7 +2177,7 @@
       "anchor": "6-report"
     },
     "Output": {
-      "summary": "Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component):",
+      "summary": "Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component).",
       "anchor": "output"
     },
     "Integration": {
@@ -2295,7 +2335,7 @@
       "anchor": "step-5-prioritization"
     },
     "Output Format": {
-      "summary": "Write the report to `reports/competitive-analysis-<date>.md` using this structure:",
+      "summary": "Write the report to `reports/competitive-analysis-<date>.md` using this structure.",
       "anchor": "output-format"
     },
     "Presenting Results": {
@@ -5255,7 +5295,7 @@
       "anchor": "9-report"
     },
     "Output": {
-      "summary": "**Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.",
+      "summary": "For the header block and closing Provenance section, follow",
       "anchor": "output"
     },
     "Integration": {
