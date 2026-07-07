@@ -2091,7 +2091,7 @@
       "anchor": "5-run-full-test-suite"
     },
     "6. Run code review": {
-      "summary": "Run `/code-review --internal` against all files modified during the build.",
+      "summary": "Run `/code-review --internal` against all files modified during the build —",
       "anchor": "6-run-code-review"
     },
     "7. Final test quality score (branch)": {
