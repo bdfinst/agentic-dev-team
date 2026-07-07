@@ -1,0 +1,14 @@
+{
+  "fixture": "cr-extra-validation-clause",
+  "description": "Regression fixture for #966/Defects4J Lang-36: a validation condition has an extra boolean clause (`&& lastChar != '.'`) that directly contradicts the function's own docstring, silently accepting an invalid trailing decimal point. Also carries a decoy defect (allZeros() called with decPart dropped) to prove detection of the target isn't incidental to finding something else in the file.",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 2, "max": 4 },
+      "severities": { "error": { "min": 2, "max": 4 } },
+      "minConfidenceAnyOf": ["high", "medium"],
+      "mustMention": ["lastChar"]
+    }
+  }
+}

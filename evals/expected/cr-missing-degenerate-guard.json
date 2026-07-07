@@ -1,0 +1,14 @@
+{
+  "fixture": "cr-missing-degenerate-guard",
+  "description": "Regression fixture for #966/Defects4J Lang-44: a parsing function's docstring requires rejecting a degenerate single-character non-digit input before parsing, but no guard clause enforces it at the top of the function. Also carries a decoy defect (exponentPosition() double-counts indexOf('e')+indexOf('E')) to prove detection of the target isn't incidental to finding something else in the file.",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 2, "max": 4 },
+      "severities": { "error": { "min": 2, "max": 4 } },
+      "minConfidenceAnyOf": ["high", "medium"],
+      "mustMention": ["parse"]
+    }
+  }
+}

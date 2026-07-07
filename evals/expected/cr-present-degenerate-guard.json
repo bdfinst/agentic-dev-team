@@ -1,0 +1,11 @@
+{
+  "fixture": "cr-present-degenerate-guard",
+  "description": "True-negative counterpart to cr-missing-degenerate-guard (#966): the same 'parsing function with a docstring requiring a degenerate single-character guard' surface shape, but the guard is actually present at function entry. Guards against the #966 checklist sharpening over-firing when the guard already exists.",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 2 }
+    }
+  }
+}

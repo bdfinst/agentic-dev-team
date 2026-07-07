@@ -59,6 +59,17 @@ the code is supposed to do — before treating it as a finding.
    function or comment establishes a condition under which that operation
    should NOT happen, but no corresponding `if`/early-return enforces it.
 
+   **Named sub-case — missing degenerate-input guard at function entry** —
+   for a parsing or validation function whose docstring/name implies
+   a class of degenerate inputs (empty string, a single character, a bare
+   sign, whitespace-only) is invalid, check specifically whether a guard
+   rejecting that class exists at the *top* of the function, before the
+   main parsing logic runs. A function that correctly handles the general
+   case can still let a degenerate input fall through to an unguarded
+   library call (e.g. a bare non-digit character reaching a numeric parser
+   uncaught) — check function entry explicitly, don't infer safety from the
+   general-case logic being otherwise correct.
+
 4. **Boundary-condition / off-by-one omission** — a numeric, length, or
    index comparison that correctly handles the documented general case
    but silently drops an edge case that a comment, adjacent constant, or
@@ -78,6 +89,19 @@ the code is supposed to do — before treating it as a finding.
    conditionals); do not re-flag findings that are purely
    security-relevant here if `security-review` would already cover them,
    but do flag general-purpose inverted logic with no security angle.
+
+   **Named sub-case — extra or missing boolean clause in a validation
+   condition** — when a docstring/comment states a validation rule in
+   terms of specific conditions ("X is valid only when...", "Y is never
+   acceptable"), compare the condition's actual clauses one-by-one against
+   that stated rule — not just its overall pass/fail behavior on an obvious
+   input. An *extra* clause can silently loosen a rejection (e.g. a stated
+   "never acceptable" case gets exempted by an added `&& value != <case>`),
+   and a *missing* clause can silently loosen an acceptance rule the same
+   way. The defect is easy to miss because the condition still reads as
+   plausible validation logic — it's wrong only relative to the specific
+   rule stated elsewhere, so the comparison must be clause-by-clause against
+   that stated rule, not a general plausibility check of the condition.
 
 ## Self-Challenge
 

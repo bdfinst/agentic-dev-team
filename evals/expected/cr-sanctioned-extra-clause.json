@@ -1,0 +1,11 @@
+{
+  "fixture": "cr-sanctioned-extra-clause",
+  "description": "True-negative counterpart to cr-extra-validation-clause (#966): the same 'extra boolean clause on a trailing-char check' surface shape, but the extra clause is explicitly sanctioned by its own docstring (gated behind an `allowTrailingDot` parameter). Guards against the #966 checklist sharpening over-firing on legitimate, correctly-guarded extra clauses.",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 2 }
+    }
+  }
+}
