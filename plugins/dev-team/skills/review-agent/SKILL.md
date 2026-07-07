@@ -102,6 +102,9 @@ Display the result as a formatted summary with issues grouped by file. Include s
 
 ### 4b. Write the durable report (skip when `--internal`)
 
+See `knowledge/report-output-location.md` for the shared write-scope
+convention this step follows.
+
 When `--internal` was **not** passed, write the same formatted summary shown
 in step 4 to `DEV_TEAM_REPORTS/<agent-name>.md` in the target repository's
 working directory (creating `DEV_TEAM_REPORTS/` if absent), overwriting any

@@ -107,7 +107,8 @@ missing or hand-waved evidence statement means `unconfirmed`, not `confirmed`.
 `-2`, `-3`, … up to `-99` until a free name is found. **Never overwrite** an
 existing record.
 
-**Write the file:**
+**Write the file:** (see `knowledge/report-output-location.md` for the
+shared `DEV_TEAM_REPORTS/` convention this follows)
 
 ```bash
 mkdir -p DEV_TEAM_REPORTS/triage/
