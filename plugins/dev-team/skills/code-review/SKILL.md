@@ -284,7 +284,9 @@ Read `knowledge/review-template.md` for the structure.
 
 Otherwise (no `--json`): emit the prose summary using the Code Review Summary template in [`output-format.md`](output-format.md#code-review-summary-report-step-7-prose-mode). Append the iteration table.
 
-**Write the durable report (skip when `--internal`).** When `--internal`
+**Write the durable report (skip when `--internal`).** See
+`knowledge/report-output-location.md` for the shared write-scope convention
+this step follows. When `--internal`
 was **not** passed, write the identical prose summary to
 `DEV_TEAM_REPORTS/code-review.md` in the target repository's working
 directory (creating the directory if absent), overwriting any existing
