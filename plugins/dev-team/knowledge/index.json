@@ -893,6 +893,28 @@
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
+  "plugins/dev-team/knowledge/report-output-location.md": {
+    "Write-scope rule": {
+      "summary": "Only a **top-level human invocation** writes to `DEV_TEAM_REPORTS/`:",
+      "anchor": "write-scope-rule"
+    },
+    "Fixed filenames: overwrite vs. never-overwrite": {
+      "summary": "`/review-agent` and `/code-review` write a **fixed, per-workflow filename**",
+      "anchor": "fixed-filenames-overwrite-vs-never-overwrite"
+    },
+    "Write failures are always non-fatal": {
+      "summary": "A `DEV_TEAM_REPORTS/` write failure (permission/read-only) is reported to",
+      "anchor": "write-failures-are-always-non-fatal"
+    },
+    "Gitignored by default": {
+      "summary": "`DEV_TEAM_REPORTS/` is gitignored by default — both in this repo's own",
+      "anchor": "gitignored-by-default"
+    },
+    "Related": {
+      "summary": "`knowledge/report-template.md` — the shared header/footer/empty-section",
+      "anchor": "related"
+    }
+  },
   "plugins/dev-team/knowledge/report-template.md": {
     "Reference sentence": {
       "summary": "Every report-writing skill that adopts this contract points at it with this",
@@ -2069,7 +2091,7 @@
       "anchor": "5-run-full-test-suite"
     },
     "6. Run code review": {
-      "summary": "Run `/code-review` against all files modified during the build.",
+      "summary": "Run `/code-review --internal` against all files modified during the build.",
       "anchor": "6-run-code-review"
     },
     "7. Final test quality score (branch)": {
@@ -4495,6 +4517,10 @@
     "4. Report": {
       "summary": "Display the result as a formatted summary with issues grouped by file.",
       "anchor": "4-report"
+    },
+    "4b. Write the durable report (skip when `--internal`)": {
+      "summary": "See `knowledge/report-output-location.md` for the shared write-scope",
+      "anchor": "4b-write-the-durable-report-skip-when-internal"
     }
   },
   "plugins/dev-team/skills/review-summary/SKILL.md": {
