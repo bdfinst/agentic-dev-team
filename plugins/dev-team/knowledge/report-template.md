@@ -1,14 +1,24 @@
 # Report Template
 
-Shared header/footer/empty-section contract for dev-team's report-writing
-skills (`test-health`, `cd-test-architecture`, `competitive-analysis`,
-`docker-image-audit`, `test-improve`, `harness-audit`, `session-review`,
-`explore`, `test-design`, `frontend-architecture`, `agent-eval`, and others).
+Shared header/footer/empty-section contract for dev-team's ~15
+report-writing skills (`test-health`, `cd-test-architecture`,
+`competitive-analysis`, `docker-image-audit`, `test-improve`,
+`harness-audit`, `session-review`, `explore`, `test-design`,
+`frontend-architecture`, `agent-eval`, and others) to adopt over time.
 Generalized from `test-improve`'s Phase 7 template
 (`skills/test-improve/templates/executive-summary.md`), the most complete
 existing example in the plugin — same role as `knowledge/review-template.md`
 plays for code-review agents, but for standalone reports rather than the
 review aggregation step.
+
+**Adoption status**: only `test-health`, `cd-test-architecture`, and
+`competitive-analysis` have migrated onto this contract so far. Every other
+skill named above — including `docker-image-audit`, which still uses its own
+unrelated local template at `skills/docker-image-audit/references/report-template.md`
+(same filename, different, non-conforming structure), and `test-improve`,
+which keeps its own local `templates/executive-summary.md` body — has **not**
+adopted this contract yet; being named above is a statement of intended
+scope, not current compliance.
 
 **Scope**: this file defines the shared header, closing Provenance section,
 and empty-section rule only. Skill-specific body content — findings tables,
