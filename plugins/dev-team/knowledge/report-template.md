@@ -16,9 +16,9 @@ review aggregation step.
 skill named above — including `docker-image-audit`, which still uses its own
 unrelated local template at `skills/docker-image-audit/references/report-template.md`
 (same filename, different, non-conforming structure), and `test-improve`,
-which keeps its own local `templates/executive-summary.md` body — has **not**
-adopted this contract yet; being named above is a statement of intended
-scope, not current compliance.
+which keeps its own local `skills/test-improve/templates/executive-summary.md`
+body — has **not** adopted this contract yet; being named above is a
+statement of intended scope, not current compliance.
 
 **Scope**: this file defines the shared header, closing Provenance section,
 and empty-section rule only. Skill-specific body content — findings tables,
