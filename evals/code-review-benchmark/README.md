@@ -164,7 +164,13 @@ python3 cli.py --report-only
   hit, ground_truth_hunks, findings, unmatched_findings, raw_output_path,
   test_verification}`.
 - `skipped.jsonl` — one record per bug that couldn't be checked out or
-  scored: `{dataset, project, bug_id, reason}`.
+  scored: `{dataset, project, bug_id, reason}`. `reason` is one of:
+  `checkout failed`, `no ground-truth hunks`, `unparseable --json output`, or
+  `ground truth touches no recognized source files` (the fix's own commit
+  bundled with its tests touched nothing but a changelog/manifest/CI-config
+  file — e.g. `History.md`, `package.json`, `.travis.yml` — so there was no
+  source change for `/code-review` to have found; scored as a skip, not a
+  recall miss).
 - `raw/<dataset>-<project>-<bug_id>.txt` — the dispatch's raw stdout,
   verbatim, saved before any parsing (so a parser bug never loses data).
 - `report.md` — overall/per-dataset/per-project recall, a **Missed Defects**

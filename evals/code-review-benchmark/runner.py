@@ -31,6 +31,46 @@ import scorer
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n```", re.DOTALL)
 
+# Recognized source-file extensions per dataset language (#965). A language
+# absent from this mapping is treated as "unknown" — see
+# `_touches_recognized_source()` for why that means "don't skip."
+_SOURCE_EXTENSIONS: Dict[str, tuple] = {
+    "java": (".java",),
+    "javascript": (".js", ".jsx", ".mjs", ".cjs"),
+}
+
+
+def _touches_recognized_source(files: List[str], language: str) -> bool:
+    """True unless `language` has a recognized-extension mapping and none of
+    `files` match it.
+
+    An unmapped `language` returns True (safe default) so a future adapter
+    for a language not yet in `_SOURCE_EXTENSIONS` never has all its cases
+    silently skipped by this check.
+    """
+    extensions = _SOURCE_EXTENSIONS.get(language)
+    if not extensions:
+        return True
+    return any(f.endswith(extensions) for f in files)
+
+
+def _resolve_ground_truth_hunks(
+    case: Dict[str, Any],
+    checkout_dir: str,
+    ground_truth_fn: Optional[Callable[[str], List[Any]]],
+) -> List[Dict[str, Any]]:
+    """The case's own `ground_truth_hunks`, or `ground_truth_fn(checkout_dir)`'s
+    when the case doesn't carry them inline (e.g. BugsJS, whose ground truth
+    requires the post-checkout git history). Returns `[]` (never `None`) when
+    neither source has hunks — same "empty means skip" contract as before."""
+    ground_truth_hunks = list(case.get("ground_truth_hunks") or [])
+    if not ground_truth_hunks and ground_truth_fn is not None:
+        hunks = ground_truth_fn(checkout_dir)
+        ground_truth_hunks = [
+            h.to_dict() if hasattr(h, "to_dict") else h for h in hunks
+        ]
+    return ground_truth_hunks
+
 
 def _extract_review_json(result_text: Optional[str]) -> Optional[Dict[str, Any]]:
     """Parse `/code-review --json`'s payload out of a dispatch's final text.
@@ -141,16 +181,16 @@ def run_case(
         if not checkout_fn(checkout_dir):
             return skip_record(case, "checkout failed")
 
-        ground_truth_hunks = list(case.get("ground_truth_hunks") or [])
-        if not ground_truth_hunks and ground_truth_fn is not None:
-            hunks = ground_truth_fn(checkout_dir)
-            ground_truth_hunks = [
-                h.to_dict() if hasattr(h, "to_dict") else h for h in hunks
-            ]
+        ground_truth_hunks = _resolve_ground_truth_hunks(
+            case, checkout_dir, ground_truth_fn
+        )
         if not ground_truth_hunks:
             return skip_record(case, "no ground-truth hunks")
 
         ground_truth_files = sorted({h["file"] for h in ground_truth_hunks})
+
+        if not _touches_recognized_source(ground_truth_files, case.get("language", "")):
+            return skip_record(case, "ground truth touches no recognized source files")
 
         test_verification: Optional[Dict[str, Any]] = None
         if test_fn is not None:

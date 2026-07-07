@@ -144,6 +144,114 @@ def test_run_case_uses_ground_truth_fn_when_case_has_none(tmp_path: Path) -> Non
     assert record["hit"] is True
 
 
+@pytest.mark.parametrize(
+    "language,files",
+    [
+        pytest.param(
+            "javascript",
+            ["History.md", "package.json"],
+            id="javascript-changelog-and-manifest",
+        ),
+        pytest.param(
+            "java", ["pom.xml", "CHANGES.md"], id="java-build-file-and-changelog"
+        ),
+    ],
+)
+def test_run_case_non_source_ground_truth_is_skipped(
+    tmp_path: Path, language: str, files: List[str]
+) -> None:
+    """#965: ground truth touching only non-source files (a changelog entry
+    and a package.json/pom.xml, say) must not be scored as a recall miss —
+    for every recognized language, not just one."""
+    case = dict(
+        _CASE,
+        language=language,
+        ground_truth_hunks=[{"file": f, "start_line": 1, "end_line": 1} for f in files],
+        ground_truth_files=files,
+    )
+    dispatched = []
+
+    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+        dispatched.append(prompt)
+        return _dispatch_result()
+
+    record = runner.run_case(
+        case,
+        checkout_fn=lambda workdir: True,
+        dispatch_fn=dispatch_fn,
+        results_dir=tmp_path,
+    )
+    assert record["skipped"] is True
+    assert record["reason"] == "ground truth touches no recognized source files"
+    assert dispatched == []
+
+
+@pytest.mark.parametrize(
+    "language,files",
+    [
+        pytest.param(
+            "javascript",
+            ["History.md", "lib/foo.js"],
+            id="mixed-source-and-nonsource",
+        ),
+        pytest.param(
+            "javascript",
+            ["History.md", "lib/foo.jsx"],
+            id="non-js-recognized-extension",
+        ),
+        pytest.param("ruby", ["main.rb"], id="unmapped-language-safe-default"),
+    ],
+)
+def test_run_case_is_scored_when_source_is_touched_or_language_unmapped(
+    tmp_path: Path, language: str, files: List[str]
+) -> None:
+    """Must NOT skip: a non-source file alongside a real source file (only
+    ZERO recognized extensions triggers the skip), a non-`.js` recognized
+    javascript extension (#965 AC: `.jsx`/`.mjs`/`.cjs` are wired in, not
+    just declared), and an unmapped language (safe default so a future
+    adapter's cases aren't silently lost to this check)."""
+    case = dict(
+        _CASE,
+        language=language,
+        ground_truth_hunks=[{"file": f, "start_line": 1, "end_line": 1} for f in files],
+        ground_truth_files=files,
+    )
+    dispatched = []
+
+    def checkout_fn(workdir: str) -> bool:
+        _seed_checkout(workdir, files)
+        return True
+
+    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+        dispatched.append(prompt)
+        return _dispatch_result()
+
+    record = runner.run_case(
+        case,
+        checkout_fn=checkout_fn,
+        dispatch_fn=dispatch_fn,
+        results_dir=tmp_path,
+    )
+    assert record["skipped"] is False
+    assert len(dispatched) == 1
+
+
+def test_touches_recognized_source_boundary_cases() -> None:
+    """Direct unit coverage of `_touches_recognized_source()`'s own boundary
+    matrix — the `run_case`-level tests above prove the check is actually
+    wired into the skip/dispatch decision, not that every extension/language
+    combination is correct; that's this test's job."""
+    assert runner._touches_recognized_source(["main.rb"], "ruby") is True
+    assert runner._touches_recognized_source([], "") is True
+    assert runner._touches_recognized_source(["History.md"], "javascript") is False
+    assert (
+        runner._touches_recognized_source(["History.md", "lib/foo.js"], "javascript")
+        is True
+    )
+    assert runner._touches_recognized_source(["src/Foo.java"], "java") is True
+    assert runner._touches_recognized_source(["pom.xml"], "java") is False
+
+
 def test_run_case_unparseable_json_is_skipped(tmp_path: Path) -> None:
     def checkout_fn(workdir: str) -> bool:
         _seed_checkout(workdir, ["src/Foo.java"])
