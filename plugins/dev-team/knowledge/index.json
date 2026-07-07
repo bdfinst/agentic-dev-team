@@ -4263,7 +4263,7 @@
       "anchor": "3-generate-pr-summary"
     },
     "4. Create the PR": {
-      "summary": "Use the structured template:",
+      "summary": "**Never phrase a non-closing issue reference with a closing keyword, even",
       "anchor": "4-create-the-pr"
     },
     "5. Enable auto-merge (default)": {

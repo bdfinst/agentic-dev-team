@@ -118,6 +118,26 @@ Analyze the diff against the base branch (`git diff <base>...HEAD`) and commit h
 
 ### 4. Create the PR
 
+**Never phrase a non-closing issue reference with a closing keyword, even
+negated.** GitHub's closing-keyword parser is a dumb regex over the PR body:
+`(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#\d+`. It
+fires on that pattern regardless of grammar — "does not close #123", "won't
+fix #123", and "this doesn't resolve #123" all still auto-close #123 on
+merge (issue #977). If an issue is only partially addressed or deferred,
+write around the keyword instead: "leaves #123 open", "the remaining scope
+is deferred to #124", "see #123 for the rest of this work" — never
+`<closing-keyword> #123` in any form, negated or not.
+
+Before calling `gh pr create`, lint the drafted body for accidental matches:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pr_close_keyword_lint.py --body-file <body-file>
+```
+
+This is advisory only (always exits 0). If it prints warnings, rephrase the
+flagged sentence per the guidance above before creating the PR — do not
+proceed with a body the linter flagged without fixing the phrasing.
+
 ```bash
 gh pr create --title "<title>" --body "<body>" [--draft] --base <base>
 ```
