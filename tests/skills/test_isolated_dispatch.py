@@ -134,6 +134,91 @@ def test_copy_auth_state_false_when_source_missing(tmp_path):
     assert not (cell_home / ".claude.json").exists()
 
 
+def test_copy_auth_state_copies_claude_dir_excluding_bulky_state(tmp_path):
+    """#957 correction: ~/.claude.json alone doesn't restore login —
+    confirmed empirically. Most of ~/.claude/ must come along too, minus
+    the clearly bulky, clearly-not-auth-related entries."""
+    mod = _load()
+    source_home = tmp_path / "real-home"
+    claude_dir = source_home / ".claude"
+    claude_dir.mkdir(parents=True)
+    (source_home / ".claude.json").write_text("{}", encoding="utf-8")
+
+    # A kept entry (settings, plugins) alongside every excluded one.
+    (claude_dir / "settings.json").write_text("{}", encoding="utf-8")
+    (claude_dir / "history.jsonl").write_text("conversation history\n")
+    for excluded_dir in (
+        "file-history",
+        "session-env",
+        "paste-cache",
+        "shell-snapshots",
+        "debug",
+        "telemetry",
+        "downloads",
+    ):
+        (claude_dir / excluded_dir).mkdir()
+        (claude_dir / excluded_dir / "some-file").write_text("stub")
+
+    cell_home = tmp_path / "cell-home"
+    cell_home.mkdir()
+    (cell_home / ".claude").mkdir()
+
+    assert mod.copy_auth_state(cell_home, source_home=source_home) is True
+
+    copied_claude = cell_home / ".claude"
+    assert (copied_claude / "settings.json").is_file()
+    assert not (copied_claude / "history.jsonl").exists()
+    for excluded_dir in (
+        "file-history",
+        "session-env",
+        "paste-cache",
+        "shell-snapshots",
+        "debug",
+        "telemetry",
+        "downloads",
+    ):
+        assert not (copied_claude / excluded_dir).exists(), excluded_dir
+
+
+def test_copy_auth_state_does_not_exclude_same_named_nested_dirs(tmp_path):
+    """The exclude list is scoped to the TOP level of ~/.claude/ only —
+    a plugin's own nested `debug/`-or-similar-named subdir must survive."""
+    mod = _load()
+    source_home = tmp_path / "real-home"
+    claude_dir = source_home / ".claude"
+    (claude_dir / "plugins" / "some-plugin" / "debug").mkdir(parents=True)
+    (claude_dir / "plugins" / "some-plugin" / "debug" / "keep-me").write_text("stub")
+    (source_home / ".claude.json").write_text("{}", encoding="utf-8")
+
+    cell_home = tmp_path / "cell-home"
+    cell_home.mkdir()
+    (cell_home / ".claude").mkdir()
+
+    assert mod.copy_auth_state(cell_home, source_home=source_home) is True
+    nested = cell_home / ".claude" / "plugins" / "some-plugin" / "debug" / "keep-me"
+    assert nested.is_file()
+
+
+def test_copy_auth_state_handles_dangling_symlinks(tmp_path):
+    """A stale plugin-marketplace symlink under ~/.claude/ must not crash
+    the copy — copied as a (broken) link, not followed/failed on."""
+    mod = _load()
+    source_home = tmp_path / "real-home"
+    claude_dir = source_home / ".claude"
+    claude_dir.mkdir(parents=True)
+    (source_home / ".claude.json").write_text("{}", encoding="utf-8")
+    dangling = claude_dir / "broken-link"
+    dangling.symlink_to(source_home / "does-not-exist")
+
+    cell_home = tmp_path / "cell-home"
+    cell_home.mkdir()
+    (cell_home / ".claude").mkdir()
+
+    assert mod.copy_auth_state(cell_home, source_home=source_home) is True
+    copied_link = cell_home / ".claude" / "broken-link"
+    assert copied_link.is_symlink()
+
+
 def test_main_preserve_auth_flag_defaults_off(monkeypatch, tmp_path):
     mod = _load()
     captured = {}

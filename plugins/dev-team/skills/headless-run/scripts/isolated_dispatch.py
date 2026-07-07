@@ -30,11 +30,14 @@ Stdlib only, Python 3.8+ (ADR 0014 / 0015). uuid/tempfile/subprocess are fine
 in a shipped script — the no-random/no-Date restriction applies only to
 Workflow scripts, not shipped Python.
 
-Auth (#957): the fresh HOME also wipes `~/.claude.json`'s account/
-subscription markers, so a dispatch reports "Not logged in" unless
-`ANTHROPIC_API_KEY` is set. Pass `--preserve-auth` to copy that file into
-the cell home first — see `copy_auth_state()`'s docstring for the tradeoff
-(it also carries over `mcpServers`). Off by default here; the
+Auth (#957): the fresh HOME also wipes Claude Code's login state, so a
+dispatch reports "Not logged in" unless `ANTHROPIC_API_KEY` is set.
+`~/.claude.json` alone is NOT sufficient to fix this (confirmed
+empirically) — something under `~/.claude/` itself gates the login check.
+Pass `--preserve-auth` to copy both into the cell home first (most of
+`~/.claude/`, minus a `_CLAUDE_DIR_EXCLUDE` allowlist-complement of bulky
+conversation/session/telemetry state) — see `copy_auth_state()`'s
+docstring for the full tradeoff. Off by default here; the
 code-review-benchmark harness turns it on unconditionally.
 
 Usage:
@@ -113,29 +116,91 @@ def make_cell_home(root: Optional[Path] = None) -> Path:
     return base
 
 
+# Top-level entries under `~/.claude/` deliberately NOT copied by
+# `copy_auth_state()` — bulky conversation/session/telemetry state that
+# empirically is not needed to satisfy Claude Code's login check (verified
+# live: a dispatch with these excluded still authenticated successfully).
+# Named explicitly, not inferred, so this list stays auditable as the real
+# `~/.claude/` layout evolves.
+_CLAUDE_DIR_EXCLUDE = frozenset(
+    {
+        "history.jsonl",  # full conversation history
+        "file-history",  # per-edit undo history
+        "session-env",  # per-session environment captures (can be thousands of entries)
+        "paste-cache",  # clipboard paste cache
+        "shell-snapshots",  # shell state snapshots
+        "debug",  # debug logs
+        "telemetry",  # usage telemetry
+        "downloads",  # downloaded artifacts
+    }
+)
+
+
+def _make_bulky_state_ignorer(source_root: str):
+    """Build a `shutil.copytree`-compatible `ignore` callback for
+    `copy_auth_state()`, bound to `source_root` via closure (not a shared
+    mutable attribute — `copy_auth_state()` runs concurrently across the
+    benchmark harness's `--workers` thread pool, so shared mutable state
+    here would race).
+
+    Only excludes `_CLAUDE_DIR_EXCLUDE` entries when `root == source_root`
+    (the top level of the copy) — not by name against every nested
+    directory the walk visits, since a plugin could legitimately have its
+    own `cache/`-or-similar-named subdir that must NOT be excluded just
+    because the name matches.
+    """
+
+    def _ignore(root: str, names: List[str]) -> List[str]:
+        if root != source_root:
+            return []
+        return [n for n in names if n in _CLAUDE_DIR_EXCLUDE]
+
+    return _ignore
+
+
 def copy_auth_state(home: Path, source_home: Optional[Path] = None) -> bool:
-    """Copy `<source_home or Path.home()>/.claude.json` into the fresh cell
+    """Copy `~/.claude.json` + (most of) `~/.claude/` into the fresh cell
     home so the dispatch keeps its Claude Code OAuth login (#957).
 
-    A fresh `HOME` wipes out this file, which holds account/subscription
-    markers (`userID`, `hasAvailableSubscription`, etc.) Claude Code checks
-    before its actual (Keychain-backed, `HOME`-independent) token lookup —
-    without it, every dispatch reports "Not logged in" unless
-    `ANTHROPIC_API_KEY` is set. Best-effort: returns `False` (never raises)
-    if the source file doesn't exist.
+    A fresh `HOME` wipes out both, and — confirmed empirically, twice —
+    `~/.claude.json` alone (even including its `oauthAccount` key) is NOT
+    sufficient to restore login; something else under `~/.claude/` itself
+    gates Claude Code's login check ahead of its actual (Keychain-backed,
+    `HOME`-independent) token lookup. Copying the whole `.claude/` tree
+    does restore it. `_CLAUDE_DIR_EXCLUDE` skips the clearly bulky,
+    clearly-not-auth-related pieces (conversation history, per-session
+    captures, telemetry, debug logs) to keep the isolation tradeoff as
+    small as it can be while still working — everything else (`settings
+    .json`, `projects/`, `sessions/`, `plugins/`, `skills/`, etc.) is
+    copied, since we don't have a confirmed narrower answer for which of
+    those specifically satisfies the login check.
 
-    Deliberately copies the whole file, not a filtered subset — it also
-    carries over `mcpServers` and other app state into the dispatch. That
-    trades a bit of the tool-surface isolation this script exists for
-    (#842) for actually working when the operator authenticates via
-    `claude login` rather than an API key. Opt-in here via `--preserve-auth`
-    (other callers keep today's stricter default); the code-review
-    benchmark harness turns it on unconditionally (see `runner.py`).
+    Best-effort: returns `False` (never raises) if neither source exists.
+    Broken/dangling symlinks under `.claude/` (e.g. stale plugin
+    marketplace paths) are copied as links, not followed/failed on.
+
+    Opt-in here via `--preserve-auth` (other callers keep today's
+    stricter default); the code-review benchmark harness turns it on
+    unconditionally (see `runner.py`).
     """
-    source = (source_home or Path.home()) / ".claude.json"
-    if not source.is_file():
+    source_home = source_home or Path.home()
+    source_claude_json = source_home / ".claude.json"
+    source_claude_dir = source_home / ".claude"
+    if not source_claude_json.is_file() and not source_claude_dir.is_dir():
         return False
-    shutil.copy(source, Path(home) / ".claude.json")
+
+    if source_claude_json.is_file():
+        shutil.copy(source_claude_json, Path(home) / ".claude.json")
+
+    if source_claude_dir.is_dir():
+        shutil.copytree(
+            source_claude_dir,
+            Path(home) / ".claude",
+            symlinks=True,
+            ignore_dangling_symlinks=True,
+            ignore=_make_bulky_state_ignorer(str(source_claude_dir)),
+            dirs_exist_ok=True,
+        )
     return True
 
 
