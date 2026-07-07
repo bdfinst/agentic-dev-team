@@ -1,5 +1,36 @@
 # Changelog
 
+## [10.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.2...dev-team-v10.4.0) (2026-07-07)
+
+
+### Features
+
+* correctness-review recall gaps on trailing-decimal validation and missing guard clauses ([bd11509](https://github.com/bdfinst/agentic-dev-team/commit/bd1150925df6c4e9014b43343b8e81c779d40d2c))
+* point 3 report-writing skills at shared report-template.md ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([6c251ed](https://github.com/bdfinst/agentic-dev-team/commit/6c251ed2bb3a59ae417e578a10094721e0d1104a))
+* preserve Claude Code OAuth login for isolated headless dispatch ([e0bdf9d](https://github.com/bdfinst/agentic-dev-team/commit/e0bdf9d5b02cd2d446b64bfe421180e86ef97574))
+
+
+### Bug Fixes
+
+* copy_auth_state() must copy ~/.claude/, not just ~/.claude.json ([6226da2](https://github.com/bdfinst/agentic-dev-team/commit/6226da2a4ac654d329f4190a9724bfd46c9648f7))
+* correct broken skills/test-improve path reference in report-template.md ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([b012c8c](https://github.com/bdfinst/agentic-dev-team/commit/b012c8ca666220cb71780e40e0e70e6634435087))
+* harden /code-review --json instruction against narration-instead-of-emission ([cebff56](https://github.com/bdfinst/agentic-dev-team/commit/cebff5668c806bd773789e935642907d704888bc))
+* make competitive-analysis reference sentence byte-identical ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([90ec407](https://github.com/bdfinst/agentic-dev-team/commit/90ec407f29edcbd34665a8ca443f90ca08a1d72b))
+
+
+### Documentation
+
+* add report-to-pdf.md rendering recipe ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([355ba09](https://github.com/bdfinst/agentic-dev-team/commit/355ba090317d2013154ca4918d4b352710abb99f))
+* add shared report-template.md contract ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([98e85ed](https://github.com/bdfinst/agentic-dev-team/commit/98e85ed0cd2fac8c2e1983d190953b5fd1367e9d))
+* clarify report-template.md adoption status and align competitive-analysis header fields ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([35e3eba](https://github.com/bdfinst/agentic-dev-team/commit/35e3eba9730c804b61b20a24741bba94df9d6efc))
+* fix C#/Reqnroll wiring instructions in bdd-frameworks.md ([3c0800b](https://github.com/bdfinst/agentic-dev-team/commit/3c0800b34e3347f8bfc92cb89d7b2e85f4ab5511)), closes [#948](https://github.com/bdfinst/agentic-dev-team/issues/948)
+* recommend -t mtp default for Stryker.NET on .NET 10 targets ([da9fbda](https://github.com/bdfinst/agentic-dev-team/commit/da9fbda70013b20c9c4b6b7e64674def245ac292)), closes [#947](https://github.com/bdfinst/agentic-dev-team/issues/947)
+
+
+### Miscellaneous
+
+* rebuild knowledge index after report-template edits ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([323883e](https://github.com/bdfinst/agentic-dev-team/commit/323883e1ad39f6b26e1231d7071872336dc90e33))
+
 ## [10.3.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.1...dev-team-v10.3.2) (2026-07-06)
 
 
