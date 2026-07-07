@@ -158,8 +158,8 @@ handled at report time.
 **Test-count-by-type snapshot.** Independent of the `/test-health` call
 above (and of whether `/test-health`'s own trivial-suite short-circuit
 fired for this run), perform a direct classification pass over the test
-files at the same repo-path scope Phase 0 resolved (`--path <dir>` when
-set, else the whole repo): apply `knowledge/cd-test-architecture.md`'s
+files under the `<repo-path>` Phase 0 resolved: apply
+`knowledge/cd-test-architecture.md`'s
 six-type criteria (Static analysis / Unit / Component / Contract /
 Integration / End-to-end) directly to each test suite/file found. **One
 test file counts as exactly one suite**, regardless of how many describe
@@ -169,7 +169,9 @@ cleanly fit one type: classify by its dominant/highest-dependency type
 even if most of its assertions read like unit-level checks); if dominance
 is still tied, classify by the higher-fidelity type using this fixed
 precedence: `end_to_end` > `integration` > `contract` > `component` >
-`unit` > `static_analysis`. Persist
+`unit` (this precedence applies to test files only — `static_analysis` is
+never a legitimate outcome of classifying a test file; see its own
+counting rule below). Persist
 `memory/test-improve/<slug>/test-counts-before.json` with the six
 canonical snake_case keys, in this fixed order: `static_analysis`, `unit`,
 `component`, `contract`, `integration`, `end_to_end` — each key present

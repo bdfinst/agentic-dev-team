@@ -80,7 +80,9 @@ can resume.
   immutable for the run.
 - **Phase 1 — Analyze.** Delegate to `/test-health` (sole worker). No
   separate calls to `/cd-test-architecture`, `/test-design`,
-  `/mutation-testing`. Mutation section respects Phase-0 setting.
+  `/mutation-testing`. Mutation section respects Phase-0 setting. A
+  separate, direct classification pass persists a before-snapshot of test
+  counts by MinimumCD type to `test-counts-before.json`.
 - **Phase 2 — Baseline (before any test edit).**
   `/coverage-baseline --workflow test-improve` unconditionally;
   `/mutation-testing --baseline --workflow test-improve` when mutation is on.
@@ -105,12 +107,15 @@ can resume.
 - **Phase 6 — Validate.** `/quality-targets-converge --workflow test-improve`.
   Mutation off = skipped (not waived). Go = advisory-only. Coverage < 90% in
   no-refactor mode → `[y/n]` re-run-in-refactor-allowed prompt lists
-  backlogged items.
+  backlogged items. The identical classification pass from Phase 1 recounts
+  test-by-type into `test-counts-after.json`.
 - **Phase 7 — Executive-summary report.** Interpolates the shipped
   `templates/executive-summary.md` from `memory/test-improve/<slug>/` files
   to `reports/test-improve/<repo-slug>-<date>.md`. 10 numbered sections;
-  empty sections render "Not applicable" (never omitted). Parent tracker (or
-  `plans/test-improve/FEATURE.md`) is updated with a link to the report.
+  empty sections render "Not applicable" (never omitted). § 1 includes a
+  "Tests by type" table (Baseline/Achieved/Δ per MinimumCD type). Parent
+  tracker (or `plans/test-improve/FEATURE.md`) is updated with a link to the
+  report.
   Report is regeneratable from memory.
 
 ### Invocation
