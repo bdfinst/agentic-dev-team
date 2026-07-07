@@ -1,5 +1,25 @@
 # Changelog
 
+## [10.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.2...dev-team-v10.4.0) (2026-07-07)
+
+
+### Features
+
+* correctness-review recall gaps on trailing-decimal validation and missing guard clauses ([bd11509](https://github.com/bdfinst/agentic-dev-team/commit/bd1150925df6c4e9014b43343b8e81c779d40d2c))
+* preserve Claude Code OAuth login for isolated headless dispatch ([e0bdf9d](https://github.com/bdfinst/agentic-dev-team/commit/e0bdf9d5b02cd2d446b64bfe421180e86ef97574))
+
+
+### Bug Fixes
+
+* copy_auth_state() must copy ~/.claude/, not just ~/.claude.json ([6226da2](https://github.com/bdfinst/agentic-dev-team/commit/6226da2a4ac654d329f4190a9724bfd46c9648f7))
+* harden /code-review --json instruction against narration-instead-of-emission ([cebff56](https://github.com/bdfinst/agentic-dev-team/commit/cebff5668c806bd773789e935642907d704888bc))
+
+
+### Documentation
+
+* fix C#/Reqnroll wiring instructions in bdd-frameworks.md ([3c0800b](https://github.com/bdfinst/agentic-dev-team/commit/3c0800b34e3347f8bfc92cb89d7b2e85f4ab5511)), closes [#948](https://github.com/bdfinst/agentic-dev-team/issues/948)
+* recommend -t mtp default for Stryker.NET on .NET 10 targets ([da9fbda](https://github.com/bdfinst/agentic-dev-team/commit/da9fbda70013b20c9c4b6b7e64674def245ac292)), closes [#947](https://github.com/bdfinst/agentic-dev-team/issues/947)
+
 ## [10.3.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.1...dev-team-v10.3.2) (2026-07-06)
 
 
