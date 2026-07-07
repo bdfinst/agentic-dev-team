@@ -398,6 +398,16 @@ Phase 4b was not reached).
 **Evidence.** Persist target outcomes to
 `memory/test-improve/<slug>/phase-6.md`.
 
+**Test-count-by-type recount.** Alongside the target-outcome persistence
+above, perform the **identical** classification pass Phase 1's
+"Test-count-by-type snapshot" defined — same six-type criteria, same
+tie-break rule, same repo-path scope Phase 1 used (not a re-scoped or
+differently-scoped recount) — and persist
+`memory/test-improve/<slug>/test-counts-after.json` in the identical shape
+as `test-counts-before.json` (same six keys, same order, zero-count keys
+present). See Phase 1's own instruction for the full classification
+mechanism; this pass does not restate it.
+
 ### Phase 7 — Executive-summary report
 
 Produce a stable executive-summary report from the shipped template. Every
