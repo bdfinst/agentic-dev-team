@@ -184,7 +184,7 @@ Work each step **one behavior at a time** — never all the code then all the te
 4. **Inline review checkpoint — granularity scales with complexity.** *Where* the checkpoint runs depends on the step's **Complexity** classification (review *depth* still scales too):
    - **trivial**: Skip inline review. The final `/code-review` (step 6) covers all modified files.
    - **standard**: **Defer** review to the slice boundary (sub-step 6) — do not review now. Track the step's changed files so the slice checkpoint reviews them in one batch. Per-step review on standard steps is N near-identical passes where one at slice end largely does the same work, and the final `/code-review` (step 6) remains the backstop. This is the batching win — fewer review dispatches per multi-step slice at bounded quality risk.
-   - **complex**: Review **now, per step** — smaller blast radius per fix. Run the static self-heal pass to completion first — pass, or cap-and-escalate, per `references/static-self-heal.md` — then `/review-agent spec-compliance-review`, then the full quality agent suite including opus-tier agents (security-review, domain-review, arch-review), with the review-fix loop (up to 5 iterations per `agents/orchestrator.md`). Before each review-fix iteration, classify the finding/failure via `${CLAUDE_PLUGIN_ROOT}/knowledge/failure-routing.md` and follow its route (see the TEST-phase note above) — a security-finding class dispatches security-engineer, a reviewer-conflict class routes to human arbitration, `unclassified` stays in the generic loop. Escalate to user if the loop doesn't converge. Then **record the checkpoint outcome** (sub-step 7).
+   - **complex**: Review **now, per step** — smaller blast radius per fix. Run the static self-heal pass to completion first — pass, or cap-and-escalate, per `references/static-self-heal.md` — then `/review-agent spec-compliance-review --internal`, then the full quality agent suite including opus-tier agents (security-review, domain-review, arch-review), with the review-fix loop (up to 5 iterations per `agents/orchestrator.md`). Before each review-fix iteration, classify the finding/failure via `${CLAUDE_PLUGIN_ROOT}/knowledge/failure-routing.md` and follow its route (see the TEST-phase note above) — a security-finding class dispatches security-engineer, a reviewer-conflict class routes to human arbitration, `unclassified` stays in the generic loop. Escalate to user if the loop doesn't converge. Then **record the checkpoint outcome** (sub-step 7).
    - If no complexity is specified, default to **standard**.
    - **UI changes (any complexity)**: After the relevant review passes (per-step for complex, at the slice checkpoint for standard), run browser verification via `/browse` in automated smoke test mode. Skip with warning if the dev server is not running. See `agents/orchestrator.md` Stage 3.
 5. **Mark step done** — Use the Edit tool to update the plan file's `## Build Progress` section on disk:
@@ -193,7 +193,7 @@ Work each step **one behavior at a time** — never all the code then all the te
    - After all slices are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
    - This disk write is the durable commit. If a `/clear` occurs, `/continue` reads `## Build Progress` to determine the resume point without needing conversation history.
    - **Clear freeze scope (issue #865).** When every step under the slice is `[x]` and freeze was engaged for it (dispatch bookkeeping above), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py clear --hooks-dir <worktree>/hooks` before starting the next slice. A slice that never engaged freeze has nothing to clear.
-6. **Slice review checkpoint (batched).** When every step under the current slice is `[x]` **and** the slice had any deferred `standard` (or unspecified) steps, run **one** review pass over the slice's accumulated changed files: the static self-heal pass first (`references/static-self-heal.md`), then `/review-agent spec-compliance-review`, then the quality review agents relevant to what changed. Apply the same review-fix loop (up to 5 iterations; escalate if it doesn't converge). `trivial`-only and all-`complex` slices have nothing to batch — skip this pass. Then **record the checkpoint outcome** (sub-step 7).
+6. **Slice review checkpoint (batched).** When every step under the current slice is `[x]` **and** the slice had any deferred `standard` (or unspecified) steps, run **one** review pass over the slice's accumulated changed files: the static self-heal pass first (`references/static-self-heal.md`), then `/review-agent spec-compliance-review --internal`, then the quality review agents relevant to what changed. Apply the same review-fix loop (up to 5 iterations; escalate if it doesn't converge). `trivial`-only and all-`complex` slices have nothing to batch — skip this pass. Then **record the checkpoint outcome** (sub-step 7).
 7. **Record review value (#348).** For **each** checkpoint that runs (per-step `complex` in sub-step 4, and per-slice in sub-step 6), append one JSON line to `metrics/review-value.jsonl` capturing whether review actually changed anything — counts and outcomes only, never code or file content (consistent with the cost meter's privacy boundary). Schema in `performance-metrics`:
 
    ```json
@@ -236,7 +236,14 @@ After all steps are complete, run the full test suite. Paste the output as final
 
 ### 6. Run code review
 
-Run `/code-review` against all files modified during the build.
+Run `/code-review --internal` against all files modified during the build.
+This is deliberately **not** `--json`: this step relies on the review-fix
+loop actually running (`/code-review`'s own step-7 exception "(b) If running
+inside `/build` or `/pr`, proceed to the fix loop") — `--json` would
+short-circuit that loop before this dependency exists (its own rule (a),
+"default to report only", is checked first). `--internal` only suppresses
+`/code-review`'s new `DEV_TEAM_REPORTS/code-review.md` write; it does not
+change `--json`/prose mode or the fix-loop behavior.
 
 ### 7. Final test quality score (branch)
 
