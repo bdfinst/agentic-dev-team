@@ -107,8 +107,16 @@ stdout and nothing else:
 `plugins/dev-team/skills/code-review/SKILL.md` / `output-format.md`). When
 run headlessly via `claude -p ... --output-format json`, this payload is
 the model's final text, nested in the wrapper JSON's `result` field —
-`runner.make_isolated_dispatch_fn()` extracts it (stripping a markdown code
-fence if the model added one).
+`runner._extract_review_json()` extracts it. In practice the model often
+narrates before the fence despite the contract (e.g. "Emitting the
+required aggregated JSON per contract:\n\n```json\n{...}"), confirmed live
+in a real sweep where this cost 40% recall (#963) — the extractor
+searches for a fenced```json block anywhere in the text (last one first,
+falling back to earlier ones) rather than requiring the whole response to
+be just the fence. If the model's final text has no JSON at all (not just
+a formatting quirk — the payload was never actually emitted in that
+turn), that's unrecoverable and still shows up as "unparseable --json
+output".
 
 ## Usage
 

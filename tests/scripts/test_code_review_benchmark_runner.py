@@ -272,6 +272,45 @@ def test_extract_review_json_none_on_garbage() -> None:
     assert runner._extract_review_json(None) is None
 
 
+def test_extract_review_json_handles_preamble_before_fence() -> None:
+    """#963: models sometimes narrate before the JSON fence, violating
+    the --json contract but not actually losing the payload."""
+    narrated = (
+        "Emitting the required aggregated JSON per contract "
+        "(no file writes, stdout only):\n\n"
+        "```json\n" + json.dumps(_REVIEW_JSON) + "\n```"
+    )
+    assert runner._extract_review_json(narrated) == _REVIEW_JSON
+
+
+def test_extract_review_json_prefers_last_fence_when_multiple() -> None:
+    """If a model emits more than one fenced block, the LAST one is the
+    more likely candidate for the real payload."""
+    other_json = {"overall": "pass", "agents": []}
+    text = (
+        "Here's an example of the shape:\n\n"
+        "```json\n" + json.dumps(other_json) + "\n```\n\n"
+        "Emitting the real result:\n\n"
+        "```json\n" + json.dumps(_REVIEW_JSON) + "\n```"
+    )
+    assert runner._extract_review_json(text) == _REVIEW_JSON
+
+
+def test_extract_review_json_falls_back_to_earlier_fence_if_last_invalid() -> None:
+    """A trailing fence that isn't valid JSON must not shadow an earlier
+    valid one."""
+    text = (
+        "```json\n" + json.dumps(_REVIEW_JSON) + "\n```\n\n"
+        "(note: the above is the final answer)\n\n"
+        "```\nnot actually json\n```"
+    )
+    assert runner._extract_review_json(text) == _REVIEW_JSON
+
+
+def test_extract_review_json_no_fence_parses_raw_json() -> None:
+    assert runner._extract_review_json(json.dumps(_REVIEW_JSON)) == _REVIEW_JSON
+
+
 def test_make_isolated_dispatch_fn_carries_over_auth_state(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
