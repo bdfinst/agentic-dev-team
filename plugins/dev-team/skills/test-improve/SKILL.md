@@ -174,8 +174,13 @@ precedence: `end_to_end` > `integration` > `contract` > `component` >
 canonical snake_case keys, in this fixed order: `static_analysis`, `unit`,
 `component`, `contract`, `integration`, `end_to_end` — each key present
 even at zero, counting **test suites/files, not individual test cases or
-assertions**. This pass does **not** invoke `/test-health` or
-`/cd-test-architecture`'s full skill.
+assertions**. `static_analysis` counts configured linter/scanner tool
+invocations (one per tool — e.g. ESLint, Semgrep, mypy) rather than
+test-directory files, since static analysis runs over non-running code and
+is rarely organized as a describe-block suite; when the repo has no
+configured static-analysis tooling at all, the key is `0`, not omitted.
+This pass does **not** invoke `/test-health` or `/cd-test-architecture`'s
+full skill.
 
 **Human gate.** After `/test-health` returns, present **the ordered improvement
 plan** to the operator and wait for explicit approval. **Phase 2 does not run**
@@ -425,10 +430,11 @@ sink or local-files mode.
 
 **Interpolation.** Every placeholder is **interpolated** from persisted
 memory files under `memory/test-improve/<slug>/` (`phase-0.md`, `phase-1.md`,
-`baseline-coverage.json`, `baseline-mutation.json`, `phase-3.md`,
-`coverage-history.json`, `phase-4-review.json`, `phase-5-review.json` if
-Phase 5 ran, `refactor-backlog.md` if Phase 4b chose `[b]`, `waivers.json`,
-`phase-6.md`). No placeholder is left literal.
+`test-counts-before.json`, `baseline-coverage.json`, `baseline-mutation.json`,
+`phase-3.md`, `coverage-history.json`, `phase-4-review.json`,
+`phase-5-review.json` if Phase 5 ran, `refactor-backlog.md` if Phase 4b chose
+`[b]`, `waivers.json`, `phase-6.md`, `test-counts-after.json` if Phase 6 ran).
+No placeholder is left literal.
 
 **Empty-section rule.** Sections with no data render `_Not applicable —
 <reason>._` (e.g. § 6 when Phase 5 was declined reads "*Phase 5 not run —
