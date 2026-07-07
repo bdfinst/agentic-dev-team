@@ -3565,7 +3565,7 @@
       "anchor": "isolation-guarantees"
     },
     "Auth vs. isolation (#957)": {
-      "summary": "The fresh `HOME` also wipes `~/.claude.json`, which holds account/",
+      "summary": "The fresh `HOME` also wipes Claude Code's login state, so a dispatch",
       "anchor": "auth-vs-isolation-957"
     },
     "Honest upstream caveat": {

@@ -66,12 +66,18 @@ errors this was built to avoid).
 - The `claude` CLI available on `PATH` (used headlessly via
   `plugins/dev-team/skills/headless-run/scripts/isolated_dispatch.py`'s
   session-isolation approach — see #842), authenticated via `claude login`
-  (a subscription). Each dispatch runs in a fresh, isolated `HOME` (no
-  shared memory/conversation history), but carries your real
-  `~/.claude.json` login state into that sandbox (`copy_auth_state()`,
-  #957) so it doesn't need `ANTHROPIC_API_KEY` — this also means your
-  configured `mcpServers` list rides along into the dispatch, a deliberate
-  tradeoff over stricter isolation.
+  (a subscription). Each dispatch runs in a fresh, isolated `HOME` — but
+  `~/.claude.json` alone isn't enough to keep that dispatch logged in
+  (confirmed empirically), so `copy_auth_state()` (#957) also carries over
+  most of `~/.claude/` itself (settings, `projects/`, `sessions/`,
+  `mcpServers`, `plugins/`) so it doesn't need `ANTHROPIC_API_KEY`. The
+  clearly bulky, clearly-not-auth-related pieces (`history.jsonl`,
+  `file-history/`, `session-env/`, `paste-cache/`, `shell-snapshots/`,
+  `debug/`, `telemetry/`, `downloads/`) are excluded — see
+  `_CLAUDE_DIR_EXCLUDE` in `isolated_dispatch.py` — but this is still a
+  real departure from the "clean isolated HOME" the underlying script was
+  built for; there's no confirmed narrower answer for exactly which single
+  piece under `~/.claude/` gates the login check.
 
 ## Invocation contract (confirmed against the real skill, not assumed)
 

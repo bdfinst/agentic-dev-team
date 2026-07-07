@@ -52,17 +52,24 @@ The helper builds each dispatch to leak as little parent state as possible:
 
 ## Auth vs. isolation (#957)
 
-The fresh `HOME` also wipes `~/.claude.json`, which holds account/
-subscription markers Claude Code checks before its actual (Keychain-backed)
-OAuth token lookup — without it, a dispatch reports "Not logged in" unless
-`ANTHROPIC_API_KEY` is set. Pass `--preserve-auth` to copy that file into
-the cell home first, restoring login for operators who authenticate via
-`claude login` rather than an API key. This is a real tradeoff, not free:
-`~/.claude.json` also carries `mcpServers` and other app state, so
-`--preserve-auth` reintroduces that into the "isolated" dispatch. Off by
-default; the code-review-benchmark harness (`runner.make_isolated_dispatch_fn()`)
-turns it on unconditionally, since running that harness at all presupposes
-the operator's own subscription.
+The fresh `HOME` also wipes Claude Code's login state, so a dispatch
+reports "Not logged in" unless `ANTHROPIC_API_KEY` is set. `~/.claude.json`
+alone does **not** fix this — confirmed empirically, twice — something
+under `~/.claude/` itself gates the login check ahead of Claude Code's
+actual (Keychain-backed) OAuth token lookup. Pass `--preserve-auth` to
+copy `~/.claude.json` and most of `~/.claude/` into the cell home first,
+restoring login for operators who authenticate via `claude login` rather
+than an API key. This is a real tradeoff, not free: it carries over
+`settings.json`, `projects/`, `sessions/`, `mcpServers`, `plugins/`, and
+other app state — `copy_auth_state()`'s `_CLAUDE_DIR_EXCLUDE` skips the
+clearly bulky, clearly-not-auth-related pieces (`history.jsonl`,
+`file-history/`, `session-env/`, `paste-cache/`, `shell-snapshots/`,
+`debug/`, `telemetry/`, `downloads/`), but everything else rides along
+since we don't have a confirmed narrower answer for exactly which piece
+satisfies the login check. Off by default; the code-review-benchmark
+harness (`runner.make_isolated_dispatch_fn()`) turns it on unconditionally,
+since running that harness at all presupposes the operator's own
+subscription.
 
 It improves on the existing precedent in `scripts/run_tdd_experiment.py`
 (`make_cell_home` / `cell_env` / `dispatch`), which does `env = dict(os.environ)`
