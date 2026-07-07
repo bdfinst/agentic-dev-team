@@ -120,12 +120,18 @@ For the header block and closing Provenance section, follow
 `knowledge/report-template.md`; the sections below are this skill's own
 body.
 
-(`Date` and `Target` come from that shared header; `Source type` has no
+(`Date`, `Target`, `Tool versions`, and `Scope` come from that shared
+header — `Tool versions` renders `_Not applicable — no tool version applies
+to a comparison._` per the empty-section rule; `Source type` has no
 shared-contract equivalent and stays as this skill's own field.)
 
 ```markdown
 # Competitive Analysis: dev-team vs [Target]
 
+**Date**: <date>
+**Target**: [Name, URL, or description of what was compared]
+**Tool versions**: _Not applicable — no tool version applies to a comparison._
+**Scope**: [Layers/capabilities compared]
 **Source type**: URL | Local path | Description | Concept
 
 ## Executive Summary
