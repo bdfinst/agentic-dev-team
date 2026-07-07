@@ -155,6 +155,28 @@ handled at report time.
 **Output.** Persist the rolled-up analysis plus the ordered improvement plan to
 `memory/test-improve/<slug>/phase-1.md`.
 
+**Test-count-by-type snapshot.** Independent of the `/test-health` call
+above (and of whether `/test-health`'s own trivial-suite short-circuit
+fired for this run), perform a direct classification pass over the test
+files at the same repo-path scope Phase 0 resolved (`--path <dir>` when
+set, else the whole repo): apply `knowledge/cd-test-architecture.md`'s
+six-type criteria (Static analysis / Unit / Component / Contract /
+Integration / End-to-end) directly to each test suite/file found. **One
+test file counts as exactly one suite**, regardless of how many describe
+blocks or test classes it contains. Tie-break rule for a file that doesn't
+cleanly fit one type: classify by its dominant/highest-dependency type
+(e.g. a suite exercising a real DB connection classifies as integration
+even if most of its assertions read like unit-level checks); if dominance
+is still tied, classify by the higher-fidelity type using this fixed
+precedence: `end_to_end` > `integration` > `contract` > `component` >
+`unit` > `static_analysis`. Persist
+`memory/test-improve/<slug>/test-counts-before.json` with the six
+canonical snake_case keys, in this fixed order: `static_analysis`, `unit`,
+`component`, `contract`, `integration`, `end_to_end` — each key present
+even at zero, counting **test suites/files, not individual test cases or
+assertions**. This pass does **not** invoke `/test-health` or
+`/cd-test-architecture`'s full skill.
+
 **Human gate.** After `/test-health` returns, present **the ordered improvement
 plan** to the operator and wait for explicit approval. **Phase 2 does not run**
 until the operator approves. This is the human gate for Phase 1; do not advance
