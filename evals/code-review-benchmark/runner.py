@@ -29,22 +29,33 @@ from typing import Any, Callable, Dict, List, Optional, Set
 
 import scorer
 
-_FENCE_RE = re.compile(r"^```(?:json)?\s*\n(.*)\n```\s*$", re.DOTALL)
+_FENCE_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n```", re.DOTALL)
 
 
 def _extract_review_json(result_text: Optional[str]) -> Optional[Dict[str, Any]]:
     """Parse `/code-review --json`'s payload out of a dispatch's final text.
 
-    Handles the payload being wrapped in a markdown code fence (models
-    sometimes do this even when told to emit JSON only) before parsing.
-    Returns None on any failure — the caller logs a skip, never raises.
+    `/code-review --json` is contractually supposed to print the payload
+    and nothing else, but models sometimes narrate first, e.g. "Emitting
+    the required aggregated JSON per contract:\n\n```json\n{...}" (#963,
+    confirmed live — 40% of an early real sweep was lost to exactly this).
+    `_FENCE_RE` therefore searches for a fenced block ANYWHERE in the text
+    rather than anchoring to the whole string, and tries the LAST fenced
+    block first — if a model emits more than one (an inline example ahead
+    of the real payload, say), the final one is the more likely candidate
+    — falling back to earlier fences, then to parsing the raw text
+    directly if no fence exists at all. Returns `None` on total failure —
+    the caller logs a skip, never raises.
     """
     if not result_text:
         return None
     text = result_text.strip()
-    fence_match = _FENCE_RE.match(text)
-    if fence_match:
-        text = fence_match.group(1).strip()
+    fence_matches = list(_FENCE_RE.finditer(text))
+    for match in reversed(fence_matches):
+        try:
+            return json.loads(match.group(1).strip())
+        except (json.JSONDecodeError, ValueError):
+            continue
     try:
         return json.loads(text)
     except (json.JSONDecodeError, ValueError):
