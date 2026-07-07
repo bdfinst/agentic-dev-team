@@ -110,6 +110,10 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# dev-team plugin: shared human-invoked report output (/review-agent,
+# /code-review, /triage) — local-only, regenerated per run.
+DEV_TEAM_REPORTS/
 ```
 
 ## vitest.config.js
