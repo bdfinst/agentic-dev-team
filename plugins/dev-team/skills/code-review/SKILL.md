@@ -279,6 +279,8 @@ Read `knowledge/review-template.md` for the structure.
 
 **If `--json`: the JSON object is the ONLY output for this run — non-negotiable, not model discretion.** Emit the aggregated JSON object per the schema in [`output-format.md`](output-format.md#aggregated-json-result---json-flag) to **stdout**, write no file, and **stop: do not proceed to step 8 or step 9 in this run, regardless of how many issues were found or whether any are actionable.** There is no fallback to prose, and no `corrections/`/`.review-passed` persistence, in `--json` mode — ever. (`/pr`'s `--json` call already only reads this JSON object's `overall`/`status` field, so this loses nothing a caller depends on.)
 
+**A sentence describing the JSON is not the JSON.** A completed run whose final text reads like "Aggregated JSON emitted to stdout per `--json` contract; run stops here" — with no `{...}` object actually present anywhere in that text — is a contract violation, not compliance, even though it correctly stopped rather than proceeding further. The literal final output of the turn must be the JSON object itself, not a narration of having produced it. If the next action being considered is a summary sentence announcing that the JSON was (or is about to be) emitted, that is the signal to emit the actual object instead — there is no valid end state for a `--json` run that consists of prose alone.
+
 Otherwise (no `--json`): emit the prose summary using the Code Review Summary template in [`output-format.md`](output-format.md#code-review-summary-report-step-7-prose-mode). Append the iteration table, then continue to step 8.
 
 ### 8. Save correction prompts for remaining issues
