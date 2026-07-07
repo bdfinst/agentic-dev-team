@@ -8,8 +8,8 @@ description: >-
   before commits and pull requests.
 argument-hint: >-
   [--agent <name>] [--since <ref>] [--path <dir>] [--all] [--json]
-  [--force --reason "<text>"] [--static-analysis|--no-static-analysis]
-  [--init-risks] [--background]
+  [--internal] [--force --reason "<text>"]
+  [--static-analysis|--no-static-analysis] [--init-risks] [--background]
 user-invocable: true
 allowed-tools: >-
   Read, Write, Edit, Grep, Glob, AskUserQuestion, Agent,
@@ -57,6 +57,7 @@ Arguments: $ARGUMENTS
 | `--path <dir>` | Review only files in this directory |
 | `--all` | Force full-repository review even when uncommitted changes exist |
 | `--json` | Output aggregated JSON to **stdout** instead of prose. Contractually non-interactive (for CI): never prompts; defaults to report-only (no code modified). |
+| `--internal` | This is an orchestrator-internal dispatch (`/build`'s Step 6 backstop review) — skip the `DEV_TEAM_REPORTS/code-review.md` report write in step 7. Orthogonal to `--json`: `--internal` alone still runs the prose/fix-loop path; `/build`'s Step 6 uses `--internal` without `--json` specifically to keep the fix loop. `/build` is the only sanctioned caller of this flag today. |
 | `--init-risks` | Scaffold `ACCEPTED-RISKS.md` from `templates/ACCEPTED-RISKS.md.tmpl` if absent. Exits non-zero without overwriting if present. Schema: `knowledge/accepted-risks-schema.md`. |
 | `--force` | Skip pre-flight gates **and the documentation-only short-circuit** (forces a full review of doc-only changes). **Requires `--reason "<text>"`** — logged to `metrics/override-audit.jsonl`. |
 | `--reason "<text>"` | Override justification (required with `--force`) |
@@ -281,7 +282,22 @@ Read `knowledge/review-template.md` for the structure.
 
 **A sentence describing the JSON is not the JSON.** A completed run whose final text reads like "Aggregated JSON emitted to stdout per `--json` contract; run stops here" — with no `{...}` object actually present anywhere in that text — is a contract violation, not compliance, even though it correctly stopped rather than proceeding further. The literal final output of the turn must be the JSON object itself, not a narration of having produced it. If the next action being considered is a summary sentence announcing that the JSON was (or is about to be) emitted, that is the signal to emit the actual object instead — there is no valid end state for a `--json` run that consists of prose alone.
 
-Otherwise (no `--json`): emit the prose summary using the Code Review Summary template in [`output-format.md`](output-format.md#code-review-summary-report-step-7-prose-mode). Append the iteration table, then continue to step 8.
+Otherwise (no `--json`): emit the prose summary using the Code Review Summary template in [`output-format.md`](output-format.md#code-review-summary-report-step-7-prose-mode). Append the iteration table.
+
+**Write the durable report (skip when `--internal`).** When `--internal`
+was **not** passed, write the identical prose summary to
+`DEV_TEAM_REPORTS/code-review.md` in the target repository's working
+directory (creating the directory if absent), overwriting any existing
+file at that path — write it even when the review found zero issues. Print
+one confirmation line: `Report written: DEV_TEAM_REPORTS/code-review.md`,
+or `Report written: DEV_TEAM_REPORTS/code-review.md (replaced previous
+run)` when a file already existed at that path. If the write fails
+(permission/read-only): report `Cannot write
+DEV_TEAM_REPORTS/code-review.md: <error>` to chat and continue unaffected —
+the write failure is non-fatal. When `--internal` **was** passed, skip this
+write entirely (the fix loop and every other prose-mode behavior above are
+unaffected — `--internal` only suppresses this one write). Then continue to
+step 8.
 
 ### 8. Save correction prompts for remaining issues
 
