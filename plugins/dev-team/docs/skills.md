@@ -113,7 +113,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | --- | --- | --- |
 | `/ci-debugging` | [`ci-debugging/SKILL.md`](../skills/ci-debugging/SKILL.md) | Systematic CI/CD failure diagnosis with hypothesis-first approach, environment delta analysis, and anti-patterns. Use when CI fails, pipelines break, or the user says "CI is failing", "build broke", "pipeline error", or "tests pass locally but fail in CI". |
 | `/systematic-debugging` | [`systematic-debugging/SKILL.md`](../skills/systematic-debugging/SKILL.md) | Four-phase debugging protocol (reproduce, investigate, root-cause, fix) that prevents guess-and-fix thrashing. Use this skill whenever a test fails, a bug is reported, an error occurs during implementation, or any unexpected behavior is encountered. Prevents the common LLM failure mode of guessing at fixes without understanding the problem. |
-| `/triage` | [`triage/SKILL.md`](../skills/triage/SKILL.md) | Investigate a bug, find its root cause, and write a portable triage record to .triage/<slug>.md with a TDD fix plan. Use when the user reports a bug and wants it triaged, says "triage this", "investigate and write it up", or wants a hands-off bug investigation that produces an actionable record. |
+| `/triage` | [`triage/SKILL.md`](../skills/triage/SKILL.md) | Investigate a bug, find its root cause, and write a portable triage record to DEV_TEAM_REPORTS/triage/<slug>.md with a TDD fix plan. Use when the user reports a bug and wants it triaged, says "triage this", "investigate and write it up", or wants a hands-off bug investigation that produces an actionable record. |
 
 
 ## Setup, Config & Plugin Management
