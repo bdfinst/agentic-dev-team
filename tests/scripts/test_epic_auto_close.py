@@ -1,13 +1,9 @@
 """Tests for scripts/epic_auto_close.py (#987).
 
-Covers the pure `should_close_parent` decision function first (Step 1.1);
-the CLI wrapper (`get_issue`, `get_sub_issues`, `parent_number_from_url`,
-`close_parent`, `main`) is added in Step 1.2 with its own mocked tests.
-
-GitHub's native sub-issues feature tracks completion percentage only; it
-does not close a parent/epic issue when every sub-issue closes (verified
-directly on epic #971). This test suite locks in the decision logic that
-drives the workflow which does perform that close.
+Covers the pure `should_close_parent` decision function, `parent_number_from_url`,
+and the CLI wrapper (`get_issue`, `get_sub_issues`, `close_parent`, `main`) —
+all mocked at the `subprocess.run` boundary, no real `gh`/network call. See
+epic_auto_close.py's module docstring for why this script exists.
 """
 
 from __future__ import annotations
