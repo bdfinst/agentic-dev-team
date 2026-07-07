@@ -118,8 +118,10 @@ Write the report to `reports/competitive-analysis-<date>.md` using this structur
 
 For the header block and closing Provenance section, follow
 `knowledge/report-template.md`; the sections below are this skill's own
-body. (`Date` and `Target` come from that shared header; `Source type` has
-no shared-contract equivalent and stays as this skill's own field.)
+body.
+
+(`Date` and `Target` come from that shared header; `Source type` has no
+shared-contract equivalent and stays as this skill's own field.)
 
 ```markdown
 # Competitive Analysis: dev-team vs [Target]
