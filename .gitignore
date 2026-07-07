@@ -63,6 +63,10 @@ __pycache__/
 *.py[cod]
 *.pyo
 
+# Repowise codebase-documentation MCP cache (session counters, wiki/omissions
+# sqlite dbs) — local tool state, regenerated per session, never committed.
+.repowise/
+
 # Graphify knowledge-graph output — a large, generated per-repo artifact.
 # Built on demand (`graphify extract .`); the committed CLAUDE.md section +
 # .claude hooks take over once graphify-out/graph.json exists.
