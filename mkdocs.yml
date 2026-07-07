@@ -121,6 +121,7 @@ nav:
 
   - Guides:
       - Cloud Setup: docs/cloud-setup.md
+      - Podman Dev Environment: docs/podman-dev-environment.md
       - Using Skills in Web Environment: docs/using-plugin-skills-in-the-web-environment.md
       - Marketplace Builder Playbook: docs/marketplace-builder-plugin-playbook.md
       - CD Coverage Review: docs/continuous-delivery-coverage-review.md

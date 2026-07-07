@@ -1,0 +1,17 @@
+# Keep the podman build context small and hermetic. The image installs deps from
+# requirements-dev.txt + package-lock.json (COPYed explicitly in the Containerfile);
+# the working tree is mounted at run time (-v "$PWD":/workspace), so nothing else
+# needs to enter the build context.
+.git
+node_modules
+.venv
+graphify-out
+.codegraph
+.husky/_
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+reports
+metrics
