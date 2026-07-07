@@ -19,6 +19,24 @@ _When mutation was disabled at Phase 0, the mutation rows read **"Not applicable
 
 _When the stack is Go, the mutation row carries the footnote: **"Advisory only — go-mutesting is alpha; survivor count is not a gate for this run."**_
 
+### Tests by type
+
+| Type | Baseline | Achieved | Δ |
+| --- | --- | --- | --- |
+| Static analysis | {{baseline_static_analysis}} | {{achieved_static_analysis}} | {{delta_static_analysis}} |
+| Unit | {{baseline_unit}} | {{achieved_unit}} | {{delta_unit}} |
+| Component | {{baseline_component}} | {{achieved_component}} | {{delta_component}} |
+| Contract | {{baseline_contract}} | {{achieved_contract}} | {{delta_contract}} |
+| Integration | {{baseline_integration}} | {{achieved_integration}} | {{delta_integration}} |
+| End-to-end | {{baseline_end_to_end}} | {{achieved_end_to_end}} | {{delta_end_to_end}} |
+
+_Counts are test suites/files, not individual test cases. A type with zero
+suites still renders its row (`0 / 0 / 0`) — never omitted._
+
+_When `test-counts-after.json` does not exist (the operator quit before
+Phase 6 ran), every row's Achieved and Δ cells read **"Not applicable —
+Phase 6 not run."**; Baseline still renders from `test-counts-before.json`._
+
 ## 2. What was done this run
 
 {{phase_summary}}
