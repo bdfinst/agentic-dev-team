@@ -236,14 +236,9 @@ After all steps are complete, run the full test suite. Paste the output as final
 
 ### 6. Run code review
 
-Run `/code-review --internal` against all files modified during the build.
-This is deliberately **not** `--json`: this step relies on the review-fix
-loop actually running (`/code-review`'s own step-7 exception "(b) If running
-inside `/build` or `/pr`, proceed to the fix loop") — `--json` would
-short-circuit that loop before this dependency exists (its own rule (a),
-"default to report only", is checked first). `--internal` only suppresses
-`/code-review`'s new `DEV_TEAM_REPORTS/code-review.md` write; it does not
-change `--json`/prose mode or the fix-loop behavior.
+Run `/code-review --internal` against all files modified during the build —
+deliberately not `--json`, to keep the review-fix loop running per
+`/code-review`'s own step-7 exception (b).
 
 ### 7. Final test quality score (branch)
 
