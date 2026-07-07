@@ -131,8 +131,9 @@ actuals.json
 # parallel eval harvest: per-agent trials + resume markers (run-full-eval-parallel.sh)
 .eval-parallel/
 
-# Triage records written by /triage — local-only investigation notes
-.triage/
+# Shared human-invoked report output (/review-agent, /code-review, /triage)
+# — local-only artifacts, regenerated per run.
+DEV_TEAM_REPORTS/
 
 # refactor-granularity campaign: per-arm shards are intermediate (resume targets);
 # the merged dataset (refactor-granularity-campaign.jsonl) is committed instead.
