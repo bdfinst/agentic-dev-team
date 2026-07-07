@@ -1,0 +1,44 @@
+name: Epic auto-close
+
+# GitHub's native sub-issues feature tracks completion percentage only; it
+# does not close a parent/epic issue when every sub-issue closes (verified
+# directly on epic #971, which stayed OPEN at 100% sub-issue completion until
+# closed by hand). This workflow fires on every issue close and delegates the
+# actual decision to scripts/epic_auto_close.py — the workflow itself makes
+# no decision, it only supplies --repo/--issue and lets the script's own
+# no-op / close logic determine the outcome (#987).
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  # Repo-wide (not per-issue-number): two sub-issues of the same epic closing
+  # within seconds of each other must serialize against one another, or they
+  # race a TOCTOU window between "is the parent already closed?" and the
+  # actual close call. This workflow fires infrequently, so repo-wide
+  # serialization costs nothing in practice.
+  group: epic-auto-close-${{ github.repository }}
+
+jobs:
+  auto-close-epic:
+    name: Auto-close epic when all sub-issues are closed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Close parent epic if every sub-issue is closed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/epic_auto_close.py \
+            --repo "${{ github.repository }}" \
+            --issue "${{ github.event.issue.number }}"
