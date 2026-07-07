@@ -9,7 +9,7 @@ description: >-
   during Phase 3 implementation.
 argument-hint: "<agent-name> [--since <ref>] [--path <dir>] [--internal]"
 user-invocable: true
-allowed-tools: Read, Grep, Glob, Bash(git diff *)
+allowed-tools: Read, Write, Grep, Glob, Bash(git diff *)
 ---
 
 # Review Agent
