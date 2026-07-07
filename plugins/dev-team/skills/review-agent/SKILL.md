@@ -7,7 +7,7 @@ description: >-
   suite. Prefer this over /code-review when only one concern is relevant or
   speed matters. Also used by the orchestrator for inline review checkpoints
   during Phase 3 implementation.
-argument-hint: "<agent-name> [--since <ref>] [--path <dir>]"
+argument-hint: "<agent-name> [--since <ref>] [--path <dir>] [--internal]"
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(git diff *)
 ---
