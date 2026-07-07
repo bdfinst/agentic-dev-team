@@ -31,7 +31,7 @@ This skill is analytical first, generative second. It catalogs what both sides o
 The comparison target can come in several forms. Determine which applies and gather the data accordingly:
 
 | Source | How to gather |
-|--------|--------------|
+| -------- | -------------- |
 | **URL** (repo, docs, marketplace) | Fetch the URL. Look for README, CLAUDE.md, plugin manifests, agent/skill/command directories. If the repo is large, focus on the manifest, README, and directory listing first. |
 | **Local path** | Read the directory structure, then key files (README, CLAUDE.md, manifests, agent/skill dirs). |
 | **Pasted description or feature list** | Use as-is. Ask clarifying questions only if the description is too vague to compare against. |
@@ -57,6 +57,7 @@ Read `knowledge/agent-registry.md` for the full inventory. Organize into these c
 Map the other plugin's capabilities into the same layers where possible. Not every plugin will have all layers — that's fine. For capabilities that don't map cleanly, create an "Other" category and describe them.
 
 For each capability, note:
+
 - What it does (one line)
 - How mature it appears (shipped, experimental, documented but not implemented)
 - Whether dev-team has an equivalent
@@ -66,7 +67,7 @@ For each capability, note:
 Compare layer by layer. For each gap, classify it:
 
 | Classification | Meaning |
-|---------------|---------|
+| --------------- | --------- |
 | **Missing** | The other plugin has this; we have nothing equivalent |
 | **Weaker** | We have something similar, but the other plugin's version is more capable or better designed |
 | **Different approach** | Both plugins address this need, but with fundamentally different strategies worth examining |
@@ -105,6 +106,7 @@ For **Different approach** items, don't write a spec — write a short analysis 
 ### Step 5: Prioritization
 
 After listing all gaps, rank the top 5 by impact. Impact considers:
+
 - How many users would benefit
 - How fundamental the capability is (workflow > convenience)
 - How much effort it would take relative to the value (quick wins first)
@@ -112,13 +114,16 @@ After listing all gaps, rank the top 5 by impact. Impact considers:
 
 ## Output Format
 
-Write the report to `reports/competitive-analysis-<date>.md` using this structure:
+Write the report to `reports/competitive-analysis-<date>.md` using this structure.
+
+For the header block and closing Provenance section, follow
+`knowledge/report-template.md`; the sections below are this skill's own
+body. (`Date` and `Target` come from that shared header; `Source type` has
+no shared-contract equivalent and stays as this skill's own field.)
 
 ```markdown
 # Competitive Analysis: dev-team vs [Target]
 
-**Date**: <date>
-**Target**: [Name, URL, or description of what was compared]
 **Source type**: URL | Local path | Description | Concept
 
 ## Executive Summary
@@ -156,11 +161,19 @@ Write the report to `reports/competitive-analysis-<date>.md` using this structur
 ## Next Steps
 
 [Concrete recommendations: which gaps to address first, any quick wins, things that need more research]
+
+## Provenance
+
+- Repository: `<repo path>`
+- Branch / SHA: `<branch>` / `<sha>`
+- Run parameters: `<flags>`
+- `dev-team` plugin version: `<plugin_version>`
 ```
 
 ## Presenting Results
 
 After writing the report, display in chat:
+
 1. The file path
 2. The executive summary
 3. The top 5 priorities table

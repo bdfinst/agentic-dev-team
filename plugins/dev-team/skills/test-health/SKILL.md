@@ -103,7 +103,18 @@ Write `reports/test-health-<date>.md`.
 
 ## Output
 
+For the header block and closing Provenance section, follow
+`knowledge/report-template.md`; the sections below are this skill's own
+body.
+
 ```markdown
+# Test Health
+
+**Date**: <ISO 8601>
+**Target**: <repo>
+**Tool versions**: <coverage tool, mutation tool versions — or _Not applicable — <reason>._>
+**Scope**: <full repo | --path <dir>>
+
 ## Test Health — <repo> (<date>)
 
 **Shape**: <derived> · **Expected for this architecture**: <expected> · **Fit**: <match|mismatch + why>
@@ -132,6 +143,13 @@ mutation ROI hotspots · under-covered critical logic>
 
 ### Improvement plan (ordered)
 1. <highest-leverage move> …
+
+## Provenance
+
+- Repository: `<repo path>`
+- Branch / SHA: `<branch>` / `<sha>`
+- Run parameters: `<flags — e.g. --path <dir>>`
+- `dev-team` plugin version: `<plugin_version>`
 ```
 
 ## Integration

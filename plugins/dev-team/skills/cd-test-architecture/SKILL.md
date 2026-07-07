@@ -110,9 +110,20 @@ Write the assessment (see Output). Keep every recommendation tied to a concrete 
 
 ## Output
 
-Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component):
+Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component).
+
+For the header block and closing Provenance section, follow
+`knowledge/report-template.md`; the sections below are this skill's own
+body.
 
 ```markdown
+# CD Test Architecture
+
+**Date**: <ISO 8601>
+**Target**: <app>
+**Tool versions**: _Not applicable — no tool versions apply to this assessment._
+**Scope**: <full app | single component>
+
 ## CD Test Architecture — <app>
 
 ### Components & patterns
@@ -144,6 +155,13 @@ When Step 0 loaded a `knowledge/test-stack-profiles/<stack>.md` profile, **cite 
 ### Next steps
 - Refactor/seams → /plan or /build
 - Per-file smells → /test-design
+
+## Provenance
+
+- Repository: `<repo path>`
+- Branch / SHA: `<branch>` / `<sha>`
+- Run parameters: `<flags — e.g. single-component scope>`
+- `dev-team` plugin version: `<plugin_version>`
 ```
 
 ## Integration
