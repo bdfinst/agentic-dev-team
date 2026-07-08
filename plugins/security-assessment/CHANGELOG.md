@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.4.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.3...security-assessment-v3.4.0) (2026-07-08)
+
+
+### Features
+
+* implement open issues batch (autoship, co-evolution, nav, audit) ([c57c533](https://github.com/bdfinst/agentic-dev-team/commit/c57c5332a8ede2689aef1d1460e2ee34f38aee2b)), closes [#1065](https://github.com/bdfinst/agentic-dev-team/issues/1065) [#1066](https://github.com/bdfinst/agentic-dev-team/issues/1066) [#1067](https://github.com/bdfinst/agentic-dev-team/issues/1067) [#1068](https://github.com/bdfinst/agentic-dev-team/issues/1068) [#1069](https://github.com/bdfinst/agentic-dev-team/issues/1069) [#1070](https://github.com/bdfinst/agentic-dev-team/issues/1070) [#1071](https://github.com/bdfinst/agentic-dev-team/issues/1071)
+* migrate all 13 security-assessment agents from model: opus to effort: high ([54e3e8b](https://github.com/bdfinst/agentic-dev-team/commit/54e3e8bd224790ac0d7a302fce7a9e65b1422d53))
+* right-size security-assessment agent effort bands and extend Context needs vocabulary ([1989b38](https://github.com/bdfinst/agentic-dev-team/commit/1989b381a24d0d5b89741ed1f4e07ca94288f950)), closes [#1037](https://github.com/bdfinst/agentic-dev-team/issues/1037)
+
+
+### Documentation
+
+* documentation overhaul for all three plugins ([d2e5caf](https://github.com/bdfinst/agentic-dev-team/commit/d2e5cafe0789ae39c9bb5a3393bd933d3c04da01))
+
 ## [3.3.3](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.2...security-assessment-v3.3.3) (2026-07-04)
 
 
