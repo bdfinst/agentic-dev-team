@@ -10,14 +10,16 @@ Use this priority order (matches the spec's order of operations) when two gaps t
 For the picked gap, dispatch the smallest action — by emitting a recommendation, not by editing code (the actual edit happens via `/build` against a downstream Story):
 
 | Gap | Smallest action |
-|---|---|
+| --- | --- |
 | Flaky test | Identify the source of non-determinism (real clock, RNG, sleep, shared state, order dependence). Propose a downstream Story to remove it. |
 | Surviving mutant on a covered line | The test asserts coverage but not behavior; propose a downstream Story to add the specific assertion that kills this mutant. |
 | Surviving mutant on an uncovered line | Propose a downstream Story to add a test that hits the line *and* asserts the behavior. |
-| Coverage gap on a single file | Propose a downstream Story to add a component test for the uncovered branch at the existing seam. If none exists, propose a paired `[Refactor-for-testability]`. |
+| Coverage gap on a single file, existing seam | Propose a downstream Story to add a component test for the uncovered branch at the existing seam. |
+| Coverage gap on a single file, no existing seam, `--refactor-mode refactor-allowed` | Propose a paired `[Refactor-for-testability]` Story (today's behavior, unchanged). |
+| Coverage gap on a single file, no existing seam, `--refactor-mode no-refactor` | Do **not** propose a `[Refactor-for-testability]` Story — the operator already closed that decision at Phase 4b. Instead, write an entry (seam-needed / behavior-gained / estimated-risk) to `memory/<workflow>/<slug>/refactor-backlog.md`, appending to the file Phase 4b writes if it already exists rather than creating a second backlog file. |
 | Wall-clock regression | Identify the slowest tests (top 10). Propose a Story to swap a local container for an in-memory double where both prove the behavior. |
 
-**Gherkin binding for proposed component tests.** When the smallest action is "add a component test" (rows 2, 3, 4 above), first check `memory/<workflow>/<slug>/gherkin-bindings.json` for an approved Scenario covering that behavior at the relevant public surface:
+**Gherkin binding for proposed component tests.** When the smallest action is "add a component test" (the surviving-mutant rows, or the coverage-gap-with-existing-seam row above), first check `memory/<workflow>/<slug>/gherkin-bindings.json` for an approved Scenario covering that behavior at the relevant public surface:
 
 - **Scenario exists** — the proposed Story extends the matching `[Component tests]` Story rather than creating a new one. The recommendation cites `<feature-file>::<scenario-name>` and the test added in `/build` binds to that scenario in the binding mode recorded in `phase-0.md`.
 - **Scenario is missing** — do NOT invent a Scenario inside a downstream Story. Pause the convergence loop and hand back to the orchestrator: the operator remains the single author of intent, and the Gherkin surface must be updated via the workflow's standard Phase-2 sign-off before this loop resumes. Do not open ad-hoc amendment Stories from inside this worker; that route would bypass the human gate and is intentionally not available here.
@@ -34,4 +36,3 @@ After `/build` closes the dispatched Story:
 - If all four targets met → exit loop, mark the close-out Story Done.
 - If `--max-iterations` reached → halt, print current state, ask the operator to waive remaining gaps or extend.
 - Otherwise → next iteration.
-

@@ -9,7 +9,7 @@ description: >-
   Stops only when all four targets are green or each gap is explicitly
   waived by the operator with a recorded reason. Called by `/test-improve`
   (Phase 6) via `--workflow test-improve`.
-argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--max-iterations <n>]"
+argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--max-iterations <n>] [--refactor-mode <no-refactor|refactor-allowed>]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write, Skill(coverage-delta *), Skill(mutation-testing *)
 ---
@@ -29,6 +29,17 @@ Arguments: $ARGUMENTS
 - `--repo-slug <slug>` — `memory/<workflow>/` namespace.
 - `--workflow <name>` — the workflow namespace under `memory/` and `plans/`. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
 - `--max-iterations <n>` — safety cap. Default 10. The operator can extend mid-run.
+- `--refactor-mode <no-refactor|refactor-allowed>` — gates whether Step 4's
+  "coverage gap, no existing seam" action may propose a paired
+  `[Refactor-for-testability]` Story (see Step 4). **Default
+  `refactor-allowed`** when the flag is absent or carries an unrecognized
+  value — this preserves today's unconditional-propose behavior for callers
+  other than `/test-improve` that don't pass the flag. Whenever the default
+  fires because the flag was absent or unrecognized, print
+  `"refactor-mode not specified by caller — defaulting to refactor-allowed"`
+  (naming the unrecognized value received, if any) so a caller that forgot
+  to wire the flag is visible in the run output rather than silently
+  indistinguishable from one that explicitly wants `refactor-allowed`.
 
 **Path templates.** Every filesystem path in the Steps below carries `<workflow>` as a placeholder; the skill interpolates the resolved `--workflow` value at run time. There is no literal workflow-name string inside a path.
 
@@ -113,14 +124,16 @@ Use this priority order (matches the spec's order of operations) when two gaps t
 For the picked gap, dispatch the smallest action — by emitting a recommendation, not by editing code (the actual edit happens via `/build` against a downstream Story):
 
 | Gap | Smallest action |
-|---|---|
+| --- | --- |
 | Flaky test | Identify the source of non-determinism (real clock, RNG, sleep, shared state, order dependence). Propose a downstream Story to remove it. |
 | Surviving mutant on a covered line | The test asserts coverage but not behavior; propose a downstream Story to add the specific assertion that kills this mutant. |
 | Surviving mutant on an uncovered line | Propose a downstream Story to add a test that hits the line *and* asserts the behavior. |
-| Coverage gap on a single file | Propose a downstream Story to add a component test for the uncovered branch at the existing seam. If none exists, propose a paired `[Refactor-for-testability]`. |
+| Coverage gap on a single file, existing seam | Propose a downstream Story to add a component test for the uncovered branch at the existing seam. |
+| Coverage gap on a single file, no existing seam, `--refactor-mode refactor-allowed` | Propose a paired `[Refactor-for-testability]` Story (today's behavior, unchanged). |
+| Coverage gap on a single file, no existing seam, `--refactor-mode no-refactor` | Do **not** propose a `[Refactor-for-testability]` Story — the operator already closed that decision at Phase 4b. Instead, write an entry (seam-needed / behavior-gained / estimated-risk) to `memory/<workflow>/<slug>/refactor-backlog.md`, appending to the file Phase 4b writes if it already exists rather than creating a second backlog file. |
 | Wall-clock regression | Identify the slowest tests (top 10). Propose a Story to swap a local container for an in-memory double where both prove the behavior. |
 
-**Gherkin binding for proposed component tests.** When the smallest action is "add a component test" (rows 2, 3, 4 above), first check `memory/<workflow>/<slug>/gherkin-bindings.json` for an approved Scenario covering that behavior at the relevant public surface:
+**Gherkin binding for proposed component tests.** When the smallest action is "add a component test" (the surviving-mutant rows, or the coverage-gap-with-existing-seam row above), first check `memory/<workflow>/<slug>/gherkin-bindings.json` for an approved Scenario covering that behavior at the relevant public surface:
 
 - **Scenario exists** — the proposed Story extends the matching `[Component tests]` Story rather than creating a new one. The recommendation cites `<feature-file>::<scenario-name>` and the test added in `/build` binds to that scenario in the binding mode recorded in `phase-0.md`.
 - **Scenario is missing** — do NOT invent a Scenario inside a downstream Story. Pause the convergence loop and hand back to the orchestrator: the operator remains the single author of intent, and the Gherkin surface must be updated via the workflow's standard Phase-2 sign-off before this loop resumes. Do not open ad-hoc amendment Stories from inside this worker; that route would bypass the human gate and is intentionally not available here.

@@ -386,8 +386,12 @@ the **same fixed schema** as Phase 4 (`base_sha`, `head_sha`, `farley_score`,
 ### Phase 6 — Validate (converge quality targets)
 
 Verify the improved suite meets the Phase-0 quality targets. Delegate to
-`/quality-targets-converge --workflow test-improve`; the skill routes memory
-and plan paths under `test-improve/` (per Slice 11).
+`/quality-targets-converge --workflow test-improve --refactor-mode <value>`
+(the `<value>` recorded in `phase-0.md` — `no-refactor` or
+`refactor-allowed`); the skill routes memory and plan paths under
+`test-improve/` (per Slice 11). Threading this flag keeps the operator's
+no-refactor choice enforced through Phase 6, not just Phase 4b — see
+`/quality-targets-converge`'s own dispatch-table gating on it.
 
 **Mutation-off skip (not waive).** When `phase-0.md` recorded mutation
 **off**, the mutation target is **skipped** and marked "not enabled for this
