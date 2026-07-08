@@ -139,6 +139,11 @@ python3 cli.py --dataset bugsjs
 
 # Regenerate report.md from existing results.jsonl without re-dispatching
 python3 cli.py --report-only
+
+# Deterministic verification sweep pinned to specific, known bug IDs —
+# e.g. re-running the exact cases a prior sweep flagged, for a reproducible
+# regression check (#970) instead of --sample's unseeded random selection
+python3 cli.py --dataset defects4j --project Lang --bug-ids 36,44,7,23,56
 ```
 
 ### Flags
@@ -148,6 +153,7 @@ python3 cli.py --report-only
 | `--dataset {defects4j,bugsjs}` | Required (unless `--report-only`) |
 | `--project <name>` | Filter to a single project |
 | `--sample N` | Random sample of N bugs per project |
+| `--bug-ids <id,id,...>` | Explicit, comma-separated bug IDs — deterministic, takes precedence over `--sample` |
 | `--resume` | Skip cases already recorded in `results.jsonl`/`skipped.jsonl` |
 | `--full-repo` | Review the whole checkout instead of just the fix's files (cost control is on by default: only ground-truth files are copied into scope) |
 | `--limit-projects N` | Cap the number of projects processed |
