@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 
 import autoship_reclaim  # noqa: E402
@@ -176,19 +178,22 @@ def test_fetch_in_progress_issues_uses_timeline_labeled_event() -> None:
         )
     )
     repo_view = _completed("OWNER/REPO")
+    # --paginate --slurp wraps pages in an outer array; one page here.
     timeline = _completed(
         json.dumps(
             [
-                {
-                    "event": "labeled",
-                    "label": {"name": "autoship:in-progress"},
-                    "created_at": "2026-07-01T00:00:00Z",
-                },
-                {
-                    "event": "labeled",
-                    "label": {"name": "autoship:ready"},
-                    "created_at": "2026-07-04T00:00:00Z",
-                },
+                [
+                    {
+                        "event": "labeled",
+                        "label": {"name": "autoship:in-progress"},
+                        "created_at": "2026-07-01T00:00:00Z",
+                    },
+                    {
+                        "event": "labeled",
+                        "label": {"name": "autoship:ready"},
+                        "created_at": "2026-07-04T00:00:00Z",
+                    },
+                ]
             ]
         )
     )
@@ -277,13 +282,47 @@ def test_fetch_in_progress_issues_falls_back_when_no_matching_labeled_event() ->
         )
     )
     repo_view = _completed("OWNER/REPO")
-    timeline = _completed(json.dumps([{"event": "commented"}]))
+    timeline = _completed(json.dumps([[{"event": "commented"}]]))
     with patch(
         "autoship_reclaim.subprocess.run",
         side_effect=[issue_list, repo_view, timeline],
     ):
         issues = autoship_reclaim._fetch_in_progress_issues()
     assert issues[0]["labeled_at"] == "2026-07-05T00:00:00Z"
+
+
+def test_fetch_timeline_flattens_multiple_pages() -> None:
+    """--paginate --slurp returns one JSON array per page (an array of
+    arrays); _fetch_timeline must flatten them so a busy issue's
+    most-recent labeled event (which may live on a later page) is still
+    found (#989 code review finding: an unpaginated fetch could silently
+    return only the first page)."""
+    two_pages = _completed(
+        json.dumps(
+            [
+                [{"event": "commented"}],  # page 1
+                [
+                    {
+                        "event": "labeled",
+                        "label": {"name": "autoship:in-progress"},
+                        "created_at": "2026-07-01T00:00:00Z",
+                    }
+                ],  # page 2
+            ]
+        )
+    )
+    with patch("autoship_reclaim.subprocess.run", return_value=two_pages) as mock_run:
+        events = autoship_reclaim._fetch_timeline(60, "OWNER/REPO")
+    assert events == [
+        {"event": "commented"},
+        {
+            "event": "labeled",
+            "label": {"name": "autoship:in-progress"},
+            "created_at": "2026-07-01T00:00:00Z",
+        },
+    ]
+    assert "--paginate" in mock_run.call_args[0][0]
+    assert "--slurp" in mock_run.call_args[0][0]
 
 
 def test_mixed_timeline_success_and_failure_does_not_abort_run() -> None:
@@ -318,11 +357,13 @@ def test_mixed_timeline_success_and_failure_does_not_abort_run() -> None:
     timeline_51 = _completed(
         json.dumps(
             [
-                {
-                    "event": "labeled",
-                    "label": {"name": "autoship:in-progress"},
-                    "created_at": "2026-07-02T00:00:00Z",
-                }
+                [
+                    {
+                        "event": "labeled",
+                        "label": {"name": "autoship:in-progress"},
+                        "created_at": "2026-07-02T00:00:00Z",
+                    }
+                ]
             ]
         )
     )
@@ -358,11 +399,13 @@ def test_input_file_and_live_fetch_converge_on_same_field_set(tmp_path) -> None:
     timeline = _completed(
         json.dumps(
             [
-                {
-                    "event": "labeled",
-                    "label": {"name": "autoship:in-progress"},
-                    "created_at": "2026-07-01T00:00:00Z",
-                }
+                [
+                    {
+                        "event": "labeled",
+                        "label": {"name": "autoship:in-progress"},
+                        "created_at": "2026-07-01T00:00:00Z",
+                    }
+                ]
             ]
         )
     )
@@ -630,3 +673,80 @@ def test_multi_issue_run_continues_after_one_issue_fails(tmp_path, capsys) -> No
     assert "#40" in captured.err
     assert "comment" in captured.err
     assert "reclaimed #41" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# validate_issues / --input-file schema validation (#989 code review finding:
+# reclaim previously had no equivalent to autoship_discover's validate_issues,
+# risking an uncaught AttributeError on malformed local input)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_issues_rejects_non_list() -> None:
+    with pytest.raises(autoship_reclaim.ReclaimError, match="JSON array"):
+        autoship_reclaim.validate_issues({"not": "a list"})
+
+
+def test_validate_issues_rejects_non_dict_entry() -> None:
+    with pytest.raises(autoship_reclaim.ReclaimError, match="not a JSON object"):
+        autoship_reclaim.validate_issues([1, 2, 3])
+
+
+def test_validate_issues_rejects_missing_field() -> None:
+    with pytest.raises(autoship_reclaim.ReclaimError, match="missing required"):
+        autoship_reclaim.validate_issues([{"number": 1, "title": "x"}])
+
+
+def test_main_exits_nonzero_on_malformed_input_file(tmp_path, capsys) -> None:
+    input_file = tmp_path / "bad.json"
+    input_file.write_text(json.dumps([{"number": 1}]))
+    rc = autoship_reclaim.main(["--input-file", str(input_file)])
+    assert rc != 0
+    captured = capsys.readouterr()
+    assert "missing required" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_main_exits_nonzero_on_non_list_input_file(tmp_path, capsys) -> None:
+    input_file = tmp_path / "bad.json"
+    input_file.write_text(json.dumps({"number": 1}))
+    rc = autoship_reclaim.main(["--input-file", str(input_file)])
+    assert rc != 0
+    captured = capsys.readouterr()
+    assert "JSON array" in captured.err
+    assert "Traceback" not in captured.err
+
+
+# ---------------------------------------------------------------------------
+# gh subprocess timeouts (#989 code review finding: missing timeout= on
+# every gh subprocess.run call risked an indefinite hang)
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_in_progress_issues_passes_timeout() -> None:
+    issue_list = _completed(json.dumps([]))
+    with patch("autoship_reclaim.subprocess.run", return_value=issue_list) as mock_run:
+        autoship_reclaim._fetch_in_progress_issues()
+    assert mock_run.call_args_list[0].kwargs["timeout"] == (
+        autoship_reclaim._GH_TIMEOUT_SECONDS
+    )
+
+
+def test_post_comment_and_relabel_pass_timeout() -> None:
+    ok = subprocess.CompletedProcess(args=["gh"], returncode=0, stdout="", stderr="")
+    with patch("autoship_reclaim.subprocess.run", return_value=ok) as mock_run:
+        autoship_reclaim._post_comment(1, "body")
+        autoship_reclaim._relabel(1)
+    for call in mock_run.call_args_list:
+        assert call.kwargs["timeout"] == autoship_reclaim._GH_TIMEOUT_SECONDS
+
+
+def test_load_issues_timeout_surfaces_as_clear_stderr(capsys) -> None:
+    with patch(
+        "autoship_reclaim.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd=["gh"], timeout=30),
+    ):
+        rc = autoship_reclaim.main([])
+    assert rc != 0
+    captured = capsys.readouterr()
+    assert "Failed to load in-progress issues via gh" in captured.err

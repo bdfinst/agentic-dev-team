@@ -24,8 +24,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
 import autoship_state  # noqa: E402
 
-IN_PROGRESS_LABEL = "autoship:in-progress"
-BLOCKED_LABEL = "autoship:blocked"
+IN_PROGRESS_LABEL = autoship_state.IN_PROGRESS_LABEL
+BLOCKED_LABEL = autoship_state.BLOCKED_LABEL
+
+# gh subprocess calls get a hard timeout so a hung/stalled network call never
+# blocks this script indefinitely.
+_GH_TIMEOUT_SECONDS = 30
+
+# Required per-issue fields for --input-file, mirroring autoship_discover's
+# REQUIRED_ISSUE_FIELDS/validate_issues contract so a malformed local fixture
+# fails loud with a clear message instead of an uncaught AttributeError deep
+# inside select_orphaned.
+REQUIRED_ISSUE_FIELDS = ("number", "title", "state", "labels")
+
+
+class ReclaimError(Exception):
+    """A reclaim-input or `gh` fetch problem that must surface as a clear
+    CLI error message, not an uncaught exception/traceback."""
 
 
 def select_orphaned(issues: list, stale_after_hours: float, now: datetime) -> list:
@@ -33,8 +48,10 @@ def select_orphaned(issues: list, stale_after_hours: float, now: datetime) -> li
 
     An issue qualifies when it is open, carries `autoship:in-progress`, and
     its `labeled_at` (falling back to `updatedAt` when `labeled_at` is
-    absent — the live-fetch path's best-effort fallback, added in a later
-    step) is stale per `autoship_state.is_stale` (inclusive boundary).
+    absent) is stale per `autoship_state.is_stale` (inclusive boundary). The
+    live-fetch path (`_fetch_in_progress_issues`/`_labeled_at_for`) always
+    populates `labeled_at` before this function runs, falling back to
+    `updatedAt` itself when the real timeline event can't be found.
     """
     orphaned = []
     for issue in issues:
@@ -118,11 +135,16 @@ def _fetch_in_progress_issues() -> list:
         capture_output=True,
         text=True,
         check=True,
+        timeout=_GH_TIMEOUT_SECONDS,
     )
     issues = json.loads(result.stdout)
     try:
         repo = _current_repo()
-    except (subprocess.CalledProcessError, json.JSONDecodeError):
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        json.JSONDecodeError,
+    ):
         # Repo resolution failing is one more "timeline lookup hiccup" —
         # every issue falls back to its own `updatedAt` rather than
         # aborting the whole run.
@@ -146,7 +168,11 @@ def _labeled_at_for(issue: dict, repo: Optional[str]) -> str:
         return issue["updatedAt"]
     try:
         timeline = _fetch_timeline(issue["number"], repo)
-    except (subprocess.CalledProcessError, json.JSONDecodeError):
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        json.JSONDecodeError,
+    ):
         return issue["updatedAt"]
 
     labeled_events = [
@@ -162,13 +188,32 @@ def _labeled_at_for(issue: dict, repo: Optional[str]) -> str:
 
 
 def _fetch_timeline(number: int, repo: str) -> list:
+    """Fetch the full timeline for `issue`, following pagination.
+
+    `--paginate --slurp` is required here: the timeline endpoint returns
+    events oldest-first, and `_labeled_at_for` reads the *most recent*
+    matching `labeled` event (`labeled_events[-1]`) — on a busy issue with
+    more activity than one page, an unpaginated fetch would silently return
+    only the first page and miss the real most-recent event, understating
+    staleness rather than failing loudly. `--slurp` wraps the pages into a
+    JSON array-of-arrays (one array per page), which this flattens back
+    into a single flat list of events.
+    """
     result = subprocess.run(
-        ["gh", "api", f"repos/{repo}/issues/{number}/timeline"],
+        [
+            "gh",
+            "api",
+            "--paginate",
+            "--slurp",
+            f"repos/{repo}/issues/{number}/timeline",
+        ],
         capture_output=True,
         text=True,
         check=True,
+        timeout=_GH_TIMEOUT_SECONDS,
     )
-    return json.loads(result.stdout)
+    pages = json.loads(result.stdout)
+    return [event for page in pages for event in page]
 
 
 def _current_repo() -> str:
@@ -179,8 +224,36 @@ def _current_repo() -> str:
         capture_output=True,
         text=True,
         check=True,
+        timeout=_GH_TIMEOUT_SECONDS,
     )
     return result.stdout.strip()
+
+
+def validate_issues(issues) -> None:
+    """Validate `issues` is a JSON array of objects each carrying every
+    `REQUIRED_ISSUE_FIELDS` entry.
+
+    Raises `ReclaimError` naming the malformed entry (by issue number if
+    present, by index otherwise) rather than letting an uncaught
+    `AttributeError`/`KeyError` propagate out of `select_orphaned`.
+    """
+    if not isinstance(issues, list):
+        raise ReclaimError(
+            "--input-file must contain a JSON array of issue objects, got "
+            f"{type(issues).__name__}"
+        )
+    for idx, issue in enumerate(issues):
+        if not isinstance(issue, dict):
+            raise ReclaimError(
+                f"malformed --input-file entry at index {idx}: not a JSON object"
+            )
+        missing = [field for field in REQUIRED_ISSUE_FIELDS if field not in issue]
+        if missing:
+            identifier = f"#{issue['number']}" if "number" in issue else f"index {idx}"
+            raise ReclaimError(
+                f"malformed --input-file entry ({identifier}): missing required "
+                f"field(s) {', '.join(missing)}"
+            )
 
 
 def _load_issues(args: argparse.Namespace) -> list:
@@ -188,10 +261,17 @@ def _load_issues(args: argparse.Namespace) -> list:
     `gh` fetch. Both paths converge on the same field set (`number`,
     `title`, `state`, `labels`, plus `labeled_at`/`updatedAt`) before
     `select_orphaned` runs.
+
+    Raises `ReclaimError` on a schema violation in `--input-file`, or
+    `subprocess.CalledProcessError`/`json.JSONDecodeError`/`OSError` on a
+    `gh`-fetch or file-read failure — the caller (`main`) translates all of
+    these into a clear stderr message, never an uncaught traceback.
     """
     if args.input_file:
         with open(args.input_file, encoding="utf-8") as fh:
-            return json.load(fh)
+            issues = json.load(fh)
+        validate_issues(issues)
+        return issues
     return _fetch_in_progress_issues()
 
 
@@ -213,6 +293,7 @@ def _post_comment(number: int, body: str) -> None:
         capture_output=True,
         text=True,
         check=True,
+        timeout=_GH_TIMEOUT_SECONDS,
     )
 
 
@@ -231,6 +312,7 @@ def _relabel(number: int) -> None:
         capture_output=True,
         text=True,
         check=True,
+        timeout=_GH_TIMEOUT_SECONDS,
     )
 
 
@@ -260,13 +342,13 @@ def _reclaim_issue(
 
     try:
         _post_comment(number, comment)
-    except subprocess.CalledProcessError as exc:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         print(f"failed #{number}: comment ({exc})", file=sys.stderr)
         return 1
 
     try:
         _relabel(number)
-    except subprocess.CalledProcessError as exc:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         print(f"failed #{number}: relabel ({exc})", file=sys.stderr)
         return 1
 
@@ -281,7 +363,15 @@ def main(argv=None) -> int:
 
     try:
         issues = _load_issues(args)
-    except (subprocess.CalledProcessError, json.JSONDecodeError, OSError) as exc:
+    except ReclaimError as exc:
+        print(f"autoship_reclaim: {exc}", file=sys.stderr)
+        return 1
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        json.JSONDecodeError,
+        OSError,
+    ) as exc:
         print(f"Failed to load in-progress issues via gh: {exc}", file=sys.stderr)
         return 1
 
