@@ -53,6 +53,22 @@ def _positive_float(raw: str) -> float:
     return value
 
 
+def _positive_int(raw: str) -> int:
+    """`argparse` `type=` validator for `--workers`: fails loud on `<= 0`
+    at the CLI boundary rather than `scheduler.run_pending()`'s internal
+    `max(1, workers)` silently clamping an invalid value (flagged by
+    arch-review on #1000 as an inconsistency with `--max-cost-usd`'s own
+    fail-fast validation). The `max(1, workers)` clamp in `scheduler.py`
+    stays as a defense-in-depth default for direct/test callers that don't
+    go through this parser."""
+    value = int(raw)
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            f"--workers must be a positive integer, got {raw!r}"
+        )
+    return value
+
+
 def _parse_bug_ids(raw: Optional[str]) -> Optional[set]:
     """Parse `--bug-ids`' comma-separated string into a set of bug-id strings.
 
@@ -323,7 +339,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--workers",
-        type=int,
+        type=_positive_int,
         default=2,
         help=(
             "Number of bug cases to run concurrently, thread pool (default "

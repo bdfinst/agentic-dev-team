@@ -56,6 +56,18 @@ def test_workers_override_still_works() -> None:
     assert args.workers == 4
 
 
+def test_workers_rejects_zero() -> None:
+    """arch-review finding on #1000: --workers must fail loud at the CLI
+    boundary, like --max-cost-usd, rather than silently clamping."""
+    with pytest.raises(SystemExit):
+        cli._build_parser().parse_args(["--dataset", "defects4j", "--workers", "0"])
+
+
+def test_workers_rejects_negative() -> None:
+    with pytest.raises(SystemExit):
+        cli._build_parser().parse_args(["--dataset", "defects4j", "--workers", "-1"])
+
+
 class _FakeCase:
     def __init__(self, bug_id: str) -> None:
         self.bug_id = bug_id
