@@ -83,21 +83,21 @@ See `install.sh`. It performs four checks:
 | `/export-pdf <report.md>` | worker | PDF export via pandoc/weasyprint |
 | `/upgrade` | worker | Update the security-assessment plugin and optionally enable marketplace auto-update |
 
-**Agents** (12 opus):
+**Agents** (13, effort: high):
 
-- `fp-reduction` (opus) — 6-stage FP-reduction rubric (Stage 0 devil's advocate + Stages 1–5); disposition register with confidence field
-- `business-logic-domain-review` (opus) — fraud-domain anti-patterns
-- `deep-code-reasoning` (opus) — RECON surface-scoped freeform vulnerability reasoning; novel context-dependent issues beyond static rules
-- `authorization-logic-review` (opus) — top-down authorization architecture review; policy declaration vs. enforcement gaps, multi-tenancy isolation
-- `recon-driven-scan` (opus) — bridges RECON narrative claims to concrete file:line evidence; finds patterns SAST cannot express (inverted-boolean TLS defaults, RCE shapes via expression libraries, header-driven SQL, body-trusted IDOR)
-- `cross-repo-synthesizer` (opus) — named attack chains across repos
-- `exec-report-generator` (opus) — publication-ready executive report with Confidence column
-- `redteam-recon-analyzer` (opus) — interpretation of probe 01
-- `redteam-evasion-analyzer` (opus) — interpretation of probes 03/04/05
-- `redteam-extraction-analyzer` (opus) — interpretation of probe 07
-- `redteam-report-generator` (opus) — final red-team report synthesis
-- `tool-finding-narrative-annotator` (opus) — 4-domain narrative synthesis
-- `compliance-edge-annotator` (opus) — LLM edge judgment for ambiguous mappings
+- `fp-reduction` (effort: high) — 6-stage FP-reduction rubric (Stage 0 devil's advocate + Stages 1–5); disposition register with confidence field
+- `business-logic-domain-review` (effort: high) — fraud-domain anti-patterns
+- `deep-code-reasoning` (effort: high) — RECON surface-scoped freeform vulnerability reasoning; novel context-dependent issues beyond static rules
+- `authorization-logic-review` (effort: high) — top-down authorization architecture review; policy declaration vs. enforcement gaps, multi-tenancy isolation
+- `recon-driven-scan` (effort: high) — bridges RECON narrative claims to concrete file:line evidence; finds patterns SAST cannot express (inverted-boolean TLS defaults, RCE shapes via expression libraries, header-driven SQL, body-trusted IDOR)
+- `cross-repo-synthesizer` (effort: high) — named attack chains across repos
+- `exec-report-generator` (effort: high) — publication-ready executive report with Confidence column
+- `redteam-recon-analyzer` (effort: high) — interpretation of probe 01
+- `redteam-evasion-analyzer` (effort: high) — interpretation of probes 03/04/05
+- `redteam-extraction-analyzer` (effort: high) — interpretation of probe 07
+- `redteam-report-generator` (effort: high) — final red-team report synthesis
+- `tool-finding-narrative-annotator` (effort: high) — 4-domain narrative synthesis
+- `compliance-edge-annotator` (effort: high) — LLM edge judgment for ambiguous mappings
 
 **Skills** (3):
 
