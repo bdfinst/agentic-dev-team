@@ -84,9 +84,15 @@ _When Phase 5 was declined: **"Phase 5 not run — operator chose to backlog REF
 
 Review evidence: `memory/test-improve/{{slug}}/phase-5-review.json` — _Not applicable when Phase 5 did not run._
 
-## 7. Deferred work
+## 7. Deferred work — areas requiring refactoring to add tests
 
 {{deferred_summary}}
+
+| Seam needed | Behavior gained | Estimated risk |
+| --- | --- | --- |
+| {{refactor_backlog_rows}} | | |
+
+_When `refactor-backlog.md` does not exist (no items were backlogged this run), this section reads **"Not applicable — no REFACTOR_REQUIRED items were backlogged this run."** instead of a table._
 
 Backlog file: `memory/test-improve/{{slug}}/refactor-backlog.md` — _Not applicable when no items were backlogged._
 

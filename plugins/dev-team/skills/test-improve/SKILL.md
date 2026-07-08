@@ -446,8 +446,9 @@ memory files under `memory/test-improve/<slug>/` (`phase-0.md`, `phase-1.md`,
 `test-counts-before.json`, `baseline-coverage.json`, `baseline-mutation.json`,
 `phase-3.md`, `coverage-history.json`, `phase-4-review.json`,
 `phase-5-review.json` if Phase 5 ran, `refactor-backlog.md` if Phase 4b chose
-`[b]`, `waivers.json`, `phase-6.md`, `test-counts-after.json` if Phase 6 ran).
-No placeholder is left literal.
+`[b]` or Phase 6 wrote a no-refactor-mode entry to it, `waivers.json`,
+`phase-6.md`, `test-counts-after.json` if Phase 6 ran). No placeholder is
+left literal.
 
 **Empty-section rule.** Sections with no data render `_Not applicable —
 <reason>._` (e.g. § 6 when Phase 5 was declined reads "*Phase 5 not run —
