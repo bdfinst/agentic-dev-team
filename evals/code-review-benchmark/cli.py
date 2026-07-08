@@ -6,6 +6,7 @@ Usage:
     python3 cli.py --dataset bugsjs --project Bower --resume
     python3 cli.py --dataset defects4j --limit-projects 2 --full-repo
     python3 cli.py --dataset defects4j --project Lang --bug-ids 36,44,7
+    python3 cli.py --dataset defects4j --max-cost-usd 50
     python3 cli.py --report-only
 
 Both dataset homes are auto-provisioned into a gitignored
@@ -20,7 +21,6 @@ import argparse
 import os
 import random
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -28,9 +28,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import report
 import runner
+import scheduler
 from adapters import bootstrap, bugsjs_adapter, defects4j_adapter
 
 DEFAULT_RESULTS_DIR = Path(__file__).resolve().parent / "results"
+
+# #1000: conservative, hardcoded per-case cost estimate for the pre-sweep
+# warning — rounded up from the $4.48 real-case high measured in #974, not
+# extrapolated from live cases (see the plan's Decisions & Assumptions for
+# why extrapolation was deferred).
+DEFAULT_COST_PER_CASE_ESTIMATE_USD = 4.50
+
+
+def _positive_float(raw: str) -> float:
+    """`argparse` `type=` validator for `--max-cost-usd`: rejects `<= 0`
+    rather than silently accepting an ambiguous "zero (or negative)
+    budget" — mirrors `--dataset`'s `choices=` validation style (an
+    `argparse` error, not a custom exception)."""
+    value = float(raw)
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            f"--max-cost-usd must be a positive number, got {raw!r}"
+        )
+    return value
 
 
 def _parse_bug_ids(raw: Optional[str]) -> Optional[set]:
@@ -202,54 +222,43 @@ def run(args: argparse.Namespace) -> int:
             continue
         pending.append((case, case_dict))
 
-    processed = 0
-    total = len(pending)
-    workers = max(1, args.workers)
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {
-            executor.submit(
-                runner.run_case,
-                case_dict,
-                checkout_fn=_make_checkout_fn(
-                    args.dataset, case, home, defects4j_bin, defects4j_env
-                ),
-                ground_truth_fn=_make_ground_truth_fn(args.dataset, case),
-                test_fn=_make_test_fn(
-                    args.dataset,
-                    case,
-                    not args.no_verify_tests,
-                    defects4j_bin,
-                    defects4j_env,
-                ),
-                dispatch_fn=dispatch_fn,
-                results_dir=results_dir,
-                scope="full-repo" if args.full_repo else "fix-only",
-                tolerance=args.tolerance,
-            ): case_dict
-            for case, case_dict in pending
-        }
-        # Drain in the main thread as futures complete: keeps append_result()/
-        # print() single-threaded (no lock needed) and isolates one case's
-        # crash from aborting the rest of the batch.
-        for future in as_completed(futures):
-            case_dict = futures[future]
-            key = runner.case_key(case_dict)
-            try:
-                record = future.result()
-            except Exception as exc:  # noqa: BLE001 - one case's crash must not abort the batch
-                record = runner.skip_record(case_dict, f"internal error: {exc}")
+    if pending:
+        estimate = len(pending) * DEFAULT_COST_PER_CASE_ESTIMATE_USD
+        print(
+            f"code-review-benchmark: about to dispatch {len(pending)} case(s); "
+            "prior measured per-case cost $1.29-$4.48 (#974) — conservative "
+            f"estimate ${estimate:.2f} total. Use --max-cost-usd to cap spend.",
+            file=sys.stderr,
+        )
 
-            runner.append_result(record, results_dir)
-            processed += 1
-            status = (
-                "HIT"
-                if record.get("hit")
-                else ("SKIP" if record.get("skipped") else "MISS")
-            )
-            print(f"[{processed}/{total}] {key}: {status}")
+    def _make_kwargs(case: Any) -> Dict[str, Any]:
+        return {
+            "checkout_fn": _make_checkout_fn(
+                args.dataset, case, home, defects4j_bin, defects4j_env
+            ),
+            "ground_truth_fn": _make_ground_truth_fn(args.dataset, case),
+            "test_fn": _make_test_fn(
+                args.dataset,
+                case,
+                not args.no_verify_tests,
+                defects4j_bin,
+                defects4j_env,
+            ),
+            "scope": "full-repo" if args.full_repo else "fix-only",
+            "tolerance": args.tolerance,
+        }
+
+    total_cost = scheduler.run_pending(
+        pending,
+        make_kwargs=_make_kwargs,
+        dispatch_fn=dispatch_fn,
+        results_dir=results_dir,
+        workers=args.workers,
+        max_cost_usd=args.max_cost_usd,
+    )
 
     path = report.write_report(results_dir)
-    print(f"Wrote {path}")
+    print(f"Wrote {path} (total cost: ${total_cost:.2f})")
     return 0
 
 
@@ -324,6 +333,21 @@ def _build_parser() -> argparse.ArgumentParser:
             "dispatches sharing one host's CPU/network/rate limits — a "
             "plausible contributor to the 900s timeouts that motivated "
             "this change."
+        ),
+    )
+    parser.add_argument(
+        "--max-cost-usd",
+        type=_positive_float,
+        default=None,
+        help=(
+            "Fail-safe spend cutoff, USD (#1000, default: no cap). Checked "
+            "only AFTER a case completes — not before the initial "
+            "--workers-sized batch is primed — so realized spend can "
+            "exceed this by up to `workers - 1` extra in-flight cases' "
+            "cost; the executor never cancels an in-flight case. Once "
+            "reached, no further case is submitted; still-queued cases "
+            "are recorded to skipped.jsonl (never silently dropped) and a "
+            "clear message is printed to stderr. Must be > 0."
         ),
     )
     parser.add_argument(
