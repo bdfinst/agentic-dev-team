@@ -4231,11 +4231,11 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**` or `specs/**` related to the task.",
+      "summary": "**If `--spec-issue <url>` was supplied**, skip file discovery entirely: run `gh issue view <url> --json title,body` and extract Intent Description, Architecture Specification, Acceptance Criteria, and Ambiguity Log directly from the issue body — the same headings `/specs`' GitHub-issue persistence branch writes (Ambiguity Log is one more than the file path's three-artifact minimum, so ambiguities `/specs` already resolved with the human stay visible here).",
       "anchor": "steps"
     },
     "1. Check for spec artifacts": {
-      "summary": "Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**` or `specs/**` related to the task.",
+      "summary": "**If `--spec-issue <url>` was supplied**, skip file discovery entirely: run `gh issue view <url> --json title,body` and extract Intent Description, Architecture Specification, Acceptance Criteria, and Ambiguity Log directly from the issue body — the same headings `/specs`' GitHub-issue persistence branch writes (Ambiguity Log is one more than the file path's three-artifact minimum, so ambiguities `/specs` already resolved with the human stay visible here).",
       "anchor": "1-check-for-spec-artifacts"
     },
     "2. Understand the task and cut the slices": {
@@ -4916,9 +4916,9 @@
       "summary": "Three artifacts (Intent, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict.",
       "anchor": "output"
     },
-    "Persist to file": {
-      "summary": "After the gate passes, write all three artifacts plus the verdict to a markdown file.",
-      "anchor": "persist-to-file"
+    "Persist artifacts": {
+      "summary": "After the gate passes, persist all three artifacts plus the verdict so downstream commands (`/plan`, `/build`, spec-compliance-review) can find the spec — chat-only specs are lost between sessions.",
+      "anchor": "persist-artifacts"
     },
     "Auto-trigger /plan": {
       "summary": "After persisting, automatically invoke `/plan` with the feature description.",
