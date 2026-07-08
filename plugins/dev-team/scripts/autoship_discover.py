@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -214,21 +215,64 @@ def render_selection(issues: List[Dict[str, Any]]) -> str:
     )
 
 
+def fetch_issues_from_gh(label: str) -> List[Dict[str, Any]]:
+    """Fetch open issues labeled `label` via a live `gh issue list` call,
+    using `gh`'s cwd-based repo auto-detection (no `--repo` flag — see the
+    plan's Decision-defaults stance).
+
+    The `--state open` server-side filter and the requested `state` field
+    are intentionally redundant with `select_eligible`'s own `state ==
+    "OPEN"` check — this is what makes the `--input-file` and live paths
+    behave identically.
+
+    Raises `DiscoveryError` on a non-zero `gh` exit or malformed JSON output
+    — never an uncaught `CalledProcessError`/`JSONDecodeError`/traceback.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--label",
+                label,
+                "--json",
+                GH_JSON_FIELDS,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except FileNotFoundError as exc:
+        raise DiscoveryError(f"gh CLI not found: {exc}") from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        raise DiscoveryError(
+            f"gh issue list failed (exit {exc.returncode}): {stderr}"
+        ) from exc
+
+    try:
+        issues = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise DiscoveryError(f"gh issue list returned malformed JSON: {exc}") from exc
+
+    validate_issues(issues)
+    return issues
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.input_file:
-        try:
+    try:
+        if args.input_file:
             issues = load_issues_from_file(args.input_file)
-        except DiscoveryError as exc:
-            print(f"autoship_discover: {exc}", file=sys.stderr)
-            return 1
-    else:
-        print(
-            "autoship_discover: live gh fetch is not yet wired (pass --input-file)",
-            file=sys.stderr,
-        )
+        else:
+            issues = fetch_issues_from_gh(args.label)
+    except DiscoveryError as exc:
+        print(f"autoship_discover: {exc}", file=sys.stderr)
         return 1
 
     selected = select_eligible(issues, args.label, args.max_issues)
