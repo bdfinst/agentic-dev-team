@@ -120,7 +120,6 @@ nav:
       - Comparative Testing: plugins/security-assessment/docs/comparative-testing.md
 
   - marketplace-dev Plugin:
-      - Overview: plugins/marketplace-dev/CLAUDE.md
       - Workflows: plugins/marketplace-dev/docs/workflows.md
       - Skills: plugins/marketplace-dev/docs/skills.md
       - Agents: plugins/marketplace-dev/docs/agent_info.md
