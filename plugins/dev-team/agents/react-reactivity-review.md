@@ -62,7 +62,7 @@ setState during render:
 Effect self-writes (infinite loop):
 
 - `useEffect` that writes to a state variable that is also in its dep array — causes unconditional re-render cascade
-- See `knowledge/reactive-effect-patterns.md` §Effect self-writes for the shared pattern
+- See `knowledge/reactive-effect-patterns.md#effect-self-writes-infinite-loop` for the shared pattern
 
 Missing cleanup in useEffect:
 

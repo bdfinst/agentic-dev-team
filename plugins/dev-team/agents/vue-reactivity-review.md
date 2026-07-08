@@ -60,7 +60,7 @@ watchEffect / watch dependency tracking (Vue 3):
 - `watchEffect` callback that reads a value via a plain function call that doesn't access the ref inside the effect scope — the effect doesn't track it and won't re-run
 - `watch(source, handler)` with a non-reactive, plain-JS source value — handler never fires because Vue can't track a non-reactive source
 - Accessing deeply nested reactive data inside a `watch` without `deep: true` — misses nested mutations
-- See `knowledge/reactive-effect-patterns.md` §Effect self-writes for the shared infinite-loop pattern (applies to `watchEffect` writing to its own tracked dep)
+- See `knowledge/reactive-effect-patterns.md#effect-self-writes-infinite-loop` for the shared infinite-loop pattern (applies to `watchEffect` writing to its own tracked dep)
 
 Computed property pitfalls:
 
