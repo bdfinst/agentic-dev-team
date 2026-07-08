@@ -189,6 +189,15 @@ plan** to the operator and wait for explicit approval. **Phase 2 does not run**
 until the operator approves. This is the human gate for Phase 1; do not advance
 past it without approval.
 
+**`/handoff` suggestion.** Phase 1's analysis (CD-alignment, test-design,
+mutation roll-up) can burn significant context. Once the human gate above is
+resolved, print:
+
+```
+Phase 1 complete. Consider running /handoff to compress context before continuing.
+To resume this run in a new session: /test-improve <repo-path> --from-phase 2
+```
+
 ### Phase 2 — Baseline (coverage + mutation)
 
 Capture the objective starting point **before any file under the stack's test
@@ -327,6 +336,15 @@ Phase-4 diff:
    the fixed schema — fields: `base_sha`, `head_sha`, `farley_score`,
    `smells`, `code_review`, `iterations`, `escalated`.
 
+**`/handoff` suggestion.** This review loop's build diffs and parallel
+`/test-design` + `/code-review` dispatch can burn significant context. Once
+the loop above closes (converged, waived, or quit), print:
+
+```
+Phase 4 complete. Consider running /handoff to compress context before continuing.
+To resume this run in a new session: /test-improve <repo-path> --from-phase 4b
+```
+
 ### Phase 4b — Refactor decision prompt
 
 With Phase 4 closed, present the **REFACTOR_REQUIRED** list deferred at
@@ -383,6 +401,14 @@ escalation.
 the **same fixed schema** as Phase 4 (`base_sha`, `head_sha`, `farley_score`,
 `smells`, `code_review`, `iterations`, `escalated`).
 
+**`/handoff` suggestion.** Same rationale as Phase 4's review loop — once
+Phase 5's review loop above closes, print:
+
+```
+Phase 5 complete. Consider running /handoff to compress context before continuing.
+To resume this run in a new session: /test-improve <repo-path> --from-phase 6
+```
+
 ### Phase 6 — Validate (converge quality targets)
 
 Verify the improved suite meets the Phase-0 quality targets. Delegate to
@@ -425,6 +451,15 @@ differently-scoped recount) — and persist
 as `test-counts-before.json` (same six keys, same order, zero-count keys
 present). See Phase 1's own instruction for the full classification
 mechanism; this pass does not restate it.
+
+**`/handoff` suggestion.** Phase 6's mutation/coverage/determinism
+re-measurement loop can burn significant context. Once the evidence and
+recount above are persisted, print:
+
+```
+Phase 6 complete. Consider running /handoff to compress context before continuing.
+To resume this run in a new session: /test-improve <repo-path> --from-phase 7
+```
 
 ### Phase 7 — Executive-summary report
 
