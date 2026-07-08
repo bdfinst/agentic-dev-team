@@ -1,9 +1,11 @@
 ---
+
 name: performance-review
 description: Resource leaks, N+1 queries, unbounded growth, timeouts, algorithmic issues
 tools: Read, Grep, Glob
 effort: medium
 cites: [adversarial-review-protocol]
+scope: always
 ---
 
 # Performance Review
