@@ -40,7 +40,7 @@ Return `{"status": "skip", "issues": [], "summary": "No Vue files in target"}` w
 
 ## Detect
 
-Read `knowledge/reactive-effect-patterns.md` for cross-framework effect/watcher patterns shared with React and Angular agents before running the Vue-specific checks below.
+Whole-file load: `knowledge/reactive-effect-patterns.md` for cross-framework effect/watcher patterns shared with React and Angular agents before running the Vue-specific checks below.
 
 ref vs reactive unwrapping pitfalls (Vue 3):
 

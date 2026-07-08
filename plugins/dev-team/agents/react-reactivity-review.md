@@ -40,7 +40,7 @@ Return `{"status": "skip", "issues": [], "summary": "No React files in target"}`
 
 ## Detect
 
-Read `knowledge/reactive-effect-patterns.md` for cross-framework effect/watcher patterns shared with Vue and Angular agents before running the React-specific checks below.
+Whole-file load: `knowledge/reactive-effect-patterns.md` for cross-framework effect/watcher patterns shared with Vue and Angular agents before running the React-specific checks below.
 
 Stale closures in useEffect / useCallback / useMemo:
 
