@@ -169,9 +169,13 @@ If `--background`: run only `doc-review`, `arch-review`, `naming-review`, `struc
 
 Otherwise read the roster from the **Review Agents** section of `knowledge/agent-registry.md` — each row names an agent and its `agents/<name>.md` file. **Never `Read` the bare `agents/` directory** (it throws `EISDIR`); if you must confirm files on disk, list them with `Glob("agents/*.md")`, never a directory `Read` (see `${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`). All are enabled by default.
 
-**Language-agnostic agents always run** regardless of tech stack: `doc-review`, `arch-review`, `claude-setup-review`, `token-efficiency-review`.
+**Agent eligibility is self-declared via `scope:` frontmatter.** For each agent in the roster, read its `agents/<name>.md` frontmatter and apply this rule:
 
-**Frontend component files in scope** (`.jsx`, `.tsx`, `.vue`, `.svelte`, Angular `*.component.ts` + their templates, or `.js`/`.ts` modules that render UI): always include `component-architecture-review` — the same lens `/frontend-architecture` runs standalone — scoped to those files in step 4.
+- `scope: always` → agent is eligible regardless of tech stack or file types in scope.
+- `scope:` (list of glob patterns) → agent is eligible only when at least one target file matches at least one of the declared globs (e.g. `**/*.svelte` matches any `.svelte` file). Skip the agent entirely if no target file matches.
+- Agent has no `scope:` field → treat as `scope: always` and emit a warning that the agent is missing its `scope:` declaration.
+
+This replaces any hardcoded per-agent dispatch rules. Adding or changing a review agent's trigger scope requires only editing that agent's own frontmatter — zero edits to this skill.
 
 If `review-config.json` exists at the repo root, honor its per-agent `"enabled": false` flags.
 

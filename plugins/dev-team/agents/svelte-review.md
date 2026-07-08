@@ -1,9 +1,14 @@
 ---
+
 name: svelte-review
 description: Svelte reactivity pitfalls, closure state leaks, $state proxy issues, store subscription leaks
 tools: Read, Grep, Glob
 effort: low
 cites: [adversarial-review-protocol]
+scope:
+  - **/*.svelte
+  - **/*.svelte.ts
+  - **/*.svelte.js
 ---
 
 # Svelte Review

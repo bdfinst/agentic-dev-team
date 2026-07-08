@@ -1,9 +1,11 @@
 ---
+
 name: concurrency-review
 description: Race conditions, async pitfalls, idempotency, shared state safety
 tools: Read, Grep, Glob
 effort: medium
 cites: [adversarial-review-protocol]
+scope: always
 ---
 
 # Concurrency Review

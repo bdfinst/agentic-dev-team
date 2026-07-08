@@ -1,9 +1,11 @@
 ---
+
 name: correctness-review
 description: Functional/behavioral defects where implementation diverges from evident intent (missing assignments, wrong operators, inverted conditions, missing guard clauses, off-by-one/boundary errors)
 tools: Read, Grep, Glob
 effort: high
 cites: [adversarial-review-protocol]
+scope: always
 ---
 
 # Correctness Review

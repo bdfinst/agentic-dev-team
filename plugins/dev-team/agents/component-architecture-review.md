@@ -1,9 +1,17 @@
 ---
+
 name: component-architecture-review
 description: Reusable component extraction and frontend duplication — repeated UI patterns, prop drilling, component granularity, inconsistent component APIs
 tools: Read, Grep, Glob
 effort: medium
 cites: [frontend-component-architecture, adversarial-review-protocol]
+scope:
+  - **/*.jsx
+  - **/*.tsx
+  - **/*.vue
+  - **/*.svelte
+  - **/*.component.ts
+  - **/*.component.html
 ---
 
 # Component Architecture Review

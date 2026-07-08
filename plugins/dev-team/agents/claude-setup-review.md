@@ -1,10 +1,12 @@
 ---
+
 name: claude-setup-review
 description: CLAUDE.md completeness, rules, skills, path accuracy, and agent frontmatter schema compliance
 tools: Read, Grep, Glob
 effort: low
 cites: [adversarial-review-protocol, directory-enumeration]
 enforcement: script
+scope: always
 ---
 
 # Claude Setup Review
