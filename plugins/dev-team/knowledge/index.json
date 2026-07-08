@@ -68,6 +68,10 @@
       "summary": "After the initial review pass, re-examine findings with the following questions.",
       "anchor": "the-loop"
     },
+    "Zero-Findings Anomaly": {
+      "summary": "When the Self-Challenge pass produces **zero Confirmed findings** on a **non-trivial",
+      "anchor": "zero-findings-anomaly"
+    },
     "Output": {
       "summary": "After the challenger pass, append to the `summary` field in your JSON output:",
       "anchor": "output"
@@ -4281,7 +4285,7 @@
       "anchor": "verify-log-entry-727"
     },
     "When to Log": {
-      "summary": "| Event | Action |",
+      "summary": "> **Task completion entries are written automatically** by `hooks/task_completion_metrics.py`",
       "anchor": "when-to-log"
     },
     "Output": {
@@ -4507,7 +4511,7 @@
       "anchor": "output"
     },
     "Integration": {
-      "summary": "**Performance Metrics**: Log `hallucination_detected`, `rework_cycles`, `defects_found` on task completion",
+      "summary": "**Performance Metrics**: `hallucination_detected`, `rework_cycles`, `defects_found` are logged automatically by `hooks/task_completion_metrics.py` on task completion — no skill-level logging step needed.",
       "anchor": "integration"
     }
   },

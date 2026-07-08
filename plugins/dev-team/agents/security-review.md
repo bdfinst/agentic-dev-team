@@ -1,9 +1,11 @@
 ---
+
 name: security-review
 description: Injection, auth/authz, data exposure, security headers, crypto
 tools: Read, Grep, Glob
 effort: high
 cites: [owasp-detection, accepted-risks-schema, adversarial-review-protocol]
+scope: always
 ---
 
 # Security Review

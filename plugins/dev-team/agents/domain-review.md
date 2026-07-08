@@ -1,9 +1,11 @@
 ---
+
 name: domain-review
 description: Domain boundaries, abstraction leaks, business logic placement
 tools: Read, Grep, Glob, Skill
 effort: high
 cites: [domain-modeling, ubiquitous-language, adversarial-review-protocol]
+scope: always
 ---
 
 # Domain Review
