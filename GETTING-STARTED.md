@@ -57,7 +57,7 @@ Add this plugin if you're building or maintaining Claude Code plugins and market
 claude plugin install marketplace-dev@bfinster
 ```
 
-Then use `/scaffold-plugin <name>` to create a new plugin, `/scaffold-marketplace <owner>` for a new marketplace, or `/plugin-audit [dir]` to check an existing plugin for structural compliance. See the [marketplace-dev guide](plugins/marketplace-dev/CLAUDE.md) for the full command list.
+Then use `/scaffold-plugin <name>` to create a new plugin, `/scaffold-marketplace <owner>` for a new marketplace, or `/plugin-audit [dir]` to check an existing plugin for structural compliance. See the [marketplace-dev README](plugins/marketplace-dev/README.md) for the full command list.
 
 ### Update an installed plugin
 

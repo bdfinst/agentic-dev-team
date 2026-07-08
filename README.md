@@ -20,9 +20,9 @@ Three Claude Code plugins for engineering workflows. Install one or all.
 | --- | --- | --- | --- | --- |
 | **[dev-team](plugins/dev-team/README.md)** | Persona-driven development team, reviewer swarm, TDD-gated build loop | `/specs`, `/plan`, `/build`, `/pr`, `/code-review`, `/triage` | `jq`, `gh` | `semgrep`, `playwright`, `hadolint`/`trivy`/`grype`; auto-detected formatters and test/type/lint runners |
 | **[security-assessment](plugins/security-assessment/README.md)** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | `dev-team`, Python ≥ 3.10, tier-1 SAST (`semgrep`, `gitleaks`, `trivy`, `hadolint`, `actionlint`) | `grype`, PDF-export deps |
-| **[marketplace-dev](plugins/marketplace-dev/CLAUDE.md)** | Scaffold, audit, and maintain Claude Code plugins and marketplaces | `/scaffold-plugin`, `/scaffold-marketplace`, `/plugin-audit`, `/agent-type-advisor`, `/agent-create` | `jq` | `git` |
+| **[marketplace-dev](plugins/marketplace-dev/README.md)** | Scaffold, audit, and maintain Claude Code plugins and marketplaces | `/scaffold-plugin`, `/scaffold-marketplace`, `/plugin-audit`, `/agent-type-advisor`, `/agent-create` | `jq` | `git` |
 
-Plugin names link to each plugin's README (or, for `marketplace-dev`, its `CLAUDE.md` guide), where the full tool list and per-tool install commands live. Claude Code itself is assumed. **First time here?** Start with `dev-team`; add `security-assessment` only when you run full `/security-assessment` pipelines against target repos, and `marketplace-dev` when you're building or maintaining plugins.
+Plugin names link to each plugin's README, where the full tool list and per-tool install commands live. Claude Code itself is assumed. **First time here?** Start with `dev-team`; add `security-assessment` only when you run full `/security-assessment` pipelines against target repos, and `marketplace-dev` when you're building or maintaining plugins.
 
 ## Getting Started
 
@@ -118,7 +118,7 @@ Start here:
 | [Contributing](CONTRIBUTING.md) | Local development, testing, adding agents/skills, releasing |
 | [Plugin Development Guide](CLAUDE.md) | Project North Star, repo structure, working rules |
 
-Per-plugin docs: **[dev-team](plugins/dev-team/README.md)** · **[security-assessment](plugins/security-assessment/README.md)** · **[marketplace-dev](plugins/marketplace-dev/CLAUDE.md)** — each plugin's README is the entry point to its architecture, commands, and deeper guides.
+Per-plugin docs: **[dev-team](plugins/dev-team/README.md)** · **[security-assessment](plugins/security-assessment/README.md)** · **[marketplace-dev](plugins/marketplace-dev/README.md)** — each plugin's README is the entry point to its architecture, commands, and deeper guides.
 
 Adapting model selection to your environment? See [Model Routing](plugins/dev-team/docs/model-routing.md) and its [override guide](plugins/dev-team/docs/model-routing-overrides.md).
 
