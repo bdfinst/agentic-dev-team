@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""autoship_discover.py — deterministic issue discovery for `/dev-team:autoship` (#989).
+
+Selects open, non-epic issues labeled `autoship:ready` (or `--label`) that
+are not already `autoship:in-progress`/`autoship:blocked` and have no open
+linked pull request, ordered oldest-first and capped at `--max-issues`. This
+is deterministic filtering, not model judgment — see the plan's Architectural
+Context (`plans/issue-989-autoship-discovery-reclaim.md`) for the precedent
+this follows (`scripts/plan_waves.py`, `scripts/git_origin_host.py`).
+
+Usage:
+    autoship_discover.py --max-issues 3 --max-cost-usd 25
+    autoship_discover.py --max-issues 3 --max-cost-usd 25 --label autoship:ready
+    autoship_discover.py --max-issues 3 --max-cost-usd 25 --input-file fixture.json
+
+`--max-issues` and `--max-cost-usd` are both required — a missing cap is a
+hard CLI failure, never a silently-assumed default, since an uncapped round
+could dispatch unboundedly. `--input-file` bypasses the live `gh` fetch
+entirely for tests/dry runs; production use relies on `gh`'s cwd-based repo
+auto-detection (no `--repo` flag — see the plan's Decision-defaults stance).
+
+Stdlib-only. Python 3.8+.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE / "lib"))
+
+import autoship_state  # noqa: E402
+
+DEFAULT_LABEL = "autoship:ready"
+IN_PROGRESS_LABEL = "autoship:in-progress"
+BLOCKED_LABEL = "autoship:blocked"
+
+# Same fields `gh issue list --json` returns for these names — no schema
+# invention. `title` is required because the stdout contract emits it;
+# `state` is required because `select_eligible` checks it directly.
+REQUIRED_ISSUE_FIELDS = (
+    "number",
+    "title",
+    "state",
+    "createdAt",
+    "labels",
+    "closedByPullRequestsReferences",
+    "subIssuesSummary",
+)
+
+GH_JSON_FIELDS = ",".join(REQUIRED_ISSUE_FIELDS)
+
+
+class DiscoveryError(Exception):
+    """A discovery-input or `gh` fetch problem that must surface as a clear
+    CLI error message, not an uncaught exception/traceback."""
+
+
+def _positive_int(raw: str) -> int:
+    """`argparse` `type=` validator for `--max-issues`: rejects `<= 0` at the
+    CLI boundary rather than silently clamping downstream — mirrors
+    `evals/code-review-benchmark/cli.py`'s `_positive_int`."""
+    value = int(raw)
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            f"--max-issues must be a positive integer, got {raw!r}"
+        )
+    return value
+
+
+def _positive_float(raw: str) -> float:
+    """`argparse` `type=` validator for `--max-cost-usd`: rejects `<= 0` at
+    the CLI boundary — mirrors `evals/code-review-benchmark/cli.py`'s
+    `_positive_float`."""
+    value = float(raw)
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            f"--max-cost-usd must be a positive number, got {raw!r}"
+        )
+    return value
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build this CLI's `argparse.ArgumentParser`, isolated from `main()` so
+    tests can assert required/rejected values via
+    `build_parser().parse_args([...])` without exercising `main()`'s
+    file/`gh` I/O."""
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--max-issues",
+        type=_positive_int,
+        required=True,
+        help="Maximum number of issues to select this round. Must be > 0.",
+    )
+    parser.add_argument(
+        "--max-cost-usd",
+        type=_positive_float,
+        required=True,
+        help=(
+            "Budget cap in USD for the round, consumed by /dev-team:autoship's "
+            "own scheduler (not enforced by this script). Must be > 0."
+        ),
+    )
+    parser.add_argument(
+        "--label",
+        default=DEFAULT_LABEL,
+        help=f"Label marking an issue eligible for autoship (default: {DEFAULT_LABEL!r}).",
+    )
+    autoship_state.add_input_seam_args(parser)
+    return parser
+
+
+def validate_issues(issues: Any) -> None:
+    """Validate `issues` is a JSON array of objects each carrying every
+    `REQUIRED_ISSUE_FIELDS` entry.
+
+    Raises `DiscoveryError` naming the malformed entry (by issue number if
+    present, by index otherwise) rather than letting a `KeyError` propagate
+    uncaught.
+    """
+    if not isinstance(issues, list):
+        raise DiscoveryError(
+            "--input-file must contain a JSON array of issue objects, got "
+            f"{type(issues).__name__}"
+        )
+    for idx, issue in enumerate(issues):
+        if not isinstance(issue, dict):
+            raise DiscoveryError(
+                f"malformed --input-file entry at index {idx}: not a JSON object"
+            )
+        missing = [field for field in REQUIRED_ISSUE_FIELDS if field not in issue]
+        if missing:
+            identifier = f"#{issue['number']}" if "number" in issue else f"index {idx}"
+            raise DiscoveryError(
+                f"malformed --input-file entry ({identifier}): missing required "
+                f"field(s) {', '.join(missing)}"
+            )
+
+
+def load_issues_from_file(path: str) -> List[Dict[str, Any]]:
+    """Read and validate the `--input-file` JSON array of issue objects.
+
+    Raises `DiscoveryError` on unreadable/malformed JSON or a schema
+    violation — never an uncaught exception.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            issues = json.load(fh)
+    except json.JSONDecodeError as exc:
+        raise DiscoveryError(f"--input-file {path!r} is not valid JSON: {exc}") from exc
+    except OSError as exc:
+        raise DiscoveryError(f"--input-file {path!r} could not be read: {exc}") from exc
+    validate_issues(issues)
+    return issues
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.input_file:
+        try:
+            load_issues_from_file(args.input_file)
+        except DiscoveryError as exc:
+            print(f"autoship_discover: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print(
+            "autoship_discover: live gh fetch is not yet wired (pass --input-file)",
+            file=sys.stderr,
+        )
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
