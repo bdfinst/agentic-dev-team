@@ -92,7 +92,7 @@ def test_close_out_prompt_gated_on_backlog_file_and_phase_6_not_already_fired():
 def test_close_out_prompt_suppressed_when_backlog_file_absent():
     s = _close_out_section()
     assert grep_multiline(
-        r"does[[:space:]]+not[[:space:]]+exist.*no[[:space:]]+prompt",
+        r"no[[:space:]]+prompt.*does[[:space:]]+not[[:space:]]+exist",
         s,
         ignore_case=True,
     )

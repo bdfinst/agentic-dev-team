@@ -50,7 +50,12 @@ def _phase_6_section() -> str:
 
 
 def _has_suggestion(s: str) -> bool:
-    return grep(SUGGESTION_LINE_1, s) and grep(SUGGESTION_LINE_2, s)
+    # The suggestion prose wraps across physical lines (even mid-phrase), so
+    # collapse all whitespace to single spaces before checking for the two
+    # required substrings — a literal multi-line match would miss a phrase
+    # split across a line break.
+    collapsed = " ".join(s.split())
+    return grep(SUGGESTION_LINE_1, collapsed) and grep(SUGGESTION_LINE_2, collapsed)
 
 
 def test_handoff_suggestion_present_after_phase_1():
@@ -81,10 +86,14 @@ def test_handoff_suggestion_absent_from_phase_4b():
     assert not _has_suggestion(_phase_4b_section())
 
 
+_MESSAGE_RE = re.compile(r"Phase \S+ complete\..{0,300}?--from-phase \S+", re.DOTALL)
+
+
 def test_suggestion_wording_is_identical_at_all_four_insertion_points_modulo_phase_number():
-    """The "Phase N complete." prefix legitimately varies per insertion
-    point — only the phase number should differ, not the rest of the
-    wording."""
+    """The "Phase N complete." prefix and the trailing --from-phase target
+    legitimately vary per insertion point — only those two tokens should
+    differ, not the rest of the wording. Whitespace is normalized first
+    since the prose wraps across physical lines."""
     sections = [
         _phase_1_section(),
         _phase_4_section(),
@@ -93,10 +102,12 @@ def test_suggestion_wording_is_identical_at_all_four_insertion_points_modulo_pha
     ]
     variants = set()
     for s in sections:
-        for line in s.splitlines():
-            if grep(SUGGESTION_LINE_1, line):
-                normalized = re.sub(
-                    r"Phase \S+ complete\.", "Phase N complete.", line.strip()
-                )
-                variants.add(normalized)
+        collapsed = " ".join(s.split())
+        match = _MESSAGE_RE.search(collapsed)
+        assert match, f"no suggestion message found in section: {collapsed[:200]}"
+        normalized = re.sub(
+            r"Phase \S+ complete\.", "Phase N complete.", match.group(0)
+        )
+        normalized = re.sub(r"--from-phase \S+", "--from-phase N", normalized)
+        variants.add(normalized)
     assert len(variants) == 1

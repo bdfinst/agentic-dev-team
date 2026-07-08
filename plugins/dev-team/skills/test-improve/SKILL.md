@@ -189,14 +189,7 @@ plan** to the operator and wait for explicit approval. **Phase 2 does not run**
 until the operator approves. This is the human gate for Phase 1; do not advance
 past it without approval.
 
-**`/handoff` suggestion.** Phase 1's analysis (CD-alignment, test-design,
-mutation roll-up) can burn significant context. Once the human gate above is
-resolved, print:
-
-```
-Phase 1 complete. Consider running /handoff to compress context before continuing.
-To resume this run in a new session: /test-improve <repo-path> --from-phase 2
-```
+**`/handoff` suggestion** (context-heavy analysis). Once the gate above resolves, print: `Phase 1 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 2`
 
 ### Phase 2 — Baseline (coverage + mutation)
 
@@ -336,14 +329,7 @@ Phase-4 diff:
    the fixed schema — fields: `base_sha`, `head_sha`, `farley_score`,
    `smells`, `code_review`, `iterations`, `escalated`.
 
-**`/handoff` suggestion.** This review loop's build diffs and parallel
-`/test-design` + `/code-review` dispatch can burn significant context. Once
-the loop above closes (converged, waived, or quit), print:
-
-```
-Phase 4 complete. Consider running /handoff to compress context before continuing.
-To resume this run in a new session: /test-improve <repo-path> --from-phase 4b
-```
+**`/handoff` suggestion** (context-heavy review). Once the loop above closes, print: `Phase 4 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 4b`
 
 ### Phase 4b — Refactor decision prompt
 
@@ -401,23 +387,16 @@ escalation.
 the **same fixed schema** as Phase 4 (`base_sha`, `head_sha`, `farley_score`,
 `smells`, `code_review`, `iterations`, `escalated`).
 
-**`/handoff` suggestion.** Same rationale as Phase 4's review loop — once
-Phase 5's review loop above closes, print:
-
-```
-Phase 5 complete. Consider running /handoff to compress context before continuing.
-To resume this run in a new session: /test-improve <repo-path> --from-phase 6
-```
+**`/handoff` suggestion** (same rationale as Phase 4). Once the loop above closes, print: `Phase 5 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 6`
 
 ### Phase 6 — Validate (converge quality targets)
 
 Verify the improved suite meets the Phase-0 quality targets. Delegate to
 `/quality-targets-converge --workflow test-improve --refactor-mode <value>`
-(the `<value>` recorded in `phase-0.md` — `no-refactor` or
-`refactor-allowed`); the skill routes memory and plan paths under
-`test-improve/` (per Slice 11). Threading this flag keeps the operator's
-no-refactor choice enforced through Phase 6, not just Phase 4b — see
-`/quality-targets-converge`'s own dispatch-table gating on it.
+(`phase-0.md`'s `no-refactor` or `refactor-allowed`) — the skill routes
+memory and plan paths under `test-improve/` (per Slice 11), and threading
+the flag keeps the operator's no-refactor choice enforced past Phase 4b via
+its own dispatch-table gating.
 
 **Mutation-off skip (not waive).** When `phase-0.md` recorded mutation
 **off**, the mutation target is **skipped** and marked "not enabled for this
@@ -437,11 +416,7 @@ below 90% in no-refactor mode. Re-run in refactor-allowed mode to close the
 gap? `[y/n]`"*. The prompt names the **backlogged REFACTOR_REQUIRED items**
 that would close the gap (drawn from `memory/test-improve/<slug>/refactor-backlog.md`
 when `[b]` was picked at Phase 4b, or from the Phase-3 deferred list when
-Phase 4b was not reached). Whenever this prompt is shown, `phase-6.md`
-records `coverage_reprompt_fired: true` plus the operator's answer — this
-is the durable, `--from-phase`-safe source of truth Phase 7's own close-out
-prompt reads to avoid asking the same question twice in one run (see Phase
-7 below).
+Phase 4b was not reached). Whenever shown, `phase-6.md` records `coverage_reprompt_fired: true` plus the answer — the durable source Phase 7's close-out prompt reads to avoid re-asking (see below).
 
 **Evidence.** Persist target outcomes to
 `memory/test-improve/<slug>/phase-6.md`.
@@ -456,14 +431,7 @@ as `test-counts-before.json` (same six keys, same order, zero-count keys
 present). See Phase 1's own instruction for the full classification
 mechanism; this pass does not restate it.
 
-**`/handoff` suggestion.** Phase 6's mutation/coverage/determinism
-re-measurement loop can burn significant context. Once the evidence and
-recount above are persisted, print:
-
-```
-Phase 6 complete. Consider running /handoff to compress context before continuing.
-To resume this run in a new session: /test-improve <repo-path> --from-phase 7
-```
+**`/handoff` suggestion** (context-heavy re-measurement). Once the recount above is persisted, print: `Phase 6 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 7`
 
 ### Phase 7 — Executive-summary report
 
@@ -515,29 +483,17 @@ Phase 7 against the same memory directory reproduces the report byte-for-byte
 
 ### After Phase 7 — Re-run-with-refactor close-out prompt
 
-Once the executive-summary report is written, decide whether to prompt the
-operator about the deferred-refactor backlog before the run ends:
+**No prompt** when: `refactor-backlog.md` does not exist (no
+`REFACTOR_REQUIRED` items were ever backlogged), the file exists but has
+zero entries (treated the same as absent), or `phase-6.md` records
+`coverage_reprompt_fired: true` (Phase 6's own coverage-driven `[y/n]`
+already fired this run — no repeating the same question twice).
 
-- **`refactor-backlog.md` does not exist** (no `REFACTOR_REQUIRED` items were
-  ever backlogged this run) — **no prompt**.
-- **`refactor-backlog.md` exists but has zero entries** — **no prompt**,
-  treated identically to the absent-file case.
-- **`refactor-backlog.md` exists with at least one entry, and `phase-6.md`
-  records `coverage_reprompt_fired: true`** (Phase 6's own coverage-driven
-  `[y/n]` re-run prompt already fired this run, regardless of the operator's
-  answer) — **no prompt**. Asking again would repeat the same
-  re-run-with-refactor question twice in one run.
-- **`refactor-backlog.md` exists with at least one entry, and `phase-6.md`
-  does *not* record `coverage_reprompt_fired: true`** — prompt the operator
-  with **`[y/n]`**: *"N REFACTOR_REQUIRED items remain backlogged. Re-run
-  with refactor-allowed mode now? `[y/n]`"* (N = the backlog entry count).
-  - **`[n]`** — leaves the backlog as-is (today's implicit default, made
-    explicit).
-  - **`[y]`** — Phase-0 answers are immutable for the remainder of a run, so
-    this is a **new invocation**, not `--from-phase`: tell the operator to
-    re-run `/test-improve <repo-path>` fresh, selecting `refactor-allowed`
-    at the Phase-0 refactor-mode prompt.
-
-This prompt reads clearly distinct from Phase 6's: Phase 6's is
-coverage-driven and fires mid-run: Phase 7's is backlog-driven and fires only
-at close-out, after every other target has already been evaluated.
+**Otherwise** (backlog file has ≥1 entry and Phase 6 never fired its
+prompt), prompt **`[y/n]`** — distinct from Phase 6's coverage-driven,
+mid-run prompt, this one is backlog-driven and fires at close-out: *"N
+REFACTOR_REQUIRED items remain backlogged. Re-run with refactor-allowed
+mode now? `[y/n]`"* (N = entry count). `[n]` leaves the backlog as-is.
+`[y]` — Phase-0 answers are immutable per-run, so tell the operator to
+re-run `/test-improve <repo-path>` fresh, choosing `refactor-allowed`; this
+is a new invocation, not `--from-phase`.
