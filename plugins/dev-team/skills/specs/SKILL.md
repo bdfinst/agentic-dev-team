@@ -57,7 +57,7 @@ Produce three specification artifacts collaboratively with the human before any 
 ## Artifacts
 
 | Artifact | Purpose | Format |
-|---|---|---|
+| --- | --- | --- |
 | Intent Description | What the change achieves and why | Plain language, 1–3 paragraphs |
 | Architecture Specification | Where the change fits and what constraints apply | Structured notes: components, interfaces, dependencies, constraints |
 | Acceptance Criteria | Observable outcomes and quality thresholds that define "done" | Measurable criteria with pass/fail conditions |
@@ -78,7 +78,7 @@ Repeat up to **2 iterations** before escalating.
 ### Critique categories
 
 | Category | Description |
-|---|---|
+| --- | --- |
 | Gaps | Missing acceptance criteria, unstated assumptions, undefined behavior |
 | Ambiguities | Statements two implementers would interpret differently |
 | Conflicts | Contradictions between artifacts or with existing system behavior |
@@ -156,9 +156,19 @@ Validate all three artifacts as a set:
 
 Three artifacts (Intent, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict. Be concise — flag gaps and conflicts; do not narrate the collaboration process.
 
-### Persist to file
+### Persist artifacts
 
-After the gate passes, write all three artifacts plus the verdict to a markdown file. Downstream commands (`/plan`, `/build`, spec-compliance-review) find the spec via this file — chat-only specs are lost between sessions.
+After the gate passes, persist all three artifacts plus the verdict so downstream commands (`/plan`, `/build`, spec-compliance-review) can find the spec — chat-only specs are lost between sessions. **Where** they're persisted depends on the project's origin and whether it has opted into the issue-first specs convention.
+
+#### Classify where to persist
+
+1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py` to classify the origin remote: `github` / `other` / `none`.
+2. When the result is `github`, additionally run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/specs_convention_marker.py` to classify the project's root `CLAUDE.md`: `marker` (contains the issue-first-specs opt-in phrase, e.g. "Specs and plans are GitHub issues here, not files") / `no-marker` (file exists, phrase absent) / `none` (no root `CLAUDE.md` found). If it reports `no-marker` or `none`, you MAY still read the root `CLAUDE.md` yourself and apply judgment for an equivalently-worded-but-differently-phrased declaration of the same convention before concluding "no marker" — but this manual-judgment fallback is deliberately unverified by any automated test, unlike the script's literal-match path (see the script's own module docstring).
+3. **Branch**:
+   - `github` origin **and** a marker found (by the script or by manual judgment) → **Persist to GitHub issue** (below). No downstream consumer of the shipped plugin is silently switched to this path — it requires both an actual GitHub origin and an explicit, repo-declared opt-in.
+   - Anything else — non-`github` origin, `none` origin, or a `github` origin with **no** marker found by either path — → **Persist to file** (below). This is today's behavior, unchanged.
+
+#### Persist to file
 
 1. **Slugify** the feature name: lowercase, replace spaces with hyphens, strip special characters. ("User Login with MFA" → `user-login-with-mfa`)
 2. **Create** `docs/specs/` if missing.
@@ -196,6 +206,22 @@ All gap and ambiguity findings from the Ambiguity Resolution Protocol, with thei
 
 1. **Print** the file path to chat so the user can find it.
 
+#### Persist to GitHub issue
+
+1. **Slugify** the feature name (same rule as above) — used to derive the issue title and search query, not a file path.
+2. **Search** for an existing open issue: `gh issue list --search "Spec: <Feature Name> in:title" --state open`. If this call itself exits non-zero, treat it as a hard failure — **never** as "zero matches" (that would risk silently creating a duplicate issue) — report the failure and its cause to chat, and fall back to **Persist to file** above with the already-composed content so the approved spec is never lost.
+3. **Branch on the match count**:
+   - **Zero matches** → proceed straight to create (step 4).
+   - **Exactly one match** → interactive: ask "Found existing issue #N for this spec — update it in place, or create a new one?"; non-interactive (no usable TTY): default to **updating** that single match in place (never create a duplicate) and log the auto-choice.
+   - **Two or more matches** → interactive: surface every matching issue and ask which to update, or whether to create a new one instead — never silently pick one; non-interactive: default to **creating** a new issue and explicitly log the ambiguity (which candidate issues it did not act on).
+4. **Compose** the issue body using the same structure as the file template above (Intent Description, Architecture Specification, Acceptance Criteria, Ambiguity Log, Consistency Gate), titled `Spec: <Feature Name>`.
+5. **Create** (`gh issue create --title "Spec: <Feature Name>" --body "<composed body>"`) or **update** (`gh issue edit <N> --body "<composed body>"`) per step 3's decision.
+6. If the create/update call exits non-zero, report the failure and its cause to chat, do **not** claim success, and fall back to **Persist to file** above with the already-composed content.
+7. On success, **print** the resulting issue URL to chat — do not write `docs/specs/<slug>.md` on this path.
+
 ### Auto-trigger /plan
 
 After persisting, automatically invoke `/plan` with the feature description. The plan command discovers the spec artifacts, decomposes the feature into vertical slices, and authors the Gherkin scenarios for each slice. Do not ask first — the approved spec is the trigger.
+
+- **File-based persistence** (unchanged): invoke `/plan "<feature description>"` — `/plan` discovers `docs/specs/**` on its own.
+- **GitHub-issue persistence**: invoke `/plan "<feature description>" --spec-issue <issue-url>`, passing the issue URL from "Persist to GitHub issue" step 7. Without this, `/plan`'s own Step 1 (which only searches `docs/specs/**`) would immediately hit its "no specification artifacts found" prompt in the very same run — reintroducing the human interruption this auto-trigger's "do not ask first" contract exists to avoid.
