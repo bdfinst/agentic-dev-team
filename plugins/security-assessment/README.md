@@ -106,6 +106,16 @@ The check validates:
 | `/export-pdf <report.md>` | PDF export via pandoc / weasyprint |
 | `/upgrade` | Update the plugin to the latest marketplace release; offer to enable marketplace-level auto-update |
 
+## Documentation
+
+| Doc | Covers |
+|---|---|
+| [Workflows](docs/workflows.md) | Pipeline phases, orchestrator commands, red-team flow |
+| [Skills catalog](docs/skills.md) | All skills and commands with descriptions and options |
+| [Agents](docs/agent_info.md) | Assessment, cross-repo, and red-team agents with dispatch model |
+| [User Guide](docs/user-guide-security-assessment.md) | Full runbook — install, run, interpret results |
+| [Accepted Risks Format](docs/accepted-risks-format.md) | `ACCEPTED-RISKS.md` schema and suppression rules |
+
 ## Update
 
 Run `/upgrade` from any Claude Code session with this plugin loaded. It:
