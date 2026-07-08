@@ -1,5 +1,17 @@
 # Changelog
 
+## [10.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.4.0...dev-team-v10.5.0) (2026-07-08)
+
+
+### Features
+
+* **help:** show curated main workflows by default, --all for everything ([c825c23](https://github.com/bdfinst/agentic-dev-team/commit/c825c2349fec51c4d16bd47cbaafde3373694665))
+
+
+### Bug Fixes
+
+* **help:** regenerate knowledge/index.json after SKILL.md edit ([b52129c](https://github.com/bdfinst/agentic-dev-team/commit/b52129ce9ba6acd27d5fad30b3c7147145c658c3))
+
 ## [10.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.2...dev-team-v10.4.0) (2026-07-08)
 
 
