@@ -61,14 +61,19 @@ def _seed_checkout(workdir: str, files) -> None:
         path.write_text("stub\n", encoding="utf-8")
 
 
-def _dispatch_result(review_json: Dict[str, Any] = _REVIEW_JSON) -> Dict[str, Any]:
+def _dispatch_result(
+    review_json: Dict[str, Any] = _REVIEW_JSON, cost_usd: Any = 4.48
+) -> Dict[str, Any]:
     """A dispatch_fn return value shaped like the real `make_isolated_dispatch_fn`
     output: both the raw wrapper stdout AND the already-extracted `result_text`
-    (the runner reads `result_text` directly; it does not re-parse `raw_stdout`)."""
+    (the runner reads `result_text` directly; it does not re-parse `raw_stdout`),
+    plus `cost_usd` (#1000) — defaults to a real measured value (#974) so tests
+    exercise cost propagation by default rather than opting in."""
     result_text = json.dumps(review_json)
     return {
         "raw_stdout": json.dumps({"result": result_text}),
         "result_text": result_text,
+        "cost_usd": cost_usd,
     }
 
 
@@ -95,6 +100,7 @@ def test_run_case_hit(tmp_path: Path) -> None:
     assert len(record["findings"]) == 1
     assert record["unmatched_findings"] == []
     assert Path(record["raw_output_path"]).is_file()
+    assert record["cost_usd"] == 4.48
 
 
 def test_run_case_checkout_failure_is_skipped(tmp_path: Path) -> None:
@@ -106,6 +112,8 @@ def test_run_case_checkout_failure_is_skipped(tmp_path: Path) -> None:
     )
     assert record["skipped"] is True
     assert record["reason"] == "checkout failed"
+    # No dispatch ever happened for this case — nothing was spent (#1000).
+    assert record["cost_usd"] is None
 
 
 def test_run_case_no_ground_truth_is_skipped(tmp_path: Path) -> None:
@@ -261,6 +269,7 @@ def test_run_case_unparseable_json_is_skipped(tmp_path: Path) -> None:
         return {
             "raw_stdout": json.dumps({"result": "not json at all"}),
             "result_text": "not json at all",
+            "cost_usd": 1.29,
         }
 
     record = runner.run_case(
@@ -273,6 +282,25 @@ def test_run_case_unparseable_json_is_skipped(tmp_path: Path) -> None:
     assert record["reason"] == "unparseable --json output"
     # Raw output is still saved verbatim even on a parse failure.
     assert Path(record["raw_output_path"]).is_file()
+    # #1000: the dispatch happened and cost real money even though its
+    # output couldn't be parsed/scored — that cost must not be lost.
+    assert record["cost_usd"] == 1.29
+
+
+def test_skip_record_defaults_cost_usd_to_none() -> None:
+    """Direct unit coverage: every skip reason that fires before a dispatch
+    (the overwhelming majority of call sites) gets `cost_usd=None` for free
+    by simply not passing the keyword — this is the contract that makes
+    that safe."""
+    record = runner.skip_record(_CASE, "checkout failed")
+    assert record["cost_usd"] is None
+
+
+def test_skip_record_carries_explicit_cost_usd() -> None:
+    record = runner.skip_record(
+        _CASE, "unparseable --json output", "raw.txt", cost_usd=3.33
+    )
+    assert record["cost_usd"] == 3.33
 
 
 def test_run_case_full_repo_scope_passes_full_checkout(tmp_path: Path) -> None:
@@ -419,14 +447,10 @@ def test_extract_review_json_no_fence_parses_raw_json() -> None:
     assert runner._extract_review_json(json.dumps(_REVIEW_JSON)) == _REVIEW_JSON
 
 
-def test_make_isolated_dispatch_fn_carries_over_auth_state(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """`make_isolated_dispatch_fn()`'s dispatch closure must call
-    `copy_auth_state()` (#957) so the harness's own runs keep the
-    operator's real Claude Code login — unlike the standalone
-    `isolated_dispatch.py` script/skill, where this is opt-in."""
-    calls = []
+def _make_fake_isolated_dispatch(tmp_path: Path, calls: list):
+    """Shared fake `isolated_dispatch` module stand-in for
+    `make_isolated_dispatch_fn()` tests (#957 auth-carry-over, #1000
+    cost extraction) — avoids redefining the same four-method stub per test."""
 
     class _FakeIsolatedDispatch:
         @staticmethod
@@ -452,8 +476,21 @@ def test_make_isolated_dispatch_fn_carries_over_auth_state(
         def build_cmd(prompt, session_id, model, cwd=None):
             return ["claude", "-p", prompt]
 
+    return _FakeIsolatedDispatch
+
+
+def test_make_isolated_dispatch_fn_carries_over_auth_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`make_isolated_dispatch_fn()`'s dispatch closure must call
+    `copy_auth_state()` (#957) so the harness's own runs keep the
+    operator's real Claude Code login — unlike the standalone
+    `isolated_dispatch.py` script/skill, where this is opt-in."""
+    calls: list = []
     monkeypatch.setattr(
-        runner, "_load_isolated_dispatch", lambda: _FakeIsolatedDispatch
+        runner,
+        "_load_isolated_dispatch",
+        lambda: _make_fake_isolated_dispatch(tmp_path, calls),
     )
 
     import subprocess as subprocess_module
@@ -469,6 +506,62 @@ def test_make_isolated_dispatch_fn_carries_over_auth_state(
     dispatch_fn("/code-review --json", str(tmp_path))
 
     assert calls == [("copy_auth_state", tmp_path / "cell-home")]
+
+
+def test_make_isolated_dispatch_fn_extracts_cost_usd_from_wrapper(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """#1000: the wrapper JSON's `total_cost_usd` (already reported by the
+    underlying `claude -p --output-format json` call) must be surfaced as
+    `cost_usd` in the dispatch result, so the harness can track real spend."""
+    monkeypatch.setattr(
+        runner,
+        "_load_isolated_dispatch",
+        lambda: _make_fake_isolated_dispatch(tmp_path, []),
+    )
+
+    import subprocess as subprocess_module
+
+    def fake_run(cmd, **kwargs):
+        return subprocess_module.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout=json.dumps({"result": "{}", "total_cost_usd": 2.5}),
+        )
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", str(tmp_path))
+
+    assert result["cost_usd"] == 2.5
+
+
+def test_make_isolated_dispatch_fn_cost_usd_none_when_wrapper_unparseable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A malformed wrapper (or a case where the process was killed before
+    printing) must not crash — `cost_usd` is simply `None`, mirroring
+    `result_text`'s existing None-on-failure contract."""
+    monkeypatch.setattr(
+        runner,
+        "_load_isolated_dispatch",
+        lambda: _make_fake_isolated_dispatch(tmp_path, []),
+    )
+
+    import subprocess as subprocess_module
+
+    def fake_run(cmd, **kwargs):
+        return subprocess_module.CompletedProcess(
+            args=cmd, returncode=0, stdout="not json at all"
+        )
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", str(tmp_path))
+
+    assert result["cost_usd"] is None
 
 
 def test_append_and_resume_roundtrip(tmp_path: Path) -> None:

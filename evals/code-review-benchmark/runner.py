@@ -135,8 +135,17 @@ def _build_scoped_dir(checkout_dir: str, files: List[str]) -> str:
 
 
 def skip_record(
-    case: Dict[str, Any], reason: str, raw_output_path: Optional[str] = None
+    case: Dict[str, Any],
+    reason: str,
+    raw_output_path: Optional[str] = None,
+    cost_usd: Optional[float] = None,
 ) -> Dict[str, Any]:
+    """`cost_usd` is `None` (the default) for every skip reason that fires
+    before a dispatch happens (checkout failure, no ground truth, no
+    recognized source) — nothing was spent. The one skip reason that fires
+    *after* a real dispatch ("unparseable --json output", #1000) passes the
+    dispatch's actual `cost_usd` through explicitly, since that case still
+    cost real money even though it couldn't be scored."""
     return {
         "dataset": case["dataset"],
         "project": case["project"],
@@ -144,6 +153,7 @@ def skip_record(
         "skipped": True,
         "reason": reason,
         "raw_output_path": raw_output_path,
+        "cost_usd": cost_usd,
     }
 
 
@@ -211,13 +221,16 @@ def run_case(
 
         prompt = f"/code-review --path {review_dir} --json"
         dispatch_result = dispatch_fn(prompt, review_dir) or {}
+        cost_usd = dispatch_result.get("cost_usd")
 
         raw_path = raw_dir / f"{case['dataset']}-{case['project']}-{case['bug_id']}.txt"
         raw_path.write_text(dispatch_result.get("raw_stdout") or "", encoding="utf-8")
 
         review_json = _extract_review_json(dispatch_result.get("result_text"))
         if review_json is None:
-            return skip_record(case, "unparseable --json output", str(raw_path))
+            return skip_record(
+                case, "unparseable --json output", str(raw_path), cost_usd=cost_usd
+            )
 
         findings = _flatten_findings(review_json)
         scored = scorer.score(ground_truth_hunks, findings, tolerance=tolerance)
@@ -233,6 +246,7 @@ def run_case(
             "unmatched_findings": scored["unmatched"],
             "raw_output_path": str(raw_path),
             "test_verification": test_verification,
+            "cost_usd": cost_usd,
         }
     finally:
         shutil.rmtree(checkout_dir, ignore_errors=True)
@@ -364,12 +378,18 @@ def make_isolated_dispatch_fn(
 
         raw_stdout = proc.stdout or ""
         result_text = None
+        cost_usd = None
         try:
             wrapper = json.loads(raw_stdout)
             result_text = wrapper.get("result")
+            cost_usd = wrapper.get("total_cost_usd")
         except (json.JSONDecodeError, ValueError):
             pass
-        return {"raw_stdout": raw_stdout, "result_text": result_text}
+        return {
+            "raw_stdout": raw_stdout,
+            "result_text": result_text,
+            "cost_usd": cost_usd,
+        }
 
     return dispatch
 
