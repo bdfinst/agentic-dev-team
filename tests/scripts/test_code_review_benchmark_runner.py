@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import pytest
 
@@ -562,6 +564,395 @@ def test_make_isolated_dispatch_fn_cost_usd_none_when_wrapper_unparseable(
     result = dispatch_fn("/code-review --json", str(tmp_path))
 
     assert result["cost_usd"] is None
+
+
+class _RetryFakeIsolatedDispatch:
+    """A `_load_isolated_dispatch()` fake that supports the `resume` kwarg
+    `build_cmd()` gained in Slice 1 — the pre-existing
+    `_FakeIsolatedDispatch` above predates that and deliberately isn't
+    reused here, so this class's `build_cmd` signature exactly matches the
+    real `isolated_dispatch.build_cmd`'s post-Slice-1 shape."""
+
+    SESSION_ID = "22222222-2222-2222-2222-222222222222"
+
+    @staticmethod
+    def make_cell_home():
+        return Path(tempfile.mkdtemp(prefix="crb-retry-fake-home-"))
+
+    @staticmethod
+    def copy_auth_state(home):
+        return True
+
+    @classmethod
+    def new_session_id(cls):
+        return cls.SESSION_ID
+
+    @staticmethod
+    def build_env(home):
+        return {}
+
+    @staticmethod
+    def build_cmd(prompt, session_id, model, cwd=None, resume=False):
+        cmd = ["claude", "-p", prompt]
+        cmd += ["--resume", session_id] if resume else ["--session-id", session_id]
+        cmd += ["--output-format", "json", "--model", model]
+        return cmd
+
+
+def _wrapper_stdout(result_text: Optional[str], is_error: bool = False) -> str:
+    return json.dumps({"result": result_text, "is_error": is_error})
+
+
+def test_make_isolated_dispatch_fn_retries_once_on_unparseable_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#999/#1002: a completed, non-error dispatch whose result_text has no
+    parseable --json payload gets exactly ONE follow-up dispatch, resuming
+    the SAME session — not a fresh one — asking it to re-emit the JSON."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if len(calls) == 1:
+            stdout = _wrapper_stdout("Aggregated JSON emitted per contract.")
+        else:
+            stdout = _wrapper_stdout(json.dumps(_REVIEW_JSON))
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=stdout)
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert len(calls) == 2
+    retry_cmd = calls[1]
+    assert "--resume" in retry_cmd
+    assert (
+        retry_cmd[retry_cmd.index("--resume") + 1]
+        == _RetryFakeIsolatedDispatch.SESSION_ID
+    )
+    assert "--session-id" not in retry_cmd
+    # The retry sends the short re-emission instruction, NOT a repeat of the
+    # original /code-review prompt (which would defeat the "cheap, no work
+    # redone" premise the retry is built on).
+    assert retry_cmd[2] == runner._JSON_RETRY_PROMPT
+    assert retry_cmd[2] != "/code-review --json"
+
+    assert result["retry_attempted"] is True
+    assert json.loads(result["result_text"]) == _REVIEW_JSON
+    # doc-review finding: the retry's own raw stdout must be persisted
+    # alongside the primary dispatch's, not silently discarded — raw/*.txt
+    # exists specifically so a parser bug never loses data, and a retried
+    # case is exactly the scenario this feature targets.
+    assert "Aggregated JSON emitted per contract." in result["raw_stdout"]
+    assert "missing assignment" in result["raw_stdout"]
+
+
+def test_make_isolated_dispatch_fn_retry_also_fails_keeps_original_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the retry ALSO comes back unparseable, the ORIGINAL (still
+    unparseable) result_text is preserved for raw-output/debugging
+    purposes, and retry_attempted is still True."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    original_text = "Review complete: FAIL overall, no JSON here."
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        text = original_text if len(calls) == 1 else "still just prose"
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout=_wrapper_stdout(text)
+        )
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert len(calls) == 2
+    assert result["retry_attempted"] is True
+    assert result["result_text"] == original_text
+
+
+def test_make_isolated_dispatch_fn_no_retry_when_first_call_errored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A first dispatch that itself reports is_error: true is not retried —
+    resuming a broken run's session isn't expected to help."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout=_wrapper_stdout("something went wrong", is_error=True),
+        )
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert len(calls) == 1
+    assert result["retry_attempted"] is False
+
+
+def test_make_isolated_dispatch_fn_no_retry_when_first_result_already_parses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A first dispatch whose result_text already parses as the --json
+    payload triggers no retry at all — the common, non-failure case."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout=_wrapper_stdout(json.dumps(_REVIEW_JSON))
+        )
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert len(calls) == 1
+    assert result["retry_attempted"] is False
+    assert json.loads(result["result_text"]) == _REVIEW_JSON
+
+
+def test_make_isolated_dispatch_fn_no_retry_when_first_dispatch_times_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The FIRST dispatch timing out (subprocess.TimeoutExpired) must not
+    attempt a retry — there is no completed session to resume. Explicit
+    regression coverage for this path (Acceptance Test Critic finding),
+    not just the structural guarantee of an early return."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs.get("timeout", 0))
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert len(calls) == 1
+    assert result["retry_attempted"] is False
+    assert result["is_error"] is True
+
+
+def test_make_isolated_dispatch_fn_retry_follow_up_times_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The RETRY dispatch itself timing out must not crash the case — the
+    original (still-unparseable) result_text is preserved and
+    retry_attempted stays True (Acceptance + Design critic finding: AC3's
+    'times out' sub-mode had no test)."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    original_text = (
+        "Per the --json contract, that JSON object is the run's only output."
+    )
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout=_wrapper_stdout(original_text)
+            )
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs.get("timeout", 0))
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert len(calls) == 2
+    assert result["retry_attempted"] is True
+    assert result["result_text"] == original_text
+    # The retry subprocess itself never produced usable stdout (it raised),
+    # but that must still be visible in the persisted raw output rather
+    # than silently vanishing — a debugging-time distinction between "the
+    # retry ran and also narrated" and "the retry never completed at all."
+    assert original_text in result["raw_stdout"]
+    assert "retry subprocess failed" in result["raw_stdout"]
+
+
+def test_make_isolated_dispatch_fn_retry_follow_up_raises_unexpected_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retry dispatch that raises something other than TimeoutExpired
+    (e.g. an OSError spawning the subprocess) must not propagate and crash
+    the case — same "never let a broken retry sink the case" contract as
+    the timeout path, and the same contract cli.py already applies at the
+    batch level for `run_case` itself."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    original_text = "Review complete: FAIL overall, no JSON emitted."
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout=_wrapper_stdout(original_text)
+            )
+        raise OSError("could not spawn subprocess")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert len(calls) == 2
+    assert result["retry_attempted"] is True
+    assert result["result_text"] == original_text
+
+
+def test_make_isolated_dispatch_fn_retry_follow_up_wrapper_is_error_true(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retry whose own wrapper JSON reports is_error: true (the resumed
+    session itself errored, distinct from merely being unparseable) must
+    not be treated as a successful retry — the ORIGINAL text is kept."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    original_text = (
+        "Aggregated JSON emitted to stdout per --json contract; run stops here."
+    )
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if len(calls) == 1:
+            stdout = _wrapper_stdout(original_text)
+        else:
+            stdout = _wrapper_stdout(json.dumps(_REVIEW_JSON), is_error=True)
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=stdout)
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn()
+    result = dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert len(calls) == 2
+    assert result["retry_attempted"] is True
+    assert result["result_text"] == original_text
+
+
+def test_make_isolated_dispatch_fn_retry_on_unparseable_false_suppresses_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`retry_on_unparseable=False` (the `--no-json-retry` path) must
+    suppress the retry at the dispatch-closure level, not just at CLI
+    argument parsing — proves the flag is actually wired through and
+    honored (Acceptance Test Critic finding: AC6 had no end-to-end test)."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout=_wrapper_stdout("Aggregated JSON emitted per contract."),
+        )
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn(retry_on_unparseable=False)
+    result = dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert len(calls) == 1
+    assert result["retry_attempted"] is False
+
+
+def test_make_isolated_dispatch_fn_retry_timeout_override_reaches_subprocess_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`retry_timeout=` must reach the actual retry `subprocess.run` call's
+    `timeout=` kwarg — not just be accepted by argparse (Design &
+    Architecture Critic finding on the second review pass). The primary
+    dispatch keeps the larger `timeout=` budget; only the retry call uses
+    the smaller, independently-overridable `retry_timeout`."""
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _RetryFakeIsolatedDispatch
+    )
+
+    seen_timeouts = []
+
+    def fake_run(cmd, **kwargs):
+        seen_timeouts.append(kwargs.get("timeout"))
+        if len(seen_timeouts) == 1:
+            stdout = _wrapper_stdout("Aggregated JSON emitted per contract.")
+        else:
+            stdout = _wrapper_stdout(json.dumps(_REVIEW_JSON))
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=stdout)
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn(timeout=1800, retry_timeout=5)
+    dispatch_fn("/code-review --json", "/tmp/some-dir")
+
+    assert seen_timeouts == [1800, 5]
+
+
+def test_run_case_skip_reason_notes_retry_when_retry_attempted(tmp_path: Path) -> None:
+    """`run_case`'s skip reason distinguishes a retried-but-still-failed
+    dispatch from one where no retry was ever attempted (#999/#1002)."""
+
+    def checkout_fn(workdir: str) -> bool:
+        _seed_checkout(workdir, ["src/Foo.java"])
+        return True
+
+    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+        return {
+            "raw_stdout": json.dumps({"result": "still prose"}),
+            "result_text": "still prose",
+            "retry_attempted": True,
+        }
+
+    record = runner.run_case(
+        _CASE,
+        checkout_fn=checkout_fn,
+        dispatch_fn=dispatch_fn,
+        results_dir=tmp_path,
+    )
+    assert record["skipped"] is True
+    assert record["reason"] == "unparseable --json output (after retry)"
 
 
 def test_append_and_resume_roundtrip(tmp_path: Path) -> None:

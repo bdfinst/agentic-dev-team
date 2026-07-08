@@ -68,6 +68,33 @@ def test_workers_rejects_negative() -> None:
         cli._build_parser().parse_args(["--dataset", "defects4j", "--workers", "-1"])
 
 
+def test_no_json_retry_defaults_off_so_retry_backstop_stays_on() -> None:
+    """#999/#1002: the retry-once backstop (`runner.make_isolated_dispatch_fn`'s
+    `retry_on_unparseable`) defaults ON — `--no-json-retry` must default to
+    `False` so an operator opts OUT, not opts in."""
+    args = cli._build_parser().parse_args(["--dataset", "defects4j"])
+    assert args.no_json_retry is False
+
+
+def test_no_json_retry_flag_disables_the_backstop() -> None:
+    args = cli._build_parser().parse_args(["--dataset", "defects4j", "--no-json-retry"])
+    assert args.no_json_retry is True
+
+
+def test_json_retry_timeout_defaults_to_none() -> None:
+    """`None` lets `runner.make_isolated_dispatch_fn` fall back to its own
+    `min(timeout, 300)` default rather than cli.py hard-coding a number."""
+    args = cli._build_parser().parse_args(["--dataset", "defects4j"])
+    assert args.json_retry_timeout is None
+
+
+def test_json_retry_timeout_override_still_works() -> None:
+    args = cli._build_parser().parse_args(
+        ["--dataset", "defects4j", "--json-retry-timeout", "120"]
+    )
+    assert args.json_retry_timeout == 120
+
+
 class _FakeCase:
     def __init__(self, bug_id: str) -> None:
         self.bug_id = bug_id

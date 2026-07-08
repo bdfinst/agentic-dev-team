@@ -11,7 +11,9 @@ Nested inside a live Remote session, a plain `claude -p` reuses the parent
   * a fresh temp HOME + CLAUDE_CONFIG_DIR (no shared config/memory/telemetry);
   * a SCRUBBED env with inherited CLAUDE_* session/Remote identity vars removed;
   * a fresh `--session-id <uuid>` per invocation (the key fix for the reused
-    session_id) with NO `--resume`;
+    session_id) with NO `--resume` by default (see `build_cmd(resume=...)`
+    for the harness's opt-in, same-session #999/#1002 retry exception —
+    this script's own CLI/`run()` entry point never sets it);
   * `--output-format json` so the caller reads the verified session_id/cost;
   * a hard subprocess timeout.
 
@@ -232,27 +234,34 @@ def build_cmd(
     model: str,
     cwd: Optional[str] = None,  # accepted for symmetry; cwd is applied at run time
     skip_permissions: Optional[bool] = None,
+    resume: bool = False,
 ) -> List[str]:
     """The `claude -p` argv for one isolated dispatch.
 
-    Always carries `--session-id <uuid>` (the reused-session fix) and
-    `--output-format json`; NEVER `--resume`/`--fork-session` (those would
-    re-adopt an existing session). `--dangerously-skip-permissions` is added
-    only when not running as root (the CLI blocks it under root), matching
-    run_tdd_experiment's `os.getuid() == 0` guard."""
+    Default (`resume=False`): always carries `--session-id <uuid>` (the
+    reused-session fix) and `--output-format json`; NEVER `--resume`/
+    `--fork-session` (those would re-adopt an existing session).
+    `--dangerously-skip-permissions` is added only when not running as root
+    (the CLI blocks it under root), matching run_tdd_experiment's
+    `os.getuid() == 0` guard.
+
+    `resume=True` (#999/#1002's harness-side retry-once backstop, see
+    `evals/code-review-benchmark/runner.py::make_isolated_dispatch_fn`):
+    targets an EXISTING session via `--resume <session_id>` instead of
+    starting a fresh one — used for a cheap same-session follow-up dispatch
+    when the primary dispatch's `/code-review --json` response narrated
+    instead of emitting its required JSON payload, so the retry doesn't
+    redo the (expensive) review, only asks the same session to re-state its
+    already-computed result. Mutually exclusive with `--session-id` by
+    construction (the CLI only accepts one or the other)."""
     if skip_permissions is None:
         skip_permissions = not _is_root()
-    cmd = [
-        "claude",
-        "-p",
-        prompt,
-        "--session-id",
-        session_id,
-        "--output-format",
-        "json",
-        "--model",
-        model,
-    ]
+    cmd = ["claude", "-p", prompt]
+    if resume:
+        cmd += ["--resume", session_id]
+    else:
+        cmd += ["--session-id", session_id]
+    cmd += ["--output-format", "json", "--model", model]
     if skip_permissions:
         cmd.append("--dangerously-skip-permissions")
     return cmd
