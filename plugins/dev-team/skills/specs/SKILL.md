@@ -223,5 +223,7 @@ All gap and ambiguity findings from the Ambiguity Resolution Protocol, with thei
 
 After persisting, automatically invoke `/plan` with the feature description. The plan command discovers the spec artifacts, decomposes the feature into vertical slices, and authors the Gherkin scenarios for each slice. Do not ask first — the approved spec is the trigger.
 
-- **File-based persistence** (unchanged): invoke `/plan "<feature description>"` — `/plan` discovers `docs/specs/**` on its own.
-- **GitHub-issue persistence**: invoke `/plan "<feature description>" --spec-issue <issue-url>`, passing the issue URL from "Persist to GitHub issue" step 7. Without this, `/plan`'s own Step 1 (which only searches `docs/specs/**`) would immediately hit its "no specification artifacts found" prompt in the very same run — reintroducing the human interruption this auto-trigger's "do not ask first" contract exists to avoid.
+**Key this off which persistence action actually succeeded, not the "Classify where to persist" decision** — the GitHub-issue path can itself fall back to file (search failure at step 2, or create/update failure at step 6):
+
+- **A file was written** (either "Classify where to persist" chose the file path, or the GitHub-issue path fell back to one): invoke `/plan "<feature description>"` — `/plan` discovers `docs/specs/**` on its own.
+- **An issue was created or updated** (step 7 succeeded): invoke `/plan "<feature description>" --spec-issue <issue-url>`, passing that issue's URL. Without this, `/plan`'s own Step 1 (which only searches `docs/specs/**`) would immediately hit its "no specification artifacts found" prompt in the very same run — reintroducing the human interruption this auto-trigger's "do not ask first" contract exists to avoid.
