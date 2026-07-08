@@ -33,6 +33,7 @@ cp -r "${REPO_ROOT}/plugins/security-assessment/docs"      "${OUT}/plugins/secur
 # intentionally NOT published to the docs site)
 mkdir -p "${OUT}/plugins/marketplace-dev/docs"
 mkdir -p "${OUT}/plugins/marketplace-dev/knowledge"
+cp "${REPO_ROOT}/plugins/marketplace-dev/README.md"        "${OUT}/plugins/marketplace-dev/README.md"
 cp -r "${REPO_ROOT}/plugins/marketplace-dev/docs"  "${OUT}/plugins/marketplace-dev/"
 cp "${REPO_ROOT}/plugins/marketplace-dev/CHANGELOG.md"     "${OUT}/plugins/marketplace-dev/CHANGELOG.md"
 cp "${REPO_ROOT}/plugins/marketplace-dev/knowledge/agent-type-decision-rules.md" \
