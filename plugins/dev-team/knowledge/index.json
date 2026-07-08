@@ -898,6 +898,10 @@
       "summary": "Only a **top-level human invocation** writes to `DEV_TEAM_REPORTS/`:",
       "anchor": "write-scope-rule"
     },
+    "Report exception: /ship": {
+      "summary": "`/ship`'s Step 5 (\"Review\") dispatches `/code-review` with neither",
+      "anchor": "report-exception-ship"
+    },
     "Fixed filenames: overwrite vs. never-overwrite": {
       "summary": "`/review-agent` and `/code-review` write a **fixed, per-workflow filename**",
       "anchor": "fixed-filenames-overwrite-vs-never-overwrite"
