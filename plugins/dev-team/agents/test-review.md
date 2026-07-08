@@ -155,6 +155,41 @@ Testability blockers:
 - Mocking of concrete classes (not interfaces) — flag as warning; extract an interface for the dependency
 - Tests using reflection into private members as primary strategy — flag as warning. This is an architecture/encapsulation issue the test is reaching around, not a test-hygiene nit. Detection signatures: Java: `getDeclaredMethod`/`getDeclaredField` + `setAccessible(true)`, `Method.invoke` on a private/protected member; C#: `Type.GetMethod(..., BindingFlags.NonPublic | BindingFlags.Instance)`, `Type.InvokeMember`; Python: `getattr`/`setattr`/`hasattr` targeting a name-mangled (`_ClassName__attr`) or underscore-prefixed attribute; JS/TS: bracket-notation access into a `private`/non-exported member (e.g. `(obj as any)['_privateMethod']()`), `Object.getOwnPropertyDescriptor`/`Object.defineProperty` used to reach a non-exported member. Suggested fix — pick by shape of the code, never the generic "expand the public API": (1) extract the private logic into a collaborator with its own public seam, when it's standalone logic worth testing independently; (2) relax visibility to package-private/internal, only when a production collaborator in the same module/assembly independently needs the access (the language must have that tier) — never as a grant solely so the test can reach in, which recreates the `InternalsVisibleTo`/`@VisibleForTesting` anti-pattern below; (3) test the behavior through the class's existing public API, when the private method is already an implementation detail of a public behavior
 
+## Tolerated-Deviation Hunt
+
+Run this cheap grep pass on every core-flow file in scope (non-test source files, not
+third-party). Count tolerated-deviation artifacts from the following categories:
+
+- **Disabled tests** — `@Ignore`, `@Disabled`, `xit(`, `xdescribe(`, `test.skip(`,
+  `it.skip(`, `[Ignore]`, `[Skip]`, `pytest.mark.skip`, `pytest.mark.xfail` with no
+  linked issue or expiry
+- **Aged markers** — `TODO`, `FIXME`, `HACK`, `XXX` comments (any age is a candidate;
+  flag as aged when there is no linked ticket or follow-up action)
+- **Suppressed warnings** — `@SuppressWarnings`, `#pragma warning disable`,
+  `# noqa`, `# type: ignore`, `eslint-disable`, `pylint: disable` with no explanatory
+  comment naming the specific approved exception
+- **Relaxed assertions** — assertion strings containing "either … or", "at least",
+  "approximately", tolerance widening (e.g. `delta=`, `places=1` in `assertAlmostEqual`)
+- **Widened tolerances** — numeric epsilon/tolerance constants changed without a
+  comment explaining the regression
+
+**Consolidation rule**: when **≥ 3 of these artifacts appear in the same file**, emit
+a **single** named finding:
+
+```json
+{
+  "severity": "warning",
+  "confidence": "medium",
+  "file": "<file>",
+  "line": <first artifact line>,
+  "message": "Fail-safe posture erosion: <N> tolerated-deviation artifacts co-located in this file (<list artifact types and lines>). Each item is a once-flagged deviation now silently tolerated; together they signal accumulated erosion of the test safety net. Distinct from test-audit-disable (which targets mechanically cannot-fail tests) — this check targets the broader pattern of suppressed signals. Remove or link each item to a tracked remediation.",
+  "suggestedFix": "For each artifact: either fix the underlying issue and remove the marker, or link it to a tracked issue with an expiry condition. Disabled tests with no remediation plan are the highest priority."
+}
+```
+
+When fewer than 3 artifacts appear in a file, do not itemize them as individual
+low-severity nits — note their presence in the summary only.
+
 ## Self-Challenge
 
 After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these test-review-specific challenges:
