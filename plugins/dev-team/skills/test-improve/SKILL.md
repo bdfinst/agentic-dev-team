@@ -304,10 +304,16 @@ After **all Phase-4 Stories have closed**, run the review loop over the
 Phase-4 diff:
 
 1. **Dispatch in parallel** — `/test-design --since <base-sha>` and
-   `/code-review --since <base-sha>` run **concurrently** against the diff
-   between the Phase-4 base commit and HEAD.
+   `/code-review --since <base-sha> --internal` run **concurrently** against
+   the diff between the Phase-4 base commit and HEAD. `--internal`
+   (not `--json`) mirrors `/build`'s Step 6 backstop-review flag choice: it
+   suppresses the `DEV_TEAM_REPORTS/code-review.md` write (this is a
+   diff-scoped, phase-internal review, not a human-invoked top-level run —
+   `knowledge/report-output-location.md`) while keeping the prose/
+   `corrections/` output sub-step 2 depends on — `--json` would skip that
+   output entirely.
 2. **Apply fixes.** Run `/apply-fixes corrections/`, then **re-run
-   `/code-review`** to confirm.
+   `/code-review --internal`** to confirm.
 3. **Iterate at most 2 rounds.** After **2 iterations** without clean
    `/code-review`, prompt the operator with **`[r]evise / [w]aive / [q]uit`**
    (shape `[r/w/q]`).
@@ -368,9 +374,10 @@ halts that Story until the operator resolves it.
 
 **End-of-phase review loop.** After all Phase-5 Stories close, run the
 **same review loop as Phase 4** (see the Phase 4 end-of-phase review loop
-above) — `/test-design --since` and `/code-review --since` dispatch in
-parallel over the Phase-5 diff; `/apply-fixes corrections/` then re-run
-`/code-review`; cap 2 iterations with `[r/w/q]` escalation.
+above) — `/test-design --since` and `/code-review --since --internal`
+dispatch in parallel over the Phase-5 diff; `/apply-fixes corrections/` then
+re-run `/code-review --internal`; cap 2 iterations with `[r/w/q]`
+escalation.
 
 **Evidence.** Write `memory/test-improve/<slug>/phase-5-review.json` using
 the **same fixed schema** as Phase 4 (`base_sha`, `head_sha`, `farley_score`,
