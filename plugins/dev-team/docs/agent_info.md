@@ -27,6 +27,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
 | `a11y-review` | [`a11y-review.md`](../agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
+| `ai-provenance-review` | [`ai-provenance-review.md`](../agents/ai-provenance-review.md) | opus | AI-authored test assertion verification debt, regeneration-risk candidates |
 | `angular-reactivity-review` | [`angular-reactivity-review.md`](../agents/angular-reactivity-review.md) | sonnet | Angular Zone.js pitfalls, OnPush violations, RxJS subscription leaks |
 | `arch-review` | [`arch-review.md`](../agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
 | `claude-setup-review` | [`claude-setup-review.md`](../agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
