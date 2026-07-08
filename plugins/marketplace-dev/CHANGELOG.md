@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.0.0...marketplace-dev-v1.1.0) (2026-07-08)
+
+
+### Features
+
+* implement open issues batch (autoship, co-evolution, nav, audit) ([c57c533](https://github.com/bdfinst/agentic-dev-team/commit/c57c5332a8ede2689aef1d1460e2ee34f38aee2b)), closes [#1065](https://github.com/bdfinst/agentic-dev-team/issues/1065) [#1066](https://github.com/bdfinst/agentic-dev-team/issues/1066) [#1067](https://github.com/bdfinst/agentic-dev-team/issues/1067) [#1068](https://github.com/bdfinst/agentic-dev-team/issues/1068) [#1069](https://github.com/bdfinst/agentic-dev-team/issues/1069) [#1070](https://github.com/bdfinst/agentic-dev-team/issues/1070) [#1071](https://github.com/bdfinst/agentic-dev-team/issues/1071)
+
+
+### Documentation
+
+* documentation overhaul for all three plugins ([d2e5caf](https://github.com/bdfinst/agentic-dev-team/commit/d2e5cafe0789ae39c9bb5a3393bd933d3c04da01))
+
 ## [1.0.0](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v0.1.0...marketplace-dev-v1.0.0) (2026-06-26)
 
 
