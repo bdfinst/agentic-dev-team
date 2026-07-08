@@ -131,9 +131,11 @@ python3 cli.py --dataset bugsjs --project Bower --resume
 python3 cli.py --dataset defects4j --limit-projects 2 --full-repo
 
 # Full sweep: every project in both datasets (same --results-dir, so
-# results.jsonl accumulates across both runs and report.md covers both)
-python3 cli.py --dataset defects4j --workers 4
-python3 cli.py --dataset bugsjs --workers 4
+# results.jsonl accumulates across both runs and report.md covers both).
+# --workers left at its default (2) here deliberately — see #974 below on
+# why a higher value multiplies concurrent nested `claude -p` dispatches.
+python3 cli.py --dataset defects4j
+python3 cli.py --dataset bugsjs
 
 # Regenerate report.md from existing results.jsonl without re-dispatching
 python3 cli.py --report-only
@@ -151,8 +153,8 @@ python3 cli.py --report-only
 | `--limit-projects N` | Cap the number of projects processed |
 | `--tolerance N` | Line-range tolerance for hit scoring (default 3) |
 | `--model` | Model tier passed to the `/code-review` dispatch (default `sonnet`) |
-| `--timeout` | Per-case dispatch timeout in seconds (default 900) |
-| `--workers` | Number of bug cases run concurrently, thread pool (default 4) |
+| `--timeout` | Per-case dispatch timeout in seconds (default 1800 — raised from 900 after #974: a "single file" review still fans out to the full ~14-agent roster, not a lightweight pass; see `runner.make_isolated_dispatch_fn`'s docstring for the measured evidence) |
+| `--workers` | Number of bug cases run concurrently, thread pool (default 2 — lowered from 4 after #974 to bound how many ~14-20-way agent fan-outs run concurrently on one host) |
 | `--no-verify-tests` | Skip building/installing deps and running the project's own test suite per case (on by default; diagnostic only — see below) |
 | `--defects4j-home`, `--bugsjs-home` | Dataset home dirs (or the matching env vars) |
 | `--results-dir` | Where `results.jsonl`/`skipped.jsonl`/`report.md`/`raw/` are written (default `./results`) |
@@ -200,11 +202,14 @@ reproduced-vs-not when any case ran verification.
 
 ## Parallel execution
 
-Cases run concurrently across a thread pool (`--workers`, default 4) — each
-case does its own checkout into a private temp dir and its own subprocess
-calls (git/defects4j/npm/`claude`), so cases don't share mutable state.
-Raise `--workers` for a faster full sweep; keep it low if you're worried
-about hitting rate limits on the underlying `claude -p` dispatches.
+Cases run concurrently across a thread pool (`--workers`, default 2 (#974))
+— each case does its own checkout into a private temp dir and its own
+subprocess calls (git/defects4j/npm/`claude`), so cases don't share mutable
+state. Raise `--workers` for a faster full sweep; keep it low if you're
+worried about hitting rate limits on the underlying `claude -p` dispatches:
+each "case" is itself a ~14-20-way parallel agent fan-out (see
+`runner.make_isolated_dispatch_fn`'s docstring), so `--workers 4` means up
+to ~60-80 concurrent nested `claude -p` dispatches, not 4.
 
 ## Layout
 

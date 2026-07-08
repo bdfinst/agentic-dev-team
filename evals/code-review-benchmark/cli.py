@@ -223,7 +223,11 @@ def run(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
+    """Build this CLI's `argparse.ArgumentParser`, isolated from `main()` so
+    tests can assert defaults/overrides (e.g. `--timeout`/`--workers`, #974)
+    via `_build_parser().parse_args([...])` without exercising `run()`'s
+    dataset auto-provisioning/detection."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -257,13 +261,32 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Model tier passed to the /code-review dispatch.",
     )
     parser.add_argument(
-        "--timeout", type=int, default=900, help="Per-case dispatch timeout, seconds."
+        "--timeout",
+        type=int,
+        default=1800,
+        help=(
+            "Per-case dispatch timeout, seconds (default 1800). Raised from "
+            "900 after #974: a live single-file /code-review dispatch still "
+            "fans out to the full ~14-agent review roster (scope narrows "
+            "which files are reviewed, not how many agents run), measured "
+            "at up to 58 turns / 846s cumulative API time / $4.48 for one "
+            "real Defects4J case even at low concurrency — 900s was too "
+            "tight a ceiling for that real cost, not evidence of a hang."
+        ),
     )
     parser.add_argument(
         "--workers",
         type=int,
-        default=4,
-        help="Number of bug cases to run concurrently (thread pool).",
+        default=2,
+        help=(
+            "Number of bug cases to run concurrently, thread pool (default "
+            "2). Lowered from 4 after #974: each case is really a ~14-20-"
+            "way parallel agent fan-out under the hood, so 4 concurrent "
+            "cases means up to ~60-80 concurrent nested `claude -p` "
+            "dispatches sharing one host's CPU/network/rate limits — a "
+            "plausible contributor to the 900s timeouts that motivated "
+            "this change."
+        ),
     )
     parser.add_argument(
         "--no-verify-tests",
@@ -290,6 +313,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="Only (re)generate report.md from existing results.",
     )
+    return parser
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = _build_parser()
     args = parser.parse_args(argv)
 
     if not args.report_only and not args.dataset:
