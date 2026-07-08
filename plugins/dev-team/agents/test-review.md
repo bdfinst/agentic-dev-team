@@ -3,7 +3,7 @@ name: test-review
 description: Test quality, coverage gaps, assertion quality, and test hygiene
 tools: Read, Grep, Glob, Skill
 effort: medium
-cites: [testability-patterns, result-verification, test-automation-maturity, adversarial-review-protocol]
+cites: [testability-patterns, result-verification, test-automation-maturity, adversarial-review-protocol, oracle-provenance]
 ---
 
 # Test Review
@@ -26,7 +26,9 @@ Read `knowledge/testability-patterns.md` before analysis. Whole-file load: the a
 
 For maintainability findings (duplicated selectors/literals, UI-based setup), consult `knowledge/test-automation-maturity.md`. Whole-file load: apply its single-point-of-change check and graduated-disclosure thresholds (don't recommend abstraction below the count threshold).
 
-For assertion-quality findings, consult `knowledge/result-verification.md`. Whole-file load: name the specific verification pattern (Expected Object, Custom Assertion, Guard Assertion, Delta Assertion) that fixes a weak/cluttered/misleading assertion, and enforce one logical condition per test.
+For assertion-quality findings, consult `knowledge/result-verification.md`.
+
+For oracle-provenance classification (SPEC-DERIVED / INDEPENDENT / CIRCULAR), consult `knowledge/oracle-provenance.md`. Whole-file load: apply the taxonomy, detection heuristics, and circular-ratio quality-cap rule to every file reviewed. Report the oracle-provenance ratio in the finding summary when any circular oracles are present. Whole-file load: name the specific verification pattern (Expected Object, Custom Assertion, Guard Assertion, Delta Assertion) that fixes a weak/cluttered/misleading assertion, and enforce one logical condition per test.
 
 ## Skills
 
@@ -125,6 +127,27 @@ Test code quality:
 - Magic literal values in assertions with no explanation of their significance
 - Dead test utilities or helpers that are defined but never called
 - Low automation maturity (`test-automation-maturity.md`): a volatile detail (selector, endpoint, field name) duplicated raw across many test files (single-point-of-change failure); UI driven to establish preconditions instead of back-door setup — flag only when suite size makes the cost real (graduated thresholds)
+
+Oracle provenance (correctness vs. stability):
+
+Apply the SPEC-DERIVED / INDEPENDENT / CIRCULAR taxonomy from `knowledge/oracle-provenance.md`. For each test, classify its expected values by provenance. Report the oracle-provenance ratio (circular / total) in the finding summary when any circular oracles are detected:
+
+- Circular ratio < 20 %: suggestion — add provenance comments to snapshot-based assertions
+- Circular ratio 20–50 %: warning — suite has meaningful circular-oracle contamination
+- Circular ratio > 50 %: error — suite is circular-oracle-dominated; the file's Test Quality contribution is capped at 60. A circular-oracle-dominated suite verifies stability, not correctness; regressions can go undetected if snapshots are updated without independent verification.
+
+Do not double-report individual snapshot findings when `test-smell-review` is also running in the same session — note the ratio in the summary instead.
+
+Unarmored regions (survivorship-bias gaps):
+
+An **unarmored region** is code that has *neither* test coverage *nor* any sign of historical defensive attention — no negative tests, no error-path assertions, no defensive comments (e.g. `// edge case`, `// TODO: handle`, `// regression: ...`), no related test utility. This is distinct from an ordinary missing-edge-case coverage gap:
+
+- A **coverage gap** is code that is under-tested — some tests exist but a boundary or error path is missing.
+- An **unarmored region** is code that has never been examined — no tests AND no sign anyone has looked at it defensively. It is the least-examined code, not merely the least-tested.
+
+Detection: identify functions, branches, or modules where (a) no test exercises the path AND (b) no surrounding context shows historical defensive attention. Flag these as a named "unarmored region" finding, distinct from ordinary coverage-gap findings.
+
+Severity: warning. Suggested fix: prioritize writing tests for unarmored regions before coverage-gap backfill — they carry higher unknown-risk per line of code.
 
 Testability blockers:
 
