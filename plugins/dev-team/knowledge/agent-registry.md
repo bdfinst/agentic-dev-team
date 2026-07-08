@@ -45,7 +45,10 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | session-analysis | `agents/session-analysis.md` | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
 | spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — first gate before quality review |
 | structure-review | `agents/structure-review.md` | SRP violations, DRY, coupling, file organization |
+| angular-reactivity-review | `agents/angular-reactivity-review.md` | Angular Zone.js change-detection pitfalls, OnPush + immutability violations, RxJS subscription leaks |
+| react-reactivity-review | `agents/react-reactivity-review.md` | React hook rules, stale closures in useEffect, missing dependency arrays, subscription leaks |
 | svelte-review | `agents/svelte-review.md` | Svelte reactivity pitfalls, closure state leaks |
+| vue-reactivity-review | `agents/vue-reactivity-review.md` | Vue ref/reactive unwrapping pitfalls, watchEffect dependency tracking, subscription leaks |
 | test-review | `agents/test-review.md` | Coverage gaps, assertion quality, test hygiene |
 | test-smell-review | `agents/test-smell-review.md` | xUnit test smells, test-double selection, test-pyramid layer placement |
 | token-efficiency-review | `agents/token-efficiency-review.md` | File/function size, LLM anti-patterns, token usage |
@@ -127,7 +130,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 
 | Name | File | ~Tokens | Used By |
 | ------ | ------ | --------- | --------- |
-| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 23 review agents (a11y-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review) |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 26 review agents (a11y-review, angular-reactivity-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, svelte-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
 | Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
 | CD Maturity Model | `knowledge/cd-maturity-model.md` | ~870 | Platform Engineer, QA Engineer |
