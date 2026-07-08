@@ -18,10 +18,12 @@ Only a **top-level human invocation** writes to `DEV_TEAM_REPORTS/`:
   `--internal` is passed (the orchestrator-internal dispatch signal; `/build`
   is the only sanctioned caller today).
 - `/code-review` (interactive, no `--json`) writes
-  `DEV_TEAM_REPORTS/code-review.md` — **unless** `--internal` is passed
-  (again, `/build`'s Step 6 backstop review is the only sanctioned caller
-  today) or `--json` is passed (CI/`/pr` callers — `--json` never writes a
-  file, full stop).
+  `DEV_TEAM_REPORTS/code-review.md` — **unless** `--internal` is passed (the
+  sanctioned callers today are `/build`'s Step 6 backstop review and
+  `/test-improve`'s Phase 4/5 end-of-phase review loop — see below for
+  `/ship`'s Step 5, a deliberate, documented exception that keeps writing
+  the report) or `--json` is passed (CI/`/pr` callers — `--json` never
+  writes a file, full stop).
 - `/triage` writes `DEV_TEAM_REPORTS/triage/<slug>.md` unconditionally — it
   has no orchestrator-internal caller today.
 
@@ -29,6 +31,31 @@ Only a **top-level human invocation** writes to `DEV_TEAM_REPORTS/`:
 governs output format and bypasses the review-fix loop; `--internal` only
 suppresses the `DEV_TEAM_REPORTS/` write and has no effect on the fix loop
 or output format.
+
+## Report exception: /ship
+
+`/ship`'s Step 5 ("Review") dispatches `/code-review` with neither
+`--internal` nor `--json` — so it writes `DEV_TEAM_REPORTS/code-review.md`
+by default, unlike `/build`'s Step 6 and `/test-improve`'s Phase 4/5 review
+loop above. This is a **deliberate, stated exception** to the "only a
+top-level human invocation writes" rule, not an unaudited gap (issue #982):
+
+`/ship` is itself `user-invocable: true` and is only ever entered by a
+human directly typing `/ship` — but so is `/build`, whose own internal
+Step 6 dispatch is suppressed, so being human-typed at the top isn't by
+itself what earns the exception. What does: Step 5 *is* `/ship`'s pipeline
+review gate — its own text says "Surface any findings that need human
+judgment," and Step 7's completion report surfaces that outcome back to the
+human who typed `/ship`. Contrast `/build`'s Step 6, a pure automated
+backstop with no separate human-facing surfacing of the review artifact
+itself, and `/test-improve`'s per-phase loop, whose diff-scoped calls run
+multiple times per session and would each only cover one phase's slice of
+the total diff — neither represents "the latest state for this repo" the
+way a single top-level review does. Reinforcing this: `/code-review`'s own
+step-6 "exception (b)" (which skips the interactive fix-or-report prompt for
+callers "running inside `/build` or `/pr`") does not name `/ship` either —
+`/ship`'s dispatch is genuinely interactive today, consistent with a human
+being present for this gate rather than an orchestrator-internal backstop.
 
 ## Fixed filenames: overwrite vs. never-overwrite
 
