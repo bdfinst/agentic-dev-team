@@ -1,3 +1,16 @@
+# Behavior spec for issue #968's no-refactor-mode durability fixes.
+# Source of record: plans/test-improve-no-refactor-mode-should-skip-all-refactor-gated-steps.md (Slice 1) · issue #968
+# Enforced by: tests/skills/test_improve_phase_6_refactor_mode.py
+# (Scenarios also covered by tests/skills/test_quality_targets_converge_workflow_param.py,
+# tests/skills/test_improve_executive_summary_template.py,
+# tests/skills/test_improve_handoff_suggestion.py, and
+# tests/skills/test_improve_phase_7.py — one per Gherkin scenario's
+# corresponding SKILL.md/template section.)
+#
+# This file is a Given/When/Then spec, not an eval-grader fixture (see
+# evals/skills/README.md). Executable enforcement is the pytest contracts
+# named above; non-drift is checked by tests/repo/test_feature_spec_refs.py.
+
 Feature: /test-improve's no-refactor mode stays durable through Phase 6, and the deferred-refactor backlog is visible and actionable at close-out
 
   Scenario: Phase 6 threads the Phase-0 refactor-mode value into /quality-targets-converge
