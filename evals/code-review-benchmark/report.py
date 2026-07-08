@@ -69,6 +69,13 @@ def build_report(results_dir: Any) -> str:
     lines.append(f"Overall recall: {_fmt_recall(overall)}")
     if skipped:
         lines.append(f"Skipped: {len(skipped)} (see Skipped section below)")
+    # #1000: sum cost_usd across BOTH results.jsonl and skipped.jsonl — a
+    # case skipped for "unparseable --json output" still paid for a real
+    # dispatch, so its cost counts too. `.get("cost_usd") or 0.0` treats a
+    # missing/None field (a case that never dispatched, or an older record
+    # from before this field existed) as $0.00 rather than raising.
+    total_cost = sum((r.get("cost_usd") or 0.0) for r in list(results) + list(skipped))
+    lines.append(f"Total cost: ${total_cost:.2f}")
     lines.append("")
 
     lines.append("## Recall by dataset")

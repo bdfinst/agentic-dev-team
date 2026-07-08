@@ -143,6 +143,85 @@ def test_report_no_results_is_well_formed(tmp_path: Path) -> None:
     assert "No hit runs to compute noise from." in text
 
 
+def test_report_total_cost_sums_results_and_skipped(tmp_path: Path) -> None:
+    """#1000: total cost is a sum across BOTH results.jsonl and
+    skipped.jsonl — a case skipped for "unparseable --json output" still
+    paid for a real dispatch."""
+    _write_jsonl(
+        tmp_path / "results.jsonl",
+        [
+            {
+                "dataset": "defects4j",
+                "project": "Lang",
+                "bug_id": "29",
+                "hit": True,
+                "ground_truth_hunks": [],
+                "findings": [],
+                "unmatched_findings": [],
+                "raw_output_path": "r1.txt",
+                "cost_usd": 4.48,
+            },
+            {
+                "dataset": "bugsjs",
+                "project": "Bower",
+                "bug_id": "1",
+                "hit": False,
+                "ground_truth_hunks": [],
+                "findings": [],
+                "unmatched_findings": [],
+                "raw_output_path": "r2.txt",
+                "cost_usd": 1.29,
+            },
+        ],
+    )
+    _write_jsonl(
+        tmp_path / "skipped.jsonl",
+        [
+            {
+                "dataset": "defects4j",
+                "project": "Lang",
+                "bug_id": "23",
+                "skipped": True,
+                "reason": "unparseable --json output",
+                "cost_usd": 0.75,
+            },
+            {
+                "dataset": "defects4j",
+                "project": "Lang",
+                "bug_id": "9",
+                "skipped": True,
+                "reason": "checkout failed",
+                "cost_usd": None,
+            },
+        ],
+    )
+
+    text = report.build_report(tmp_path)
+    assert "Total cost: $6.52" in text
+
+
+def test_report_total_cost_defaults_missing_field_to_zero(tmp_path: Path) -> None:
+    """Records with no `cost_usd` key at all (older results, pre-#1000)
+    must not crash the report — they contribute $0.00."""
+    _write_jsonl(
+        tmp_path / "results.jsonl",
+        [
+            {
+                "dataset": "bugsjs",
+                "project": "Bower",
+                "bug_id": "1",
+                "hit": True,
+                "ground_truth_hunks": [],
+                "findings": [],
+                "unmatched_findings": [],
+                "raw_output_path": "r1.txt",
+            }
+        ],
+    )
+    text = report.build_report(tmp_path)
+    assert "Total cost: $0.00" in text
+
+
 def test_write_report_creates_results_dir(tmp_path: Path) -> None:
     target = tmp_path / "nested" / "results"
     path = report.write_report(target)
