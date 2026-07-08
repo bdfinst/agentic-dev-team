@@ -43,19 +43,25 @@ top-level human invocation writes" rule, not an unaudited gap (issue #982):
 `/ship` is itself `user-invocable: true` and is only ever entered by a
 human directly typing `/ship` — but so is `/build`, whose own internal
 Step 6 dispatch is suppressed, so being human-typed at the top isn't by
-itself what earns the exception. What does: Step 5 *is* `/ship`'s pipeline
-review gate — its own text says "Surface any findings that need human
-judgment," and Step 7's completion report surfaces that outcome back to the
-human who typed `/ship`. Contrast `/build`'s Step 6, a pure automated
-backstop with no separate human-facing surfacing of the review artifact
-itself, and `/test-improve`'s per-phase loop, whose diff-scoped calls run
-multiple times per session and would each only cover one phase's slice of
-the total diff — neither represents "the latest state for this repo" the
-way a single top-level review does. Reinforcing this: `/code-review`'s own
-step-6 "exception (b)" (which skips the interactive fix-or-report prompt for
-callers "running inside `/build` or `/pr`") does not name `/ship` either —
-`/ship`'s dispatch is genuinely interactive today, consistent with a human
-being present for this gate rather than an orchestrator-internal backstop.
+itself what earns the exception. The stronger distinguishing factor is
+**frequency and scope, not surfacing**: `/build`'s Step 7.5 evidence bundle
+does surface the Step 6 `/code-review` *status* back to the human at
+completion (a pass/fail line, not the artifact itself), and `/test-improve`
+similarly surfaces its review outcome in each phase's evidence file — so
+"no human-facing surfacing at all" is not the real dividing line. What
+actually differs: `/build`'s Step 6 and `/test-improve`'s per-phase loop
+each run **multiple times across a session** (once per build, once per
+`/test-improve` phase) against a **diff-scoped** slice of the total change —
+a `DEV_TEAM_REPORTS/code-review.md` write from either would represent only
+one slice's worth of review, repeatedly overwritten, not "the latest state
+for this repo." `/ship`'s Step 5 runs **once**, at the end of the whole
+shipped feature, over the **full accumulated diff** — the one point in the
+pipeline where a durable, complete review artifact is both meaningful and
+non-redundant. Reinforcing this: `/code-review`'s own step-6 "exception (b)"
+(which skips the interactive fix-or-report prompt for callers "running
+inside `/build` or `/pr`") does not name `/ship` either — `/ship`'s dispatch
+is genuinely interactive today, consistent with a human being present for
+this one-time gate rather than an orchestrator-internal backstop.
 
 ## Fixed filenames: overwrite vs. never-overwrite
 
