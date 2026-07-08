@@ -1,0 +1,32 @@
+# Capability taxonomy for plugins/marketplace-dev/docs/skills.md.
+#
+# build_skills_index.py groups the skills catalog by these capabilities, in this
+# order. Each entry's row (name, description) is derived from the file's own
+# frontmatter — this file only decides *which capability section* it lands in.
+# A skill on disk that is not listed here falls into a trailing "Other" section;
+# the freshness gate then shows it as a diff, prompting you to file it under the
+# right capability and regenerate.
+#
+# Regenerate after editing:
+#   python3 plugins/dev-team/hooks/lib/build_skills_index.py \
+#     --plugin-dir plugins/marketplace-dev
+
+categories:
+  - name: Plugin Scaffolding
+    skills:
+      - scaffold-marketplace
+      - scaffold-plugin
+      - init-plugin-eval
+
+  - name: Agent Authoring
+    skills:
+      - agent-create
+      - agent-add
+      - agent-remove
+      - agent-skill-authoring
+      - agent-type-advisor
+
+  - name: Plugin Maintenance
+    skills:
+      - add-plugin
+      - plugin-audit

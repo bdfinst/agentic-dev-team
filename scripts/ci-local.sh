@@ -167,7 +167,13 @@ chk_eval_corpus()     { python3 scripts/eval_grade.py --check-corpus; }
 chk_oe_staleness()    { python3 scripts/oe_scoring_staleness.py --warn-only; }
 chk_citation_lint()   { python3 scripts/citation_lint.py --all; }  # advisory (#312)
 chk_md_references()   { python3 scripts/check_md_references.py; }
-chk_skills_index()    { python3 plugins/dev-team/hooks/lib/build_skills_index.py --check; }
+chk_skills_index() {
+  local script=plugins/dev-team/hooks/lib/build_skills_index.py
+  python3 "$script" --check || return 1
+  for plugin_dir in plugins/security-assessment plugins/marketplace-dev; do
+    python3 "$script" --plugin-dir "$plugin_dir" --check || return 1
+  done
+}
 chk_rules_vs_prompts() { bash scripts/audit-rules-vs-prompts.sh; }
 chk_python_only() {
   if [ -n "$BASE" ]; then
