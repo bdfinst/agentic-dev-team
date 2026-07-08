@@ -437,7 +437,11 @@ below 90% in no-refactor mode. Re-run in refactor-allowed mode to close the
 gap? `[y/n]`"*. The prompt names the **backlogged REFACTOR_REQUIRED items**
 that would close the gap (drawn from `memory/test-improve/<slug>/refactor-backlog.md`
 when `[b]` was picked at Phase 4b, or from the Phase-3 deferred list when
-Phase 4b was not reached).
+Phase 4b was not reached). Whenever this prompt is shown, `phase-6.md`
+records `coverage_reprompt_fired: true` plus the operator's answer — this
+is the durable, `--from-phase`-safe source of truth Phase 7's own close-out
+prompt reads to avoid asking the same question twice in one run (see Phase
+7 below).
 
 **Evidence.** Persist target outcomes to
 `memory/test-improve/<slug>/phase-6.md`.
@@ -508,3 +512,32 @@ the same link.
 `memory/test-improve/<slug>/`. Deleting the report file and re-invoking
 Phase 7 against the same memory directory reproduces the report byte-for-byte
 — no run-time state is consulted outside the memory directory.
+
+### After Phase 7 — Re-run-with-refactor close-out prompt
+
+Once the executive-summary report is written, decide whether to prompt the
+operator about the deferred-refactor backlog before the run ends:
+
+- **`refactor-backlog.md` does not exist** (no `REFACTOR_REQUIRED` items were
+  ever backlogged this run) — **no prompt**.
+- **`refactor-backlog.md` exists but has zero entries** — **no prompt**,
+  treated identically to the absent-file case.
+- **`refactor-backlog.md` exists with at least one entry, and `phase-6.md`
+  records `coverage_reprompt_fired: true`** (Phase 6's own coverage-driven
+  `[y/n]` re-run prompt already fired this run, regardless of the operator's
+  answer) — **no prompt**. Asking again would repeat the same
+  re-run-with-refactor question twice in one run.
+- **`refactor-backlog.md` exists with at least one entry, and `phase-6.md`
+  does *not* record `coverage_reprompt_fired: true`** — prompt the operator
+  with **`[y/n]`**: *"N REFACTOR_REQUIRED items remain backlogged. Re-run
+  with refactor-allowed mode now? `[y/n]`"* (N = the backlog entry count).
+  - **`[n]`** — leaves the backlog as-is (today's implicit default, made
+    explicit).
+  - **`[y]`** — Phase-0 answers are immutable for the remainder of a run, so
+    this is a **new invocation**, not `--from-phase`: tell the operator to
+    re-run `/test-improve <repo-path>` fresh, selecting `refactor-allowed`
+    at the Phase-0 refactor-mode prompt.
+
+This prompt reads clearly distinct from Phase 6's: Phase 6's is
+coverage-driven and fires mid-run: Phase 7's is backlog-driven and fires only
+at close-out, after every other target has already been evaluated.
