@@ -58,6 +58,15 @@ structural review agent, and a single shared knowledge file.
   `/plugin-audit` with zero findings; `plugin-best-practices-review` produces zero
   findings against `marketplace-dev` itself (dogfood).
 
+## Documentation
+
+| Doc | Covers |
+|---|---|
+| [Workflows](docs/workflows.md) | All commands — scaffolding, agent authoring, maintenance |
+| [Skills catalog](docs/skills.md) | Full skill/command list with descriptions |
+| [Agents](docs/agent_info.md) | `plugin-best-practices-review` agent and dispatch model |
+| [Agent-type Decision Rules](knowledge/agent-type-decision-rules.md) | Markdown vs. script decision matrix (R1–R10) |
+
 ## Eval fixtures
 
 Live at `evals/marketplace-dev/` in the repo root (not shipped). Run the
