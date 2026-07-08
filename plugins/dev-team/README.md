@@ -172,4 +172,4 @@ After starting Claude Code, confirm the system is working:
 - **19 review agents** — security-review, domain-review, test-review, naming-review, …
 - **85 skills** — knowledge modules and procedures the team draws on, 82 of them user-invocable as slash commands (`/plan`, `/build`, `/pr`, `/code-review`, `/browse`, `/triage`, …)
 
-Full catalogs: [Agents](docs/agent_info.md) · [Skills](docs/skills.md)
+Full catalogs: [Agents](docs/agent_info.md) · [Skills](docs/skills.md) · [Workflows](docs/workflows.md)
