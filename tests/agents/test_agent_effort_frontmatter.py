@@ -37,7 +37,7 @@ AGENTS_DIRS = [
 ]
 ALLOWED_BANDS = ("low", "medium", "high")
 DEPRECATED_MODEL_TIERS = ("haiku", "sonnet", "opus")
-ALLOWED_CONTEXT_NEEDS = ("diff-only", "full-file", "project-structure")
+ALLOWED_CONTEXT_NEEDS = ("diff-only", "full-file", "project-structure", "artifact-stream")
 
 
 def _agent_files_to_check(agent_files: str | None = None) -> List[Path]:
@@ -195,7 +195,8 @@ def test_description_has_no_colon() -> None:
 def test_every_agent_declares_context_needs() -> None:
     """FAIL if any agent body is missing a 'Context needs:' declaration.
 
-    Every agent must declare one of: diff-only, full-file, project-structure.
+    Every agent must declare one of: diff-only, full-file, project-structure,
+    artifact-stream (or a comma-separated combination of recognized values).
     This tells the orchestrator how much context to load before dispatching
     (agent-audit SKILL.md check 9).
     """
@@ -208,9 +209,11 @@ def test_every_agent_declares_context_needs() -> None:
         if not value:
             missing.append(str(rel))
             continue
-        # Strip inline notes (e.g. "full-file (reads plan + git state)")
-        bare = value.split()[0]
-        if bare not in ALLOWED_CONTEXT_NEEDS:
+        # Strip inline notes (e.g. "full-file (reads plan + git state)").
+        # Support comma-separated combined values like "artifact-stream, full-file".
+        # canonical source: agent-audit/SKILL.md check 9
+        tokens = [t.strip().split()[0] for t in value.split(",")]
+        if any(t not in ALLOWED_CONTEXT_NEEDS for t in tokens):
             invalid.append(f"{rel}: Context needs: {value}")
 
     assert not missing and not invalid, (

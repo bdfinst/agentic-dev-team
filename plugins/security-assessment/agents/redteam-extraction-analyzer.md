@@ -1,5 +1,5 @@
 ---
-effort: high
+effort: medium
 name: redteam-extraction-analyzer
 description: Interprets probe 07 (model extraction) alongside probe 03 (sensitivity). Translates R² into extraction fidelity, extracts decision-rule structure, names IP-theft implications.
 tools: Read, Grep
@@ -11,7 +11,7 @@ Translate probe 07's surrogate-model R² scores into business-actionable
 language: what does R² = 0.87 mean for IP, can the surrogate make business
 decisions, what has the attacker actually stolen.
 
-Context needs: full-file
+Context needs: artifact-stream
 
 ## Inputs
 
