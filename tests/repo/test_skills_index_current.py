@@ -232,6 +232,32 @@ def test_missing_categories_file_produces_ungrouped_section(
     assert "## Other" not in rendered
 
 
+def test_security_assessment_skills_md_is_current() -> None:
+    """CI freshness gate: security-assessment/docs/skills.md must match a fresh build."""
+    sa_dir = REPO_ROOT / "plugins" / "security-assessment"
+    if not sa_dir.is_dir():
+        return  # plugin not present in this checkout
+    res = _run_builder(["--check", "--plugin-dir", str(sa_dir)])
+    assert res.returncode == 0, (
+        "security-assessment/docs/skills.md is out of date. "
+        "Rebuild with: python3 plugins/dev-team/hooks/lib/build_skills_index.py "
+        f"--plugin-dir {sa_dir}\n" + res.stdout + res.stderr
+    )
+
+
+def test_marketplace_dev_skills_md_is_current() -> None:
+    """CI freshness gate: marketplace-dev/docs/skills.md must match a fresh build."""
+    md_dir = REPO_ROOT / "plugins" / "marketplace-dev"
+    if not md_dir.is_dir():
+        return  # plugin not present in this checkout
+    res = _run_builder(["--check", "--plugin-dir", str(md_dir)])
+    assert res.returncode == 0, (
+        "marketplace-dev/docs/skills.md is out of date. "
+        "Rebuild with: python3 plugins/dev-team/hooks/lib/build_skills_index.py "
+        f"--plugin-dir {md_dir}\n" + res.stdout + res.stderr
+    )
+
+
 def test_plugin_dir_flag_points_to_security_assessment(tmp_path: Path) -> None:
     """--plugin-dir with security-assessment unions skills/ (3) and commands/ (5) = 8 entries."""
     sa_dir = REPO_ROOT / "plugins" / "security-assessment"
