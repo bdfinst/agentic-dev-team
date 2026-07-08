@@ -36,9 +36,9 @@ sys.path.insert(0, str(_HERE / "lib"))
 
 import autoship_state  # noqa: E402
 
-DEFAULT_LABEL = "autoship:ready"
-IN_PROGRESS_LABEL = "autoship:in-progress"
-BLOCKED_LABEL = "autoship:blocked"
+DEFAULT_LABEL = autoship_state.READY_LABEL
+IN_PROGRESS_LABEL = autoship_state.IN_PROGRESS_LABEL
+BLOCKED_LABEL = autoship_state.BLOCKED_LABEL
 
 # Same fields `gh issue list --json` returns for these names — no schema
 # invention. `title` is required because the stdout contract emits it;
@@ -54,6 +54,10 @@ REQUIRED_ISSUE_FIELDS = (
 )
 
 GH_JSON_FIELDS = ",".join(REQUIRED_ISSUE_FIELDS)
+
+# gh subprocess calls get a hard timeout so a hung/stalled network call never
+# blocks this script indefinitely.
+_GH_TIMEOUT_SECONDS = 30
 
 
 class DiscoveryError(Exception):
@@ -213,8 +217,9 @@ def fetch_issues_from_gh(label: str) -> List[Dict[str, Any]]:
     "OPEN"` check — this is what makes the `--input-file` and live paths
     behave identically.
 
-    Raises `DiscoveryError` on a non-zero `gh` exit or malformed JSON output
-    — never an uncaught `CalledProcessError`/`JSONDecodeError`/traceback.
+    Raises `DiscoveryError` on a non-zero `gh` exit, a timeout, or malformed
+    JSON output — never an uncaught
+    `CalledProcessError`/`TimeoutExpired`/`JSONDecodeError`/traceback.
     """
     try:
         result = subprocess.run(
@@ -232,9 +237,14 @@ def fetch_issues_from_gh(label: str) -> List[Dict[str, Any]]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=_GH_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:
         raise DiscoveryError(f"gh CLI not found: {exc}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise DiscoveryError(
+            f"gh issue list timed out after {_GH_TIMEOUT_SECONDS}s: {exc}"
+        ) from exc
     except subprocess.CalledProcessError as exc:
         stderr = (exc.stderr or "").strip()
         raise DiscoveryError(

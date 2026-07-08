@@ -1,8 +1,11 @@
 """autoship_state — shared round-state helpers for /dev-team:autoship (#989).
 
-Timestamp formatting and staleness predicate shared by `autoship_discover.py`
-and `autoship_reclaim.py`, so both scripts agree on what "stale" means
-without either inspecting the other's code.
+Shared by `autoship_discover.py` and `autoship_reclaim.py` so neither has to
+inspect the other's code to reuse common logic: the `autoship:*` label
+constants both scripts filter on, the `--input-file`/`--now-override` CLI
+seam, and the positive-value CLI validators. `is_stale`/`format_round_timestamp`
+are consumed only by `autoship_reclaim.py`'s staleness check — discovery has
+no staleness concept of its own.
 
 Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 """
@@ -11,6 +14,10 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
+
+READY_LABEL = "autoship:ready"
+IN_PROGRESS_LABEL = "autoship:in-progress"
+BLOCKED_LABEL = "autoship:blocked"
 
 
 def format_round_timestamp(dt: datetime) -> str:
