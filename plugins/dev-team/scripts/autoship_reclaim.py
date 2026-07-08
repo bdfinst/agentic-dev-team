@@ -18,6 +18,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
@@ -66,28 +67,13 @@ def _parse_timestamp(raw) -> datetime:
     return datetime.fromisoformat(raw.rstrip("Z"))
 
 
-def _positive_float(raw: str) -> float:
-    """`argparse` `type=` validator for `--stale-after-hours`: rejects `<= 0`.
-
-    Mirrors `evals/code-review-benchmark/cli.py`'s `_positive_float`
-    validator for `--max-cost-usd` — fail loud at the CLI boundary rather
-    than silently clamping downstream.
-    """
-    value = float(raw)
-    if value <= 0:
-        raise argparse.ArgumentTypeError(
-            f"--stale-after-hours must be a positive number, got {raw!r}"
-        )
-    return value
-
-
 def _build_parser() -> argparse.ArgumentParser:
     """Build this CLI's `argparse.ArgumentParser`, isolated from `main()` so
     tests can assert defaults/overrides via `_build_parser().parse_args([...])`."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--stale-after-hours",
-        type=_positive_float,
+        type=autoship_state.positive_float_validator("--stale-after-hours"),
         default=24,
         help=(
             "Hours an issue may stay autoship:in-progress before it is "
@@ -134,20 +120,32 @@ def _fetch_in_progress_issues() -> list:
         check=True,
     )
     issues = json.loads(result.stdout)
+    try:
+        repo = _current_repo()
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        # Repo resolution failing is one more "timeline lookup hiccup" —
+        # every issue falls back to its own `updatedAt` rather than
+        # aborting the whole run.
+        repo = None
     for issue in issues:
-        issue["labeled_at"] = _labeled_at_for(issue)
+        issue["labeled_at"] = _labeled_at_for(issue, repo)
     return issues
 
 
-def _labeled_at_for(issue: dict) -> str:
-    """Return the best `labeled_at` timestamp for `issue`.
+def _labeled_at_for(issue: dict, repo: Optional[str]) -> str:
+    """Return the best `labeled_at` timestamp for `issue` in `repo`.
 
     Prefers the most recent `labeled` timeline event naming
     `autoship:in-progress`; falls back to the issue's own `updatedAt` when
-    the timeline fetch fails or no matching event is found.
+    `repo` is unresolved, the timeline fetch fails, or no matching event is
+    found. `repo` is resolved once by the caller and threaded through —
+    resolving it per issue would cost one redundant `gh repo view`
+    subprocess call per orphan candidate.
     """
+    if repo is None:
+        return issue["updatedAt"]
     try:
-        timeline = _fetch_timeline(issue["number"])
+        timeline = _fetch_timeline(issue["number"], repo)
     except (subprocess.CalledProcessError, json.JSONDecodeError):
         return issue["updatedAt"]
 
@@ -163,8 +161,7 @@ def _labeled_at_for(issue: dict) -> str:
     return labeled_events[-1]["created_at"]
 
 
-def _fetch_timeline(number: int) -> list:
-    repo = _current_repo()
+def _fetch_timeline(number: int, repo: str) -> list:
     result = subprocess.run(
         ["gh", "api", f"repos/{repo}/issues/{number}/timeline"],
         capture_output=True,
@@ -294,12 +291,13 @@ def main(argv=None) -> int:
         print("No orphaned autoship:in-progress issues found.")
         return 0
 
+    exit_code = 0
     for issue in orphaned:
         rc = _reclaim_issue(issue, args.stale_after_hours, now, args.dry_run)
         if rc != 0:
-            return rc
+            exit_code = rc
 
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

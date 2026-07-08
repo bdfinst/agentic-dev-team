@@ -36,6 +36,27 @@ def _iso8601(raw: str) -> datetime:
     return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ")
 
 
+def positive_float_validator(flag_name: str):
+    """Return an `argparse` `type=` validator that rejects `<= 0` for `flag_name`.
+
+    Shared by `autoship_discover.py`'s `--max-cost-usd` and
+    `autoship_reclaim.py`'s `--stale-after-hours` so both fail loud at the
+    CLI boundary the same way, per `evals/code-review-benchmark/cli.py`'s
+    `_positive_float` precedent — one implementation instead of two
+    independently-copied ones.
+    """
+
+    def _validator(raw: str) -> float:
+        value = float(raw)
+        if value <= 0:
+            raise argparse.ArgumentTypeError(
+                f"{flag_name} must be a positive number, got {raw!r}"
+            )
+        return value
+
+    return _validator
+
+
 def add_input_seam_args(parser: argparse.ArgumentParser) -> None:
     """Add the shared `--input-file`/`--now-override` test seam to `parser`.
 

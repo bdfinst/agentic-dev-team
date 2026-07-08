@@ -200,7 +200,10 @@ def test_fetch_in_progress_issues_uses_timeline_labeled_event() -> None:
     assert issues[0]["labeled_at"] == "2026-07-01T00:00:00Z"
 
 
-def test_fetch_in_progress_issues_falls_back_when_timeline_fetch_fails() -> None:
+def test_fetch_in_progress_issues_falls_back_when_repo_resolution_fails() -> None:
+    """Repo resolution is a single once-per-run call (#989 code review
+    finding: it previously ran once per issue); if it fails, every issue
+    falls back to updatedAt rather than aborting the run."""
     issue_list = _completed(
         json.dumps(
             [
@@ -223,6 +226,40 @@ def test_fetch_in_progress_issues_falls_back_when_timeline_fetch_fails() -> None
     ):
         issues = autoship_reclaim._fetch_in_progress_issues()
     assert issues[0]["labeled_at"] == "2026-07-05T00:00:00Z"
+
+
+def test_fetch_in_progress_issues_repo_resolved_once_for_multiple_issues() -> None:
+    """Repo resolution happens exactly once per run, not once per issue."""
+    issue_list = _completed(
+        json.dumps(
+            [
+                {
+                    "number": 50,
+                    "title": "Issue 50",
+                    "state": "OPEN",
+                    "labels": [{"name": "autoship:in-progress"}],
+                    "updatedAt": "2026-07-05T00:00:00Z",
+                },
+                {
+                    "number": 51,
+                    "title": "Issue 51",
+                    "state": "OPEN",
+                    "labels": [{"name": "autoship:in-progress"}],
+                    "updatedAt": "2026-07-06T00:00:00Z",
+                },
+            ]
+        )
+    )
+    repo_view = _completed("OWNER/REPO")
+    timeline_empty = _completed(json.dumps([]))
+    with patch(
+        "autoship_reclaim.subprocess.run",
+        side_effect=[issue_list, repo_view, timeline_empty, timeline_empty],
+    ) as mock_run:
+        autoship_reclaim._fetch_in_progress_issues()
+    # 1 issue-list call + 1 repo-view call + 2 timeline calls (one per
+    # issue) = 4 total, not 5 (which would mean repo view ran per-issue).
+    assert mock_run.call_count == 4
 
 
 def test_fetch_in_progress_issues_falls_back_when_no_matching_labeled_event() -> None:
@@ -251,8 +288,11 @@ def test_fetch_in_progress_issues_falls_back_when_no_matching_labeled_event() ->
 
 def test_mixed_timeline_success_and_failure_does_not_abort_run() -> None:
     """Covers 'Timeline lookup failure falls back to updatedAt' — #50's
-    timeline fetch fails and falls back, #51's succeeds and uses the real
-    labeled_at, and the run completes without error."""
+    per-issue timeline fetch fails and falls back, #51's succeeds and uses
+    the real labeled_at, and the run completes without error. Repo
+    resolution itself succeeds once and is shared by both issues (#989
+    code review finding: resolving it per-issue cost one redundant
+    `gh repo view` call per orphan candidate)."""
     issue_list = _completed(
         json.dumps(
             [
@@ -273,9 +313,9 @@ def test_mixed_timeline_success_and_failure_does_not_abort_run() -> None:
             ]
         )
     )
-    repo_view_1 = subprocess.CalledProcessError(1, ["gh", "repo", "view"])
-    repo_view_2 = _completed("OWNER/REPO")
-    timeline_2 = _completed(
+    repo_view = _completed("OWNER/REPO")
+    timeline_50 = subprocess.CalledProcessError(1, ["gh", "api"])
+    timeline_51 = _completed(
         json.dumps(
             [
                 {
@@ -288,7 +328,7 @@ def test_mixed_timeline_success_and_failure_does_not_abort_run() -> None:
     )
     with patch(
         "autoship_reclaim.subprocess.run",
-        side_effect=[issue_list, repo_view_1, repo_view_2, timeline_2],
+        side_effect=[issue_list, repo_view, timeline_50, timeline_51],
     ):
         issues = autoship_reclaim._fetch_in_progress_issues()
     assert issues[0]["labeled_at"] == "2026-07-05T00:00:00Z"  # fallback to updatedAt
@@ -541,4 +581,52 @@ def test_multi_issue_run_reports_one_status_line_per_issue(tmp_path, capsys) -> 
     assert rc == 0
     captured = capsys.readouterr()
     assert "reclaimed #40" in captured.out
+    assert "reclaimed #41" in captured.out
+
+
+def test_multi_issue_run_continues_after_one_issue_fails(tmp_path, capsys) -> None:
+    """A failure on one issue must not abort the batch (#989 code review finding):
+    every orphaned issue is attempted, not just those before the first failure."""
+    fixture = [
+        {
+            "number": 40,
+            "title": "Issue 40",
+            "state": "OPEN",
+            "labels": [{"name": "autoship:in-progress"}],
+            "labeled_at": "2026-07-01T00:00:00Z",
+        },
+        {
+            "number": 41,
+            "title": "Issue 41",
+            "state": "OPEN",
+            "labels": [{"name": "autoship:in-progress"}],
+            "labeled_at": "2026-07-01T00:00:00Z",
+        },
+    ]
+    input_file = tmp_path / "issues.json"
+    input_file.write_text(json.dumps(fixture))
+
+    ok = subprocess.CompletedProcess(args=["gh"], returncode=0, stdout="", stderr="")
+    with patch(
+        "autoship_reclaim.subprocess.run",
+        side_effect=[
+            subprocess.CalledProcessError(
+                1, ["gh", "issue", "comment"]
+            ),  # #40 comment fails
+            ok,  # #41 comment succeeds
+            ok,  # #41 relabel succeeds
+        ],
+    ):
+        rc = autoship_reclaim.main(
+            [
+                "--input-file",
+                str(input_file),
+                "--now-override",
+                "2026-07-03T00:00:00Z",
+            ]
+        )
+    assert rc != 0
+    captured = capsys.readouterr()
+    assert "#40" in captured.err
+    assert "comment" in captured.err
     assert "reclaimed #41" in captured.out
