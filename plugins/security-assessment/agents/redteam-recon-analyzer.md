@@ -1,4 +1,5 @@
 ---
+effort: high
 name: redteam-recon-analyzer
 description: Interprets probe 01 (API recon). Severity-rates info leaks, identifies the framework, recommends a feature-discovery strategy for probe 02.
 tools: Read, Grep
