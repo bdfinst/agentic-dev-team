@@ -1,0 +1,13 @@
+{
+  "fixture": "ap-verification-debt.js",
+  "description": "Test file from autonomous mutation-kill run with magic assertion values and no human-verification evidence",
+  "applicableAgents": ["ai-provenance-review"],
+  "agents": {
+    "ai-provenance-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 2, "max": 5 },
+      "severities": { "error": { "min": 1, "max": 4 } },
+      "mustMention": ["verification", "magic"]
+    }
+  }
+}

@@ -183,6 +183,8 @@ This replaces any hardcoded per-agent dispatch rules. Adding or changing a revie
 - Angular (`@angular/core` in deps): include `angular-reactivity-review` scoped to `*.component.ts`, `*.component.html`, `*.service.ts`, and general `.ts` files
 - Svelte (`.svelte`/`.svelte.ts`/`.svelte.js` files present): include `svelte-review` scoped to those files (Svelte projects do not require a manifest entry — file presence is sufficient)
 
+**AI-provenance review**: include `ai-provenance-review` whenever test files or production code are in scope. It audits AI-authored assertions and non-obvious decisions for verification debt and regeneration risk.
+
 If `review-config.json` exists at the repo root, honor its per-agent `"enabled": false` flags.
 
 ### 4. Run each enabled agent
