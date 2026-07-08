@@ -1,9 +1,11 @@
 ---
+
 name: doc-review
 description: Documentation accuracy, README staleness, API doc alignment, inline comment drift, ADR update triggers
 tools: Read, Grep, Glob
 effort: medium
 cites: [adversarial-review-protocol]
+scope: always
 ---
 
 # Documentation Review

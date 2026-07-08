@@ -192,13 +192,20 @@ and that gate is a correctness control, not a metrics-collection nicety.
 
 ## When to Log
 
+> **Task completion entries are written automatically** by `hooks/task_completion_metrics.py`
+> on every `Stop` / `SubagentStop` event — skills no longer need a manual
+> "log this on completion" step. To surface task-specific values (task type,
+> agents used, hallucination flag, rework count, defect count, or a config
+> change), populate `.claude/session-metrics.json` before the session ends; the
+> hook reads and clears it. Leave the file absent for a minimal heartbeat entry.
+
 | Event | Action |
 | --- | --- |
-| Task completed | Log full task completion entry |
+| Task completed | Logged automatically by `hooks/task_completion_metrics.py` (no manual step needed) |
 | `/build` inline review checkpoint | Append a Review Value entry to `metrics/review-value.jsonl` (#348) |
 | `/build` slice with a runtime surface | Append a Verify Log entry to `metrics/verify-log.jsonl` (#727) |
-| Configuration change | Log in `metrics/config-changelog.jsonl` (see Feedback & Learning skill) |
-| Hallucination detected | Flag in task entry + log separately if correction applied |
+| Configuration change | Add `config_change` to `.claude/session-metrics.json`; hook writes `metrics/config-changelog.jsonl` |
+| Hallucination detected | Set `hallucination_detected: true` in `.claude/session-metrics.json` |
 | Context summarization triggered | Increment counter in current task entry |
 
 ## Output

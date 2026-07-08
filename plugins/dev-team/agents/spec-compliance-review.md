@@ -1,9 +1,11 @@
 ---
+
 name: spec-compliance-review
 description: Verify implementation matches specification before quality review agents run
 tools: Read, Grep, Glob
 effort: medium
 cites: [adversarial-review-protocol, directory-enumeration]
+scope: always
 ---
 
 # Spec Compliance Review

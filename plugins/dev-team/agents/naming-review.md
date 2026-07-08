@@ -1,9 +1,11 @@
 ---
+
 name: naming-review
 description: Naming clarity, conventions, magic values, and consistency
 tools: Read, Grep, Glob
 effort: medium
 cites: [design-smells, adversarial-review-protocol]
+scope: always
 ---
 
 # Naming Review

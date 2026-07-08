@@ -32,6 +32,29 @@ The challenger verifies; it does not fill a quota. Zero new findings after an ho
 pass is a passing outcome — never manufacture a finding to prove the loop ran, and
 never upgrade a `suggestion` to justify the round.
 
+## Zero-Findings Anomaly
+
+When the Self-Challenge pass produces **zero Confirmed findings** on a **non-trivial
+file** (any file over ~50 lines with real logic — not a stub, generated file, or pure
+type declaration), treat that outcome as a sensitivity signal rather than a quality
+signal. In the `summary` field:
+
+1. **State the checks performed** — enumerate each challenge question from The Loop
+   and each agent-specific Self-Challenge question, and note that each was examined.
+2. **Cap confidence at Medium** — a suspiciously clean pass more likely reflects
+   evaluator-sensitivity failure than actual perfection. Do not emit `Confidence: High`
+   for a zero-findings result on a non-trivial file.
+
+Example wording: _"Zero findings after honest pass. Checks performed: completeness
+(all N files examined), evidence, severity justification, blind spots
+(concurrency — none present; error paths — all handled), false-negative re-read,
+lazy exits. Confidence: Medium (zero findings on non-trivial file — sensitivity
+signal)."_
+
+This rule does not apply to trivially small files, stubs, generated artifacts, or
+files that genuinely have no logic to review — for those, a zero-findings pass with
+`Confidence: High` is appropriate. Briefly note why the file is trivial.
+
 ## Output
 
 After the challenger pass, append to the `summary` field in your JSON output:
