@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Fully automated development team using persona-driven AI agents. The Orchestrator dispatches tasks to specialized agents by classification, complexity, and expertise.
+Persona-driven AI agent team. The Orchestrator dispatches tasks to specialized agents by classification, complexity, and expertise.
 
 ## North Star
 
@@ -20,16 +20,16 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 
 1. **Write to files, not chat.** Artifacts go to files — not chat deliverables.
 2. **Plan-only mode.** When asked for a plan, produce ONLY the plan.
-3. **Incremental output.** First draft within 3-4 tool calls, then refine.
+3. **Incremental output.** First draft within 3–4 tool calls, then refine.
 
 ## Core Principles
 
 1. **Selective Agent Loading**: Load only necessary agents. Target < 10,000 tokens simple tasks.
-2. **40% Context Ceiling**: A conservative target, not an accuracy cliff — see [Context Management](docs/context-management.md) for the guide and evidence. Enforced by `hooks/context_ceiling_guard.py`.
+2. **40% Context Ceiling**: Conservative target, not an accuracy cliff — see [Context Management](docs/context-management.md). Enforced by `hooks/context_ceiling_guard.py`.
 3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency: `DEV_TEAM_MAX_PARALLEL_BUILDS` (default 3).
 4. **Human-in-the-Loop**: Autonomous agents, human oversight.
 5. **Dynamic Configuration**: Config changes → `metrics/config-changelog.jsonl`.
-6. **ATDD + Code-First Small Batches** (the sole build cadence — Rec 3, docs/experiments/RECOMMENDATIONS.md): no code without a `/plan` scenario.
+6. **ATDD + Code-First Small Batches** (sole build cadence — Rec 3, docs/experiments/RECOMMENDATIONS.md): no code without a `/plan` scenario.
 7. **Python for cross-OS scripts**: shipped hooks/scripts are Python 3.8+ stdlib-only (ADR 0014, 0015).
 
 ## Team Organization
@@ -48,11 +48,11 @@ See [knowledge/skills-registry.md](knowledge/skills-registry.md) for the full co
 
 ## Request Processing Flow
 
-See [knowledge/request-processing-flow.md](knowledge/request-processing-flow.md) for the three-phase workflow (Research → Plan → Implement), inline review protocol, phase transitions, and multi-agent collaboration.
+See [knowledge/request-processing-flow.md](knowledge/request-processing-flow.md) for the three-phase workflow (Research → Plan → Implement), inline review protocol, and multi-agent collaboration.
 
 ## Model Routing
 
-Each agent declares an effort band (`effort: low|medium|high`). Resolution enforced by `hooks/agent_model_resolve.py` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
+Each agent declares an effort band (`effort: low|medium|high`). Enforced by `hooks/agent_model_resolve.py` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
 
 ## Context Management
 
@@ -61,15 +61,15 @@ Each agent declares an effort band (`effort: low|medium|high`). Resolution enfor
 
 Token budgets per agent: see [knowledge/agent-registry.md](knowledge/agent-registry.md).
 
-Operating rules: load on demand; summarize phases to `memory/` before next-phase load; new conversations read from `memory/`.
+Rules: load on demand; summarize phases to `memory/` before next phase; new conversations read from `memory/`.
 
 ## Feedback & Learning
 
-**[Feedback & Learning](skills/feedback-learning/SKILL.md)** is a choreographic skill — it declares its own trigger keywords (`amend`, `learn`, `remember`, `forget`) and is invoked directly by Claude Code's skill-matching when those patterns appear in user input. The orchestrator does not special-case these keywords during phase classification; they fire independently of whatever multi-phase task is in progress.
+**[Feedback & Learning](skills/feedback-learning/SKILL.md)** is a choreographic skill — keywords `amend`, `learn`, `remember`, `forget` fire directly via Claude Code's skill-matching, independent of orchestrator phase classification.
 
 ## Human Oversight
 
-Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**. Intervention commands: `amend`/`learn`/`remember`/`forget` (handled by the feedback-learning skill), plus `override`, `pause`, `stop`.
+Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**. Commands: `amend`/`learn`/`remember`/`forget` (feedback-learning), `override`, `pause`, `stop`.
 
 ## Proxy Resilience
 
@@ -79,7 +79,7 @@ Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](
 
 All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKILL.md)**. Ethics and audit logging: **[Governance & Compliance](skills/governance-compliance/SKILL.md)**.
 
-**Quality ownership.** Agents own the quality *state* — green means the whole suite, not just the diff. A red signal must be fixed or triaged, never stepped over.
+**Quality ownership.** Agents own the quality *state* — green means the whole suite, not just the diff. Red signals must be fixed or triaged, never stepped over.
 
 Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands; `context_ceiling_guard.py` enforces the context ceiling (see above).
 
@@ -87,4 +87,4 @@ Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` 
 
 Logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
 
-Every quantitative claim must name the instrument that measures it. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), per-agent accuracy (`/agent-eval`). **Not yet:** efficiency gains, hallucination rate, first-pass acceptance.
+Every claim must name its measuring instrument. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), per-agent accuracy (`/agent-eval`). **Not yet:** efficiency gains, hallucination rate, first-pass acceptance.
