@@ -1,5 +1,117 @@
 # Changelog
 
+## [10.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.2...dev-team-v10.4.0) (2026-07-08)
+
+
+### Features
+
+* add ai-provenance-review agent for AI-authored test verification debt ([99b2545](https://github.com/bdfinst/agentic-dev-team/commit/99b2545732209ee78520ead4db46a50c40b3aef8))
+* add DEV_TEAM_REPORTS/ to project-init's gitignore template ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([b45de47](https://github.com/bdfinst/agentic-dev-team/commit/b45de475100384fee6523e703baf865279250129))
+* add oracle provenance audit and unarmored-region detection to test-review ([96a5fe7](https://github.com/bdfinst/agentic-dev-team/commit/96a5fe74be80975244f323fabf32877b583eb444))
+* add prompt-injection defense and falsifiability anchors to adversarial-review-protocol ([6ae2e90](https://github.com/bdfinst/agentic-dev-team/commit/6ae2e90f72cd7e1075784ac05f6caad8985a6a64))
+* add React, Vue, Angular reactivity-review agents (closes [#1019](https://github.com/bdfinst/agentic-dev-team/issues/1019)) ([eac1ff3](https://github.com/bdfinst/agentic-dev-team/commit/eac1ff3ebce3f11e699b97ac34e889e4f2b696b6))
+* add zero-findings anomaly handling and tolerated-deviation hunt ([db6af77](https://github.com/bdfinst/agentic-dev-team/commit/db6af77d5431ad834d39f2e5b3753f81dd9b963d))
+* **autoship:** add discovery CLI with required cap validation and shared input seam ([3c8ddda](https://github.com/bdfinst/agentic-dev-team/commit/3c8dddaabf40c0bf58b06f7673a620836ef9feb3))
+* **autoship:** add dry-run preview, live comment/relabel, and per-issue status reporting ([9eeec6b](https://github.com/bdfinst/agentic-dev-team/commit/9eeec6bc0f779cf3ead78f89753f1d8b835f598e))
+* **autoship:** add pure eligibility filter, oldest-first cap, and stdout contract ([f2c65d0](https://github.com/bdfinst/agentic-dev-team/commit/f2c65d01a09d9acf6b734c9dd41f00e5755762df))
+* **autoship:** add pure orphan-staleness selector with --stale-after-hours flag ([92b773d](https://github.com/bdfinst/agentic-dev-team/commit/92b773df4402fb1ec83dbaad3b00983bbb771dbd))
+* **autoship:** add shared --input-file/--now-override CLI seam ([cd0d73c](https://github.com/bdfinst/agentic-dev-team/commit/cd0d73cbc400230914fd8aaef39a69c4fc12cfdc))
+* **autoship:** add shared round-timestamp and staleness helper functions ([487e01b](https://github.com/bdfinst/agentic-dev-team/commit/487e01b3c11b8d6ec4c723ce5fae98fc7c982dd5))
+* **autoship:** wire live gh fetch (issue list + timeline label event) for reclaim ([7915e9d](https://github.com/bdfinst/agentic-dev-team/commit/7915e9d565c2f0546fa18716a3ad86a0d1941111))
+* **autoship:** wire live gh issue list fetch with clear failure surfacing ([53a3c2e](https://github.com/bdfinst/agentic-dev-team/commit/53a3c2e585d7668fc99417ce5f6093fcc9d19280))
+* correctness-review recall gaps on trailing-decimal validation and missing guard clauses ([bd11509](https://github.com/bdfinst/agentic-dev-team/commit/bd1150925df6c4e9014b43343b8e81c779d40d2c))
+* extend Context needs vocabulary with artifact-stream value ([af057bc](https://github.com/bdfinst/agentic-dev-team/commit/af057bc8cd39386692c3f6e1c02dd9dceb96022f))
+* generalize build_skills_index.py with --plugin-dir and commands/ support ([3843b91](https://github.com/bdfinst/agentic-dev-team/commit/3843b9164aa72176de726f59f4d8fa1325b5f3a2))
+* **hooks:** add task_completion_metrics.py Stop hook for JSONL audit logging ([ead0dbf](https://github.com/bdfinst/agentic-dev-team/commit/ead0dbfa3f69a835b78512d07934bd8b7ebe79cc)), closes [#1044](https://github.com/bdfinst/agentic-dev-team/issues/1044)
+* migrate /triage to DEV_TEAM_REPORTS/triage/ ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([f829e1f](https://github.com/bdfinst/agentic-dev-team/commit/f829e1f3e8b5a47be818dda1c7a9030be897ab96))
+* pass --internal on /build's review-agent dispatches ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([197f20a](https://github.com/bdfinst/agentic-dev-team/commit/197f20af6aafefbacbd7b810aceec13f96e79f7e))
+* **plan:** accept a supplied --spec-issue as the spec source ([562ce90](https://github.com/bdfinst/agentic-dev-team/commit/562ce903cfe61f13a8ac39aa52f4f45faac09b0f))
+* point 3 report-writing skills at shared report-template.md ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([6c251ed](https://github.com/bdfinst/agentic-dev-team/commit/6c251ed2bb3a59ae417e578a10094721e0d1104a))
+* preserve Claude Code OAuth login for isolated headless dispatch ([e0bdf9d](https://github.com/bdfinst/agentic-dev-team/commit/e0bdf9d5b02cd2d446b64bfe421180e86ef97574))
+* **specs:** add tested opt-in-marker detection helper for issue-first specs convention ([9c58861](https://github.com/bdfinst/agentic-dev-team/commit/9c58861dbcda3b98a2a08cd399af52f465a3a544))
+* **specs:** persist to a GitHub issue on opted-in, GitHub-connected repos ([bfff41d](https://github.com/bdfinst/agentic-dev-team/commit/bfff41d891e66ed3b65fdf53026dbae0629dd136))
+* **test-improve:** add post-Phase-7 re-run-with-refactor close-out prompt ([de52495](https://github.com/bdfinst/agentic-dev-team/commit/de524951c76e1c6daab0ed7f8a8962d80a0a4fab))
+* **test-improve:** add Tests-by-type table to executive-summary template ([#962](https://github.com/bdfinst/agentic-dev-team/issues/962)) ([792132f](https://github.com/bdfinst/agentic-dev-team/commit/792132f687d23276c93879b394dc442ed6b71645))
+* **test-improve:** foreground REFACTOR_REQUIRED items in Phase 7's §7 table ([0d88af2](https://github.com/bdfinst/agentic-dev-team/commit/0d88af2093c18882c12e2851d7b1a50a427bbc72))
+* **test-improve:** persist test-counts-after.json via identical Phase 6 classification pass ([#962](https://github.com/bdfinst/agentic-dev-team/issues/962)) ([3e6c668](https://github.com/bdfinst/agentic-dev-team/commit/3e6c668e78e43dd5db298aafae6239e70dec2e11))
+* **test-improve:** persist test-counts-before.json via Phase 1 classification pass ([#962](https://github.com/bdfinst/agentic-dev-team/issues/962)) ([29f37d2](https://github.com/bdfinst/agentic-dev-team/commit/29f37d268680a056c5faa43ec594e8286a1b3066))
+* **test-improve:** suggest /handoff after context-heavy phase boundaries ([548208b](https://github.com/bdfinst/agentic-dev-team/commit/548208b0adb4ce6d41cfeb921a90c81ebe8ee626))
+* **test-improve:** thread --refactor-mode into /quality-targets-converge's dispatch table ([dbd2582](https://github.com/bdfinst/agentic-dev-team/commit/dbd258214b42089cb2a38947253c3b3f16010848))
+* **test-review:** detect reflection-based private-member access per language ([#959](https://github.com/bdfinst/agentic-dev-team/issues/959)) ([070bd42](https://github.com/bdfinst/agentic-dev-team/commit/070bd426c97e9cd9d7521eed0e27f54a9d59dc06))
+* write DEV_TEAM_REPORTS/&lt;agent&gt;.md for human-invoked /review-agent ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([a9b4a14](https://github.com/bdfinst/agentic-dev-team/commit/a9b4a14f62879e5169d20cee21925c283550085a))
+* write DEV_TEAM_REPORTS/code-review.md unless --json or --internal ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([6017b33](https://github.com/bdfinst/agentic-dev-team/commit/6017b33eccb3f46acb7641e48759937ae6084e92))
+
+
+### Bug Fixes
+
+* add /test-improve to /code-review Step 6's non-interactive exception list ([7a0270e](https://github.com/bdfinst/agentic-dev-team/commit/7a0270e214c5d1a9d1a7e88012c24853629b81e5)), closes [#995](https://github.com/bdfinst/agentic-dev-team/issues/995)
+* add ai-provenance-review calibration floor entry for CI ([e6a531b](https://github.com/bdfinst/agentic-dev-team/commit/e6a531bd4ddd52bbe2fc4f4f58767b4518cc6e2c))
+* add ai-provenance-review to docs/agent_info.md Review Agents table ([bf7d5a8](https://github.com/bdfinst/agentic-dev-team/commit/bf7d5a82ba559c147fdac1145d1c82e8121e8c17))
+* add anchor fragments to secondary reactive-effect-patterns references ([fe6512d](https://github.com/bdfinst/agentic-dev-team/commit/fe6512d0f1979d6170ea6df068dbfe8717ac01e3))
+* add anchor fragments to test-review knowledge citations ([147cd07](https://github.com/bdfinst/agentic-dev-team/commit/147cd07dc7f8b4161f5066e8c28d4db4d70612a0))
+* add Whole-file load tokens and agent_info rows for reactivity review agents ([2ca9a55](https://github.com/bdfinst/agentic-dev-team/commit/2ca9a55588c523f95f9836b8f4c84a121729ae5e))
+* **autoship:** address /code-review backstop findings for [#989](https://github.com/bdfinst/agentic-dev-team/issues/989) ([42569b9](https://github.com/bdfinst/agentic-dev-team/commit/42569b97c9a20d365c88965468a5f5ab5162debd))
+* **autoship:** address slice-boundary review findings for [#989](https://github.com/bdfinst/agentic-dev-team/issues/989) ([248079a](https://github.com/bdfinst/agentic-dev-team/commit/248079a33016e078202895da327a18f75f5e961b))
+* **autoship:** catch missing gh binary and distinguish error sources for [#989](https://github.com/bdfinst/agentic-dev-team/issues/989) ([3503c4b](https://github.com/bdfinst/agentic-dev-team/commit/3503c4b6a3f6885b822811bc571903aae1a72541))
+* bump ui-ux-designer effort band to high ([e3f866b](https://github.com/bdfinst/agentic-dev-team/commit/e3f866bf1216dc49798acf291bc5b6f5508449cc)), closes [#1013](https://github.com/bdfinst/agentic-dev-team/issues/1013)
+* conform issue [#969](https://github.com/bdfinst/agentic-dev-team/issues/969) audit-trail entries to gate-decision schema ([d97537a](https://github.com/bdfinst/agentic-dev-team/commit/d97537ae3b7299a7ba1c50f0ea7ebef21f6ad97c))
+* copy_auth_state() must copy ~/.claude/, not just ~/.claude.json ([6226da2](https://github.com/bdfinst/agentic-dev-team/commit/6226da2a4ac654d329f4190a9724bfd46c9648f7))
+* correct broken skills/test-improve path reference in report-template.md ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([b012c8c](https://github.com/bdfinst/agentic-dev-team/commit/b012c8ca666220cb71780e40e0e70e6634435087))
+* grant Write in review-agent and /review allowed-tools for DEV_TEAM_REPORTS writes ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([6694d49](https://github.com/bdfinst/agentic-dev-team/commit/6694d4917b2989461a42d2bf78b870c52a6e3397))
+* guard /pr against accidental issue auto-close via negated closing keywords ([228aae8](https://github.com/bdfinst/agentic-dev-team/commit/228aae8e7f76d09397c983f43a6aeff099440222)), closes [#977](https://github.com/bdfinst/agentic-dev-team/issues/977)
+* harden /code-review --json instruction against narration-instead-of-emission ([cebff56](https://github.com/bdfinst/agentic-dev-team/commit/cebff5668c806bd773789e935642907d704888bc))
+* make competitive-analysis reference sentence byte-identical ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([90ec407](https://github.com/bdfinst/agentic-dev-team/commit/90ec407f29edcbd34665a8ca443f90ca08a1d72b))
+* mention /test-improve alongside /ship in workflows doc ([2ac5293](https://github.com/bdfinst/agentic-dev-team/commit/2ac52930aa7a4bb88b2df6c2448c44b00bd23428))
+* pass --internal on /test-improve's internal /code-review dispatches ([#982](https://github.com/bdfinst/agentic-dev-team/issues/982)) ([618e3af](https://github.com/bdfinst/agentic-dev-team/commit/618e3af4e940f58f253ad585b8538d46ee8e4a74))
+* qualify competitive-analysis classification labels with (dev-team) ([3419b63](https://github.com/bdfinst/agentic-dev-team/commit/3419b63b270a6eebec34554e3ec04fec6e6d0abc)), closes [#1016](https://github.com/bdfinst/agentic-dev-team/issues/1016)
+* regenerate knowledge index ([27af4df](https://github.com/bdfinst/agentic-dev-team/commit/27af4dfbc79e36d4184e6a0bbca514864bf4d9ff))
+* regenerate knowledge index and add eval fixtures for new reactivity review agents ([7888a2b](https://github.com/bdfinst/agentic-dev-team/commit/7888a2b515ace9f3c84f08af8b7444b1ad655b3a))
+* regenerate knowledge index for adversarial-review-protocol new section ([3ac3159](https://github.com/bdfinst/agentic-dev-team/commit/3ac31592ccee766f8737c94cb947fba3081db5ec))
+* regenerate knowledge index for CI ([05200dd](https://github.com/bdfinst/agentic-dev-team/commit/05200ddcf7d909769c084dfe9de7916faa9ecef5))
+* regenerate knowledge index for oracle-provenance.md ([92f3441](https://github.com/bdfinst/agentic-dev-team/commit/92f34412a22b086298bcfe124f3194988a533176))
+* restore required claims-discipline phrase in CLAUDE.md ([dd618e7](https://github.com/bdfinst/agentic-dev-team/commit/dd618e744897c7a4a633caecafea9db0ac7a4985))
+* retry once via --resume when /code-review --json narrates instead of emitting JSON ([e69f806](https://github.com/bdfinst/agentic-dev-team/commit/e69f8061ea740fd0219f7d700e42960d0313b74f))
+* **test-improve:** address code-review findings for [#968](https://github.com/bdfinst/agentic-dev-team/issues/968) ([c98aec8](https://github.com/bdfinst/agentic-dev-team/commit/c98aec8433df9d13df43a08af4357989ef5fe75c))
+* **test-improve:** correct --path reference and tie-break contradiction; update consumer docs ([#962](https://github.com/bdfinst/agentic-dev-team/issues/962)) ([8bf411e](https://github.com/bdfinst/agentic-dev-team/commit/8bf411e1ed70c874b846e072c3e4c13065d40a0c))
+* trim CLAUDE.md to under 5000 chars for CI gate ([31ea276](https://github.com/bdfinst/agentic-dev-team/commit/31ea276df6f4d1c591ad9af05140fffbbf08889b))
+
+
+### Code Refactoring
+
+* self-declared review-agent dispatch scope via frontmatter ([aaef09d](https://github.com/bdfinst/agentic-dev-team/commit/aaef09d3fb79fe754bb3b1d8d5c972fd2aa5f292))
+* **test-improve:** trim SKILL.md under the 500-line token-efficiency guard ([62d238c](https://github.com/bdfinst/agentic-dev-team/commit/62d238c42ef799bb74e4c3f2edba7dd6f1dad328))
+
+
+### Documentation
+
+* add --internal to review-agent's argument-hint ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([8839dce](https://github.com/bdfinst/agentic-dev-team/commit/8839dce61570b717056fbab7bb9480a589e71683))
+* add report-output-location.md (DEV_TEAM_REPORTS/ convention) ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([c1e2a4b](https://github.com/bdfinst/agentic-dev-team/commit/c1e2a4b67b7ff9375930a9d7ed540557f6a51827))
+* add report-to-pdf.md rendering recipe ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([355ba09](https://github.com/bdfinst/agentic-dev-team/commit/355ba090317d2013154ca4918d4b352710abb99f))
+* add shared report-template.md contract ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([98e85ed](https://github.com/bdfinst/agentic-dev-team/commit/98e85ed0cd2fac8c2e1983d190953b5fd1367e9d))
+* address code-review findings for [#986](https://github.com/bdfinst/agentic-dev-team/issues/986) ([6fdbb90](https://github.com/bdfinst/agentic-dev-team/commit/6fdbb90e065c93be04ba186cae4a3b0e23b36f56))
+* clarify report-template.md adoption status and align competitive-analysis header fields ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([35e3eba](https://github.com/bdfinst/agentic-dev-team/commit/35e3eba9730c804b61b20a24741bba94df9d6efc))
+* cross-reference report-output-location.md from the three migrated skills ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([16e0c6e](https://github.com/bdfinst/agentic-dev-team/commit/16e0c6e7eae59b8392c8b443ccd5363da20ba40e))
+* fix C#/Reqnroll wiring instructions in bdd-frameworks.md ([3c0800b](https://github.com/bdfinst/agentic-dev-team/commit/3c0800b34e3347f8bfc92cb89d7b2e85f4ab5511)), closes [#948](https://github.com/bdfinst/agentic-dev-team/issues/948)
+* move feedback-learning keyword detection out of orchestrator routing ([bdf517e](https://github.com/bdfinst/agentic-dev-team/commit/bdf517ec51b62c8ab4a17d6e13171c466b9bc53c))
+* name /test-improve's --internal caller status and /ship's exception ([#982](https://github.com/bdfinst/agentic-dev-team/issues/982)) ([abaefb0](https://github.com/bdfinst/agentic-dev-team/commit/abaefb0a566f034fdb313ea850cb1bf8eb83afef))
+* recommend -t mtp default for Stryker.NET on .NET 10 targets ([da9fbda](https://github.com/bdfinst/agentic-dev-team/commit/da9fbda70013b20c9c4b6b7e64674def245ac292)), closes [#947](https://github.com/bdfinst/agentic-dev-team/issues/947)
+* sharpen /ship exception rationale and fix step-6/7 mislabel ([#982](https://github.com/bdfinst/agentic-dev-team/issues/982)) ([3b30712](https://github.com/bdfinst/agentic-dev-team/commit/3b30712cf5b9f1dc5714fa36c0864da40a26850b))
+* **test-improve:** clarify static_analysis counting and update Phase 7 file list ([#962](https://github.com/bdfinst/agentic-dev-team/issues/962)) ([2c13a9b](https://github.com/bdfinst/agentic-dev-team/commit/2c13a9b7c06529bd2c4b6e697ca046bc2ffaccba))
+* trim redundant --internal/--json rationale in build/SKILL.md ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([2a5ac25](https://github.com/bdfinst/agentic-dev-team/commit/2a5ac2508255f59679de7c41acbe886232b8ea25))
+* update triage cross-references to DEV_TEAM_REPORTS/triage/ ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([58bfe9b](https://github.com/bdfinst/agentic-dev-team/commit/58bfe9b52de090718303ef06e69e8b3bb9c4a6da))
+
+
+### Miscellaneous
+
+* rebuild knowledge index after build/SKILL.md trim ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([8188c35](https://github.com/bdfinst/agentic-dev-team/commit/8188c3589538ab930e5df9785ea9283365270b43))
+* rebuild knowledge index after DEV_TEAM_REPORTS/ migration ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([091d622](https://github.com/bdfinst/agentic-dev-team/commit/091d622fd9f976d2653103b146352541019ad44e))
+* rebuild knowledge index after issue [#982](https://github.com/bdfinst/agentic-dev-team/issues/982) audit ([#982](https://github.com/bdfinst/agentic-dev-team/issues/982)) ([882a782](https://github.com/bdfinst/agentic-dev-team/commit/882a782d0290cddca400c0646035d1578a95f5c5))
+* rebuild knowledge index after report-template edits ([#969](https://github.com/bdfinst/agentic-dev-team/issues/969)) ([323883e](https://github.com/bdfinst/agentic-dev-team/commit/323883e1ad39f6b26e1231d7071872336dc90e33))
+* regenerate docs/skills.md after triage migration ([#961](https://github.com/bdfinst/agentic-dev-team/issues/961)) ([22d9023](https://github.com/bdfinst/agentic-dev-team/commit/22d90233cb5b1a7ab3c0642f8713d3ed621dcf65))
+* remove dead .sh byte-parity test cases ([#976](https://github.com/bdfinst/agentic-dev-team/issues/976)) ([dea8c68](https://github.com/bdfinst/agentic-dev-team/commit/dea8c689d30f9f1b54184757ee6883506a7f3c4d))
+* **specs:** rebuild knowledge index for [#986](https://github.com/bdfinst/agentic-dev-team/issues/986); trim plan/SKILL.md to fit line-count guard ([0c10cc7](https://github.com/bdfinst/agentic-dev-team/commit/0c10cc7002f7586bbc9f9605a04df472b3e6a96c))
+* **test-improve:** add Enforced-by header, rebuild knowledge index for [#968](https://github.com/bdfinst/agentic-dev-team/issues/968) ([5ab2af3](https://github.com/bdfinst/agentic-dev-team/commit/5ab2af307f83506c50428b092f66c67958453290))
+
 ## [10.3.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.3.1...dev-team-v10.3.2) (2026-07-06)
 
 

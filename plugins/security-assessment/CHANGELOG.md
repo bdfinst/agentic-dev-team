@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.3...security-assessment-v3.4.0) (2026-07-08)
+
+
+### Features
+
+* migrate all 13 security-assessment agents from model: opus to effort: high ([54e3e8b](https://github.com/bdfinst/agentic-dev-team/commit/54e3e8bd224790ac0d7a302fce7a9e65b1422d53))
+
 ## [3.3.3](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.2...security-assessment-v3.3.3) (2026-07-04)
 
 
