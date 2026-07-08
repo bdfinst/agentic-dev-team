@@ -31,6 +31,19 @@ def _parse_arguments_section() -> str:
     )
 
 
+def _dispatch_table_row() -> str:
+    """Scope to the 'Coverage gap on a single file' dispatch-table rows
+    specifically (issue #968) — an unscoped whole-file grep would pass even
+    if the branching text lived in the wrong place."""
+    text = _text()
+    lines = text.splitlines()
+    out = []
+    for line in lines:
+        if line.startswith("|") and "Coverage gap on a single file" in line:
+            out.append(line)
+    return "\n".join(out)
+
+
 # --- --workflow surface -------------------------------------------------------
 
 
@@ -74,6 +87,44 @@ def test_skill_plan_paths_reference_plans_workflow_phase_5():
 
 def test_skill_names_test_improve_as_a_supported_workflow_value():
     assert "test-improve" in _text()
+
+
+# --- --refactor-mode surface (issue #968) -------------------------------------
+
+
+def test_argument_hint_frontmatter_names_refactor_mode():
+    assert grep(r"^argument-hint:.*--refactor-mode", _text())
+
+
+def test_parse_arguments_documents_refactor_mode_default_and_visibility_line():
+    s = _parse_arguments_section()
+    assert grep(r"--refactor-mode", s)
+    assert grep(
+        r"default.*refactor-allowed|refactor-allowed.*default", s, ignore_case=True
+    )
+    assert grep(
+        r"not specified by caller|defaulting to refactor-allowed", s, ignore_case=True
+    )
+
+
+def test_dispatch_table_documents_no_refactor_branch_writes_backlog_not_story():
+    row = _dispatch_table_row()
+    assert grep(r"no-refactor", row)
+    assert grep(r"refactor-backlog\.md", row)
+    # The no-refactor row legitimately mentions [Refactor-for-testability] as
+    # part of a negated instruction ("Do not propose a [...] Story") — assert
+    # the negation is present, not that the bracket phrase is wholly absent.
+    assert grep(
+        r"no-refactor.*not.*propose.*\[Refactor-for-testability\]",
+        row,
+        ignore_case=True,
+    )
+
+
+def test_dispatch_table_documents_refactor_allowed_branch_unchanged():
+    row = _dispatch_table_row()
+    assert grep(r"refactor-allowed", row)
+    assert grep(r"\[Refactor-for-testability\]", row)
 
 
 # --- [Phase-2 amendment] escape hatch removed from BOTH locations -------------
