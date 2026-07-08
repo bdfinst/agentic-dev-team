@@ -953,6 +953,114 @@ def test_run_case_skip_reason_notes_retry_when_retry_attempted(tmp_path: Path) -
     )
     assert record["skipped"] is True
     assert record["reason"] == "unparseable --json output (after retry)"
+def test_override_dev_team_plugin_path_rewrites_install_path(tmp_path: Path) -> None:
+    """`_override_dev_team_plugin_path()` (#1010) must rewrite only the
+    `dev-team@bfinster` entry's `installPath`, leaving the rest of
+    `installed_plugins.json` untouched."""
+    plugins_dir = tmp_path / ".claude" / "plugins"
+    plugins_dir.mkdir(parents=True)
+    installed_path = plugins_dir / "installed_plugins.json"
+    installed_path.write_text(
+        json.dumps(
+            {
+                "plugins": {
+                    "dev-team@bfinster": [
+                        {
+                            "scope": "user",
+                            "installPath": "/old/cache/path/10.3.2",
+                            "version": "10.3.2",
+                        }
+                    ],
+                    "other-plugin@someone": [{"installPath": "/keep/me"}],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    runner._override_dev_team_plugin_path(tmp_path, "/worktree/plugins/dev-team")
+
+    data = json.loads(installed_path.read_text(encoding="utf-8"))
+    assert data["plugins"]["dev-team@bfinster"][0]["installPath"] == (
+        "/worktree/plugins/dev-team"
+    )
+    assert data["plugins"]["other-plugin@someone"][0]["installPath"] == "/keep/me"
+
+
+def test_override_dev_team_plugin_path_noops_when_file_missing(tmp_path: Path) -> None:
+    """Best-effort: no `installed_plugins.json` (e.g. a bare test cell home)
+    must not raise."""
+    runner._override_dev_team_plugin_path(tmp_path, "/worktree/plugins/dev-team")
+
+
+def test_make_isolated_dispatch_fn_applies_plugin_path_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """When `plugin_path` is passed, `make_isolated_dispatch_fn()`'s dispatch
+    closure must apply the override (#1010) after `copy_auth_state()`."""
+    home = tmp_path / "cell-home"
+    home.mkdir()
+    plugins_dir = home / ".claude" / "plugins"
+    plugins_dir.mkdir(parents=True)
+    (plugins_dir / "installed_plugins.json").write_text(
+        json.dumps(
+            {
+                "plugins": {
+                    "dev-team@bfinster": [{"installPath": "/old/cache/path/10.3.2"}]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _FakeIsolatedDispatch:
+        @staticmethod
+        def make_cell_home():
+            return home
+
+        @staticmethod
+        def copy_auth_state(home):
+            return True
+
+        @staticmethod
+        def new_session_id():
+            return "11111111-1111-1111-1111-111111111111"
+
+        @staticmethod
+        def build_env(home):
+            return {}
+
+        @staticmethod
+        def build_cmd(prompt, session_id, model, cwd=None):
+            return ["claude", "-p", prompt]
+
+    monkeypatch.setattr(
+        runner, "_load_isolated_dispatch", lambda: _FakeIsolatedDispatch
+    )
+
+    import subprocess as subprocess_module
+
+    installed_path = plugins_dir / "installed_plugins.json"
+    seen: Dict[str, Any] = {}
+
+    def fake_run(cmd, **kwargs):
+        # home gets rmtree'd in dispatch()'s `finally` right after this
+        # call returns, so read the override's effect while it still exists.
+        seen["data"] = json.loads(installed_path.read_text(encoding="utf-8"))
+        return subprocess_module.CompletedProcess(
+            args=cmd, returncode=0, stdout=json.dumps({"result": "{}"})
+        )
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    dispatch_fn = runner.make_isolated_dispatch_fn(
+        plugin_path="/worktree/plugins/dev-team"
+    )
+    dispatch_fn("/code-review --json", str(tmp_path))
+
+    assert seen["data"]["plugins"]["dev-team@bfinster"][0]["installPath"] == (
+        "/worktree/plugins/dev-team"
+    )
 
 
 def test_append_and_resume_roundtrip(tmp_path: Path) -> None:

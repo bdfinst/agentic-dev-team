@@ -95,6 +95,23 @@ def test_json_retry_timeout_override_still_works() -> None:
     assert args.json_retry_timeout == 120
 
 
+def test_dev_team_plugin_path_default_is_none() -> None:
+    args = cli._build_parser().parse_args(["--dataset", "defects4j"])
+    assert args.dev_team_plugin_path is None
+
+
+def test_dev_team_plugin_path_override_still_works() -> None:
+    args = cli._build_parser().parse_args(
+        [
+            "--dataset",
+            "defects4j",
+            "--dev-team-plugin-path",
+            "/tmp/worktree/plugins/dev-team",
+        ]
+    )
+    assert args.dev_team_plugin_path == "/tmp/worktree/plugins/dev-team"
+
+
 class _FakeCase:
     def __init__(self, bug_id: str) -> None:
         self.bug_id = bug_id
