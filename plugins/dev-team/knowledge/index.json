@@ -2257,6 +2257,104 @@
       "anchor": "integration"
     }
   },
+  "plugins/dev-team/skills/co-evolution-audit/SKILL.md": {
+    "The Problem": {
+      "summary": "A file that churns repeatedly while its tests never change is a high-risk",
+      "anchor": "the-problem"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Graceful skip conditions": {
+      "summary": "If any of the following is true, print a one-line notice and exit cleanly",
+      "anchor": "graceful-skip-conditions"
+    },
+    "Step 1: Collect churn data": {
+      "summary": "Run git log to collect per-file change frequency over the window:",
+      "anchor": "step-1-collect-churn-data"
+    },
+    "Step 2: Classify files": {
+      "summary": "Partition the file map into two groups:",
+      "anchor": "step-2-classify-files"
+    },
+    "Step 3: Pair production files to test files": {
+      "summary": "Apply pairing heuristics in priority order.",
+      "anchor": "step-3-pair-production-files-to-test-files"
+    },
+    "Python": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "python"
+    },
+    "JavaScript / TypeScript": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "javascript-typescript"
+    },
+    "Go": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "go"
+    },
+    "Java": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "java"
+    },
+    "C# / .NET": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "c-net"
+    },
+    "Fallback (unknown language)": {
+      "summary": "If no language-specific rule matches, apply the generic heuristic:",
+      "anchor": "fallback-unknown-language"
+    },
+    "No test file found": {
+      "summary": "If no candidate test file exists in the git history (it was never",
+      "anchor": "no-test-file-found"
+    },
+    "Step 4: Compute co-evolution gap": {
+      "summary": "For each production file with `prod_churn >= --min-churn`:",
+      "anchor": "step-4-compute-co-evolution-gap"
+    },
+    "Step 5: Report": {
+      "summary": "Sort by gap score descending (widest divergence first).",
+      "anchor": "step-5-report"
+    },
+    "Summary line": {
+      "summary": "Sort by gap score descending (widest divergence first).",
+      "anchor": "summary-line"
+    },
+    "Flagged pairs table": {
+      "summary": "Sort by gap score descending (widest divergence first).",
+      "anchor": "flagged-pairs-table"
+    },
+    "Clean pairs (informational, collapsed)": {
+      "summary": "Files that passed the churn threshold but whose tests co-evolved (test",
+      "anchor": "clean-pairs-informational-collapsed"
+    },
+    "No findings": {
+      "summary": "If no pairs are flagged, print:",
+      "anchor": "no-findings"
+    },
+    "Step 6: Remediation guidance": {
+      "summary": "After the table, print a prioritized action list:",
+      "anchor": "step-6-remediation-guidance"
+    },
+    "Immediate priorities (gap ≥ 5 or test_file = \"none found\")": {
+      "summary": "These are the highest-risk files: they changed frequently but tests did",
+      "anchor": "immediate-priorities-gap-5-or-testfile-none-found"
+    },
+    "Secondary priorities (gap 2–4)": {
+      "summary": "These pairs have some test co-evolution but lag behind production churn.",
+      "anchor": "secondary-priorities-gap-24"
+    },
+    "Integration with other skills": {
+      "summary": "| Signal | Where to send it |",
+      "anchor": "integration-with-other-skills"
+    },
+    "Constraints": {
+      "summary": "**Advisory only.** Do not edit any files.",
+      "anchor": "constraints"
+    }
+  },
   "plugins/dev-team/skills/code-review/SKILL.md": {
     "Orchestrator constraints": {
       "summary": "1.",
