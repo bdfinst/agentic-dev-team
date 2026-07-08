@@ -357,3 +357,188 @@ def test_main_reports_no_op_when_no_in_progress_issues(tmp_path, capsys) -> None
     assert rc == 0
     captured = capsys.readouterr()
     assert "No orphaned" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# --dry-run preview, live comment/relabel ordering, per-issue status output
+# ---------------------------------------------------------------------------
+
+
+def _stale_issue_file(tmp_path, number: int = 30) -> Path:
+    fixture = [
+        {
+            "number": number,
+            "title": f"Issue {number}",
+            "state": "OPEN",
+            "labels": [{"name": "autoship:in-progress"}],
+            "labeled_at": "2026-07-01T00:00:00Z",
+        }
+    ]
+    input_file = tmp_path / "issues.json"
+    input_file.write_text(json.dumps(fixture))
+    return input_file
+
+
+def test_dry_run_makes_zero_gh_calls(tmp_path, capsys) -> None:
+    input_file = _stale_issue_file(tmp_path, 30)
+    with patch("autoship_reclaim.subprocess.run") as mock_run:
+        rc = autoship_reclaim.main(
+            [
+                "--input-file",
+                str(input_file),
+                "--now-override",
+                "2026-07-03T00:00:00Z",
+                "--dry-run",
+            ]
+        )
+    assert rc == 0
+    assert mock_run.call_count == 0
+    captured = capsys.readouterr()
+    assert "would-reclaim #30" in captured.out
+    assert "autoship:in-progress" in captured.out
+    assert "autoship:blocked" in captured.out
+
+
+def test_live_mode_comments_then_relabels_in_order(tmp_path, capsys) -> None:
+    input_file = _stale_issue_file(tmp_path, 30)
+    comment_result = subprocess.CompletedProcess(
+        args=["gh"], returncode=0, stdout="", stderr=""
+    )
+    relabel_result = subprocess.CompletedProcess(
+        args=["gh"], returncode=0, stdout="", stderr=""
+    )
+    with patch(
+        "autoship_reclaim.subprocess.run",
+        side_effect=[comment_result, relabel_result],
+    ) as mock_run:
+        rc = autoship_reclaim.main(
+            [
+                "--input-file",
+                str(input_file),
+                "--now-override",
+                "2026-07-03T00:00:00Z",
+            ]
+        )
+    assert rc == 0
+    assert mock_run.call_count == 2
+
+    comment_call = mock_run.call_args_list[0].args[0]
+    relabel_call = mock_run.call_args_list[1].args[0]
+
+    assert comment_call[:3] == ["gh", "issue", "comment"]
+    assert "30" in comment_call
+    assert relabel_call[:3] == ["gh", "issue", "edit"]
+    assert "30" in relabel_call
+    assert "--remove-label" in relabel_call
+    assert "autoship:in-progress" in relabel_call
+    assert "--add-label" in relabel_call
+    assert "autoship:blocked" in relabel_call
+
+    captured = capsys.readouterr()
+    assert "reclaimed #30" in captured.out
+
+
+def test_comment_failure_exits_nonzero_and_leaves_issue_retryable(
+    tmp_path, capsys
+) -> None:
+    input_file = _stale_issue_file(tmp_path, 30)
+    with patch(
+        "autoship_reclaim.subprocess.run",
+        side_effect=subprocess.CalledProcessError(1, ["gh", "issue", "comment"]),
+    ) as mock_run:
+        rc = autoship_reclaim.main(
+            [
+                "--input-file",
+                str(input_file),
+                "--now-override",
+                "2026-07-03T00:00:00Z",
+            ]
+        )
+    assert rc != 0
+    assert mock_run.call_count == 1  # never reached relabel
+    captured = capsys.readouterr()
+    assert "#30" in captured.err
+    assert "comment" in captured.err
+
+    # A later run against the same (unchanged) fixture re-selects the issue.
+    with open(input_file, encoding="utf-8") as fh:
+        issues = json.load(fh)
+    reselected = autoship_reclaim.select_orphaned(
+        issues, 24, datetime(2026, 7, 3, 0, 0, 0)
+    )
+    assert [issue["number"] for issue in reselected] == [30]
+
+
+def test_relabel_failure_after_successful_comment_exits_nonzero_and_retryable(
+    tmp_path, capsys
+) -> None:
+    input_file = _stale_issue_file(tmp_path, 30)
+    comment_result = subprocess.CompletedProcess(
+        args=["gh"], returncode=0, stdout="", stderr=""
+    )
+    with patch(
+        "autoship_reclaim.subprocess.run",
+        side_effect=[
+            comment_result,
+            subprocess.CalledProcessError(1, ["gh", "issue", "edit"]),
+        ],
+    ) as mock_run:
+        rc = autoship_reclaim.main(
+            [
+                "--input-file",
+                str(input_file),
+                "--now-override",
+                "2026-07-03T00:00:00Z",
+            ]
+        )
+    assert rc != 0
+    assert mock_run.call_count == 2  # comment succeeded, relabel failed
+    captured = capsys.readouterr()
+    assert "#30" in captured.err
+    assert "relabel" in captured.err
+
+    # The fixture's label is unaffected by the failed relabel call (it's a
+    # mock) — a later run against the same (still in-progress) issue
+    # re-selects it, same as the comment-failure case.
+    with open(input_file, encoding="utf-8") as fh:
+        issues = json.load(fh)
+    reselected = autoship_reclaim.select_orphaned(
+        issues, 24, datetime(2026, 7, 3, 0, 0, 0)
+    )
+    assert [issue["number"] for issue in reselected] == [30]
+
+
+def test_multi_issue_run_reports_one_status_line_per_issue(tmp_path, capsys) -> None:
+    fixture = [
+        {
+            "number": 40,
+            "title": "Issue 40",
+            "state": "OPEN",
+            "labels": [{"name": "autoship:in-progress"}],
+            "labeled_at": "2026-07-01T00:00:00Z",
+        },
+        {
+            "number": 41,
+            "title": "Issue 41",
+            "state": "OPEN",
+            "labels": [{"name": "autoship:in-progress"}],
+            "labeled_at": "2026-07-01T00:00:00Z",
+        },
+    ]
+    input_file = tmp_path / "issues.json"
+    input_file.write_text(json.dumps(fixture))
+
+    ok = subprocess.CompletedProcess(args=["gh"], returncode=0, stdout="", stderr="")
+    with patch("autoship_reclaim.subprocess.run", side_effect=[ok, ok, ok, ok]):
+        rc = autoship_reclaim.main(
+            [
+                "--input-file",
+                str(input_file),
+                "--now-override",
+                "2026-07-03T00:00:00Z",
+            ]
+        )
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "reclaimed #40" in captured.out
+    assert "reclaimed #41" in captured.out

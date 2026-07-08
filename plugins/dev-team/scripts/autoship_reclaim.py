@@ -94,6 +94,11 @@ def _build_parser() -> argparse.ArgumentParser:
             "considered orphaned (default 24)."
         ),
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview reclaims without commenting or relabeling (no gh calls).",
+    )
     autoship_state.add_input_seam_args(parser)
     return parser
 
@@ -193,6 +198,85 @@ def _load_issues(args: argparse.Namespace) -> list:
     return _fetch_in_progress_issues()
 
 
+def _explanatory_comment(issue: dict, stale_after_hours: float, now: datetime) -> str:
+    """Build the comment posted on a reclaimed issue, naming the stale
+    threshold and the `labeled_at`/`updatedAt` timestamp used to judge it."""
+    timestamp_raw = issue.get("labeled_at") or issue.get("updatedAt")
+    return (
+        f"Reclaiming this issue: it has carried `{IN_PROGRESS_LABEL}` for at "
+        f"least {stale_after_hours} hour(s) (since {timestamp_raw}), past the "
+        f"stale threshold as of {autoship_state.format_round_timestamp(now)}. "
+        f"Relabeling to `{BLOCKED_LABEL}` so it can be triaged by a human."
+    )
+
+
+def _post_comment(number: int, body: str) -> None:
+    subprocess.run(
+        ["gh", "issue", "comment", str(number), "--body", body],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def _relabel(number: int) -> None:
+    subprocess.run(
+        [
+            "gh",
+            "issue",
+            "edit",
+            str(number),
+            "--remove-label",
+            IN_PROGRESS_LABEL,
+            "--add-label",
+            BLOCKED_LABEL,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def _reclaim_issue(
+    issue: dict, stale_after_hours: float, now: datetime, dry_run: bool
+) -> int:
+    """Reclaim a single orphaned `issue`: comment first, then relabel.
+
+    This order is deliberate — if the comment call fails, the issue is left
+    exactly as it was (still `autoship:in-progress`, no misleading partial
+    comment), so a later reclaim run naturally re-selects and retries it via
+    `select_orphaned` with no special-cased recovery path. If the comment
+    succeeds but the relabel then fails, the issue also stays
+    `autoship:in-progress` and is retried the same way. Returns 0 on
+    success, 1 if either sub-operation fails (after printing a stderr
+    message naming the issue and the failing sub-operation).
+    """
+    number = issue["number"]
+    comment = _explanatory_comment(issue, stale_after_hours, now)
+
+    if dry_run:
+        print(
+            f"would-reclaim #{number}: {IN_PROGRESS_LABEL} -> {BLOCKED_LABEL} "
+            f"(comment: {comment!r})"
+        )
+        return 0
+
+    try:
+        _post_comment(number, comment)
+    except subprocess.CalledProcessError as exc:
+        print(f"failed #{number}: comment ({exc})", file=sys.stderr)
+        return 1
+
+    try:
+        _relabel(number)
+    except subprocess.CalledProcessError as exc:
+        print(f"failed #{number}: relabel ({exc})", file=sys.stderr)
+        return 1
+
+    print(f"reclaimed #{number}")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -210,10 +294,11 @@ def main(argv=None) -> int:
         print("No orphaned autoship:in-progress issues found.")
         return 0
 
-    print(
-        f"{len(orphaned)} orphaned issue(s) found: "
-        f"{', '.join('#' + str(issue['number']) for issue in orphaned)}"
-    )
+    for issue in orphaned:
+        rc = _reclaim_issue(issue, args.stale_after_hours, now, args.dry_run)
+        if rc != 0:
+            return rc
+
     return 0
 
 
