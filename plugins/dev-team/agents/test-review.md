@@ -26,7 +26,7 @@ Read `knowledge/testability-patterns.md` before analysis. Whole-file load: the a
 
 For maintainability findings (duplicated selectors/literals, UI-based setup), consult `knowledge/test-automation-maturity.md`. Whole-file load: apply its single-point-of-change check and graduated-disclosure thresholds (don't recommend abstraction below the count threshold).
 
-For assertion-quality findings, consult `knowledge/result-verification.md`.
+For assertion-quality findings, consult `knowledge/result-verification.md`. Whole-file load: apply all verification patterns (state vs behavior, assertion patterns, rules) when classifying assertion-quality issues.
 
 For oracle-provenance classification (SPEC-DERIVED / INDEPENDENT / CIRCULAR), consult `knowledge/oracle-provenance.md`. Whole-file load: apply the taxonomy, detection heuristics, and circular-ratio quality-cap rule to every file reviewed. Report the oracle-provenance ratio in the finding summary when any circular oracles are present. Whole-file load: name the specific verification pattern (Expected Object, Custom Assertion, Guard Assertion, Delta Assertion) that fixes a weak/cluttered/misleading assertion, and enforce one logical condition per test.
 
@@ -130,7 +130,7 @@ Test code quality:
 
 Oracle provenance (correctness vs. stability):
 
-Apply the SPEC-DERIVED / INDEPENDENT / CIRCULAR taxonomy from `knowledge/oracle-provenance.md`. For each test, classify its expected values by provenance. Report the oracle-provenance ratio (circular / total) in the finding summary when any circular oracles are detected:
+Whole-file load: apply the SPEC-DERIVED / INDEPENDENT / CIRCULAR taxonomy from `knowledge/oracle-provenance.md`. For each test, classify its expected values by provenance. Report the oracle-provenance ratio (circular / total) in the finding summary when any circular oracles are detected:
 
 - Circular ratio < 20 %: suggestion — add provenance comments to snapshot-based assertions
 - Circular ratio 20–50 %: warning — suite has meaningful circular-oracle contamination
