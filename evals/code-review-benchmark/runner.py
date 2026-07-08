@@ -300,7 +300,7 @@ def _load_isolated_dispatch():
 
 
 def make_isolated_dispatch_fn(
-    model: str = "sonnet", timeout: int = 900
+    model: str = "sonnet", timeout: int = 1800
 ) -> Callable[[str, str], Dict[str, Any]]:
     """Build the real, production `dispatch_fn` for `run_case`.
 
@@ -312,6 +312,32 @@ def make_isolated_dispatch_fn(
     unconditionally, unlike the standalone script's opt-in `--preserve-auth`
     — since running this harness at all presupposes the operator's own
     subscription rather than an `ANTHROPIC_API_KEY`.
+
+    `timeout`'s default was raised 900 -> 1800 after #974 (a 900s single-
+    file timeout on `defects4j-Lang-23`/`defects4j-Lang-56` reported against
+    #967). Investigated live rather than guessed at: a real, uncontended-
+    by-design `/code-review --path <dir> --json` dispatch against a
+    deliberately trivial 15-line single-file directory (this module's own
+    `isolated_dispatch.py`/`copy_auth_state()` machinery, no artificial
+    speedup) still cost 28 turns, 1.28M input tokens, and $1.29 — because
+    `skills/code-review/SKILL.md` step 3 dispatches its full ~14-agent
+    review roster regardless of file count ("fix-only" scope narrows which
+    *files* get reviewed, not how many *agents* run); step 4 hands every
+    dispatched agent the complete file content. A real Defects4J case
+    (`defects4j-Lang-29`, sampled independently the same session) measured
+    even higher: 58 turns, 846s of cumulative nested-call API time (vs.
+    368s wall clock — only possible with heavy fan-out), $4.48. Neither run
+    hit 900s at the concurrency each happened to run under, but the
+    numbers make clear that a larger real ground-truth file (Lang-23's is
+    536 lines, Lang-56's 1744) reviewed by the same full roster, especially
+    under this harness's `--workers` concurrency multiplying the nested
+    `claude -p` dispatch count further, can plausibly exceed the old 900s
+    ceiling without any hang — the aggregation step itself
+    (`skills/code-review/SKILL.md` step 5) is deterministic parsing with no
+    LLM call and no loop, ruled out as a hang source. 1800s is deliberate
+    headroom for that now-measured real cost, not an arbitrary bump; see
+    `cli.py`'s `--timeout` help text and `plans/issue-974-benchmark-
+    timeout-fanout.md` for the full investigation.
     """
     isolated_dispatch = _load_isolated_dispatch()
 
