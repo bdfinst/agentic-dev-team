@@ -1,0 +1,13 @@
+{
+  "fixture": "ap-regeneration-risk.py",
+  "description": "Production module with unexplained magic constants and load-bearing field ordering that are regeneration-risk candidates",
+  "applicableAgents": ["ai-provenance-review"],
+  "agents": {
+    "ai-provenance-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 2, "max": 6 },
+      "severities": { "warning": { "min": 2, "max": 5 } },
+      "mustMention": ["regeneration", "ordering"]
+    }
+  }
+}
