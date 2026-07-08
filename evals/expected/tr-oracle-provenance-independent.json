@@ -1,0 +1,12 @@
+{
+  "fixture": "tr-oracle-provenance-independent",
+  "description": "All expected values are SPEC-DERIVED (SI standard, RFC 4648 test vectors) or INDEPENDENT (hand calculations). No circular oracles. Expects pass or warn with no oracle-provenance error.",
+  "applicableAgents": ["test-review"],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 2 },
+      "mustNotMention": ["circular oracle", "quality cap", "60"]
+    }
+  }
+}

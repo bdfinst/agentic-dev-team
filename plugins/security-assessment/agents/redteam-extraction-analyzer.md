@@ -2,7 +2,8 @@
 name: redteam-extraction-analyzer
 description: Interprets probe 07 (model extraction) alongside probe 03 (sensitivity). Translates R² into extraction fidelity, extracts decision-rule structure, names IP-theft implications.
 tools: Read, Grep
-model: opus
+effort: high
+Context needs: artifact-stream
 ---
 
 # Red-Team Extraction Analyzer

@@ -2,7 +2,8 @@
 name: exec-report-generator
 description: Synthesizes the publication-ready executive report from upstream artifacts. Emits a 7-section per-repo report (plus cross-repo summary for multi-repo runs).
 tools: Read, Write, Glob, Grep
-model: opus
+effort: high
+Context needs: artifact-stream
 ---
 
 # Executive Report Generator

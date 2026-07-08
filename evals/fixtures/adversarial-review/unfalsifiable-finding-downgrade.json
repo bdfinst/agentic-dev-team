@@ -1,0 +1,25 @@
+{
+  "_comment": "Eval fixture for falsifiability downgrade (#1024). Demonstrates the correct handling of a plausible-but-unfalsifiable candidate finding. The initial finding (error severity) cannot articulate what evidence would disprove it, so the adversarial-review-protocol.md Self-Challenge loop requires downgrading it to warning.",
+  "scenario": "unfalsifiable-error-downgrade",
+  "description": "A reviewer flags a function as 'insecure' at error severity but cannot state any evidence that would disprove the claim. Per adversarial-review-protocol.md step 3a (Falsifiability), the finding must be downgraded to warning.",
+  "initial_candidate_finding": {
+    "category": "A01.missing-auth-middleware",
+    "severity": "error",
+    "confidence": "medium",
+    "file": "src/api/users.py",
+    "line": 22,
+    "message": "This endpoint might be accessible without authentication.",
+    "falsifiability_statement": null,
+    "_note": "No falsifiability statement — the reviewer cannot point to specific evidence (e.g. missing decorator, absent middleware registration) that proves the auth check is absent."
+  },
+  "expected_output_after_self_challenge": {
+    "category": "A01.missing-auth-middleware",
+    "severity": "warning",
+    "confidence": "medium",
+    "file": "src/api/users.py",
+    "line": 22,
+    "message": "This endpoint might be accessible without authentication. Downgraded from error: no concrete falsifying evidence could be articulated (e.g. a specific missing decorator or middleware call). Review manually.",
+    "falsifiability_statement": "Would be disproven by confirming that an @require_auth decorator or equivalent middleware is applied to this route handler."
+  },
+  "downgrade_rationale": "Per adversarial-review-protocol.md step 3a: an error-severity finding with no articulable falsifiability statement is an opinion, not a finding. Downgraded to warning to reflect uncertainty."
+}

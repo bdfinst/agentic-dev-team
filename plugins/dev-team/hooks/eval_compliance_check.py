@@ -205,13 +205,27 @@ def _agent_checks(
         )
 
     # 9. Context needs (WARN)
-    if not _grep_i_matches(
-        content,
-        r"context needs:\s*(diff-only|full-file|project-structure)",
-    ):
+    # Valid standalone values: diff-only, full-file, project-structure,
+    # artifact-stream.  Comma-separated combinations are allowed only when
+    # every token is one of the four valid values (e.g. "artifact-stream,
+    # full-file").  A declaration containing any unknown token still warns.
+    _VALID_CTX = {"diff-only", "full-file", "project-structure", "artifact-stream"}
+    _ctx_match = re.search(
+        r"context needs:\s*(.+)", content, re.IGNORECASE
+    )
+    if _ctx_match:
+        _tokens = [t.strip() for t in _ctx_match.group(1).split(",")]
+        _invalid = [t for t in _tokens if t not in _VALID_CTX]
+        if _invalid:
+            warn(
+                f"{agent_name}: 'Context needs' contains invalid token(s): "
+                f"{', '.join(_invalid)}. "
+                f"Valid values: diff-only, full-file, project-structure, artifact-stream."
+            )
+    else:
         warn(
             f"{agent_name}: Missing 'Context needs' field "
-            f"(must be diff-only, full-file, or project-structure)."
+            f"(must be diff-only, full-file, project-structure, or artifact-stream)."
         )
 
     # 6. File scope for language-specific agents (WARN)

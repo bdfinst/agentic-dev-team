@@ -2,7 +2,8 @@
 name: redteam-report-generator
 description: Refines the red-team adversarial-report.md into an executive document. Assigns RED/AMBER/GREEN rating; produces remediation with effort estimates.
 tools: Read, Write, Grep
-model: opus
+effort: high
+Context needs: artifact-stream
 ---
 
 # Red-Team Report Generator
