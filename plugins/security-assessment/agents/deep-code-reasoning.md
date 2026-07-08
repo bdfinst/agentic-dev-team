@@ -2,7 +2,8 @@
 name: deep-code-reasoning
 description: Context-aware vulnerability detection beyond static patterns. RECON-scoped freeform reasoning about IDOR, confused deputy, TOCTOU, privilege escalation, workflow bypass. Phase 1b peer agent.
 tools: Read, Grep, Glob
-model: opus
+effort: high
+Context needs: artifact-stream, full-file
 ---
 
 # Deep Code Reasoning

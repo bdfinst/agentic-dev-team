@@ -106,11 +106,23 @@ review agents. Check:
      that the tier name is deprecated and name the band to use
      (`haiku` → `low`, `sonnet` → `medium`, `opus` → `high`)
 
-9. **Context needs**: Does the agent declare
-   `Context needs: diff-only|full-file|project-structure`?
+9. **Context needs**: Does the agent declare a `Context needs:` field?
    - All agents MUST declare what input context they need
-   - Valid values: `diff-only`, `full-file`, `project-structure`
-   - WARN if missing
+   - Valid standalone values:
+     - `diff-only` — agent reads only the unified diff
+     - `full-file` — agent needs the complete file content
+     - `project-structure` — agent needs directory/project layout
+     - `artifact-stream` — agent consumes upstream JSON artifact streams
+       (prior-phase findings, RECON output) and does **not** read source
+       files directly; qualifies when the agent's only input is an artifact
+       produced by an earlier pipeline phase
+   - **Combinability**: a comma-separated list of two or more values is
+     valid when every token is one of the four values above (e.g.
+     `artifact-stream, full-file` is valid for an agent that reads both
+     upstream artifacts **and** full source files). An unknown token in a
+     combined declaration still WARNs on that token specifically.
+   - WARN if the field is missing entirely
+   - WARN if the declaration contains an unrecognised token
 
 10. **No colons in description**: Does the `description:` frontmatter field contain a colon?
     - The `description` field MUST NOT contain colons — they break argument-hints and other tooling
