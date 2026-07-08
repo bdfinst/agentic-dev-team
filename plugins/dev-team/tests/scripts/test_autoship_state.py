@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -32,3 +33,21 @@ def test_is_stale_inclusive_at_exact_threshold() -> None:
     labeled_at = datetime(2026, 7, 1, 0, 0, 0)
     now = datetime(2026, 7, 2, 0, 0, 0)
     assert autoship_state.is_stale(labeled_at, 24, now) is True
+
+
+def test_add_input_seam_args_accepts_both_flags() -> None:
+    parser = argparse.ArgumentParser()
+    autoship_state.add_input_seam_args(parser)
+    args = parser.parse_args(
+        ["--input-file", "fixture.json", "--now-override", "2026-07-08T12:00:00Z"]
+    )
+    assert args.input_file == "fixture.json"
+    assert args.now_override == datetime(2026, 7, 8, 12, 0, 0)
+
+
+def test_add_input_seam_args_both_flags_optional() -> None:
+    parser = argparse.ArgumentParser()
+    autoship_state.add_input_seam_args(parser)
+    args = parser.parse_args([])
+    assert args.input_file is None
+    assert args.now_override is None

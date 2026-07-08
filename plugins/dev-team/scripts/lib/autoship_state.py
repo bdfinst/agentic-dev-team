@@ -9,6 +9,7 @@ Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 
 from __future__ import annotations
 
+import argparse
 from datetime import datetime
 
 
@@ -28,3 +29,27 @@ def is_stale(labeled_at: datetime, stale_after_hours: float, now: datetime) -> b
     """
     elapsed_hours = (now - labeled_at).total_seconds() / 3600
     return elapsed_hours >= stale_after_hours
+
+
+def _iso8601(raw: str) -> datetime:
+    """`argparse` `type=` validator for an ISO-8601 timestamp string."""
+    return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ")
+
+
+def add_input_seam_args(parser: argparse.ArgumentParser) -> None:
+    """Add the shared `--input-file`/`--now-override` test seam to `parser`.
+
+    Both flags are optional at this shared level; each caller decides its
+    own default file-source behavior. `--input-file` lets a caller skip its
+    live `gh` fetch entirely (JSON array of issue objects); `--now-override`
+    feeds `is_stale` an explicit "now" instead of the real clock.
+    """
+    parser.add_argument(
+        "--input-file",
+        help="Path to a JSON array of issue objects, bypassing the live gh fetch.",
+    )
+    parser.add_argument(
+        "--now-override",
+        type=_iso8601,
+        help="ISO-8601 UTC timestamp (e.g. 2026-07-08T12:00:00Z) to use as 'now'.",
+    )
