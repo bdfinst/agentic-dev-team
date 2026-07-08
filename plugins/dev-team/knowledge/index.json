@@ -5389,6 +5389,10 @@
     "Phase 7 — Executive-summary report": {
       "summary": "Produce a stable executive-summary report from the shipped template.",
       "anchor": "phase-7-executive-summary-report"
+    },
+    "After Phase 7 — Re-run-with-refactor close-out prompt": {
+      "summary": "**No prompt** when: `refactor-backlog.md` does not exist (no",
+      "anchor": "after-phase-7-re-run-with-refactor-close-out-prompt"
     }
   },
   "plugins/dev-team/skills/threat-modeling/SKILL.md": {
