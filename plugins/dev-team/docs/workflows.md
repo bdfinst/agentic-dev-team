@@ -10,6 +10,9 @@ Commands within each group are split into two tiers:
 
 For the two multi-phase pipelines with inter-phase gates ([`/ship`](#ship) and
 [`/test-improve`](#test-improve)), full phase tables appear at the end of this page.
+Use `/test-improve` alongside `/ship` for multi-phase quality pipelines — run
+`/test-improve` to raise baseline coverage and health first, then `/ship` to
+carry the feature through spec → build → PR.
 
 ---
 
