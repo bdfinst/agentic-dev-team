@@ -226,12 +226,24 @@ def run(args: argparse.Namespace) -> int:
         )
         return 1
 
+    dev_team_plugin_path = args.dev_team_plugin_path or os.environ.get(
+        "DEV_TEAM_PLUGIN_PATH"
+    )
+    if dev_team_plugin_path and not Path(dev_team_plugin_path).is_dir():
+        print(
+            f"code-review-benchmark: --dev-team-plugin-path "
+            f"{dev_team_plugin_path!r} does not exist.",
+            file=sys.stderr,
+        )
+        return 1
+
     already = runner.already_processed(results_dir) if args.resume else set()
     dispatch_fn = runner.make_isolated_dispatch_fn(
         model=args.model,
         timeout=args.timeout,
         retry_on_unparseable=not args.no_json_retry,
         retry_timeout=args.json_retry_timeout,
+        plugin_path=dev_team_plugin_path,
     )
 
     pending = []
@@ -420,6 +432,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "--report-only",
         action="store_true",
         help="Only (re)generate report.md from existing results.",
+    )
+    parser.add_argument(
+        "--dev-team-plugin-path",
+        help=(
+            "Override the dev-team plugin content the isolated /code-review "
+            "dispatch loads (or set DEV_TEAM_PLUGIN_PATH), e.g. "
+            "/path/to/worktree/plugins/dev-team. Without this, every "
+            "dispatch loads whatever copy_auth_state() carried over from "
+            "the operator's real ~/.claude/plugins/ — the globally cached "
+            "install, which can be many commits stale relative to a local "
+            "branch under verification if the plugin's version string "
+            "hasn't bumped (#1010)."
+        ),
     )
     return parser
 

@@ -79,6 +79,47 @@ errors this was built to avoid).
   built for; there's no confirmed narrower answer for exactly which single
   piece under `~/.claude/` gates the login check.
 
+### Trap: dispatches load the globally cached plugin install, not this checkout (#1010)
+
+Because `copy_auth_state()` carries over `plugins/` from your real
+`~/.claude/`, every dispatch loads the dev-team plugin from
+`~/.claude/plugins/cache/bfinster/dev-team/<version>/` — the plugin
+manager's version-keyed cache — **never** from this repo's working tree.
+That cache only refreshes when the plugin's `version` string in
+`.claude-plugin/plugin.json` bumps; a local branch with unreleased commits
+(e.g. release-please batching several `fix:`/`feat:` commits before
+cutting a release) can be many commits stale even with the marketplace's
+`autoUpdate: true`, and nothing in the harness surfaces this on its own.
+This bit a live verification sweep during #1003: the first baseline run
+silently tested a cache 11 commits behind `main`, caught only by diffing
+the cached agent file against the branch byte-for-byte.
+
+Compare what the harness will actually load vs. what your branch has:
+
+```bash
+diff ~/.claude/plugins/cache/bfinster/dev-team/<version>/agents/<agent>.md \
+     <worktree>/plugins/dev-team/agents/<agent>.md
+# installed_plugins.json shows the exact cached path in use:
+python3 -c "import json; d=json.load(open('$HOME/.claude/plugins/installed_plugins.json')); print(d['plugins']['dev-team@bfinster'])"
+```
+
+Fix it by pointing dispatches at your checkout instead of the cache:
+
+```bash
+python3 cli.py --dataset defects4j --project Lang --bug-ids 36,44 \
+  --dev-team-plugin-path /path/to/your/worktree/plugins/dev-team
+# or: export DEV_TEAM_PLUGIN_PATH=/path/to/your/worktree/plugins/dev-team
+```
+
+`--dev-team-plugin-path` rewrites the cell home's copied
+`installed_plugins.json` so `dev-team@bfinster`'s `installPath` points at
+the given directory instead of the cache — see
+`runner._override_dev_team_plugin_path()`. It never touches your real
+`~/.claude/`, since each dispatch's `copy_auth_state()` copy already lands
+in a fresh, throwaway cell home. If left unset, dispatches keep loading
+the cache exactly as before — this is opt-in, not a default behavior
+change.
+
 ## Invocation contract (confirmed against the real skill, not assumed)
 
 `/code-review --path <dir> --json` prints one aggregated JSON object to
@@ -175,6 +216,7 @@ python3 cli.py --dataset defects4j --max-cost-usd 50
 | `--defects4j-home`, `--bugsjs-home` | Dataset home dirs (or the matching env vars) |
 | `--results-dir` | Where `results.jsonl`/`skipped.jsonl`/`report.md`/`raw/` are written (default `./results`) |
 | `--report-only` | Only (re)generate `report.md` from existing results |
+| `--dev-team-plugin-path` | Point dispatches at a local checkout's `plugins/dev-team` instead of the globally cached plugin install (or `DEV_TEAM_PLUGIN_PATH`) — see [the trap section above](#trap-dispatches-load-the-globally-cached-plugin-install-not-this-checkout-1010) (#1010) |
 
 ## Cost tracking (#1000)
 

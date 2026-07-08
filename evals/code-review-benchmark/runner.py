@@ -314,6 +314,38 @@ def _load_isolated_dispatch():
     return module
 
 
+def _override_dev_team_plugin_path(home: Path, plugin_path: str) -> None:
+    """Rewrite the cell home's copied `installed_plugins.json` so the
+    `dev-team@bfinster` entry's `installPath` points at `plugin_path` (#1010).
+
+    Without this, every dispatch loads whatever `copy_auth_state()` carried
+    over from the operator's real `~/.claude/plugins/` — the **globally
+    cached** plugin install, version-keyed and only refreshed when the
+    plugin's `version` string bumps. A live sweep meant to verify a local
+    branch's agent/skill change can silently run against a cache that is
+    many commits stale, with nothing in the harness surfacing the gap (see
+    #1010's repro).
+
+    Best-effort: no-ops if the file is missing, unparseable, or has no
+    `dev-team@bfinster` entry (e.g. a bare test cell home) — this override
+    is a diagnostic aid for live verification sweeps, not something that
+    should ever crash a dispatch.
+    """
+    installed_path = Path(home) / ".claude" / "plugins" / "installed_plugins.json"
+    if not installed_path.is_file():
+        return
+    try:
+        data = json.loads(installed_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+    entries = data.get("plugins", {}).get("dev-team@bfinster")
+    if not entries:
+        return
+    for entry in entries:
+        entry["installPath"] = str(plugin_path)
+    installed_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 # #999/#1002: a completed `/code-review --json` dispatch occasionally
 # narrates having emitted the JSON instead of actually emitting it, even
 # after PR #975 hardened the skill's step-7 wording to specifically forbid
@@ -368,6 +400,7 @@ def make_isolated_dispatch_fn(
     timeout: int = 1800,
     retry_on_unparseable: bool = True,
     retry_timeout: Optional[int] = None,
+    plugin_path: Optional[str] = None,
 ) -> Callable[[str, str], Dict[str, Any]]:
     """Build the real, production `dispatch_fn` for `run_case`.
 
@@ -426,6 +459,13 @@ def make_isolated_dispatch_fn(
     that — not an empirically measured number (no live retry-cost data
     exists yet); override via `cli.py --json-retry-timeout` if a live
     sweep later shows it's too tight or too loose.
+
+    `plugin_path` (#1010): when set, overrides the `dev-team@bfinster` entry
+    in the cell home's copied `installed_plugins.json` to point at this
+    path instead of the globally cached install `copy_auth_state()` carried
+    over — see `_override_dev_team_plugin_path()`. Use this to verify a
+    local branch's agent/skill change actually reaches the dispatch, rather
+    than silently testing stale cached plugin content.
     """
     isolated_dispatch = _load_isolated_dispatch()
     effective_retry_timeout = (
@@ -435,6 +475,8 @@ def make_isolated_dispatch_fn(
     def dispatch(prompt: str, cwd: str) -> Dict[str, Any]:
         home = isolated_dispatch.make_cell_home()
         isolated_dispatch.copy_auth_state(home)
+        if plugin_path:
+            _override_dev_team_plugin_path(home, plugin_path)
         session_id = isolated_dispatch.new_session_id()
         env = isolated_dispatch.build_env(home)
         cmd = isolated_dispatch.build_cmd(prompt, session_id, model, cwd=cwd)
