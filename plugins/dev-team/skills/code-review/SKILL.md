@@ -239,7 +239,7 @@ Otherwise present the Review Findings prompt (template: [`output-format.md`](out
 **Exception — non-interactive mode**: skip this prompt when the run is non-interactive.
 
 - (a) If `--json` (or `--yes`), **default to report only** — proceed to step 7 and emit the aggregated JSON; **never modify code** without an explicit caller opt-in. `--json` is contractually non-interactive (CI-safe): it never blocks on this prompt.
-- (b) If running inside `/build` or `/pr`, proceed to the fix loop. The caller owns the human gate (the orchestrator's Phase 3 approval for `/build`; the pre-PR confirmation for `/pr`).
+- (b) If running inside `/build`, `/pr`, or `/test-improve`, proceed to the fix loop. The caller owns the human gate (the orchestrator's Phase 3 approval for `/build`; the pre-PR confirmation for `/pr`; for `/test-improve`, the Phase 3 Story-set approval gating entry to Phase 4 and the `[r]evise/[w]aive/[q]uit` prompt raised after 2 failed iterations of its own end-of-phase review loop — see `../test-improve/SKILL.md`'s Phase 4/5 "End-of-phase review loop" sections).
 
 ### 6a. Review-fix loop
 
