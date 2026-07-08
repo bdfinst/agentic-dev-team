@@ -179,6 +179,6 @@ Phase 3: Defect table (severity, scope, status: fixed/deferred/escalated).
 
 ## Integration
 
-- **Performance Metrics**: Log `hallucination_detected`, `rework_cycles`, `defects_found` on task completion
+- **Performance Metrics**: `hallucination_detected`, `rework_cycles`, `defects_found` are logged automatically by `hooks/task_completion_metrics.py` on task completion — no skill-level logging step needed. To surface non-default values, populate `.claude/session-metrics.json` with the relevant fields before the session ends.
 - **Context Summarization**: When context is high, increase Phase 1 rigor
 - **Human Oversight Protocol**: Escalation from Phase 3 feeds into the approval gate system
