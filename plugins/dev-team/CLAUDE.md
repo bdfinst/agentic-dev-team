@@ -87,4 +87,4 @@ Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` 
 
 Logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
 
-Every claim must name its measuring instrument. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), per-agent accuracy (`/agent-eval`). **Not yet:** efficiency gains, hallucination rate, first-pass acceptance.
+Every claim must name the instrument. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), per-agent accuracy (`/agent-eval`). **Not yet:** efficiency gains, hallucination rate, first-pass acceptance.
