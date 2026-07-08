@@ -749,4 +749,62 @@ def test_load_issues_timeout_surfaces_as_clear_stderr(capsys) -> None:
         rc = autoship_reclaim.main([])
     assert rc != 0
     captured = capsys.readouterr()
-    assert "Failed to load in-progress issues via gh" in captured.err
+    assert "failed to fetch in-progress issues via gh" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# Missing gh binary (#989 /pr-gate finding: FileNotFoundError from a missing
+# gh CLI was uncaught in reclaim's comment/relabel/fetch paths, unlike
+# discovery's matching guard — surfaced a raw traceback instead of a clear
+# stderr message, violating Acceptance Criterion 5)
+# ---------------------------------------------------------------------------
+
+
+def test_main_exits_nonzero_when_gh_binary_missing(capsys) -> None:
+    with patch(
+        "autoship_reclaim.subprocess.run",
+        side_effect=FileNotFoundError("gh: command not found"),
+    ):
+        rc = autoship_reclaim.main([])
+    assert rc != 0
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.err
+    assert "gh" in captured.err.lower()
+
+
+def test_reclaim_issue_comment_missing_gh_binary_surfaces_clearly(capsys) -> None:
+    with patch(
+        "autoship_reclaim.subprocess.run",
+        side_effect=FileNotFoundError("gh: command not found"),
+    ):
+        rc = autoship_reclaim._reclaim_issue(
+            _issue(30, "2026-07-01T00:00:00Z"), 24, datetime(2026, 7, 3, 0, 0, 0), False
+        )
+    assert rc != 0
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.err
+    assert "#30" in captured.err
+
+
+def test_labeled_at_for_falls_back_when_gh_binary_missing() -> None:
+    issue = {"number": 55, "updatedAt": "2026-07-05T00:00:00Z"}
+    with patch(
+        "autoship_reclaim.subprocess.run",
+        side_effect=FileNotFoundError("gh: command not found"),
+    ):
+        labeled_at = autoship_reclaim._labeled_at_for(issue, "OWNER/REPO")
+    assert labeled_at == "2026-07-05T00:00:00Z"
+
+
+def test_load_issues_distinguishes_input_file_error_from_gh_error(
+    tmp_path, capsys
+) -> None:
+    """A --input-file failure must not be blamed on gh (#989 /pr-gate
+    finding: main()'s catch-all previously said 'Failed to load
+    in-progress issues via gh' even for local file errors)."""
+    input_file = tmp_path / "missing.json"  # never created
+    rc = autoship_reclaim.main(["--input-file", str(input_file)])
+    assert rc != 0
+    captured = capsys.readouterr()
+    assert "--input-file" in captured.err
+    assert "gh" not in captured.err.lower().split("--input-file")[0]

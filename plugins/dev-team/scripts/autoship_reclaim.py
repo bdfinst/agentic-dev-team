@@ -114,35 +114,40 @@ def _fetch_in_progress_issues() -> list:
     server-filtered to open + `autoship:in-progress`, so the fetched shape
     matches exactly what `select_orphaned` checks — same reasoning as
     discovery's live-fetch step. A failure fetching the issue list itself
-    (non-zero `gh` exit or malformed JSON) is unrecoverable and propagates to
-    the caller, which translates it to a clear stderr message. A failure
-    looking up one issue's timeline is NOT fatal — it falls back to that
-    issue's own `updatedAt` (see `_labeled_at_for`), so one issue's timeline
-    hiccup never aborts the whole run.
+    (missing `gh` binary, non-zero exit, timeout, or malformed JSON) is
+    unrecoverable and propagates to the caller, which translates it to a
+    clear stderr message. A failure looking up one issue's timeline is NOT
+    fatal — it falls back to that issue's own `updatedAt` (see
+    `_labeled_at_for`), so one issue's timeline hiccup never aborts the
+    whole run.
     """
-    result = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "list",
-            "--state",
-            "open",
-            "--label",
-            IN_PROGRESS_LABEL,
-            "--json",
-            "number,title,state,labels,updatedAt",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=_GH_TIMEOUT_SECONDS,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--label",
+                IN_PROGRESS_LABEL,
+                "--json",
+                "number,title,state,labels,updatedAt",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=_GH_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        raise ReclaimError(f"gh CLI not found: {exc}") from exc
     issues = json.loads(result.stdout)
     try:
         repo = _current_repo()
     except (
         subprocess.CalledProcessError,
         subprocess.TimeoutExpired,
+        FileNotFoundError,
         json.JSONDecodeError,
     ):
         # Repo resolution failing is one more "timeline lookup hiccup" —
@@ -171,6 +176,7 @@ def _labeled_at_for(issue: dict, repo: Optional[str]) -> str:
     except (
         subprocess.CalledProcessError,
         subprocess.TimeoutExpired,
+        FileNotFoundError,
         json.JSONDecodeError,
     ):
         return issue["updatedAt"]
@@ -262,17 +268,33 @@ def _load_issues(args: argparse.Namespace) -> list:
     `title`, `state`, `labels`, plus `labeled_at`/`updatedAt`) before
     `select_orphaned` runs.
 
-    Raises `ReclaimError` on a schema violation in `--input-file`, or
-    `subprocess.CalledProcessError`/`json.JSONDecodeError`/`OSError` on a
-    `gh`-fetch or file-read failure — the caller (`main`) translates all of
-    these into a clear stderr message, never an uncaught traceback.
+    Raises `ReclaimError` on a `--input-file` read/parse/schema failure or a
+    `gh`-fetch failure (missing binary, non-zero exit, timeout) — always
+    with a message naming which source failed, never an uncaught traceback.
     """
     if args.input_file:
-        with open(args.input_file, encoding="utf-8") as fh:
-            issues = json.load(fh)
+        try:
+            with open(args.input_file, encoding="utf-8") as fh:
+                issues = json.load(fh)
+        except json.JSONDecodeError as exc:
+            raise ReclaimError(
+                f"--input-file {args.input_file!r} is not valid JSON: {exc}"
+            ) from exc
+        except OSError as exc:
+            raise ReclaimError(
+                f"--input-file {args.input_file!r} could not be read: {exc}"
+            ) from exc
         validate_issues(issues)
         return issues
-    return _fetch_in_progress_issues()
+    try:
+        return _fetch_in_progress_issues()
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        json.JSONDecodeError,
+        OSError,
+    ) as exc:
+        raise ReclaimError(f"failed to fetch in-progress issues via gh: {exc}") from exc
 
 
 def _explanatory_comment(issue: dict, stale_after_hours: float, now: datetime) -> str:
@@ -342,13 +364,21 @@ def _reclaim_issue(
 
     try:
         _post_comment(number, comment)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ) as exc:
         print(f"failed #{number}: comment ({exc})", file=sys.stderr)
         return 1
 
     try:
         _relabel(number)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ) as exc:
         print(f"failed #{number}: relabel ({exc})", file=sys.stderr)
         return 1
 
@@ -365,14 +395,6 @@ def main(argv=None) -> int:
         issues = _load_issues(args)
     except ReclaimError as exc:
         print(f"autoship_reclaim: {exc}", file=sys.stderr)
-        return 1
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        json.JSONDecodeError,
-        OSError,
-    ) as exc:
-        print(f"Failed to load in-progress issues via gh: {exc}", file=sys.stderr)
         return 1
 
     orphaned = select_orphaned(issues, args.stale_after_hours, now)
