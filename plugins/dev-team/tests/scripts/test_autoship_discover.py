@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -270,3 +271,64 @@ def test_select_eligible_stdout_shape_on_successful_run(tmp_path, capsys) -> Non
     assert exit_code == 0
     captured = capsys.readouterr()
     assert json.loads(captured.out) == [{"number": 42, "title": "Fix the thing"}]
+
+
+# ---------------------------------------------------------------------------
+# Step 2.3 — live gh fetch wiring and failure surfacing
+# ---------------------------------------------------------------------------
+
+
+def test_gh_fetch_failure_exits_nonzero_with_clear_stderr(monkeypatch, capsys) -> None:
+    def _fake_run(*args, **kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=1, cmd=["gh", "issue", "list"], stderr="rate limited"
+        )
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    exit_code = autoship_discover.main(["--max-issues", "3", "--max-cost-usd", "10"])
+    assert exit_code != 0
+    captured = capsys.readouterr()
+    assert "gh" in captured.err
+    assert "rate limited" in captured.err
+
+
+def test_gh_fetch_malformed_json_exits_nonzero(monkeypatch, capsys) -> None:
+    fake_result = mock.Mock(stdout="{not valid json", stderr="")
+
+    def _fake_run(*args, **kwargs):
+        return fake_result
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    exit_code = autoship_discover.main(["--max-issues", "3", "--max-cost-usd", "10"])
+    assert exit_code != 0
+    captured = capsys.readouterr()
+    assert "gh" in captured.err
+
+
+def test_gh_fetch_success_flows_into_select_eligible_identically_to_input_file(
+    monkeypatch, capsys
+) -> None:
+    issue = _issue(number=7, title="Live-fetched issue")
+    fake_result = mock.Mock(stdout=json.dumps([issue]), stderr="")
+
+    captured_argv: list = []
+
+    def _fake_run(argv, **kwargs):
+        captured_argv.append(argv)
+        return fake_result
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    exit_code = autoship_discover.main(["--max-issues", "5", "--max-cost-usd", "10"])
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == [{"number": 7, "title": "Live-fetched issue"}]
+
+    # Confirm the expected gh invocation shape.
+    assert captured_argv
+    argv = captured_argv[0]
+    assert argv[:3] == ["gh", "issue", "list"]
+    assert "--state" in argv and "open" in argv
+    assert "--label" in argv and "autoship:ready" in argv
