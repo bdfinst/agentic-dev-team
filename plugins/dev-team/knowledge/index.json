@@ -3885,20 +3885,20 @@
       "anchor": "worker-constraints"
     },
     "Steps": {
-      "summary": "Use Glob to find all `skills/*/SKILL.md` files.",
+      "summary": "No arguments → [Main workflows](#2-main-workflows-default).",
       "anchor": "steps"
     },
-    "1. Find all command files": {
-      "summary": "Use Glob to find all `skills/*/SKILL.md` files.",
-      "anchor": "1-find-all-command-files"
+    "1. Choose a mode": {
+      "summary": "No arguments → [Main workflows](#2-main-workflows-default).",
+      "anchor": "1-choose-a-mode"
     },
-    "2. Extract name and description from each": {
-      "summary": "Read each file's YAML frontmatter and extract the `name` and `description` fields.",
-      "anchor": "2-extract-name-and-description-from-each"
+    "2. Main workflows (default)": {
+      "summary": "Display this fixed, curated table — the primary spec → plan → build → review →",
+      "anchor": "2-main-workflows-default"
     },
-    "3. Display as a formatted table": {
-      "summary": "Sort commands alphabetically by name and display:",
-      "anchor": "3-display-as-a-formatted-table"
+    "3. All commands (`--all`)": {
+      "summary": "1.",
+      "anchor": "3-all-commands-all"
     }
   },
   "plugins/dev-team/skills/hexagonal-architecture/SKILL.md": {
