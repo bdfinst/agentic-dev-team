@@ -133,6 +133,120 @@ def test_catalog_is_grouped_by_capability_not_by_invocation_type() -> None:
     assert not re.search(r"^## Agent-loaded skills", md, re.MULTILINE)
 
 
+def test_options_column_argument_hint_used_verbatim(tmp_path: Path) -> None:
+    (tmp_path / "cmd").mkdir()
+    (tmp_path / "cmd" / "SKILL.md").write_text(
+        "---\nname: cmd\ndescription: A command.\nuser-invocable: true\n"
+        "argument-hint: \"<path> [--dry-run]\"\n---\n"
+    )
+    out = tmp_path / "skills.md"
+    env = {"SKILLS_INDEX_SKILLS_DIR": str(tmp_path), "SKILLS_INDEX_OUTPUT": str(out)}
+    _run_builder([], env=env)
+    rendered = out.read_text()
+    assert "<path> [--dry-run]" in rendered
+
+
+def test_options_column_no_flags_fallback_for_user_invocable_without_hint(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "cmd").mkdir()
+    (tmp_path / "cmd" / "SKILL.md").write_text(
+        "---\nname: cmd\ndescription: A command.\nuser-invocable: true\n---\n"
+    )
+    out = tmp_path / "skills.md"
+    env = {"SKILLS_INDEX_SKILLS_DIR": str(tmp_path), "SKILLS_INDEX_OUTPUT": str(out)}
+    _run_builder([], env=env)
+    rendered = out.read_text()
+    assert "no flags — run directly" in rendered
+    # The table row for this skill should not say "agent-loaded"
+    for line in rendered.splitlines():
+        if "`/cmd`" in line:
+            assert "agent-loaded" not in line, f"Unexpected agent-loaded in row: {line}"
+
+
+def test_options_column_agent_loaded_fallback(tmp_path: Path) -> None:
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib" / "SKILL.md").write_text(
+        "---\nname: lib\ndescription: A module.\n---\n"
+    )
+    out = tmp_path / "skills.md"
+    env = {"SKILLS_INDEX_SKILLS_DIR": str(tmp_path), "SKILLS_INDEX_OUTPUT": str(out)}
+    _run_builder([], env=env)
+    rendered = out.read_text()
+    assert "agent-loaded — not directly invocable" in rendered
+    assert "no flags" not in rendered
+
+
+def test_commands_dir_entries_are_included(tmp_path: Path) -> None:
+    """commands/*.md are unioned with skills/*/SKILL.md in the catalog."""
+    plugin_dir = tmp_path / "plugin"
+    skills_dir = plugin_dir / "skills"
+    commands_dir = plugin_dir / "commands"
+    docs_dir = plugin_dir / "docs"
+    skills_dir.mkdir(parents=True)
+    commands_dir.mkdir()
+    docs_dir.mkdir()
+
+    (skills_dir / "myskill").mkdir()
+    (skills_dir / "myskill" / "SKILL.md").write_text(
+        "---\nname: myskill\ndescription: A skill.\nuser-invocable: false\n---\n"
+    )
+    (commands_dir / "mycmd.md").write_text(
+        "---\nname: mycmd\ndescription: A command.\nuser-invocable: true\n"
+        "argument-hint: \"<target>\"\n---\n"
+    )
+    out = docs_dir / "skills.md"
+    env = {
+        "SKILLS_INDEX_SKILLS_DIR": str(skills_dir),
+        "SKILLS_INDEX_OUTPUT": str(out),
+    }
+    _run_builder([], env=env)
+    rendered = out.read_text()
+    assert "myskill" in rendered
+    assert "`/mycmd`" in rendered
+    assert "<target>" in rendered
+
+
+def test_missing_categories_file_produces_ungrouped_section(
+    tmp_path: Path,
+) -> None:
+    """When no skill_categories.yaml exists the catalog renders one 'Ungrouped' section."""
+    (tmp_path / "alpha").mkdir()
+    (tmp_path / "alpha" / "SKILL.md").write_text(
+        "---\nname: alpha\ndescription: Alpha.\nuser-invocable: true\n---\n"
+    )
+    (tmp_path / "beta").mkdir()
+    (tmp_path / "beta" / "SKILL.md").write_text(
+        "---\nname: beta\ndescription: Beta.\n---\n"
+    )
+    out = tmp_path / "skills.md"
+    # Point categories at a non-existent file
+    env = {
+        "SKILLS_INDEX_SKILLS_DIR": str(tmp_path),
+        "SKILLS_INDEX_OUTPUT": str(out),
+        "SKILLS_INDEX_CATEGORIES": str(tmp_path / "nonexistent_cats.yaml"),
+    }
+    _run_builder([], env=env)
+    rendered = out.read_text()
+    assert "## Ungrouped" in rendered
+    assert "## Other" not in rendered
+
+
+def test_plugin_dir_flag_points_to_security_assessment(tmp_path: Path) -> None:
+    """--plugin-dir with security-assessment unions skills/ (3) and commands/ (5) = 8 entries."""
+    sa_dir = REPO_ROOT / "plugins" / "security-assessment"
+    if not sa_dir.is_dir():
+        return  # plugin not present in this checkout
+    out = tmp_path / "sa-skills.md"
+    env = {"SKILLS_INDEX_OUTPUT": str(out)}
+    res = _run_builder(["--plugin-dir", str(sa_dir)], env=env)
+    assert res.returncode == 0, res.stderr
+    rendered = out.read_text()
+    # 3 skills + 5 commands = 8 entries; count SKILL.md and .md links
+    skill_links = re.findall(r"\[`[^`]+`\]\(\.\./(?:skills|commands)/", rendered)
+    assert len(skill_links) == 8, f"Expected 8 entries, got {len(skill_links)}: {skill_links}"
+
+
 def test_a_skill_outside_the_taxonomy_lands_in_a_trailing_other_section(
     tmp_path: Path,
 ) -> None:
