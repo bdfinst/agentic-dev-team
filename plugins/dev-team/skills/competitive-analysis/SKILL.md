@@ -68,12 +68,14 @@ Compare layer by layer. For each gap, classify it:
 
 | Classification | Meaning |
 | --------------- | --------- |
-| **Missing** | The other plugin has this; we have nothing equivalent |
-| **Weaker** | We have something similar, but the other plugin's version is more capable or better designed |
+| **Missing (dev-team)** | The other plugin has this; we have nothing equivalent |
+| **Weaker (dev-team)** | We have something similar, but the other plugin's version is more capable or better designed |
 | **Different approach** | Both plugins address this need, but with fundamentally different strategies worth examining |
-| **Stronger** | We do this better (include these for balance — the report should be honest in both directions) |
+| **Stronger (dev-team)** | We do this better (include these for balance — the report should be honest in both directions) |
 
 Focus the gap analysis on things that matter. A missing agent for an obscure framework isn't as important as a missing workflow capability. Use judgment about what would actually improve the plugin if addressed.
+
+**Always write the classification with the `(dev-team)` qualifier in every table cell** — never the bare word alone. "Stronger" and "Weaker" are meaningless out of context to a reader scanning a single row without the legend in view; "Missing (dev-team)" and "Stronger (dev-team)" are unambiguous on their own. `Different approach` needs no qualifier since it doesn't imply a direction.
 
 ### Step 4: Rough specs for gaps
 
@@ -82,7 +84,7 @@ For each **Missing** or **Weaker** gap, produce a rough spec:
 ```markdown
 ### Gap: [Name]
 
-**Classification**: Missing | Weaker
+**Classification**: Missing (dev-team) | Weaker (dev-team)
 **Layer**: Agent | Skill | Command | Workflow | Hook | Template | Knowledge
 **Priority**: High | Medium | Low
 
@@ -144,7 +146,7 @@ shared-contract equivalent and stays as this skill's own field.)
 
 | Capability | dev-team | [Target] | Classification |
 |-----------|-----------------|----------|----------------|
-| ...       | ...             | ...      | Missing / Weaker / Different / Stronger |
+| ...       | ...             | ...      | Missing (dev-team) / Weaker (dev-team) / Different approach / Stronger (dev-team) |
 
 [Repeat for each layer that has differences]
 
