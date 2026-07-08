@@ -1,10 +1,12 @@
 ---
+
 name: token-efficiency-review
 description: Token usage optimization, file length, CLAUDE.md size, LLM anti-patterns
 tools: Read, Grep, Glob
 effort: low
 cites: [adversarial-review-protocol]
 enforcement: script
+scope: always
 ---
 
 > **Implemented by:** scripts/token_efficiency_review.py

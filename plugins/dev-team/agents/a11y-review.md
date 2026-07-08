@@ -1,9 +1,19 @@
 ---
+
 name: a11y-review
 description: WCAG 2.1 AA compliance, semantic HTML, ARIA, keyboard navigation, focus management
 tools: Read, Grep, Glob
 effort: medium
 cites: [adversarial-review-protocol]
+scope:
+  - **/*.svelte
+  - **/*.html
+  - **/*.jsx
+  - **/*.tsx
+  - **/*.vue
+  - **/*.razor
+  - **/*.cshtml
+  - **/*.jsp
 ---
 
 # Accessibility Review
