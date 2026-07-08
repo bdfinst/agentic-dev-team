@@ -1619,7 +1619,7 @@
       "anchor": "1-parse-arguments"
     },
     "2. Audit agents": {
-      "summary": "Read each file in `.claude/agents/*.md` whose body contains a structured JSON",
+      "summary": "**Scope**: this audit covers agents from all plugins in the repository, not just",
       "anchor": "2-audit-agents"
     },
     "2b. Audit agent tool declarations (all agents)": {

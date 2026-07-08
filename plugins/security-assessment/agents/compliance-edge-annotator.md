@@ -1,4 +1,5 @@
 ---
+effort: high
 name: compliance-edge-annotator
 description: Edge annotator for compliance findings whose pattern row has llm_review_trigger=true. Refines pattern-table citations; never invents new ones.
 tools: Read, Grep
