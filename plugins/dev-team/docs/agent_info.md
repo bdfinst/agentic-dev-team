@@ -27,6 +27,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
 | `a11y-review` | [`a11y-review.md`](../agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
+| `angular-reactivity-review` | [`angular-reactivity-review.md`](../agents/angular-reactivity-review.md) | sonnet | Angular Zone.js pitfalls, OnPush violations, RxJS subscription leaks |
 | `arch-review` | [`arch-review.md`](../agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
 | `claude-setup-review` | [`claude-setup-review.md`](../agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
 | `complexity-review` | [`complexity-review.md`](../agents/complexity-review.md) | haiku | Function size, cyclomatic complexity, nesting |
@@ -41,6 +42,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
 | `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
 | `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
+| `react-reactivity-review` | [`react-reactivity-review.md`](../agents/react-reactivity-review.md) | sonnet | React hook violations, stale closures, missing deps, subscription leaks |
 | `refactor-opportunity-review` | [`refactor-opportunity-review.md`](../agents/refactor-opportunity-review.md) | sonnet | Post-GREEN refactoring opportunities |
 | `security-review` | [`security-review.md`](../agents/security-review.md) | opus | Injection, auth, data exposure |
 | `session-analysis` | [`session-analysis.md`](../agents/session-analysis.md) | sonnet | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
@@ -50,6 +52,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `test-review` | [`test-review.md`](../agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
 | `test-smell-review` | [`test-smell-review.md`](../agents/test-smell-review.md) | sonnet | xUnit test smells, test-double selection, pyramid placement |
 | `token-efficiency-review` | [`token-efficiency-review.md`](../agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
+| `vue-reactivity-review` | [`vue-reactivity-review.md`](../agents/vue-reactivity-review.md) | sonnet | Vue ref/reactive pitfalls, watchEffect tracking, proxy escapes, subscription leaks |
 
 To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.
 

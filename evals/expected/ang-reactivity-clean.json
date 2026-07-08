@@ -1,0 +1,11 @@
+{
+  "fixture": "ang-reactivity-clean.ts",
+  "description": "Angular component with correct signal/effect usage and no reactivity pitfalls",
+  "applicableAgents": ["angular-reactivity-review"],
+  "agents": {
+    "angular-reactivity-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

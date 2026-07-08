@@ -177,6 +177,12 @@ Otherwise read the roster from the **Review Agents** section of `knowledge/agent
 
 This replaces any hardcoded per-agent dispatch rules. Adding or changing a review agent's trigger scope requires only editing that agent's own frontmatter — zero edits to this skill.
 
+**Framework-specific reactivity review** — dispatch based on the project's dependency manifest (`package.json` etc.):
+- React (`react` / `react-dom` in deps): include `react-reactivity-review` scoped to `.jsx`/`.tsx` and React-importing `.js`/`.ts` files
+- Vue (`vue` in deps): include `vue-reactivity-review` scoped to `.vue` and Vue-importing `.js`/`.ts` files
+- Angular (`@angular/core` in deps): include `angular-reactivity-review` scoped to `*.component.ts`, `*.component.html`, `*.service.ts`, and general `.ts` files
+- Svelte (`.svelte`/`.svelte.ts`/`.svelte.js` files present): include `svelte-review` scoped to those files (Svelte projects do not require a manifest entry — file presence is sufficient)
+
 If `review-config.json` exists at the repo root, honor its per-agent `"enabled": false` flags.
 
 ### 4. Run each enabled agent

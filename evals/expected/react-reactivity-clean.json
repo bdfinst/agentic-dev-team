@@ -1,0 +1,11 @@
+{
+  "fixture": "react-reactivity-clean.tsx",
+  "description": "React component with correct hook usage and no reactivity pitfalls",
+  "applicableAgents": ["react-reactivity-review"],
+  "agents": {
+    "react-reactivity-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}
