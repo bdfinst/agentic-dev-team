@@ -21,6 +21,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/browse` | `skills/browse/SKILL.md` | worker | Browser-based QA: navigate, screenshot, click, fill forms via Playwright |
 | `/build` | `skills/build/SKILL.md` | orchestrator | Execute an approved plan in small per-behavior batches (Code-First Small Batches) with inline reviews and verification evidence; ends with a Farley Score for the branch's tests before prompting for `/pr` |
 | `/careful` | `skills/careful/SKILL.md` | worker | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) |
+| `/co-evolution-audit` | `skills/co-evolution-audit/SKILL.md` | worker | Flag production files that churn repeatedly while their paired test files do not — the "Red Queen" co-evolution gap. Uses git log --stat, language-aware pairing heuristics (Python, JS/TS, Go, Java, C#), and produces a ranked table of stale-coverage pairs as prioritization input for /test-improve and /mutation-testing |
 | `/code-review` | `skills/code-review/SKILL.md` | orchestrator | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations). Short-circuits documentation-only changesets (skips review; `--force` overrides) |
 | `/continue` | `skills/continue/SKILL.md` | orchestrator | Resume work from a prior session using phase progress files |
 | `/cost-report` | `skills/cost-report/SKILL.md` | worker | Report actual token spend and dollar cost of dispatched work — per agent and total — and flag cost regressions |
