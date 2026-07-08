@@ -4267,7 +4267,7 @@
       "anchor": "verify-log-entry-727"
     },
     "When to Log": {
-      "summary": "| Event | Action |",
+      "summary": "> **Task completion entries are written automatically** by `hooks/task_completion_metrics.py`",
       "anchor": "when-to-log"
     },
     "Output": {
@@ -4493,7 +4493,7 @@
       "anchor": "output"
     },
     "Integration": {
-      "summary": "**Performance Metrics**: Log `hallucination_detected`, `rework_cycles`, `defects_found` on task completion",
+      "summary": "**Performance Metrics**: `hallucination_detected`, `rework_cycles`, `defects_found` are logged automatically by `hooks/task_completion_metrics.py` on task completion — no skill-level logging step needed.",
       "anchor": "integration"
     }
   },
