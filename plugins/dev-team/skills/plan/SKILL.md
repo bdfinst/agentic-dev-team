@@ -6,9 +6,9 @@ description: >-
   need a plan but not the full three-phase orchestration, or when the user
   says "plan this", "make a plan", "break this down", or "how should I
   implement this".
-argument-hint: "<task-description> [--output <path>] [--yes]"
+argument-hint: "<task-description> [--output <path>] [--yes] [--spec-issue <url>]"
 user-invocable: true
-allowed-tools: Read, Write, Glob, Grep, Bash(mkdir *), Bash(date *), Bash(git branch *), Bash(test *), AskUserQuestion
+allowed-tools: Read, Write, Glob, Grep, Bash(mkdir *), Bash(date *), Bash(git branch *), Bash(test *), Bash(gh issue view *), AskUserQuestion
 ---
 
 # Plan
@@ -33,14 +33,17 @@ Arguments: $ARGUMENTS
 - Positional: task description (required)
 - `--output <path>`: Write plan to a specific path. Default: `plans/<slugified-task>.md`
 - `--yes`: Auto-approve the plan without prompting (non-interactive opt-in; see step 6).
+- `--spec-issue <url>`: Treat the given GitHub issue as the spec source, bypassing file discovery in step 1 — supplied by `/specs`' GitHub-issue persistence branch, or usable directly by an operator pointing `/plan` at an existing spec issue.
 
 ## Steps
 
 ### 1. Check for spec artifacts
 
-Search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**` or `specs/**` related to the task. Check for the three artifacts: Intent Description, Architecture Specification, and Acceptance Criteria. The spec does **not** contain Gherkin — authoring the behavioral scenarios is this command's job.
+**If `--spec-issue <url>` was supplied**, skip file discovery entirely: run `gh issue view <url> --json title,body` and extract the Intent Description, Architecture Specification, Acceptance Criteria, and Ambiguity Log sections directly from the issue body (the same section headings `/specs`' GitHub-issue persistence branch writes — the Ambiguity Log is included here, one more than the file path's three-artifact minimum, so ambiguities `/specs` already resolved with the human stay visible to this command rather than being silently dropped). This is a narrowly scoped, read-only call — unlike step 6's "offer GitHub issues" section, which delegates issue *creation* to `/issues-from-plan`, this step runs before any plan content exists, so there is nothing yet to delegate to; it must read the spec directly to seed the plan. If `gh issue view <url>` itself exits non-zero (deleted issue, bad URL, expired auth, network down), report the failure and its cause to chat — do not silently proceed as if no spec were supplied — and fall back to the file-search discovery below for this run.
 
-If no spec artifacts are found, ask the user: "No specification artifacts found for this task. Run `/specs` first to produce them, or continue planning without specs?"
+**Otherwise**, search for specification artifacts produced by `/specs` — look for files matching `docs/specs/**` or `specs/**` related to the task. Check for the three artifacts: Intent Description, Architecture Specification, and Acceptance Criteria. The spec does **not** contain Gherkin — authoring the behavioral scenarios is this command's job.
+
+If no spec artifacts are found (by either path), ask the user: "No specification artifacts found for this task. Run `/specs` first to produce them, or continue planning without specs?"
 
 **Non-interactive** (per step 6's interactivity rule): do not prompt — log
 `No spec artifacts found — continuing without specs (non-interactive).`, proceed, and
