@@ -60,15 +60,21 @@ For bug fixes or simple tasks, skip `/specs` and start at `/plan` — or go stra
 
 ### Supporting commands
 
-| Command | When to use |
-| --- | --- |
-| `/code-review` | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
-| `/continue` | Resume an in-progress build or plan across sessions |
-| `/test-improve` | Consolidated analyze-then-improve test orchestrator. Seven phases with human gates; lightweight by default, opts into Gherkin / mutation / refactor-for-testability on demand |
-| `/browse` | Visual QA via Playwright |
-| `/benchmark` | Runtime performance metrics (Core Web Vitals, resource sizes) against baselines |
-| `/careful` / `/freeze` / `/guard` | Safety modes for production-critical sessions |
-| `/triage` | Investigate a bug and file a GitHub issue with a TDD fix plan |
+The table below lists representative supporting commands. For the full catalog with options and descriptions, see each plugin's skills page: **[dev-team skills](plugins/dev-team/docs/skills.md)** · **[security-assessment skills](plugins/security-assessment/docs/skills.md)** · **[marketplace-dev skills](plugins/marketplace-dev/docs/skills.md)**.
+
+| Command | Plugin | When to use |
+| --- | --- | --- |
+| `/code-review` | dev-team | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
+| `/continue` | dev-team | Resume an in-progress build or plan across sessions |
+| `/test-improve` | dev-team | Consolidated analyze-then-improve test orchestrator. Seven phases with human gates; lightweight by default, opts into Gherkin / mutation / refactor-for-testability on demand |
+| `/browse` | dev-team | Visual QA via Playwright |
+| `/benchmark` | dev-team | Runtime performance metrics (Core Web Vitals, resource sizes) against baselines |
+| `/careful` / `/freeze` / `/guard` | dev-team | Safety modes for production-critical sessions |
+| `/triage` | dev-team | Investigate a bug and file a GitHub issue with a TDD fix plan |
+| `/security-assessment` | security-assessment | Full pipeline: recon → tools → agents → FP-reduction → exec report |
+| `/redteam-model` | security-assessment | Adversarial ML red-team probes against a self-owned model endpoint |
+| `/plugin-audit` | marketplace-dev | Structural compliance check for any Claude Code plugin |
+| `/scaffold-plugin` | marketplace-dev | Create a new plugin skeleton that passes audit with zero findings |
 
 ### Automated pre-commit review
 
