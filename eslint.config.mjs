@@ -81,6 +81,9 @@ export default tseslint.config(
       "node_modules/**",
       "**/build/**",
       "**/dist/**",
+      // Per-agent scratch worktrees (EnterWorktree tool), gitignored and
+      // not repo content — see .gitignore's ".claude/worktrees/" entry.
+      ".claude/worktrees/**",
       "**/knowledge/rule-fixtures/**/*.js",
       "**/tests/fixtures/agent-readiness/**/*.js",
       // Parity harness fixtures for the token-efficiency-review hook are
