@@ -65,11 +65,11 @@ Operating rules: load on demand; summarize phases to `memory/` before next-phase
 
 ## Feedback & Learning
 
-Trigger keywords: `amend`, `learn`, `remember`, `forget`. Full procedure: **[Feedback & Learning](skills/feedback-learning/SKILL.md)**.
+**[Feedback & Learning](skills/feedback-learning/SKILL.md)** is a choreographic skill — it declares its own trigger keywords (`amend`, `learn`, `remember`, `forget`) and is invoked directly by Claude Code's skill-matching when those patterns appear in user input. The orchestrator does not special-case these keywords during phase classification; they fire independently of whatever multi-phase task is in progress.
 
 ## Human Oversight
 
-Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**. Intervention commands: feedback keywords above, plus `override`, `pause`, `stop`.
+Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](skills/human-oversight-protocol/SKILL.md)**. Intervention commands: `amend`/`learn`/`remember`/`forget` (handled by the feedback-learning skill), plus `override`, `pause`, `stop`.
 
 ## Proxy Resilience
 
