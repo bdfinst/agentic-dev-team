@@ -53,6 +53,7 @@ coverage gaps) and detects the deferred signals only when running solo.
 Run in two phases — enumerate first, classify second. This stabilizes finding counts across runs by forcing a full pass before applying judgment.
 
 **Phase 1 — Enumerate**: List every test case in scope with:
+
 - Test name / description string
 - Assertion method(s) used (or explicit note that no assertion is present)
 - Observable setup tier (unit / integration / e2e)
@@ -64,11 +65,12 @@ Run in two phases — enumerate first, classify second. This stabilizes finding 
 Calibrate against these worked examples before flagging real code:
 
 | Severity | Pattern | Violation | Fix |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `error` | `it('renders', () => { render(<Comp />) })` | No assertion — zero regression protection | Add `expect(screen.getByRole('heading')).toBeInTheDocument()` |
 | `error` | `expect(result).toBeTruthy()` | Truthiness-only check; passes on any non-null value | `expect(result).toEqual({ id: 1, name: 'Alice' })` |
 | `warning` | `const now = new Date()` inside test body | Unstubbed clock — flaky on midnight, DST transitions | `jest.useFakeTimers()` or inject a clock dependency |
 | `warning` | Three tests asserting `expect(output).toContain('success')` identically | No boundary condition distinguishes them — redundant coverage | Collapse or add boundary cases |
+| `warning` | Java: `field.setAccessible(true); field.get(obj)` on a private field | Test reaches around encapsulation via reflection — this is a design issue, not a test-hygiene nit | Extract the logic into a collaborator with its own public seam (if standalone); relax visibility to package-private/internal only if a production collaborator independently needs it (never solely for test access); or test the behavior through the existing public API (if already reachable) |
 | `suggestion` | Copy-pasted arrange block across 4 tests | Duplication above extraction threshold | Extract to `beforeEach` |
 | `suggestion` | `it('test 1', ...)` | Description reveals nothing about behavior | Rename to describe the scenario and expected outcome |
 
@@ -128,7 +130,7 @@ Testability blockers:
 
 - Code under test that cannot be constructed with known values (static factories, singletons, no injectable constructor) — flag as error; per `knowledge/testability-patterns.md#pattern-1-constructor-injection-replace-static-factories-singletons`, the production code must change, not the test approach
 - Mocking of concrete classes (not interfaces) — flag as warning; extract an interface for the dependency
-- Tests using reflection into private members as primary strategy — flag as warning; the public API surface needs expanding
+- Tests using reflection into private members as primary strategy — flag as warning. This is an architecture/encapsulation issue the test is reaching around, not a test-hygiene nit. Detection signatures: Java: `getDeclaredMethod`/`getDeclaredField` + `setAccessible(true)`, `Method.invoke` on a private/protected member; C#: `Type.GetMethod(..., BindingFlags.NonPublic | BindingFlags.Instance)`, `Type.InvokeMember`; Python: `getattr`/`setattr`/`hasattr` targeting a name-mangled (`_ClassName__attr`) or underscore-prefixed attribute; JS/TS: bracket-notation access into a `private`/non-exported member (e.g. `(obj as any)['_privateMethod']()`), `Object.getOwnPropertyDescriptor`/`Object.defineProperty` used to reach a non-exported member. Suggested fix — pick by shape of the code, never the generic "expand the public API": (1) extract the private logic into a collaborator with its own public seam, when it's standalone logic worth testing independently; (2) relax visibility to package-private/internal, only when a production collaborator in the same module/assembly independently needs the access (the language must have that tier) — never as a grant solely so the test can reach in, which recreates the `InternalsVisibleTo`/`@VisibleForTesting` anti-pattern below; (3) test the behavior through the class's existing public API, when the private method is already an implementation detail of a public behavior
 
 ## Self-Challenge
 

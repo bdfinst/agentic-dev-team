@@ -1,0 +1,14 @@
+{
+  "fixture": "test-reflection-private-member-py",
+  "description": "Test reaches into a name-mangled private attribute via getattr instead of the class's public API (Python reflection-into-private-member pattern, issue #959) — should be flagged as an encapsulation/architecture issue, not a hygiene nit, with a suggested fix naming one of the three specific remedies.",
+  "applicableAgents": ["test-review"],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 1, "max": 3 },
+      "severities": { "warning": { "min": 1, "max": 2 } },
+      "mustMention": ["encapsulation"],
+      "mustNotMention": ["public API surface needs expanding"]
+    }
+  }
+}

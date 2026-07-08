@@ -142,7 +142,7 @@ orders = OrderFaker.generateBatch(100)
 Constructor Injection (Pattern 1) is the common case, but it is one of a named family of seams from *xUnit Test Patterns* Ch. 26. Pick by *how* the dependency reaches the SUT and *why* it's hard to test.
 
 | Seam | The change | Use when | Cost |
-|------|-----------|----------|------|
+| ------ | ----------- | ---------- | ------ |
 | **Dependency Injection** (Pattern 1) | Pass collaborators in (constructor/setter) | You control construction and can thread the dependency through | Low; the default |
 | **Dependency Lookup** | SUT asks a broker/service-locator for the collaborator; the test configures the broker | The DOC is buried deep and threading it through every caller would be messy (e.g. a Fake DB behind a service facade) | Medium; hides the dependency, but far easier to **retrofit onto legacy** code than DI |
 | **Humble Object** | Extract logic out of a hard-to-instantiate shell into a plain, synchronously-testable object | Logic is trapped in a UI control, framework callback, thread, or transaction boundary | Medium; the shell becomes a thin adapter |
@@ -221,9 +221,9 @@ Prefer, in order: Dependency Injection → Dependency Lookup → Test-Specific S
 ## Anti-Patterns Table
 
 | Anti-Pattern | Why It's Wrong | Correct Alternative |
-|---|---|---|
+| --- | --- | --- |
 | `InternalsVisibleTo` + `internal set` for tests | Weakens encapsulation for test convenience | Add a public constructor that accepts values |
-| Reflection into private members as primary strategy | Fragile; breaks on rename; masks coupling | Extract to public API or create a proper test entry point |
+| Reflection into private members as primary strategy — Java: `getDeclaredMethod`/`getDeclaredField` + `setAccessible(true)`, `Method.invoke` on a private/protected member; C#: `Type.GetMethod(..., BindingFlags.NonPublic \| BindingFlags.Instance)`, `Type.InvokeMember`; Python: `getattr`/`setattr`/`hasattr` on a name-mangled (`_ClassName__attr`) or underscore-prefixed attribute; JS/TS: bracket-notation into a `private`/non-exported member, or `Object.getOwnPropertyDescriptor`/`Object.defineProperty` to reach one | Fragile; breaks on rename; masks coupling — this is an architecture/encapsulation issue the test is reaching around, not a test-hygiene nit | Pick by shape of the code: extract the logic into a collaborator with its own public seam; relax visibility to package-private/internal only when a production collaborator in the same module/assembly independently needs it — never as a grant solely so the test can reach in (that recreates the `InternalsVisibleTo`/`@VisibleForTesting` rows above); or test the behavior through the existing public API (if already reachable) |
 | Static test helper that mutates private state | Bypasses object invariants | Use Test Data Builder with public construction |
 | Mocking concrete classes | Fragile; requires virtual/open methods; masks design issues | Extract interface; mock the interface |
 | Tests configuring global/static state | Shared state causes order-dependent failures | Inject dependencies through constructors |
