@@ -1,9 +1,8 @@
 ---
+effort: high
 name: redteam-recon-analyzer
 description: Interprets probe 01 (API recon). Severity-rates info leaks, identifies the framework, recommends a feature-discovery strategy for probe 02.
 tools: Read, Grep
-effort: high
-Context needs: artifact-stream
 ---
 
 # Red-Team Recon Analyzer
@@ -12,6 +11,8 @@ Interpret probe 01's API reconnaissance. The probe enumerates doc paths,
 endpoints, HTTP method matrices, and server headers — judging which leaks
 matter and what an attacker would do next requires reasoning the probe
 cannot do.
+
+Context needs: full-file
 
 ## Input
 

@@ -1,9 +1,8 @@
 ---
+effort: high
 name: tool-finding-narrative-annotator
 description: Weaves findings into four narrative domains (PII flow, ML edge cases, messaging auth, crypto). Prose for the exec report. Synthesizes; does not detect.
 tools: Read, Grep, Glob
-effort: high
-Context needs: artifact-stream
 ---
 
 # Tool Finding Narrative Annotator
@@ -11,6 +10,8 @@ Context needs: artifact-stream
 Read related findings, weave them into a coherent per-domain story.
 Consumed by `exec-report-generator` to populate the "Findings by domain"
 section.
+
+Context needs: project-structure
 
 ## Inputs
 

@@ -7,6 +7,8 @@ effort: high
 
 # Mutation Kill Agent
 
+Context needs: full-file
+
 You drive a test suite's mutation kill-count down autonomously. Where
 `/mutation-testing` is **advisory** (it classifies survivors and leaves the
 developer to write tests), you execute the improvement: run the tool scoped to a

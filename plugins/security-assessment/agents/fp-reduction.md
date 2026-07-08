@@ -1,10 +1,8 @@
 ---
+effort: high
 name: fp-reduction
 description: Applies the 5-stage FP-reduction rubric to a unified-finding stream, producing a disposition register. Consumes findings + RECON (+ CPG when joern is available).
 tools: Read, Grep, Glob, Bash
-effort: high
-Context needs: artifact-stream
-cites: [severity-floors]
 ---
 
 # FP-Reduction Agent
@@ -12,6 +10,8 @@ cites: [severity-floors]
 Execute the rubric defined in `skills/false-positive-reduction/SKILL.md` against
 the unified finding stream. Never silently discard a finding — every input
 produces exactly one disposition entry, including `false_positive`.
+
+Context needs: project-structure
 
 ## Inputs
 

@@ -1321,6 +1321,10 @@
     "Adding a new stream": {
       "summary": "1.",
       "anchor": "adding-a-new-stream"
+    },
+    "`autoship-log.jsonl`": {
+      "summary": "One entry per `/autoship` round, recording the outcome and cost of each automated ship attempt.",
+      "anchor": "autoship-logjsonl"
     }
   },
   "plugins/dev-team/knowledge/test-automation-maturity.md": {
@@ -1695,7 +1699,7 @@
       "anchor": "1-parse-arguments"
     },
     "2. Audit agents": {
-      "summary": "Read each file in `.claude/agents/*.md` whose body contains a structured JSON",
+      "summary": "**Scope**: this audit covers agents from all plugins in the repository, not just",
       "anchor": "2-audit-agents"
     },
     "2b. Audit agent tool declarations (all agents)": {
@@ -1959,6 +1963,60 @@
     "Constraints": {
       "summary": "**Never delete or modify** files under `plugins/dev-team/` during or after execution.",
       "anchor": "constraints"
+    }
+  },
+  "plugins/dev-team/skills/autoship/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Step 1 — Reclaim orphaned issues": {
+      "summary": "Run the reclaim script to relabel any stale `autoship:in-progress` issues back",
+      "anchor": "step-1-reclaim-orphaned-issues"
+    },
+    "Step 2 — Discover eligible issues": {
+      "summary": "Run the discovery script to select the issues this round will process.",
+      "anchor": "step-2-discover-eligible-issues"
+    },
+    "Step 3 — Per-issue processing loop": {
+      "summary": "Process each discovered issue **strictly in order** (no concurrency).",
+      "anchor": "step-3-per-issue-processing-loop"
+    },
+    "3a — Cost cap check": {
+      "summary": "Before starting an issue, read the current round cost:",
+      "anchor": "3a-cost-cap-check"
+    },
+    "3b — Label issue in-progress": {
+      "summary": "Invoke `/ship` with:",
+      "anchor": "3b-label-issue-in-progress"
+    },
+    "3c — Invoke /ship": {
+      "summary": "Invoke `/ship` with:",
+      "anchor": "3c-invoke-ship"
+    },
+    "3d — Detect stakeholder-input blocker": {
+      "summary": "Scan `ship_output` for the pattern `requires-stakeholder-input` (case-insensitive).",
+      "anchor": "3d-detect-stakeholder-input-blocker"
+    },
+    "3e — Classify outcome": {
+      "summary": "After a non-blocked `/ship` completes, record the start ISO timestamp that was",
+      "anchor": "3e-classify-outcome"
+    },
+    "3f — Append round record": {
+      "summary": "Append one entry per issue to `metrics/autoship-log.jsonl` using the log",
+      "anchor": "3f-append-round-record"
+    },
+    "Step 4 — Round summary": {
+      "summary": "After the loop ends (all issues processed, cost cap reached, or dry-run),",
+      "anchor": "step-4-round-summary"
+    },
+    "Notes": {
+      "summary": "**No scheduling.** There is no timer or interval mechanism in this skill.",
+      "anchor": "notes"
     }
   },
   "plugins/dev-team/skills/benchmark/SKILL.md": {
@@ -2331,6 +2389,104 @@
     "Integration": {
       "summary": "**Platform Engineer agent**: Collaborates on infrastructure-level CI issues",
       "anchor": "integration"
+    }
+  },
+  "plugins/dev-team/skills/co-evolution-audit/SKILL.md": {
+    "The Problem": {
+      "summary": "A file that churns repeatedly while its tests never change is a high-risk",
+      "anchor": "the-problem"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Graceful skip conditions": {
+      "summary": "If any of the following is true, print a one-line notice and exit cleanly",
+      "anchor": "graceful-skip-conditions"
+    },
+    "Step 1: Collect churn data": {
+      "summary": "Run git log to collect per-file change frequency over the window:",
+      "anchor": "step-1-collect-churn-data"
+    },
+    "Step 2: Classify files": {
+      "summary": "Partition the file map into two groups:",
+      "anchor": "step-2-classify-files"
+    },
+    "Step 3: Pair production files to test files": {
+      "summary": "Apply pairing heuristics in priority order.",
+      "anchor": "step-3-pair-production-files-to-test-files"
+    },
+    "Python": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "python"
+    },
+    "JavaScript / TypeScript": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "javascript-typescript"
+    },
+    "Go": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "go"
+    },
+    "Java": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "java"
+    },
+    "C# / .NET": {
+      "summary": "| Production file | Candidate test files (checked in order) |",
+      "anchor": "c-net"
+    },
+    "Fallback (unknown language)": {
+      "summary": "If no language-specific rule matches, apply the generic heuristic:",
+      "anchor": "fallback-unknown-language"
+    },
+    "No test file found": {
+      "summary": "If no candidate test file exists in the git history (it was never",
+      "anchor": "no-test-file-found"
+    },
+    "Step 4: Compute co-evolution gap": {
+      "summary": "For each production file with `prod_churn >= --min-churn`:",
+      "anchor": "step-4-compute-co-evolution-gap"
+    },
+    "Step 5: Report": {
+      "summary": "Sort by gap score descending (widest divergence first).",
+      "anchor": "step-5-report"
+    },
+    "Summary line": {
+      "summary": "Sort by gap score descending (widest divergence first).",
+      "anchor": "summary-line"
+    },
+    "Flagged pairs table": {
+      "summary": "Sort by gap score descending (widest divergence first).",
+      "anchor": "flagged-pairs-table"
+    },
+    "Clean pairs (informational, collapsed)": {
+      "summary": "Files that passed the churn threshold but whose tests co-evolved (test",
+      "anchor": "clean-pairs-informational-collapsed"
+    },
+    "No findings": {
+      "summary": "If no pairs are flagged, print:",
+      "anchor": "no-findings"
+    },
+    "Step 6: Remediation guidance": {
+      "summary": "After the table, print a prioritized action list:",
+      "anchor": "step-6-remediation-guidance"
+    },
+    "Immediate priorities (gap ≥ 5 or test_file = \"none found\")": {
+      "summary": "These are the highest-risk files: they changed frequently but tests did",
+      "anchor": "immediate-priorities-gap-5-or-testfile-none-found"
+    },
+    "Secondary priorities (gap 2–4)": {
+      "summary": "These pairs have some test co-evolution but lag behind production churn.",
+      "anchor": "secondary-priorities-gap-24"
+    },
+    "Integration with other skills": {
+      "summary": "| Signal | Where to send it |",
+      "anchor": "integration-with-other-skills"
+    },
+    "Constraints": {
+      "summary": "**Advisory only.** Do not edit any files.",
+      "anchor": "constraints"
     }
   },
   "plugins/dev-team/skills/code-review/SKILL.md": {

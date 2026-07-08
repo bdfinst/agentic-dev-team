@@ -48,6 +48,16 @@ Arguments: $ARGUMENTS
 
 ### 2. Audit agents
 
+**Scope**: this audit covers agents from all plugins in the repository, not just
+`plugins/dev-team/agents/`. Currently audited directories:
+
+- `plugins/dev-team/agents/` — the primary dev-team plugin agents
+- `plugins/security-assessment/agents/` — the security-assessment plugin agents
+
+The automated effort-band gate (`tests/agents/test_agent_effort_frontmatter.py`)
+discovers and checks agents from both directories; add new plugin agent directories
+to `AGENTS_DIRS` in that test file when a new plugin is introduced.
+
 Read each file in `.claude/agents/*.md` whose body contains a structured JSON
 output schema (a line with `"status": "pass|warn|fail|skip"`) — these are
 review agents. Check:

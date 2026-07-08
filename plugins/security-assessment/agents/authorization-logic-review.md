@@ -1,9 +1,8 @@
 ---
+effort: high
 name: authorization-logic-review
 description: Top-down authorization review. Maps the access-control model (RBAC/ABAC/ACL/tenancy), then verifies enforcement at every layer. Phase 1b peer agent.
 tools: Read, Grep, Glob
-effort: high
-Context needs: artifact-stream, full-file
 ---
 
 # Authorization Logic Review
@@ -11,6 +10,8 @@ Context needs: artifact-stream, full-file
 Map the authorization model first, then check consistent enforcement.
 Report the gap between stated policy and observed implementation — not
 single suspicious lines.
+
+Context needs: project-structure
 
 ## Inputs
 

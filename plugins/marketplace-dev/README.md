@@ -1,35 +1,23 @@
 # marketplace-dev
 
-Build, audit, and maintain Claude Code plugins and marketplaces. `marketplace-dev` gives plugin
-authors the scaffolding, audit, and self-maintenance infrastructure the `dev-team` plugin developed
-internally — as reusable, installable tooling. It targets three workflows: **creating a new plugin**
-from scratch, **improving an existing plugin's** architecture and quality, and **establishing a new
-marketplace** with correct structure from the start.
+Plugin-author toolkit for Claude Code. Scaffold new plugins and marketplaces,
+audit any plugin for structural compliance, and maintain existing plugins with
+confidence.
 
-It encodes the conventions in
-[`docs/marketplace-builder-plugin-playbook.md`](../../docs/marketplace-builder-plugin-playbook.md)
-— directory layout, agent/skill frontmatter contracts, the markdown-vs-script decision framework,
-and the eval-fixture pattern — as scaffolding skills, a structural review agent, and a single shared
-knowledge file.
+`marketplace-dev` has **no hard runtime dependency on `dev-team`** — install it
+on its own to build or maintain plugins.
 
-`marketplace-dev` has **no hard runtime dependency on `dev-team`**.
+## When to use this
 
-## Design
-
-`marketplace-dev` is the self-maintenance plugin for the marketplace monorepo pattern. It encodes
-the conventions the `dev-team` plugin developed in its own repo as reusable tooling:
-
-- **Scaffolding** (`/scaffold-plugin`, `/scaffold-marketplace`, `/init-plugin-eval`) — emit the
-  correct skeleton so new plugins start audit-clean.
-- **Structural audit** (`/plugin-audit` + `plugin-best-practices-review` agent) — catch agent type
-  mismatches, frontmatter gaps, missing eval coverage, and body budget violations.
-- **Agent authoring** (`/agent-create`, `/agent-add`, `/agent-remove`, `/agent-skill-authoring`,
-  `/agent-type-advisor`) — create and maintain agents following the official schema.
-- **Marketplace self-maintenance** (`/add-plugin`) — install plugins from any marketplace and wire
-  them into a project's `settings.json`.
-
-Detection-logic quality evaluation is explicitly out of scope here — it belongs to each plugin's
-own `agent-eval`. This plugin audits structure, not semantics.
+- **Starting a new plugin**: `/scaffold-plugin` generates an audit-clean skeleton
+  in one command.
+- **Authoring agents or skills**: `/agent-type-advisor` recommends markdown vs.
+  script for a use-case; `/agent-create` generates a correctly structured agent
+  file.
+- **Auditing an existing plugin**: `/plugin-audit` produces a structured findings
+  report with zero noise for compliant plugins.
+- **Setting up a new marketplace**: `/scaffold-marketplace` wires the catalog,
+  release-please config, and at least one plugin slot.
 
 ## Install
 
@@ -37,69 +25,68 @@ own `agent-eval`. This plugin audits structure, not semantics.
 
 **Required:**
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated.
-- `jq` — JSON parsing in hooks.
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and
+  authenticated.
+- `jq` — used by structural checks.
   - macOS: `brew install jq`
-  - Linux: `apt install jq`
+  - Linux: `apt install jq` or `yum install jq`
 
 **Optional:**
 
-- `git` — used by `/scaffold-plugin` and `/scaffold-marketplace` to initialize the new plugin or
-  marketplace as a git repository.
+- `git` — used for commit-scoped audit snapshots.
 
-### Install from GitHub (recommended)
+### Install the plugin
 
 ```bash
-claude plugin marketplace add bdfinst/agentic-dev-team
+# From the marketplace
+claude plugin marketplace add https://github.com/bdfinst/agentic-dev-team
 claude plugin install marketplace-dev@bfinster
+
+# From a local clone
+claude plugin install --scope project /path/to/agentic-dev-team/plugins/marketplace-dev
 ```
 
-### Upgrading
+## Commands
 
-```bash
-claude plugin update --scope <scope> marketplace-dev@bfinster
-```
+| Command | Role | What it does |
+|---|---|---|
+| `/scaffold-plugin <name>` | implementation | Create a new plugin dir with the audit-clean skeleton |
+| `/scaffold-marketplace <owner>` | implementation | Create a marketplace root — catalog, release-please wiring, ≥1 plugin slot |
+| `/init-plugin-eval <name>` | implementation | Scaffold `evals/<name>/{fixtures,expected}/` + grading-contract README |
+| `/agent-type-advisor <prose\|file>` | worker | Recommend markdown vs. script for a use-case, or audit an existing file |
+| `/plugin-audit [dir] [--fix]` | orchestrator | Structural compliance check — agent type, frontmatter, eval coverage, body budgets |
+| `/agent-create` | worker | Create an agent file following the official schema and token budgets |
+| `/agent-skill-authoring` | worker | Conventions, anti-patterns, and meta-patterns for authoring agents and skills |
+| `/agent-add` | implementation | Create a new review or team agent (delegates to `agent-create`) |
+| `/agent-remove` | implementation | Remove an agent and clean up registry/doc references |
+| `/add-plugin <name@marketplace>` | implementation | Install a plugin and register it in a project's `settings.json` |
 
-Or run `/upgrade` from any session.
+## Agent
 
-### Verify
+**`plugin-best-practices-review`** — read-only, JSON output, structural findings.
+Checks agent type appropriateness (markdown vs. script), frontmatter compliance,
+eval-coverage presence, and body line-count budgets. It does **not** evaluate
+detection-logic quality — that belongs to the plugin's own `agent-eval`.
 
-After installing, confirm the plugin loaded:
+## Documentation
 
-```
-> /plugin-audit
-```
-
-## What's included
-
-- **1 review agent** — `plugin-best-practices-review` (structural findings only; JSON output)
-- **10 skills** — 7 user-invocable slash commands plus 3 internal implementation skills
-- **1 knowledge file** — `knowledge/agent-type-decision-rules.md` (rules R1–R10)
-
-Full catalogs:
-[Agents](docs/agent_info.md) ·
-[Skills](docs/skills.md) ·
-[Workflows](docs/workflows.md)
+| Doc | Covers |
+|---|---|
+| [Workflows](docs/workflows.md) | All commands — scaffolding, agent authoring, maintenance |
+| [Skills catalog](docs/skills.md) | Full skill/command list with descriptions and options |
+| [Agents](docs/agent_info.md) | `plugin-best-practices-review` agent and dispatch model |
+| [Agent-type Decision Rules](knowledge/agent-type-decision-rules.md) | Markdown vs. script decision matrix (R1–R10) |
 
 ## Conventions enforced
 
-- **Shipping hygiene.** Only shipped files live under `plugins/<name>/`. Eval fixtures and tests
-  live at the repo root (`evals/<name>/`, `tests/`) — never inside a plugin dir.
-- **Independent versioning.** Each plugin carries its own semver in its `plugin.json`;
-  release-please keeps `plugin.json`, the release tag, and the catalog entry in lock-step.
-- **Portability.** All shell is `#!/usr/bin/env bash` and bash 3.2-safe across macOS, Linux,
-  and Git Bash on Windows.
-- **Audit-clean bar.** Scaffolded plugins and migrated skills must pass `/plugin-audit` with
-  zero findings; `plugin-best-practices-review` produces zero findings against `marketplace-dev`
-  itself (dogfood).
-
-## Eval fixtures
-
-Live at `evals/marketplace-dev/` in the repo root (not shipped). Run the structural check with:
-
-```bash
-python3 scripts/eval_grade.py \
-  --check-corpus \
-  --expected-dir evals/marketplace-dev/expected \
-  --fixtures-dir evals/marketplace-dev/fixtures
-```
+- **Shipping hygiene.** Only shipped files live under `plugins/<name>/`. Eval
+  fixtures and tests live at the repo root (`evals/<name>/`, `tests/`).
+- **Independent versioning.** Each plugin carries its own semver in `plugin.json`;
+  release-please keeps `plugin.json`, the release tag, and the catalog entry in
+  lock-step. Do not hand-edit versions.
+- **Portability.** All shell is `#!/usr/bin/env bash`, bash 3.2-safe across macOS,
+  Linux, and Git Bash on Windows; every `install.sh` carries the Git-Bash-on-Windows
+  guard.
+- **Audit-clean bar.** Scaffolded plugins and migrated skills must pass
+  `/plugin-audit` with zero findings; `plugin-best-practices-review` produces zero
+  findings against `marketplace-dev` itself (dogfood).

@@ -1,9 +1,8 @@
 ---
+effort: high
 name: cross-repo-synthesizer
 description: Synthesizes attack-chain narratives from multi-repo RECON + shared-cred matches + service-comm diagram. Produces named attack chains citing findings by ID. Does not detect.
 tools: Read, Grep, Glob
-effort: high
-Context needs: artifact-stream
 ---
 
 # Cross-Repo Synthesizer
@@ -13,6 +12,8 @@ explicitly. Cite findings; do not invent.
 
 Invoked by `/cross-repo-analysis` after `service-comm-parser.py` and
 `shared-cred-hash-match.py` have produced their outputs.
+
+Context needs: project-structure
 
 ## Inputs
 

@@ -1,9 +1,8 @@
 ---
+effort: high
 name: deep-code-reasoning
 description: Context-aware vulnerability detection beyond static patterns. RECON-scoped freeform reasoning about IDOR, confused deputy, TOCTOU, privilege escalation, workflow bypass. Phase 1b peer agent.
 tools: Read, Grep, Glob
-effort: high
-Context needs: artifact-stream, full-file
 ---
 
 # Deep Code Reasoning
@@ -12,6 +11,8 @@ Phase 1b peer agent. Catches vulnerabilities that require cross-file
 reasoning — IDOR, confused deputy, TOCTOU, indirect privilege escalation,
 workflow bypass. **Scope discipline is mandatory**: read only RECON-
 identified surface.
+
+Context needs: project-structure
 
 ## Inputs
 
