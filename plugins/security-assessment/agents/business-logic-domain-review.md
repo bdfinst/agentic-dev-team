@@ -3,7 +3,6 @@ effort: high
 name: business-logic-domain-review
 description: Business-logic review for ML/fraud services. Detects the 9 patterns in knowledge/domain-logic-patterns.md (fail-open, score manipulation, emulation bypass, etc.). Phase 1b peer agent.
 tools: Read, Grep, Glob
-model: opus
 ---
 
 # Business-Logic Domain Review
@@ -11,6 +10,8 @@ model: opus
 Read the codebase with fraud-detection domain knowledge. Surface issues that
 require cross-file reasoning — bugs in WHAT the code does, not HOW. Static
 tools catch syntax; this agent catches business logic.
+
+Context needs: project-structure
 
 ## Inputs
 

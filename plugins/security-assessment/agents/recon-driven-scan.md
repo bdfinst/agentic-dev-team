@@ -1,9 +1,8 @@
 ---
 effort: high
 name: recon-driven-scan
-description: Bridges RECON narrative risk claims to file:line evidence. Emits findings only when the source actually exhibits the described pattern. Phase 1b peer agent.
+description: Bridges RECON narrative risk claims to file/line evidence. Emits findings only when the source actually exhibits the described pattern. Phase 1b peer agent.
 tools: Read, Grep, Glob, Bash
-model: opus
 ---
 
 # RECON-Driven Scan Agent
@@ -16,6 +15,8 @@ libraries). Emits unified-finding-v1 tagged `source:"recon-driven"`.
 
 **Do not fabricate findings.** RECON itself can be wrong. A clean repo is
 a valid outcome — emit `[]` and stop.
+
+Context needs: project-structure
 
 ## Inputs
 

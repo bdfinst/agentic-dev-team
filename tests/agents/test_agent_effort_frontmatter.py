@@ -6,6 +6,18 @@ silently rot the way `model: mid` did under the old vendor-named scheme.
 Allowed bands are the single source of truth below; extend here (and in the
 resolver) if a new band is added.
 
+Extended (issue #1040) to also gate:
+- Deprecated `model: haiku|sonnet|opus` tier field in frontmatter (must be
+  absent — use `effort:` instead).
+- Colon character in `description:` frontmatter field (breaks argument-hints
+  and other tooling — per agent-audit SKILL.md check 10).
+- `Context needs: diff-only|full-file|project-structure` declaration anywhere
+  in the agent body (per agent-audit SKILL.md check 9).
+
+All checks cover both plugins/dev-team/agents/ and
+plugins/security-assessment/agents/. Add new plugin agent directories to
+AGENTS_DIRS when a new plugin is introduced.
+
 Ported from tests/agents/agent_effort_frontmatter_tests.bats (issue #675:
 bats -> pytest).
 """
@@ -24,6 +36,8 @@ AGENTS_DIRS = [
     REPO_ROOT / "plugins" / "security-assessment" / "agents",
 ]
 ALLOWED_BANDS = ("low", "medium", "high")
+DEPRECATED_MODEL_TIERS = ("haiku", "sonnet", "opus")
+ALLOWED_CONTEXT_NEEDS = ("diff-only", "full-file", "project-structure")
 
 
 def _agent_files_to_check(agent_files: str | None = None) -> List[Path]:
@@ -73,6 +87,41 @@ def _effort_value(agent_file: Path) -> str:
     return ""
 
 
+def _frontmatter_field(agent_file: Path, field: str) -> str:
+    """Extract a frontmatter field value (stripped, unquoted). Returns '' if absent."""
+    lines = agent_file.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0] != "---":
+        return ""
+    for line in lines[1:]:
+        if line == "---":
+            break
+        match = re.match(rf"^\s*{re.escape(field)}\s*:\s*(.*)$", line)
+        if match:
+            value = match.group(1)
+            value = re.sub(r"\s*#.*$", "", value)
+            return value.strip().strip("\"'").strip()
+    return ""
+
+
+def _context_needs_value(agent_file: Path) -> str:
+    """Extract the value after 'Context needs:' anywhere in the file body.
+
+    Scans outside frontmatter only; returns '' if absent.
+    """
+    lines = agent_file.read_text(encoding="utf-8").splitlines()
+    body_start = 0
+    if lines and lines[0] == "---":
+        for i, line in enumerate(lines[1:], start=1):
+            if line == "---":
+                body_start = i + 1
+                break
+    for line in lines[body_start:]:
+        match = re.match(r"^\s*Context needs\s*:\s*(.*)$", line)
+        if match:
+            return match.group(1).strip()
+    return ""
+
+
 def test_agent_files_typo_guard_unknown_filename_fails_loudly() -> None:
     with pytest.raises(ValueError, match="unknown agent: does-not-exist.md"):
         _agent_files_to_check("does-not-exist.md")
@@ -97,4 +146,77 @@ def test_adr_0008_every_agent_declares_a_valid_effort_band() -> None:
         f"declare 'effort: <band>' where <band> is one of: {' '.join(ALLOWED_BANDS)}.\n"
         f"Missing effort: field:\n  " + "\n  ".join(missing) + "\n"
         "Invalid effort: value:\n  " + "\n  ".join(invalid)
+    )
+
+
+def test_no_deprecated_model_tier() -> None:
+    """FAIL if any agent declares a legacy model: haiku|sonnet|opus tier.
+
+    The deprecated `model:` field has been superseded by `effort:` (ADR 0008).
+    Remove `model:` from the frontmatter and rely on the effort band instead.
+    """
+    files = _agent_files_to_check()
+    violations = []
+    for agent_file in files:
+        model_val = _frontmatter_field(agent_file, "model")
+        if model_val.lower() in DEPRECATED_MODEL_TIERS:
+            rel = agent_file.relative_to(REPO_ROOT)
+            violations.append(f"{rel}: model: {model_val}")
+
+    assert not violations, (
+        "Deprecated model: tier found (superseded by effort:). "
+        "Remove the model: line from frontmatter — "
+        f"haiku→low, sonnet→medium, opus→high.\n"
+        "Violations:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_description_has_no_colon() -> None:
+    """FAIL if any agent description: frontmatter field contains a colon.
+
+    Colons in description break argument-hints and other tooling that parses
+    the field as a simple string (agent-audit SKILL.md check 10).
+    """
+    files = _agent_files_to_check()
+    violations = []
+    for agent_file in files:
+        desc = _frontmatter_field(agent_file, "description")
+        if ":" in desc:
+            rel = agent_file.relative_to(REPO_ROOT)
+            violations.append(f"{rel}: description contains colon: {desc[:80]}")
+
+    assert not violations, (
+        "Agent description: field must not contain colons. "
+        "Replace ':' with '-' or reword (agent-audit SKILL.md check 10).\n"
+        "Violations:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_every_agent_declares_context_needs() -> None:
+    """FAIL if any agent body is missing a 'Context needs:' declaration.
+
+    Every agent must declare one of: diff-only, full-file, project-structure.
+    This tells the orchestrator how much context to load before dispatching
+    (agent-audit SKILL.md check 9).
+    """
+    files = _agent_files_to_check()
+    missing = []
+    invalid = []
+    for agent_file in files:
+        value = _context_needs_value(agent_file)
+        rel = agent_file.relative_to(REPO_ROOT)
+        if not value:
+            missing.append(str(rel))
+            continue
+        # Strip inline notes (e.g. "full-file (reads plan + git state)")
+        bare = value.split()[0]
+        if bare not in ALLOWED_CONTEXT_NEEDS:
+            invalid.append(f"{rel}: Context needs: {value}")
+
+    assert not missing and not invalid, (
+        "Agent Context needs contract violated. Every agent body must declare "
+        f"'Context needs: <scope>' where <scope> is one of: "
+        f"{'  '.join(ALLOWED_CONTEXT_NEEDS)}.\n"
+        "Missing Context needs:\n  " + "\n  ".join(missing) + "\n"
+        "Invalid Context needs value:\n  " + "\n  ".join(invalid)
     )

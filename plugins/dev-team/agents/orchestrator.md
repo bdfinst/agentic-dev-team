@@ -10,6 +10,8 @@ enforcement: script
 
 # Orchestrator Agent
 
+Context needs: project-structure
+
 The orchestrator classifies incoming requests, routes them to the appropriate pipeline branch, persists phase state in `memory/`, and coordinates concurrent persona dispatch across waves. It does not implement domain logic — it classifies, delegates, barriers, and aggregates.
 
 ## Output discipline

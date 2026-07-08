@@ -14,6 +14,8 @@ Think carefully and step-by-step; this problem is harder than it looks.
 
 # Codebase Recon Agent
 
+Context needs: project-structure
+
 ## Purpose
 
 First-pass discovery for security-review, domain-analysis, and architecture work. Produces a normalized RECON artifact so downstream agents (review agents, compliance mappers, narrative annotators) don't each re-discover repo shape. Reconnaissance only — this agent does NOT evaluate findings; it surfaces surfaces.
