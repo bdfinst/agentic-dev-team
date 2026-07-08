@@ -5,6 +5,7 @@ Usage:
     python3 cli.py --dataset defects4j --project Lang --sample 5
     python3 cli.py --dataset bugsjs --project Bower --resume
     python3 cli.py --dataset defects4j --limit-projects 2 --full-repo
+    python3 cli.py --dataset defects4j --project Lang --bug-ids 36,44,7
     python3 cli.py --report-only
 
 Both dataset homes are auto-provisioned into a gitignored
@@ -32,12 +33,24 @@ from adapters import bootstrap, bugsjs_adapter, defects4j_adapter
 DEFAULT_RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
 
+def _parse_bug_ids(raw: Optional[str]) -> Optional[set]:
+    """Parse `--bug-ids`' comma-separated string into a set of bug-id strings.
+
+    `None` in, `None` out — distinguishes "flag not given" from "flag given
+    with an (unlikely) empty value" for `_list_cases`' precedence check.
+    """
+    if raw is None:
+        return None
+    return {piece.strip() for piece in raw.split(",") if piece.strip()}
+
+
 def _list_cases(
     dataset: str,
     home: str,
     project_filter: Optional[str],
     limit_projects: Optional[int],
     sample: Optional[int],
+    bug_ids: Optional[set] = None,
 ) -> List[Any]:
     adapter = defects4j_adapter if dataset == "defects4j" else bugsjs_adapter
     projects = [project_filter] if project_filter else adapter.list_projects(home)
@@ -47,7 +60,12 @@ def _list_cases(
     cases: List[Any] = []
     for project in projects:
         project_cases = adapter.list_bugs(project, home)
-        if sample is not None and len(project_cases) > sample:
+        if bug_ids is not None:
+            # Explicit, deterministic selection takes precedence over
+            # --sample's random thinning (#970) — the whole point is a
+            # reproducible, pinned case set for verification sweeps.
+            project_cases = [c for c in project_cases if c.bug_id in bug_ids]
+        elif sample is not None and len(project_cases) > sample:
             project_cases = random.sample(project_cases, sample)
         cases.extend(project_cases)
     return cases
@@ -100,6 +118,13 @@ def _make_test_fn(
 def run(args: argparse.Namespace) -> int:
     results_dir = Path(args.results_dir)
 
+    if args.bug_ids and args.sample:
+        print(
+            "code-review-benchmark: --bug-ids given — ignoring --sample "
+            "(explicit selection takes precedence).",
+            file=sys.stderr,
+        )
+
     if args.report_only:
         path = report.write_report(results_dir)
         print(f"Wrote {path}")
@@ -151,7 +176,12 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     cases = _list_cases(
-        args.dataset, home, args.project, args.limit_projects, args.sample
+        args.dataset,
+        home,
+        args.project,
+        args.limit_projects,
+        args.sample,
+        bug_ids=_parse_bug_ids(args.bug_ids),
     )
     if not cases:
         print(
@@ -235,6 +265,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project", help="Filter to a single project.")
     parser.add_argument(
         "--sample", type=int, help="Random sample of N bugs per project."
+    )
+    parser.add_argument(
+        "--bug-ids",
+        help=(
+            "Comma-separated, explicit bug IDs to run (e.g. '36,44,7'). "
+            "Deterministic — takes precedence over --sample for a "
+            "reproducible verification sweep pinned to specific cases."
+        ),
     )
     parser.add_argument(
         "--resume",
