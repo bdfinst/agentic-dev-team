@@ -4,23 +4,34 @@
 docs/skills.md is the human-readable skills catalog. It used to be hand-edited,
 which drifted: skills were added on disk with no catalog row (14 missing at the
 time this generator was introduced). This builder makes the catalog a derived
-artifact — one row per skills/<name>/SKILL.md, sourced from that file's `name`
-and `description` frontmatter, split into the two sub-types the frontmatter
-already encodes (`user-invocable: true` → slash command, else agent-loaded). No
-hand-curation survives in the output, so it can never silently drift.
+artifact — one row per skills/<name>/SKILL.md (and commands/<name>.md when the
+directory exists), sourced from that file's `name` and `description` frontmatter,
+split into the three sub-types the frontmatter already encodes:
+  - user-invocable with argument-hint  → slash command, hint in Options column
+  - user-invocable without argument-hint → slash command, "no flags — run directly"
+  - agent-loaded (user-invocable absent or false) → "agent-loaded — not directly invocable"
+No hand-curation survives in the output, so it can never silently drift.
 
 Modes (argv[1]):
   (none) / write   rebuild docs/skills.md in place (atomic write)
   --check          diff a fresh build against the on-disk file; exit non-zero
                    with a unified diff on stderr if they differ. Writes nothing.
 
-Env (TEST-ONLY injection seams — production callers must NOT set these):
+Flags:
+  --plugin-dir <path>   Root directory of a plugin (default: two levels above this
+                        file, i.e. the dev-team plugin). Overrides the default
+                        SKILLS_DIR, OUTPUT, and CATEGORIES_FILE paths.
+
+Env (TEST-ONLY injection seams — lower-level overrides, below --plugin-dir;
+     production callers must NOT set these):
   SKILLS_INDEX_SKILLS_DIR   override the skills/ corpus root
   SKILLS_INDEX_OUTPUT       override the output path
+  SKILLS_INDEX_CATEGORIES   override the skill_categories.yaml path
 """
 
 from __future__ import annotations
 
+import argparse
 import difflib
 import os
 import sys
@@ -29,16 +40,42 @@ from pathlib import Path
 from minimal_yaml import FrontmatterError as _NoMarkersError
 from minimal_yaml import YamlError, extract_frontmatter_block, parse_yaml
 
-PLUGIN_DIR = Path(__file__).resolve().parents[2]  # lib -> hooks -> dev-team
-SKILLS_DIR = Path(os.environ.get("SKILLS_INDEX_SKILLS_DIR", PLUGIN_DIR / "skills"))
-OUTPUT = Path(os.environ.get("SKILLS_INDEX_OUTPUT", PLUGIN_DIR / "docs" / "skills.md"))
-CATEGORIES_FILE = Path(
-    os.environ.get(
-        "SKILLS_INDEX_CATEGORIES",
-        Path(__file__).resolve().parent / "skill_categories.yaml",
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_DEFAULT_PLUGIN_DIR = _SCRIPT_DIR.parents[1]  # lib -> hooks -> dev-team
+
+# Options-column sentinel values
+_OPT_NO_FLAGS = "no flags — run directly"
+_OPT_AGENT_LOADED = "agent-loaded — not directly invocable"
+_OPT_UNGROUPED_SECTION = "Ungrouped"
+_OPT_OTHER = "Other"
+
+
+def _resolve_paths(plugin_dir: Path) -> tuple[Path, Path, Path]:
+    """Return (skills_dir, output, categories_file) for a plugin directory.
+
+    Env vars are lower-level overrides, applied after --plugin-dir so the
+    SKILLS_INDEX_* test seam keeps working without modification.
+    """
+    skills_dir = Path(
+        os.environ.get(
+            "SKILLS_INDEX_SKILLS_DIR", plugin_dir / "skills"
+        )
     )
-)
-OTHER = "Other"
+    output = Path(
+        os.environ.get(
+            "SKILLS_INDEX_OUTPUT", plugin_dir / "docs" / "skills.md"
+        )
+    )
+    # For categories: env var wins, else <plugin>/hooks/lib/skill_categories.yaml,
+    # falling back to the dev-team one when the plugin has none (only when the
+    # env var is absent and the plugin-specific file does not exist the caller
+    # should let it be missing — _load_categories handles that gracefully).
+    cats_default = plugin_dir / "hooks" / "lib" / "skill_categories.yaml"
+    categories_file = Path(
+        os.environ.get("SKILLS_INDEX_CATEGORIES", cats_default)
+    )
+    return skills_dir, output, categories_file
+
 
 HEADER = """\
 # Skills
@@ -88,54 +125,100 @@ def _cell(text: str) -> str:
     return " ".join(str(text).split()).replace("|", "\\|")
 
 
-def _load_categories():
-    """Ordered [(category_name, [skill, ...]), ...] from skill_categories.yaml."""
-    data = parse_yaml(CATEGORIES_FILE.read_text(encoding="utf-8")) or {}
+def _options_value(fm: dict) -> str:
+    """Return the Options column value for a skill/command's frontmatter."""
+    if fm.get("user-invocable") is True:
+        hint = fm.get("argument-hint")
+        if hint:
+            return _cell(str(hint))
+        return _OPT_NO_FLAGS
+    return _OPT_AGENT_LOADED
+
+
+def _load_categories(categories_file: Path) -> list[tuple[str, list[str]]]:
+    """Ordered [(category_name, [skill, ...]), ...] from skill_categories.yaml.
+
+    Returns an empty list when the file does not exist, which causes all entries
+    to land in a trailing Ungrouped section (see _collect).
+    """
+    if not categories_file.exists():
+        return []
+    data = parse_yaml(categories_file.read_text(encoding="utf-8")) or {}
     return [
         (c["name"], list(c.get("skills") or [])) for c in (data.get("categories") or [])
     ]
 
 
-def _collect():
-    """Group skills by capability. Returns ordered [(category, rows), ...] where each
-    row is (name, folder, link, desc, slash). A skill whose folder isn't in the
-    taxonomy lands in a trailing `Other` section so it stays visible in the diff."""
-    cats = _load_categories()
+def _collect(
+    skills_dir: Path,
+    categories_file: Path,
+) -> list[tuple[str, list]]:
+    """Group skills and commands by capability.
+
+    Returns ordered [(category, rows), ...] where each row is
+    (name, key, link, desc, slash, options).
+    A skill/command whose key isn't in the taxonomy lands in a trailing section
+    so it stays visible in the diff:
+      - "Other" when a categories file exists (taxonomy gap)
+      - "Ungrouped" when no categories file exists at all
+    """
+    cats = _load_categories(categories_file)
+    has_categories = bool(cats)
     order = [name for name, _ in cats]
     lookup = {skill: name for name, skills in cats for skill in skills}
-    buckets = {name: [] for name in order}
-    for skill_md in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+    buckets: dict[str, list] = {name: [] for name in order}
+
+    def _add_entry(key: str, fm: dict, link: str) -> None:
+        if not fm.get("description"):
+            raise FrontmatterError(f"{link}: frontmatter has no `description`")
+        name = str(fm.get("name") or key)
+        desc = _cell(fm["description"])
+        slash = fm.get("user-invocable") is True
+        opts = _options_value(fm)
+        fallback = _OPT_OTHER if has_categories else _OPT_UNGROUPED_SECTION
+        buckets.setdefault(lookup.get(key, fallback), []).append(
+            (name, key, link, desc, slash, opts)
+        )
+
+    # skills/<name>/SKILL.md — keyed by folder name
+    for skill_md in sorted(skills_dir.glob("*/SKILL.md")):
         folder = skill_md.parent.name
         fm = _frontmatter(skill_md)
-        if not fm.get("description"):
-            raise FrontmatterError(f"{skill_md}: frontmatter has no `description`")
-        name = str(fm.get("name") or folder)
-        desc = _cell(fm["description"])
         link = f"[`{folder}/SKILL.md`](../skills/{folder}/SKILL.md)"
-        slash = fm.get("user-invocable") is True
-        buckets.setdefault(lookup.get(folder, OTHER), []).append(
-            (name, folder, link, desc, slash)
-        )
+        _add_entry(folder, fm, link)
+
+    # commands/<name>.md — keyed by frontmatter `name`
+    commands_dir = skills_dir.parent / "commands"
+    if commands_dir.is_dir():
+        for cmd_md in sorted(commands_dir.glob("*.md")):
+            fm = _frontmatter(cmd_md)
+            key = str(fm.get("name") or cmd_md.stem)
+            link = f"[`commands/{cmd_md.name}`](../commands/{cmd_md.name})"
+            _add_entry(key, fm, link)
+
     display = [(name, buckets[name]) for name in order if buckets.get(name)]
-    if buckets.get(OTHER):
-        display.append((OTHER, buckets[OTHER]))
+    # Trailing ungrouped/other bucket
+    fallback_key = _OPT_OTHER if has_categories else _OPT_UNGROUPED_SECTION
+    if buckets.get(fallback_key):
+        display.append((fallback_key, buckets[fallback_key]))
     for _name, rows in display:
         rows.sort(key=lambda r: r[1])
     return display
 
 
-def _table(rows) -> str:
-    head = "| Skill | File | Description |\n| --- | --- | --- |\n"
+def _table(rows: list) -> str:
+    head = "| Skill | Options | File | Description |\n| --- | --- | --- | --- |\n"
     body = []
-    for name, _folder, link, desc, slash in rows:
+    for name, _key, link, desc, slash, opts in rows:
         label = f"`/{name}`" if slash else name
-        body.append(f"| {label} | {link} | {desc} |")
+        body.append(f"| {label} | {opts} | {link} | {desc} |")
     return head + "\n".join(body) + "\n"
 
 
-def build() -> str:
+def build(plugin_dir: Path) -> str:
+    skills_dir, _output, categories_file = _resolve_paths(plugin_dir)
     parts = [HEADER]
-    for cat_name, rows in _collect():
+    for cat_name, rows in _collect(skills_dir, categories_file):
         parts += ["", f"## {cat_name}", "", _table(rows)]
     return "\n".join(parts).rstrip("\n") + "\n"
 
@@ -150,25 +233,65 @@ def _atomic_write(output: Path, text: str) -> None:
             tmp.unlink()
 
 
+def _parse_args(argv: list[str]) -> tuple[str, Path]:
+    """Return (mode, plugin_dir)."""
+    parser = argparse.ArgumentParser(
+        prog="build_skills_index.py",
+        description="Generate docs/skills.md from plugin skill/command frontmatter.",
+        add_help=True,
+    )
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        default="write",
+        choices=["write", "--check"],
+        help="write (default) or --check",
+    )
+    parser.add_argument(
+        "--plugin-dir",
+        type=Path,
+        default=None,
+        help="Root directory of the plugin (default: dev-team plugin).",
+    )
+    # argparse doesn't handle '--check' as a positional value gracefully when
+    # it looks like a flag. Accept it via a dedicated flag too.
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        default=False,
+        help="Alias for mode=--check.",
+    )
+    ns = parser.parse_args(argv[1:])
+    mode = "--check" if (ns.mode == "--check" or ns.check) else "write"
+    plugin_dir = ns.plugin_dir.resolve() if ns.plugin_dir else _DEFAULT_PLUGIN_DIR
+    return mode, plugin_dir
+
+
 def main(argv: list) -> int:
-    mode = argv[1] if len(argv) > 1 else "write"
     try:
-        actual = build()
+        mode, plugin_dir = _parse_args(argv)
+    except SystemExit as e:
+        return int(e.code) if e.code is not None else 2
+
+    _skills_dir, output, _cats = _resolve_paths(plugin_dir)
+
+    try:
+        actual = build(plugin_dir)
     except FrontmatterError as e:
         sys.stderr.write(f"[skills-index] {e}\n")
         return 1
 
     if mode == "--check":
-        if not OUTPUT.exists():
-            sys.stderr.write(f"[skills-index] index file missing: {OUTPUT}\n")
+        if not output.exists():
+            sys.stderr.write(f"[skills-index] index file missing: {output}\n")
             return 1
-        current = OUTPUT.read_text(encoding="utf-8")
+        current = output.read_text(encoding="utf-8")
         if current == actual:
             return 0
         diff = difflib.unified_diff(
             current.splitlines(keepends=True),
             actual.splitlines(keepends=True),
-            fromfile=str(OUTPUT),
+            fromfile=str(output),
             tofile="<fresh build>",
         )
         sys.stderr.writelines(diff)
@@ -178,12 +301,9 @@ def main(argv: list) -> int:
         )
         return 1
 
-    if mode in ("write", ""):
-        _atomic_write(OUTPUT, actual)
-        return 0
-
-    sys.stderr.write(f"Unknown mode: {mode}\n")
-    return 2
+    # write mode
+    _atomic_write(output, actual)
+    return 0
 
 
 if __name__ == "__main__":
