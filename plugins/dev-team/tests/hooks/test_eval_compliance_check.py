@@ -155,3 +155,64 @@ def test_hook_exits_zero_even_with_eval_required(project: Path):
     }
     result = _run(payload, {"CLAUDE_PROJECT_DIR": str(project)})
     assert result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# _agent_checks — Context needs: artifact-stream (issue #1038)
+# ---------------------------------------------------------------------------
+
+_AGENT_TEMPLATE = """\
+---
+name: test-agent
+role: worker
+model tier: mid
+context needs: {ctx}
+---
+
+# Test Agent
+
+## Detect
+Checks something.
+
+## Skip
+Skip generated files.
+
+Output JSON with status/issues/summary.
+Severity: error, warning, suggestion.
+"""
+
+
+def _ctx_warnings(ctx_value: str) -> str:
+    """Return the _agent_checks output for an agent with the given context needs value."""
+    content = _AGENT_TEMPLATE.format(ctx=ctx_value)
+    return ecc._agent_checks(content, "test-agent", "agents/test-agent.md")
+
+
+def test_context_needs_artifact_stream_alone_passes():
+    out = _ctx_warnings("artifact-stream")
+    assert "Context needs" not in out or "invalid" not in out
+
+
+def test_context_needs_combined_artifact_stream_full_file_passes():
+    out = _ctx_warnings("artifact-stream, full-file")
+    assert "Context needs" not in out or "invalid" not in out
+
+
+def test_context_needs_unknown_token_warns():
+    out = _ctx_warnings("unknown-value")
+    assert "Context needs" in out
+    assert "invalid" in out
+    assert "unknown-value" in out
+
+
+def test_context_needs_combined_with_invalid_token_warns_on_bad_token():
+    out = _ctx_warnings("artifact-stream, bogus-value")
+    assert "bogus-value" in out
+
+
+def test_context_needs_existing_values_still_pass():
+    for value in ("diff-only", "full-file", "project-structure"):
+        out = _ctx_warnings(value)
+        assert "Context needs" not in out or "invalid" not in out, (
+            f"Value {value!r} should pass but got: {out}"
+        )
