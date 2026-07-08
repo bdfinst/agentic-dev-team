@@ -77,6 +77,12 @@ suite.
 Invoke `/code-review` over the changes and let its fix loop converge. Surface any
 findings that need human judgment.
 
+This dispatch deliberately omits `--internal`: `/ship` is a top-level,
+human-typed command, and this Review phase is its pipeline's human-facing
+quality gate, so `/code-review` writing its usual `DEV_TEAM_REPORTS/code-review.md`
+report here is intentional — see `knowledge/report-output-location.md`'s
+"Report exception: /ship" section, not an unfixed oversight.
+
 ### 6. PR
 
 Invoke `/pr` (passing `--no-auto-merge` only if it was given to `/ship`). `/pr` runs
