@@ -77,24 +77,51 @@ def _resolve_paths(plugin_dir: Path) -> tuple[Path, Path, Path]:
     return skills_dir, output, categories_file
 
 
-HEADER = """\
-# Skills
+def _make_header(plugin_dir: Path) -> str:
+    """Return a header block appropriate for `plugin_dir`.
 
-<!-- GENERATED FILE — do not edit by hand.
-     Rows: each plugins/dev-team/skills/<name>/SKILL.md frontmatter (name, description).
-     Grouping: plugins/dev-team/hooks/lib/skill_categories.yaml (by capability).
-     Regenerate: python3 plugins/dev-team/hooks/lib/build_skills_index.py
-     A CI freshness gate (--check) fails if this file drifts from the skills on disk. -->
+    When targeting the default dev-team plugin the header uses the short form
+    without --plugin-dir.  For any other plugin the header includes the
+    relative plugin path so readers know how to regenerate the file.
+    """
+    rel = str(plugin_dir.relative_to(Path.cwd())) if plugin_dir != _DEFAULT_PLUGIN_DIR else None
+    if rel:
+        return (
+            "# Skills\n\n"
+            "<!-- GENERATED FILE — do not edit by hand.\n"
+            f"     Rows: each {rel}/skills/<name>/SKILL.md (and {rel}/commands/<name>.md if present).\n"
+            f"     Grouping: {rel}/skill_categories.yaml (by capability).\n"
+            f"     Regenerate: python3 plugins/dev-team/hooks/lib/build_skills_index.py --plugin-dir {rel}\n"
+            "     A CI freshness gate (--check) fails if this file drifts from the skills on disk. -->\n\n"
+            "Skills are the unified reusable capability layer in this plugin. "
+            "Skills live in `skills/<name>/SKILL.md`; user-invocable commands live "
+            "in `commands/<name>.md`. This catalog groups them **by capability** (the "
+            "sections below); each row's description is the file's own frontmatter "
+            "`description`, verbatim.\n\n"
+            "Most skills are **user-invocable** as slash commands — shown as `/name`; run them "
+            "directly or let the Orchestrator dispatch them. The rest are **agent-loaded** "
+            "knowledge modules — shown as a plain `name` — that agents read for domain expertise.\n"
+        )
+    return (
+        "# Skills\n\n"
+        "<!-- GENERATED FILE — do not edit by hand.\n"
+        "     Rows: each plugins/dev-team/skills/<name>/SKILL.md frontmatter (name, description).\n"
+        "     Grouping: plugins/dev-team/hooks/lib/skill_categories.yaml (by capability).\n"
+        "     Regenerate: python3 plugins/dev-team/hooks/lib/build_skills_index.py\n"
+        "     A CI freshness gate (--check) fails if this file drifts from the skills on disk. -->\n\n"
+        "Skills are the unified reusable capability layer in this system. Every skill lives "
+        "in `skills/<name>/SKILL.md`. This catalog groups them **by capability** (the "
+        "sections below); each row's description is the skill's own frontmatter "
+        "`description`, verbatim.\n\n"
+        "Most skills are **user-invocable** as slash commands — shown as `/name`; run them "
+        "directly or let the Orchestrator dispatch them. The rest are **agent-loaded** "
+        "knowledge modules — shown as a plain `name` — that agents read for domain expertise.\n"
+    )
 
-Skills are the unified reusable capability layer in this system. Every skill lives \
-in `skills/<name>/SKILL.md`. This catalog groups them **by capability** (the \
-sections below); each row's description is the skill's own frontmatter \
-`description`, verbatim.
 
-Most skills are **user-invocable** as slash commands — shown as `/name`; run them \
-directly or let the Orchestrator dispatch them. The rest are **agent-loaded** \
-knowledge modules — shown as a plain `name` — that agents read for domain expertise.
-"""
+# Keep a module-level constant for the dev-team default (used by tests that
+# import HEADER directly).
+HEADER = _make_header(_DEFAULT_PLUGIN_DIR)
 
 
 class FrontmatterError(ValueError):
@@ -217,7 +244,7 @@ def _table(rows: list) -> str:
 
 def build(plugin_dir: Path) -> str:
     skills_dir, _output, categories_file = _resolve_paths(plugin_dir)
-    parts = [HEADER]
+    parts = [_make_header(plugin_dir)]
     for cat_name, rows in _collect(skills_dir, categories_file):
         parts += ["", f"## {cat_name}", "", _table(rows)]
     return "\n".join(parts).rstrip("\n") + "\n"

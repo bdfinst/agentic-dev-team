@@ -112,11 +112,18 @@ nav:
 
   - security-assessment Plugin:
       - Overview: plugins/security-assessment/README.md
+      - Workflows: plugins/security-assessment/docs/workflows.md
+      - Skills: plugins/security-assessment/docs/skills.md
+      - Agents: plugins/security-assessment/docs/agent_info.md
       - User Guide: plugins/security-assessment/docs/user-guide-security-assessment.md
       - Accepted Risks Format: plugins/security-assessment/docs/accepted-risks-format.md
       - Comparative Testing: plugins/security-assessment/docs/comparative-testing.md
 
   - marketplace-dev Plugin:
+      - Overview: plugins/marketplace-dev/README.md
+      - Workflows: plugins/marketplace-dev/docs/workflows.md
+      - Skills: plugins/marketplace-dev/docs/skills.md
+      - Agents: plugins/marketplace-dev/docs/agent_info.md
       - Agent-type Decision Rules: plugins/marketplace-dev/knowledge/agent-type-decision-rules.md
 
   - Guides:

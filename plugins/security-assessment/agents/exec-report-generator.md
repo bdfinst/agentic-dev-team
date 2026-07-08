@@ -1,9 +1,8 @@
 ---
+effort: high
 name: exec-report-generator
 description: Synthesizes the publication-ready executive report from upstream artifacts. Emits a 7-section per-repo report (plus cross-repo summary for multi-repo runs).
 tools: Read, Write, Glob, Grep
-effort: high
-Context needs: artifact-stream
 ---
 
 # Executive Report Generator
@@ -11,6 +10,8 @@ Context needs: artifact-stream
 Final agent in `/security-assessment`. Synthesizes narrative from upstream
 artifacts. Does not detect, disposition, or score. Maps presentational
 severity (CRITICAL/HIGH/MEDIUM/LOW) per primitives contract v1.1.0.
+
+Context needs: project-structure
 
 ## Inputs (per target repo)
 

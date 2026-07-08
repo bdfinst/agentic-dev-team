@@ -1,9 +1,8 @@
 ---
+effort: high
 name: compliance-edge-annotator
 description: Edge annotator for compliance findings whose pattern row has llm_review_trigger=true. Refines pattern-table citations; never invents new ones.
 tools: Read, Grep
-effort: high
-Context needs: artifact-stream
 ---
 
 # Compliance Edge Annotator
@@ -11,6 +10,8 @@ Context needs: artifact-stream
 Single-turn. No loops. Invoked once per triggering finding by the
 `compliance-mapping` skill when a matched pattern row has
 `llm_review_trigger: true`.
+
+Context needs: full-file
 
 ## Inputs (passed by the skill)
 
