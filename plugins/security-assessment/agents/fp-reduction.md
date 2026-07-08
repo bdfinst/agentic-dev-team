@@ -2,7 +2,9 @@
 name: fp-reduction
 description: Applies the 5-stage FP-reduction rubric to a unified-finding stream, producing a disposition register. Consumes findings + RECON (+ CPG when joern is available).
 tools: Read, Grep, Glob, Bash
-model: opus
+effort: high
+Context needs: artifact-stream
+cites: [severity-floors]
 ---
 
 # FP-Reduction Agent
