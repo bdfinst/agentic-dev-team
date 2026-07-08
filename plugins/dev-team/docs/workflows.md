@@ -140,6 +140,10 @@ Flow diagram:
 
 ## Why these are documented together
 
+Use `/test-improve` alongside `/ship` for multi-phase quality pipelines — run
+`/test-improve` to raise baseline coverage and health first, then `/ship` to
+carry the feature through spec → build → PR.
+
 `/ship` and `/test-improve` are the two **multi-phase pipelines with
 inter-phase human gates** in the plugin. Every other slash
 command is either a single-step worker (e.g. `/coverage-baseline`,
