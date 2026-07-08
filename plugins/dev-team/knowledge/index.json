@@ -1885,6 +1885,60 @@
       "anchor": "constraints"
     }
   },
+  "plugins/dev-team/skills/autoship/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Step 1 — Reclaim orphaned issues": {
+      "summary": "Run the reclaim script to relabel any stale `autoship:in-progress` issues back",
+      "anchor": "step-1-reclaim-orphaned-issues"
+    },
+    "Step 2 — Discover eligible issues": {
+      "summary": "Run the discovery script to select the issues this round will process.",
+      "anchor": "step-2-discover-eligible-issues"
+    },
+    "Step 3 — Per-issue processing loop": {
+      "summary": "Process each discovered issue **strictly in order** (no concurrency).",
+      "anchor": "step-3-per-issue-processing-loop"
+    },
+    "3a — Cost cap check": {
+      "summary": "Before starting an issue, read the current round cost:",
+      "anchor": "3a-cost-cap-check"
+    },
+    "3b — Label issue in-progress": {
+      "summary": "Invoke `/ship` with:",
+      "anchor": "3b-label-issue-in-progress"
+    },
+    "3c — Invoke /ship": {
+      "summary": "Invoke `/ship` with:",
+      "anchor": "3c-invoke-ship"
+    },
+    "3d — Detect stakeholder-input blocker": {
+      "summary": "Scan `ship_output` for the pattern `requires-stakeholder-input` (case-insensitive).",
+      "anchor": "3d-detect-stakeholder-input-blocker"
+    },
+    "3e — Classify outcome": {
+      "summary": "After a non-blocked `/ship` completes, record the start ISO timestamp that was",
+      "anchor": "3e-classify-outcome"
+    },
+    "3f — Append round record": {
+      "summary": "Append one entry per issue to `metrics/autoship-log.jsonl` using the log",
+      "anchor": "3f-append-round-record"
+    },
+    "Step 4 — Round summary": {
+      "summary": "After the loop ends (all issues processed, cost cap reached, or dry-run),",
+      "anchor": "step-4-round-summary"
+    },
+    "Notes": {
+      "summary": "**No scheduling.** There is no timer or interval mechanism in this skill.",
+      "anchor": "notes"
+    }
+  },
   "plugins/dev-team/skills/benchmark/SKILL.md": {
     "Worker constraints": {
       "summary": "1.",
