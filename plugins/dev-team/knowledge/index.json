@@ -68,6 +68,10 @@
       "summary": "After the initial review pass, re-examine findings with the following questions.",
       "anchor": "the-loop"
     },
+    "Zero-Findings Anomaly": {
+      "summary": "When the Self-Challenge pass produces **zero Confirmed findings** on a **non-trivial",
+      "anchor": "zero-findings-anomaly"
+    },
     "Output": {
       "summary": "After the challenger pass, append to the `summary` field in your JSON output:",
       "anchor": "output"
