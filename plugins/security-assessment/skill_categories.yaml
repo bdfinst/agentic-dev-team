@@ -1,0 +1,36 @@
+# Capability taxonomy for plugins/security-assessment/docs/skills.md.
+#
+# build_skills_index.py groups the skills catalog by these capabilities, in this
+# order. Each entry's row (name, description) is derived from the file's own
+# frontmatter — this file only decides *which capability section* it lands in.
+# A skill or command on disk that is not listed here falls into a trailing
+# "Other" section; the freshness gate then shows it as a diff, prompting you to
+# file it under the right capability and regenerate.
+#
+# Regenerate after editing:
+#   python3 plugins/dev-team/hooks/lib/build_skills_index.py \
+#     --plugin-dir plugins/security-assessment
+
+categories:
+  - name: Assessment Pipelines
+    skills:
+      - security-assessment
+      - cross-repo-analysis
+
+  - name: Adversarial Testing
+    skills:
+      - redteam-model
+
+  - name: Finding Management
+    skills:
+      - false-positive-reduction
+      - compliance-mapping
+
+  - name: Pipeline Infrastructure
+    skills:
+      - security-assessment-pipeline
+
+  - name: Tooling & Maintenance
+    skills:
+      - export-pdf
+      - upgrade
