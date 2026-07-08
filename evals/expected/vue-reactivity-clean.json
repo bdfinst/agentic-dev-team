@@ -1,0 +1,11 @@
+{
+  "fixture": "vue-reactivity-clean.vue",
+  "description": "Vue component with correct reactivity usage and no pitfalls",
+  "applicableAgents": ["vue-reactivity-review"],
+  "agents": {
+    "vue-reactivity-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

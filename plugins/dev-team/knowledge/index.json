@@ -867,6 +867,24 @@
       "anchor": "connection-refused"
     }
   },
+  "plugins/dev-team/knowledge/reactive-effect-patterns.md": {
+    "Effect self-writes (infinite loop)": {
+      "summary": "**Pattern**: A reactive effect / watcher reads a reactive value *and* writes",
+      "anchor": "effect-self-writes-infinite-loop"
+    },
+    "Effect cleanup (subscription / timer leaks)": {
+      "summary": "**Pattern**: A reactive effect opens a resource (timer, subscription, socket,",
+      "anchor": "effect-cleanup-subscription-timer-leaks"
+    },
+    "Stale captured values": {
+      "summary": "**Pattern**: A reactive effect captures a variable by closure at the time the",
+      "anchor": "stale-captured-values"
+    },
+    "Computed / derived values with side effects": {
+      "summary": "**Pattern**: A derived/computed value is given a getter function that performs",
+      "anchor": "computed-derived-values-with-side-effects"
+    }
+  },
   "plugins/dev-team/knowledge/release-strategies.md": {
     "Decouple deployment from release": {
       "summary": "| Technique | What it does | Use when |",
