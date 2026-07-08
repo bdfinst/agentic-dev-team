@@ -1,5 +1,5 @@
 ---
-effort: high
+effort: medium
 name: redteam-report-generator
 description: Refines the red-team adversarial-report.md into an executive document. Assigns RED/AMBER/GREEN rating; produces remediation with effort estimates.
 tools: Read, Write, Grep
@@ -12,7 +12,7 @@ Final agent in the red-team pipeline. Synthesize the raw report from probe
 rating, severity-calibrated findings, narrative flow, actionable
 remediation.
 
-Context needs: project-structure
+Context needs: artifact-stream
 
 ## Inputs
 

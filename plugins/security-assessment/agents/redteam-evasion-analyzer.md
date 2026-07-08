@@ -1,5 +1,5 @@
 ---
-effort: high
+effort: medium
 name: redteam-evasion-analyzer
 description: Interprets probe 05 (evasion) alongside probe 03 (sensitivity) and probe 04 (boundaries). Rates adversarial realism, explains evasion mechanism, recommends defenses.
 tools: Read, Grep
@@ -12,7 +12,7 @@ realistic (a fraud actor could actually submit them), which succeed
 because of model brittleness, and what defenses raise the cost of
 evasion.
 
-Context needs: full-file
+Context needs: artifact-stream
 
 ## Inputs
 
