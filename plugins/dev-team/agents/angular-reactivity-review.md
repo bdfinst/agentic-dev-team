@@ -70,7 +70,7 @@ Async pipe alternatives not used:
 
 Angular Signals pitfalls (Angular 16+):
 
-- `effect()` that writes to a signal it also reads — causes an infinite update loop (same pattern as Svelte `$effect` self-write; see `knowledge/reactive-effect-patterns.md` §Effect self-writes)
+- `effect()` that writes to a signal it also reads — causes an infinite update loop (same pattern as Svelte `$effect` self-write; see `knowledge/reactive-effect-patterns.md#effect-self-writes-infinite-loop`)
 - `computed()` with side effects (network calls, `console.log`, DOM writes) — computed signals must be pure
 - Reading a signal value (`.()`) outside a reactive context (not inside `computed`, `effect`, or template) and storing it in a plain variable — loses live tracking
 - `signal()` wrapping a mutable object mutated in-place — Angular only tracks the signal reference, not deep object mutations; use `update()` with a new object or `mutate()` (Angular 16 only)
