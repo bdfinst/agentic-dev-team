@@ -173,6 +173,12 @@ Otherwise read the roster from the **Review Agents** section of `knowledge/agent
 
 **Frontend component files in scope** (`.jsx`, `.tsx`, `.vue`, `.svelte`, Angular `*.component.ts` + their templates, or `.js`/`.ts` modules that render UI): always include `component-architecture-review` — the same lens `/frontend-architecture` runs standalone — scoped to those files in step 4.
 
+**Framework-specific reactivity review** — dispatch based on the project's dependency manifest (`package.json` etc.):
+- React (`react` / `react-dom` in deps): include `react-reactivity-review` scoped to `.jsx`/`.tsx` and React-importing `.js`/`.ts` files
+- Vue (`vue` in deps): include `vue-reactivity-review` scoped to `.vue` and Vue-importing `.js`/`.ts` files
+- Angular (`@angular/core` in deps): include `angular-reactivity-review` scoped to `*.component.ts`, `*.component.html`, `*.service.ts`, and general `.ts` files
+- Svelte (`.svelte`/`.svelte.ts`/`.svelte.js` files present): include `svelte-review` scoped to those files (Svelte projects do not require a manifest entry — file presence is sufficient)
+
 If `review-config.json` exists at the repo root, honor its per-agent `"enabled": false` flags.
 
 ### 4. Run each enabled agent

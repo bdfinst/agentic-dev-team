@@ -102,4 +102,4 @@ Append confidence level (High/Medium/Low) to the `summary` field.
 
 ## Ignore
 
-Accessibility (a11y-review), framework reactivity correctness (svelte-review and framework-specific agents), functional-purity/mutation style (js-fp-review), non-UI business-logic duplication and SRP/coupling (structure-review, refactor-opportunity-review), naming conventions (naming-review), pure styling/CSS concerns
+Accessibility (a11y-review), framework reactivity correctness (svelte-review, react-reactivity-review, vue-reactivity-review, angular-reactivity-review), functional-purity/mutation style (js-fp-review), non-UI business-logic duplication and SRP/coupling (structure-review, refactor-opportunity-review), naming conventions (naming-review), pure styling/CSS concerns
