@@ -28,7 +28,7 @@ categories:
 
   - name: Build & Ship
     skills:
-      [build, test-driven-development, continue, pr, ship, branch-workflow]
+      [build, test-driven-development, continue, pr, ship, branch-workflow, autoship]
 
   - name: Code Review & Static Analysis
     skills:

@@ -391,3 +391,23 @@ Self-reported per-task completion log, one file per calendar date.
    (fields/types, emitter, consent gating, consumers) in the same PR that
    introduces the emitter — the coverage test in
    `tests/hooks/test_boundary_events.py` enforces this.
+
+---
+
+## `autoship-log.jsonl`
+
+One entry per `/autoship` round, recording the outcome and cost of each automated ship attempt.
+
+| Field | Type | Values / source |
+|---|---|---|
+| `logged_at` | string | ISO-8601 (UTC) — stamped by `autoship_log.py` |
+| `round` | integer | Monotonically increasing round counter |
+| `issues_attempted` | integer | Number of issues dispatched this round |
+| `issues_shipped` | integer | Issues that reached a merged PR |
+| `issues_blocked` | integer | Issues that required stakeholder input |
+| `total_cost_usd` | number | Cumulative USD spend for this round |
+| `outcome` | string | `"success"` \| `"convergence_failure"` \| `"cost_cap_reached"` \| `"unrecognized"` |
+
+- **Emitter:** `hooks/lib/autoship_log.py` called from the `/autoship` skill.
+- **Consent:** unconditional (cost/count aggregates only — no prompt text or file contents).
+- **Consumers:** `/cost-report`, `/telemetry` (aggregate reporting).
