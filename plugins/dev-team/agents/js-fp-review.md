@@ -1,9 +1,17 @@
 ---
+
 name: js-fp-review
 description: Array mutations, parameter mutations, global state, impure patterns in JS/TS
 tools: Read, Grep, Glob
 effort: low
 cites: [adversarial-review-protocol]
+scope:
+  - **/*.js
+  - **/*.ts
+  - **/*.jsx
+  - **/*.tsx
+  - **/*.mjs
+  - **/*.cjs
 ---
 
 # JS FP Review

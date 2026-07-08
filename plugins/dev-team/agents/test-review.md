@@ -1,9 +1,11 @@
 ---
+
 name: test-review
 description: Test quality, coverage gaps, assertion quality, and test hygiene
 tools: Read, Grep, Glob, Skill
 effort: medium
 cites: [testability-patterns, result-verification, test-automation-maturity, adversarial-review-protocol]
+scope: always
 ---
 
 # Test Review

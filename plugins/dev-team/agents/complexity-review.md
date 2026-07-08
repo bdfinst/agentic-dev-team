@@ -1,9 +1,11 @@
 ---
+
 name: complexity-review
 description: Cyclomatic complexity, nesting depth, function size, parameter count
 tools: Read, Grep, Glob
 effort: medium
 cites: [object-calisthenics, adversarial-review-protocol]
+scope: always
 ---
 
 # Complexity Review

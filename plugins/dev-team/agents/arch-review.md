@@ -1,9 +1,11 @@
 ---
+
 name: arch-review
 description: Architectural alignment — ADR compliance, layer boundary violations, dependency direction, pattern consistency
 tools: Read, Grep, Glob
 effort: high
 cites: [architecture-assessment, adversarial-review-protocol]
+scope: always
 ---
 
 # Architecture Review
