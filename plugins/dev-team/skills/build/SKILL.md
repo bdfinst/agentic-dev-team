@@ -238,7 +238,7 @@ After all steps are complete, run the full test suite. Paste the output as final
 
 Run `/code-review --internal` against all files modified during the build —
 deliberately not `--json`, to keep the review-fix loop running per
-`/code-review`'s own step-7 exception (b).
+`/code-review`'s own step-6 exception (b).
 
 ### 7. Final test quality score (branch)
 
