@@ -1,0 +1,15 @@
+{
+  "fixture": "tr-oracle-provenance-circular",
+  "description": "Circular-oracle-dominated test file — all 5 assertions are snapshots or baseline-captured values with no external justification. Expects an oracle-provenance error (ratio > 50%), a quality-cap note, and no SPEC-DERIVED or INDEPENDENT classification.",
+  "applicableAgents": ["test-review"],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": {
+        "error": { "min": 1, "max": 2 }
+      },
+      "mustMention": ["circular", "snapshot", "60"]
+    }
+  }
+}
