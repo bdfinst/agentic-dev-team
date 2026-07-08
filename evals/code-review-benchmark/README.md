@@ -144,6 +144,11 @@ python3 cli.py --report-only
 # e.g. re-running the exact cases a prior sweep flagged, for a reproducible
 # regression check (#970) instead of --sample's unseeded random selection
 python3 cli.py --dataset defects4j --project Lang --bug-ids 36,44,7,23,56
+
+# Cap real spend on a long unattended sweep — stops dispatching NEW cases
+# once the running total meets/exceeds $50 (already in-flight cases still
+# finish; nothing is silently dropped, see Cost tracking below)
+python3 cli.py --dataset defects4j --max-cost-usd 50
 ```
 
 ### Flags
@@ -161,30 +166,69 @@ python3 cli.py --dataset defects4j --project Lang --bug-ids 36,44,7,23,56
 | `--model` | Model tier passed to the `/code-review` dispatch (default `sonnet`) |
 | `--timeout` | Per-case dispatch timeout in seconds (default 1800 — raised from 900 after #974: a "single file" review still fans out to the full ~14-agent roster, not a lightweight pass; see `runner.make_isolated_dispatch_fn`'s docstring for the measured evidence) |
 | `--workers` | Number of bug cases run concurrently, thread pool (default 2 — lowered from 4 after #974 to bound how many ~14-20-way agent fan-outs run concurrently on one host) |
+| `--max-cost-usd N` | Fail-safe spend cutoff in USD (#1000, default: no cap) — see Cost tracking below |
 | `--no-verify-tests` | Skip building/installing deps and running the project's own test suite per case (on by default; diagnostic only — see below) |
 | `--defects4j-home`, `--bugsjs-home` | Dataset home dirs (or the matching env vars) |
 | `--results-dir` | Where `results.jsonl`/`skipped.jsonl`/`report.md`/`raw/` are written (default `./results`) |
 | `--report-only` | Only (re)generate `report.md` from existing results |
 
+## Cost tracking (#1000)
+
+Real per-case dispatch cost is real money — #974 measured $1.29 (a
+deliberately trivial single file) to $4.48 (a real Defects4J case) per
+`/code-review --json` dispatch. Three things make spend visible and
+boundable instead of a surprise at the end of a long sweep:
+
+- **A running total on every progress line**: `[3/10] defects4j:Lang:23:
+  HIT ($6.12 total)` — sourced from `total_cost_usd` in the underlying
+  `claude -p --output-format json` wrapper.
+- **A pre-sweep estimate**, printed to stderr before any dispatch begins:
+  `case_count * $4.50` (a conservative hardcoded constant, not
+  extrapolated from live cases — see the plan's Decisions & Assumptions
+  for why). Skipped when there's nothing to dispatch (`--report-only`, or
+  a `--resume` run that already covers every case).
+- **`--max-cost-usd <N>`**, a fail-safe cutoff, not an exact ceiling: it's
+  checked only *after* a case completes — never before the initial
+  `--workers`-sized batch is primed — so realized spend can exceed `N` by
+  up to `workers - 1` extra in-flight cases' cost. Once the running total
+  meets/exceeds `N`, no further case is submitted; cases already in flight
+  are never cancelled and always finish normally. Cases that never got to
+  start are recorded to `skipped.jsonl` with a reason naming
+  `--max-cost-usd` (never silently dropped), and a stderr message
+  explains the stop. `report.md`'s summary line also sums the total spent
+  across `results.jsonl` + `skipped.jsonl` (a case skipped for
+  "unparseable --json output" still paid for a real dispatch).
+
+The scheduling itself lives in `scheduler.py`, not `cli.py` — see Layout
+below.
+
 ## Output artifacts (`results/`, gitignored)
 
 - `results.jsonl` — one record per attempted bug: `{dataset, project, bug_id,
   hit, ground_truth_hunks, findings, unmatched_findings, raw_output_path,
-  test_verification}`.
+  test_verification, cost_usd}`.
 - `skipped.jsonl` — one record per bug that couldn't be checked out or
-  scored: `{dataset, project, bug_id, reason}`. `reason` is one of:
-  `checkout failed`, `no ground-truth hunks`, `unparseable --json output`, or
-  `ground truth touches no recognized source files` (the fix's own commit
-  bundled with its tests touched nothing but a changelog/manifest/CI-config
-  file — e.g. `History.md`, `package.json`, `.travis.yml` — so there was no
-  source change for `/code-review` to have found; scored as a skip, not a
-  recall miss).
+  scored: `{dataset, project, bug_id, reason, cost_usd}`. `reason` is one
+  of: `checkout failed`, `no ground-truth hunks`, `unparseable --json
+  output`, `ground truth touches no recognized source files` (the fix's
+  own commit bundled with its tests touched nothing but a
+  changelog/manifest/CI-config file — e.g. `History.md`, `package.json`,
+  `.travis.yml` — so there was no source change for `/code-review` to have
+  found; scored as a skip, not a recall miss), or a message naming
+  `--max-cost-usd` (#1000 — the sweep's budget was reached before this
+  case could be dispatched).
+- `cost_usd` (#1000, both files above) — the dispatch's `total_cost_usd`
+  from the underlying `claude -p --output-format json` wrapper, or `None`
+  when no dispatch happened (checkout failure, no ground truth, budget cut
+  off before this case started) or the wrapper never reported one (e.g. a
+  timeout).
 - `raw/<dataset>-<project>-<bug_id>.txt` — the dispatch's raw stdout,
   verbatim, saved before any parsing (so a parser bug never loses data).
 - `report.md` — overall/per-dataset/per-project recall, a **Missed Defects**
-  section (the actionable part), and a noise summary (average unmatched
+  section (the actionable part), a noise summary (average unmatched
   findings per hit run — "unmatched," not "false positive": the review may
-  have found a real, different issue).
+  have found a real, different issue), and a total-cost line (#1000)
+  summed across `results.jsonl` + `skipped.jsonl`.
 
 ## Test verification (diagnostic, not a gate)
 
@@ -228,6 +272,7 @@ adapters/
 runner.py                 # checkout -> scope -> dispatch -> parse -> score -> JSONL
 scorer.py                 # hit/miss/tolerance/unmatched-findings
 report.py                 # results.jsonl + skipped.jsonl -> report.md
+scheduler.py              # #1000: budget-aware, submit-as-you-go case scheduling (--max-cost-usd)
 cli.py                    # argparse entry point
 fixtures/                 # real (trimmed) sample data used by the unit tests
 ```
