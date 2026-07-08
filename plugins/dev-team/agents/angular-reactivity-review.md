@@ -42,7 +42,7 @@ Return `{"status": "skip", "issues": [], "summary": "No Angular files in target"
 
 ## Detect
 
-Read `knowledge/reactive-effect-patterns.md` for cross-framework effect/watcher patterns shared with React and Vue agents before running the Angular-specific checks below.
+Whole-file load: `knowledge/reactive-effect-patterns.md` for cross-framework effect/watcher patterns shared with React and Vue agents before running the Angular-specific checks below.
 
 Zone.js change-detection pitfalls:
 
