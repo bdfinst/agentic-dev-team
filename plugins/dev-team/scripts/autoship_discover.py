@@ -73,18 +73,6 @@ def _positive_int(raw: str) -> int:
     return value
 
 
-def _positive_float(raw: str) -> float:
-    """`argparse` `type=` validator for `--max-cost-usd`: rejects `<= 0` at
-    the CLI boundary — mirrors `evals/code-review-benchmark/cli.py`'s
-    `_positive_float`."""
-    value = float(raw)
-    if value <= 0:
-        raise argparse.ArgumentTypeError(
-            f"--max-cost-usd must be a positive number, got {raw!r}"
-        )
-    return value
-
-
 def build_parser() -> argparse.ArgumentParser:
     """Build this CLI's `argparse.ArgumentParser`, isolated from `main()` so
     tests can assert required/rejected values via
@@ -101,7 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--max-cost-usd",
-        type=_positive_float,
+        type=autoship_state.positive_float_validator("--max-cost-usd"),
         required=True,
         help=(
             "Budget cap in USD for the round, consumed by /dev-team:autoship's "
