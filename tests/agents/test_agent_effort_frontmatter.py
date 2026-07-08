@@ -19,26 +19,37 @@ from typing import List
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-AGENTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "agents"
+AGENTS_DIRS = [
+    REPO_ROOT / "plugins" / "dev-team" / "agents",
+    REPO_ROOT / "plugins" / "security-assessment" / "agents",
+]
 ALLOWED_BANDS = ("low", "medium", "high")
 
 
 def _agent_files_to_check(agent_files: str | None = None) -> List[Path]:
     """Resolve which agent files to check.
 
-    - Default: every *.md directly under agents/.
-    - With agent_files: only the named basenames (each must exist).
+    - Default: every *.md directly under any agents/ directory in AGENTS_DIRS.
+    - With agent_files: only the named basenames (each must exist in one of the dirs).
     """
     if agent_files:
         raw = agent_files.replace(",", " ").split()
         result = []
         for name in raw:
-            candidate = AGENTS_DIR / name
-            if not candidate.is_file():
+            found = None
+            for agents_dir in AGENTS_DIRS:
+                candidate = agents_dir / name
+                if candidate.is_file():
+                    found = candidate
+                    break
+            if found is None:
                 raise ValueError(f"AGENT_FILES contains an unknown agent: {name}")
-            result.append(candidate)
+            result.append(found)
         return result
-    return sorted(AGENTS_DIR.glob("*.md"))
+    files: List[Path] = []
+    for agents_dir in AGENTS_DIRS:
+        files.extend(agents_dir.glob("*.md"))
+    return sorted(files)
 
 
 def _effort_value(agent_file: Path) -> str:
