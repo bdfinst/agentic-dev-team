@@ -37,6 +37,23 @@ def grep(pattern: str, text: str, ignore_case: bool = False) -> bool:
     return re.search(_posix_classes(pattern), text, flags) is not None
 
 
+def phase_6_section(text: str) -> str:
+    """Extract /test-improve's Phase 6 section from `text` (the skill's full
+    body). Promoted here (test-smell-review, issue #968) after the same
+    one-line `section(text, r"^### Phase 6")` wrapper was duplicated
+    verbatim across three tests/skills/test_improve_*.py files."""
+    return section(text, r"^### Phase 6")
+
+
+def collapsed(text: str) -> str:
+    """Collapse all whitespace runs (including newlines) to single spaces so
+    a phrase hard-wrapped across markdown lines — even mid-word — still
+    matches a literal substring/grep check that assumes single-line prose.
+    Structure-review (issue #968) found this reimplemented inline in
+    multiple test files; this is the one shared implementation."""
+    return " ".join(text.split())
+
+
 def grep_multiline(pattern: str, text: str, ignore_case: bool = False) -> bool:
     """Mirror `grep -Eqz[i]` — null-record mode lets the pattern span
     newlines within the haystack (grep -z joins the whole input into one
