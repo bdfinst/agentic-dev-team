@@ -7,11 +7,15 @@ Ported from tests/skills/test_improve_executive_summary_template_tests.bats
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 TEMPLATE = (
     PLUGIN_ROOT / "skills" / "test-improve" / "templates" / "executive-summary.md"
 )
+
+
+def _section_7() -> str:
+    return section(_text(), r"^## 7\.", boundary_pattern=r"^## ")
 
 
 def _text() -> str:
@@ -30,7 +34,9 @@ def test_template_contains_all_10_numbered_section_headers():
     assert grep(r"^## 4\. Findings from", text)
     assert grep(r"^## 5\. Work completed \(Phase 4 — no refactoring\)", text)
     assert grep(r"^## 6\. Work completed \(Phase 5 — refactor-for-testability\)", text)
-    assert grep(r"^## 7\. Deferred work", text)
+    assert grep(
+        r"^## 7\. Deferred work — areas requiring refactoring to add tests", text
+    )
     assert grep(r"^## 8\. Waivers", text)
     assert grep(r"^## 9\. Next actions", text)
     assert grep(r"^## 10\. Provenance", text)
@@ -60,3 +66,27 @@ def test_template_carries_the_mutation_disabled_placeholder_text():
 
 def test_template_carries_the_not_applicable_placeholder_for_empty_sections():
     assert grep(r"not[[:space:]]+applicable", _text(), ignore_case=True)
+
+
+# --- §7 REFACTOR_REQUIRED foregrounding (issue #968) --------------------------
+
+
+def test_section_7_carries_seam_behavior_risk_column_triad():
+    s = _section_7()
+    assert grep(r"seam", s, ignore_case=True)
+    assert grep(r"behavior", s, ignore_case=True)
+    assert grep(r"risk", s, ignore_case=True)
+    assert grep(r"\|", s)
+
+
+def test_section_7_scoped_not_applicable_fallback_is_preserved():
+    """Scoped to §7's own text, not the whole template — a whole-template
+    check would still pass if §7's own fallback line were deleted, since the
+    not-applicable phrase already appears in §5/§6/§8."""
+    assert grep(r"not[[:space:]]+applicable", _section_7(), ignore_case=True)
+
+
+def test_template_still_has_exactly_10_numbered_section_headers():
+    text = _text()
+    headers = [line for line in text.splitlines() if line.startswith("## ")]
+    assert len(headers) == 10

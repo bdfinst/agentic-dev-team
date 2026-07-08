@@ -189,6 +189,8 @@ plan** to the operator and wait for explicit approval. **Phase 2 does not run**
 until the operator approves. This is the human gate for Phase 1; do not advance
 past it without approval.
 
+**`/handoff` suggestion** (context-heavy analysis). Once the gate above resolves, print: `Phase 1 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 2`
+
 ### Phase 2 — Baseline (coverage + mutation)
 
 Capture the objective starting point **before any file under the stack's test
@@ -327,6 +329,8 @@ Phase-4 diff:
    the fixed schema — fields: `base_sha`, `head_sha`, `farley_score`,
    `smells`, `code_review`, `iterations`, `escalated`.
 
+**`/handoff` suggestion** (context-heavy review). Once the loop above closes, print: `Phase 4 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 4b`
+
 ### Phase 4b — Refactor decision prompt
 
 With Phase 4 closed, present the **REFACTOR_REQUIRED** list deferred at
@@ -383,11 +387,16 @@ escalation.
 the **same fixed schema** as Phase 4 (`base_sha`, `head_sha`, `farley_score`,
 `smells`, `code_review`, `iterations`, `escalated`).
 
+**`/handoff` suggestion** (same rationale as Phase 4). Once the loop above closes, print: `Phase 5 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 6`
+
 ### Phase 6 — Validate (converge quality targets)
 
 Verify the improved suite meets the Phase-0 quality targets. Delegate to
-`/quality-targets-converge --workflow test-improve`; the skill routes memory
-and plan paths under `test-improve/` (per Slice 11).
+`/quality-targets-converge --workflow test-improve --refactor-mode <value>`
+(`phase-0.md`'s `no-refactor` or `refactor-allowed`) — the skill routes
+memory and plan paths under `test-improve/` (per Slice 11), and threading
+the flag keeps the operator's no-refactor choice enforced past Phase 4b via
+its own dispatch-table gating.
 
 **Mutation-off skip (not waive).** When `phase-0.md` recorded mutation
 **off**, the mutation target is **skipped** and marked "not enabled for this
@@ -407,7 +416,7 @@ below 90% in no-refactor mode. Re-run in refactor-allowed mode to close the
 gap? `[y/n]`"*. The prompt names the **backlogged REFACTOR_REQUIRED items**
 that would close the gap (drawn from `memory/test-improve/<slug>/refactor-backlog.md`
 when `[b]` was picked at Phase 4b, or from the Phase-3 deferred list when
-Phase 4b was not reached).
+Phase 4b was not reached). Whenever shown, `phase-6.md` records `coverage_reprompt_fired: true` plus the answer — the durable source Phase 7's close-out prompt reads to avoid re-asking (see below).
 
 **Evidence.** Persist target outcomes to
 `memory/test-improve/<slug>/phase-6.md`.
@@ -421,6 +430,8 @@ differently-scoped recount) — and persist
 as `test-counts-before.json` (same six keys, same order, zero-count keys
 present). See Phase 1's own instruction for the full classification
 mechanism; this pass does not restate it.
+
+**`/handoff` suggestion** (context-heavy re-measurement). Once the recount above is persisted, print: `Phase 6 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 7`
 
 ### Phase 7 — Executive-summary report
 
@@ -442,8 +453,9 @@ memory files under `memory/test-improve/<slug>/` (`phase-0.md`, `phase-1.md`,
 `test-counts-before.json`, `baseline-coverage.json`, `baseline-mutation.json`,
 `phase-3.md`, `coverage-history.json`, `phase-4-review.json`,
 `phase-5-review.json` if Phase 5 ran, `refactor-backlog.md` if Phase 4b chose
-`[b]`, `waivers.json`, `phase-6.md`, `test-counts-after.json` if Phase 6 ran).
-No placeholder is left literal.
+`[b]` or Phase 6 wrote a no-refactor-mode entry to it, `waivers.json`,
+`phase-6.md`, `test-counts-after.json` if Phase 6 ran). No placeholder is
+left literal.
 
 **Empty-section rule.** Sections with no data render `_Not applicable —
 <reason>._` (e.g. § 6 when Phase 5 was declined reads "*Phase 5 not run —
@@ -468,3 +480,17 @@ the same link.
 `memory/test-improve/<slug>/`. Deleting the report file and re-invoking
 Phase 7 against the same memory directory reproduces the report byte-for-byte
 — no run-time state is consulted outside the memory directory.
+
+### After Phase 7 — Re-run-with-refactor close-out prompt
+
+**No prompt** when: `refactor-backlog.md` does not exist (no `REFACTOR_REQUIRED` items were ever backlogged), the file exists but has zero entries (treated the same as absent), `phase-6.md` records `coverage_reprompt_fired: true` (Phase 6's own coverage-driven `[y/n]` already fired this run — no repeating the same question twice), or `phase-0.md` recorded `refactor-mode: refactor-allowed` (a Phase-4b `[b]` backlog entry under `refactor-allowed` mode is the operator's deliberate deferral, not a no-refactor constraint to lift — re-asking "re-run with refactor-allowed mode now?" would be nonsensical when that's the mode already in use).
+
+**Otherwise** (backlog file has ≥1 entry, Phase 6 never fired its prompt,
+and `phase-0.md` recorded `refactor-mode: no-refactor`), prompt **`[y/n]`**
+— distinct from Phase 6's coverage-driven, mid-run prompt, this one is
+backlog-driven and fires at close-out: *"N REFACTOR_REQUIRED items remain
+backlogged. Re-run with refactor-allowed mode now? `[y/n]`"* (N = entry
+count). `[n]` leaves the backlog as-is. `[y]` — Phase-0 answers are
+immutable per-run, so tell the operator to re-run `/test-improve
+<repo-path>` fresh, choosing `refactor-allowed`; this is a new invocation,
+not `--from-phase`.

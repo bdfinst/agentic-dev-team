@@ -5389,6 +5389,10 @@
     "Phase 7 — Executive-summary report": {
       "summary": "Produce a stable executive-summary report from the shipped template.",
       "anchor": "phase-7-executive-summary-report"
+    },
+    "After Phase 7 — Re-run-with-refactor close-out prompt": {
+      "summary": "**No prompt** when: `refactor-backlog.md` does not exist (no `REFACTOR_REQUIRED` items were ever backlogged), the file exists but has zero entries (treated the same as absent), `phase-6.md` records `coverage_reprompt_fired: true` (Phase 6's own coverage-driven `[y/n]` already fired this run — no repeating the same question twice), or `phase-0.md` recorded `refactor-mode: refactor-allowed` (a Phase-4b `[b]` backlog entry under `refactor-allowed` mode is the operator's deliberate deferral, not a no-refactor constraint to lift — re-asking \"re-run with refactor-allowed mode now?\" would be nonsensical when that's the mode already in use).",
+      "anchor": "after-phase-7-re-run-with-refactor-close-out-prompt"
     }
   },
   "plugins/dev-team/skills/threat-modeling/SKILL.md": {

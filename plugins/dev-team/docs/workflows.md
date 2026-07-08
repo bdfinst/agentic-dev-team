@@ -104,19 +104,30 @@ can resume.
 - **Phase 5 — Refactor-for-testability (conditional).** Only when `[y]`.
   Seam-only production-code changes; existing tests are immutable. Same
   end-of-phase review loop; evidence in `phase-5-review.json`.
-- **Phase 6 — Validate.** `/quality-targets-converge --workflow test-improve`.
-  Mutation off = skipped (not waived). Go = advisory-only. Coverage < 90% in
-  no-refactor mode → `[y/n]` re-run-in-refactor-allowed prompt lists
-  backlogged items. The identical classification pass from Phase 1 recounts
-  test-by-type into `test-counts-after.json`.
+- **Phase 6 — Validate.** `/quality-targets-converge --workflow test-improve
+  --refactor-mode <value>` — threading Phase 0's `no-refactor`/
+  `refactor-allowed` value keeps the coverage-gap dispatch table from
+  proposing a `[Refactor-for-testability]` Story once no-refactor was
+  already chosen at Phase 4b; it writes a `refactor-backlog.md` entry
+  instead. Mutation off = skipped (not waived). Go = advisory-only.
+  Coverage < 90% in no-refactor mode → `[y/n]` re-run-in-refactor-allowed
+  prompt lists backlogged items and records `coverage_reprompt_fired: true`
+  in `phase-6.md` (so Phase 7's close-out prompt below doesn't re-ask). The
+  identical classification pass from Phase 1 recounts test-by-type into
+  `test-counts-after.json`. `/handoff` is suggested here, and after Phase 1
+  and the Phase 4/5 review loops — the context-heaviest boundaries.
 - **Phase 7 — Executive-summary report.** Interpolates the shipped
   `templates/executive-summary.md` from `memory/test-improve/<slug>/` files
   to `reports/test-improve/<repo-slug>-<date>.md`. 10 numbered sections;
   empty sections render "Not applicable" (never omitted). § 1 includes a
-  "Tests by type" table (Baseline/Achieved/Δ per MinimumCD type). Parent
-  tracker (or `plans/test-improve/FEATURE.md`) is updated with a link to the
-  report.
-  Report is regeneratable from memory.
+  "Tests by type" table (Baseline/Achieved/Δ per MinimumCD type). § 7
+  foregrounds a seam-needed/behavior-gained/estimated-risk table sourced
+  from `refactor-backlog.md`. Parent tracker (or
+  `plans/test-improve/FEATURE.md`) is updated with a link to the report.
+  Report is regeneratable from memory. After Phase 7, if
+  `refactor-backlog.md` has entries and Phase 6's re-run prompt never fired
+  this run, a close-out `[y/n]` prompt asks whether to re-run with
+  refactor-allowed mode.
 
 ### Invocation
 
