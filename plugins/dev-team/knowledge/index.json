@@ -1245,6 +1245,10 @@
     "Adding a new stream": {
       "summary": "1.",
       "anchor": "adding-a-new-stream"
+    },
+    "`autoship-log.jsonl`": {
+      "summary": "One entry per `/autoship` round, recording the outcome and cost of each automated ship attempt.",
+      "anchor": "autoship-logjsonl"
     }
   },
   "plugins/dev-team/knowledge/test-automation-maturity.md": {
