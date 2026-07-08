@@ -13,8 +13,10 @@ Stdlib-only. Python 3.8+.
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
@@ -96,5 +98,124 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _fetch_in_progress_issues() -> list:
+    """Fetch open `autoship:in-progress` issues via `gh issue list`, enriched
+    with each one's real `labeled_at` timestamp from its GitHub timeline.
+
+    `labels` and `state` are requested even though the live fetch is already
+    server-filtered to open + `autoship:in-progress`, so the fetched shape
+    matches exactly what `select_orphaned` checks — same reasoning as
+    discovery's live-fetch step. A failure fetching the issue list itself
+    (non-zero `gh` exit or malformed JSON) is unrecoverable and propagates to
+    the caller, which translates it to a clear stderr message. A failure
+    looking up one issue's timeline is NOT fatal — it falls back to that
+    issue's own `updatedAt` (see `_labeled_at_for`), so one issue's timeline
+    hiccup never aborts the whole run.
+    """
+    result = subprocess.run(
+        [
+            "gh",
+            "issue",
+            "list",
+            "--state",
+            "open",
+            "--label",
+            IN_PROGRESS_LABEL,
+            "--json",
+            "number,title,state,labels,updatedAt",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    issues = json.loads(result.stdout)
+    for issue in issues:
+        issue["labeled_at"] = _labeled_at_for(issue)
+    return issues
+
+
+def _labeled_at_for(issue: dict) -> str:
+    """Return the best `labeled_at` timestamp for `issue`.
+
+    Prefers the most recent `labeled` timeline event naming
+    `autoship:in-progress`; falls back to the issue's own `updatedAt` when
+    the timeline fetch fails or no matching event is found.
+    """
+    try:
+        timeline = _fetch_timeline(issue["number"])
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        return issue["updatedAt"]
+
+    labeled_events = [
+        event
+        for event in timeline
+        if event.get("event") == "labeled"
+        and event.get("label", {}).get("name") == IN_PROGRESS_LABEL
+    ]
+    if not labeled_events:
+        return issue["updatedAt"]
+
+    return labeled_events[-1]["created_at"]
+
+
+def _fetch_timeline(number: int) -> list:
+    repo = _current_repo()
+    result = subprocess.run(
+        ["gh", "api", f"repos/{repo}/issues/{number}/timeline"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def _current_repo() -> str:
+    """Resolve `OWNER/REPO` for the current cwd via `gh repo view` (cwd-based
+    repo auto-detection — see the plan's Decision-defaults stance)."""
+    result = subprocess.run(
+        ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def _load_issues(args: argparse.Namespace) -> list:
+    """Load the issue list from `--input-file` when given, else the live
+    `gh` fetch. Both paths converge on the same field set (`number`,
+    `title`, `state`, `labels`, plus `labeled_at`/`updatedAt`) before
+    `select_orphaned` runs.
+    """
+    if args.input_file:
+        with open(args.input_file, encoding="utf-8") as fh:
+            return json.load(fh)
+    return _fetch_in_progress_issues()
+
+
+def main(argv=None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    now = args.now_override or datetime.now(timezone.utc).replace(tzinfo=None)
+
+    try:
+        issues = _load_issues(args)
+    except (subprocess.CalledProcessError, json.JSONDecodeError, OSError) as exc:
+        print(f"Failed to load in-progress issues via gh: {exc}", file=sys.stderr)
+        return 1
+
+    orphaned = select_orphaned(issues, args.stale_after_hours, now)
+
+    if not orphaned:
+        print("No orphaned autoship:in-progress issues found.")
+        return 0
+
+    print(
+        f"{len(orphaned)} orphaned issue(s) found: "
+        f"{', '.join('#' + str(issue['number']) for issue in orphaned)}"
+    )
+    return 0
+
+
 if __name__ == "__main__":
-    raise SystemExit(0)
+    raise SystemExit(main(sys.argv[1:]))
