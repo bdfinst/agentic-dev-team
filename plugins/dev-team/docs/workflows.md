@@ -151,7 +151,7 @@ carry the feature through spec → build → PR.
 | `/telemetry` | `skills/telemetry/SKILL.md` | Manage and report the opt-in usage telemetry beacon | `[on\|off\|status\|report]` |
 | `/version` | `skills/version/SKILL.md` | Report the installed plugin version | `(none)` |
 | `/upgrade` | `skills/upgrade/SKILL.md` | Check for and apply plugin updates from within a session | `(none)` |
-| `/help` | `skills/help/SKILL.md` | List all available slash commands with descriptions | `(none)` |
+| `/help` | `skills/help/SKILL.md` | List the main dev-team workflows; `--all` shows every user command | `[--all]` |
 
 ---
 
