@@ -38,7 +38,7 @@ Find phase progress files with `Glob("memory/*.md")` — never `Read` the bare `
 Also check (same rule — `Glob`, not a directory `Read`):
 
 - `plans/` directory for active plan files
-- `docs/specs/` for design documents without corresponding implementation
+- `docs/specs/` for design documents without corresponding implementation — or, on a repo that opted into `/specs`' issue-first persistence convention, a `--spec-issue <url>` reference recorded in the active plan instead of a file
 - `.claude/review-summaries/` for recent review results
 - `corrections/` for unapplied code review fixes
 

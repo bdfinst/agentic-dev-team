@@ -94,7 +94,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | 900 | All agents |
 | Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~750 | `/test-improve` (Phase 6), QA Engineer, Software Engineer |
 | Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~4,500 | Orchestrator, Software Engineer, Architect |
-| Specs | `skills/specs/SKILL.md` | 800 | Product Manager, Architect, QA Engineer, Orchestrator |
+| Specs | `skills/specs/SKILL.md` | ~3,300 | Product Manager, Architect, QA Engineer, Orchestrator |
 | Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 650 | Orchestrator, `/code-review` |
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 600 | Software Engineer, QA Engineer |
 | Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~650 | Standalone worker; QA Engineer |

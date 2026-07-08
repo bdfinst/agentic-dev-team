@@ -19,7 +19,7 @@ This agent answers one question: **does the code do what the spec says?** It run
 
 ### Unmet acceptance criteria
 
-- Read acceptance criteria from the spec (`docs/specs/<slug>.md`), plan, and/or design doc
+- Read acceptance criteria from the spec (`docs/specs/<slug>.md`), plan, and/or design doc — or, on a repo that opted into `/specs`' issue-first persistence convention, from the linked spec GitHub issue if the plan records a `--spec-issue <url>` reference instead of a `docs/specs/**` file (see `/specs`' "Persist to GitHub issue" step)
 - For each criterion, locate the implementation that satisfies it
 - For each criterion, locate the test that validates it
 - Flag criteria with no implementation or no test
@@ -69,7 +69,7 @@ This agent answers one question: **does the code do what the spec says?** It run
 
 Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` when:
 
-- No plan file (with its slice scenarios), spec, design doc, or acceptance criteria can be located for the target — locate with `Glob("docs/specs/**/*.md")` / `Glob("plans/**")`, never a bare `Read` of the directory (`knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference)
+- No plan file (with its slice scenarios), spec, design doc, or acceptance criteria can be located for the target — locate with `Glob("docs/specs/**/*.md")` / `Glob("plans/**")`, never a bare `Read` of the directory (`knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference); also check the plan for a recorded `--spec-issue <url>` reference before concluding no spec exists
 - Target is a standalone script or utility with no associated specification
 
 ## Severity Rules
