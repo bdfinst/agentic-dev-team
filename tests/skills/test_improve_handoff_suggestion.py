@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from skill_doc_helpers import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 
 SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 
@@ -54,8 +54,8 @@ def _has_suggestion(s: str) -> bool:
     # collapse all whitespace to single spaces before checking for the two
     # required substrings — a literal multi-line match would miss a phrase
     # split across a line break.
-    collapsed = " ".join(s.split())
-    return grep(SUGGESTION_LINE_1, collapsed) and grep(SUGGESTION_LINE_2, collapsed)
+    text = collapsed(s)
+    return grep(SUGGESTION_LINE_1, text) and grep(SUGGESTION_LINE_2, text)
 
 
 def test_handoff_suggestion_present_after_phase_1():
@@ -102,9 +102,9 @@ def test_suggestion_wording_is_identical_at_all_four_insertion_points_modulo_pha
     ]
     variants = set()
     for s in sections:
-        collapsed = " ".join(s.split())
-        match = _MESSAGE_RE.search(collapsed)
-        assert match, f"no suggestion message found in section: {collapsed[:200]}"
+        text = collapsed(s)
+        match = _MESSAGE_RE.search(text)
+        assert match, f"no suggestion message found in section: {text[:200]}"
         normalized = re.sub(
             r"Phase \S+ complete\.", "Phase N complete.", match.group(0)
         )
