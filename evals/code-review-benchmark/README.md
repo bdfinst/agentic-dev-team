@@ -115,8 +115,10 @@ searches for a fenced```json block anywhere in the text (last one first,
 falling back to earlier ones) rather than requiring the whole response to
 be just the fence. If the model's final text has no JSON at all (not just
 a formatting quirk — the payload was never actually emitted in that
-turn), that's unrecoverable and still shows up as "unparseable --json
-output".
+turn), the harness retries once via the same-session `--resume` backstop
+(see "Narration instead of JSON" below, #999/#1002) before giving up; only
+if that retry also fails does it show up as "unparseable --json output
+(after retry)".
 
 ## Usage
 
@@ -168,6 +170,8 @@ python3 cli.py --dataset defects4j --max-cost-usd 50
 | `--workers` | Number of bug cases run concurrently, thread pool (default 2 — lowered from 4 after #974 to bound how many ~14-20-way agent fan-outs run concurrently on one host) |
 | `--max-cost-usd N` | Fail-safe spend cutoff in USD (#1000, default: no cap) — see Cost tracking below |
 | `--no-verify-tests` | Skip building/installing deps and running the project's own test suite per case (on by default; diagnostic only — see below) |
+| `--no-json-retry` | Disable the #999/#1002 retry-once backstop for narration-instead-of-JSON dispatches (on by default — see "Narration instead of JSON" below) |
+| `--json-retry-timeout N` | Subprocess timeout, seconds, for the retry-once follow-up specifically (default: unset, falls back to `min(--timeout, 300)` — deliberately smaller than `--timeout`, since the retry is meant to be a cheap same-session re-emission, not a fresh review) |
 | `--defects4j-home`, `--bugsjs-home` | Dataset home dirs (or the matching env vars) |
 | `--results-dir` | Where `results.jsonl`/`skipped.jsonl`/`report.md`/`raw/` are written (default `./results`) |
 | `--report-only` | Only (re)generate `report.md` from existing results |
@@ -210,25 +214,54 @@ below.
 - `skipped.jsonl` — one record per bug that couldn't be checked out or
   scored: `{dataset, project, bug_id, reason, cost_usd}`. `reason` is one
   of: `checkout failed`, `no ground-truth hunks`, `unparseable --json
-  output`, `ground truth touches no recognized source files` (the fix's
-  own commit bundled with its tests touched nothing but a
-  changelog/manifest/CI-config file — e.g. `History.md`, `package.json`,
+  output` (or `unparseable --json output (after retry)` — see "Narration
+  instead of JSON" below), `ground truth touches no recognized source
+  files` (the fix's own commit bundled with its tests touched nothing but
+  a changelog/manifest/CI-config file — e.g. `History.md`, `package.json`,
   `.travis.yml` — so there was no source change for `/code-review` to have
   found; scored as a skip, not a recall miss), or a message naming
   `--max-cost-usd` (#1000 — the sweep's budget was reached before this
   case could be dispatched).
 - `cost_usd` (#1000, both files above) — the dispatch's `total_cost_usd`
-  from the underlying `claude -p --output-format json` wrapper, or `None`
-  when no dispatch happened (checkout failure, no ground truth, budget cut
-  off before this case started) or the wrapper never reported one (e.g. a
-  timeout).
+  from the underlying `claude -p --output-format json` wrapper (summed
+  across both attempts when the #999/#1002 retry-once backstop fired), or
+  `None` when no dispatch happened (checkout failure, no ground truth,
+  budget cut off before this case started) or the wrapper never reported
+  one (e.g. a timeout).
 - `raw/<dataset>-<project>-<bug_id>.txt` — the dispatch's raw stdout,
-  verbatim, saved before any parsing (so a parser bug never loses data).
+  verbatim, saved before any parsing (so a parser bug never loses data). If
+  the #999/#1002 retry-once backstop fired, this file has BOTH attempts:
+  the primary dispatch's raw stdout, then a `--- #999/#1002 JSON-retry
+  follow-up (--resume) ---` delimiter, then the retry's raw stdout (or a
+  placeholder noting the retry subprocess itself failed/timed out).
 - `report.md` — overall/per-dataset/per-project recall, a **Missed Defects**
   section (the actionable part), a noise summary (average unmatched
   findings per hit run — "unmatched," not "false positive": the review may
   have found a real, different issue), and a total-cost line (#1000)
   summed across `results.jsonl` + `skipped.jsonl`.
+
+### Narration instead of JSON (#967, #975, #999, #1002)
+
+A completed, otherwise-successful `/code-review --json` dispatch
+occasionally narrates having emitted its JSON payload instead of actually
+emitting it (e.g. "Aggregated JSON emitted to stdout per `--json` contract;
+run stops here" — no `{...}` object anywhere in the text). PR #975 hardened
+the skill's step-7 wording specifically to forbid this, but #999 and #1002
+each independently reproduced it again afterward, on cases at opposite ends
+of the harness's turn-count range (58 turns and 15 turns) — evidence that a
+wording-only fix doesn't reliably close the gap; see
+`plans/issue-999-1002-json-narration.md` for the full investigation.
+
+`make_isolated_dispatch_fn` (this is where `--no-json-retry` and
+`--json-retry-timeout` apply) now retries exactly once when this happens:
+it resumes the SAME session (`claude -p --resume <session_id>`, not a fresh
+dispatch) with a short instruction to re-emit only the JSON, since the
+review's findings are already in that session's context and don't need to
+be redone. If the retry succeeds, the case scores normally. If it also
+fails, the case is skipped with reason `unparseable --json output (after
+retry)` so it's distinguishable in `skipped.jsonl`/`report.md` from a case
+where no retry was ever attempted (e.g. the first dispatch itself errored
+or timed out — retrying a broken run's session isn't expected to help).
 
 ## Test verification (diagnostic, not a gate)
 

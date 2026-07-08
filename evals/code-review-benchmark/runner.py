@@ -228,9 +228,10 @@ def run_case(
 
         review_json = _extract_review_json(dispatch_result.get("result_text"))
         if review_json is None:
-            return skip_record(
-                case, "unparseable --json output", str(raw_path), cost_usd=cost_usd
-            )
+            reason = "unparseable --json output"
+            if dispatch_result.get("retry_attempted"):
+                reason += " (after retry)"
+            return skip_record(case, reason, str(raw_path), cost_usd=cost_usd)
 
         findings = _flatten_findings(review_json)
         scored = scorer.score(ground_truth_hunks, findings, tolerance=tolerance)
@@ -313,8 +314,60 @@ def _load_isolated_dispatch():
     return module
 
 
+# #999/#1002: a completed `/code-review --json` dispatch occasionally
+# narrates having emitted the JSON instead of actually emitting it, even
+# after PR #975 hardened the skill's step-7 wording to specifically forbid
+# this — confirmed independently on two more cases post-#975 (58-turn and
+# 15-turn runs, so not cleanly explained by turn count/context pressure
+# alone). A skill-file wording instruction cannot deterministically force
+# what the model's literal final turn contains, so this is a harness-side
+# backstop instead of a third wording attempt: one cheap follow-up dispatch
+# that RESUMES the same session (`--resume`, not a fresh `--session-id`) and
+# asks it to restate the already-computed result as raw JSON only. See
+# `plans/issue-999-1002-json-narration.md` for the full investigation.
+_JSON_RETRY_PROMPT = (
+    "Your previous response completed the /code-review --json review, but "
+    "its final text did not contain the required JSON object — a narration "
+    "or prose summary was returned instead of the payload. Re-emit the "
+    "exact same review result you already computed. Your entire response "
+    "must be the raw JSON object itself, per the aggregated JSON schema — "
+    "no preamble, no markdown fence, no trailing commentary."
+)
+
+# Delimiter joining the primary dispatch's raw stdout to the #999/#1002
+# retry's raw stdout in the value `run_case` persists to `raw/*.txt` — so a
+# retried case's raw-output file still shows both attempts verbatim (never
+# silently discards the retry's own output, matching this file's existing
+# "never lose data" contract for raw-output persistence).
+_RETRY_RAW_DELIMITER = "\n\n--- #999/#1002 JSON-retry follow-up (--resume) ---\n\n"
+
+
+def _parse_dispatch_wrapper(raw_stdout: str) -> Dict[str, Any]:
+    """Parse one dispatch's `--output-format json` wrapper stdout into the
+    fields `make_isolated_dispatch_fn`'s closure needs: the model's final
+    `result` text, whether the run itself reported an error, and its
+    `total_cost_usd` (#1000). Shared by both the primary dispatch and the
+    #999/#1002 retry-once follow-up so neither duplicates the other's
+    parse/extract logic (Design & Architecture Critic finding during this
+    plan's review)."""
+    result_text = None
+    is_error = True
+    cost_usd = None
+    try:
+        wrapper = json.loads(raw_stdout)
+        result_text = wrapper.get("result")
+        is_error = bool(wrapper.get("is_error"))
+        cost_usd = wrapper.get("total_cost_usd")
+    except (json.JSONDecodeError, ValueError):
+        pass
+    return {"result_text": result_text, "is_error": is_error, "cost_usd": cost_usd}
+
+
 def make_isolated_dispatch_fn(
-    model: str = "sonnet", timeout: int = 1800
+    model: str = "sonnet",
+    timeout: int = 1800,
+    retry_on_unparseable: bool = True,
+    retry_timeout: Optional[int] = None,
 ) -> Callable[[str, str], Dict[str, Any]]:
     """Build the real, production `dispatch_fn` for `run_case`.
 
@@ -352,8 +405,32 @@ def make_isolated_dispatch_fn(
     headroom for that now-measured real cost, not an arbitrary bump; see
     `cli.py`'s `--timeout` help text and `plans/issue-974-benchmark-
     timeout-fanout.md` for the full investigation.
+
+    `retry_on_unparseable` (#999/#1002, default `True`): when a completed,
+    non-error dispatch's `result` text has no parseable `--json` payload
+    (per `_extract_review_json()`), issue exactly ONE follow-up dispatch
+    that resumes the SAME session (cheap — no work is redone) asking it to
+    re-emit only the JSON. Set `False` to disable this backstop (e.g. for a
+    retry-on vs. retry-off recurrence-rate comparison, or a cost-sensitive
+    sweep) via `cli.py --no-json-retry`.
+
+    `retry_timeout` (#999/#1002, default `None` -> `min(timeout, 300)`):
+    the follow-up retry dispatch's own subprocess timeout, deliberately
+    NOT the same (large, 1800s-by-default) budget as the primary dispatch.
+    The retry's whole premise is that it's a cheap restatement of an
+    already-computed result within the same session, not a fresh review —
+    reusing the full primary timeout would let a stuck/looping retry cost
+    nearly as much wall-clock as the original dispatch, undermining that
+    premise (Design & Architecture Critic finding during this plan's
+    review). 300s is a reasonable, deliberately conservative ceiling for
+    that — not an empirically measured number (no live retry-cost data
+    exists yet); override via `cli.py --json-retry-timeout` if a live
+    sweep later shows it's too tight or too loose.
     """
     isolated_dispatch = _load_isolated_dispatch()
+    effective_retry_timeout = (
+        retry_timeout if retry_timeout is not None else min(timeout, 300)
+    )
 
     def dispatch(prompt: str, cwd: str) -> Dict[str, Any]:
         home = isolated_dispatch.make_cell_home()
@@ -372,22 +449,70 @@ def make_isolated_dispatch_fn(
                 timeout=timeout,
             )
         except subprocess.TimeoutExpired:
-            return {"raw_stdout": "", "result_text": None, "is_error": True}
-        finally:
             shutil.rmtree(str(home), ignore_errors=True)
+            return {
+                "raw_stdout": "",
+                "result_text": None,
+                "is_error": True,
+                "retry_attempted": False,
+            }
 
         raw_stdout = proc.stdout or ""
-        result_text = None
-        cost_usd = None
-        try:
-            wrapper = json.loads(raw_stdout)
-            result_text = wrapper.get("result")
-            cost_usd = wrapper.get("total_cost_usd")
-        except (json.JSONDecodeError, ValueError):
-            pass
+        parsed = _parse_dispatch_wrapper(raw_stdout)
+        result_text = parsed["result_text"]
+        cost_usd = parsed["cost_usd"]
+        retry_attempted = False
+
+        if (
+            retry_on_unparseable
+            and not parsed["is_error"]
+            and _extract_review_json(result_text) is None
+        ):
+            retry_attempted = True
+            retry_cmd = isolated_dispatch.build_cmd(
+                _JSON_RETRY_PROMPT, session_id, model, cwd=cwd, resume=True
+            )
+            try:
+                retry_proc = subprocess.run(
+                    retry_cmd,
+                    cwd=cwd,
+                    env=env,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=effective_retry_timeout,
+                )
+            except subprocess.TimeoutExpired:
+                retry_proc = None
+            except Exception:  # noqa: BLE001 - a broken retry must not crash the case
+                retry_proc = None
+
+            if retry_proc is not None:
+                retry_raw_stdout = retry_proc.stdout or ""
+                retry_parsed = _parse_dispatch_wrapper(retry_raw_stdout)
+                if (
+                    not retry_parsed["is_error"]
+                    and _extract_review_json(retry_parsed["result_text"]) is not None
+                ):
+                    result_text = retry_parsed["result_text"]
+                    # #1000's cost tracking must reflect the real total
+                    # spend for this case, including the retry's own cost —
+                    # not just the primary dispatch's.
+                    if retry_parsed["cost_usd"] is not None:
+                        cost_usd = (cost_usd or 0) + retry_parsed["cost_usd"]
+            else:
+                retry_raw_stdout = "<retry subprocess failed: timeout or exception, no stdout captured>"
+            # #999/#1002 doc-review finding: the retry's own raw stdout must
+            # not be silently discarded — raw_dir/*.txt's whole purpose (see
+            # `run_case`) is "never lose data even on a parser bug," and a
+            # retried case is exactly the scenario this feature targets.
+            raw_stdout = raw_stdout + _RETRY_RAW_DELIMITER + retry_raw_stdout
+
+        shutil.rmtree(str(home), ignore_errors=True)
         return {
             "raw_stdout": raw_stdout,
             "result_text": result_text,
+            "retry_attempted": retry_attempted,
             "cost_usd": cost_usd,
         }
 

@@ -228,7 +228,10 @@ def run(args: argparse.Namespace) -> int:
 
     already = runner.already_processed(results_dir) if args.resume else set()
     dispatch_fn = runner.make_isolated_dispatch_fn(
-        model=args.model, timeout=args.timeout
+        model=args.model,
+        timeout=args.timeout,
+        retry_on_unparseable=not args.no_json_retry,
+        retry_timeout=args.json_retry_timeout,
     )
 
     pending = []
@@ -373,6 +376,33 @@ def _build_parser() -> argparse.ArgumentParser:
             "Skip building/installing deps and running the project's own "
             "test suite per case (on by default; diagnostic only, never "
             "gates scoring)."
+        ),
+    )
+    parser.add_argument(
+        "--no-json-retry",
+        action="store_true",
+        help=(
+            "Disable the #999/#1002 retry-once backstop: a `/code-review "
+            "--json` dispatch that completes normally but narrates instead "
+            "of emitting the required JSON is, by default, retried exactly "
+            "once via a cheap `--resume` follow-up on the same session. "
+            "Pass this flag to disable it (e.g. for a retry-on vs. "
+            "retry-off recurrence-rate comparison, or a cost-sensitive "
+            "sweep)."
+        ),
+    )
+    parser.add_argument(
+        "--json-retry-timeout",
+        type=int,
+        default=None,
+        help=(
+            "Subprocess timeout, seconds, for the #999/#1002 retry-once "
+            "follow-up dispatch specifically (default: unset, which falls "
+            "back to `min(--timeout, 300)` in "
+            "`runner.make_isolated_dispatch_fn` — deliberately NOT the "
+            "same, much larger --timeout budget as the primary dispatch, "
+            "since the retry is meant to be a cheap same-session "
+            "re-emission, not a fresh review)."
         ),
     )
     parser.add_argument(

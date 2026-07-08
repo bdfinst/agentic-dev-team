@@ -100,6 +100,27 @@ def test_build_cmd_contains_session_id_uuid_and_no_resume():
     assert "--fork-session" not in cmd
 
 
+def test_build_cmd_resume_true_uses_resume_flag_not_session_id():
+    """#999/#1002's harness-side retry-once backstop resumes the SAME
+    session (`--resume <session_id>`) for a cheap follow-up dispatch,
+    rather than starting a fresh one (`--session-id`)."""
+    mod = _load()
+    sid = mod.new_session_id()
+    cmd = mod.build_cmd(
+        prompt="re-emit the JSON only",
+        session_id=sid,
+        model="sonnet",
+        skip_permissions=True,
+        resume=True,
+    )
+    assert "--resume" in cmd
+    passed = cmd[cmd.index("--resume") + 1]
+    assert passed == sid
+    assert "--session-id" not in cmd
+    assert "--output-format" in cmd and "json" in cmd
+    assert "--model" in cmd and "sonnet" in cmd
+
+
 def test_build_cmd_skip_permissions_flag_is_gated():
     mod = _load()
     sid = mod.new_session_id()
