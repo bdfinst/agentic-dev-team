@@ -20,6 +20,10 @@
     "riskClass": "high",
     "floor": 1.0
   },
+  "ai-provenance-review": {
+    "riskClass": "high",
+    "floor": 1.0
+  },
   "a11y-review": {
     "riskClass": "standard",
     "floor": 0.9
