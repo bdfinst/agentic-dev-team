@@ -14,9 +14,9 @@ The parity harness's job is now over — the `.sh` implementations it dispatched
 
 ## Decision
 
-1. **Every shipped script under `plugins/dev-team/` is Python 3.8+ stdlib-only.** The single exception is `plugins/dev-team/install.sh` — a two-line trampoline that detects the shell environment (needed so we can tell users to install Git Bash on Windows *before* running Python).
+1. **Every shipped script under `plugins/dev-team/` is Python 3.8+ stdlib-only.** The exceptions are the two pre-Python bootstrap shims, which run before an interpreter is guaranteed on PATH and therefore cannot be Python: `plugins/dev-team/install.sh` (the `install.py` trampoline) and — added by #1078 — `plugins/dev-team/hooks/py.sh`, which resolves a real Python 3 across `python3`/`py -3`/`python`/`$DEV_TEAM_PYTHON`.
 
-2. **The `sh -c 'if [ "${DEV_TEAM_PY_HOOK_*:-0}" = "1" ]; then python3 …; else bash …; fi'` toggle wrapper is retired** from `plugins/dev-team/settings.json`. Every hook invocation is now a plain `python3 hooks/<name>.py`. Operators no longer need to opt into Python via env var.
+2. **The `sh -c 'if [ "${DEV_TEAM_PY_HOOK_*:-0}" = "1" ]; then python3 …; else bash …; fi'` toggle wrapper is retired** from `plugins/dev-team/settings.json`. Operators no longer need to opt into Python via env var. Hook invocations were originally plain `python3 hooks/<name>.py`; #1078 changed them to `sh hooks/py.sh hooks/<name>.py` so the interpreter name is resolved at run time (a bare `python3` is absent on stock Windows), not hard-coded.
 
 3. **The `plugins/dev-team/tests/hooks/parity/` harness is retired.** The going-forward coverage lives at `plugins/dev-team/tests/hooks/test_*.py` (~23 pytest files, 220+ assertions) and `plugins/dev-team/tests/scripts/test_*.py` (2 files).
 

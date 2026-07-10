@@ -20,8 +20,12 @@ Arguments: none.
 Run the resolver and report its output verbatim:
 
 ```bash
-"$CLAUDE_PLUGIN_ROOT/hooks/lib/plugin_version.py"
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/plugin_version.py"
 ```
+
+Invoking through `hooks/py.sh` (not `python3` directly) is what lets this work
+on Windows, where Python 3 is often installed as `python`/`py` and no
+`python3` is on PATH. The shim resolves a real interpreter or exits 2.
 
 The script reads `~/.claude/plugins/installed_plugins.json` (Claude Code's
 install record) and resolves the version deterministically: a project-scoped

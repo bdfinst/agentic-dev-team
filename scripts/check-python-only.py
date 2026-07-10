@@ -49,6 +49,9 @@ TRACKED_EXTENSIONS = (".sh", ".bats")
 ALLOWLIST_EXACT_PATHS = {
     # Shell trampoline that must run before Python is guaranteed on PATH.
     "plugins/dev-team/install.sh",
+    # POSIX interpreter-resolver shim; must be shell because it runs before a
+    # Python 3 is guaranteed on PATH (resolves python3/py -3/python) — #1078.
+    "plugins/dev-team/hooks/py.sh",
     # Cloud SessionStart / setup-script install trampolines — same rationale.
     ".claude/cloud-setup.sh",
     ".claude/install-dev-team.sh",
