@@ -62,7 +62,7 @@ Run `npm ci` as the first step in any new worktree, before committing. An unprov
 
 **Every shipped script under `plugins/dev-team/` is Python 3.8+ using stdlib only.** See [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md) (the decision) and [ADR 0015](docs/adr/0015-bash-removal-complete.md) (the completion). Concretely:
 
-- **All shipped hooks + scripts are `.py` files.** No `.sh` remains in `plugins/dev-team/` except the `install.sh` trampoline (two-line shell → Python bootstrap so we can detect the shell environment before Python is guaranteed on PATH).
+- **All shipped hooks + scripts are `.py` files.** The only `.sh` in `plugins/dev-team/` are the two pre-Python bootstrap shims, which cannot themselves be Python because they run before an interpreter is guaranteed on PATH: `install.sh` (the `install.py` trampoline) and `hooks/py.sh` (resolves a real Python 3 across `python3`/`py -3`/`python`/`$DEV_TEAM_PYTHON` so hooks and `/version` work on Windows, where `python3` is often absent — see #1078). Every other shipped invocation routes through `py.sh`, not a bare `python3`.
 - **Stdlib only.** No `pip install`, no `requirements.txt` for shipped code. `subprocess`, `signal`, `pathlib`, `argparse`, `json`, `hashlib`, `re` cover the vast majority of shell-script territory portably.
 - **Cross-OS by default.** Python runs natively on macOS, Linux, and Windows — no more Git Bash requirement for plugin hooks. When probing OS-specific paths (DOTNET_ROOT, tool install locations), use runtime probes (`subprocess`, `pathlib`) rather than hard-coding macOS or Linux paths.
 - **Tests are pytest.** New tests land as `test_*.py` under the plugin's `tests/` tree.

@@ -5,7 +5,7 @@ Covers:
   - one required missing → exit 1 with `[FAIL] <cmd>`
   - one optional missing → exit 0 with warn line + "X optional dependency missing"
   - trampoline .sh finds python3 → delegates to install.py byte-identically
-  - trampoline .sh cannot find python3 → exit 1 with a clear pointer
+  - trampoline .sh cannot find any Python 3 → delegates to hooks/py.sh, exit 2
   - Windows-path detection: OS=Windows_NT + non-MSYS uname → informational
     [ok], never a hard failure (ADR 0015 retired the Git Bash requirement)
 """
@@ -108,26 +108,38 @@ def test_trampoline_delegates_to_py(tmp_path: Path) -> None:
 
 
 def test_trampoline_fails_when_no_python3(tmp_path: Path) -> None:
-    """No python3 on PATH → the .sh emits an install pointer and exits 1."""
-    # subprocess needs bash on PATH to run the .sh at all, but python3 must
-    # NOT be there. Symlink bash into the shim, leave python3 out.
-    shim = tmp_path / "shim"
-    shim.mkdir()
+    """No Python 3 under any name → install.sh delegates to hooks/py.sh, which
+    exits 2 with an actionable pointer (#1078).
+
+    install.sh no longer probes `python3` directly; it execs the shared
+    interpreter-resolver shim (`hooks/py.sh`). With no python3/py/python on
+    PATH, the shim finds nothing and exits 2, printing its guidance to stderr.
+    """
     import shutil as _shutil
 
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    # The shim needs bash (to launch install.sh), sh (install.sh execs
+    # `sh hooks/py.sh`), and dirname (install.sh resolves its own dir to locate
+    # py.sh) — but deliberately NO python3/py/python.
+    for tool in ("bash", "sh", "dirname"):
+        src = _shutil.which(tool)
+        if src:
+            os.symlink(src, shim / tool)
     bash_path = _shutil.which("bash")
-    if bash_path:
-        os.symlink(bash_path, shim / "bash")
     r = subprocess.run(
         [bash_path or "bash", str(_INSTALL_SH)],
         capture_output=True,
         text=True,
         check=False,
-        env={"PATH": str(shim), "HOME": "/tmp"},
+        env={
+            "PATH": str(shim),
+            "HOME": "/tmp",
+            "DEV_TEAM_PY_CACHE": str(tmp_path / "py-cache"),
+        },
     )
-    assert r.returncode == 1
-    assert "python3" in r.stdout
-    assert "required" in r.stdout
+    assert r.returncode == 2
+    assert "no Python 3 interpreter found" in r.stderr
 
 
 def test_windows_without_git_bash_does_not_hard_fail(tmp_path: Path) -> None:

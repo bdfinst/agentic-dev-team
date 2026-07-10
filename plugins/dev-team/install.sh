@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# install.sh — thin trampoline that hands off to install.py.
+# install.sh — thin trampoline that resolves a Python 3 interpreter and hands
+# off to install.py.
 #
-# Per ADR 0014, new shipped scripts are Python; this file remains as a
-# .sh only to preserve the well-known `install.sh` command surface AND
-# to detect the shell environment (Git Bash on Windows) before Python
-# is guaranteed on PATH.
+# Per ADR 0014, new shipped scripts are Python; this file remains a .sh only to
+# preserve the well-known `install.sh` command surface AND to bootstrap before
+# Python is guaranteed on PATH.
 #
-# Behavior:
-#   - If `python3` is on PATH, delegate to install.py (which does the
-#     actual prerequisite check).
-#   - Otherwise, fail loudly with an install pointer.
+# Interpreter resolution is delegated to the shared hooks/py.sh shim, which
+# tries $DEV_TEAM_PYTHON, python3, py -3, then python — so install works on
+# Windows, where Python 3 is commonly `python`/`py` and no `python3` exists.
+# py.sh prints an actionable message and exits 2 when no Python 3 is found.
 #
 # Usage:
 #   ./install.sh
@@ -18,12 +18,4 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "[FAIL] python3 — required. Install Python 3.8+."
-  echo "  macOS: brew install python3"
-  echo "  Linux: apt install python3 (or your distro's equivalent)"
-  echo "  Windows: install Git Bash + Python 3 from python.org"
-  exit 1
-fi
-
-exec python3 "$SCRIPT_DIR/install.py" "$@"
+exec sh "$SCRIPT_DIR/hooks/py.sh" "$SCRIPT_DIR/install.py" "$@"

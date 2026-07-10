@@ -21,11 +21,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/session_model_banner.py"
+            "command": "sh hooks/py.sh hooks/session_model_banner.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/codegraph_bootstrap.py"
+            "command": "sh hooks/py.sh hooks/codegraph_bootstrap.py"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/telemetry.py"
+            "command": "sh hooks/py.sh hooks/telemetry.py"
           }
         ]
       }
@@ -46,15 +46,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/pre_tool_guard.py"
+            "command": "sh hooks/py.sh hooks/pre_tool_guard.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/contract_version_guard.py"
+            "command": "sh hooks/py.sh hooks/contract_version_guard.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/refactor_test_freeze_guard.py"
+            "command": "sh hooks/py.sh hooks/refactor_test_freeze_guard.py"
           }
         ]
       },
@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/verify_guard_edit_marker.py"
+            "command": "sh hooks/py.sh hooks/verify_guard_edit_marker.py"
           }
         ]
       },
@@ -72,35 +72,35 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/destructive_guard.py"
+            "command": "sh hooks/py.sh hooks/destructive_guard.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/refactor_test_bash_guard.py"
+            "command": "sh hooks/py.sh hooks/refactor_test_bash_guard.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/pre_commit_review.py"
+            "command": "sh hooks/py.sh hooks/pre_commit_review.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/pre_commit_knowledge_index.py"
+            "command": "sh hooks/py.sh hooks/pre_commit_knowledge_index.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/telemetry.py"
+            "command": "sh hooks/py.sh hooks/telemetry.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/verify_guard.py"
+            "command": "sh hooks/py.sh hooks/verify_guard.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/bash_retry_guard.py"
+            "command": "sh hooks/py.sh hooks/bash_retry_guard.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/mutation_testing_smoke_gate.py"
+            "command": "sh hooks/py.sh hooks/mutation_testing_smoke_gate.py"
           }
         ]
       },
@@ -109,11 +109,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/telemetry.py"
+            "command": "sh hooks/py.sh hooks/telemetry.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/context_ceiling_guard.py"
+            "command": "sh hooks/py.sh hooks/context_ceiling_guard.py"
           }
         ]
       },
@@ -122,7 +122,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/codegraph_nudge.py"
+            "command": "sh hooks/py.sh hooks/codegraph_nudge.py"
           }
         ]
       },
@@ -131,7 +131,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/codegraph_nudge.py"
+            "command": "sh hooks/py.sh hooks/codegraph_nudge.py"
           }
         ]
       },
@@ -140,7 +140,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/codegraph_nudge.py"
+            "command": "sh hooks/py.sh hooks/codegraph_nudge.py"
           }
         ]
       },
@@ -149,11 +149,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/agent_model_resolve.py"
+            "command": "sh hooks/py.sh hooks/agent_model_resolve.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/context_ceiling_guard.py"
+            "command": "sh hooks/py.sh hooks/context_ceiling_guard.py"
           }
         ]
       }
@@ -164,27 +164,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/js_fp_review.py"
+            "command": "sh hooks/py.sh hooks/js_fp_review.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/token_efficiency_review.py"
+            "command": "sh hooks/py.sh hooks/token_efficiency_review.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/eval_compliance_check.py"
+            "command": "sh hooks/py.sh hooks/eval_compliance_check.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/tdd_guard.py"
+            "command": "sh hooks/py.sh hooks/tdd_guard.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/knowledge_index.py"
+            "command": "sh hooks/py.sh hooks/knowledge_index.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/skills_index.py"
+            "command": "sh hooks/py.sh hooks/skills_index.py"
           }
         ]
       },
@@ -193,11 +193,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/mutation_gate.py"
+            "command": "sh hooks/py.sh hooks/mutation_gate.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/refactor_test_revert_guard.py"
+            "command": "sh hooks/py.sh hooks/refactor_test_revert_guard.py"
           }
         ]
       },
@@ -206,7 +206,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/version_check.py"
+            "command": "sh hooks/py.sh hooks/version_check.py"
           }
         ]
       },
@@ -215,7 +215,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/codegraph_turn_mark.py"
+            "command": "sh hooks/py.sh hooks/codegraph_turn_mark.py"
           }
         ]
       }
@@ -225,7 +225,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/session_learning_trigger.py"
+            "command": "sh hooks/py.sh hooks/session_learning_trigger.py"
           }
         ]
       }
@@ -236,11 +236,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/cost_meter.py"
+            "command": "sh hooks/py.sh hooks/cost_meter.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/task_completion_metrics.py"
+            "command": "sh hooks/py.sh hooks/task_completion_metrics.py"
           }
         ]
       }
@@ -251,11 +251,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 hooks/cost_meter.py"
+            "command": "sh hooks/py.sh hooks/cost_meter.py"
           },
           {
             "type": "command",
-            "command": "python3 hooks/task_completion_metrics.py"
+            "command": "sh hooks/py.sh hooks/task_completion_metrics.py"
           }
         ]
       }
