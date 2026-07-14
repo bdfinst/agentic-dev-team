@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.6.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.5.0...dev-team-v10.6.0) (2026-07-14)
+
+
+### Features
+
+* add stryker-xunit-v2-shim skill and hook for xunit.v3 mutation scoring ([fcd9e0f](https://github.com/bdfinst/agentic-dev-team/commit/fcd9e0ffe63f24b3dea9f9e7f6cc6525f1cda046)), closes [#1083](https://github.com/bdfinst/agentic-dev-team/issues/1083)
+
 ## [10.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.4.0...dev-team-v10.5.0) (2026-07-10)
 
 
