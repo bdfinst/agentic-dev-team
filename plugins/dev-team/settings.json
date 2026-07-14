@@ -100,6 +100,10 @@
           },
           {
             "type": "command",
+            "command": "sh hooks/py.sh hooks/stryker_xunit_shim_guard.py"
+          },
+          {
+            "type": "command",
             "command": "sh hooks/py.sh hooks/mutation_testing_smoke_gate.py"
           }
         ]

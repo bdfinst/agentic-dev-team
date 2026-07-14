@@ -5231,6 +5231,52 @@
       "anchor": "related"
     }
   },
+  "plugins/dev-team/skills/stryker-xunit-v2-shim/SKILL.md": {
+    "Why this exists": {
+      "summary": "Stryker.NET (through at least 4.15/4.16) **cannot observe mutant kills through",
+      "anchor": "why-this-exists"
+    },
+    "When to build it": {
+      "summary": "Detection is one check: a test `.csproj` contains `Include=\"xunit.v3\"`.",
+      "anchor": "when-to-build-it"
+    },
+    "Workflow": {
+      "summary": "Run against the branch under test to find v3-only usage that would need porting:",
+      "anchor": "workflow"
+    },
+    "Step 1 — Scope probe (decide whether the shim is cheap)": {
+      "summary": "Run against the branch under test to find v3-only usage that would need porting:",
+      "anchor": "step-1-scope-probe-decide-whether-the-shim-is-cheap"
+    },
+    "Step 2 — Scaffold the shim project": {
+      "summary": "Use the bundled script — it reads the real test `.csproj` and writes the shim",
+      "anchor": "step-2-scaffold-the-shim-project"
+    },
+    "Step 3 — Port v3-only constructs (only files Step 1 flagged)": {
+      "summary": "Rewrite v3-only APIs to behavior-equivalent v2-compatible forms, **in the real",
+      "anchor": "step-3-port-v3-only-constructs-only-files-step-1-flagged"
+    },
+    "Step 3a — Grant internals access": {
+      "summary": "If the product exposes internals to the real test assembly via",
+      "anchor": "step-3a-grant-internals-access"
+    },
+    "Step 4 — Run Stryker FROM the shim directory (the critical part)": {
+      "summary": "**This directory choice is the whole game.** A bare `dotnet-stryker` at repo root",
+      "anchor": "step-4-run-stryker-from-the-shim-directory-the-critical-part"
+    },
+    "Step 5 — Validate BEFORE the full run": {
+      "summary": "A full run can take hours; a wrong harness wastes all of it.",
+      "anchor": "step-5-validate-before-the-full-run"
+    },
+    "Step 6 — Launch the full run, then sanity-check": {
+      "summary": "Widen `mutate` back to the full scope and launch.",
+      "anchor": "step-6-launch-the-full-run-then-sanity-check"
+    },
+    "Teardown": {
+      "summary": "The shim, its `stryker-config.json`, the `InternalsVisibleTo` line, and any v3→v2",
+      "anchor": "teardown"
+    }
+  },
   "plugins/dev-team/skills/systematic-debugging/SKILL.md": {
     "Overview": {
       "summary": "When LLMs hit failures, they tend to guess at fixes — changing code, re-running, changing more code.",
