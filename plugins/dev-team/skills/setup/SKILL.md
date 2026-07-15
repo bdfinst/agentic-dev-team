@@ -352,8 +352,20 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_readiness.py" .
 ```
 
 Read the JSON report. `ready` is the hard requirement (the summary can be
-parsed); `meaningful` is whether the baseline reflects the whole tree.
+parsed **and**, for Vitest, a coverage provider is installed); `meaningful`
+is whether the baseline reflects the whole tree.
 
+- **Vitest with `has_provider` `false`** (no `@vitest/coverage-v8` or
+  `@vitest/coverage-istanbul` — Vitest emits no coverage at all without one,
+  unlike Jest's built-in Istanbul) → show `provider_hint` and, on
+  confirmation, install it as a devDependency:
+
+  ```bash
+  npm install --save-dev @vitest/coverage-v8
+  ```
+
+  Then re-run the probe. This is orthogonal to the reporter/scope checks
+  below — both must be satisfied for `ready` to flip to `true`.
 - **`ready` is `true`** → record it for the Step 11 report and continue.
 - **`ready` is `false` and `patchable` is `true`** (config lives in
   `package.json`'s `jest` block or a `*.json` config) → tell the operator
@@ -579,7 +591,9 @@ Display a summary of everything installed and created:
 ### Coverage baseline readiness (JS/TS only)
 - ✓ json-summary + coverage scope present   [ready + meaningful]
 - ✓ patched (added json-summary reporter to <config>)   [was not ready, now fixed]
+- ✓ installed @vitest/coverage-v8   [Vitest provider was missing, now present]
 - ⚠ manual action needed — <reporter_hint>   [JS/TS config the operator declined or must edit]
+- ⚠ Vitest coverage provider missing — <provider_hint>   [not ready]
 - ⚠ coverage scope unset — baseline will be inflated (<scope_hint>)   [not meaningful]
 
 ### Created
