@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.6.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.6.0...dev-team-v10.6.1) (2026-07-15)
+
+
+### Bug Fixes
+
+* verify coverage-baseline readiness during /setup for JS/TS repos ([f2a8240](https://github.com/bdfinst/agentic-dev-team/commit/f2a8240ecf542014832d1c16ff361aee6e6fd379)), closes [#1086](https://github.com/bdfinst/agentic-dev-team/issues/1086)
+
 ## [10.6.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.5.0...dev-team-v10.6.0) (2026-07-14)
 
 
