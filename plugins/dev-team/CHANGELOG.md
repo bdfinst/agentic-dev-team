@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.6.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.6.1...dev-team-v10.6.2) (2026-07-15)
+
+
+### Bug Fixes
+
+* check Vitest coverage provider in coverage-baseline readiness ([a229d0a](https://github.com/bdfinst/agentic-dev-team/commit/a229d0a02d287301df96377393dbb0e28e2b59c5)), closes [#1089](https://github.com/bdfinst/agentic-dev-team/issues/1089)
+
 ## [10.6.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.6.0...dev-team-v10.6.1) (2026-07-15)
 
 
