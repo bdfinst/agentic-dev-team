@@ -28,12 +28,15 @@ Report schema (stdout, one JSON object):
       "config_kind": "json" | "js" | "none",
       "has_json_summary": bool,   # json-summary reporter enabled
       "has_scope": bool,          # collectCoverageFrom / coverage.include set
-      "ready": bool,              # has_json_summary (hard requirement to parse)
+      "coverage_provider": <str or null>,  # Vitest provider pkg / "istanbul (built-in)"
+      "has_provider": bool,       # Jest: always true; Vitest: provider installed
+      "ready": bool,              # summary parseable AND (Vitest) provider present
       "meaningful": bool,         # has_scope (baseline reflects whole tree)
       "patchable": bool,          # --patch can add the reporter unaided
       "patched": bool,            # --patch actually wrote a change
       "reporter_hint": <str or null>,   # exact edit for a js/ts config
       "scope_hint": <str or null>,      # exact edit when scope is missing
+      "provider_hint": <str or null>,   # install cmd when Vitest lacks a provider
       "notes": [<str>, ...]
     }
 
@@ -79,6 +82,12 @@ VITEST_CONFIG_FILES = (
     "vite.config.js",
     "vite.config.mjs",
 )
+
+# Vitest emits no coverage at all unless one of these provider packages is a
+# dependency — the analog to Jest's built-in Istanbul. Without it, `vitest run
+# --coverage` errors, so the baseline can never be captured regardless of the
+# reporter config (issue #1086, Vitest arm).
+VITEST_COVERAGE_PROVIDERS = ("@vitest/coverage-v8", "@vitest/coverage-istanbul")
 
 _JSON_SUFFIXES = frozenset({".json"})
 
@@ -158,6 +167,21 @@ def resolve_config_source(root: Path, runner: str, pkg: Optional[dict]) -> Tuple
     if runner == "jest" and isinstance((pkg or {}).get("jest"), dict):
         return "package.json#jest", "json"
     return None, "none"
+
+
+def detect_vitest_provider(pkg: Optional[dict]) -> Optional[str]:
+    """Return the installed Vitest coverage provider package, or None.
+
+    Jest ships Istanbul, so this is Vitest-only; for Jest the provider is
+    always considered present.
+    """
+    if pkg is None:
+        return None
+    deps = _all_deps(pkg)
+    for provider in VITEST_COVERAGE_PROVIDERS:
+        if provider in deps:
+            return provider
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -314,8 +338,11 @@ def build_report(root: Path, patch: bool) -> Report:
         meaningful=False,
         patchable=False,
         patched=False,
+        coverage_provider=None,
+        has_provider=True,
         reporter_hint=None,
         scope_hint=None,
+        provider_hint=None,
         notes=[],
     )
 
@@ -341,9 +368,28 @@ def build_report(root: Path, patch: bool) -> Report:
         except (OSError, json.JSONDecodeError) as exc:
             report.note(f"Could not patch {config_source}: {exc}")
 
+    # Vitest emits no coverage without a provider package; Jest ships Istanbul.
+    if runner == "vitest":
+        provider = detect_vitest_provider(pkg)
+        report["coverage_provider"] = provider
+        report["has_provider"] = provider is not None
+        if provider is None:
+            report["provider_hint"] = (
+                "Install a Vitest coverage provider so it can emit coverage "
+                f"(e.g. `npm install --save-dev {VITEST_COVERAGE_PROVIDERS[0]}`)."
+            )
+            report.note(
+                "Vitest has no coverage provider installed; `vitest run --coverage` "
+                "will error before any report is written. Offer to install "
+                f"{VITEST_COVERAGE_PROVIDERS[0]} (confirm first)."
+            )
+    else:
+        report["coverage_provider"] = "istanbul (built-in)"
+
     report["has_json_summary"] = has_json_summary
     report["has_scope"] = has_scope
-    report["ready"] = has_json_summary
+    # Readiness needs a parseable summary AND, for Vitest, an installed provider.
+    report["ready"] = has_json_summary and report["has_provider"]
     report["meaningful"] = has_scope
     report["patchable"] = (config_kind == "json")
 

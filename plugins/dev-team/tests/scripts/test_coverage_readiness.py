@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from coverage_readiness import (  # noqa: E402
     build_report,
     detect_runner,
+    detect_vitest_provider,
     main,
     resolve_config_source,
 )
@@ -191,11 +192,21 @@ def test_patch_vitest_json_is_reported_not_written(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# vitest object detection
+# vitest object detection + coverage provider (Vitest arm of #1086)
 # ---------------------------------------------------------------------------
 
+def test_detect_vitest_provider():
+    assert detect_vitest_provider(None) is None
+    assert detect_vitest_provider({"devDependencies": {}}) is None
+    assert detect_vitest_provider({"devDependencies": {"@vitest/coverage-v8": "^2"}}) == "@vitest/coverage-v8"
+    assert (
+        detect_vitest_provider({"devDependencies": {"@vitest/coverage-istanbul": "^2"}})
+        == "@vitest/coverage-istanbul"
+    )
+
+
 def test_vitest_scope_detected_from_include(tmp_path):
-    pkg(tmp_path, {"devDependencies": {"vitest": "^2"}})
+    pkg(tmp_path, {"devDependencies": {"vitest": "^2", "@vitest/coverage-v8": "^2"}})
     write(
         tmp_path / "vitest.config.ts",
         "export default { test: { coverage: { reporter: ['json-summary'], include: ['src/**'] } } }",
@@ -204,6 +215,32 @@ def test_vitest_scope_detected_from_include(tmp_path):
     assert report["runner"] == "vitest"
     assert report["ready"] is True
     assert report["meaningful"] is True
+    assert report["coverage_provider"] == "@vitest/coverage-v8"
+
+
+def test_vitest_missing_provider_blocks_ready(tmp_path):
+    # Reporter + scope are correct, but no coverage provider is installed, so
+    # `vitest run --coverage` would error before writing any report.
+    pkg(tmp_path, {"devDependencies": {"vitest": "^2"}})
+    write(
+        tmp_path / "vitest.config.ts",
+        "export default { test: { coverage: { reporter: ['json-summary'], include: ['src/**'] } } }",
+    )
+    report = build_report(tmp_path, patch=False)
+    assert report["has_json_summary"] is True
+    assert report["has_provider"] is False
+    assert report["coverage_provider"] is None
+    assert report["ready"] is False
+    assert report["provider_hint"] and "@vitest/coverage-v8" in report["provider_hint"]
+
+
+def test_jest_provider_always_present(tmp_path):
+    pkg(tmp_path, {"devDependencies": {"jest": "^29"}, "jest": {"coverageReporters": ["json-summary"]}})
+    report = build_report(tmp_path, patch=False)
+    assert report["has_provider"] is True
+    assert report["coverage_provider"] == "istanbul (built-in)"
+    assert report["provider_hint"] is None
+    assert report["ready"] is True
 
 
 # ---------------------------------------------------------------------------
