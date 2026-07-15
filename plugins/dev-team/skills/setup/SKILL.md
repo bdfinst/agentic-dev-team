@@ -337,6 +337,47 @@ a few questions; they should accept defaults unless they have a specific setup.
 npx stryker --version
 ```
 
+**Coverage baseline readiness (Jest/Vitest):**
+
+`/coverage-baseline` (Phase 2 of `/test-improve`) parses
+`coverage/coverage-summary.json` for `total.lines.pct` / `total.branches.pct`.
+Jest and Vitest only emit that file when the **`json-summary`** reporter is
+enabled, and the floor is only meaningful when coverage measures the whole
+source tree (Jest `collectCoverageFrom` / Vitest `coverage.include`). Without
+both, a repo that otherwise passes `/setup` still aborts `/test-improve`
+Phase 2 (issue #1086). Probe and repair it now:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_readiness.py" .
+```
+
+Read the JSON report. `ready` is the hard requirement (the summary can be
+parsed); `meaningful` is whether the baseline reflects the whole tree.
+
+- **`ready` is `true`** → record it for the Step 11 report and continue.
+- **`ready` is `false` and `patchable` is `true`** (config lives in
+  `package.json`'s `jest` block or a `*.json` config) → tell the operator
+  exactly which reporter will be added, and on confirmation re-run with
+  `--patch`:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_readiness.py" . --patch
+  ```
+
+  The patch only appends `json-summary`, preserving existing reporters.
+- **`ready` is `false` and `patchable` is `false`** (config is a JS/TS file
+  like `jest.config.js` or `vitest.config.ts` — the probe never rewrites
+  these) → show the operator `reporter_hint` and, on confirmation, apply that
+  one-line edit with the Edit tool. Re-run the probe (no `--patch`) to confirm
+  `ready` flipped to `true`.
+- **`meaningful` is `false`** → show `scope_hint` and offer to add the
+  suggested `collectCoverageFrom`/`coverage.include` (confirm first; never
+  overwrite an existing scope). This is advisory — a missing scope doesn't
+  block the baseline, it just inflates it.
+
+Never write or patch coverage config without operator confirmation. Record
+the final `ready`/`meaningful`/`patched` state for the Step 11 report.
+
 ---
 
 #### Java / Kotlin — pitest
@@ -534,6 +575,12 @@ Display a summary of everything installed and created:
 - jq:       ✓ <version>
 - python3:  ✓ <version>
 - Mutation testing (Stryker): ✓ <version>   [or: ✗ skipped | ✗ failed]
+
+### Coverage baseline readiness (JS/TS only)
+- ✓ json-summary + coverage scope present   [ready + meaningful]
+- ✓ patched (added json-summary reporter to <config>)   [was not ready, now fixed]
+- ⚠ manual action needed — <reporter_hint>   [JS/TS config the operator declined or must edit]
+- ⚠ coverage scope unset — baseline will be inflated (<scope_hint>)   [not meaningful]
 
 ### Created
 - `.claude/project-stack.json` — stack detection results
