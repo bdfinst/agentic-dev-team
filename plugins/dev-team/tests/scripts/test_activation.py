@@ -80,3 +80,22 @@ def test_ceiling_guard_fires_above_ceiling():
 def test_ceiling_guard_silent_at_or_below_ceiling():
     assert activation.check_slice_ceiling(activation.SLICE_COUNT_CEILING) is None
     assert activation.check_slice_ceiling(1) is None
+
+
+def test_no_slice_wins_before_slice_validation():
+    # Precedence contract: --no-slice must short-circuit BEFORE --slice is
+    # validated. An invalid slice_flag alongside no_slice_flag must NOT raise.
+    engage, cap = activation.should_slice(
+        "full-repo", 1000, slice_flag=0, no_slice_flag=True
+    )
+    assert engage is False
+    assert cap is None
+
+
+def test_auto_engage_uses_custom_default_cap():
+    # The default_cap parameter (used on auto-engage) is honored, not ignored.
+    engage, cap = activation.should_slice(
+        "full-repo", 900, threshold=500, default_cap=25
+    )
+    assert engage is True
+    assert cap == 25

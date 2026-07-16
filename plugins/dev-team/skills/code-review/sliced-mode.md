@@ -53,7 +53,23 @@ cap; report it and proceed (it never blocks).
 
 ## Per-slice review panel
 
-_(Authored in Slice 2.)_
+Select each slice's review panel from its `is_declarative` flag (set by
+`partition.py` → `is_declarative_slice`, a conservative name/extension
+heuristic — any doubt yields non-declarative):
+
+- **Declarative slice** (`is_declarative: true` — pure interface/type/DTO/
+  constant/model/schema/enum files, no behavioral tokens): run the **reduced
+  panel** — `correctness-review` and `structure-review` only. The six-lens
+  semantic panel is wasted on declaration files.
+- **Non-declarative slice**: run the **full panel** — the standard agent
+  eligibility rules from `SKILL.md` steps 3–4 (self-declared `scope:`,
+  framework reactivity lens, ai-provenance), scoped to the slice's files.
+
+The exact declarative rule is owned by `partition.py`; this file does not
+re-encode it. **Disclose the panel per slice**: record which panel ran in the
+slice's section artifact (see the next section), and the consolidated report
+names the slices that ran the reduced panel so a reader can tell "fewer
+findings" from "fewer reviewers ran."
 
 ## Persist-and-drop and the progress ledger
 
