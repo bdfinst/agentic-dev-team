@@ -96,7 +96,22 @@ can be continued: **rerun with `--resume`** to review only the remaining slices.
 
 ## Resuming an interrupted run
 
-_(Authored in Slice 4.)_
+When `--resume` is given, do **not** re-initialize the ledger. Instead:
+
+1. **Guard the cap**: call `ledger.py` → `check_resume_cap(root, cap)`. If the
+   `--slice` cap differs from the cap the interrupted run recorded in the
+   ledger, **stop with that error** — repartitioning at a different cap would
+   desync the new slice ids from the `section-<id>.json` files already on disk.
+   Rerun with the recorded cap (or no `--slice`), or start fresh.
+2. **Review only the pending slices**: `pending_slices(slices, root)` returns the
+   slices whose `section-<id>.json` does **not** yet exist. Slices whose artifact
+   already exists are skipped and reused as-is — disk is the source of truth
+   (a slice with an artifact is done even if the ledger still says `pending`).
+3. Consolidation (below) reads **all** section artifacts — the ones reused from
+   the prior run and the ones this resume produced.
+
+Without `--resume`, a fresh sliced run re-initializes the ledger and reviews
+every slice.
 
 ## Consolidation
 
