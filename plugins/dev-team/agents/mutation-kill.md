@@ -19,6 +19,12 @@ view; run `mutation-kill` to drive the kill count down.
 You wrap a real mutation tool (Stryker, pitest, Stryker.NET, go-mutesting) — never
 estimate or fabricate mutation outcomes.
 
+The deterministic mechanics of the loop are **scripted** — you invoke the shipped
+Python scripts rather than re-implementing the run/parse/insert/build/test/commit
+sequence by hand. Your job is the two steps a script cannot do: **generate** the
+targeted tests, and exercise **exclusion judgment** for infrastructure and
+structurally-unkillable code. Everything else is delegated.
+
 ## Invocation
 
 ```
@@ -33,6 +39,45 @@ estimate or fabricate mutation outcomes.
 - `--concurrency <n>` — parallel files via git worktrees when using `--all` (default: 2; max = physical cores − 2).
 - `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Parallel execution (Phase 4)](#parallel-execution-phase-4)).
 
+## Deterministic mechanics are scripted — you own generation and exclusion judgment
+
+The scripts live under `skills/mutation-testing/scripts/`. Invoke them; do not
+re-describe or re-implement their mechanics:
+
+| Script | Deterministic responsibility it owns |
+| --- | --- |
+| `mutation_report.py` | Parse the report; compute the **honest** and **reported** scores; extract survivors per file grouped by mutator. |
+| `mutation_kill_loop.py` | The per-file loop: scoped run → score → survivor check → **your** generation → duplicate-guard → insert-before-class-close → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. |
+| `stryker_shard_setup.py` | Generate one `stryker-config.shard-<slug>.json` per source project, `Stryker.sln`, and `stryker-pipeline.json` from a `.sln`. |
+| `stryker_shard_pipeline.py` | The unattended sharded pipeline: discover shards, one compounding git worktree per shard from `HEAD`, run Stryker through the wrapper's line-callback, timeout-abort, launch the survivor-fix loop **forced into `--headless`**, honest-score summary. |
+| `stryker_timeout_retry.py` | Emit a retry config scoped to only the timed-out files with an increased `additional-timeout`. |
+| `csharp_stryker_net_wrapper.py` | DOTNET_ROOT probe, `.sln` hide/restore, and `run_stryker` (with the optional line-callback). Reused by the loop and the pipeline — never re-implemented. |
+
+**You own exactly two judgment calls the scripts defer to you:**
+
+1. **Generation** — writing the targeted test methods that kill the survivors.
+2. **Exclusion judgment** — deciding a file is infrastructure or structurally
+   unkillable and should leave the mutation denominator (see
+   [Infrastructure exclusion detection](#infrastructure-exclusion-detection-before-the-loop-starts)
+   and [Structurally unkillable files](#structurally-unkillable-files)).
+
+## Generation modes: agent-driven by default, `--headless` for CI
+
+Generation is a seam the loop calls into; it never decides *what* tests to write.
+
+- **Agent-driven (default).** In the interactive path you call
+  `mutation_kill_loop.run_for_file` directly, passing a `generate` hook backed by
+  a **live agent turn** — you read the survivors, source, and existing test file,
+  and return the new test methods. No `claude` subprocess is spawned.
+- **`--headless`.** For unattended CI, `mutation_kill_loop.py --headless` shells to
+  `claude --print --model <m>` for generation. `--model` resolves from
+  `DEV_TEAM_MUTATION_MODEL` then a pinned default — never an unstated literal.
+  Invoking the bare CLI with neither an agent generator nor `--headless` fails
+  fast at startup, before any Stryker run or file mutation.
+- **Forced `--headless` in the shard pipeline.** `stryker_shard_pipeline.py`
+  **forces `--headless`** on every survivor-fix launch, because a script-spawned
+  round is unattended and has no live agent turn to call back into.
+
 ## The honest score — hard kills only
 
 Mutation tools count **timed-out** mutations as "killed". They are not. In one
@@ -40,8 +85,9 @@ observed run 76% of "kills" were timeouts; adding faster targeted tests let thos
 mutations *complete* instead of timing out, and the score fell from 61.3% to
 30.36%. A score inflated by timeouts is not evidence of good tests.
 
-Gate on **hard kills only** (`status == Killed`); Stryker.NET 4.x keeps `NoCoverage`
-mutants in its own denominator, so the honest formula matches:
+`mutation_report.py` computes both scores; you gate on **hard kills only**
+(`status == Killed`). Stryker.NET 4.x keeps `NoCoverage` mutants in its own
+denominator, so the honest formula matches:
 
 ```
 honest_score  = Killed / (Killed + Survived + NoCoverage)
@@ -49,10 +95,11 @@ reported_score = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
 ```
 
 Report **both**. `honest_score` is the only number that gates a round or a file —
-Timeout stays out of the numerator. `reported_score` mirrors what the Stryker HTML
-report prints, so a reviewer comparing the two numbers gets an honest gap
-(numerator delta) rather than a formula mismatch. `Timeout` and `NoCoverage`
-counts always print separately alongside both scores.
+Timeout stays out of the numerator, and the script never gates on it.
+`reported_score` mirrors what the Stryker HTML report prints, so a reviewer
+comparing the two numbers gets an honest gap (numerator delta) rather than a
+formula mismatch. `Timeout` and `NoCoverage` counts always print separately
+alongside both scores.
 
 ### NoCoverage is a first-class signal
 
@@ -74,15 +121,15 @@ a shard score as if it were the gate score.
 
 ## Every generated test asserts a specific value
 
-Tests that only assert `response.StatusCode == 200` (or any status-code-only
-check) cannot kill String, Equality, ObjectInit, or LogicalNot mutations. **Every
-generated test must include at least one specific value assertion** on a response
-field, return value, or observable state change — not just a status code or a
-truthiness check.
+This is a **generation** rule — yours to enforce, not the loop's. Tests that only
+assert `response.StatusCode == 200` (or any status-code-only check) cannot kill
+String, Equality, ObjectInit, or LogicalNot mutations. **Every generated test must
+include at least one specific value assertion** on a response field, return value,
+or observable state change — not just a status code or a truthiness check.
 
 ## Target mutation types in priority order
 
-Group survivors by mutation type and generate tests in this order:
+When you generate, group survivors by mutation type and write tests in this order:
 
 | Priority | Type | How to kill |
 | --- | --- | --- |
@@ -103,34 +150,35 @@ assertion-only fixes once you reach Statement/Block.
 
 ## Speed: scoped + per-test coverage analysis
 
-Run scoped to one file with per-test coverage analysis (Stryker:
-`coverageAnalysis: "perTest"`; pitest: `withHistory`) — per-mutation execution
+The scoped-run config the loop builds sets per-test coverage analysis (Stryker:
+`coverageAnalysis: "perTest"`; pitest: `withHistory`) so per-mutation execution
 drops from full-suite time to the time of the tests covering the mutated line
-(observed 10–50× speedup). Use scoped + per-test for the development loop; reserve
-the full run (coverage-analysis off) for the CI gate only.
+(observed 10–50× speedup). Scoped + per-test is for the development loop; the
+full run (coverage-analysis off) is reserved for the CI gate only.
 
-## Step 0: build first (per file, before any round)
+## Fresh build before a run
 
 Every mutation run assumes fresh binaries. A stale build produces phantom
 failures — Stryker either aborts on load or reports every mutant as `Survived`,
-and both the failures and the kills are meaningless. Before Round 1 (and again
-after every source edit outside the loop):
+and both the failures and the kills are meaningless. Ensure a fresh build before
+Round 1 (and again after every source edit outside the loop):
 
 ```
 dotnet build <SOLUTION> -c Debug --nologo   # or the language equivalent
 ```
 
 If the build fails, **stop** — do not proceed to any round. **Never use
-`--no-build` on the test command during mutation testing.** Stryker instruments
-the build; `--no-build` runs against whatever binary happens to be on disk.
+`--no-build` on the mutation run.** Stryker instruments the build; `--no-build`
+runs against whatever binary happens to be on disk.
 
 ## Infrastructure exclusion detection (before the loop starts)
 
-After parsing the baseline report and before entering the file-by-file loop,
-scan the report for files that are almost certainly infrastructure — DI wiring,
-exception handlers, middleware, generated code — where mutations cannot be
-killed by the available test surface. Two signals, **in combination, alone**
-are sufficient to flag a file — no filename match required:
+After `mutation_report.py` parses the baseline report — and before the file-by-file
+loop — read its counts to find files that are almost certainly infrastructure — DI
+wiring, exception handlers, middleware, generated code — where mutations cannot be
+killed by the available test surface. This judgment is **yours**; the script only
+supplies the score and counts. Two signals, **in combination, alone** are
+sufficient to flag a file — no filename match required:
 
 - `score < 15%`
 - `NoCoverage > 50%` of effective mutants (total − Ignored − CompileError)
@@ -175,37 +223,40 @@ generated code that this test surface cannot reach?
 This is the same `EXCLUDED` log format used for the [structurally unkillable
 files](#structurally-unkillable-files) section — a single audit trail either way.
 
-## Loop (per file)
+## The loop is scripted — invoke it, don't re-run its steps by hand
 
-```
-Round N:
-  1. Run the scoped mutation tool with per-test coverage analysis
-     — or load --from-report on round 1.
-  2. Parse survivors; compute honest_score (hard kills only; timeouts separate).
-  3. If survivors == 0 -> done.
-  4. If survivors >= prev_survivors -> no improvement; STOP (do not loop forever).
-  5. Group survivors by mutation type; sort by priority (String -> ObjectInit ->
-     Equality -> ... -> Statement).
-  6. Cap at the top 40 survivors to avoid token overflow.
-  7. Call the model with: the source file, the existing test file (truncated if
-     > 600 lines), the survivor summary grouped by type, and the per-language
-     rules below.
-  8. Detect duplicate method names (see below) — if any collide, STOP without
-     inserting.
-  9. Insert the generated methods before the class / test-suite close.
- 10. Build — if the build fails, REVERT and stop.
- 11. Run tests scoped to this file's test class — if any fail, REVERT and stop.
- 12. Commit with a structured message citing round number, method count, and
-     survivor count.
- 13. Advance prev_survivors; continue to Round N+1 (until survivors == 0,
-     no improvement, or --max-rounds reached).
-```
+`mutation_kill_loop.run_for_file` drives the per-file loop deterministically:
+scoped Stryker run (through the wrapper) → `mutation_report.py` scoring → survivor
+check → **your** generation hook → guarded insertion → build → scoped test → commit
+on green. You supply the `generate` callable and read its per-round log; the loop
+owns everything mechanical:
 
-The **no-improvement exit** (`survivors >= prev_survivors`) is mandatory — a round
-that does not reduce survivors ends the file; never loop indefinitely chasing the
-same survivors.
+- **Duplicate detection.** Before inserting, the loop extracts every test-method
+  name from the existing file and the generated block; if any name collides it
+  logs a warning and **stops the round without inserting** — it never renames or
+  corrupts the file. Stop cleanly.
+- **Guarded insertion.** New methods go before the test class's closing brace. The
+  heuristic supports conventional block-namespace, 4-space-indented C#; for a
+  file-scoped namespace or non-standard indentation it **refuses** rather than
+  append into a structurally wrong location (broader C# styles are a documented
+  limitation).
+- **Verify + revert.** The loop builds, then runs the scoped test class. If the
+  build or the scoped test run fails after insertion it reverts
+  (`git checkout -- <test-file>`), logs the failure, and stops the file — never
+  leaving a broken or non-compiling test file behind.
+- **No-improvement exit.** A round whose `survivors >= prev_survivors` does not
+  reduce survivors, so the loop stops that file. This mandatory exit is what keeps
+  the loop from looping forever chasing the same survivors — never loop
+  indefinitely.
+
+Commits carry a structured message citing round number, method count, and survivor
+count. `--from-report` seeds round 1 from an existing report instead of a fresh
+scoped run.
 
 ## Per-language translation
+
+The loop's C# path is scripted; the table below is the generation + verification
+contract per language.
 
 | Language | Tool | Per-test flag | Test shape | Build verify | Test verify |
 | --- | --- | --- | --- | --- | --- |
@@ -214,25 +265,12 @@ same survivors.
 | C# | Stryker.NET | `coverage-analysis: perTest` | `[Fact]` (xUnit) / `[Test]` (NUnit) | `dotnet build <proj> --nologo` | `dotnet test <proj> --filter FullyQualifiedName~<class>` |
 | Go | go-mutesting | (advisory; no per-test analysis) | `func Test…(t *testing.T)` | `go build ./…` | `go test -run Test… ./…` |
 
-### Per-language prompt rules (for the model call)
+### Per-language prompt rules (for the generation call)
 
 - **JS/TS** — match the existing `describe`/`it`/`test` nesting; use the project's assertion library (Jest/Vitest `expect`, Chai `.should`); add no new imports unless already present in the test file.
 - **Java** — match `@Test` + the assertion library in the file (AssertJ / JUnit / Hamcrest); match the fixture lifecycle (JUnit 5 / TestNG); no new `import` for already-imported classes.
 - **C#** — match `[Fact]`/`[Test]`; reuse the file's assertion library (FluentAssertions / AwesomeAssertions / NUnit `Assert`), mock library (Moq / NSubstitute), and fixture pattern (AutoFixture / builder).
 - **Go** — prefer table-driven tests; use `testify/assert` if already present, else stdlib `t.Errorf`; add no new package imports without checking `go.mod`.
-
-## Duplicate detection
-
-Before inserting, extract every test method name from the existing file **and** the
-generated block. If any name collides, log a warning and **stop the round without
-inserting** — do not attempt to rename, and do not corrupt the test file. Stop
-cleanly.
-
-## Revert on failure
-
-If the build or the scoped test run fails after insertion, `git checkout -- <test-file>`
-to revert, log the failure, and stop the loop for that file. Never leave a broken
-or non-compiling test file behind.
 
 ## Structurally unkillable files
 
@@ -240,7 +278,8 @@ When a file's remaining survivors are structural guards (null-checks, preconditi
 throws, builder guards) killable only by passing invalid input directly to the
 constructor/method — and the available test surface (e.g. HTTP-layer tests) cannot
 reach them — **exclude the file from the mutation denominator** rather than
-manufacturing a falsely high score. Record the exclusion in this format:
+manufacturing a falsely high score. This is your judgment, not the loop's. Record
+the exclusion in this format:
 
 ```
 EXCLUDED <file> — <reason>: surviving mutations are structural guards reachable
@@ -297,11 +336,10 @@ Entry shape: `file` (path, matches the mutate-glob entry), `status`
 (`"converged"` or `"excluded"`), `reason` (string for `"excluded"`, `null` for
 `"converged"`), `commit` (the SHA of `HEAD` at the moment the entry is written).
 
-Two write triggers, each tied to an existing point in this file's own loop:
+Two write triggers, each tied to an existing point in the loop:
 
-- **Converged** — the [per-file loop](#loop-per-file)'s `survivors == 0` exit
-  (loop step 3) writes or updates the file's entry with `status: "converged"`,
-  `reason: null`, and the current commit SHA.
+- **Converged** — the loop's `survivors == 0` exit writes or updates the file's
+  entry with `status: "converged"`, `reason: null`, and the current commit SHA.
 - **Excluded** — a confirmed [infrastructure exclusion](#infrastructure-exclusion-detection-before-the-loop-starts)
   or [structurally-unkillable exclusion](#structurally-unkillable-files) writes
   or updates the file's entry with `status: "excluded"`, the same `reason` text
@@ -312,8 +350,8 @@ Two write triggers, each tied to an existing point in this file's own loop:
 On a fresh `--all` invocation, read `StrykerOutput/mutation-kill-convergence.json`
 **before the baseline scan** (before [infrastructure exclusion
 detection](#infrastructure-exclusion-detection-before-the-loop-starts) runs). For
-each entry, compare its recorded `commit` against the file's current last-commit
-SHA (`git log -1 --format=%H -- <file>`):
+each entry, compare its recorded `commit` against the file's current
+last-commit SHA (`git log -1 --format=%H -- <file>`):
 
 - **Still valid** (recorded `commit` == current last-commit SHA) — this holds
   **identically for both `"converged"` and `"excluded"` entries**, regardless of
@@ -359,8 +397,8 @@ The baseline `--all` scan runs at `--mutation-level Basic`. A file whose
 Basic-level rounds reach `survivors == 0` is done — no Standard-level pass, and
 no change from today's convergence-history write.
 
-A file whose Basic-level rounds stop via the [no-improvement or `--max-rounds`
-exit](#loop-per-file) with `survivors > 0` logs:
+A file whose Basic-level rounds stop via the no-improvement or `--max-rounds`
+exit with `survivors > 0` logs:
 
 ```
 ESCALATING <file> — Standard pass: N survivors remaining after Basic
@@ -371,7 +409,7 @@ and gets **one** additional pass at `--mutation-level Standard`, scoped via
 (`LinqMutation`, `StringMutation`, etc.) that `Basic` doesn't generate.
 
 If that Standard-level pass itself stops (no-improvement / `--max-rounds`) with
-`survivors > 0`, the file is left in scope with no convergence-history entry
+`survivors > 0`, the file is left in scope with **no convergence-history entry**
 written — per the [convergence-history write triggers](#convergence-history-across---all-invocations),
 only `survivors == 0` or an explicit exclusion writes an entry. The file is
 simply re-attempted from Basic on the next `--all` invocation, the same as any
@@ -411,14 +449,16 @@ this document's `--concurrency` default.
 With `--all`, run files in parallel via git worktrees (each shard gets its own
 build-artifacts directory). Concurrent runs saturate CPU/RAM fast — honor
 `--concurrency` (default **2** per developer machine; configurable up to physical
-cores − 2).
+cores − 2). For unattended CI, `stryker_shard_pipeline.py` provides the
+compounding-worktree, forced-`--headless` alternative described above.
 
 ## Parallel execution (Phase 4)
 
 `--concurrency` fans **files** out across git worktrees. `--parallel <n>` fans
 **sub-agents** out **within** a file's Phase-4 survivor set, using the Agent
 tool directly — no worktrees, because test-file writes don't conflict with
-source-file reads. The two flags are orthogonal.
+source-file reads. The two flags are orthogonal, and this fan-out is an
+agent-orchestration step (spawning generation sub-agents), not a scripted one.
 
 With `--all --parallel <n>`:
 

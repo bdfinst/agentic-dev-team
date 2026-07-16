@@ -369,3 +369,70 @@ def test_tiered_mutation_level_compile_error_trap_and_concurrency_crossref(
 def test_registered_in_agent_registry() -> None:
     registry_text = REGISTRY.read_text(encoding="utf-8")
     assert "agents/mutation-kill.md" in registry_text
+
+
+# --- Slice 6 (#1136): the agent delegates mechanics to the shipped scripts and
+# retains only the two genuinely-LLM steps (generation + exclusion judgment). --
+
+
+def test_delegates_deterministic_mechanics_to_the_named_scripts(text: str) -> None:
+    # The five migrated scripts + the reused wrapper must all be named, so the
+    # agent points at them rather than re-describing their mechanics.
+    for script in (
+        "mutation_report.py",
+        "mutation_kill_loop.py",
+        "stryker_shard_setup.py",
+        "stryker_shard_pipeline.py",
+        "stryker_timeout_retry.py",
+        "csharp_stryker_net_wrapper.py",
+    ):
+        assert script in text, f"agent must name the delegated script: {script}"
+
+
+def test_report_parsing_and_scoring_delegated_to_mutation_report(
+    text: str, flat: str
+) -> None:
+    # Report parsing + honest/reported scoring are computed by the script; the
+    # agent gates on the honest score rather than re-deriving it.
+    assert re.search(
+        r"mutation_report\.py[^.]*?(compute|parse|scor|survivor)",
+        flat,
+        re.IGNORECASE,
+    )
+
+
+def test_loop_mechanics_delegated_to_mutation_kill_loop(text: str, flat: str) -> None:
+    # Insertion, build/test, commit, and revert are the loop script's job —
+    # the agent invokes the loop, it does not hand-run those steps.
+    assert "mutation_kill_loop" in text
+    assert re.search(r"run_for_file|per-file loop", text, re.IGNORECASE)
+    assert re.search(r"invoke.*loop|loop.*(scripted|invoke)", flat, re.IGNORECASE)
+
+
+def test_generation_is_agent_driven_by_default_with_headless_documented(
+    text: str, flat: str
+) -> None:
+    # Generation stays with the agent: agent-driven by default, --headless as
+    # the CI mode, and forced-headless in the shard pipeline.
+    assert re.search(r"agent-driven", text, re.IGNORECASE)
+    assert re.search(r"--headless", text)
+    assert re.search(r"default", text, re.IGNORECASE)
+    assert re.search(
+        r"forces? .*--headless|--headless.*forced|forced.*headless",
+        flat,
+        re.IGNORECASE,
+    )
+    # The forcing is because a script-spawned round has no live agent turn.
+    assert re.search(r"no (live )?agent turn|unattended", flat, re.IGNORECASE)
+
+
+def test_retains_generation_and_exclusion_as_the_llm_only_responsibilities(
+    text: str, flat: str
+) -> None:
+    # The agent must state that generation and exclusion judgment are the two
+    # steps it owns — with the exclusion decision criteria kept (not merely
+    # named): the numeric signals and the structural patterns.
+    assert re.search(r"exclusion judg", flat, re.IGNORECASE)
+    assert re.search(r"generat", text, re.IGNORECASE)
+    # Exclusion criteria retained, not merely named.
+    assert re.search(r"15%", text) and re.search(r"50%", text)
