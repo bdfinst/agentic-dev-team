@@ -218,6 +218,127 @@ def test_headless_flag_does_not_trip_the_no_generator_preflight(capsys):
 
 
 # =============================================================================
+# Slice 3 — Optional --headless generation mode
+# =============================================================================
+# Scenario: Headless mode generates via the Claude CLI
+def test_headless_generator_invokes_claude_print_and_strips_fences(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured: dict = {}
+
+    class _R:
+        returncode = 0
+        stdout = "```csharp\n[Test]\npublic void New_Case_KillsMutant() {}\n```"
+        stderr = ""
+
+    def fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return _R()
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    generate = loop.make_headless_generator("some-test-model")
+    survivors = [_mutant("Survived", "ArithmeticOperator", 10)]
+    out = generate(
+        "PaymentService.cs",
+        survivors,
+        "public class PaymentService {}",
+        "public class PaymentServiceTests { }",
+    )
+
+    argv = captured["argv"]
+    assert argv[0] == loop.CLAUDE_CLI
+    assert "--print" in argv
+    # --model carries the resolved model.
+    assert argv[argv.index("--model") + 1] == "some-test-model"
+    prompt = argv[-1]
+    # The existing test file is the pattern, and the survivor summary is present.
+    assert "PaymentServiceTests" in prompt
+    assert "ArithmeticOperator" in prompt
+    # No hardcoded library name leaks into the prompt.
+    assert not any(lit in prompt for lit in FORBIDDEN_LITERALS)
+    # Fences stripped from the returned methods.
+    assert "```" not in out
+    assert "New_Case_KillsMutant" in out
+
+
+# Scenario: --model default is resolved from env then the pinned default
+def test_model_resolves_from_env_when_set(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("DEV_TEAM_MUTATION_MODEL", "env-model")
+    assert loop.resolve_model() == "env-model"
+    # An explicit --model wins over the env var.
+    assert loop.resolve_model("flag-model") == "flag-model"
+
+
+def test_model_resolves_to_pinned_default_when_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("DEV_TEAM_MUTATION_MODEL", raising=False)
+    assert loop.resolve_model() == loop.DEFAULT_MODEL
+
+
+# Scenario: Default (non-headless) mode spawns no Claude subprocess
+def test_default_non_headless_spawns_no_claude_subprocess(
+    monkeypatch: pytest.MonkeyPatch, capsys
+):
+    def explode(*a, **k):
+        raise AssertionError("no subprocess may be spawned in the default mode")
+
+    monkeypatch.setattr(loop.subprocess, "run", explode)
+    monkeypatch.setattr(
+        loop, "claude_cli_available", lambda: pytest.fail("must not probe the CLI")
+    )
+
+    rc = loop.main(["--config", "stryker-config.json", "--file", "Foo.cs"])
+
+    assert rc != 0
+    assert loop.NO_GENERATOR_MESSAGE in capsys.readouterr().err
+
+
+# Scenario: Missing Claude CLI under headless fails cleanly and names the fix
+def test_missing_claude_cli_under_headless_names_remediation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    monkeypatch.setattr(loop, "claude_cli_available", lambda: False)
+    # No file may be mutated: run_for_file must never be reached.
+    monkeypatch.setattr(
+        loop, "run_for_file", lambda *a, **k: pytest.fail("must not run — CLI missing")
+    )
+
+    rc = loop.main(
+        [
+            "--headless",
+            "--file", "Foo.cs",
+            "--test-file", str(tmp_path / "FooTests.cs"),
+            "--source-path", str(tmp_path / "Foo.cs"),
+        ]
+    )
+
+    assert rc != 0
+    err = capsys.readouterr().err
+    # Names how to install AND authenticate the CLI.
+    assert "install" in err.lower()
+    assert "claude" in err.lower()
+    assert "authenticate" in err.lower() or "ANTHROPIC_API_KEY" in err
+
+
+def test_claude_cli_available_reflects_subprocess_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class _OK:
+        returncode = 0
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _OK())
+    assert loop.claude_cli_available() is True
+
+    def _missing(*a, **k):
+        raise FileNotFoundError("claude")
+
+    monkeypatch.setattr(loop.subprocess, "run", _missing)
+    assert loop.claude_cli_available() is False
+
+
+# =============================================================================
 # Insert-mechanics fixtures
 # =============================================================================
 _BLOCK_NAMESPACE_CLASS = (
