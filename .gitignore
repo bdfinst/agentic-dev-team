@@ -110,8 +110,13 @@ memory/_*.sh
 # Editor config (personal)
 .vscode/
 
-# Runtime report output (ad-hoc competitive / comparative analyses)
-reports/
+# Runtime report output (ad-hoc competitive / comparative analyses).
+# Anchored to the repo-root reports/ contents so a specific subdir can be
+# re-included below (git cannot un-ignore a path under an excluded directory).
+/reports/*
+# …but keep /test-improve baseline + summary artifacts tracked (#1126) so an
+# opt-in baseline-metrics report lands in the run's PR.
+!/reports/test-improve/
 
 # Spec/plan working files — specs live as GitHub issues; local drafts stay untracked
 docs/specs/
