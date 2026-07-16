@@ -15,6 +15,7 @@ _SKILL_DIR = (
 )
 _SKILL_MD = (_SKILL_DIR / "SKILL.md").read_text()
 _SLICED_MD = (_SKILL_DIR / "sliced-mode.md").read_text()
+_OUTPUT_FMT = (_SKILL_DIR / "output-format.md").read_text()
 
 
 # --- SKILL.md: flags + activation routing (Slice 1) ---------------------------
@@ -89,3 +90,40 @@ def test_sliced_mode_requires_reduced_panel_disclosure():
     panel = _SLICED_MD.split("## Per-slice review panel", 1)[1].split("##", 1)[0]
     assert "Disclose the panel" in panel or "discloses" in panel.lower()
     assert "reduced panel" in panel
+
+
+# --- output-format.md: section + ledger schemas (Slice 3) ---------------------
+
+
+def test_output_format_documents_section_artifact_schema():
+    assert "code-review-section/v1" in _OUTPUT_FMT
+    section = _OUTPUT_FMT.split("Per-slice section artifact", 1)[1].split("## ", 1)[0]
+    for key in ("id", "files", "is_declarative", "panel", "findings"):
+        assert key in section, key
+
+
+def test_output_format_documents_ledger_schema():
+    assert "code-review-ledger/v1" in _OUTPUT_FMT
+    led = _OUTPUT_FMT.split("Progress ledger", 1)[1].split("## ", 1)[0]
+    for key in ("cap", "slices", "status", "pending", "done"):
+        assert key in led, key
+
+
+# --- sliced-mode.md: persist-and-drop + progress (Slice 3) --------------------
+
+
+def test_sliced_mode_documents_persist_and_drop():
+    sec = _SLICED_MD.split("## Persist-and-drop", 1)[1].split("\n## ", 1)[0]
+    assert "init_ledger" in sec
+    assert "write_section" in sec
+    assert "one-line tally" in sec
+    # Bounded 2-3 slice parallelism stated.
+    assert "2–3" in sec or "2-3" in sec
+
+
+def test_sliced_mode_documents_progress_and_resume_guidance():
+    sec = _SLICED_MD.split("## Persist-and-drop", 1)[1].split("\n## ", 1)[0]
+    assert "slice k of N" in sec or "k of N" in sec
+    # Interrupted-run guidance points at --resume.
+    assert "--resume" in sec
+    assert "incomplete" in sec.lower()

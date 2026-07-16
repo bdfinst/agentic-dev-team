@@ -73,7 +73,26 @@ findings" from "fewer reviewers ran."
 
 ## Persist-and-drop and the progress ledger
 
-_(Authored in Slice 3.)_
+At the start of a sliced run, initialize the ledger from the partitioned slices:
+`scripts/ledger.py` → `init_ledger(slices, cap, root)` writes
+`DEV_TEAM_REPORTS/code-review/ledger.json` with every slice `pending` and the
+partition cap recorded.
+
+Review slices in **bounded parallelism — 2–3 slices at a time** (not the whole
+repo at once). For each slice, once its panel (per the section above) completes:
+
+1. **Persist** its findings: `write_section(slice, findings, panel, root)` writes
+   `raw/section-<id>.json` (findings + the panel that ran) and flips the slice's
+   ledger status to `done`.
+2. **Drop** the findings from orchestrator context. **Retain only a one-line tally per slice** — e.g. `section-0001: 3 findings (1 error, 2 warnings)`. This
+   is the move that keeps context flat regardless of repo size: never hold more
+   than the tallies plus the slices currently in flight.
+3. **Report progress**: emit `slice k of N done` as each slice completes, so a
+   long monorepo run is observably advancing.
+
+If the run is interrupted, the ledger and the already-written section artifacts
+remain on disk and stay valid. Tell the operator the review is incomplete and
+can be continued: **rerun with `--resume`** to review only the remaining slices.
 
 ## Resuming an interrupted run
 

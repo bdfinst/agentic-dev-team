@@ -81,6 +81,54 @@ run's *only* output: printed to stdout, and no `corrections/*.json` files or
 whether `--json` was reached directly or via `/pr`'s call into `/code-review
 --json` (see SKILL.md steps 7–9).
 
+## Per-slice section artifact (sliced mode)
+
+Written by `scripts/ledger.py` → `write_section` to
+`DEV_TEAM_REPORTS/code-review/raw/section-<id>.json` as each slice completes,
+then dropped from orchestrator context (persist-and-drop). `scripts/consolidate.py`
+reads these back for the final report.
+
+```json
+{
+  "schema": "code-review-section/v1",
+  "id": "0001",
+  "files": ["src/auth/login.ts", "src/auth/session.ts"],
+  "is_declarative": false,
+  "panel": ["correctness-review", "structure-review"],
+  "findings": [
+    {"severity": "warning", "confidence": "medium", "file": "src/auth/login.ts", "line": 42, "message": "..."}
+  ]
+}
+```
+
+- `id` is the slice id; the filename is `section-<id>.json`.
+- `panel` lists the agents that **actually ran** for this slice — a reduced-panel
+  (declarative) slice lists only `correctness-review` and `structure-review`, so
+  a reader can tell "fewer findings" from "fewer reviewers ran".
+- `findings` use the same shape as the per-agent `issues[]` entries above.
+
+## Progress ledger (sliced mode)
+
+Written by `init_ledger` to `DEV_TEAM_REPORTS/code-review/ledger.json`, updated to
+`done` as each slice's section artifact lands. Inspectable/interruptible — a
+partial ledger is always valid JSON.
+
+```json
+{
+  "schema": "code-review-ledger/v1",
+  "cap": 50,
+  "slices": [
+    {"id": "0001", "files": ["src/auth/login.ts"], "is_declarative": false, "status": "pending"}
+  ]
+}
+```
+
+- `cap` is the per-slice file cap the run partitioned with; `--resume` **refuses**
+  a different cap rather than silently repartitioning (see `sliced-mode.md`).
+- `status` is `pending` until the slice's section artifact exists, then `done`.
+  The artifact on disk — not this status field — is the source of truth for
+  `--resume`.
+
 ## Correction prompt JSON
 
 ```json
