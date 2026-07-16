@@ -54,6 +54,8 @@ The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these t
 
 `ci-local.sh` checks these up front and exits with an actionable message (pointing at `dev-setup.sh`) if any are missing.
 
+**The pre-push pytest gate spans more than `plugins/dev-team/tests`.** `ci-local.sh`'s unit-test step runs pytest over `plugins/dev-team/tests tests/repo tests/agents tests/commands tests/docs tests/knowledge tests/bats tests/skills tests/scripts` (with `-n auto --dist loadfile`; two csharp-stryker files `--ignore`d). Editing agent/skill markdown can break repo-level content-guards that live **outside** `plugins/dev-team/tests` — e.g. `tests/skills/test_code_review_frontend_dispatch.py` asserts specific agent names appear verbatim in `code-review/SKILL.md`, and `tests/repo` runs `check_md_references.py` (a backticked cross-skill path must be file-relative, e.g. `../code-review/SKILL.md`). Before pushing plugin-content changes, run that **full dir list** — not just the plugin subdir — plus `python3 scripts/check_md_references.py` and `python3 plugins/dev-team/hooks/lib/build_knowledge_index.py`, or the `pre-push` hook / CI will catch what a plugin-only run missed.
+
 ### Worktrees — run `npm ci` first
 
 Run `npm ci` as the first step in any new worktree, before committing. An unprovisioned worktree has no `.husky/_`/`node_modules`, so git hooks silently don't run; `scripts/ci-local.sh` and CI backstop what the hooks would have caught.
