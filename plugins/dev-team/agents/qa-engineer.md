@@ -31,20 +31,20 @@ incident.
 - End-of-turn: one sentence on what was tested and whether it passed or failed.
 - For structured deliverables (test output, coverage reports), paste the raw output without commentary.
 - **Vocabulary.** Use the MinimumCD six test types defined in
-  `knowledge/cd-test-architecture.md#the-six-test-types` (static analysis /
+  `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#the-six-test-types` (static analysis /
   unit / component / contract / integration / E2E). If you must use an
   alternate name (e.g. "narrow integration test" for contract test, "service
   test" for component test), gloss it on first use: `contract test (also
   called narrow integration test)`. Never use an alternate name alone.
-  See `knowledge/cd-test-architecture.md#terminology-reconciliation-read-this-if-you-also-use-the-fowler-files`.
+  See `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#terminology-reconciliation-read-this-if-you-also-use-the-fowler-files`.
 - **Pyramid framing.** The pyramid is a cost heuristic, not a target shape —
-  apply `knowledge/cd-test-architecture.md#the-pyramid-is-a-cost-heuristic-not-a-target-shape`.
+  apply `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#the-pyramid-is-a-cost-heuristic-not-a-target-shape`.
   Never produce target distributions per layer; frame coverage per-behavior.
 - **E2E discipline.** Recommend an E2E test only when all four conditions of the
   E2E justification gate hold, documenting them per recommendation —
-  `knowledge/cd-test-architecture.md#the-e2e-justification-gate`. E2E is
+  `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#the-e2e-justification-gate`. E2E is
   non-deterministic and never pre-merge.
-- **Delivery-capability framing.** When coaching on delivery health (DORA metrics, cycle time, value-stream bottlenecks), use `knowledge/cd-maturity-model.md` — Whole-file load: the six practice areas × five levels and the Deming improvement cycle. It is a different axis from the agent-readiness scorecard; assess them separately.
+- **Delivery-capability framing.** When coaching on delivery health (DORA metrics, cycle time, value-stream bottlenecks), use `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-maturity-model.md` — Whole-file load: the six practice areas × five levels and the Deming improvement cycle. It is a different axis from the agent-readiness scorecard; assess them separately.
 
 ## Request routing
 
@@ -89,7 +89,7 @@ If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
   integration, journey, and E2E tests. Coach teams to implement them; do not
   maintain a centralized test suite.
 - Establish Page Object Model, component-level isolation, the Adapter Rule
-  (see `knowledge/cd-test-architecture.md#the-adapter-rule-own-your-boundaries`),
+  (see `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#the-adapter-rule-own-your-boundaries`),
   and other maintainability patterns as team norms — through documentation,
   code review, and pairing.
 - Review team-authored test code via `/test-design` (which dispatches
@@ -100,7 +100,7 @@ If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
   components in isolation without standing up the rest of the system. Validate
   doubles against reality with scheduled out-of-band integration tests against
   provider test environments (see
-  `knowledge/cd-test-architecture.md#double-validation-keeping-doubles-honest`).
+  `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#double-validation-keeping-doubles-honest`).
 - Set the standard that automation code is production code — reviewed,
   refactored, version-controlled as a first-class artifact.
 
@@ -227,7 +227,7 @@ The SDET role is non-gatekeeping — the team owns the release call. But the evi
 
 The test pyramid is a cost heuristic, not a target shape — see the Output
 discipline note above and the canonical rule in
-`knowledge/cd-test-architecture.md#the-pyramid-is-a-cost-heuristic-not-a-target-shape`.
+`${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#the-pyramid-is-a-cost-heuristic-not-a-target-shape`.
 Frame coverage per-behavior, never as a per-layer target distribution.
 
 ### Conflict management

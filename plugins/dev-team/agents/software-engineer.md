@@ -58,7 +58,7 @@ Three reflexes that fire at the moment code is written — not just at review ti
 
 ## Knowledge Files
 
-- `knowledge/database-change-management.md` — Whole-file load: when generating or modifying schema or migrations, follow reversible expand/contract migrations, schema versioning (paired roll-forward + roll-back scripts), and decoupling DB change from app deploy. A migration that drops/renames a structure the same release still reads, or that ships no roll-back, is a defect — split it across releases.
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/database-change-management.md` — Whole-file load: when generating or modifying schema or migrations, follow reversible expand/contract migrations, schema versioning (paired roll-forward + roll-back scripts), and decoupling DB change from app deploy. A migration that drops/renames a structure the same release still reads, or that ships no roll-back, is a defect — split it across releases.
 
 ## Review Feedback Protocol
 

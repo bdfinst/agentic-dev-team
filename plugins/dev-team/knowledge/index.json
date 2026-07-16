@@ -1718,6 +1718,10 @@
       "summary": "The catalog tables (`knowledge/agent-registry.md` for agents and agent-loaded",
       "anchor": "2e-registry-completeness-preventive"
     },
+    "2e-bis. Knowledge-reference integrity (preventive)": {
+      "summary": "Agents read shared guidance from `knowledge/*.md`.",
+      "anchor": "2e-bis-knowledge-reference-integrity-preventive"
+    },
     "2f. CLAUDE.md and token-efficiency structural checks": {
       "summary": "Two deterministic Python scripts validate concerns that the LLM-based review",
       "anchor": "2f-claudemd-and-token-efficiency-structural-checks"

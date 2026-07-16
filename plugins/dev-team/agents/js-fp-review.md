@@ -80,7 +80,7 @@ Impure patterns:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these js-fp-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these js-fp-review-specific challenges:
 
 - Did you enumerate every declaration and call site in the diff, or stop after the first few mutations?
 - For each array-mutation finding, did you verify it mutates a shared/external reference, not a locally-constructed spread copy (`[...arr].sort()` is allowed)?

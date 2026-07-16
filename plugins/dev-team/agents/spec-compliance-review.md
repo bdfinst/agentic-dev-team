@@ -71,7 +71,7 @@ This agent answers one question: **does the code do what the spec says?** It run
 
 Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` when:
 
-- No plan file (with its slice scenarios), spec, design doc, or acceptance criteria can be located for the target — locate with `Glob("docs/specs/**/*.md")` / `Glob("plans/**")`, never a bare `Read` of the directory (`knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference); also check the plan for a recorded `--spec-issue <url>` reference before concluding no spec exists
+- No plan file (with its slice scenarios), spec, design doc, or acceptance criteria can be located for the target — locate with `Glob("docs/specs/**/*.md")` / `Glob("plans/**")`, never a bare `Read` of the directory (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference); also check the plan for a recorded `--spec-issue <url>` reference before concluding no spec exists
 - Target is a standalone script or utility with no associated specification
 
 ## Severity Rules
@@ -84,7 +84,7 @@ Return `{"status": "skip", "issues": [], "summary": "No spec artifacts found"}` 
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these spec-compliance-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these spec-compliance-review-specific challenges:
 
 - Did you load EVERY spec artifact (spec, plan, design doc, all `.feature` files), or stop at the first one found?
 - For each acceptance criterion, did you locate BOTH the implementation and its test — not assume a test exists because the criterion "looks covered"?

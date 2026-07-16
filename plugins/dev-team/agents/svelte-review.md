@@ -89,7 +89,7 @@ Lifecycle issues:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these svelte-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these svelte-review-specific challenges:
 
 - Did you examine every `.svelte`/`.svelte.ts`/`.svelte.js` file in scope, not just the most stateful component?
 - For each reactivity finding, did you confirm the Svelte version (4 vs 5) and that the pattern actually breaks tracking in that version?

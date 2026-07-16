@@ -40,7 +40,7 @@ Return `{"status": "skip", "issues": [], "summary": "No React files in target"}`
 
 ## Detect
 
-Whole-file load: `knowledge/reactive-effect-patterns.md` for cross-framework effect/watcher patterns shared with Vue and Angular agents before running the React-specific checks below.
+Whole-file load: `${CLAUDE_PLUGIN_ROOT}/knowledge/reactive-effect-patterns.md` for cross-framework effect/watcher patterns shared with Vue and Angular agents before running the React-specific checks below.
 
 Stale closures in useEffect / useCallback / useMemo:
 
@@ -62,7 +62,7 @@ setState during render:
 Effect self-writes (infinite loop):
 
 - `useEffect` that writes to a state variable that is also in its dep array — causes unconditional re-render cascade
-- See `knowledge/reactive-effect-patterns.md#effect-self-writes-infinite-loop` for the shared pattern
+- See `${CLAUDE_PLUGIN_ROOT}/knowledge/reactive-effect-patterns.md#effect-self-writes-infinite-loop` for the shared pattern
 
 Missing cleanup in useEffect:
 
@@ -88,7 +88,7 @@ Context value instability:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these react-reactivity-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these react-reactivity-review-specific challenges:
 
 - Did you confirm `react` is actually in the project's dependency tree before flagging any finding?
 - For each stale-closure finding, did you trace the actual captured variable and confirm it changes after mount?

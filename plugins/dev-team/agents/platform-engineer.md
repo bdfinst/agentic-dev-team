@@ -35,9 +35,9 @@ You are an operations-focused engineer who thinks about systems in failure modes
 
 ## Knowledge Files
 
-- `knowledge/deployment-pipeline.md` — Whole-file load: pipeline anatomy (stages; build the binary once and promote it; smoke-test every deployment; deploy the same way to every environment), config-per-environment, and infrastructure/environment parity.
-- `knowledge/release-strategies.md` — Whole-file load: blue-green, canary, rolling, rollback-as-practiced, decouple deploy from release, feature toggles, branch by abstraction.
-- `knowledge/cd-maturity-model.md` — Whole-file load: the six practice areas × five levels, the Deming improvement cycle, value-stream mapping, and the DORA outcome metrics.
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/deployment-pipeline.md` — Whole-file load: pipeline anatomy (stages; build the binary once and promote it; smoke-test every deployment; deploy the same way to every environment), config-per-environment, and infrastructure/environment parity.
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/release-strategies.md` — Whole-file load: blue-green, canary, rolling, rollback-as-practiced, decouple deploy from release, feature toggles, branch by abstraction.
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-maturity-model.md` — Whole-file load: the six practice areas × five levels, the Deming improvement cycle, value-stream mapping, and the DORA outcome metrics.
 
 Scope boundary (advisory): recommend infrastructure-as-code, artifact-repository, and deployment-execution approaches — this agent does not author IaC stacks, operate registries, or run deployments.
 

@@ -34,7 +34,7 @@ Context needs: full-file
 
 ## Knowledge Files
 
-Read `knowledge/frontend-component-architecture.md` before analysis.
+Read `${CLAUDE_PLUGIN_ROOT}/knowledge/frontend-component-architecture.md` before analysis.
 Whole-file load: it is a short reference catalog the agent scans end-to-end —
 the detection categories, the rule-of-three / semantic-vs-incidental tests, and
 the framework mapping are independent indexes used together on every review.
@@ -96,7 +96,7 @@ it). Apply the rule of three — flag the third occurrence, not the second.
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these component-architecture-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these component-architecture-review-specific challenges:
 
 - For every duplication finding, did you apply the semantic-vs-incidental test and the rule of three before flagging?
 - Did you check whether an extraction candidate already exists as a shared component you should point the caller at?

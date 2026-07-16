@@ -24,7 +24,7 @@ Context needs: full-file
 
 ## Knowledge Files
 
-Read `knowledge/design-smells.md` and `knowledge/object-calisthenics.md` before analysis. Whole-file load: both files are reference catalogs the agent scans end-to-end during a review — the smell→pattern table and the nine rules are independent indexes.
+Read `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md` and `${CLAUDE_PLUGIN_ROOT}/knowledge/object-calisthenics.md` before analysis. Whole-file load: both files are reference catalogs the agent scans end-to-end during a review — the smell→pattern table and the nine rules are independent indexes.
 
 ## Skip
 
@@ -69,12 +69,12 @@ Organization:
 
 Design smells:
 
-- For SRP violations and coupling issues, map to the smell → pattern table in `knowledge/design-smells.md#design-smells-pattern-mapping`. Every finding should name the smell, quote the code, and include a refactor sketch.
-- For method-level issues (nesting, long methods, flag arguments), check Object Calisthenics rules 1-2 and 7 in `knowledge/object-calisthenics.md`. Whole-file load: the nine-rule catalog is short enough that the agent reads the whole file rather than picking specific rule anchors.
+- For SRP violations and coupling issues, map to the smell → pattern table in `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md#design-smells-pattern-mapping`. Every finding should name the smell, quote the code, and include a refactor sketch.
+- For method-level issues (nesting, long methods, flag arguments), check Object Calisthenics rules 1-2 and 7 in `${CLAUDE_PLUGIN_ROOT}/knowledge/object-calisthenics.md`. Whole-file load: the nine-rule catalog is short enough that the agent reads the whole file rather than picking specific rule anchors.
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these structure-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these structure-review-specific challenges:
 
 - Did you check every module/class for SRP violations, including small ones?
 - Did you trace dependency direction? Does business logic depend on infrastructure (not just vice versa)?

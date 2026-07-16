@@ -96,7 +96,7 @@ When authorship is uncertain, lower confidence to `medium` or `none`; do not sup
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these provenance-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these provenance-specific challenges:
 
 - For every verification-debt finding, did you check for a PR review comment, commit note, or ADR that clears it before flagging?
 - For every regeneration-risk candidate, is the value actually load-bearing (changing it would break behavior) or is it genuinely arbitrary (any value would work)?

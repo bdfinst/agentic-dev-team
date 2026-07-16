@@ -24,13 +24,13 @@ Context needs: full-file
 
 ## Knowledge Files
 
-Read `knowledge/testability-patterns.md` before analysis. Whole-file load: the agent uses the decision flow, the anti-patterns table, and all four patterns as one connected reference when flagging untestable code (missing interfaces, static factories, concrete class coupling). Never recommend a test workaround (reflection, InternalsVisibleTo, mocking concrete classes).
+Read `${CLAUDE_PLUGIN_ROOT}/knowledge/testability-patterns.md` before analysis. Whole-file load: the agent uses the decision flow, the anti-patterns table, and all four patterns as one connected reference when flagging untestable code (missing interfaces, static factories, concrete class coupling). Never recommend a test workaround (reflection, InternalsVisibleTo, mocking concrete classes).
 
-For maintainability findings (duplicated selectors/literals, UI-based setup), consult `knowledge/test-automation-maturity.md`. Whole-file load: apply its single-point-of-change check and graduated-disclosure thresholds (don't recommend abstraction below the count threshold).
+For maintainability findings (duplicated selectors/literals, UI-based setup), consult `${CLAUDE_PLUGIN_ROOT}/knowledge/test-automation-maturity.md`. Whole-file load: apply its single-point-of-change check and graduated-disclosure thresholds (don't recommend abstraction below the count threshold).
 
-For assertion-quality findings, consult `knowledge/result-verification.md`. Whole-file load: apply all verification patterns (state vs behavior, assertion patterns, rules) when classifying assertion-quality issues.
+For assertion-quality findings, consult `${CLAUDE_PLUGIN_ROOT}/knowledge/result-verification.md`. Whole-file load: apply all verification patterns (state vs behavior, assertion patterns, rules) when classifying assertion-quality issues.
 
-For oracle-provenance classification (SPEC-DERIVED / INDEPENDENT / CIRCULAR), consult `knowledge/oracle-provenance.md`. Whole-file load: apply the taxonomy, detection heuristics, and circular-ratio quality-cap rule to every file reviewed. Report the oracle-provenance ratio in the finding summary when any circular oracles are present. Whole-file load: name the specific verification pattern (Expected Object, Custom Assertion, Guard Assertion, Delta Assertion) that fixes a weak/cluttered/misleading assertion, and enforce one logical condition per test.
+For oracle-provenance classification (SPEC-DERIVED / INDEPENDENT / CIRCULAR), consult `${CLAUDE_PLUGIN_ROOT}/knowledge/oracle-provenance.md`. Whole-file load: apply the taxonomy, detection heuristics, and circular-ratio quality-cap rule to every file reviewed. Report the oracle-provenance ratio in the finding summary when any circular oracles are present. Whole-file load: name the specific verification pattern (Expected Object, Custom Assertion, Guard Assertion, Delta Assertion) that fixes a weak/cluttered/misleading assertion, and enforce one logical condition per test.
 
 ## Skills
 
@@ -48,7 +48,7 @@ double-score (both steps already call it directly) and add per-checkpoint noise.
 When `test-smell-review` also runs (e.g. under `/test-design`), defer the
 named-smell signals — non-determinism, weak assertions, copy-pasted blocks,
 magic literals, mis-layering — to it, per
-`knowledge/test-review-division-of-labor.md#the-rule-in-one-line`. This agent keeps the tactical
+`${CLAUDE_PLUGIN_ROOT}/knowledge/test-review-division-of-labor.md#the-rule-in-one-line`. This agent keeps the tactical
 mechanics (missing assertion, missing `await`, mock-reset, testability blockers,
 coverage gaps) and detects the deferred signals only when running solo.
 
@@ -80,7 +80,7 @@ Calibrate against these worked examples before flagging real code:
 
 ## Skip
 
-Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` when no test files are found in the target. Use the test-file indicators in `knowledge/test-file-indicators.md#indicators-by-language` (JS/TS, C#, Java, BDD/Gherkin). Note: `.feature` files count as test files — if feature files are present, do not skip; run [Feature File Validation](../skills/feature-file-validation/SKILL.md) on them.
+Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` when no test files are found in the target. Use the test-file indicators in `${CLAUDE_PLUGIN_ROOT}/knowledge/test-file-indicators.md#indicators-by-language` (JS/TS, C#, Java, BDD/Gherkin). Note: `.feature` files count as test files — if feature files are present, do not skip; run [Feature File Validation](../skills/feature-file-validation/SKILL.md) on them.
 
 ## Detect
 
@@ -132,7 +132,7 @@ Test code quality:
 
 Oracle provenance (correctness vs. stability):
 
-Whole-file load: apply the SPEC-DERIVED / INDEPENDENT / CIRCULAR taxonomy from `knowledge/oracle-provenance.md`. For each test, classify its expected values by provenance. Report the oracle-provenance ratio (circular / total) in the finding summary when any circular oracles are detected:
+Whole-file load: apply the SPEC-DERIVED / INDEPENDENT / CIRCULAR taxonomy from `${CLAUDE_PLUGIN_ROOT}/knowledge/oracle-provenance.md`. For each test, classify its expected values by provenance. Report the oracle-provenance ratio (circular / total) in the finding summary when any circular oracles are detected:
 
 - Circular ratio < 20 %: suggestion — add provenance comments to snapshot-based assertions
 - Circular ratio 20–50 %: warning — suite has meaningful circular-oracle contamination
@@ -153,7 +153,7 @@ Severity: warning. Suggested fix: prioritize writing tests for unarmored regions
 
 Testability blockers:
 
-- Code under test that cannot be constructed with known values (static factories, singletons, no injectable constructor) — flag as error; per `knowledge/testability-patterns.md#pattern-1-constructor-injection-replace-static-factories-singletons`, the production code must change, not the test approach
+- Code under test that cannot be constructed with known values (static factories, singletons, no injectable constructor) — flag as error; per `${CLAUDE_PLUGIN_ROOT}/knowledge/testability-patterns.md#pattern-1-constructor-injection-replace-static-factories-singletons`, the production code must change, not the test approach
 - Mocking of concrete classes (not interfaces) — flag as warning; extract an interface for the dependency
 - Tests using reflection into private members as primary strategy — flag as warning. This is an architecture/encapsulation issue the test is reaching around, not a test-hygiene nit. Detection signatures: Java: `getDeclaredMethod`/`getDeclaredField` + `setAccessible(true)`, `Method.invoke` on a private/protected member; C#: `Type.GetMethod(..., BindingFlags.NonPublic | BindingFlags.Instance)`, `Type.InvokeMember`; Python: `getattr`/`setattr`/`hasattr` targeting a name-mangled (`_ClassName__attr`) or underscore-prefixed attribute; JS/TS: bracket-notation access into a `private`/non-exported member (e.g. `(obj as any)['_privateMethod']()`), `Object.getOwnPropertyDescriptor`/`Object.defineProperty` used to reach a non-exported member. Suggested fix — pick by shape of the code, never the generic "expand the public API": (1) extract the private logic into a collaborator with its own public seam, when it's standalone logic worth testing independently; (2) relax visibility to package-private/internal, only when a production collaborator in the same module/assembly independently needs the access (the language must have that tier) — never as a grant solely so the test can reach in, which recreates the `InternalsVisibleTo`/`@VisibleForTesting` anti-pattern below; (3) test the behavior through the class's existing public API, when the private method is already an implementation detail of a public behavior
 
@@ -194,7 +194,7 @@ low-severity nits — note their presence in the summary only.
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these test-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these test-review-specific challenges:
 
 - For every class below 90% effective coverage, did you identify the SPECIFIC uncovered behavior?
 - For each "can't test because of static coupling" — did you verify there's no injectable constructor or interface available?

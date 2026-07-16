@@ -24,7 +24,7 @@ Context needs: diff-only
 
 ## Knowledge Files
 
-Read the "Naming Offender Catalog" section of `knowledge/design-smells.md#naming-offender-catalog` before analysis. It contains: abbreviation anti-patterns with fix pairs, generic verb offenders, misleading name patterns, and type-encoded name examples — as well as the "What NOT to flag" list to avoid false positives.
+Read the "Naming Offender Catalog" section of `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md#naming-offender-catalog` before analysis. It contains: abbreviation anti-patterns with fix pairs, generic verb offenders, misleading name patterns, and type-encoded name examples — as well as the "What NOT to flag" list to avoid false positives.
 
 ## Skip
 
@@ -95,7 +95,7 @@ Consistency:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these naming-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these naming-review-specific challenges:
 
 - Did you complete Phase 1 enumeration for EVERY identifier in the diff before classifying, or skip to the obvious offenders?
 - For each misleading-name (error) finding, did you confirm the name signals the opposite of its value/behavior, with the code quoted?

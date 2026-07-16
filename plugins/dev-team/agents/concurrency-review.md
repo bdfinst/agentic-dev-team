@@ -87,7 +87,7 @@ Resource ordering:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these concurrency-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these concurrency-review-specific challenges:
 
 - Did you trace EVERY shared-mutable-state access across all async paths, or stop at the first guard you saw?
 - For each race-condition finding, did you confirm the two accesses can actually interleave (same instance, concurrent entry), not just look risky?

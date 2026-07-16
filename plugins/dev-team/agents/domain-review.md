@@ -24,11 +24,11 @@ Context needs: project-structure
 
 ## Knowledge Files
 
-Read `knowledge/domain-modeling.md` before starting analysis. Whole-file load: the agent uses every section — exploration patterns, anti-pattern recognition, ubiquitous-language drift detection, and the per-language ORM / boundary / application-service signals.
+Read `${CLAUDE_PLUGIN_ROOT}/knowledge/domain-modeling.md` before starting analysis. Whole-file load: the agent uses every section — exploration patterns, anti-pattern recognition, ubiquitous-language drift detection, and the per-language ORM / boundary / application-service signals.
 
 ## Explore
 
-Follow the exploration patterns in `knowledge/domain-modeling.md#exploration-patterns` to
+Follow the exploration patterns in `${CLAUDE_PLUGIN_ROOT}/knowledge/domain-modeling.md#exploration-patterns` to
 map the project structure: entity/model files, service layer,
 repositories, DTOs, ORM markers, boundary entry points, and
 application services.
@@ -107,7 +107,7 @@ Whole-file load: each linked SKILL.md is loaded in full when invoked.
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these domain-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these domain-review-specific challenges:
 
 - Did you check every entity/aggregate for anemic domain model patterns (data bags with all behavior in services)?
 - For each "business logic in wrong layer" finding, did you quote the specific rule and its location?
