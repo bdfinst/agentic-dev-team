@@ -262,7 +262,7 @@ def test_headless_generator_invokes_claude_print_and_strips_fences(
     assert "New_Case_KillsMutant" in out
 
 
-# Scenario: --model default is resolved from env then the pinned default
+# Scenario: --model resolves from the flag, then the env var, else None
 def test_model_resolves_from_env_when_set(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DEV_TEAM_MUTATION_MODEL", "env-model")
     assert loop.resolve_model() == "env-model"
@@ -270,11 +270,33 @@ def test_model_resolves_from_env_when_set(monkeypatch: pytest.MonkeyPatch):
     assert loop.resolve_model("flag-model") == "flag-model"
 
 
-def test_model_resolves_to_pinned_default_when_env_unset(
+def test_model_resolves_to_none_when_env_unset(
     monkeypatch: pytest.MonkeyPatch,
 ):
+    # No model snapshot id is pinned in source (cf. ADR 0008 / no-pinned-snapshots
+    # guard); unresolved means None so `claude --print` uses its own default.
     monkeypatch.delenv("DEV_TEAM_MUTATION_MODEL", raising=False)
-    assert loop.resolve_model() == loop.DEFAULT_MODEL
+    assert loop.resolve_model() is None
+
+
+def test_headless_omits_model_flag_when_unresolved(monkeypatch: pytest.MonkeyPatch):
+    captured = {}
+
+    class _R:
+        returncode = 0
+        stdout = "void New_Case() {}"
+        stderr = ""
+
+    def fake_run(argv, **k):
+        captured["argv"] = argv
+        return _R()
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+    generate = loop.make_headless_generator(None)
+    generate("S.cs", [_mutant("Survived", "ArithmeticOperator", 10)], "class S {}", "class T {}")
+    # --model is absent entirely; claude --print falls back to its own default.
+    assert "--model" not in captured["argv"]
+    assert "--print" in captured["argv"]
 
 
 # Scenario: Default (non-headless) mode spawns no Claude subprocess
