@@ -79,6 +79,28 @@ def test_phase_7_documents_regeneratable_from_memory_contract():
     )
 
 
+def test_phase_7_interpolation_resolves_baselines_via_the_phase_2_write_path():
+    """#1126: Phase 7 resolves baseline artifacts from the knob-7 write path
+    that Phase 2 owns (single source of truth), rather than re-deriving the
+    reports-vs-memory branch here."""
+    s = _phase_7_section()
+    assert grep(r"knob-7", s, ignore_case=True)
+    assert grep(r"Phase 2", s)
+    assert grep(r"baseline artifacts|baseline-coverage\.json", s, ignore_case=True)
+
+
+def test_phase_7_mutation_row_shape_covers_all_three_modes():
+    """#1126: the Phase-7 mutation-row shape distinguishes `off` (not
+    applicable), `kill-loop` (final-survivor, no baseline delta), and
+    `baseline+kill-loop` (honest baseline-to-achieved score)."""
+    s = _phase_7_section()
+    # Bind each mode token to its row reading (bounded proximity) so the
+    # mapping — not just token presence — is enforced.
+    assert grep_multiline(r"`off`.{0,80}mutation disabled", s, ignore_case=True)
+    assert grep_multiline(r"`kill-loop`.{0,120}final surviv", s, ignore_case=True)
+    assert grep_multiline(r"`baseline\+kill-loop`.{0,120}(honest|baseline-to-achieved)", s, ignore_case=True)
+
+
 # --- Post-Phase-7 re-run-with-refactor close-out prompt (issue #968) ----------
 
 

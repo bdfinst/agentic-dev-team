@@ -252,9 +252,12 @@ Each phase writes a progress file to
 can resume.
 
 - **Phase 0 — Approach contract.** Batched prompt (Enter accepts all
-  defaults): mutation `[off]`, BDD rubric `[none]`, refactor `[no-refactor]`,
-  quality targets, sink (`--parent <url>` vs local files). Go stack shows the
-  alpha go-mutesting advisory before the mutation prompt. Answers are
+  defaults): mutation mode `[kill-loop]` (`off` / `kill-loop` /
+  `baseline+kill-loop`), BDD rubric `[none]`, refactor `[no-refactor]`,
+  quality targets, sink (`--parent <url>` vs local files), and the all-or-none
+  code-lookup install (explicit `y`/`n`, not part of Enter-accepts-all). An
+  Enter-through run now performs the mutant-kill loop by default. Go stack shows
+  the alpha go-mutesting advisory before the mutation prompt. Answers are
   immutable for the run.
 - **Phase 1 — Analyze.** Delegate to `/test-health` (sole worker). No
   separate calls to `/cd-test-architecture`, `/test-design`,
@@ -263,7 +266,8 @@ can resume.
   counts by MinimumCD type to `test-counts-before.json`.
 - **Phase 2 — Baseline (before any test edit).**
   `/coverage-baseline --workflow test-improve` unconditionally;
-  `/mutation-testing --baseline --workflow test-improve` when mutation is on.
+  `/mutation-testing --baseline --workflow test-improve` only in
+  `baseline+kill-loop` mode (`off` and `kill-loop` take no baseline).
   Go = advisory-only marker. Honest score = hard kills, timeouts separate.
 - **Phase 2b — Derive Gherkin (conditional).** `none` skips entirely;
   `xunit-with-annotations` writes `.feature` files without a runner;

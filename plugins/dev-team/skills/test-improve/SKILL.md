@@ -64,7 +64,7 @@ At the start of every phase (0..7), print a two-line banner:
 
 ```
 Phase N/7 — <phase name>
-mutation: <on|off> · binding: <none|xunit-with-annotations|bdd-runner> · refactor: <no-refactor|refactor-allowed> · sink: <tracker|local>
+mutation: <off|kill-loop|baseline+kill-loop> · binding: <none|xunit-with-annotations|bdd-runner> · refactor: <no-refactor|refactor-allowed> · sink: <tracker|local> · report: <on|off>
 ```
 
 The recap line reflects the still-active Phase-0 settings so an operator
@@ -89,20 +89,34 @@ file must exist **before Phase 1** runs.
 > Mutation testing on Go uses **go-mutesting**, which is **alpha**-quality.
 > Survivor count is **not a gate** on Go — treat it as advisory. For real
 > confidence in Go tests, prefer `go test -fuzz` on the parts of the code
-> that reward it. The orchestrator will still record baseline and delta
-> numbers, but the Phase-6 mutation target is advisory-only for Go.
+> that reward it. In `baseline+kill-loop` mode the orchestrator records
+> baseline and delta numbers; in `kill-loop` it records only the final
+> surviving-mutant count. Either way the Phase-6 mutation target is
+> advisory-only for Go.
 
-**Prompt battery (one batch, six knobs).** Each prompt displays its default in
-`[brackets]`; pressing **Enter accepts every default in one keystroke** — with
+**Prompt battery (one batch, seven knobs).** Each prompt displays its default in
+`[brackets]`; pressing **Enter accepts every default in one keystroke** — including
+knob 7 (baseline-metrics report), which defaults to `no` under Enter — with
 **one deliberate exception**: knob 6 (code-lookup install) is **not** part of the
 Enter-accepts-all gesture, because accepting it mutates the filesystem (and, for
-Graphify, the repo's `CLAUDE.md`). Knob 6 requires an explicit `y`/`n`; a blank
-response **re-prompts** rather than defaulting either way. This is called out in
-the knob-6 prompt itself so the divergence is never a silent surprise.
+Graphify, the repo's `CLAUDE.md`). Knob 6 is the **sole** exception; it requires an
+explicit `y`/`n` and a blank response **re-prompts** rather than defaulting either
+way. This is called out in the knob-6 prompt itself so the divergence is never a
+silent surprise.
 
-1. **Mutation on/off** — `[off]`. Default is **off** (lightweight ceremony).
-   Turn on when the suite is already high-coverage and the team wants
-   assertion-strength feedback.
+1. **Mutation mode** — `[kill-loop]`. A three-way choice; the value recorded in
+   `phase-0.md` and shown in the banner is the canonical token (`off` /
+   `kill-loop` / `baseline+kill-loop`), used verbatim in both places:
+   - `off` — no mutation testing (lightweight ceremony).
+   - `kill-loop` (**default**) — run the mutant-kill loop and produce a final
+     report of surviving mutants, **without** a separate baseline run first.
+   - `baseline+kill-loop` — run the mutation baseline first, then the mutant-kill
+     loop (a before/after mutation delta).
+
+   **Default change — mutation now runs by default.** The old knob defaulted to
+   `off` (no mutation work on Enter-through); under `kill-loop` an Enter-through
+   run **now performs the mutant-kill loop**. The prompt flags this so it is
+   never a silent surprise.
 2. **BDD rubric** — five yes/no questions from
    `knowledge/references/bdd-value-guide.md`. **Default `none`** if the
    operator declines to answer. Scoring: ≥3 yes → `bdd-runner` recommended;
@@ -111,7 +125,7 @@ the knob-6 prompt itself so the divergence is never a silent surprise.
    `refactor-allowed` to permit production-code changes in Phase 5 (seams
    only; existing tests may not be modified or removed).
 4. **Quality targets** — defaults: coverage ≥ 90% line + branch; surviving
-   mutants = 0 (only when mutation enabled); determinism = 100%; wall-clock =
+   mutants = 0 (only when mutation mode is not `off`); determinism = 100%; wall-clock =
    fastest achievable. Any target can be overridden here; overrides land in
    `phase-0.md` and flow into Phase 6.
 5. **Sink** — `--parent <url>` selects a tracker (ADO / GitHub / GitLab /
@@ -137,8 +151,20 @@ the knob-6 prompt itself so the divergence is never a silent surprise.
    - **Partial failure is recorded, not masked.** If the delegated install
      partially fails, record per-tool success/failure in `phase-0.md` and do
      not claim full install success.
+7. **Baseline-metrics report (opt-in)** — `[no]`. Ask whether to **persist
+   baseline coverage and mutation metrics** so an end-of-run before/after delta
+   report can be generated. This is a **distinct** decision from the mutation
+   mode (knob 1) and the coverage baseline that Phase 2 always takes: the
+   coverage baseline report is available **even when mutation mode is `off`**,
+   and it can be **skipped under `kill-loop`** (where there is no mutation
+   baseline to diff, only a final-survivor count). Default is **`no`** and this
+   knob **is** part of the Enter-accepts-all gesture (unlike knob 6). On **`yes`**,
+   Phase 2 writes the baseline to a git-tracked path (see Phase 2 for the path
+   and the gitignore caveat); on **`no`**, it stays on the transient `memory/`
+   path as today. The banner recap renders this opt-in as `report: on` / `off`
+   (mapping `yes`→`on`, `no`→`off`).
 
-**Persistence.** Write the resolved inputs to `memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome: the operator's install choice, and for each tool whether it was already present, installed, declined, or failed.
+**Persistence.** Write the resolved inputs to `memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome (the operator's install choice, and for each tool whether it was already present, installed, declined, or failed) and the knob-7 outcome (whether the baseline-metrics report was opted into).
 
 **Immutability.** Phase-0 answers are **immutable** for the remainder of the
 run. `--from-phase` does not re-prompt Phase-0 inputs. To change them, delete
@@ -170,11 +196,12 @@ orchestrator must **not** invoke `/cd-test-architecture`, `/test-design`, or
 `/mutation-testing` separately here. Any prior workflow that reached those
 skills directly is superseded by the single `/test-health` call.
 
-**Mutation section respects Phase 0.** When `phase-0.md` recorded
-**mutation off**, the rolled-up report's mutation section is either **omitted**
-or marked "not enabled for this run". `/test-health` is not invoked with a
-mutation flag — the setting flows through from `phase-0.md` and the section is
-handled at report time.
+**Mutation section respects the Phase-0 mutation mode.** When `phase-0.md`
+recorded mutation mode **`off`**, the rolled-up report's mutation section is
+either **omitted** or marked "not enabled for this run". When it recorded
+**`kill-loop`** or **`baseline+kill-loop`**, the mutation section is **present**.
+`/test-health` is not invoked with a mutation flag — the mode flows through from
+`phase-0.md` and the section is handled at report time.
 
 **Output.** Persist the rolled-up analysis plus the ordered improvement plan to
 `memory/test-improve/<slug>/phase-1.md`.
@@ -224,20 +251,46 @@ the whole run.
 
 **Coverage baseline.** Invoke `/coverage-baseline --workflow test-improve`
 against the resolved repo path. Persist the result to
+`baseline-coverage.json` under the **baseline write path** selected by the
+knob-7 report opt-in (see below); the default (report declined) is
 `memory/test-improve/<slug>/baseline-coverage.json`.
 
-**Mutation baseline (mutation-on only).** When `phase-0.md` recorded
-**mutation on**, invoke `/mutation-testing --baseline --workflow test-improve`.
-Persist the result to `memory/test-improve/<slug>/baseline-mutation.json`. The
-file records the **honest score**: hard kills / effective total, with the
+**Baseline write path (knob-7 report opt-in).** The baseline persistence
+location is chosen by the Phase-0 knob-7 answer:
+
+- **Report opted in (`yes`).** Write `baseline-coverage.json` (and, in
+  `baseline+kill-loop` mode, `baseline-mutation.json`) under the **git-tracked**
+  path `reports/test-improve/<slug>/` so the number is version-controlled and
+  reviewable in the run's PR. `/test-improve` issues **no** git command — the
+  tracked file is picked up by the run's existing commit/PR flow. **Caveat:**
+  because `reports/` is commonly gitignored, the target repo must un-ignore
+  `reports/test-improve/` for the baseline to appear in the PR; where it is not
+  tracked, the opt-in degrades to transient.
+- **Report declined (`no`, the default).** Write the baseline to the transient
+  `memory/test-improve/<slug>/` path, exactly as today.
+
+This path selection is independent of the mutation mode: a coverage baseline is
+persisted in every mode, and the mutation baseline is written **only** in
+`baseline+kill-loop` mode (see below) regardless of the report opt-in.
+
+**Mutation baseline (`baseline+kill-loop` only).** When `phase-0.md` recorded
+mutation mode **`baseline+kill-loop`**, invoke
+`/mutation-testing --baseline --workflow test-improve`. Persist the result to
+`baseline-mutation.json` under the same knob-7 baseline write path as coverage
+(default, report declined: `memory/test-improve/<slug>/baseline-mutation.json`).
+The file records the **honest score**: hard kills / effective total, with the
 **timeout count reported separately** (timeouts are not counted as kills).
 
-**Mutation-off skip.** When `phase-0.md` recorded **mutation off**,
-`/mutation-testing` is **not invoked** and no `baseline-mutation.json` is
-written. The Phase-6 mutation target is later marked "not enabled", not waived
-(see Phase 6).
+**No-baseline modes skip (`off` and `kill-loop`).** When `phase-0.md` recorded
+mutation mode **`off`** or **`kill-loop`**, `/mutation-testing --baseline` is
+**not invoked** and no `baseline-mutation.json` is written — `kill-loop` runs the
+mutant-kill loop in Phase 4 but takes no baseline first. For `off`, the Phase-6
+mutation target is later marked "not enabled", not waived; for `kill-loop`,
+Phase 6 reports the final-survivor count rather than a baseline delta (see
+Phase 6).
 
-**Go advisory marker.** When the resolved stack is Go and mutation is on, the
+**Go advisory marker.** When the resolved stack is Go and mutation mode is
+`baseline+kill-loop`, the
 mutation baseline is **advisory only** — go-mutesting is alpha-quality (see the
 Go advisory in Phase 0). `baseline-mutation.json` is written with the
 `advisory-only: true` marker; survivor counts are not a gate.
@@ -314,7 +367,8 @@ Iterate the approved Phase-4 Story set. For **each Story**:
 3. **Coverage delta** — after `/build` closes the Story, invoke
    `/coverage-delta --workflow test-improve --story <id>`. The delta is
    appended to `memory/test-improve/<slug>/coverage-history.json`.
-4. **Mutation-kill (mutation-on only).** Invoke the **`mutation-kill` agent**
+4. **Mutation-kill (`kill-loop` and `baseline+kill-loop`; skipped when `off`).**
+   Invoke the **`mutation-kill` agent**
    with `--file <story-file> --max-rounds 3`. Residual survivors trigger the
    **`[c]ontinue / [r]etry / [w]aive / [q]uit`** prompt — the shape is
    `[c/r/w/q]`. `[c]` accepts the residual and moves on; `[r]` re-runs one
@@ -422,13 +476,20 @@ memory and plan paths under `test-improve/` (per Slice 11), and threading
 the flag keeps the operator's no-refactor choice enforced past Phase 4b via
 its own dispatch-table gating.
 
-**Mutation-off skip (not waive).** When `phase-0.md` recorded mutation
-**off**, the mutation target is **skipped** and marked "not enabled for this
-run" — it is **not waived**. Skipping and waiving are distinct outcomes: a
-waiver signals a target failed and the operator accepted the gap; a skip
-signals the target was never in scope for this run.
+**Mutation target per mode.** The mutation target reads differently for each
+Phase-0 mutation mode:
 
-**Go mutation advisory.** When the resolved stack is Go and mutation is on,
+- **`off` — skipped (not waived).** The mutation target is **skipped** and marked
+  "not enabled for this run" — it is **not waived**. Skipping and waiving are
+  distinct outcomes: a waiver signals a target failed and the operator accepted
+  the gap; a skip signals the target was never in scope for this run.
+- **`kill-loop` — final-survivor-only.** No Phase-2 baseline was taken, so there is
+  no before/after delta; the target reports the **final surviving-mutant count**
+  from the Phase-4 kill loop.
+- **`baseline+kill-loop` — baseline-delta.** The target reports the
+  **baseline-to-achieved mutation delta** against `baseline-mutation.json`.
+
+**Go mutation advisory.** When the resolved stack is Go and mutation is not `off`,
 the mutation target is **advisory-only** (survivor count is not a gate). The
 target reads with the "advisory only — go-mutesting is alpha" footnote and
 the run may pass regardless of mutation numbers.
@@ -474,25 +535,32 @@ sink or local-files mode.
 
 **Interpolation.** Every placeholder is **interpolated** from persisted
 memory files under `memory/test-improve/<slug>/` (`phase-0.md`, `phase-1.md`,
-`test-counts-before.json`, `baseline-coverage.json`, `baseline-mutation.json`,
-`phase-3.md`, `coverage-history.json`, `phase-4-review.json`,
+`test-counts-before.json`, `phase-3.md`,
+`coverage-history.json`, `phase-4-review.json`,
 `phase-5-review.json` if Phase 5 ran, `refactor-backlog.md` if Phase 4b chose
 `[b]` or Phase 6 wrote a no-refactor-mode entry to it, `waivers.json`,
 `phase-6.md`, `test-counts-after.json` if Phase 6 ran). No placeholder is
-left literal.
+left literal. The **baseline artifacts** (`baseline-coverage.json`, and
+`baseline-mutation.json` in `baseline+kill-loop` mode) resolve from the knob-7
+baseline write path that **Phase 2 owns** (which also carries the gitignore
+caveat) — so the delta report reads the same numbers wherever Phase 2 persisted
+them.
 
 **Empty-section rule.** Sections with no data render `_Not applicable —
 <reason>._` (e.g. § 6 when Phase 5 was declined reads "*Phase 5 not run —
 operator chose to backlog REFACTOR_REQUIRED items at Phase 4b.*"). Sections
 are never omitted or hidden — this keeps the report shape stable across runs.
 
-**Mutation row shape.**
+**Mutation row shape (per Phase-0 mutation mode).**
 
-- Mutation on, non-Go: honest score (hard kills / effective total; timeouts
-  reported separately).
-- Mutation off: `_Not applicable — mutation disabled at Phase 0._`
-- Go stack: honest numbers with the "advisory only — go-mutesting is alpha"
-  footnote.
+- `off`: `_Not applicable — mutation disabled at Phase 0._`
+- `kill-loop`, non-Go: final surviving-mutant count from the Phase-4 kill loop;
+  the baseline and Δ cells read `_Not applicable — no baseline run (kill-loop
+  mode)._` since no Phase-2 baseline was taken.
+- `baseline+kill-loop`, non-Go: honest baseline-to-achieved score (hard kills /
+  effective total; timeouts reported separately) with the Δ column populated.
+- Go stack (`kill-loop` or `baseline+kill-loop`): honest numbers with the
+  "advisory only — go-mutesting is alpha" footnote.
 
 **Parent-issue-or-FEATURE.md link update.** When the run used a **parent
 tracker** (Phase 0 selected `--parent <url>`), the parent issue is updated
