@@ -1,5 +1,34 @@
 # Changelog
 
+## [10.7.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.6.2...dev-team-v10.7.0) (2026-07-16)
+
+
+### Features
+
+* /ship resume guard detects already-shipped or in-flight issues ([b04c8f7](https://github.com/bdfinst/agentic-dev-team/commit/b04c8f78ee61d54623e7b3a1120a50c10ed09926)), closes [#1121](https://github.com/bdfinst/agentic-dev-team/issues/1121)
+* all-or-none code-lookup tool install + non-review agent→tool mapping ([17f9451](https://github.com/bdfinst/agentic-dev-team/commit/17f9451b7f6c05030e5e4eb249b13719ceb4b2a7)), closes [#1108](https://github.com/bdfinst/agentic-dev-team/issues/1108)
+* **code-review:** consolidate sliced findings with dedup and theme rollup ([fd37367](https://github.com/bdfinst/agentic-dev-team/commit/fd373678c0252d54968ea94f5320fcfeaefb2706))
+* **code-review:** partition engine and activation policy for sliced review ([85f1d41](https://github.com/bdfinst/agentic-dev-team/commit/85f1d41fa4d88f90d40616aa7844805e91959d95))
+* **code-review:** persist per-slice findings with progress ledger ([b2c8f58](https://github.com/bdfinst/agentic-dev-team/commit/b2c8f58a1ad5af3d212dfd3aa4ee1ffe14759434))
+* **code-review:** reduced review panel for declarative slices ([1b1d816](https://github.com/bdfinst/agentic-dev-team/commit/1b1d816e7878723ffa71ef5fed2eba17ba94a5f7))
+* **code-review:** resume interrupted sliced runs ([10a9cb5](https://github.com/bdfinst/agentic-dev-team/commit/10a9cb59dc9cee7a6673926349df451de692472f))
+* install + build code-intelligence indexes in setup, disclose graphify key cost ([617c5a3](https://github.com/bdfinst/agentic-dev-team/commit/617c5a373ea2bcf8f2585f7971e82759c694ac6e)), closes [#1134](https://github.com/bdfinst/agentic-dev-team/issues/1134) [#1135](https://github.com/bdfinst/agentic-dev-team/issues/1135)
+* **test-improve:** three-way mutation mode and opt-in baseline-metrics report ([dcf5d30](https://github.com/bdfinst/agentic-dev-team/commit/dcf5d30c883d26c92b2c5a9a3eb8080081a79219)), closes [#1126](https://github.com/bdfinst/agentic-dev-team/issues/1126)
+
+
+### Bug Fixes
+
+* /setup gitignores dev-team runtime artifact folders in target repos ([8f98fc7](https://github.com/bdfinst/agentic-dev-team/commit/8f98fc71f0ea08c578956c38cd2e5f577765ca66)), closes [#1101](https://github.com/bdfinst/agentic-dev-team/issues/1101)
+* allow full pytest suite to run in one invocation ([eaaea0a](https://github.com/bdfinst/agentic-dev-team/commit/eaaea0a4b172677697d64f53a1979ebc668d0b86)), closes [#1120](https://github.com/bdfinst/agentic-dev-team/issues/1120)
+* grant code-intelligence MCP tools to read-only review agents ([87d1895](https://github.com/bdfinst/agentic-dev-team/commit/87d18959590b96dbde403e08f9bdd7625f65ad34)), closes [#1102](https://github.com/bdfinst/agentic-dev-team/issues/1102)
+* resolve agent knowledge-file paths via CLAUDE_PLUGIN_ROOT ([#1103](https://github.com/bdfinst/agentic-dev-team/issues/1103)) ([3118f80](https://github.com/bdfinst/agentic-dev-team/commit/3118f80594ece22235caa77633dee6ec3a5767bd))
+* scope /pr code-review gate to branch diff instead of full repo ([3176cf5](https://github.com/bdfinst/agentic-dev-team/commit/3176cf508609c4c5f6802775418de861640bd501)), closes [#1122](https://github.com/bdfinst/agentic-dev-team/issues/1122)
+
+
+### Documentation
+
+* **code-review:** tighten sliced-mode docs and section-artifact schema ([11e9776](https://github.com/bdfinst/agentic-dev-team/commit/11e97760d9cec5c78949dc1c1fc29f6281b833ca))
+
 ## [10.6.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.6.1...dev-team-v10.6.2) (2026-07-15)
 
 

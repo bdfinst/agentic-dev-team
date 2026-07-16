@@ -18,11 +18,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/dev-team",
-        "ref": "dev-team-v10.6.2",
+        "ref": "dev-team-v10.7.0",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "10.6.2"
+      "version": "10.7.0"
     },
     {
       "author": {
