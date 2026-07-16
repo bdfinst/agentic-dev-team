@@ -19,3 +19,4 @@
 * [17. Single build cadence — remove the Classic TDD opt-in](0017-single-build-cadence-remove-classic-tdd-opt-in.md)
 * [18. Native sub-issues determine the epic label](0018-native-sub-issues-determine-the-epic-label.md)
 * [19. Orchestrate the phase pipeline, choreograph the safety layer](0019-orchestrate-the-phase-pipeline-choreograph-the-safety-layer.md)
+* [20. Fold the ACI mutation pipeline into the plugin as scripted mechanics](0020-fold-mutation-pipeline-into-the-plugin.md)
