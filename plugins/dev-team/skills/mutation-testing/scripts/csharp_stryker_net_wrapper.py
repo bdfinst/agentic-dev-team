@@ -314,6 +314,70 @@ def run_stryker(
     )
 
 
+# Bounds for the abort/raise reap. Stryker.NET spawns grandchild test-hosts
+# that inherit the stdout PIPE; on a timeout-abort they can hold the pipe open,
+# so we must never depend on stdout reaching EOF for either the drain or the
+# wait. These bounds only bite when a grandchild is genuinely stuck — a healthy
+# child exits in milliseconds. Portable (no os.killpg — absent on Windows).
+_ABORT_DRAIN_TIMEOUT_S = 10.0
+_ABORT_WAIT_TIMEOUT_S = 30.0
+
+
+def _terminate(proc: subprocess.Popen) -> None:
+    """Signal the child to stop if it is still running (poll-guarded no-op
+    otherwise — idempotent with the signal handler's terminate())."""
+    if proc.poll() is None:
+        proc.terminate()
+
+
+def _close_stdout(proc: subprocess.Popen) -> None:
+    """Close the child's stdout to unblock any reader blocked on an EOF a
+    surviving grandchild would otherwise withhold. Best-effort — fakes without
+    a real closable stream, or an already-closed pipe, are tolerated."""
+    try:
+        if proc.stdout is not None:
+            proc.stdout.close()
+    except (AttributeError, OSError, ValueError):
+        pass
+
+
+def _bounded_reap(proc: subprocess.Popen) -> int:
+    """Reap ``proc`` with a bounded, portable escalation:
+    ``wait(timeout)`` → ``kill()`` → ``wait(timeout)``. Guarantees the child is
+    reaped even when a grandchild holds the stdout pipe, without ever blocking
+    indefinitely. Returns the child's exit code (or -1 if it never resolved)."""
+    try:
+        return proc.wait(timeout=_ABORT_WAIT_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        pass
+    if proc.poll() is None:
+        proc.kill()
+    try:
+        return proc.wait(timeout=_ABORT_WAIT_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        rc = proc.poll()
+        return rc if rc is not None else -1
+
+
+def _drain_bounded(proc: subprocess.Popen, log) -> None:
+    """Tee any output Stryker already buffered into ``log`` after an abort, so
+    the post-mortem log stays complete — but bounded: the drain runs on a
+    daemon thread joined with a timeout, and the caller closes stdout after, so
+    a grandchild holding the pipe cannot hang the drain."""
+
+    def _pump() -> None:
+        try:
+            for raw in proc.stdout:  # type: ignore[union-attr]
+                log.write(raw)
+        except (AttributeError, OSError, ValueError):
+            pass
+
+    drain = threading.Thread(target=_pump, daemon=True)
+    drain.start()
+    drain.join(_ABORT_DRAIN_TIMEOUT_S)
+    log.flush()
+
+
 def _run_stryker_streaming(
     stryker_bin: str,
     stryker_args: Sequence[str],
@@ -323,9 +387,16 @@ def _run_stryker_streaming(
 ) -> int:
     """Streaming variant of :func:`run_stryker` used when a line-callback is
     supplied. Tees every line to ``logfile`` while feeding it to the callback;
-    aborts the run (terminating the child) when the callback returns truthy or
-    raises. Split out so the callback-less path above stays byte-for-byte the
-    original behavior.
+    aborts the run (terminating AND reaping the child) when the callback
+    returns truthy or raises. Split out so the callback-less path above stays
+    byte-for-byte the original behavior.
+
+    Abort/raise are bounded (#1136 review): after ``terminate()`` we drain the
+    buffered tail on a joined daemon thread, close stdout to unblock any reader,
+    and reap with a ``wait(timeout)`` → ``kill()`` → ``wait(timeout)``
+    escalation. A grandchild test-host that inherits and holds the stdout pipe
+    can therefore never hang the drain or the wait, and the child is always
+    reaped before we return or re-raise.
     """
     with logfile.open("wb") as log:
         proc = subprocess.Popen(
@@ -347,19 +418,21 @@ def _run_stryker_streaming(
                         aborted = True
                         break
             except BaseException:
-                # Callback raised — kill before propagating so we never orphan
-                # the Stryker process (same kill path as the signal handler).
-                if proc.poll() is None:
-                    proc.terminate()
+                # Callback raised — terminate, close, and reap (bounded) before
+                # propagating so we never orphan the Stryker process or hang on
+                # a grandchild holding the pipe (same kill path as the signal
+                # handler, plus a guaranteed reap).
+                _terminate(proc)
+                _close_stdout(proc)
+                _bounded_reap(proc)
                 raise
             if aborted:
-                if proc.poll() is None:
-                    proc.terminate()
-                # Drain whatever Stryker had already buffered so the log stays
-                # complete even after the abort.
-                for raw in proc.stdout:
-                    log.write(raw)
-                log.flush()
+                _terminate(proc)
+                # Capture the buffered tail (tee), then close stdout so the
+                # bounded reap can never wait on an EOF a grandchild withholds.
+                _drain_bounded(proc, log)
+                _close_stdout(proc)
+                return _bounded_reap(proc)
             return proc.wait()
         finally:
             with _RUNNING_STRYKER_LOCK:

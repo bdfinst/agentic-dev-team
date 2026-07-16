@@ -51,7 +51,11 @@ SHARD_SUFFIX = ".json"
 
 # Stryker prints e.g. "5 mutants got status Timeout" once at least one mutant
 # times out. A leading non-zero count means real timeouts (never "0 mutants").
-TIMEOUT_PATTERN = re.compile(r"[1-9]\d*\s+mutants got status Timeout")
+# The status word comes from mutation_report's status vocabulary (AC4) — no raw
+# literal is retyped here.
+TIMEOUT_PATTERN = re.compile(
+    rf"[1-9]\d*\s+mutants got status {mutation_report.STATUS_TIMEOUT}"
+)
 
 # Conventional C# test-file names paired with a source file's stem.
 _TEST_FILE_SUFFIXES = ("Tests.cs", "Test.cs", "Specs.cs", "Spec.cs")
@@ -205,14 +209,12 @@ def run_shard_stryker(
 
 
 def survivor_source_files(report: Path) -> List[str]:
-    """Return the source-file keys in the report that have Survived mutants."""
-    data = json.loads(Path(report).read_text(encoding="utf-8"))
-    files = [
-        key
-        for key, info in data.get("files", {}).items()
-        if any(m.get("status") == "Survived" for m in info.get("mutants", []))
-    ]
-    return sorted(files)
+    """Return the source-file keys in the report that have Survived mutants.
+
+    Report parsing and the ``Survived`` status vocabulary live in
+    ``mutation_report`` (AC4) — this never re-walks the report itself.
+    """
+    return mutation_report.files_with_survivors(report)
 
 
 def shard_test_projects(config_path: Path) -> List[str]:

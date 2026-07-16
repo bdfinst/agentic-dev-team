@@ -265,6 +265,47 @@ def test_module_source_carries_no_repo_specific_literal():
 
 
 # =============================================================================
+# Scenario: A hostile project name cannot write a shard config outside the repo
+# =============================================================================
+def test_malicious_project_name_cannot_escape_repo_root(tmp_path: Path):
+    # The .sln lives in a nested repo root so any traversal would land in the
+    # tmp_path parent, where we can detect the escape.
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    _write_solution(
+        repo_root,
+        [
+            # Path-traversal sequences in the (untrusted) project name.
+            ("Foo/../../evil", "src/Evil/Evil.csproj"),
+            ("Foo.Tests", "test/Foo.Tests/Foo.Tests.csproj"),
+        ],
+    )
+
+    assert _run(repo_root) == 0
+
+    # No .json (shard config or otherwise) was written outside the repo root.
+    escaped = [
+        p
+        for p in tmp_path.rglob("*.json")
+        if repo_root.resolve() != p.resolve().parent
+        and repo_root.resolve() not in p.resolve().parents
+    ]
+    assert escaped == [], f"files escaped the repo root: {escaped}"
+
+    # The generated shard config has a sanitized, path-separator-free name.
+    configs = _shard_configs(repo_root)
+    assert configs, "expected a shard config for the source project"
+    for cfg in configs:
+        assert "/" not in cfg.name and "\\" not in cfg.name and ".." not in cfg.name
+
+
+def test_sanitize_slug_strips_traversal_and_separators():
+    assert stryker_shard_setup._sanitize_slug("foo/../../evil") == "foo-evil"
+    assert stryker_shard_setup._sanitize_slug("..") == ""
+    assert stryker_shard_setup._sanitize_slug("web-api") == "web-api"
+
+
+# =============================================================================
 # Slug derivation unit coverage (kebab-case of last dotted segment)
 # =============================================================================
 @pytest.mark.parametrize(

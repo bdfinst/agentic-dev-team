@@ -78,6 +78,21 @@ def _rel_to_root(path: Path, repo_root: Path) -> str:
     return rel.as_posix()
 
 
+def _is_within(path: Path, root: Path) -> bool:
+    """Return True iff ``path`` resolves to a location inside ``root``.
+
+    ``Path.is_relative_to`` is 3.9+, so we use ``relative_to`` and catch the
+    ``ValueError`` it raises for a path outside ``root`` — a 3.8-compatible
+    containment check used to refuse any shard-config write that would escape
+    the repo root.
+    """
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 # ── Pipeline config + solution discovery (inlined — no shared _common) ───────
 
 
@@ -158,20 +173,32 @@ def _kebab(text: str) -> str:
     return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "-", text).lower()
 
 
+def _sanitize_slug(text: str) -> str:
+    """Reduce a slug to the strict filename-safe charset ``[a-z0-9-]``.
+
+    A slug is derived from a project name in the solution file — untrusted
+    input. A hostile name (``Foo/../../evil``) could otherwise smuggle path
+    separators or ``..`` into a shard-config filename and escape the repo root
+    (path traversal). Any run of out-of-charset characters collapses to a
+    single hyphen; leading/trailing hyphens are trimmed.
+    """
+    return re.sub(r"[^a-z0-9-]+", "-", text).strip("-")
+
+
 def slug(name: str) -> str:
-    """Kebab-case of the last dotted segment.
+    """Kebab-case of the last dotted segment, sanitized to ``[a-z0-9-]``.
 
     e.g. Foo.WebAPI -> web-api, Foo.ApplicationServices -> application-services.
     """
-    return _kebab(name.split(".")[-1])
+    return _sanitize_slug(_kebab(name.split(".")[-1]))
 
 
 def _full_slug(name: str) -> str:
-    """Kebab-case of the entire dotted name (dots become hyphens).
+    """Kebab-case of the entire dotted name (dots become hyphens), sanitized.
 
     Used to disambiguate two projects whose last segments collide.
     """
-    return _kebab(name).replace(".", "-")
+    return _sanitize_slug(_kebab(name).replace(".", "-"))
 
 
 def assign_slugs(sources: Sequence[dict]) -> Dict[str, dict]:
@@ -375,6 +402,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         mutate = config_data["stryker-config"]["mutate"][0]
         print(f"  {config_path.name:<45}  mutate={mutate}  tests={test_count}")
         if not dry:
+            # Defense in depth against a hostile project name: never write a
+            # shard config outside the repo root even if a slug slipped past
+            # sanitization.
+            if not _is_within(config_path, repo_root):
+                print(
+                    f"ERROR: refusing to write shard config outside repo root: "
+                    f"{config_path.resolve()}",
+                    file=sys.stderr,
+                )
+                return 1
             config_path.write_text(content, encoding="utf-8")
 
     stryker_sln_content = generate_stryker_sln(sources, tests, repo_root, sln_path)

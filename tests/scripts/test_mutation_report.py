@@ -174,6 +174,48 @@ def test_survivors_for_unknown_file_is_empty(tmp_path: Path):
 
 
 # =============================================================================
+# Public status vocabulary + file-discovery helpers (AC4 single source of truth)
+# =============================================================================
+def test_status_constants_are_public_and_correct():
+    assert mutation_report.STATUS_KILLED == "Killed"
+    assert mutation_report.STATUS_SURVIVED == "Survived"
+    assert mutation_report.STATUS_TIMEOUT == "Timeout"
+    assert mutation_report.STATUS_NO_COVERAGE == "NoCoverage"
+
+
+def test_files_with_survivors_lists_only_files_having_survivors(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/A.cs": {"mutants": [_mutant("Survived"), _mutant("Killed")]},
+            "src/B.cs": {"mutants": [_mutant("Killed"), _mutant("Timeout")]},
+            "src/C.cs": {"mutants": [_mutant("Survived")]},
+        },
+    )
+
+    # Sorted report keys (not basenames) so callers can resolve the source path.
+    assert mutation_report.files_with_survivors(report) == ["src/A.cs", "src/C.cs"]
+
+
+def test_files_with_timeouts_lists_only_files_having_timeouts(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Slow.cs": {"mutants": [_mutant("Timeout"), _mutant("Killed")]},
+            "src/Fast.cs": {"mutants": [_mutant("Killed"), _mutant("Survived")]},
+        },
+    )
+
+    assert mutation_report.files_with_timeouts(report) == ["src/Slow.cs"]
+
+
+def test_file_discovery_helpers_are_empty_for_absent_report(tmp_path: Path):
+    missing = tmp_path / "does-not-exist.json"
+    assert mutation_report.files_with_survivors(missing) == []
+    assert mutation_report.files_with_timeouts(missing) == []
+
+
+# =============================================================================
 # Scenario: The module carries no repo-specific literal
 # =============================================================================
 def test_module_source_carries_no_repo_specific_literal():

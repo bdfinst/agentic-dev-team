@@ -156,7 +156,7 @@ def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
         calls.append(("restore_sln", str(sln)))
 
     def fake_subprocess_run(argv, **kwargs):
-        calls.append(("subprocess.run", argv))
+        calls.append(("subprocess.run", argv, kwargs))
         return None
 
     monkeypatch.setattr(loop.wrapper, "resolve_dotnet_root", spy_resolve)
@@ -179,8 +179,13 @@ def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
         "restore_sln"
     )
     # The Stryker subprocess is invoked through the configured bin.
-    stryker_argv = next(c[1] for c in calls if c[0] == "subprocess.run")
+    stryker_call = next(c for c in calls if c[0] == "subprocess.run")
+    stryker_argv = stryker_call[1]
     assert stryker_argv[0] == "dotnet-stryker"
+    # The RESOLVED DOTNET_ROOT (from the spied resolver) is threaded into the
+    # Stryker subprocess environment — not merely resolved and dropped.
+    stryker_kwargs = stryker_call[2]
+    assert stryker_kwargs["env"]["DOTNET_ROOT"] == "/fake/dotnet-root"
     assert report_path == tmp_path / "out" / "reports" / "mutation-report.json"
 
 
@@ -207,13 +212,22 @@ def test_bare_cli_no_generator_fails_fast_at_startup(
     ) in err
 
 
-def test_headless_flag_does_not_trip_the_no_generator_preflight(capsys):
+def test_headless_flag_does_not_trip_the_no_generator_preflight(
+    monkeypatch: pytest.MonkeyPatch, capsys
+):
     # --headless is accepted (Slice 3 wires it); it must NOT emit the
-    # no-generator message. In Slice 2 it reports "not yet implemented".
+    # no-generator message. With the CLI present, the next gate is the
+    # required-file-args check — assert that exact message is emitted, which
+    # positively proves the no-generator preflight was passed (not merely that
+    # the no-generator text is absent). Pin claude_cli_available so the emitted
+    # message is deterministic regardless of the host's PATH.
+    monkeypatch.setattr(loop, "claude_cli_available", lambda: True)
+
     rc = loop.main(["--headless"])
 
     err = capsys.readouterr().err
     assert loop.NO_GENERATOR_MESSAGE not in err
+    assert "--headless requires --file, --test-file, and --source-path" in err
     assert rc != 0
 
 

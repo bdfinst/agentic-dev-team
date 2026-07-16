@@ -833,6 +833,100 @@ class _FakeStreamPopen:
         return self._exit
 
 
+class _HangingStreamPopen:
+    """Popen stand-in whose 'grandchild' holds the stdout pipe: ``terminate()``
+    is ignored (the child stays alive), only ``kill()`` makes it exit. Every
+    ``wait(timeout)`` raises ``TimeoutExpired`` until killed; an unbounded
+    ``wait()`` (``timeout is None``) is treated as the bug under test and fails
+    fast instead of hanging CI.
+    """
+
+    def __init__(self, lines):
+        self.stdout = iter([line.encode("utf-8") for line in lines])
+        self.terminate_calls = 0
+        self.kill_calls = 0
+        self.wait_timeouts: list = []
+        self._killed = False
+
+    def terminate(self):
+        self.terminate_calls += 1  # ignored — a grandchild keeps the child up
+
+    def kill(self):
+        self.kill_calls += 1
+        self._killed = True
+
+    def poll(self):
+        return -9 if self._killed else None
+
+    def wait(self, timeout=None):
+        self.wait_timeouts.append(timeout)
+        if self._killed:
+            return -9
+        if timeout is None:
+            raise AssertionError("unbounded proc.wait() on abort — regression")
+        raise wrapper.subprocess.TimeoutExpired(cmd="stryker", timeout=timeout)
+
+
+class TestRunStrykerAbortBounded:
+    """#1136 review: a grandchild test-host holding the stdout pipe must never
+    hang the abort/raise reap. terminate() is escalated to kill() with bounded
+    waits, and the child is reaped on both the callback-abort and the
+    callback-raise path.
+    """
+
+    def _patch_popen(self, monkeypatch, proc):
+        monkeypatch.setattr(
+            wrapper.subprocess,
+            "Popen",
+            lambda cmd, stdout=None, stderr=None, cwd=None: proc,
+        )
+
+    def test_abort_wait_is_bounded_when_child_ignores_terminate(
+        self, tmp_path, monkeypatch
+    ):
+        proc = _HangingStreamPopen(["ok\n", "5 mutants got status Timeout\n"])
+        self._patch_popen(monkeypatch, proc)
+        result: dict = {}
+
+        def call():
+            result["rc"] = wrapper.run_stryker(
+                "fake-bin",
+                [],
+                tmp_path / "w.log",
+                line_callback=lambda ln: "Timeout" in ln,
+            )
+
+        t = threading.Thread(target=call, daemon=True)
+        t.start()
+        t.join(timeout=15)
+        assert not t.is_alive(), "run_stryker hung on abort — wait was not bounded"
+        # terminate() was tried, then kill() escalated once it was ignored.
+        assert proc.terminate_calls >= 1
+        assert proc.kill_calls == 1
+        # Every wait() the reap issued carried a timeout — none was unbounded.
+        assert proc.wait_timeouts
+        assert all(to is not None for to in proc.wait_timeouts)
+        assert result["rc"] == -9
+
+    def test_callback_raise_reaps_child_when_it_ignores_terminate(
+        self, tmp_path, monkeypatch
+    ):
+        proc = _HangingStreamPopen(["boom\n"])
+        self._patch_popen(monkeypatch, proc)
+
+        def cb(_line):
+            raise RuntimeError("abort via raise")
+
+        with pytest.raises(RuntimeError, match="abort via raise"):
+            wrapper.run_stryker("fake-bin", [], tmp_path / "w.log", line_callback=cb)
+
+        # Reaped despite ignoring terminate(): kill escalation fired, bounded.
+        assert proc.terminate_calls >= 1
+        assert proc.kill_calls == 1
+        assert proc.wait_timeouts
+        assert all(to is not None for to in proc.wait_timeouts)
+
+
 class TestRunStrykerLineCallback:
     """Slice 5 Step 5.1 scenarios. The callback receives each line and can
     abort; the logfile is tee'd (fully populated) when a callback is present;
