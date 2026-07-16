@@ -143,3 +143,39 @@ def test_sliced_mode_documents_resume_skip_and_cap_guard():
     assert "cap" in sec and ("differs" in sec or "desync" in sec)
     # --resume must not re-initialize the ledger (else prior progress is lost).
     assert "not" in sec and "re-initialize" in sec
+
+
+# --- output-format.md: consolidated theme-rollup schema (Slice 5) -------------
+
+
+def test_output_format_documents_recurring_themes_schema():
+    assert "Consolidated aggregate" in _OUTPUT_FMT
+    sec = _OUTPUT_FMT.split("Consolidated aggregate", 1)[1].split("\n## ", 1)[0]
+    assert "recurringThemes" in sec
+    for key in ("agent", "slices", "occurrences"):
+        assert key in sec, key
+    assert "reducedPanelSlices" in sec
+    # Reuses the topFindings dedup contract.
+    assert "topFindings" in sec
+
+
+# --- sliced-mode.md: consolidation + report-only + --json (Slice 5) -----------
+
+
+def test_sliced_mode_documents_consolidation():
+    sec = _SLICED_MD.split("## Consolidation", 1)[1]
+    assert "consolidate.py" in sec
+    assert "file:line" in sec or "file`:`line" in sec.replace("`", "")
+    assert "recurring-theme" in sec.lower() or "recurringThemes" in sec
+    assert "ACCEPTED-RISKS" in sec
+
+
+def test_sliced_mode_states_report_only_and_json():
+    sec = _SLICED_MD.split("## Consolidation", 1)[1]
+    assert "report-only" in sec.lower()
+    # Report + corrections destinations.
+    assert "DEV_TEAM_REPORTS/code-review.md" in sec
+    assert "./corrections/" in sec
+    # --json emits the consolidated object to stdout and writes no file.
+    assert "--json" in sec and "stdout" in sec
+    assert "no" in sec.lower() and "file" in sec.lower()
