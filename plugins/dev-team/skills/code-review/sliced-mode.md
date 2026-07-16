@@ -3,7 +3,8 @@
 Orchestration reference for `/code-review`'s large-repo path. `SKILL.md` routes
 here when sliced mode engages (see its Scope-validation step); the deterministic
 work is done by `scripts/partition.py`, `scripts/activation.py`,
-`scripts/ledger.py`, and `scripts/consolidate.py`, all pure-function-tested.
+`scripts/ledger.py`, and `scripts/consolidate.py` — all unit-tested
+(partition/activation/consolidate as pure functions; ledger against a temp root).
 
 The design keeps orchestrator context **flat regardless of repo size**: each
 slice is reviewed, its findings persisted to disk, and then dropped from context
@@ -46,10 +47,6 @@ mapped to the same files, which is what makes `--resume` (below) safe.
 After partitioning, call `activation.check_slice_ceiling(slice_count)`. When the
 count is very high it returns an advisory warning suggesting a larger `--slice`
 cap; report it and proceed (it never blocks).
-
-<!-- The sections below are filled by later slices: per-slice panel selection
-     (Slice 2), persist-and-drop + ledger (Slice 3), resume (Slice 4), and
-     consolidation (Slice 5). -->
 
 ## Per-slice review panel
 

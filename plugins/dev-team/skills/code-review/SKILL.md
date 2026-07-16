@@ -106,23 +106,16 @@ Priority order:
 | 201–500 | Warn: "Reviewing {N} files — consider `--path` to narrow scope." Proceed. |
 | >500 | **Auto-engage sliced mode** (large-repo review) unless `--no-slice`. |
 
-**Sliced large-repo review.** Decide activation with
-`scripts/activation.py` → `should_slice(scope_kind, file_count, ...)`:
-
-- **Full-repo scope with >500 files and no slicing flag** → auto-engage sliced
-  mode; partition with `scripts/partition.py`, report the slice count, and run
-  the sliced path in [`sliced-mode.md`](sliced-mode.md) instead of steps 4–9
-  below.
-- **`--slice <N>`** → engage sliced mode explicitly at any repo size, cap `N`.
-- **`--no-slice`** → force the legacy single-pass review (steps 2–9 below)
-  even when the >500 threshold is met. Exactly at 500 files does not auto-engage.
-- **Non-full-repo scope** (`--path`, `--since`, auto-scoped uncommitted
-  changes) → **never** auto-engages sliced mode, regardless of file count; the
-  review proceeds exactly as before this feature.
-
-When sliced mode engages, follow [`sliced-mode.md`](sliced-mode.md) for
-partitioning, per-slice panels, persist-and-drop, `--resume`, and cross-slice
-consolidation. Sliced mode is **report-only** (no interactive fix loop).
+**Sliced large-repo review.** On a full-repo scope exceeding the >500 tier (or
+whenever `--slice <N>` is passed), **auto-engage sliced mode**: run the sliced
+path in [`sliced-mode.md`](sliced-mode.md) instead of steps 4–9 below. That file
+owns the full activation precedence (via `scripts/activation.py`), partitioning,
+per-slice panels, persist-and-drop, `--resume`, and cross-slice consolidation —
+not restated here. `--no-slice` forces the legacy single-pass review (steps 2–9)
+even past the threshold; Exactly at 500 files does not auto-engage.
+**Non-full-repo scope** (`--path`, `--since`, auto-scoped uncommitted changes)
+**never** auto-engages, regardless of file count — the review proceeds exactly
+as before this feature. Sliced mode is **report-only** (no interactive fix loop).
 
 **Documentation-only short-circuit.** After the target set is known, classify each file. A file is **documentation** when it matches a doc type or path:
 
