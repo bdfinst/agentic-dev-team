@@ -94,8 +94,13 @@ def audit():
     fatal = []
     known_broken = _load_known_broken()
     seen_broken = set()
+    # One semgrep invocation over the whole rules directory instead of one per
+    # ruleset file (#1130): semgrep parses each fixture once and applies every
+    # rule, rather than re-parsing all fixtures N times and paying N process
+    # startups. Results are keyed by (rule-id, path) and errors by rule id, so
+    # combining all rulesets in a single scan preserves per-rule attribution.
+    fired, errored = _run_semgrep(RULES_DIR)
     for ruleset in sorted(RULES_DIR.glob("*.yaml")):
-        fired, errored = _run_semgrep(ruleset)
         spec = yaml.safe_load(ruleset.read_text())
         for rule in spec.get("rules", []) or []:
             rid = rule["id"]
