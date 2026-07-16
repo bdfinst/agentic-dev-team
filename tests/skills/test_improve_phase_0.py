@@ -58,14 +58,35 @@ def test_body_contains_a_phase_0_section_header():
     assert grep(r"^### Phase 0", _text())
 
 
-def test_phase_0_prompt_battery_names_mutation_on_off_knob_default_off():
+def test_phase_0_mutation_knob_is_three_way_with_kill_loop_default():
+    """#1126: the binary mutation on/off knob becomes a three-way mode —
+    off / kill-loop (default) / baseline+kill-loop — using one canonical
+    token per mode in the prompt, banner, and phase-0.md persistence."""
     text = _text()
-    assert grep(r"mutation", text, ignore_case=True)
-    assert grep(
-        r"mutation.*(default[^.]*off|off.*default)|default[^.]*off.*mutation",
-        text,
-        ignore_case=True,
-    )
+    # All three canonical tokens are present.
+    assert grep(r"`off`", text)
+    assert grep(r"`kill-loop`", text)
+    assert grep(r"`baseline\+kill-loop`", text)
+    # kill-loop is the default (bracketed default and/or marked default).
+    assert grep(r"\[kill-loop\]", text)
+    assert grep(r"kill-loop.*default|default.*kill-loop", text, ignore_case=True)
+
+
+def test_phase_0_mutation_default_change_is_called_out():
+    """The Enter-through default changes from no-mutation to the kill loop;
+    the prompt must surface this so it is never a silent surprise."""
+    text = _text()
+    assert grep(r"default change|now performs the mutant-kill loop|mutation now runs by default",
+                text, ignore_case=True)
+
+
+def test_phase_0_banner_uses_the_tristate_mutation_token():
+    """The banner recap names the tri-state mutation mode, not on|off."""
+    text = _text()
+    assert grep(r"mutation:\s*<off\|kill-loop\|baseline\+kill-loop>", text)
+    # The old binary banner token must be gone (report: <on|off> is a
+    # legitimate separate field, so anchor on the `mutation:` prefix).
+    assert not grep(r"mutation:\s*<on\|off>", text)
 
 
 def test_phase_0_prompt_battery_names_bdd_rubric_default_none():
@@ -135,6 +156,43 @@ def test_knob_6_is_idempotent_and_records_partial_failure():
     assert grep(r"missing", text, ignore_case=True)
     assert grep(r"partial", text, ignore_case=True)
     assert grep(r"per-tool", text, ignore_case=True)
+
+
+# --- #1126: knob 7, the opt-in baseline-metrics report ----------------------
+
+
+def test_phase_0_has_baseline_metrics_report_knob_default_no():
+    """#1126: a distinct knob 7 asks whether to persist baseline coverage +
+    mutation metrics for an end-of-run delta report; default is no."""
+    text = _text()
+    assert grep(r"[Bb]aseline-metrics report|baseline coverage and mutation metrics", text)
+    assert grep(r"7\.\s+\*\*Baseline-metrics report", text)
+    assert grep(r"\[no\]", text)
+
+
+def test_knob_7_wording_is_independent_of_mutation_mode():
+    """The report knob applies even when mutation is off and is skippable
+    under kill-loop — a concrete independence assertion, not a vague claim."""
+    text = _text()
+    assert grep(r"even when mutation mode is `off`", text)
+    assert grep(r"skipped under `kill-loop`|skippable under `kill-loop`", text)
+
+
+def test_knob_7_is_part_of_enter_accepts_all_and_knob_6_is_sole_exception():
+    """#1126: knob 7 defaults to no under Enter (part of the gesture); knob 6
+    remains the sole Enter-accepts-all exception."""
+    text = _text()
+    assert grep(r"seven knobs", text)
+    assert grep(r"knob 7.*defaults to `no` under Enter|defaults to `no` under Enter", text)
+    assert grep(r"sole.*exception|knob 6 is the \*\*sole\*\*", text, ignore_case=True)
+
+
+def test_knob_7_persists_report_flag_and_banner_shows_it():
+    """phase-0.md records the knob-7 outcome and the banner recap surfaces
+    the report flag after the sink field."""
+    text = _text()
+    assert grep(r"knob-7 outcome|baseline-metrics report was opted into", text)
+    assert grep(r"sink:.*·\s*report:\s*<on\|off>", text)
 
 
 def test_enter_accepts_every_default_in_one_keystroke():

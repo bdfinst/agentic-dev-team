@@ -90,3 +90,13 @@ def test_template_still_has_exactly_10_numbered_section_headers():
     text = _text()
     headers = [line for line in text.splitlines() if line.startswith("## ")]
     assert len(headers) == 10
+
+
+def test_template_baseline_provenance_is_report_opt_in_conditional():
+    """#1126: an opt-in run's baselines live under reports/test-improve/, so
+    the template's provenance strings must name that location conditionally
+    rather than hard-coding memory/."""
+    text = _text()
+    assert grep(r"\{\{baseline_dir\}\}", text)
+    assert grep(r"reports/test-improve/\{\{slug\}\}/", text)
+    assert grep(r"opted in", text, ignore_case=True)

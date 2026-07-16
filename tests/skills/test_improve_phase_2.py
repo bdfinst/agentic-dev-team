@@ -29,12 +29,16 @@ def test_phase_2_invokes_coverage_baseline_with_workflow_test_improve():
     )
 
 
-def test_phase_2_invokes_mutation_testing_baseline_workflow_test_improve_when_mutation_is_on():
+def test_phase_2_invokes_mutation_testing_baseline_only_in_baseline_kill_loop_mode():
+    """#1126: the Phase-2 mutation baseline runs only in `baseline+kill-loop`
+    mode (not `off`, not `kill-loop`)."""
+    s = _phase_2_section()
     assert grep(
         r"/mutation-testing.*--baseline.*--workflow[[:space:]]+test-improve|"
         r"--workflow[[:space:]]+test-improve.*--baseline",
-        _phase_2_section(),
+        s,
     )
+    assert grep(r"baseline\+kill-loop", s)
 
 
 def test_phase_2_names_the_ordering_constraint_baseline_before_any_test_file_modified():
@@ -47,19 +51,39 @@ def test_phase_2_names_the_ordering_constraint_baseline_before_any_test_file_mod
     )
 
 
-def test_phase_2_documents_the_mutation_off_skip_path():
-    assert grep(
-        r"mutation.*off.*(skip|not[[:space:]]+(invoke|run)|omit)|"
-        r"when[[:space:]]+mutation[[:space:]]+is[[:space:]]+off",
-        _phase_2_section(),
-        ignore_case=True,
-    )
+def test_phase_2_documents_the_no_baseline_skip_path_for_off_and_kill_loop():
+    """#1126: both `off` and `kill-loop` skip the Phase-2 mutation baseline —
+    `kill-loop` runs the kill loop in Phase 4 but takes no baseline first."""
+    s = _phase_2_section()
+    # The skip is documented and names both no-baseline modes.
+    assert grep(r"not[[:space:]]+invoked|skip", s, ignore_case=True)
+    assert grep(r"`off`", s) and grep(r"`kill-loop`", s)
+    assert grep(r"no[[:space:]]+baseline|takes[[:space:]]+no[[:space:]]+baseline", s, ignore_case=True)
 
 
 def test_phase_2_records_baseline_artifacts_under_memory_test_improve_slug():
     s = _phase_2_section()
     assert grep(r"memory/test-improve/<slug>/baseline-coverage\.json", s)
     assert grep(r"memory/test-improve/<slug>/baseline-mutation\.json", s)
+
+
+def test_phase_2_baseline_write_path_is_conditional_on_report_opt_in():
+    """#1126: on knob-7 opt-in, the baseline is written to a git-tracked
+    reports/test-improve/ path (picked up by the run's PR); on decline it
+    stays on the transient memory/ path. No git command is issued."""
+    s = _phase_2_section()
+    assert grep(r"reports/test-improve/<slug>/", s)
+    assert grep(r"git-tracked", s)
+    assert grep(r"transient|memory/test-improve/<slug>/", s)
+    assert grep(r"no.*git command|issues.*no.*git", s, ignore_case=True)
+
+
+def test_phase_2_documents_the_reports_gitignore_caveat():
+    """#1126: because reports/ is commonly gitignored, the target repo must
+    un-ignore reports/test-improve/ or the opt-in degrades to transient."""
+    s = _phase_2_section()
+    assert grep(r"gitignore|un-ignore", s, ignore_case=True)
+    assert grep(r"degrades? to transient|degrade", s, ignore_case=True)
 
 
 def test_phase_2_documents_the_go_advisory_marker_on_mutation_baseline():

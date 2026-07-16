@@ -7,7 +7,7 @@ Ported from tests/skills/test_improve_phase_6_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, grep_multiline, section
 
 SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 
@@ -41,6 +41,18 @@ def test_phase_6_mutation_target_is_skipped_not_waived_when_phase_0_disabled_mut
 
 def test_phase_6_mutation_target_is_advisory_on_go():
     assert grep(r"Go.*advisory|advisory.*Go", _phase_6_section(), ignore_case=True)
+
+
+def test_phase_6_mutation_target_reads_per_tristate_mode():
+    """#1126: the Phase-6 mutation target reads `not enabled` for `off`,
+    a final-survivor count for `kill-loop`, and a baseline delta for
+    `baseline+kill-loop`."""
+    s = _phase_6_section()
+    # Bind each mode token to its own reading (bounded proximity) so a
+    # scrambled mode→reading mapping cannot pass.
+    assert grep_multiline(r"`off`.{0,160}not enabled", s, ignore_case=True)
+    assert grep_multiline(r"`kill-loop`.{0,160}final[- ]surviv", s, ignore_case=True)
+    assert grep_multiline(r"`baseline\+kill-loop`.{0,160}baseline[- ]delta|`baseline\+kill-loop`.{0,160}baseline-to-achieved", s, ignore_case=True)
 
 
 def test_phase_6_surfaces_coverage_lt_90_re_run_prompt_with_y_n_shape():

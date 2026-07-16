@@ -11,7 +11,7 @@ Ported from tests/skills/test_improve_phase_1_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, grep_multiline, section
 
 SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 
@@ -75,6 +75,19 @@ def test_phase_1_mutation_off_branch_is_documented():
         _phase_1_section(),
         ignore_case=True,
     )
+
+
+def test_phase_1_mutation_section_reflects_tristate_mode():
+    """#1126: the rolled-up mutation section is omitted/not-enabled for `off`
+    and present for `kill-loop` and `baseline+kill-loop`."""
+    s = _phase_1_section()
+    assert grep(r"`off`", s)
+    # Bind the non-off modes to the "present" reading (not a bare `present`
+    # grep, which would match "represent"/"presently" anywhere in the section).
+    assert grep_multiline(r"`kill-loop`.{0,200}present|present.{0,200}`kill-loop`", s, ignore_case=True)
+    assert grep(r"`baseline\+kill-loop`", s)
+    # And the `off` reading is omitted/not-enabled, distinct from "present".
+    assert grep_multiline(r"`off`.{0,200}(omitted|not enabled)", s, ignore_case=True)
 
 
 def test_phase_1_human_gate_names_the_ordered_improvement_plan():

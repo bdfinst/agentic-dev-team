@@ -58,6 +58,15 @@ def test_phase_4_documents_the_c_r_w_q_mutation_kill_prompt():
     assert grep(r"\[c/r/w/q\]|\[c\].*\[r\].*\[w\].*\[q\]", _phase_4_section())
 
 
+def test_phase_4_mutation_kill_runs_in_killloop_and_baseline_modes_not_off():
+    """#1126: the Phase-4 mutant-kill loop runs in both `kill-loop` and
+    `baseline+kill-loop`, and is skipped when mutation mode is `off`."""
+    s = _phase_4_section()
+    assert grep(r"`kill-loop`", s)
+    assert grep(r"`baseline\+kill-loop`", s)
+    assert grep(r"skip.*`off`|`off`.*skip", s, ignore_case=True)
+
+
 def test_phase_4_mutation_kill_is_advisory_on_go_no_commit():
     assert grep(
         r"Go.*(advisory|no[[:space:]]+commit|logged)|advisory.*Go",
