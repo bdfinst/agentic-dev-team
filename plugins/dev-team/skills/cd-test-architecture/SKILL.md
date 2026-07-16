@@ -3,6 +3,7 @@ name: cd-test-architecture
 description: Evaluate an existing application's tests and recommend a CD-pipeline-aligned test architecture — fast, deterministic tests with minimal tooling that fully validate behavior (including cross-service interaction) and run in CI without configuring the rest of the system. Use when the user says "evaluate how this app is tested", "design a test architecture", "align our tests for CD", "make our CI tests deterministic", "our tests need the whole system configured", "our tests live in another repo / Postman / manual scripts", or asks for UI/service/batch test patterns.
 role: worker
 user-invocable: true
+argument-hint: "[--component <name>] [--ci <path>] [--external-tests <path>] [--stack <id>] [--pdf]"
 ---
 
 # CD Test Architecture
@@ -111,6 +112,17 @@ Write the assessment (see Output). Keep every recommendation tied to a concrete 
 ## Output
 
 Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component).
+
+When `--pdf` was passed and a report **file** was written, render it to a
+sibling PDF per `knowledge/report-pdf-integration.md`:
+
+```bash
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" reports/cd-test-architecture-<app>.md
+```
+
+In the single-component **chat-only** case no file was written, so `--pdf` is a
+no-op: state `--pdf: no report file was written this run, nothing to render.`
+and do nothing else. Additive; non-fatal if no engine is available.
 
 For the header block and closing Provenance section, follow
 `knowledge/report-template.md`; the sections below are this skill's own
