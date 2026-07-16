@@ -1,0 +1,216 @@
+#!/usr/bin/env python3
+"""Validate that every read-only *-review agent grants the code-intelligence MCP tools.
+
+Review agents (agents/*-review.md) do structural and behavioral review. When a
+target repo has a CodeGraph index (.codegraph/) and/or a Repowise MCP server, the
+agents should call those tools for verified skeletons and resolved call graphs
+instead of re-reading whole files. That only works if the tool names are present
+in each agent's `tools:` frontmatter allowlist. This check enforces that, and
+--fix appends any missing names (merge, never replace — Read/Grep/Glob/Skill are
+preserved). A granted tool whose MCP server is absent is simply unavailable at
+runtime (no error); agents fall back to Read/Grep/Glob.
+
+It also verifies the code-review skill documents detecting the index and
+preferring it over full-file reads (the guidance that makes the grant useful).
+
+Exit 0 if every review agent grants all five tools and the skill prose is present.
+Exit 1 (detection) or applies fixes (--fix) otherwise.
+
+Usage:
+    python3 check_review_agent_mcp_tools.py [--agents-dir <path>] [--skill-file <path>]
+    python3 check_review_agent_mcp_tools.py --fix        # append missing tool names
+    python3 check_review_agent_mcp_tools.py --json        # machine-readable report
+"""
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+# Single source of truth for the five code-intelligence MCP tool names granted to
+# read-only review agents. The pytest wrapper and any --fix logic import this list
+# so the canonical set has one home (frontmatter itself must duplicate it per-agent).
+MCP_TOOL_NAMES = [
+    "mcp__codegraph__codegraph_explore",
+    "mcp__plugin_repowise_repowise__get_context",
+    "mcp__plugin_repowise_repowise__get_symbol",
+    "mcp__plugin_repowise_repowise__search_codebase",
+    "mcp__plugin_repowise_repowise__get_risk",
+]
+
+# Phrases the code-review skill must contain so the granted tools are actually used:
+# detection of each index, the preference instruction, and the documented fallback.
+SKILL_REQUIRED_PHRASES = [
+    "mcp__codegraph__codegraph_explore",
+    ".codegraph/",
+    "get_context",
+    "get_symbol",
+    "search_codebase",
+    "get_risk",
+]
+
+_TOOLS_RE = re.compile(r"^(tools:\s*)(.*?)(\s*)$", re.MULTILINE)
+
+
+def _agents_dir_default() -> Path:
+    # scripts/ is one level below plugins/dev-team/
+    return Path(__file__).parent.parent / "agents"
+
+
+def _skill_file_default() -> Path:
+    return Path(__file__).parent.parent / "skills" / "code-review" / "SKILL.md"
+
+
+def find_review_agents(agents_dir: Path) -> list[Path]:
+    """Return the read-only review agent files (agents/*-review.md), sorted."""
+    return sorted(agents_dir.glob("*-review.md"))
+
+
+def parse_tools(text: str) -> list[str] | None:
+    """Return the comma-separated tokens on the `tools:` frontmatter line, or None."""
+    m = _TOOLS_RE.search(text)
+    if not m:
+        return None
+    return [tok.strip() for tok in m.group(2).split(",") if tok.strip()]
+
+
+def missing_mcp_tools(text: str) -> list[str]:
+    """Return the MCP tool names absent from the agent's tools: line (all five if no line)."""
+    tokens = parse_tools(text)
+    if tokens is None:
+        return list(MCP_TOOL_NAMES)
+    present = set(tokens)
+    return [name for name in MCP_TOOL_NAMES if name not in present]
+
+
+def fix_tools_line(text: str) -> tuple[str, list[str]]:
+    """Append any missing MCP tool names to the tools: line. Idempotent.
+
+    Returns (new_text, added_names). Order-preserving: existing tokens keep their
+    order; missing MCP names are appended in MCP_TOOL_NAMES order. A line already
+    containing all five is returned unchanged (added == []).
+    """
+    m = _TOOLS_RE.search(text)
+    if not m:
+        return text, []
+    tokens = [tok.strip() for tok in m.group(2).split(",") if tok.strip()]
+    present = set(tokens)
+    added = [name for name in MCP_TOOL_NAMES if name not in present]
+    if not added:
+        return text, []
+    new_tokens = tokens + added
+    new_line = m.group(1) + ", ".join(new_tokens)
+    new_text = text[: m.start()] + new_line + text[m.end() - len(m.group(3)) :]
+    return new_text, added
+
+
+def check_skill(skill_text: str) -> list[str]:
+    """Return the required phrases absent from the code-review skill prose."""
+    return [phrase for phrase in SKILL_REQUIRED_PHRASES if phrase not in skill_text]
+
+
+def _skill_missing(skill_file: Path) -> list[str]:
+    if skill_file.is_file():
+        return check_skill(skill_file.read_text(encoding="utf-8"))
+    return list(SKILL_REQUIRED_PHRASES)
+
+
+def apply_fixes(agents: list[Path]) -> tuple[dict[str, list[str]], list[str]]:
+    """Append missing MCP tools to each review agent. Returns (fixed, unfixable).
+
+    `unfixable` names agents with no inline `tools:` line the regex can append
+    to (a missing line, or a block-list form) — these are reported and cause a
+    non-zero exit rather than a silent false "OK" (they can't be auto-fixed).
+    """
+    fixed: dict[str, list[str]] = {}
+    unfixable: list[str] = []
+    for agent_file in agents:
+        text = agent_file.read_text(encoding="utf-8")
+        if parse_tools(text) is None:
+            unfixable.append(agent_file.stem)
+            continue
+        new_text, added = fix_tools_line(text)
+        if added:
+            agent_file.write_text(new_text, encoding="utf-8")
+            fixed[agent_file.stem] = added
+    return fixed, unfixable
+
+
+def find_offenders(agents: list[Path]) -> dict[str, list[str]]:
+    """Return {agent: missing tool names} for review agents lacking any of the five."""
+    offenders: dict[str, list[str]] = {}
+    for agent_file in agents:
+        missing = missing_mcp_tools(agent_file.read_text(encoding="utf-8"))
+        if missing:
+            offenders[agent_file.stem] = missing
+    return offenders
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--agents-dir", type=Path, default=None)
+    parser.add_argument("--skill-file", type=Path, default=None)
+    parser.add_argument("--fix", action="store_true", help="append missing MCP tool names")
+    parser.add_argument("--json", action="store_true", help="machine-readable output")
+    args = parser.parse_args()
+
+    agents_dir = args.agents_dir or _agents_dir_default()
+    skill_file = args.skill_file or _skill_file_default()
+
+    if not agents_dir.is_dir():
+        print(f"ERROR: agents directory not found: {agents_dir}", file=sys.stderr)
+        return 1
+
+    agents = find_review_agents(agents_dir)
+    skill_missing = _skill_missing(skill_file)
+
+    if args.fix:
+        fixed, unfixable = apply_fixes(agents)
+        rc = 1 if (unfixable or skill_missing) else 0
+        if args.json:
+            # --json owns stdout: emit ONLY the JSON object, nothing else.
+            print(json.dumps({
+                "reviewed": [a.stem for a in agents],
+                "fixed": fixed,
+                "unfixable": unfixable,
+                "skill_missing_phrases": skill_missing,
+            }, indent=2))
+            return rc
+        if fixed:
+            for name, added in fixed.items():
+                print(f"FIXED: {name} — added {', '.join(added)}")
+        else:
+            print(f"OK: all {len(agents)} review agents already grant the MCP tools.")
+        if unfixable:
+            print("WARN: review agents with no inline tools: line (fix by hand): "
+                  + ", ".join(unfixable), file=sys.stderr)
+        if skill_missing:
+            print("WARN: code-review SKILL.md is missing phrases (fix by hand): "
+                  + ", ".join(skill_missing), file=sys.stderr)
+        return rc
+
+    offenders = find_offenders(agents)
+    rc = 1 if (offenders or skill_missing) else 0
+    if args.json:
+        # --json owns stdout: emit ONLY the JSON object, nothing else.
+        print(json.dumps({
+            "reviewed": [a.stem for a in agents],
+            "offenders": offenders,
+            "skill_missing_phrases": skill_missing,
+        }, indent=2))
+        return rc
+    if offenders:
+        print("FAIL: review agents missing code-intelligence MCP tools in tools::")
+        for name, missing in offenders.items():
+            print(f"  - {name}: missing {', '.join(missing)}")
+        print("\nRun: python3 scripts/check_review_agent_mcp_tools.py --fix")
+    if skill_missing:
+        print("FAIL: code-review SKILL.md missing required phrases: " + ", ".join(skill_missing))
+    if rc == 0:
+        print(f"OK: all {len(agents)} review agents grant the five MCP tools; skill prose present.")
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())

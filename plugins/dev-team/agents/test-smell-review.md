@@ -2,7 +2,7 @@
 
 name: test-smell-review
 description: xUnit test smells, test double selection, and test-pyramid layer placement
-tools: Read, Grep, Glob, Skill
+tools: Read, Grep, Glob, Skill, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 effort: medium
 cites: [test-smells, test-automation-principles, test-doubles, value-patterns, test-pyramid, fixture-construction, test-organization, test-refactoring, testability-patterns, result-verification, database-test-patterns, cd-test-architecture, microservice-testing, adversarial-review-protocol]
 scope: always

@@ -2,7 +2,7 @@
 
 name: js-fp-review
 description: Array mutations, parameter mutations, global state, impure patterns in JS/TS
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 effort: low
 cites: [adversarial-review-protocol]
 scope:
