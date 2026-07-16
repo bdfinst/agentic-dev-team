@@ -38,7 +38,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 
 # =============================================================================
@@ -254,8 +254,14 @@ def build_project(project: str, cwd: Optional[Path] = None) -> int:
     )
 
 
-def run_stryker(stryker_bin: str, stryker_args: Sequence[str], logfile: Path) -> int:
-    """Run Stryker with stdout+stderr redirected to logfile. Returns exit code.
+def run_stryker(
+    stryker_bin: str,
+    stryker_args: Sequence[str],
+    logfile: Path,
+    line_callback: Optional[Callable[[str], bool]] = None,
+    cwd: Optional[Path] = None,
+) -> int:
+    """Run Stryker with stdout+stderr captured to logfile. Returns exit code.
 
     Signal handling: Python's default SIGINT delivery raises KeyboardInterrupt
     in the parent, which our main() catches to run the finally block. The
@@ -270,18 +276,90 @@ def run_stryker(stryker_bin: str, stryker_args: Sequence[str], logfile: Path) ->
     lock-guarded ``_RUNNING_STRYKER_PROCS`` set (not a single-slot global) so
     the signal handler can terminate all of them, not just whichever slice
     last registered (#732).
+
+    Line-callback (additive, backward-compatible — #1136 Slice 5): when
+    ``line_callback`` is ``None`` the behavior is *exactly* as before —
+    Stryker's stdout+stderr are redirected straight into ``logfile`` and we
+    block on ``proc.wait()``. When a callback is supplied, output is instead
+    streamed line by line: every line is TEE'd to ``logfile`` (so shard
+    post-mortem logs stay intact) *and* handed to the callback. A truthy
+    return — or a raised exception — requests an abort, and we ``terminate()``
+    the Stryker process. That is the same kill the SIGINT/SIGTERM handler runs
+    via ``_terminate_all_tracked_processes``; the proc stays tracked in
+    ``_RUNNING_STRYKER_PROCS`` the whole time, so a concurrent signal and a
+    callback-abort are idempotent (``terminate()`` is guarded by ``poll()``,
+    a no-op on an already-dead process). ``cwd`` runs Stryker from another
+    directory (the shard pipeline runs each shard in its own git worktree).
     """
     logfile.parent.mkdir(parents=True, exist_ok=True)
+    popen_cwd = str(cwd) if cwd is not None else None
+    if line_callback is None:
+        with logfile.open("wb") as log:
+            proc = subprocess.Popen(
+                [stryker_bin, *stryker_args],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                cwd=popen_cwd,
+            )
+            # Track for signal handlers.
+            with _RUNNING_STRYKER_LOCK:
+                _RUNNING_STRYKER_PROCS.add(proc)
+            try:
+                return proc.wait()
+            finally:
+                with _RUNNING_STRYKER_LOCK:
+                    _RUNNING_STRYKER_PROCS.discard(proc)
+    return _run_stryker_streaming(
+        stryker_bin, stryker_args, logfile, line_callback, popen_cwd
+    )
+
+
+def _run_stryker_streaming(
+    stryker_bin: str,
+    stryker_args: Sequence[str],
+    logfile: Path,
+    line_callback: Callable[[str], bool],
+    popen_cwd: Optional[str],
+) -> int:
+    """Streaming variant of :func:`run_stryker` used when a line-callback is
+    supplied. Tees every line to ``logfile`` while feeding it to the callback;
+    aborts the run (terminating the child) when the callback returns truthy or
+    raises. Split out so the callback-less path above stays byte-for-byte the
+    original behavior.
+    """
     with logfile.open("wb") as log:
         proc = subprocess.Popen(
             [stryker_bin, *stryker_args],
-            stdout=log,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            cwd=popen_cwd,
         )
-        # Track for signal handlers.
         with _RUNNING_STRYKER_LOCK:
             _RUNNING_STRYKER_PROCS.add(proc)
         try:
+            aborted = False
+            assert proc.stdout is not None
+            try:
+                for raw in proc.stdout:
+                    log.write(raw)  # tee: the full log is always preserved
+                    log.flush()
+                    if line_callback(raw.decode("utf-8", errors="replace")):
+                        aborted = True
+                        break
+            except BaseException:
+                # Callback raised — kill before propagating so we never orphan
+                # the Stryker process (same kill path as the signal handler).
+                if proc.poll() is None:
+                    proc.terminate()
+                raise
+            if aborted:
+                if proc.poll() is None:
+                    proc.terminate()
+                # Drain whatever Stryker had already buffered so the log stays
+                # complete even after the abort.
+                for raw in proc.stdout:
+                    log.write(raw)
+                log.flush()
             return proc.wait()
         finally:
             with _RUNNING_STRYKER_LOCK:
