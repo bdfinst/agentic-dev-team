@@ -10,6 +10,7 @@ argument-hint: >-
   [--agent <name>] [--since <ref>] [--path <dir>] [--all] [--json]
   [--internal] [--force --reason "<text>"]
   [--static-analysis|--no-static-analysis] [--init-risks] [--background]
+  [--pdf]
 user-invocable: true
 allowed-tools: >-
   Read, Write, Edit, Grep, Glob, AskUserQuestion, Agent,
@@ -60,6 +61,7 @@ Arguments: $ARGUMENTS
 | `--resume` | Resume a sliced run — skip slices whose section artifact already exists on disk. See [`sliced-mode.md`](sliced-mode.md). |
 | `--no-slice` | Escape hatch — force the legacy single-pass review even on a large full-repo scope that would otherwise auto-engage sliced mode. |
 | `--json` | Output aggregated JSON to **stdout** instead of prose. Contractually non-interactive (for CI): never prompts; defaults to report-only (no code modified). |
+| `--pdf` | After the durable report is written, also render it to a sibling PDF via `hooks/lib/report_pdf.py`. See `knowledge/report-pdf-integration.md`. No-op with a message when no report file is written (`--json` or `--internal`); under `--json`, that status goes to **stderr** so stdout stays pure JSON. Additive: never changes the review's own output or exit status. |
 | `--internal` | This is an orchestrator-internal dispatch (`/build`'s Step 6 backstop review, `/test-improve`'s Phase 4/5 end-of-phase review loop) — skip the `DEV_TEAM_REPORTS/code-review.md` report write in step 7. Orthogonal to `--json`: `--internal` alone still runs the prose/fix-loop path; both sanctioned callers use `--internal` without `--json` specifically to keep the fix loop. `/build` and `/test-improve` are the only sanctioned callers of this flag today — see `knowledge/report-output-location.md` for `/ship`'s deliberate exception (writes the report by default, no `--internal`). |
 | `--init-risks` | Scaffold `ACCEPTED-RISKS.md` from `templates/ACCEPTED-RISKS.md.tmpl` if absent. Exits non-zero without overwriting if present. Schema: `knowledge/accepted-risks-schema.md`. |
 | `--force` | Skip pre-flight gates **and the documentation-only short-circuit** (forces a full review of doc-only changes). **Requires `--reason "<text>"`** — logged to `metrics/override-audit.jsonl`. |
@@ -327,6 +329,22 @@ the write failure is non-fatal. When `--internal` **was** passed, skip this
 write entirely (the fix loop and every other prose-mode behavior above are
 unaffected — `--internal` only suppresses this one write). Then continue to
 step 8.
+
+**`--pdf` (additive, after the write).** When `--pdf` was passed and a report
+file **was** written this run, render it to a sibling PDF per
+`knowledge/report-pdf-integration.md`:
+
+```bash
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" DEV_TEAM_REPORTS/code-review.md
+```
+
+Surface the module's `Rendering PDF via <engine>…` and result lines. When no
+report file was written this run (`--json` or `--internal`), `--pdf` is a
+no-op: state `--pdf: no report file was written this run, nothing to render.`
+and do nothing else. Under `--json`, emit that no-op line (and any render
+status) to **stderr** so stdout stays valid JSON. `--pdf` never alters the
+review's own output or exit status — a missing engine or render error is
+non-fatal.
 
 ### 8. Save correction prompts for remaining issues
 

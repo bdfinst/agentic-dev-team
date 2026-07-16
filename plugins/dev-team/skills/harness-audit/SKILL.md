@@ -7,7 +7,7 @@ description: >-
   staleness as model capabilities improve. Audits the dev-team plugin's OWN
   harness from runtime metrics — not your project repo's readiness (for that,
   use /agent-readiness).
-argument-hint: "[--output <path>]"
+argument-hint: "[--output <path>] [--pdf]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash(date *, python3 *, jq *), Write
 ---
@@ -37,6 +37,7 @@ You have been invoked with the `/harness-audit` command.
 Arguments: $ARGUMENTS
 
 - `--output <path>`: Write report to a specific path. Default: `reports/harness-audit-<date>.md`
+- `--pdf`: After writing the report, render it to a sibling PDF via `hooks/lib/report_pdf.py`, resolving against the **actual** report path written this run (the `--output` override when given, else the default). See `knowledge/report-pdf-integration.md`. Additive; non-fatal if no engine is available.
 
 ## Steps
 
@@ -253,6 +254,15 @@ Review the current pipeline for components that may be unnecessary overhead:
 3. **Unused skills**: Skills loaded but never applied in logged sessions.
 
 ### 8. Produce report
+
+When `--pdf` was passed, after writing the report render **the actual output
+path** (the `--output` override when given, else `reports/harness-audit-<date>.md`)
+to a sibling PDF per `knowledge/report-pdf-integration.md` (additive; non-fatal
+if no engine):
+
+```bash
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" <the-output-path>
+```
 
 Write the report to the output path using this structure:
 

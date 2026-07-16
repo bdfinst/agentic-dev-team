@@ -3,7 +3,7 @@ name: test-health
 description: Project-wide test-strategy audit — derive the suite's shape and shape-vs-architecture fit, map coverage to the Agile Testing Quadrants, roll up coverage + mutation health, flag flaky tests and automation maturity, and produce an ordered improvement plan. Delegates CD-determinism + pipeline assessment to cd-test-architecture. Use when the user says "audit our tests", "how healthy is our test suite", "test strategy review", or runs /test-health. Advisory — writes a report, does not edit.
 role: worker
 user-invocable: true
-argument-hint: "[--path <dir>]"
+argument-hint: "[--path <dir>] [--pdf]"
 ---
 
 # Test Health
@@ -100,6 +100,13 @@ Produce a risk-ordered, incremental plan — each item a concrete next move (whi
 ### 9. Report
 
 Write `reports/test-health-<date>.md`.
+
+When `--pdf` was passed, render that report to a sibling PDF per
+`knowledge/report-pdf-integration.md` (additive; non-fatal if no engine):
+
+```bash
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" reports/test-health-<date>.md
+```
 
 ## Output
 
