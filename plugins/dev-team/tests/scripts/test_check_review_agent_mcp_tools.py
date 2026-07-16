@@ -25,8 +25,11 @@ _SKILL_TEXT = " ".join(SKILL_REQUIRED_PHRASES)  # a skill body containing every 
 REAL_AGENTS_DIR = _agents_dir_default()
 REAL_SKILL_FILE = _skill_file_default()
 
-# Sample of well-known non-review agents that must NOT gain the MCP grants.
-NON_REVIEW_SAMPLE = ["software-engineer", "orchestrator", "product-manager"]
+# Sample of well-known non-review agents that the *-review invariant must NOT touch.
+# NB: software-engineer et al. DO grant these tools via the non-review mapping
+# (#1108, enforced by check_agent_tool_mapping.py) — so the sample is limited to
+# agents in the excluded tier, which grant none of the MCP tools.
+NON_REVIEW_SAMPLE = ["orchestrator", "product-manager"]
 
 
 # ---------------------------------------------------------------------------

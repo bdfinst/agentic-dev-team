@@ -1,8 +1,12 @@
-# CodeGraph vs Graphify
+# CodeGraph, Repowise, and Graphify
 
-Two optional, non-overlapping code-intelligence tools may show up in a
-project this plugin operates on. Neither is required — a project may have
-one, both, or neither, and nothing in the plugin assumes either exists.
+Three optional, complementary code-intelligence tools may show up in a
+project this plugin operates on. None is required — a project may have any
+subset (including none), and nothing in the plugin assumes any of them
+exists. When present, they let agents read verified skeletons, resolved call
+graphs, modification risk, and decision rationale instead of re-reading whole
+files and grepping for callers — cheaper and more accurate. When absent, the
+grant is inert and agents fall back to `Read`/`Grep`/`Glob`.
 
 ## What each tool is
 
@@ -15,6 +19,20 @@ classes, and call relationships, not prose or non-code artifacts. Queries
 (callers, callees, impact analysis) run sub-millisecond against the local
 index. It has no knowledge of documentation, schemas, or infrastructure
 files.
+
+### Repowise
+
+A codebase-documentation / wiki engine (`repowise` on PyPI) that indexes a
+repository into a queryable knowledge base and exposes it as an **MCP
+server**. Its tools answer *contextual* questions about the code rather than
+raw structural ones: `get_context` / `get_symbol` return documented context
+and verified skeletons for a file, module, or symbol; `search_codebase` is
+semantic (natural-language) search; `get_risk` estimates the modification
+risk of a change; `get_why` surfaces the recorded architectural-decision
+rationale behind a piece of code. It can index without any LLM API key
+(a keyless index), writing its store under `.repowise/`. Because it layers
+documentation, risk, and rationale on top of structure, it complements
+CodeGraph's pure call-graph view.
 
 ### Graphify
 
@@ -54,6 +72,23 @@ function."
   the local `.db` on a fresh clone when `.codegraph/` is committed but the
   machine-local database is missing.
 
+### Repowise
+
+- Offered opt-in during `/project-init`'s "Step 4c — Offer graph-tools"
+  ([`skills/project-init/SKILL.md`](../skills/project-init/SKILL.md)),
+  alongside CodeGraph and Graphify as one **all-or-none** group.
+- Installed keyless (`uv`/`pipx`/`pip`), it indexes without prompting for an
+  LLM API key and stores its index under `.repowise/`, which is gitignored so
+  the index never clutters the repo.
+- Registered as an MCP server, it exposes
+  `mcp__plugin_repowise_repowise__{get_context,get_symbol,search_codebase,get_risk,get_why}`
+  (and more) to Claude Code sessions.
+- **Server-name coupling caveat.** The tool names agents grant use the literal
+  server prefix `mcp__plugin_repowise_repowise__*`. If a given install exposes
+  Repowise under a different MCP server name, those grants are **inert** — no
+  error, agents just fall back to `Read`/`Grep`/`Glob`. Keep the fallback in
+  mind wherever a Repowise tool is assumed.
+
 ### Graphify
 
 - A repo-level tool with its own native `/graphify` skill
@@ -77,20 +112,36 @@ function."
 - **CodeGraph** for fast structural queries while editing — callers,
   callees, impact analysis, sub-millisecond lookups against a local SQLite
   index of code symbols.
+- **Repowise** for *contextual* code questions — documented context and
+  verified skeletons (`get_context`/`get_symbol`), semantic search
+  (`search_codebase`), modification risk (`get_risk`), and decision rationale
+  (`get_why`). Reach for it when the question is "what does this do / why does
+  it exist / how risky is changing it," not "who calls it."
 - **Graphify** for architecture and onboarding questions that span code
   *and* docs, schemas, and infrastructure — anything broader than "who
   calls this function."
 
-## Neither is guaranteed to be present
+The three overlap only lightly: CodeGraph is the fastest for pure call
+graphs, Repowise adds documentation/risk/rationale over structure, and
+Graphify is the widest net across non-code artifacts. Prefer whichever is
+present for the question at hand; use more than one when they're all indexed.
 
-Both are optional and independently adopted per project:
+## None is guaranteed to be present
+
+All three are optional and independently adopted per project:
 
 - CodeGraph requires an explicit `/project-init` opt-in and a successful
   `codegraph init`; a project can decline both the install and the init
   prompts and never have `.codegraph/`.
+- Repowise requires the `/project-init` graph-tools opt-in and a keyless
+  index; a project can decline it and never have `.repowise/` or the MCP
+  server registered — and even when installed, the grant is inert if the
+  server name differs (see the coupling caveat above).
 - Graphify requires someone to run `/graphify` (or `graphify extract`) at
   least once; a project can go its entire life without `graphify-out/`.
 
-Plugin behavior must not assume either tool exists. The `codegraph-nudge`
-hook already fails open when `.codegraph/` is absent, and no shipped
-`dev-team` skill or agent depends on `graphify-out/` being present.
+Plugin behavior must not assume any of the three exists. The `codegraph-nudge`
+hook already fails open when `.codegraph/` is absent, Repowise/CodeGraph MCP
+grants are inert when their servers are absent, and no shipped `dev-team`
+skill or agent depends on `graphify-out/` being present. `Read`/`Grep`/`Glob`
+is the always-available fallback.

@@ -95,6 +95,48 @@ def test_phase_0_prompt_battery_names_sink_parent_vs_local():
     assert grep(r"local.files|local-files|local files", text, ignore_case=True)
 
 
+# --- #1108: knob 6, the all-or-none code-lookup install ----------------------
+
+
+def test_phase_0_has_code_lookup_install_knob_all_or_none():
+    text = _text()
+    assert grep(r"all-or-none", text)
+    assert grep(r"CodeGraph", text) and grep(r"Repowise", text) and grep(r"Graphify", text)
+
+
+def test_knob_6_recommends_yes_when_missing():
+    assert grep(r"[Rr]ecommended.*yes|yes.*when any of the three is\s+missing", _text())
+
+
+def test_knob_6_is_explicit_choice_opting_out_of_enter_all():
+    text = _text()
+    # Explicit y/n, and a blank answer re-prompts rather than defaulting.
+    assert grep(r"explicit `?y`?/`?n`?", text, ignore_case=True)
+    assert grep(r"blank.*re-?prompt", text, ignore_case=True)
+    assert grep(r"exception", text, ignore_case=True)  # the Enter-accepts-all carve-out
+
+
+def test_knob_6_discloses_graphify_repo_write():
+    text = _text()
+    assert grep(r"CLAUDE\.md", text) and grep(r"git hooks", text)
+
+
+def test_knob_6_delegates_install_to_project_init():
+    assert grep(r"/project-init", _text())
+
+
+def test_knob_6_decline_is_visibly_confirmed():
+    assert grep(r"fall back to Read/Grep/Glob", _text())
+
+
+def test_knob_6_is_idempotent_and_records_partial_failure():
+    text = _text()
+    assert grep(r"already present", text)
+    assert grep(r"missing", text, ignore_case=True)
+    assert grep(r"partial", text, ignore_case=True)
+    assert grep(r"per-tool", text, ignore_case=True)
+
+
 def test_enter_accepts_every_default_in_one_keystroke():
     assert grep(
         r"Enter[^.]*accept.*default|accept.*default.*Enter|one keystroke",

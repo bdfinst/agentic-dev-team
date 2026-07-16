@@ -264,6 +264,10 @@
       "summary": "Third-party tool (<https://github.com/colbymchenry/codegraph>).",
       "anchor": "codegraph"
     },
+    "Repowise": {
+      "summary": "A codebase-documentation / wiki engine (`repowise` on PyPI) that indexes a",
+      "anchor": "repowise"
+    },
     "Graphify": {
       "summary": "A knowledge-graph tool (`graphifyy` on PyPI) that is multi-modal: it ingests",
       "anchor": "graphify"
@@ -276,6 +280,10 @@
       "summary": "Offered opt-in during `/project-init`'s \"Step 4c — Offer graph-tools\"",
       "anchor": "codegraph-1"
     },
+    "Repowise (2)": {
+      "summary": "Offered opt-in during `/project-init`'s \"Step 4c — Offer graph-tools\"",
+      "anchor": "repowise-1"
+    },
     "Graphify (2)": {
       "summary": "A repo-level tool with its own native `/graphify` skill",
       "anchor": "graphify-1"
@@ -284,9 +292,9 @@
       "summary": "**CodeGraph** for fast structural queries while editing — callers,",
       "anchor": "when-to-use-which"
     },
-    "Neither is guaranteed to be present": {
-      "summary": "Both are optional and independently adopted per project:",
-      "anchor": "neither-is-guaranteed-to-be-present"
+    "None is guaranteed to be present": {
+      "summary": "All three are optional and independently adopted per project:",
+      "anchor": "none-is-guaranteed-to-be-present"
     }
   },
   "plugins/dev-team/knowledge/component-test-patterns.md": {
@@ -4562,9 +4570,9 @@
       "summary": "Beyond the four static-analysis lanes, other skills and agents depend on a",
       "anchor": "step-4b-install-capability-tools"
     },
-    "Step 4c: Offer graph-tools (codegraph and/or graphify)": {
-      "summary": "Two optional, non-overlapping code-intelligence tools.",
-      "anchor": "step-4c-offer-graph-tools-codegraph-andor-graphify"
+    "Step 4c: Offer the three code-lookup tools (all-or-none)": {
+      "summary": "Three optional, complementary code-intelligence tools — **CodeGraph**,",
+      "anchor": "step-4c-offer-the-three-code-lookup-tools-all-or-none"
     },
     "Step 5: Verify — post-install probes": {
       "summary": "Run each configured lane's detection probe exactly as the lane registry",
