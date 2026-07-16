@@ -233,6 +233,26 @@ catalog row by hand (the `marketplace-dev` plugin's `/agent-create` /
 Effort bands are deliberately not checked — they live only in frontmatter. The
 pytest suite `tests/repo/test_registry_sync.py` runs this on every PR.
 
+### 2e-bis. Knowledge-reference integrity (preventive)
+
+Agents read shared guidance from `knowledge/*.md`. Two ways this silently
+breaks (issue #1103): the file is renamed/removed but a reference lingers, or
+the reference uses a bare `knowledge/X.md` path that resolves against the
+*target repo's* cwd at runtime — not the plugin dir — so the agent reads
+nothing and degrades to hardcoded fallbacks.
+
+Run the deterministic sensor:
+
+```
+python3 -m pytest tests/agents/test_agent_knowledge_anchor.py
+```
+
+It hard-gates three invariants on every `knowledge/X.md` reference in an
+agent body: it cites a valid `index.json` anchor or carries `Whole-file
+load:`; the file is packaged on disk; and it is prefixed with
+`${CLAUDE_PLUGIN_ROOT}/` (the only runtime-resolvable form — a prose "lives
+in `plugins/dev-team/knowledge/...`" pointer is tolerated). Runs on every PR.
+
 ### 2f. CLAUDE.md and token-efficiency structural checks
 
 Two deterministic Python scripts validate concerns that the LLM-based review

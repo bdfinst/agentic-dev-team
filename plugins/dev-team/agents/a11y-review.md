@@ -92,7 +92,7 @@ Focus management:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these a11y-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these a11y-review-specific challenges:
 
 - Did you examine every component/template file in scope, not just the most obviously interactive one?
 - For each contrast finding, did you cite the actual color values and the computed WCAG ratio rather than estimate "looks low"?

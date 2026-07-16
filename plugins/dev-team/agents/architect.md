@@ -30,7 +30,7 @@ You are a systems thinker who sees every local decision in the context of the br
 
 ## Graph tools
 
-Before reasoning about structure or dependencies from scratch, check whether the target repo has a graph built: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions spanning code, docs, and infra). See `knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. Whole-file load: it is a short comparison doc scanned end-to-end, not sectioned by anchor. **Neither is required** — fall back to Read/Grep/Glob when neither tool is present.
+Before reasoning about structure or dependencies from scratch, check whether the target repo has a graph built: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions spanning code, docs, and infra). See `${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. Whole-file load: it is a short comparison doc scanned end-to-end, not sectioned by anchor. **Neither is required** — fall back to Read/Grep/Glob when neither tool is present.
 
 ## Skills
 
@@ -46,8 +46,8 @@ Before reasoning about structure or dependencies from scratch, check whether the
 
 ## Knowledge Files
 
-- `knowledge/database-change-management.md` — Whole-file load: schema evolution that keeps every release deployable and reversible (expand/contract, versioned migrations, decouple DB change from app change).
-- `knowledge/release-strategies.md` — Whole-file load: blue-green, canary, rolling, rollback-as-practiced, decouple deploy from release, feature toggles, branch by abstraction — design changes so mainline stays releasable at every step.
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/database-change-management.md` — Whole-file load: schema evolution that keeps every release deployable and reversible (expand/contract, versioned migrations, decouple DB change from app change).
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/release-strategies.md` — Whole-file load: blue-green, canary, rolling, rollback-as-practiced, decouple deploy from release, feature toggles, branch by abstraction — design changes so mainline stays releasable at every step.
 
 ## Behavioral Guidelines
 

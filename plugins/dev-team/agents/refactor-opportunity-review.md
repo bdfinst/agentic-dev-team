@@ -24,10 +24,10 @@ Context needs: full-file
 
 ## Knowledge Files
 
-Before analysis, read `knowledge/design-smells.md#reinvented-built-in-cheat-sheet`
+Before analysis, read `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md#reinvented-built-in-cheat-sheet`
 — the per-language built-in map and the "What NOT to flag" guards (version/idiom
 drift) for the use-the-platform findings — plus the "Reinvented built-in / helper"
-and "Open-coded idiom" rows in `knowledge/design-smells.md#design-smells-pattern-mapping`.
+and "Open-coded idiom" rows in `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md#design-smells-pattern-mapping`.
 
 ## Skip
 
@@ -54,7 +54,7 @@ Return `{"status": "skip", "issues": [], "summary": "No refactoring candidates i
 - Dead code: unreachable branches, unused variables, commented-out code
 - Open-coded idiom: the same non-trivial boolean/arithmetic expression repeated
   3+ times inline (e.g. `Math.abs(x - y) > tol`) that should be a named predicate
-  (`withinTolerance`) — see "Open-coded idiom" in `knowledge/design-smells.md#design-smells-pattern-mapping`.
+  (`withinTolerance`) — see "Open-coded idiom" in `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md#design-smells-pattern-mapping`.
   Severity `suggestion`. Also flag terse algorithm steps that need intention-
   revealing intermediates so the algorithm reads top-down.
 
@@ -63,7 +63,7 @@ Return `{"status": "skip", "issues": [], "summary": "No refactoring candidates i
 - Reinvented built-in: a hand-rolled loop/expression recomputes a standard-library
   operation (min, max, sum, copy, reverse, clamp) the project's language provides
   as one call — map via the language cheat-sheet in
-  `knowledge/design-smells.md#reinvented-built-in-cheat-sheet`.
+  `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md#reinvented-built-in-cheat-sheet`.
 - Reinvented helper: an inline computation duplicates a named function already
   defined in the same module/changed files (call it instead).
 - Recognize the *concept* and map to the local language — never pattern-match one
@@ -89,7 +89,7 @@ Before flagging duplication, ask: "If the business rule changes, would both copi
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these refactor-opportunity-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these refactor-opportunity-review-specific challenges:
 
 - For every duplication finding, did you apply the semantic-vs-structural test ("if the business rule changes, must both copies change?") before flagging?
 - Did you check method length and nesting on every changed function, not just the first long one?

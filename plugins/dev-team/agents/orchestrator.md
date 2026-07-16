@@ -46,12 +46,12 @@ Each agent declares an **effort band** (`effort: low|medium|high`) in its frontm
 When the orchestrator (or any caller) spawns a subagent via the Agent tool, the hook:
 
 1. Strips any `<plugin>:` prefix from `subagent_type` and reads the effort band from `agents/<name>.md` frontmatter.
-2. Resolves the band → model via `knowledge/model-routing.json` — the shipped **default map** (`low/medium/high → snapshot`) — or, when `.claude/model-ladder.json` is present and valid, via `index = round_half_up(weight·(N−1))` into that ladder (a malformed ladder degrades to the default map).
+2. Resolves the band → model via `${CLAUDE_PLUGIN_ROOT}/knowledge/model-routing.json` — the shipped **default map** (`low/medium/high → snapshot`) — or, when `.claude/model-ladder.json` is present and valid, via `index = round_half_up(weight·(N−1))` into that ladder (a malformed ladder degrades to the default map).
 3. **Always** rewrites `tool_input.model` via `hookSpecificOutput.updatedInput` (migrated agents carry no `model:` of their own). The session model is never a ceiling.
 4. Appends one JSONL event to `.claude/metrics/model-routing.log` only when the resolved model differs from the band's shipped default (a ladder bump), always for a legacy-tier dispatch, and for a session-model fallback.
 5. **Fails open** (pass-through) on any error — a missing routing.json or an unreadable agent file never blocks dispatch. There is no deny branch.
 
-`/agent-eval --calibrate` (band calibration slice 3, #882) validates the declared `effort:` band itself against `knowledge/calibration-floors.json` — walking bands cheapest-first through this same resolution path and reporting whether a cheaper band would still clear the target's floor. It is report-only and never edits agent/skill files; see [model-routing.md](../docs/model-routing.md#band-calibration-agent-eval-calibrate).
+`/agent-eval --calibrate` (band calibration slice 3, #882) validates the declared `effort:` band itself against `${CLAUDE_PLUGIN_ROOT}/knowledge/calibration-floors.json` — walking bands cheapest-first through this same resolution path and reporting whether a cheaper band would still clear the target's floor. It is report-only and never edits agent/skill files; see [model-routing.md](../docs/model-routing.md#band-calibration-agent-eval-calibrate).
 
 Legacy `model: haiku|sonnet|opus` agents still resolve (tier→band) for this deprecation release; `/agent-audit` warns. For triage, run `/model-routing-check` — read-only diagnostic that prints the effective band→model map, the ladder (or a starter), the session model, and recent bumps. See `docs/model-routing.md` for the contract and `docs/model-routing-overrides.md` for ladder authoring. See [ADR 0008](../../../docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md) (effort bands) and [ADR 0004](../../../docs/adr/0004-pre-dispatch-model-resolution.md) (pre-dispatch enforcement) for rationale.
 
@@ -78,7 +78,7 @@ Effective concurrency 1 (fully-dependent plan, `--jobs 1`, or `DEV_TEAM_MAX_PARA
 ## Task Size Gate
 
 Before routing any non-trivial task to the Three-Phase Workflow, classify its size
-using `knowledge/task-size-classifier.md`. Whole-file load: all signal definitions, ordered classification rules, the bias rule, and the decision-log format are needed to run the gate correctly. The classification uses **objective signals only** — never a fresh LLM judgement.
+using `${CLAUDE_PLUGIN_ROOT}/knowledge/task-size-classifier.md`. Whole-file load: all signal definitions, ordered classification rules, the bias rule, and the decision-log format are needed to run the gate correctly. The classification uses **objective signals only** — never a fresh LLM judgement.
 
 ### Gate procedure
 
@@ -87,7 +87,7 @@ using `knowledge/task-size-classifier.md`. Whole-file load: all signal definitio
 2. **Collect objective signals.** Gather `files_changed`, `loc_delta`, `slice_count`,
    `wave_count`, `has_complex_step`, `single_module` per the classifier spec.
 
-3. **Classify.** Apply the rules in `knowledge/task-size-classifier.md`. Whole-file load: the ordered classification rules and bias rule. First match wins; bias to classify up when signals are ambiguous.
+3. **Classify.** Apply the rules in `${CLAUDE_PLUGIN_ROOT}/knowledge/task-size-classifier.md`. Whole-file load: the ordered classification rules and bias rule. First match wins; bias to classify up when signals are ambiguous.
 
 4. **Log the decision** to `memory/decisions.md` (format in classifier spec).
 
@@ -189,7 +189,7 @@ double-counts the work and leaves the two synthesis paths disconnected.
 
 ## Knowledge index — consumer usage pattern
 
-Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. `/model-routing-check` is the analogous diagnostic command; for routing, `/model-routing-check`; for knowledge freshness, `python3 plugins/dev-team/hooks/lib/build_knowledge_index.py --check`.
+Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `${CLAUDE_PLUGIN_ROOT}/knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `${CLAUDE_PLUGIN_ROOT}/knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `${CLAUDE_PLUGIN_ROOT}/knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. `/model-routing-check` is the analogous diagnostic command; for routing, `/model-routing-check`; for knowledge freshness, `python3 plugins/dev-team/hooks/lib/build_knowledge_index.py --check`.
 
 ## Skills
 

@@ -24,7 +24,7 @@ Context needs: full-file
 
 ## Knowledge Files
 
-Read `knowledge/object-calisthenics.md` before analysis. Whole-file load: the agent needs all nine rules as design-pressure thresholds (especially rule 1 one-indentation-level, rule 2 no-else, rule 7 small-entities) plus the rationale prose tying them to the numeric limits below.
+Read `${CLAUDE_PLUGIN_ROOT}/knowledge/object-calisthenics.md` before analysis. Whole-file load: the agent needs all nine rules as design-pressure thresholds (especially rule 1 one-indentation-level, rule 2 no-else, rule 7 small-entities) plus the rationale prose tying them to the numeric limits below.
 
 ## Skip
 
@@ -69,7 +69,7 @@ Cognitive load:
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these complexity-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these complexity-review-specific challenges:
 
 - Did you check ALL methods and functions, not just the visibly large ones?
 - For each nesting-depth finding, did you count the actual levels rather than estimating by appearance?

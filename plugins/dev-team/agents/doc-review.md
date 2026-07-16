@@ -87,7 +87,7 @@ across any language and comment syntax (`//`, `#`, `/* */`, `--`):
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these doc-review-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these doc-review-specific challenges:
 
 - Did you compare EVERY changed public signature against its doc comment, not just the ones with obvious drift?
 - For each "README describes removed feature" finding, did you confirm the feature is actually gone from source (grep), not assume?

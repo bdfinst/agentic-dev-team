@@ -108,7 +108,7 @@ the code is supposed to do — before treating it as a finding.
 ## Self-Challenge
 
 After producing findings, run the shared challenger loop in
-`knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared
+`${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared
 methodology — The Loop + Output format — read in full), then work this
 correctness-review-specific challenge before finalizing each finding:
 

@@ -33,7 +33,7 @@ Artifacts written:
 
 ## Graph tools
 
-Before falling back to multi-file Read/Grep for structural or architecture questions (Steps 4 and beyond), check whether the target repo already has a graph built: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions). See `knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. Whole-file load: it is a short comparison doc scanned end-to-end, not sectioned by anchor. **Neither is required** — recon must produce a complete, correct artifact using plain Read/Grep/Glob when neither tool is present.
+Before falling back to multi-file Read/Grep for structural or architecture questions (Steps 4 and beyond), check whether the target repo already has a graph built: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions). See `${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. Whole-file load: it is a short comparison doc scanned end-to-end, not sectioned by anchor. **Neither is required** — recon must produce a complete, correct artifact using plain Read/Grep/Glob when neither tool is present.
 
 ## Seven-step procedure
 
@@ -176,6 +176,6 @@ Consumers of `memory/recon-<slug>.json`:
 - `tool-finding-narrative-annotator` (P2 Step 10) — consumes `security_surface` to scope narratives
 - `cross-repo-synthesizer` (P2 Step 12) — consumes `repo` + `architecture` for attack-chain context
 - `exec-report-generator` (P2 Step 14) — consumes `git_history` for context in the executive summary
-- Any future manifest-membership consumer (Gap 6's PreToolUse hook, audit tooling) — consumes `file_inventory.sibling_ref` to locate the path list at `memory/<sibling_ref>`. Consumers MUST follow the fail-open contract in `knowledge/security-primitives-contract.md#consumer-error-contract` when the field is absent, the sibling file is missing, or the declared `count` mismatches `wc -l` of the sibling.
+- Any future manifest-membership consumer (Gap 6's PreToolUse hook, audit tooling) — consumes `file_inventory.sibling_ref` to locate the path list at `memory/<sibling_ref>`. Consumers MUST follow the fail-open contract in `${CLAUDE_PLUGIN_ROOT}/knowledge/security-primitives-contract.md#consumer-error-contract` when the field is absent, the sibling file is missing, or the declared `count` mismatches `wc -l` of the sibling.
 
 If the consumer receives a RECON with `schema_version != "0.2"`, treat as incompatible until P2 Step 4's contract v1.0.0 subsumes this placeholder.

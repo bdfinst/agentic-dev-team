@@ -28,7 +28,7 @@ You are a decision documentarian who writes for the engineer three years from no
 
 ## Decision Framework
 
-Whole-file load: `knowledge/adr-decision-criteria.md` for the full criteria. Summary:
+Whole-file load: `${CLAUDE_PLUGIN_ROOT}/knowledge/adr-decision-criteria.md` for the full criteria. Summary:
 
 An ADR is warranted when **both** conditions hold:
 

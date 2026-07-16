@@ -27,7 +27,7 @@ Context needs: full-file (reads plan + git state)
 
 Produces `{"status": "skip", "issues": [], "summary": "No active plan found"}` when:
 
-- No plan files exist in `plans/` or `memory/` — check with `Glob("plans/**")` / `Glob("memory/**")`, never a bare `Read` of the directory (`knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference)
+- No plan files exist in `plans/` or `memory/` — check with `Glob("plans/**")` / `Glob("memory/**")`, never a bare `Read` of the directory (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference)
 - The current task has no associated plan
 
 ## What the script detects
@@ -63,7 +63,7 @@ This agent is read-only — it cannot run tests itself, so it must never *infer*
 
 ## Self-Challenge
 
-After producing findings, run the shared challenger loop in `knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these progress-guardian-specific challenges:
+After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these progress-guardian-specific challenges:
 
 - Did you check EVERY plan step's status against actual git state, not just the most recent one?
 - For each "step complete" claim, did you confirm fresh test evidence exists rather than trust the `[x]` mark? ("Marked complete" is not "demonstrated complete.")
