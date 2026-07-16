@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Progress ledger and per-slice section artifacts for sliced /code-review.
+
+The persist-and-drop design lives here: as each slice is reviewed, its findings
+are written to ``DEV_TEAM_REPORTS/code-review/raw/section-<id>.json`` and the
+ledger's status for that slice flips to ``done``. The orchestrator keeps only a
+one-line tally per slice in context; the durable record is these files. A later
+``consolidate.py`` reads the section artifacts back.
+
+Pure-ish library (``init_ledger``, ``write_section``, ``read_ledger``,
+``mark_done``) plus a thin ``main()`` CLI so the orchestrator can drive it from
+a shell step. All paths resolve under the target repo's working directory
+(``root``), never a sandbox or session root.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import uuid
+from pathlib import Path
+from typing import List, Optional
+
+LEDGER_SCHEMA = "code-review-ledger/v1"
+SECTION_SCHEMA = "code-review-section/v1"
+
+STATUS_PENDING = "pending"
+STATUS_DONE = "done"
+
+
+# --- path resolution (single home) --------------------------------------------
+
+
+def _cr_dir(root: str) -> Path:
+    return Path(root) / "DEV_TEAM_REPORTS" / "code-review"
+
+
+def ledger_path(root: str) -> Path:
+    return _cr_dir(root) / "ledger.json"
+
+
+def section_path(root: str, slice_id: str) -> Path:
+    return _cr_dir(root) / "raw" / f"section-{slice_id}.json"
+
+
+def _atomic_write_json(path: Path, obj) -> None:
+    """Write ``obj`` as pretty JSON to ``path`` atomically (temp + replace).
+
+    The temp name carries a unique pid+uuid suffix so two writers to the same
+    final path can never share a temp file (which would corrupt one write or
+    make the second ``os.replace`` raise). ``os.replace`` stays atomic.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    tmp.write_text(json.dumps(obj, indent=2, sort_keys=True))
+    os.replace(tmp, path)
+
+
+# --- ledger + section operations ----------------------------------------------
+
+
+def init_ledger(slices: List[dict], cap: int, root: str) -> dict:
+    """Write a fresh ledger recording every slice as ``pending``; return it.
+
+    Idempotent for a given ``(slices, cap)`` — the same inputs always produce
+    the same file. Records each slice's id, files, and declarative flag plus the
+    partition cap (so ``--resume`` can detect a cap mismatch — Slice 4).
+    """
+    ledger = {
+        "schema": LEDGER_SCHEMA,
+        "cap": cap,
+        "slices": [
+            {
+                "id": s["id"],
+                "files": list(s["files"]),
+                "is_declarative": bool(s.get("is_declarative", False)),
+                "status": STATUS_PENDING,
+            }
+            for s in slices
+        ],
+    }
+    _atomic_write_json(ledger_path(root), ledger)
+    return ledger
+
+
+def read_ledger(root: str) -> Optional[dict]:
+    """Return the ledger dict, or ``None`` if no ledger exists yet."""
+    path = ledger_path(root)
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
+
+
+def mark_done(root: str, slice_id: str) -> None:
+    """Flip ``slice_id``'s ledger status to ``done`` (no-op if no ledger).
+
+    **Single-writer contract:** this is a read-modify-write of the shared
+    ``ledger.json``. It (and ``write_section``, which calls it) must be invoked
+    from a single writer — the orchestrator's sequential persist step, which
+    collects each parallel review agent's result and persists it one at a time.
+    The 2–3-slice parallelism in ``sliced-mode.md`` is in the *review* agents,
+    not the persist calls; concurrent ``mark_done`` invocations would lose
+    updates (last writer wins, silently dropping another slice's ``done`` flag).
+    """
+    ledger = read_ledger(root)
+    if ledger is None:
+        return
+    for entry in ledger.get("slices", []):
+        if entry.get("id") == slice_id:
+            entry["status"] = STATUS_DONE
+            break
+    _atomic_write_json(ledger_path(root), ledger)
+
+
+def write_section(slice_record: dict, findings: list, panel: List[str], root: str) -> Path:
+    """Persist a reviewed slice's findings and mark it done in the ledger.
+
+    ``slice_record`` is a partition record (``id``/``files``/``is_declarative``).
+    ``panel`` is the list of agent names that ran (so a reader can tell a
+    reduced-panel slice from a full one). Returns the artifact path.
+    """
+    artifact = {
+        "schema": SECTION_SCHEMA,
+        "id": slice_record["id"],
+        "files": list(slice_record["files"]),
+        "is_declarative": bool(slice_record.get("is_declarative", False)),
+        "panel": list(panel),
+        "findings": list(findings),
+    }
+    path = section_path(root, slice_record["id"])
+    _atomic_write_json(path, artifact)
+    mark_done(root, slice_record["id"])
+    return path
+
+
+# --- thin CLI -----------------------------------------------------------------
+
+
+def _load_json_arg(value: str):
+    """Load JSON from a file path, or parse it inline if not a path."""
+    p = Path(value)
+    return json.loads(p.read_text() if p.exists() else value)
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p_init = sub.add_parser("init", help="write a fresh ledger from slices")
+    p_init.add_argument("--root", default=".")
+    p_init.add_argument("--slices", required=True, help="slices JSON (file or inline)")
+    p_init.add_argument("--cap", type=int, required=True)
+
+    p_ws = sub.add_parser("write-section", help="persist a slice's findings")
+    p_ws.add_argument("--root", default=".")
+    p_ws.add_argument("--slice", required=True, help="slice record JSON (file or inline)")
+    p_ws.add_argument("--findings", required=True, help="findings JSON (file or inline)")
+    p_ws.add_argument("--panel", required=True, help="comma-separated agent names")
+
+    args = parser.parse_args(argv)
+
+    if args.cmd == "init":
+        ledger = init_ledger(_load_json_arg(args.slices), args.cap, args.root)
+        print(f"Ledger initialized: {len(ledger['slices'])} slices at {ledger_path(args.root)}")
+        return 0
+
+    if args.cmd == "write-section":
+        path = write_section(
+            _load_json_arg(args.slice),
+            _load_json_arg(args.findings),
+            [a.strip() for a in args.panel.split(",") if a.strip()],
+            args.root,
+        )
+        print(f"Section written: {path}")
+        return 0
+
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
