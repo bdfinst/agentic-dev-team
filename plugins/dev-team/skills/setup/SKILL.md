@@ -633,6 +633,14 @@ Display a summary of everything installed and created:
 - ⚠ Vitest coverage provider missing — <provider_hint>   [not ready]
 - ⚠ coverage scope unset — baseline will be inflated (<scope_hint>)   [not meaningful]
 
+### Code-intelligence indexes (project-init Step 4c — all-or-none group)
+- CodeGraph: ✓ installed + `.codegraph/` built (keyless)   [or: ✗ declined | ✗ failed]
+- Repowise:  ✓ installed + `.repowise/` indexed (keyless)   [or: ✗ declined | ✗ failed]
+- Graphify:  ✓ `graphify-out/` built (required a model/API key)   [or: ✗ declined | ✗ failed]
+
+The separate "run index-codebase first" step is no longer required — accepting
+the group installs and builds all three indexes in the same run.
+
 ### Created
 - `.claude/project-stack.json` — stack detection results
 - `.claude/CLAUDE.md` — project conventions

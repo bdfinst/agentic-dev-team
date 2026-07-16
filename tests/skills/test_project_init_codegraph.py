@@ -49,7 +49,13 @@ def test_install_prompt_text_present(text: str) -> None:
 
 
 def test_install_accept_url_present(text: str) -> None:
+    # Kept as the non-fatal manual-install hint when npm install fails.
     assert "https://github.com/colbymchenry/codegraph#installation" in text
+
+
+def test_install_runs_npm_package(text: str) -> None:
+    # #1134: accepting installs the CLI keylessly rather than only printing a URL.
+    assert "npm install -g @colbymchenry/codegraph" in text
 
 
 # ---------------------------------------------------------------------------
@@ -65,11 +71,17 @@ def test_init_prompt_text_present(text: str) -> None:
 
 
 def test_init_run_command_documented(text: str) -> None:
-    assert "codegraph init -i" in text
+    # #1134: non-interactive init targeting the repo dir (no -i flag).
+    assert "codegraph init ." in text
+
+
+def test_init_run_command_is_non_interactive(text: str) -> None:
+    # The interactive `-i` form must not reappear anywhere in the spec.
+    assert "codegraph init -i" not in text
 
 
 def test_init_run_announcement_present(text: str) -> None:
-    assert "Running 'codegraph init -i' in this project..." in text
+    assert "Running 'codegraph init .' in this project..." in text
 
 
 def test_init_success_message_present(text: str) -> None:
