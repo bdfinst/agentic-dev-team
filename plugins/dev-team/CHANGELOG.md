@@ -1,5 +1,30 @@
 # Changelog
 
+## [10.8.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.7.0...dev-team-v10.8.0) (2026-07-16)
+
+
+### Features
+
+* **mutation-testing:** add --headless claude --print generation to the kill loop ([32d4c47](https://github.com/bdfinst/agentic-dev-team/commit/32d4c470f40202ed07fae7dc8725ae8c4dcee524))
+* **mutation-testing:** add config-driven survivor-kill loop mechanics ([82e6203](https://github.com/bdfinst/agentic-dev-team/commit/82e6203a616d82e6bc641658ad4393e997717931))
+* **mutation-testing:** add generic Stryker shard-config generator ([d81d98b](https://github.com/bdfinst/agentic-dev-team/commit/d81d98b790a6d93daa7974021254efd1203959c0))
+* **mutation-testing:** add honest-score mutation report module ([8b0b500](https://github.com/bdfinst/agentic-dev-team/commit/8b0b500a1b6b50bf008d9abbf492e7cab98a5c0b))
+* **mutation-testing:** add sharded worktree pipeline with timeout-abort ([03d0e7e](https://github.com/bdfinst/agentic-dev-team/commit/03d0e7ec6aefebdd55eb821e7bec2a02fa0c9f81))
+* **reports:** Slice 1 — Shared render module + bundled print stylesheet ([d1addba](https://github.com/bdfinst/agentic-dev-team/commit/d1addba568286e0e114a1fa3c5e57c68073eaae1))
+* **reports:** Slice 2 — Standalone `/report-pdf` command ([ccd1a3f](https://github.com/bdfinst/agentic-dev-team/commit/ccd1a3f8f770e53724608f1c1a896b7d139e6d08))
+* **reports:** Slice 3 — `--pdf` flag on the five report-producing skills ([afdeab5](https://github.com/bdfinst/agentic-dev-team/commit/afdeab5fdfbebabb8ed2f104def36560d528b4d0)), closes [#1114](https://github.com/bdfinst/agentic-dev-team/issues/1114)
+
+
+### Bug Fixes
+
+* **mutation-testing:** harden shard-setup path, bound streaming abort, dedupe report parsing ([5eda4bf](https://github.com/bdfinst/agentic-dev-team/commit/5eda4bf059571d17bf349b24fdc97f2483fd3d00))
+* **mutation-testing:** stop pinning a model snapshot id in the kill loop ([fe2a76e](https://github.com/bdfinst/agentic-dev-team/commit/fe2a76e5d8444a15da0e84c8884788ce18c53f83))
+
+
+### Code Refactoring
+
+* **mutation-testing:** point mutation-kill agent at the migrated scripts ([2b90c44](https://github.com/bdfinst/agentic-dev-team/commit/2b90c449402a3b2f7645b49bd7af4d5336211929))
+
 ## [10.7.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.6.2...dev-team-v10.7.0) (2026-07-16)
 
 
