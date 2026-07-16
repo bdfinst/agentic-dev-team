@@ -35,7 +35,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, List, Optional, Sequence
 
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report

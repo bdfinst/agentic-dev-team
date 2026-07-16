@@ -14,12 +14,10 @@ difference is that we import the wrapper as a Python module and call
 
 from __future__ import annotations
 
-import json
 import os
 import stat
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from pathlib import Path

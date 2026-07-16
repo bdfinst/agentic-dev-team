@@ -304,7 +304,7 @@ def test_skip_existing_wins_over_max_age(tmp_path):
 
 def test_max_age_applies_only_when_skip_existing_unset(tmp_path):
     out_dir = tmp_path / "out" / "a"
-    rp = _write_report(out_dir, {"src/W.a/Foo.cs": {"mutants": []}})
+    _write_report(out_dir, {"src/W.a/Foo.cs": {"mutants": []}})
     # Fresh report (just written) with a generous window → skipped by age.
     assert (
         pipeline.should_skip(
@@ -348,8 +348,8 @@ def test_per_shard_start_and_done_lines_are_timestamped(tmp_path):
         run=rec.run,
         git_run=rec.git_run,
     )
-    starts = [l for l in rec.logs if "Shard START: a" in l]
-    dones = [l for l in rec.logs if "Shard DONE: a" in l]
+    starts = [ln for ln in rec.logs if "Shard START: a" in ln]
+    dones = [ln for ln in rec.logs if "Shard DONE: a" in ln]
     assert starts and dones
     assert TS_RE.search(starts[0]) and TS_RE.search(dones[0])
 

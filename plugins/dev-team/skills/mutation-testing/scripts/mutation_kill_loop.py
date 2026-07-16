@@ -287,7 +287,7 @@ def insert_before_class_close(test_file: Path, new_methods: str) -> None:
 
     block = (
         ["\n"]
-        + [l if l.endswith("\n") else l + "\n" for l in new_methods.strip().splitlines()]
+        + [ln if ln.endswith("\n") else ln + "\n" for ln in new_methods.strip().splitlines()]
         + ["\n"]
     )
     lines = lines[:cc_idx] + block + lines[cc_idx:]
