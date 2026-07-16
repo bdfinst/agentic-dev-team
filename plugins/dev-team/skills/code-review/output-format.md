@@ -129,6 +129,38 @@ partial ledger is always valid JSON.
   The artifact on disk — not this status field — is the source of truth for
   `--resume`.
 
+## Consolidated aggregate (sliced mode)
+
+Produced by `scripts/consolidate.py` → `consolidate(sections)` from all
+`section-*.json` artifacts. It extends the aggregated `--json` object above with
+two sliced-only fields, and reuses the same `topFindings` dedup contract
+(one entry per distinct `file:line`, reporting agents merged into `agents[]`,
+severity = the single highest enum).
+
+```json
+{
+  "sliced": true,
+  "sliceCount": 24,
+  "overall": "warn",
+  "totals": {"errors": 0, "warnings": 5, "suggestions": 3},
+  "topFindings": [
+    {"severity": "warning", "agents": ["structure-review", "complexity-review"], "file": "src/api/handler.ts", "line": 15, "message": "..."}
+  ],
+  "recurringThemes": [
+    {"agent": "structure-review", "slices": ["0003", "0007", "0011"], "occurrences": 9}
+  ],
+  "reducedPanelSlices": ["0002", "0019"]
+}
+```
+
+- `recurringThemes`: review dimensions (by `agent`) whose findings recur across
+  **two or more slices** — the systemic-pattern rollup (e.g. the same god-class
+  or leak flagged in many modules). `slices` lists the affected slice ids;
+  `occurrences` is the total finding count for that dimension. A dimension
+  appearing in only one slice is **not** a theme.
+- `reducedPanelSlices`: the ids of slices that ran the reduced (declarative)
+  panel — so a reader can tell "fewer findings" from "fewer reviewers ran".
+
 ## Correction prompt JSON
 
 ```json

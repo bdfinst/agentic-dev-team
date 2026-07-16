@@ -115,4 +115,28 @@ every slice.
 
 ## Consolidation
 
-_(Authored in Slice 5.)_
+Once every slice has a section artifact (a fresh run's full set, or a
+`--resume` run's reused + newly-written set), consolidate:
+
+1. Run `scripts/consolidate.py` (its `main()` reads every
+   `raw/section-*.json`) → the consolidated aggregate (schema in
+   [`output-format.md`](output-format.md#consolidated-aggregate-sliced-mode)):
+   findings **deduped by `file:line`** with reporting agents merged, a
+   **recurring-theme rollup** (dimensions recurring across ≥2 slices), and the
+   `reducedPanelSlices` disclosure. A malformed artifact is reported by name,
+   never silently dropped.
+2. Apply `ACCEPTED-RISKS.md` at this consolidation step exactly as the
+   legacy path does (SKILL.md step 5a) — suppression happens once, over the
+   merged findings.
+
+**Report-only.** Sliced mode does **not** run the interactive review-fix loop.
+It is a reporting/consolidation pass:
+
+- Write the consolidated prose report to `DEV_TEAM_REPORTS/code-review.md` and
+  per-issue correction prompts to `./corrections/` (for `/apply-fixes` to act
+  on later). Both paths are repo-relative to the target repo's working
+  directory.
+- In `--json` mode, emit the single consolidated aggregate object to **stdout**
+  and write **no** file — the existing `--json` contract (SKILL.md step 7),
+  now carrying the consolidated `topFindings` / `recurringThemes` /
+  `reducedPanelSlices`.
