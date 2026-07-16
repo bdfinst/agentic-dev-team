@@ -3,12 +3,14 @@ name: ship
 description: >-
   Run the full spec-to-merge pipeline as one command: spec, plan, small-batch build,
   code review, and a PR with auto-merge — pausing at the existing human gates.
+  Idempotent per issue — a re-invocation for work already shipped or in-flight
+  resumes/monitors instead of re-running the pipeline.
   Use when the user says "ship this", "take this feature end to end",
   "implement this issue", "we need to build", or wants the
   spec->plan->build->PR flow without re-assembling it each time.
-argument-hint: "<feature-description> [--skip-spec] [--no-auto-merge]"
+argument-hint: "<feature-description> [--skip-spec] [--no-auto-merge] [--force-restart]"
 user-invocable: true
-allowed-tools: Read, Glob, Grep, Skill(specs *), Skill(plan *), Skill(build *), Skill(code-review *), Skill(pr *)
+allowed-tools: Read, Glob, Grep, Bash(gh pr *), Bash(gh issue *), Bash(git branch *), Bash(git rev-parse *), Bash(git fetch *), Skill(specs *), Skill(plan *), Skill(build *), Skill(code-review *), Skill(pr *), AskUserQuestion
 ---
 
 # Ship
@@ -29,6 +31,11 @@ You have been invoked with the `/ship` command.
    `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md` and confirm any ambiguous high-reversal-cost axis
    (replace-vs-merge, format fidelity, migrate-vs-edit-stub, scope) in one batch.
 4. **Be concise.** Report each phase's outcome and the next gate, nothing more.
+5. **Idempotent per issue.** Never re-run the pipeline for an issue that is
+   already shipped or in-flight. The Step 1 resume guard decides this from
+   durable tracker/PR state — not conversation memory — so a re-fired command
+   string (e.g. a `ScheduleWakeup`/loop prompt that repeats) lands on
+   resume/monitor, not a second spec→plan→build→PR pass.
 
 ## Parse Arguments
 
@@ -37,12 +44,65 @@ Arguments: $ARGUMENTS
 - Positional: the feature description (required).
 - `--skip-spec`: Skip the spec phase (use when a spec already exists for this work).
 - `--no-auto-merge`: Pass through to `/pr` so the PR is not set to auto-merge.
+- `--force-restart`: Bypass the Step 1 resume guard and re-run the pipeline from
+  the start even when prior artifacts exist. Use only for a deliberate rebuild —
+  it accepts the risk of duplicate spec issues, sub-issues, and PRs.
 
 ## Steps
 
 ### 1. Approach contract
 
-Screen the request against `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`. Surface any ambiguous
+#### 1a. Resume guard — run before anything else
+
+`/ship` is idempotent per issue. Before screening the approach or invoking
+`/specs`, check whether this work has **already been shipped or is in-flight**,
+so a re-invocation resumes or monitors instead of duplicating the spec issue,
+the sub-issues, and the PR. Skip this guard only when `--force-restart` was
+given (a deliberate rebuild).
+
+First, resolve the **issue identifier** from `$ARGUMENTS`: an explicit issue
+number or URL if present, otherwise the feature slug. Derive the conventional
+branch name for it (this repo names feature branches `issue-<N>`). Then probe
+three durable signals — key off tracker/PR state, **never** off whether this
+conversation has run the pipeline, so a re-fired command string (a
+`ScheduleWakeup`/loop prompt) hits the same guard:
+
+1. **PR** — `gh pr list --state all --search "<N>"` and
+   `gh pr list --state all --head issue-<N>`. A PR whose body carries
+   `Closes #<N>` (or whose head branch matches) is the strongest signal.
+2. **Spec / sub-issues** — an existing spec epic and its linked slice
+   sub-issues for the feature. Because `/specs` searches by `Spec: <Feature
+   Name>` title, an epic titled conventionally (`feat: …`) will not be found by
+   `/specs` itself — so match on the issue number here, not the title.
+3. **Plan** — an approved/implemented plan (a linked plan sub-issue on
+   GitHub-connected repos, or a plan file under `docs/specs/**/plans/` or
+   `plans/`).
+
+Decide from what the probes return — and treat every treatment as reporting,
+not re-running:
+
+- **Merged PR closing the issue → already shipped.** Report the merged PR and
+  stop. Do not re-run any phase.
+- **Open PR for the issue → in-flight; MONITOR.** Report the PR and its CI
+  state (`gh pr checks <pr>`). If the PR is `BEHIND` main, rebase it onto
+  `main` and hand back to its checks; otherwise wait on the open gate. Do
+  **not** re-enter spec→plan→build.
+- **Spec / sub-issues / plan exist but no PR yet → partially in-flight;
+  RESUME.** Continue from the earliest incomplete phase against the existing
+  artifacts (e.g. `--skip-spec` when the spec epic already exists; build onto
+  the existing branch) rather than creating new ones. Before writing any
+  artifact that would duplicate an existing one, use `AskUserQuestion` to
+  confirm resume-vs-restart.
+- **Nothing found → genuine first run.** Proceed to the approach screen below.
+
+When the guard resumes/monitors or stops, report which signal fired (PR number,
+epic/sub-issue numbers, plan location) so the decision is auditable, and skip
+the remaining first-run steps that the existing artifacts already satisfy.
+
+#### 1b. Approach screen
+
+Once the guard confirms a genuine first run (or `--force-restart` was given),
+screen the request against `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`. Surface any ambiguous
 axis to the user in a single batch and get the answers before proceeding. Stop here if
 a genuinely blocking ambiguity remains.
 
@@ -99,3 +159,6 @@ Report the PR URL, the quality-gate result, and whether auto-merge is armed.
   the underlying skills. If any phase stops at a gate, `/ship` stops with it.
 - For a plan-only pass, use `/plan`; for build-only, use `/build`. `/ship` is for the
   whole loop in one invocation.
+- Re-invoking `/ship` for an issue that is already shipped or in-flight is safe:
+  the Step 1 resume guard (1a) reports/monitors instead of re-running. Pass
+  `--force-restart` only when a deliberate rebuild is intended.
