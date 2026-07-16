@@ -11,6 +11,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(
     0,
@@ -80,3 +82,52 @@ def test_mark_done_noop_without_ledger(tmp_path):
     # Should not raise when there is no ledger yet.
     ledger.mark_done(str(tmp_path), "0001")
     assert ledger.read_ledger(str(tmp_path)) is None
+
+
+# --- Slice 4: resume detection + cap guard ------------------------------------
+
+
+def _ids(slices):
+    return [s["id"] for s in slices]
+
+
+def test_pending_returns_only_slices_without_artifacts(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    ledger.write_section(_slices()[0], [], panel=["correctness-review"], root=str(tmp_path))
+    pending = ledger.pending_slices(_slices(), str(tmp_path))
+    assert _ids(pending) == ["0002"]
+
+
+def test_pending_returns_all_when_no_artifacts(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    assert _ids(ledger.pending_slices(_slices(), str(tmp_path))) == ["0001", "0002"]
+
+
+def test_pending_returns_none_when_all_written(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    for s in _slices():
+        ledger.write_section(s, [], panel=["correctness-review"], root=str(tmp_path))
+    assert ledger.pending_slices(_slices(), str(tmp_path)) == []
+
+
+def test_disk_wins_when_ledger_says_pending_but_artifact_exists(tmp_path):
+    # Write the artifact directly, leaving the ledger status at "pending".
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    path = ledger.section_path(str(tmp_path), "0001")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{}")
+    # Ledger still says pending, but the artifact exists -> treated done.
+    assert _ids(ledger.pending_slices(_slices(), str(tmp_path))) == ["0002"]
+
+
+def test_resume_cap_mismatch_raises(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    with pytest.raises(ValueError):
+        ledger.check_resume_cap(str(tmp_path), requested_cap=25)
+
+
+def test_resume_cap_match_or_absent_ok(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    ledger.check_resume_cap(str(tmp_path), requested_cap=50)  # matches -> no raise
+    ledger.check_resume_cap(str(tmp_path), requested_cap=None)  # no explicit cap -> no raise
+    ledger.check_resume_cap(str(tmp_path) + "-absent", requested_cap=25)  # no ledger -> no raise

@@ -127,3 +127,19 @@ def test_sliced_mode_documents_progress_and_resume_guidance():
     # Interrupted-run guidance points at --resume.
     assert "--resume" in sec
     assert "incomplete" in sec.lower()
+
+
+# --- sliced-mode.md: resume (Slice 4) -----------------------------------------
+
+
+def test_sliced_mode_documents_resume_skip_and_cap_guard():
+    sec = _SLICED_MD.split("## Resuming an interrupted run", 1)[1].split("\n## ", 1)[0]
+    assert "pending_slices" in sec
+    assert "check_resume_cap" in sec
+    # Skips slices whose artifact already exists; disk is the source of truth.
+    assert "already exists" in sec
+    assert "source of truth" in sec.lower()
+    # Refuses a changed cap rather than repartitioning.
+    assert "cap" in sec and ("differs" in sec or "desync" in sec)
+    # --resume must not re-initialize the ledger (else prior progress is lost).
+    assert "not" in sec and "re-initialize" in sec

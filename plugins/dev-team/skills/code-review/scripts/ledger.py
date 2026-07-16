@@ -114,6 +114,38 @@ def mark_done(root: str, slice_id: str) -> None:
     _atomic_write_json(ledger_path(root), ledger)
 
 
+def pending_slices(slices: List[dict], root: str) -> List[dict]:
+    """Return the slices still needing review — those with no section artifact.
+
+    **Disk is the source of truth**, not the ledger's ``status`` field. A slice
+    whose ``raw/section-<id>.json`` exists is treated as done (skipped) even if
+    the ledger still says ``pending``; a slice whose artifact is missing is
+    pending even if the ledger says ``done``. This makes ``--resume`` robust to a
+    ledger that was never updated before an interruption.
+    """
+    return [s for s in slices if not section_path(root, s["id"]).exists()]
+
+
+def check_resume_cap(root: str, requested_cap: Optional[int]) -> None:
+    """Raise if ``--resume`` is given a cap differing from the recorded one.
+
+    Repartitioning with a different cap would desync the new slice ids from the
+    ``section-<id>.json`` files already on disk, silently re-reviewing or
+    orphaning slices. Refuse instead. No-op when there is no prior ledger or no
+    explicit cap was requested.
+    """
+    ledger = read_ledger(root)
+    if ledger is None or requested_cap is None:
+        return
+    recorded = ledger.get("cap")
+    if recorded is not None and recorded != requested_cap:
+        raise ValueError(
+            f"--resume cap {requested_cap} does not match the cap {recorded} "
+            f"recorded by the interrupted run. Rerun with --slice {recorded} "
+            f"(or without --slice), or start a fresh run to repartition."
+        )
+
+
 def write_section(slice_record: dict, findings: list, panel: List[str], root: str) -> Path:
     """Persist a reviewed slice's findings and mark it done in the ledger.
 
@@ -159,6 +191,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_ws.add_argument("--findings", required=True, help="findings JSON (file or inline)")
     p_ws.add_argument("--panel", required=True, help="comma-separated agent names")
 
+    p_pending = sub.add_parser("pending", help="list slices still needing review")
+    p_pending.add_argument("--root", default=".")
+    p_pending.add_argument("--slices", required=True, help="slices JSON (file or inline)")
+    p_pending.add_argument("--cap", type=int, default=None, help="resume cap to validate")
+
     args = parser.parse_args(argv)
 
     if args.cmd == "init":
@@ -174,6 +211,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             args.root,
         )
         print(f"Section written: {path}")
+        return 0
+
+    if args.cmd == "pending":
+        slices = _load_json_arg(args.slices)
+        check_resume_cap(args.root, args.cap)  # raises on cap mismatch
+        pending = pending_slices(slices, args.root)
+        print(json.dumps([s["id"] for s in pending]))
         return 0
 
     return 1
