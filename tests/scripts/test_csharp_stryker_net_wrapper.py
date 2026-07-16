@@ -809,4 +809,125 @@ class TestSignalHandlingPOSIX:
             os.kill(stryker_pid, 0)
 
 
+# =============================================================================
+# run_stryker line-callback — additive, tee'd, backward-compatible (#1136 S5.1)
+# =============================================================================
+class _FakeStreamPopen:
+    """Popen stand-in for the streaming (callback) path. ``stdout`` is a
+    single byte-line iterator so the drain loop resumes where the main loop
+    broke off. ``poll()`` returns None until terminate()/exhaustion.
+    """
+
+    def __init__(self, lines, exit_code=0):
+        self.stdout = iter([line.encode("utf-8") for line in lines])
+        self._exit = exit_code
+        self.terminated = False
+        self.terminate_calls = 0
+
+    def terminate(self):
+        self.terminate_calls += 1
+        self.terminated = True
+
+    def poll(self):
+        return self._exit if self.terminated else None
+
+    def wait(self, timeout=None):
+        return self._exit
+
+
+class TestRunStrykerLineCallback:
+    """Slice 5 Step 5.1 scenarios. The callback receives each line and can
+    abort; the logfile is tee'd (fully populated) when a callback is present;
+    and callback-less callers keep the original logfile-redirect behavior.
+    """
+
+    def _patch_popen(self, monkeypatch, proc):
+        captured = {}
+
+        def fake_popen(cmd, stdout=None, stderr=None, cwd=None):
+            captured["cmd"] = cmd
+            captured["stdout"] = stdout
+            captured["stderr"] = stderr
+            captured["cwd"] = cwd
+            return proc
+
+        monkeypatch.setattr(wrapper.subprocess, "Popen", fake_popen)
+        return captured
+
+    def test_callback_receives_each_output_line(self, tmp_path, monkeypatch):
+        proc = _FakeStreamPopen(["one\n", "two\n", "three\n"])
+        self._patch_popen(monkeypatch, proc)
+        seen = []
+        rc = wrapper.run_stryker(
+            "fake-bin", [], tmp_path / "w.log", line_callback=lambda ln: seen.append(ln) or False
+        )
+        assert rc == 0
+        assert seen == ["one\n", "two\n", "three\n"]
+        assert proc.terminate_calls == 0
+
+    def test_callback_can_abort_and_terminates_process(self, tmp_path, monkeypatch):
+        proc = _FakeStreamPopen(["ok\n", "5 mutants got status Timeout\n", "tail\n"])
+        self._patch_popen(monkeypatch, proc)
+        seen = []
+
+        def cb(line):
+            seen.append(line)
+            return "Timeout" in line
+
+        wrapper.run_stryker("fake-bin", [], tmp_path / "w.log", line_callback=cb)
+        # Callback stopped feeding at the abort line — never saw "tail".
+        assert seen == ["ok\n", "5 mutants got status Timeout\n"]
+        assert proc.terminate_calls == 1
+
+    def test_logfile_is_fully_populated_when_callback_present(
+        self, tmp_path, monkeypatch
+    ):
+        # Even though the callback aborts on line 2, the remaining buffered
+        # output ("tail") is drained so the post-mortem log is complete (tee).
+        proc = _FakeStreamPopen(["ok\n", "5 mutants got status Timeout\n", "tail\n"])
+        self._patch_popen(monkeypatch, proc)
+        logfile = tmp_path / "sub" / "w.log"
+        wrapper.run_stryker(
+            "fake-bin", [], logfile, line_callback=lambda ln: "Timeout" in ln
+        )
+        assert logfile.read_text() == "ok\n5 mutants got status Timeout\ntail\n"
+
+    def test_callback_that_raises_terminates_process_and_propagates(
+        self, tmp_path, monkeypatch
+    ):
+        proc = _FakeStreamPopen(["boom\n", "unreached\n"])
+        self._patch_popen(monkeypatch, proc)
+
+        def cb(_line):
+            raise RuntimeError("abort via raise")
+
+        with pytest.raises(RuntimeError, match="abort via raise"):
+            wrapper.run_stryker("fake-bin", [], tmp_path / "w.log", line_callback=cb)
+        assert proc.terminate_calls == 1
+
+    def test_cwd_is_forwarded_to_popen(self, tmp_path, monkeypatch):
+        proc = _FakeStreamPopen(["done\n"])
+        captured = self._patch_popen(monkeypatch, proc)
+        wrapper.run_stryker(
+            "fake-bin", [], tmp_path / "w.log", line_callback=lambda ln: False, cwd=tmp_path
+        )
+        assert captured["cwd"] == str(tmp_path)
+
+    def test_callbackless_run_redirects_to_logfile_unchanged(
+        self, tmp_path, monkeypatch
+    ):
+        # No callback → the original path: stdout is redirected to the open
+        # logfile handle (never PIPE), and the loop is never iterated.
+        class _P:
+            def wait(self, timeout=None):
+                return 7
+
+        captured = self._patch_popen(monkeypatch, _P())
+        rc = wrapper.run_stryker("fake-bin", [], tmp_path / "w.log")
+        assert rc == 7
+        assert captured["stdout"] is not wrapper.subprocess.PIPE
+        assert hasattr(captured["stdout"], "write")
+        assert captured["stderr"] == wrapper.subprocess.STDOUT
+
+
 import signal  # noqa: E402 — used only by the signal tests above
