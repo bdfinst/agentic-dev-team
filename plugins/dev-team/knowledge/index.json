@@ -5071,11 +5071,11 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Screen the request against `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`.",
+      "summary": "Invoke `/specs` for the feature.",
       "anchor": "steps"
     },
     "1. Approach contract": {
-      "summary": "Screen the request against `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md`.",
+      "summary": "Invoke `/specs` for the feature.",
       "anchor": "1-approach-contract"
     },
     "2. Spec (unless `--skip-spec`)": {
