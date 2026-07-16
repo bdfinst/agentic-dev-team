@@ -12,8 +12,9 @@ Timeouts are not demonstrated kills — the honest score excludes them (see
 ``mutation_report``). Retrying them at a higher timeout is how a real kill (or
 a real survivor) is teased out of the noise.
 
-Generic, stdlib-only, cross-platform (macOS, Linux, Windows). No sibling
-imports required.
+Generic, stdlib-only, cross-platform (macOS, Linux, Windows). The only
+non-stdlib import is the sibling ``mutation_report`` module, which owns report
+parsing and the Stryker status vocabulary (AC4).
 """
 
 from __future__ import annotations
@@ -24,19 +25,32 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
+import mutation_report
+
 DEFAULT_ADDITIONAL_TIMEOUT_MS = 10000
 RETRY_CONFIG_NAME = "stryker-config.timeout-retry.json"
 
 
 def timeout_files_from_report(report_path: Path) -> Dict[str, int]:
-    """Return ``{source_file: timeout_count}`` for every file with Timeouts."""
-    data = json.loads(Path(report_path).read_text(encoding="utf-8"))
-    by_file: Dict[str, int] = {}
-    for key, info in data.get("files", {}).items():
-        count = sum(1 for m in info.get("mutants", []) if m.get("status") == "Timeout")
-        if count:
-            by_file[key] = count
-    return by_file
+    """Return ``{source_file: timeout_count}`` for every file with Timeouts.
+
+    Timeout-file discovery and the ``Timeout`` status literal are delegated to
+    ``mutation_report`` (AC4); only the per-file count — needed for the CLI's
+    progress summary — is tallied here.
+    """
+    path = Path(report_path)
+    timeout_files = mutation_report.files_with_timeouts(path)
+    if not timeout_files:
+        return {}
+    files = json.loads(path.read_text(encoding="utf-8")).get("files", {})
+    return {
+        key: sum(
+            1
+            for m in files.get(key, {}).get("mutants", [])
+            if m.get("status") == mutation_report.STATUS_TIMEOUT
+        )
+        for key in timeout_files
+    }
 
 
 def build_mutate_globs(paths: Sequence[str]) -> List[str]:

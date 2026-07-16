@@ -33,11 +33,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
-# Statuses that participate in the score denominators.
-_KILLED = "Killed"
-_SURVIVED = "Survived"
-_TIMEOUT = "Timeout"
-_NO_COVERAGE = "NoCoverage"
+# Stryker.NET mutant-status vocabulary — the single source of truth for these
+# literals across the whole pipeline. Sibling modules import these constants
+# rather than re-typing the raw strings, so the status vocabulary lives in one
+# place (AC4). Only these four participate in the score denominators.
+STATUS_KILLED = "Killed"
+STATUS_SURVIVED = "Survived"
+STATUS_TIMEOUT = "Timeout"
+STATUS_NO_COVERAGE = "NoCoverage"
 
 
 @dataclass(frozen=True)
@@ -86,13 +89,13 @@ def score_report(report_path: Path) -> ScoreSummary:
     killed = survived = timeout = no_coverage = 0
     for mutant in _iter_mutants(data):
         status = mutant.get("status")
-        if status == _KILLED:
+        if status == STATUS_KILLED:
             killed += 1
-        elif status == _SURVIVED:
+        elif status == STATUS_SURVIVED:
             survived += 1
-        elif status == _TIMEOUT:
+        elif status == STATUS_TIMEOUT:
             timeout += 1
-        elif status == _NO_COVERAGE:
+        elif status == STATUS_NO_COVERAGE:
             no_coverage += 1
 
     honest_denom = killed + survived + no_coverage
@@ -137,8 +140,41 @@ def survivors_by_mutator(report_path: Path, file_path: str) -> Dict[str, List[di
 
     grouped: Dict[str, List[dict]] = {}
     for mutant in info.get("mutants", []):
-        if mutant.get("status") != _SURVIVED:
+        if mutant.get("status") != STATUS_SURVIVED:
             continue
         mutator = mutant.get("mutatorName", "")
         grouped.setdefault(mutator, []).append(mutant)
     return grouped
+
+
+def _files_with_status(report_path: Path, status: str) -> List[str]:
+    """Return the sorted report file keys having >= 1 mutant of ``status``.
+
+    The report keys are the file identifiers exactly as Stryker emits them
+    (relative source paths); the caller decides how to interpret them. Returns
+    ``[]`` for an absent/empty report — never raises.
+    """
+    data = _load_report(report_path)
+    return sorted(
+        key
+        for key, info in data.get("files", {}).items()
+        if any(m.get("status") == status for m in info.get("mutants", []))
+    )
+
+
+def files_with_survivors(report_path: Path) -> List[str]:
+    """Return the sorted report file keys that have >= 1 Survived mutant.
+
+    This is the single source of truth for survivor-file discovery — sibling
+    modules call it instead of re-walking the report (AC4).
+    """
+    return _files_with_status(report_path, STATUS_SURVIVED)
+
+
+def files_with_timeouts(report_path: Path) -> List[str]:
+    """Return the sorted report file keys that have >= 1 Timeout mutant.
+
+    This is the single source of truth for timeout-file discovery — sibling
+    modules call it instead of re-walking the report (AC4).
+    """
+    return _files_with_status(report_path, STATUS_TIMEOUT)
