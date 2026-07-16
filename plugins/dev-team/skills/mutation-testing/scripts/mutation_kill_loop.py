@@ -55,12 +55,6 @@ NO_GENERATOR_MESSAGE = (
 # be pointed at without editing this module.
 CLAUDE_CLI = os.environ.get("CLAUDE_BIN", "claude")
 
-# Pinned default generation model for --headless. Resolution order (see
-# :func:`resolve_model`): ``--model`` flag > ``DEV_TEAM_MUTATION_MODEL`` env
-# var > this constant. Never an unstated literal — the effective model is
-# always inspectable.
-DEFAULT_MODEL = "claude-opus-4-8"
-
 # Printed when --headless is requested but the Claude CLI can't be reached.
 # Names exactly how to install and authenticate it, and mutates no files.
 MISSING_CLAUDE_MESSAGE = (
@@ -480,12 +474,15 @@ def run_for_file(
 # =============================================================================
 # Headless generation — shell to `claude --print` for unattended runs.
 # =============================================================================
-def resolve_model(explicit: Optional[str] = None) -> str:
+def resolve_model(explicit: Optional[str] = None) -> Optional[str]:
     """Resolve the generation model: ``--model`` > ``DEV_TEAM_MUTATION_MODEL``
-    > the pinned :data:`DEFAULT_MODEL`. Never an unstated literal."""
+    > ``None``. When ``None``, ``--model`` is omitted from the ``claude --print``
+    invocation and the Claude CLI uses its own default — the plugin never pins a
+    model snapshot id in source (models are resolved dynamically, not literalized;
+    cf. ADR 0008 and the no-pinned-snapshots guard)."""
     if explicit:
         return explicit
-    return os.environ.get("DEV_TEAM_MUTATION_MODEL") or DEFAULT_MODEL
+    return os.environ.get("DEV_TEAM_MUTATION_MODEL") or None
 
 
 _FENCE_OPEN_RE = re.compile(r"^```[\w-]*\n?")
@@ -565,12 +562,16 @@ def claude_cli_available() -> bool:
     return result.returncode == 0
 
 
-def make_headless_generator(model: str, *, cwd: Optional[Path] = None) -> Generator:
-    """Return a :data:`Generator` that shells to ``claude --print --model <model>``.
+def make_headless_generator(
+    model: Optional[str] = None, *, cwd: Optional[Path] = None
+) -> Generator:
+    """Return a :data:`Generator` that shells to ``claude --print``.
 
     The returned callable builds the prompt from the existing test file (the
     pattern) plus the survivor summary, invokes the Claude CLI, and strips
-    markdown code fences from the result before it is inserted.
+    markdown code fences from the result before it is inserted. ``--model`` is
+    passed only when ``model`` is set; when ``None`` the Claude CLI uses its own
+    default (the plugin pins no model snapshot id).
     """
 
     def generate(
@@ -580,8 +581,12 @@ def make_headless_generator(model: str, *, cwd: Optional[Path] = None) -> Genera
         test_text: str,
     ) -> str:
         prompt = build_generation_prompt(source_file, survivors, source_text, test_text)
+        cmd = [CLAUDE_CLI, "--print"]
+        if model:
+            cmd += ["--model", model]
+        cmd.append(prompt)
         result = subprocess.run(
-            [CLAUDE_CLI, "--print", "--model", model, prompt],
+            cmd,
             capture_output=True,
             text=True,
             cwd=cwd,
@@ -620,7 +625,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         "--model",
         help=(
             "Generation model for --headless. Default: DEV_TEAM_MUTATION_MODEL "
-            "env var, else the pinned DEFAULT_MODEL."
+            "env var, else omitted so `claude --print` uses its own default."
         ),
     )
     p.add_argument("--test-file", help="Test file to extend (required with --headless)")
