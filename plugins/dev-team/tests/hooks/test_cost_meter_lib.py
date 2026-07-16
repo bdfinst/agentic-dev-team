@@ -16,11 +16,11 @@ Covers two independent #732 fixes:
 
 from __future__ import annotations
 
+import importlib.util
 import inspect
 import json
 import os
 import re
-import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -29,10 +29,19 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _HOOKS_LIB = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
-if str(_HOOKS_LIB) not in sys.path:
-    sys.path.insert(0, str(_HOOKS_LIB))
 
-import cost_meter  # type: ignore[import-not-found]  # noqa: E402
+# Load hooks/lib/cost_meter.py by explicit file path under a unique module name
+# rather than a bare `import cost_meter`. A sibling module of the same basename
+# exists at hooks/cost_meter.py, so a bare import resolves ambiguously by
+# sys.path order: in a full-suite run another test can leave the top-level
+# `hooks/` dir ahead of `hooks/lib/` on sys.path, and the plain import silently
+# binds the WRONG cost_meter. Loading by path (and a distinct sys.modules key)
+# pins the lib version regardless of import mode or sys.path state. See #1120.
+_COST_METER_PATH = _HOOKS_LIB / "cost_meter.py"
+_spec = importlib.util.spec_from_file_location("cost_meter_lib", _COST_METER_PATH)
+assert _spec is not None and _spec.loader is not None
+cost_meter = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(cost_meter)
 
 
 _PRICING = {
