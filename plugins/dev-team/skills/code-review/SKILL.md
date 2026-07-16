@@ -56,6 +56,9 @@ Arguments: $ARGUMENTS
 | `--since <ref>` | Review files changed since the ref (`git diff --name-only <ref>...HEAD`) |
 | `--path <dir>` | Review only files in this directory |
 | `--all` | Force full-repository review even when uncommitted changes exist |
+| `--slice <N>` | Engage sliced large-repo review explicitly, capping each slice at N files (module-aligned) at any repo size. `N` must be a positive integer. See [`sliced-mode.md`](sliced-mode.md). |
+| `--resume` | Resume a sliced run — skip slices whose section artifact already exists on disk. See [`sliced-mode.md`](sliced-mode.md). |
+| `--no-slice` | Escape hatch — force the legacy single-pass review even on a large full-repo scope that would otherwise auto-engage sliced mode. |
 | `--json` | Output aggregated JSON to **stdout** instead of prose. Contractually non-interactive (for CI): never prompts; defaults to report-only (no code modified). |
 | `--internal` | This is an orchestrator-internal dispatch (`/build`'s Step 6 backstop review, `/test-improve`'s Phase 4/5 end-of-phase review loop) — skip the `DEV_TEAM_REPORTS/code-review.md` report write in step 7. Orthogonal to `--json`: `--internal` alone still runs the prose/fix-loop path; both sanctioned callers use `--internal` without `--json` specifically to keep the fix loop. `/build` and `/test-improve` are the only sanctioned callers of this flag today — see `knowledge/report-output-location.md` for `/ship`'s deliberate exception (writes the report by default, no `--internal`). |
 | `--init-risks` | Scaffold `ACCEPTED-RISKS.md` from `templates/ACCEPTED-RISKS.md.tmpl` if absent. Exits non-zero without overwriting if present. Schema: `knowledge/accepted-risks-schema.md`. |
@@ -101,7 +104,25 @@ Priority order:
 | --- | --- |
 | ≤200 | Proceed |
 | 201–500 | Warn: "Reviewing {N} files — consider `--path` to narrow scope." Proceed. |
-| >500 | Warn + confirm: "Reviewing {N} files is expensive. Continue?" Wait. |
+| >500 | **Auto-engage sliced mode** (large-repo review) unless `--no-slice`. |
+
+**Sliced large-repo review.** Decide activation with
+`scripts/activation.py` → `should_slice(scope_kind, file_count, ...)`:
+
+- **Full-repo scope with >500 files and no slicing flag** → auto-engage sliced
+  mode; partition with `scripts/partition.py`, report the slice count, and run
+  the sliced path in [`sliced-mode.md`](sliced-mode.md) instead of steps 4–9
+  below.
+- **`--slice <N>`** → engage sliced mode explicitly at any repo size, cap `N`.
+- **`--no-slice`** → force the legacy single-pass review (steps 2–9 below)
+  even when the >500 threshold is met. Exactly at 500 files does not auto-engage.
+- **Non-full-repo scope** (`--path`, `--since`, auto-scoped uncommitted
+  changes) → **never** auto-engages sliced mode, regardless of file count; the
+  review proceeds exactly as before this feature.
+
+When sliced mode engages, follow [`sliced-mode.md`](sliced-mode.md) for
+partitioning, per-slice panels, persist-and-drop, `--resume`, and cross-slice
+consolidation. Sliced mode is **report-only** (no interactive fix loop).
 
 **Documentation-only short-circuit.** After the target set is known, classify each file. A file is **documentation** when it matches a doc type or path:
 
