@@ -2,7 +2,7 @@
 
 name: token-efficiency-review
 description: Token usage optimization, file length, CLAUDE.md size, LLM anti-patterns
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 effort: low
 cites: [adversarial-review-protocol]
 enforcement: script

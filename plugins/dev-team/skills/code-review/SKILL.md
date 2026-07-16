@@ -129,11 +129,12 @@ If `REVIEW-CONTEXT.md` exists at the repo root, read it and pass its contents to
 | Tool | Check | Use |
 | --- | --- | --- |
 | RoslynMCP | `get_code_metrics` / `search_symbols` available | C# metrics, compiler diagnostics |
-| Code knowledge graph | `list_repos` available | Cross-repo dependency mapping |
+| CodeGraph | `.codegraph/` present / `mcp__codegraph__codegraph_explore` available | Verified structural skeletons, resolved callers/callees/impact |
+| Repowise | `get_context` / `get_symbol` / `search_codebase` / `get_risk` available | Verified file/symbol context + modification-risk lookups |
 | Documentation MCP | wiki/docs search available | Architecture docs |
 | Semgrep | `which semgrep` | SAST context for security-review |
 
-Pass availability info to each agent so they can use enhanced tools or fall back to Glob/Grep/Read. Include in the final report per `knowledge/review-template.md`.
+Pass availability info to each agent so they can use enhanced tools or fall back to Glob/Grep/Read. When CodeGraph or Repowise is available, instruct agents to **prefer `get_context` (verified skeleton) first, then `get_symbol`/`codegraph_explore` for bodies**, and use `Read`/`Grep` only to confirm a specific line or when the index can't serve a file — this cuts token cost and gives resolved call graphs instead of grep heuristics. All read-only review agents grant these MCP tools; the grant is inert (no error) when the server is absent. Include availability in the final report per `knowledge/review-template.md`.
 
 ### 2. Pre-flight gates
 
@@ -201,7 +202,7 @@ Spawn agents as parallel subagents in a single message using the Agent tool.
 - **Static analysis context**: if step 2b produced findings, inject into every agent's prompt using the format in `skills/static-analysis-integration/SKILL.md`: "These issues were detected by static analysis. Do not re-report them. Focus on semantic concerns."
 - **Per-agent output**: `{"agentName": "<name>", "status": "pass|warn|fail", "issues": [], "summary": "..."}` (full schema in `output-format.md`).
 
-**Graph-assisted architectural review**: if the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__*` tools — fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify CLI — `graphify query`/`path`/`explain` — architecture and cross-artifact questions), pass availability to agents doing structural/architectural review (`arch-review`, `component-architecture-review`, `structure-review`, `domain-review`) so they may consult the graph for impact/dependency context before flagging findings. See `knowledge/codegraph-vs-graphify.md` for when to use which. Never assume either tool exists — agents fall back to Read/Grep/Glob when absent.
+**Graph-assisted review**: if the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact lookups), a Repowise MCP server (`get_context`/`get_symbol`/`search_codebase`/`get_risk` — verified context + modification risk), and/or `graphify-out/graph.json` (Graphify CLI — `graphify query`/`path`/`explain` — architecture and cross-artifact questions), pass availability to **all read-only review agents** — the structural lenses (`arch-review`, `component-architecture-review`, `structure-review`, `domain-review`) benefit most from resolved call graphs, but every lens gains cheaper verified reads — so they may consult the index for impact/dependency context before flagging findings. When CodeGraph or Repowise is present, prefer `get_context` for a verified skeleton, then `get_symbol`/`codegraph_explore` for bodies, using `Read`/`Grep` only to confirm a specific line or when the index can't serve a file. See `knowledge/codegraph-vs-graphify.md` for when to use which. Never assume any tool exists — agents fall back to Read/Grep/Glob when absent, and the granted MCP tools are simply unavailable (no error) on repos without an index.
 
 Wait for all agents to complete before aggregating.
 

@@ -152,6 +152,15 @@ Include the result in the agent report table under a `Skills-Tool` column.
 
 **Fix (when `--fix` is passed)**: Append `, Skill` to the `tools:` frontmatter line. Report `FIXED: <agent> — Added Skill to tools:`.
 
+2. **Code-intelligence MCP invariant (review agents)**: Every read-only `*-review` agent MUST grant the five code-intelligence MCP tools in `tools:` — `mcp__codegraph__codegraph_explore` and `mcp__plugin_repowise_repowise__{get_context,get_symbol,search_codebase,get_risk}` — so a review on a repo with a CodeGraph/Repowise index uses verified skeletons and resolved call graphs instead of raw whole-file reads (the grant is inert when the server is absent; agents fall back to Read/Grep/Glob). This mirrors the Skills-Skill invariant: it self-extends to future `*-review` agents.
+   - FAIL if any `*-review` agent's `tools:` line is missing one or more of the five names.
+   - PASS if every `*-review` agent grants all five.
+   - Delegated to `scripts/check_review_agent_mcp_tools.py` (with `MCP_TOOL_NAMES` as the single source of truth); it also checks that [`code-review/SKILL.md`](../code-review/SKILL.md) still contains the code-intelligence phrases (the five tool names and `.codegraph/`) as a proxy for the detection/preference guidance — it asserts the phrases are present, not the instruction wording itself.
+
+Include the result in the agent report table under a `Code-Intel` column.
+
+**Fix (when `--fix` is passed)**: run `python3 scripts/check_review_agent_mcp_tools.py --fix`, which appends the missing names (merge, never replacing `Read, Grep, Glob`/`Skill`). Report `FIXED: <agent> — added code-intelligence MCP tools`.
+
 ### 2c. Audit team agent personas
 
 A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. **Exemption**: an agent that declares `enforcement: script` in its frontmatter is a script-enforced **prose spec**, not a persona-driven team agent — skip the persona checks below for it and instead verify it carries a `> **Implemented by:** <script>` pointer immediately after the H1. For each remaining team agent, check:
