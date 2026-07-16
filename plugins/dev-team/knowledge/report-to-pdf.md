@@ -1,5 +1,15 @@
 # Rendering a report to PDF
 
+**Prefer the built-in command.** `/report-pdf <path.md> [--out <path>]` renders
+any dev-team Markdown report (`DEV_TEAM_REPORTS/*.md` or `reports/*.md`) to a
+styled PDF, and the `--pdf` flag on `/code-review`, `/test-health`,
+`/cd-test-architecture`, `/triage`, and `/harness-audit` renders the report
+that run just wrote. Both share `hooks/lib/report_pdf.py`, which bundles the
+print stylesheet (`knowledge/report-print.css`), detects an engine with
+graceful fallback, and skips with an install hint when none is present — see
+[`report-pdf-integration.md`](report-pdf-integration.md). The recipe below is
+the underlying mechanism, kept for reference and manual use.
+
 A copy-pasteable recipe for turning any markdown report produced under
 `knowledge/report-template.md`'s contract into a shareable PDF, without
 assuming a LaTeX engine (`pdflatex`, `xelatex`) or a headless-rendering
@@ -11,6 +21,13 @@ package (`wkhtmltopdf`, `weasyprint`) is installed. Requires only:
 
 This is an on-request recipe, not automation — no hook runs it
 automatically on every report write.
+
+**Security note.** `report_pdf.py` hardens this recipe for report content that
+may embed snippets from a repo under review: it runs pandoc with `--sandbox`
+(no build-time resource fetches — blocks SSRF via a remote URL in the content),
+injects the stylesheet in Python rather than via `--css` (sandbox blocks that
+read), and invokes headless Chrome with `--disable-javascript`. The manual
+recipe below omits these; use the command for untrusted content.
 
 ## Recipe
 
