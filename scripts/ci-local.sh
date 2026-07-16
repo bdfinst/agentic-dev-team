@@ -122,6 +122,10 @@ JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
 case "$JOBS" in ''|*[!0-9]*) JOBS=2 ;; esac
 [ "$JOBS" -ge 1 ] || JOBS=2
 
+# --- timing helper (opt-in per-step timing; pure renderer, sourced) ---------
+# shellcheck source=scripts/lib/ci-timing.sh
+. scripts/lib/ci-timing.sh
+
 # --- --changed-only resolution ---------------------------------------------
 # Source the suite->path mapping + matcher (pure logic, unit-tested separately),
 # then resolve the changed-file set once. Any failure or an empty set disables
@@ -284,12 +288,31 @@ if [ -n "$ONLY" ]; then
   CHECKS=(${filtered[@]+"${filtered[@]}"})
 fi
 
+# _render_timing_if_enabled — opt-in (CI_LOCAL_TIMING=1 exactly). Renders the
+# timing section from the per-index files in $RUNDIR, labels in declared CHECKS
+# order (index-aligned with the aggregation loop below). Any other flag value —
+# 0, false, empty, unset — returns immediately and prints nothing.
+_render_timing_if_enabled() {
+  [ "${CI_LOCAL_TIMING:-}" = "1" ] || return 0
+  local labels=() e
+  for e in ${CHECKS[@]+"${CHECKS[@]}"}; do labels+=("${e%%::*}"); done
+  ci_render_timing "$RUNDIR" ${labels[@]+"${labels[@]}"}
+}
+
 # --- dispatch (bounded FIFO pool; no `wait -n`, so portable to bash 3.2) ----
 RUNDIR="$(mktemp -d)"
 trap 'rm -rf "$RUNDIR"' EXIT
 
 printf '%srunning %d checks, up to %d in parallel…%s\n' "$bold" "${#CHECKS[@]}" "$JOBS" "$reset"
 
+# Time the entire concurrent dispatch region for the opt-in timing summary. The
+# `time` keyword (TIMEFORMAT='%R' -> bare real seconds) is a shell builtin — no
+# subprocess, portable to macOS bash 3.2 — and its report is redirected to a file
+# in $RUNDIR, so a run with timing disabled pays only the keyword and prints
+# nothing extra. `wait` stays inside the timed block so the total is true
+# wall-clock, not the sum of per-check times.
+TIMEFORMAT='%R'
+{ time {
 pids=()
 idx=0
 for entry in "${CHECKS[@]}"; do
@@ -302,7 +325,14 @@ for entry in "${CHECKS[@]}"; do
     idx=$((idx + 1))
     continue
   fi
-  ( "$fn" >"$RUNDIR/$idx.out" 2>&1; echo $? >"$RUNDIR/$idx.rc" ) &
+  # Time each check with the `time` keyword (TIMEFORMAT='%R' -> bare real
+  # seconds) inside its own subshell, writing the real time to a per-index file
+  # alongside .out/.rc. One subshell owns each index, so concurrent checks cannot
+  # corrupt each other's timing — the same isolation .out/.rc already rely on.
+  # $? after the timed group is the check's own exit status (time is transparent).
+  ( TIMEFORMAT='%R'
+    { time "$fn" >"$RUNDIR/$idx.out" 2>&1; } 2>"$RUNDIR/$idx.time"
+    echo $? >"$RUNDIR/$idx.rc" ) &
   pids+=("$!")
   idx=$((idx + 1))
   # Throttle: once JOBS are in flight, block on the oldest before launching more.
@@ -312,6 +342,7 @@ for entry in "${CHECKS[@]}"; do
   fi
 done
 wait  # drain the remainder
+}; } 2>"$RUNDIR/.total.time"
 
 # --- aggregate in declared order -------------------------------------------
 FAILURES=()
@@ -334,8 +365,10 @@ done
 section "summary"
 if [ "${#FAILURES[@]}" -eq 0 ]; then
   printf '%s%sAll local CI checks passed.%s\n' "$bold" "$green" "$reset"
+  _render_timing_if_enabled
   exit 0
 fi
 printf '%s%s%d check(s) failed:%s\n' "$bold" "$red" "${#FAILURES[@]}" "$reset" >&2
 for f in "${FAILURES[@]}"; do printf '  %s✗ %s%s\n' "$red" "$f" "$reset" >&2; done
+_render_timing_if_enabled
 exit 1
