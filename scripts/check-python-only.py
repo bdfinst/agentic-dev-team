@@ -57,6 +57,12 @@ ALLOWLIST_EXACT_PATHS = {
     ".claude/install-dev-team.sh",
     # Named out-of-scope-here in #700; owned by #677 (retire bats-core).
     "tests/lib/hermetic_tests.bats",
+    # Curated repo-root orchestration lib sourced by scripts/ci-local.sh (itself
+    # a sanctioned repo-root shell gate, not shipped plugin code). Kept as a
+    # bash-sourced pure helper alongside its sibling scripts/lib/ci-changed-only.sh
+    # so ci-local.sh can source it without a subprocess — #1118 / ADR 0014-0015
+    # scope the Python rule to plugins/dev-team/.
+    "scripts/lib/ci-timing.sh",
 }
 
 # Directory prefixes the allowlist exempts wholesale (trailing "/").
