@@ -5048,9 +5048,13 @@
       "summary": "Create a project-specific `skills/pr/SKILL.md` if one doesn't exist, referencing the project's test/lint/typecheck commands.",
       "anchor": "10-generate-pr-command"
     },
-    "11. Report": {
+    "11. Ensure `.gitignore` covers dev-team runtime artifacts": {
+      "summary": "**Downstream projects only** — skip this step entirely when Step 2 detected",
+      "anchor": "11-ensure-gitignore-covers-dev-team-runtime-artifacts"
+    },
+    "12. Report": {
       "summary": "Display a summary of everything installed and created:",
-      "anchor": "11-report"
+      "anchor": "12-report"
     }
   },
   "plugins/dev-team/skills/ship/SKILL.md": {

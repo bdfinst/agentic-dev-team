@@ -366,7 +366,7 @@ is whether the baseline reflects the whole tree.
 
   Then re-run the probe. This is orthogonal to the reporter/scope checks
   below — both must be satisfied for `ready` to flip to `true`.
-- **`ready` is `true`** → record it for the Step 11 report and continue.
+- **`ready` is `true`** → record it for the Step 12 report and continue.
 - **`ready` is `false` and `patchable` is `true`** (config lives in
   `package.json`'s `jest` block or a `*.json` config) → tell the operator
   exactly which reporter will be added, and on confirmation re-run with
@@ -388,7 +388,7 @@ is whether the baseline reflects the whole tree.
   block the baseline, it just inflates it.
 
 Never write or patch coverage config without operator confirmation. Record
-the final `ready`/`meaningful`/`patched` state for the Step 11 report.
+the final `ready`/`meaningful`/`patched` state for the Step 12 report.
 
 ---
 
@@ -573,7 +573,44 @@ the user and re-point them at `/project-init` rather than installing it here.
 
 Create a project-specific `skills/pr/SKILL.md` if one doesn't exist, referencing the project's test/lint/typecheck commands.
 
-### 11. Report
+### 11. Ensure `.gitignore` covers dev-team runtime artifacts
+
+**Downstream projects only** — skip this step entirely when Step 2 detected
+`in-repo` (the plugin-dev repo curates its own `.gitignore`, and it tracks
+deliverables under `memory/` such as `decisions.md` and eval fixtures that
+this blanket ignore would wrongly hide).
+
+`/test-improve`, `/build`, and the review workflows write per-run resume
+state, progress bookkeeping, reports, and metrics into `memory/`, `reports/`,
+`metrics/`, and `plans/`. These are regeneratable runtime artifacts, not
+deliverables — but `/build` commits the working tree per completed step, so
+without an ignore rule they land in the project's history (issue #1101).
+
+In a downstream project, `memory/` is exclusively dev-team runtime state, so
+the whole folder is safe to ignore. Idempotently append the block (create
+`.gitignore` if absent; do nothing if the marker is already present):
+
+```bash
+MARKER="# dev-team workflow runtime artifacts"
+if ! grep -qF "$MARKER" .gitignore 2>/dev/null; then
+  printf '\n%s\n%s\n' \
+    "$MARKER (regeneratable; not deliverables — issue #1101)" \
+    "memory/
+reports/
+metrics/
+plans/" >> .gitignore
+  echo "gitignore-updated"
+else
+  echo "gitignore-already-covered"
+fi
+```
+
+If the project relocated `reports/` via `DEV_TEAM_REPORTS` or `metrics/` via
+`DEV_TEAM_TASK_METRICS`, add that path instead of the default. Record whether
+the block was added for the Step 12 report. Under `--dry-run`, report what
+would be appended without writing.
+
+### 12. Report
 
 Display a summary of everything installed and created:
 
@@ -600,6 +637,7 @@ Display a summary of everything installed and created:
 - `.claude/project-stack.json` — stack detection results
 - `.claude/CLAUDE.md` — project conventions
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
+- `.gitignore` — dev-team runtime artifacts (memory/, reports/, metrics/, plans/)   [downstream only; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
 
 ### Recommendations
