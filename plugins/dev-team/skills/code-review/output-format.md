@@ -96,7 +96,7 @@ reads these back for the final report.
   "is_declarative": false,
   "panel": ["correctness-review", "structure-review"],
   "findings": [
-    {"severity": "warning", "confidence": "medium", "file": "src/auth/login.ts", "line": 42, "message": "..."}
+    {"severity": "warning", "confidence": "medium", "agent": "structure-review", "file": "src/auth/login.ts", "line": 42, "message": "..."}
   ]
 }
 ```
@@ -105,7 +105,11 @@ reads these back for the final report.
 - `panel` lists the agents that **actually ran** for this slice — a reduced-panel
   (declarative) slice lists only `correctness-review` and `structure-review`, so
   a reader can tell "fewer findings" from "fewer reviewers ran".
-- `findings` use the same shape as the per-agent `issues[]` entries above.
+- `findings` use the per-agent `issues[]` shape above **plus an `agent` field**
+  naming the review dimension that reported each one. Because a slice's whole
+  panel writes into one flat `findings[]` list, that `agent` tag is what lets
+  `consolidate.py` merge reporting agents per `file:line` and roll up recurring
+  themes — omitting it yields empty `agents[]` arrays and no themes.
 
 ## Progress ledger (sliced mode)
 
@@ -149,10 +153,15 @@ severity = the single highest enum).
   "recurringThemes": [
     {"agent": "structure-review", "slices": ["0003", "0007", "0011"], "occurrences": 9}
   ],
-  "reducedPanelSlices": ["0002", "0019"]
+  "reducedPanelSlices": ["0002", "0019"],
+  "summary": "WARN across 24 slices — 0 errors, 5 warnings, 3 suggestions; 1 recurring theme(s)."
 }
 ```
 
+- `summary`: a one-line roll-up (status, slice count, totals, theme count).
+- `malformedArtifacts` (optional): present only when a `section-*.json` was
+  unreadable — an array of the offending paths; `main()` also reports each to
+  stderr and exits non-zero, so a bad artifact is never silently dropped.
 - `recurringThemes`: review dimensions (by `agent`) whose findings recur across
   **two or more slices** — the systemic-pattern rollup (e.g. the same god-class
   or leak flagged in many modules). `slices` lists the affected slice ids;
