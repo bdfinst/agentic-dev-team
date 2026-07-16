@@ -439,7 +439,7 @@ def test_methods_inserted_before_class_closing_brace(tmp_path: Path):
 
     assert outcome.inserted is True
     lines = test_file.read_text(encoding="utf-8").splitlines()
-    new_idx = next(i for i, l in enumerate(lines) if "New_Case_KillsMutant" in l)
+    new_idx = next(i for i, ln in enumerate(lines) if "New_Case_KillsMutant" in ln)
     # The class-close ("    }") and namespace-close ("}") follow the new method.
     class_close_idx = next(
         i for i in range(new_idx + 1, len(lines)) if lines[i].rstrip("\r\n") == "    }"
