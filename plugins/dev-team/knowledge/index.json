@@ -1003,6 +1003,16 @@
       "anchor": "related"
     }
   },
+  "plugins/dev-team/knowledge/report-pdf-integration.md": {
+    "Contract": {
+      "summary": "When a skill is invoked with `--pdf`:",
+      "anchor": "contract"
+    },
+    "Per-skill report path and no-file modes": {
+      "summary": "| Skill | Report path this run wrote | `--pdf` no-op when |",
+      "anchor": "per-skill-report-path-and-no-file-modes"
+    }
+  },
   "plugins/dev-team/knowledge/report-template.md": {
     "Reference sentence": {
       "summary": "Every report-writing skill that adopts this contract points at it with this",
@@ -3799,7 +3809,7 @@
       "anchor": "7-analyze-orchestration-complexity"
     },
     "8. Produce report": {
-      "summary": "Write the report to the output path using this structure:",
+      "summary": "When `--pdf` was passed, after writing the report render **the actual output",
       "anchor": "8-produce-report"
     },
     "9. Present results": {
@@ -4731,6 +4741,20 @@
     "Notes": {
       "summary": "This worker does not write tests or edit production code.",
       "anchor": "notes"
+    }
+  },
+  "plugins/dev-team/skills/report-pdf/SKILL.md": {
+    "Arguments": {
+      "summary": "`<path.md>` (required) — path to the Markdown report to render (for example",
+      "anchor": "arguments"
+    },
+    "Steps": {
+      "summary": "Invoke the shared render module through `hooks/py.sh` (never `python3`",
+      "anchor": "steps"
+    },
+    "Related": {
+      "summary": "`hooks/lib/report_pdf.py` — the shared render module this command wraps; the",
+      "anchor": "related"
     }
   },
   "plugins/dev-team/skills/review-agent/SKILL.md": {

@@ -6,7 +6,7 @@ description: >-
   reports a bug and wants it triaged, says "triage this", "investigate and
   write it up", or wants a hands-off bug investigation that produces an
   actionable record.
-argument-hint: "<bug description or error message>"
+argument-hint: "<bug description or error message> [--pdf]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write, Agent
 ---
@@ -118,6 +118,15 @@ If `DEV_TEAM_REPORTS/triage/` cannot be created or written (permission/read-only
 report `Cannot write DEV_TEAM_REPORTS/triage/<slug>.md: <error>`, write the
 same content to a temp file (`tmp/triage-<slug>.md` or `$TMPDIR`), and print
 the full record content to chat so nothing is lost.
+
+When `--pdf` was passed and the record was written to disk, render **that
+resolved path** (the exact `<slug>` chosen after collision resolution) to a
+sibling PDF per `knowledge/report-pdf-integration.md` (additive; non-fatal if
+no engine):
+
+```bash
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" DEV_TEAM_REPORTS/triage/<resolved-slug>.md
+```
 
 The record is YAML frontmatter followed by four sections. Three outcomes are
 possible, and they are mutually distinct — not variants of one another:
