@@ -49,6 +49,27 @@ def test_oversized_directory_splits_across_slices():
     # 7 files / cap 3 -> 3 slices of 3,3,1, none exceeding the cap.
     assert [len(s["files"]) for s in result] == [3, 3, 1]
     assert all(len(s["files"]) <= 3 for s in result)
+    # Assert exact file MEMBERSHIP per slice, not just counts — a chunking bug
+    # that swaps or duplicates files while preserving lengths must be caught.
+    assert result[0]["files"] == ["src/big/f000.ts", "src/big/f001.ts", "src/big/f002.ts"]
+    assert result[1]["files"] == ["src/big/f003.ts", "src/big/f004.ts", "src/big/f005.ts"]
+    assert result[2]["files"] == ["src/big/f006.ts"]
+    # No file lost or duplicated across the split.
+    flat = [f for s in result for f in s["files"]]
+    assert flat == [f"src/big/f{i:03d}.ts" for i in range(7)]
+
+
+def test_oversized_directory_before_small_sibling_flushes_cleanly():
+    # An oversized dir ('src/aaa') sorts before a small sibling ('src/bbb');
+    # the chunking loop must reset accumulation so the sibling is not merged
+    # into the oversized dir's trailing chunk.
+    files = _files(*[f"src/aaa/f{i:02d}.ts" for i in range(4)], "src/bbb/one.ts")
+    result = partition.partition_files(files, cap=2)
+    assert [s["files"] for s in result] == [
+        ["src/aaa/f00.ts", "src/aaa/f01.ts"],
+        ["src/aaa/f02.ts", "src/aaa/f03.ts"],
+        ["src/bbb/one.ts"],
+    ]
 
 
 def test_directory_at_exactly_cap_coalesces_not_split():
@@ -108,3 +129,44 @@ def test_partitioning_is_deterministic():
 def test_cap_must_be_positive_integer(bad_cap):
     with pytest.raises(ValueError):
         partition.partition_files(["src/a.ts"], cap=bad_cap)
+
+
+# --- Slice 2: declarative classification --------------------------------------
+
+
+def test_pure_declarative_slice_is_declarative():
+    files = ["src/models/user.ts", "src/models/order.ts", "src/dto/user.dto.ts"]
+    assert partition.is_declarative_slice(files) is True
+
+
+def test_declaration_files_are_declarative():
+    assert partition.is_declarative_slice(["src/types/api.d.ts"]) is True
+
+
+def test_slice_with_one_behavioral_file_is_not_declarative():
+    files = ["src/models/user.ts", "src/auth/login.ts"]
+    assert partition.is_declarative_slice(files) is False
+
+
+def test_mixed_declarative_and_behavioral_is_not_declarative():
+    # A file carrying a behavioral token is disqualified even in a types dir.
+    files = ["src/models/user.ts", "src/models/user.service.ts"]
+    assert partition.is_declarative_slice(files) is False
+
+
+def test_empty_slice_is_not_declarative():
+    assert partition.is_declarative_slice([]) is False
+
+
+def test_behavioral_token_in_compound_directory_disqualifies():
+    # A behavioral token hidden in a kebab/dotted directory name must be caught
+    # too, not just in the filename — false-declarative is the unsafe direction.
+    assert partition.is_declarative_slice(["src/order-service/models/calc.ts"]) is False
+    assert partition.is_declarative_slice(["src/user.handlers/types/x.ts"]) is False
+
+
+def test_partition_records_carry_is_declarative_flag():
+    decl = partition.partition_files(["src/models/user.ts"], cap=50)
+    assert decl[0]["is_declarative"] is True
+    beh = partition.partition_files(["src/auth/login.ts"], cap=50)
+    assert beh[0]["is_declarative"] is False

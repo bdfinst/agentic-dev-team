@@ -67,3 +67,25 @@ def test_sliced_mode_documents_partitioning_and_ceiling():
 
 def test_sliced_mode_states_context_stays_flat():
     assert "flat regardless of repo size" in _SLICED_MD
+
+
+# --- sliced-mode.md: reduced panel + disclosure (Slice 2) ---------------------
+
+
+def test_sliced_mode_reduced_panel_names_two_agents():
+    panel = _SLICED_MD.split("## Per-slice review panel", 1)[1]
+    assert "correctness-review" in panel
+    assert "structure-review" in panel
+    assert "reduced panel" in panel
+
+
+def test_sliced_mode_declarative_uses_is_declarative_flag():
+    panel = _SLICED_MD.split("## Per-slice review panel", 1)[1].split("##", 1)[0]
+    assert "is_declarative" in panel
+    assert "full panel" in panel
+
+
+def test_sliced_mode_requires_reduced_panel_disclosure():
+    panel = _SLICED_MD.split("## Per-slice review panel", 1)[1].split("##", 1)[0]
+    assert "Disclose the panel" in panel or "discloses" in panel.lower()
+    assert "reduced panel" in panel

@@ -20,11 +20,79 @@ Slicing rules (mirrors the plan's Slice 1 Gherkin):
 from __future__ import annotations
 
 import os
+import re
 from typing import Dict, List
 
 # Slice ids are zero-padded to this width so lexical and numeric order agree
 # for the common case and artifact filenames sort naturally.
 _ID_WIDTH = 4
+
+# Path/name tokens that positively signal a declarative artifact (interface,
+# type, DTO, constant, model, schema, enum definitions).
+_DECLARATIVE_TOKENS = {
+    "model", "models", "dto", "dtos", "type", "types", "interface",
+    "interfaces", "constant", "constants", "schema", "schemas", "enum",
+    "enums",
+}
+
+# Tokens that signal executable behavior. Their presence disqualifies a file
+# from being declarative even if a declarative token also matches — this keeps
+# the classifier conservative (a mislabel can only ever add a heavier panel,
+# never drop below the safe full panel).
+_BEHAVIORAL_TOKENS = {
+    "service", "services", "controller", "controllers", "handler", "handlers",
+    "component", "components", "hook", "hooks", "util", "utils", "helper",
+    "helpers", "middleware", "reducer", "reducers", "saga", "sagas",
+    "resolver", "resolvers",
+}
+
+
+def _path_tokens(path: str) -> "set[str]":
+    """Return the lowercased word tokens of every segment of ``path``.
+
+    Both directory segments and the filename are word-tokenized on ``. _ -`` so
+    a behavioral token is caught wherever it appears — a compound suffix like
+    ``user.service.ts`` **and** a compound directory like ``order-service/``
+    both yield ``service``. Tokenizing only the filename would silently drop a
+    behavioral token hidden in a directory name (a false-declarative in the
+    unsafe direction). The trailing filename extension is dropped first.
+    """
+    lower = path.lower()
+    segments = re.split(r"[\\/]", lower)
+    parts = segments[-1].split(".")
+    name_parts = parts[:-1] if len(parts) > 1 else parts
+    raw_tokens = list(segments[:-1]) + name_parts
+    words: "set[str]" = set()
+    for token in raw_tokens:
+        words |= set(re.split(r"[._\-]", token))
+    return words
+
+
+def _is_declarative_file(path: str) -> bool:
+    """Return True when ``path`` looks like a pure declarative artifact.
+
+    Name/extension heuristic only (pure). TypeScript declaration files
+    (``.d.ts``) are always declarative. Otherwise a file qualifies only when a
+    declarative token matches and no behavioral token does.
+    """
+    if path.lower().endswith(".d.ts"):
+        return True
+    tokens = _path_tokens(path)
+    if tokens & _BEHAVIORAL_TOKENS:
+        return False
+    return bool(tokens & _DECLARATIVE_TOKENS)
+
+
+def is_declarative_slice(files: List[str]) -> bool:
+    """Return True only when *every* file in the slice is declarative.
+
+    An empty slice is not declarative (nothing to assert). Conservative by
+    design: any file that is not clearly declarative makes the whole slice
+    non-declarative, so it keeps the full review panel.
+    """
+    if not files:
+        return False
+    return all(_is_declarative_file(f) for f in files)
 
 
 def _slice_id(index: int) -> str:
@@ -37,8 +105,16 @@ def _append_slice(slices: List[dict], files: List[str]) -> None:
 
     Single home for the slice-record shape so both emit paths (sibling flush
     and oversized-directory chunking) stay in lockstep if the shape changes.
+    The ``is_declarative`` flag drives the reduced review panel (Slice 2).
     """
-    slices.append({"id": _slice_id(len(slices) + 1), "files": list(files)})
+    file_list = list(files)
+    slices.append(
+        {
+            "id": _slice_id(len(slices) + 1),
+            "files": file_list,
+            "is_declarative": is_declarative_slice(file_list),
+        }
+    )
 
 
 def _group_by_directory(files: List[str]) -> "Dict[str, List[str]]":
