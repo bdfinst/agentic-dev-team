@@ -71,7 +71,13 @@ Run each check sequentially. Stop on first failure:
    - `golangci-lint` available: `golangci-lint run`
 
 4. **Code review** (unless `--skip-review`):
-   - Run `/code-review --json`. `/pr` owns the human gate, so code-review runs non-interactively: it skips its own "fix or report?" prompt and applies its fix loop automatically (up to 5 iterations), then returns an aggregated status.
+   - Scope the review to this branch's diff against the base branch, not the whole repo. At PR time the working tree is clean (Step 1 requires it), so a bare `/code-review --json` would auto-scope to the **full repository** — expensive, wrongly scoped, and on a large repo it can trigger the sliced-review path. Compute the merge base and pass it via `--since`:
+
+     ```bash
+     BASE=$(git merge-base HEAD "origin/<base>")   # <base> defaults to main, or the --base arg
+     ```
+
+   - Run `/code-review --since "$BASE" --json`. `/pr` owns the human gate, so code-review runs non-interactively: it skips its own "fix or report?" prompt and applies its fix loop automatically (up to 5 iterations), then returns an aggregated status.
    - Read the returned status field. A normal review returns `{"overall": "pass|warn|fail", ...}`; a documentation-only changeset short-circuits with `{"status": "skipped", ...}`:
      - `overall` of `pass` / `warn`, or `status` of `skipped` → continue to step 3.
      - `overall` of `fail` → show the remaining findings and ask the user whether to proceed anyway or stop and fix.
@@ -104,7 +110,7 @@ Analyze the diff against the base branch (`git diff <base>...HEAD`) and commit h
   from the Step 2 quality-gate results plus on-disk pipeline data — **no new
   checks, no re-execution**:
   - **Checks run**: the exact Step 2 commands (test/typecheck/lint/`/code-review
-    --json`) and their results.
+    --since <base> --json`) and their results.
   - **Scope notes**: gates skipped as not-applicable in Step 2 (e.g. no
     `tsconfig.json` → type check skipped), plus `--skip-review` if passed.
   - **Untested regions**: read `baseline-coverage.json` / `coverage-history.json`
