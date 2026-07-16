@@ -31,3 +31,12 @@ def test_agent_audit_skill_does_not_dispatch_claude_setup_review_agent() -> None
 
 def test_agent_audit_skill_does_not_dispatch_token_efficiency_review_agent() -> None:
     assert not re.search(r"(dispatch|Agent:)\s+token-efficiency-review", _text())
+
+
+def test_agent_audit_skill_references_review_agent_mcp_check() -> None:
+    assert "scripts/check_review_agent_mcp_tools.py" in _text()
+
+
+def test_agent_audit_skill_references_agent_tool_mapping_check() -> None:
+    # #1108: the non-review mapping invariant must be wired into agent-audit.
+    assert "scripts/check_agent_tool_mapping.py" in _text()

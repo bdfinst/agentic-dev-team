@@ -1,7 +1,7 @@
 ---
 name: codebase-recon
 description: Reconnaissance agent that surveys a codebase's structure, entry points, dependencies, security surface, and git history. Produces a contract-conformant RECON artifact at `memory/recon-<slug>.{md,json}` that other agents consume.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk, mcp__plugin_repowise_repowise__get_why
 effort: high
 enforcement: script
 ---
@@ -33,7 +33,7 @@ Artifacts written:
 
 ## Graph tools
 
-Before falling back to multi-file Read/Grep for structural or architecture questions (Steps 4 and beyond), check whether the target repo already has a graph built: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions). See `${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. Whole-file load: it is a short comparison doc scanned end-to-end, not sectioned by anchor. **Neither is required** — recon must produce a complete, correct artifact using plain Read/Grep/Glob when neither tool is present.
+Before falling back to multi-file Read/Grep for structural or architecture questions (Steps 4 and beyond), check whether the target repo already has a code-intelligence index built and prefer it: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups); a Repowise MCP server (`mcp__plugin_repowise_repowise__{get_context,get_symbol,search_codebase,get_risk,get_why}` — verified skeletons, modification risk, and recorded design rationale via `get_why`); and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions). See `${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. Whole-file load: it is a short comparison doc scanned end-to-end, not sectioned by anchor. **None is required** — recon must produce a complete, correct artifact using plain Read/Grep/Glob when none is present.
 
 ## Seven-step procedure
 

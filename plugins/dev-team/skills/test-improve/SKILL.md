@@ -92,8 +92,13 @@ file must exist **before Phase 1** runs.
 > that reward it. The orchestrator will still record baseline and delta
 > numbers, but the Phase-6 mutation target is advisory-only for Go.
 
-**Prompt battery (one batch, five knobs).** Each prompt displays its default in
-`[brackets]`; pressing **Enter accepts every default in one keystroke**.
+**Prompt battery (one batch, six knobs).** Each prompt displays its default in
+`[brackets]`; pressing **Enter accepts every default in one keystroke** — with
+**one deliberate exception**: knob 6 (code-lookup install) is **not** part of the
+Enter-accepts-all gesture, because accepting it mutates the filesystem (and, for
+Graphify, the repo's `CLAUDE.md`). Knob 6 requires an explicit `y`/`n`; a blank
+response **re-prompts** rather than defaulting either way. This is called out in
+the knob-6 prompt itself so the divergence is never a silent surprise.
 
 1. **Mutation on/off** — `[off]`. Default is **off** (lightweight ceremony).
    Turn on when the suite is already high-coverage and the team wants
@@ -113,8 +118,27 @@ file must exist **before Phase 1** runs.
    Jira via the host CLI); missing CLI or omitted flag falls back to
    **local-files** mode (writes under `./reports/test-improve/` and
    `./plans/test-improve/`).
+6. **Code-lookup tools (all-or-none install)** — offer to install the three
+   code-lookup tools (**CodeGraph**, **Repowise**, **Graphify**) so the review
+   and analysis agents read verified skeletons and resolved call graphs instead
+   of re-reading whole files. **Recommended: yes** when any of the three is
+   missing. This knob is an **explicit `y`/`n`** (see the Enter-accepts-all
+   exception above); a blank answer re-prompts. The prompt names the three tools
+   and discloses that Graphify writes a `## graphify` section into this repo's
+   `CLAUDE.md` and installs git hooks.
+   - **Idempotent / missing-subset.** Detect which of the three are already
+     present; offer only the **missing** subset. When all three are present,
+     do not prompt — record `code_lookup_tools: already present`.
+   - **Delegate the install — never reimplement it.** On `y`, delegate to
+     `/project-init`'s Step 4c graph-tools group (the canonical installer); do
+     not duplicate install commands or probes here.
+   - **Decline is visibly confirmed.** On `n`, install nothing and print
+     `Code-lookup tools: skipped — agents fall back to Read/Grep/Glob.`
+   - **Partial failure is recorded, not masked.** If the delegated install
+     partially fails, record per-tool success/failure in `phase-0.md` and do
+     not claim full install success.
 
-**Persistence.** Write the resolved inputs to `memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists.
+**Persistence.** Write the resolved inputs to `memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome: the operator's install choice, and for each tool whether it was already present, installed, declined, or failed.
 
 **Immutability.** Phase-0 answers are **immutable** for the remainder of the
 run. `--from-phase` does not re-prompt Phase-0 inputs. To change them, delete

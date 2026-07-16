@@ -24,20 +24,25 @@ Usage:
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
-# Single source of truth for the five code-intelligence MCP tool names granted to
-# read-only review agents. The pytest wrapper and any --fix logic import this list
-# so the canonical set has one home (frontmatter itself must duplicate it per-agent).
-MCP_TOOL_NAMES = [
-    "mcp__codegraph__codegraph_explore",
-    "mcp__plugin_repowise_repowise__get_context",
-    "mcp__plugin_repowise_repowise__get_symbol",
-    "mcp__plugin_repowise_repowise__search_codebase",
-    "mcp__plugin_repowise_repowise__get_risk",
-]
+# Shared tool-name constants and tools:-line plumbing live in scripts/lib so the
+# sibling check_agent_tool_mapping.py can import them as a peer (neither script is
+# the other's library). See scripts/lib/mcp_tool_grants.py.
+sys.path.insert(0, str(Path(__file__).parent / "lib"))
+
+from mcp_tool_grants import (  # noqa: E402
+    BASE_MCP_TOOLS,
+    fix_tools_line as _fix_tools_line,
+    missing_tools as _missing_tools,
+    parse_tools,
+)
+
+# The five code-intelligence MCP tool names granted to read-only review agents.
+# Kept as MCP_TOOL_NAMES for this script's public API (imported by the pytest
+# wrapper and agent-audit); the canonical values live in the shared lib.
+MCP_TOOL_NAMES = BASE_MCP_TOOLS
 
 # Phrases the code-review skill must contain so the granted tools are actually used:
 # detection of each index, the preference instruction, and the documented fallback.
@@ -49,8 +54,6 @@ SKILL_REQUIRED_PHRASES = [
     "search_codebase",
     "get_risk",
 ]
-
-_TOOLS_RE = re.compile(r"^(tools:\s*)(.*?)(\s*)$", re.MULTILINE)
 
 
 def _agents_dir_default() -> Path:
@@ -67,42 +70,19 @@ def find_review_agents(agents_dir: Path) -> list[Path]:
     return sorted(agents_dir.glob("*-review.md"))
 
 
-def parse_tools(text: str) -> list[str] | None:
-    """Return the comma-separated tokens on the `tools:` frontmatter line, or None."""
-    m = _TOOLS_RE.search(text)
-    if not m:
-        return None
-    return [tok.strip() for tok in m.group(2).split(",") if tok.strip()]
-
-
 def missing_mcp_tools(text: str) -> list[str]:
     """Return the MCP tool names absent from the agent's tools: line (all five if no line)."""
-    tokens = parse_tools(text)
-    if tokens is None:
-        return list(MCP_TOOL_NAMES)
-    present = set(tokens)
-    return [name for name in MCP_TOOL_NAMES if name not in present]
+    return _missing_tools(text, MCP_TOOL_NAMES)
 
 
 def fix_tools_line(text: str) -> tuple[str, list[str]]:
     """Append any missing MCP tool names to the tools: line. Idempotent.
 
-    Returns (new_text, added_names). Order-preserving: existing tokens keep their
-    order; missing MCP names are appended in MCP_TOOL_NAMES order. A line already
-    containing all five is returned unchanged (added == []).
+    Thin wrapper over the shared helper, bound to this script's MCP_TOOL_NAMES.
+    Returns (new_text, added_names); a line already containing all five is
+    returned unchanged (added == []).
     """
-    m = _TOOLS_RE.search(text)
-    if not m:
-        return text, []
-    tokens = [tok.strip() for tok in m.group(2).split(",") if tok.strip()]
-    present = set(tokens)
-    added = [name for name in MCP_TOOL_NAMES if name not in present]
-    if not added:
-        return text, []
-    new_tokens = tokens + added
-    new_line = m.group(1) + ", ".join(new_tokens)
-    new_text = text[: m.start()] + new_line + text[m.end() - len(m.group(3)) :]
-    return new_text, added
+    return _fix_tools_line(text, MCP_TOOL_NAMES)
 
 
 def check_skill(skill_text: str) -> list[str]:

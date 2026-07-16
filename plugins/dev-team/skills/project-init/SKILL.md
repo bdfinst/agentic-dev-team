@@ -173,14 +173,65 @@ tools**: it installs as an `npm` devDependency (`@playwright/test`), versioned
 with the project like a lane tool — only its Chromium download is machine-level.
 State this explicitly to the user when the capability group installs.
 
-### Step 4c: Offer graph-tools (codegraph and/or graphify)
+### Step 4c: Offer the three code-lookup tools (all-or-none)
 
-Two optional, non-overlapping code-intelligence tools. Neither is required,
-a project may have one, both, or neither. Before offering either, show the
-user the "When to use which" section of
-`${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md` so they can pick
-with intent rather than installing both reflexively. Both are opt-in,
-confirmed individually, same gate as the lanes and Step 4b.
+Three optional, complementary code-intelligence tools — **CodeGraph**,
+**Repowise**, and **Graphify** — let the review and analysis agents read
+verified skeletons, resolved call graphs, modification risk, and decision
+rationale instead of re-reading whole files. None is required. They are
+offered as **one all-or-none group** rather than three separate prompts, so
+the operator makes a single decision and the agents get a consistent,
+predictable set of lookup capabilities (see issue #1108).
+
+**Detect which are already present** (so re-runs are idempotent and the group
+scopes to the *missing* set):
+
+- CodeGraph — `command -v codegraph` succeeds **and** `.codegraph/` exists.
+- Repowise — the Repowise MCP server is registered / `.repowise/` exists.
+- Graphify — `command -v graphify` succeeds **and** `graphify-out/graph.json` exists.
+
+Also read `.claude/init-state.json`: honor any prior **explicit decline**
+(e.g. `codegraph.install_declined == true`) — a declined tool is excluded from
+the "missing" set rather than silently re-offered, and the existing unstick
+instruction still applies (`remove the <tool> key from .claude/init-state.json
+to re-prompt`).
+
+**The group prompt.** Compute the *missing* set = tools that are neither
+already present nor previously declined.
+
+- If the missing set is **empty**: print
+  `Code-lookup tools: all present (or previously declined) — nothing to install.`
+  and continue. No prompt.
+- Otherwise, first show the user the "When to use which" section of
+  `${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md`, then prompt
+  **once**, listing the missing tools by name and disclosing Graphify's repo
+  footprint (this is an explicit `y`/`n`, and the recommended default is
+  **yes** when anything is missing):
+
+  ```
+  Install the code-lookup tools <missing list> to enable faster, verified
+  code navigation for the review and analysis agents? [Y/n]
+    - CodeGraph  — personal, user-level MCP; nothing committed to the repo.
+    - Repowise   — local keyless index under .repowise/ (gitignored); MCP server.
+    - Graphify   — repo-level: writes a `## graphify` section into this repo's
+                   CLAUDE.md and installs git hooks (guarded against the known
+                   over-delete bug — see the Graphify sub-section).
+  ```
+
+- On **yes**: install **every** tool in the missing set by running its
+  sub-section below (CodeGraph, Repowise, Graphify), recording each tool's
+  accept in `.claude/init-state.json`.
+  - **Partial failure is surfaced, never hidden.** If one tool's install
+    errors after another already succeeded, print the failing tool's error,
+    record per-tool success/failure in `.claude/init-state.json`, and report
+    the group as *partially installed* — do not claim all three succeeded.
+- On **no** (or empty): install nothing, record the group decline for each
+  missing tool in `.claude/init-state.json`, and print a terminal-visible
+  confirmation so the operator knows the choice was durable and reversible:
+  `Code-lookup tools: skipped — agents fall back to Read/Grep/Glob (re-run /project-init to be offered again).`
+
+The per-tool mechanics below are unchanged; the all-or-none group only decides
+*whether* they run. Each remains user-scoped/gitignored exactly as before.
 
 #### CodeGraph — strictly personal, never committed
 
@@ -266,6 +317,43 @@ not run `git add`/`git commit` for anything under `.codegraph/`.
 `.claude/init-state.json` uses a top-level `codegraph` key so future plugins
 can claim sibling keys without collision. Always merge into existing JSON
 rather than overwriting it.
+
+#### Repowise — keyless local index, MCP server
+
+Repowise (`repowise` on PyPI) is a codebase-documentation engine that indexes
+the repo and exposes it as an MCP server
+(`mcp__plugin_repowise_repowise__{get_context,get_symbol,search_codebase,get_risk,get_why}`).
+It installs and indexes **without any LLM API key** and stores its index under
+`.repowise/`.
+
+Run this tool's install/index through the `repowise-setup` skill (or the
+`index-codebase` skill), which handles the install (`uv`/`pipx`/`pip`), adds
+`.repowise/` to git's **global** ignore so the index never clutters the repo,
+and runs a **keyless** index (`--index-only`, no provider key requested).
+
+**Install steps (executed only when the all-or-none group is accepted):**
+
+1. Install: prefer `uv tool install repowise`, else `pipx install repowise`,
+   else `python3 -m pip install --user repowise`.
+2. Index keyless: run the repowise index in `--index-only` mode so no API key
+   is requested; the index lands under `.repowise/` (gitignored).
+3. Register the MCP server for this Claude Code installation (user scope), the
+   same way any personal MCP server is added — point the user at
+   `claude mcp add --help` for the exact invocation. **Server-name caveat:**
+   the agents' grants assume the server name `plugin_repowise_repowise`; if a
+   different name is used the grants are inert and agents fall back to
+   `Read`/`Grep`/`Glob`.
+4. On success, merge `{"repowise": {"install_accepted": true}}` into
+   `.claude/init-state.json`. On failure, surface the error and merge
+   `{"repowise": {"install_failed": true}}` — do not claim the group fully
+   installed (see the partial-failure rule above).
+
+**Detection probe** (used by the group's "already present" check and re-runs):
+
+```bash
+command -v repowise > /dev/null 2>&1 && echo "installed" || echo "not-installed"
+[ -d "${PWD}/.repowise" ] && echo "indexed" || echo "not-indexed"
+```
 
 #### Graphify — native integration, opt-in, with a CLAUDE.md guard
 

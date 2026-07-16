@@ -1,7 +1,7 @@
 ---
 name: architect
 description: System design, architecture definition, and technical decision oversight
-tools: Read, Grep, Glob, Bash, Skill
+tools: Read, Grep, Glob, Bash, Skill, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk, mcp__plugin_repowise_repowise__get_why
 effort: high
 ---
 
@@ -30,7 +30,7 @@ You are a systems thinker who sees every local decision in the context of the br
 
 ## Graph tools
 
-Before reasoning about structure or dependencies from scratch, check whether the target repo has a graph built: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups) and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions spanning code, docs, and infra). See `${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. Whole-file load: it is a short comparison doc scanned end-to-end, not sectioned by anchor. **Neither is required** — fall back to Read/Grep/Glob when neither tool is present.
+Before reasoning about structure or dependencies from scratch, check whether the target repo has a code-intelligence index built and prefer it: `.codegraph/` (CodeGraph — an MCP server, `mcp__codegraph__*` tools, best for fast callers/callees/impact lookups); a Repowise MCP server (`mcp__plugin_repowise_repowise__{get_context,get_symbol,search_codebase,get_risk,get_why}` — verified skeletons, modification risk, and the recorded rationale behind a design via `get_why`); and/or `graphify-out/graph.json` (Graphify — invoked as `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "<concept>"`, best for architecture and cross-artifact questions spanning code, docs, and infra). See `${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md` for the full comparison and when to use which. Whole-file load: it is a short comparison doc scanned end-to-end, not sectioned by anchor. **None is required** — fall back to Read/Grep/Glob when none is present.
 
 ## Skills
 

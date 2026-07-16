@@ -161,6 +161,15 @@ Include the result in the agent report table under a `Code-Intel` column.
 
 **Fix (when `--fix` is passed)**: run `python3 scripts/check_review_agent_mcp_tools.py --fix`, which appends the missing names (merge, never replacing `Read, Grep, Glob`/`Skill`). Report `FIXED: <agent> — added code-intelligence MCP tools`.
 
+3. **Code-intelligence mapping invariant (non-review team agents)**: Every non-review team agent in the #1108 mapping MUST grant its **tier's** tools in `tools:` — the **narrow** tier (`software-engineer`, `mutation-kill`, `qa-engineer`, `data-flow-tracer`) grants codegraph + the four Repowise tools, with `data-flow-tracer` also carrying a scoped `Bash(graphify *)`; the **rationale** tier (`adr-author`, `architect`, `security-engineer`, `platform-engineer`, `codebase-recon`) additionally grants `mcp__plugin_repowise_repowise__get_why`. Coverage is the union of the mapping's config keys and a structural sweep (team agents by `## Behavioral Guidelines` **or** `enforcement: script`, minus `*-review`, minus a documented exclusion list), so a new team agent that is neither mapped nor excluded fails rather than silently escaping the mapping.
+   - FAIL if a mapped agent's `tools:` line is missing any of its tier's names, or a swept team agent is in neither the mapping nor the exclusion list (unclassified).
+   - PASS if every mapped agent grants its tier's tools and every swept agent is mapped or excluded.
+   - Delegated to `scripts/check_agent_tool_mapping.py` (with `TIER_CONFIG`/`EXCLUSIONS` as the single source of truth, sharing `scripts/lib/mcp_tool_grants.py` with the review-agent check as a peer). This is the non-review counterpart to invariant 2: review agents keep their five-tool set there; the mapping check never evaluates `*-review` agents.
+
+Include the result in the agent report table under a `Mapping` column.
+
+**Fix (when `--fix` is passed)**: run `python3 scripts/check_agent_tool_mapping.py --fix`, which appends the missing tier names (merge, never replacing existing grants). Unclassified agents are reported, not auto-fixed — classify each into `TIER_CONFIG` or `EXCLUSIONS`. Report `FIXED: <agent> — added code-intelligence mapping tools`.
+
 ### 2c. Audit team agent personas
 
 A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. **Exemption**: an agent that declares `enforcement: script` in its frontmatter is a script-enforced **prose spec**, not a persona-driven team agent — skip the persona checks below for it and instead verify it carries a `> **Implemented by:** <script>` pointer immediately after the H1. For each remaining team agent, check:
