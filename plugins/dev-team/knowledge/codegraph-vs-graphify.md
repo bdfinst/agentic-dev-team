@@ -51,10 +51,13 @@ function."
 ### CodeGraph
 
 - Offered opt-in during `/project-init`'s "Step 4c — Offer graph-tools"
-  ([`skills/project-init/SKILL.md`](../skills/project-init/SKILL.md)):
-  the skill checks `command -v codegraph` and the presence of `.codegraph/`,
-  then prompts to install and/or run `codegraph init -i`, recording the
-  choice in `.claude/init-state.json`.
+  ([`skills/project-init/SKILL.md`](../skills/project-init/SKILL.md)) as part
+  of the CodeGraph + Repowise + Graphify all-or-none group: the skill checks
+  `command -v codegraph` and the presence of `.codegraph/`, and when the group
+  is accepted **installs the CLI keylessly** (`npm install -g
+  @colbymchenry/codegraph`) and builds the index non-interactively
+  (`codegraph init .`, no `-i`), recording the choice in
+  `.claude/init-state.json` (issue #1134).
 - **Strictly personal, user-level tooling — never committed.** Once
   initialized, the skill prints the manual command
   (`claude mcp add codegraph -- codegraph serve --mcp`) for the user to
@@ -94,6 +97,14 @@ function."
 - A repo-level tool with its own native `/graphify` skill
   (`.claude/skills/graphify/SKILL.md` in this repo), not part of the
   `dev-team` plugin's shipped skill set.
+- Also offered opt-in during `/project-init`'s Step 4c as part of the
+  CodeGraph + Repowise + Graphify all-or-none group. **Unlike the keyless
+  CodeGraph/Repowise indexes, graphify's extraction requires a model/API
+  key** — the group prompt discloses this up front so accepting the group is
+  never a surprise key cost (issue #1135). When accepted, the skill builds the
+  graph (`graphify extract .`, or `graphify update .` when a graph already
+  exists); when graphify is absent, consuming agents fall back to
+  `Read`/`Grep`/`Glob`.
 - Build a graph with `graphify extract .` (or the full `/graphify` pipeline),
   which writes `graphify-out/graph.json` (gitignored) plus
   `graphify-out/GRAPH_REPORT.md` and an HTML visualization.

@@ -183,6 +183,21 @@ offered as **one all-or-none group** rather than three separate prompts, so
 the operator makes a single decision and the agents get a consistent,
 predictable set of lookup capabilities (see issue #1108).
 
+Accepting the group both **installs and builds** every missing tool's index in
+this same run — it is not a "print instructions and leave it to the user" step
+(issues #1134, #1135):
+
+- **CodeGraph and Repowise are keyless** — they build a purely structural
+  index with **no model/API key** and are safe to build unattended. CodeGraph
+  installs its CLI (`npm install -g @colbymchenry/codegraph`) and runs
+  `codegraph init .`; Repowise installs and runs a `--index-only` index.
+- **Graphify additionally requires a model/API key** to build its graph — its
+  extraction is LLM-driven, heavier, and produces a different kind of graph.
+  Because all three are offered as one all-or-none group, the group prompt
+  **must disclose Graphify's key requirement up front** so accepting is never a
+  surprise key cost. When Graphify is absent the agents that use it fall back
+  gracefully (see `knowledge/codegraph-vs-graphify.md`).
+
 **Detect which are already present** (so re-runs are idempotent and the group
 scopes to the *missing* set):
 
@@ -212,11 +227,19 @@ already present nor previously declined.
   Install the code-lookup tools <missing list> to enable faster, verified
   code navigation for the review and analysis agents? [Y/n]
     - CodeGraph  — personal, user-level MCP; nothing committed to the repo.
+                   Keyless: `npm install -g @colbymchenry/codegraph` + `codegraph init .`.
     - Repowise   — local keyless index under .repowise/ (gitignored); MCP server.
+                   Keyless: `--index-only`, no API key requested.
     - Graphify   — repo-level: writes a `## graphify` section into this repo's
                    CLAUDE.md and installs git hooks (guarded against the known
                    over-delete bug — see the Graphify sub-section).
+                   REQUIRES a model/API key to build its graph — heavier than
+                   the keyless indexes above; declining the group skips this cost.
   ```
+
+  The prompt copy above must always disclose Graphify's model/API-key
+  requirement (issue #1135) — CodeGraph and Repowise are keyless, Graphify is
+  not, and the operator is accepting all three as one decision.
 
 - On **yes**: install **every** tool in the missing set by running its
   sub-section below (CodeGraph, Repowise, Graphify), recording each tool's
@@ -272,10 +295,22 @@ filesystem/PATH check supersedes the recorded preference.
   `CodeGraph: previously declined install (remove the codegraph key from .claude/init-state.json to re-prompt)`
   and continue.
 - Otherwise prompt: `Install CodeGraph for code intelligence? (y/N)`
-  - On `y`/`Y`: print
-    `CodeGraph install instructions: https://github.com/colbymchenry/codegraph#installation`.
-    Merge `{"codegraph": {"install_accepted": true}}` into
-    `.claude/init-state.json`.
+  - On `y`/`Y`: install the CodeGraph CLI (machine-level, keyless — nothing is
+    committed to the repo):
+
+    ```bash
+    npm install -g @colbymchenry/codegraph
+    ```
+
+    - On success: merge `{"codegraph": {"install_accepted": true}}` into
+      `.claude/init-state.json` and **fall through to the init step below**
+      (`codegraph init .`) so the index is built in this same run — this is
+      what issue #1134 requires (install *and* build, not just instructions).
+    - **Non-fatal on failure** (npm missing, or the install errors): print
+      `CodeGraph install failed — install it manually: https://github.com/colbymchenry/codegraph#installation`,
+      merge `{"codegraph": {"install_failed": true}}`, and continue. Per the
+      group's partial-failure rule, report the tool as failed rather than
+      aborting the rest of setup.
   - On any other response (including empty): merge
     `{"codegraph": {"install_declined": true}}` and continue silently.
 
@@ -287,9 +322,10 @@ filesystem/PATH check supersedes the recorded preference.
 - Otherwise prompt:
   `CodeGraph is installed but not initialized in this project. Initialize now? (y/N)`
   - On `y`/`Y`:
-    1. Print: `Running 'codegraph init -i' in this project...`
-    2. Execute `codegraph init -i` with the current working directory as
-       cwd. Surface its stdout/stderr to the user.
+    1. Print: `Running 'codegraph init .' in this project...`
+    2. Execute `codegraph init .` — **non-interactive** (no `-i`; issue #1134),
+       targeting the current working directory. Surface its stdout/stderr to
+       the user.
     3. On exit 0: print `CodeGraph: initialized ✓`, merge
        `{"codegraph": {"init_accepted": true}}` into
        `.claude/init-state.json`, then register the MCP server (below).
@@ -406,6 +442,31 @@ over-delete, taking unrelated pre-existing content with it. Guard every run:
    repo already carries).
 5. **On no corruption detected:** leave the installer's output as-is —
    nothing further to do.
+
+**Build the graph (requires a model/API key — issue #1135).** Unlike the
+keyless CodeGraph/Repowise indexes, graphify's extraction is LLM-driven and
+needs a model/API key — this is the cost the group prompt discloses.
+
+- **Idempotent:** if `graphify-out/graph.json` already exists, skip extraction
+  and offer the incremental, no-key refresh instead:
+
+  ```bash
+  graphify update .
+  ```
+
+- **Otherwise build it:**
+
+  ```bash
+  graphify extract .
+  ```
+
+  This writes `graphify-out/graph.json` (gitignored) plus `GRAPH_REPORT.md`.
+- **Non-fatal:** if extraction fails (e.g. no model/API key is configured),
+  print the error, merge `{"graphify": {"build_failed": true}}` into
+  `.claude/init-state.json`, and continue — never abort the rest of setup, and
+  never claim the group fully installed (the partial-failure rule). Agents that
+  consume graphify fall back to `Read`/`Grep`/`Glob` when `graphify-out/` is
+  absent (see `knowledge/codegraph-vs-graphify.md`).
 
 **Gitignore advice.** `graphify hook install` creates machine-specific
 generated git hooks. Tell the user to gitignore them the same way this
