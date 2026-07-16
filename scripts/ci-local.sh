@@ -240,9 +240,27 @@ chk_hook_units() {
   # --dist loadfile keeps every test from one file on a single worker, preserving
   # intra-file execution order — the git-subprocess suites (e.g. progress_guardian)
   # are order-sensitive and race when their tests are split across workers.
+  # Worker count (#1129): `-n auto` spawns one worker per core. In a FULL local
+  # run (no --only) this check is dispatched inside ci-local.sh's outer parallel
+  # pool alongside ~17 other checks, so `auto` oversubscribes every core and
+  # starves the co-runners — eslint measured 2.3s solo but 34.7s here while
+  # pytest's workers held the cores. This suite is coordination-bound (~2.7 cores
+  # of real work even at -n auto), so leaving ~1/3 of the cores for the pool
+  # barely moves its own wall-clock while letting the light co-runners finish in
+  # the freed headroom. Under --only (CI shards each gate into its own job) pytest
+  # is effectively the sole heavy check, so keep -n auto there — no co-runners to
+  # protect, and small CI runners want every core.
   parallel=()
   if python3 -c 'import xdist' >/dev/null 2>&1; then
-    parallel=(-n auto --dist loadfile)
+    local workers="auto"
+    if [ -z "$ONLY" ]; then
+      local cores
+      cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+      case "$cores" in '' | *[!0-9]*) cores=4 ;; esac
+      workers=$(( cores - cores / 3 ))
+      [ "$workers" -ge 2 ] || workers=2
+    fi
+    parallel=(-n "$workers" --dist loadfile)
   fi
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
     tests/docs tests/knowledge tests/bats tests/skills tests/scripts \
