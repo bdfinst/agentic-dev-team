@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.9.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.9.0...dev-team-v10.9.1) (2026-07-17)
+
+
+### Bug Fixes
+
+* **mutation-testing:** detect and surface Stryker coverage-capture failure ([8821f77](https://github.com/bdfinst/agentic-dev-team/commit/8821f770ea99241b87e89a12fc5f80fd8abedad4))
+
 ## [10.9.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.8.0...dev-team-v10.9.0) (2026-07-17)
 
 
