@@ -138,12 +138,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_wave.py <plan-file>          # order
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py --wave-width <W> [--jobs N]  # effective concurrency
 ```
 
-`build_jobs.py` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)` (default max **2**; non-positive/non-integer clamp to 1). **Sequential fallback:** when effective concurrency is **1** (a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
+`build_jobs.py` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)` (when `DEV_TEAM_MAX_PARALLEL_BUILDS` is unset the max defaults to the per-host ceiling `min(16, cores-2)`, floored at 1, so an unset `--jobs` fans a wave out to its full width bounded by the machine; an explicit env value is honored verbatim and never re-capped; non-positive/non-integer clamp to 1). **Sequential fallback:** when effective concurrency is **1** (a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
 
 **Concurrent dispatch (effective concurrency > 1):**
 
 1. Dispatch each independent slice in the wave to its **own** git worktree (`isolation: "worktree"`), up to the effective concurrency. Each slice's changes stay isolated until reconcile, and each slice still runs its full per-behavior cycle and inline review gates.
-2. **Report the concrete level and cost**, e.g. *"building wave 2 — 2 slices concurrently; faster wall-clock but burns token budget faster."*
+2. **Report the concrete level and cost** — name the slice count and the resulting multiplier, e.g. *"building wave 2 — 5 slices concurrently; ~5× wall-clock speedup, but burns your token budget faster — roughly 5× for 5 concurrent slices."* The cost is reported, never auto-throttled: cap it yourself with `--jobs N` or `DEV_TEAM_MAX_PARALLEL_BUILDS` if the burn rate is too high (#1170).
 3. **Barrier + reconcile** once the wave's slices finish: `build_wave_reconcile.py --into <integration> --base <ref> --test-cmd "<full suite>" <slice-branch>...` merges them order-independently and gates on the full suite before any next-wave slice starts.
 4. **Loud halt, never silent:**
    - A **failing slice** → exit non-zero naming it, list which same-wave slices succeeded and where their (preserved) worktrees are, print the resume command, and start no next-wave slice. Resume rebuilds only the incomplete slice.
