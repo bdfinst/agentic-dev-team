@@ -5276,6 +5276,10 @@
       "summary": "Stryker.NET (through at least 4.15/4.16) **cannot observe mutant kills through",
       "anchor": "why-this-exists"
     },
+    "Scope — one path, not the only one": {
+      "summary": "The shim is the path that keeps the **mutant-kill loop** viable on xunit.v3, because it restores per-test coverage (fast covering-subset per mutant).",
+      "anchor": "scope-one-path-not-the-only-one"
+    },
     "When to build it": {
       "summary": "Detection is one check: a test `.csproj` contains `Include=\"xunit.v3\"`.",
       "anchor": "when-to-build-it"

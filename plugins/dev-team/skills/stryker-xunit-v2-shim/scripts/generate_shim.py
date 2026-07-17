@@ -35,6 +35,10 @@ def main():
     ap.add_argument("csproj", help="path to the real xunit.v3 test .csproj")
     ap.add_argument("--mutate-exclude", action="append", default=[],
                     help="extra mutate exclude glob (repeatable), e.g. '**/gRPC/**/*.cs'")
+    ap.add_argument("--compile-exclude", action="append", default=[],
+                    help="operator-selected v3-feature test file to drop from the shim's "
+                         "<Compile> set (repeatable), from the #1160 always-ask gate. Path "
+                         "relative to the real project, e.g. '..\\Foo.Tests\\ExplicitTests.cs'")
     args = ap.parse_args()
 
     real = os.path.abspath(args.csproj)
@@ -88,9 +92,14 @@ def main():
         lines += ["  <ItemGroup>"]
         lines += ["    " + " ".join(pr.split()) for pr in projrefs]
         lines += ["  </ItemGroup>", ""]
+    # Always exclude build output; append operator-selected v3-feature files
+    # (#1160) so the shim compiles without the constructs that break under v2.
+    compile_excludes = [f"..\\{name}\\obj\\**\\*.cs", f"..\\{name}\\bin\\**\\*.cs"]
+    compile_excludes += [g.strip() for g in args.compile_exclude if g.strip()]
+    exclude_attr = ";".join(compile_excludes)
     lines += ["  <ItemGroup>",
               f'    <Compile Include="..\\{name}\\**\\*.cs"',
-              f'             Exclude="..\\{name}\\obj\\**\\*.cs;..\\{name}\\bin\\**\\*.cs">',
+              f'             Exclude="{exclude_attr}">',
               "      <Link>Linked\\%(RecursiveDir)%(FileName)%(Extension)</Link>",
               "    </Compile>",
               "  </ItemGroup>", "", "</Project>", ""]
@@ -100,7 +109,12 @@ def main():
         fh.write("\n".join(lines))
 
     mutate = ["**/*.cs", "!obj/**/*.cs"] + [f"!{g}" for g in args.mutate_exclude]
+    # Pin test-projects to the shim and deliberately set NO SolutionPath: with
+    # both set, Stryker enumerates the solution and prefers the real xunit.v3
+    # project over the shim (the SolutionPath trap, #557/#1156) — so the shim's
+    # kills never register. test-projects alone keeps Stryker on the shim.
     config = {"stryker-config": {
+        "test-projects": [f"{name}.Mutation.csproj"],
         "mutate": mutate,
         "mutation-level": "Standard",
         "coverage-analysis": "perTest",
