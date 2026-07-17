@@ -1,13 +1,20 @@
-"""#1108 — /project-init Step 4c offers the three code-lookup tools as one
+"""#1108 — /project-init Step 4c offers the keyless code-lookup tools as one
 all-or-none group and installs Repowise (keyless, gitignored, MCP-registered).
 
 #1134 — accepting the group installs *and builds* the keyless CodeGraph and
 Repowise indexes in the same run (CodeGraph via `npm install -g
 @colbymchenry/codegraph` + non-interactive `codegraph init .`).
 
-#1135 — the group stays all-or-none, but the prompt must disclose that Graphify
-(unlike the keyless indexes) requires a model/API key, and Graphify's graph
-build is idempotent (`graphify update .` when a graph exists) and non-fatal.
+#1135 — the prompt must disclose that Graphify (unlike the keyless indexes)
+requires a model/API key, and Graphify's graph build is idempotent
+(`graphify update .` when a graph exists) and non-fatal.
+
+#1141 — the single all-or-none group is split by cost profile. The keyless
+pair (CodeGraph + Repowise) stays all-or-none and can be accepted *alone*.
+Graphify is a separate, key-gated opt-in: it is offered only when a model/API
+key is detected, and when no key is present it is skipped entirely — its
+repo-level native integration is never written, so the repo is not left
+carrying an inert integration.
 
 Content-guard sensor over the shipped project-init SKILL.md prose — a pure text
 grep, no state-mutating operations.
@@ -25,13 +32,15 @@ def _text() -> str:
     return SKILL.read_text(encoding="utf-8")
 
 
-# --- All-or-none group -------------------------------------------------------
+# --- All-or-none keyless group -----------------------------------------------
 
 
-def test_step_4c_is_all_or_none_group():
+def test_step_4c_keyless_pair_is_all_or_none_group():
     text = _text()
     assert "all-or-none" in text
     assert "CodeGraph" in text and "Repowise" in text and "Graphify" in text
+    # #1141: the all-or-none framing now spans only the keyless pair.
+    assert "Keyless pair" in text
 
 
 def test_group_recommends_yes_when_missing():
@@ -132,3 +141,45 @@ def test_graphify_build_is_non_fatal():
     text = _text()
     # Extraction failure (e.g. no key) is reported, not aborting setup.
     assert "build_failed" in text
+
+
+# --- #1141: keyless pair decoupled from key-gated Graphify -------------------
+
+
+def test_keyless_group_prompt_omits_graphify():
+    text = _text()
+    # The keyless group prompt lists only CodeGraph + Repowise, so the pair can
+    # be accepted alone without triggering Graphify's key-required build.
+    prompt = text.split("**The keyless group prompt.**", 1)[1].split(
+        "**The Graphify opt-in", 1
+    )[0]
+    assert "CodeGraph" in prompt and "Repowise" in prompt
+    assert "Graphify" not in prompt
+
+
+def test_graphify_is_separate_key_gated_optin():
+    text = _text()
+    assert "key-gated" in text
+    assert "only when a model/API key is actually present" in text
+
+
+def test_graphify_optin_detects_provider_keys():
+    text = _text()
+    # Detection checks for the provider keys graphify's own error lists.
+    assert "ANTHROPIC_API_KEY" in text
+    assert "GOOGLE_API_KEY" in text
+
+
+def test_graphify_skipped_when_no_key_and_integration_not_written():
+    text = _text()
+    # No key => Graphify is skipped and its repo-level integration is NOT written.
+    assert "install_skipped_no_key" in text
+    assert "guaranteed failure" in text
+    assert "inert" in text
+
+
+def test_graphify_native_integration_gated_on_key_present():
+    text = _text()
+    # The Graphify sub-section documents that its file writes only happen on the
+    # key-gated accept.
+    assert "only after the key-gated Graphify opt-in" in text
