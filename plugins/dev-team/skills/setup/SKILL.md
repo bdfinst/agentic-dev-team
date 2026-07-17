@@ -315,6 +315,14 @@ Install the appropriate runner plugin:
 | jasmine | `npm install --save-dev @stryker-mutator/jasmine-runner` |
 | none detected | Install vitest runner as default: `npm install --save-dev @stryker-mutator/vitest-runner` and note to the user they may need to swap this for their runner |
 
+**If any Stryker install above fails with `npm error code ERESOLVE`**, the
+conflict is a peer-dependency clash already present in the repo's tree — not
+between it and `@stryker-mutator/*`, which carries no such peer relationship.
+Retry that command once with `--legacy-peer-deps` (e.g. `npm install
+--save-dev @stryker-mutator/core --legacy-peer-deps`), and add a one-line note
+to the user that you fell back to `--legacy-peer-deps` because of a
+pre-existing peer conflict. Don't abort on the first ERESOLVE.
+
 **Initialize Stryker config if not already present:**
 
 ```bash

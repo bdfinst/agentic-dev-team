@@ -117,6 +117,11 @@ pipx install, never `npm install -g`.
   npm install --save-dev oxlint
   ```
 
+  If this fails with `npm error code ERESOLVE`, the peer conflict is
+  pre-existing in the repo's tree (not with `oxlint`) — retry once with
+  `--legacy-peer-deps` and note to the user that you did so, rather than
+  aborting.
+
 - **Python** — add `ruff` and `mypy` — plus `pytest` if no test runner is
   present — to the project's own dev-dependency mechanism: the
   `pyproject.toml` dev group or `requirements-dev.txt`, whichever the
@@ -171,7 +176,12 @@ docker scanners, so they install via the OS package manager (or pipx / user
 pip on Linux). **Playwright is the repo-level exception among capability
 tools**: it installs as an `npm` devDependency (`@playwright/test`), versioned
 with the project like a lane tool — only its Chromium download is machine-level.
-State this explicitly to the user when the capability group installs.
+State this explicitly to the user when the capability group installs. If the
+Playwright `npm` install fails with `npm error code ERESOLVE`, the peer
+conflict is pre-existing in the repo's tree (`@playwright/test` has no
+framework peer relationship) — retry that install once with
+`--legacy-peer-deps` and note to the user that you did so, rather than
+aborting.
 
 ### Step 4c: Offer the three code-lookup tools (all-or-none)
 
@@ -605,6 +615,11 @@ Frontend projects also add: `"test:e2e": "playwright test"`.
 ```bash
 npm install -D eslint prettier vitest @eslint/js eslint-config-prettier husky lint-staged oxlint
 ```
+
+If this (or the Playwright install below) fails with `npm error code
+ERESOLVE`, the peer conflict is pre-existing in the repo's tree, not with the
+tooling being added — retry the failing command once with `--legacy-peer-deps`
+and note to the user that you did so, rather than aborting.
 
 `eslint-config-prettier` disables ESLint rules that conflict with Prettier. Do NOT install `eslint-plugin-prettier` — run Prettier as a separate step (`npm run format:check`), not through ESLint.
 
