@@ -220,15 +220,41 @@ Write findings to `.claude/project-stack.json`:
 
 ### 6. Install per-language mutation tooling
 
-Determine which of the language sections below to run from the stack signal
-just recorded in Step 5 (`.claude/project-stack.json`'s `stacks` array —
-`typescript`/`node` maps to the JS/TS section, `csharp`/`dotnet` maps to the
-C# section, `java`/`kotlin` maps to the Java section). Run every matching
-section; more than one may apply in a polyglot repo.
+Mutation-tool installation is **strictly relative to the detected stack**.
+Do not decide which language sections to run by hand — the mapping is a
+deterministic helper, so the wrong-stack probe (e.g. `dotnet` on a JS repo)
+cannot fire. Call it once:
 
-If the signal is empty or ambiguous (e.g. `--dry-run` scanning a repo with
-no recognizable stack, or a layout project-init's detection table doesn't
-cleanly classify), fall back to asking:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/mutation_stack_sections.py" .
+```
+
+It reads `.claude/project-stack.json`'s `stacks` array (recorded in Step 5)
+and prints one JSON object:
+
+```json
+{ "sections": ["js"], "stacks": ["typescript", "node"], "ambiguous": false, "note": null }
+```
+
+- `sections` — the sections to run, from `js` (JS/TS — Stryker), `java`
+  (Java/Kotlin — pitest), `csharp` (C#/.NET — Stryker.NET). The mapping is
+  `typescript`/`node`/`javascript` → `js`, `java`/`kotlin` → `java`,
+  `csharp`/`dotnet` → `csharp`. **Run every section in `sections` and no
+  others.** More than one may apply in a polyglot repo.
+- `ambiguous` — `true` **only** when the stack signal is genuinely empty or
+  missing (no `.claude/project-stack.json`, unreadable/invalid, or an empty
+  `stacks` array). This is the **only** outcome that authorizes the
+  interactive fallback below.
+- `note` — set when a definite stack matched no section (e.g. a pure-Python
+  repo — there is no Python mutation tool wired into this step). When `note`
+  is non-null, `sections` is empty and `ambiguous` is `false`: install
+  **nothing**, probe **nothing** (no `dotnet`, `node`, or `mvn`), print the
+  `note` line verbatim, and skip the rest of this step.
+
+**Interactive fallback — only when `ambiguous` is `true`.** When a definite
+stack was detected (`ambiguous` is `false`), never prompt; honor `sections`
+exactly. Only when `ambiguous` is `true` (e.g. `--dry-run` scanning a repo
+with no recognizable stack) fall back to asking:
 
 > "Which languages do you need mutation testing for? (Select all that apply)"
 >
@@ -238,14 +264,22 @@ cleanly classify), fall back to asking:
 > 4. **All of the above**
 > 5. **None — skip mutation tooling**
 
-Parse the response. If they choose 4, treat it as selecting 1, 2, and 3. If
-5 (or the signal maps to none of the above, e.g. a pure-Python repo — there
-is no Python mutation tool wired into this step), skip the rest of this
+Parse the response. If they choose 4, treat it as selecting 1, 2, and 3
+(i.e. `sections` = `["js", "java", "csharp"]`). If 5, skip the rest of this
 step.
+
+Each language subsection below **re-asserts its own gate as its literal
+first step** — a section whose key is not in `sections` returns immediately,
+before any `command -v` / tool probe. The guard is therefore robust even if
+a section is reached out of order.
 
 ---
 
 #### JS/TS — Stryker
+
+**Stack gate (first step — hard precondition):** if `js` is not in the
+Step 6 helper's `sections`, return immediately. Do **not** run the
+prerequisites probe below. Only proceed when `js` is in `sections`.
 
 **Prerequisites check:**
 
@@ -428,6 +462,10 @@ the final `ready`/`meaningful`/`patched` state for the Step 12 report.
 
 #### Java / Kotlin — pitest
 
+**Stack gate (first step — hard precondition):** if `java` is not in the
+Step 6 helper's `sections`, return immediately. Do **not** run the
+prerequisites probe below. Only proceed when `java` is in `sections`.
+
 **Prerequisites check:**
 
 ```bash
@@ -517,6 +555,11 @@ mvn pitest:mutationCoverage -DtimestampedReports=false -DoutputFormats=XML --hel
 ---
 
 #### C# / .NET — Stryker.NET
+
+**Stack gate (first step — hard precondition):** if `csharp` is not in the
+Step 6 helper's `sections`, return immediately. Do **not** run the
+prerequisites probe below (no `command -v dotnet`, no `dotnet tool list`).
+Only proceed when `csharp` is in `sections`.
 
 **Prerequisites check:**
 
@@ -657,7 +700,14 @@ Display a summary of everything installed and created:
 ### Prerequisites
 - jq:       ✓ <version>
 - python3:  ✓ <version>
-- Mutation testing (Stryker): ✓ <version>   [or: ✗ skipped | ✗ failed]
+- Mutation testing: ✓ <tool> <version>   [or: ✗ skipped | ✗ failed]
+
+Report a mutation-testing line **only for sections actually in scope** — the
+`sections` the Step 6 helper returned (Stryker for `js`, pitest for `java`,
+Stryker.NET for `csharp`). Never list a tool for a stack that was not
+detected. When the helper's `note` was set (a detected stack with no
+mutation tool wired in, e.g. pure Python), report that one line verbatim —
+`no mutation tooling for detected stack (<stacks>)` — and no tool line.
 
 ### Coverage baseline readiness (JS/TS only)
 - ✓ json-summary + coverage scope present   [ready + meaningful]
