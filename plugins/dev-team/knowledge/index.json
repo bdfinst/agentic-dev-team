@@ -5065,7 +5065,7 @@
       "anchor": "5-record-the-stack-signal-for-dev-teams-own-use"
     },
     "6. Install per-language mutation tooling": {
-      "summary": "Determine which of the language sections below to run from the stack signal",
+      "summary": "Mutation-tool installation is **strictly relative to the detected stack**.",
       "anchor": "6-install-per-language-mutation-tooling"
     },
     "7. Select agent templates": {
