@@ -1,5 +1,21 @@
 # Changelog
 
+## [10.9.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.8.0...dev-team-v10.9.0) (2026-07-17)
+
+
+### Features
+
+* **test-improve:** --from-phase auto-detects resume point when no number given ([a8fe39f](https://github.com/bdfinst/agentic-dev-team/commit/a8fe39f66d170bd7fd40119ffe43d9d2828011fc)), closes [#1151](https://github.com/bdfinst/agentic-dev-team/issues/1151)
+
+
+### Bug Fixes
+
+* **project-init:** split Step 4c so keyless code-lookup pair decouples from key-gated Graphify ([88facec](https://github.com/bdfinst/agentic-dev-team/commit/88facec9d729ebc1e1dd11e661e6292485278a87)), closes [#1141](https://github.com/bdfinst/agentic-dev-team/issues/1141)
+* **setup:** add --legacy-peer-deps fallback for npm install ERESOLVE ([9e6ae89](https://github.com/bdfinst/agentic-dev-team/commit/9e6ae89db29c61114668ba6e748249ffe800e4fd)), closes [#1142](https://github.com/bdfinst/agentic-dev-team/issues/1142)
+* **setup:** stack-gate Step 6 mutation-tool install so wrong-stack probes can't fire ([93ecc7a](https://github.com/bdfinst/agentic-dev-team/commit/93ecc7a48028429fcd389d5b8c2490ef53775500)), closes [#1152](https://github.com/bdfinst/agentic-dev-team/issues/1152)
+* **setup:** write stryker.config.mjs directly instead of interactive init ([f16e662](https://github.com/bdfinst/agentic-dev-team/commit/f16e662a58872d492b5c6b97d54990f50b225bf7)), closes [#1140](https://github.com/bdfinst/agentic-dev-team/issues/1140)
+* **test-improve:** gate refactor steps on no-refactor mode at Phase 4b/5 ([9146cb5](https://github.com/bdfinst/agentic-dev-team/commit/9146cb594644282933b91a031fa189d8c79d2bb2)), closes [#1146](https://github.com/bdfinst/agentic-dev-team/issues/1146)
+
 ## [10.8.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.7.0...dev-team-v10.8.0) (2026-07-16)
 
 
