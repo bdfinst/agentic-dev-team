@@ -9,10 +9,10 @@ description: >-
   10-section executive-summary report. Use when the user says "improve our
   tests", "modernize the test suite", "upgrade our tests", or runs
   /test-improve.
-argument-hint: "<repo-path> [--parent <url>] [--analyze-only] [--from-phase <n>] [--stack <id>]"
+argument-hint: "<repo-path> [--parent <url>] [--analyze-only] [--from-phase [<n>]] [--stack <id>]"
 role: orchestrator
 user-invocable: true
-allowed-tools: Read, Grep, Glob, Bash(git diff *), Skill, Agent
+allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(python3 *), Skill, Agent
 ---
 
 # Test Improve
@@ -51,9 +51,14 @@ You have been invoked with the `/test-improve` command.
   default), which writes to `./reports/test-improve/` and `./plans/test-improve/`.
 - `--analyze-only` — run Phase 0 then Phase 1 and **exit after Phase 1** with a
   summary of the improvement plan. No baseline is captured; no code changes.
-- `--from-phase <n>` — skips completed phases and resumes at phase `n` when
-  `memory/test-improve/<slug>/phase-<n-1>.md` exists. `--from-phase` does
-  **not** re-prompt Phase-0 inputs; to change them, delete
+- `--from-phase [<n>]` — skips completed phases and resumes at phase `n` when
+  `memory/test-improve/<slug>/phase-<n-1>.md` exists. **The number is
+  optional.** Passed with **no argument**, `/test-improve` **auto-detects** the
+  resume point from `memory/test-improve/<slug>/` (see the `--from-phase`
+  semantics below): it resumes at the phase after the highest completed
+  progress file and prints which phase it resolved to and why. An explicit
+  `<n>` **overrides** auto-detection. Either form does **not** re-prompt
+  Phase-0 inputs; to change them, delete
   `memory/test-improve/<slug>/phase-0.md` and re-run from Phase 0.
 - `--stack <id>` — force a stack profile (e.g. `js`, `dotnet`, `java`, `go`)
   when manifest detection is ambiguous.
@@ -179,6 +184,40 @@ code changes.
 when their `memory/test-improve/<slug>/phase-<i>.md` files exist and resumes
 at phase `n`. Phase-0 inputs are read from `phase-0.md` (never re-prompted).
 
+**`--from-phase` with no number — auto-detect the resume point.** When
+`--from-phase` is passed **without** a number, resolve the resume phase by
+calling the helper — do **not** infer it in prose:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/test_improve_resume.py <repo-path>
+```
+
+The helper resolves the slug from `<repo-path>` (its last path segment), scans
+**only** that slug's `memory/test-improve/<slug>/` directory for the
+completed-phase progress files (`phase-0.md` … `phase-7.md`, plus
+`phase-4b.md`), finds the highest completed phase (ordering `phase-4b`
+between `phase-4` and `phase-5`), and prints a JSON object whose
+`resolved_phase` is the phase to resume at and whose `message` reads e.g.
+`Resuming at Phase 5 (latest completed: phase-4b.md).`. Print that `message`
+so the operator can confirm before work starts, then resume at
+`resolved_phase`. Resolution rules the helper encodes:
+
+- A completed `phase-4.md` with **no** `phase-4b.md` resumes at **Phase 4b**;
+  a completed `phase-4b.md` resumes at **Phase 6** (matching the `[b]`/`[q]`
+  skip-to-6 flow); a completed `phase-5.md` resumes at **Phase 6**.
+- Only `phase-0.md` present resumes at **Phase 1**.
+- **No memory dir / no phase files / `phase-0.md` missing** — the helper exits
+  non-zero; surface its error message (which points to running
+  `/test-improve <repo-path>` from Phase 0) and do **not** silently start at
+  Phase 0.
+- A completed `phase-7.md` means the run is already complete (`complete:
+  true`) — report it; there is nothing to resume.
+
+To resolve an **explicit** `<n>` (including validating that `phase-0.md`
+exists) the skill may pass `--explicit <n>`; an explicit `<n>` **overrides**
+auto-detection. Auto-detect and explicit alike read Phase-0 inputs from
+`phase-0.md` and never re-prompt them.
+
 **Phase-4b prompt letter.** The full Phase-4b refactor-decision prompt —
 shown only in `refactor-allowed` mode — uses `[y/b/q]` (not `[r]`). The
 letter `r` is already claimed by mutation-kill's `[c/r/w/q]` (retry) and the
@@ -248,7 +287,7 @@ refactor is labeled **skipped-in-no-refactor** (out of scope for this run) so
 the operator sees the coverage/behavior left on the table — such items are never
 presented as ordinary next steps that this run will execute.
 
-**`/handoff` suggestion** (context-heavy analysis). Once the gate above resolves, print: `Phase 1 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 2`
+**`/handoff` suggestion** (context-heavy analysis). Once the gate above resolves, print: `Phase 1 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 2 (or --from-phase with no number to auto-detect the resume point)`
 
 ### Phase 2 — Baseline (coverage + mutation)
 
@@ -421,7 +460,7 @@ Phase-4 diff:
    the fixed schema — fields: `base_sha`, `head_sha`, `farley_score`,
    `smells`, `code_review`, `iterations`, `escalated`.
 
-**`/handoff` suggestion** (context-heavy review). Once the loop above closes, print: `Phase 4 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 4b`
+**`/handoff` suggestion** (context-heavy review). Once the loop above closes, print: `Phase 4 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 4b (or --from-phase with no number to auto-detect the resume point)`
 
 ### Phase 4b — Refactor decision (mode-gated)
 
@@ -511,7 +550,7 @@ escalation.
 the **same fixed schema** as Phase 4 (`base_sha`, `head_sha`, `farley_score`,
 `smells`, `code_review`, `iterations`, `escalated`).
 
-**`/handoff` suggestion** (same rationale as Phase 4). Once the loop above closes, print: `Phase 5 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 6`
+**`/handoff` suggestion** (same rationale as Phase 4). Once the loop above closes, print: `Phase 5 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 6 (or --from-phase with no number to auto-detect the resume point)`
 
 ### Phase 6 — Validate (converge quality targets)
 
@@ -562,7 +601,7 @@ as `test-counts-before.json` (same six keys, same order, zero-count keys
 present). See Phase 1's own instruction for the full classification
 mechanism; this pass does not restate it.
 
-**`/handoff` suggestion** (context-heavy re-measurement). Once the recount above is persisted, print: `Phase 6 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 7`
+**`/handoff` suggestion** (context-heavy re-measurement). Once the recount above is persisted, print: `Phase 6 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 7 (or --from-phase with no number to auto-detect the resume point)`
 
 ### Phase 7 — Executive-summary report
 
