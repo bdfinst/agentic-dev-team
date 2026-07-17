@@ -86,6 +86,35 @@ def emit_block(reason: str) -> str:
     return json.dumps({"decision": "block", "reason": reason})
 
 
+# Canonical coverage-capture-failure signal (see #1156). Verbatim from
+# Stryker.NET's own log: src/Stryker.Core/Stryker.Core/CoverageAnalysis/
+# CoverageAnalyser.cs emits "It looks like the test coverage capture failed.
+# Disable coverage based optimisation." when the initial per-test coverage pass
+# yields zero covered mutations, then calls AssumeAllTestsAreNeeded() —
+# silently falling back to whole-suite-per-mutant. The British "optimisation"
+# spelling matches the source. Kept byte-identical with the copy in the status
+# loop (csharp_stryker_net_status_loop.py); the two live in different import
+# roots (hooks/ vs skills/) so they cannot share a constant — the equivalence
+# is armored by test_coverage_capture_regex_matches_status_loop.
+_COVERAGE_CAPTURE_FAILURE_RE = re.compile(
+    r"test coverage capture failed|disable coverage based optimisation",
+    re.IGNORECASE,
+)
+
+
+def detect_coverage_capture_failure(text: str) -> bool:
+    """True when `text` (Stryker's captured stdout/stderr) shows per-test
+    coverage capture failed and Stryker fell back to whole-suite-per-mutant.
+
+    A pure predicate later slices (#1158's feasibility gate) branch on to
+    decide loop-vs-degrade. Matches either half of 'It looks like the test
+    coverage capture failed. Disable coverage based optimisation.'
+    """
+    if not text:
+        return False
+    return bool(_COVERAGE_CAPTURE_FAILURE_RE.search(text))
+
+
 def emit_advisory(message: str) -> str:
     """Return the PostToolUse additionalContext envelope for an advisory message."""
     return json.dumps(

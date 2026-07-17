@@ -352,3 +352,60 @@ class TestCLI:
         assert result.returncode == 0
         assert "[RED-FLAG]" in result.stdout
         assert "#554" in result.stdout
+
+
+# =============================================================================
+# Red flag 6 — coverage capture failure (#1156)
+# =============================================================================
+class TestRedFlagCoverageCapture:
+    def test_fires_on_coverage_capture_failure(self, state_dir, alive_pid):
+        flags = loop.check_red_flags(
+            FIXTURES / "coverage-capture-failed.log",
+            threshold=25,
+            stryker_pid=alive_pid,
+            state_dir=state_dir,
+        )
+        capture = [f for f in flags if "coverage capture failed" in f]
+        assert len(capture) == 1
+        assert "#1156" in capture[0]
+
+    def test_silent_on_healthy_log(self, state_dir, alive_pid):
+        flags = loop.check_red_flags(
+            FIXTURES / "healthy-dots.log",
+            threshold=25,
+            stryker_pid=alive_pid,
+            state_dir=state_dir,
+        )
+        assert not any("coverage capture failed" in f for f in flags)
+
+    def test_helper_matches_either_half_case_insensitively(self, tmp_path):
+        first = tmp_path / "first.log"
+        first.write_text("[13:20:25 ERR] it looks like the TEST COVERAGE CAPTURE FAILED.\n")
+        second = tmp_path / "second.log"
+        second.write_text("[13:20:25 ERR] Disable Coverage Based Optimisation.\n")
+        clean = tmp_path / "clean.log"
+        clean.write_text("Killed:     42\nThe final mutation score is 84.00 %\n")
+        assert loop.log_has_coverage_capture_failure(first) is True
+        assert loop.log_has_coverage_capture_failure(second) is True
+        assert loop.log_has_coverage_capture_failure(clean) is False
+
+    def test_missing_file_is_false(self, tmp_path):
+        assert loop.log_has_coverage_capture_failure(tmp_path / "nope.log") is False
+
+
+def test_coverage_capture_regex_matches_adapter_copy():
+    """The signal regex is duplicated across the status loop (skills/) and the
+    adapter lib (hooks/) because they have no shared import root. This armors
+    the 'kept byte-identical' comment so a drift or spelling 'fix' in one copy
+    cannot pass unnoticed. See #1156."""
+    hooks_dir = Path(__file__).resolve().parents[2] / "plugins" / "dev-team" / "hooks"
+    sys.path.insert(0, str(hooks_dir))
+    from mutation_adapters import lib  # noqa: E402
+
+    assert (
+        loop._COVERAGE_CAPTURE_FAILURE_RE.pattern
+        == lib._COVERAGE_CAPTURE_FAILURE_RE.pattern
+    )
+    assert (
+        loop._COVERAGE_CAPTURE_FAILURE_RE.flags == lib._COVERAGE_CAPTURE_FAILURE_RE.flags
+    )
