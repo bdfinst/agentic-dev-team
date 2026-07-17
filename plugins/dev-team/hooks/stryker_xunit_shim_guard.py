@@ -96,6 +96,18 @@ def _is_v3(csproj: Path) -> bool:
     return "xunit.v3" in _read(csproj)
 
 
+_MTP_RUNNER_RE = re.compile(r"""(?:^|\s)(?:-t|--test-runner)[ =]+["']?mtp\b""")
+
+
+def _uses_mtp_runner(command: str) -> bool:
+    """True when the command explicitly selects Stryker's Microsoft Testing
+    Platform runner (`-t mtp` / `--test-runner mtp`) — the sanctioned no-shim
+    floor (#1156/#1159): it drives the real xunit.v3 suite and yields a real
+    (if slow, whole-suite-per-mutant) score, so the false-~0% premise this gate
+    guards against does not apply."""
+    return bool(_MTP_RUNNER_RE.search(command))
+
+
 def _resolve_run_dir(command: str, cwd: str) -> Path:
     """Honour a leading `cd <dir> && ...` so the gate reasons about where Stryker
     actually runs, not where the shell started."""
@@ -211,6 +223,12 @@ def main() -> int:
         return 0
     command = (event.get("tool_input") or {}).get("command", "") or ""
     if not _STRYKER_TRIGGER.search(command):
+        return 0
+
+    # Sanctioned no-shim floor (#1156/#1159): an explicit MTP-runner run drives
+    # the real xunit.v3 suite and produces a real score, so it must not be
+    # blocked or shimmed. Let it through before any v3-project detection.
+    if _uses_mtp_runner(command):
         return 0
 
     cwd = event.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()

@@ -109,6 +109,45 @@ def test_dotnet_dash_stryker_also_triggers(tmp_path):
     assert proc.returncode == 2
 
 
+def test_mtp_floor_run_is_exempt(tmp_path):
+    # The sanctioned no-shim floor (#1156/#1159): an explicit -t mtp run drives
+    # the real v3 suite and yields a real score, so it must NOT be blocked or
+    # scaffolded.
+    d = _v3_project(tmp_path)
+    proc = _run({"tool_name": "Bash", "cwd": str(d),
+                 "tool_input": {"command": "dotnet stryker -t mtp --reporter json"}})
+    assert proc.returncode == 0
+    assert proc.stdout == ""
+    # No shim was scaffolded by the floor path.
+    assert not (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation").exists()
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "dotnet stryker --test-runner mtp",
+        "dotnet stryker -t=mtp",
+        "dotnet stryker --test-runner=mtp",
+        'dotnet stryker --test-runner "mtp"',
+    ],
+)
+def test_mtp_runner_variants_exempt(tmp_path, cmd):
+    d = _v3_project(tmp_path)
+    proc = _run({"tool_name": "Bash", "cwd": str(d),
+                 "tool_input": {"command": cmd}})
+    assert proc.returncode == 0
+    assert proc.stdout == ""
+    assert not (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation").exists()
+
+
+def test_vstest_runner_still_blocks(tmp_path):
+    # An explicit non-mtp runner is NOT the floor — the false-score block stands.
+    d = _v3_project(tmp_path)
+    proc = _run({"tool_name": "Bash", "cwd": str(d),
+                 "tool_input": {"command": "dotnet stryker -t vstest"}})
+    assert proc.returncode == 2
+
+
 def test_v3_only_constructs_refuse_scaffold(tmp_path):
     d = _v3_project(tmp_path)
     (d / "AutoTests.cs").write_text(

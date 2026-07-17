@@ -86,11 +86,25 @@ python3 scripts/xunit_v3_feature_detector.py <test-project>/**/*.cs --json
 
 **"Deactivate" means exclude from the shim's `<Compile Include>` set, never edit the real test suite** — so there is no crash-unsafe "restore after the loop" step. The operator-selected exclusions are applied to the shim project by the shim-generation path (see [#1159](https://github.com/bdfinst/agentic-dev-team/issues/1159)); the loop-vs-degrade decision that consumes this gate's outcome lives in [#1158](https://github.com/bdfinst/agentic-dev-team/issues/1158).
 
+### No-shim floor — `-t mtp` + `coverage-analysis: off`
+
+When the feasibility gate degrades (operator declined the shim, per-test capture failed, or the estimated round is over budget), the sanctioned fallback is to run the **real xunit.v3 suite** through the Microsoft Testing Platform runner with coverage off:
+
+```bash
+dotnet stryker -t mtp --config-file stryker-config.json   # coverage-analysis: off
+```
+
+No shim is built, so there are no v3-only-syntax compile breaks. **`-t mtp` is the floor, not a fast path** — it does not restore per-test coverage (stryker-net#3629 is closed-unfixed), so the run is still whole-suite-per-mutant and slow; use it for a single advisory pass, not the iterating loop. The `stryker_xunit_shim_guard.py` gate **exempts** an explicit `-t mtp` run (it produces a real score, so the false-~0% block does not apply).
+
+**Trigger is xunit.v3, not the TFM.** Decide `off`-vs-`perTest` from xunit.v3 in the **real** test suite, never from a csproj that may be the v2 shim — a shim's `xunit` v2 marker must not mask the real v3 project. **Runtime:** current Stryker.NET requires the **.NET 10 runtime to run** (even for older target projects); if `dotnet --version` is below 10, install/select it before any Stryker invocation.
+
 ## .NET 10 targets: default `vstest` runner can silently fake a 0% score
 
-On **.NET 10** test-project targets (and possibly .NET 9), Stryker.NET's bundled default `vstest` test runner can silently fail to capture coverage — it ships a `net8.0` `vstest.console.dll` that cannot correctly execute newer-TFM test assemblies. The observable symptom is a **fake `Killed: 0` / `Survived: N` / 0.00 % score**, even though the same tests pass fine under a direct `dotnet test`. This is the complementary failure mode to the [xunit.v3 detection](#xunitv3-detection-do-this-before-configuring-runs) section above (that one produces a fake **100 %** via `Timeout`; this one produces a fake **0 %** via `Survived`) — both are caught by [`SKILL.md`](../../SKILL.md) **Step 1c smoke gate**, but this one is easy to mistake for a legitimately weak test suite rather than a broken runner.
+> **Distinct from the xunit.v3 coverage-capture failure** (see the "No-shim floor" and xunit.v3 sections above). That one is a **per-test coverage-capture** problem keyed on **xunit.v3** (breaks even under VSTest), where `-t mtp` is only the slow *floor*. The one below is a **runner-execution** problem keyed on the **TFM**: the bundled vstest runner cannot execute the assemblies at all. `-t mtp` genuinely fixes *this* one (it swaps in a runner that can execute the tests) but still does **not** restore fast per-test coverage. Do not read this TFM-keyed runner bug as licence to decide `off`-vs-`perTest` from the TFM — that decision keys on xunit.v3.
 
-**Recommend `-t mtp` (the Microsoft Testing Platform runner) as the default for .NET 10+ targets, not an afterthought:**
+On **.NET 10** test-project targets (and possibly .NET 9), Stryker.NET's bundled default `vstest` test runner can silently fail to **execute** newer-TFM test assemblies — it ships a `net8.0` `vstest.console.dll` that cannot correctly run them. The observable symptom is a **fake `Killed: 0` / `Survived: N` / 0.00 % score**, even though the same tests pass fine under a direct `dotnet test`. This is a **complementary** failure mode to the [xunit.v3 detection](#xunitv3-detection-do-this-before-configuring-runs) section above (that one produces a fake **100 %** via `Timeout`; this one produces a fake **0 %** via `Survived`) — both are caught by [`SKILL.md`](../../SKILL.md) **Step 1c smoke gate**, but this one is easy to mistake for a legitimately weak test suite rather than a broken runner.
+
+**Recommend `-t mtp` (the Microsoft Testing Platform runner) for .NET 10+ targets to fix the runner-execution failure — but note it does not restore per-test coverage (that is the separate xunit.v3 constraint above):**
 
 ```bash
 export DOTNET_ROOT="${DOTNET_ROOT:-/opt/homebrew/opt/dotnet/libexec}"
@@ -98,7 +112,7 @@ dotnet build <solution> -c Debug --nologo
 dotnet stryker -t mtp --mutate "**/ChangedFile.cs" -O StrykerOutput/probe
 ```
 
-If a smoke probe (Step 1c) or full run reports `Killed: 0` alongside `Survived > 0` on a .NET 10 target using the default runner, retry with `-t mtp` before assuming the test suite doesn't cover the mutated code — a real coverage-capture bug, not a real test gap, is the more likely explanation on this TFM.
+If a smoke probe (Step 1c) or full run reports `Killed: 0` alongside `Survived > 0` on a .NET 10 target using the default runner, retry with `-t mtp` before assuming the test suite doesn't cover the mutated code — a broken runner (can't execute the assemblies), not a real test gap, is the more likely explanation on this TFM.
 
 ## Default `coverage-analysis: perTest` for xunit.v2 / non-MTP projects
 

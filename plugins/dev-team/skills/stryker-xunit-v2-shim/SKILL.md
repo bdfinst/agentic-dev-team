@@ -28,6 +28,10 @@ of truth. Stryker is then run **from the shim directory** in project mode.
 [`references/shim-howto.md`](references/shim-howto.md) has the full reference build
 and any edge case not covered here.
 
+## Scope — one path, not the only one
+
+The shim is the path that keeps the **mutant-kill loop** viable on xunit.v3, because it restores per-test coverage (fast covering-subset per mutant). It is not mandatory for every xunit.v3 run. Within `mutation-kill` the shim-first feasibility gate ([#1158](https://github.com/bdfinst/agentic-dev-team/issues/1158)) decides per run: build the shim and probe under `perTest`; if per-test capture works and a round fits the budget, enter the loop; otherwise **degrade** to the no-shim floor — the real v3 suite via `-t mtp` + `coverage-analysis: off` (a real but slow, whole-suite-per-mutant single advisory pass; see [`csharp-stryker-net.md`](../mutation-testing/references/languages/csharp-stryker-net.md)). Before building, [`xunit_v3_feature_detector.py`](../mutation-testing/scripts/xunit_v3_feature_detector.py) classifies the shim-breaking v3-only constructs for an always-ask human gate; pass the operator's selections to `generate_shim.py --compile-exclude` to drop them from the shim's compile set.
+
 ## When to build it
 
 Detection is one check: a test `.csproj` contains `Include="xunit.v3"`. Build the
@@ -36,7 +40,7 @@ shim **proactively, before the first Stryker run** — because the failure is si
 possibly hours-long run. As a backstop the `stryker_xunit_shim_guard.py` PreToolUse
 hook auto-scaffolds the shim (and reports what it wrote) when you run
 `dotnet-stryker` against a xunit.v3 project without one, then blocks so you re-run
-from the shim dir — but build it proactively rather than relying on the interception.
+from the shim dir — but build it proactively rather than relying on the interception. (The guard **exempts** an explicit `-t mtp` run — the no-shim floor — so it is not forced into a shim; see the Scope section.) Within `mutation-kill` the feasibility gate may still degrade to that floor after the shim is built and probed.
 
 One precondition decides whether the shim is cheap: source compatibility with
 xunit.v2. `[Fact]`, `[Theory]`, `[InlineData]`, `TheoryData<>`, `MemberData`,
