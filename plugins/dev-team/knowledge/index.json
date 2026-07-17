@@ -5692,9 +5692,9 @@
       "summary": "Iterate the approved Phase-4 Story set.",
       "anchor": "phase-4-improve-without-refactoring-build-mutation-kill-review-loop"
     },
-    "Phase 4b — Refactor decision prompt": {
+    "Phase 4b — Refactor decision (mode-gated)": {
       "summary": "With Phase 4 closed, present the **REFACTOR_REQUIRED** list deferred at",
-      "anchor": "phase-4b-refactor-decision-prompt"
+      "anchor": "phase-4b-refactor-decision-mode-gated"
     },
     "Phase 5 — Refactor-for-testability (conditional)": {
       "summary": "Phase 5 runs **only when the operator picked `[y]` at Phase 4b**.",
