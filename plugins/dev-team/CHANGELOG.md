@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.11.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.10.0...dev-team-v10.11.0) (2026-07-17)
+
+
+### Features
+
+* **build:** default parallel build concurrency to wave width bounded by cores ([a331cf0](https://github.com/bdfinst/agentic-dev-team/commit/a331cf04a8542cbc48468dde6e9ce00134e51603)), closes [#1170](https://github.com/bdfinst/agentic-dev-team/issues/1170)
+
 ## [10.10.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.9.1...dev-team-v10.10.0) (2026-07-17)
 
 
