@@ -1,5 +1,18 @@
 # Changelog
 
+## [10.10.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.9.1...dev-team-v10.10.0) (2026-07-17)
+
+
+### Features
+
+* **mutation-testing:** detect and classify xunit.v3 shim-breaking test constructs ([8908cd4](https://github.com/bdfinst/agentic-dev-team/commit/8908cd48a5e28859603174ee3a1a09069169e147))
+
+
+### Bug Fixes
+
+* **mutation-kill:** add shim-first feasibility gate before the loop ([a2e4e01](https://github.com/bdfinst/agentic-dev-team/commit/a2e4e01b6d123a2e6de04920e2990c83d7318731))
+* **mutation-testing:** harden the v2 shim path and add the -t mtp coverage-off floor ([b3427a3](https://github.com/bdfinst/agentic-dev-team/commit/b3427a3552c0f4cc6be20f9612f0864614d1cd0f))
+
 ## [10.9.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.9.0...dev-team-v10.9.1) (2026-07-17)
 
 
