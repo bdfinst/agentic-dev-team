@@ -4605,7 +4605,7 @@
       "anchor": "scaffold-step-2-initialize-packagejson"
     },
     "Scaffold step 3: Install dependencies": {
-      "summary": "`eslint-config-prettier` disables ESLint rules that conflict with Prettier.",
+      "summary": "If this (or the Playwright install below) fails with `npm error code",
       "anchor": "scaffold-step-3-install-dependencies"
     },
     "Scaffold step 4: Create config files": {
