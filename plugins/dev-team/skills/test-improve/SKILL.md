@@ -179,12 +179,16 @@ code changes.
 when their `memory/test-improve/<slug>/phase-<i>.md` files exist and resumes
 at phase `n`. Phase-0 inputs are read from `phase-0.md` (never re-prompted).
 
-**Phase-4b prompt letter.** The Phase-4b refactor-decision prompt uses
-`[y/b/q]` (not `[r]`). The letter `r` is already claimed by mutation-kill's
-`[c/r/w/q]` (retry) and the review-loop's `[r/w/q]` (revise); reusing `r` a
-third time at the highest-consequence prompt in the flow would produce
-operator confusion. `[y]` advances to Phase 5; `[b]` backlogs the
-REFACTOR_REQUIRED items and skips to Phase 6; `[q]` quits before Phase 6.
+**Phase-4b prompt letter.** The full Phase-4b refactor-decision prompt —
+shown only in `refactor-allowed` mode — uses `[y/b/q]` (not `[r]`). The
+letter `r` is already claimed by mutation-kill's `[c/r/w/q]` (retry) and the
+review-loop's `[r/w/q]` (revise); reusing `r` a third time at the
+highest-consequence prompt in the flow would produce operator confusion.
+`[y]` advances to Phase 5; `[b]` backlogs the REFACTOR_REQUIRED items and
+skips to Phase 6; `[q]` quits before Phase 6. In `no-refactor` mode (the
+default) Phase 4b is **informational only** — no `[y]` is offered, the
+REFACTOR_REQUIRED items are auto-backlogged, and the run continues to Phase 6
+(see Phase 4b).
 
 ### Phase 1 — Analyze via /test-health
 
@@ -238,7 +242,11 @@ full skill.
 **Human gate.** After `/test-health` returns, present **the ordered improvement
 plan** to the operator and wait for explicit approval. **Phase 2 does not run**
 until the operator approves. This is the human gate for Phase 1; do not advance
-past it without approval.
+past it without approval. When `phase-0.md` recorded
+`refactor-mode: no-refactor`, any plan item that would require a production-code
+refactor is labeled **skipped-in-no-refactor** (out of scope for this run) so
+the operator sees the coverage/behavior left on the table — such items are never
+presented as ordinary next steps that this run will execute.
 
 **`/handoff` suggestion** (context-heavy analysis). Once the gate above resolves, print: `Phase 1 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 2`
 
@@ -332,15 +340,21 @@ not run** until the operator approves.
 ### Phase 3 — Triage (partition findings by gap class)
 
 Convert Phase 1's ordered improvement plan into actionable work items.
-Delegate the write to `/issues-from-assessment --workflow test-improve`; the
-skill routes the memory + plan paths under `test-improve/` (per Slice 11).
+Delegate the write to
+`/issues-from-assessment --workflow test-improve --refactor-mode <value>`
+(`phase-0.md`'s `no-refactor` or `refactor-allowed`); the skill routes the
+memory + plan paths under `test-improve/` (per Slice 11). Threading
+`--refactor-mode` lets the written plan mark refactor-requiring items
+explicitly: in `no-refactor` mode the Phase-5 `[Refactor-for-testability]`
+work surfaces labeled **out-of-scope / skipped-in-no-refactor**, never as
+actionable Phase-4 Stories.
 
 Every finding lands in exactly one of three **gap classes**:
 
 - **`NO_REFACTOR`** — fixable by test edits alone. Written as **Phase-4
   Stories** to `./plans/test-improve/` (or the configured parent tracker
   when `--parent` was supplied at Phase 0).
-- **`REFACTOR_REQUIRED`** — needs a production-code seam before a test can reach the behavior. REFACTOR_REQUIRED items are **deferred to Phase 5** and are **not written as Phase-4 Stories**; they surface with rationale for the operator, who decides at Phase 4b whether to enter Phase 5.
+- **`REFACTOR_REQUIRED`** — needs a production-code seam before a test can reach the behavior. REFACTOR_REQUIRED items are **deferred to Phase 5** and are **not written as Phase-4 Stories**; they surface with rationale for the operator, who decides at Phase 4b whether to enter Phase 5. Under `refactor-mode: no-refactor` they are labeled **out-of-scope (skipped-in-no-refactor)** in the plan — informational context, never an actionable Story this run will execute.
 - **`LOW_VALUE`** — tests that are cheap to have but not worth fixing (e.g. duplicate coverage, trivial getters, dead-code assertions). LOW_VALUE findings are **advisory-only**: enumerated in the report, no PR is opened to delete a test flagged this way.
 
 **Persistence.** Persist the classified finding set to
@@ -409,7 +423,7 @@ Phase-4 diff:
 
 **`/handoff` suggestion** (context-heavy review). Once the loop above closes, print: `Phase 4 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 4b`
 
-### Phase 4b — Refactor decision prompt
+### Phase 4b — Refactor decision (mode-gated)
 
 With Phase 4 closed, present the **REFACTOR_REQUIRED** list deferred at
 Phase 3. Each item is shown with three columns:
@@ -421,8 +435,30 @@ Phase 3. Each item is shown with three columns:
 - **estimated-risk** — a qualitative risk marker (low / medium / high) for
   the specific refactor.
 
-Prompt the operator with **`[y] enter Phase 5 / [b] backlog and skip to
-Phase 6 / [q] quit`** (shape `[y/b/q]`). The letter `y` was chosen deliberately
+**Phase 4b branches on the Phase-0 `refactor-mode`.** Read `refactor-mode`
+from `memory/test-improve/<slug>/phase-0.md` **before** rendering any prompt.
+Entering Phase 5 *is* refactoring, so the choice made at Phase 0 governs
+whether Phase 4b is a branch point at all.
+
+**`refactor-mode: no-refactor` (the default) — informational, not a branch
+point.** The operator declined refactoring at Phase 0, so the **`[y] enter
+Phase 5` option does not exist** in this mode. Present the REFACTOR_REQUIRED
+list as *"the following require refactoring and are out of scope in
+no-refactor mode"* — the seam-needed / behavior-gained / estimated-risk
+columns still render, so the operator sees the coverage and behavior left on
+the table. Then **auto-backlog** every item to
+`memory/test-improve/<slug>/refactor-backlog.md` (or update the parent
+tracker when `--parent` was passed) and **continue to Phase 6** with the
+current Phase-4 test suite as the target. The prompt collapses to a single
+**acknowledge/continue** step (equivalent to today's `[b]`); when no operator
+is attached, run it **non-interactively** — no keystroke is required and none
+enters Phase 5. The sanctioned way to actually perform these refactors is the
+Phase-6 coverage-below-90% re-run prompt, which offers a fresh
+`refactor-allowed` invocation the operator explicitly opts into.
+
+**`refactor-mode: refactor-allowed` — full decision prompt.** Prompt the
+operator with **`[y] enter Phase 5 / [b] backlog and skip to Phase 6 /
+[q] quit`** (shape `[y/b/q]`). The letter `y` was chosen deliberately
 over `r` — `[r]` is already claimed by mutation-kill's `[c/r/w/q]` (retry) and
 the review-loop's `[r/w/q]` (revise); a third `[r]` at the
 highest-consequence prompt would confuse operators.
@@ -439,6 +475,16 @@ highest-consequence prompt would confuse operators.
 
 Phase 5 runs **only when the operator picked `[y]` at Phase 4b**. If Phase 4b
 returned `[b]` (backlog) or `[q]` (quit), Phase 5 is **skipped**.
+
+**Hard mode gate — Phase 5 refuses to run under `no-refactor`.** Before any
+Phase-5 work begins, `/test-improve` re-reads `refactor-mode` from
+`memory/test-improve/<slug>/phase-0.md`. When it records
+`refactor-mode: no-refactor`, Phase 5 **refuses to run** and is skipped —
+**even if `[y]` is somehow reached**. Phase 4b offers no `[y]` in this mode,
+so this gate is a defense-in-depth backstop: Phase 5 executes production-code
+refactors the `no-refactor` operator declined at Phase 0, and the mode — not
+the keystroke — is the final authority. Only `refactor-mode: refactor-allowed`
+permits Phase 5 to execute.
 
 **Seam-only production code changes.** `/build` in Phase 5 accepts **seam
 introductions only** — interface extractions, dependency injection points,

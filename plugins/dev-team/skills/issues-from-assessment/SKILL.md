@@ -9,7 +9,7 @@ description: >-
   `./plans/<workflow>/` after informing the operator. Multi-workflow: called
   by `/test-improve` (Phase 3), via its own
   `--workflow` namespace so memory paths and tracker labels never collide.
-argument-hint: "<assessment-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--dry-run]"
+argument-hint: "<assessment-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--refactor-mode <no-refactor|refactor-allowed>] [--dry-run]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write
 ---
@@ -28,6 +28,7 @@ Arguments: $ARGUMENTS
 - `--parent <issue-url>` — parent issue / Feature / Epic URL. Empty or omitted → local-files mode.
 - `--repo-slug <slug>` — slug used for the `memory/<workflow>/<slug>/` namespace. Defaults to the assessment file's `<app>` token.
 - `--workflow <name>` — the workflow namespace under `memory/` and `plans/`, and the leading tracker-label token. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
+- `--refactor-mode <no-refactor|refactor-allowed>` — optional; the caller's Phase-0 refactor choice. Defaults to `refactor-allowed` (unchanged behavior) when omitted. When `no-refactor`, the Phase-5 `[Refactor-for-testability]` work is emitted as **out-of-scope / skipped-in-no-refactor** plan entries — informational context only, **never actionable Stories** — so the written plan shows the coverage/behavior left on the table without offering refactor work this run will not do.
 - `--dry-run` — print the preview list and exit without creating anything.
 
 If `<assessment-path>` is absent or the file is missing, ask the operator to point at one.
@@ -66,7 +67,7 @@ Parse the assessment file's sections per `/cd-test-architecture`'s contract:
 - **Current-vs-correct test classification** → input to Phase-5 `[Re-scope]` Stories.
 - **Duplicate-coverage table** → Phase-5 `[De-duplicate]` Stories.
 - **CD-fitness gaps** → Phase-1 `[Gap]` Stories.
-- **Seam-reachability table per component** → Phase-4 `[Baseline]` Stories + Phase-5 `[Refactor-for-testability]` Stories.
+- **Seam-reachability table per component** → Phase-4 `[Baseline]` Stories + Phase-5 `[Refactor-for-testability]` Stories. When `--refactor-mode no-refactor`, the `[Refactor-for-testability]` entries are emitted **out-of-scope (skipped-in-no-refactor)** — listed for visibility, not created as actionable Stories.
 - **Target architecture (per component)** → Phase-5 Stories per (component, layer) **EXCLUDING `[Component tests]`** — those Stories are created by `/gherkin-public` at the end of Phase 2, bound to the approved Gherkin scenarios.
 
 `[Component tests]` Stories are intentionally NOT created from the assessment. Creating them here would bind the test code to the *recommended* behavior in the assessment rather than the *approved* behavior in the Gherkin — and the Phase-2 human gate exists precisely to let the operator sharpen, add to, or correct the inferred behaviors before any test binds to them. `/gherkin-public --create-stories` produces them after the gate.
