@@ -150,11 +150,7 @@ assertion-only fixes once you reach Statement/Block.
 
 ## Speed: scoped + per-test coverage analysis
 
-The scoped-run config the loop builds sets per-test coverage analysis (Stryker:
-`coverageAnalysis: "perTest"`; pitest: `withHistory`) so per-mutation execution
-drops from full-suite time to the time of the tests covering the mutated line
-(observed 10–50× speedup). Scoped + per-test is for the development loop; the
-full run (coverage-analysis off) is reserved for the CI gate only.
+The loop's scoped config sets per-test coverage (Stryker `coverageAnalysis: "perTest"`; pitest `withHistory`) so each mutant runs only its covering tests, not the full suite (observed 10–50× speedup). Scoped+per-test is the dev loop; the full run (coverage-analysis off) is the CI gate only.
 
 ## Fresh build before a run
 
@@ -222,6 +218,10 @@ generated code that this test surface cannot reach?
 
 This is the same `EXCLUDED` log format used for the [structurally unkillable
 files](#structurally-unkillable-files) section — a single audit trail either way.
+
+## Pre-loop feasibility gate (xunit.v3 shim-first)
+
+On **xunit.v3** the loop is viable only through the v2 shim, because it re-runs mutation every round and that is affordable only with **per-test** coverage. Prove per-test capture works before entering — measured, not assumed. Plain xunit.v2 / other stacks skip this gate. Steps: (1) run [`xunit_v3_feature_detector.py`](../skills/mutation-testing/scripts/xunit_v3_feature_detector.py) and resolve its **always-ask** human gate (#1160 — operator excludes shim-breaking tests or declines the shim path); (2) build the shim and run **one timed one-file probe** under `coverage-analysis: perTest`, scanning its output for the #1157 capture-failure signal; (3) arbitrate with [`mutation_feasibility_gate.py`](../skills/mutation-testing/scripts/mutation_feasibility_gate.py) (`--probe-seconds --scope-files [--capture-failed] [--shim-declined]`). **`enter-loop`** → proceed to the scripted loop. **`degrade`** (declined, capture failed, or estimated round over budget) → do **not** loop; run a single advisory `/mutation-testing` pass with `coverage-analysis: off` and record the waiver verbatim: *"mutant-kill loop not feasible on this suite (xunit.v3); ran single-pass advisory instead."* The round estimate is derived from the probe (`probe_seconds × scope files`), so a merely-slow environment degrades too. **Never grind for hours; never fabricate a score.**
 
 ## The loop is scripted — invoke it, don't re-run its steps by hand
 
