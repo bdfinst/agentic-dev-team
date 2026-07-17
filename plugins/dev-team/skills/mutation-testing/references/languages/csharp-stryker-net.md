@@ -69,6 +69,23 @@ If detected, take **all four** steps below. Missing any one recreates the fake-s
 
 The four steps above defend against the *fake-100 %-via-Timeout* variant of the MTP-runner incompatibility. The **complementary** *fake-0 %-via-Survived* variant (mutation-switch not observing mutations at runtime; every mutant reported `Survived`; final score `0.00 %`) is caught by [`SKILL.md`](../../SKILL.md) **Step 1c smoke gate** — run a single-file probe before any full run and parse `mutation-report.json` for `Killed > 0`. Do not skip Step 1c on xunit.v3 configurations; it is the specific safety net for issues [#554](https://github.com/bdfinst/agentic-dev-team/issues/554) and [#557](https://github.com/bdfinst/agentic-dev-team/issues/557). Inside a Claude Code session the [`mutation_testing_smoke_gate`](../../../../hooks/mutation_testing_smoke_gate.py) PreToolUse hook enforces this step automatically — see SKILL.md § Step 1c for the operator-facing contract.
 
+## xunit.v3 shim-breaking features — detect and human-gate (before building the shim)
+
+The v2 shim is the only path that gives the mutant-kill **loop** per-test coverage on an xunit.v3 suite (under v2/VSTest `perTest` works, ~5–6× faster than `off` — see [#669](https://github.com/bdfinst/agentic-dev-team/issues/669)). Its weakness is compile fragility: any xunit-v3-only API breaks the shim's compile before Stryker runs a mutant (the `[Fact(Explicit = true)]` break that motivated [#1156](https://github.com/bdfinst/agentic-dev-team/issues/1156)). Rather than hand the operator an opaque C# compile error, scan for the breaking constructs first and let a human decide.
+
+**Detector.** [`../../scripts/xunit_v3_feature_detector.py`](../../scripts/xunit_v3_feature_detector.py) scans the real xunit.v3 test `.cs` files for shim-breaking v3-only constructs (`[Fact/Theory(Explicit = true)]`, `Assert.Skip`/`SkipWhen`/`SkipUnless`, `TestContext.Current`/`ITestContext`, `ValueTask` async-lifetime signatures, `TheoryDataRow`) and classifies each on two axes:
+
+- **compile-ability** — `clean-translatable` (a mechanical v2 equivalent exists) vs `no-v2-equivalent` (cannot compile under v2).
+- **coverage impact** — `neutral` (excluding the test from the shim changes no coverage — e.g. `Explicit=true` tests are skipped by default, **provided the run does not enable explicit tests** via `-explicit` / `xunit.runner.json` `explicit=on`) vs `bearing` (the test runs and covers code, so excluding it inflates the loop's survivor set and makes it generate redundant tests).
+
+```bash
+python3 scripts/xunit_v3_feature_detector.py <test-project>/**/*.cs --json
+```
+
+**Human gate — always ask, never auto-drop.** Present the full classified list every run, even when every hit is coverage-neutral. For each test the operator chooses whether to exclude it from the shim for the duration of the loop; nothing is deactivated silently. Coverage-bearing tests are flagged with the lines that go dark if excluded. The detector's `summary.recommendation` is **advisory** sizing only (few + neutral → shim path is reasonable; many or coverage-bearing → prefer skipping the loop for a single-pass `coverage-analysis: off` advisory) — the human always decides.
+
+**"Deactivate" means exclude from the shim's `<Compile Include>` set, never edit the real test suite** — so there is no crash-unsafe "restore after the loop" step. The operator-selected exclusions are applied to the shim project by the shim-generation path (see [#1159](https://github.com/bdfinst/agentic-dev-team/issues/1159)); the loop-vs-degrade decision that consumes this gate's outcome lives in [#1158](https://github.com/bdfinst/agentic-dev-team/issues/1158).
+
 ## .NET 10 targets: default `vstest` runner can silently fake a 0% score
 
 On **.NET 10** test-project targets (and possibly .NET 9), Stryker.NET's bundled default `vstest` test runner can silently fail to capture coverage — it ships a `net8.0` `vstest.console.dll` that cannot correctly execute newer-TFM test assemblies. The observable symptom is a **fake `Killed: 0` / `Survived: N` / 0.00 % score**, even though the same tests pass fine under a direct `dotnet test`. This is the complementary failure mode to the [xunit.v3 detection](#xunitv3-detection-do-this-before-configuring-runs) section above (that one produces a fake **100 %** via `Timeout`; this one produces a fake **0 %** via `Survived`) — both are caught by [`SKILL.md`](../../SKILL.md) **Step 1c smoke gate**, but this one is easy to mistake for a legitimately weak test suite rather than a broken runner.
