@@ -322,14 +322,40 @@ test -f stryker.config.js -o -f stryker.config.mjs -o -f stryker.config.ts \
   -o -f stryker.config.cjs -o -f .strykerrc.json && echo "config exists" || echo "no config"
 ```
 
-If no config exists, run:
+If no config exists, **write `stryker.config.mjs` directly** — do not run
+`npx stryker init`, which is interactive (it prompts for the test runner,
+reporters, and package manager) and hangs a non-interactive `/setup` run.
+You already detected the test runner above, so emit the config with
+`testRunner` set to that runner. Write the file with this shape, substituting
+the detected runner (`vitest` / `jest` / `mocha` / `jasmine`; use `vitest`
+when none was detected):
 
-```bash
-npx stryker init
+```js
+// stryker.config.mjs
+export default {
+  packageManager: "npm",
+  testRunner: "jest", // <- the runner detected above
+  coverageAnalysis: "perTest",
+  reporters: ["html", "clear-text", "progress"],
+  mutate: ["src/**/*.{js,ts}", "!src/**/*.{test,spec}.{js,ts}"],
+};
 ```
 
-This generates a `stryker.config.mjs` interactively. Tell the user it will ask
-a few questions; they should accept defaults unless they have a specific setup.
+Runner-specific notes when substituting `testRunner`:
+
+- **jest** — add a `jest` block so Stryker finds the project config, e.g.
+  `jest: { projectType: "custom", configFile: "jest.config.js" }` (point
+  `configFile` at the repo's actual Jest config). Angular repos also want
+  `"!src/**/*.module.ts"` appended to `mutate`.
+- **vitest / mocha / jasmine** — no extra runner block is required; the
+  `testRunner` value alone wires up the installed runner plugin.
+
+Keep `mutate` scoped to the repo's real source layout — adjust the globs if
+sources live somewhere other than `src/`.
+
+> If you'd rather configure interactively, `npx stryker init` walks through
+> the same choices with prompts — but only run it in an interactive shell, not
+> as part of an automated `/setup`.
 
 **Verify:**
 
