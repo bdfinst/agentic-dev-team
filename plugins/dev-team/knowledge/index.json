@@ -4580,9 +4580,9 @@
       "summary": "Beyond the four static-analysis lanes, other skills and agents depend on a",
       "anchor": "step-4b-install-capability-tools"
     },
-    "Step 4c: Offer the three code-lookup tools (all-or-none)": {
+    "Step 4c: Offer the code-lookup tools (keyless group + key-gated Graphify)": {
       "summary": "Three optional, complementary code-intelligence tools — **CodeGraph**,",
-      "anchor": "step-4c-offer-the-three-code-lookup-tools-all-or-none"
+      "anchor": "step-4c-offer-the-code-lookup-tools-keyless-group-key-gated-graphify"
     },
     "Step 5: Verify — post-install probes": {
       "summary": "Run each configured lane's detection probe exactly as the lane registry",

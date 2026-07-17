@@ -173,32 +173,38 @@ tools**: it installs as an `npm` devDependency (`@playwright/test`), versioned
 with the project like a lane tool — only its Chromium download is machine-level.
 State this explicitly to the user when the capability group installs.
 
-### Step 4c: Offer the three code-lookup tools (all-or-none)
+### Step 4c: Offer the code-lookup tools (keyless group + key-gated Graphify)
 
 Three optional, complementary code-intelligence tools — **CodeGraph**,
 **Repowise**, and **Graphify** — let the review and analysis agents read
 verified skeletons, resolved call graphs, modification risk, and decision
-rationale instead of re-reading whole files. None is required. They are
-offered as **one all-or-none group** rather than three separate prompts, so
-the operator makes a single decision and the agents get a consistent,
-predictable set of lookup capabilities (see issue #1108).
+rationale instead of re-reading whole files. None is required.
 
-Accepting the group both **installs and builds** every missing tool's index in
-this same run — it is not a "print instructions and leave it to the user" step
-(issues #1134, #1135):
+They are offered by **cost profile**, so the operator never has to accept a
+model/API-key cost to get the keyless tools (issue #1141, which relaxes the
+single all-or-none group of #1108):
 
-- **CodeGraph and Repowise are keyless** — they build a purely structural
-  index with **no model/API key** and are safe to build unattended. CodeGraph
-  installs its CLI (`npm install -g @colbymchenry/codegraph`) and runs
-  `codegraph init .`; Repowise installs and runs a `--index-only` index.
-- **Graphify additionally requires a model/API key** to build its graph — its
-  extraction is LLM-driven, heavier, and produces a different kind of graph.
-  Because all three are offered as one all-or-none group, the group prompt
-  **must disclose Graphify's key requirement up front** so accepting is never a
-  surprise key cost. When Graphify is absent the agents that use it fall back
+- **Keyless pair — CodeGraph + Repowise.** Both build a purely structural
+  index with **no model/API key** and are safe to build unattended. They are
+  offered as **one all-or-none group** — a single decision that gives the
+  agents a consistent, predictable lookup set (issue #1108). Accepting the
+  group both **installs and builds** every missing tool's index in this same
+  run — it is not a "print instructions and leave it to the user" step (issues
+  #1134, #1135). CodeGraph installs its CLI (`npm install -g
+  @colbymchenry/codegraph`) and runs `codegraph init .`; Repowise installs and
+  runs a `--index-only` index.
+- **Graphify — separate, key-gated opt-in.** Graphify's extraction is
+  **LLM-driven and REQUIRES a model/API key**; its graph is heavier and its
+  integration is repo-level (a `## graphify` CLAUDE.md section + git hooks —
+  see the sub-section below). It is offered as **its own prompt, after the
+  keyless pair, and only when a model/API key is actually present**. With no
+  key, `graphify extract .` is a guaranteed failure that would leave an **inert
+  repo-level integration** behind (issue #1141) — so Graphify is skipped
+  entirely, its native integration is never written, and the skip is noted in
+  the summary. When Graphify is absent the agents that use it fall back
   gracefully (see `knowledge/codegraph-vs-graphify.md`).
 
-**Detect which are already present** (so re-runs are idempotent and the group
+**Detect which are already present** (so re-runs are idempotent and each offer
 scopes to the *missing* set):
 
 - CodeGraph — `command -v codegraph` succeeds **and** `.codegraph/` exists.
@@ -211,17 +217,16 @@ the "missing" set rather than silently re-offered, and the existing unstick
 instruction still applies (`remove the <tool> key from .claude/init-state.json
 to re-prompt`).
 
-**The group prompt.** Compute the *missing* set = tools that are neither
-already present nor previously declined.
+**The keyless group prompt.** Compute the *missing* set = the keyless tools
+(CodeGraph, Repowise) that are neither already present nor previously declined.
 
 - If the missing set is **empty**: print
-  `Code-lookup tools: all present (or previously declined) — nothing to install.`
+  `Code-lookup tools: keyless pair present (or previously declined) — nothing to install.`
   and continue. No prompt.
 - Otherwise, first show the user the "When to use which" section of
   `${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md`, then prompt
-  **once**, listing the missing tools by name and disclosing Graphify's repo
-  footprint (this is an explicit `y`/`n`, and the recommended default is
-  **yes** when anything is missing):
+  **once**, listing the missing tools by name (this is an explicit `y`/`n`, and
+  the recommended default is **yes** when anything is missing):
 
   ```
   Install the code-lookup tools <missing list> to enable faster, verified
@@ -230,31 +235,59 @@ already present nor previously declined.
                    Keyless: `npm install -g @colbymchenry/codegraph` + `codegraph init .`.
     - Repowise   — local keyless index under .repowise/ (gitignored); MCP server.
                    Keyless: `--index-only`, no API key requested.
-    - Graphify   — repo-level: writes a `## graphify` section into this repo's
-                   CLAUDE.md and installs git hooks (guarded against the known
-                   over-delete bug — see the Graphify sub-section).
-                   REQUIRES a model/API key to build its graph — heavier than
-                   the keyless indexes above; declining the group skips this cost.
   ```
 
-  The prompt copy above must always disclose Graphify's model/API-key
-  requirement (issue #1135) — CodeGraph and Repowise are keyless, Graphify is
-  not, and the operator is accepting all three as one decision.
-
 - On **yes**: install **every** tool in the missing set by running its
-  sub-section below (CodeGraph, Repowise, Graphify), recording each tool's
-  accept in `.claude/init-state.json`.
+  sub-section below (CodeGraph, Repowise), recording each tool's accept in
+  `.claude/init-state.json`.
   - **Partial failure is surfaced, never hidden.** If one tool's install
     errors after another already succeeded, print the failing tool's error,
     record per-tool success/failure in `.claude/init-state.json`, and report
-    the group as *partially installed* — do not claim all three succeeded.
+    the group as *partially installed* — do not claim both succeeded.
 - On **no** (or empty): install nothing, record the group decline for each
   missing tool in `.claude/init-state.json`, and print a terminal-visible
   confirmation so the operator knows the choice was durable and reversible:
   `Code-lookup tools: skipped — agents fall back to Read/Grep/Glob (re-run /project-init to be offered again).`
 
-The per-tool mechanics below are unchanged; the all-or-none group only decides
-*whether* they run. Each remains user-scoped/gitignored exactly as before.
+**The Graphify opt-in (key-gated).** After the keyless pair, offer Graphify
+**only** when it is in the missing set *and* a model/API key is present:
+
+1. **Skip if already present or previously declined** — same missing-set rule
+   as above.
+2. **Detect a model/API key.** Check the environment for any provider key
+   Graphify's extraction accepts — `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`,
+   `MOONSHOT_API_KEY`, `OPENAI_API_KEY` (among the set graphify's own error
+   lists). If **none** is set:
+   - Do **not** prompt for Graphify and do **not** run its sub-section — with
+     no key its build is a guaranteed failure and its repo-level native
+     integration would be left inert (issue #1141).
+   - Merge `{"graphify": {"install_skipped_no_key": true}}` into
+     `.claude/init-state.json` and print a terminal-visible confirmation:
+     `Graphify: skipped — no model/API key detected, and its graph build REQUIRES a model/API key. Set a provider key (e.g. ANTHROPIC_API_KEY) and re-run /project-init to be offered it.`
+3. **If a key IS present**, prompt **once** (recommended default **no**,
+   because — unlike the keyless pair — Graphify writes to this repo):
+
+   ```
+   A model/API key was detected. Also install Graphify for
+   architecture/onboarding-level code intelligence? (y/N)
+     - Graphify — repo-level: writes a `## graphify` section into this repo's
+                  CLAUDE.md and installs git hooks (guarded against the known
+                  over-delete bug — see the Graphify sub-section).
+                  REQUIRES a model/API key to build its graph (detected) —
+                  heavier than the keyless indexes above.
+   ```
+
+   - On **yes**: run the Graphify sub-section below (install, guarded native
+     integration, key-driven build), recording the accept in
+     `.claude/init-state.json`. Its build stays non-fatal (partial-failure
+     rule) if the detected key is later rejected at build time.
+   - On any other response: install nothing and record
+     `{"graphify": {"install_declined": true}}`.
+
+The per-tool mechanics below are unchanged; Step 4c only decides *whether* each
+runs. Each remains user-scoped/gitignored exactly as before, except Graphify's
+documented repo-level native integration — which is now written only on the
+key-gated accept.
 
 #### CodeGraph — strictly personal, never committed
 
@@ -399,8 +432,10 @@ Graphify (`graphifyy` on PyPI) is a multi-modal knowledge graph tool
 skill, PreToolUse nudge hooks into `.claude/settings.json`, and a
 `## graphify` section into the project's own `CLAUDE.md`.
 
-Prompt: `Install graphify for architecture/onboarding-level code intelligence? (y/N)`
-On any response other than `y`/`Y`, skip silently.
+This sub-section runs **only after the key-gated Graphify opt-in in Step 4c
+accepts** — that is, a model/API key was detected *and* the user said yes.
+Because its build needs that key, and its integration is repo-level, it is
+never run (and none of the file writes below happen) when no key is present.
 
 **Install (fallback chain):**
 
@@ -523,11 +558,14 @@ After every configured lane probes green, give the user:
 - **Capability tools** (Step 4b): which were offered, which were installed,
   and which were skipped (signal didn't fire, or the user declined) — noting
   Playwright is repo-level and the rest are user/system-level CLIs.
-- **Graph tools** (Step 4c): CodeGraph state (installed/initialized, MCP
-  registration command printed or skipped) and graphify state (installed,
-  native integration applied, whether the CLAUDE.md corruption guard fired
-  and repaired anything) — noting CodeGraph is strictly user-level/personal
-  and graphify is the repo-level native integration.
+- **Graph tools** (Step 4c): the keyless pair — CodeGraph state
+  (installed/initialized, MCP registration command printed or skipped) and
+  Repowise state — plus Graphify state: installed with native integration
+  applied (and whether the CLAUDE.md corruption guard fired and repaired
+  anything), **or skipped because no model/API key was detected** (its
+  repo-level integration was not written), or declined. Note CodeGraph is
+  strictly user-level/personal and Graphify is the repo-level native
+  integration offered only when a key is present.
 - Files created (greenfield only).
 
 ## Greenfield JS/TS scaffold
