@@ -142,10 +142,27 @@ def stryker_net_run(output_file: Path) -> int:
     completed = lib.run_with_timeout(
         timeout_seconds,
         argv,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     )
     exit_code = completed.returncode
+    run_output = (completed.stdout or b"").decode("utf-8", "replace")
+
+    # Surface the coverage-capture failure (#1156): Stryker disabled per-test
+    # optimisation and fell back to whole-suite-per-mutant. The mutant-kill loop
+    # is infeasible on this suite (xunit.v3); a single-pass advisory with
+    # coverage-analysis off is the way forward. detect_coverage_capture_failure
+    # is the branchable predicate later slices (#1158) consume.
+    if lib.detect_coverage_capture_failure(run_output):
+        print(
+            lib.emit_advisory(
+                "MUTATION GATE ADVISORY: Stryker.NET coverage capture failed — "
+                "per-test optimisation disabled, falling back to "
+                "whole-suite-per-mutant. The mutant-kill loop is infeasible on "
+                "this suite (xunit.v3); prefer a single-pass advisory run with "
+                "coverage-analysis off, or waive. See #1156."
+            )
+        )
 
     if exit_code == 124:
         print(

@@ -1,0 +1,15 @@
+Stryker.NET v4.16.0
+
+[13:20:14 INF] Analyzing project 'Aci.Speedpay.SDK.Async.Tests.csproj'
+[13:20:20 INF] Building project 'Aci.Speedpay.SDK.Async.Tests.csproj'
+[13:20:25 ERR] It looks like the test coverage capture failed. Disable coverage based optimisation.
+[13:20:26 INF] Testing 100 mutants
+
+Testing mutants:
+.........................................................
+Killed:     42
+Survived:    8
+Timeout:     0
+No coverage: 0
+
+The final mutation score is 84.00 %

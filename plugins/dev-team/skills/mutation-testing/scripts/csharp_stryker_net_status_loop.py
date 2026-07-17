@@ -8,6 +8,7 @@ Public API (importable):
     parse_dots_count(logfile: Path) -> int
     parse_summary_count(logfile: Path, key: str) -> Optional[int]
     log_has_completion_marker(logfile: Path) -> bool
+    log_has_coverage_capture_failure(logfile: Path) -> bool
     emit_status_line(logfile: Path) -> str
     check_red_flags(logfile, threshold, stryker_pid, expected_target=None, state_dir=None, drift_threshold=3) -> list[str]
     status_loop_start(logfile, interval, threshold, stryker_pid, expected_target=None, state_dir=None, drift_threshold=3) -> None
@@ -101,6 +102,37 @@ def log_has_completion_marker(logfile: Path) -> bool:
         with logfile.open() as f:
             for line in f:
                 if _COMPLETION_RE.search(line):
+                    return True
+        return False
+    except (OSError, FileNotFoundError):
+        return False
+
+
+# Canonical coverage-capture-failure signal (see #1156). Verbatim from
+# Stryker.NET's own log: src/Stryker.Core/Stryker.Core/CoverageAnalysis/
+# CoverageAnalyser.cs emits "It looks like the test coverage capture failed.
+# Disable coverage based optimisation." when the initial per-test coverage pass
+# yields zero covered mutations, then falls back to whole-suite-per-mutant. The
+# British "optimisation" spelling matches the source. Kept byte-identical with
+# the copy in hooks/mutation_adapters/lib.py; the two live in different import
+# roots (skills/ vs hooks/) so they cannot share a constant — the equivalence
+# is armored by test_coverage_capture_regex_matches_status_loop.
+_COVERAGE_CAPTURE_FAILURE_RE = re.compile(
+    r"test coverage capture failed|disable coverage based optimisation",
+    re.IGNORECASE,
+)
+
+
+def log_has_coverage_capture_failure(logfile: Path) -> bool:
+    """True when the log shows Stryker disabled per-test coverage optimisation
+    and fell back to whole-suite-per-mutant (see #1156). Matches either half of
+    'It looks like the test coverage capture failed. Disable coverage based
+    optimisation.' — resilient to timestamp/log prefixes (search, not match).
+    """
+    try:
+        with logfile.open() as f:
+            for line in f:
+                if _COVERAGE_CAPTURE_FAILURE_RE.search(line):
                     return True
         return False
     except (OSError, FileNotFoundError):
@@ -290,6 +322,15 @@ def check_red_flags(
                 f"[RED-FLAG] Stryker process died mid-run (PID {stryker_pid} "
                 f"no longer running, no completion marker in log) — see #558"
             )
+
+    # --- Red flag 6: coverage capture failed → whole-suite-per-mutant fallback
+    if log_has_coverage_capture_failure(logfile):
+        recognized = True
+        lines.append(
+            "[RED-FLAG] coverage capture failed — Stryker disabled per-test "
+            "coverage optimisation and fell back to whole-suite-per-mutant; the "
+            "mutant-kill loop is infeasible on this suite (xunit.v3) — see #1156"
+        )
 
     # A log with dots or a completion marker is "recognized" even if no
     # summary parser fired — this stops false drift-alerts during a healthy

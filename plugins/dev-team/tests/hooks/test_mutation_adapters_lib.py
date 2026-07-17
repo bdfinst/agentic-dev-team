@@ -288,3 +288,33 @@ def test_run_with_timeout_exits_124_when_deadline_hits(tmp_path):
 def test_run_with_timeout_passes_through_exit_code():
     completed = lib.run_with_timeout(5, ["sh", "-c", "exit 3"])
     assert completed.returncode == 3
+
+
+# ---------------------------------------------------------------------------
+# detect_coverage_capture_failure (#1156)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "[13:20:25 ERR] It looks like the test coverage capture failed. Disable coverage based optimisation.",
+        "it looks like the TEST COVERAGE CAPTURE FAILED.",
+        "Disable Coverage Based Optimisation.",
+        "noise\nmore noise\n[ERR] test coverage capture failed\n",
+    ],
+)
+def test_detect_coverage_capture_failure_positive(text: str) -> None:
+    assert lib.detect_coverage_capture_failure(text) is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "Killed:     42\nThe final mutation score is 84.00 %",
+        "coverage analysis: perTest",
+    ],
+)
+def test_detect_coverage_capture_failure_negative(text: str) -> None:
+    assert lib.detect_coverage_capture_failure(text) is False
