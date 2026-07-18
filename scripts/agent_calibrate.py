@@ -127,6 +127,35 @@ BAND_INDEX: Dict[str, int] = {b: i for i, b in enumerate(BANDS)}
 _EFFORT_RE = re.compile(r"^effort:\s*['\"]?([A-Za-z]+)['\"]?\s*$")
 DEFAULT_DECLARED_BAND = "medium"  # used when a target declares no effort band
 
+# `claude -p ... --output-format json` wraps the agent's answer in a CLI result
+# envelope; the structured review is fenced JSON inside the `result` text. This
+# mirrors evals/code-review-benchmark/runner.py's `_extract_review_json` /
+# `_FENCE_RE` (kept as a local copy to avoid a cross-tree import into the
+# benchmark harness, whose tests bind to `runner._extract_review_json`).
+_FENCE_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n```", re.DOTALL)
+
+
+def _extract_review_json(result_text):
+    """Parse a review agent's fenced JSON payload out of dispatch text.
+
+    Models sometimes narrate before the payload, or emit an inline example
+    fence ahead of the real one, so search for a fence ANYWHERE and try the
+    LAST one first, then earlier fences, then the raw text. Returns ``None``
+    on total failure — the caller treats that as a non-passing dispatch.
+    """
+    if not result_text:
+        return None
+    text = result_text.strip()
+    for match in reversed(list(_FENCE_RE.finditer(text))):
+        try:
+            return json.loads(match.group(1).strip())
+        except (json.JSONDecodeError, ValueError):
+            continue
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Declared band lookup.
@@ -512,8 +541,15 @@ def real_dispatch_fn(pair: str, model: str, dirs: Dirs) -> bool:  # pragma: no c
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     try:
-        actual = json.loads(proc.stdout)
+        envelope = json.loads(proc.stdout)
     except json.JSONDecodeError:
+        return False
+    # The `--output-format json` envelope carries the agent's answer as free
+    # text in `result`; the structured review is a fenced JSON block inside it.
+    # Extract that block (falling back to the raw stdout if the shape differs).
+    result_text = envelope.get("result") if isinstance(envelope, dict) else None
+    actual = _extract_review_json(result_text if result_text is not None else proc.stdout)
+    if actual is None:
         return False
     actuals = {stem: {"agents": {target: actual}}}
     results, _ = run_grading(dirs.expected, actuals, None, only={target})

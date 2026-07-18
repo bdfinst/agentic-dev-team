@@ -353,3 +353,36 @@ def test_calibration_record_written_and_agents_untouched(corpus: Path) -> None:
     after = {p: p.read_bytes() for p in agents_dir.rglob("*") if p.is_file()}
     assert before == after
     assert not skills_dir.exists() or not any(skills_dir.rglob("*"))
+
+
+# ---------------------------------------------------------------------------
+# _extract_review_json — pulls the agent's fenced review payload out of the
+# `claude -p --output-format json` envelope's `result` text (#1193). Regression
+# guard: real_dispatch_fn used to hand the whole envelope to the grader, so
+# every live dispatch graded False.
+# ---------------------------------------------------------------------------
+
+REVIEW = {"status": "fail", "issues": [{"severity": "error", "line": 7}]}
+
+
+def test_extract_review_json_from_fenced_block():
+    text = "Here is my analysis.\n\n```json\n" + json.dumps(REVIEW) + "\n```"
+    assert ac._extract_review_json(text) == REVIEW
+
+
+def test_extract_review_json_prefers_last_fence():
+    text = (
+        "Example:\n```json\n{\"status\": \"pass\", \"issues\": []}\n```\n"
+        "Actual:\n```json\n" + json.dumps(REVIEW) + "\n```"
+    )
+    assert ac._extract_review_json(text) == REVIEW
+
+
+def test_extract_review_json_raw_fallback():
+    assert ac._extract_review_json(json.dumps(REVIEW)) == REVIEW
+
+
+def test_extract_review_json_none_on_garbage():
+    assert ac._extract_review_json("no json at all") is None
+    assert ac._extract_review_json("") is None
+    assert ac._extract_review_json(None) is None
