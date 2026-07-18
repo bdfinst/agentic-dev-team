@@ -254,11 +254,26 @@ PassRateFn = Callable[[str, str, str, List[str], Set[str]],
                       Tuple[float, int, int, List[str]]]
 
 
-def make_pass_rate_fn(dispatch_fn: DispatchFn) -> PassRateFn:
+def make_pass_rate_fn(dispatch_fn: DispatchFn, samples: int = 1) -> PassRateFn:
     """Wrap a per-pair `dispatch_fn(pair, model) -> bool` into a
     `pass_rate_fn(target, band, model, pairs, quarantined) ->
     (rate, total, passed, excluded_names)` that excludes quarantined pairs
-    from the denominator, per Gherkin scenario 6."""
+    from the denominator, per Gherkin scenario 6.
+
+    ``samples`` dispatches each active pair ``samples`` times per band and
+    counts it as passing only when a **strict majority** of those samples
+    pass. ``samples=1`` preserves the original single-shot behavior;
+    ``samples>1`` damps LLM run-to-run variance so a lone flaky dispatch no
+    longer flips a thin target's verdict (issue #1187) — at ``samples``x the
+    dispatch cost."""
+    if samples < 1:
+        raise ValueError(f"samples must be >= 1, got {samples}")
+
+    def _pair_passes(pair: str, model: str) -> bool:
+        if samples == 1:
+            return dispatch_fn(pair, model)
+        hits = sum(1 for _ in range(samples) if dispatch_fn(pair, model))
+        return hits * 2 > samples  # strict majority; a tie counts as fail
 
     def pass_rate_fn(target: str, band: str, model: str, pairs: List[str],
                       quarantined: Set[str]) -> Tuple[float, int, int, List[str]]:
@@ -267,7 +282,7 @@ def make_pass_rate_fn(dispatch_fn: DispatchFn) -> PassRateFn:
         if not active:
             # Every fixture for this target is quarantined: nothing to grade.
             return 1.0, 0, 0, excluded
-        passed = sum(1 for p in active if dispatch_fn(p, model))
+        passed = sum(1 for p in active if _pair_passes(p, model))
         return passed / len(active), len(active), passed, excluded
 
     return pass_rate_fn
@@ -571,6 +586,14 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--fixtures-dir")
     ap.add_argument("--plugin-root")
     ap.add_argument("--agent", help="calibrate only this target (agent or skill name)")
+    ap.add_argument("--samples", type=int, default=1,
+                     help="dispatch each fixture N times per band and require a "
+                     "strict majority to pass (default 1). >1 damps LLM variance "
+                     "on thin fixture sets, at N x the dispatch cost. Use an ODD "
+                     "N to avoid ties; 5 is recommended when verdicts will drive "
+                     "band changes, 3 for well-behaved fixtures. Sampling cannot "
+                     "stabilize a fixture that truly flaps ~50/50 — quarantine "
+                     "and rewrite those instead.")
     ap.add_argument("--in-session", action="store_true",
                      help="refused — calibration requires fresh-subprocess dispatch")
     ap.add_argument("--quarantine", help="quarantine source (default: "
@@ -591,6 +614,10 @@ def main(argv: List[str]) -> int:
             "currently on disk, not a stale in-session load).",
             file=sys.stderr,
         )
+        return 2
+
+    if args.samples < 1:
+        print(f"error: --samples must be >= 1, got {args.samples}.", file=sys.stderr)
         return 2
 
     repo_root = Path(args.repo_root).resolve()
@@ -619,9 +646,12 @@ def main(argv: List[str]) -> int:
     worst_case, hits, net = preflight
     print(f"cost preflight: {net} dispatch(es) worst-case "
           f"({worst_case} fixtures x bands - {hits} cache hit(s))")
+    if args.samples > 1:
+        print(f"  --samples {args.samples}: up to {net * args.samples} dispatch(es) "
+              f"(each pair-band majority-voted over {args.samples} samples)")
 
     dispatch_fn = lambda pair, model: real_dispatch_fn(pair, model, dirs)  # noqa: E731
-    pass_rate_fn = make_pass_rate_fn(dispatch_fn)
+    pass_rate_fn = make_pass_rate_fn(dispatch_fn, args.samples)
 
     results = []
     for t in targets:
