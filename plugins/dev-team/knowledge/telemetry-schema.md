@@ -42,7 +42,7 @@ but actively correct state after the fact.
 - **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), and the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`).
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
 - **Fail-open:** every exception in the emit helper is swallowed — never changes the calling hook's exit code, stdout, or stderr.
-- **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, future `agent-telemetry` cross-machine aggregation (#178).
+- **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), future `agent-telemetry` cross-machine aggregation (#178).
 
 ---
 
@@ -81,7 +81,7 @@ transcript on each `Stop` hook fire.
 
 - **Emitter:** `hooks/cost_meter.py` (wrapper) → `hooks/lib/cost_meter.py::cmd_record()`.
 - **Consent:** unconditional (local-only cost accounting).
-- **Consumers:** `skills/cost-report/SKILL.md`, `skills/harness-audit/SKILL.md`, `cmd_regression`/`cmd_pace` in the same library.
+- **Consumers:** `skills/cost-report/SKILL.md`, `skills/harness-audit/SKILL.md`, `cmd_regression`/`cmd_pace` in the same library, `skills/run-report/SKILL.md` (#1167, best-effort only — see that skill's Join limitations section: this stream has no `session_id` field).
 
 ---
 
