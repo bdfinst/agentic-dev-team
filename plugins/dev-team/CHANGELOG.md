@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.12.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.12.1...dev-team-v10.12.2) (2026-07-18)
+
+
+### Bug Fixes
+
+* route plan-review personas by the medium effort band, not a hardcoded sonnet ([97f4943](https://github.com/bdfinst/agentic-dev-team/commit/97f4943098e1cdccca019e78dc7bfc0f54726bdb))
+* trim orchestrator.md effort-band guidance to rubric-only and guard against agent-name drift ([edd1519](https://github.com/bdfinst/agentic-dev-team/commit/edd1519a7d6fe141337e3c0d3e96711a604d3efc))
+
 ## [10.12.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.12.0...dev-team-v10.12.1) (2026-07-18)
 
 
