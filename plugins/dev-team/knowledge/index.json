@@ -4836,13 +4836,17 @@
       "summary": "Before reporting, consult `ACCEPTED-RISKS.md` at the repo root if present.",
       "anchor": "3b-apply-accepted-risksmd-suppression"
     },
+    "3c. `--json` mode (machine-readable output)": {
+      "summary": "When `--json` is passed, your **entire stdout response MUST be exactly one",
+      "anchor": "3c-json-mode-machine-readable-output"
+    },
     "4. Report": {
-      "summary": "Display the result as a formatted summary with issues grouped by file.",
+      "summary": "**Skip this step entirely when `--json` was passed** (see step 3c) — stdout",
       "anchor": "4-report"
     },
-    "4b. Write the durable report (skip when `--internal`)": {
+    "4b. Write the durable report (skip when `--internal` or `--json`)": {
       "summary": "See `knowledge/report-output-location.md` for the shared write-scope",
-      "anchor": "4b-write-the-durable-report-skip-when-internal"
+      "anchor": "4b-write-the-durable-report-skip-when-internal-or-json"
     }
   },
   "plugins/dev-team/skills/review-summary/SKILL.md": {
