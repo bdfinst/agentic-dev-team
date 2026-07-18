@@ -248,12 +248,14 @@ Do **not** dispatch `security-engineer` on every task — its `effort: high` cos
 - **Output**: An implementation plan with explicit file changes, test expectations, and acceptance criteria
 - **Automated plan review**: Before the human gate, dispatch **four plan review personas in parallel** as sub-agents. Each reviewer independently challenges the plan from a different critical perspective:
 
-  | Reviewer | Template | Model | What it challenges |
-  |----------|----------|-------|--------------------|
-  | Acceptance Test Critic | `prompts/plan-review-acceptance.md` | `sonnet` | Criteria verifiability, scenario completeness, error paths, TDD traceability |
-  | Design & Architecture Critic | `prompts/plan-review-design.md` | `sonnet` | Coupling, abstraction quality, structural risks, pattern consistency |
-  | UX Critic | `prompts/plan-review-ux.md` | `sonnet` | User journey, error experience, cognitive load, accessibility |
-  | Strategic Critic | `prompts/plan-review-strategic.md` | `sonnet` | Problem-solution fit, scope, risk, opportunity cost |
+  | Reviewer | Template | Effort | What it challenges |
+  |----------|----------|--------|--------------------|
+  | Acceptance Test Critic | `prompts/plan-review-acceptance.md` | `medium` | Criteria verifiability, scenario completeness, error paths, TDD traceability |
+  | Design & Architecture Critic | `prompts/plan-review-design.md` | `medium` | Coupling, abstraction quality, structural risks, pattern consistency |
+  | UX Critic | `prompts/plan-review-ux.md` | `medium` | User journey, error experience, cognitive load, accessibility |
+  | Strategic Critic | `prompts/plan-review-strategic.md` | `medium` | Problem-solution fit, scope, risk, opportunity cost |
+
+  The **Effort** column is a reasoning-effort band, not a pinned model. These personas are prompt templates with no frontmatter, so the resolver hook cannot route them — resolve the band yourself before dispatch (`python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-review`) exactly as the plan skill's [Run plan review personas step](../skills/plan/SKILL.md#5-run-plan-review-personas) does. Never hard-code a model alias, so the personas honor the same ladder and per-environment overrides as every other agent.
 
   Each returns a `verdict` of `approve` or `needs-revision`. If **any** reviewer returns `needs-revision`, address the blocker issues before presenting to the human. Aggregate all findings (including warnings from approving reviewers) into the plan review summary.
 
