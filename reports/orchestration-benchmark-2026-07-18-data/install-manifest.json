@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-18T11:21:52Z",
+  "harness": "scripts/experiment_install_harness.py",
+  "epic": "#1097",
+  "dry_run": false,
+  "arms": {
+    "control": {
+      "arm": "B",
+      "role": "control",
+      "project_dir": "/tmp/claude-0/-home-user-agentic-dev-team/60e023cd-0728-52a0-a354-c2336277e54b/scratchpad/ab-test/control-project",
+      "claude_config_dir": "/tmp/claude-0/-home-user-agentic-dev-team/60e023cd-0728-52a0-a354-c2336277e54b/scratchpad/ab-test/control-claude-config",
+      "plugin_id": "dev-team@bfinster",
+      "install_source": "bdfinst/agentic-dev-team",
+      "install_scope": "user",
+      "commands": [
+        [
+          "claude",
+          "plugin",
+          "marketplace",
+          "add",
+          "bdfinst/agentic-dev-team"
+        ],
+        [
+          "claude",
+          "plugin",
+          "install",
+          "dev-team@bfinster"
+        ]
+      ],
+      "executed": true,
+      "installed_at": "2026-07-18T11:21:48Z",
+      "plugin_version": "10.12.0",
+      "resolved_sha": "03b74add59d230dfeb9de3473d0bce1978d03e4c",
+      "release_tag": "dev-team-v10.12.0",
+      "installed_plugin_dir": "/tmp/claude-0/-home-user-agentic-dev-team/60e023cd-0728-52a0-a354-c2336277e54b/scratchpad/ab-test/control-claude-config/plugins/cache/bfinster/dev-team/10.12.0",
+      "probe": {
+        "marker": "knowledge/fanout-economics.md",
+        "marker_string": null,
+        "expected_present": false,
+        "present": false,
+        "passed": true
+      },
+      "band_model_map": {
+        "recorded_at_runtime": true,
+        "source": "/model-routing-check",
+        "bands": null,
+        "note": "Run /model-routing-check in a session opened inside this arm's project and record the band->model mapping here before the arm's measured runs."
+      }
+    },
+    "treatment": {
+      "arm": "C",
+      "role": "treatment",
+      "project_dir": "/tmp/claude-0/-home-user-agentic-dev-team/60e023cd-0728-52a0-a354-c2336277e54b/scratchpad/ab-test/treatment-project",
+      "claude_config_dir": "/tmp/claude-0/-home-user-agentic-dev-team/60e023cd-0728-52a0-a354-c2336277e54b/scratchpad/ab-test/treatment-claude-config",
+      "plugin_id": "dev-team@bfinster",
+      "install_source": "/tmp/claude-0/-home-user-agentic-dev-team/60e023cd-0728-52a0-a354-c2336277e54b/scratchpad/exp-checkout",
+      "install_scope": "project",
+      "commands": [
+        [
+          "claude",
+          "plugin",
+          "marketplace",
+          "add",
+          "/tmp/claude-0/-home-user-agentic-dev-team/60e023cd-0728-52a0-a354-c2336277e54b/scratchpad/exp-checkout"
+        ],
+        [
+          "claude",
+          "plugin",
+          "install",
+          "--scope",
+          "project",
+          "dev-team@bfinster"
+        ]
+      ],
+      "executed": true,
+      "installed_at": "2026-07-18T11:21:52Z",
+      "plugin_version": "10.11.0",
+      "resolved_sha": "f15884fb2c414dac7820a028eb67771d6d97a46d",
+      "release_tag": null,
+      "installed_plugin_dir": "/tmp/claude-0/-home-user-agentic-dev-team/60e023cd-0728-52a0-a354-c2336277e54b/scratchpad/ab-test/treatment-claude-config/plugins/cache/bfinster/dev-team/10.11.0",
+      "probe": {
+        "marker": "knowledge/fanout-economics.md",
+        "marker_string": null,
+        "expected_present": true,
+        "present": true,
+        "passed": true
+      },
+      "band_model_map": {
+        "recorded_at_runtime": true,
+        "source": "/model-routing-check",
+        "bands": null,
+        "note": "Run /model-routing-check in a session opened inside this arm's project and record the band->model mapping here before the arm's measured runs."
+      }
+    }
+  }
+}

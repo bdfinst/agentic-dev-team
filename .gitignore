@@ -128,6 +128,10 @@ memory/_*.sh
 # …but keep /test-improve baseline + summary artifacts tracked (#1126) so an
 # opt-in baseline-metrics report lands in the run's PR.
 !/reports/test-improve/
+# …and keep the #1099 delegation-economics benchmark report + raw run data
+# tracked: it is the pre-registered evidence for the #1097 Phase 4 gate.
+!/reports/orchestration-benchmark-2026-07-18.md
+!/reports/orchestration-benchmark-2026-07-18-data/
 
 # Spec/plan working files — specs live as GitHub issues; local drafts stay untracked
 docs/specs/
