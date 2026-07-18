@@ -185,6 +185,30 @@ Map to a display status word:
 - `convergence_failure` → `"failed"`
 - `unrecognized` → `"unrecognized"`
 
+### 3e.1 — Hard-block: iteration journal gate (#1168)
+
+Before advancing to the next issue, append a structured decision entry for
+this issue and confirm the gate allows advancement — this is a hard block,
+not the advisory `progress-guardian` gate:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py record \
+  --round-id "<round_id>" \
+  --attempted "<short note: what was attempted>" \
+  --outcome "<short note: shipped|failed|blocked|unrecognized>" \
+  --next-action "<short note: next issue or stop>" \
+  --session "$CLAUDE_SESSION_ID"
+
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py check \
+  --round-id "<round_id>" \
+  --session "$CLAUDE_SESSION_ID"
+```
+
+If `check` exits non-zero, do not advance to the next issue — the `record`
+call above must have failed to land; retry it before continuing. A
+successful `record` followed immediately by `check` for the same `round_id`
+always allows advancement. Skip both calls in `--dry-run` mode.
+
 ### 3f — Append round record
 
 Append one entry per issue to `metrics/autoship-log.jsonl` using the log
