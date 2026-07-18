@@ -254,7 +254,8 @@ PassRateFn = Callable[[str, str, str, List[str], Set[str]],
                       Tuple[float, int, int, List[str]]]
 
 
-def make_pass_rate_fn(dispatch_fn: DispatchFn, samples: int = 1) -> PassRateFn:
+def make_pass_rate_fn(dispatch_fn: DispatchFn, samples: int = 1,
+                       flapped_out: Optional[Set[str]] = None) -> PassRateFn:
     """Wrap a per-pair `dispatch_fn(pair, model) -> bool` into a
     `pass_rate_fn(target, band, model, pairs, quarantined) ->
     (rate, total, passed, excluded_names)` that excludes quarantined pairs
@@ -265,7 +266,12 @@ def make_pass_rate_fn(dispatch_fn: DispatchFn, samples: int = 1) -> PassRateFn:
     pass. ``samples=1`` preserves the original single-shot behavior;
     ``samples>1`` damps LLM run-to-run variance so a lone flaky dispatch no
     longer flips a thin target's verdict (issue #1187) — at ``samples``x the
-    dispatch cost."""
+    dispatch cost.
+
+    ``flapped_out``, when provided, is populated with every pair whose samples
+    split (``0 < hits < samples``) — flaky fixtures the operator should
+    quarantine/rewrite rather than sample harder. Only meaningful for
+    ``samples>1``."""
     if samples < 1:
         raise ValueError(f"samples must be >= 1, got {samples}")
 
@@ -273,6 +279,11 @@ def make_pass_rate_fn(dispatch_fn: DispatchFn, samples: int = 1) -> PassRateFn:
         if samples == 1:
             return dispatch_fn(pair, model)
         hits = sum(1 for _ in range(samples) if dispatch_fn(pair, model))
+        if flapped_out is not None and 0 < hits < samples:
+            # Samples split — the fixture is flaky, not decisively pass/fail.
+            # Majority still resolves this run, but record it so the operator
+            # quarantines/rewrites it rather than sampling harder (#1187).
+            flapped_out.add(pair)
         return hits * 2 > samples  # strict majority; a tie counts as fail
 
     def pass_rate_fn(target: str, band: str, model: str, pairs: List[str],
@@ -480,8 +491,20 @@ def effort_diff_block(declared_band: str, calibrated_band: str) -> str:
     )
 
 
-def render_report(results: List[dict], timestamp: str, preflight: Optional[Tuple[int, int, int]] = None) -> str:
+def render_report(results: List[dict], timestamp: str, preflight: Optional[Tuple[int, int, int]] = None,
+                  flapping: Optional[List[str]] = None) -> str:
     lines = [f"# Band Calibration Report — {timestamp}", ""]
+    if flapping:
+        lines.append("## ⚠ Flapping fixtures")
+        lines.append("")
+        lines.append("These fixtures split their samples (neither always-pass nor "
+                     "always-fail) — flaky signal that majority voting papered over "
+                     "this run. Quarantine and rewrite them to be unambiguous rather "
+                     "than sampling harder; no sample size stabilizes a ~50/50 fixture.")
+        lines.append("")
+        for pair in flapping:
+            lines.append(f"- `{pair}`")
+        lines.append("")
     if preflight:
         worst_case, hits, net = preflight
         lines.append("## Cost preflight")
@@ -651,7 +674,8 @@ def main(argv: List[str]) -> int:
               f"(each pair-band majority-voted over {args.samples} samples)")
 
     dispatch_fn = lambda pair, model: real_dispatch_fn(pair, model, dirs)  # noqa: E731
-    pass_rate_fn = make_pass_rate_fn(dispatch_fn, args.samples)
+    flapped: Set[str] = set()
+    pass_rate_fn = make_pass_rate_fn(dispatch_fn, args.samples, flapped)
 
     results = []
     for t in targets:
@@ -666,7 +690,7 @@ def main(argv: List[str]) -> int:
     save_records(records_path, records)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
-    report = render_report(results, timestamp, preflight)
+    report = render_report(results, timestamp, preflight, sorted(flapped))
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = reports_dir / f"{timestamp}-calibration.md"
     report_path.write_text(report)
@@ -674,6 +698,12 @@ def main(argv: List[str]) -> int:
 
     for r in results:
         print(f"  {r['target']}: {r['verdict']}")
+
+    if flapped:
+        print(f"  warning: {len(flapped)} flapping fixture(s) (samples split) — "
+              f"quarantine/rewrite rather than sample harder:")
+        for pair in sorted(flapped):
+            print(f"      {pair}")
 
     return 0
 
