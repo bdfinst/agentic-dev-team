@@ -49,6 +49,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/review` | `skills/review/SKILL.md` | orchestrator | Alias for `/code-review` — same arguments, same behavior |
 | `/review-agent` | `skills/review-agent/SKILL.md` | worker | Run a single review agent (used for inline checkpoints) |
 | `/review-summary` | `skills/review-summary/SKILL.md` | orchestrator | Generate compact session summary for context continuity |
+| `/run-report` | `skills/run-report/SKILL.md` | worker | Report one orchestrated run's timeline joined from `boundary-events.jsonl`, `cost-metering.jsonl`, and `workflow-states.jsonl` for a given `session_id` (default: most recent) — per-state dwell time, rejection count, hook denials/bypasses by cause, and best-effort cost |
 | `/semantic-scan` | `skills/semantic-scan/SKILL.md` | worker | Build computation register and detect semantic duplicates across architectural layers |
 | `/semgrep-analyze` | `skills/semgrep-analyze/SKILL.md` | worker | Run Semgrep SAST and return structured findings |
 | `/session-review` | `skills/session-review/SKILL.md` | orchestrator | Mine real session transcripts (via the deterministic `session_extract.py`) and dispatch `session-analysis` to suggest token/rework/accuracy improvements; suggests, never auto-applies |

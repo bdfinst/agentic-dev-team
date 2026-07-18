@@ -1343,6 +1343,10 @@
     "`autoship-log.jsonl`": {
       "summary": "One entry per `/autoship` round, recording the outcome and cost of each automated ship attempt.",
       "anchor": "autoship-logjsonl"
+    },
+    "`workflow-states.jsonl`": {
+      "summary": "**Added by #1166.** Event-sourced workflow lifecycle stream for orchestrated",
+      "anchor": "workflow-statesjsonl"
     }
   },
   "plugins/dev-team/knowledge/test-automation-maturity.md": {
@@ -4893,6 +4897,20 @@
       "anchor": "1-pass-through"
     }
   },
+  "plugins/dev-team/skills/run-report/SKILL.md": {
+    "Steps": {
+      "summary": "1.",
+      "anchor": "steps"
+    },
+    "Join limitations": {
+      "summary": "`cost-metering.jsonl` entries are written by the `Stop` hook",
+      "anchor": "join-limitations"
+    },
+    "Privacy boundary": {
+      "summary": "This report composes only fields the underlying streams already document in",
+      "anchor": "privacy-boundary"
+    }
+  },
   "plugins/dev-team/skills/semantic-duplication-scan/SKILL.md": {
     "Overview": {
       "summary": "Detect business logic that has been reimplemented multiple times across different architectural layers.",
@@ -5155,6 +5173,10 @@
     "Parse Arguments": {
       "summary": "Arguments: $ARGUMENTS",
       "anchor": "parse-arguments"
+    },
+    "Workflow-state transitions (#1166)": {
+      "summary": "At the start of each phase below (2-6), append one state-transition event so",
+      "anchor": "workflow-state-transitions-1166"
     },
     "Steps": {
       "summary": "Invoke `/specs` for the feature.",
