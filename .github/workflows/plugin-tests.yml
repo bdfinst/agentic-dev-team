@@ -46,7 +46,9 @@ jobs:
       # defined once in scripts/ci-local.sh so CI and the local pre-push gate
       # run identical checks.
       - name: Shell checks (via ci-local)
-        run: bash scripts/ci-local.sh --only=chk_shellcheck_helpers,chk_shellcheck_tests,chk_sa_shell_suite,chk_python_only
+        run:
+          bash scripts/ci-local.sh
+          --only=chk_shellcheck_helpers,chk_shellcheck_tests,chk_sa_shell_suite,chk_python_only
 
   content-guard-tests:
     name: Plugin content & hooks
@@ -103,7 +105,9 @@ jobs:
       # drift. Tests/hooks mutation-gate suites are still excluded (they need
       # stryker/pitest); only the pure bash+python+jq ones run.
       - name: Content + hook-conformance checks (via ci-local)
-        run: bash scripts/ci-local.sh --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units
+        run:
+          bash scripts/ci-local.sh
+          --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units
 
   # Cost-regression gate (#140 mechanism, #171 real baseline). Isolated in its
   # own job so the read-only telemetry deploy key is never in scope for the
@@ -134,13 +138,19 @@ jobs:
       # to the blocking self-test below. Coverage boundary documented in
       # plugins/dev-team/docs/telemetry-ci-access.md.
       - name: Load telemetry deploy key (read-only)
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        if:
+          ${{ github.event_name != 'pull_request' ||
+          (github.event.pull_request.head.repo.fork == false && github.actor !=
+          'dependabot[bot]') }}
         uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.TELEMETRY_DEPLOY_KEY }}
 
-      - name: Clone telemetry (read-only) and build the cross-machine cost baseline
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+      - name:
+          Clone telemetry (read-only) and build the cross-machine cost baseline
+        if:
+          ${{ github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.fork == false }}
         run: |
           git clone --depth 1 git@github.com:bdfinst/agent-telemetry.git /tmp/telemetry
           python3 scripts/session_extract.py --cost-log /tmp/telemetry/digests \

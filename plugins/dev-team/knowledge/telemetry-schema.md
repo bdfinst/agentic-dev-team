@@ -42,7 +42,7 @@ but actively correct state after the fact.
 - **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), and the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`).
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
 - **Fail-open:** every exception in the emit helper is swallowed — never changes the calling hook's exit code, stdout, or stderr.
-- **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, future `agent-telemetry` cross-machine aggregation (#178).
+- **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), future `agent-telemetry` cross-machine aggregation (#178).
 
 ---
 
@@ -81,7 +81,7 @@ transcript on each `Stop` hook fire.
 
 - **Emitter:** `hooks/cost_meter.py` (wrapper) → `hooks/lib/cost_meter.py::cmd_record()`.
 - **Consent:** unconditional (local-only cost accounting).
-- **Consumers:** `skills/cost-report/SKILL.md`, `skills/harness-audit/SKILL.md`, `cmd_regression`/`cmd_pace` in the same library.
+- **Consumers:** `skills/cost-report/SKILL.md`, `skills/harness-audit/SKILL.md`, `cmd_regression`/`cmd_pace` in the same library, `skills/run-report/SKILL.md` (#1167, best-effort only — see that skill's Join limitations section: this stream has no `session_id` field).
 
 ---
 
@@ -412,3 +412,55 @@ One entry per `/autoship` round, recording the outcome and cost of each automate
 - **Emitter:** `hooks/lib/autoship_log.py` called from the `/autoship` skill.
 - **Consent:** unconditional (cost/count aggregates only — no prompt text or file contents).
 - **Consumers:** `/cost-report`, `/telemetry` (aggregate reporting).
+
+---
+
+## `workflow-states.jsonl`
+
+**Added by #1166.** Event-sourced workflow lifecycle stream for orchestrated
+flows (`/ship`, `/autoship`, `/build`): persists only state-*transition*
+events. Current state and per-state dwell time are always **derived** by
+replaying the stream for a given `session_id` — never stored — per the
+event-sourcing discipline in the competitive analysis this issue is drawn
+from. Canonical (informational, not enforced) lifecycle: `SPEC -> PLAN ->
+BUILD -> REVIEW -> COMMIT -> PR`.
+
+| Field | Type | Values / source |
+|---|---|---|
+| `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
+| `workflow` | string | Orchestrated flow name, e.g. `ship`, `autoship`, `build` |
+| `prior_state` | string, optional (`null` for the initial transition) | State the workflow was in before this transition |
+| `new_state` | string | State the workflow is entering |
+| `plugin_version` | string | From `.claude-plugin/plugin.json` |
+| `session_id` | string, optional | Opaque per-session ID — enables joins with `boundary-events.jsonl` and `cost-metering.jsonl` |
+
+- **Emitter:** `hooks/lib/workflow_state.py::emit_state_transition()`, invoked via its `record` CLI subcommand as a model-authored append at each phase boundary in `/ship`, `/autoship`, and `/build` (same convention as `review-value.jsonl`/`verify-log.jsonl`).
+- **Consent:** unconditional (workflow/state names + counts only — no prompt text or file contents).
+- **Derivation:** `hooks/lib/workflow_state.py::derive_current_state()` and `compute_dwell_times()` (also exposed via the `report` CLI subcommand) replay a session's transitions — never a stored snapshot.
+- **Consumers:** `skills/run-report/SKILL.md` (#1167), `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `skills/cost-report/SKILL.md`.
+
+---
+
+## `iteration-journal.jsonl`
+
+**Added by #1168.** Hard per-iteration decision journal for the autonomous
+`/autoship`/`/ship` loops: one entry per round/iteration recording what was
+attempted, its outcome, and the next action — the accountability record an
+autonomous run needs to be debuggable after the fact. Unlike
+`workflow-states.jsonl`'s phase transitions, this stream is not derived; each
+entry is a durable, once-written decision note.
+
+| Field | Type | Values / source |
+|---|---|---|
+| `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
+| `round_id` | string | Identifier for the current round/iteration (`/autoship`'s round_id, or `/ship`'s issue identifier) |
+| `attempted` | string | Short structured note — what was attempted this iteration (deliberate, agent-authored rationale, not incidental free text — same precedent as `config-changelog.jsonl`'s `description`) |
+| `outcome` | string | Short structured note — what happened |
+| `next_action` | string | Short structured note — what happens next |
+| `plugin_version` | string | From `.claude-plugin/plugin.json` |
+| `session_id` | string, optional | Opaque per-session ID — enables joins with `boundary-events.jsonl` / `cost-metering.jsonl` |
+
+- **Emitter:** `hooks/lib/iteration_journal_gate.py::record_iteration_entry()`, invoked via its `record` CLI subcommand as a model-authored append in `/autoship`'s per-issue loop (Step 3) and `/ship`'s per-phase loop, before the corresponding `check` subcommand gates advancement.
+- **Gate:** `hooks/lib/iteration_journal_gate.py::check_iteration_journal()` (`check` CLI subcommand) hard-blocks advancement to the next issue/iteration — exit 1 — unless >=1 entry exists for the current `round_id`; a block also emits a `boundary-events.jsonl` event (`hook: iteration_journal_gate`, `decision: block`, `matched_rule: iteration-journal-missing`). This is a skill-level check-before-advance (mirroring `verify-log.jsonl`'s `progress_guardian.py --pre-pr` pattern), not a `settings.json` PreToolUse/PostToolUse registration — `/autoship`'s and `/ship`'s loop advancement is model-authored control flow inside a skill, not a tool call the harness intercepts at a distinct boundary. Complements, does not replace, the advisory plan-step-keyed `progress-guardian` agent.
+- **Consent:** unconditional (a deliberate per-iteration accountability record, not passive usage telemetry).
+- **Consumers:** `skills/autoship/SKILL.md`, `skills/ship/SKILL.md`, joinable with `skills/run-report/SKILL.md` (#1167) via `round_id`/`session_id`.

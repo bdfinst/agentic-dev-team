@@ -54,8 +54,8 @@ This wiring is **already in place** — see the `cost-regression` job in
 [`.github/workflows/plugin-tests.yml`](../../../.github/workflows/plugin-tests.yml).
 The job loads the key, clones the data repo read-only, builds a per-session cost
 series from the digests, and runs the regression check against it. The
-credential steps are gated so fork PRs (which have no secret access) skip them
-and fall back to the blocking self-test:
+credential steps are gated so fork PRs and Dependabot PRs (neither of which get
+secret access) skip them and fall back to the blocking self-test:
 
 ```yaml
   cost-regression:
@@ -64,14 +64,15 @@ and fall back to the blocking self-test:
       - uses: actions/checkout@v6
       - name: Install python3 + jq
         run: sudo apt-get update && sudo apt-get install -y jq python3
-      # Secrets are NOT exposed to forked-PR runs (see caveat) — gate on that:
+      # Secrets are NOT exposed to forked-PR runs, nor to Dependabot-triggered
+      # runs even when the PR isn't from a fork (see caveat) — gate on both:
       - name: Load telemetry deploy key (read-only)
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]') }}
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.TELEMETRY_DEPLOY_KEY }}
       - name: Clone telemetry (read-only) and build the cross-machine cost baseline
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]') }}
         run: |
           git clone --depth 1 git@github.com:bdfinst/agent-telemetry.git /tmp/telemetry
           python3 scripts/session_extract.py --cost-log /tmp/telemetry/digests \
@@ -102,9 +103,12 @@ account-level token.
 
 - **Read-only, by construction.** The deploy key has no write access, so a leak
   exposes *read* of one private metrics repo — never write, never your account.
-- **Fork-PR caveat (important).** GitHub does not expose secrets to workflows
-  triggered by pull requests from forks. So the cost gate runs on branches in
-  this repo and on internal PRs, but **not** on fork PRs — those fall back to the
+- **Fork-PR and Dependabot-PR caveat (important).** GitHub does not expose
+  secrets to workflows triggered by pull requests from forks, and it withholds
+  the same secrets from Dependabot-triggered runs even when the PR's head
+  branch is not a fork (Dependabot PRs are treated as untrusted for this
+  purpose). So the cost gate runs on branches in this repo and on internal
+  human PRs, but **not** on fork PRs or Dependabot PRs — those fall back to the
   mechanism self-test. For a solo/private setup this is a non-issue; documented so
   the coverage boundary is honest.
 - **Rotation.** To rotate: generate a new key, add it, update the secret, delete

@@ -1343,6 +1343,14 @@
     "`autoship-log.jsonl`": {
       "summary": "One entry per `/autoship` round, recording the outcome and cost of each automated ship attempt.",
       "anchor": "autoship-logjsonl"
+    },
+    "`workflow-states.jsonl`": {
+      "summary": "**Added by #1166.** Event-sourced workflow lifecycle stream for orchestrated",
+      "anchor": "workflow-statesjsonl"
+    },
+    "`iteration-journal.jsonl`": {
+      "summary": "**Added by #1168.** Hard per-iteration decision journal for the autonomous",
+      "anchor": "iteration-journaljsonl"
     }
   },
   "plugins/dev-team/knowledge/test-automation-maturity.md": {
@@ -2027,6 +2035,10 @@
     "3e — Classify outcome": {
       "summary": "After a non-blocked `/ship` completes, record the start ISO timestamp that was",
       "anchor": "3e-classify-outcome"
+    },
+    "3e.1 — Hard-block: iteration journal gate (#1168)": {
+      "summary": "Before advancing to the next issue, append a structured decision entry for",
+      "anchor": "3e1-hard-block-iteration-journal-gate-1168"
     },
     "3f — Append round record": {
       "summary": "Append one entry per issue to `metrics/autoship-log.jsonl` using the log",
@@ -4893,6 +4905,20 @@
       "anchor": "1-pass-through"
     }
   },
+  "plugins/dev-team/skills/run-report/SKILL.md": {
+    "Steps": {
+      "summary": "1.",
+      "anchor": "steps"
+    },
+    "Join limitations": {
+      "summary": "`cost-metering.jsonl` entries are written by the `Stop` hook",
+      "anchor": "join-limitations"
+    },
+    "Privacy boundary": {
+      "summary": "This report composes only fields the underlying streams already document in",
+      "anchor": "privacy-boundary"
+    }
+  },
   "plugins/dev-team/skills/semantic-duplication-scan/SKILL.md": {
     "Overview": {
       "summary": "Detect business logic that has been reimplemented multiple times across different architectural layers.",
@@ -5155,6 +5181,14 @@
     "Parse Arguments": {
       "summary": "Arguments: $ARGUMENTS",
       "anchor": "parse-arguments"
+    },
+    "Workflow-state transitions (#1166)": {
+      "summary": "At the start of each phase below (2-6), append one state-transition event so",
+      "anchor": "workflow-state-transitions-1166"
+    },
+    "Iteration journal gate (#1168)": {
+      "summary": "Before advancing from one phase (2-6) to the next, append a structured",
+      "anchor": "iteration-journal-gate-1168"
     },
     "Steps": {
       "summary": "Invoke `/specs` for the feature.",
