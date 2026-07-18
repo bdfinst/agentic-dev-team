@@ -89,6 +89,7 @@ graphify-out/
 # deliberate baseline run is meant to commit them.
 .claude/evals/reports/
 .claude/evals/calibration-records.json
+.claude/evals/baseline-1184/
 
 # Runtime joern / CPG cache + workspace
 memory/cpg/
