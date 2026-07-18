@@ -1,5 +1,32 @@
 # Changelog
 
+## [10.13.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.12.2...dev-team-v10.13.0) (2026-07-18)
+
+
+### Features
+
+* add /run-report command joining boundary/cost/workflow-state streams ([#1167](https://github.com/bdfinst/agentic-dev-team/issues/1167)) ([a5e4ef2](https://github.com/bdfinst/agentic-dev-team/commit/a5e4ef2d2755227a6fadf62b0c48f85114cc88eb))
+* add typed/faceted query helper over metrics streams ([#1169](https://github.com/bdfinst/agentic-dev-team/issues/1169)) ([f493942](https://github.com/bdfinst/agentic-dev-team/commit/f493942082360c02de00af847e8b683e7e5fbfb1))
+* hard per-iteration journal gate for autoship/ship loops ([#1168](https://github.com/bdfinst/agentic-dev-team/issues/1168)) ([9fa2d70](https://github.com/bdfinst/agentic-dev-team/commit/9fa2d708ade7d6a38b9b1b1ac01d76717c863219))
+* workflow state-machine event stream + dwell-time derivation ([#1166](https://github.com/bdfinst/agentic-dev-team/issues/1166)) ([9215b2e](https://github.com/bdfinst/agentic-dev-team/commit/9215b2e602d0b8f058f2ad8663e389ebae8f42c6))
+
+
+### Bug Fixes
+
+* add --json machine-readable mode to /review-agent for reliable cross-model output ([c6aef13](https://github.com/bdfinst/agentic-dev-team/commit/c6aef13c68a69369213b8f1e7a08fcb3b4b5f7ee))
+* record rubric effort-band decisions for progress-guardian and ui-ux-designer ([a9f94f5](https://github.com/bdfinst/agentic-dev-team/commit/a9f94f514d3ed72fedd504cd29895aa395646ee9))
+
+
+### Documentation
+
+* note Dependabot-PR secret-access caveat for telemetry CI gate ([66d5426](https://github.com/bdfinst/agentic-dev-team/commit/66d5426addde2da2a7b5db61ba52431dbf173249))
+
+
+### Miscellaneous
+
+* regenerate knowledge index after merging [#1166](https://github.com/bdfinst/agentic-dev-team/issues/1166)-[#1169](https://github.com/bdfinst/agentic-dev-team/issues/1169) ([cbd3dda](https://github.com/bdfinst/agentic-dev-team/commit/cbd3dda62847ba5d6809f9535a7273eea0cc2d96))
+* **reports:** publish delegation-economics orchestration benchmark ([#1099](https://github.com/bdfinst/agentic-dev-team/issues/1099)) ([8d37283](https://github.com/bdfinst/agentic-dev-team/commit/8d37283bbee3ecf74fd3b305d8d4eb7f78d2b1e6))
+
 ## [10.12.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.12.1...dev-team-v10.12.2) (2026-07-18)
 
 
