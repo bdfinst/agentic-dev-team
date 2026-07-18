@@ -78,6 +78,9 @@ graphify-out/
 # committed — like .git/hooks. The portable wiring under .claude/ IS committed.
 .husky/post-commit
 .husky/post-checkout
+# Graphify's merge-driver .gitattributes is written per-clone by `graphify hook
+# install` (points at the gitignored graphify-out/graph.json), so it's not committed.
+.gitattributes
 
 # Runtime joern / CPG cache + workspace
 memory/cpg/
