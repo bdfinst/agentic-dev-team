@@ -48,6 +48,23 @@ Arguments: $ARGUMENTS
   the start even when prior artifacts exist. Use only for a deliberate rebuild —
   it accepts the risk of duplicate spec issues, sub-issues, and PRs.
 
+## Workflow-state transitions (#1166)
+
+At the start of each phase below (2-6), append one state-transition event so
+`/run-report` and friends can derive dwell time per phase — never skip this
+even when a phase resumes/monitors rather than running fresh:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/workflow_state.py record \
+  --workflow ship --prior-state <PRIOR> --new-state <NEW> --session "$CLAUDE_SESSION_ID"
+```
+
+Map phases to canonical states: Spec→`SPEC`, Plan→`PLAN`, Build→`BUILD`,
+Review→`REVIEW`, PR→`PR` (an extra `COMMIT` transition is optional — most
+commits happen inside `/build`). Omit `--prior-state` only for the very first
+transition of a run. This is a model-authored, fail-open append (same
+convention as `metrics/review-value.jsonl`) — never let it block a phase.
+
 ## Steps
 
 ### 1. Approach contract

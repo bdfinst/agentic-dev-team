@@ -412,3 +412,29 @@ One entry per `/autoship` round, recording the outcome and cost of each automate
 - **Emitter:** `hooks/lib/autoship_log.py` called from the `/autoship` skill.
 - **Consent:** unconditional (cost/count aggregates only — no prompt text or file contents).
 - **Consumers:** `/cost-report`, `/telemetry` (aggregate reporting).
+
+---
+
+## `workflow-states.jsonl`
+
+**Added by #1166.** Event-sourced workflow lifecycle stream for orchestrated
+flows (`/ship`, `/autoship`, `/build`): persists only state-*transition*
+events. Current state and per-state dwell time are always **derived** by
+replaying the stream for a given `session_id` — never stored — per the
+event-sourcing discipline in the competitive analysis this issue is drawn
+from. Canonical (informational, not enforced) lifecycle: `SPEC -> PLAN ->
+BUILD -> REVIEW -> COMMIT -> PR`.
+
+| Field | Type | Values / source |
+|---|---|---|
+| `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
+| `workflow` | string | Orchestrated flow name, e.g. `ship`, `autoship`, `build` |
+| `prior_state` | string, optional (`null` for the initial transition) | State the workflow was in before this transition |
+| `new_state` | string | State the workflow is entering |
+| `plugin_version` | string | From `.claude-plugin/plugin.json` |
+| `session_id` | string, optional | Opaque per-session ID — enables joins with `boundary-events.jsonl` and `cost-metering.jsonl` |
+
+- **Emitter:** `hooks/lib/workflow_state.py::emit_state_transition()`, invoked via its `record` CLI subcommand as a model-authored append at each phase boundary in `/ship`, `/autoship`, and `/build` (same convention as `review-value.jsonl`/`verify-log.jsonl`).
+- **Consent:** unconditional (workflow/state names + counts only — no prompt text or file contents).
+- **Derivation:** `hooks/lib/workflow_state.py::derive_current_state()` and `compute_dwell_times()` (also exposed via the `report` CLI subcommand) replay a session's transitions — never a stored snapshot.
+- **Consumers:** `skills/run-report/SKILL.md` (#1167), `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `skills/cost-report/SKILL.md`.
