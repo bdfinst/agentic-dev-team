@@ -34,7 +34,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 
 ## Team Organization
 
-See @docs/team-structure.md for the full team org chart.
+See @docs/team-structure.md for the org chart.
 
 ## Agent & Skill Registry
 
@@ -85,6 +85,6 @@ Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` 
 
 ## Performance Metrics
 
-Logged to `metrics/` in JSONL format. See **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
+Logged to `metrics/` as JSONL. **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
 
-Every claim must name the instrument. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), per-agent accuracy (`/agent-eval`). **Not yet:** efficiency gains, hallucination rate, first-pass acceptance.
+Every claim must name the instrument. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), agent accuracy (`/agent-eval`), efficiency (`/orchestration-benchmark`). **Not yet:** hallucination rate, first-pass acceptance.
