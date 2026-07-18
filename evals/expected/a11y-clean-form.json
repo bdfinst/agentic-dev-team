@@ -1,0 +1,16 @@
+{
+  "fixture": "a11y-clean-form",
+  "description": "Accessible contact form: every control has an associated label, radios grouped in a fieldset/legend, images and links have accessible names, a visible focus indicator is preserved, headings are ordered, and the async status region is aria-live — should pass review",
+  "applicableAgents": [
+    "a11y-review"
+  ],
+  "agents": {
+    "a11y-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  }
+}

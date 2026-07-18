@@ -1,0 +1,22 @@
+{
+  "fixture": "a11y-color-only-signaling",
+  "description": "Checkout markup whose error/required state is conveyed by color alone, with low-contrast helper text, a data table lacking header cells, a placeholder used as the only label, non-descriptive link text, and a focusable submit button hidden with aria-hidden — should fail review",
+  "applicableAgents": [
+    "a11y-review"
+  ],
+  "agents": {
+    "a11y-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 3,
+        "max": 8
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 7
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Contact us</title>
+    <style>
+      /* Keep a visible focus indicator for keyboard users. */
+      :focus-visible {
+        outline: 3px solid #005fcc;
+        outline-offset: 2px;
+      }
+      .hint {
+        color: #595959;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Contact us</h1>
+
+      <form action="/contact" method="post">
+        <p>
+          <label for="fullName">Full name</label>
+          <input id="fullName" name="fullName" type="text" autocomplete="name" required />
+        </p>
+
+        <p>
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="email" required />
+          <span id="emailHint" class="hint">We only use this to reply to you.</span>
+        </p>
+
+        <fieldset>
+          <legend>Preferred contact method</legend>
+          <p>
+            <input id="byEmail" name="method" type="radio" value="email" checked />
+            <label for="byEmail">Email</label>
+          </p>
+          <p>
+            <input id="byPhone" name="method" type="radio" value="phone" />
+            <label for="byPhone">Phone</label>
+          </p>
+        </fieldset>
+
+        <p>
+          <label for="message">Message</label>
+          <textarea id="message" name="message" rows="5" required></textarea>
+        </p>
+
+        <button type="submit">Send message</button>
+      </form>
+
+      <!-- Status region announces async submit results to assistive tech. -->
+      <div id="status" role="status" aria-live="polite"></div>
+
+      <p>
+        Read our <a href="/privacy">privacy policy</a> before submitting.
+      </p>
+    </main>
+  </body>
+</html>

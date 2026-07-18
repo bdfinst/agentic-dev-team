@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Checkout</title>
+    <style>
+      /* Error state is conveyed by color alone — no text, no icon, no aria. */
+      .field-error {
+        border-color: red;
+      }
+      /* Low-contrast helper text (~2.3:1) below the WCAG AA 4.5:1 threshold. */
+      .muted {
+        color: #b3b3b3;
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Layout table used for tabular data with no header cells or scope. -->
+    <table>
+      <tr>
+        <td>Item</td>
+        <td>Price</td>
+      </tr>
+      <tr>
+        <td>Widget</td>
+        <td>$9.00</td>
+      </tr>
+    </table>
+
+    <form action="/pay" method="post">
+      <!-- Placeholder used as the only label; disappears on input. -->
+      <input type="text" name="card" placeholder="Card number" class="field-error" />
+
+      <!-- Required-ness and error are signaled by color only. -->
+      <p class="muted">Fields in red are required.</p>
+
+      <!-- Non-descriptive link text; meaningless out of context to a screen reader. -->
+      <a href="/terms">Click here</a>
+
+      <!-- Focusable, meaningful content hidden from assistive tech. -->
+      <button type="submit" aria-hidden="true">Pay now</button>
+    </form>
+  </body>
+</html>
