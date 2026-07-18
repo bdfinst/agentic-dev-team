@@ -82,6 +82,14 @@ graphify-out/
 # install` (points at the gitignored graphify-out/graph.json), so it's not committed.
 .gitattributes
 
+# Calibration runtime output (`/agent-eval --calibrate`). Timestamped reports
+# are regeneratable; calibration-records.json is (re)written per run and the
+# report is published to the issue, not committed — the tracked baseline has no
+# records file (every target "never-calibrated"). Un-ignore records only if a
+# deliberate baseline run is meant to commit them.
+.claude/evals/reports/
+.claude/evals/calibration-records.json
+
 # Runtime joern / CPG cache + workspace
 memory/cpg/
 memory/raw/
