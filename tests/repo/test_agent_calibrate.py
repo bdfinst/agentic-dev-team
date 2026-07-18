@@ -435,3 +435,28 @@ def test_pass_rate_even_samples_tie_counts_as_fail():
 def test_make_pass_rate_fn_rejects_samples_below_one():
     with pytest.raises(ValueError):
         ac.make_pass_rate_fn(lambda p, m: True, samples=0)
+
+
+def test_flapped_out_records_split_fixtures():
+    from collections import deque
+    seq = {"a::t": deque([True, False, True]),   # 2/3 -> passes but split -> flapping
+           "b::t": deque([True, True, True])}     # 3/3 -> decisive, not flapping
+    flapped = set()
+    prf = ac.make_pass_rate_fn(lambda p, m: seq[p].popleft(), samples=3, flapped_out=flapped)
+    prf("t", "low", "m", ["a::t", "b::t"], set())
+    assert flapped == {"a::t"}
+
+
+def test_flapped_out_untouched_at_samples_one():
+    flapped = set()
+    prf = ac.make_pass_rate_fn(lambda p, m: True, samples=1, flapped_out=flapped)
+    prf("t", "low", "m", ["a::t"], set())
+    assert flapped == set()  # single-shot never records flapping
+
+
+def test_render_report_flapping_section():
+    md = ac.render_report([], "2026-01-01T00-00-00Z", None, flapping=["x::t"])
+    assert "Flapping fixtures" in md
+    assert "`x::t`" in md
+    # absent when no flapping
+    assert "Flapping fixtures" not in ac.render_report([], "2026-01-01T00-00-00Z", None)
