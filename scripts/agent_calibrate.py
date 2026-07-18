@@ -535,8 +535,12 @@ def real_dispatch_fn(pair: str, model: str, dirs: Dirs) -> bool:  # pragma: no c
     if not fixture_files:
         return False
     fixture_path = fixture_files[0] if len(fixture_files) == 1 else fixture_files[0].parent
+    # `--json` puts /review-agent in machine-readable mode: stdout is the bare
+    # result object (no formatted summary, no report write, no prose), so the
+    # grade is deterministic across models (#1199). Without it, more capable
+    # models emit a prose report and the dispatch fails to parse (#1198).
     cmd = [
-        "claude", "-p", f"/review-agent {target} {fixture_path}",
+        "claude", "-p", f"/review-agent {target} {fixture_path} --json",
         "--output-format", "json", "--model", model,
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
