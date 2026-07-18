@@ -564,7 +564,7 @@ def render_report(results: List[dict], timestamp: str, preflight: Optional[Tuple
 # through eval_grade.run_grading for that one target.
 # ---------------------------------------------------------------------------
 
-def real_dispatch_fn(pair: str, model: str, dirs: Dirs) -> bool:  # pragma: no cover
+def real_dispatch_fn(pair: str, model: str, dirs: Dirs, parse_retries: int = 2) -> bool:  # pragma: no cover
     stem, _, target = pair.partition("::")
     from eval_cache import resolve_fixture_files  # local import, avoids cycle at module load
     spec_path = dirs.expected / f"{stem}.json"
@@ -581,18 +581,27 @@ def real_dispatch_fn(pair: str, model: str, dirs: Dirs) -> bool:  # pragma: no c
         "claude", "-p", f"/review-agent {target} {fixture_path} --json",
         "--output-format", "json", "--model", model,
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    try:
-        envelope = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        return False
-    # The `--output-format json` envelope carries the agent's answer as free
-    # text in `result`; the structured review is a fenced JSON block inside it.
-    # Extract that block (falling back to the raw stdout if the shape differs).
-    result_text = envelope.get("result") if isinstance(envelope, dict) else None
-    actual = _extract_review_json(result_text if result_text is not None else proc.stdout)
+    # A model occasionally ignores --json and narrates instead of emitting the
+    # bare result object (residual #1199 non-compliance — observed on Sonnet in
+    # ~30% of runs). That is transient output-format noise, NOT the agent's
+    # verdict, so re-dispatch on unparseable output before giving up; only a
+    # PARSED result is ever graded. A genuine fail verdict still parses and is
+    # graded on the first try.
+    actual = None
+    for _ in range(parse_retries + 1):
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            envelope = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            continue  # dispatch produced no envelope — retry
+        # The `--output-format json` envelope carries the agent's answer as
+        # free text in `result`; the structured review is a JSON block inside.
+        result_text = envelope.get("result") if isinstance(envelope, dict) else None
+        actual = _extract_review_json(result_text if result_text is not None else proc.stdout)
+        if actual is not None:
+            break  # got a parseable result — grade it
     if actual is None:
-        return False
+        return False  # never parsed after retries
     actuals = {stem: {"agents": {target: actual}}}
     results, _ = run_grading(dirs.expected, actuals, None, only={target})
     return any(p == pair and ok for p, ok, _ in results)
