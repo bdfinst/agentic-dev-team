@@ -57,11 +57,11 @@ Legacy `model: haiku|sonnet|opus` agents still resolve (tier→band) for this de
 
 ### Effort-band guidance (informational)
 
-Each agent's `effort:` band is the authoritative routing input. Below is the rationale by band, so new agents have a guide for which band to declare:
+Each agent's `effort:` band is the authoritative routing input. Pick a band by the *kind* of reasoning the task needs — not by naming a model, and not by copying a peer agent. This guide names no agents on purpose: a per-agent list drifts out of sync with frontmatter the moment a band changes. For the live band→model map and which band each agent actually declares, run `/model-routing-check`; to validate that a declared band clears its eval floor, run `/agent-eval --calibrate`.
 
-- `low` — lexical/structural pattern matching, checklist-style verification (naming-review, complexity-review, claude-setup-review, token-efficiency-review, a11y-review, svelte-review, js-fp-review, progress-guardian).
-- `medium` — semantic analysis with balanced cost/quality (spec-compliance-review, test-review, structure-review, concurrency-review, doc-review, refactor-opportunity-review, data-flow-tracer, performance-review, orchestrator, software-engineer, qa-engineer, tech-writer, platform-engineer, product-manager, ui-ux-designer, adr).
-- `high` — cross-file reasoning, high-stakes decisions, design synthesis, threat modeling, broad reconnaissance (security-review, domain-review, arch-review, architect, security-engineer, codebase-recon).
+- `low` — lexical/structural pattern matching and checklist-style verification: threshold counting, config/style/markup checks, and single-file lints that need no cross-file context.
+- `medium` — semantic analysis with balanced cost/quality: reading intent within a file or a small neighborhood, spec-to-code matching, and most review and persona work.
+- `high` — cross-file reasoning, high-stakes decisions, design synthesis, threat modeling, and broad reconnaissance: work where a missed finding or a wrong call is expensive and the relevant context spans many files.
 
 ## Wave-Aware Build Dispatch
 
