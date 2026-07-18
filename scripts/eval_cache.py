@@ -182,6 +182,14 @@ def resolve_fixture_files(stem: str, spec: dict, dirs: Dirs) -> list[Path]:
             return [cand]
         if cand.is_dir():
             return sorted(p for p in cand.rglob("*") if p.is_file())
+    # Stem-based fallback for single-file fixtures whose `fixture` field omits or
+    # mismatches the extension (spec "cc-check-then-act" -> file
+    # "cc-check-then-act.ts"). Matches the corpus pairing convention used by
+    # eval_grade.check_corpus: a fixture file pairs by stem (final ext stripped).
+    if dirs.fixtures.is_dir():
+        for p in sorted(dirs.fixtures.iterdir()):
+            if p.is_file() and p.stem == stem:
+                return [p]
     return []
 
 
