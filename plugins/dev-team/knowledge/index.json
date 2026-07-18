@@ -2732,16 +2732,16 @@
       "summary": "1.",
       "anchor": "steps"
     },
-    "Attribution dimensions (#102, #170)": {
-      "summary": "`report` breaks spend down by **model** and by **thread** (main-loop vs",
-      "anchor": "attribution-dimensions-102-170"
+    "Attribution dimensions (#102, #170, #1094)": {
+      "summary": "`report` breaks spend down by **model**, by **thread** (main-loop vs",
+      "anchor": "attribution-dimensions-102-170-1094"
     },
     "Review value (#348)": {
       "summary": "`/build` records, per inline review checkpoint, whether review actually changed",
       "anchor": "review-value-348"
     },
     "Privacy boundary": {
-      "summary": "The meter persists **only** token counts, dollar amounts, model identifiers, and",
+      "summary": "The meter persists **only** token counts, dollar amounts, model identifiers,",
       "anchor": "privacy-boundary"
     },
     "Notes": {
@@ -4359,6 +4359,52 @@
       "anchor": "when-not-to-apply"
     }
   },
+  "plugins/dev-team/skills/orchestration-benchmark/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Arms (3, matched rigor)": {
+      "summary": "| Arm | Configuration |",
+      "anchor": "arms-3-matched-rigor"
+    },
+    "Task matrix": {
+      "summary": "Sample across the `knowledge/task-size-classifier.md` buckets",
+      "anchor": "task-matrix"
+    },
+    "Repetitions and isolation": {
+      "summary": "**≥5 runs per arm per task class** (see `--runs`).",
+      "anchor": "repetitions-and-isolation"
+    },
+    "Metrics (instrument named per metric)": {
+      "summary": "| Metric | Instrument |",
+      "anchor": "metrics-instrument-named-per-metric"
+    },
+    "Mechanism check (mandatory)": {
+      "summary": "Arm C's cost reduction must be produced by the claimed mechanism.",
+      "anchor": "mechanism-check-mandatory"
+    },
+    "Decision rule (pre-registered — fixed before the first run)": {
+      "summary": "Apply per task class:",
+      "anchor": "decision-rule-pre-registered-fixed-before-the-first-run"
+    },
+    "Threats to validity": {
+      "summary": "Each of these must be explicitly addressed in the report — not silently",
+      "anchor": "threats-to-validity"
+    },
+    "Report": {
+      "summary": "Write the report to `reports/orchestration-benchmark-<date>.md`.",
+      "anchor": "report"
+    },
+    "Relationship to other tooling": {
+      "summary": "`/benchmark` is **runtime-performance-only** (web pages); this skill",
+      "anchor": "relationship-to-other-tooling"
+    }
+  },
   "plugins/dev-team/skills/performance-benchmark/SKILL.md": {
     "Prerequisites": {
       "summary": "Installed by `/project-init` for frontend projects, or install manually:",
@@ -4453,6 +4499,10 @@
     "Field Reference": {
       "summary": "| Field | Type | Description |",
       "anchor": "field-reference"
+    },
+    "Cost Metering Entry (#102, #1094)": {
+      "summary": "The `Stop`/`SubagentStop` hook (`hooks/cost_meter.py` →",
+      "anchor": "cost-metering-entry-102-1094"
     },
     "Review Value Entry (#348)": {
       "summary": "`/build` appends one entry per **inline review checkpoint** to",
