@@ -21,3 +21,4 @@
 * [19. Orchestrate the phase pipeline, choreograph the safety layer](0019-orchestrate-the-phase-pipeline-choreograph-the-safety-layer.md)
 * [20. Fold the ACI mutation pipeline into the plugin as scripted mechanics](0020-fold-mutation-pipeline-into-the-plugin.md)
 * [21. Claude-only model routing — no multimodal or cross-provider tier](0021-claude-only-model-routing-no-multimodal-tier.md)
+* [22. Reject the delegation-only sweep — delegation must earn its measured overhead](0022-reject-delegation-only-sweep-dispatch.md)
