@@ -1,0 +1,22 @@
+{
+  "fixture": "cc-unhandled-races",
+  "description": "Three distinct concurrency hazards: a database read-modify-write with no transaction, a shared-file read-modify-write with no lock, and an event handler mutating shared array state across a non-atomic check-then-splice — should fail review",
+  "applicableAgents": [
+    "concurrency-review"
+  ],
+  "agents": {
+    "concurrency-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 2,
+        "max": 6
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 4
+        }
+      }
+    }
+  }
+}
