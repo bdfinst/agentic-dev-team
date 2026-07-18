@@ -386,3 +386,52 @@ def test_extract_review_json_none_on_garbage():
     assert ac._extract_review_json("no json at all") is None
     assert ac._extract_review_json("") is None
     assert ac._extract_review_json(None) is None
+
+
+# ---------------------------------------------------------------------------
+# --samples N majority voting (#1187) — damps LLM run-to-run variance so a lone
+# flaky dispatch no longer flips a thin target's verdict. samples=1 must stay
+# byte-for-byte the original single-shot behavior.
+# ---------------------------------------------------------------------------
+
+def test_pass_rate_samples_one_is_single_shot():
+    calls = []
+
+    def dispatch(pair, model):
+        calls.append(pair)
+        return pair.startswith("a")
+
+    prf = ac.make_pass_rate_fn(dispatch, samples=1)
+    rate, total, passed, excl = prf("t", "low", "m", ["a::t", "b::t"], set())
+    assert (total, passed, rate) == (2, 1, 0.5)
+    assert calls == ["a::t", "b::t"]  # exactly one dispatch per pair
+
+
+def test_pass_rate_majority_vote_over_samples():
+    from collections import deque
+    # a::t passes 2/3 -> majority pass; b::t passes 1/3 -> fail
+    seq = {"a::t": deque([True, False, True]), "b::t": deque([False, True, False])}
+
+    def dispatch(pair, model):
+        return seq[pair].popleft()
+
+    prf = ac.make_pass_rate_fn(dispatch, samples=3)
+    rate, total, passed, excl = prf("t", "low", "m", ["a::t", "b::t"], set())
+    assert (total, passed, rate) == (2, 1, 0.5)
+
+
+def test_pass_rate_even_samples_tie_counts_as_fail():
+    from collections import deque
+    seq = {"a::t": deque([True, False])}  # 1/2 = tie
+
+    def dispatch(pair, model):
+        return seq[pair].popleft()
+
+    prf = ac.make_pass_rate_fn(dispatch, samples=2)
+    rate, total, passed, excl = prf("t", "low", "m", ["a::t"], set())
+    assert passed == 0  # strict majority: a tie does not pass
+
+
+def test_make_pass_rate_fn_rejects_samples_below_one():
+    with pytest.raises(ValueError):
+        ac.make_pass_rate_fn(lambda p, m: True, samples=0)
