@@ -41,7 +41,7 @@ The orchestrator classifies incoming requests, routes them to the appropriate pi
 
 ## Resolution Procedure
 
-Each agent declares an **effort band** (`effort: low|medium|high`) in its frontmatter — the reasoning effort its task needs, not a vendor model name. Band-to-model resolution is **enforced by a PreToolUse hook** (`hooks/agent_model_resolve.py`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper (`hooks/lib/model_resolve.py`). The LLM cannot bypass it.
+Each agent declares an **effort band** (`effort: low|medium|high`) in its frontmatter — the reasoning effort its task needs, not a vendor model name. Band-to-model resolution is **enforced by a PreToolUse hook** (`hooks/agent_model_resolve.py`, registered in `hooks/hooks.json` under `matcher: "Agent|Task"`, mirrored in `settings.json` for older CLIs) backed by the resolver helper (`hooks/lib/model_resolve.py`). The LLM cannot bypass it.
 
 When the orchestrator (or any caller) spawns a subagent via the Agent tool, the hook:
 

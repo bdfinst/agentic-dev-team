@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """Python port of hooks/agent-model-resolve.sh (#585 / #572 Phase 2).
 
-PreToolUse hook on the `Agent` matcher. Resolves an agent's effort band to
-a concrete model before any sub-agent dispatch reaches the harness, then
-rewrites `tool_input.model` so the harness dispatches on it.
+PreToolUse hook on the `Agent|Task` matcher (the subagent-dispatch tool:
+`Task` before Claude Code 2.1.63, `Agent` after the rename — both names are
+accepted so a harness rename can't silently kill routing, #1178). Resolves
+an agent's effort band to a concrete model before any sub-agent dispatch
+reaches the harness, then rewrites `tool_input.model` so the harness
+dispatches on it. The rewrite value is the dispatch-layer ALIAS
+(haiku|sonnet|opus|fable), not the resolved snapshot ID: the Agent/Task
+tool's `model` parameter validates against an alias enum and silently
+ignores full snapshot IDs (#1178), while the routing map keeps full IDs
+for ladder/pricing purposes.
 
 Emits one of:
   - rewrite:      {"hookSpecificOutput":{"hookEventName":"PreToolUse",
@@ -248,6 +255,24 @@ def _emit_pass_through() -> None:
     sys.stdout.write("{}\n")
 
 
+# The Agent/Task tool's `model` parameter accepts alias names only — a full
+# snapshot ID placed in updatedInput is accepted by the hook layer but
+# silently ignored at dispatch, billing the session model (#1178). Rewrites
+# therefore translate the resolved ID to its family alias at the last
+# moment; the routing map and bump log keep full IDs.
+_DISPATCH_ALIAS_RE = re.compile(r"haiku|sonnet|opus|fable")
+
+
+def _dispatch_alias(model_id: str) -> str:
+    """Return the dispatch-layer alias for a model ID.
+
+    An ID with no recognizable family (or an already-alias value) passes
+    through unchanged — fail-open, matching this hook's posture.
+    """
+    m = _DISPATCH_ALIAS_RE.search(model_id)
+    return m.group(0) if m else model_id
+
+
 def _emit_rewrite(payload: dict, new_model: str) -> None:
     """Print the updatedInput envelope rewriting tool_input.model.
 
@@ -260,7 +285,7 @@ def _emit_rewrite(payload: dict, new_model: str) -> None:
         _emit_pass_through()
         return
     updated = dict(tool_input)
-    updated["model"] = new_model
+    updated["model"] = _dispatch_alias(new_model)
     envelope = {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -291,7 +316,7 @@ def main() -> int:
         return 0
 
     tool_name = payload.get("tool_name") or ""
-    if tool_name != "Agent":
+    if tool_name not in ("Agent", "Task"):
         return 0
 
     if not _MODEL_RESOLVE_AVAILABLE:  # pragma: no cover

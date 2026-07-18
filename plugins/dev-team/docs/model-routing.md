@@ -40,7 +40,7 @@ flowchart LR
     end
 
     subgraph plugin[Plugin enforcement surface]
-        HK[hooks/agent_model_resolve.py<br/>PreToolUse, matcher Agent]
+        HK[hooks/agent_model_resolve.py<br/>PreToolUse, matcher Agent|Task]
         RS[hooks/lib/model_resolve.py<br/>resolver helper]
     end
 
@@ -114,10 +114,18 @@ silent; bumps are logged to disk for `/model-routing-check`.
 ## Contract
 
 Each agent declares `effort: low|medium|high` in its YAML frontmatter. The
-PreToolUse hook `hooks/agent_model_resolve.py`, registered in `settings.json`
-under `matcher: "Agent"`, intercepts every sub-agent dispatch, strips any
-`<plugin>:` prefix from `subagent_type`, reads the agent's effort band, and
-resolves it to a concrete model before the harness sees the call.
+PreToolUse hook `hooks/agent_model_resolve.py`, registered in
+`hooks/hooks.json` (the plugin-hook mechanism Claude Code actually loads;
+`settings.json` mirrors the registrations for older CLIs) under
+`matcher: "Agent|Task"` — the subagent-dispatch tool was named `Task` before
+Claude Code 2.1.63 and `Agent` after, and both names are covered so a
+harness rename can't silently kill routing (#1178) — intercepts every
+sub-agent dispatch, strips any `<plugin>:` prefix from `subagent_type`,
+reads the agent's effort band, and resolves it to a concrete model before
+the harness sees the call. The rewrite emits the dispatch-layer **alias**
+(`haiku|sonnet|opus`), not the resolved snapshot ID: the Agent/Task tool's
+`model` parameter silently ignores full snapshot IDs (#1178), while the
+routing map and bump log keep full IDs for ladder/pricing purposes.
 
 Resolution inputs:
 

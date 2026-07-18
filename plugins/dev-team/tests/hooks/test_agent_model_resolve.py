@@ -13,6 +13,9 @@ Covers two independent #732 fixes:
 from __future__ import annotations
 
 import inspect
+import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -108,3 +111,101 @@ def test_read_effort_uses_descriptive_frontmatter_flag_name():
     source = inspect.getsource(agent_model_resolve._read_effort)
     assert "infm" not in source
     assert "in_frontmatter" in source
+
+
+# ---------------------------------------------------------------------------
+# #1178 — dispatch tool name coverage + dispatch-layer alias translation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("model_id", "alias"),
+    [
+        ("claude-haiku-4-5-20251001", "haiku"),
+        ("claude-sonnet-4-6", "sonnet"),
+        ("claude-opus-4-8", "opus"),
+        ("claude-fable-5", "fable"),
+        ("haiku", "haiku"),  # already an alias — unchanged
+    ],
+)
+def test_dispatch_alias_translates_model_family(model_id: str, alias: str) -> None:
+    assert agent_model_resolve._dispatch_alias(model_id) == alias
+
+
+def test_dispatch_alias_passes_unknown_ids_through() -> None:
+    # Fail-open: a ladder entry with no recognizable family is emitted
+    # as-is rather than guessed at.
+    assert (
+        agent_model_resolve._dispatch_alias("some-custom-model")
+        == "some-custom-model"
+    )
+
+
+def _run_hook(payload: dict, env_overrides: dict) -> subprocess.CompletedProcess:
+    env = dict(os.environ)
+    env.update(env_overrides)
+    return subprocess.run(
+        [sys.executable, str(_HOOKS_DIR / "agent_model_resolve.py")],
+        input=json.dumps(payload).encode("utf-8"),
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+
+def _dispatch_env(tmp_path: Path) -> dict:
+    """Isolated path seams: one high-effort agent, the shipped default map,
+    no ladder, no session model."""
+    agents = tmp_path / "agents"
+    agents.mkdir()
+    (agents / "correctness-review.md").write_text(
+        "---\neffort: high\n---\n", encoding="utf-8"
+    )
+    routing = tmp_path / "model-routing.json"
+    routing.write_text(
+        '{"low": "claude-haiku-4-5-20251001", "medium": "claude-sonnet-4-6", '
+        '"high": "claude-opus-4-8"}',
+        encoding="utf-8",
+    )
+    return {
+        "MODEL_AGENTS_DIR": str(agents),
+        "MODEL_ROUTING_JSON": str(routing),
+        "MODEL_LADDER_JSON": str(tmp_path / "no-ladder.json"),
+        "SESSION_MODEL_FILE": str(tmp_path / "no-session-model"),
+        "MODEL_BUMP_LOG": str(tmp_path / "bump.log"),
+    }
+
+
+@pytest.mark.parametrize("tool_name", ["Agent", "Task"])
+def test_rewrite_fires_for_both_dispatch_tool_names(
+    tmp_path: Path, tool_name: str
+) -> None:
+    """#1178: the subagent-dispatch tool is "Task" before Claude Code 2.1.63
+    and "Agent" after — the hook must rewrite under either payload name."""
+    result = _run_hook(
+        {
+            "session_id": "s1",
+            "tool_name": tool_name,
+            "tool_input": {"subagent_type": "dev-team:correctness-review"},
+        },
+        _dispatch_env(tmp_path),
+    )
+    assert result.returncode == 0
+    envelope = json.loads(result.stdout)
+    updated = envelope["hookSpecificOutput"]["updatedInput"]
+    # #1178 alias bug: the Agent/Task tool's `model` parameter silently
+    # ignores full snapshot IDs — the rewrite must carry the alias.
+    assert updated["model"] == "opus"
+
+
+def test_non_dispatch_tool_names_pass_through_silently(tmp_path: Path) -> None:
+    result = _run_hook(
+        {
+            "session_id": "s1",
+            "tool_name": "Bash",
+            "tool_input": {"command": "true"},
+        },
+        _dispatch_env(tmp_path),
+    )
+    assert result.returncode == 0
+    assert result.stdout == b""
