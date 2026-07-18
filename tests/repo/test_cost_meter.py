@@ -1,12 +1,19 @@
-"""Tests for the runtime cost/token meter (issues #102, #170): transcript
-parsing, per-model + per-thread (main/subagent) attribution, token->dollar
-conversion via model-pricing.json, the append-only metrics log, regression
-detection, and the Stop hook wrapper.
+"""Tests for the runtime cost/token meter (issues #102, #170, #1094):
+transcript parsing, per-model + per-thread (main/subagent) + per-agent-type
+attribution, token->dollar conversion via model-pricing.json, the append-only
+metrics log, regression detection, and the Stop hook wrapper.
 
-#170: attribution is limited to what the harness actually records — the model
-and the native `isSidechain` (main vs subagent). The per-command / per-phase /
-per-iteration buckets were removed because the harness exposes no such fields
-(see scripts spike) and a plugin cannot stamp them onto the transcript.
+#170: attribution is limited to what the harness actually records — the
+per-command / per-phase / per-iteration buckets were removed because the
+harness exposes no such fields (see scripts spike) and a plugin cannot stamp
+them onto the transcript.
+
+#1094: the agent-type dimension reads only fields the harness demonstrably
+writes (verified against a real transcript): the native `attributionAgent`
+field on sidechain records, the Task/Agent `tool_use` `input.subagent_type` +
+`toolUseResult.agentId` dispatch join, and the sibling per-subagent transcript
+files under `<dir>/<session-id>/subagents/agent-*.jsonl`. Sidechain usage that
+carries none of those signals lands in the honest `unattributed` bucket.
 
 Ported from tests/repo/cost_meter_tests.bats (issue #672).
 """
@@ -71,7 +78,143 @@ def test_meter_the_removed_inert_buckets_are_gone_170(case: Path) -> None:
     assert "by_command" not in data
     assert "by_phase" not in data
     assert "by_iteration" not in data
+    # by_agent_type (#1094) is a distinct, genuinely-attributed dimension —
+    # the inert opaque "by_agent" bucket stays gone.
     assert "by_agent" not in data
+
+
+# ---------------------------------------------------------------------------
+# by_agent_type (#1094) — agent-type attribution from harness-recorded fields
+# ---------------------------------------------------------------------------
+
+# Main transcript exercising all three attribution outcomes:
+#   * a plain main-loop turn                         -> "main"
+#   * a Task dispatch (tool_use subagent_type) whose paired tool_result
+#     carries toolUseResult.agentId                  -> join map agent001
+#   * a sidechain turn with native attributionAgent  -> "test-review" (primary)
+#   * a sidechain turn with only agentId=agent001    -> "security-review" (join)
+#   * a sidechain turn with neither signal           -> "unattributed"
+AGENT_TYPE_TRANSCRIPT = (
+    '{"type":"assistant","message":{"model":"claude-opus-4-8",'
+    '"usage":{"input_tokens":1000,"output_tokens":100}}}\n'
+    '{"type":"assistant","message":{"model":"claude-opus-4-8",'
+    '"content":[{"type":"tool_use","id":"toolu_1","name":"Task",'
+    '"input":{"subagent_type":"security-review","description":"d",'
+    '"prompt":"sekrit-dispatch-prompt"}}]}}\n'
+    '{"type":"user","toolUseResult":{"agentId":"agent001","status":"async_launched"},'
+    '"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1"}]}}\n'
+    '{"type":"assistant","isSidechain":true,"attributionAgent":"test-review",'
+    '"message":{"model":"claude-sonnet-4-6",'
+    '"usage":{"input_tokens":2000,"output_tokens":200}}}\n'
+    '{"type":"assistant","isSidechain":true,"agentId":"agent001",'
+    '"message":{"model":"claude-sonnet-4-6",'
+    '"usage":{"input_tokens":3000,"output_tokens":300}}}\n'
+    '{"type":"assistant","isSidechain":true,'
+    '"message":{"model":"claude-sonnet-4-6",'
+    '"usage":{"input_tokens":4000,"output_tokens":400}}}\n'
+)
+
+
+@pytest.fixture
+def agent_case(tmp_path: Path) -> Path:
+    (tmp_path / "a.jsonl").write_text(AGENT_TYPE_TRANSCRIPT)
+    return tmp_path
+
+
+def _agent_report(agent_case: Path) -> dict:
+    res = _run("report", "--transcript", str(agent_case / "a.jsonl"), "--json")
+    assert res.returncode == 0, res.stdout + res.stderr
+    return json.loads(res.stdout)
+
+
+def test_meter_attributes_sidechain_spend_via_native_attribution_agent_field(
+    agent_case: Path,
+) -> None:
+    data = _agent_report(agent_case)
+    assert data["by_agent_type"]["test-review"]["input_tokens"] == 2000
+    assert data["by_agent_type"]["test-review"]["messages"] == 1
+
+
+def test_meter_attributes_sidechain_spend_via_task_dispatch_agent_id_join(
+    agent_case: Path,
+) -> None:
+    data = _agent_report(agent_case)
+    assert data["by_agent_type"]["security-review"]["input_tokens"] == 3000
+
+
+def test_meter_buckets_unmappable_sidechain_spend_as_unattributed(
+    agent_case: Path,
+) -> None:
+    data = _agent_report(agent_case)
+    assert data["by_agent_type"]["unattributed"]["input_tokens"] == 4000
+
+
+def test_meter_main_loop_spend_lands_in_main_and_dimension_sums_to_totals(
+    agent_case: Path,
+) -> None:
+    data = _agent_report(agent_case)
+    assert data["by_agent_type"]["main"]["input_tokens"] == 1000
+    assert sum(b["input_tokens"] for b in data["by_agent_type"].values()) == (
+        data["totals"]["input_tokens"]
+    )
+
+
+def test_meter_no_sidechain_transcript_yields_only_a_main_bucket(case: Path) -> None:
+    record = {
+        "type": "assistant",
+        "message": {
+            "model": "claude-opus-4-8",
+            "usage": {"input_tokens": 100, "output_tokens": 10},
+        },
+    }
+    (case / "m.jsonl").write_text(json.dumps(record) + "\n")
+    res = _run("report", "--transcript", str(case / "m.jsonl"), "--json")
+    assert res.returncode == 0, res.stdout + res.stderr
+    data = json.loads(res.stdout)
+    assert list(data["by_agent_type"]) == ["main"]
+    assert "unattributed" not in data["by_agent_type"]
+
+
+def test_meter_report_folds_in_sibling_per_subagent_transcript_files(
+    tmp_path: Path,
+) -> None:
+    """Newer harness layout (#1094): sidechain turns live in
+    <dir>/<session-id>/subagents/agent-*.jsonl, not inline — the meter must
+    scan them or subagent spend is invisible."""
+    (tmp_path / "s.jsonl").write_text(
+        '{"type":"assistant","message":{"model":"claude-opus-4-8",'
+        '"usage":{"input_tokens":1000,"output_tokens":100}}}\n'
+    )
+    subdir = tmp_path / "s" / "subagents"
+    subdir.mkdir(parents=True)
+    (subdir / "agent-abc123.jsonl").write_text(
+        '{"type":"assistant","isSidechain":true,"agentId":"abc123",'
+        '"attributionAgent":"security-review",'
+        '"message":{"model":"claude-sonnet-4-6",'
+        '"usage":{"input_tokens":5000,"output_tokens":500}}}\n'
+    )
+    res = _run("report", "--transcript", str(tmp_path / "s.jsonl"), "--json")
+    assert res.returncode == 0, res.stdout + res.stderr
+    data = json.loads(res.stdout)
+    assert data["totals"]["input_tokens"] == 6000
+    assert data["by_thread"]["subagent"]["input_tokens"] == 5000
+    assert data["by_agent_type"]["security-review"]["input_tokens"] == 5000
+
+
+def test_meter_record_log_line_carries_by_agent_type_but_never_prompt_text(
+    agent_case: Path,
+) -> None:
+    log = agent_case / "log.jsonl"
+    res = _run("record", "--transcript", str(agent_case / "a.jsonl"), "--log", str(log))
+    assert res.returncode == 0, res.stdout + res.stderr
+    raw = log.read_text()
+    entry = json.loads(raw.splitlines()[0])
+    assert entry["by_agent_type"]["test-review"]["input_tokens"] == 2000
+    assert entry["by_agent_type"]["security-review"]["input_tokens"] == 3000
+    assert entry["by_agent_type"]["unattributed"]["input_tokens"] == 4000
+    # Privacy boundary: agent-type identifiers only — the dispatch prompt from
+    # the Task tool_use input must never reach the metrics log.
+    assert "sekrit-dispatch-prompt" not in raw
 
 
 def test_meter_dollar_cost_matches_the_pricing_table(case: Path) -> None:

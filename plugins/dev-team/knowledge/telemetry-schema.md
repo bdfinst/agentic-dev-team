@@ -77,6 +77,7 @@ transcript on each `Stop` hook fire.
 | `total` | object | Aggregated token counts + `cost_usd` + `messages` across the session |
 | `by_model` | object | Per-model slim breakdown: `cost_usd`, `input_tokens`, `output_tokens` |
 | `by_thread` | object | Per-thread slim breakdown, same shape as `by_model` |
+| `by_agent_type` | object | Per-agent-type slim breakdown, same shape as `by_model`: `main` for main-loop turns; sidechain turns keyed by subagent type via `attributionAgent` or the Task-dispatch join; honest `unattributed` bucket when neither signal exists (#1094) |
 
 - **Emitter:** `hooks/cost_meter.py` (wrapper) → `hooks/lib/cost_meter.py::cmd_record()`.
 - **Consent:** unconditional (local-only cost accounting).

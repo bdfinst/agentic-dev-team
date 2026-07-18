@@ -116,6 +116,41 @@ Logged at the end of each task:
 | `hallucination_detected` | boolean | Whether a hallucination was flagged |
 | `duration_seconds` | number | Wall-clock seconds from start to delivery |
 
+### Cost Metering Entry (#102, #1094)
+
+The `Stop`/`SubagentStop` hook (`hooks/cost_meter.py` →
+`hooks/lib/cost_meter.py record`) appends one entry per fire to
+`metrics/cost-metering.jsonl` — the running per-session token/cost summary
+parsed from the transcript. Full schema reference:
+`knowledge/telemetry-schema.md`.
+
+```json
+{
+  "timestamp": "2026-07-18T14:30:00Z",
+  "transcript": "session.jsonl",
+  "total": {"input_tokens": 18000, "output_tokens": 3500, "cost_usd": 0.16, "messages": 12},
+  "by_model": {"<model-id>": {"cost_usd": 0.16, "input_tokens": 18000, "output_tokens": 3500}},
+  "by_thread": {"main": {"cost_usd": 0.10, "input_tokens": 10000, "output_tokens": 2000},
+                "subagent": {"cost_usd": 0.06, "input_tokens": 8000, "output_tokens": 1500}},
+  "by_agent_type": {"main": {"cost_usd": 0.10, "input_tokens": 10000, "output_tokens": 2000},
+                    "security-review": {"cost_usd": 0.06, "input_tokens": 8000, "output_tokens": 1500}}
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `total` | object | Session-cumulative token counts, `cost_usd`, `messages` |
+| `by_model` | object | Per-model slim breakdown (`cost_usd`, `input_tokens`, `output_tokens`) |
+| `by_thread` | object | `main` vs `subagent`, from the native `isSidechain` flag |
+| `by_agent_type` | object | `main` for main-loop turns; sidechain turns keyed by subagent type via the harness-recorded `attributionAgent` field or the Task-dispatch `subagent_type`/`agentId` join; unmappable sidechain spend lands in `unattributed` (#1094) |
+
+**Privacy:** token counts, dollar amounts, model identifiers, and thread/
+agent-type identifiers only — never prompt text, code, file paths, or tool
+payloads. Attribution reads only fields the Claude Code harness itself writes
+to the transcript; the meter never guesses (see #170 for the buckets removed
+because the harness records no signal for them). Disable with
+`DEV_TEAM_COST_METER=off`. Report it with `/cost-report`.
+
 ### Review Value Entry (#348)
 
 `/build` appends one entry per **inline review checkpoint** to
