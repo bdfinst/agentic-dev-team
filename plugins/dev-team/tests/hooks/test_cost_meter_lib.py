@@ -211,6 +211,148 @@ def test_cmd_record_resets_when_transcript_shrinks(hermetic_cost_meter):
 
 
 # ---------------------------------------------------------------------------
+# by_agent_type (#1094) — incremental record path
+# ---------------------------------------------------------------------------
+
+
+def test_cmd_record_dispatch_join_survives_across_fires(hermetic_cost_meter):
+    """The Task-dispatch join maps (tool_use id -> subagent_type,
+    agentId -> subagent_type) must persist in state: dispatch may land in one
+    fire and the sidechain turns it explains in a later one."""
+    tmp_path = hermetic_cost_meter
+    transcript = tmp_path / "transcript.jsonl"
+    log = tmp_path / "metrics" / "cost-metering.jsonl"
+
+    dispatch = json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "claude-x",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_9",
+                        "name": "Task",
+                        "input": {"subagent_type": "security-review", "prompt": "p"},
+                    }
+                ],
+            },
+        }
+    )
+    transcript.write_text(dispatch + "\n")
+
+    args = SimpleNamespace(transcript=str(transcript), log=str(log))
+    cost_meter.cmd_record(args, _PRICING)
+
+    result = json.dumps(
+        {
+            "type": "user",
+            "toolUseResult": {"agentId": "agent9"},
+            "message": {
+                "content": [{"type": "tool_result", "tool_use_id": "toolu_9"}]
+            },
+        }
+    )
+    sidechain = json.dumps(
+        {
+            "type": "assistant",
+            "isSidechain": True,
+            "agentId": "agent9",
+            "message": {
+                "model": "claude-x",
+                "usage": {"input_tokens": 700, "output_tokens": 70},
+            },
+        }
+    )
+    with transcript.open("a") as fh:
+        fh.write(result + "\n" + sidechain + "\n")
+    cost_meter.cmd_record(args, _PRICING)
+
+    last = json.loads(log.read_text().splitlines()[-1])
+    assert last["by_agent_type"]["security-review"]["input_tokens"] == 700
+
+
+def test_cmd_record_tails_sibling_subagent_files_with_per_file_offsets(
+    hermetic_cost_meter,
+):
+    """Sibling per-subagent transcripts (#1094) are tailed incrementally too:
+    cumulative totals across fires must match a from-scratch full reparse."""
+    tmp_path = hermetic_cost_meter
+    transcript = tmp_path / "transcript.jsonl"
+    log = tmp_path / "metrics" / "cost-metering.jsonl"
+    transcript.write_text(_usage_line("claude-x", 100, 50))
+
+    subdir = tmp_path / "transcript" / "subagents"
+    subdir.mkdir(parents=True)
+    sub = subdir / "agent-abc.jsonl"
+
+    def _sub_line(input_tokens: int) -> str:
+        return json.dumps(
+            {
+                "type": "assistant",
+                "isSidechain": True,
+                "agentId": "abc",
+                "attributionAgent": "test-review",
+                "message": {
+                    "model": "claude-x",
+                    "usage": {"input_tokens": input_tokens, "output_tokens": 1},
+                },
+            }
+        ) + "\n"
+
+    sub.write_text(_sub_line(1000))
+
+    args = SimpleNamespace(transcript=str(transcript), log=str(log))
+    cost_meter.cmd_record(args, _PRICING)
+
+    state = json.loads(cost_meter._state_file(transcript).read_text())
+    assert state["subagent_offsets"]["agent-abc.jsonl"] == sub.stat().st_size
+
+    with sub.open("a") as fh:
+        fh.write(_sub_line(2000))
+    cost_meter.cmd_record(args, _PRICING)
+
+    last = json.loads(log.read_text().splitlines()[-1])
+    expected = cost_meter.parse_transcript(transcript, _PRICING)
+    assert last["total"]["input_tokens"] == expected["totals"]["input_tokens"]
+    assert (
+        last["by_agent_type"]["test-review"]["input_tokens"]
+        == expected["by_agent_type"]["test-review"]["input_tokens"]
+        == 3000
+    )
+
+
+def test_cmd_record_rebuilds_from_scratch_on_pre_1094_state_schema(
+    hermetic_cost_meter,
+):
+    """A persisted state without by_agent_type (pre-#1094) must trigger a full
+    rebuild — resuming it would ship an agent-type dimension that no longer
+    sums to the session totals."""
+    tmp_path = hermetic_cost_meter
+    transcript = tmp_path / "transcript.jsonl"
+    log = tmp_path / "metrics" / "cost-metering.jsonl"
+    transcript.write_text(_usage_line("claude-x", 100, 50, sidechain=True))
+
+    stale_state = {
+        "offset": transcript.stat().st_size,
+        "by_model": {},
+        "by_thread": {},
+        "totals": {},
+        "unpriced_models": [],
+    }
+    state_file = cost_meter._state_file(transcript)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(stale_state))
+
+    args = SimpleNamespace(transcript=str(transcript), log=str(log))
+    cost_meter.cmd_record(args, _PRICING)
+
+    last = json.loads(log.read_text().splitlines()[-1])
+    assert last["total"]["input_tokens"] == 100
+    assert last["by_agent_type"]["unattributed"]["input_tokens"] == 100
+
+
+# ---------------------------------------------------------------------------
 # _purge_stale — TTL purge for the new cost-meter state dir
 # ---------------------------------------------------------------------------
 

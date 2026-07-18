@@ -8,14 +8,31 @@ so a Stop hook can hand this script the transcript to parse. This converts token
 usage to dollars via the named instrument knowledge/model-pricing.json (#102 is
 why that table exists) and writes an append-only metrics log.
 
-Attribution dimensions (#102, #170)
------------------------------------
+Attribution dimensions (#102, #170, #1094)
+------------------------------------------
 Attribution is limited to what the harness actually records on transcript
-records — verified empirically (#170). Spend is attributed to:
-  * the MODEL (`message.model`), and
+records — verified empirically (#170, re-verified for #1094). Spend is
+attributed to:
+  * the MODEL (`message.model`),
   * the THREAD: main-loop vs subagent, from the native top-level `isSidechain`
-    flag (true on subagent/sidechain turns).
+    flag (true on subagent/sidechain turns),
+  * the AGENT TYPE (#1094): `main` for main-loop turns; for sidechain turns the
+    subagent type (e.g. `security-review`, `general-purpose`) via two
+    harness-recorded signals, with an honest `unattributed` bucket when neither
+    is present:
+      1. the native top-level `attributionAgent` field the harness stamps on
+         sidechain records (primary — present on every usage-bearing sidechain
+         record in real transcripts), or
+      2. the Task/Agent dispatch join: a main-thread `tool_use` block named
+         `Task`/`Agent` carries `input.subagent_type` and its paired
+         `tool_result` record carries top-level `toolUseResult.agentId`; each
+         sidechain record carries the matching `agentId` (fallback).
   * plus the session TOTAL.
+
+Newer harness versions write sidechain turns to sibling per-subagent transcript
+files (`<dir>/<session-id>/subagents/agent-<agentId>.jsonl`) instead of inline
+`isSidechain` records; the meter scans those siblings so subagent spend stays
+visible either way (#1094).
 
 What is deliberately NOT attributed, and why (#170): per-command, per-phase, and
 per-fix-loop-iteration attribution were attempted via `attributionSkill` /
@@ -25,15 +42,17 @@ transcript), and a plugin has no write-path into the transcript. Those buckets
 were therefore always inert ("untagged"/"other"/"unattributed") and have been
 removed rather than ship misleading empty dimensions. Re-deriving them would
 require fragile heuristics (correlating Stop-hook timestamps with command
-boundaries) and is out of scope.
+boundaries) and is out of scope. The agent-type dimension (#1094) is different
+in kind: it reads only fields the harness demonstrably writes.
 
 Privacy boundary
 ----------------
 This meter persists ONLY token counts, dollar amounts, model identifiers, and
-the main/subagent thread flag. It never reads or records prompt text, code, file
-paths, or tool payloads from the transcript — only the `usage`/`model`/
-`isSidechain` fields. The append-only metrics log is a metrics-only artifact by
-construction.
+the thread/agent-type identifiers. It never reads or records prompt text, code,
+file paths, or tool payloads from the transcript — only the `usage`/`model`/
+`isSidechain`/`attributionAgent`/`agentId`/`subagent_type` fields and tool-use
+ids needed to join them. The append-only metrics log is a metrics-only artifact
+by construction.
 
 Subcommands
 -----------
@@ -149,21 +168,7 @@ def _load_state(state_file: Path) -> Optional[dict]:
     return data if isinstance(data, dict) else None
 
 
-def _save_state(
-    state_file: Path,
-    offset: int,
-    by_model: dict,
-    by_thread: dict,
-    totals: dict,
-    unpriced_models: set,
-) -> None:
-    payload = {
-        "offset": offset,
-        "by_model": by_model,
-        "by_thread": by_thread,
-        "totals": totals,
-        "unpriced_models": sorted(unpriced_models),
-    }
+def _save_state(state_file: Path, payload: dict) -> None:
     try:
         state_file.write_text(json.dumps(payload))
     except OSError:
@@ -226,20 +231,121 @@ def _new_bucket() -> dict:
     return {f: 0 for f in _TOKEN_FIELDS} | {"cost_usd": 0.0, "messages": 0}
 
 
+# Tool names the harness uses for subagent dispatch (both spellings appear in
+# real transcripts depending on harness version).
+_TASK_TOOL_NAMES = ("Task", "Agent")
+
+
+def _iter_content_blocks(rec: dict):
+    """Yield the dict blocks of `message.content` when it is a block list."""
+    message = rec.get("message")
+    if not isinstance(message, dict):
+        return
+    content = message.get("content")
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if isinstance(block, dict):
+            yield block
+
+
+def _harvest_agent_dispatch(rec: dict, dispatch_types: dict, agent_types: dict) -> None:
+    """Fold subagent-dispatch metadata from one record into the join maps.
+
+    Two harness-recorded halves of the join (#1094):
+      * an assistant `tool_use` block named Task/Agent carries
+        `input.subagent_type` — keyed here by the block's tool-use id;
+      * the paired `tool_result` user record carries top-level
+        `toolUseResult.agentId` — completing agentId -> subagent_type.
+
+    Only the identifiers are read; prompts/descriptions are never touched.
+    """
+    for block in _iter_content_blocks(rec):
+        block_type = block.get("type")
+        if block_type == "tool_use" and block.get("name") in _TASK_TOOL_NAMES:
+            block_id = block.get("id")
+            block_input = block.get("input")
+            subagent_type = (
+                block_input.get("subagent_type")
+                if isinstance(block_input, dict)
+                else None
+            )
+            if (
+                isinstance(block_id, str)
+                and isinstance(subagent_type, str)
+                and subagent_type
+            ):
+                dispatch_types[block_id] = subagent_type
+        elif block_type == "tool_result":
+            tool_use_id = block.get("tool_use_id")
+            tool_use_result = rec.get("toolUseResult")
+            agent_id = (
+                tool_use_result.get("agentId")
+                if isinstance(tool_use_result, dict)
+                else None
+            )
+            if (
+                isinstance(tool_use_id, str)
+                and isinstance(agent_id, str)
+                and tool_use_id in dispatch_types
+            ):
+                agent_types[agent_id] = dispatch_types[tool_use_id]
+
+
+def _agent_type_key(rec: dict, agent_types: dict) -> str:
+    """Agent-type bucket for one usage-bearing record (#1094).
+
+    `main` for main-loop turns. For sidechain turns: the native
+    `attributionAgent` field (primary), else the agentId -> subagent_type join
+    built from Task/Agent dispatches (fallback), else the honest
+    `unattributed` bucket — never a guess.
+    """
+    if not rec.get("isSidechain"):
+        return "main"
+    attribution_agent = rec.get("attributionAgent")
+    if isinstance(attribution_agent, str) and attribution_agent:
+        return attribution_agent
+    agent_id = rec.get("agentId")
+    if isinstance(agent_id, str) and agent_id in agent_types:
+        return agent_types[agent_id]
+    return "unattributed"
+
+
+def _subagent_files(transcript_path: Path) -> List[Path]:
+    """Sibling per-subagent transcript files for a session transcript.
+
+    Newer harness versions store sidechain turns in
+    `<dir>/<session-id>/subagents/agent-<agentId>.jsonl` rather than inline
+    `isSidechain` records in the session transcript (#1094). Returns [] when
+    the layout is absent (older format, or a subagent transcript itself).
+    """
+    subagents_dir = transcript_path.parent / transcript_path.stem / "subagents"
+    try:
+        if not subagents_dir.is_dir():
+            return []
+        return sorted(p for p in subagents_dir.glob("agent-*.jsonl") if p.is_file())
+    except OSError:
+        return []
+
+
 def _accumulate_lines(
     lines,
     pricing: dict,
     by_model: dict,
     by_thread: dict,
+    by_agent_type: dict,
     totals: dict,
     unpriced_models: set,
+    dispatch_types: dict,
+    agent_types: dict,
 ) -> None:
     """Fold `lines` (raw JSONL transcript records) into the given aggregates.
 
-    Mutates `by_model`, `by_thread`, `totals`, and `unpriced_models` in place
-    so callers can seed them from a persisted running state and only pass in
-    the newly-appended lines (#732) — or seed them empty and pass the whole
-    transcript for a one-shot full parse.
+    Mutates the bucket dicts, `totals`, `unpriced_models`, and the
+    `dispatch_types`/`agent_types` join maps in place so callers can seed them
+    from a persisted running state and only pass in the newly-appended lines
+    (#732) — or seed them empty and pass the whole transcript for a one-shot
+    full parse.
     """
     for line in lines:
         line = line.strip()
@@ -249,21 +355,28 @@ def _accumulate_lines(
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
+        # Dispatch metadata can sit on records with no usage (tool_use /
+        # tool_result turns), so harvest before the usage gate.
+        _harvest_agent_dispatch(rec, dispatch_types, agent_types)
         usage = _first_present_field(rec, "usage")
         if not isinstance(usage, dict):
             continue
         model = _first_present_field(rec, "model") or "unknown"
         # Main-loop vs subagent: the native top-level `isSidechain` flag is true
-        # on sidechain (subagent) turns. This is the only agent-level signal the
-        # harness exposes (#170) — `agent_type`/`agent_id` are never present.
+        # on sidechain (subagent) turns.
         thread = "subagent" if rec.get("isSidechain") else "main"
+        agent_type = _agent_type_key(rec, agent_types)
 
         rate = _rate(pricing, model)
         cost = _cost(usage, rate, pricing) if rate else 0.0
         if not rate and model != "unknown":
             unpriced_models.add(model)
 
-        for bucket, key in ((by_model, model), (by_thread, thread)):
+        for bucket, key in (
+            (by_model, model),
+            (by_thread, thread),
+            (by_agent_type, agent_type),
+        ):
             b = bucket.setdefault(key, _new_bucket())
             for f in _TOKEN_FIELDS:
                 b[f] += usage.get(f, 0) or 0
@@ -277,11 +390,13 @@ def _accumulate_lines(
 
 
 def parse_transcript(path: Path, pricing: dict) -> dict:
-    """Aggregate transcript usage by model and by thread (main vs subagent).
+    """Aggregate transcript usage by model, thread, and agent type.
 
-    Only dimensions the harness actually records are attributed (#170): the
-    model (`message.model`) and the main/subagent split (native top-level
-    `isSidechain`), plus the session total.
+    Only dimensions the harness actually records are attributed (#170, #1094):
+    the model (`message.model`), the main/subagent split (native top-level
+    `isSidechain`), and the agent type (`attributionAgent`, or the Task/Agent
+    dispatch join — see module docstring), plus the session total. Sibling
+    per-subagent transcript files are folded in when present (#1094).
 
     Full one-shot parse — used by `report`/`regression`/`pace`, which run
     on-demand rather than once per hook fire. `record` (the Stop-hook hot
@@ -291,21 +406,38 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
     """
     by_model: dict[str, dict] = {}
     by_thread: dict[str, dict] = {}
+    by_agent_type: dict[str, dict] = {}
     totals = _new_bucket()
     unpriced_models: set[str] = set()
+    dispatch_types: dict[str, str] = {}
+    agent_types: dict[str, str] = {}
 
-    _accumulate_lines(
-        path.read_text().splitlines(),
-        pricing,
-        by_model,
-        by_thread,
-        totals,
-        unpriced_models,
-    )
+    # Main transcript first so the dispatch join maps are populated before the
+    # sibling subagent files (whose records fall back on them) are folded in.
+    sources = [path] + _subagent_files(path)
+    for source in sources:
+        try:
+            source_lines = source.read_text().splitlines()
+        except OSError:
+            if source is path:
+                raise
+            continue
+        _accumulate_lines(
+            source_lines,
+            pricing,
+            by_model,
+            by_thread,
+            by_agent_type,
+            totals,
+            unpriced_models,
+            dispatch_types,
+            agent_types,
+        )
 
     return {
         "by_model": by_model,
         "by_thread": by_thread,
+        "by_agent_type": by_agent_type,
         "totals": totals,
         "unpriced_models": sorted(unpriced_models),
     }
@@ -328,6 +460,7 @@ def _print_report(summary: dict) -> None:
     print(f"# Cost meter — {t['messages']} assistant message(s)")
     _print_dimension("MODEL", summary["by_model"])
     _print_dimension("THREAD (main/subagent)", summary["by_thread"])
+    _print_dimension("AGENT TYPE", summary.get("by_agent_type", {}))
     print("-" * 60)
     print(
         f"{'TOTAL':<28} {t['input_tokens']:>10} {t['output_tokens']:>10} "
@@ -349,6 +482,38 @@ def cmd_report(args, pricing) -> int:
     return 0
 
 
+def _record_state_is_usable(
+    state: Optional[dict], size: int, subagent_paths: List[Path]
+) -> bool:
+    """Whether a persisted `record` state can be resumed from (#732, #1094).
+
+    Unusable when: absent/corrupt; the main offset is not an int within the
+    current file size (rotation/truncation); the schema predates the
+    agent-type dimension (resuming would ship a by_agent_type that no longer
+    sums to totals); or a tracked subagent file shrank below its offset.
+    """
+    if not state:
+        return False
+    offset = state.get("offset")
+    if not isinstance(offset, int) or not 0 <= offset <= size:
+        return False
+    if "by_agent_type" not in state:
+        return False  # pre-#1094 state schema — rebuild from byte 0
+    subagent_offsets = state.get("subagent_offsets")
+    if subagent_offsets is not None and not isinstance(subagent_offsets, dict):
+        return False
+    sizes_by_name = {}
+    for p in subagent_paths:
+        try:
+            sizes_by_name[p.name] = p.stat().st_size
+        except OSError:
+            sizes_by_name[p.name] = 0
+    for name, sub_offset in (subagent_offsets or {}).items():
+        if not isinstance(sub_offset, int) or sub_offset > sizes_by_name.get(name, 0):
+            return False
+    return True
+
+
 def cmd_record(args, pricing) -> int:
     tpath = Path(args.transcript)
     if not tpath.is_file():
@@ -365,36 +530,80 @@ def cmd_record(args, pricing) -> int:
 
     state = _load_state(state_file)
     size = tpath.stat().st_size
+    subagent_paths = _subagent_files(tpath)
 
-    prior_offset = state.get("offset") if state else None
-    if (
-        state is not None
-        and isinstance(prior_offset, int)
-        and 0 <= prior_offset <= size
-    ):
-        offset = prior_offset
+    if _record_state_is_usable(state, size, subagent_paths):
+        offset = state["offset"]
+        subagent_offsets = {
+            k: v
+            for k, v in (state.get("subagent_offsets") or {}).items()
+            if isinstance(v, int)
+        }
         by_model = state.get("by_model") or {}
         by_thread = state.get("by_thread") or {}
+        by_agent_type = state.get("by_agent_type") or {}
         totals = state.get("totals") or _new_bucket()
         for f in _TOKEN_FIELDS:
             totals.setdefault(f, 0)
         totals.setdefault("cost_usd", 0.0)
         totals.setdefault("messages", 0)
         unpriced_models = set(state.get("unpriced_models") or [])
+        dispatch_types = state.get("dispatch_types") or {}
+        agent_types = state.get("agent_types") or {}
     else:
-        # First fire, or the transcript shrank (rotated/truncated) since the
-        # last fire — start fresh rather than seek past a stale offset.
+        # First fire, a pre-#1094 state schema, or a transcript that shrank
+        # (rotated/truncated) since the last fire — start fresh rather than
+        # seek past a stale offset or ship a partial agent-type dimension.
         offset = 0
-        by_model, by_thread, totals, unpriced_models = {}, {}, _new_bucket(), set()
+        subagent_offsets = {}
+        by_model, by_thread, by_agent_type = {}, {}, {}
+        totals, unpriced_models = _new_bucket(), set()
+        dispatch_types, agent_types = {}, {}
 
+    def _fold(lines) -> None:
+        _accumulate_lines(
+            lines,
+            pricing,
+            by_model,
+            by_thread,
+            by_agent_type,
+            totals,
+            unpriced_models,
+            dispatch_types,
+            agent_types,
+        )
+
+    # Main transcript first so dispatch joins land before subagent turns that
+    # may need them, then each sibling per-subagent transcript (#1094) — each
+    # with its own persisted byte offset so every source is tailed, not
+    # re-parsed, per fire (#732).
     new_offset, new_lines = _read_new_lines(tpath, offset)
-    _accumulate_lines(new_lines, pricing, by_model, by_thread, totals, unpriced_models)
+    _fold(new_lines)
+    for sub_path in subagent_paths:
+        sub_offset = subagent_offsets.get(sub_path.name, 0)
+        sub_new_offset, sub_lines = _read_new_lines(sub_path, sub_offset)
+        _fold(sub_lines)
+        subagent_offsets[sub_path.name] = sub_new_offset
 
-    _save_state(state_file, new_offset, by_model, by_thread, totals, unpriced_models)
+    _save_state(
+        state_file,
+        {
+            "offset": new_offset,
+            "subagent_offsets": subagent_offsets,
+            "by_model": by_model,
+            "by_thread": by_thread,
+            "by_agent_type": by_agent_type,
+            "totals": totals,
+            "unpriced_models": sorted(unpriced_models),
+            "dispatch_types": dispatch_types,
+            "agent_types": agent_types,
+        },
+    )
 
     summary = {
         "by_model": by_model,
         "by_thread": by_thread,
+        "by_agent_type": by_agent_type,
         "totals": totals,
         "unpriced_models": sorted(unpriced_models),
     }
@@ -417,6 +626,7 @@ def cmd_record(args, pricing) -> int:
         "total": summary["totals"],
         "by_model": _slim(summary["by_model"]),
         "by_thread": _slim(summary["by_thread"]),
+        "by_agent_type": _slim(summary["by_agent_type"]),
     }
     log = Path(args.log)
     log.parent.mkdir(parents=True, exist_ok=True)

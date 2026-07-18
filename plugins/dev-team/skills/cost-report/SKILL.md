@@ -44,9 +44,9 @@ data.
      --log metrics/cost-metering.jsonl --tolerance 0.5
    ```
 
-3. Report the per-agent, per-command, and per-fix-loop-iteration tokens + cost,
-   the session total, and whether a cost regression was detected. Do not invent
-   numbers — print exactly what the meter emits. If `metrics/cost-metering.jsonl`
+3. Report the per-model, per-thread (main/subagent), and per-agent-type tokens
+   + cost, the session total, and whether a cost regression was detected. Do
+   not invent numbers — print exactly what the meter emits. If `metrics/cost-metering.jsonl`
    is absent, tell the user the meter hasn't recorded a session yet (the hook
    records on turn end).
 
@@ -58,10 +58,21 @@ data.
      --log metrics/cost-metering.jsonl --tolerance 0.5 --window 10
    ```
 
-## Attribution dimensions (#102, #170)
+## Attribution dimensions (#102, #170, #1094)
 
-`report` breaks spend down by **model** and by **thread** (main-loop vs
-subagent), plus the session **total**.
+`report` breaks spend down by **model**, by **thread** (main-loop vs
+subagent), and by **agent type** (#1094), plus the session **total**.
+
+The agent-type dimension answers "which agent type drives spend" (e.g.
+`security-review` vs `test-review` vs `general-purpose`): main-loop turns land
+in `main`; sidechain turns are attributed via the native `attributionAgent`
+field the harness stamps on subagent records, falling back to the Task/Agent
+dispatch join (`tool_use` `input.subagent_type` paired with
+`toolUseResult.agentId`). Sidechain spend carrying neither signal lands in an
+honest `unattributed` bucket — the meter never guesses. The meter also folds in
+the sibling per-subagent transcript files
+(`<dir>/<session-id>/subagents/agent-*.jsonl`) that newer harness versions
+write instead of inline sidechain turns, so subagent spend stays visible.
 
 Attribution is limited to what the Claude Code harness actually records on
 transcript turns. Per-command, per-phase, and per-fix-loop-iteration buckets
@@ -69,7 +80,9 @@ were **removed** (#170): they relied on `attributionSkill` / `orchestrationPhase
 / `fixLoopIteration` fields the harness never writes (verified 0/312 in a real
 transcript), and a plugin has no write-path into the transcript — so those
 dimensions were always empty. The main/subagent split uses the native
-`isSidechain` flag, which the harness does provide.
+`isSidechain` flag, which the harness does provide; the agent-type dimension
+likewise reads only harness-recorded fields (verified against a real
+transcript, #1094).
 
 ## Review value (#348)
 
@@ -98,10 +111,10 @@ per-step complexity routing. Counts only; no code or file content is stored.
 
 ## Privacy boundary
 
-The meter persists **only** token counts, dollar amounts, model identifiers, and
-the main/subagent thread flag — never prompt text, code, file paths, or tool
-payloads. `metrics/cost-metering.jsonl` is a metrics-only artifact by
-construction.
+The meter persists **only** token counts, dollar amounts, model identifiers,
+the main/subagent thread flag, and agent-type identifiers — never prompt text,
+code, file paths, or tool payloads. `metrics/cost-metering.jsonl` is a
+metrics-only artifact by construction.
 
 1. **Account pace (optional, #142).** When the user asks "am I on track for my
    budget", "how much have I burned this week", or "which model should I use for
