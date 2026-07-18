@@ -1,0 +1,32 @@
+{
+ "claude_version": "2.1.214 (Claude Code)",
+ "arms": {
+  "control": {
+   "sha": "03b74add59d230dfeb9de3473d0bce1978d03e4c",
+   "version": "10.12.0",
+   "tag": "dev-team-v10.12.0"
+  },
+  "treatment": {
+   "sha": "f15884fb2c414dac7820a028eb67771d6d97a46d",
+   "version": "10.11.0",
+   "tag": null
+  }
+ },
+ "routing_B": {
+  "low": "haiku",
+  "medium": "sonnet",
+  "high": "opus"
+ },
+ "routing_C": {
+  "low": "haiku",
+  "medium": "sonnet",
+  "high": "opus"
+ },
+ "session_model_arg": "sonnet",
+ "deviations": [
+  "hooks registered at user level in both arm config dirs (plugin settings.json hooks do not load on CLI 2.1.214 - issue #1178); identical in both arms",
+  "agent_model_resolve.py tool_name gate widened to (Agent, Task) in both caches; live payloads use Agent, change is inert",
+  "knowledge/model-routing.json values switched from full model IDs to dispatch-layer aliases (low->haiku, medium->sonnet, high->opus) in both caches - full IDs are ignored by the subagent model param (issue #1178); identical in both arms"
+ ],
+ "prepatch_pilot": "ab-results-prepatch-pilot/ (9 runs under broken routing; kept as discovery record, excluded from analysis)"
+}

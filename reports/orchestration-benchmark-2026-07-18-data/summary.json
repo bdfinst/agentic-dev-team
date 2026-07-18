@@ -1,0 +1,152 @@
+{
+ "trivial": {
+  "A": {
+   "n": 5,
+   "cost_median": 0.172,
+   "cost_min": 0.17,
+   "cost_max": 0.172,
+   "wall_median": 24,
+   "wall_min": 20,
+   "wall_max": 25,
+   "pass": "5/5",
+   "band_share": {
+    "haiku": 0.002,
+    "sonnet": 0.998,
+    "opus": 0.0
+   },
+   "haiku_tokens_median": 612
+  },
+  "B": {
+   "n": 5,
+   "cost_median": 0.646,
+   "cost_min": 0.546,
+   "cost_max": 0.845,
+   "wall_median": 75,
+   "wall_min": 60,
+   "wall_max": 105,
+   "pass": "5/5",
+   "band_share": {
+    "haiku": 0.001,
+    "sonnet": 0.999,
+    "opus": 0.0
+   },
+   "haiku_tokens_median": 611
+  },
+  "C": {
+   "n": 5,
+   "cost_median": 0.553,
+   "cost_min": 0.511,
+   "cost_max": 0.676,
+   "wall_median": 77,
+   "wall_min": 71,
+   "wall_max": 101,
+   "pass": "5/5",
+   "band_share": {
+    "haiku": 0.001,
+    "sonnet": 0.999,
+    "opus": 0.0
+   },
+   "haiku_tokens_median": 611
+  }
+ },
+ "standard": {
+  "A": {
+   "n": 5,
+   "cost_median": 0.265,
+   "cost_min": 0.259,
+   "cost_max": 0.309,
+   "wall_median": 46,
+   "wall_min": 41,
+   "wall_max": 58,
+   "pass": "5/5",
+   "band_share": {
+    "haiku": 0.002,
+    "sonnet": 0.998,
+    "opus": 0.0
+   },
+   "haiku_tokens_median": 599
+  },
+  "B": {
+   "n": 5,
+   "cost_median": 0.749,
+   "cost_min": 0.697,
+   "cost_max": 0.826,
+   "wall_median": 123,
+   "wall_min": 109,
+   "wall_max": 127,
+   "pass": "5/5",
+   "band_share": {
+    "haiku": 0.001,
+    "sonnet": 0.999,
+    "opus": 0.0
+   },
+   "haiku_tokens_median": 598
+  },
+  "C": {
+   "n": 5,
+   "cost_median": 0.858,
+   "cost_min": 0.708,
+   "cost_max": 1.294,
+   "wall_median": 144,
+   "wall_min": 108,
+   "wall_max": 222,
+   "pass": "5/5",
+   "band_share": {
+    "haiku": 0.001,
+    "sonnet": 0.999,
+    "opus": 0.0
+   },
+   "haiku_tokens_median": 598
+  }
+ },
+ "complex": {
+  "A": {
+   "n": 5,
+   "cost_median": 0.752,
+   "cost_min": 0.66,
+   "cost_max": 0.948,
+   "wall_median": 155,
+   "wall_min": 154,
+   "wall_max": 235,
+   "pass": "5/5",
+   "band_share": {
+    "haiku": 0.002,
+    "sonnet": 0.998,
+    "opus": 0.0
+   },
+   "haiku_tokens_median": 666
+  },
+  "B": {
+   "n": 5,
+   "cost_median": 2.259,
+   "cost_min": 2.034,
+   "cost_max": 8.038,
+   "wall_median": 329,
+   "wall_min": 148,
+   "wall_max": 540,
+   "pass": "4/5",
+   "band_share": {
+    "haiku": 0.0,
+    "sonnet": 0.969,
+    "opus": 0.031
+   },
+   "haiku_tokens_median": 666
+  },
+  "C": {
+   "n": 5,
+   "cost_median": 5.811,
+   "cost_min": 1.848,
+   "cost_max": 7.92,
+   "wall_median": 573,
+   "wall_min": 175,
+   "wall_max": 592,
+   "pass": "4/5",
+   "band_share": {
+    "haiku": 0.043,
+    "sonnet": 0.786,
+    "opus": 0.171
+   },
+   "haiku_tokens_median": 139091
+  }
+ }
+}
