@@ -138,8 +138,8 @@ When the target is the full repository (`--all`, `--path`, or clean auto-scope),
 
 | Tier | Model | Assigned to |
 | ------ | ------- | ------------- |
-| small | Haiku | naming, complexity, claude-setup, token-efficiency, performance |
-| mid | Sonnet | spec-compliance, test, structure, js-fp, concurrency, a11y, svelte, doc, refactoring, progress-guardian, data-flow-tracer |
+| small | Haiku | naming, complexity, claude-setup, token-efficiency, performance, progress-guardian |
+| mid | Sonnet | spec-compliance, test, structure, js-fp, concurrency, a11y, svelte, doc, refactoring, data-flow-tracer |
 | frontier | Opus | security, domain, arch |
 
 Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summary}`. See [`skills/code-review/output-format.md`](../skills/code-review/output-format.md).

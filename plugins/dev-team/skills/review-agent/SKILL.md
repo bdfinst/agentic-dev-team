@@ -7,7 +7,7 @@ description: >-
   suite. Prefer this over /code-review when only one concern is relevant or
   speed matters. Also used by the orchestrator for inline review checkpoints
   during Phase 3 implementation.
-argument-hint: "<agent-name> [--since <ref>] [--path <dir>] [--internal]"
+argument-hint: "<agent-name> [--since <ref>] [--path <dir>] [--internal] [--json]"
 user-invocable: true
 allowed-tools: Read, Write, Grep, Glob, Bash(git diff *)
 ---
@@ -34,8 +34,11 @@ active snapshot per the Resolution Procedure in `.claude/agents/orchestrator.md`
    project-structure).
 3. **Do not add findings beyond the agent's scope.** If the agent
    says "Ignore: naming, tests" — do not flag naming or test issues.
-4. **Return structured JSON only.** Output the standard result
-   format. Do not add prose commentary.
+4. **The structured JSON result (step 3) is the canonical output.**
+   In `--json` mode it is the *only* thing written to stdout — no
+   formatted summary, no report, no prose (see step 3c). Otherwise it is
+   also rendered as a formatted summary (step 4) and written to the durable
+   report (step 4b).
 5. **Be concise.** Issue messages should be one sentence. Suggested
    fixes should be actionable, not explanatory. No preambles or
    filler.
@@ -53,6 +56,12 @@ Optional:
 - `--internal`: This is an orchestrator-internal dispatch (e.g. `/build`'s
   Phase 3 inline checkpoints) — skip the `DEV_TEAM_REPORTS/` report write in
   step 4b. `/build` is the only sanctioned caller of this flag today.
+- `--json`: Machine-readable mode. Emit **only** the step-3 JSON result to
+  stdout and nothing else — skip the formatted summary (step 4), skip the
+  `DEV_TEAM_REPORTS/` report write (step 4b), and print no confirmation line,
+  preamble, or trailing prose. Used by subprocess callers such as
+  `/agent-eval --calibrate` that parse stdout and need a deterministic,
+  model-independent result. See step 3c.
 
 ## Steps
 
@@ -96,17 +105,33 @@ Follow the agent definition to review each target file. Produce a JSON result:
 
 Before reporting, consult `ACCEPTED-RISKS.md` at the repo root if present. For each issue, check rules in declaration order per `knowledge/accepted-risks-schema.md`. The first matching rule suppresses the issue from the displayed result and emits an audit entry of the form `SUPPRESSED: <file>:<line> [<rule_id>] by ACCEPTED-RISKS rule <rule.id>`. Expired rules become inert (stop suppressing). Schema-invalid rules fail the run with a specific parse error. Absent file: skip silently.
 
+### 3c. `--json` mode (machine-readable output)
+
+When `--json` is passed, your **entire stdout response MUST be exactly one
+JSON object** matching the step-3 schema — nothing before it, nothing after
+it. Do **not** render the formatted summary (step 4), do **not** write the
+`DEV_TEAM_REPORTS/` report (step 4b), do **not** print a `Report written:`
+line, do **not** wrap the object in a code fence, and do **not** add any
+prose, preamble, or trailing commentary. ACCEPTED-RISKS suppression (step 3b)
+still applies — emit the post-suppression result. This mode exists so that
+subprocess callers (e.g. `/agent-eval --calibrate`) can parse the result
+deterministically across every model; any extra text breaks that contract.
+
 ### 4. Report
 
-Display the result as a formatted summary with issues grouped by file. Include suggested fixes inline. If any issues were suppressed by ACCEPTED-RISKS, list them in a dedicated trailing section with rule ids for audit.
+**Skip this step entirely when `--json` was passed** (see step 3c) — stdout
+must be exactly the JSON object. Otherwise, display the result as a formatted
+summary with issues grouped by file. Include suggested fixes inline. If any
+issues were suppressed by ACCEPTED-RISKS, list them in a dedicated trailing
+section with rule ids for audit.
 
-### 4b. Write the durable report (skip when `--internal`)
+### 4b. Write the durable report (skip when `--internal` or `--json`)
 
 See `knowledge/report-output-location.md` for the shared write-scope
 convention this step follows.
 
-When `--internal` was **not** passed, write the same formatted summary shown
-in step 4 to `DEV_TEAM_REPORTS/<agent-name>.md` in the target repository's
+When neither `--internal` nor `--json` was passed, write the same formatted
+summary shown in step 4 to `DEV_TEAM_REPORTS/<agent-name>.md` in the target repository's
 working directory (creating `DEV_TEAM_REPORTS/` if absent), overwriting any
 existing file at that path — write it even when the review found zero
 issues. Print one confirmation line after the chat summary: `Report
@@ -117,5 +142,7 @@ report `Cannot write DEV_TEAM_REPORTS/<agent-name>.md: <error>` to chat, and
 still return the JSON result and chat summary unchanged — the write failure
 is non-fatal and never blocks or alters the primary output.
 
-When `--internal` **was** passed, skip this step entirely — behavior stays
-exactly as today (JSON + chat summary only).
+When `--internal` **was** passed (but not `--json`), skip this step entirely —
+behavior stays exactly as today (JSON + chat summary only). When `--json` was
+passed, this step is likewise skipped and stdout is the JSON object alone
+(step 3c).
