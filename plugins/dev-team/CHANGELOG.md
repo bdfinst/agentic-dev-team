@@ -1,5 +1,23 @@
 # Changelog
 
+## [10.12.3](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.12.2...dev-team-v10.12.3) (2026-07-18)
+
+
+### Bug Fixes
+
+* add --json machine-readable mode to /review-agent for reliable cross-model output ([c6aef13](https://github.com/bdfinst/agentic-dev-team/commit/c6aef13c68a69369213b8f1e7a08fcb3b4b5f7ee))
+* record rubric effort-band decisions for progress-guardian and ui-ux-designer ([a9f94f5](https://github.com/bdfinst/agentic-dev-team/commit/a9f94f514d3ed72fedd504cd29895aa395646ee9))
+
+
+### Documentation
+
+* note Dependabot-PR secret-access caveat for telemetry CI gate ([66d5426](https://github.com/bdfinst/agentic-dev-team/commit/66d5426addde2da2a7b5db61ba52431dbf173249))
+
+
+### Miscellaneous
+
+* **reports:** publish delegation-economics orchestration benchmark ([#1099](https://github.com/bdfinst/agentic-dev-team/issues/1099)) ([8d37283](https://github.com/bdfinst/agentic-dev-team/commit/8d37283bbee3ecf74fd3b305d8d4eb7f78d2b1e6))
+
 ## [10.12.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.12.1...dev-team-v10.12.2) (2026-07-18)
 
 
