@@ -12,6 +12,20 @@ For the design rationale see
 which amends [ADR 0004 — Pre-dispatch model resolution enforced by a PreToolUse hook](../../../docs/adr/0004-pre-dispatch-model-resolution.md).
 For operator-facing ladder authoring, see [model-routing-overrides.md](model-routing-overrides.md).
 
+## Scope: Claude-only, no multimodal tier
+
+Routing has one axis — effort — and one provider: every band resolves to a
+Claude model. There is deliberately no cross-provider or multimodal tier
+(routing text vs. image vs. video work to other vendors' models): Claude
+Code sub-agents run on Claude models, the resolution hook can only rewrite
+`tool_input.model` to a model the harness can dispatch, and the plugin has
+no image/video workloads.
+The boundary and its revisit triggers (first-class multi-provider
+sub-agents in Claude Code, or a real multimodal workload in a team
+workflow) are recorded in
+[ADR 0021 — Claude-only model routing, no multimodal or cross-provider tier](../../../docs/adr/0021-claude-only-model-routing-no-multimodal-tier.md)
+(repo-root ADR, not shipped with the plugin).
+
 ## Architecture at a glance
 
 ```mermaid
