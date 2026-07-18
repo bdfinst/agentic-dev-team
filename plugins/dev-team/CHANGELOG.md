@@ -1,5 +1,23 @@
 # Changelog
 
+## [10.12.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.11.0...dev-team-v10.12.0) (2026-07-18)
+
+
+### Features
+
+* **hooks:** per-agent-type cost attribution in the cost meter ([cb5fb7b](https://github.com/bdfinst/agentic-dev-team/commit/cb5fb7bb5f59206e030bea1b6f671f16d54f3fd6))
+* **skills:** add orchestration-benchmark skill — pre-registered solo vs coordinated A/B protocol ([8e8776f](https://github.com/bdfinst/agentic-dev-team/commit/8e8776fa4d1bca6d30cfa8f2dbdb852d0dab9ae7))
+
+
+### Documentation
+
+* **adr:** record Claude-only model-routing boundary as a deliberate scope decision ([8cb3f85](https://github.com/bdfinst/agentic-dev-team/commit/8cb3f85c541b5cba44ef1dd9782520264e393c11)), closes [#1096](https://github.com/bdfinst/agentic-dev-team/issues/1096)
+
+
+### Miscellaneous
+
+* regenerate knowledge and skills indexes for Phase 0 instrumentation ([d70b6a8](https://github.com/bdfinst/agentic-dev-team/commit/d70b6a83075ea41faed99bf56b2741b862e103ef))
+
 ## [10.11.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.10.0...dev-team-v10.11.0) (2026-07-17)
 
 
