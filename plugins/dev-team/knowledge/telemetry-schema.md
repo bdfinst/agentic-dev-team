@@ -438,3 +438,29 @@ BUILD -> REVIEW -> COMMIT -> PR`.
 - **Consent:** unconditional (workflow/state names + counts only — no prompt text or file contents).
 - **Derivation:** `hooks/lib/workflow_state.py::derive_current_state()` and `compute_dwell_times()` (also exposed via the `report` CLI subcommand) replay a session's transitions — never a stored snapshot.
 - **Consumers:** `skills/run-report/SKILL.md` (#1167), `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `skills/cost-report/SKILL.md`.
+
+---
+
+## `iteration-journal.jsonl`
+
+**Added by #1168.** Hard per-iteration decision journal for the autonomous
+`/autoship`/`/ship` loops: one entry per round/iteration recording what was
+attempted, its outcome, and the next action — the accountability record an
+autonomous run needs to be debuggable after the fact. Unlike
+`workflow-states.jsonl`'s phase transitions, this stream is not derived; each
+entry is a durable, once-written decision note.
+
+| Field | Type | Values / source |
+|---|---|---|
+| `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
+| `round_id` | string | Identifier for the current round/iteration (`/autoship`'s round_id, or `/ship`'s issue identifier) |
+| `attempted` | string | Short structured note — what was attempted this iteration (deliberate, agent-authored rationale, not incidental free text — same precedent as `config-changelog.jsonl`'s `description`) |
+| `outcome` | string | Short structured note — what happened |
+| `next_action` | string | Short structured note — what happens next |
+| `plugin_version` | string | From `.claude-plugin/plugin.json` |
+| `session_id` | string, optional | Opaque per-session ID — enables joins with `boundary-events.jsonl` / `cost-metering.jsonl` |
+
+- **Emitter:** `hooks/lib/iteration_journal_gate.py::record_iteration_entry()`, invoked via its `record` CLI subcommand as a model-authored append in `/autoship`'s per-issue loop (Step 3) and `/ship`'s per-phase loop, before the corresponding `check` subcommand gates advancement.
+- **Gate:** `hooks/lib/iteration_journal_gate.py::check_iteration_journal()` (`check` CLI subcommand) hard-blocks advancement to the next issue/iteration — exit 1 — unless >=1 entry exists for the current `round_id`; a block also emits a `boundary-events.jsonl` event (`hook: iteration_journal_gate`, `decision: block`, `matched_rule: iteration-journal-missing`). This is a skill-level check-before-advance (mirroring `verify-log.jsonl`'s `progress_guardian.py --pre-pr` pattern), not a `settings.json` PreToolUse/PostToolUse registration — `/autoship`'s and `/ship`'s loop advancement is model-authored control flow inside a skill, not a tool call the harness intercepts at a distinct boundary. Complements, does not replace, the advisory plan-step-keyed `progress-guardian` agent.
+- **Consent:** unconditional (a deliberate per-iteration accountability record, not passive usage telemetry).
+- **Consumers:** `skills/autoship/SKILL.md`, `skills/ship/SKILL.md`, joinable with `skills/run-report/SKILL.md` (#1167) via `round_id`/`session_id`.
