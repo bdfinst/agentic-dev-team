@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.12.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.12.0...dev-team-v10.12.1) (2026-07-18)
+
+
+### Bug Fixes
+
+* load plugin hooks via hooks/hooks.json and route subagent models by dispatch alias ([2bd06f3](https://github.com/bdfinst/agentic-dev-team/commit/2bd06f35cdb0a3ea1913f7c706f5ba2b602ebd12)), closes [#1178](https://github.com/bdfinst/agentic-dev-team/issues/1178)
+
 ## [10.12.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.11.0...dev-team-v10.12.0) (2026-07-18)
 
 
