@@ -107,9 +107,11 @@ _RECOVERY_SKILLS = frozenset(
     }
 )
 
-# Only these two tool matchers trigger the ceiling — everything else is a
-# silent pass. Keeps the guard scoped to capability-loading calls.
-_GATED_TOOLS = frozenset({"Agent", "Skill"})
+# Only capability-loading tools trigger the ceiling — everything else is a
+# silent pass. "Agent" and "Task" are the same subagent-dispatch tool
+# (renamed Task → Agent in Claude Code 2.1.63; both live on as payload
+# tool_names, #1178).
+_GATED_TOOLS = frozenset({"Agent", "Task", "Skill"})
 
 
 # ---------------------------------------------------------------------------
