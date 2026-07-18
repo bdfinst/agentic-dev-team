@@ -1,0 +1,16 @@
+{
+  "fixture": "cc-clean-idempotent",
+  "description": "Concurrency-safe code: no shared mutable module state, an idempotent full-resource PUT keyed by id, independent parallel reads via an awaited Promise.all, and every async operation awaited with error handling — should pass review",
+  "applicableAgents": [
+    "concurrency-review"
+  ],
+  "agents": {
+    "concurrency-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  }
+}
