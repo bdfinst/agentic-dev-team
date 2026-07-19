@@ -22,11 +22,12 @@
 
 set -euo pipefail
 
-# Locate the repo root: prefer git (works from any subdir), else $HOME fallback.
+# Locate the repo root: prefer git (works from any subdir), else $HOME fallback
+# (this repo lives at $HOME/_git/agentic-dev-team on the local machine).
 if REPO="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     :
 else
-    REPO="$HOME/agentic-dev-team"
+    REPO="$HOME/_git/agentic-dev-team"
 fi
 cd "$REPO"
 
