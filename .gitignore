@@ -88,8 +88,13 @@ graphify-out/
 # records file (every target "never-calibrated"). Un-ignore records only if a
 # deliberate baseline run is meant to commit them.
 .claude/evals/reports/
-.claude/evals/calibration-records.json
-.claude/evals/baseline-1184/
+# calibration-records.json is un-ignored for the deliberate #1184 baseline
+# handoff (see note above): the run completes on a local machine and commits its
+# canonical records back to this branch. Under baseline-1184/, only the
+# regeneratable reports/ and atomic *.tmp write-scratch stay ignored; the
+# cells/samples/verdicts checkpoint plus the driver and resume script travel via git.
+.claude/evals/baseline-1184/reports/
+.claude/evals/baseline-1184/*.tmp
 
 # Runtime joern / CPG cache + workspace
 memory/cpg/

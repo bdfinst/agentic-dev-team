@@ -1,0 +1,610 @@
+{
+  "a11y-clean-form::a11y-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "a11y-clean-form::a11y-review",
+    "passed": true,
+    "samples": 5
+  },
+  "a11y-clean-form::a11y-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 4,
+    "pair": "a11y-clean-form::a11y-review",
+    "passed": true,
+    "samples": 5
+  },
+  "a11y-clean-form::a11y-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 4,
+    "pair": "a11y-clean-form::a11y-review",
+    "passed": true,
+    "samples": 5
+  },
+  "a11y-color-only-signaling::a11y-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 4,
+    "pair": "a11y-color-only-signaling::a11y-review",
+    "passed": true,
+    "samples": 5
+  },
+  "a11y-color-only-signaling::a11y-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "a11y-color-only-signaling::a11y-review",
+    "passed": true,
+    "samples": 5
+  },
+  "a11y-color-only-signaling::a11y-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "a11y-color-only-signaling::a11y-review",
+    "passed": false,
+    "samples": 5
+  },
+  "a11y-missing-labels::a11y-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 4,
+    "pair": "a11y-missing-labels::a11y-review",
+    "passed": true,
+    "samples": 5
+  },
+  "a11y-missing-labels::a11y-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "a11y-missing-labels::a11y-review",
+    "passed": true,
+    "samples": 5
+  },
+  "a11y-missing-labels::a11y-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 3,
+    "pair": "a11y-missing-labels::a11y-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ang-reactivity-clean::angular-reactivity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "ang-reactivity-clean::angular-reactivity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ang-reactivity-clean::angular-reactivity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "ang-reactivity-clean::angular-reactivity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ang-reactivity-clean::angular-reactivity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "ang-reactivity-clean::angular-reactivity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ap-regeneration-risk::ai-provenance-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "ap-regeneration-risk::ai-provenance-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ap-regeneration-risk::ai-provenance-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 1,
+    "pair": "ap-regeneration-risk::ai-provenance-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ap-verification-debt::ai-provenance-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 3,
+    "pair": "ap-verification-debt::ai-provenance-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ap-verification-debt::ai-provenance-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "ap-verification-debt::ai-provenance-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ap-verification-debt::ai-provenance-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 1,
+    "pair": "ap-verification-debt::ai-provenance-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ar-clean-arch::arch-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "ar-clean-arch::arch-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ar-clean-arch::arch-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "ar-clean-arch::arch-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ar-clean-arch::arch-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 5,
+    "pair": "ar-clean-arch::arch-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ar-layer-violation::arch-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 4,
+    "pair": "ar-layer-violation::arch-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ar-layer-violation::arch-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "ar-layer-violation::arch-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ar-layer-violation::arch-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "ar-layer-violation::arch-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ca-clean-components::component-architecture-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "ca-clean-components::component-architecture-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ca-clean-components::component-architecture-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "ca-clean-components::component-architecture-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ca-clean-components::component-architecture-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 5,
+    "pair": "ca-clean-components::component-architecture-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ca-duplicate-cards::component-architecture-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "ca-duplicate-cards::component-architecture-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ca-duplicate-cards::component-architecture-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "ca-duplicate-cards::component-architecture-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ca-prop-drilling::component-architecture-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "ca-prop-drilling::component-architecture-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ca-prop-drilling::component-architecture-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "ca-prop-drilling::component-architecture-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cc-check-then-act::concurrency-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "cc-check-then-act::concurrency-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cc-clean-idempotent::concurrency-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "cc-clean-idempotent::concurrency-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cc-clean-idempotent::concurrency-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "cc-clean-idempotent::concurrency-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cc-unhandled-races::concurrency-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "cc-unhandled-races::concurrency-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cr-boundary-omission::correctness-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 4,
+    "pair": "cr-boundary-omission::correctness-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cr-clean-baseline::correctness-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 4,
+    "pair": "cr-clean-baseline::correctness-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cr-extra-validation-clause::correctness-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 3,
+    "pair": "cr-extra-validation-clause::correctness-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cs-broken-paths::claude-setup-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cs-broken-paths::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cs-broken-paths::claude-setup-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 1,
+    "pair": "cs-broken-paths::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cs-broken-paths::claude-setup-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cs-broken-paths::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cs-complete-setup::claude-setup-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 1,
+    "pair": "cs-complete-setup::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cs-complete-setup::claude-setup-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 1,
+    "pair": "cs-complete-setup::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cs-complete-setup::claude-setup-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 3,
+    "pair": "cs-complete-setup::claude-setup-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cs-minimal-valid::claude-setup-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 4,
+    "pair": "cs-minimal-valid::claude-setup-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cs-minimal-valid::claude-setup-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "cs-minimal-valid::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cs-minimal-valid::claude-setup-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cs-minimal-valid::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cs-missing-sections::claude-setup-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 1,
+    "pair": "cs-missing-sections::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cs-missing-sections::claude-setup-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "cs-missing-sections::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cs-missing-sections::claude-setup-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cs-missing-sections::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cx-callback-hell::complexity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-callback-hell::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-callback-hell::complexity-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 2,
+    "pair": "cx-callback-hell::complexity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cx-callback-hell::complexity-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 1,
+    "pair": "cx-callback-hell::complexity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cx-clean-functions::complexity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-clean-functions::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-clean-functions::complexity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-clean-functions::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-clean-functions::complexity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-clean-functions::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-deep-nesting::complexity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-deep-nesting::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-deep-nesting::complexity-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 4,
+    "pair": "cx-deep-nesting::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-deep-nesting::complexity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-deep-nesting::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-god-function::complexity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-god-function::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-god-function::complexity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-god-function::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-god-function::complexity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-god-function::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-refactor-after::complexity-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 2,
+    "pair": "cx-refactor-after::complexity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cx-refactor-after::complexity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "cx-refactor-after::complexity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cx-refactor-after::complexity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cx-refactor-after::complexity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cx-refactor-before::complexity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cx-refactor-before::complexity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cx-refactor-before::complexity-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 3,
+    "pair": "cx-refactor-before::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-refactor-before::complexity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-refactor-before::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-simple-logic::complexity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-simple-logic::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-simple-logic::complexity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-simple-logic::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cx-simple-logic::complexity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 5,
+    "pair": "cx-simple-logic::complexity-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ex-explore-command-missing::claude-setup-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "ex-explore-command-missing::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ex-explore-command-missing::claude-setup-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 5,
+    "pair": "ex-explore-command-missing::claude-setup-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ex-explore-command-missing::claude-setup-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 4,
+    "pair": "ex-explore-command-missing::claude-setup-review",
+    "passed": true,
+    "samples": 5
+  },
+  "ex-explore-command-present::claude-setup-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 2,
+    "pair": "ex-explore-command-present::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ex-explore-command-present::claude-setup-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 2,
+    "pair": "ex-explore-command-present::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ex-explore-command-present::claude-setup-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "ex-explore-command-present::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  }
+}
