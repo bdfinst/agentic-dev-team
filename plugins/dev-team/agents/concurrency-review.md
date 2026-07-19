@@ -3,7 +3,7 @@
 name: concurrency-review
 description: Race conditions, async pitfalls, idempotency, shared state safety
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
-effort: medium
+effort: low
 cites: [adversarial-review-protocol]
 scope: always
 ---
