@@ -1,0 +1,10 @@
+{
+  "vue-reactivity-review": {
+    "calibrated_band": null,
+    "declared_band": "low",
+    "routing_hash": "4e28c84f9ac2b4b2b09d18da152a3e476cfb4ce4dead6ce863851f264c374f7f",
+    "target": "vue-reactivity-review",
+    "timestamp": "2026-07-18T23:20:08Z",
+    "verdict": "floor-failure"
+  }
+}
