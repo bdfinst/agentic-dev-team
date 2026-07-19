@@ -1,0 +1,756 @@
+[
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 3,
+        "rate": 1.0,
+        "total": 3
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 3,
+        "rate": 1.0,
+        "total": 3
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 2,
+        "rate": 0.6666666666666666,
+        "total": 3
+      }
+    },
+    "calibrated_band": "low",
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "a11y-review",
+    "verdict": "downgrade-available"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 2,
+        "rate": 1.0,
+        "total": 2
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 1,
+        "rate": 0.5,
+        "total": 2
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 2
+      }
+    },
+    "calibrated_band": "high",
+    "declared_band": "high",
+    "fixture_gap": null,
+    "floor": 1.0,
+    "quarantined": [],
+    "target": "ai-provenance-review",
+    "verdict": "aligned"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "low",
+    "fixture_gap": null,
+    "floor": 0.8,
+    "quarantined": [],
+    "target": "angular-reactivity-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 2,
+        "rate": 1.0,
+        "total": 2
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 1,
+        "rate": 0.5,
+        "total": 2
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 1,
+        "rate": 0.5,
+        "total": 2
+      }
+    },
+    "calibrated_band": "high",
+    "declared_band": "high",
+    "fixture_gap": null,
+    "floor": 1.0,
+    "quarantined": [],
+    "target": "arch-review",
+    "verdict": "aligned"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 1,
+        "rate": 0.16666666666666666,
+        "total": 6
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 1,
+        "rate": 0.16666666666666666,
+        "total": 6
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 2,
+        "rate": 0.3333333333333333,
+        "total": 6
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "low",
+    "fixture_gap": null,
+    "floor": 0.8,
+    "quarantined": [],
+    "target": "claude-setup-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 5,
+        "rate": 0.7142857142857143,
+        "total": 7
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 5,
+        "rate": 0.7142857142857143,
+        "total": 7
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 5,
+        "rate": 0.7142857142857143,
+        "total": 7
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "complexity-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 3,
+        "rate": 1.0,
+        "total": 3
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 3,
+        "rate": 1.0,
+        "total": 3
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 2,
+        "rate": 0.6666666666666666,
+        "total": 3
+      }
+    },
+    "calibrated_band": "low",
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "component-architecture-review",
+    "verdict": "downgrade-available"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 2,
+        "rate": 0.6666666666666666,
+        "total": 3
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 3,
+        "rate": 1.0,
+        "total": 3
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 1,
+        "rate": 0.3333333333333333,
+        "total": 3
+      }
+    },
+    "calibrated_band": "low",
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 1.0,
+    "quarantined": [],
+    "target": "concurrency-review",
+    "verdict": "downgrade-available"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 9
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 3,
+        "rate": 0.3333333333333333,
+        "total": 9
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 9
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "high",
+    "fixture_gap": null,
+    "floor": 1.0,
+    "quarantined": [],
+    "target": "correctness-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "doc-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 5
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 5
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 5
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "high",
+    "fixture_gap": null,
+    "floor": 1.0,
+    "quarantined": [],
+    "target": "domain-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "low",
+    "fixture_gap": null,
+    "floor": 0.8,
+    "quarantined": [],
+    "target": "js-fp-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "naming-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "performance-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "low",
+    "fixture_gap": null,
+    "floor": 0.8,
+    "quarantined": [],
+    "target": "react-reactivity-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 4
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 4
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 4
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "refactor-opportunity-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 6
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "high",
+    "fixture_gap": null,
+    "floor": 1.0,
+    "quarantined": [],
+    "target": "security-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "session-analysis",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "spec-compliance-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 5
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 5
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 5
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "structure-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 8
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 8
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 8
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "low",
+    "fixture_gap": null,
+    "floor": 0.8,
+    "quarantined": [],
+    "target": "svelte-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 11
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 11
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 11
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.8,
+    "quarantined": [],
+    "target": "test-design-advisor",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 13
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 13
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 13
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "test-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 4
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 4
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 4
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "medium",
+    "fixture_gap": null,
+    "floor": 0.9,
+    "quarantined": [],
+    "target": "test-smell-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 5
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 5
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 5
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "low",
+    "fixture_gap": null,
+    "floor": 0.8,
+    "quarantined": [],
+    "target": "token-efficiency-review",
+    "verdict": "floor-failure"
+  },
+  {
+    "band_results": {
+      "high": {
+        "model": "claude-opus-4-8",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "low": {
+        "model": "claude-haiku-4-5-20251001",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "medium": {
+        "model": "claude-sonnet-4-6",
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      }
+    },
+    "calibrated_band": null,
+    "declared_band": "low",
+    "fixture_gap": null,
+    "floor": 0.8,
+    "quarantined": [],
+    "target": "vue-reactivity-review",
+    "verdict": "floor-failure"
+  }
+]

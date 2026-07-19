@@ -111,6 +111,14 @@
     "passed": false,
     "samples": 5
   },
+  "ap-regeneration-risk::ai-provenance-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "ap-regeneration-risk::ai-provenance-review",
+    "passed": false,
+    "samples": 5
+  },
   "ap-verification-debt::ai-provenance-review||high": {
     "band": "high",
     "flap": true,
@@ -223,6 +231,14 @@
     "passed": true,
     "samples": 5
   },
+  "ca-duplicate-cards::component-architecture-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 2,
+    "pair": "ca-duplicate-cards::component-architecture-review",
+    "passed": false,
+    "samples": 5
+  },
   "ca-prop-drilling::component-architecture-review||high": {
     "band": "high",
     "flap": false,
@@ -239,12 +255,36 @@
     "passed": true,
     "samples": 5
   },
+  "ca-prop-drilling::component-architecture-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 3,
+    "pair": "ca-prop-drilling::component-architecture-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cc-check-then-act::concurrency-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 4,
+    "pair": "cc-check-then-act::concurrency-review",
+    "passed": true,
+    "samples": 5
+  },
   "cc-check-then-act::concurrency-review||low": {
     "band": "low",
     "flap": false,
     "hits": 5,
     "pair": "cc-check-then-act::concurrency-review",
     "passed": true,
+    "samples": 5
+  },
+  "cc-check-then-act::concurrency-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 2,
+    "pair": "cc-check-then-act::concurrency-review",
+    "passed": false,
     "samples": 5
   },
   "cc-clean-idempotent::concurrency-review||high": {
@@ -263,12 +303,44 @@
     "passed": true,
     "samples": 5
   },
+  "cc-clean-idempotent::concurrency-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 3,
+    "pair": "cc-clean-idempotent::concurrency-review",
+    "passed": true,
+    "samples": 5
+  },
+  "cc-unhandled-races::concurrency-review||high": {
+    "band": "high",
+    "flap": true,
+    "hits": 2,
+    "pair": "cc-unhandled-races::concurrency-review",
+    "passed": false,
+    "samples": 5
+  },
   "cc-unhandled-races::concurrency-review||low": {
     "band": "low",
     "flap": false,
     "hits": 5,
     "pair": "cc-unhandled-races::concurrency-review",
     "passed": true,
+    "samples": 5
+  },
+  "cc-unhandled-races::concurrency-review||medium": {
+    "band": "medium",
+    "flap": true,
+    "hits": 1,
+    "pair": "cc-unhandled-races::concurrency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-boundary-omission::correctness-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-boundary-omission::correctness-review",
+    "passed": false,
     "samples": 5
   },
   "cr-boundary-omission::correctness-review||low": {
@@ -279,6 +351,22 @@
     "passed": true,
     "samples": 5
   },
+  "cr-boundary-omission::correctness-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-boundary-omission::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-clean-baseline::correctness-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-clean-baseline::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
   "cr-clean-baseline::correctness-review||low": {
     "band": "low",
     "flap": true,
@@ -287,12 +375,180 @@
     "passed": true,
     "samples": 5
   },
+  "cr-clean-baseline::correctness-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-clean-baseline::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-extra-validation-clause::correctness-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-extra-validation-clause::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
   "cr-extra-validation-clause::correctness-review||low": {
     "band": "low",
     "flap": true,
     "hits": 3,
     "pair": "cr-extra-validation-clause::correctness-review",
     "passed": true,
+    "samples": 5
+  },
+  "cr-extra-validation-clause::correctness-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-extra-validation-clause::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-literal-vs-interpolation::correctness-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-literal-vs-interpolation::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-literal-vs-interpolation::correctness-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-literal-vs-interpolation::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-literal-vs-interpolation::correctness-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-literal-vs-interpolation::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-missing-assignment::correctness-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-missing-assignment::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-missing-assignment::correctness-review||low": {
+    "band": "low",
+    "flap": true,
+    "hits": 1,
+    "pair": "cr-missing-assignment::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-missing-assignment::correctness-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-missing-assignment::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-missing-degenerate-guard::correctness-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-missing-degenerate-guard::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-missing-degenerate-guard::correctness-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-missing-degenerate-guard::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-missing-degenerate-guard::correctness-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-missing-degenerate-guard::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-missing-guard::correctness-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-missing-guard::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-missing-guard::correctness-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-missing-guard::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-missing-guard::correctness-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-missing-guard::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-present-degenerate-guard::correctness-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-present-degenerate-guard::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-present-degenerate-guard::correctness-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-present-degenerate-guard::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-present-degenerate-guard::correctness-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-present-degenerate-guard::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-sanctioned-extra-clause::correctness-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-sanctioned-extra-clause::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-sanctioned-extra-clause::correctness-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-sanctioned-extra-clause::correctness-review",
+    "passed": false,
+    "samples": 5
+  },
+  "cr-sanctioned-extra-clause::correctness-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "cr-sanctioned-extra-clause::correctness-review",
+    "passed": false,
     "samples": 5
   },
   "cs-broken-paths::claude-setup-review||high": {
@@ -559,6 +815,270 @@
     "passed": true,
     "samples": 5
   },
+  "dm-clean-boundaries::domain-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-clean-boundaries::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-clean-boundaries::domain-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-clean-boundaries::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-clean-boundaries::domain-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-clean-boundaries::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-leaky-abstraction::domain-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-leaky-abstraction::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-leaky-abstraction::domain-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-leaky-abstraction::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-leaky-abstraction::domain-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-leaky-abstraction::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-logic-in-ui::domain-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-logic-in-ui::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-logic-in-ui::domain-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-logic-in-ui::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-logic-in-ui::domain-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-logic-in-ui::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-missing-dtos::domain-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-missing-dtos::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-missing-dtos::domain-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-missing-dtos::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-missing-dtos::domain-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-missing-dtos::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-proper-events::domain-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-proper-events::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-proper-events::domain-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-proper-events::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dm-proper-events::domain-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dm-proper-events::domain-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-accurate-docs::doc-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-accurate-docs::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-accurate-docs::doc-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-accurate-docs::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-accurate-docs::doc-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-accurate-docs::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-clean-inline-comments::doc-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-clean-inline-comments::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-clean-inline-comments::doc-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-clean-inline-comments::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-clean-inline-comments::doc-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-clean-inline-comments::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-orphaned-doc-comment::doc-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-orphaned-doc-comment::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-orphaned-doc-comment::doc-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-orphaned-doc-comment::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-orphaned-doc-comment::doc-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-orphaned-doc-comment::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-stale-readme::doc-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-stale-readme::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-stale-readme::doc-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-stale-readme::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-stale-readme::doc-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-stale-readme::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-tracker-ids-in-comments::doc-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-tracker-ids-in-comments::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-tracker-ids-in-comments::doc-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-tracker-ids-in-comments::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-tracker-ids-in-comments::doc-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-tracker-ids-in-comments::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-tracker-ids-py::doc-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-tracker-ids-py::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-tracker-ids-py::doc-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-tracker-ids-py::doc-review",
+    "passed": false,
+    "samples": 5
+  },
+  "dr-tracker-ids-py::doc-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "dr-tracker-ids-py::doc-review",
+    "passed": false,
+    "samples": 5
+  },
   "ex-explore-command-missing::claude-setup-review||high": {
     "band": "high",
     "flap": false,
@@ -604,6 +1124,1758 @@
     "flap": false,
     "hits": 0,
     "pair": "ex-explore-command-present::claude-setup-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-array-mutations::js-fp-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-array-mutations::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-array-mutations::js-fp-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-array-mutations::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-array-mutations::js-fp-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-array-mutations::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-global-state::js-fp-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-global-state::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-global-state::js-fp-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-global-state::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-global-state::js-fp-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-global-state::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-immutable-state::js-fp-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-immutable-state::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-immutable-state::js-fp-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-immutable-state::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-immutable-state::js-fp-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-immutable-state::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-object-mutations::js-fp-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-object-mutations::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-object-mutations::js-fp-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-object-mutations::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-object-mutations::js-fp-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-object-mutations::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-pure-transforms::js-fp-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-pure-transforms::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-pure-transforms::js-fp-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-pure-transforms::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-pure-transforms::js-fp-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-pure-transforms::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-safe-sort::js-fp-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-safe-sort::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-safe-sort::js-fp-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-safe-sort::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "fp-safe-sort::js-fp-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "fp-safe-sort::js-fp-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-clear-names::naming-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-clear-names::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-clear-names::naming-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-clear-names::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-clear-names::naming-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-clear-names::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-consistency-canonical::naming-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-consistency-canonical::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-consistency-canonical::naming-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-consistency-canonical::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-consistency-canonical::naming-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-consistency-canonical::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-consistent-conventions::naming-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-consistent-conventions::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-consistent-conventions::naming-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-consistent-conventions::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-consistent-conventions::naming-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-consistent-conventions::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-inconsistent-naming::naming-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-inconsistent-naming::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-inconsistent-naming::naming-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-inconsistent-naming::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-inconsistent-naming::naming-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-inconsistent-naming::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-magic-values::naming-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-magic-values::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-magic-values::naming-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-magic-values::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-magic-values::naming-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-magic-values::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-misleading-names::naming-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-misleading-names::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-misleading-names::naming-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-misleading-names::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "nm-misleading-names::naming-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "nm-misleading-names::naming-review",
+    "passed": false,
+    "samples": 5
+  },
+  "perf-nplus1-loop::performance-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "perf-nplus1-loop::performance-review",
+    "passed": false,
+    "samples": 5
+  },
+  "perf-nplus1-loop::performance-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "perf-nplus1-loop::performance-review",
+    "passed": false,
+    "samples": 5
+  },
+  "perf-nplus1-loop::performance-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "perf-nplus1-loop::performance-review",
+    "passed": false,
+    "samples": 5
+  },
+  "react-reactivity-clean::react-reactivity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "react-reactivity-clean::react-reactivity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "react-reactivity-clean::react-reactivity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "react-reactivity-clean::react-reactivity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "react-reactivity-clean::react-reactivity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "react-reactivity-clean::react-reactivity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-reinvented-builtins-py::refactor-opportunity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-reinvented-builtins-py::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-reinvented-builtins-py::refactor-opportunity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-reinvented-builtins-py::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-reinvented-builtins-py::refactor-opportunity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-reinvented-builtins-py::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-reinvented-builtins::refactor-opportunity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-reinvented-builtins::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-reinvented-builtins::refactor-opportunity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-reinvented-builtins::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-reinvented-builtins::refactor-opportunity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-reinvented-builtins::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-repeated-idiom::refactor-opportunity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-repeated-idiom::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-repeated-idiom::refactor-opportunity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-repeated-idiom::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-repeated-idiom::refactor-opportunity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-repeated-idiom::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-uses-builtins::refactor-opportunity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-uses-builtins::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-uses-builtins::refactor-opportunity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-uses-builtins::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "ro-uses-builtins::refactor-opportunity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "ro-uses-builtins::refactor-opportunity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-env-gitignored::security-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-env-gitignored::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-env-gitignored::security-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-env-gitignored::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-env-gitignored::security-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-env-gitignored::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-hardcoded-secrets::security-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-hardcoded-secrets::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-hardcoded-secrets::security-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-hardcoded-secrets::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-hardcoded-secrets::security-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-hardcoded-secrets::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-safe-auth::security-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-safe-auth::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-safe-auth::security-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-safe-auth::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-safe-auth::security-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-safe-auth::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-safe-headers::security-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-safe-headers::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-safe-headers::security-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-safe-headers::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-safe-headers::security-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-safe-headers::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-sql-injection::security-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-sql-injection::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-sql-injection::security-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-sql-injection::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-sql-injection::security-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-sql-injection::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-xss-vulnerable::security-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-xss-vulnerable::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-xss-vulnerable::security-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-xss-vulnerable::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sec-xss-vulnerable::security-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sec-xss-vulnerable::security-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sess-token-rework::session-analysis||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sess-token-rework::session-analysis",
+    "passed": false,
+    "samples": 5
+  },
+  "sess-token-rework::session-analysis||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sess-token-rework::session-analysis",
+    "passed": false,
+    "samples": 5
+  },
+  "sess-token-rework::session-analysis||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sess-token-rework::session-analysis",
+    "passed": false,
+    "samples": 5
+  },
+  "spec-unmet-criterion::spec-compliance-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "spec-unmet-criterion::spec-compliance-review",
+    "passed": false,
+    "samples": 5
+  },
+  "spec-unmet-criterion::spec-compliance-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "spec-unmet-criterion::spec-compliance-review",
+    "passed": false,
+    "samples": 5
+  },
+  "spec-unmet-criterion::spec-compliance-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "spec-unmet-criterion::spec-compliance-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-clean-modules::structure-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-clean-modules::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-clean-modules::structure-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-clean-modules::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-clean-modules::structure-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-clean-modules::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-duplicate-code::structure-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-duplicate-code::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-duplicate-code::structure-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-duplicate-code::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-duplicate-code::structure-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-duplicate-code::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-god-object::structure-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-god-object::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-god-object::structure-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-god-object::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-god-object::structure-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-god-object::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-mixed-concerns::structure-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-mixed-concerns::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-mixed-concerns::structure-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-mixed-concerns::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-mixed-concerns::structure-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-mixed-concerns::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-organized-exports::structure-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-organized-exports::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-organized-exports::structure-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-organized-exports::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "st-organized-exports::structure-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "st-organized-exports::structure-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-clean-lifecycle.svelte::svelte-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-clean-lifecycle.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-clean-lifecycle.svelte::svelte-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-clean-lifecycle.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-clean-lifecycle.svelte::svelte-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-clean-lifecycle.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-closure-state-leak.svelte::svelte-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-closure-state-leak.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-closure-state-leak.svelte::svelte-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-closure-state-leak.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-closure-state-leak.svelte::svelte-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-closure-state-leak.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-effect-pitfalls.svelte::svelte-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-effect-pitfalls.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-effect-pitfalls.svelte::svelte-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-effect-pitfalls.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-effect-pitfalls.svelte::svelte-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-effect-pitfalls.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-lifecycle-issues.svelte::svelte-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-lifecycle-issues.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-lifecycle-issues.svelte::svelte-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-lifecycle-issues.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-lifecycle-issues.svelte::svelte-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-lifecycle-issues.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-proper-reactive.svelte::svelte-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-proper-reactive.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-proper-reactive.svelte::svelte-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-proper-reactive.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-proper-reactive.svelte::svelte-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-proper-reactive.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-safe-stores.svelte::svelte-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-safe-stores.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-safe-stores.svelte::svelte-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-safe-stores.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-safe-stores.svelte::svelte-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-safe-stores.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-state-proxy-pitfalls.svelte::svelte-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-state-proxy-pitfalls.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-state-proxy-pitfalls.svelte::svelte-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-state-proxy-pitfalls.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-state-proxy-pitfalls.svelte::svelte-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-state-proxy-pitfalls.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-store-subscription-leak.svelte::svelte-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-store-subscription-leak.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-store-subscription-leak.svelte::svelte-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-store-subscription-leak.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "sv-store-subscription-leak.svelte::svelte-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "sv-store-subscription-leak.svelte::svelte-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-clean-code::token-efficiency-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-clean-code::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-clean-code::token-efficiency-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-clean-code::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-clean-code::token-efficiency-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-clean-code::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-duplicate-code::token-efficiency-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-duplicate-code::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-duplicate-code::token-efficiency-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-duplicate-code::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-duplicate-code::token-efficiency-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-duplicate-code::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-efficient-claude::token-efficiency-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-efficient-claude::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-efficient-claude::token-efficiency-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-efficient-claude::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-efficient-claude::token-efficiency-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-efficient-claude::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-long-functions::token-efficiency-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-long-functions::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-long-functions::token-efficiency-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-long-functions::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-long-functions::token-efficiency-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-long-functions::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-verbose-claude::token-efficiency-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-verbose-claude::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-verbose-claude::token-efficiency-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-verbose-claude::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "te-verbose-claude::token-efficiency-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "te-verbose-claude::token-efficiency-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-assertion-roulette.test::test-smell-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-assertion-roulette.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-assertion-roulette.test::test-smell-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-assertion-roulette.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-assertion-roulette.test::test-smell-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-assertion-roulette.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-clean-doubles.test::test-smell-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-clean-doubles.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-clean-doubles.test::test-smell-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-clean-doubles.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-clean-doubles.test::test-smell-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-clean-doubles.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-missing-edge-cases.test::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-missing-edge-cases.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-missing-edge-cases.test::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-missing-edge-cases.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-missing-edge-cases.test::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-missing-edge-cases.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-mystery-guest.test::test-smell-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-mystery-guest.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-mystery-guest.test::test-smell-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-mystery-guest.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-mystery-guest.test::test-smell-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-mystery-guest.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-no-assertions.test::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-no-assertions.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-no-assertions.test::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-no-assertions.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-no-assertions.test::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-no-assertions.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-overspecified-mocks.test::test-smell-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-overspecified-mocks.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-overspecified-mocks.test::test-smell-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-overspecified-mocks.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-overspecified-mocks.test::test-smell-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-overspecified-mocks.test::test-smell-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-reflection-private-member-java::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-reflection-private-member-java::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-reflection-private-member-java::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-reflection-private-member-java::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-reflection-private-member-java::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-reflection-private-member-java::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-reflection-private-member-py::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-reflection-private-member-py::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-reflection-private-member-py::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-reflection-private-member-py::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-reflection-private-member-py::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-reflection-private-member-py::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-reflection-private-member.test::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-reflection-private-member.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-reflection-private-member.test::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-reflection-private-member.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-reflection-private-member.test::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-reflection-private-member.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-shared-state.test::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-shared-state.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-shared-state.test::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-shared-state.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-shared-state.test::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-shared-state.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-thorough-edge-cases.test::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-thorough-edge-cases.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-thorough-edge-cases.test::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-thorough-edge-cases.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-thorough-edge-cases.test::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-thorough-edge-cases.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-weak-assertions.test::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-weak-assertions.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-weak-assertions.test::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-weak-assertions.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-weak-assertions.test::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-weak-assertions.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-well-structured.test::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-well-structured.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-well-structured.test::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-well-structured.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "test-well-structured.test::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "test-well-structured.test::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-01-pure-function::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-01-pure-function::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-01-pure-function::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-01-pure-function::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-01-pure-function::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-01-pure-function::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-02-user-facing-dynamic::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-02-user-facing-dynamic::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-02-user-facing-dynamic::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-02-user-facing-dynamic::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-02-user-facing-dynamic::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-02-user-facing-dynamic::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-03-browser-bug-fix::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-03-browser-bug-fix::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-03-browser-bug-fix::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-03-browser-bug-fix::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-03-browser-bug-fix::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-03-browser-bug-fix::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-04-unit-bug-fix::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-04-unit-bug-fix::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-04-unit-bug-fix::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-04-unit-bug-fix::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-04-unit-bug-fix::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-04-unit-bug-fix::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-05-htmx-swap-mutation::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-05-htmx-swap-mutation::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-05-htmx-swap-mutation::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-05-htmx-swap-mutation::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-05-htmx-swap-mutation::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-05-htmx-swap-mutation::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-06-alpine-toggle::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-06-alpine-toggle::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-06-alpine-toggle::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-06-alpine-toggle::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-06-alpine-toggle::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-06-alpine-toggle::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-07-pdf-with-reference::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-07-pdf-with-reference::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-07-pdf-with-reference::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-07-pdf-with-reference::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-07-pdf-with-reference::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-07-pdf-with-reference::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-08-email-no-reference::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-08-email-no-reference::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-08-email-no-reference::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-08-email-no-reference::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-08-email-no-reference::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-08-email-no-reference::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-09-critical-single-layer::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-09-critical-single-layer::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-09-critical-single-layer::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-09-critical-single-layer::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-09-critical-single-layer::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-09-critical-single-layer::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-10-multi-gate::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-10-multi-gate::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-10-multi-gate::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-10-multi-gate::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-10-multi-gate::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-10-multi-gate::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-11-ambiguous::test-design-advisor||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-11-ambiguous::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-11-ambiguous::test-design-advisor||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-11-ambiguous::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tlg-11-ambiguous::test-design-advisor||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tlg-11-ambiguous::test-design-advisor",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-consistency-canonical::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-consistency-canonical::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-consistency-canonical::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-consistency-canonical::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-consistency-canonical::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-consistency-canonical::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-oracle-provenance-circular::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-oracle-provenance-circular::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-oracle-provenance-circular::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-oracle-provenance-circular::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-oracle-provenance-circular::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-oracle-provenance-circular::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-oracle-provenance-independent::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-oracle-provenance-independent::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-oracle-provenance-independent::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-oracle-provenance-independent::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-oracle-provenance-independent::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-oracle-provenance-independent::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-unarmored-region::test-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-unarmored-region::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-unarmored-region::test-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-unarmored-region::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "tr-unarmored-region::test-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "tr-unarmored-region::test-review",
+    "passed": false,
+    "samples": 5
+  },
+  "vue-reactivity-clean::vue-reactivity-review||high": {
+    "band": "high",
+    "flap": false,
+    "hits": 0,
+    "pair": "vue-reactivity-clean::vue-reactivity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "vue-reactivity-clean::vue-reactivity-review||low": {
+    "band": "low",
+    "flap": false,
+    "hits": 0,
+    "pair": "vue-reactivity-clean::vue-reactivity-review",
+    "passed": false,
+    "samples": 5
+  },
+  "vue-reactivity-clean::vue-reactivity-review||medium": {
+    "band": "medium",
+    "flap": false,
+    "hits": 0,
+    "pair": "vue-reactivity-clean::vue-reactivity-review",
     "passed": false,
     "samples": 5
   }
