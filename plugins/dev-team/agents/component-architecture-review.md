@@ -3,7 +3,7 @@
 name: component-architecture-review
 description: Reusable component extraction and frontend duplication — repeated UI patterns, prop drilling, component granularity, inconsistent component APIs
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
-effort: medium
+effort: low
 cites: [frontend-component-architecture, adversarial-review-protocol]
 scope:
   - **/*.jsx
