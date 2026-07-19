@@ -1,0 +1,16 @@
+{
+  "fixture": "cc-mutex-guarded",
+  "description": "Correctly synchronized read-modify-write fully inside a mutex with try/finally release, so callers serialize and no update is lost \u2014 should pass review",
+  "applicableAgents": [
+    "concurrency-review"
+  ],
+  "agents": {
+    "concurrency-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  }
+}
