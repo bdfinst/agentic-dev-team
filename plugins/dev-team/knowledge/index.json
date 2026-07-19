@@ -4225,6 +4225,24 @@
       "anchor": "integration"
     }
   },
+  "plugins/dev-team/skills/long-eval/SKILL.md": {
+    "Why this exists": {
+      "summary": "A cloud session runs in a container that is **recycled on a short cadence**",
+      "anchor": "why-this-exists"
+    },
+    "The eval module contract": {
+      "summary": "An **eval module** is a plain Python file supplying only the eval-specific",
+      "anchor": "the-eval-module-contract"
+    },
+    "Steps": {
+      "summary": "1.",
+      "anchor": "steps"
+    },
+    "Guarantees & limits": {
+      "summary": "**At most one in-flight dispatch is ever lost** on a recycle — samples are",
+      "anchor": "guarantees-limits"
+    }
+  },
   "plugins/dev-team/skills/mermaid-diagramming/SKILL.md": {
     "Theme Directive": {
       "summary": "Paste this as the **first line** inside every ```` ```mermaid ```` block, before the diagram type declaration:",
