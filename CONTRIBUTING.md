@@ -1,6 +1,6 @@
 # Contributing
 
-How to develop, test, and release the `dev-team` and `security-assessment` plugins. To *use* the plugins, see the [README](README.md) and the [Getting Started](GETTING-STARTED.md) tutorial.
+How to develop, test, and release the `dev-team`, `security-assessment`, and `marketplace-dev` plugins. To *use* the plugins, see the [README](README.md) and the [Getting Started](GETTING-STARTED.md) tutorial.
 
 ## Repository layout
 
@@ -8,6 +8,7 @@ How to develop, test, and release the `dev-team` and `security-assessment` plugi
 .claude-plugin/marketplace.json    # marketplace catalog (the published plugin list)
 plugins/dev-team/                  # the dev-team plugin source
 plugins/security-assessment/       # the security companion plugin
+plugins/marketplace-dev/           # the plugin-author's toolkit (scaffold/audit/agent authoring)
 docs/                              # repo-level documentation
 evals/                            # eval fixtures and harnesses (not shipped)
 ```
@@ -73,19 +74,21 @@ See [comparative testing](plugins/security-assessment/docs/comparative-testing.m
 
 ## Adding agents and skills
 
+The agent-authoring commands — `/agent-add`, `/agent-create`, `/agent-remove` — and the `agent-skill-authoring` skill ship in the **`marketplace-dev`** plugin, not `dev-team`. Install `marketplace-dev` (see [Getting Started](GETTING-STARTED.md#install-marketplace-dev-optional)) before using them.
+
 Scaffold a new agent (review or team) with the authoring command:
 
 ```text
 /agent-add <description or URL to a coding standard>
 ```
 
-`/agent-add` scaffolds the file, checks for scope overlap with existing agents, runs `/agent-audit`, creates eval fixtures, and registers the agent. For the templates, schema, and registration steps, see:
+`/agent-add` scaffolds the file, checks for scope overlap with existing agents, runs `/agent-audit`, creates eval fixtures, and registers the agent. `/agent-create` builds one from scratch and `/agent-remove` deletes an agent and its registrations. For the templates, schema, and registration steps, see:
 
 - [Agents](plugins/dev-team/docs/agent_info.md) — team-agent and review-agent templates; add, remove, or customize agents
 - [Skills & Commands](plugins/dev-team/docs/skills.md) — skill template; add a knowledge or user-invocable (slash-command) skill
-- the `agent-skill-authoring` skill — conventions, anti-patterns, and the agent-vs-skill philosophy
+- the `agent-skill-authoring` skill (marketplace-dev) — conventions, anti-patterns, and the agent-vs-skill philosophy
 
-Every new or changed agent/skill/hook must pass `/agent-audit`.
+Every new or changed agent/skill/hook must pass `/agent-audit` (which ships in `dev-team`).
 
 ## Documentation diagrams
 
@@ -97,10 +100,4 @@ The docs use three diagram formats, each for a distinct purpose — match the co
 
 ## Releasing
 
-Releases are managed by [release-please](https://github.com/googleapis/release-please). Push [conventional commits](https://www.conventionalcommits.org/) to `main`:
-
-- `feat:` → minor version bump
-- `fix:` → patch version bump
-- `feat!:` or `BREAKING CHANGE:` → major version bump
-
-A release PR is opened automatically; merging it creates a GitHub Release with a version tag. The marketplace catalog serves only tagged releases.
+Releases are managed by [release-please](https://github.com/googleapis/release-please): push [conventional commits](https://www.conventionalcommits.org/) to `main` and merge the release PR it opens. The full rules — the version-bump mapping, why every commit that lands on `main` must be conventional under rebase-merge, and how to recover a missed release with a `Release-As:` footer — are in [`CLAUDE.md`](CLAUDE.md#releasing).
