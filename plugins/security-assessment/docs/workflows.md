@@ -16,9 +16,9 @@ The `security-assessment` plugin provides two **orchestrator** commands that seq
 | --- | --- | --- |
 | **0. Recon** | `codebase-recon` agent (from `dev-team`) | `memory/recon-<slug>.{json,md}` |
 | **1. Tool-first detection** | semgrep, gitleaks, trivy, hadolint, actionlint, custom rulesets | unified findings stream |
-| **1b. Judgment** | `security-review`, `business-logic-domain-review` agents | appended findings |
+| **1b. Judgment** | `security-review`, `business-logic-domain-review`, `deep-code-reasoning`, `authorization-logic-review`, `recon-driven-scan` agents (opus, all five) | appended findings |
 | **1c. Suppression** | `ACCEPTED-RISKS.md` gate (deterministic) | filtered stream + audit log |
-| **2. False-positive filter** | `false-positive-reduction` skill (5-stage rubric) | decisions log |
+| **2. False-positive filter** | `false-positive-reduction` skill (six-stage rubric) | decisions log |
 | **2b. Severity floors** | deterministic domain-class calibration | floor-adjusted scores |
 | **3. Narrative + compliance** | `tool-finding-narrative-annotator`, `compliance-mapping` skill | 4-domain narrative + compliance JSON |
 | **4. Cross-repo** | service-comm parser, shared-cred hash match (multi-target only) | Mermaid diagram + SARIF |
@@ -50,7 +50,16 @@ The `security-assessment` plugin provides two **orchestrator** commands that seq
 **Role:** adversarial pipeline.
 **Use when:** probing a self-owned model endpoint for safety and extraction vulnerabilities. Public targets require a signed `authorization.md` artifact — see [`knowledge/redteam-authorization.md`](../knowledge/redteam-authorization.md).
 
-Eight probes cover: discovery, input evasion, output evasion, system-prompt extraction, data-exfiltration shapes, jailbreak stability, capability disclosure, and report synthesis.
+Eight probes (in `harness/redteam/probes/`) run in sequence:
+
+1. `01_api_recon` — documentation paths, HTTP methods, content types, server headers.
+2. `02_schema_discovery` — the model's input feature list.
+3. `03_feature_sensitivity` — sweep each feature across a value range.
+4. `04_boundary_mapping` — binary-search per-feature decision boundaries.
+5. `05_evasion_attack` — adversarial inputs that receive low fraud scores.
+6. `06_input_validation` — malformed-input handling.
+7. `07_model_extraction` — surrogate models trained against captured scores.
+8. `08_report_generator` — compiles probe outputs into `adversarial-report.md`.
 
 ---
 

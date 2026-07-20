@@ -31,17 +31,9 @@ Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle 
 - Python ≥ 3.10 — required by the red-team harness.
 - `jq` — JSON parsing in hooks + pipeline glue.
 
-**Tier-1 static-analysis tools (required for `/security-assessment` to produce useful output):**
+**Tier-1 static-analysis tools (required for `/security-assessment` to produce useful output):** `semgrep`, `gitleaks`, `trivy`, `hadolint`, `actionlint`. See the [User Guide tool-install matrix](docs/user-guide-security-assessment.md#tool-install-matrix) for per-tool coverage, install commands, and missing-tool impact.
 
-| Tool | Coverage | Install |
-| --- | --- | --- |
-| `semgrep` | SAST across every scan concern | `pip install semgrep` |
-| `gitleaks` | Secrets / credentials in committed files | `brew install gitleaks` |
-| `trivy` | IaC config + vulnerability DB | `brew install trivy` |
-| `hadolint` | Dockerfile linting | `brew install hadolint` |
-| `actionlint` | GitHub Actions linting | `brew install actionlint` |
-
-**Optional tools** (broader coverage; the pipeline degrades gracefully without them): `checkov`, `bandit`, `gosec`, `bearer`, `osv-scanner`, `grype`, `kube-linter`, `trufflehog`, `detect-secrets`, `deptry`, `kube-score`, `govulncheck`, `pandoc`, `weasyprint`.
+**Optional tools** (broader coverage; the pipeline degrades gracefully without them): `checkov`, `bandit`, `gosec`, `bearer`, `osv-scanner`, `grype`, `kube-linter`, `trufflehog`, `detect-secrets`, `deptry`, `kube-score`, `govulncheck`, `joern` (call-graph reachability for FP-reduction), `pandoc`, `weasyprint`.
 
 ### Install the tools
 
@@ -115,6 +107,7 @@ The check validates:
 | [Agents](docs/agent_info.md) | Assessment, cross-repo, and red-team agents with dispatch model |
 | [User Guide](docs/user-guide-security-assessment.md) | Full runbook — install, run, interpret results |
 | [Accepted Risks Format](docs/accepted-risks-format.md) | `ACCEPTED-RISKS.md` schema and suppression rules |
+| [Comparative Testing](docs/comparative-testing.md) | Measuring coverage parity against the reference prompt-heavy pipeline |
 
 ## Update
 
@@ -141,13 +134,11 @@ See `CLAUDE.md` for the opt-out snippet.
 
 ## Status
 
-Phase A primitives (in `dev-team`) are landing in parallel:
+Shipped and released — current version **3.4.0** (see [`CHANGELOG.md`](CHANGELOG.md)). Every phase is live:
 
-- ✅ codebase-recon agent
-- ✅ ACCEPTED-RISKS convention
-- ✅ security-primitives-contract v1.0.0
-- ✅ contract-version-guard hook
-- ✅ SARIF-first orchestration baseline (tier-1 adapters)
-- ⏳ optional + bespoke-JSON adapters + custom scripts + rulesets (Step 3b)
-
-Phase B / C / D work (this plugin's own agents, FP-reduction, red-team harness, exec report, release-please config) is scaffolded and in-progress. See `plans/security-review-companion-plugin.md`.
+- ✅ `dev-team` Phase A primitives: codebase-recon agent, ACCEPTED-RISKS convention, security-primitives-contract v1.0.0, contract-version-guard hook, SARIF-first tool orchestration
+- ✅ This plugin's own agents (judgment, cross-repo, red-team)
+- ✅ Six-stage FP-reduction (joern reachability with LLM fallback)
+- ✅ Adversarial ML red-team harness
+- ✅ Publication-ready executive report
+- ✅ release-please catalog + versioning config
