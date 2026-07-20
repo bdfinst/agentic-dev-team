@@ -31,8 +31,11 @@ The hook consumes that file and clears it after writing.
 }
 ```
 
-All fields are optional. If the file is absent or empty, the hook writes a
-minimal heartbeat entry recording session cost fields from the stop payload.
+All fields are optional. If the scratch file is absent or empty, the hook
+writes **nothing** and exits — a Stop/SubagentStop with no task-local payload
+carries no signal worth recording, and a bare heartbeat only produces
+`task_type:"unknown"` noise that dilutes `/harness-audit` Step 3 (see #1258;
+a single 2026-07-20 audit run emitted 172 empty heartbeats vs 10 real rows).
 
 ## Output files
 
@@ -184,10 +187,12 @@ def main() -> int:
 
     scratch = _load_scratch(cwd)
 
-    # If neither a scratch file nor any useful payload exists, skip writing
-    # a hollow entry.  The hook is advisory — do nothing rather than generate
-    # noise.
-    if not scratch and not payload:
+    # Suppress empty heartbeats (#1258). A Stop/SubagentStop with no scratch
+    # payload has nothing task-local to record — writing an entry would only
+    # emit a hollow task_type:"unknown" row that dilutes downstream analysis
+    # (harness-audit Step 3). The stop payload alone (stop_reason, cost) is not
+    # enough to justify a row; a skill that wants a row populates the scratch.
+    if not scratch:
         return 0
 
     try:
