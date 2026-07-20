@@ -63,8 +63,8 @@ def test_adr_0010_has_accepted_status_and_required_sections() -> None:
     assert re.search(r"^## Consequences", text, re.MULTILINE)
 
 
-def test_adr_0010_decision_contains_sessionstop_not_per_turn() -> None:
+def test_adr_0010_decision_contains_sessionend_not_per_turn() -> None:
     text = ADR_0010.read_text(encoding="utf-8")
     decision = _section(text, "## Decision")
-    assert "SessionStop" in decision
+    assert "SessionEnd" in decision
     assert "per turn" not in decision.lower()
