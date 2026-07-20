@@ -116,7 +116,14 @@ before this result is treated as rock-solid.
   are untouched pending fixture/floor work, each blocking its own apply.
 - **Excluded as harness gaps** (not calibration results): reactivity agents
   with missing fixtures (#1209) and `test-design-advisor`, a skill that
-  `/review-agent` cannot dispatch (#1210).
+  `/review-agent` cannot dispatch (#1210). Both are now fixed at the code
+  level: `calibrate_target`/`target_universe` in `scripts/agent_calibrate.py`
+  report a skill-only target as `uncalibratable` instead of forcing every
+  cell to a false 0% floor-failure (#1210), and `ang/react/vue-reactivity-*`
+  each gained a real clean + positive fixture pair so their fixtures resolve
+  to files on disk (#1209). A follow-up calibration run against the new
+  fixtures still needs to happen to replace this baseline's forced-0%
+  numbers with a real hit distribution.
 - **Verification debt**: per-agent re-calibration (`/agent-eval --calibrate
   --agent <name>` → `aligned`) after each applied change is still pending; the
   #1184 baseline is the supporting evidence in the interim.
