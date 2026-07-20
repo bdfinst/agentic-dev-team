@@ -9,15 +9,15 @@ on its own to build or maintain plugins.
 
 ## When to use this
 
-- **Starting a new plugin**: `/scaffold-plugin` generates an audit-clean skeleton
-  in one command.
+- **Starting a new plugin**: the `scaffold-plugin` skill generates an audit-clean
+  skeleton in one command.
 - **Authoring agents or skills**: `/agent-type-advisor` recommends markdown vs.
   script for a use-case; `/agent-create` generates a correctly structured agent
   file.
-- **Auditing an existing plugin**: `/plugin-audit` produces a structured findings
-  report with zero noise for compliant plugins.
-- **Setting up a new marketplace**: `/scaffold-marketplace` wires the catalog,
-  release-please config, and at least one plugin slot.
+- **Auditing an existing plugin**: the `plugin-audit` skill produces a structured
+  findings report with zero noise for compliant plugins.
+- **Setting up a new marketplace**: the `scaffold-marketplace` skill wires the
+  catalog, release-please config, and at least one plugin slot.
 
 ## Install
 
@@ -46,20 +46,25 @@ claude plugin install marketplace-dev@bfinster
 claude plugin install --scope project /path/to/agentic-dev-team/plugins/marketplace-dev
 ```
 
-## Commands
+## Skills & commands
 
-| Command | Role | What it does |
+Six skills are **user-invocable** slash commands; the four scaffolding/audit
+skills are **agent-loaded** — Claude dispatches them when the task calls for it
+rather than you typing a slash command. The [Skills catalog](docs/skills.md) is
+the canonical, generated list with full frontmatter descriptions.
+
+| Skill | Invocation | What it does |
 |---|---|---|
-| `/scaffold-plugin <name>` | implementation | Create a new plugin dir with the audit-clean skeleton |
-| `/scaffold-marketplace <owner>` | implementation | Create a marketplace root — catalog, release-please wiring, ≥1 plugin slot |
-| `/init-plugin-eval <name>` | implementation | Scaffold `evals/<name>/{fixtures,expected}/` + grading-contract README |
-| `/agent-type-advisor <prose\|file>` | worker | Recommend markdown vs. script for a use-case, or audit an existing file |
-| `/plugin-audit [dir] [--fix]` | orchestrator | Structural compliance check — agent type, frontmatter, eval coverage, body budgets |
-| `/agent-create` | worker | Create an agent file following the official schema and token budgets |
-| `/agent-skill-authoring` | worker | Conventions, anti-patterns, and meta-patterns for authoring agents and skills |
-| `/agent-add` | implementation | Create a new review or team agent (delegates to `agent-create`) |
-| `/agent-remove` | implementation | Remove an agent and clean up registry/doc references |
-| `/add-plugin <name@marketplace>` | implementation | Install a plugin and register it in a project's `settings.json` |
+| `agent-type-advisor` | `/agent-type-advisor <prose\|file>` | Recommend markdown vs. script for a use-case, or audit an existing file |
+| `agent-create` | `/agent-create` | Create an agent file following the official schema and token budgets |
+| `agent-skill-authoring` | `/agent-skill-authoring` | Conventions, anti-patterns, and meta-patterns for authoring agents and skills |
+| `agent-add` | `/agent-add` | Create a new review or team agent (delegates to `agent-create`) |
+| `agent-remove` | `/agent-remove` | Remove an agent and clean up registry/doc references |
+| `add-plugin` | `/add-plugin <name@marketplace>` | Install a plugin and register it in a project's `settings.json` |
+| `scaffold-plugin` | agent-loaded | Create a new plugin dir with the audit-clean skeleton |
+| `scaffold-marketplace` | agent-loaded | Create a marketplace root — catalog, release-please wiring, ≥1 plugin slot |
+| `init-plugin-eval` | agent-loaded | Scaffold `evals/<name>/{fixtures,expected}/` + grading-contract README |
+| `plugin-audit` | agent-loaded | Structural compliance check — agent type, frontmatter, eval coverage, body budgets |
 
 ## Agent
 

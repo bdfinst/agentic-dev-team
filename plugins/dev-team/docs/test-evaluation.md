@@ -2,6 +2,13 @@
 
 This document explains how to evaluate how an existing application is tested and design a path toward a fast, deterministic, config-free CI gate that fully validates behavior — including cross-service interaction — without standing up the rest of the system.
 
+**On this page:** [Purpose](#purpose) ·
+[Tools and Their Altitudes](#tools-and-their-altitudes) ·
+[The Evaluation Workflow](#the-evaluation-workflow) ·
+[When the Tests Aren't in the Repo](#when-the-tests-arent-in-the-repo) ·
+[Key Principles](#key-principles) · [Sample Invocations](#sample-invocations) ·
+[Reference Files](#reference-files).
+
 ## Purpose
 
 The test evaluation workflow answers two questions: "how well is this application tested today?" and "what would a CD-aligned test architecture look like?" The result is an assessed gap list and a concrete migration path, not generated test code. Implementation of the migration goes to `/plan` or `/build`.
@@ -20,13 +27,13 @@ Four tools operate at different scopes. Use the one that matches what you need.
 | Assess the application's test strategy against CD: per-component types, pre-merge gate determinism | `cd-test-architecture` skill | Whole application | Architecture |
 | Consolidated analyze-then-improve orchestrator — lightweight by default, opts into heavier capabilities (Gherkin, mutation, refactor-for-testability) only when asked; always baselines before changing tests; ships a 10-section executive-summary report | `/test-improve` | Whole repository | Remediation |
 
-**`test-design-advisor`** works at the module level: assess testability blockers, place each behavior on the pyramid, choose the right test double, and produce a behavior-preserving refactor sequence to introduce seams. It does not write tests. **Vocabulary is locked to MinimumCD** (static analysis / unit / component / contract / integration / E2E); prefer "contract test" over "narrow integration test" and gloss the alias once if it must be used. **The pyramid is a cost heuristic, not a target shape** — the advisor never emits "current shape vs recommended shape" tables or per-layer target counts; placements are per-behavior with a two-direction justification (why not the layer above or below). **E2E justification gate**: E2E is recommended only when (1) a contract test cannot pin the boundary, (2) a component test with doubles cannot exercise the behavior, (3) a resilience test cannot cover the failure mode, AND (4) the behavior is a critical multi-component user journey. E2E is never pre-merge.
+**`test-design-advisor`** works at the module level: assess testability blockers, place each behavior on the pyramid, choose the right test double, and produce a behavior-preserving refactor sequence to introduce seams. It does not write tests. **Vocabulary is locked to MinimumCD** (static analysis / unit / component / contract / integration / E2E); prefer "contract test" over "narrow integration test" and gloss the alias once if it must be used. **The pyramid is a cost heuristic, not a target shape** — the advisor never emits "current shape vs recommended shape" tables or per-layer target counts; placements are per-behavior with a two-direction justification (why not the layer above or below). Any E2E placement must satisfy the [E2E justification gate](#the-e2e-justification-gate).
 
 **`/test-design`** is the orchestrator command for the changeset-level workflow. It dispatches `test-review` (tactical quality: missing assertions, non-determinism mechanics, mock hygiene) and `test-smell-review` (design-level smells: xUnit smell taxonomy, double selection, pyramid placement) in parallel, scores **every existing test in the suite** with the **Farley Score** (via the `farley-score` skill — 8 properties, weighted 1–10), then optionally runs `test-design-advisor` for production code that has no tests or hard-to-test units. The aggregated report carries the headline Farley score independent of the changeset scope.
 
 **`test-health`** is the **strategic-altitude** rollup over the whole repository. It maps coverage to the Agile Testing Quadrants, evaluates the suite's shape against the architecture, rolls up automation maturity and flaky-test signals, and produces an ordered improvement plan. It **delegates rather than re-derives**: CD-determinism + pipeline placement come from `cd-test-architecture`, per-file findings + Farley Score come from `/test-design`, assertion strength on critical-logic modules comes from `mutation-testing`. Use this for "audit our tests" / "test strategy review" / "is our testing healthy?".
 
-**`cd-test-architecture`** works at the application level: inventory components and test suites, classify against the six MinimumCD test types, identify CD-fitness gaps, recommend a per-component target architecture (with the four-condition **E2E justification gate** applied to every E2E recommendation), and produce a migration path. It does not write tests or edit code.
+**`cd-test-architecture`** works at the application level: inventory components and test suites, classify against the six MinimumCD test types, identify CD-fitness gaps, recommend a per-component target architecture (with the [E2E justification gate](#the-e2e-justification-gate) applied to every E2E recommendation), and produce a migration path. It does not write tests or edit code.
 
 **`/test-improve`** is the **consolidated remediation altitude** — a seven-phase orchestrator (approach contract → analyze → baseline → optional Gherkin → triage → improve-without-refactoring → optional refactor-for-testability → validate → executive-summary report). It defaults to lightweight ceremony (mutation off, BDD `none`, no-refactor) and prompts for heavier capabilities on demand. Phase 1 delegates the entire analysis to `/test-health`, which in turn folds in `cd-test-architecture` (advisory), `/test-design`, and `mutation-testing`. See the workflow diagram in [Architecture](agent-architecture.md#test-improvement-workflow-test-improve).
 
@@ -81,7 +88,7 @@ Flag, with evidence:
 
 Per component: which test types cover which layers, what to double to run pre-merge without configuration, which success scenarios and failure modes to cover, the double-validation loop, and the pipeline stage for each test type (pre-merge gate, Stage 1/2, out-of-band, or post-deploy).
 
-The recommendation applies the **E2E justification gate**: every E2E test must document that (1) a contract test cannot pin the boundary, (2) a component test with doubles cannot exercise the behavior, (3) a resilience test cannot cover the failure mode, AND (4) the behavior is a critical multi-component user journey. E2E recommendations that fail any of (1)–(3) are replaced with the cheaper layer that *can* cover them. The pyramid is treated as a cost heuristic — no per-layer target counts are recommended; if the shape is pathological (ice-cream cone, hourglass, cupcake), the pathology and the behaviors that suffer from it are named, not a numeric redistribution.
+The recommendation applies the [E2E justification gate](#the-e2e-justification-gate) to every E2E test. The pyramid is treated as a cost heuristic — no per-layer target counts are recommended; if the shape is pathological (ice-cream cone, hourglass, cupcake), the pathology and the behaviors that suffer from it are named, not a numeric redistribution.
 
 ### Step 5: Produce a migration path
 
@@ -142,7 +149,18 @@ If in-repo tests are sparse but no `--external-tests` location is given, the ski
 
 The gate that blocks a merge may contain **only** static analysis, unit, component, and contract tests. These are deterministic and need nothing configured. Integration and end-to-end tests are non-deterministic by nature and never gate a merge. A test that needs a database URL, broker, downstream service, or environment secrets to run is mis-typed — re-classify or convert it.
 
-The corollary is that E2E is the last resort, not a quota. The four-condition E2E justification gate (Step 4) ensures recommendations don't propose E2E "for completeness" or "to round out the pyramid" — if a contract, component, or resilience test can cover a behavior, that's where it goes.
+The corollary is that E2E is the last resort, not a quota. The [E2E justification gate](#the-e2e-justification-gate) ensures recommendations don't propose E2E "for completeness" or "to round out the pyramid" — if a contract, component, or resilience test can cover a behavior, that's where it goes.
+
+### The E2E justification gate
+
+This is the single rule every tool and workflow step below applies to any E2E recommendation. An E2E test is recommended **only** when all four conditions hold:
+
+1. A contract test cannot pin the boundary.
+2. A component test with doubles cannot exercise the behavior.
+3. A resilience test cannot cover the failure mode.
+4. The behavior is a critical multi-component user journey.
+
+An E2E recommendation that fails any of (1)–(3) is replaced with the cheaper layer that *can* cover it. **E2E is never a pre-merge gate.**
 
 ### Run CI without configuring dependencies
 

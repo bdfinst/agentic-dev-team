@@ -4,6 +4,8 @@ How `/code-review` (and its alias `/review`) works end-to-end: from invocation t
 
 > **Authoritative source**: the skill spec at [`skills/code-review/SKILL.md`](../skills/code-review/SKILL.md). This document is a reader-friendly walkthrough that links to the spec, rubric, template, and output format for details.
 
+**On this page**: [What it does](#what-it-does) · [Invocation](#invocation) · [Pipeline](#pipeline) · [Artifacts](#artifacts) · [Customization points](#customization-points) · [Relationship to other workflows](#relationship-to-other-workflows) · [Concurrent use](#concurrent-use) · [References](#references)
+
 ## What it does
 
 `/code-review` is an **orchestrator-only** workflow. It does not review code itself — it dispatches a suite of focused review agents in parallel, aggregates their structured findings, optionally auto-fixes actionable issues in a bounded loop, and produces a health-scored report.
@@ -109,7 +111,7 @@ Unlike pre-flight gates, the pre-pass never stops the pipeline — its purpose i
 
 ### 3. Select enabled agents
 
-All review agents in `agents/*.md` that declare a `Model tier:` are enabled by default. Four language-agnostic agents always run regardless of tech stack:
+All review agents in `agents/*.md` that declare an `effort:` band are enabled by default. Four language-agnostic agents always run regardless of tech stack:
 
 - `doc-review` — README, API docs, inline comments, ADRs
 - `arch-review` — layer boundaries, dependency direction, pattern consistency
@@ -134,13 +136,12 @@ Each enabled agent is spawned as a sub-agent via the Agent tool, all in a single
 
 When the target is the full repository (`--all`, `--path`, or clean auto-scope), agents always receive full files regardless of `Context needs`.
 
-**Model routing** is orchestrator-controlled, not agent-controlled:
-
-| Tier | Model | Assigned to |
-| ------ | ------- | ------------- |
-| small | Haiku | naming, complexity, claude-setup, token-efficiency, performance, progress-guardian |
-| mid | Sonnet | spec-compliance, test, structure, js-fp, concurrency, a11y, svelte, doc, refactoring, data-flow-tracer |
-| frontier | Opus | security, domain, arch |
+**Model routing** is orchestrator-controlled, not agent-controlled. Each agent
+declares an `effort: low|medium|high` band in its frontmatter, and a PreToolUse
+hook resolves that band to a concrete model at dispatch time. See
+[model-routing.md](model-routing.md) for the resolution contract, the shipped
+default band→model map, and how to override it per environment (Bedrock, Vertex,
+a restricted proxy).
 
 Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summary}`. See [`skills/code-review/output-format.md`](../skills/code-review/output-format.md).
 
@@ -157,12 +158,10 @@ Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summ
 | 🔴 CRITICAL | 3+ fail OR any `security-review` fail |
 
 **Actionability classification** determines what the fix loop touches:
-
-| Severity | Confidence | Actionable | Behavior |
-| ---------- | ------------ | ------------ | ---------- |
-| error / warning | high / medium | Yes | Auto-apply in fix loop |
-| error / warning | none | No | Report only — human judgment |
-| suggestion | any | No | Report only — do not trigger loop |
+error/warning findings at high or medium confidence are auto-applied, and
+everything else (any `confidence: none`, and all suggestions) is report-only.
+The canonical rubric — severity × confidence → actionable — lives in the
+[review-corrections flow](triage-workflow.md#4-the-review-corrections-flow).
 
 ### 6. Fix or report only?
 
@@ -266,10 +265,10 @@ All three are optional and project-local — they are not part of the plugin.
 
 ## Concurrent use
 
-The `.review-passed` gate is a single, gitignored file per working tree. Two
-agents sharing **one** checkout will overwrite each other's gate. Run each
-concurrent agent in its own [git worktree](concurrent-use.md) — separate
-checkouts (the normal team workflow) are unaffected.
+The `.review-passed` gate is a single, gitignored file per working tree, so two
+agents sharing **one** checkout overwrite each other's gate. Give each
+concurrent agent its own git worktree — the full rationale and setup are in
+[concurrent-use.md](concurrent-use.md).
 
 ## References
 

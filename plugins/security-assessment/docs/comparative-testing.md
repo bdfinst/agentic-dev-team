@@ -4,9 +4,13 @@ How to measure whether our tool-first `/security-assessment` pipeline finds the
 same issues as the reference's prompt-heavy pipeline, with the same severity
 calibration, on the same input.
 
+**Path placeholders used below:** `<REPO_ROOT>` is your local checkout of this
+repository (`agentic-dev-team`); `<REFERENCE_REPO>` is your local checkout of the
+`opus_repo_scan_test-main` reference repo. Substitute your own absolute paths.
+
 ## Why this exists
 
-The `opus_repo_scan_test-main` repo (`/Users/finsterb/Downloads/opus_repo_scan_test-main/`) is the design inspiration
+The `opus_repo_scan_test-main` repo (`<REFERENCE_REPO>/`) is the design inspiration
 for this plugin. Our plan explicitly **inverts** its prompt-heavy design —
 deterministic tools do detection, LLM agents do semantic reasoning. An
 inversion is only valuable if it produces equivalent or better security
@@ -17,7 +21,7 @@ coverage. This directory tree provides the evidence.
 ```
 evals/comparative/
 ├── README.md             # user-facing overview
-├── fixture-repo/         # seeded two-service fixture (20+ known findings)
+├── fixture-repo/         # seeded two-service fixture (26 known findings)
 ├── ground-truth.yaml     # structured declaration of expected findings
 ├── score.py              # scoring harness (recall / precision / severity)
 └── unit-tests/
@@ -70,9 +74,9 @@ Adversarial pipeline (reference ships 8 Python probes + 5 prompts):
 1. **Capture the reference baseline** (one-time, uses Claude API credits):
 
    ```bash
-   cd /Users/finsterb/Downloads/opus_repo_scan_test-main
+   cd <REFERENCE_REPO>
    mkdir -p repos
-   cp -r /Users/finsterb/_git-os/dev-team/evals/comparative/fixture-repo repos/fixture-repo
+   cp -r <REPO_ROOT>/evals/comparative/fixture-repo repos/fixture-repo
 
    # From a Claude Code session in the opus_repo_scan_test directory:
    # Run the 13 agents in order per docs/static-analysis-agents.md.
@@ -83,15 +87,15 @@ Adversarial pipeline (reference ships 8 Python probes + 5 prompts):
    # Expected time: ~10-15 minutes; cost: ~$5-15 in Opus API calls.
 
    # Archive the reference output for future diff checks:
-   mkdir -p /Users/finsterb/_git-os/dev-team/evals/comparative/reference-baseline/$(date +%Y-%m-%d)
+   mkdir -p <REPO_ROOT>/evals/comparative/reference-baseline/$(date +%Y-%m-%d)
    cp -r results/reports/* \
-     /Users/finsterb/_git-os/dev-team/evals/comparative/reference-baseline/$(date +%Y-%m-%d)/
+     <REPO_ROOT>/evals/comparative/reference-baseline/$(date +%Y-%m-%d)/
    ```
 
 2. **Run our pipeline** against the same fixture:
 
    ```bash
-   cd /Users/finsterb/_git-os/dev-team
+   cd <REPO_ROOT>
    # Invoke the /security-assessment command via your Claude Code session:
    /security-assessment evals/comparative/fixture-repo
 
@@ -103,7 +107,7 @@ Adversarial pipeline (reference ships 8 Python probes + 5 prompts):
 
    ```bash
    python3 evals/comparative/score.py \
-     --reference /Users/finsterb/Downloads/opus_repo_scan_test-main/results/reports \
+     --reference <REFERENCE_REPO>/results/reports \
      --ours memory
    ```
 
@@ -172,7 +176,7 @@ Useful for:
 ### Severity agreement
 
 - **90%+ within ±1 tier**: presentational calibration is sound.
-- **< 90%**: our contract v1.1.0 severity mapping may be off for this
+- **< 90%**: our contract v1.0.0 severity mapping may be off for this
   domain. Specifically check `exploitability.score` derivation in
   `fp-reduction` agent.
 
@@ -195,7 +199,7 @@ Useful for:
    re-running produces slightly different output. For stable regression
    testing, pin to a captured baseline rather than re-running.
 
-2. **Ground-truth completeness**: the fixture seeds ~26 findings but the
+2. **Ground-truth completeness**: the fixture seeds 26 findings but the
    reference's 13 agents may find additional real issues we didn't seed
    (e.g. line 1 has a subtle concurrency flaw we didn't anticipate). Both
    systems finding "extras" is evidence, not noise — investigate rather

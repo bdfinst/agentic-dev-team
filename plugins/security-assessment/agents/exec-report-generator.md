@@ -9,7 +9,7 @@ tools: Read, Write, Glob, Grep
 
 Final agent in `/security-assessment`. Synthesizes narrative from upstream
 artifacts. Does not detect, disposition, or score. Maps presentational
-severity (CRITICAL/HIGH/MEDIUM/LOW) per primitives contract v1.1.0.
+severity (CRITICAL/HIGH/MEDIUM/LOW) per primitives contract v1.0.0.
 
 Context needs: artifact-stream
 
@@ -134,7 +134,7 @@ When multiple targets assessed, generate
 
 ## Invariants (violations → Appendix B, not silently dropped)
 
-Per primitives contract v1.1.0 § "Severity mapping":
+Per primitives contract v1.0.0 § "Severity mapping":
 
 1. Every CRITICAL or HIGH finding must have a CWE. Missing → Appendix B
    with note "CWE absent — investigate and file upstream adapter issue".
