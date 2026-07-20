@@ -1,0 +1,14 @@
+{
+  "fixture": "ang-reactivity-issues.ts",
+  "description": "OnPush component mutating an @Input array in place, unclosed RxJS subscription, and an effect() that writes the signal it reads",
+  "applicableAgents": ["angular-reactivity-review"],
+  "agents": {
+    "angular-reactivity-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 2, "max": 5 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["OnPush"],
+      "mustNotMention": ["async pipe"]
+    }
+  }
+}

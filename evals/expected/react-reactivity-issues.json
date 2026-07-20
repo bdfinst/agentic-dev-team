@@ -1,0 +1,14 @@
+{
+  "fixture": "react-reactivity-issues.tsx",
+  "description": "setState called during render, a stale-closure dependency array, and a timer effect with no cleanup",
+  "applicableAgents": ["react-reactivity-review"],
+  "agents": {
+    "react-reactivity-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 2, "max": 5 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["dependency"],
+      "mustNotMention": ["useMemo"]
+    }
+  }
+}
