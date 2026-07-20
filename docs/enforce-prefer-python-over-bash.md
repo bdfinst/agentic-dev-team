@@ -1,7 +1,16 @@
-# Recommendation: mechanically enforce "prefer Python over bash"
+# Record: mechanically enforcing "prefer Python over bash"
 
-**Issue**: [#701](https://github.com/bdfinst/agentic-dev-team/issues/701) — exploration only, no mechanism implemented here.
-**Follow-up implementation issue**: [#702](https://github.com/bdfinst/agentic-dev-team/issues/702) (see [Follow-up](#follow-up-implementation-issue) for scope).
+> **Status — Implemented in [#702](https://github.com/bdfinst/agentic-dev-team/issues/702).**
+> `scripts/check-python-only.py` was extended to cover `.sh` **and** `.bats`
+> repo-wide (outside an explicit allowlist), flipped to **blocking by default**
+> (`--advisory` opts back out), and wired into **both** gates —
+> `scripts/ci-local.sh` (`chk_python_only`, pre-push) and CI
+> (`.github/workflows/plugin-tests.yml`, folded into the shell-hygiene job).
+> ADR 0014's "Enforcement" line now records this. This page is retained as the
+> design record behind that change; it is written in the past tense throughout.
+
+**Exploration issue**: [#701](https://github.com/bdfinst/agentic-dev-team/issues/701) — exploration only, no mechanism was implemented in that issue.
+**Implementation issue**: [#702](https://github.com/bdfinst/agentic-dev-team/issues/702) (see [Follow-up](#follow-up-implementation-issue) for the delivered scope).
 
 ## Problem
 
@@ -37,19 +46,19 @@ option 1 describes in the issue: it runs `git diff --diff-filter=A --name-only
    records that phase as complete for `plugins/dev-team/` — the gate this
    script was waiting on has landed.
 
-The right move is **extend and wire in this existing script**, not write a
-new one. It already has the correct diff-based shape (`--diff-filter=A`, an
+The chosen move was to **extend and wire in this existing script**, not write a
+new one. It already had the correct diff-based shape (`--diff-filter=A`, an
 explicit exclusions set, `--base`/`--block`/`--list` flags) that issue #701's
-option 1 asks for, and it already has ADR 0014 as its authority — no new ADR
+option 1 asked for, and it already had ADR 0014 as its authority — no new ADR
 needed, just an update noting the enforcement finally landed.
 
-## Recommended mechanism: extend `check-python-only.py` + wire into both gates
+## Mechanism (as implemented): extended `check-python-only.py` + wired into both gates
 
 **Chosen from the issue's three options: option 1 (CI/local diff gate),
 generalized to cover `.bats` and a repo-wide (allowlisted) scope, run in both
 `ci-local.sh` (pre-push, local) and a CI workflow job (PR, remote) — the
 repo's existing dual-gate pattern.** Option 2 (PreToolUse hook at authoring
-time) and option 3 (one-time baseline+drift) are addressed below as
+time) and option 3 (one-time baseline+drift) were addressed below as
 considered-and-rejected-for-now, with a note on when option 2 becomes worth
 revisiting.
 
@@ -98,11 +107,11 @@ Changes to `scripts/check-python-only.py`:
 ### 2. Flip default mode to blocking
 
 ADR 0014 gated `--block` on "the epic's Phase 3 gate" being reached. ADR 0015
-records that gate as met for `plugins/dev-team/` (2026-07-02). Recommend:
-flip the script's **default** behavior to blocking (`--block` becomes the
-default; keep an `--advisory` flag for anyone who wants the old behavior
-locally), and update ADR 0014's "Enforcement" line to point at this doc +
-ADR 0015 instead of "Advisory in Phase 0-2."
+records that gate as met for `plugins/dev-team/` (2026-07-02). The
+implementation therefore flipped the script's **default** behavior to blocking
+(blocking is now the default; an `--advisory` flag keeps the old warn-only
+behavior for anyone who wants it locally), and updated ADR 0014's "Enforcement"
+line to point at this doc + ADR 0015 instead of "Advisory in Phase 0-2."
 
 ### 3. Wire into `scripts/ci-local.sh` (local, pre-push)
 
@@ -180,28 +189,26 @@ file is one more artifact that can go stale between the manifest and the
 allowlist in `check-python-only.py`; the diff-based check has a single
 source of truth (the script's own exclusion table).
 
-## Summary of the change surface (for the follow-up issue)
+## Change surface (delivered)
 
-- `scripts/check-python-only.py`: extend extension filter to `.sh` + `.bats`,
-  broaden scope repo-wide with the allowlist table above, flip default to
-  `--block` (keep `--advisory` opt-out), update its docstring + `AUDIT_EXCLUSIONS`
-  naming/shape to reflect the directory-allowlist generalization.
-  Add/extend `scripts/tests/` or `plugins/dev-team/tests/scripts/`
-  pytest coverage (whichever mirrors where this file's existing tests — if
-  any — currently live; none exist today, so this is new coverage) for: new
-  `.bats` under an allowlisted dir → pass; new `.sh` under
+- `scripts/check-python-only.py`: extended the extension filter to `.sh` +
+  `.bats`, broadened scope repo-wide with the allowlist table above, flipped the
+  default to blocking (kept `--advisory` opt-out), and updated its docstring +
+  `AUDIT_EXCLUSIONS` naming/shape to reflect the directory-allowlist
+  generalization. New pytest coverage landed in `tests/scripts/test_check_python_only.py`
+  for: new `.bats` under an allowlisted dir → pass; new `.sh` under
   `plugins/security-assessment/` → pass; new `.sh` under `scripts/` (not
   allowlisted) → fail; new `.sh` under `plugins/dev-team/` → fail; edited
   (not added) existing `.bats` → pass (diff-filter=A semantics unchanged).
-- `scripts/ci-local.sh`: add `chk_python_only` function + `CHECKS` entry.
-- `.github/workflows/plugin-tests.yml`: add `chk_python_only` to the
-  shellcheck/shell-suite job's `--only=` list (line 42).
-- `docs/adr/0014-python-for-cross-os-scripts.md`: update the "Enforcement"
+- `scripts/ci-local.sh`: added the `chk_python_only` function + `CHECKS` entry.
+- `.github/workflows/plugin-tests.yml`: added `chk_python_only` to the
+  shellcheck/shell-suite job's `--only=` list.
+- `docs/adr/0014-python-for-cross-os-scripts.md`: updated the "Enforcement"
   line to reflect blocking-by-default and link this doc.
 
 ## Follow-up implementation issue
 
-Filed: **[#702](https://github.com/bdfinst/agentic-dev-team/issues/702)** —
+Shipped under **[#702](https://github.com/bdfinst/agentic-dev-team/issues/702)** —
 "Extend and wire in check-python-only.py to block new .sh/.bats files
-outside allowlist." Covers the concrete script extension, the `ci-local.sh`
-and CI wiring, and the new pytest coverage described above.
+outside allowlist." Covered the concrete script extension, the `ci-local.sh`
+and CI wiring, and the pytest coverage described above.

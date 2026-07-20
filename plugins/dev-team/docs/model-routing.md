@@ -12,6 +12,8 @@ For the design rationale see
 which amends [ADR 0004 — Pre-dispatch model resolution enforced by a PreToolUse hook](../../../docs/adr/0004-pre-dispatch-model-resolution.md).
 For operator-facing ladder authoring, see [model-routing-overrides.md](model-routing-overrides.md).
 
+**On this page**: [Scope](#scope-claude-only-no-multimodal-tier) · [Architecture](#architecture-at-a-glance) · [Dispatch flow](#dispatch-flow) · [Contract](#contract) · [Legacy tier acceptance](#legacy-tier-acceptance-deprecation-window) · [The bump log](#the-bump-log) · [Authoring a ladder](#authoring-a-ladder-restricted-endpoints) · [Adding a band](#adding-a-new-effort-band) · [Environment variables](#environment-variables) · [Band calibration](#band-calibration-agent-eval-calibrate)
+
 ## Scope: Claude-only, no multimodal tier
 
 Routing has one axis — effort — and one provider: every band resolves to a
@@ -198,7 +200,7 @@ session-model fallback. A resolution equal to the default rewrites the model
 but logs nothing. Schema:
 
 ```json
-{"ts": "2026-06-21T12:00:00Z", "band": "high", "served": "claude-sonnet-4-6", "reason": "effort", "caller": "security-review", "session": "claude-opus-4-8"}
+{"ts": "2026-06-21T12:00:00Z", "band": "high", "served": "claude-sonnet-5", "reason": "effort", "caller": "security-review", "session": "claude-opus-4-8"}
 ```
 
 `/model-routing-check` tails this log (read-only). `reason` is one of
@@ -228,7 +230,7 @@ The three bands (`low/medium/high`) and their weights are the single source of
 truth. If a fourth band is ever warranted (e.g. a common 4+ model ladder), add
 it in lockstep:
 
-1. Extend `ALLOWED_BANDS` in `tests/agents/agent_effort_frontmatter_tests.bats`
+1. Extend `ALLOWED_BANDS` in `tests/agents/test_agent_effort_frontmatter.py`
    and the weight table in `hooks/lib/model_resolve.py` (`_band_weight` and
    `normalize_band` — `hooks/agent_model_resolve.py` calls the latter
    directly rather than keeping its own copy).
@@ -255,77 +257,16 @@ it in lockstep:
 These exist so bats tests can isolate filesystem state without touching the
 real `.claude/` directory. Setting them at runtime is not supported.
 
-## Calibration floors
-
-`knowledge/calibration-floors.json` is a separate policy table from the
-routing files above — it does not affect model selection. It declares, per
-eval-graded review agent or advisory skill, a `riskClass`
-(`high|standard|advisory`) and a `floor`: the minimum acceptable eval pass
-rate (0-1) for that target. `high` (`security-review`, `concurrency-review`,
-`arch-review`, `domain-review`) is floor `1.0`; the remaining review agents
-are `standard` at `0.9`; low-effort/lexical review agents and advisory-only
-skills (e.g. `test-design-advisor`) are `advisory` at `0.8`.
-
-This is slice 1 of epic #879 (band calibration): a pure policy artifact plus
-its guard test, `tests/repo/test_calibration_floors_sync.py`
-(`scripts/check_calibration_floors_sync.py`), which keeps the table in sync
-with the fixture-bearing `applicableAgents`/`applicableSkills` names declared
-across `evals/expected/*.json` and with the agents/skills present on disk.
-
 ## Band calibration (`/agent-eval --calibrate`)
 
-Slice 3 of epic #879 (issue #882) wires the floors above into an actual
-check: `/agent-eval --calibrate [--agent <name>]` (dispatched through
-`scripts/agent_calibrate.py`) walks a target's declared `effort:` band
-against the cheapest band whose eval fixtures (quarantined pairs excluded)
-clear its calibration floor, resolving each band via `hooks/lib/
-model_resolve.py` exactly as a real dispatch would. It reports one of
-`aligned | downgrade-available | upgrade-required | floor-failure |
-uncalibratable` per target, prints a cost preflight before any dispatch, and
-refuses `--in-session` (calibration must grade what's on disk). Output lands
-at `.claude/evals/reports/<timestamp>-calibration.md` (per-band pass rates
-and, on drift, a ready-to-apply `effort:` diff) and
-`.claude/evals/calibration-records.json` (one record per target — the input
-the staleness check below consumes). This run never edits any file
-under `plugins/dev-team/agents/` or `plugins/dev-team/skills/` — report-only,
-always. See [agent-eval's SKILL.md](../skills/agent-eval/SKILL.md#calibration-mode)
-for the full procedure.
+Calibration is the separate eval-graded policy layer of epic #879 — it does
+**not** affect model selection. It declares per-target quality floors
+(`knowledge/calibration-floors.json`), validates each agent's declared
+`effort:` band against the cheapest band that still clears its floor
+(`/agent-eval --calibrate`), and surfaces when a routing-file change has
+staled a target's last calibration (`/model-routing-check`). Because it is a
+distinct concern from routing resolution, it is documented on its own page:
 
-## Recalibration staleness advisory (`/model-routing-check`)
-
-Slice 4 of epic #879 (issue #883) is the recalibration trigger: a change to
-the **content** of `knowledge/model-routing.json` or `.claude/model-ladder.json`
-invalidates a target's last calibration, and this surfaces that drift instead
-of leaving it silent. The trigger is exactly what `routing_hash()` hashes — the
-bytes of those two files — so anything that changes them (this PR's map bump to
-`claude-sonnet-5` / `claude-haiku-4-5` included) stales every target's last
-calibration. A model release with **no** edit to either file is **not** detected
-today: `routing_hash()` never reads the released model, so a plain snapshot
-rotation under an unchanged map leaves every record `calibration-current`. That
-gap is an accepted limitation (see [ADR 0024](../../../docs/adr/0024-keep-single-model-routing-map-keyed-by-canonical-model-ids.md)),
-not a bug — the honest contract is content-hash drift of the two routing files,
-not "model releases." `/model-routing-check`'s
-fifth section reads `knowledge/calibration-floors.json` for the target
-universe and `.claude/evals/calibration-records.json` for each target's last
-calibration record (both written by slice 1 `#880` and slice 3 `#882`
-respectively), and recomputes the current content hash of
-`knowledge/model-routing.json` + `.claude/model-ladder.json` using the exact
-same `routing_hash()` construction `scripts/agent_calibrate.py` used to stamp
-the record. Three states per target:
-
-- **`calibration-current`** — the record's `routing_hash` matches the
-  current hash. Nothing to do.
-- **`calibration-stale`** — the routing map or ladder changed since the
-  target was last calibrated (hash drift). Flagged with a pointer to
-  `/agent-eval --calibrate --agent <target>`.
-- **`never-calibrated`** — the target has a floors entry but no calibration
-  record yet. Listed with the same pointer.
-
-**This is advisory only — it never blocks dispatch.** Even when every
-calibration record is stale (or none exist at all), `hooks/
-agent_model_resolve.py`'s dispatch behavior is completely unchanged; the
-advisory is a read-only diagnostic, matching the model-resolution hook's
-fail-open contract. See [model-routing-check's SKILL.md](
-../skills/model-routing-check/SKILL.md) for the exec block and the
-`CALIBRATION_FLOORS_JSON`/`CALIBRATION_RECORDS_JSON` test-only injection
-seams.
+- **[band-calibration.md](band-calibration.md)** — calibration floors, the
+  `/agent-eval --calibrate` check, and the `/model-routing-check`
+  recalibration-staleness advisory.
