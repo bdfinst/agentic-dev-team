@@ -90,12 +90,14 @@ nav:
           - Agent Info: plugins/dev-team/docs/agent_info.md
       - Workflows & Skills:
           - Workflows: plugins/dev-team/docs/workflows.md
+          - Test Improve: plugins/dev-team/docs/test-improve.md
           - Skills: plugins/dev-team/docs/skills.md
           - Code Review Process: plugins/dev-team/docs/code-review-process.md
           - Triage Workflow: plugins/dev-team/docs/triage-workflow.md
       - Model Routing:
           - Model Routing: plugins/dev-team/docs/model-routing.md
           - Model Routing Overrides: plugins/dev-team/docs/model-routing-overrides.md
+          - Band Calibration: plugins/dev-team/docs/band-calibration.md
       - Evaluation:
           - Eval System: plugins/dev-team/docs/eval-system.md
           - Eval Running Guide: plugins/dev-team/docs/eval-running-guide.md

@@ -8,6 +8,8 @@ Accepted
 
 Documents tooling used by [2. Use sentinel file and argument-shape heuristic for CodeGraph nudge hook](0002-use-sentinel-file-and-argument-shape-heuristic-for-codegraph-nudge-hook.md)
 
+> **Path note (2026-07-20):** the plugin was renamed `agentic-dev-team` → `dev-team` in the bfinster marketplace; substitute `plugins/dev-team/` for `plugins/agentic-dev-team/` to locate the `adr-tools` skill and other files named below. The "31 → 32 skills" count in the Decision section is a point-in-time snapshot, not a current total. This ADR is preserved verbatim as a historical record.
+
 ## Context
 
 We started using [npryce/adr-tools](https://github.com/npryce/adr-tools) to manage Architecture Decision Records under `docs/adr/` (project convention; `.adr-dir` at the project root points adr-tools at it). ADR-0002 was the first decision recorded with the tool, and writing it surfaced a non-obvious failure mode: `adr new` opens `$VISUAL`/`$EDITOR` (defaulting to `vi`), which hangs in non-interactive shells — the file is created but empty, and the command exits non-zero. Without documented guidance, every future ADR run will hit the same wall and either:

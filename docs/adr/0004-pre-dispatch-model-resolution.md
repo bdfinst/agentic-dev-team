@@ -8,6 +8,8 @@ Accepted
 
 Amended by [8. Use effort bands instead of model names in agent frontmatter](0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md)
 
+> **Path and command note (2026-07-20):** the bash-removal effort (ADR 0014, completed by ADR 0015) rewrote `hooks/agent-model-resolve.sh` and `hooks/lib/model-resolve.sh` as Python (`.py`) files. Separately, the `/init-dev-team` command referenced below was split into `/setup` and `/project-init`, and `/model-routing-check` is now a skill (`plugins/dev-team/skills/model-routing-check/`), not a `commands/*.md` command. This ADR is preserved verbatim as a historical record.
+
 ## Context
 
 The plugin's agents declare a tier alias (`haiku`, `sonnet`, `opus`) in their

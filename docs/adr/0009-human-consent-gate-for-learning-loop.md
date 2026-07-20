@@ -6,6 +6,8 @@ Date: 2026-06-23
 
 Accepted
 
+> **Bash-removal note (2026-07-20):** the bash-removal effort (ADR 0014, completed by ADR 0015) rewrote `session-model-banner.sh` as a Python (`.py`) hook. This ADR is preserved verbatim as a historical record.
+
 ## Context
 
 The closed learning loop automatically analyzes session transcripts and generates

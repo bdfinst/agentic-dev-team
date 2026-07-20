@@ -8,6 +8,8 @@ Accepted
 
 Tooling documented by [3. Document ADR tooling workflow as a skill](0003-document-adr-tooling-workflow-as-a-skill.md)
 
+> **Path and tooling note (2026-07-20):** the plugin was renamed `agentic-dev-team` → `dev-team` in the bfinster marketplace; substitute `plugins/dev-team/` for `plugins/agentic-dev-team/` to locate current files. Separately, the bash-removal effort (ADR 0014, completed by ADR 0015) rewrote every shipped hook under `plugins/dev-team/` — including `codegraph-nudge.sh`, `codegraph-turn-mark.sh`, and `destructive-guard.sh` — as Python (`.py`), and their `.bats` tests as pytest `test_*.py` files. This ADR is preserved verbatim as a historical record.
+
 ## Context
 
 We added a `PreToolUse` hook (`codegraph-nudge.sh`) that fires on every `Read`, `Grep`, and `Glob` tool call in projects with a CodeGraph index (`.codegraph/` in cwd). When the call looks like exploration, the hook should recommend the indexed `codegraph_*` MCP tools instead. Two implementation questions had non-obvious answers:
