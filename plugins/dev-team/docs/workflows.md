@@ -8,11 +8,22 @@ Commands within each group are split into two tiers:
 - **Standalone (single-pass)** — single-agent or self-contained; return in one pass without
   inter-phase human gates.
 
-For the two multi-phase pipelines with inter-phase gates ([`/ship`](#ship) and
-[`/test-improve`](#test-improve)), full phase tables appear at the end of this page.
-Use `/test-improve` alongside `/ship` for multi-phase quality pipelines — run
-`/test-improve` to raise baseline coverage and health first, then `/ship` to
-carry the feature through spec → build → PR.
+The two multi-phase pipelines with inter-phase gates are [`/ship`](#ship) —
+whose full phase table appears at the end of this page — and
+[`/test-improve`](#test-improve), whose phase reference lives on its own page,
+[test-improve.md](test-improve.md).
+
+**On this page:**
+
+- [Planning and Specification](#planning-and-specification)
+- [Implementation](#implementation)
+- [Code Review and Quality](#code-review-and-quality)
+- [Testing](#testing)
+- [Agent and Session Tooling](#agent-and-session-tooling)
+- [Session Guards and Scope Control](#session-guards-and-scope-control)
+- [Infrastructure and Docker](#infrastructure-and-docker)
+- [Multi-Phase Pipeline Reference](#multi-phase-pipeline-reference) — [`/ship`](#ship), [`/test-improve`](#test-improve)
+- [Cross-command lifecycle](#cross-command-lifecycle)
 
 ---
 
@@ -50,14 +61,15 @@ carry the feature through spec → build → PR.
 | Command | File | What It Does | Arguments |
 | --- | --- | --- | --- |
 | `/build` | `skills/build/SKILL.md` | Execute an approved plan in small per-behavior batches (Code-First Small Batches) with inline review checkpoints and verification evidence | `[--plan <path>] [--yes]` |
-| `/setup` | `skills/setup/SKILL.md` | Provision a repo end to end: install prerequisites, generate project config, activate agent templates | `[--dry-run]` |
-| `/project-init` | `skills/project-init/SKILL.md` | Detect the stack, inventory tools, install only what's missing; offers opt-in graph-tools | `[repo-path]` |
+| `/setup` | `skills/setup/SKILL.md` | Provision a repo end to end: install prerequisites, generate project config, activate agent templates | `[--yes] [--dry-run]` |
+| `/project-init` | `skills/project-init/SKILL.md` | Detect the stack, inventory tools, install only what's missing; offers opt-in graph-tools | `[--yes]` |
+| `/autoship` | `skills/autoship/SKILL.md` | Orchestrate a bounded round of automated issue processing: reclaim orphaned in-progress issues, discover `autoship:ready` issues, and invoke `/ship` for each until a cost or count cap is hit | `--max-issues N --max-cost-usd N [--dry-run] [--label LABEL]` |
 
 ### Standalone
 
 | Command | File | What It Does | Arguments |
 | --- | --- | --- | --- |
-| `/triage` | `skills/triage/SKILL.md` | Investigate a bug and write a triage record to `DEV_TEAM_REPORTS/triage/<slug>.md` with a TDD fix plan | `<bug description or error message>` |
+| `/triage` | `skills/triage/SKILL.md` | Investigate a bug and write a triage record to `DEV_TEAM_REPORTS/triage/<slug>.md` with a TDD fix plan | `<bug description or error message> [--pdf]` |
 | `/apply-fixes` | `skills/apply-fixes/SKILL.md` | Apply correction prompts from `/code-review` output | `<corrections-dir> [--dry] [--skip-tests] [--skip-build] [--skip-lint]` |
 | `/legacy-code` | `skills/legacy-code/SKILL.md` | Safely modify code that lacks tests — apply characterization tests first | `[path]` |
 | `/branch-workflow` | `skills/branch-workflow/SKILL.md` | Clean branch completion: PR creation, merge strategy, and cleanup | `[--base <branch>] [--draft]` |
@@ -73,7 +85,7 @@ carry the feature through spec → build → PR.
 
 | Command | File | What It Does | Arguments |
 | --- | --- | --- | --- |
-| `/code-review` | `skills/code-review/SKILL.md` | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations); short-circuits documentation-only changesets | `[--agent <name>] [--since <ref>] [--path <dir>] [--all] [--json] [--internal] [--force --reason "<text>"] [--static-analysis\|--no-static-analysis] [--init-risks] [--background]` |
+| `/code-review` | `skills/code-review/SKILL.md` | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations); short-circuits documentation-only changesets | `[--agent <name>] [--since <ref>] [--path <dir>] [--all] [--json] [--internal] [--force --reason "<text>"] [--static-analysis\|--no-static-analysis] [--init-risks] [--background] [--pdf]` |
 | `/review` | `skills/review/SKILL.md` | Alias for `/code-review` — same arguments, same behavior | same as `/code-review` |
 | `/pr` | `skills/pr/SKILL.md` | Run quality gates and create a pull request (auto-merge enabled by default) | `[--skip-review] [--draft] [--base <branch>]` |
 | `/frontend-architecture` | `skills/frontend-architecture/SKILL.md` | Dispatch `component-architecture-review` over frontend component files to catch reuse, prop drilling, and API issues | `[--path <dir>] [--since <ref>] [--all] [--json]` |
@@ -98,9 +110,11 @@ carry the feature through spec → build → PR.
 
 | Command | File | What It Does | Arguments |
 | --- | --- | --- | --- |
-| `/test-health` | `skills/test-health/SKILL.md` | Project-wide test-strategy audit; runs `/test-design` and `mutation-testing`, folds results in | `[--path <dir>]` |
+| `/test-health` | `skills/test-health/SKILL.md` | Project-wide test-strategy audit; runs `/test-design` and `mutation-testing`, folds results in | `[--path <dir>] [--pdf]` |
 | `/test-design` | `skills/test-design/SKILL.md` | Deep test-design review: dispatch `test-review` + `test-smell-review`, Farley Score, testability/refactor recommendations | `[--path <dir>] [--since <ref>] [--advise]` |
 | `/explore` | `skills/explore/SKILL.md` | Charter-driven exploratory testing (Chaos Specialist mode) with adversarial expansion; auto-triages critical defects | `--charter '<goal>' [target] [--probe-budget <n>] [--invariants '<expr,...>'] [--no-adversarial] [--force]` |
+| `/cd-test-architecture` | `skills/cd-test-architecture/SKILL.md` | Evaluate an app's tests and recommend a CD-pipeline-aligned test architecture — fast, deterministic tests that validate behavior in CI without configuring the rest of the system | `[--component <name>] [--ci <path>] [--external-tests <path>] [--stack <id>] [--pdf]` |
+| `/quality-targets-converge` | `skills/quality-targets-converge/SKILL.md` | Convergence worker: iterate toward the four quality targets (coverage ≥ 90%, zero surviving mutants, determinism, fastest pre-merge wall-clock), dispatching the smallest action that closes the largest gap each round | `<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--max-iterations <n>] [--refactor-mode <no-refactor\|refactor-allowed>]` |
 
 ### Standalone
 
@@ -119,6 +133,9 @@ carry the feature through spec → build → PR.
 | `/browse` | `skills/browse/SKILL.md` | Browser-based QA: navigate, screenshot, click, fill forms via Playwright | `<url> [--screenshot <path>] [--click <selector>] [--fill <selector> <value>] [--wait <ms>] [--viewport <WxH>]` |
 | `/benchmark` | `skills/benchmark/SKILL.md` | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines | `<url> [--baseline] [--budget] [--trend] [--mobile] [--3g] [--runs <n>]` |
 | `/performance-metrics` | `skills/performance-metrics/SKILL.md` | Log task completion data to `metrics/` — tokens, cost, agents used, rework cycles | `[--task <name>]` |
+| `/co-evolution-audit` | `skills/co-evolution-audit/SKILL.md` | Flag production files that churn while their paired test files stay stale (the "Red Queen" gap); ranks stale-coverage pairs from git history | `[--since <date\|N-days>] [--max-commits <N>] [--min-churn <N>] [--max-test-churn <N>]` |
+| `/issues-from-assessment` | `skills/issues-from-assessment/SKILL.md` | Convert a `/cd-test-architecture` assessment into a parent + Phase-tagged child issues on the operator's tracker (ADO, GitHub, GitLab, Jira); falls back to local plan files when the CLI is missing | `<assessment-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--refactor-mode <no-refactor\|refactor-allowed>] [--dry-run]` |
+| `/stryker-xunit-v2-shim` | `skills/stryker-xunit-v2-shim/SKILL.md` | Build a xunit.v2 Stryker shim so Stryker.NET produces a valid mutation score for a xunit.v3 test project; run it before mutation testing a .NET project on xunit.v3 | `(none)` |
 
 ---
 
@@ -138,6 +155,8 @@ carry the feature through spec → build → PR.
 | `/handoff` | `skills/handoff/SKILL.md` | Compress or split off context for another session to pick up | `[--compress \| --split]` |
 | `/human-oversight-protocol` | `skills/human-oversight-protocol/SKILL.md` | Clarify approval gates, intervention commands, and transparency requirements | `[context]` |
 | `/review-summary` | `skills/review-summary/SKILL.md` | Generate compact session summary for context continuity | `[--from <json-file>]` |
+| `/long-eval` | `skills/long-eval/SKILL.md` | Run an eval that outlives a single cloud-session container — agent calibration, prompt sweeps, judge-panel scoring — so it survives container recycles and can be resumed | `[status\|ensure-alive] --module <file> --out <dir>` |
+| `/orchestration-benchmark` | `skills/orchestration-benchmark/SKILL.md` | Run the pre-registered solo-vs-coordinated A/B benchmark (three arms over one task matrix) measuring cost, token band, quality, rework, and wall-clock | `[--task-class <trivial\|standard\|complex>] [--runs <n>] [--dry-run]` |
 
 ### Standalone
 
@@ -152,6 +171,9 @@ carry the feature through spec → build → PR.
 | `/version` | `skills/version/SKILL.md` | Report the installed plugin version | `(none)` |
 | `/upgrade` | `skills/upgrade/SKILL.md` | Check for and apply plugin updates from within a session | `(none)` |
 | `/help` | `skills/help/SKILL.md` | List the main dev-team workflows; `--all` shows every user command | `[--all]` |
+| `/agent-readiness` | `skills/agent-readiness/SKILL.md` | Score how ready the current repo is for AI-assisted development against the Agent-Readiness Scorecard and emit a tiered report | `[repo-path] [--json <file>] [--markdown <file>]` |
+| `/run-report` | `skills/run-report/SKILL.md` | Report one orchestrated run's timeline — per-state dwell time, rejection count, hook denials/bypasses, and cost — joined from the boundary/cost/state event logs | `[--session <id>]` |
+| `/report-pdf` | `skills/report-pdf/SKILL.md` | Render a dev-team Markdown report (`DEV_TEAM_REPORTS/` or `reports/`) to a polished, shareable PDF | `<path.md> [--out <path>]` |
 
 ---
 
@@ -241,90 +263,8 @@ warrants — and the
 **File:** [`skills/test-improve/SKILL.md`](../skills/test-improve/SKILL.md)
 **Role:** orchestrator.
 
-Consolidated analyze-then-improve test orchestrator. Defaults to lightweight
-ceremony, prompts for heavier capabilities on demand, and always baselines
-coverage (and mutation, when enabled) before any test change.
-
-### Phases
-
-Each phase writes a progress file to
-`memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`)
-can resume.
-
-- **Phase 0 — Approach contract.** Batched prompt (Enter accepts all
-  defaults): mutation mode `[kill-loop]` (`off` / `kill-loop` /
-  `baseline+kill-loop`), BDD rubric `[none]`, refactor `[no-refactor]`,
-  quality targets, sink (`--parent <url>` vs local files), and the all-or-none
-  code-lookup install (explicit `y`/`n`, not part of Enter-accepts-all). An
-  Enter-through run now performs the mutant-kill loop by default. Go stack shows
-  the alpha go-mutesting advisory before the mutation prompt. Answers are
-  immutable for the run.
-- **Phase 1 — Analyze.** Delegate to `/test-health` (sole worker). No
-  separate calls to `/cd-test-architecture`, `/test-design`,
-  `/mutation-testing`. Mutation section respects Phase-0 setting. A
-  separate, direct classification pass persists a before-snapshot of test
-  counts by MinimumCD type to `test-counts-before.json`.
-- **Phase 2 — Baseline (before any test edit).**
-  `/coverage-baseline --workflow test-improve` unconditionally;
-  `/mutation-testing --baseline --workflow test-improve` only in
-  `baseline+kill-loop` mode (`off` and `kill-loop` take no baseline).
-  Go = advisory-only marker. Honest score = hard kills, timeouts separate.
-- **Phase 2b — Derive Gherkin (conditional).** `none` skips entirely;
-  `xunit-with-annotations` writes `.feature` files without a runner;
-  `bdd-runner` wires the native parser.
-- **Phase 3 — Triage.** `/issues-from-assessment --workflow test-improve`
-  partitions findings into `NO_REFACTOR` (Phase-4 Stories) /
-  `REFACTOR_REQUIRED` (deferred to Phase 5) / `LOW_VALUE` (advisory-only).
-- **Phase 4 — Improve without refactoring.** Per Story: `/build`
-  (no-refactor) → `/coverage-delta --workflow test-improve --story <id>` →
-  `mutation-kill` agent (`--file <story-file> --max-rounds 3`, `[c/r/w/q]` on
-  residuals). End-of-phase review loop runs `/test-design --since` and
-  `/code-review --since` in parallel, `/apply-fixes` then re-run, cap 2
-  iterations, `[r/w/q]` escalation. Evidence in `phase-4-review.json`.
-- **Phase 4b — Refactor decision prompt.** `[y] enter Phase 5 / [b] backlog
-  and skip to Phase 6 / [q] quit`.
-- **Phase 5 — Refactor-for-testability (conditional).** Only when `[y]`.
-  Seam-only production-code changes; existing tests are immutable. Same
-  end-of-phase review loop; evidence in `phase-5-review.json`.
-- **Phase 6 — Validate.** `/quality-targets-converge --workflow test-improve
-  --refactor-mode <value>` — threading Phase 0's `no-refactor`/
-  `refactor-allowed` value keeps the coverage-gap dispatch table from
-  proposing a `[Refactor-for-testability]` Story once no-refactor was
-  already chosen at Phase 4b; it writes a `refactor-backlog.md` entry
-  instead. Mutation off = skipped (not waived). Go = advisory-only.
-  Coverage < 90% in no-refactor mode → `[y/n]` re-run-in-refactor-allowed
-  prompt lists backlogged items and records `coverage_reprompt_fired: true`
-  in `phase-6.md` (so Phase 7's close-out prompt below doesn't re-ask). The
-  identical classification pass from Phase 1 recounts test-by-type into
-  `test-counts-after.json`. `/handoff` is suggested here, and after Phase 1
-  and the Phase 4/5 review loops — the context-heaviest boundaries.
-- **Phase 7 — Executive-summary report.** Interpolates the shipped
-  `templates/executive-summary.md` from `memory/test-improve/<slug>/` files
-  to `reports/test-improve/<repo-slug>-<date>.md`. 10 numbered sections;
-  empty sections render "Not applicable" (never omitted). § 1 includes a
-  "Tests by type" table (Baseline/Achieved/Δ per MinimumCD type). § 7
-  foregrounds a seam-needed/behavior-gained/estimated-risk table sourced
-  from `refactor-backlog.md`. Parent tracker (or
-  `plans/test-improve/FEATURE.md`) is updated with a link to the report.
-  Report is regeneratable from memory. After Phase 7, if
-  `refactor-backlog.md` has entries and Phase 6's re-run prompt never fired
-  this run, a close-out `[y/n]` prompt asks whether to re-run with
-  refactor-allowed mode.
-
-### Arguments
-
-`/test-improve <repo-path> [--parent <url>] [--analyze-only] [--from-phase <n>] [--stack <id>]`
-
-| Flag | Behavior |
-| --- | --- |
-| `<repo-path>` | Positional. Path to the repository to improve (required). |
-| `--parent <url>` | Post progress and Stories to this tracker issue URL instead of local plan files. |
-| `--analyze-only` | Run Phase 0–1 only; skip improvement phases. |
-| `--from-phase <n>` | Resume from phase `n` (requires existing `memory/test-improve/<slug>/` files). |
-| `--stack <id>` | Override auto-detected stack identifier (e.g. `go`, `python`, `java`). |
-
-Flow diagram:
-[`diagrams/test-improve-flow.svg`](diagrams/test-improve-flow.svg).
+The full seven-phase reference — phase-by-phase gates, arguments, and the flow
+diagram — lives on its own page: **[test-improve.md](test-improve.md)**.
 
 ---
 
