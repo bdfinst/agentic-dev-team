@@ -40,6 +40,8 @@ Open Claude Code in your project and run one command:
 
 Recognized stacks are **JS/TS, Python, C#, and Java**. On a stack that isn't recognized, `/setup` installs the language-neutral pieces and tells you plainly what it could not set up — it never guesses at a toolchain.
 
+For an unattended run (CI, scripted onboarding), pass `--yes` to accept the detected plan without the confirmation prompt: `/setup --yes`. Add `--dry-run` to report what it would install and configure without writing anything.
+
 After `/setup`, you're ready to work: run `/specs` to start a feature, or just describe a task and let the Orchestrator route it. To confirm the team is live, see [Verify](#verify).
 
 <details>
@@ -147,7 +149,7 @@ After `/setup` completes, confirm the system is working:
 ## What's included
 
 - **11 team agents** — Orchestrator, Software Engineer, QA Engineer, Architect, Product Manager, etc.
-- **19 review agents** — security-review, domain-review, test-review, naming-review, …
-- **85 skills** — knowledge modules and procedures the team draws on, 82 of them user-invocable as slash commands (`/plan`, `/build`, `/pr`, `/code-review`, `/browse`, `/triage`, …)
+- **28 review agents** — security-review, domain-review, test-review, naming-review, …
+- **93 skills** — knowledge modules and procedures the team draws on, 89 of them user-invocable as slash commands (`/plan`, `/build`, `/pr`, `/code-review`, `/browse`, `/triage`, …)
 
 Full catalogs: [Agents](docs/agent_info.md) · [Skills](docs/skills.md) · [Workflows](docs/workflows.md)
