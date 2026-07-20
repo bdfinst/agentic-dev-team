@@ -368,28 +368,35 @@ If the result is `package.json found`, proceed directly to "Check if already ins
 test -f node_modules/.bin/stryker && echo "installed" || echo "not found"
 ```
 
-**If not installed, add Stryker as a dev dependency:**
+**If not installed** (the check above reported `not found`)**, add Stryker as a
+dev dependency** — skip this install when it reported `installed`:
 
 ```bash
 npm install --save-dev @stryker-mutator/core
 ```
 
-Then detect the test runner and install the matching Stryker plugin:
+**Detect the test runner and install its Stryker plugin — but only when that
+plugin is not already present.** Run this independently of the core check
+above: the core binary can be installed while its runner plugin is missing,
+and an already-present runner plugin must never be reinstalled.
 
 ```bash
-# Check package.json for test runner hints
+# Detect the runner from package.json
 cat package.json 2>/dev/null | grep -E '"vitest"|"jest"|"mocha"|"jasmine"' | head -5
+# Then, for the detected runner (substitute its name), check before installing:
+test -d node_modules/@stryker-mutator/vitest-runner && echo "present" || echo "missing"
 ```
 
-Install the appropriate runner plugin:
+Install the plugin **only if the check above reported `missing`**
+(`npm install --save-dev <package>`):
 
-| Detected runner | Install command |
+| Detected runner | Plugin package |
 | ----------------- | ---------------- |
-| vitest | `npm install --save-dev @stryker-mutator/vitest-runner` |
-| jest | `npm install --save-dev @stryker-mutator/jest-runner` |
-| mocha | `npm install --save-dev @stryker-mutator/mocha-runner` |
-| jasmine | `npm install --save-dev @stryker-mutator/jasmine-runner` |
-| none detected | Install vitest runner as default: `npm install --save-dev @stryker-mutator/vitest-runner` and note to the user they may need to swap this for their runner |
+| vitest | `@stryker-mutator/vitest-runner` |
+| jest | `@stryker-mutator/jest-runner` |
+| mocha | `@stryker-mutator/mocha-runner` |
+| jasmine | `@stryker-mutator/jasmine-runner` |
+| none detected | `@stryker-mutator/vitest-runner` (default; note to the user they may need to swap this for their runner) |
 
 **If any Stryker install above fails with `npm error code ERESOLVE`**, the
 conflict is a peer-dependency clash already present in the repo's tree — not

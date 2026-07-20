@@ -159,7 +159,29 @@ fi
 
 # --- Python dev dependencies ----------------------------------------------
 section "Python dev dependencies (requirements-dev.txt)"
-if python3 -m pip --version >/dev/null 2>&1; then
+
+# Are the requirements-dev.txt deps already installed? Probe importability of
+# every declared distribution (find_spec locates without importing, so this
+# stays fast) plus the one CLI-only wheel (ruff ships a console script, no
+# importable module). When all are present we skip the pip install entirely
+# instead of re-resolving on every run — only missing tools get installed
+# (issue #1236). The module list mirrors requirements-dev.txt; keep it in sync.
+dev_deps_satisfied() {
+  python3 - <<'PY' >/dev/null 2>&1
+import importlib.util, shutil, sys
+mods = ["yaml", "httpx", "jsonschema", "pytest",
+        "pytest_asyncio", "xdist", "semgrep", "mypy"]
+if any(importlib.util.find_spec(m) is None for m in mods):
+    sys.exit(1)
+sys.exit(0 if shutil.which("ruff") else 1)
+PY
+}
+
+if ! python3 -m pip --version >/dev/null 2>&1; then
+  warn "skipping requirements-dev.txt — pip not available"
+elif dev_deps_satisfied; then
+  ok "requirements-dev.txt already satisfied — nothing to install"
+else
   # Try a normal install first; fall back to the escape hatches newer distros
   # need (PEP 668 "externally-managed-environment", or no write access to the
   # system site-packages).
@@ -172,8 +194,6 @@ if python3 -m pip --version >/dev/null 2>&1; then
     err "  python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt"
     note_failure
   fi
-else
-  warn "skipping requirements-dev.txt — pip not available"
 fi
 
 # --- Graphify (code knowledge graph) ---------------------------------------
