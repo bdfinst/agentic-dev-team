@@ -45,7 +45,7 @@ flowchart LR
     end
 
     subgraph state[Routing state]
-        RJ[(knowledge/<br/>model-routing.json<br/>default map, shipped)]
+        RJ[(knowledge/<br/>model-routing.json<br/>canonical-ID map, shipped)]
         LD[(.claude/<br/>model-ladder.json<br/>per-env, gitignored)]
         SM[(.claude/<br/>session-model<br/>captured, gitignored)]
         BL[(.claude/metrics/<br/>model-routing.log<br/>bump events, JSONL)]
@@ -92,7 +92,7 @@ sequenceDiagram
     H->>R: model-resolve.sh <band>
     R->>FS: read routing.json (+ ladder if present)
     alt no ladder (default map)
-        R-->>H: stdout: default snapshot for the band
+        R-->>H: stdout: default canonical ID for the band
         H-->>CC: updatedInput.model = snapshot (no bump logged)
     else ladder maps the band to a non-default model
         R-->>H: stdout: ladder model
@@ -129,11 +129,14 @@ routing map and bump log keep full IDs for ladder/pricing purposes.
 
 Resolution inputs:
 
-- `knowledge/model-routing.json` (shipped): the band → snapshot **default
-  map** (`low/medium/high`) plus legacy `haiku/sonnet/opus` keys retained for
-  the deprecation window, and the pinned ladder `rounding` convention. The
-  default map equals the pre-migration tier mapping, so zero-config behavior
-  is unchanged.
+- `knowledge/model-routing.json` (shipped): the band → **canonical model ID
+  default map** (`low/medium/high`) plus legacy `haiku/sonnet/opus` keys
+  retained for the deprecation window, and the pinned ladder `rounding`
+  convention. Every value is a bare canonical model ID (`claude-haiku-4-5`,
+  `claude-sonnet-5`, `claude-opus-4-8`) — no dated snapshot suffix; the
+  5-family IDs have no dated public form, and the older IDs use their bare
+  canonical spelling to match. The default map preserves the pre-migration
+  tier mapping, so zero-config behavior is unchanged.
 - `.claude/model-ladder.json` (per-environment, gitignored): an optional,
   capability-ascending JSON array of the models that environment has. When
   present and valid it **overrides** the default map.
@@ -290,9 +293,18 @@ for the full procedure.
 
 ## Recalibration staleness advisory (`/model-routing-check`)
 
-Slice 4 of epic #879 (issue #883) is the recalibration trigger: routing-map
-edits and model releases invalidate a target's last calibration, and this
-surfaces that drift instead of leaving it silent. `/model-routing-check`'s
+Slice 4 of epic #879 (issue #883) is the recalibration trigger: a change to
+the **content** of `knowledge/model-routing.json` or `.claude/model-ladder.json`
+invalidates a target's last calibration, and this surfaces that drift instead
+of leaving it silent. The trigger is exactly what `routing_hash()` hashes — the
+bytes of those two files — so anything that changes them (this PR's map bump to
+`claude-sonnet-5` / `claude-haiku-4-5` included) stales every target's last
+calibration. A model release with **no** edit to either file is **not** detected
+today: `routing_hash()` never reads the released model, so a plain snapshot
+rotation under an unchanged map leaves every record `calibration-current`. That
+gap is an accepted limitation (see [ADR 0024](../../../docs/adr/0024-keep-single-model-routing-map-keyed-by-canonical-model-ids.md)),
+not a bug — the honest contract is content-hash drift of the two routing files,
+not "model releases." `/model-routing-check`'s
 fifth section reads `knowledge/calibration-floors.json` for the target
 universe and `.claude/evals/calibration-records.json` for each target's last
 calibration record (both written by slice 1 `#880` and slice 3 `#882`
