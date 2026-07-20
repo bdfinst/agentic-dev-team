@@ -229,15 +229,22 @@ def load_quarantine(path: Path) -> Set[str]:
 # ---------------------------------------------------------------------------
 
 def target_universe(dirs: Dirs) -> List[str]:
-    """Every agent/skill name on disk — the full set `--calibrate` (no
-    `--agent`) sweeps, so a fixture-less target still surfaces as
-    uncalibratable rather than silently being skipped."""
-    names: Set[str] = set()
-    if dirs.agents.is_dir():
-        names.update(p.stem for p in dirs.agents.glob("*.md"))
-    if dirs.skills.is_dir():
-        names.update(p.parent.name for p in dirs.skills.glob("*/SKILL.md"))
-    return sorted(names)
+    """Every review agent name on disk — the full set `--calibrate` (no
+    `--agent`) sweeps, so a fixture-less agent still surfaces as
+    uncalibratable rather than silently being skipped.
+
+    Skills are deliberately excluded, even when they carry an eval fixture
+    (`applicableSkills`) or a `calibration-floors.json` entry: `real_dispatch_
+    fn` grades exclusively by shelling out to `/review-agent <target>`, which
+    loads `agents/<name>.md` and can never dispatch a skill. Sweeping skills
+    in here forced a fixture-bearing skill (e.g. test-design-advisor) to a
+    false 0% every run -- a harness mis-classification, not a routing result
+    (#1210). `calibrate_target`'s own agent-file guard covers the same case
+    for a direct `--agent <skill>` invocation that bypasses this sweep.
+    """
+    if not dirs.agents.is_dir():
+        return []
+    return sorted(p.stem for p in dirs.agents.glob("*.md"))
 
 
 def fixtures_for_target(target: str, dirs: Dirs) -> List[str]:
@@ -322,6 +329,24 @@ def calibrate_target(
     """
     pairs = fixtures_for_target(target, dirs)
     if not pairs:
+        return {
+            "target": target,
+            "verdict": "uncalibratable",
+            "declared_band": read_declared_band(target, dirs),
+            "calibrated_band": None,
+            "floor": None,
+            "band_results": {},
+            "quarantined": [],
+            "fixture_gap": 0,
+        }
+
+    if not (dirs.agents / f"{target}.md").is_file():
+        # A skill-only target (no agents/<target>.md): real_dispatch_fn grades
+        # exclusively by shelling out to `/review-agent <target>`, which loads
+        # `agents/<name>.md` and can never dispatch a skill. Without this guard
+        # every cell is forced to a false 0% ("floor-failure"), which reads as
+        # a routing problem when it's actually a harness mis-classification
+        # (#1210 -- e.g. test-design-advisor).
         return {
             "target": target,
             "verdict": "uncalibratable",
