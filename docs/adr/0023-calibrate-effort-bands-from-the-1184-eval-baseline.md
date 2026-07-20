@@ -59,7 +59,7 @@ explicitly, and no floor value changed.
 | `performance-review` | medium → low | 0.90 | low 100% |
 | `refactor-opportunity-review` | medium → low | 0.90 | low 100% |
 | `spec-compliance-review` | medium → low | 0.90 | low 100% |
-| `correctness-review` | high → medium | 1.00 | medium 100% (low 78% < floor) |
+| `correctness-review` | high → medium | 1.00 | medium 100% (low 78% < floor) — **reverted, see below** |
 | `concurrency-review` | medium → low | 1.00 | low 100% — **confirmed by #1211 re-test, see below** |
 
 Verified-and-unchanged (`aligned`): `ai-provenance-review` (high),
@@ -100,11 +100,27 @@ before this result is treated as rock-solid.
   a dispatch-parsing corruption; the published figures are from the corrected
   run. See #1184 for the full method and table.
 
+### `correctness-review` downgrade reverted
+
+Per-agent re-confirmation (`scripts/recalibrate_1185.py`, samples=3) did **not**
+reproduce the baseline's medium 100%: this run scored medium **89%** (high
+100%, low 78% unchanged) against the same 1.00 floor. One fixture-band cell
+that passed 5/5 in the #1184 baseline flipped to a majority-fail at samples=3
+— a flapping cell at the detection boundary, the same class of noise #1211
+found in `concurrency-review`'s fixtures. But `correctness-review`'s floor is
+1.00 (zero-tolerance: it exists specifically to catch functional defects other
+agents miss), so "usually clears it" is disqualifying regardless of cause.
+Verdict: `upgrade-required`. Reverted `effort: medium → high` (back to Opus).
+The specific flapping fixture still needs to be identified and rewritten to be
+unambiguous, mirroring #1211's fix for `concurrency-review`, before a downgrade
+here is trustworthy again.
+
 ## Consequences
 
-- **Cost**: six broad-scope review agents drop from Sonnet to Haiku and
-  `correctness-review` from Opus to Sonnet, reducing per-review token cost with
-  no measured loss against their floors.
+- **Cost**: six broad-scope review agents drop from Sonnet to Haiku, reducing
+  per-review token cost with no measured loss against their floors.
+  `correctness-review`'s drop from Opus to Sonnet did not survive
+  re-confirmation and was reverted (see below) — it stays on Opus.
 - **`concurrency-review` confirmed (with a caveat)**: #1211's re-calibration on
   the hardened fixtures returned `aligned` at `low` (10/10), confirming the
   downgrade; the 1.0 floor is unchanged. Confidence is capped by 4 flapping
