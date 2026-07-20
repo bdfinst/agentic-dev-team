@@ -69,7 +69,10 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
     if skip_llm:
         return {"size": "standard"}
     try:
-        result = subprocess.run(
+        # Offload the blocking call to a thread so an awaiting/gathered caller
+        # keeps a free event loop instead of serializing on subprocess.run (#1213).
+        result = await asyncio.to_thread(
+            subprocess.run,
             [
                 "claude",
                 "-p",
@@ -129,7 +132,10 @@ async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> 
             f'with findings as JSON: {{"verdict": "approve|needs-revision", "issues": []}}. '
             f"Plan: {json.dumps(plan)}"
         )
-        result = subprocess.run(
+        # Offload to a thread so asyncio.gather over multiple personas actually
+        # overlaps instead of blocking the event loop on subprocess.run (#1213).
+        result = await asyncio.to_thread(
+            subprocess.run,
             ["claude", "-p", prompt],
             capture_output=True,
             text=True,
