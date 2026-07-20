@@ -60,7 +60,7 @@ explicitly, and no floor value changed.
 | `refactor-opportunity-review` | medium → low | 0.90 | low 100% |
 | `spec-compliance-review` | medium → low | 0.90 | low 100% |
 | `correctness-review` | high → medium | 1.00 | medium 100% (low 78% < floor) |
-| `concurrency-review` | medium → low | 1.00 | low 100% — **provisional, see below** |
+| `concurrency-review` | medium → low | 1.00 | low 100% — **confirmed by #1211 re-test, see below** |
 
 Verified-and-unchanged (`aligned`): `ai-provenance-review` (high),
 `arch-review` (high), `session-analysis` (medium), `svelte-review` (low).
@@ -78,6 +78,18 @@ negative, adding TOCTOU, missing-await, non-idempotent-retry, lock-leak,
 lost-update, and fire-and-forget cases) and re-calibrates. If the harder set
 drops the low band below 1.0, revert the band to medium/high.
 
+**Re-test outcome (2026-07-20, #1211).** Against the hardened 10-fixture set the
+low band passed 10/10 (majority vote over 5 samples) — verdict **`aligned`**, so
+the `low` band is **confirmed, no longer provisional**. Low (100%), medium
+(100%), and high (90%) barely separate: model choice does not drive detection on
+this corpus. **Caveat:** 4 fixtures flapped (`cc-check-then-act`,
+`cc-fire-and-forget-loop`, `cc-missing-await-interleave`, `cc-mutex-guarded`) —
+the `high` band flapped too, so the cause is fixture ambiguity, not model
+weakness. For a 1.0-floor (zero-tolerance) target a flapping positive means
+individual runs sometimes miss a real race that majority-voting hides. Those
+four should be rewritten to be unambiguous and re-confirmed (tracked in #1211)
+before this result is treated as rock-solid.
+
 ### Confidence caveats
 
 - **33% of cells flapped** (non-deterministic across the 5 samples) — many
@@ -93,9 +105,11 @@ drops the low band below 1.0, revert the band to medium/high.
 - **Cost**: six broad-scope review agents drop from Sonnet to Haiku and
   `correctness-review` from Opus to Sonnet, reducing per-review token cost with
   no measured loss against their floors.
-- **Provisional risk**: `concurrency-review` runs on the cheapest model until
-  #1211's re-calibration confirms or reverts it. The 1.0 floor is unchanged, so
-  the quality bar it is held to has not moved.
+- **`concurrency-review` confirmed (with a caveat)**: #1211's re-calibration on
+  the hardened fixtures returned `aligned` at `low` (10/10), confirming the
+  downgrade; the 1.0 floor is unchanged. Confidence is capped by 4 flapping
+  fixtures still to be rewritten (#1211) — until then, majority-voting is
+  masking per-run misses on a zero-tolerance target.
 - **Not applied**: ten targets are `floor-failure` on real signal
   (`claude-setup`, `complexity`, `domain`, `js-fp`, `naming`, `security`,
   `structure`, `test-review`, `test-smell`, `token-efficiency`) — their bands
