@@ -6,35 +6,65 @@ For the workflow overview, team philosophy, and three-phase (Research → Plan �
 
 ## Install
 
-### Prerequisites
+Three commands total: register the marketplace, install the plugin, then run `/setup` in your project. That's the whole flow.
 
-**Required:**
+**Prerequisite:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), installed and authenticated. Nothing else needs to be installed by hand — `/setup` installs the tools your stack needs.
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
-- `jq` — used by hooks for JSON parsing
-  - macOS: `brew install jq`
-  - Linux: `apt install jq` or `yum install jq`
-- `gh` — [GitHub CLI](https://cli.github.com/), used by `/pr` and `/issues-from-plan` for creating PRs and issues
-  - macOS: `brew install gh`
-  - Linux: see [GitHub CLI install docs](https://github.com/cli/cli#installation)
-  - Then authenticate: `gh auth login`
+### Install
 
-**Optional — by feature:**
+Register the marketplace, then install the plugin. The marketplace is named **`bfinster`** (the `name` field in `marketplace.json`); the plugin is **`dev-team`**. `claude plugin marketplace add` accepts a GitHub `owner/repo`, any git URL, or a local path; `claude plugin install` takes `<plugin>@<marketplace>`.
+
+**From GitHub (recommended):**
+
+```bash
+claude plugin marketplace add bdfinst/agentic-dev-team
+claude plugin install dev-team@bfinster
+```
+
+The `owner/repo` shorthand and the full `https://github.com/bdfinst/agentic-dev-team` URL are equivalent.
+
+### Set up your project
+
+Open Claude Code in your project and run one command:
+
+```
+/setup
+```
+
+`/setup` detects your stack, shows you a plan, and — once you confirm it — installs everything the team needs and writes project config. You do not pre-install anything:
+
+- **Tool dependencies** — `jq` and `python3` (used by the hooks and gates), and for a recognized stack, the stack's linters, formatters, type checkers, test runner, and per-language mutation testing (Stryker for JS/TS, pitest for Java/Kotlin, Stryker.NET for C#).
+- **Capability tools, each installed only when its signal fires** — `gh` when the repo has a GitHub remote (used by `/pr` and `/issues-from-plan`), `semgrep` for static analysis, Playwright + Chromium for `/browse`, the docker scanners (`hadolint`/`trivy`/`grype`) when a Dockerfile is present, and ADR tooling when the repo already keeps ADRs.
+- **Optional code-intelligence indexes** — CodeGraph, Repowise, and Graphify, offered as keyless opt-ins for faster code navigation.
+- **Project config** — a project-level `CLAUDE.md`, the auto-format PostToolUse hook, language-specific agent templates, a generated `/pr` command, and `.gitignore` entries for the workflow's runtime artifacts.
+
+Recognized stacks are **JS/TS, Python, C#, and Java**. On a stack that isn't recognized, `/setup` installs the language-neutral pieces and tells you plainly what it could not set up — it never guesses at a toolchain.
+
+After `/setup`, you're ready to work: run `/specs` to start a feature, or just describe a task and let the Orchestrator route it. To confirm the team is live, see [Verify](#verify).
+
+<details>
+<summary><b>Manual / offline install of individual tools</b></summary>
+
+`/setup` installs all of these for you. This section is a reference for air-gapped machines, an unsupported stack, or installing a single tool by hand.
+
+**Hard dependencies** (any stack): `jq` (`brew install jq` / `apt install jq`) and `python3`.
+
+**GitHub CLI** — `gh`, used by `/pr` and `/issues-from-plan`. `brew install gh` (macOS) or [GitHub CLI install docs](https://github.com/cli/cli#installation), then `gh auth login`.
+
+**By feature:**
 
 | Tool(s) | Required for | Install |
 | --- | --- | --- |
-| `semgrep` | `/semgrep-analyze`, static analysis pre-pass in `/code-review` | See below |
-| `playwright` | `/browse` (browser-based QA) | See below |
-| `hadolint`, `trivy`, `grype` | `/docker-image-audit` | See below |
-| `az` (with `az boards` extension) | `/test-modernize` when the parent issue lives on Azure DevOps | `brew install azure-cli` (macOS) or [Azure CLI install docs](https://learn.microsoft.com/cli/azure/install-azure-cli); then `az extension add --name azure-devops` and `az login` |
-| `glab` | `/test-modernize` when the parent issue lives on GitLab | `brew install glab` (macOS) or [GitLab CLI install docs](https://gitlab.com/gitlab-org/cli#installation); then `glab auth login` |
+| `semgrep` | `/semgrep-analyze`, static analysis pre-pass in `/code-review` | `pip install semgrep`, `brew install semgrep`, or `pipx install semgrep` |
+| `playwright` | `/browse` (browser-based QA) | `npx playwright install chromium` (requires Node.js) |
+| `hadolint`, `trivy`, `grype` | `/docker-image-audit` | `brew install hadolint trivy grype`; Linux install scripts and Docker-container usage in the [docker-image-audit skill docs](skills/docker-image-audit/SKILL.md) |
+| `az` (with `az boards` extension) | `/test-modernize` when the parent issue lives on Azure DevOps | `brew install azure-cli` or [Azure CLI install docs](https://learn.microsoft.com/cli/azure/install-azure-cli); then `az extension add --name azure-devops` and `az login` |
+| `glab` | `/test-modernize` when the parent issue lives on GitLab | `brew install glab` or [GitLab CLI install docs](https://gitlab.com/gitlab-org/cli#installation); then `glab auth login` |
 | `acli` | `/test-modernize` when the parent issue lives on Jira (Atlassian Cloud) | See [Atlassian CLI install docs](https://developer.atlassian.com/cloud/acli/); REST + `JIRA_TOKEN` is the fallback |
 
 `/test-modernize` falls back to local plan files under `./plans/test-modernize/` whenever the tracker CLI for the given parent URL is missing — the workflow continues uninterrupted, only the destination of the issues changes.
 
-**Optional — auto-formatting (detected per language):**
-
-The `post-format` hook auto-formats files on every edit. It detects available formatters and degrades silently if none are installed. Install the ones relevant to your stack:
+**Auto-formatting (the `post-format` hook, detected per language):** the hook auto-formats files on every edit, detecting available formatters and degrading silently if none are installed.
 
 | Tool | Language | Install |
 | --- | --- | --- |
@@ -49,9 +79,7 @@ The `post-format` hook auto-formats files on every edit. It detects available fo
 | `ktlint` | Kotlin | `brew install ktlint` or [GitHub releases](https://github.com/pinterest/ktlint/releases) |
 | `dotnet format` | C# | Included with .NET SDK 6+ |
 
-**Optional — quality gates in `/pr` (detected per stack):**
-
-`/pr` auto-detects test runners, type checkers, and linters based on project manifests. No configuration needed — if the tool is installed and the project has the relevant config file, it runs automatically.
+**Quality gates in `/pr` (detected per stack):** `/pr` auto-detects test runners, type checkers, and linters from project manifests — if the tool is installed and the project has the relevant config file, it runs automatically.
 
 | Tool | Detected via | Install |
 | --- | --- | --- |
@@ -60,61 +88,11 @@ The `post-format` hook auto-formats files on every edit. It detects available fo
 | `ruff` | `which ruff` | `pip install ruff` (project venv / dev requirements) |
 | `golangci-lint` | `which golangci-lint` | `brew install golangci-lint` or [install docs](https://golangci-lint.run/welcome/install/) |
 
----
+</details>
 
-#### Installing semgrep
+### Self-hosted / other git hosts
 
-```bash
-pip install semgrep
-# or: brew install semgrep
-# or: pipx install semgrep
-```
-
-#### Installing Playwright
-
-```bash
-npx playwright install chromium
-```
-
-Requires Node.js. Used by `/browse` for browser-based visual QA.
-
-#### Installing hadolint, trivy, grype
-
-```bash
-# macOS (Homebrew)
-brew install hadolint trivy grype
-
-# Linux
-# hadolint
-curl -sL -o /usr/local/bin/hadolint \
-  "https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64"
-chmod +x /usr/local/bin/hadolint
-
-# trivy
-curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
-# grype
-curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-```
-
-All three also run as Docker containers if you prefer not to install locally — see the [docker-image-audit skill docs](skills/docker-image-audit/SKILL.md) for details.
-
-### Install
-
-Installation is two steps: register the marketplace, then install the plugin. The marketplace is named **`bfinster`** (the `name` field in `marketplace.json`); the plugin is **`dev-team`**. `claude plugin marketplace add` accepts a GitHub `owner/repo`, any git URL, or a local path; `claude plugin install` takes `<plugin>@<marketplace>`.
-
-**From GitHub (recommended):**
-
-```bash
-claude plugin marketplace add bdfinst/agentic-dev-team
-claude plugin install dev-team@bfinster
-```
-
-The `owner/repo` shorthand and the full `https://github.com/bdfinst/agentic-dev-team` URL are equivalent.
-
-**From a self-hosted or other git host** (GitLab, Bitbucket, Gitea, Azure DevOps, on-prem):
-
-End the URL with `.git` so Claude Code clones the repository instead of treating the URL as a direct link to a `marketplace.json`, and append `#<branch-or-tag>` to pin a ref. The repository must contain `.claude-plugin/marketplace.json` at its root.
+For a self-hosted or other git host (GitLab, Bitbucket, Gitea, Azure DevOps, on-prem), end the URL with `.git` so Claude Code clones the repository instead of treating the URL as a direct link to a `marketplace.json`, and append `#<branch-or-tag>` to pin a ref. The repository must contain `.claude-plugin/marketplace.json` at its root.
 
 ```bash
 # HTTPS (private repos use your git credential helper)
@@ -160,7 +138,7 @@ claude plugin marketplace add bdfinst/agentic-dev-team
 
 ### Verify
 
-After starting Claude Code, confirm the system is working:
+After `/setup` completes, confirm the system is working:
 
 ```
 > What agents are available on this team?
