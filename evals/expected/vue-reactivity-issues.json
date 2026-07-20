@@ -1,0 +1,14 @@
+{
+  "fixture": "vue-reactivity-issues.vue",
+  "description": "Destructured reactive() object, an untracked watchEffect dependency, and a resize listener with no unmount cleanup",
+  "applicableAgents": ["vue-reactivity-review"],
+  "agents": {
+    "vue-reactivity-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 2, "max": 5 },
+      "severities": { "error": { "min": 2, "max": 5 } },
+      "mustMention": ["reactive"],
+      "mustNotMention": ["Vue.set"]
+    }
+  }
+}
