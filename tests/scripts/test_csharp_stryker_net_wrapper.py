@@ -714,6 +714,21 @@ class TestSignalHandlingPOSIX:
         stryker_pid_file = hermetic.root / "stryker.pid"
         fake_stryker = self._make_fake_stryker(hermetic)
 
+        # This class spawns the REAL wrapper subprocess, so the monkeypatched
+        # build_project does NOT apply — the wrapper runs a real `dotnet build
+        # <sln>`. main() aborts before spawning Stryker if that build returns
+        # non-zero (see the wrapper's `if rc != 0: return rc`), so the `.sln`
+        # must be a VALID solution the SDK builds clean. The global fixture's
+        # "solution stub" is not — a real build fails it with MSB5010. Write a
+        # validly-formatted empty solution instead: the SDK builds it with a
+        # harmless "no project to restore" warning and exits 0, which is all
+        # the signal path needs (it never inspects the build output). This is
+        # why the class requires a real .NET SDK on PATH (#1222).
+        hermetic.sln.write_text(
+            "Microsoft Visual Studio Solution File, Format Version 12.00\n"
+            "# Visual Studio Version 17\n"
+        )
+
         env = os.environ.copy()
         env["STRYKER_BLOCK_SENTINEL"] = str(sentinel_path)
         env["STRYKER_PID_FILE"] = str(stryker_pid_file)
@@ -728,7 +743,7 @@ class TestSignalHandlingPOSIX:
                 "--sln",
                 str(hermetic.sln),
                 "--shim-project",
-                "",  # skip shim; the sln build fails silently
+                "",  # skip shim; only the .sln is built
                 "--stryker-bin",
                 sys.executable,
                 "--logfile",
@@ -745,9 +760,9 @@ class TestSignalHandlingPOSIX:
             if stryker_pid_file.exists():
                 break
             time.sleep(0.05)
-        # Note: if the wrapper failed before spawning stryker (e.g. dotnet
-        # build failed because we're not fixing PATH here), the PID file
-        # will be absent. Surface that clearly.
+        # Note: if the wrapper failed before spawning stryker (e.g. no .NET SDK
+        # on PATH, or `dotnet build` returned non-zero), the PID file will be
+        # absent. Surface that clearly.
         if not stryker_pid_file.exists():
             proc.terminate()
             out, err = proc.communicate(timeout=5)
