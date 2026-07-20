@@ -204,6 +204,27 @@ This replaces any hardcoded per-agent dispatch rules. Adding or changing a revie
 
 If `review-config.json` exists at the repo root, honor its per-agent `"enabled": false` flags.
 
+**Change-shape gate for low-yield lenses (#1254).** After the eligible roster is
+known, drop the two low-yield code lenses (`performance-review`,
+`correctness-review`) when the changeset has **no runtime surface** — every
+target file is documentation or config, so those lenses would only no-op. Decide
+deterministically with the shared helper (not by eyeballing the file list):
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_shape.py" --files <target files>
+```
+
+It prints `{"hasRuntimeSurface": <bool>, "skipLenses": [...]}`. When `skipLenses`
+is non-empty, exclude those agents from this run and note the skip in the report
+(they were gated by change shape, not by `scope:`). The gate is **fail-safe**: any
+file it cannot prove is doc/config (source, an unknown extension, or functional
+Claude-config markdown under `agents/`, `skills/`, `knowledge/`, `.claude/`, …)
+counts as runtime surface and keeps every lens. This never fires on a pure-docs
+changeset — that is already handled earlier by the documentation-only
+short-circuit; this gate covers the doc/config-**mixed** and config-only diffs
+the short-circuit does not. Bypassed by `--force` and by `--agent <name>` (an
+explicit single-agent request always runs that agent).
+
 ### 4. Run each enabled agent
 
 Spawn agents as parallel subagents in a single message using the Agent tool.
