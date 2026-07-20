@@ -68,3 +68,18 @@ default. This preserves the original warn-by-default posture's asymmetry:
 over-nudging a large-window session is a minor false alarm, while
 under-nudging a small-window session risks running well past the real
 ceiling — so an unknown model is never assumed large.
+
+## Amendment (2026-07-20)
+
+The enforcement this ADR adds — the `context-ceiling-guard` PreToolUse hook
+registered on `Agent`/`Skill` — was **inert as shipped**. The plugin's
+PreToolUse hook layer did not load at all on current Claude Code, so the guard
+never fired and the 40% Context Window Rule reverted to unenforced prose — the
+very "measured backstop, not just prose" state this ADR set out to replace.
+This is the same finding
+[ADR 0022](0022-reject-delegation-only-sweep-dispatch.md) recorded in passing
+while running the #1099 orchestration benchmark: "the shipped hook layer …
+does not load at all on current Claude Code (#1178)." The gap was closed in
+**v10.12.1** ("load plugin hooks via hooks/hooks.json … closes #1178"); before
+that fix, capability loads over the ceiling surfaced no nudge or block. See
+#1178 and ADR 0022.

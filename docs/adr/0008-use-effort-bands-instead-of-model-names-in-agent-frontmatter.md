@@ -104,3 +104,21 @@ the allowed set, so the contract cannot silently rot the way `model: mid` did.
   `high` agent can run above the session model. Mitigated by the SessionStart
   banner flagging every upgrade; deferred decision on whether to also warn
   per-dispatch.
+
+## Amendment (2026-07-20)
+
+The effort-band routing this ADR introduces is enforced by the PreToolUse
+model-resolution hook it inherits from
+[ADR 0004](0004-pre-dispatch-model-resolution.md): the hook is what maps a
+declared `effort:` band to a concrete model before dispatch. That enforcement
+guarantee was **inert as shipped**. The plugin's PreToolUse hook layer did not
+load at all on current Claude Code, so the resolver never ran and effort bands
+were never mapped pre-dispatch — agents ran on the session model regardless of
+their declared band. This is the finding
+[ADR 0022](0022-reject-delegation-only-sweep-dispatch.md) recorded in passing
+while running the #1099 orchestration benchmark: "the shipped hook layer
+(including effort-band routing) does not load at all on current Claude Code
+(#1178) … Shipped band-routing economics had never actually been exercised."
+The gap was closed in **v10.12.1** ("load plugin hooks via hooks/hooks.json …
+closes #1178"); before that fix, the vendor-neutral band vocabulary was correct
+but had no working enforcer. See #1178 and ADR 0022.
