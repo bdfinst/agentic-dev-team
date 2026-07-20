@@ -199,11 +199,14 @@ counts and outcomes only, never code or file content.
 | `complexity` | string enum | `standard` \| `complex` |
 | `agents_run` | array of string | Review agents dispatched |
 | `issues_found`, `issues_fixed`, `fix_iterations` | integer | Counts |
+| `severity_breakdown` | object | `{errors, warnings, suggestions}` counts (same enum as `/code-review`); the three sum to `issues_found`. Lets `/harness-audit` Step 3 flag mostly-minor lenses (#1256). Absent on pre-#1256 rows |
+| `source` | string enum | Row provenance: `build-checkpoint` (fix-applying `/build` checkpoint) \| `code-review` (read-only standalone review). **Absent = `build-checkpoint`** (back-compat). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257) |
 | `outcome` | string enum | `no-op` \| `fixed` \| `escalated` |
 
-- **Emitter:** `/build` skill (model-authored append, sub-step 7). Disable with `DEV_TEAM_REVIEW_VALUE=off`.
+- **Emitter:** `/build` skill (model-authored append, sub-step 7) writes `source: "build-checkpoint"`. Disable with `DEV_TEAM_REVIEW_VALUE=off`.
 - **Consent:** unconditional when enabled (no code/file content recorded).
 - **Consumers:** `skills/cost-report/SKILL.md`, `skills/harness-audit/SKILL.md`.
+- **Provenance (#1257):** fix-rate ROI is only meaningful for fix-applying rows. A read-only review that never applies fixes (`source: "code-review"`) always has `issues_fixed: 0`; Step 4 must not read that as a zero-value drop candidate — it reports finding-rate for those instead.
 
 ---
 

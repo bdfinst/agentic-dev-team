@@ -168,8 +168,10 @@ right-sized with evidence rather than guessed.
   "step": "all",
   "checkpoint": "slice",
   "complexity": "standard",
+  "source": "build-checkpoint",
   "agents_run": ["spec-compliance-review", "security-review"],
   "issues_found": 1,
+  "severity_breakdown": {"errors": 1, "warnings": 0, "suggestions": 0},
   "issues_fixed": 1,
   "fix_iterations": 1,
   "outcome": "fixed"
@@ -179,9 +181,11 @@ right-sized with evidence rather than guessed.
 | Field | Type | Description |
 | --- | --- | --- |
 | `checkpoint` | string | `step` (per-step `complex` review) or `slice` (batched slice-boundary review) |
+| `source` | string | Row provenance — `build-checkpoint` (fix-applying `/build` checkpoint, the default when absent) or `code-review` (read-only standalone review). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257) |
 | `step` | string | `N.M` for a per-step checkpoint; `all` for a batched slice checkpoint |
 | `agents_run` | string[] | Review agents and static-analysis lane tools run at this checkpoint |
 | `issues_found` | number | Actionable issues the checkpoint surfaced (semantic review + static lanes) |
+| `severity_breakdown` | object | `{errors, warnings, suggestions}` counts (same enum as `/code-review`); the three sum to `issues_found`. Lets `/harness-audit` Step 3 flag low-value (mostly-minor) lenses (#1256) |
 | `issues_fixed` | number | Of those, how many were auto-fixed |
 | `fix_iterations` | number | Review-fix and static self-heal fix-loop iterations consumed |
 | `outcome` | string | `no-op` (passed clean), `fixed` (found + fixed), `escalated` (a fix loop didn't converge — including a static lane capping out) |
