@@ -234,8 +234,15 @@ def dispatch_orchestrator(
         env["DEV_TEAM_ABLATE_AGENT"] = ablate_agent
     else:
         env.pop("DEV_TEAM_ABLATE_AGENT", None)
+    # The orchestrator must edit files and run test/build commands to implement
+    # the spec. In headless `claude -p` mode with default permissions those tool
+    # calls are denied ("write was denied by permission settings"), so the build
+    # silently no-ops and every fixture's testCommands fail. The worktree is
+    # ephemeral and torn down unconditionally, so bypass the permission prompts
+    # for this dispatch. (#integration-eval-perms)
     proc = subprocess.run(
-        ["claude", "-p", prompt, "--model", model, "--output-format", "json"],
+        ["claude", "-p", prompt, "--model", model, "--output-format", "json",
+         "--dangerously-skip-permissions"],
         cwd=str(workdir),
         env=env,
         capture_output=True,

@@ -136,8 +136,19 @@ def summarize_arm(expected_dir: Path, trial_actuals: list[dict]) -> dict:
 
     variance = aggregate_trials(expected_dir, trial_actuals)
     by_pair = variance.get("by_pair", {})
-    all_pass = bool(by_pair) and all(
-        d["pass_at_k"] >= 1.0 for d in by_pair.values()
+    # Scope the pass@k bar to the integration pairs this arm actually
+    # dispatched. aggregate_trials grades the WHOLE expected corpus, so the
+    # unit-tier fixtures that an integration arm never runs would otherwise
+    # report pass_at_k 0.0 and force every arm — baseline included — to "fail",
+    # making every ablation "baseline failed — inconclusive". Only the
+    # fixture(s) under ablation gate the arm verdict.
+    scoped_pairs: set[str] = set()
+    for actual in trial_actuals:
+        for pair, _tdata in _flatten_integration_targets(actual):
+            scoped_pairs.add(pair)
+    all_pass = bool(scoped_pairs) and all(
+        pair in by_pair and by_pair[pair]["pass_at_k"] >= 1.0
+        for pair in scoped_pairs
     )
 
     issues_totals: list[int] = []
