@@ -13,8 +13,8 @@ You do **not** need a ladder on a standard Anthropic API key — the shipped
 default map already resolves every band to the right model. Write a ladder only
 when your environment offers a **different or restricted set of models** than
 the defaults: a corporate proxy with an allowlist, AWS Bedrock, Google Vertex,
-or any deployment whose model IDs differ from `claude-haiku-4-5-20251001` /
-`claude-sonnet-4-6` / `claude-opus-4-8`.
+or any deployment whose model IDs differ from the shipped defaults
+(`low→claude-haiku-4-5`, `medium→claude-sonnet-5`, `high→claude-opus-4-8`).
 
 ## The ladder schema
 
@@ -22,28 +22,28 @@ or any deployment whose model IDs differ from `claude-haiku-4-5-20251001` /
 model ID strings, ordered cheapest → most capable**:
 
 ```json
-["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-8"]
+["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-4-8"]
 ```
 
-Rules:
-
-- It must be a non-empty array of strings. Anything else (an object, an empty
-  array, non-string elements, invalid JSON) is **ignored** — routing degrades
-  to the shipped default map and never aborts dispatch.
-- Order is capability-ascending. The resolver maps a band to an index with
-  `index = round_half_up(weight·(N−1))`, weights `low=0`, `medium=0.5`,
-  `high=1`, `N` = ladder length.
+It must be a non-empty array of strings; anything else (an object, an empty
+array, non-string elements, invalid JSON) is **ignored** — routing degrades to
+the shipped default map and never aborts dispatch. Order is
+capability-ascending: the resolver maps each band to a ladder index by the
+`round_half_up(weight·(N−1))` weighting rule defined in
+[model-routing.md](model-routing.md#resolution-precedence) (`low` → cheapest,
+`high` → most capable, `medium` in between).
 
 ## Resolution precedence
 
-For every sub-agent dispatch, the band resolves in this order:
-
-1. **Valid ladder** → the model at the computed index.
-2. **Shipped default map** (`knowledge/model-routing.json`) → used when there
-   is no ladder, or the ladder is malformed/empty.
-3. **Session-model fallback** → only for an explicit snapshot a present ladder
-   does not contain (the requested model is unavailable here). The session
-   model (captured at session start) is the fallback — never a ceiling.
+For every sub-agent dispatch the band resolves in the same order the routing
+contract defines — **valid ladder → shipped default map → session-model
+fallback**. In short: a valid ladder wins (the model at the computed index); a
+missing or malformed ladder degrades to the shipped default map
+(`knowledge/model-routing.json`); and the session model (captured at session
+start) is the fallback only for an explicit snapshot a present ladder does not
+contain — never a ceiling. See
+[model-routing.md](model-routing.md#resolution-precedence) for the
+authoritative rule and worked index math.
 
 Verify the effective outcome any time with `/model-routing-check`: it prints
 the band → model map, the ladder (or a ready-to-edit starter when none
@@ -102,7 +102,7 @@ effort band rather than re-tuning the formula.
 
 With **no ladder file**, every effort band resolves to the **identical
 snapshot** it did before the effort-band migration
-(`low→claude-haiku-4-5-20251001`, `medium→claude-sonnet-4-6`,
+(`low→claude-haiku-4-5`, `medium→claude-sonnet-5`,
 `high→claude-opus-4-8`) — the shipped default map equals the old tier mapping.
 Doing nothing changes nothing. (Pinned by the no-ladder migration-safety test.)
 

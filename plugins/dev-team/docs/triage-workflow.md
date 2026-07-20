@@ -11,6 +11,8 @@ connects them.
 > document is a reader-friendly walkthrough; where it and a skill spec
 > disagree, the spec wins.
 
+**On this page**: [Lifecycle at a glance](#the-lifecycle-at-a-glance) · [1. Intake](#1-intake--when-to-reach-for-triage) · [2. Investigation](#2-investigation--root-cause-before-recording) · [3. The triage record](#3-the-triage-record) · [4. Review-corrections flow](#4-the-review-corrections-flow) · [5. `/apply-fixes` flow](#5-the-apply-fixes-flow) · [6. Ownership of leftover corrections](#6-ownership-of-leftover-corrections) · [7. A worked example](#7-a-worked-example)
+
 ## The lifecycle at a glance
 
 Two entry points feed one fix pipeline:
@@ -140,20 +142,10 @@ auto-applies and what is report-only:
 
 After the report, `/code-review` writes one **correction prompt** per
 remaining issue — suggestion-severity findings, issues whose auto-fix failed,
-and anything else the loop did not resolve — as JSON files in `corrections/`
-(schema:
-[`skills/code-review/output-format.md`](../skills/code-review/output-format.md#correction-prompt-json)):
-
-```json
-{
-  "priority": "high|medium|low",
-  "confidence": "high|medium",
-  "category": "<agent-name>",
-  "instruction": "<what to fix>",
-  "context": "<where>",
-  "affectedFiles": ["<path>"]
-}
-```
+and anything else the loop did not resolve — as JSON files in `corrections/`.
+Each prompt carries `priority`, `confidence`, `category` (the reviewing agent),
+`instruction`, `context`, and `affectedFiles`; the full field schema is in
+[`skills/code-review/output-format.md`](../skills/code-review/output-format.md#correction-prompt-json).
 
 Severity maps to priority: error→high, warning→medium, suggestion→low.
 Correction prompts are only generated for `confidence: high` or
