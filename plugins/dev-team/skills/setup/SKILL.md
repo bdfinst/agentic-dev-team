@@ -13,7 +13,7 @@ description: >-
   missing tool, or when the user says "setup", "bootstrap", "configure this
   project for dev-team", "install required tools for the dev-team plugin",
   or "activate agent templates".
-argument-hint: "[--dry-run]"
+argument-hint: "[--yes] [--dry-run]"
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -39,6 +39,43 @@ Arguments: $ARGUMENTS
 
 - `--dry-run`: Report what would be created/installed without writing any
   files or installing anything.
+- `--yes`: Run unattended — auto-confirm every prompt with its **safe**
+  default and pass `--yes` through when invoking `/dev-team:project-init`
+  (Step 4). No step waits for input.
+
+### `--yes` semantics (the unattended contract)
+
+When `--yes` is set, take these actions without prompting. **Affirmative** —
+auto-confirm and proceed:
+
+- Per-language mutation tooling for the detected stack (Step 6). Already
+  non-interactive when the stack is definite; `--yes` additionally suppresses
+  the ambiguous-stack fallback below.
+- Agent-template activation for the detected stack (Step 7).
+- Project `CLAUDE.md` (Step 8) and `/pr` (Step 10) generation **when the file
+  is absent**; the downstream `.gitignore` append (Step 11).
+- Everything `/dev-team:project-init` auto-confirms under its own `--yes`
+  (its three-column plan, capability tools whose signal fired, and the keyless
+  CodeGraph + Repowise pair — see that skill's Arguments section).
+
+**Conservative** — never silently overwrite an existing file or mutate the
+repo in a surprising way; take the skip default and print a one-line note:
+
+- **Existing project `CLAUDE.md`** (Step 8) — never overwritten (orchestrator
+  constraint 3). Skip and note it, exactly as the interactive "merge or skip"
+  path's skip branch.
+- **Coverage-config edits** (Step 6, JS/TS readiness) — `--yes` may install the
+  additive `@vitest/coverage-v8` devDependency, but does **not** run `--patch`
+  or hand-edit an existing `jest.config.js` / `vitest.config.*`. Report the
+  hints as it does interactively; the operator applies those edits.
+- **Graphify** — declined for this run inside `/dev-team:project-init` (see
+  that skill); it writes to the repo, so it stays opt-in even under `--yes`.
+- **Unrecognized / ambiguous stack** — `--yes` never guesses a toolchain. Do
+  the language-neutral steps and report what could not be set up.
+
+**Precedence.** If both `--yes` and `--dry-run` are passed, `--dry-run` wins:
+report only, write and install nothing, and add "`--yes` ignored under
+`--dry-run`" to the report.
 
 ## Steps
 
@@ -183,7 +220,9 @@ If either installation fails, stop and tell the user: "Could not install
 ### 4. Invoke `/dev-team:project-init` for stack detection and toolchain
 
 Run `/dev-team:project-init` and let it complete, including its confirmation
-gate, before continuing.
+gate, before continuing. **Under `--yes`, invoke it as
+`/dev-team:project-init --yes`** so its own gates auto-confirm with their safe
+defaults rather than blocking (see that skill's Arguments section).
 
 ### 5. Record the stack signal for dev-team's own use
 
@@ -253,7 +292,10 @@ and prints one JSON object:
 
 **Interactive fallback — only when `ambiguous` is `true`.** When a definite
 stack was detected (`ambiguous` is `false`), never prompt; honor `sections`
-exactly. Only when `ambiguous` is `true` (e.g. `--dry-run` scanning a repo
+exactly. **Under `--yes`, skip this fallback entirely even when `ambiguous`
+is `true`** — never guess a stack: install no mutation tooling and print
+`Mutation tooling skipped — no stack detected (run /setup without --yes to choose)`.
+Otherwise, only when `ambiguous` is `true` (e.g. `--dry-run` scanning a repo
 with no recognizable stack) fall back to asking:
 
 > "Which languages do you need mutation testing for? (Select all that apply)"
@@ -455,8 +497,12 @@ is whether the baseline reflects the whole tree.
   overwrite an existing scope). This is advisory — a missing scope doesn't
   block the baseline, it just inflates it.
 
-Never write or patch coverage config without operator confirmation. Record
-the final `ready`/`meaningful`/`patched` state for the Step 12 report.
+Never write or patch coverage config without operator confirmation. **Under
+`--yes`, install only the additive `@vitest/coverage-v8` devDependency without
+prompting; do not run `--patch` or hand-edit an existing config file** — leave
+those edits to the operator and surface the hints in the report exactly as the
+interactive path does. Record the final `ready`/`meaningful`/`patched` state
+for the Step 12 report.
 
 ---
 
@@ -623,6 +669,8 @@ Based on detected stack, select applicable templates from `templates/agents/`:
 | `angular-testing` | `@angular/core` in deps |
 
 Present the list to the user and ask for confirmation before scaffolding.
+**Under `--yes`, activate the selected templates without prompting** and list
+them in the Step 12 report.
 
 ### 8. Generate project-level CLAUDE.md
 
@@ -633,7 +681,10 @@ If `.claude/CLAUDE.md` does not already exist in the target project, generate on
 - References to activated agent templates
 - Build/test/lint commands detected from `package.json` scripts, `Makefile`, etc.
 
-If `.claude/CLAUDE.md` already exists, ask whether to merge or skip.
+If `.claude/CLAUDE.md` already exists, ask whether to merge or skip. **Under
+`--yes`, take the skip branch** — never overwrite existing project config
+(orchestrator constraint 3) — and note `CLAUDE.md exists — left unchanged` in
+the Step 12 report.
 
 ### 9. Generate PostToolUse formatting hook
 
@@ -741,4 +792,4 @@ If any prerequisite step failed, add a "Next steps" section with the
 specific manual actions needed (mirroring the per-step failure messages
 above).
 
-If `--dry-run` was specified, prefix the report with "**DRY RUN** — no files were written and nothing was installed." and skip all writes/installs.
+If `--dry-run` was specified, prefix the report with "**DRY RUN** — no files were written and nothing was installed." and skip all writes/installs. If `--yes` was also passed, add "`--yes` ignored under `--dry-run`" to that prefix.

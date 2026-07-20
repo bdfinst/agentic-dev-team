@@ -3,6 +3,7 @@ name: project-init
 description: Get a repository ready for the dev-team toolchain in one command — detect the tech stack (JS/TS, Python, C#, Java), inventory the static-analysis tools the project already has, confirm a plan, and install only what's missing, repo-level. This is the canonical source of truth for tech-stack detection and toolchain installation — NOT dev-team-specific config (CLAUDE.md generation, agent template activation, PostToolUse hooks, the generated `/pr` command all live in `/setup`, which invokes this skill first for the stack signal). Also installs the detection-gated capability tools other skills depend on — semgrep, Playwright + Chromium, adr, gh, and the docker scanners (hadolint/trivy/grype). For JavaScript it scaffolds a new project with ES modules, functional style, prettier, oxlint, editorconfig, vitest, and gitignore. Use this skill whenever the user wants to start a new JS project, scaffold a Node.js app, create a new package, bootstrap a JavaScript repo, or says things like "init a new project", "set up a JS project", "create a new node app", "start a new frontend project", or "bootstrap a new package". Also trigger when the user says "set up my project's toolchain", "install the linters for this repo", "get this repo ready for the plugin", or asks to add standard tooling (linting, formatting, testing) to a new or existing project in any supported language.
 role: worker
 user-invocable: true
+argument-hint: "[--yes]"
 ---
 
 # Project Initializer
@@ -26,6 +27,41 @@ manual commands stay documented in
 `${CLAUDE_PLUGIN_ROOT}/skills/static-analysis-integration/references/language-setup.md`;
 this skill automates them.
 
+## Arguments
+
+Arguments: $ARGUMENTS
+
+- `--yes`: Run unattended — auto-confirm each gate below with its **safe**
+  default and never wait for input. `/setup --yes` passes this through.
+
+### `--yes` semantics
+
+**Affirmative** (auto-confirm, no prompt):
+
+- **Step 3 three-column plan** — proceed: install the "missing and will add"
+  column's defaults, repo-level. Existing configs are still never overwritten
+  (that is already the plan's contract, not a prompt).
+- **Step 4b capability tools** — install every tool whose detection signal
+  fired and that is still missing. Tools whose signal did not fire are still
+  not installed.
+- **Step 4c keyless pair (CodeGraph + Repowise)** — install the missing
+  members (their recommended default is already yes).
+
+**Conservative** (skip with a printed note — never mutate the repo by
+surprise):
+
+- **Step 4c Graphify** — skipped for this run, because it writes to the repo
+  (a `## graphify` CLAUDE.md section + git hooks). Print
+  `Graphify: skipped under --yes (repo-writing; run /project-init without --yes to add it)`
+  and do **not** record a durable decline in `.claude/init-state.json`, so a
+  later interactive run still offers it.
+- **Step 1 zero/ambiguous stack** — never guess. Report the supported stacks
+  and exit gracefully without writing files or installing anything, exactly as
+  the interactive path's "something else" branch.
+- **Greenfield JS/TS scaffold** — the confirm step proceeds with the documented
+  defaults (no customization prompt); it only writes into an empty/near-empty
+  directory, so nothing existing is overwritten.
+
 ## Workflow
 
 ### Step 1: Detect the stack
@@ -46,7 +82,9 @@ no builds, no network:
 - **Zero or ambiguous signals** (empty dir, README-only repo) → **ask the
   user**: present the four supported stacks plus "something else".
   "Something else" explains what's supported and exits gracefully — no
-  files written, nothing installed.
+  files written, nothing installed. **Under `--yes`, do not prompt** — never
+  guess a stack: report the supported stacks and exit gracefully, exactly as
+  the "something else" branch.
 
 ### Step 2: Inventory the existing toolchain
 
@@ -77,7 +115,8 @@ satisfies its slot; nothing is installed for it.
 
 Detection is always confirmed, never assumed. Present the stack + inventory
 results as a three-column plan and wait for the user to confirm it
-**before any file is written or any install runs**:
+**before any file is written or any install runs** (**under `--yes`, print the
+plan and proceed without waiting** — see the Arguments section):
 
 1. **Found and keeping** — providers the inventory bound. Nothing is
    installed for these slots, and existing configs (`eslint.config.js`,
@@ -163,7 +202,9 @@ honest.
 
 **Present the warranted capability tools as their own group** in the Step 3
 three-column plan — a "capability tools" block alongside the lane columns —
-and **confirm before installing**, same gate as the lanes. Install only the
+and **confirm before installing**, same gate as the lanes. **Under `--yes`,
+install every warranted-and-missing tool without prompting** (see the
+Arguments section). Install only the
 tools whose signal fired *and* that the user confirmed *and* that are still
 missing (skip any already on `PATH`). Use the OS-aware install command from
 `references/capability-tools.md` for each — never inline a different command.
@@ -251,6 +292,9 @@ to re-prompt`).
                    Keyless: `--index-only`, no API key requested.
   ```
 
+**Under `--yes`, treat the keyless-pair prompt as yes** and install the whole
+missing set without waiting (its recommended default is already yes).
+
 - On **yes**: install **every** tool in the missing set by running its
   sub-section below (CodeGraph, Repowise), recording each tool's accept in
   `.claude/init-state.json`.
@@ -266,6 +310,9 @@ to re-prompt`).
 **The Graphify opt-in.** After the keyless pair, offer Graphify whenever it is
 in the missing set (regardless of key presence — its AST graph builds keyless):
 
+0. **Under `--yes`, skip Graphify for this run** — it writes to the repo, so it
+   stays opt-in even unattended. Print the skip note from the Arguments section
+   and do not record a durable decline. Do not run the prompt below.
 1. **Skip if already present or previously declined** — same missing-set rule
    as above.
 2. **Prompt once** (recommended default **no**, because — unlike the keyless
@@ -620,7 +667,10 @@ Present the defaults above as the three-column plan's **missing and will
 add** column and ask: "Want to change anything, or should I go ahead?"
 Include Playwright in the summary only if the user mentions a frontend
 project (React, Svelte, Angular, Vue, Next.js, Nuxt, SvelteKit, Astro, UI,
-web app, dashboard). Wait for confirmation before writing files.
+web app, dashboard). Wait for confirmation before writing files. **Under
+`--yes`, proceed with these defaults without the customization prompt** — the
+scaffold only writes into an empty/near-empty directory, so nothing existing
+is overwritten.
 
 ### Scaffold step 2: Initialize package.json
 

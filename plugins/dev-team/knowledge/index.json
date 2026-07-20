@@ -4636,6 +4636,14 @@
     }
   },
   "plugins/dev-team/skills/project-init/SKILL.md": {
+    "Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "arguments"
+    },
+    "`--yes` semantics": {
+      "summary": "**Affirmative** (auto-confirm, no prompt):",
+      "anchor": "yes-semantics"
+    },
     "Workflow": {
       "summary": "Probe the working directory with cheap, deterministic filesystem signals —",
       "anchor": "workflow"
@@ -5137,6 +5145,10 @@
     "Parse Arguments": {
       "summary": "Arguments: $ARGUMENTS",
       "anchor": "parse-arguments"
+    },
+    "`--yes` semantics (the unattended contract)": {
+      "summary": "When `--yes` is set, take these actions without prompting.",
+      "anchor": "yes-semantics-the-unattended-contract"
     },
     "Steps": {
       "summary": "Run the following and record the result:",
