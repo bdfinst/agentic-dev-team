@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.4.0...security-assessment-v3.4.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* correct security-assessment agent contracts and refresh drifted docs ([4ea8f23](https://github.com/bdfinst/agentic-dev-team/commit/4ea8f230556b3f3a83c03445112c70a8952df7df))
+
 ## [3.4.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.3.3...security-assessment-v3.4.0) (2026-07-08)
 
 
