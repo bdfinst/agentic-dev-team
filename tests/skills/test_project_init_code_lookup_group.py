@@ -5,16 +5,20 @@ all-or-none group and installs Repowise (keyless, gitignored, MCP-registered).
 Repowise indexes in the same run (CodeGraph via `npm install -g
 @colbymchenry/codegraph` + non-interactive `codegraph init .`).
 
-#1135 — the prompt must disclose that Graphify (unlike the keyless indexes)
-requires a model/API key, and Graphify's graph build is idempotent
-(`graphify update .` when a graph exists) and non-fatal.
+#1135 — Graphify's graph build is idempotent (`graphify update .` when a graph
+exists) and non-fatal.
 
 #1141 — the single all-or-none group is split by cost profile. The keyless
 pair (CodeGraph + Repowise) stays all-or-none and can be accepted *alone*.
-Graphify is a separate, key-gated opt-in: it is offered only when a model/API
-key is detected, and when no key is present it is skipped entirely — its
-repo-level native integration is never written, so the repo is not left
-carrying an inert integration.
+Graphify is a separate opt-in (its footprint is repo-level, not because of a
+key).
+
+#1224 — Graphify's AST structural graph builds keyless: it is offered
+regardless of key presence, and on accept its keyless AST graph always builds.
+A provider key gates only the semantic-enrichment add-on (community names via
+`graphify label`, inferred edges via `extract --mode deep`). When no key is
+present, enrichment is skipped and recorded as `enrichment_skipped_no_key` —
+the graph still builds and the repo-level integration is still written.
 
 Content-guard sensor over the shipped project-init SKILL.md prose — a pure text
 grep, no state-mutating operations.
@@ -121,13 +125,15 @@ def test_group_states_codegraph_repowise_are_keyless():
     assert "keyless" in text.lower()
 
 
-# --- #1135: Graphify's model/API-key requirement is disclosed ----------------
+# --- #1224: Graphify's AST build is keyless; only enrichment is key-gated -----
 
 
-def test_group_prompt_discloses_graphify_key_requirement():
+def test_graphify_optin_discloses_keyless_ast_build():
     text = _text()
-    # The all-or-none prompt must warn that Graphify needs a model/API key.
-    assert "REQUIRES a model/API key" in text
+    # The Graphify prompt must state the AST structural graph builds without a key.
+    assert "builds WITHOUT an API key" in text
+    # And the semantic-enrichment layer is the only key-gated part.
+    assert "key-gated add-on" in text
 
 
 def test_graphify_build_is_idempotent_with_update_fallback():
@@ -157,10 +163,12 @@ def test_keyless_group_prompt_omits_graphify():
     assert "Graphify" not in prompt
 
 
-def test_graphify_is_separate_key_gated_optin():
+def test_graphify_is_separate_optin_after_keyless_pair():
     text = _text()
-    assert "key-gated" in text
-    assert "only when a model/API key is actually present" in text
+    # Graphify is a separate opt-in (repo-level footprint), offered after the pair.
+    assert "its own opt-in prompt after the keyless pair" in text
+    # Enrichment — not the build — is the key-gated part.
+    assert "key-gated add-on" in text
 
 
 def test_graphify_optin_detects_provider_keys():
@@ -170,16 +178,17 @@ def test_graphify_optin_detects_provider_keys():
     assert "GOOGLE_API_KEY" in text
 
 
-def test_graphify_skipped_when_no_key_and_integration_not_written():
+def test_graphify_keyless_build_offered_without_key():
     text = _text()
-    # No key => Graphify is skipped and its repo-level integration is NOT written.
-    assert "install_skipped_no_key" in text
-    assert "guaranteed failure" in text
-    assert "inert" in text
+    # No key => Graphify is still offered and its keyless AST graph still builds;
+    # only enrichment is skipped, recorded as enrichment_skipped_no_key (#1224).
+    assert "enrichment_skipped_no_key" in text
+    assert "install_skipped_no_key" not in text  # the old skip-entirely flag is gone
+    assert "regardless of key presence" in text
 
 
-def test_graphify_native_integration_gated_on_key_present():
+def test_graphify_native_integration_gated_on_optin_accept():
     text = _text()
-    # The Graphify sub-section documents that its file writes only happen on the
-    # key-gated accept.
-    assert "only after the key-gated Graphify opt-in" in text
+    # The Graphify sub-section documents that its file writes only happen when
+    # the opt-in is accepted — not when a key is present.
+    assert "only after the Graphify opt-in in Step 4c accepts" in text
