@@ -720,7 +720,7 @@ mutation tool wired in, e.g. pure Python), report that one line verbatim —
 ### Code-intelligence indexes (project-init Step 4c — all-or-none group)
 - CodeGraph: ✓ installed + `.codegraph/` built (keyless)   [or: ✗ declined | ✗ failed]
 - Repowise:  ✓ installed + `.repowise/` indexed (keyless)   [or: ✗ declined | ✗ failed]
-- Graphify:  ✓ `graphify-out/` built (required a model/API key)   [or: ✗ declined | ✗ failed]
+- Graphify:  ✓ `graphify-out/` built (keyless AST; enrichment key-gated)   [or: ✗ declined | ✗ failed]
 
 The separate "run index-codebase first" step is no longer required — accepting
 the group installs and builds all three indexes in the same run.

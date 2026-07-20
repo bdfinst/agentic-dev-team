@@ -97,14 +97,16 @@ function."
 - A repo-level tool with its own native `/graphify` skill
   (`.claude/skills/graphify/SKILL.md` in this repo), not part of the
   `dev-team` plugin's shipped skill set.
-- Also offered opt-in during `/project-init`'s Step 4c as part of the
-  CodeGraph + Repowise + Graphify all-or-none group. **Unlike the keyless
-  CodeGraph/Repowise indexes, graphify's extraction requires a model/API
-  key** — the group prompt discloses this up front so accepting the group is
-  never a surprise key cost (issue #1135). When accepted, the skill builds the
-  graph (`graphify extract .`, or `graphify update .` when a graph already
-  exists); when graphify is absent, consuming agents fall back to
-  `Read`/`Grep`/`Glob`.
+- Also offered opt-in during `/project-init`'s Step 4c, after the keyless
+  CodeGraph + Repowise pair. **Graphify's AST structural graph builds keyless**
+  — `graphify extract .` runs the AST pass with no model/API key, exits 0, and
+  produces the `graph.json` the agents traverse (issue #1224). A model/API key
+  is required **only** for the semantic-enrichment layer: human-readable
+  community names (`graphify label`) and inferred edges (`extract --mode
+  deep`). When accepted, the skill builds the keyless graph (`graphify extract
+  .`, or `graphify update .` when a graph already exists) and offers enrichment
+  only when a key is present; when graphify is absent, consuming agents fall
+  back to `Read`/`Grep`/`Glob`.
 - Build a graph with `graphify extract .` (or the full `/graphify` pipeline),
   which writes `graphify-out/graph.json` (gitignored) plus
   `graphify-out/GRAPH_REPORT.md` and an HTML visualization.
