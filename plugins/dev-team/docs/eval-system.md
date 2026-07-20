@@ -9,6 +9,14 @@ use deterministic (code-based) graders for everything they can handle, use
 model-based graders only for what genuinely requires judgment, and calibrate
 both against human review.
 
+**On this page:** [Two sets of test cases](#two-sets-of-test-cases) ·
+[Architecture](#architecture) · [Grader Layers](#grader-layers) ·
+[Workflows](#workflows) ·
+[How Hooks and Agents Complement Each Other](#how-hooks-and-agents-complement-each-other) ·
+[Eval Compliance](#eval-compliance) · [Eval Fixtures](#eval-fixtures) ·
+[Adding a New Agent](#adding-a-new-agent). The real-session trend digest lives
+in [`session-review.md`](session-review.md).
+
 ## Two sets of test cases
 
 This document covers the **deterministic detection fixtures** (`evals/expected/`):
@@ -44,16 +52,16 @@ Fast, free, deterministic checks that run automatically via PostToolUse hooks:
 
 | Hook | What it checks |
 | ---- | ------------- |
-| `js-fp-review.sh` | Array mutations, global state mutations, Object.assign, parameter mutations |
-| `token-efficiency-review.sh` | File length >500 lines, CLAUDE.md >5000 chars, function length >50 lines |
-| `eval-compliance-check.sh` | Agent/skill file structure, output format, severity levels |
+| `js_fp_review.py` | Array mutations, global state mutations, Object.assign, parameter mutations |
+| `token_efficiency_review.py` | File length >500 lines, CLAUDE.md >5000 chars, function length >50 lines |
+| `eval_compliance_check.py` | Agent/skill file structure, output format, severity levels |
 
 Hooks are **advisory only** — they warn but never block. They catch mechanical
 issues cheaply before the model-based agents spend tokens on full analysis.
 
 ### Layer 2: Model-based (agents)
 
-Nineteen specialized agents that require LLM judgment. The full roster is documented in `docs/agent_info.md`. Agents with eval fixture coverage:
+Specialized agents that require LLM judgment. The full roster — with counts, focus areas, and model tiers — is documented in [`agent_info.md`](agent_info.md). Agents with eval fixture coverage:
 
 | Agent | Focus |
 | ----- | ----- |
@@ -124,7 +132,7 @@ Prompts → Repo Rules → Apply Fix → Validate → Report
 
 ## How Hooks and Agents Complement Each Other
 
-The hooks (`js-fp-review.sh`, `token-efficiency-review.sh`) provide instant
+The hooks (`js_fp_review.py`, `token_efficiency_review.py`) provide instant
 feedback on the most common, mechanically detectable issues. The corresponding
 agents (`js-fp-review`, `token-efficiency-review`) provide deeper analysis that
 requires LLM judgment — for example, understanding whether a mutation is
@@ -155,7 +163,7 @@ Reads every agent, skill, and hook file and checks for:
 
 Outputs a compliance report with PASS/WARN/FAIL per item.
 
-### `eval-compliance-check.sh` hook (automatic)
+### `eval_compliance_check.py` hook (automatic)
 
 Fires on Write/Edit to agent or skill files. Provides real-time advisory
 warnings when:
@@ -266,7 +274,7 @@ consecutive runs produce identical grades.
    - File scope (which file types the agent applies to)
    - Scope boundaries (what to ignore)
 
-2. Optionally add a hook in `hooks/<name>.sh` for deterministic checks
+2. Optionally add a hook in `hooks/<name>.py` for deterministic checks
 
 3. Run `/agent-audit` to verify compliance
 
@@ -277,37 +285,8 @@ consecutive runs produce identical grades.
 
 ## Session-review trend digest (#129)
 
-`/session-review` (backed by `scripts/session_extract.py`) appends one
-metrics-only record per run to the append-only trend stream
-`metrics/session-digest.jsonl`. This is the real-session counterpart to the
-self-reported `metrics/*-task-log.jsonl` streams.
-
-### Record schema (`session-digest/v1`)
-
-Each line is a JSON object with **aggregate counts only** — no file names,
-prompts, command strings, or code (privacy by construction):
-
-| Field | Meaning |
-|---|---|
-| `recorded_at` | UTC ISO-8601 of the run (the only wall-clock field) |
-| `sessions`, `transcripts` | how many sessions/transcripts the digest covered |
-| `tokens` | input/output/cache token totals |
-| `cost_usd`, `cache_hit_ratio` | session cost and cache-read efficiency |
-| `rework` | counts: `failed_edits`, `repeated_file_edits`, `retried_bash_commands`, `repeated_verify_runs`, `permission_denials`, `compaction_events` |
-| `accuracy` | `tool_calls`, `tool_error_rate`, `user_correction_turns` |
-| `utilization` | counts of `skills_invoked`, `agents_invoked`, `never_observed_skills`, `never_observed_agents` |
-
-### harness-audit consumption (the join)
-
-`/harness-audit` today reads only the self-reported `metrics/*-task-log.jsonl`.
-It can now join real-session data by reading `metrics/session-digest.jsonl`:
-
-- **token / cost trends** → corroborate or contradict self-reported efficiency
-  claims (the audit's blind spot was that it saw only self-reports).
-- **`utilization.never_observed_*`** → flag stale/undiscoverable harness surface
-  for the simplification recommendations harness-audit already makes.
-- **`rework` / `accuracy` trends** → evidence for re-tiering or prompt fixes.
-
-Join key: both streams live under `metrics/`; correlate by `recorded_at` time
-window. The session-digest stream is ground-truth; the task-log stream is
-self-reported — where they disagree, prefer the session digest.
+`/session-review` appends one metrics-only record per run to the append-only
+trend stream `metrics/session-digest.jsonl`, the real-session counterpart to the
+self-reported `metrics/*-task-log.jsonl` streams. The `session-digest/v1` record
+schema and the `/harness-audit` join are documented canonically in
+[`session-review.md`](session-review.md#trend-persistence-129).
