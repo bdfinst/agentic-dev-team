@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.14.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.14.1...dev-team-v10.14.2) (2026-07-20)
+
+
+### Bug Fixes
+
+* correct invalid hook schema that broke plugin load ([1b4cdd0](https://github.com/bdfinst/agentic-dev-team/commit/1b4cdd09420bd4de4ab4eea16bcd04937dd6a39e)), closes [#1227](https://github.com/bdfinst/agentic-dev-team/issues/1227)
+
 ## [10.14.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.14.0...dev-team-v10.14.1) (2026-07-20)
 
 
