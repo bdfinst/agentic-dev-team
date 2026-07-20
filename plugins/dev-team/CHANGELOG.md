@@ -1,5 +1,34 @@
 # Changelog
 
+## [10.14.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.13.0...dev-team-v10.14.0) (2026-07-20)
+
+
+### Features
+
+* add eval fixtures and floors coverage for uncalibratable agents; fix flapping fixtures ([56db482](https://github.com/bdfinst/agentic-dev-team/commit/56db48215f05c2aa9a90abd34ac65cfae945a57f))
+* scope test-improve Phase 6 mutation validation to cumulative branch diff ([26040c9](https://github.com/bdfinst/agentic-dev-team/commit/26040c9b866d8157b5d58d6d3f16ad365c8b81eb))
+* **skills:** add long-eval restart-durable eval skill ([c87dce4](https://github.com/bdfinst/agentic-dev-team/commit/c87dce41e86247fe0e6bff2d1cc86f62f096bad6))
+
+
+### Bug Fixes
+
+* bump routing map to Claude 5 family, add 5-family pricing, align staleness doc ([8591414](https://github.com/bdfinst/agentic-dev-team/commit/8591414fa72db2b6ed53d3f94b24c861c9be81bf))
+* downgrade a11y-review to effort:low (calibration-verified) ([c04620d](https://github.com/bdfinst/agentic-dev-team/commit/c04620d459d8dd4069806d1dbd0547060bf5378e))
+* downgrade component-architecture-review to effort:low (calibration-verified) ([ac14d08](https://github.com/bdfinst/agentic-dev-team/commit/ac14d089371624da1e1454e611eb115729555162))
+* downgrade concurrency-review to effort:low (PROVISIONAL — pending [#1211](https://github.com/bdfinst/agentic-dev-team/issues/1211)) ([94efe6d](https://github.com/bdfinst/agentic-dev-team/commit/94efe6d8492cbb9cde0383594c28e548ef6df8ea))
+* downgrade correctness-review to effort:medium (calibration-verified) ([06050bb](https://github.com/bdfinst/agentic-dev-team/commit/06050bb71e3f40f9b3a398fb8b6b286617b1bb8f))
+* downgrade doc-review to effort:low (calibration-verified) ([b256248](https://github.com/bdfinst/agentic-dev-team/commit/b256248982638dda561ac567a49bc6b06e5746d1))
+* downgrade performance-review to effort:low (calibration-verified) ([36f4549](https://github.com/bdfinst/agentic-dev-team/commit/36f4549cab7459825f58910d88ae4d119b5cfd05))
+* downgrade refactor-opportunity-review to effort:low (calibration-verified) ([bd02f0a](https://github.com/bdfinst/agentic-dev-team/commit/bd02f0a0b1e4ec44caa5c24511c051520370d2d1))
+* downgrade spec-compliance-review to effort:low (calibration-verified) ([31902b7](https://github.com/bdfinst/agentic-dev-team/commit/31902b7fb0979e26b285103cf8d69ad2ad7f2838))
+* revert correctness-review to effort:high ([#1185](https://github.com/bdfinst/agentic-dev-team/issues/1185) re-confirmation failed) ([26a5b51](https://github.com/bdfinst/agentic-dev-team/commit/26a5b519f2b14647e7e2ebbf7ccee6764ca42ea1))
+* snapshot results list before aliasing it into the checkpoint dict ([61eb9a2](https://github.com/bdfinst/agentic-dev-team/commit/61eb9a279a084dad668902bac651a55ddba8ccee))
+
+
+### Documentation
+
+* decouple calibration floor (consequence) from effort band ([8062f90](https://github.com/bdfinst/agentic-dev-team/commit/8062f90a83198593dde985e279904a0101e0feeb))
+
 ## [10.13.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.12.2...dev-team-v10.13.0) (2026-07-18)
 
 
