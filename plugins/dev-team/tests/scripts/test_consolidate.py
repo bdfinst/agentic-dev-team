@@ -134,3 +134,91 @@ def test_main_treats_wrong_shape_json_as_malformed(tmp_path, capsys):
     assert "section-0002.json" in captured.err
     out = json.loads(captured.out)
     assert out["sliceCount"] == 1
+
+
+# --- schema-drift tolerance (#1261) -------------------------------------------
+
+
+def test_section_findings_under_issues_key_are_aggregated():
+    """A section whose findings landed under `issues` (per-agent key) instead of
+    `findings` (section key) is still aggregated — not silently counted as zero."""
+    section = {
+        "schema": "code-review-section/v1",
+        "id": "0001",
+        "files": ["src/a.ts"],
+        "is_declarative": False,
+        "panel": ["structure-review"],
+        "issues": [_f("src/a.ts", 10, "error", "structure-review")],
+    }
+    result = consolidate.consolidate([section])
+    assert result["totals"]["errors"] == 1
+    assert len(result["topFindings"]) == 1
+    assert result["topFindings"][0]["agents"] == ["structure-review"]
+
+
+def test_findings_key_wins_when_both_present():
+    section = _section("0001", [_f("src/a.ts", 1, "warning", "x")])
+    section["issues"] = [_f("src/b.ts", 2, "error", "y")]
+    result = consolidate.consolidate([section])
+    # `findings` is canonical and takes precedence over the `issues` alias.
+    assert [f["file"] for f in result["topFindings"]] == ["src/a.ts"]
+
+
+def test_non_list_findings_value_degrades_to_empty():
+    section = _section("0001", [])
+    section["findings"] = "oops"  # wrong type, not a list
+    section["issues"] = [_f("src/a.ts", 1, "warning", "x")]
+    # `findings` present-but-not-a-list falls through to the `issues` alias.
+    result = consolidate.consolidate([section])
+    assert result["totals"]["warnings"] == 1
+
+
+def test_normalize_native_agent_shape_with_extra_keys():
+    """Native per-agent {status, issues, summary} shape → agent-tagged findings."""
+    raw = {
+        "agentName": "security-review",
+        "status": "fail",
+        "summary": "1 issue",
+        "issues": [{"severity": "error", "file": "src/x.ts", "line": 5, "message": "sqli"}],
+    }
+    findings = consolidate.normalize_agent_result(raw)
+    assert len(findings) == 1
+    assert findings[0]["agent"] == "security-review"
+    assert findings[0]["severity"] == "error"
+
+
+def test_normalize_findings_key_variant_and_fallback_agent_name():
+    raw = {"status": "warn", "findings": [{"severity": "warning", "file": "a", "line": 1}]}
+    findings = consolidate.normalize_agent_result(raw, agent_name="naming-review")
+    # No agentName in payload → fall back to the passed agent_name.
+    assert findings[0]["agent"] == "naming-review"
+
+
+def test_normalize_preserves_explicit_agent_over_fallback():
+    raw = {"issues": [{"severity": "error", "file": "a", "line": 1, "agent": "js-fp-review"}]}
+    findings = consolidate.normalize_agent_result(raw, agent_name="naming-review")
+    # A finding that already names its agent keeps it (setdefault, not overwrite).
+    assert findings[0]["agent"] == "js-fp-review"
+
+
+def test_normalize_malformed_inputs_never_raise():
+    assert consolidate.normalize_agent_result(None) == []
+    assert consolidate.normalize_agent_result("not-a-dict") == []
+    assert consolidate.normalize_agent_result({}) == []
+    # A non-dict entry inside the findings list is skipped, not crashed on.
+    assert consolidate.normalize_agent_result({"issues": ["bogus", {"file": "a"}]}) == [
+        {"file": "a", "agent": None}
+    ]
+
+
+def test_normalized_findings_feed_consolidate_end_to_end():
+    """The normalize→section→consolidate path an orchestrator would follow."""
+    agent_a = {"agentName": "structure-review", "status": "warn",
+               "issues": [{"severity": "warning", "file": "src/a.ts", "line": 10, "message": "m"}]}
+    agent_b = {"agentName": "complexity-review", "status": "fail",
+               "findings": [{"severity": "error", "file": "src/a.ts", "line": 10, "message": "m"}]}
+    findings = consolidate.normalize_agent_result(agent_a) + consolidate.normalize_agent_result(agent_b)
+    result = consolidate.consolidate([_section("0001", findings)])
+    entry = result["topFindings"][0]
+    assert entry["severity"] == "error"
+    assert sorted(entry["agents"]) == ["complexity-review", "structure-review"]

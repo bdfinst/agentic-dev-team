@@ -111,6 +111,26 @@ reads these back for the final report.
   `consolidate.py` merge reporting agents per `file:line` and roll up recurring
   themes — omitting it yields empty `agents[]` arrays and no themes.
 
+### Schema-drift tolerance (#1261)
+
+Real review-agent output drifts from this schema — agents return the native
+`{status, issues, summary}` shape, key the list as `issues` (the per-agent key)
+instead of `findings` (the section key), or add extra top-level keys. The
+aggregator absorbs these variants deterministically rather than miscounting:
+
+- `consolidate.py`'s `consolidate()` reads a section's findings from `findings`
+  **or** `issues` (canonical first), so a mis-keyed list is aggregated, never
+  silently counted as zero. A value present but not a list degrades to "no
+  findings" rather than crashing.
+- `consolidate.normalize_agent_result(raw, agent_name=None)` is the extraction
+  contract for folding one agent's raw result into a section's flat `findings[]`:
+  it pulls the list from either key, ignores extra keys (`status`, `summary`),
+  and tags each finding with its reporting `agent` (`raw["agentName"]`, else the
+  passed `agent_name`). Non-dict input degrades to `[]`; it never raises.
+
+This tolerance is a safety net for silent drift, **not** a licence to emit the
+wrong shape — the per-agent contract above (`issues[]`) remains authoritative.
+
 ## Progress ledger (sliced mode)
 
 Written by `init_ledger` to `DEV_TEAM_REPORTS/code-review/ledger.json`, updated to

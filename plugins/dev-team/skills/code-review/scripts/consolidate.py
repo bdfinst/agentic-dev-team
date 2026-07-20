@@ -34,9 +34,57 @@ _SEVERITY_BUCKET = {"error": "errors", "warning": "warnings", "suggestion": "sug
 # A review dimension recurring across at least this many slices is a theme.
 _THEME_MIN_SLICES = 2
 
+# Real-world review-agent output drifts from the documented schema (#1261): some
+# agents return their findings list under `issues` (the per-agent key in
+# output-format.md) instead of `findings` (the section-artifact key). Accept
+# either so a mis-keyed list is aggregated, never silently counted as zero. The
+# canonical key is tried first; the alias is a fallback.
+_FINDINGS_KEYS = ("findings", "issues")
+
 
 def _rank(severity: str) -> int:
     return _SEVERITY_RANK.get(severity, 0)
+
+
+def _findings_of(container: dict) -> list:
+    """Return the findings list from ``container`` tolerating key drift (#1261).
+
+    Prefers ``findings`` (section-artifact key), falls back to ``issues``
+    (per-agent key). A value that is present but not a list is treated as no
+    findings rather than crashing the aggregation.
+    """
+    for key in _FINDINGS_KEYS:
+        value = container.get(key)
+        if isinstance(value, list):
+            return value
+    return []
+
+
+def normalize_agent_result(raw: dict, agent_name: Optional[str] = None) -> list:
+    """Coerce one review agent's result into a flat, ``agent``-tagged findings list.
+
+    Absorbs the schema drift observed in real runs (#1261): the native per-agent
+    ``{status, issues, summary}`` shape, findings keyed as ``issues`` **or**
+    ``findings``, and any extra top-level keys (e.g. ``summary``) — all of which
+    are ignored except the findings list. Each returned finding is tagged with
+    its reporting ``agent`` (from ``raw["agentName"]``, else ``agent_name``) so
+    ``consolidate()`` can merge reporters per ``file:line`` and roll up themes.
+
+    Non-dict input, or a findings entry that is not a dict, yields an empty list
+    / is skipped — this never raises, so a malformed agent result degrades to
+    "reported nothing" rather than aborting the whole aggregation.
+    """
+    if not isinstance(raw, dict):
+        return []
+    agent = raw.get("agentName") or agent_name
+    out = []
+    for finding in _findings_of(raw):
+        if not isinstance(finding, dict):
+            continue
+        tagged = dict(finding)
+        tagged.setdefault("agent", agent)
+        out.append(tagged)
+    return out
 
 
 def _dedupe_key(finding: dict):
@@ -94,7 +142,7 @@ def consolidate(sections: List[dict]) -> dict:
         slice_id = section.get("id")
         if section.get("is_declarative"):
             reduced_panel_slices.append(slice_id)
-        for finding in section.get("findings", []):
+        for finding in _findings_of(section):
             severity = finding.get("severity", "suggestion")
             totals[_SEVERITY_BUCKET.get(severity, "suggestions")] += 1
             agent = finding.get("agent")
