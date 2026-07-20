@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.1.0...marketplace-dev-v1.1.1) (2026-07-20)
+
+
+### Documentation
+
+* sync marketplace-dev docs to code and refresh builder/cloud guides ([a6c61fc](https://github.com/bdfinst/agentic-dev-team/commit/a6c61fc5be083450746ad253ab4097f87bada517))
+
 ## [1.1.0](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.0.0...marketplace-dev-v1.1.0) (2026-07-08)
 
 

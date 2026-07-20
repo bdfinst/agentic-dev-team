@@ -1,5 +1,29 @@
 # Changelog
 
+## [10.15.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.14.2...dev-team-v10.15.0) (2026-07-20)
+
+
+### Features
+
+* add unattended /setup --yes flag that auto-confirms install gates ([d1abe0a](https://github.com/bdfinst/agentic-dev-team/commit/d1abe0a9119d6994a9d61c990dc3de4b1b991eda)), closes [#1234](https://github.com/bdfinst/agentic-dev-team/issues/1234)
+* gate low-yield review lenses by change shape in /code-review ([3653a64](https://github.com/bdfinst/agentic-dev-team/commit/3653a64e51ba127a298b8f8b0e1461c31597a3c3)), closes [#1254](https://github.com/bdfinst/agentic-dev-team/issues/1254)
+* record severity and provenance in review-value.jsonl ([c1f71c2](https://github.com/bdfinst/agentic-dev-team/commit/c1f71c241ba5f6a436459a1a14fe6c00c6171cc6)), closes [#1256](https://github.com/bdfinst/agentic-dev-team/issues/1256) [#1257](https://github.com/bdfinst/agentic-dev-team/issues/1257)
+
+
+### Bug Fixes
+
+* /setup only installs tools that are missing ([afbc5d1](https://github.com/bdfinst/agentic-dev-team/commit/afbc5d15542344e981041008c7580566f36019a3)), closes [#1236](https://github.com/bdfinst/agentic-dev-team/issues/1236)
+* suppress empty SubagentStop heartbeats in task metrics ([72abd97](https://github.com/bdfinst/agentic-dev-team/commit/72abd9715f331877f69f95608e515e7e684c7528)), closes [#1258](https://github.com/bdfinst/agentic-dev-team/issues/1258)
+* tolerate review-agent schema drift in /code-review aggregator ([b43f0b4](https://github.com/bdfinst/agentic-dev-team/commit/b43f0b42c49573dec23129d9ecbe731738f6952f)), closes [#1261](https://github.com/bdfinst/agentic-dev-team/issues/1261)
+
+
+### Documentation
+
+* correct dev-team counts, split /test-improve reference, fill workflow gaps ([aae300a](https://github.com/bdfinst/agentic-dev-team/commit/aae300a9202549629701eed07b199d3b96672bc7))
+* fix dev-team-process doc drift and split band calibration ([7b63352](https://github.com/bdfinst/agentic-dev-team/commit/7b6335260d40c63eadb684b317fb6a57c557a3e4))
+* fix eval/session/codegraph/test/telemetry doc drift ([ffb765b](https://github.com/bdfinst/agentic-dev-team/commit/ffb765b26cff8e82f15e4b55830673543cccb3c1))
+* lead dev-team plugin install page with "install, then /setup" ([900246a](https://github.com/bdfinst/agentic-dev-team/commit/900246a4908aee7ac9e52f8e0feaa5655d7779bb)), closes [#1231](https://github.com/bdfinst/agentic-dev-team/issues/1231)
+
 ## [10.14.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.14.1...dev-team-v10.14.2) (2026-07-20)
 
 
