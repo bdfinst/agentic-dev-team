@@ -133,7 +133,11 @@ def main(argv: list) -> int:
         return 0
 
     flapped: set = set()
-    dispatch_fn = lambda pair, model: ac.real_dispatch_fn(pair, model, dirs)  # noqa: E731
+    # Route through the infra-aware wrapper: real_dispatch_fn now raises
+    # DispatchError on a failed/throttled/session-bleed dispatch instead of
+    # banking it as a false negative (#1219). The wrapper retries transient
+    # infra failures and re-raises only if unrecoverable.
+    dispatch_fn = lambda pair, model: ac.dispatch_with_infra_retry(pair, model, dirs)  # noqa: E731
     pass_rate_fn = ac.make_pass_rate_fn(dispatch_fn, args.samples, flapped)
 
     results = []
