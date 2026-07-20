@@ -1,10 +1,11 @@
 """Tests for plugins/dev-team/knowledge/model-routing.json — the single
-source of truth for effort band → snapshot resolution defaults.
+source of truth for effort band → model resolution defaults.
 
 (migration safety): each band default must equal the legacy tier it
-replaces, snapshot-for-snapshot (low→haiku, medium→sonnet, high→opus).
+replaces, ID-for-ID (low→haiku, medium→sonnet, high→opus).
 (precondition): the routing.json file is the ONLY in-tree place that ships
-a pinned snapshot ID, and it pins the ladder rounding convention. Every
+a concrete model ID, and it pins the ladder rounding convention. Every value
+is a bare canonical model ID (no dated snapshot suffix) — see ADR 0024. Every
 dispatch flows through it. Legacy tier keys are retained for the
 migration window so the unchanged resolver keeps resolving.
 
@@ -51,12 +52,12 @@ def test_model_routing_json_contains_bands_and_legacy_tiers(data: dict) -> None:
 # --- Effort band defaults (the post-migration vocabulary) ------------------
 
 
-def test_low_band_maps_to_documented_haiku_snapshot(data: dict) -> None:
-    assert data["low"] == "claude-haiku-4-5-20251001"
+def test_low_band_maps_to_unpinned_canonical_haiku_id(data: dict) -> None:
+    assert data["low"] == "claude-haiku-4-5"
 
 
 def test_medium_band_maps_to_unpinned_canonical_sonnet_id(data: dict) -> None:
-    assert data["medium"] == "claude-sonnet-4-6"
+    assert data["medium"] == "claude-sonnet-5"
 
 
 def test_high_band_maps_to_unpinned_canonical_opus_id(data: dict) -> None:
@@ -75,12 +76,12 @@ def test_each_band_default_equals_its_legacy_tier_snapshot(data: dict) -> None:
 # --- legacy tier keys retained for the migration window --------------------
 
 
-def test_haiku_tier_maps_to_documented_snapshot(data: dict) -> None:
-    assert data["haiku"] == "claude-haiku-4-5-20251001"
+def test_haiku_tier_maps_to_unpinned_canonical_id(data: dict) -> None:
+    assert data["haiku"] == "claude-haiku-4-5"
 
 
 def test_sonnet_tier_maps_to_unpinned_canonical_id(data: dict) -> None:
-    assert data["sonnet"] == "claude-sonnet-4-6"
+    assert data["sonnet"] == "claude-sonnet-5"
 
 
 def test_opus_tier_maps_to_unpinned_canonical_id(data: dict) -> None:
