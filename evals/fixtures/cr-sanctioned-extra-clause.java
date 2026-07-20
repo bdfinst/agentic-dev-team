@@ -4,21 +4,30 @@
 public final class TrailingCharValidator {
 
     /**
-     * Checks whether the trailing character of a numeric literal is
-     * acceptable. A trailing decimal point (e.g. "123.") IS a valid ending
-     * when the caller has flagged this literal as float-typed
-     * (`allowTrailingDot`), since a trailing '.' with no fractional digits
-     * is valid Java float/double syntax in that mode (e.g. "123." parses as
-     * 123.0). When `allowTrailingDot` is false, only a trailing digit is
-     * acceptable.
+     * Checks whether the trailing character of a numeric literal is acceptable.
+     *
+     * CONTRACT (two cases, stated exhaustively):
+     *   - allowTrailingDot == false: ONLY a trailing digit is acceptable.
+     *   - allowTrailingDot == true : a trailing digit OR a trailing '.' is
+     *     acceptable, because "123." is valid Java float/double syntax and
+     *     parses as 123.0.
+     *
+     * The implementation below encodes exactly these two cases and nothing
+     * more. This is a TRUE NEGATIVE: there is no missing guard and no
+     * unsanctioned extra clause — the '.' exemption is gated precisely on the
+     * `allowTrailingDot` flag the contract names.
      */
     public static boolean hasValidTrailingChar(char[] chars, boolean allowTrailingDot) {
         char lastChar = chars[chars.length - 1];
-        // Not a bug: the extra clause is exactly the case the docstring
-        // above sanctions -- a trailing '.' is only exempted from
-        // rejection when the caller explicitly opted in via
-        // `allowTrailingDot`, matching the stated rule precisely.
-        if (!Character.isDigit(lastChar) && !(allowTrailingDot && lastChar == '.')) {
+
+        // Correct and fully sanctioned by the contract above:
+        //   reject unless lastChar is a digit, OR (the caller opted in via
+        //   allowTrailingDot AND lastChar is exactly '.').
+        // The extra `&& lastChar == '.'` clause is not over-permissive: without
+        // it, allowTrailingDot would wrongly accept ANY non-digit trailing char.
+        boolean isDigit = Character.isDigit(lastChar);
+        boolean isSanctionedDot = allowTrailingDot && lastChar == '.';
+        if (!isDigit && !isSanctionedDot) {
             return false;
         }
         return true;

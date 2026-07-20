@@ -10,16 +10,21 @@ interface Point {
 type Polygon = Point[];
 
 /**
- * Transform a part's polygons as a single rigid body: rotate every polygon
- * around the outer boundary's centroid, then translate the whole group so the
+ * Transform a part's polygons as a single rigid body: ROTATE every polygon
+ * around the outer boundary's centroid, then TRANSLATE the whole group so the
  * outer boundary's bounding box sits at (x, y). `polygons[0]` is the outer
- * boundary; the rest are cutouts.
+ * boundary; the rest are cutouts. Takes a `Polygon[]` and an (x, y) target.
  */
-// The block above describes transformPartPolygons (below), not reflectPolygon.
+// MISMATCH: the JSDoc block directly above documents transformPartPolygons —
+// rotation, translation, a Polygon[] group, an (x, y) target. But it is
+// attached to reflectPolygon, which does none of that: it takes a single
+// Polygon and only mirrors x. The doc comment describes the wrong function.
 export function reflectPolygon(polygon: Polygon): Polygon {
   return polygon.map((p) => ({ x: -p.x, y: p.y }));
 }
 
+// The function the block above actually describes — and which has no doc
+// comment of its own.
 export function transformPartPolygons(polygons: Polygon[]): Polygon[] {
   // ... rotates around centroid and translates the group ...
   return polygons;

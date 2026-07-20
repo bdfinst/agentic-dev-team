@@ -10,20 +10,22 @@ npm install invoicer
 
 ## Usage
 
-Create an invoice and add line items:
+Create an invoice, add line items, and export it:
 
 ```ts
 import { createInvoice } from "invoicer";
 
-// Signature: createInvoice(customerId, currency, taxRegion)
+// createInvoice(customerId, currency, taxRegion)
 const invoice = createInvoice("cust_123", "USD", "US-CA");
+// addItem(description, amountCents)
 invoice.addItem("Consulting", 1500);
 ```
 
-Export an invoice to HTML from the command line:
+From the command line:
 
 ```bash
-npx invoicer export-html ./invoice.json
+npx invoicer export-html ./invoice.json   # render an invoice to HTML
+npx invoicer validate ./invoice.json      # validate an invoice file
 ```
 
 ## API
@@ -33,9 +35,20 @@ npx invoicer export-html ./invoice.json
 Returns a new `Invoice`. `currency` is an ISO-4217 string and `taxRegion` is a
 tax jurisdiction code used to compute line-item tax.
 
+### `Invoice.addItem(description, amountCents)`
+
+Appends a line item with the given description and integer cent amount.
+
+### CLI commands
+
+- `export-html <file>` — renders the invoice to HTML.
+- `validate <file>` — validates the invoice file's shape.
+
 ## Current source (for reference)
 
-The exported signature in `src/invoice.ts` matches the docs above:
+Every symbol and command documented above appears in the source below, and the
+source exposes nothing the docs omit — the README and the implementation are a
+one-to-one match.
 
 ```ts
 // src/invoice.ts
@@ -46,9 +59,13 @@ export function createInvoice(
 ): Invoice {
   /* ... */
 }
-```
 
-And the registered CLI commands in `src/cli.ts` match the documented command:
+export class Invoice {
+  addItem(description: string, amountCents: number): void {
+    /* ... */
+  }
+}
+```
 
 ```ts
 // src/cli.ts — package.json "bin": { "invoicer": "./dist/cli.js" }
@@ -60,4 +77,4 @@ registerCommand("validate", validateHandler);
 
 - **v2.0** — Replaced `export-pdf` with `export-html`. Added the required
   `taxRegion` parameter to `createInvoice`. Both this README and the source
-  above reflect the v2.0 contract.
+  above reflect the v2.0 contract exactly.

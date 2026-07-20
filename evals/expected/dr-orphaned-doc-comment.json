@@ -1,6 +1,6 @@
 {
   "fixture": "dr-orphaned-doc-comment.ts",
-  "description": "A rigid-body JSDoc block describing transformPartPolygons sits directly above reflectPolygon, so the comment does not describe the function it annotates. doc-review's inline-comment-drift rule should catch the detached/misplaced doc comment.",
+  "description": "A rigid-body JSDoc block describing transformPartPolygons (rotate/translate a Polygon[] group to an (x,y) target) sits directly above reflectPolygon, which takes a single Polygon and only mirrors x — the comment unambiguously describes a different function than the one it annotates. doc-review's inline-comment-drift rule should catch the detached/misplaced doc comment.",
   "applicableAgents": ["doc-review"],
   "agents": {
     "doc-review": {
