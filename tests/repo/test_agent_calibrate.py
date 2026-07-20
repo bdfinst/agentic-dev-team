@@ -499,3 +499,123 @@ def test_render_report_flapping_section():
     assert "`x::t`" in md
     # absent when no flapping
     assert "Flapping fixtures" not in ac.render_report([], "2026-01-01T00-00-00Z", None)
+
+
+# ---------------------------------------------------------------------------
+# Dispatch isolation + infra-failure classification (#1219). A `claude -p`
+# spawned inside a Claude Code session inherited the parent's session context
+# and returned narration instead of a review; the old dispatcher counted that
+# (and any 429/unparseable output) as a review MISS, so infra noise became fake
+# flap/floor-failures. classify_dispatch separates infra failure from verdict;
+# clean_child_env strips the session-linking vars; dispatch_with_infra_retry
+# retries transient infra failures and re-raises rather than banking a miss.
+# ---------------------------------------------------------------------------
+
+def _envelope(result, is_error=False):
+    return json.dumps({"is_error": is_error, "result": result, "subtype": "success"})
+
+
+def test_classify_dispatch_parses_review_from_envelope():
+    kind, review = ac.classify_dispatch(_envelope("```json\n" + json.dumps(REVIEW) + "\n```"))
+    assert kind == "review"
+    assert review == REVIEW
+
+
+def test_classify_dispatch_is_error_envelope_is_infra():
+    # A 429/overload envelope carries an error string in `result`; it is NOT a
+    # verdict even though the envelope itself is valid JSON.
+    kind, review = ac.classify_dispatch(_envelope("upstream 429", is_error=True))
+    assert kind == "infra"
+    assert review is None
+
+
+def test_classify_dispatch_unparseable_envelope_is_infra():
+    assert ac.classify_dispatch("not json at all") == ("infra", None)
+    assert ac.classify_dispatch("") == ("infra", None)
+    assert ac.classify_dispatch(None) == ("infra", None)
+
+
+def test_classify_dispatch_narrated_result_is_infra():
+    # Model ignored --json and narrated (session bleed / #1199) — valid
+    # envelope, but no extractable review payload.
+    kind, review = ac.classify_dispatch(_envelope("Sure! The probe is still running..."))
+    assert (kind, review) == ("infra", None)
+
+
+def test_classify_dispatch_pass_verdict_is_review_not_infra():
+    ok = {"status": "pass", "issues": []}
+    kind, review = ac.classify_dispatch(_envelope(json.dumps(ok)))
+    assert kind == "review"
+    assert review == ok
+
+
+def test_clean_child_env_strips_session_vars():
+    base = {
+        "CLAUDE_CODE_SESSION_ID": "abc",
+        "CLAUDE_CODE_CHILD_SESSION": "1",
+        "CLAUDE_CODE_ENTRYPOINT": "cli",
+        "PATH": "/usr/bin",
+        "ANTHROPIC_BASE_URL": "http://proxy",
+    }
+    env = ac.clean_child_env(base)
+    assert "CLAUDE_CODE_SESSION_ID" not in env
+    assert "CLAUDE_CODE_CHILD_SESSION" not in env
+    assert "CLAUDE_CODE_ENTRYPOINT" not in env
+    # non-session vars (proxy/auth/PATH) are preserved so the child still routes
+    assert env["PATH"] == "/usr/bin"
+    assert env["ANTHROPIC_BASE_URL"] == "http://proxy"
+
+
+def test_clean_child_env_does_not_mutate_input():
+    base = {"CLAUDE_CODE_SESSION_ID": "abc"}
+    ac.clean_child_env(base)
+    assert base == {"CLAUDE_CODE_SESSION_ID": "abc"}  # copy, not in-place
+
+
+def test_dispatch_with_infra_retry_returns_on_first_success():
+    calls = []
+    def fake(pair, model, dirs):
+        calls.append((pair, model))
+        return True
+    slept = []
+    out = ac.dispatch_with_infra_retry("a::t", "m", None, dispatch=fake,
+                                       sleep=slept.append)
+    assert out is True
+    assert len(calls) == 1
+    assert slept == []  # no backoff when the first attempt succeeds
+
+
+def test_dispatch_with_infra_retry_recovers_after_transient_failures():
+    from collections import deque
+    outcomes = deque([ac.DispatchError("429"), ac.DispatchError("429"), False])
+    def fake(pair, model, dirs):
+        x = outcomes.popleft()
+        if isinstance(x, Exception):
+            raise x
+        return x
+    slept = []
+    out = ac.dispatch_with_infra_retry("a::t", "m", None, infra_retries=3,
+                                       dispatch=fake, sleep=slept.append)
+    assert out is False  # the recovered dispatch's genuine verdict is returned
+    assert len(slept) == 2  # backed off before each of the two retries
+
+
+def test_dispatch_with_infra_retry_reraises_when_unrecoverable():
+    def always_fail(pair, model, dirs):
+        raise ac.DispatchError("proxy down")
+    slept = []
+    with pytest.raises(ac.DispatchError):
+        ac.dispatch_with_infra_retry("a::t", "m", None, infra_retries=2,
+                                     dispatch=always_fail, sleep=slept.append)
+    assert len(slept) == 2  # retried infra_retries times, then gave up
+
+
+def test_dispatch_with_infra_retry_backoff_is_exponential():
+    def always_fail(pair, model, dirs):
+        raise ac.DispatchError("x")
+    slept = []
+    with pytest.raises(ac.DispatchError):
+        ac.dispatch_with_infra_retry("a::t", "m", None, infra_retries=3,
+                                     backoff_base=2.0, dispatch=always_fail,
+                                     sleep=slept.append)
+    assert slept == [1.0, 2.0, 4.0]  # 2**0, 2**1, 2**2

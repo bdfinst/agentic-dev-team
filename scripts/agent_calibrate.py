@@ -96,9 +96,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set, Tuple
@@ -155,6 +157,101 @@ def _extract_review_json(result_text):
         return json.loads(text)
     except (json.JSONDecodeError, ValueError):
         return None
+
+
+# ---------------------------------------------------------------------------
+# Dispatch isolation + infra-failure classification (#1219).
+#
+# real_dispatch_fn shells out to `claude -p /review-agent ...`. Two hazards,
+# both surfaced running the deferred #1219 calibration, made a *failed*
+# dispatch indistinguishable from a genuine "agent found nothing" verdict, so
+# proxy throttling and session bleed masqueraded as calibration signal:
+#
+#   1. Session-context bleed. A `claude -p` spawned from *inside* a Claude
+#      Code session inherits CLAUDE_CODE_SESSION_ID / CLAUDE_CODE_CHILD_SESSION
+#      and attaches to the parent session's context, so the child intermittently
+#      returns the parent's narration instead of a fixture review. Stripping
+#      those vars gives each dispatch a clean, fresh session.
+#   2. Infra-blind grading. The old loop returned False whenever the envelope
+#      was unparseable — identical to a real review miss. An `is_error`
+#      envelope or an unextractable result is an INFRA failure, not a verdict:
+#      classify it as such and raise DispatchError so callers retry
+#      (dispatch_with_infra_retry) rather than bank a false negative.
+# ---------------------------------------------------------------------------
+
+_SESSION_ENV_VARS = (
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_CODE_ENTRYPOINT",
+)
+
+
+class DispatchError(RuntimeError):
+    """A dispatch failed at the infrastructure layer (unparseable/errored
+    envelope, or no extractable review) — NOT a review verdict. Callers must
+    retry or surface it, never count it as a passing/failing review."""
+
+
+def clean_child_env(base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """Return an environment dict with the session-linking vars stripped so a
+    nested `claude -p` runs as a fresh, isolated session (the #1219 bleed
+    fix). Defaults to a copy of the current process environment."""
+    env = dict(os.environ if base is None else base)
+    for var in _SESSION_ENV_VARS:
+        env.pop(var, None)
+    return env
+
+
+def classify_dispatch(stdout: Optional[str]) -> Tuple[str, Optional[dict]]:
+    """Classify a `claude -p ... --output-format json` stdout.
+
+    Returns ``("review", <review dict>)`` when a structured review was parsed
+    (a legitimate pass OR fail verdict), or ``("infra", None)`` when the
+    dispatch failed at the infrastructure layer: no JSON envelope, an
+    ``is_error`` envelope, or a result with no extractable review payload. An
+    infra outcome is NOT a verdict and must never be graded as one."""
+    try:
+        envelope = json.loads(stdout)  # type: ignore[arg-type]
+    except (json.JSONDecodeError, TypeError):
+        return ("infra", None)
+    if not isinstance(envelope, dict):
+        return ("infra", None)
+    if envelope.get("is_error"):
+        return ("infra", None)
+    result_text = envelope.get("result")
+    review = _extract_review_json(result_text if result_text is not None else stdout)
+    if review is None:
+        return ("infra", None)
+    return ("review", review)
+
+
+def dispatch_with_infra_retry(
+    pair: str,
+    model: str,
+    dirs: Dirs,
+    infra_retries: int = 3,
+    backoff_base: float = 2.0,
+    sleep: Callable[[float], None] = time.sleep,
+    dispatch: Optional[DispatchFn] = None,
+) -> bool:
+    """Call ``real_dispatch_fn``, retrying on ``DispatchError`` (transient
+    infra failures: proxy 429/503, session-bleed narration, output-format
+    noise) with exponential backoff. Re-raises ``DispatchError`` if every
+    attempt fails — a persistent infra failure must abort the run loudly, never
+    silently become a false negative that corrupts calibration. Returns the
+    review's pass/fail bool on success. ``dispatch`` and ``sleep`` are
+    injectable for testing."""
+    dispatch = dispatch or real_dispatch_fn
+    last: Optional[DispatchError] = None
+    for attempt in range(infra_retries + 1):
+        try:
+            return dispatch(pair, model, dirs)
+        except DispatchError as exc:
+            last = exc
+            if attempt < infra_retries:
+                sleep(backoff_base ** attempt)
+    assert last is not None
+    raise last
 
 
 # ---------------------------------------------------------------------------
@@ -596,7 +693,9 @@ def real_dispatch_fn(pair: str, model: str, dirs: Dirs, parse_retries: int = 2) 
     spec = json.loads(spec_path.read_text())
     fixture_files = resolve_fixture_files(stem, spec, dirs)
     if not fixture_files:
-        return False
+        # A harness/corpus problem, not a review verdict — surface it, never
+        # let a missing fixture read as "the agent found nothing" (#1219).
+        raise DispatchError(f"no fixture files resolved for {stem}")
     fixture_path = fixture_files[0] if len(fixture_files) == 1 else fixture_files[0].parent
     # `--json` puts /review-agent in machine-readable mode: stdout is the bare
     # result object (no formatted summary, no report write, no prose), so the
@@ -606,28 +705,29 @@ def real_dispatch_fn(pair: str, model: str, dirs: Dirs, parse_retries: int = 2) 
         "claude", "-p", f"/review-agent {target} {fixture_path} --json",
         "--output-format", "json", "--model", model,
     ]
-    # A model occasionally ignores --json and narrates instead of emitting the
-    # bare result object (residual #1199 non-compliance — observed on Sonnet in
-    # ~30% of runs). That is transient output-format noise, NOT the agent's
-    # verdict, so re-dispatch on unparseable output before giving up; only a
-    # PARSED result is ever graded. A genuine fail verdict still parses and is
-    # graded on the first try.
-    actual = None
+    # Strip the parent session's linking vars so this `claude -p` is a fresh,
+    # isolated session — otherwise it inherits the caller's context and can
+    # return the caller's narration instead of a fixture review (#1219 bleed).
+    env = clean_child_env()
+    # A dispatch can fail at the infra layer three ways, all transient and all
+    # distinct from a review verdict: no JSON envelope, an `is_error` envelope
+    # (proxy 429/503, overload), or a result the model narrated instead of the
+    # bare object (residual #1199, ~30% on Sonnet). classify_dispatch labels
+    # these "infra"; retry on infra, grade ONLY a parsed review. A genuine
+    # pass/fail verdict parses and is graded on the first try.
+    review = None
     for _ in range(parse_retries + 1):
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        try:
-            envelope = json.loads(proc.stdout)
-        except json.JSONDecodeError:
-            continue  # dispatch produced no envelope — retry
-        # The `--output-format json` envelope carries the agent's answer as
-        # free text in `result`; the structured review is a JSON block inside.
-        result_text = envelope.get("result") if isinstance(envelope, dict) else None
-        actual = _extract_review_json(result_text if result_text is not None else proc.stdout)
-        if actual is not None:
-            break  # got a parseable result — grade it
-    if actual is None:
-        return False  # never parsed after retries
-    actuals = {stem: {"agents": {target: actual}}}
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        kind, review = classify_dispatch(proc.stdout)
+        if kind == "review":
+            break
+        review = None  # infra failure — retry
+    if review is None:
+        raise DispatchError(
+            f"no parseable review for {pair} @ {model} after {parse_retries + 1} attempts "
+            f"(infra failure: unparseable/errored envelope or narrated output — NOT a verdict)"
+        )
+    actuals = {stem: {"agents": {target: review}}}
     results, _ = run_grading(dirs.expected, actuals, None, only={target})
     return any(p == pair and ok for p, ok, _ in results)
 
@@ -707,14 +807,25 @@ def main(argv: List[str]) -> int:
         print(f"  --samples {args.samples}: up to {net * args.samples} dispatch(es) "
               f"(each pair-band majority-voted over {args.samples} samples)")
 
-    dispatch_fn = lambda pair, model: real_dispatch_fn(pair, model, dirs)  # noqa: E731
+    dispatch_fn = lambda pair, model: dispatch_with_infra_retry(pair, model, dirs)  # noqa: E731
     flapped: Set[str] = set()
     pass_rate_fn = make_pass_rate_fn(dispatch_fn, args.samples, flapped)
 
     results = []
-    for t in targets:
-        results.append(calibrate_target(t, dirs, floors, quarantined, pass_rate_fn,
-                                         routing_path, ladder_path))
+    try:
+        for t in targets:
+            results.append(calibrate_target(t, dirs, floors, quarantined, pass_rate_fn,
+                                             routing_path, ladder_path))
+    except DispatchError as exc:
+        print(
+            f"error: dispatch failed after retries — {exc}\n"
+            "Calibration aborted rather than record a false negative from an "
+            "infra failure. If you are running this from inside a Claude Code "
+            "session, run it from a plain terminal instead: a nested `claude -p` "
+            "inherits the parent session's context and corrupts dispatches (#1219).",
+            file=sys.stderr,
+        )
+        return 3
 
     rhash = routing_hash(routing_path, ladder_path if ladder_path.exists() else None)
     records = load_records(records_path)
