@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.14.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.14.0...dev-team-v10.14.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* stop /project-init gating keyless Graphify build behind an API key ([e7d9bc1](https://github.com/bdfinst/agentic-dev-team/commit/e7d9bc1eb57fcae97516472ca6ae1afc298f1e48)), closes [#1224](https://github.com/bdfinst/agentic-dev-team/issues/1224)
+
 ## [10.14.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.13.0...dev-team-v10.14.0) (2026-07-20)
 
 
