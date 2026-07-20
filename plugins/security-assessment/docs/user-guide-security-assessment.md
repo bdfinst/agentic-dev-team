@@ -7,6 +7,8 @@ Running a security assessment against a target repository. Two paths:
 
 Both produce output in the same layout under `memory/` (or a directory you choose) and score against the comparative-testing harness at `evals/comparative/score.py`. Path B auto-detects the `claude` CLI and runs the same LLM judgment phases when it is available; when it isn't (or with `--no-llm`), Path B degrades to deterministic-only output.
 
+**On this page:** [Tool install matrix](#tool-install-matrix) · [Path A — install the plugin](#path-a--install-the-plugin) · [Path B — local script](#path-b--local-script) · [Scoring a run](#scoring-a-run) · [Troubleshooting](#troubleshooting) · [Quick reference card](#quick-reference-card)
+
 ---
 
 ## Tool install matrix
@@ -138,7 +140,7 @@ Phases are declared in `plugins/security-assessment/commands/security-assessment
 |---|---|---|
 | 0. Recon | `codebase-recon` agent (opus) | LLM |
 | 1. Tool-first detection | static-analysis-integration skill dispatches semgrep/gitleaks/hadolint/actionlint/trivy on the target + `.github/workflows/` (via `scripts/find-ci-files.sh`) | **deterministic** |
-| 1b. Judgment detection | `security-review` + `business-logic-domain-review` agents (opus, parallel) | LLM |
+| 1b. Judgment detection | `security-review`, `business-logic-domain-review`, `deep-code-reasoning`, `authorization-logic-review`, `recon-driven-scan` agents (opus, all five in parallel) | LLM |
 | 1c. ACCEPTED-RISKS suppression | `scripts/apply-accepted-risks.sh` | **deterministic** |
 | 2. FP-reduction | `fp-reduction` agent (opus) | LLM |
 | 2b. Severity floors | `scripts/apply-severity-floors.sh` | **deterministic** |
@@ -202,7 +204,7 @@ Force deterministic-only (skip LLM phases even if `claude` is available):
 
 The script probes `command -v claude` at startup:
 
-- **claude present** — runs every phase: Phase 0 recon enrichment, Phase 1b judgment (security-review + business-logic-domain-review), Phase 2 fp-reduction, Phase 3 narratives + compliance, Phase 5 exec report. Each LLM phase uses headless `claude -p <prompt>` and times itself via `scripts/phase-timer.sh`.
+- **claude present** — runs every phase: Phase 0 recon enrichment, Phase 1b judgment (security-review, business-logic-domain-review, deep-code-reasoning, authorization-logic-review, recon-driven-scan), Phase 2 fp-reduction, Phase 3 narratives + compliance, Phase 5 exec report. Each LLM phase uses headless `claude -p <prompt>` and times itself via `scripts/phase-timer.sh`.
 - **claude missing or `--no-llm`** — runs only deterministic phases (recon skeleton, SARIF tools, custom scripts, suppression gate, skeleton report). The run logs each skipped LLM phase in `meta-<slug>.json` under `llm_phases_skipped`.
 
 Headless Claude calls go through `scripts/lib/invoke_claude.sh`, which adds `--allow-dangerously-skip-permissions` and passes a fixed allowlist (`Read Glob Grep Bash Edit Write Agent`). Every LLM phase writes to `<OUTPUT_DIR>` and is verified by file-existence check — the wrapper does not parse prose to determine success.
@@ -223,21 +225,7 @@ When LLM is unavailable, expected recall is **40-50%** on a typical target. The 
 
 ## Scoring a run
 
-Both paths produce output in `memory/` (or `--output <dir>`). The comparative-testing harness at `evals/comparative/score.py` scores against a reference baseline:
-
-```bash
-python3 evals/comparative/score.py \
-  --reference evals/comparative/reference-baseline/<date> \
-  --ours memory
-```
-
-- `--reference` points at a previously-captured `opus_repo_scan_test` run's markdown reports (see `docs/comparative-testing.md` for how to capture one).
-- `--ours` points at the directory containing your run's `findings-*.jsonl`, `disposition-*.json`, etc.
-- Prints recall / severity-agreement / suppression-correctness / extra-emissions scorecard.
-
-You can also run with just `--ours` to get a single-column summary.
-
-See `docs/comparative-testing.md` for the full comparative-testing runbook and metric interpretation.
+Both paths produce output in `memory/` (or `--output <dir>`). Score a run against a reference baseline with the comparative-testing harness at `evals/comparative/score.py`. Its full invocation, flags (`--reference` / `--ours`, or `--ours` alone for a single-column summary), and scorecard metrics — recall, severity-agreement, suppression-correctness, extra-emissions — are documented in the [comparative-testing runbook](comparative-testing.md).
 
 ---
 
