@@ -1,0 +1,11 @@
+{
+  "fixture": "pg-on-track",
+  "description": "Steps executed in order, each completed step has a matching commit referencing it and its RED-before-GREEN test, only declared-scope files touched, clean working tree — progress-guardian should pass with nothing to flag.",
+  "applicableAgents": ["progress-guardian"],
+  "agents": {
+    "progress-guardian": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

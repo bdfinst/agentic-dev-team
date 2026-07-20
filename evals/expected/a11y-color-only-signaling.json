@@ -1,6 +1,6 @@
 {
   "fixture": "a11y-color-only-signaling",
-  "description": "Checkout markup whose error/required state is conveyed by color alone, with low-contrast helper text, a data table lacking header cells, a placeholder used as the only label, non-descriptive link text, and a focusable submit button hidden with aria-hidden — should fail review",
+  "description": "Focused fixture: a form field's invalid state and a field's required-ness are both conveyed by color alone (WCAG 1.4.1 Use of Color), and the required-note text is also below the WCAG 1.4.3 AA contrast minimum. One unambiguous pattern — color-only signaling — so a11y-review should reliably fail.",
   "applicableAgents": [
     "a11y-review"
   ],
@@ -8,13 +8,13 @@
     "a11y-review": {
       "expectedStatus": "fail",
       "issueCount": {
-        "min": 3,
-        "max": 8
+        "min": 1,
+        "max": 4
       },
       "severities": {
         "error": {
           "min": 1,
-          "max": 7
+          "max": 4
         }
       }
     }

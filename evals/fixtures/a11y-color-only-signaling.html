@@ -4,42 +4,31 @@
     <meta charset="utf-8" />
     <title>Checkout</title>
     <style>
-      /* Error state is conveyed by color alone — no text, no icon, no aria. */
+      /* WCAG 1.4.1 (Use of Color): the ONLY signal that a field is invalid is
+         a red border. No text, no icon, no aria-invalid — a user who cannot
+         perceive the red border gets no indication that anything is wrong. */
       .field-error {
-        border-color: red;
+        border: 2px solid red;
       }
-      /* Low-contrast helper text (~2.3:1) below the WCAG AA 4.5:1 threshold. */
-      .muted {
+      /* WCAG 1.4.1 again: "required" is communicated purely by red text, and
+         WCAG 1.4.3 (Contrast): this helper text is ~2.3:1 on white, well below
+         the 4.5:1 AA minimum, so it is both color-only AND low-contrast. */
+      .required-note {
         color: #b3b3b3;
         background: #ffffff;
       }
     </style>
   </head>
   <body>
-    <!-- Layout table used for tabular data with no header cells or scope. -->
-    <table>
-      <tr>
-        <td>Item</td>
-        <td>Price</td>
-      </tr>
-      <tr>
-        <td>Widget</td>
-        <td>$9.00</td>
-      </tr>
-    </table>
-
     <form action="/pay" method="post">
-      <!-- Placeholder used as the only label; disappears on input. -->
-      <input type="text" name="card" placeholder="Card number" class="field-error" />
+      <label for="card">Card number</label>
+      <!-- Invalid state signaled by color alone: red border, nothing else. -->
+      <input type="text" id="card" name="card" class="field-error" />
 
-      <!-- Required-ness and error are signaled by color only. -->
-      <p class="muted">Fields in red are required.</p>
+      <!-- Required-ness signaled by color alone, in low-contrast gray text. -->
+      <p class="required-note">Fields shown in red are required.</p>
 
-      <!-- Non-descriptive link text; meaningless out of context to a screen reader. -->
-      <a href="/terms">Click here</a>
-
-      <!-- Focusable, meaningful content hidden from assistive tech. -->
-      <button type="submit" aria-hidden="true">Pay now</button>
+      <button type="submit">Pay now</button>
     </form>
   </body>
 </html>

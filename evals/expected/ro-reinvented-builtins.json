@@ -1,12 +1,12 @@
 {
   "fixture": "ro-reinvented-builtins.ts",
-  "description": "Hand-rolled Math.min/Math.max scan, an inline duplicate of an existing helper, and `0 - x` instead of unary minus — should be flagged as reinvent-the-platform refactor opportunities (suggestions, not errors: the manual loop may be an intentional hot-path).",
+  "description": "Two unambiguous reinvent-the-platform opportunities: a hand-rolled Math.min/Math.max scan in boundingBox, and shiftToOrigin re-implementing the existing translatePolygon helper inline. Flagged as suggestions, not errors (the manual loop may be an intentional single-pass optimization). The weak `0 - x` vs unary-minus micro-idiom was removed to kill the flap; the band is anchored on the unmistakable Math.min/Math.max reinvention via mustMention.",
   "applicableAgents": ["refactor-opportunity-review"],
   "agents": {
     "refactor-opportunity-review": {
       "expectedStatus": "warn",
-      "issueCount": { "min": 2, "max": 5 },
-      "severities": { "suggestion": { "min": 1, "max": 5 } },
+      "issueCount": { "min": 1, "max": 4 },
+      "severities": { "suggestion": { "min": 1, "max": 4 } },
       "mustMention": ["Math.min"],
       "mustNotMention": []
     }

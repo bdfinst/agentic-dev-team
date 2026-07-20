@@ -1,0 +1,12 @@
+{
+  "fixture": "dft-nplus1-unbounded",
+  "description": "List-orders flow that issues one query per order inside a loop (N+1) over an unbounded, unpaginated order query — data-flow-tracer should flag both the N+1 pattern and the unbounded result set as gaps.",
+  "applicableAgents": ["data-flow-tracer"],
+  "agents": {
+    "data-flow-tracer": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 5 },
+      "mustMention": ["query"]
+    }
+  }
+}

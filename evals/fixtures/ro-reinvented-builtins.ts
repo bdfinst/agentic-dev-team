@@ -1,5 +1,8 @@
-// FAIL: hand-rolls language/standard-library built-ins and an existing helper.
-// Derived from laser-layout src/lib/geometry/polygon.ts (boundingBox, reflectPolygon).
+// FAIL: hand-rolls a standard-library built-in and re-implements an existing
+// in-module helper inline. Two clear reinvent-the-platform refactor
+// opportunities (suggestions, not errors — the manual loop could be an
+// intentional single-pass optimization, so the reviewer flags, not mandates).
+// Derived from laser-layout src/lib/geometry/polygon.ts.
 
 interface Point {
   x: number;
@@ -8,7 +11,8 @@ interface Point {
 
 type Polygon = Point[];
 
-// Reinvents Math.min / Math.max with a manual scan.
+// Reinvents Math.min / Math.max: a manual min/max scan over each axis, exactly
+// what `Math.min(...xs)` / `Math.max(...xs)` express in one line each.
 export function boundingBox(polygon: Polygon) {
   let minX = Infinity;
   let minY = Infinity;
@@ -23,8 +27,7 @@ export function boundingBox(polygon: Polygon) {
   return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
 }
 
-// `translatePolygon` already exists in this module, but the call site below
-// re-implements its body inline instead of calling it.
+// This helper already exists in the module...
 export function translatePolygon(
   polygon: Polygon,
   dx: number,
@@ -33,13 +36,9 @@ export function translatePolygon(
   return polygon.map((p) => ({ x: p.x + dx, y: p.y + dy }));
 }
 
+// ...but shiftToOrigin re-implements translatePolygon's body inline instead of
+// calling `translatePolygon(polygon, -bb.minX, -bb.minY)`.
 export function shiftToOrigin(polygon: Polygon): Polygon {
   const bb = boundingBox(polygon);
-  // Duplicates translatePolygon(polygon, -bb.minX, -bb.minY).
   return polygon.map((p) => ({ x: p.x - bb.minX, y: p.y - bb.minY }));
-}
-
-// `0 - p.x` instead of the unary-minus idiom `-p.x`.
-export function reflectPolygon(polygon: Polygon): Polygon {
-  return polygon.map((p) => ({ x: 0 - p.x, y: p.y }));
 }

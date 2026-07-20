@@ -1,0 +1,12 @@
+{
+  "fixture": "dft-missing-error-handling",
+  "description": "Place-order flow whose external payment call has no timeout, retry, or fallback and no surrounding error boundary — data-flow-tracer should trace the flow and flag the unguarded external call as a gap.",
+  "applicableAgents": ["data-flow-tracer"],
+  "agents": {
+    "data-flow-tracer": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 5 },
+      "mustMention": ["payment"]
+    }
+  }
+}

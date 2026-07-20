@@ -1,0 +1,11 @@
+{
+  "fixture": "dft-complete-flow",
+  "description": "Place-order flow whose external call is bounded by timeout + retry + fallback, whose writes are wrapped in an explicit transaction, and whose controller has an error boundary — data-flow-tracer should trace it and find no gaps.",
+  "applicableAgents": ["data-flow-tracer"],
+  "agents": {
+    "data-flow-tracer": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 1 }
+    }
+  }
+}

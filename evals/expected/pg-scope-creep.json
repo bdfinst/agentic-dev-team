@@ -1,0 +1,13 @@
+{
+  "fixture": "pg-scope-creep",
+  "description": "A commit touches files outside the plan's declared scope (adds src/telemetry.ts and refactors src/pricing.ts) with functionality no plan step calls for — progress-guardian should fail on scope creep.",
+  "applicableAgents": ["progress-guardian"],
+  "agents": {
+    "progress-guardian": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 3 },
+      "severities": { "error": { "min": 1, "max": 3 } },
+      "mustMention": ["telemetry"]
+    }
+  }
+}

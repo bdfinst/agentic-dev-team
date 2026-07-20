@@ -1,6 +1,6 @@
 {
   "fixture": "dr-accurate-docs.md",
-  "description": "README and inline docs accurately reflect current implementation",
+  "description": "README and inline docs are a one-to-one match with the embedded source: every documented symbol (createInvoice, Invoice.addItem) and CLI command (export-html, validate) appears in the source, and the source exposes nothing the docs omit — no drift for doc-review to flag.",
   "applicableAgents": ["doc-review"],
   "agents": {
     "doc-review": {
