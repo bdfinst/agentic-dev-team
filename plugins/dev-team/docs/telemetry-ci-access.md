@@ -19,8 +19,11 @@ machines *write* digests) and the watermark/sync flow in `/session-review`.
 
 ## Recommended: a read-only deploy key
 
-A deploy key authorizes an SSH key for a **single repository**. Make it
-**read-only** so CI can clone but never push.
+A deploy key authorizes an SSH key for a **single repository**. The credential
+model — why per-repo, per-machine keys over account-wide SSH keys or classic
+PATs — is documented canonically in
+[`telemetry-repo-security.md`](telemetry-repo-security.md); the one difference
+here is that CI's key is **read-only** so it can clone but never push.
 
 ### 1. Generate a dedicated keypair (locally)
 
@@ -78,8 +81,8 @@ secret access) skip them and fall back to the blocking self-test:
           python3 scripts/session_extract.py --cost-log /tmp/telemetry/digests \
             -o /tmp/telemetry-cost-log.jsonl
           echo "COST_BASELINE_LOG=/tmp/telemetry-cost-log.jsonl" >> "$GITHUB_ENV"
-      - name: Run cost-regression check
-        run: bash scripts/cost-regression-check.sh
+      - name: Run cost-regression check (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_cost_regression
 ```
 
 > Why `--cost-log` and not `--rollup`? The regression meter
@@ -92,12 +95,13 @@ secret access) skip them and fall back to the blocking self-test:
 
 ## Alternative: a fine-grained PAT (read-only)
 
-If you prefer HTTPS: create a **fine-grained** PAT scoped to **only**
-`agent-telemetry` with **Contents: Read-only**, store it as the
-`TELEMETRY_DEPLOY_KEY` (or `TELEMETRY_TOKEN`) secret, and clone via
+If you prefer HTTPS, use a **fine-grained** PAT — same credential model as
+[`telemetry-repo-security.md`](telemetry-repo-security.md) Option B, but scoped
+**Contents: Read-only** since CI never writes. Store it as the
+`TELEMETRY_DEPLOY_KEY` (or `TELEMETRY_TOKEN`) secret and clone via
 `https://x-access-token:${TOKEN}@github.com/bdfinst/agent-telemetry.git`. Prefer
-the deploy key — it is the tightest scope (one repo, read-only) and needs no
-account-level token.
+the deploy key — tightest scope (one repo, read-only) and no account-level
+token.
 
 ## Security notes and caveats
 

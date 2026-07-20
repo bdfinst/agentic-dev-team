@@ -28,8 +28,8 @@ to the message. This matches the precedent set by `hooks/destructive_guard.py`.
 
 ## Fail-open
 
-Any internal error — malformed JSON on stdin, missing `jq`, unreadable
-transcript, missing sentinel — exits 0 without output. The hook is a nudge,
+Any internal error — malformed JSON on stdin, unreadable transcript, missing
+sentinel — exits 0 without output. The hook is a nudge,
 never a gate. A broken hook must never block legitimate `Read` / `Grep` /
 `Glob` calls.
 
@@ -42,7 +42,7 @@ completes, it writes a small JSON sentinel to
 
 ```json
 { "transcript_id": "<basename of transcript_path minus extension>",
-  "turn_counter": <count of `"type":"user"` lines in transcript> }
+  "turn_counter": <count of `"type":"user"` markers in the last ~1 MiB of the transcript> }
 ```
 
 The nudge hook reads this sentinel on each invocation and re-computes
@@ -76,5 +76,5 @@ production-critical sessions where you want to force codegraph use.
 - `plugins/dev-team/hooks/codegraph_turn_mark.py`
 - Registered in `plugins/dev-team/settings.json` under PreToolUse
   (`Read`, `Grep`, `Glob`) and PostToolUse (`mcp__codegraph__.*`).
-- Tests: `tests/hooks/codegraph_nudge.bats` and
-  `tests/hooks/codegraph_settings_test.bats`.
+- Tests: `plugins/dev-team/tests/hooks/test_codegraph_nudge.py` and
+  `plugins/dev-team/tests/hooks/test_codegraph_turn_mark.py`.
