@@ -6,6 +6,8 @@ Date: 2026-06-02
 
 Accepted
 
+> **Bash-removal note (2026-07-20):** the bash-removal effort (ADR 0014, completed by ADR 0015) rewrote `build-knowledge-index.sh` as Python, and retired `tests/repo/knowledge_index_current.bats` and `tests/agents/agent_knowledge_anchor_tests.bats` in favor of pytest `test_*.py` files. Separately, `/init-dev-team` was split into `/setup` and `/project-init`, and `/model-routing-check` is now a skill, not a command. (See the separate 2026-06-02 path note further below for the plugin rename.) This ADR is preserved verbatim as a historical record.
+
 ## Context
 
 Agents in this plugin reference markdown files under `knowledge/` and skill

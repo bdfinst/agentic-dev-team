@@ -8,6 +8,8 @@ Accepted
 
 Builds on [2. Use sentinel file and argument-shape heuristic for CodeGraph nudge hook](0002-use-sentinel-file-and-argument-shape-heuristic-for-codegraph-nudge-hook.md).
 
+> **Path and command note (2026-07-20):** the bash-removal effort (ADR 0014, completed by ADR 0015) rewrote `codegraph-bootstrap.sh` and `init-dev-team-linux.sh` as Python (`.py`) files, and retired their `.bats` tests in favor of pytest `test_*.py` files. Separately, `/init-dev-team` was split into `/setup` and `/project-init`. This ADR is preserved verbatim as a historical record.
+
 ## Context
 
 CodeGraph gives agents code intelligence over an index of the repo. That index is a SQLite database (`.codegraph/codegraph.db`) **derived from source and machine-local** — `.codegraph/.gitignore` excludes `*.db`, so it is never committed. A team that adopts CodeGraph therefore faces a sharing problem: how does every teammate's clone get a working index without each developer remembering to run `codegraph init` by hand?
