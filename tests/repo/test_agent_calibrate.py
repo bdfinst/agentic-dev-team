@@ -200,6 +200,45 @@ def test_uncalibratable_when_no_fixtures(corpus: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scenario 4b — a skill-only target (no agents/<name>.md) is uncalibratable,
+# never a forced floor-failure (#1210).
+# ---------------------------------------------------------------------------
+
+def _write_skill_fixture(corpus: Path, stem: str, target: str) -> None:
+    (corpus / "evals" / "expected" / f"{stem}.json").write_text(json.dumps({
+        "fixture": f"{stem}.ts",
+        "applicableSkills": [target],
+        "skills": {target: {"expectedStatus": "fail", "issueCount": {"min": 1, "max": 5}}},
+    }))
+    (corpus / "evals" / "fixtures" / f"{stem}.ts").write_text("const x = 1\n")
+
+
+def test_skill_only_target_is_uncalibratable_not_floor_failure(corpus: Path) -> None:
+    skill_dir = corpus / "plugins" / "dev-team" / "skills" / "test-design-advisor"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("---\nname: test-design-advisor\n---\n# Test Design Advisor\n")
+    _write_skill_fixture(corpus, "tlg-01", "test-design-advisor")
+    _write_floors(corpus, {"test-design-advisor": {"riskClass": "advisory", "floor": 0.8}})
+
+    dirs = _dirs(corpus)
+    routing_path, ladder_path = _routing_paths(corpus)
+
+    def dispatch_fn(pair: str, model: str) -> bool:
+        raise AssertionError("dispatch must never be called for a skill /review-agent can't load")
+
+    pass_rate_fn = ac.make_pass_rate_fn(dispatch_fn)
+    floors = ac.load_floors(corpus / "plugins" / "dev-team" / "knowledge" / "calibration-floors.json")
+    result = ac.calibrate_target("test-design-advisor", dirs, floors, set(), pass_rate_fn, routing_path, ladder_path)
+
+    assert result["verdict"] == "uncalibratable"
+    assert result["calibrated_band"] is None
+
+    # A full sweep never admits the skill into the dispatchable target list.
+    all_targets = ac.target_universe(dirs)
+    assert "test-design-advisor" not in all_targets
+
+
+# ---------------------------------------------------------------------------
 # Scenario 5 — in-session dispatch is refused.
 # ---------------------------------------------------------------------------
 
