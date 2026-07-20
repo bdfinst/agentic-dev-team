@@ -140,6 +140,10 @@ memory/_*.sh
 # tracked: it is the pre-registered evidence for the #1097 Phase 4 gate.
 !/reports/orchestration-benchmark-2026-07-18.md
 !/reports/orchestration-benchmark-2026-07-18-data/
+# …and keep the #1195 harness-audit follow-up tracked: it is the ADR 0022
+# mandated /harness-audit of the #1099 benchmark and drives the dispatch-posture
+# decision.
+!/reports/harness-audit-2026-07-20.md
 
 # Spec/plan working files — specs live as GitHub issues; local drafts stay untracked
 docs/specs/
