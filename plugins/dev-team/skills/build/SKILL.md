@@ -197,10 +197,10 @@ Work each step **one behavior at a time** — never all the code then all the te
 7. **Record review value (#348).** For **each** checkpoint that runs (per-step `complex` in sub-step 4, and per-slice in sub-step 6), append one JSON line to `metrics/review-value.jsonl` capturing whether review actually changed anything — counts and outcomes only, never code or file content (consistent with the cost meter's privacy boundary). Schema in `performance-metrics`:
 
    ```json
-   {"timestamp":"<ISO8601>","plan":"<plan-file>","slice":"<N>","step":"<N.M or all>","checkpoint":"step|slice","complexity":"standard|complex","agents_run":["spec-compliance-review","..."],"issues_found":0,"issues_fixed":0,"fix_iterations":0,"outcome":"no-op|fixed|escalated"}
+   {"timestamp":"<ISO8601>","plan":"<plan-file>","slice":"<N>","step":"<N.M or all>","checkpoint":"step|slice","complexity":"standard|complex","source":"build-checkpoint","agents_run":["spec-compliance-review","..."],"issues_found":0,"severity_breakdown":{"errors":0,"warnings":0,"suggestions":0},"issues_fixed":0,"fix_iterations":0,"outcome":"no-op|fixed|escalated"}
    ```
 
-   `outcome` is `no-op` when the checkpoint passed clean (found nothing), `fixed` when it found and auto-fixed actionable issues, `escalated` when the loop didn't converge. This is the sensor that tells a build where review caught a real defect from one where every loop passed no-op — it turns the pipeline's "value untested" into "value measured" and feeds the plan/step tiering decisions. Disable with `DEV_TEAM_REVIEW_VALUE=off`.
+   `outcome` is `no-op` when the checkpoint passed clean (found nothing), `fixed` when it found and auto-fixed actionable issues, `escalated` when the loop didn't converge. `severity_breakdown` splits `issues_found` by severity (`errors`/`warnings`/`suggestions`, the same enum as `/code-review`), so `/harness-audit` Step 3 can flag a lens producing mostly minor findings — the three counts must sum to `issues_found` (#1256). This is the sensor that tells a build where review caught a real defect from one where every loop passed no-op — it turns the pipeline's "value untested" into "value measured" and feeds the plan/step tiering decisions. Disable with `DEV_TEAM_REVIEW_VALUE=off`.
 
 ### 4.9. Verify runtime behavior before the slice is done (issue #727)
 

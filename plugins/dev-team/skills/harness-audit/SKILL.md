@@ -114,7 +114,22 @@ For each review agent in the registry (`knowledge/agent-registry.md`):
 1. **Finding rate**: How often does this agent produce findings (fail or warn) vs. pass?
 2. **Zero-fail agents**: Flag agents that have never returned `fail` across all logged reviews. These are removal candidates — they may not be catching real issues.
 3. **False positive rate**: If correction data exists (from `/apply-fixes`), check how often findings were dismissed vs. applied. Agents with >50% dismissed findings have a high false positive rate.
-4. **Finding severity distribution**: Is the agent producing mostly minor findings? If >80% of findings are minor severity, consider whether the agent justifies its token cost.
+4. **Finding severity distribution**: Is the agent producing mostly minor findings? If >80% of findings are minor severity, consider whether the agent justifies its token cost. Compute this from the `severity_breakdown` object on `metrics/review-value.jsonl` rows (`{errors, warnings, suggestions}`, added in #1256) — aggregate per `agents_run` and treat `suggestions` as the minor bucket. Rows written before #1256 lack the field; count them as "no severity data" and exclude them from the ratio rather than assuming a mix (small-N honesty, consistent with Step 5). If **no** row carries `severity_breakdown`, report this analysis as dark ("severity breakdown unavailable — pre-#1256 metrics") rather than fabricating a distribution.
+
+   ```bash
+   [ -f metrics/review-value.jsonl ] && jq -s '
+     map(select(.severity_breakdown != null))
+     | group_by(.agents_run | sort | join(","))
+     | map({
+         agents:      (.[0].agents_run | sort | join(", ")),
+         errors:      (map(.severity_breakdown.errors)      | add // 0),
+         warnings:    (map(.severity_breakdown.warnings)    | add // 0),
+         suggestions: (map(.severity_breakdown.suggestions) | add // 0)
+       })
+     | map(. + {total: (.errors + .warnings + .suggestions)})
+     | map(select(.total > 0) | . + {minor_pct: (.suggestions / .total * 100 | round)})' \
+     metrics/review-value.jsonl
+   ```
 
 ### 4. Analyze review-value fix rates
 
@@ -122,9 +137,18 @@ Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `perf
 
 For each **checkpoint type** (the `checkpoint` field: `step` or `slice`) and each **agent combination** (`agents_run` list, treated as a set-key), compute:
 
+**Exclude read-only rows first (#1257).** Fix-rate ROI is only meaningful for
+fix-applying `/build` checkpoints. A read-only review (`source: "code-review"`)
+never applies fixes, so **every** row it produces has `issues_fixed: 0` and a 0%
+fix rate — feeding those to the drop-candidate logic falsely flags a whole panel
+that may be surfacing real defects (the 2026-07-20 run mislabeled all 7 agents
+this way). The `jq` filters to `source == "build-checkpoint"` (treating an absent
+`source` as `build-checkpoint`, back-compat) **before** grouping:
+
 ```bash
 [ -f metrics/review-value.jsonl ] && jq -s '
-  group_by(.checkpoint + "|" + (.agents_run | sort | join(",")))
+  map(select((.source // "build-checkpoint") == "build-checkpoint"))
+  | group_by(.checkpoint + "|" + (.agents_run | sort | join(",")))
   | map({
       checkpoint:    .[0].checkpoint,
       agents:        (.[0].agents_run | sort | join(", ")),
@@ -140,7 +164,29 @@ For each **checkpoint type** (the `checkpoint` field: `step` or `slice`) and eac
   metrics/review-value.jsonl
 ```
 
-Flag **drop candidates**: any checkpoint+agents combination with `fix_rate == 0` across **N ≥ 5** logged runs is a drop candidate — it consistently adds overhead without catching defects.
+For **read-only `code-review` rows**, report **finding-rate** (how often the
+panel surfaced any issue) instead of fix-rate, and state plainly in the report
+that these rows are excluded from the fix-rate drop-candidate logic because they
+apply no fixes by design — a 0% fix rate there is expected, not a signal:
+
+```bash
+[ -f metrics/review-value.jsonl ] && jq -s '
+  map(select(.source == "code-review"))
+  | if length == 0 then "no read-only rows" else
+    group_by(.agents_run | sort | join(","))
+    | map({
+        agents:       (.[0].agents_run | sort | join(", ")),
+        total:        length,
+        found_issues: (map(select(.issues_found > 0)) | length),
+        finding_rate: ((map(select(.issues_found > 0)) | length) / length * 100 | round)
+      })
+    end' \
+  metrics/review-value.jsonl
+```
+
+Flag **drop candidates**: any checkpoint+agents combination (from the
+fix-applying rows only) with `fix_rate == 0` across **N ≥ 5** logged runs is a
+drop candidate — it consistently adds overhead without catching defects.
 
 Flag **high-value checkpoints**: `fix_rate ≥ 50%` — these are earning their cost and should be retained.
 
