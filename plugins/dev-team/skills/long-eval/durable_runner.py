@@ -123,7 +123,10 @@ def run_durable(
         for _ in range(samples - len(results)):
             results.append(sample(payload))
             with lock:
-                partial[key] = results
+                # Snapshot, not the live list: `results` is appended outside the
+                # lock, so aliasing it into `partial` would let another worker's
+                # _atomic_write serialize a list mid-mutation (#1212).
+                partial[key] = list(results)
                 _atomic_write(samples_path, partial)
         record = reduce(results, key, payload)
         with lock:

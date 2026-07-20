@@ -95,7 +95,10 @@ def run_cell(cell):
         hit = bool(ac.real_dispatch_fn(pair, model, dirs))
         results.append(hit)
         with lock:
-            partial[cellkey] = results
+            # Snapshot, not the live list (#1212): results is appended outside
+            # the lock, so aliasing it would let another worker's _atomic_write
+            # serialize a list mid-mutation.
+            partial[cellkey] = list(results)
             _atomic_write(part_path, partial)
     hits = sum(1 for h in results if h)
     rec = {"pair": pair, "band": band, "hits": hits, "samples": SAMPLES,
