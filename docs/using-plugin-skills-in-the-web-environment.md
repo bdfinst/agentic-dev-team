@@ -20,23 +20,14 @@ environments. It uses this repo's `dev-team` plugin as the worked example.
 
 ## 1. Why a plugin must be installed *before* Claude boots
 
-Claude loads all skills, agents, and slash commands **once, when it starts.**
-Anything that lands on disk *after* that is invisible to the running session.
-That single fact drives everything below:
-
-- The environment **Setup script** (configured in the cloud UI) runs **before**
-  Claude launches, and its filesystem is snapshotted and reused by later
-  sessions. A plugin installed there is on disk before Claude starts, so it
-  loads in the **same** session. This is the supported way to install software
-  before the session starts (you cannot replace the underlying machine image).
-- A **`SessionStart` hook** runs **after** Claude has already launched. A plugin
-  it installs is on disk too late for *this* session's enumeration, so it only
-  takes effect on the **next** session — the "next-session effect." Useful as a
-  fallback, but it is **not** the way to load the plugin into the current
-  session.
-- The `claude` CLI **is** available in cloud environments, so
-  `claude plugin marketplace add …` and `claude plugin install …` run fine from
-  the Setup script.
+Claude loads all skills, agents, and slash commands **once, when it starts** —
+anything that lands on disk *after* that is invisible to the running session.
+The **Setup script** (cloud UI) runs *before* boot, so a plugin installed there
+loads in the **same** session; a **`SessionStart` hook** runs *after* boot, so
+its install only lands **next** session. The `claude` CLI is available in cloud
+environments, so the install commands run fine from the Setup script.
+[`docs/cloud-setup.md`](cloud-setup.md) is the canonical write-up of that timing
+(with the mechanism-vs-session table); it isn't repeated here.
 
 So the recommended path is **Option A** (install via the Setup script). **Option
 B** (run skills from their files) is the always-works fallback when a network
@@ -59,16 +50,10 @@ script — it installs `jq`, `shellcheck`, the Python dev deps
 `claude plugin install dev-team@bfinster`). Every step is best-effort and the
 script ends with `exit 0` so it can never fail session startup.
 
-For the minimal, self-contained snippet and the why/how, see
-[`docs/cloud-setup.md`](cloud-setup.md). Verify it worked with the headless
-probe:
-
-```bash
-claude -p "List the names of every skill available to you, one per line." \
-  --max-turns 1 | grep -c '^dev-team:'
-```
-
-A non-zero count (≈86) means the plugin loaded this session.
+For the minimal, self-contained snippet, the headless verification probe, and
+the version-currency details, see [`docs/cloud-setup.md`](cloud-setup.md) — the
+canonical setup recipe. A non-zero `dev-team:*` skill count (≈86) from that probe
+means the plugin loaded this session.
 
 ### Headless / benchmarking caveat — don't nest `claude -p` inside a Remote session
 
@@ -170,20 +155,14 @@ Adapting this for your own plugin: copy `.claude/install-dev-team.sh` and
 
 ## 5. Caveats specific to the web environment
 
-- **Boot enumeration.** Skills/agents/commands are enumerated once at boot.
-  Install the plugin *before* boot (Setup script) to use it this session; a
-  post-boot install (`SessionStart` hook) only lands next session.
-- **Setup-script budget & exit code.** The Setup script has a few-minute budget
-  and **must exit 0** — a non-zero exit fails session startup. Guard every
-  optional step with `|| true` and end with `exit 0`.
-- **Snapshot rebuild.** The Setup-script filesystem is snapshotted and reused;
-  editing the Setup script (or other environment config) triggers a rebuild on
-  the next session.
-- **Ephemeral VM.** Commit and push anything you want to keep before the session
-  ends; the container is reclaimed afterward.
-- **Network policy.** Outbound access is governed by the environment's network
-  policy chosen in the cloud UI; an install or `pip` step can fail under a
-  restrictive policy — fall back to Option B.
+The general web-environment caveats — boot enumeration, the Setup-script exit-0
+budget, snapshot rebuilds, the ephemeral VM, and network-policy failures — live
+in [`docs/cloud-setup.md`](cloud-setup.md#caveats) and aren't repeated here. Two
+points bear directly on the fallback path in this doc:
+
+- **Network policy → Option B.** A restrictive outbound policy can block
+  `marketplace add` / `install` / `pip`. That is exactly when you drop to Option
+  B (run skills from their files) — it has no dependency on plugin loading.
 - **No secrets store yet.** Treat environment variables as visible to anyone who
   can edit the environment; don't put secrets there.
 

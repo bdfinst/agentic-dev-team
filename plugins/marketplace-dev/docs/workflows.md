@@ -1,24 +1,24 @@
 # Workflows
 
-The `marketplace-dev` plugin exposes its capabilities as **slash commands** — there are no multi-phase orchestrator workflows. Each command is a self-contained implementation or worker unit.
+The `marketplace-dev` plugin exposes its capabilities as **skills** — there are no multi-phase orchestrator workflows. Each is a self-contained implementation or worker unit. Six are **user-invocable** slash commands (shown as `/name`); the four scaffolding/audit skills are **agent-loaded** — Claude dispatches them when the task calls for it. The [Skills catalog](skills.md) is the canonical, generated list with full frontmatter descriptions.
 
 ---
 
 ## Plugin scaffolding
 
-### `/scaffold-plugin <name>`
+### `scaffold-plugin <name>` (agent-loaded)
 
-Creates a new plugin directory with the correct, audit-clean structure: `plugin.json`, `CLAUDE.md`, `install.sh`, `settings.json`, and the standard subdirectories (`agents/`, `skills/`, `hooks/`, `knowledge/`). The generated directory passes `/plugin-audit` with zero findings on a clean install.
+Creates a new plugin directory with the correct, audit-clean structure: `plugin.json`, `CLAUDE.md`, `install.sh`, `settings.json`, and the standard subdirectories (`agents/`, `skills/`, `hooks/`, `knowledge/`). The generated directory passes the `plugin-audit` skill with zero findings on a clean install.
 
 **Use when:** starting a new plugin inside a marketplace monorepo.
 
-### `/scaffold-marketplace <owner>`
+### `scaffold-marketplace <owner>` (agent-loaded)
 
 Creates a marketplace root — catalog (`marketplace.json`), release-please wiring, and at least one plugin slot.
 
 **Use when:** establishing a new marketplace monorepo from scratch.
 
-### `/init-plugin-eval <name>`
+### `init-plugin-eval <name>` (agent-loaded)
 
 Scaffolds `evals/<name>/{fixtures,expected}/` and a grading-contract README. An empty corpus grades as a clean no-op, so the scaffold is safe to commit before any fixtures exist.
 
@@ -30,7 +30,7 @@ Scaffolds `evals/<name>/{fixtures,expected}/` and a grading-contract README. An 
 
 ### `/agent-create`
 
-Creates new Claude Code sub-agent files following the official schema and token-efficiency budgets. Handles both review agents (JSON output, read-only tools, ≤ 40-line body) and team agents (prose output, action tools, ≤ 75-line body). Validates against `/plugin-audit` before writing. Updates the agent registry and plugin `CLAUDE.md` after success.
+Creates new Claude Code sub-agent files following the official schema and token-efficiency budgets. Handles both review agents (JSON output, read-only tools, ≤ 40-line body) and team agents (prose output, action tools, ≤ 75-line body). Validates against the `plugin-audit` skill before writing. Updates the agent registry and plugin `CLAUDE.md` after success.
 
 ### `/agent-add`
 
@@ -52,7 +52,7 @@ Recommends **markdown** vs **script** for a use-case (forward-looking) or audits
 
 ## Plugin maintenance
 
-### `/plugin-audit [dir] [--fix]`
+### `plugin-audit [dir] [--fix]` (agent-loaded)
 
 Generalized structural compliance check for any Claude Code plugin. Audits: agent type appropriateness, frontmatter compliance, eval coverage, and body line-count budgets. Accepts any plugin directory path; not hardcoded to one plugin. Pass `--fix` to apply auto-correctable findings.
 
@@ -64,17 +64,17 @@ Installs a Claude Code plugin and registers it in the project's `settings.json` 
 
 ## Summary
 
-| Command | Category | What it does |
-| --- | --- | --- |
-| `/scaffold-plugin` | Scaffolding | New plugin skeleton |
-| `/scaffold-marketplace` | Scaffolding | New marketplace root |
-| `/init-plugin-eval` | Scaffolding | Eval fixture scaffold |
-| `/agent-create` | Agent authoring | New agent file |
-| `/agent-add` | Agent authoring | Add review/team agent |
-| `/agent-remove` | Agent authoring | Remove agent + registry |
-| `/agent-skill-authoring` | Agent authoring | Conventions reference |
-| `/agent-type-advisor` | Agent authoring | Markdown vs. script recommendation |
-| `/plugin-audit` | Maintenance | Structural compliance check |
-| `/add-plugin` | Maintenance | Install + register a plugin |
+| Skill | Invocation | Category | What it does |
+| --- | --- | --- | --- |
+| `scaffold-plugin` | agent-loaded | Scaffolding | New plugin skeleton |
+| `scaffold-marketplace` | agent-loaded | Scaffolding | New marketplace root |
+| `init-plugin-eval` | agent-loaded | Scaffolding | Eval fixture scaffold |
+| `agent-create` | `/agent-create` | Agent authoring | New agent file |
+| `agent-add` | `/agent-add` | Agent authoring | Add review/team agent |
+| `agent-remove` | `/agent-remove` | Agent authoring | Remove agent + registry |
+| `agent-skill-authoring` | `/agent-skill-authoring` | Agent authoring | Conventions reference |
+| `agent-type-advisor` | `/agent-type-advisor` | Agent authoring | Markdown vs. script recommendation |
+| `plugin-audit` | agent-loaded | Maintenance | Structural compliance check |
+| `add-plugin` | `/add-plugin` | Maintenance | Install + register a plugin |
 
 See the [Skills catalog](skills.md) for full per-command descriptions and the [Agents page](agent_info.md) for the single review agent this plugin ships.
