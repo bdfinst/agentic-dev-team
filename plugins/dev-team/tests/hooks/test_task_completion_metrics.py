@@ -46,18 +46,16 @@ class TestNoScratch:
         assert result.returncode == 0
         assert not (tmp_path / "metrics").exists()
 
-    def test_stop_payload_writes_task_log(self, tmp_path):
-        """A minimal Stop payload with no scratch file still writes a task entry."""
+    def test_stop_payload_no_scratch_writes_nothing(self, tmp_path):
+        """A Stop payload with no scratch file writes no task entry (#1258).
+
+        A bare heartbeat carries no task-local signal — recording one only
+        produces task_type:"unknown" noise that dilutes harness-audit Step 3.
+        """
         payload = json.dumps({"stop_reason": "end_turn"})
         result = _run(payload, cwd=tmp_path)
         assert result.returncode == 0
-        metrics = tmp_path / "metrics"
-        logs = list(metrics.glob("*-task-log.jsonl"))
-        assert len(logs) == 1
-        entry = json.loads(logs[0].read_text().strip())
-        assert entry["stop_reason"] == "end_turn"
-        assert entry["hallucination_detected"] is False
-        assert entry["rework_cycles"] == 0
+        assert not (tmp_path / "metrics").exists()
 
 
 class TestScratchFile:
@@ -134,7 +132,14 @@ class TestFailOpen:
         assert result.returncode == 0
 
     def test_metrics_dir_creation_failure_exits_zero(self, tmp_path):
-        """Simulate metrics dir being a file (cannot mkdir) — hook must exit 0."""
+        """Simulate metrics dir being a file (cannot mkdir) — hook must exit 0.
+
+        Populates the scratch so the hook reaches the mkdir (an empty scratch
+        now short-circuits before any write, per #1258).
+        """
         (tmp_path / "metrics").write_text("file")
+        dot_claude = tmp_path / ".claude"
+        dot_claude.mkdir()
+        (dot_claude / "session-metrics.json").write_text(json.dumps({"task_type": "fix"}))
         result = _run(json.dumps({"stop_reason": "end_turn"}), cwd=tmp_path)
         assert result.returncode == 0
