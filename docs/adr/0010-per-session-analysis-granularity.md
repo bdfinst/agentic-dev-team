@@ -12,7 +12,7 @@ The closed learning loop must decide how frequently to run session analysis. Two
 candidates were considered:
 
 1. **Per conversation turn** — trigger analysis after every model response.
-2. **Per session** — trigger analysis when a session ends (SessionStop event).
+2. **Per session** — trigger analysis when a session ends (SessionEnd event).
 
 Per-turn analysis would provide the highest freshness but runs the extractor and
 dispatches a background agent after every single response, multiplying API cost
@@ -20,13 +20,13 @@ and adding latency to every interaction.
 
 ## Decision
 
-The analysis trigger fires on **SessionStop**, not per conversation turn. A
+The analysis trigger fires on **SessionEnd**, not per conversation turn. A
 configurable counter (`DEV_TEAM_AUTO_REVIEW_THRESHOLD`, default 5) controls how
 many sessions accumulate before analysis runs — amortizing the background dispatch
 cost across multiple sessions. The counter is persisted in
 `metrics/learning-loop-state.json` and reset to zero when the threshold is reached.
 
-The session-id from the SessionStop payload is passed to the background `claude`
+The session-id from the SessionEnd payload is passed to the background `claude`
 subprocess via `--session-id` to enable prompt-cache reuse, reducing background
 API cost.
 

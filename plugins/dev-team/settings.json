@@ -224,7 +224,7 @@
         ]
       }
     ],
-    "SessionStop": [
+    "SessionEnd": [
       {
         "hooks": [
           {
@@ -236,7 +236,6 @@
     ],
     "Stop": [
       {
-        "matcher": null,
         "hooks": [
           {
             "type": "command",
@@ -251,7 +250,6 @@
     ],
     "SubagentStop": [
       {
-        "matcher": null,
         "hooks": [
           {
             "type": "command",

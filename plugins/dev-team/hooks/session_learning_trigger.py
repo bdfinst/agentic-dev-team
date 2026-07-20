@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""session_learning_trigger.py — SessionStop hook (Python port of session-learning-trigger.sh).
+"""session_learning_trigger.py — SessionEnd hook (Python port of session-learning-trigger.sh).
 
 Counts sessions and dispatches background session-analysis at threshold.
 

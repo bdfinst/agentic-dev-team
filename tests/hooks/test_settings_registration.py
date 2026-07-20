@@ -46,9 +46,9 @@ def test_mutation_gate_is_in_post_tool_use_not_pre_tool_use() -> None:
     assert not any("mutation_gate.py" in cmd for cmd in commands)
 
 
-def test_session_learning_trigger_py_is_registered_in_session_stop_hooks() -> None:
+def test_session_learning_trigger_py_is_registered_in_session_end_hooks() -> None:
     data = _load()
-    commands = _commands(data["hooks"]["SessionStop"])
+    commands = _commands(data["hooks"]["SessionEnd"])
     assert any("session_learning_trigger.py" in cmd for cmd in commands)
 
 
