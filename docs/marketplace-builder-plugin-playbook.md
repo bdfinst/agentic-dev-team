@@ -7,9 +7,26 @@ into a reusable blueprint: the marketplace anatomy your plugin must understand,
 the skills/commands it should provide, the invariants it must enforce, and how to
 build and test the plugin itself.
 
+> **The concrete implementation lives in this repo: [`plugins/marketplace-dev/`](../plugins/marketplace-dev/README.md).**
+> This playbook is the blueprint; `marketplace-dev` is the shipped meta-plugin
+> that realizes it (scaffolding skills, the `plugin-audit` skill, and the
+> `plugin-best-practices-review` agent). Read this for the *why*; read
+> `marketplace-dev`'s own docs for the *what it does today*.
+
 > Scope: this is about building the **tool** (a marketplace-builder plugin), not a
-> single marketplace. For a one-off hardening pass on an existing marketplace, use
-> `docs/` companion material / the `shipped_script_refs_test.bats` sensor directly.
+> single marketplace. For a one-off hardening pass on an existing marketplace, run
+> the hygiene sensor ([`tests/repo/test_shipped_script_refs.py`](../tests/repo/test_shipped_script_refs.py))
+> directly.
+
+**On this page:** [1. What this plugin produces](#1-what-this-plugin-produces) ·
+[2. Marketplace anatomy](#2-marketplace-anatomy-your-plugin-must-model) ·
+[3. Skills & commands](#3-skills--commands-the-plugin-should-provide) ·
+[4. The enforcement sensor](#4-the-enforcement-sensor-it-must-shipscaffold) ·
+[5. Invariants to bake in](#5-invariants-to-bake-into-every-generatedaudited-plugin) ·
+[6. Independent versioning + catalog sync](#6-independent-versioning--catalog-sync-automate-never-hand-edit) ·
+[7. Cross-plugin dependencies](#7-cross-plugin-dependencies-plugin-a-consumes-plugin-b-at-a-pinned-version) ·
+[8. Building the plugin itself](#8-building-the-plugin-itself-step-by-step) ·
+[9. Acceptance checklist](#9-acceptance-checklist-for-the-plugin-you-build)
 
 ---
 
@@ -57,12 +74,12 @@ Everything below exists to make those two facts impossible to get wrong.
   "plugins": [
     {
       "name": "dev-team",
-      "version": "6.7.0",
+      "version": "10.14.2",
       "source": {
         "source": "git-subdir",
         "url": "https://github.com/<org>/<repo>.git",
         "path": "plugins/dev-team",
-        "ref": "dev-team-v6.7.0"
+        "ref": "dev-team-v10.14.2"
       }
     }
   ]
@@ -84,7 +101,7 @@ versioned contract). The two dependency knobs are the subject of §7.
 
 | Ships (under `plugins/<name>/`) | Never ships (repo root) |
 |---|---|
-| `agents/ skills/ commands/ hooks/ knowledge/ templates/ prompts/` | `tests/` (all bats + `*.test.sh` + fixtures) |
+| `agents/ skills/ commands/ hooks/ knowledge/ templates/ prompts/` | `tests/` (pytest `test_*.py` + fixtures) |
 | `settings.json install.sh CLAUDE.md` | `scripts/` (CI/eval/build tooling) |
 | `harness/` (executable app code, if any) | `evals/ docs/ plans/ reports/` |
 
@@ -114,9 +131,12 @@ repo (cited in §8) rather than inventing the format.
 
 ## 4. The enforcement sensor it must ship/scaffold
 
-The backbone is a `bats` sensor that auto-discovers `plugins/*` and proves four
-invariants. `/new-marketplace` drops it into the repo-root test tree and wires it
-into CI; `/audit-plugin` runs it. The four invariants:
+The backbone is a **pytest** sensor that auto-discovers `plugins/*` and proves
+four invariants. `/new-marketplace` drops it into the repo-root test tree and
+wires it into CI; `/audit-plugin` runs it. (This repo's sensor was a `bats`
+script originally; per [ADR 0014](adr/0014-python-for-cross-os-scripts.md) and
+[ADR 0015](adr/0015-bash-removal-complete.md) the whole test/gate surface is now
+Python — a new marketplace should start Python, not bash.) The four invariants:
 
 1. **Every `${CLAUDE_PLUGIN_ROOT}/<file>` reference resolves** inside the same
    plugin (discoverability once installed).
@@ -124,12 +144,15 @@ into CI; `/audit-plugin` runs it. The four invariants:
    (resolves in the dev monorepo, breaks once installed) — minus an explicit
    maintainer allowlist.
 3. **Every `settings.json` hook command resolves** to a shipped file. (Hooks run
-   from the plugin root, so the bare `bash hooks/x.sh` form is correct here.)
+   from the plugin root, so the bare `python hooks/x.py` form is correct here.)
 4. **No build/test tooling ships inside a plugin** (`*.test.sh`, `*.bats`,
-   `run-all*.sh`, a `tests/` dir, …).
+   `test_*.py`, `run-all*`, a `tests/` dir, …).
 
 A portable, parameterized implementation lives in the hygiene kit
-(`shipped_script_refs_test.bats`); ship that as the plugin's reference template.
+([`tests/repo/test_shipped_script_refs.py`](../tests/repo/test_shipped_script_refs.py),
+with the security-assessment variant at
+[`tests/repo/test_shipped_script_refs_security_assessment.py`](../tests/repo/test_shipped_script_refs_security_assessment.py));
+ship that as the plugin's reference template.
 
 ---
 
@@ -143,18 +166,27 @@ between "a plugin" and "a healthy, tested plugin."
   Scripts the plugin actually runs at runtime **must** ship *and* be discoverable
   (both halves matter — see the build-wave scripts fix, `#261`, and the
   discoverability fix, `#263`).
-- **Portability — macOS bash 3.2 / BSD coreutils / Windows Git Bash.** All shell
-  is `#!/usr/bin/env bash` and must run on all three:
-  - bash 3.2-safe: no `mapfile`/`readarray`, `declare -A`, `${var,,}`, `wait -n`;
-    expand possibly-empty arrays with `${arr[@]+"${arr[@]}"}` (bare `"${arr[@]}"`
-    under `set -u` aborts on 3.2 — and CI on bash 5 won't catch it; cf. `#220`).
-  - BSD-vs-GNU: guard or avoid `readlink -f`, `sed -i`, `date +%N`, `stat -c`,
-    `find -printf`, `timeout`, `base64 -w` with fallbacks (cf. `#197`).
-  - Windows = Git Bash; each `install.sh` detects Windows-without-Git-Bash and
-    tells the user to install it (native cmd/PowerShell are not targets).
-  - Python invoked as a module: make it cwd-independent and spawn cross-platform
-    (`subprocess`, not `os.exec*`).
-- **Tested.** Ship a bats sensor (§4) + targeted unit/smoke tests; wire them into
+- **Portability — Python stdlib, cross-OS by construction.** Per
+  [ADR 0014](adr/0014-python-for-cross-os-scripts.md) and
+  [ADR 0015](adr/0015-bash-removal-complete.md), every shipped script in this
+  repo's `plugins/dev-team/` is **Python 3.8+ using stdlib only** — it runs
+  natively on macOS, Linux, and Windows with no Git Bash requirement. Prefer
+  that for a new plugin:
+  - Stdlib only, no `pip install` for shipped code (`subprocess`, `pathlib`,
+    `argparse`, `json`, `re`, … cover most shell-script territory portably).
+  - Probe OS-specific paths at runtime (`subprocess`, `pathlib`) rather than
+    hard-coding macOS or Linux locations; spawn cross-platform (`subprocess`,
+    not `os.exec*`) and stay cwd-independent.
+  - The only surviving `.sh` are the **pre-Python bootstrap trampolines** that
+    must run before an interpreter is guaranteed on `PATH` (`install.sh`, the
+    `hooks/py.sh` resolver) — keep those `#!/usr/bin/env bash` and bash-3.2-safe,
+    and keep the Windows-without-Git-Bash guard in each `install.sh`.
+  - A **shell-based companion plugin** (this repo's `security-assessment` is one)
+    still follows the old cross-shell rules for its own scripts: bash-3.2-safe
+    (no `mapfile`/`declare -A`/`${var,,}`; expand possibly-empty arrays as
+    `${arr[@]+"${arr[@]}"}`, cf. `#220`) and BSD-vs-GNU-guarded (`readlink -f`,
+    `sed -i`, `stat -c`, `find -printf`, `timeout`, cf. `#197`).
+- **Tested.** Ship a pytest sensor (§4) + targeted unit/smoke tests; wire them into
   CI as model-free gates; mirror them in a local pre-push gate; keep the gates
   parallel and fast (cf. `#247`). A runnable component (e.g. a harness) gets a
   lightweight smoke test + its own CI job.
@@ -261,7 +293,7 @@ producer's `knowledge/` tree.
 ### 7.3 Enforcement (make drift unmergeable)
 
 - **Contract can't change silently.** A PreToolUse hook
-  (`hooks/contract-version-guard.sh`) blocks any *body* change to the contract
+  (`hooks/contract_version_guard.py`) blocks any *body* change to the contract
   file that doesn't also bump `version:` in its frontmatter, with a bypass only
   for release-please commits (and an audit-log entry on bypass). "Changed the
   shared surface but forgot to version it" therefore can't land by hand.
@@ -301,11 +333,11 @@ current; the contract range guarantees the two actually agree on the wire.
    reads the conventions knowledge and emits/edits files. Templates for the files
    it scaffolds (catalog, plugin.json, CI, release config, sensor, install.sh,
    dev-setup) live under `templates/`.
-4. **Ship the sensor + a self-test.** Include `shipped_script_refs_test.bats` as a
-   template and add a test that runs it against a fixture marketplace to prove the
-   scaffolder produces a passing repo.
+4. **Ship the sensor + a self-test.** Include `tests/repo/test_shipped_script_refs.py`
+   as a template and add a test that runs it against a fixture marketplace to prove
+   the scaffolder produces a passing repo.
 5. **Wire CI + dev-setup for the plugin's own repo.** Structural gate, portability
-   sweep, bats sensor, and `scripts/dev-setup.sh`.
+   sweep, pytest sensor, and `scripts/dev-setup.sh`.
 6. **Add `install.sh` (with the Git-Bash guard) and `CLAUDE.md`.** Document what
    each `/command` does and the conventions it enforces.
 7. **Release via release-please** with the catalog `extra-files` sync (§6).
@@ -316,15 +348,16 @@ current; the contract range guarantees the two actually agree on the wire.
 |---|---|
 | Catalog | `.claude-plugin/marketplace.json` |
 | Manifest + deps | `plugins/security-assessment/.claude-plugin/plugin.json` |
-| Hygiene sensor | `tests/repo/shipped_script_refs_security_assessment_test.bats` |
-| Portability fallbacks | `plugins/dev-team/scripts/recon-inventory.sh`, `plugins/security-assessment/scripts/_lib.sh`, `plugins/dev-team/hooks/mutation-adapters/lib.sh` |
-| Git-Bash `install.sh` guard | `plugins/dev-team/install.sh`, `plugins/security-assessment/install.sh` |
+| Hygiene sensor (pytest) | `tests/repo/test_shipped_script_refs.py`, `tests/repo/test_shipped_script_refs_security_assessment.py` |
+| Cross-OS Python (stdlib, no bash) | `plugins/dev-team/scripts/recon_inventory.py`, `plugins/dev-team/hooks/mutation_gate.py` |
+| Residual shell fallbacks (companion plugin) | `plugins/security-assessment/scripts/_lib.sh` |
+| Git-Bash `install.sh` guard (bootstrap shim) | `plugins/dev-team/install.sh`, `plugins/security-assessment/install.sh` |
 | Toolchain installer | `scripts/dev-setup.sh` |
 | Smoke test + CI job | `tests/security-assessment/harness/smoke_test.py`, `.github/workflows/plugin-tests.yml` (`harness-smoke`) |
 | Release + per-plugin packages | `release-please-config.json`, `.release-please-manifest.json` |
 | Manifest dependency declaration | `plugins/security-assessment/.claude-plugin/plugin.json` (`depends-on`, `required-primitives-contract`) |
 | Versioned cross-plugin contract | `plugins/dev-team/knowledge/security-primitives-contract.md` |
-| Contract version-bump guard | `plugins/dev-team/hooks/contract-version-guard.sh` |
+| Contract version-bump guard | `plugins/dev-team/hooks/contract_version_guard.py` |
 | Cloud install hook | `.claude/install-dev-team.sh`, `.claude/settings.json` |
 | CI gate layout | `.github/workflows/plugin-tests.yml`, `scripts/ci-local.sh` |
 
@@ -338,7 +371,7 @@ A marketplace produced (or audited-clean) by your plugin must pass all of:
 - [ ] The hygiene sensor (§4) is green — no shipped test/build scripts, all refs discoverable.
 - [ ] `shellcheck -x` clean (warning severity) over shipped + dev scripts; all shebangs `env bash`.
 - [ ] Each `install.sh` has the Git-Bash-on-Windows guard; `scripts/dev-setup.sh` provisions the toolchain.
-- [ ] CI runs structural + portability + bats gates; a local pre-push gate mirrors them.
+- [ ] CI runs structural + portability + pytest gates; a local pre-push gate mirrors them.
 - [ ] Each plugin versions **independently**: one `release-please` package per plugin (own component/tag/manifest entry) + catalog `extra-files` sync (§6).
 - [ ] Every `depends-on` floor names a catalog plugin at a version `>=` the floor; every `required-primitives-contract` range is satisfiable by the contract's current `version:` (§7).
 - [ ] Any shared cross-plugin contract is independently versioned and guarded against body-without-bump edits (§7).
