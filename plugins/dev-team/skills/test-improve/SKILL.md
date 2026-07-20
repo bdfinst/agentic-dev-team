@@ -579,6 +579,20 @@ the mutation target is **advisory-only** (survivor count is not a gate). The
 target reads with the "advisory only — go-mutesting is alpha" footnote and
 the run may pass regardless of mutation numbers.
 
+**Branch-scoped mutation validation (issue #1208).** `/quality-targets-converge`
+scopes its Phase-6 mutation measurement to the **branch-vs-base cumulative
+changed set** — the production source exercised by the tests this branch
+changed across all its sessions — never the whole repo. It still reports a
+whole-repo score by splicing the freshly-measured changed files over the
+**persisted** Phase-2 baseline (`baseline-mutation.json`), and reports any
+module it could not measure (OOM/timeout) as **held at baseline** rather than
+omitting it. No extra flag is threaded through the delegation above — the
+worker resolves the branch base itself using the same idiom as `/build`'s
+Farley-Score step. The whole-repo splice is only lossless when Phase 2's
+baseline was persisted to the git-tracked `reports/test-improve/<slug>/` path
+(knob-7 opt-in); on decline it degrades to a branch-scoped-only whole-repo
+line.
+
 **Coverage < 90% in no-refactor mode.** When Phase 6 closes with coverage
 below 90% and Phase 0 recorded `refactor-mode: no-refactor`,
 `/test-improve` surfaces a **re-run prompt** shaped **`[y/n]`**: *"Coverage is
