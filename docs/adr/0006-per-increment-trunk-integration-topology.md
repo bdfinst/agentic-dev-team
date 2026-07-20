@@ -4,7 +4,7 @@ Date: 2026-06-07
 
 ## Status
 
-Review
+Rejected
 
 > Proposed for feedback (issue #112). This ADR records a *direction under
 > consideration*, not an accepted decision. It is deliberately written before
@@ -17,6 +17,32 @@ Review
 > evidence prerequisite (#111) returned its first signal: bypassing the
 > review gate correlated with ~2.6× the rework. Moving to **Accepted** still
 > needs the cross-repo validation spike (see *Migration path*, step 3).
+
+> **2026-07-20 — Rejected.** This ADR never left Proposed/Review; it was never
+> moved to **Accepted** and no part of the topology was built. Its own gate for
+> acceptance — the step-3 cross-repo validation spike in *Migration path*
+> (validate the Flag Capability Contract across a vendor repo, a greenfield
+> OpenFeature + flagd-file repo, and a no-flag degraded repo) — never landed,
+> so the integrate-dark-per-increment thesis was never evidenced. In the
+> interim its premises have been overtaken:
+>
+> - [ADR 0013](0013-llm-driven-orchestration-over-deterministic-workflow-scripts.md)
+>   settled orchestration as LLM-driven rather than the deterministic
+>   integrate-dark / monitor-and-revert topology this ADR assumed.
+> - [ADR 0017](0017-single-build-cadence-remove-classic-tdd-opt-in.md) collapsed
+>   `/build` to a single cadence, removing the "one green TDD step / one flagged
+>   increment" trust-unit this ADR was framed around.
+> - [ADR 0022](0022-reject-delegation-only-sweep-dispatch.md) established the
+>   measure-a-win-before-shipping rule for dispatch changes, and recorded in
+>   passing that the shipped PreToolUse hook layer did not load at all until
+>   #1178 — the auto-revert/monitor enforcement substrate this topology depends
+>   on had no working hook layer to build on.
+>
+> The Gate-vs-monitor split above is also stale: two of the agents it names
+> (`test-modernization-review`, and the `/test-modernize` phase it gate-kept) no
+> longer exist in the agents/skills trees. Rejected rather than superseded — no
+> single later ADR replaces it; the direction was abandoned unbuilt. Body
+> preserved verbatim above for the historical record.
 
 ## Context
 
