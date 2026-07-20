@@ -1,18 +1,21 @@
-// A batch processor starts each async task without awaiting and pushes results
-// into shared state; tasks complete out of order and the done callback fires
-// before the in-flight tasks finish, so results are dropped.
-const results: string[] = [];
+// Contract: return the processed result for every item. BUG: each task is
+// started without await and pushed into a shared array that is returned
+// immediately — before any task has completed — so callers receive a partial
+// (usually empty) result, and concurrent calls corrupt each other through the
+// shared array.
+const collected: string[] = [];
 
 async function process(item: string): Promise<string> {
   // async work
   return item;
 }
 
-export function runBatch(items: string[], onDone: (r: string[]) => void): void {
+export async function processAll(items: string[]): Promise<string[]> {
+  collected.length = 0;
   for (const item of items) {
-    // BUG: not awaited and not tracked — the loop completes and onDone fires
-    // with a partially-filled results array while tasks are still running.
-    process(item).then((r) => results.push(r));
+    // not awaited and not tracked
+    process(item).then((r) => collected.push(r));
   }
-  onDone(results);
+  // returns before any push() has run
+  return collected;
 }
