@@ -2,18 +2,21 @@
 
 This project gives you an AI development team — specialized agents with distinct roles, reusable skills they draw on, and slash commands for skills and workflows. You talk to the team in natural language. The system figures out who should do the work and what knowledge they need.
 
+On this page:
+
+- [Installation](#installation)
+- [Key Concepts](#key-concepts)
+- [How to Use It](#how-to-use-it)
+- [Common Workflows](#common-workflows)
+- [Diagnostic & Audit Workflows](#diagnostic--audit-workflows)
+- [Available Agents and Skills](#available-agents-and-skills)
+- [Rules to Know](#rules-to-know)
+
 ## Installation
 
 ### Install `dev-team`
 
-Start here — most users install only this plugin. Required tools (`jq`, `gh`) are listed in the [Plugins](README.md#plugins) table.
-
-```bash
-claude plugin marketplace add bdfinst/agentic-dev-team
-claude plugin install dev-team@bfinster
-```
-
-The `owner/repo` shorthand and the full `https://github.com/bdfinst/agentic-dev-team` URL are equivalent. For self-hosted or other git hosts, install scopes (`user`/`project`/`local`), and the upgrade/re-point commands, see the [plugin install guide](plugins/dev-team/README.md#install).
+Start here — most users install only this plugin. The core install one-liner is canonical in the [README](README.md#getting-started); required tools (`jq`, `gh`) are listed in its [Plugins](README.md#plugins) table. The `owner/repo` shorthand and the full `https://github.com/bdfinst/agentic-dev-team` URL are equivalent. For self-hosted or other git hosts, install scopes (`user`/`project`/`local`), and the upgrade/re-point commands, see the [plugin install guide](plugins/dev-team/README.md#install).
 
 Then, in your project, run one command to install tool dependencies and generate config:
 
@@ -21,7 +24,12 @@ Then, in your project, run one command to install tool dependencies and generate
 /setup
 ```
 
-**`/setup`** installs the plugin's tool dependencies — `jq`, `python3`, and language-specific mutation tooling (Stryker, pitest, Stryker.NET) — then detects your stack and generates project-level config and hooks, including the automated pre-commit review gate. (CodeGraph/Graphify code-intelligence indexing is offered separately by `/project-init`, which `/setup` invokes for stack detection.)
+**`/setup`** installs the plugin's tool dependencies — `jq`, `python3`, and language-specific mutation tooling (Stryker, pitest, Stryker.NET) — then detects your stack and generates project-level config and hooks, including the automated pre-commit review gate. Code-intelligence indexing — the keyless CodeGraph + Repowise pair plus Graphify — is offered separately by `/project-init`, which `/setup` invokes for stack detection.
+
+Two flags control how it runs:
+
+- `--dry-run` reports what would be installed and generated without writing any files or installing anything.
+- `--yes` runs unattended, auto-confirming every prompt with its safe default and passing `--yes` through to `/project-init`. If both flags are passed, `--dry-run` wins.
 
 After `/setup`, run `/specs` to start a feature, or ask a question and let the Orchestrator route it.
 
@@ -115,7 +123,7 @@ The structured lifecycle has real slash commands. These are the primary entry po
 /triage  Investigate a bug and file an issue with a fix plan
 ```
 
-Run `/help` to see every available command.
+The [dev-team workflow table in the README](README.md#dev-team-workflow) is canonical for what each step produces; the [supporting-commands table](README.md#supporting-commands) covers the rest. Run `/help` to see every available command.
 
 ### Invoke a skill directly
 
