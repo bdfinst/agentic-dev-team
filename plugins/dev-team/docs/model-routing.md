@@ -131,14 +131,15 @@ routing map and bump log keep full IDs for ladder/pricing purposes.
 
 Resolution inputs:
 
-- `knowledge/model-routing.json` (shipped): the band → **canonical model ID
-  default map** (`low/medium/high`) plus legacy `haiku/sonnet/opus` keys
-  retained for the deprecation window, and the pinned ladder `rounding`
-  convention. Every value is a bare canonical model ID (`claude-haiku-4-5`,
-  `claude-sonnet-5`, `claude-opus-4-8`) — no dated snapshot suffix; the
-  5-family IDs have no dated public form, and the older IDs use their bare
-  canonical spelling to match. The default map preserves the pre-migration
-  tier mapping, so zero-config behavior is unchanged.
+- `knowledge/model-routing.json` (shipped): the band → **model ID default
+  map** (`low/medium/high`) plus the pinned ladder `rounding` convention. Each
+  value is a concrete model ID for that family — either a bare canonical ID
+  (`claude-sonnet-5`, `claude-opus-4-8`) or a dated snapshot
+  (`claude-haiku-4-5-20251001`), whichever the Models API returns as the
+  family's current newest. The map is deliberately mixed-shape: the 5-family
+  IDs have no dated public form, while other models are pinned with their
+  snapshot date. The default map preserves the pre-migration tier mapping, so
+  zero-config behavior is unchanged.
 - `.claude/model-ladder.json` (per-environment, gitignored): an optional,
   capability-ascending JSON array of the models that environment has. When
   present and valid it **overrides** the default map.
