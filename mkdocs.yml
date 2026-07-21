@@ -54,6 +54,12 @@ theme:
 
 plugins:
   - search
+  # Nav is generated from the assembled docs tree (_mkdocs_src) at build time —
+  # there is no hand-maintained `nav:` list. Per-directory `.pages` files
+  # (assembled alongside their docs) set section titles and ordering; page
+  # titles come from each doc's H1. Adding a doc adds it to the nav
+  # automatically, which is why ADRs 0013+ no longer silently fall out.
+  - awesome-pages
 
 markdown_extensions:
   - admonition
@@ -75,97 +81,3 @@ markdown_extensions:
       permalink: true
   - tables
   - attr_list
-
-nav:
-  - Home: README.md
-  - Getting Started: GETTING-STARTED.md
-  - Contributing: CONTRIBUTING.md
-
-  - dev-team Plugin:
-      - Overview: plugins/dev-team/README.md
-      - Developer Notes: plugins/dev-team/docs/developer-notes.md
-      - Architecture:
-          - Team Structure: plugins/dev-team/docs/team-structure.md
-          - Agent Architecture: plugins/dev-team/docs/agent-architecture.md
-          - Agent Info: plugins/dev-team/docs/agent_info.md
-      - Workflows & Skills:
-          - Workflows: plugins/dev-team/docs/workflows.md
-          - Test Improve: plugins/dev-team/docs/test-improve.md
-          - Skills: plugins/dev-team/docs/skills.md
-          - Code Review Process: plugins/dev-team/docs/code-review-process.md
-          - Triage Workflow: plugins/dev-team/docs/triage-workflow.md
-      - Model Routing:
-          - Model Routing: plugins/dev-team/docs/model-routing.md
-          - Model Routing Overrides: plugins/dev-team/docs/model-routing-overrides.md
-          - Band Calibration: plugins/dev-team/docs/band-calibration.md
-      - Evaluation:
-          - Eval System: plugins/dev-team/docs/eval-system.md
-          - Eval Running Guide: plugins/dev-team/docs/eval-running-guide.md
-          - Eval Maintenance: plugins/dev-team/docs/eval-maintenance.md
-          - Test Evaluation: plugins/dev-team/docs/test-evaluation.md
-      - Operations:
-          - Session Review: plugins/dev-team/docs/session-review.md
-          - Session Review OSS Complements: plugins/dev-team/docs/session-review-oss-complements.md
-          - Concurrent Use: plugins/dev-team/docs/concurrent-use.md
-          - Telemetry CI Access: plugins/dev-team/docs/telemetry-ci-access.md
-          - Telemetry Security: plugins/dev-team/docs/telemetry-repo-security.md
-          - CodeGraph Nudge: plugins/dev-team/docs/codegraph-nudge.md
-          - Context Management: plugins/dev-team/docs/context-management.md
-
-  - security-assessment Plugin:
-      - Overview: plugins/security-assessment/README.md
-      - Workflows: plugins/security-assessment/docs/workflows.md
-      - Skills: plugins/security-assessment/docs/skills.md
-      - Agents: plugins/security-assessment/docs/agent_info.md
-      - User Guide: plugins/security-assessment/docs/user-guide-security-assessment.md
-      - Accepted Risks Format: plugins/security-assessment/docs/accepted-risks-format.md
-      - Comparative Testing: plugins/security-assessment/docs/comparative-testing.md
-
-  - marketplace-dev Plugin:
-      - Overview: plugins/marketplace-dev/README.md
-      - Workflows: plugins/marketplace-dev/docs/workflows.md
-      - Skills: plugins/marketplace-dev/docs/skills.md
-      - Agents: plugins/marketplace-dev/docs/agent_info.md
-      - Agent-type Decision Rules: plugins/marketplace-dev/knowledge/agent-type-decision-rules.md
-
-  - Guides:
-      - Cloud Setup: docs/cloud-setup.md
-      - Using Skills in Web Environment: docs/using-plugin-skills-in-the-web-environment.md
-      - Marketplace Builder Playbook: docs/marketplace-builder-plugin-playbook.md
-      - CD Coverage Review: docs/continuous-delivery-coverage-review.md
-      - Complexity Refactor Regression: docs/complexity-refactor-regression.md
-      - Enforce Prefer-Python-over-Bash: docs/enforce-prefer-python-over-bash.md
-
-  - Architecture Decisions:
-      - Overview: docs/adr/README.md
-      - "ADR-0001: Record Architecture Decisions": docs/adr/0001-record-architecture-decisions.md
-      - "ADR-0002: CodeGraph Nudge Hook": docs/adr/0002-use-sentinel-file-and-argument-shape-heuristic-for-codegraph-nudge-hook.md
-      - "ADR-0003: ADR Tooling Workflow Skill": docs/adr/0003-document-adr-tooling-workflow-as-a-skill.md
-      - "ADR-0004: Pre-Dispatch Model Resolution": docs/adr/0004-pre-dispatch-model-resolution.md
-      - "ADR-0005: On-Demand Knowledge Indexing": docs/adr/0005-on-demand-knowledge-indexing.md
-      - "ADR-0006: Trunk Integration Topology": docs/adr/0006-per-increment-trunk-integration-topology.md
-      - "ADR-0007: Eval Confidence Pyramid": docs/adr/0007-eval-confidence-pyramid-tier-vocabulary.md
-      - "ADR-0008: Effort Bands over Model Names": docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md
-      - "ADR-0009: Human Consent Gate for Learning": docs/adr/0009-human-consent-gate-for-learning-loop.md
-      - "ADR-0010: Per-Session Analysis Granularity": docs/adr/0010-per-session-analysis-granularity.md
-      - "ADR-0011: Enforce Context Ceiling": docs/adr/0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md
-      - "ADR-0012: Auto-Bootstrap CodeGraph Index": docs/adr/0012-auto-bootstrap-codegraph-index-per-clone.md
-
-  - Experiments:
-      - Narrative (start here): docs/experiments/README.md
-      - FAQ: docs/experiments/FAQ.md
-      - "01 · 3 Sizes 3 Arms — Design": docs/experiments/agentic-workflow-evidence/01-experiment-prompt-3sizes-3arms.md
-      - "01 · 3 Sizes 3 Arms — Results": docs/experiments/01-final-results.md
-      - "02 · When TDD Pays — Design": docs/experiments/agentic-workflow-evidence/02-experiment-prompt-when-tdd-pays.md
-      - "02 · When TDD Pays — Results": docs/experiments/02-final-results.md
-      - "04 · Refactor Granularity — Design": docs/experiments/agentic-workflow-evidence/04-experiment-prompt-refactor-granularity.md
-      - "04 · Refactor Granularity — Results": docs/experiments/04-final-results.md
-      - "04 · Refactor Granularity — Power Analysis": docs/experiments/04-power-analysis.md
-      - "05 · Workflow Matrix — Design": docs/experiments/agentic-workflow-evidence/05-experiment-prompt-workflow-matrix.md
-      - "05 · Workflow Matrix — Final Results": docs/experiments/05-final-results.md
-
-  - Changelog:
-      - Repository: CHANGELOG.md
-      - dev-team Plugin: plugins/dev-team/CHANGELOG.md
-      - security-assessment Plugin: plugins/security-assessment/CHANGELOG.md
-      - marketplace-dev Plugin: plugins/marketplace-dev/CHANGELOG.md
