@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.15.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.15.0...dev-team-v10.15.1) (2026-07-21)
+
+
+### Miscellaneous
+
+* drop dead legacy tier alias keys from model-routing.json ([3c18bc7](https://github.com/bdfinst/agentic-dev-team/commit/3c18bc716bbe2a76d987ef835c3e822168ff322a)), closes [#1268](https://github.com/bdfinst/agentic-dev-team/issues/1268)
+
 ## [10.15.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.14.2...dev-team-v10.15.0) (2026-07-20)
 
 
