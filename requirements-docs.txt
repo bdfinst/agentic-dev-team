@@ -1,1 +1,2 @@
 mkdocs-material>=9.5
+mkdocs-awesome-pages-plugin>=2.10

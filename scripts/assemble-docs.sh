@@ -42,3 +42,23 @@ cp "${REPO_ROOT}/plugins/marketplace-dev/knowledge/agent-type-decision-rules.md"
 # GitHub Pages custom domain — published to the gh-pages root so GitHub binds it.
 # Must match the host in mkdocs.yml site_url.
 printf 'devteam.bryanfinster.com\n' > "${OUT}/CNAME"
+
+# awesome-pages section metadata for the synthetic (piecemeal-assembled) dirs.
+# Dirs copied wholesale via `cp -r` carry their own committed `.pages`; the
+# tree roots below are built up file-by-file here, so their `.pages` are
+# written inline (same pattern as the CNAME above). Titles/order for the
+# `cp -r`'d dirs (adr, experiments, plugin docs) live in committed `.pages`.
+cat > "${OUT}/.pages" <<'PAGES'
+nav:
+  - Home: README.md
+  - Getting Started: GETTING-STARTED.md
+  - Contributing: CONTRIBUTING.md
+  - docs
+  - plugins
+  - Changelog: CHANGELOG.md
+PAGES
+
+printf 'title: Plugins\n'                    > "${OUT}/plugins/.pages"
+printf 'title: dev-team Plugin\n'            > "${OUT}/plugins/dev-team/.pages"
+printf 'title: security-assessment Plugin\n' > "${OUT}/plugins/security-assessment/.pages"
+printf 'title: marketplace-dev Plugin\n'     > "${OUT}/plugins/marketplace-dev/.pages"
