@@ -1,13 +1,13 @@
 """Tests for plugins/dev-team/knowledge/model-routing.json — the single
 source of truth for effort band → model resolution defaults.
 
-(migration safety): each band default must equal the legacy tier it
-replaces, ID-for-ID (low→haiku, medium→sonnet, high→opus).
 (precondition): the routing.json file is the ONLY in-tree place that ships
 a concrete model ID, and it pins the ladder rounding convention. Every value
 is a bare canonical model ID (no dated snapshot suffix) — see ADR 0024. Every
-dispatch flows through it. Legacy tier keys are retained for the
-migration window so the unchanged resolver keeps resolving.
+dispatch flows through it. The legacy tier keys (haiku/sonnet/opus) were
+dropped: the resolver normalizes those tokens to bands (low/medium/high) in
+model_resolve.normalize_band() *before* the JSON lookup, so the alias keys
+were dead — never dereferenced.
 
 Ported from tests/knowledge/model_routing_defaults.bats (issue #675:
 bats -> pytest).
@@ -37,15 +37,12 @@ def test_model_routing_json_is_valid_json() -> None:
     json.loads(ROUTING_JSON.read_text(encoding="utf-8"))
 
 
-def test_model_routing_json_contains_bands_and_legacy_tiers(data: dict) -> None:
+def test_model_routing_json_contains_only_bands_and_rounding(data: dict) -> None:
     assert sorted(data.keys()) == [
-        "haiku",
         "high",
         "low",
         "medium",
-        "opus",
         "rounding",
-        "sonnet",
     ]
 
 
@@ -64,28 +61,12 @@ def test_high_band_maps_to_unpinned_canonical_opus_id(data: dict) -> None:
     assert data["high"] == "claude-opus-4-8"
 
 
-# --- bands equal the legacy tiers they replace, snapshot-for-snapshot ------
+# --- legacy tier keys are gone --------------------------------------------
 
 
-def test_each_band_default_equals_its_legacy_tier_snapshot(data: dict) -> None:
-    assert data["low"] == data["haiku"]
-    assert data["medium"] == data["sonnet"]
-    assert data["high"] == data["opus"]
-
-
-# --- legacy tier keys retained for the migration window --------------------
-
-
-def test_haiku_tier_maps_to_unpinned_canonical_id(data: dict) -> None:
-    assert data["haiku"] == "claude-haiku-4-5"
-
-
-def test_sonnet_tier_maps_to_unpinned_canonical_id(data: dict) -> None:
-    assert data["sonnet"] == "claude-sonnet-5"
-
-
-def test_opus_tier_maps_to_unpinned_canonical_id(data: dict) -> None:
-    assert data["opus"] == "claude-opus-4-8"
+def test_legacy_tier_alias_keys_are_dropped(data: dict) -> None:
+    for alias in ("haiku", "sonnet", "opus"):
+        assert alias not in data
 
 
 # --- ladder rounding convention is pinned -----------------------------
@@ -95,10 +76,10 @@ def test_rounding_convention_is_pinned_to_round_half_up(data: dict) -> None:
     assert data["rounding"] == "round_half_up"
 
 
-# --- No band or tier resolves to null --------------------------------------
+# --- No band resolves to null ----------------------------------------------
 
 
-def test_no_band_or_tier_resolves_to_null(data: dict) -> None:
-    for key in ("low", "medium", "high", "haiku", "sonnet", "opus"):
+def test_no_band_resolves_to_null(data: dict) -> None:
+    for key in ("low", "medium", "high"):
         assert data[key] is not None
         assert isinstance(data[key], str)
