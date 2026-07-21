@@ -3,9 +3,5 @@
   "medium": "claude-sonnet-5",
   "high": "claude-opus-4-8",
 
-  "haiku": "claude-haiku-4-5",
-  "sonnet": "claude-sonnet-5",
-  "opus": "claude-opus-4-8",
-
   "rounding": "round_half_up"
 }
