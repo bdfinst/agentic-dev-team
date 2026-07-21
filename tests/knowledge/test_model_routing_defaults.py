@@ -2,10 +2,13 @@
 source of truth for effort band → model resolution defaults.
 
 (precondition): the routing.json file is the ONLY in-tree place that ships
-a concrete model ID, and it pins the ladder rounding convention. Every value
-is a bare canonical model ID (no dated snapshot suffix) — see ADR 0024. Every
-dispatch flows through it. The legacy tier keys (haiku/sonnet/opus) were
-dropped: the resolver normalizes those tokens to bands (low/medium/high) in
+a concrete model ID, and it pins the ladder rounding convention. Each band
+value is a concrete model ID for the right family; per ADR 0025 it may be a
+bare canonical ID OR a dated snapshot (the map is deliberately mixed-shape,
+since the staleness bot pins whatever the Models API returns), so these tests
+assert the family NAME (tier word, version digits stripped) — not an exact
+version. The legacy tier keys (haiku/sonnet/opus) were dropped: the resolver
+normalizes those tokens to bands (low/medium/high) in
 model_resolve.normalize_band() *before* the JSON lookup, so the alias keys
 were dead — never dereferenced.
 
@@ -46,19 +49,30 @@ def test_model_routing_json_contains_only_bands_and_rounding(data: dict) -> None
     ]
 
 
-# --- Effort band defaults (the post-migration vocabulary) ------------------
+# --- Effort band families (version-agnostic — see ADR 0025) ----------------
 
 
-def test_low_band_maps_to_unpinned_canonical_haiku_id(data: dict) -> None:
-    assert data["low"] == "claude-haiku-4-5"
+def _family(model_id: str) -> str:
+    """The tier word of a model ID with `claude-` and all version digits removed.
+
+    `claude-opus-4-8` -> `opus`; `claude-haiku-4-5-20251001` -> `haiku`. This
+    is what lets the assertions below tolerate any version (bare or dated).
+    """
+    return "-".join(
+        tok
+        for tok in model_id.split("-")
+        if tok != "claude" and tok and not tok.isdigit()
+    )
 
 
-def test_medium_band_maps_to_unpinned_canonical_sonnet_id(data: dict) -> None:
-    assert data["medium"] == "claude-sonnet-5"
-
-
-def test_high_band_maps_to_unpinned_canonical_opus_id(data: dict) -> None:
-    assert data["high"] == "claude-opus-4-8"
+@pytest.mark.parametrize(
+    "band,family",
+    [("low", "haiku"), ("medium", "sonnet"), ("high", "opus")],
+)
+def test_band_resolves_to_expected_family(data: dict, band: str, family: str) -> None:
+    value = data[band]
+    assert value.startswith("claude-")
+    assert _family(value) == family
 
 
 # --- legacy tier keys are gone --------------------------------------------
