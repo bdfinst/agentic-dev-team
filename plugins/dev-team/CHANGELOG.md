@@ -1,5 +1,18 @@
 # Changelog
 
+## [10.15.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.15.0...dev-team-v10.15.1) (2026-07-21)
+
+
+### Documentation
+
+* supersede ADR 0024 to allow versioned model IDs; relax routing test ([c3f0b4c](https://github.com/bdfinst/agentic-dev-team/commit/c3f0b4c2a55bb55c7d24a75cf8f882e437bebcf8))
+
+
+### Miscellaneous
+
+* drop dead legacy tier alias keys from model-routing.json ([3c18bc7](https://github.com/bdfinst/agentic-dev-team/commit/3c18bc716bbe2a76d987ef835c3e822168ff322a)), closes [#1268](https://github.com/bdfinst/agentic-dev-team/issues/1268)
+* pin latest model versions in model-routing.json ([10d1f3a](https://github.com/bdfinst/agentic-dev-team/commit/10d1f3a49ea5790524c9e512da264746ed0a6345))
+
 ## [10.15.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.14.2...dev-team-v10.15.0) (2026-07-20)
 
 
