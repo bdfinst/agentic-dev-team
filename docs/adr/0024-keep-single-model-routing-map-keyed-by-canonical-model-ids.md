@@ -4,7 +4,7 @@ Date: 2026-07-20
 
 ## Status
 
-Accepted
+Accepted. The "uniform bare-canonical ID / no dated snapshot suffix" clause is superseded by [ADR 0025](0025-allow-versioned-model-ids-in-routing-map.md) (versioned/dated IDs are now allowed); the single-map, keyed-by-concrete-ID, and no-second-table decisions below still stand.
 
 Relates to [8. Use effort bands instead of model names in agent frontmatter](0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md)
 
