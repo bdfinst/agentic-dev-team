@@ -1,12 +1,13 @@
 name: Model staleness
 
 # model-routing.json pins exact model IDs (claude-haiku-4-5, claude-sonnet-5,
-# claude-opus-4-8). Anthropic deprecates/retires models on a timeline, so a
-# pinned ID can silently go stale. This weekly job asks the Models API which
-# models are actually served and files a deduped tracking issue when a pinned
-# ID has disappeared. It is intentionally NOT a PR gate: keeping the external
-# API call off PR CI avoids flakiness and never exposes ANTHROPIC_API_KEY to
-# fork PRs. See scripts/check_model_staleness.py (#1271).
+# claude-opus-4-8). Anthropic ships new versions and retires old ones on a
+# timeline. This weekly job asks the Models API which models are served, and
+# for each pinned family opens a PR bumping the pin to the newest member (or,
+# when a family has no live successor, files a tracking issue). It is
+# intentionally NOT a PR gate: keeping the external API call off PR CI avoids
+# flakiness and never exposes ANTHROPIC_API_KEY to fork PRs. See
+# scripts/check_model_staleness.py (#1271).
 
 on:
   schedule:
@@ -18,7 +19,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: model-staleness-${{ github.repository }}
@@ -35,9 +35,20 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Check pinned models against the live catalog
+      # Mint a short-lived token from the release bot GitHub App — the SAME
+      # identity release-please uses. An App token (not the default
+      # GITHUB_TOKEN) is what lets the bump PR's events trigger the required
+      # pull_request checks; commits it creates via the API are verified, so
+      # they satisfy the signed-commits branch rule. No dedicated PAT needed.
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ secrets.RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
+      - name: Reconcile pinned models against the live catalog
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           python3 scripts/check_model_staleness.py --repo "${{ github.repository }}"
