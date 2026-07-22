@@ -29,9 +29,9 @@ from typing import List, Optional
 from _plugin_dirs import (
     PLUGIN_AGENTS_DIRS,
     REPO_ROOT,
+    frontmatter_and_body,
     frontmatter_block,
     frontmatter_field,
-    read_frontmatter_and_body,
 )
 
 ALLOWED_COLORS = ("purple", "yellow", "green", "cyan")
@@ -60,7 +60,11 @@ def _skills_section_text(body: str) -> str:
 
 def _skills_list(fm: str) -> List[str]:
     """Parse a `skills:` YAML block-list from an already-extracted frontmatter
-    block. Returns [] if the key is absent or has no list items."""
+    block. Returns [] if the key is absent or has no list items. Assumes
+    2-space indentation on each item -- every agent's skills: list in this
+    fleet is written that way (verified by the real-file sweep test below);
+    a differently-indented list would silently parse as empty rather than
+    error, so this is a load-bearing formatting assumption, not a detail."""
     match = re.search(r"^skills:\s*\n((?:^  - .+\n?)+)", fm, re.MULTILINE)
     if not match:
         return []
@@ -158,6 +162,16 @@ def test_rule_default_cyan_when_no_branch_matches() -> None:
     assert expected == "cyan"
 
 
+def test_rule_agent_word_boundary_guards_incidental_substring() -> None:
+    """An incidental 'Agent' substring that is NOT the bare Agent tool (e.g.
+    a hypothetical 'AgentReview' token) must not resolve purple -- locks the
+    word-boundary regex the docstring calls load-bearing (ADR 0027 branch 1)
+    against a future 'simplify to "Agent" in tools' regression."""
+    fake_path = Path("some-utility.md")
+    expected = compute_expected_color(fake_path, "Read, AgentReview, Grep")
+    assert expected != "purple"
+
+
 def test_classify_missing_color_is_flagged() -> None:
     reason = classify_declared_color("", "cyan")
     assert reason is not None and "missing color:" in reason and "cyan" in reason
@@ -168,6 +182,18 @@ def test_classify_valid_contract_color_outside_mechanical_set_is_flagged() -> No
     mechanical colors this rule can produce -- must still be rejected."""
     reason = classify_declared_color("red", "cyan")
     assert reason is not None and "red" in reason and "not one of" in reason
+
+
+def test_classify_mismatched_valid_color_is_flagged() -> None:
+    """`declared` IS one of ALLOWED_COLORS but differs from the rule-computed
+    `expected` -- the third violation branch, distinct from missing/invalid."""
+    reason = classify_declared_color("green", "yellow")
+    assert (
+        reason is not None
+        and "green" in reason
+        and "yellow" in reason
+        and "rule computes" in reason
+    )
 
 
 def test_classify_compliant_color_passes() -> None:
@@ -200,9 +226,11 @@ def classify_skills_declaration(declared: List[str], skills_section_text: str) -
 
 def test_every_agent_with_a_skills_section_declares_skills_frontmatter() -> None:
     files = _agent_files()
+    assert files, "No agent files found under PLUGIN_AGENTS_DIRS — check the glob paths."
+
     violations = []
     for agent_file in files:
-        fm, body = read_frontmatter_and_body(agent_file)
+        fm, body = frontmatter_and_body(agent_file)
         if not _has_skills_section(body):
             continue
         declared = _skills_list(fm)
@@ -225,19 +253,41 @@ def test_classify_skills_missing_declaration_is_flagged() -> None:
 
 def test_classify_skills_unknown_name_is_flagged() -> None:
     reason = classify_skills_declaration(["foo", "bar"], "- [Foo](../skills/foo/SKILL.md)")
-    assert reason is not None and "bar" in reason and "not found" in reason
+    assert (
+        reason is not None
+        and "bar" in reason
+        and "not found" in reason
+        and "foo" not in reason  # the known/traceable name must not also be flagged
+    )
 
 
 def test_classify_skills_name_outside_section_is_flagged() -> None:
-    """A name that appears elsewhere in the body (e.g. Knowledge Files) but
-    not in the agent's own ## Skills section text must still be flagged --
-    proves the check is scoped to the section, not the whole body."""
+    """Given a section text that doesn't contain a declared name, that name
+    is flagged -- the comparison classify_skills_declaration itself performs.
+    (The separate boundary test below proves the section text handed to this
+    function is actually scoped correctly; this test doesn't call
+    _skills_section_text at all.)"""
     reason = classify_skills_declaration(["agent-eval"], "- [Foo](../skills/foo/SKILL.md)")
     assert reason is not None and "agent-eval" in reason
 
 
 def test_classify_skills_compliant_passes() -> None:
     assert classify_skills_declaration(["foo"], "- [Foo](../skills/foo/SKILL.md)") is None
+
+
+def test_skills_section_text_stops_at_the_next_heading() -> None:
+    """Proves _skills_section_text's non-greedy boundary: a name that exists
+    only in a later section (e.g. Knowledge Files, which follows ## Skills in
+    several real agents) must NOT be swept into the Skills section's text --
+    an over-capturing regex would silently make classify_skills_declaration
+    stop flagging stale names, and no other test would catch that."""
+    body = (
+        "## Skills\n\n- [Foo](../skills/foo/SKILL.md)\n\n"
+        "## Knowledge Files\n\n- [Bar](../skills/bar/SKILL.md)\n"
+    )
+    section = _skills_section_text(body)
+    assert "Foo" in section
+    assert "Bar" not in section
 
 
 def test_skills_list_parses_a_block_form_list() -> None:
@@ -270,6 +320,8 @@ def classify_memory_declaration(memory: str, tools: str) -> Optional[str]:
 
 def test_every_file_mutating_agent_declares_memory_project() -> None:
     files = _agent_files()
+    assert files, "No agent files found under PLUGIN_AGENTS_DIRS — check the glob paths."
+
     violations = []
     for agent_file in files:
         fm = frontmatter_block(agent_file)
@@ -289,7 +341,7 @@ def test_every_file_mutating_agent_declares_memory_project() -> None:
 
 def test_classify_memory_missing_is_flagged() -> None:
     reason = classify_memory_declaration("", "Read, Grep, Glob, Edit")
-    assert reason is not None and "expected 'project'" in reason
+    assert reason is not None and "expected 'project'" in reason and "''" in reason
 
 
 def test_classify_memory_wrong_value_is_flagged() -> None:

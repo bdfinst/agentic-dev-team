@@ -28,14 +28,19 @@ Require, and mechanically check, both fields:
 - **`skills:`** — an agent with a `## Skills` section in its body must
   declare a non-empty `skills:` list, and every listed name must trace back
   to that section's own text (not merely appear somewhere else in the body,
-  e.g. a Knowledge Files section). An agent with no `## Skills` section
-  omits `skills:` entirely — there is nothing to preload.
+  e.g. a Knowledge Files section). This is a one-directional gate: an agent
+  with no `## Skills` section has nothing to preload and by default omits
+  `skills:`, but the gate itself only checks agents that *have* a `##
+  Skills` section — it does not scan for or reject a `skills:` list on an
+  agent without one.
 - **`memory:`** — an agent with `Edit` or `Write` in `tools:` must declare
-  exactly `memory: project`. No other value and no omission is accepted —
-  unlike a generic `--memory user|project|local` flag for agents outside
-  this rule's scope, this is an exact-equality gate with no escape valve,
-  matching ADR 0027's precedent for `color:`. An agent with neither `Edit`
-  nor `Write` omits `memory:` entirely.
+  exactly `memory: project`. No other value and no omission is accepted for
+  that agent — this is an exact-equality gate with no escape valve, matching
+  ADR 0027's precedent for `color:`. This direction only: an agent with
+  neither `Edit` nor `Write` is outside the gate's scope entirely (see the
+  Scoping note in Consequences) — by default it omits `memory:`, but the
+  gate does not check or restrict what such an agent declares here, unlike
+  a generic `--memory user|project|local` flag used elsewhere.
 
 Applied to the current fleet: 12/58 agents carry a `## Skills` section and
 `skills:`; 7/58 carry `Edit`/`Write` and `memory: project`. A test gate
