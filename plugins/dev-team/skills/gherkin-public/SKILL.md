@@ -46,6 +46,8 @@ Read `memory/<workflow>/<slug>/phase-1.md` for the components & patterns table. 
 
 For each component in the map, generate one `.feature` file per public surface using the pattern's template. Every scenario MUST cover at least one success and one failure path. Every scenario MUST be observable at the boundary — no scenario describes an internal call.
 
+**Grounding scenarios in real behavior.** The component map names each surface but not its actual branches or error-handling depth. If the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` — verified context and semantic search), prefer them over raw `Grep` to inspect a surface's real failure conditions before writing its failure scenario, rather than inferring one from the surface name alone. Never assume either is present — fall back to `Read`/`Grep`/`Glob` when absent; the tools are simply unavailable (no error) on repos without an index.
+
 **API Provider** (one `.feature` per endpoint):
 
 ```gherkin
