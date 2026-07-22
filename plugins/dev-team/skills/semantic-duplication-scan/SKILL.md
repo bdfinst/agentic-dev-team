@@ -115,6 +115,18 @@ If the git diff result is empty (no files changed since `lastScanCommit`):
 2. Output: `No changes since last scan — register up to date`
 3. Exit 0 — do not proceed to annotation or clustering
 
+**Graph-assisted file/function discovery.** If the target repo has `.codegraph/`
+(CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — enumerate symbols
+and their call sites fast) and/or a Repowise MCP server (`search_codebase` —
+semantic search across the whole codebase, `get_context` — verified context
+per file/symbol), prefer them over raw `Glob`/`Read` for locating candidate
+computation functions across layers. Repowise's semantic search is
+particularly well suited here — it is built for exactly the kind of
+similarity search this skill needs to find the same domain concept
+reimplemented in different layers. Never assume either is present — fall
+back to `Glob`/`Read` when absent; the tools are simply unavailable (no
+error) on repos without an index.
+
 ### Step 5 — Pre-Filter
 
 For each selected file, identify non-trivial computation functions using the Trivial Function Definition above. Apply without an LLM call — use structural heuristics (presence of operators, branches, higher-order calls).
