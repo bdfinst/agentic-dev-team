@@ -60,6 +60,15 @@ For Python add: `assert True`, `self.assertTrue(True)`, `self.assertIsNotNone(se
 
 A finding requires **file path + line + snippet + reason**. Use `Grep` (ripgrep) with file globs scoped to the framework's test conventions.
 
+**Graph-assisted lookup.** If the target repo has `.codegraph/` (CodeGraph MCP
+server, `mcp__codegraph__codegraph_explore`) and/or a Repowise MCP server
+(`get_context`/`search_codebase`), prefer them over raw `Grep` for locating
+test files and confirming a suspect assertion has no real call path behind it
+(e.g. a swallowed-exception catch block that never reaches production error
+handling). Never assume either is present — fall back to `Grep`/`Read` when
+absent; the tools are simply unavailable (no error) on repos without an
+index.
+
 ### 3. Build the cannot-fail list
 
 Collect all findings into a JSON array:
