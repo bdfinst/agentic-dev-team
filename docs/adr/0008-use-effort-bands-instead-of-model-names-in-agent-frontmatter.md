@@ -41,9 +41,14 @@ needs** — a relative, vendor-neutral property of the task — and let the
 environment decide which model serves that effort.
 
 The full mechanism (the environment model ladder, the effort→ladder mapping, the
-session-model fallback, and the SessionStart banner) is documented in
-[the model-routing reference](../../plugins/dev-team/docs/model-routing.md).
-This ADR records the decision; that reference records the mechanism.
+session-model fallback, and the SessionStart banner) was documented in the
+plugin's model-routing reference. This ADR records the decision; that
+reference recorded the mechanism.
+
+> **Retirement note (2026-07-22):** [ADR 0026](0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)
+> retired the mechanism this ADR describes — the model-routing reference it
+> pointed to no longer exists. This ADR is preserved verbatim as a
+> historical record.
 
 ## Decision
 

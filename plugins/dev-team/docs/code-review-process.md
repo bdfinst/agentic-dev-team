@@ -136,12 +136,10 @@ Each enabled agent is spawned as a sub-agent via the Agent tool, all in a single
 
 When the target is the full repository (`--all`, `--path`, or clean auto-scope), agents always receive full files regardless of `Context needs`.
 
-**Model routing** is orchestrator-controlled, not agent-controlled. Each agent
-declares an `effort: low|medium|high` band in its frontmatter, and a PreToolUse
-hook resolves that band to a concrete model at dispatch time. See
-[model-routing.md](model-routing.md) for the resolution contract, the shipped
-default band→model map, and how to override it per environment (Bedrock, Vertex,
-a restricted proxy).
+**Model selection** is declared per agent, not orchestrator-controlled. Each
+agent declares `model:` (an alias, a full model ID, or `inherit`) and
+`effort:` directly in its frontmatter — the native Claude Code sub-agent
+contract, resolved by the harness itself before dispatch (ADR 0026).
 
 Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summary}`. See [`skills/code-review/output-format.md`](../skills/code-review/output-format.md).
 
