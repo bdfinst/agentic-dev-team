@@ -1,5 +1,19 @@
 # Changelog
 
+## [10.17.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.16.0...dev-team-v10.17.0) (2026-07-22)
+
+
+### Features
+
+* **mutation-kill:** extend the scripted mutant-kill loop to Python/mutmut ([8b12208](https://github.com/bdfinst/agentic-dev-team/commit/8b12208f2b8c78257b35f2cb75336094a6cd44e8))
+* **setup:** wire python/mutmut into Step 6 mutation-tool installer ([763db3a](https://github.com/bdfinst/agentic-dev-team/commit/763db3a86e563205cb6203d2ccacdd74620838fd))
+
+
+### Bug Fixes
+
+* **mutation-kill:** revert the source file mutmut may leave mutated on crash ([08027a5](https://github.com/bdfinst/agentic-dev-team/commit/08027a577dfff1bcb3c85a076f48b01a83ef1423))
+* **mutation:** mutmut adapter never detects survivors ([deaec42](https://github.com/bdfinst/agentic-dev-team/commit/deaec42cd36fd7a40e9957d576d750b433387261))
+
 ## [10.16.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.15.1...dev-team-v10.16.0) (2026-07-22)
 
 
