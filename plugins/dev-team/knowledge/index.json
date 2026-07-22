@@ -3575,7 +3575,7 @@
       "anchor": "key-differences-from-gherkin-public"
     },
     "Notes": {
-      "summary": "Characterization scenarios capture *what the code does now*.",
+      "summary": "Characterization scenarios capture *what the code does now* — never treat an",
       "anchor": "notes"
     }
   },
