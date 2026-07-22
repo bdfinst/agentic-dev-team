@@ -6,6 +6,8 @@ Date: 2026-07-21
 
 Accepted. Supersedes the "uniform bare-canonical ID / no dated snapshot suffix" clause of [ADR 0024](0024-keep-single-model-routing-map-keyed-by-canonical-model-ids.md); ADR 0024's other decisions (one map, keyed by concrete IDs rather than generic aliases, no separate snapshot-bookkeeping table) still stand.
 
+Superceded by [26. Adopt native model:/effort: agent frontmatter, retire the band resolver](0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)
+
 ## Context
 
 [ADR 0024](0024-keep-single-model-routing-map-keyed-by-canonical-model-ids.md) required every value in `knowledge/model-routing.json` to be a **bare canonical model ID with no dated snapshot suffix**, and dropped `claude-haiku-4-5-20251001` to `claude-haiku-4-5` to make the map uniform.

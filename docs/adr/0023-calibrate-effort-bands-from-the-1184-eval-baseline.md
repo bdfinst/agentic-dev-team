@@ -4,9 +4,9 @@ Date: 2026-07-19
 
 ## Status
 
-Accepted
-
 Relates to [8. Use effort bands instead of model names in agent frontmatter](0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md)
+
+Superceded by [26. Adopt native model:/effort: agent frontmatter, retire the band resolver](0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)
 
 ## Context
 

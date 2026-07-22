@@ -25,3 +25,4 @@
 * [23. Calibrate agent effort bands from the #1184 eval baseline](0023-calibrate-effort-bands-from-the-1184-eval-baseline.md)
 * [24. Keep the single model-routing map keyed by canonical model IDs](0024-keep-single-model-routing-map-keyed-by-canonical-model-ids.md)
 * [25. Allow versioned (dated-snapshot) model IDs in the routing map](0025-allow-versioned-model-ids-in-routing-map.md)
+* [26. Adopt native model:/effort: agent frontmatter, retire the band resolver](0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)

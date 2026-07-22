@@ -4,9 +4,9 @@ Date: 2026-06-21
 
 ## Status
 
-Accepted
-
 Amends [4. Pre-dispatch model tier resolution enforced by a PreToolUse hook](0004-pre-dispatch-model-resolution.md)
+
+Superceded by [26. Adopt native model:/effort: agent frontmatter, retire the band resolver](0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)
 
 ## Context
 
