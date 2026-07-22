@@ -230,8 +230,8 @@ wants the spec → plan → build → PR flow without re-assembling it each time
 
 `/build`'s inline review checkpoints dispatch the review agents listed in
 [`team-structure.md` → Review Agent Dispatch](team-structure.md#review-agent-dispatch-phase-3-inline-checkpoints).
-`/plan` dispatches a tier-scaled subset of the five plan-review personas
-([`prompts/plan-review-*.md`](../prompts/)) — the Acceptance Test Critic always
+`/plan` dispatches a tier-scaled subset of the five plan-review persona
+agents (`agents/plan-review-*.md`) — the Acceptance Test Critic always
 runs; the rest are added as the plan's tier (`trivial`/`standard`/`complex`)
 warrants — and the
 [`progress-guardian`](../agents/progress-guardian.md) gate-keeper.
