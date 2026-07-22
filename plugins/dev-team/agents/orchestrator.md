@@ -40,25 +40,13 @@ The orchestrator classifies incoming requests, routes them to the appropriate pi
 - Task classification algorithm
 - Load balancing logic
 
-## Resolution Procedure
+## Model/Effort Resolution
 
-Each agent declares an **effort band** (`effort: low|medium|high`) in its frontmatter — the reasoning effort its task needs, not a vendor model name. Band-to-model resolution is **enforced by a PreToolUse hook** (`hooks/agent_model_resolve.py`, registered in `hooks/hooks.json` under `matcher: "Agent|Task"`, mirrored in `settings.json` for older CLIs) backed by the resolver helper (`hooks/lib/model_resolve.py`). The LLM cannot bypass it.
+Each agent declares `model:` (an alias, a full model ID, or `inherit`) and `effort:` (`low|medium|high|xhigh|max`) directly in its frontmatter — the native Claude Code sub-agent contract (see `plugins/marketplace-dev/knowledge/agent-contract.json`). The harness resolves both fields itself before dispatch. There is no plugin-side PreToolUse hook, routing map, or per-environment ladder file in this path — ADR 0026 retired that machinery once the native fields were confirmed to already do what it was built to provide. See ADR 0004/0008/0021/0023/0024/0025 for why the retired system existed and ADR 0026 for why it doesn't anymore.
 
-When the orchestrator (or any caller) spawns a subagent via the Agent tool, the hook:
+### Effort guidance (informational)
 
-1. Strips any `<plugin>:` prefix from `subagent_type` and reads the effort band from `agents/<name>.md` frontmatter.
-2. Resolves the band → model via `${CLAUDE_PLUGIN_ROOT}/knowledge/model-routing.json` — the shipped **default map** (`low/medium/high → snapshot`) — or, when `.claude/model-ladder.json` is present and valid, via `index = round_half_up(weight·(N−1))` into that ladder (a malformed ladder degrades to the default map).
-3. **Always** rewrites `tool_input.model` via `hookSpecificOutput.updatedInput` (migrated agents carry no `model:` of their own). The session model is never a ceiling.
-4. Appends one JSONL event to `.claude/metrics/model-routing.log` only when the resolved model differs from the band's shipped default (a ladder bump), always for a legacy-tier dispatch, and for a session-model fallback.
-5. **Fails open** (pass-through) on any error — a missing routing.json or an unreadable agent file never blocks dispatch. There is no deny branch.
-
-`/agent-eval --calibrate` (band calibration slice 3, #882) validates the declared `effort:` band itself against `${CLAUDE_PLUGIN_ROOT}/knowledge/calibration-floors.json` — walking bands cheapest-first through this same resolution path and reporting whether a cheaper band would still clear the target's floor. It is report-only and never edits agent/skill files; see [model-routing.md](../docs/model-routing.md#band-calibration-agent-eval-calibrate).
-
-Legacy `model: haiku|sonnet|opus` agents still resolve (tier→band) for this deprecation release; `/agent-audit` warns. For triage, run `/model-routing-check` — read-only diagnostic that prints the effective band→model map, the ladder (or a starter), the session model, and recent bumps. See `docs/model-routing.md` for the contract and `docs/model-routing-overrides.md` for ladder authoring. See [ADR 0008](../../../docs/adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md) (effort bands) and [ADR 0004](../../../docs/adr/0004-pre-dispatch-model-resolution.md) (pre-dispatch enforcement) for rationale.
-
-### Effort-band guidance (informational)
-
-Each agent's `effort:` band is the authoritative routing input. Pick a band by the *kind* of reasoning the task needs — not by naming a model, and not by copying a peer agent. This guide names no agents on purpose: a per-agent list drifts out of sync with frontmatter the moment a band changes. For the live band→model map and which band each agent actually declares, run `/model-routing-check`; to validate that a declared band clears its eval floor, run `/agent-eval --calibrate`.
+Pick an agent's `effort:` value by the *kind* of reasoning its task needs — not by naming a model, and not by copying a peer agent. This guide names no agents on purpose: a per-agent list drifts out of sync with frontmatter the moment a value changes.
 
 - `low` — lexical/structural pattern matching and checklist-style verification: threshold counting, config/style/markup checks, and single-file lints that need no cross-file context.
 - `medium` — semantic analysis with balanced cost/quality: reading intent within a file or a small neighborhood, spec-to-code matching, and most review and persona work.
@@ -190,7 +178,7 @@ double-counts the work and leaves the two synthesis paths disconnected.
 
 ## Knowledge index — consumer usage pattern
 
-Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `${CLAUDE_PLUGIN_ROOT}/knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `${CLAUDE_PLUGIN_ROOT}/knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `${CLAUDE_PLUGIN_ROOT}/knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. `/model-routing-check` is the analogous diagnostic command; for routing, `/model-routing-check`; for knowledge freshness, `python3 plugins/dev-team/hooks/lib/build_knowledge_index.py --check`.
+Knowledge references in this file and any agent that consumes them cite a section anchor (e.g. `${CLAUDE_PLUGIN_ROOT}/knowledge/owasp-detection.md#a03-injection`). Resolve the anchor via `${CLAUDE_PLUGIN_ROOT}/knowledge/index.json` — the section's `summary` describes what's in it — then `Read` the file with `offset` and `limit` for just that section. Bare `${CLAUDE_PLUGIN_ROOT}/knowledge/X.md` or `skills/Y/SKILL.md` references are valid only when followed in the same paragraph by `Whole-file load:` and a one-sentence rationale. For knowledge freshness, run `python3 plugins/dev-team/hooks/lib/build_knowledge_index.py --check`.
 
 ## Skills
 
@@ -249,14 +237,14 @@ Do **not** dispatch `security-engineer` on every task — its `effort: high` cos
 - **Output**: An implementation plan with explicit file changes, test expectations, and acceptance criteria
 - **Automated plan review**: Before the human gate, dispatch **four plan review personas in parallel** as sub-agents. Each reviewer independently challenges the plan from a different critical perspective:
 
-  | Reviewer | Template | Effort | What it challenges |
+  | Reviewer | Template | Model | What it challenges |
   |----------|----------|--------|--------------------|
-  | Acceptance Test Critic | `prompts/plan-review-acceptance.md` | `medium` | Criteria verifiability, scenario completeness, error paths, TDD traceability |
-  | Design & Architecture Critic | `prompts/plan-review-design.md` | `medium` | Coupling, abstraction quality, structural risks, pattern consistency |
-  | UX Critic | `prompts/plan-review-ux.md` | `medium` | User journey, error experience, cognitive load, accessibility |
-  | Strategic Critic | `prompts/plan-review-strategic.md` | `medium` | Problem-solution fit, scope, risk, opportunity cost |
+  | Acceptance Test Critic | `prompts/plan-review-acceptance.md` | `sonnet` | Criteria verifiability, scenario completeness, error paths, TDD traceability |
+  | Design & Architecture Critic | `prompts/plan-review-design.md` | `sonnet` | Coupling, abstraction quality, structural risks, pattern consistency |
+  | UX Critic | `prompts/plan-review-ux.md` | `sonnet` | User journey, error experience, cognitive load, accessibility |
+  | Strategic Critic | `prompts/plan-review-strategic.md` | `sonnet` | Problem-solution fit, scope, risk, opportunity cost |
 
-  The **Effort** column is a reasoning-effort band, not a pinned model. These personas are prompt templates with no frontmatter, so the resolver hook cannot route them — resolve the band yourself before dispatch (`python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/model_resolve.py medium --caller plan-review`) exactly as the plan skill's [Run plan review personas step](../skills/plan/SKILL.md#5-run-plan-review-personas) does. Never hard-code a model alias, so the personas honor the same ladder and per-environment overrides as every other agent.
+  These personas are prompt templates with no frontmatter, dispatched directly via the Agent tool's own `model:` parameter — pass `model: sonnet` on each, exactly as the plan skill's [Run plan review personas step](../skills/plan/SKILL.md#5-run-plan-review-personas) does. The harness resolves the alias natively; there is no plugin-side resolution step.
 
   Each returns a `verdict` of `approve` or `needs-revision`. If **any** reviewer returns `needs-revision`, address the blocker issues before presenting to the human. Aggregate all findings (including warnings from approving reviewers) into the plan review summary.
 
@@ -322,7 +310,7 @@ After each discrete unit of work classified as **standard** or **complex** (a fu
 | All changes | structure-review as a baseline |
 | All changes (before quality review) | spec-compliance-review as first gate |
 
-**Step 2 — Run selected agents in parallel** using the Agent tool by `subagent_type` — the PreToolUse hook reads each agent's `effort:` band and resolves it to the right model per the Resolution Procedure above.
+**Step 2 — Run selected agents in parallel** using the Agent tool by `subagent_type` — the harness reads each agent's `model:`/`effort:` frontmatter natively per Model/Effort Resolution above.
 
 **Step 3 — Aggregate findings and apply Review Loop:**
 

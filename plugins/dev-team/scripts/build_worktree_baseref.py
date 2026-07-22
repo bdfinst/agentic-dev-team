@@ -19,8 +19,7 @@ that are actually honored.
 Usage:
     build_worktree_baseref.py detect
 
-Prints exactly one token to stdout and always exits 0
-(degrade-never-abort, mirroring hooks/lib/model_resolve.py's precedent):
+Prints exactly one token to stdout and always exits 0 (degrade-never-abort):
     head    — effective setting is "head"
     fresh   — effective setting is "fresh"
     unset   — no honored settings file sets worktree.baseRef

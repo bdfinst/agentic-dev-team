@@ -3,8 +3,8 @@
 CSV fixtures are real (trimmed) data fetched from the actual datasets this
 session — `list_bugs()` is asserted against real column names/formats, not
 assumed ones. All checkout/describe/ground-truth calls use an injected
-`run_fn` (dependency injection, matching `scripts/agent_calibrate.py`'s
-`dispatch_fn` pattern) — no real subprocess or network call is made.
+`run_fn` (plain dependency injection) — no real subprocess or network call
+is made.
 """
 
 from __future__ import annotations

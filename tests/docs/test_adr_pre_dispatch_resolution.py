@@ -1,5 +1,7 @@
 """ADR documenting pre-dispatch model routing decisions exists with the
-required sections and is referenced from docs/model-routing.md.
+required sections (historical record — superseded by ADR 0026; ADR 0004
+itself is preserved verbatim, per docs/adr/README.md's supersession
+convention).
 
 Ported from tests/docs/adr_pre_dispatch_resolution_test.bats (issue #675:
 bats -> pytest).
@@ -14,10 +16,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # The ADR slot is 0004 (0001-0003 are taken). The filename is fixed for this
-# test; if a future contributor renumbers, update both this test and the
-# cross-reference in docs/model-routing.md.
+# test; if a future contributor renumbers, update it here too.
 ADR = REPO_ROOT / "docs" / "adr" / "0004-pre-dispatch-model-resolution.md"
-ROUTING_DOC = REPO_ROOT / "plugins" / "dev-team" / "docs" / "model-routing.md"
 
 
 @pytest.fixture(scope="module")
@@ -49,9 +49,3 @@ def test_adr_decision_records_pretooluse_hook_vs_orchestrator_instruction(
 ) -> None:
     assert "pretooluse" in adr_text.lower()
     assert "orchestrator instruction" in adr_text.lower()
-
-
-def test_model_routing_doc_references_adr() -> None:
-    assert ROUTING_DOC.is_file()
-    text = ROUTING_DOC.read_text(encoding="utf-8")
-    assert "0004-pre-dispatch-model-resolution" in text

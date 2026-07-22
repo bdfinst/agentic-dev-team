@@ -1,10 +1,12 @@
 """Tests for the pending-review queue contract: format strings in skill
-files and the session-model-banner hook's notification logic.
+files and the pending-review-notify hook's notification logic.
 
 The bats original shelled out to the retired hooks/session-model-banner.sh
-(#572 Phase 2 ported it to hooks/session_model_banner.py — #586); this port
-invokes the Python hook directly with `subprocess.run([sys.executable, ...])`
-and a hermetic `tmp_path` in place of `mktemp -d` + `rm -rf`.
+(#572 Phase 2 ported it to hooks/session_model_banner.py — #586, #1284/#1288
+split its pending-review responsibility into hooks/pending_review_notify.py
+when the model-routing responsibilities it also carried were retired); this
+port invokes the Python hook directly with `subprocess.run([sys.executable,
+...])` and a hermetic `tmp_path` in place of `mktemp -d` + `rm -rf`.
 
 Ported from tests/skills/pending_review_queue_tests.bats (issue #674).
 """
@@ -21,17 +23,7 @@ from skill_doc_helpers import PLUGIN_ROOT, REPO_ROOT
 
 SESSION_REVIEW = PLUGIN_ROOT / "skills" / "session-review" / "SKILL.md"
 FEEDBACK_LEARNING = PLUGIN_ROOT / "skills" / "feedback-learning" / "SKILL.md"
-BANNER = PLUGIN_ROOT / "hooks" / "session_model_banner.py"
-
-_ROUTING_JSON = {
-    "low": "claude-haiku-4-5-20251001",
-    "medium": "claude-sonnet-4-6",
-    "high": "claude-opus-4-8",
-    "haiku": "claude-haiku-4-5-20251001",
-    "sonnet": "claude-sonnet-4-6",
-    "opus": "claude-opus-4-8",
-    "rounding": "round_half_up",
-}
+BANNER = PLUGIN_ROOT / "hooks" / "pending_review_notify.py"
 
 
 # ---------------------------------------------------------------------------
@@ -73,21 +65,10 @@ def test_session_model_banner_references_pending_review_jsonl():
 
 
 def _run_banner_stdout(tmp_path: Path) -> str:
-    routing_json = tmp_path / "knowledge" / "model-routing.json"
-    routing_json.parent.mkdir(parents=True, exist_ok=True)
-    routing_json.write_text(json.dumps(_ROUTING_JSON))
-
-    env = {
-        **os.environ,
-        "MODEL_ROUTING_JSON": str(routing_json),
-        "MODEL_LADDER_JSON": str(tmp_path / ".claude" / "model-ladder.json"),
-        "SESSION_MODEL_FILE": str(tmp_path / ".claude" / "session-model"),
-    }
     payload = json.dumps(
         {
             "hook_event_name": "SessionStart",
             "cwd": str(tmp_path),
-            "model": "claude-sonnet-4-6",
         }
     )
     result = subprocess.run(
@@ -96,7 +77,7 @@ def _run_banner_stdout(tmp_path: Path) -> str:
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
-        env=env,
+        env=dict(os.environ),
         check=False,
     )
     return result.stdout

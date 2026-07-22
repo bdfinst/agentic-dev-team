@@ -18,8 +18,6 @@ eval-specific bits:
     reduce(samples, key, payload) -> dict     # optional
     finalize(done, out_dir) -> summary        # optional
     SAMPLES, WORKERS                          # optional int defaults
-
-See ``example_calibration.py`` in this directory for a worked module.
 """
 from __future__ import annotations
 

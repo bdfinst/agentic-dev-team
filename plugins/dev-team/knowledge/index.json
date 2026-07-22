@@ -1798,10 +1798,6 @@
       "summary": "`scripts/eval_cache.py` SHAs each `fixture::target` over the target's",
       "anchor": "cache-fingerprint-replay"
     },
-    "Calibration mode": {
-      "summary": "`--calibrate [--agent <name>]` is a distinct run mode (band calibration slice",
-      "anchor": "calibration-mode"
-    },
     "Cites: enforcement (drift prevention for the evals themselves)": {
       "summary": "This skill grades reviewers; if a reviewer carries thresholds with no",
       "anchor": "cites-enforcement-drift-prevention-for-the-evals-themselves"
@@ -3870,17 +3866,9 @@
       "summary": "Confirm verdict `\"validated\"`, and that the changelog append stayed",
       "anchor": "item-5-feedback-learning-harness-audit-combined-run"
     },
-    "Item 6 — `/agent-eval` combined mode check": {
-      "summary": "Confirm `--calibrate` and `--ablation` reject being combined, and each still",
-      "anchor": "item-6-agent-eval-combined-mode-check"
-    },
-    "Item 7 — `/model-routing-check` full chain": {
-      "summary": "Run `/model-routing-check` for real (it has its own embedded exec script +",
-      "anchor": "item-7-model-routing-check-full-chain"
-    },
-    "Item 8 — `/handoff` rename verification": {
+    "Item 6 — `/handoff` rename verification": {
       "summary": "Covered permanently by",
-      "anchor": "item-8-handoff-rename-verification"
+      "anchor": "item-6-handoff-rename-verification"
     },
     "Output format": {
       "summary": "One line per item (`✅ item N — <one-line evidence>` or `❌ item N —",
@@ -4287,28 +4275,6 @@
     "Adding a diagram to an existing file": {
       "summary": "When inserting a diagram into an existing markdown file:",
       "anchor": "adding-a-diagram-to-an-existing-file"
-    }
-  },
-  "plugins/dev-team/skills/model-routing-check/SKILL.md": {
-    "Worker constraints": {
-      "summary": "1.",
-      "anchor": "worker-constraints"
-    },
-    "What it shows": {
-      "summary": "Five sections, in order:",
-      "anchor": "what-it-shows"
-    },
-    "How to fix common findings": {
-      "summary": "**Bumps appearing in the log** — the ladder or a session fallback is",
-      "anchor": "how-to-fix-common-findings"
-    },
-    "Execution": {
-      "summary": "The exec block below is the literal script the command runs.",
-      "anchor": "execution"
-    },
-    "Notes": {
-      "summary": "Defaults to `N=10` bump events in the tail.",
-      "anchor": "notes"
     }
   },
   "plugins/dev-team/skills/mutation-testing/SKILL.md": {

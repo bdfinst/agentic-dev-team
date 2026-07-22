@@ -161,16 +161,3 @@ def test_ensure_alive_noops_when_done(tmp_path, capsys):
 def test_live_pid_none_when_no_driver(tmp_path):
     run_eval = _load("run_eval")
     assert run_eval._live_pid(tmp_path) is None
-
-
-# --------------------------------------------------------------------------- #
-# example module — pure helpers
-# --------------------------------------------------------------------------- #
-
-def test_example_reduce_and_flag():
-    ex = _load("example_calibration")
-    rec = ex.reduce([True, True, False, True, False], "f||high", ("f", "high", "m"))
-    assert rec["hits"] == 3 and rec["passed"] is True and rec["flap"] is True
-    assert ex.flag(rec) is True
-    clean = ex.reduce([True, True, True], "f||high", ("f", "high", "m"))
-    assert clean["passed"] is True and clean["flap"] is False

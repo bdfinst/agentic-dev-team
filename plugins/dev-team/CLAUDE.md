@@ -50,9 +50,9 @@ See [knowledge/skills-registry.md](knowledge/skills-registry.md) for the full co
 
 See [knowledge/request-processing-flow.md](knowledge/request-processing-flow.md) for the three-phase workflow (Research → Plan → Implement), inline review protocol, and multi-agent collaboration.
 
-## Model Routing
+## Model/Effort
 
-Each agent declares an effort band (`effort: low|medium|high`). Enforced by `hooks/agent_model_resolve.py` via `knowledge/model-routing.json` (or `.claude/model-ladder.json`). See `agents/orchestrator.md` → Resolution Procedure and `/model-routing-check`.
+Each agent declares `model:`/`effort:` directly in frontmatter — the native Claude Code sub-agent contract, resolved by the harness itself (ADR 0026). See `agents/orchestrator.md` → Model/Effort Resolution.
 
 ## Context Management
 
