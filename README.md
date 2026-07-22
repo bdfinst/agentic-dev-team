@@ -126,8 +126,6 @@ Start here:
 
 Per-plugin docs: **[dev-team](plugins/dev-team/README.md)** · **[security-assessment](plugins/security-assessment/README.md)** · **[marketplace-dev](plugins/marketplace-dev/README.md)** — each plugin's README is the entry point to its architecture, commands, and deeper guides.
 
-Adapting model selection to your environment? See [Model Routing](plugins/dev-team/docs/model-routing.md) and its [override guide](plugins/dev-team/docs/model-routing-overrides.md).
-
 ## CodeGraph
 
 This repository uses [CodeGraph](https://github.com/colbymchenry/codegraph) for semantic code intelligence.
