@@ -29,12 +29,19 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #   knowledge/model-pricing.json - cost meter's pricing table (#102); must key
 #     by model snapshot because the transcript usage records emit snapshot
 #     IDs.
+#   marketplace-dev/knowledge/agent-contract.json - a verbatim capture of
+#     Anthropic's own sub-agent frontmatter docs (#1285); its `model` field's
+#     `also_accepts` value quotes their doc's own illustrative snapshot
+#     examples. Same "illustrative examples" exemption reason as
+#     docs/model-routing.md — editing the quote would break its fidelity as
+#     a verbatim contract capture.
 ALLOWED_PATHS = [
     "plugins/dev-team/knowledge/model-routing.json",
     "plugins/dev-team/docs/model-routing.md",
     "plugins/dev-team/docs/model-routing-overrides.md",
     "plugins/dev-team/templates/agents/agent-template.md",
     "plugins/dev-team/knowledge/model-pricing.json",
+    "plugins/marketplace-dev/knowledge/agent-contract.json",
 ]
 
 _SNAPSHOT_RE = re.compile(r"claude-(haiku|sonnet|opus)-[0-9]")
