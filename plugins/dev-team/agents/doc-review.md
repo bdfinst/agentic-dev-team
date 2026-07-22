@@ -25,6 +25,19 @@ Confidence: high=mechanical update (update version, remove reference to deleted 
 
 Context needs: project-structure
 
+## Contract precedence
+
+Before asserting that a frontmatter or tool-grant pattern (e.g. an MCP
+wildcard grant like `mcp__<server>__*`) is invalid syntax, verify the claim
+against `plugins/marketplace-dev/knowledge/agent-contract.json`'s `tools`
+field spec — that file is the authoritative external contract for what
+Claude Code's own sub-agent frontmatter schema permits. A repo-internal
+checker script's expectation-list constant (e.g. `mcp_tool_grants.py`'s
+`BASE_MCP_TOOLS`) enforces a narrower convention layered on top of the
+contract; it never redefines what the contract allows, and it may be stale.
+When the two disagree, the contract wins — never cite a checker script's
+constant as proof that a pattern the contract documents is invalid.
+
 ## Skip
 
 Return `{"status": "skip", "issues": [], "summary": "No documentation files found"}` when:
