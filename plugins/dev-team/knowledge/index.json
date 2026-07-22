@@ -1336,6 +1336,10 @@
       "summary": "Self-reported per-task completion log, one file per calendar date.",
       "anchor": "metricsdate-task-logjsonl-eg-2026-02-20-task-logjsonl"
     },
+    "`gherkin-derive-effectiveness.jsonl`": {
+      "summary": "Per-scenario roll-up correlating a `/gherkin-derive`-discovered surface with",
+      "anchor": "gherkin-derive-effectivenessjsonl"
+    },
     "Adding a new stream": {
       "summary": "1.",
       "anchor": "adding-a-new-stream"
@@ -4813,6 +4817,10 @@
     "6. Post the converge history": {
       "summary": "Append a markdown block to the parent (or `FEATURE.md`):",
       "anchor": "6-post-the-converge-history"
+    },
+    "6b. Gherkin effectiveness roll-up (conditional)": {
+      "summary": "When `memory/<workflow>/<slug>/gherkin.md` exists (Phase 2b ran — see",
+      "anchor": "6b-gherkin-effectiveness-roll-up-conditional"
     },
     "7. Waiver handling": {
       "summary": "If the operator chooses to waive a target:",

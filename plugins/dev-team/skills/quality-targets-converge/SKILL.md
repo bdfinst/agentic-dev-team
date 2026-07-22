@@ -193,6 +193,33 @@ Append a markdown block to the parent (or `FEATURE.md`):
 
 Same CLI pattern as `/coverage-baseline` and `/coverage-delta`.
 
+### 6b. Gherkin effectiveness roll-up (conditional)
+
+When `memory/<workflow>/<slug>/gherkin.md` exists (Phase 2b ran — see
+`/gherkin-derive`), run the roll-up after every iteration's re-measure so
+there is a standing signal on whether the derived scenarios track real
+coverage/mutation movement (issue #1296):
+
+```bash
+python3 plugins/dev-team/scripts/gherkin_effectiveness_rollup.py \
+  --gherkin-md memory/<workflow>/<slug>/gherkin.md \
+  --bindings-json memory/<workflow>/<slug>/gherkin-bindings.json \
+  --baseline-coverage memory/<workflow>/<slug>/baseline-coverage.json \
+  --current-coverage <this iteration's coverage measurement> \
+  --baseline-mutation memory/<workflow>/<slug>/baseline-mutation.json \
+  --current-mutation <this iteration's mutation measurement> \
+  --out metrics/gherkin-derive-effectiveness.jsonl
+```
+
+Omit any flag whose file doesn't exist for this run (e.g. no
+`gherkin-bindings.json` when the workflow only derived scenarios via
+`/gherkin-derive` and never ran `/gherkin-public`) — the script degrades
+gracefully and still records provenance/binding-mode per scenario with the
+correlated field left `null`. When `gherkin.md` is absent (binding mode
+`none`, or Phase 2b never ran), skip this step entirely — there is nothing
+to roll up. This is a metrics side-effect only; it never changes convergence
+gaps or which action Step 4 dispatches.
+
 ### 7. Waiver handling
 
 If the operator chooses to waive a target:
@@ -211,6 +238,7 @@ Print:
 - Whether the loop converged, halted, or is mid-iteration.
 - Any waivers recorded.
 - The path to `converge-<iteration>.json` and to `waivers.json` (if any).
+- The path to `metrics/gherkin-derive-effectiveness.jsonl` when Step 6b ran.
 
 ## Examples / Integration
 
