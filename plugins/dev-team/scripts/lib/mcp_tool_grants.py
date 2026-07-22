@@ -58,7 +58,7 @@ def parse_tools(text):
     return [tok.strip() for tok in value.split(",") if tok.strip()]
 
 
-def _server_wildcard(name):
+def _server_wildcard_forms(name):
     """Return the ``mcp__<server>__*`` and bare ``mcp__<server>`` forms that
     satisfy a specific ``mcp__<server>__<tool>`` grant requirement, per
     agent-contract.json's tools: value_format ("mcp__<server> or
@@ -71,11 +71,16 @@ def _server_wildcard(name):
     return (f"{server}__*", server)
 
 
-def _satisfied(name, present):
+def _is_satisfied(name, present):
     """True if ``name`` is granted exactly, or via a server-wide wildcard grant."""
     if name in present:
         return True
-    return any(form in present for form in _server_wildcard(name))
+    return any(form in present for form in _server_wildcard_forms(name))
+
+
+def _compute_missing(present, required):
+    """Return the ``required`` names not satisfied by the ``present`` grant set."""
+    return [name for name in required if not _is_satisfied(name, present)]
 
 
 def missing_tools(text, required):
@@ -91,8 +96,7 @@ def missing_tools(text, required):
     tokens = parse_tools(text)
     if tokens is None:
         return list(required)
-    present = set(tokens)
-    return [name for name in required if not _satisfied(name, present)]
+    return _compute_missing(set(tokens), required)
 
 
 def fix_tools_line(text, required):
@@ -110,8 +114,7 @@ def fix_tools_line(text, required):
     if tokens is None:
         # No inline value (block form or empty) — unfixable, never mangle it.
         return text, []
-    present = set(tokens)
-    added = [name for name in required if not _satisfied(name, present)]
+    added = _compute_missing(set(tokens), required)
     if not added:
         return text, []
     new_tokens = tokens + added
