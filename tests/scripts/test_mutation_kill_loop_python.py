@@ -65,6 +65,49 @@ def _killed(name: str, file: str, line: int) -> str:
     return f'<testcase name="{name}" file="{file}" line="{line}"><system-out>x</system-out></testcase>'
 
 
+def test_run_scoped_mutmut_reverts_source_file_even_when_mutmut_crashes(
+    tmp_path: Path, monkeypatch
+):
+    """mutmut mutates the real source file on disk per-mutant and restores it
+    when done — but a mutmut-internal crash (real, reproducible: mutmut
+    2.5.1's own cache layer, confirmed while dogfooding this exact function
+    against hooks/mutation_adapters/mutmut.py, #1357) skips that restore and
+    leaves mutated content on disk. run_scoped_mutmut must always revert the
+    source file, even when the mutmut subprocess itself raises."""
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    def boom(*_a, **_k):
+        raise RuntimeError("simulated mutmut internal crash")
+
+    monkeypatch.setattr(loop.subprocess, "run", boom)
+
+    reverted = []
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+
+    with pytest.raises(RuntimeError):
+        loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
+
+    assert reverted == [Path("src/a.py")]
+
+
+def test_run_scoped_mutmut_reverts_source_file_on_the_success_path_too(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    reverted = []
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+
+    loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
+
+    assert reverted == [Path("src/a.py")]
+
+
 def test_extract_survivors_filters_to_target_file():
     xml = _junit(
         _survived("Mutant #1", "src/a.py", 5),
