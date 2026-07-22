@@ -1,5 +1,60 @@
 # Changelog
 
+## [10.16.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.15.1...dev-team-v10.16.0) (2026-07-22)
+
+
+### Features
+
+* add agent-contract validator for frontmatter compliance ([0224d27](https://github.com/bdfinst/agentic-dev-team/commit/0224d274a29e6b54562a6d87359d20cd2ac7469b))
+* add CodeGraph/Repowise guidance to apply-fixes skill ([52ebbb1](https://github.com/bdfinst/agentic-dev-team/commit/52ebbb1b283ffc601beff68982ced5cce0018b76))
+* add CodeGraph/Repowise guidance to build skill ([fd3156d](https://github.com/bdfinst/agentic-dev-team/commit/fd3156d6eb19628f7b82e7daf10a1c3d46ee470d))
+* add CodeGraph/Repowise guidance to cd-test-architecture skill ([816eabf](https://github.com/bdfinst/agentic-dev-team/commit/816eabf07846a0732fec349f4a242223e514b780))
+* add CodeGraph/Repowise guidance to ci-debugging skill ([d40af80](https://github.com/bdfinst/agentic-dev-team/commit/d40af80c65750db58ccccc8f0bb868a67634b99c))
+* add CodeGraph/Repowise guidance to domain-analysis skill ([540e922](https://github.com/bdfinst/agentic-dev-team/commit/540e92231cdde81d8b061520ad1d3e2f4d05850d))
+* add CodeGraph/Repowise guidance to farley-score skill ([c508f64](https://github.com/bdfinst/agentic-dev-team/commit/c508f6486ef322feab3a80e3abe3134596013c2d))
+* add CodeGraph/Repowise guidance to feature-file-validation skill ([12f2075](https://github.com/bdfinst/agentic-dev-team/commit/12f2075a74d4038820b51800626880e56e2b5ea9))
+* add CodeGraph/Repowise guidance to gherkin-public skill ([afda86e](https://github.com/bdfinst/agentic-dev-team/commit/afda86eb9ce6649e7256b653d949948a3e362860))
+* add CodeGraph/Repowise guidance to hexagonal-architecture skill ([2582717](https://github.com/bdfinst/agentic-dev-team/commit/2582717029cd18af9d1013c2e329fc3983c433ec))
+* add CodeGraph/Repowise guidance to legacy-code skill ([49ba470](https://github.com/bdfinst/agentic-dev-team/commit/49ba470f72e45dabc7c74cef5cabf2600d1aed9d))
+* add CodeGraph/Repowise guidance to mutation-testing skill ([ab4dc41](https://github.com/bdfinst/agentic-dev-team/commit/ab4dc4127ac391404ccee3332c3ef936ccab7161))
+* add CodeGraph/Repowise guidance to plan skill ([1e39bd7](https://github.com/bdfinst/agentic-dev-team/commit/1e39bd7ca4454c1d253429b0bde42c7b5f5c3cd9))
+* add CodeGraph/Repowise guidance to quality-targets-converge skill ([0118479](https://github.com/bdfinst/agentic-dev-team/commit/01184792e7e7a9e2c582f4af292a41ef03ac9e64))
+* add CodeGraph/Repowise guidance to semantic-duplication-scan skill ([271da25](https://github.com/bdfinst/agentic-dev-team/commit/271da25e7b9177fa0b1bbed4a18cbc3e57295784))
+* add CodeGraph/Repowise guidance to semantic-scan skill ([ce2c38d](https://github.com/bdfinst/agentic-dev-team/commit/ce2c38d7de74cbff65049fb818f2b39ef1ec69ba))
+* add CodeGraph/Repowise guidance to systematic-debugging skill ([3f59646](https://github.com/bdfinst/agentic-dev-team/commit/3f59646676476eb31c79efa68e0af0567c6e97e8))
+* add CodeGraph/Repowise guidance to test-audit-disable skill ([8db5ef7](https://github.com/bdfinst/agentic-dev-team/commit/8db5ef7d77e4cd624d1aa7eb8d9cb8ed98f61427))
+* add CodeGraph/Repowise guidance to test-design-advisor skill ([f3d3a2e](https://github.com/bdfinst/agentic-dev-team/commit/f3d3a2ed12e37187b9dc64e56ab097f250755cf2))
+* add CodeGraph/Repowise guidance to test-health skill ([f200cc3](https://github.com/bdfinst/agentic-dev-team/commit/f200cc307deda15811e1756b86a14771fce4c0be))
+* add CodeGraph/Repowise guidance to ubiquitous-language skill ([14168e9](https://github.com/bdfinst/agentic-dev-team/commit/14168e90da5fe64393b13eecde32e76f5c036ccd))
+* discover async/event/scheduled surfaces in gherkin-derive ([2b89255](https://github.com/bdfinst/agentic-dev-team/commit/2b892554c2b352b04d776934b2cd6c2095bb46b3))
+* don't treat existing tests as ground truth in gherkin-derive ([c738611](https://github.com/bdfinst/agentic-dev-team/commit/c73861197ce294b4f21228250915af6586ef75eb))
+* ground gherkin-derive failure scenarios in real code branches ([19a6ad3](https://github.com/bdfinst/agentic-dev-team/commit/19a6ad3f71a2387f1ad0528fa1066f6bdc466649))
+* measure effectiveness of gherkin-derive scenarios ([282bc0a](https://github.com/bdfinst/agentic-dev-team/commit/282bc0a6d815e54c92b8d6f956a8db0d2ba22787))
+* migrate agent frontmatter to native model: and effort: high ([e8fa54b](https://github.com/bdfinst/agentic-dev-team/commit/e8fa54b0a14302173ebe3d81f013438554e174b5))
+* prefer CodeGraph/Repowise for gherkin-derive discovery and grounding ([d23d524](https://github.com/bdfinst/agentic-dev-team/commit/d23d524b62f8c9fbe72efdb2e2a5bb65bdb27b0d))
+* wire agent-contract validator into agent-audit, drop agent-eval calibration mode ([6ef5f6e](https://github.com/bdfinst/agentic-dev-team/commit/6ef5f6e796ac38b9a189ccfc5491ac63108ee598))
+
+
+### Bug Fixes
+
+* repair dead links to the retired model-routing docs ([57fd823](https://github.com/bdfinst/agentic-dev-team/commit/57fd8237e2927b863755e62b84f57f1d6b9c552d))
+
+
+### Code Refactoring
+
+* convert plan-review personas from prompt templates to registered agents ([9096cfe](https://github.com/bdfinst/agentic-dev-team/commit/9096cfe53ceefee98c705f4be809dba555c120be))
+
+
+### Documentation
+
+* generate the MkDocs nav from the docs tree via awesome-pages ([70319b3](https://github.com/bdfinst/agentic-dev-team/commit/70319b3c176f9d9a67fa3e090aa15568f27ba3c9)), closes [#1280](https://github.com/bdfinst/agentic-dev-team/issues/1280)
+
+
+### Miscellaneous
+
+* move non-contract keys (cites, scope, enforcement) out of agent frontmatter into the body ([dc9ea06](https://github.com/bdfinst/agentic-dev-team/commit/dc9ea066a322c33988815e90b799821f8322d567)), closes [#1333](https://github.com/bdfinst/agentic-dev-team/issues/1333)
+* retire band-to-model resolver hook, ladder, and calibration infrastructure ([72c965a](https://github.com/bdfinst/agentic-dev-team/commit/72c965a0c2a6732512dd12113820f6c54cf34fe8))
+
 ## [10.15.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.15.0...dev-team-v10.15.1) (2026-07-21)
 
 
