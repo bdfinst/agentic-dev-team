@@ -58,8 +58,32 @@ def parse_tools(text):
     return [tok.strip() for tok in value.split(",") if tok.strip()]
 
 
+def _server_wildcard(name):
+    """Return the ``mcp__<server>__*`` and bare ``mcp__<server>`` forms that
+    satisfy a specific ``mcp__<server>__<tool>`` grant requirement, per
+    agent-contract.json's tools: value_format ("mcp__<server> or
+    mcp__<server>__*" grants every tool from that server).
+    """
+    parts = name.split("__")
+    if len(parts) < 3 or parts[0] != "mcp":
+        return ()
+    server = "__".join(parts[:2])
+    return (f"{server}__*", server)
+
+
+def _satisfied(name, present):
+    """True if ``name`` is granted exactly, or via a server-wide wildcard grant."""
+    if name in present:
+        return True
+    return any(form in present for form in _server_wildcard(name))
+
+
 def missing_tools(text, required):
     """Return the ``required`` tool names absent from the agent's ``tools:`` line.
+
+    A required ``mcp__<server>__<tool>`` name is considered present when the
+    agent instead grants ``mcp__<server>__*`` or bare ``mcp__<server>`` —
+    both equivalent, broader grants per the official contract.
 
     Returns the full ``required`` list when the agent has no parseable ``tools:``
     line at all.
@@ -68,7 +92,7 @@ def missing_tools(text, required):
     if tokens is None:
         return list(required)
     present = set(tokens)
-    return [name for name in required if name not in present]
+    return [name for name in required if not _satisfied(name, present)]
 
 
 def fix_tools_line(text, required):
@@ -87,7 +111,7 @@ def fix_tools_line(text, required):
         # No inline value (block form or empty) — unfixable, never mangle it.
         return text, []
     present = set(tokens)
-    added = [name for name in required if name not in present]
+    added = [name for name in required if not _satisfied(name, present)]
     if not added:
         return text, []
     new_tokens = tokens + added
