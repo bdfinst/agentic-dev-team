@@ -75,7 +75,7 @@ Utilization is estimated via proxy signals (tool call volume, message count, acc
 | All team agents (no skills) | ~3,590 |
 | All review agents | ~3,100 (sub-agents, not loaded in parent context) |
 | Knowledge files | ~3,450 (loaded on demand by agents) |
-| Subagent prompt templates | ~1,800 (loaded by orchestrator when dispatching) |
+| Plan review persona agents | ~1,800 (loaded by orchestrator when dispatching) |
 | Full load (all team agents + all skills) | ~18,100 |
 
 A typical task loads 1 agent + 1-2 skills: roughly 1,000-2,000 tokens of configuration overhead. Review agents and plan review personas run as isolated sub-agents — their context burden does not accumulate in the parent.
@@ -84,15 +84,15 @@ A typical task loads 1 agent + 1-2 skills: roughly 1,000-2,000 tokens of configu
 
 Before the human reviews a plan (Phase 2), a tier-scaled set of critical review personas runs **in parallel** as sub-agents. The reviewer set scales to a **plan tier** (`trivial`/`standard`/`complex`, derived from slice count, file count, per-step complexity, and whether the plan takes a stance on any high-reversal-cost decision axis) so a one-function plan does not pay a complex feature's review ceremony: `trivial` runs the Acceptance Test Critic alone, `standard` adds the Design & Architecture Critic (plus the UX Critic for user-facing plans and the Parallelization Critic when the slice count > 1), and `complex` runs all five. The Acceptance Test Critic always runs; the Parallelization Critic runs only when slice count > 1. Each persona challenges the plan from a distinct perspective:
 
-| Persona | Template | Effort | What It Challenges |
-| --- | --- | --- | --- |
-| Acceptance Test Critic | `prompts/plan-review-acceptance.md` | medium | Per-slice Gherkin quality (determinism, isolation, completeness), criteria verifiability, error-path coverage, TDD step traceability |
-| Design & Architecture Critic | `prompts/plan-review-design.md` | medium | Dependency direction, abstraction quality, structural risks, pattern consistency |
-| Parallelization Critic | `prompts/plan-review-parallelization.md` | medium | Same-wave independence: file-overlap collisions (plan_waves.py), disjoint-file behavioral coupling, residual cycles |
-| Strategic Critic | `prompts/plan-review-strategic.md` | medium | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
-| UX Critic | `prompts/plan-review-ux.md` | medium | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
+| Persona | Agent | What It Challenges |
+| --- | --- | --- |
+| Acceptance Test Critic | `agents/plan-review-acceptance.md` | Per-slice Gherkin quality (determinism, isolation, completeness), criteria verifiability, error-path coverage, TDD step traceability |
+| Design & Architecture Critic | `agents/plan-review-design.md` | Dependency direction, abstraction quality, structural risks, pattern consistency |
+| Parallelization Critic | `agents/plan-review-parallelization.md` | Same-wave independence: file-overlap collisions (plan_waves.py), disjoint-file behavioral coupling, residual cycles |
+| Strategic Critic | `agents/plan-review-strategic.md` | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
+| UX Critic | `agents/plan-review-ux.md` | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
 
-Because these personas are prompt templates with **no frontmatter**, `/plan` step 5b passes `model: sonnet` directly as the dispatch-time override on each — the harness resolves the alias natively, the same way it would for any registered agent's own `model:` field.
+Each persona is a registered agent, dispatched by `subagent_type` like any other agent — `/plan` step 5b no longer needs a dispatch-time `model:` override; the harness reads each persona's own `model:`/`effort:` frontmatter natively.
 
 Each reviewer returns a structured `approve` or `needs-revision` verdict. If any reviewer flags blockers, the plan is revised before the human sees it (max 2 iterations). Warnings from the dispatched reviewers are aggregated into a Plan Review Summary appended to the plan file, which also records the chosen tier and reviewer set so the scaling decision is auditable.
 
