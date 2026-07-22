@@ -65,6 +65,8 @@ Step 2 of the algorithm — *where can you observe the effects of the change?* �
 - Prefer a **pinch point** — a narrowing where one or two tests sense changes across many methods — to anchor characterization tests, then push verification down to narrow units once the area is malleable (don't let pinch-point tests calcify into mini-integration tests).
 - Ask of any candidate: *"If I break this method, will I sense it here?"*
 
+**Graph-assisted exploration.** Prefer `codegraph_explore` (CodeGraph) or Repowise `get_context`/`search_codebase` over raw `Grep` when identifying change points, tracing effects outward to interception/pinch points, and mapping the dependencies a seam needs to break — a pre-built call graph surfaces callers, callees, and blast radius faster and more completely than text search. Fall back to `Read`/`Grep`/`Glob` when neither tool is available in the target repo; they are simply absent, not an error.
+
 ### Dependency Breaking Techniques
 
 The everyday shortlist below covers most cases. The **full 24-technique catalog** (globals/singletons, non-OO seams, hard parameters, monster methods, with seam type and risk for each) lives in [`knowledge/dependency-breaking-techniques.md`](../../knowledge/dependency-breaking-techniques.md) — read it when a break here doesn't present a seam.
