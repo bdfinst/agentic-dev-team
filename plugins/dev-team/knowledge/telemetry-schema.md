@@ -212,8 +212,9 @@ counts and outcomes only, never code or file content.
 
 ## `verify-log.jsonl`
 
-Evidence that `/verify` actually ran (or was legitimately skipped) before a
-`/build` slice with a runtime surface was marked complete. Schema modeled on
+Evidence that the project's own test/verification tooling actually exercised
+the change end-to-end (or was legitimately skipped) before a `/build` slice
+with a runtime surface was marked complete. Schema modeled on
 `review-value.jsonl`.
 
 | Field | Type | Values / source |

@@ -1309,7 +1309,7 @@
       "anchor": "review-valuejsonl"
     },
     "`verify-log.jsonl`": {
-      "summary": "Evidence that `/verify` actually ran (or was legitimately skipped) before a",
+      "summary": "Evidence that the project's own test/verification tooling actually exercised",
       "anchor": "verify-logjsonl"
     },
     "`override-audit.jsonl`": {
