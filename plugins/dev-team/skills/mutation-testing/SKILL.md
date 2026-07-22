@@ -203,6 +203,8 @@ Assert.AreEqual("expected-value", response.Data.FieldName);
 4. **Classify** — missing assertion, missing test, boundary gap, or equivalent.
 5. **Write the fix test** with RED-GREEN discipline: must fail against the mutant and pass against the original.
 
+**Graph-assisted triage.** For steps 1 and 3, prefer `codegraph_explore` (CodeGraph) or Repowise `get_context`/`search_codebase` over raw `Grep` when the target repo has an index — they surface a mutated line's callers and its covering tests directly, which is faster and more complete than grepping for the symbol name. Fall back to `Read`/`Grep`/`Glob` when neither tool is available; the tools are simply absent (no error) on repos without an index.
+
 ### Weak vs strong test patterns
 
 Most survivors come from tests that execute code without meaningfully asserting on behavior. Patterns are language-agnostic — JavaScript is shown for illustration; translate the idiom into your language's test framework.
