@@ -53,6 +53,13 @@ src/
 ### 1. Identify Boundaries
 - Enumerate all external dependencies (databases, APIs, message brokers, file systems)
 - Identify each as an inbound or outbound interaction
+- **Graph-assisted discovery.** If the target repo has `.codegraph/` (CodeGraph
+  MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact
+  lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` —
+  verified context and semantic search), prefer them over raw `Grep` for
+  locating adapters, port implementations, and cross-layer imports. Never
+  assume either is present — fall back to `Read`/`Grep`/`Glob` when absent;
+  the tools are simply unavailable (no error) on repos without an index.
 
 ### 2. Define Ports
 - Create an inbound port interface for each use case the application exposes
