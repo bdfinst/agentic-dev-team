@@ -101,12 +101,13 @@ Every agent file follows this structure:
 
 The `## Skills` section is the bridge between agents and skills. The agent defines *when and why* to invoke a skill; the skill defines *how* to execute it.
 
-## Non-standard frontmatter keys
+## Non-standard body declarations
 
-Two frontmatter keys appear alongside the standard `name`/`description`/`tools`/`effort`/`model` fields and are easy to mistake for schema drift when auditing agent files. Both are intentional internal tooling metadata:
+Three `Key: value` lines appear in some agents' **bodies**, not their frontmatter — they are intentional internal tooling metadata, deliberately kept out of frontmatter because none of them are part of the official Claude Code sub-agent contract (`plugins/marketplace-dev/knowledge/agent-contract.json`); frontmatter is reserved for that contract (issue #1333).
 
-- **`cites:`** — a list of canonical skill/knowledge-file sources an agent's normative rules (MUST/SHOULD/SHALL thresholds) derive from, e.g. `cites: [owasp-detection, accepted-risks-schema]`. `scripts/citation_lint.py` reads this list and flags a warning when a stated numeric threshold doesn't appear in any cited source — catching silent drift when a canonical file changes but a reviewer agent's inline rule doesn't. See the script's module docstring for the full contract. Used by 22 agents today; see `tests/repo/test_citation_lint_corpus.py` for the regression guard over the real corpus.
-- **`enforcement: script`** — marks an agent whose behavior is deterministically implemented by a script rather than driven by free-form LLM reasoning from the persona prose alone. Agents carrying this key also carry a `> **Implemented by:** scripts/<name>.py` blockquote near the top of the file pointing at that implementation (e.g. `orchestrator.md` → `scripts/orchestrator.py`, `codebase-recon.md` → `scripts/codebase_recon.py`). Used by 5 agents today (`orchestrator`, `codebase-recon`, `claude-setup-review`, `progress-guardian`, `token-efficiency-review`).
+- **`Cites: [...]`** — a list of canonical skill/knowledge-file sources an agent's normative rules (MUST/SHOULD/SHALL thresholds) derive from, e.g. `Cites: [owasp-detection, accepted-risks-schema]`. `scripts/citation_lint.py` reads this list and flags a warning when a stated numeric threshold doesn't appear in any cited source — catching silent drift when a canonical file changes but a reviewer agent's inline rule doesn't. See the script's module docstring for the full contract. See `tests/repo/test_citation_lint_corpus.py` for the regression guard over the real corpus.
+- **`Scope: always` / `Scope:` (glob list)** — self-declares which files an agent is eligible to review; read by `/code-review`'s dispatch step (`skills/code-review/SKILL.md`) and validated by `scripts/check_agent_scope.py`.
+- **`Enforcement: script`** — marks an agent whose behavior is deterministically implemented by a script rather than driven by free-form LLM reasoning from the persona prose alone. Agents carrying this declaration also carry a `> **Implemented by:** scripts/<name>.py` blockquote near the top of the file pointing at that implementation (e.g. `orchestrator.md` → `scripts/orchestrator.py`, `codebase-recon.md` → `scripts/codebase_recon.py`).
 
 ## Add a Team Agent
 

@@ -5,11 +5,12 @@ description: Resource leaks, N+1 queries, unbounded growth, timeouts, algorithmi
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
 effort: high
-cites: [adversarial-review-protocol]
-scope: always
 ---
 
 # Performance Review
+
+Scope: always
+Cites: [adversarial-review-protocol]
 
 Output JSON:
 

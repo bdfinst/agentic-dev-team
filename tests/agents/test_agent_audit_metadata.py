@@ -17,8 +17,8 @@ def test_claude_setup_review_has_context_needs_project_structure() -> None:
 def test_orchestrator_declares_enforcement_script_and_implemented_by() -> None:
     # The orchestrator was converted to a script-enforced prose spec (PR #462):
     # it is no longer a persona-driven team agent, so instead of a "You are"
-    # persona it declares `enforcement: script` and points at its
-    # implementation.
+    # persona it declares a body-level `Enforcement: script` (not
+    # frontmatter — issue #1333) and points at its implementation.
     text = (AGENTS / "orchestrator.md").read_text(encoding="utf-8")
-    assert re.search(r"^enforcement:\s*script", text, re.MULTILINE)
+    assert re.search(r"^Enforcement:\s*script", text, re.MULTILINE)
     assert re.search(r"^> \*\*Implemented by:\*\*", text, re.MULTILINE)

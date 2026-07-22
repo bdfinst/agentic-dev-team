@@ -1,66 +1,64 @@
-"""Tests for scripts/check_agent_scope.py."""
+"""Tests for scripts/check_agent_scope.py.
+
+``Scope:`` is a body-level declaration, not frontmatter (issue #1333).
+"""
 
 import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 # Make the scripts directory importable
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from check_agent_scope import main, parse_frontmatter  # noqa: E402
+from check_agent_scope import declares_scope, has_frontmatter, main, strip_frontmatter  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# parse_frontmatter unit tests
+# declares_scope / strip_frontmatter unit tests
 # ---------------------------------------------------------------------------
 
-def test_parse_frontmatter_scalar():
+def test_declares_scope_scalar():
     text = textwrap.dedent("""\
         ---
         name: my-agent
-        scope: always
-        effort: medium
         ---
         # Body
+        Scope: always
     """)
-    fm = parse_frontmatter(text)
-    assert fm["name"] == "my-agent"
-    assert fm["scope"] == "always"
-    assert fm["effort"] == "medium"
+    body = strip_frontmatter(text)
+    assert declares_scope(body)
 
 
-def test_parse_frontmatter_list():
+def test_declares_scope_list():
     text = textwrap.dedent("""\
         ---
         name: svelte-review
-        scope:
-          - **/*.svelte
-          - **/*.svelte.ts
         ---
         # Body
+        Scope:
+        - **/*.svelte
+        - **/*.svelte.ts
     """)
-    fm = parse_frontmatter(text)
-    assert fm["scope"] == ["**/*.svelte", "**/*.svelte.ts"]
+    body = strip_frontmatter(text)
+    assert declares_scope(body)
 
 
-def test_parse_frontmatter_no_frontmatter():
+def test_no_frontmatter_is_detected():
     text = "# Just a plain file\nno frontmatter here."
-    assert parse_frontmatter(text) == {}
+    assert not has_frontmatter(text)
 
 
-def test_parse_frontmatter_missing_scope():
+def test_declares_scope_false_when_missing():
     text = textwrap.dedent("""\
         ---
         name: my-agent
-        effort: low
         ---
         # Body
+        No scope line here.
     """)
-    fm = parse_frontmatter(text)
-    assert "scope" not in fm
+    body = strip_frontmatter(text)
+    assert not declares_scope(body)
 
 
 # ---------------------------------------------------------------------------
@@ -79,21 +77,21 @@ def test_main_all_agents_have_scope(tmp_path, capsys):
         name: doc-review
         description: Docs
         effort: medium
-        scope: always
         ---
         # Doc Review
+        Scope: always
     """))
     _write_agent(agents_dir, "svelte-review", textwrap.dedent("""\
         ---
         name: svelte-review
         description: Svelte
         effort: low
-        scope:
-          - **/*.svelte
         ---
         # Svelte Review
+        Scope:
+        - **/*.svelte
     """))
-    rc = main.__wrapped__(agents_dir) if hasattr(main, "__wrapped__") else _call_main(agents_dir)
+    rc = _call_main(agents_dir)
     assert rc == 0
 
 
@@ -118,7 +116,7 @@ def test_main_non_review_agent_skipped(tmp_path, capsys):
     """Non-review agents listed in NON_REVIEW_AGENTS should not cause failure."""
     agents_dir = tmp_path / "agents"
     agents_dir.mkdir()
-    # orchestrator has no scope: field — should be skipped
+    # orchestrator has no Scope: declaration — should be skipped
     _write_agent(agents_dir, "orchestrator", textwrap.dedent("""\
         ---
         name: orchestrator

@@ -18,12 +18,13 @@ even when it carries no persona marker, and a *new* team agent can't silently
 escape the mapping:
 
 - (a) every agent named in ``TIER_CONFIG`` — deterministic coverage of the known
-  targets (``codebase-recon`` is ``enforcement: script``; ``mutation-kill`` carries
+  targets (``codebase-recon`` is ``Enforcement: script``; ``mutation-kill`` carries
   neither persona marker — branch (b) alone would miss both).
 - (b) the structural sweep — team agents detected by a ``## Behavioral Guidelines``
-  section *or* an ``enforcement: script`` frontmatter line, minus ``*-review.md``,
-  minus the documented ``EXCLUSIONS``. A swept agent in neither ``TIER_CONFIG`` nor
-  ``EXCLUSIONS`` is *unclassified* and fails — the self-extension net.
+  section *or* an ``Enforcement: script`` body line (not frontmatter — issue
+  #1333), minus ``*-review.md``, minus the documented ``EXCLUSIONS``. A swept
+  agent in neither ``TIER_CONFIG`` nor ``EXCLUSIONS`` is *unclassified* and
+  fails — the self-extension net.
 
 A granted MCP tool whose server is absent is inert at runtime; agents fall back to
 Read/Grep/Glob.
@@ -85,7 +86,7 @@ EXCLUSIONS = {
 }
 
 _BEHAVIORAL_RE = re.compile(r"^##\s+Behavioral Guidelines\s*$", re.MULTILINE)
-_ENFORCEMENT_RE = re.compile(r"^enforcement:\s*script\s*$", re.MULTILINE)
+_ENFORCEMENT_RE = re.compile(r"^Enforcement:\s*script\s*$", re.MULTILINE)
 
 
 def _agents_dir_default() -> Path:
@@ -96,7 +97,8 @@ def is_team_agent(text: str) -> bool:
     """True if the file is a team agent per agent-audit §2c's markers.
 
     A team agent carries a ``## Behavioral Guidelines`` section OR declares
-    ``enforcement: script`` (a script-enforced prose spec — still a team agent for
+    ``Enforcement: script`` (a body-level declaration, not frontmatter — issue
+    #1333 — marking a script-enforced prose spec: still a team agent for
     coverage purposes, just persona-exempt).
     """
     return bool(_BEHAVIORAL_RE.search(text) or _ENFORCEMENT_RE.search(text))

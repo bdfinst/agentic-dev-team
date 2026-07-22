@@ -5,11 +5,26 @@ description: xUnit test smells, test double selection, and test-pyramid layer pl
 tools: Read, Grep, Glob, Skill, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: sonnet
 effort: high
-cites: [test-smells, test-automation-principles, test-doubles, value-patterns, test-pyramid, fixture-construction, test-organization, test-refactoring, testability-patterns, result-verification, database-test-patterns, cd-test-architecture, microservice-testing, adversarial-review-protocol]
-scope: always
 ---
 
 # Test Smell Review
+
+Scope: always
+Cites:
+- test-smells
+- test-automation-principles
+- test-doubles
+- value-patterns
+- test-pyramid
+- fixture-construction
+- test-organization
+- test-refactoring
+- testability-patterns
+- result-verification
+- database-test-patterns
+- cd-test-architecture
+- microservice-testing
+- adversarial-review-protocol
 
 Output JSON:
 

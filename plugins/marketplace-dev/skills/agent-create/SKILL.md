@@ -240,20 +240,23 @@ corresponding flag in Step 1 — there is no forced default for any of them.
 Do not include `hooks`, `mcpServers`, or `permissionMode` unless the user
 confirmed their inclusion in Step 8.
 
-#### `cites:` (citation drift defense)
+#### `Cites:` (citation drift defense)
 
 When a review agent inlines normative **numeric thresholds** (e.g. "functions
 MUST be under 50 lines", "coverage SHOULD reach 80%") that are owned by a
-canonical skill or knowledge file, declare those sources with a `cites:` list so
-`/plugin-audit`'s citation lint can detect drift between the agent and its source:
+canonical skill or knowledge file, declare those sources with a body-level
+`Cites:` list — **not frontmatter**: `cites` is not part of the official
+Claude Code sub-agent contract (`agent-contract.json`), so it lives in the
+generated body, near the top, alongside `Context needs:`:
 
-```yaml
-cites: [complexity, object-calisthenics]   # skill names or knowledge file stems
+```markdown
+Cites: [complexity, object-calisthenics]   # skill names or knowledge file stems
 ```
 
 Each entry resolves to `$PLUGIN/skills/<name>/SKILL.md` or `$PLUGIN/knowledge/<name>.md`.
-The lint flags any threshold the agent states on an RFC-2119 line that is absent
-from every cited source. The lint is advisory (Phase 1, non-blocking) either way.
+The citation lint flags any threshold the agent states on an RFC-2119 line
+that is absent from every cited source. The lint is advisory (Phase 1,
+non-blocking) either way.
 
 **Pre-write check.** After Step 10 generates the body, before Step 11 writes
 the file:
@@ -261,19 +264,19 @@ the file:
 1. Scan the generated body for **threshold-bearing RFC-2119 lines** — any
    line carrying `MUST|SHOULD|SHALL|REQUIRED|NEVER|ALWAYS` AND a numeric
    token (`\d+(\.\d+)?%?`), outside code fences and blockquotes.
-2. If any are found AND no `cites:` field was set, emit exactly:
+2. If any are found AND no `Cites:` line was set, emit exactly:
 
    ```text
    ⚠ Agent body states N numeric threshold(s) on RFC-2119 lines but no
-     cites: was declared. Eval drift defense will be blind on this agent.
+     Cites: was declared. Eval drift defense will be blind on this agent.
 
-     (a) add cites:  (b) proceed without
+     (a) add Cites:  (b) proceed without
    ```
 
 3. On `(a)`: prompt for a comma-separated list, validate each entry resolves
    to a real `$PLUGIN/skills/<name>/SKILL.md` or `$PLUGIN/knowledge/<name>.md`,
-   insert `cites: [<list>]` into the frontmatter, and continue to Step 11.
-4. On `(b)`: continue to Step 11 with no `cites:` — the lint will flag the
+   insert a `Cites: [<list>]` line into the body, and continue to Step 11.
+4. On `(b)`: continue to Step 11 with no `Cites:` — the lint will flag the
    agent as `advisory` going forward, which is the correct deferred state.
 
 Omit the check entirely when the body states no thresholds; nothing for the

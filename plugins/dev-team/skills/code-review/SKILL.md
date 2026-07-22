@@ -186,13 +186,13 @@ If `--background`: run only `doc-review`, `arch-review`, `naming-review`, `struc
 
 Otherwise read the roster from the **Review Agents** section of `knowledge/agent-registry.md` — each row names an agent and its `agents/<name>.md` file. **Never `Read` the bare `agents/` directory** (it throws `EISDIR`); if you must confirm files on disk, list them with `Glob("agents/*.md")`, never a directory `Read` (see `${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`). All are enabled by default.
 
-**Agent eligibility is self-declared via `scope:` frontmatter.** For each agent in the roster, read its `agents/<name>.md` frontmatter and apply this rule:
+**Agent eligibility is self-declared via a `Scope:` body declaration.** `Scope:` is not part of the official sub-agent frontmatter contract (`agent-contract.json`), so it lives in the agent's body, not its frontmatter. For each agent in the roster, read its `agents/<name>.md` body and apply this rule:
 
-- `scope: always` → agent is eligible regardless of tech stack or file types in scope.
-- `scope:` (list of glob patterns) → agent is eligible only when at least one target file matches at least one of the declared globs (e.g. `**/*.svelte` matches any `.svelte` file). Skip the agent entirely if no target file matches.
-- Agent has no `scope:` field → treat as `scope: always` and emit a warning that the agent is missing its `scope:` declaration.
+- `Scope: always` → agent is eligible regardless of tech stack or file types in scope.
+- `Scope:` (list of glob patterns) → agent is eligible only when at least one target file matches at least one of the declared globs (e.g. `**/*.svelte` matches any `.svelte` file). Skip the agent entirely if no target file matches.
+- Agent has no `Scope:` declaration → treat as `Scope: always` and emit a warning that the agent is missing its `Scope:` declaration.
 
-This replaces any hardcoded per-agent dispatch rules. Adding or changing a review agent's trigger scope requires only editing that agent's own frontmatter — zero edits to this skill.
+This replaces any hardcoded per-agent dispatch rules. Adding or changing a review agent's trigger scope requires only editing that agent's own body — zero edits to this skill.
 
 **Framework-specific reactivity review** — dispatch based on the project's dependency manifest (`package.json` etc.):
 - React (`react` / `react-dom` in deps): include `react-reactivity-review` scoped to `.jsx`/`.tsx` and React-importing `.js`/`.ts` files
@@ -216,7 +216,7 @@ python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_shape.py" --files
 
 It prints `{"hasRuntimeSurface": <bool>, "skipLenses": [...]}`. When `skipLenses`
 is non-empty, exclude those agents from this run and note the skip in the report
-(they were gated by change shape, not by `scope:`). The gate is **fail-safe**: any
+(they were gated by change shape, not by `Scope:`). The gate is **fail-safe**: any
 file it cannot prove is doc/config (source, an unknown extension, or functional
 Claude-config markdown under `agents/`, `skills/`, `knowledge/`, `.claude/`, …)
 counts as runtime surface and keeps every lens. This never fires on a pure-docs

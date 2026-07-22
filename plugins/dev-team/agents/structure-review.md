@@ -5,11 +5,15 @@ description: SRP violations, DRY, coupling, nesting depth, file organization
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: sonnet
 effort: high
-cites: [design-smells, object-calisthenics, adversarial-review-protocol]
-scope: always
 ---
 
 # Structure Review
+
+Scope: always
+Cites:
+- design-smells
+- object-calisthenics
+- adversarial-review-protocol
 
 Output JSON:
 

@@ -227,18 +227,18 @@ change, so there is normally no operator decision to make.
 ## Cites: enforcement (drift prevention for the evals themselves)
 
 This skill grades reviewers; if a reviewer carries thresholds with no
-`cites:` declaration, `/agent-eval` is grading drift it cannot detect. Before
+`Cites:` declaration, `/agent-eval` is grading drift it cannot detect. Before
 dispatching a `--agent <name>` run:
 
 1. Probe `python3 scripts/citation_lint.py --plugin-root plugins/dev-team
    plugins/dev-team/agents/<name>.md`.
 2. If it emits an `advisory — states N normative token(s) ... declares no
-   cites:` warning, surface that **once** above the run report:
+   Cites:` warning, surface that **once** above the run report:
 
    ```text
    ⚠ agent <name> states N numeric threshold(s) on RFC-2119 lines but has no
-     cites: frontmatter. Eval results will not catch drift in those
-     thresholds. Add a cites: list naming the canonical sources.
+     Cites: declaration. Eval results will not catch drift in those
+     thresholds. Add a Cites: list naming the canonical sources.
    ```
 
 3. Continue with dispatch — the warning is advisory, never blocking (matches

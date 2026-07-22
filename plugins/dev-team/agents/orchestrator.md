@@ -4,12 +4,13 @@ description: Central dispatcher that routes tasks to specialized agents and coor
 tools: Read, Grep, Glob, Agent, Skill
 model: sonnet
 effort: high
-enforcement: script
 ---
 
 > **Implemented by:** scripts/orchestrator.py
 
 # Orchestrator Agent
+
+Enforcement: script
 
 Context needs: project-structure
 

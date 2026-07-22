@@ -5,11 +5,12 @@ description: Checks whether AI-authored test assertions and non-obvious producti
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: opus
 effort: high
-cites: [adversarial-review-protocol]
-scope: always
 ---
 
 # AI Provenance & Regeneration Safety Review
+
+Scope: always
+Cites: [adversarial-review-protocol]
 
 Context needs: full-file
 File scope: All changed files

@@ -5,14 +5,15 @@ description: Vue ref/reactive unwrapping pitfalls, watchEffect dependency tracki
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
 effort: high
-cites: [adversarial-review-protocol]
-scope:
-  - **/*.vue
-  - **/*.js
-  - **/*.ts
 ---
 
 # Vue Reactivity Review
+
+Scope:
+- **/*.vue
+- **/*.js
+- **/*.ts
+Cites: [adversarial-review-protocol]
 
 Scope: Vue component and composable files (`.vue`, and `.js`/`.ts` files that
 import from `vue`). Skip this agent entirely if the project has no `vue`
