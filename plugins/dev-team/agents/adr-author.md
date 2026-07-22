@@ -5,6 +5,9 @@ tools: Read, Write, Glob, Grep, Bash, Skill, mcp__codegraph__*, mcp__plugin_repo
 model: sonnet
 effort: high
 color: yellow
+memory: project
+skills:
+  - adr-tools
 ---
 
 # ADR Author Agent

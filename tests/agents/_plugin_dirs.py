@@ -53,3 +53,24 @@ def frontmatter_field(fm: str, field: str) -> str:
     value = match.group(1)
     value = re.sub(r"\s*#.*$", "", value)
     return value.strip().strip("\"'").strip()
+
+
+def read_frontmatter_and_body(agent_file: Path) -> "tuple[str, str]":
+    """Read an agent file once and return (frontmatter_block, body) -- a
+    single-read counterpart to calling frontmatter_block() and a separate
+    body-read on the same file (each does its own read_text(), an N+1 for
+    a check that needs both)."""
+    text = agent_file.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    if not lines or lines[0] != "---":
+        return "", text
+    fm_lines = []
+    body_start = None
+    for i, line in enumerate(lines[1:], start=1):
+        if line == "---":
+            body_start = i + 1
+            break
+        fm_lines.append(line)
+    if body_start is None:
+        return "", text
+    return "\n".join(fm_lines), "\n".join(lines[body_start:])

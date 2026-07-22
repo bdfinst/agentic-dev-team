@@ -5,6 +5,17 @@ tools: Read, Grep, Glob, Edit, Write, Bash, Skill, mcp__codegraph__*, mcp__plugi
 model: sonnet
 effort: high
 color: yellow
+skills:
+  - quality-gate-pipeline
+  - test-driven-development
+  - systematic-debugging
+  - hexagonal-architecture
+  - domain-driven-design
+  - api-design
+  - legacy-code
+  - mutation-testing
+  - code-review
+memory: project
 ---
 
 # Software Engineer Agent

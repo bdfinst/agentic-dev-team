@@ -5,6 +5,23 @@ tools: Read, Grep, Glob, Edit, Write, Bash, Bash(npx playwright *), Skill, mcp__
 model: sonnet
 effort: high
 color: yellow
+skills:
+  - test-design-advisor
+  - legacy-code
+  - test-driven-development
+  - test-design
+  - mutation-testing
+  - code-review
+  - test-health
+  - cd-test-architecture
+  - browser-testing
+  - exploratory-testing
+  - quality-gate-pipeline
+  - systematic-debugging
+  - governance-compliance
+  - specs
+  - agent-eval
+memory: project
 ---
 
 # QA / SDET Agent

@@ -86,7 +86,7 @@ way, against that field's enum in `agent-contract.json`. **`--color` is
 validated against only the 4 mechanically-valid colors**
 (`purple|green|yellow|cyan`, ADR 0027) — not the contract's full 8-color
 enum — because Step 5 below suggests a value the fleet's color test gate
-(`tests/agents/test_agent_color_frontmatter.py`) checks by exact equality
+(`tests/agents/test_agent_fleet_conventions.py`) checks by exact equality
 with no escape valve; a `--color` value from the other 4 contract colors
 (`red|blue|orange|pink`) would pass this validation and then fail that gate.
 `--max-turns` must be a positive integer; `--skills` entries are not
@@ -143,7 +143,7 @@ as a warning (not an error — custom tools are allowed).
 
 ---
 
-## Step 5 — Suggest and Confirm Model/Effort/Color; Apply the Tools Default
+## Step 5 — Suggest and Confirm Model/Effort/Color/Skills/Memory; Apply the Tools Default
 
 `model`, `effort`, and `color` are never silently defaulted — always
 suggested, then confirmed with the user:
@@ -184,9 +184,34 @@ explicit flag is already a decision, not something to re-confirm.
 not specified) — no confirmation needed, it isn't a cost/capability choice
 the way model/effort/color are.
 
-`memory`, `isolation`, `maxTurns`, `background`, and `skills` have no forced
-default and no suggestion — omit each from frontmatter entirely unless the
-user passed it.
+**Skills and memory** also follow the suggest-and-confirm shape, pinned to
+the same wording pattern color uses above (issue #1335):
+
+1. If the generated agent body includes a `## Skills` section, list every
+   skill name that section documents and emit:
+   `Suggested skills: [<name1>, <name2>, ...] — accept? (yes/change)`.
+   On `yes`: use the listed names. On `change`: ask which names to add/remove;
+   each must resolve to a real `$PLUGIN/skills/<name>/SKILL.md` (warn, don't
+   fail, per the existing `--skills` validation rule). If the body has no
+   `## Skills` section, skip this prompt — omit `skills:` entirely.
+2. If the resolved `tools:` includes `Edit` or `Write`, emit:
+   `Suggested memory: project — accept? (yes/change)`. On `yes`: use
+   `project`. On `change`: ask `Memory scope?` and validate against
+   `project` — the fleet's memory test gate
+   (`test_every_file_mutating_agent_declares_memory_project`) checks exact
+   equality against `project` for every `Edit`/`Write` agent and has no
+   escape valve, so `--memory` cannot be omitted or set to anything else
+   here; on an invalid answer, restate that `project` is the only accepted
+   value for a file-mutating agent and re-ask rather than aborting the whole
+   flow. If `tools:` has neither `Edit` nor `Write`, skip this prompt — omit
+   `memory:` entirely.
+
+If the user passed `--skills` and/or `--memory` explicitly in Step 1, skip
+the respective prompt — an explicit flag is already a decision.
+
+`isolation`, `maxTurns`, and `background` have no forced default and no
+suggestion — genuinely free-form operational flags with no mechanical
+default; omit each from frontmatter entirely unless the user passed it.
 
 ---
 

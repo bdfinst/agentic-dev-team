@@ -5,6 +5,23 @@ tools: Read, Grep, Glob, Agent, Skill
 model: sonnet
 effort: high
 color: purple
+skills:
+  - context-loading-protocol
+  - handoff
+  - feedback-learning
+  - human-oversight-protocol
+  - performance-metrics
+  - quality-gate-pipeline
+  - specs
+  - code-review
+  - review-agent
+  - agent-audit
+  - agent-eval
+  - apply-fixes
+  - review-summary
+  - semgrep-analyze
+  - design-doc
+  - branch-workflow
 ---
 
 > **Implemented by:** scripts/orchestrator.py

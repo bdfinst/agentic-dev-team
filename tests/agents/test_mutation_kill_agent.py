@@ -51,7 +51,9 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # line when the native model:/effort: contract replaced the retired
     # effort: <band> scheme. Bumped by 1 more (#1334): every agent's
     # frontmatter grew a `color:` line under the new fleet-wide convention.
-    assert len(text.splitlines()) < 502
+    # Bumped by 1 more (#1335): this agent (file-mutating) gained a
+    # `memory: project` line under the same fleet-wide convention.
+    assert len(text.splitlines()) < 503
 
 
 def test_defines_honest_score_formula(text: str) -> None:

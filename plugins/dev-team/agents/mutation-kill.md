@@ -5,6 +5,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash, Skill, mcp__codegraph__*, mcp__plugi
 model: opus
 effort: high
 color: yellow
+memory: project
 ---
 
 # Mutation Kill Agent

@@ -5,6 +5,9 @@ tools: Read, Grep, Glob, Bash, Skill, mcp__codegraph__*, mcp__plugin_repowise_re
 model: sonnet
 effort: high
 color: cyan
+skills:
+  - quality-gate-pipeline
+  - governance-compliance
 ---
 
 # Platform Engineer Agent

@@ -5,6 +5,9 @@ tools: Read, Grep, Glob, Edit, Write, Skill
 model: sonnet
 effort: high
 color: yellow
+memory: project
+skills:
+  - governance-compliance
 ---
 
 # Technical Writer Agent

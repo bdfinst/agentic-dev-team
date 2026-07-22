@@ -90,6 +90,10 @@
       "summary": "Every agent declares `color:` (display color in the task list/transcript),",
       "anchor": "color-convention"
     },
+    "Skills/Memory Convention": {
+      "summary": "Two more this-repo conventions on top of optional official fields (ADR 0028,",
+      "anchor": "skillsmemory-convention"
+    },
     "Skills Registry": {
       "summary": "Skills are reusable knowledge modules in `.claude/skills/` that agents reference.",
       "anchor": "skills-registry"

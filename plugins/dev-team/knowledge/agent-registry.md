@@ -73,9 +73,27 @@ before naming:
 4. Else → **cyan** (all others).
 
 Current fleet: 1 purple, 7 yellow, 32 green, 18 cyan (58 agents total, no
-ties). `tests/agents/test_agent_color_frontmatter.py` asserts every agent's
+ties). `tests/agents/test_agent_fleet_conventions.py` asserts every agent's
 declared `color:` matches the rule; `agent-create`/`agent-add` suggest the
 computed value the same way they already do `model:`/`effort:`.
+
+## Skills/Memory Convention
+
+Two more this-repo conventions on top of optional official fields (ADR 0028,
+same category as ADR 0026/0027):
+
+- **`skills:`** — any agent with a `## Skills` section in its body must
+  declare a matching, non-empty `skills:` preload list, each name traceable
+  to that section's own text. No `## Skills` section → omit `skills:`.
+- **`memory:`** — any agent with `Edit`/`Write` in `tools:` must declare
+  exactly `memory: project` (no other value, no omission). Neither tool →
+  omit `memory:`.
+
+Current fleet: 12/58 agents carry `skills:`, 7/58 carry `memory: project`.
+Same test file as color (`tests/agents/test_agent_fleet_conventions.py`)
+asserts both, via pure `classify_skills_declaration()` /
+`classify_memory_declaration()` functions; `agent-create`/`agent-add`
+suggest-and-confirm both the same way they already do `color:`.
 
 ## Skills Registry
 
