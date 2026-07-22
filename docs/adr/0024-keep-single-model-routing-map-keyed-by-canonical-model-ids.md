@@ -8,6 +8,8 @@ Accepted. The "uniform bare-canonical ID / no dated snapshot suffix" clause is s
 
 Relates to [8. Use effort bands instead of model names in agent frontmatter](0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md)
 
+Superceded by [26. Adopt native model:/effort: agent frontmatter, retire the band resolver](0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)
+
 ## Context
 
 [ADR 0008](0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter.md)

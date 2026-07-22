@@ -4,7 +4,7 @@ Date: 2026-07-18
 
 ## Status
 
-Accepted
+Superceded by [26. Adopt native model:/effort: agent frontmatter, retire the band resolver](0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)
 
 ## Context
 
