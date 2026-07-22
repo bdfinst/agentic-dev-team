@@ -122,6 +122,32 @@ def test_tokens_are_case_and_whitespace_insensitive() -> None:
     assert result["sections"] == ["js"]
 
 
+def test_node_synonym_alone_maps_to_js() -> None:
+    """Isolates the `node` synonym entry — a JS-only signal via `typescript`
+    doesn't exercise this specific key/value pair."""
+    assert mss.select_sections(["node"])["sections"] == ["js"]
+
+
+def test_javascript_synonym_alone_maps_to_js() -> None:
+    assert mss.select_sections(["javascript"])["sections"] == ["js"]
+
+
+def test_kotlin_synonym_alone_maps_to_java() -> None:
+    assert mss.select_sections(["kotlin"])["sections"] == ["java"]
+
+
+def test_ambiguous_result_echoes_normalized_stacks() -> None:
+    """The ambiguous branch's `stacks` key must echo the (normalized) input,
+    not just be present with any value."""
+    result = mss.select_sections([])
+    assert result["stacks"] == []
+
+
+def test_definite_result_echoes_normalized_stacks() -> None:
+    result = mss.select_sections([" TypeScript ", "Node"])
+    assert result["stacks"] == ["typescript", "node"]
+
+
 # ---------------------------------------------------------------------------
 # CLI — reads .claude/project-stack.json, prints one JSON object
 # ---------------------------------------------------------------------------
@@ -135,6 +161,12 @@ def _run_cli(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess
         cwd=str(cwd) if cwd is not None else None,
         check=False,
     )
+
+
+def _collapsed(text: str) -> str:
+    """Collapse whitespace runs so argparse's line-wrapped --help output can
+    still be matched against an unwrapped expected substring."""
+    return " ".join(text.split())
 
 
 def _write_stack(project_dir: Path, stacks) -> None:
@@ -192,6 +224,43 @@ def test_cli_stacks_flag_bypasses_file() -> None:
     r = _run_cli("--stacks", "csharp")
     out = json.loads(r.stdout)
     assert out["sections"] == ["csharp"]
+
+
+def test_cli_stacks_flag_splits_multiple_comma_separated_values() -> None:
+    r = _run_cli("--stacks", "csharp,typescript,java")
+    out = json.loads(r.stdout)
+    assert out["sections"] == ["js", "java", "csharp"]
+
+
+def test_cli_default_project_dir_is_cwd(tmp_path: Path) -> None:
+    """No positional arg -> the `project_dir` default ('.') resolves against
+    the current directory, same as passing '.' explicitly."""
+    _write_stack(tmp_path, ["typescript"])
+    r = _run_cli(cwd=tmp_path)
+    out = json.loads(r.stdout)
+    assert out["sections"] == ["js"]
+
+
+def test_cli_help_documents_project_dir_default() -> None:
+    """A mutmut string mutation wraps the value in `XX...XX` rather than
+    replacing it, so a plain substring check can't distinguish mutated help
+    text from real — the original text is still contained inside the
+    wrapper. Assert exact equality of the collapsed help text's argument
+    line instead."""
+    r = _run_cli("--help")
+    collapsed = _collapsed(r.stdout)
+    assert "Project directory (default: current directory)." in collapsed
+    assert "XX" not in collapsed
+
+
+def test_cli_help_documents_stacks_flag() -> None:
+    r = _run_cli("--help")
+    collapsed = _collapsed(r.stdout)
+    assert (
+        "Comma-separated stacks to use directly, bypassing the file (testing)."
+        in collapsed
+    )
+    assert "XX" not in collapsed
 
 
 # ---------------------------------------------------------------------------
