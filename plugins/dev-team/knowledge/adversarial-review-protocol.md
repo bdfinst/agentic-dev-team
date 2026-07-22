@@ -19,7 +19,7 @@ This pre-check runs before The Loop and before any agent-specific analysis.
 After the initial review pass, re-examine findings with the following questions. Address each challenge before delivering the report.
 
 1. **Completeness** — Did the reviewer examine every file in scope? List files NOT examined and state why.
-2. **Evidence** — Does every finding quote actual code? Flag any finding without a direct code citation.
+2. **Evidence** — Does every finding quote actual code? Flag any finding without a direct code citation. A citation quoting specific content, a line number, or a count must come from reading/grepping the **exact named file, during this pass** — not memory, and not a similarly-shaped file read earlier in the same batch (batch review of many like-shaped files — e.g. dozens of agent frontmatter blocks — is exactly where file identity gets conflated; re-open the file immediately before citing it, every time). For a claim comparing two named sources (e.g. "ADR says N, registry says M — inconsistent"), confirm both cover the same scope first — a difference explained by scope is not an inconsistency. Downgrade or withdraw any citation that fails either check.
 3. **Severity justification** — Is each error/high-severity rating backed by concrete impact (data loss, security breach, test suite failing silently, production breakage)? Downgrade if not.
 3a. **Falsifiability** — For every `error`-severity finding, state what evidence would disprove it (e.g. "would be disproven by a test showing the input is always sanitized before this call"). If no falsifying evidence can be articulated, downgrade the finding to `warning`. An unfalsifiable `error` is an opinion, not a finding.
 4. **Blind spots** — What categories of issues are ABSENT from the findings? Absence in async code with no concurrency findings, or complex business logic with no domain findings, is suspicious. State the absent category and why it isn't an issue (or add a finding).
@@ -65,6 +65,6 @@ Challenge: N round(s). Revisions: <count>. Blind spots examined: <list>. Confide
 
 Agents that emit a non-JSON report instead of a `summary` field — `data-flow-tracer` (trace report) and `session-analysis` (ranked suggestion list) — append the same `Challenge:` line to the report's closing summary sentence.
 
-- **High**: all files examined, every finding has a code citation, no suspicious absences
+- **High**: all files examined, every finding has a code citation freshly verified against the exact named file or source (not memory, not a different file from the same batch), no suspicious absences
 - **Medium**: 1-2 files not examined or 1 finding revised downward
 - **Low**: >2 files not examined, multiple revisions, or a finding was retracted
