@@ -96,6 +96,14 @@ Copy this checklist and track progress:
 For each prompt, sorted by priority (high first), then by
 confidence (high before medium):
 
+**Check blast radius before editing.** If the target repo has `.codegraph/`
+(CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — callers/impact
+lookups) and/or a Repowise MCP server (`get_context`/`search_codebase`), use
+them on the affected symbol/file before applying the fix, to see what else
+depends on it — cheaper and more reliable than inferring blast radius from a
+grep. Never assume either is present — fall back to `Read`/`Grep`/`Glob`
+alone when absent.
+
 **`confidence: high` — auto-apply:**
 
 1. Read the affected file(s)
