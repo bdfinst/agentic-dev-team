@@ -50,7 +50,7 @@ If the user chooses to continue without specs, proceed. Otherwise, stop and let 
 
 ### 2. Understand the task and cut the slices
 
-Read relevant code and context to understand what needs to change. Keep exploration focused — this is planning, not research. If the task is complex enough to need deep research, suggest `/design-doc` instead. If spec artifacts exist, use them as the primary source for goals, constraints, and acceptance criteria.
+Read relevant code and context to understand what needs to change. Keep exploration focused — this is planning, not research. If the task is complex enough to need deep research, suggest `/design-doc` instead. If spec artifacts exist, use them as the primary source for goals, constraints, and acceptance criteria. Prefer CodeGraph (`codegraph_explore`/`codegraph_impact`) or Repowise (`get_context`/`search_codebase`) over raw `Grep`/`Read` for this — cheaper blast-radius scoping when either is present; fall back to `Read`/`Grep`/`Glob` when not.
 
 Then **decompose the feature into vertical slices**. A slice is a vertically deliverable increment — independently testable and, ideally, independently shippable. Sequence slices so trunk stays releasable at every step: land incomplete behavior behind a feature toggle or an abstraction, and order any data change as expand-before-contract rather than a single breaking migration (see `knowledge/release-strategies.md` and `knowledge/database-change-management.md`). For each slice, **author the Gherkin scenario(s)** that define its observable behavior. This is where the behavioral contract is written; the spec only described the change and its goals.
 
