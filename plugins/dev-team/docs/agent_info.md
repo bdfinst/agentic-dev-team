@@ -59,7 +59,7 @@ To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-rev
 
 ## Plan Review Personas
 
-Plan review personas are subagent prompt templates that critically challenge implementation plans during Phase 2, before the human gate. Unlike review agents (which check code), these check the plan itself. See [Plan Review Personas in the architecture doc](agent-architecture.md#plan-review-personas) for the full persona table, model assignments, and revision loop.
+Plan review personas are registered agents (`agents/plan-review-*.md`) that critically challenge implementation plans during Phase 2, before the human gate. Unlike review agents (which check code), these check the plan itself. See [Plan Review Personas in the architecture doc](agent-architecture.md#plan-review-personas) for the full persona table and revision loop.
 
 ## Persona Template
 

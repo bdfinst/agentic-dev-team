@@ -10,6 +10,11 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Architect | `agents/architect.md` | 360 | System design, architecture |
 | Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis. |
 | Orchestrator | `agents/orchestrator.md` | 500 | Task routing, model selection, review coordination |
+| Plan Review Acceptance Critic | `agents/plan-review-acceptance.md` | ~880 | Adversarial plan review — acceptance criteria, Gherkin scenario, and TDD step traceability quality. Dispatched by `/plan` step 5b, never directly. |
+| Plan Review Design Critic | `agents/plan-review-design.md` | ~920 | Adversarial plan review — coupling, abstraction, structural risk, and pattern-adherence quality. Dispatched by `/plan` step 5b, never directly. |
+| Plan Review Parallelization Critic | `agents/plan-review-parallelization.md` | ~870 | Adversarial plan review — same-wave file-collision and behavioral-coupling verification. Dispatched by `/plan` step 5b, never directly. |
+| Plan Review Strategic Critic | `agents/plan-review-strategic.md` | ~1,050 | Adversarial plan review — problem-solution fit, scope, risk, opportunity cost. Dispatched by `/plan` step 5b, never directly. |
+| Plan Review UX Critic | `agents/plan-review-ux.md` | ~1,130 | Adversarial plan review — usability, accessibility, error experience; self-skips for non-UI plans. Dispatched by `/plan` step 5b, never directly. |
 | Platform Engineer | `agents/platform-engineer.md` | 320 | Pipeline, deployment, reliability |
 | Product Manager | `agents/product-manager.md` | 300 | Requirements, prioritization |
 | QA/SQA Engineer | `agents/qa-engineer.md` | 320 | Testing, quality assurance |
@@ -17,7 +22,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Software Engineer | `agents/software-engineer.md` | 320 | Code generation, implementation |
 | Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
 | UI/UX Designer | `agents/ui-ux-designer.md` | 300 | Interface design, UX |
-| **All team agents** | | **~4,510** | |
+| **All team agents** | | **~9,360** | |
 
 ## Review Agents
 
@@ -116,14 +121,11 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 
 Concrete prompt templates in `prompts/` that the orchestrator and `/code-review` use when dispatching subagents, making behavior reproducible.
 
+The five plan-review critics (Acceptance, Design, Parallelization, Strategic, UX) moved from here to registered agents in the **Team Agents** table above (issue #1329) — they carry their own `model:`/`effort:` frontmatter now and are dispatched by `subagent_type`, the same as any other agent.
+
 | Template | File | Used By |
 | ---------- | ------ | --------- |
 | Implementer | `prompts/implementer.md` | Orchestrator (Phase 3 implementation dispatch) |
-| Plan Review — Acceptance | `prompts/plan-review-acceptance.md` | Orchestrator (Phase 2 plan review persona) |
-| Plan Review — Design | `prompts/plan-review-design.md` | Orchestrator (Phase 2 plan review persona) |
-| Plan Review — Parallelization | `prompts/plan-review-parallelization.md` | Orchestrator (Phase 2 plan review persona) |
-| Plan Review — Strategic | `prompts/plan-review-strategic.md` | Orchestrator (Phase 2 plan review persona) |
-| Plan Review — UX | `prompts/plan-review-ux.md` | Orchestrator (Phase 2 plan review persona) |
 | Plan Reviewer | `prompts/plan-reviewer.md` | Orchestrator (Phase 2 automated pre-check) |
 | Quality Reviewer | `prompts/quality-reviewer.md` | Orchestrator (three-stage review gate 2) |
 | Spec Reviewer | `prompts/spec-reviewer.md` | Orchestrator (three-stage review gate 1) |

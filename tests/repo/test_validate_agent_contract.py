@@ -164,3 +164,46 @@ def test_no_findings_against_a_real_shipped_agent() -> None:
     data = json.loads(result.stdout)
     assert result.returncode == 0, data
     assert data["status"] == "pass", data
+
+
+def _every_shipped_agent() -> list[Path]:
+    """Every agents/*.md file across every plugin, not just dev-team's."""
+    agents = []
+    for plugin_dir in sorted((REPO_ROOT / "plugins").iterdir()):
+        agents_dir = plugin_dir / "agents"
+        if agents_dir.is_dir():
+            agents.extend(sorted(agents_dir.glob("*.md")))
+    return agents
+
+
+def test_every_shipped_agent_across_every_plugin_has_no_contract_errors() -> None:
+    """Repo-wide compliance gate: run the contract validator against every
+    agent file in every plugin (not just plugins/dev-team/), and fail if any
+    carries a hard `error` (missing required field, bad `name` pattern, an
+    invalid enum value). This is the automated equivalent of manually running
+    `/agent-audit` or `/plugin-audit` — it catches contract violations even
+    when nobody remembers to run either skill.
+
+    `warning`-severity findings (unknown frontmatter keys, plugin-ignored
+    fields) are informational only and not asserted away here — plugins may
+    carry non-contract keys (e.g. dev-team's `cites:`/`scope:`) by design;
+    `/agent-audit`/`/plugin-audit` surface those for a human to judge.
+    """
+    agents = _every_shipped_agent()
+    assert agents, "no plugins/*/agents/*.md files found — did the layout change?"
+
+    failures: list[str] = []
+    for agent in agents:
+        result = run_validator(str(agent))
+        data = json.loads(result.stdout)
+        errors = [i for i in data["issues"] if i["severity"] == "error"]
+        if errors:
+            rel = agent.relative_to(REPO_ROOT)
+            for issue in errors:
+                failures.append(f"{rel}: {issue['field']}: {issue['message']}")
+
+    assert not failures, (
+        "Agent frontmatter contract violation(s) — fix per "
+        "plugins/marketplace-dev/knowledge/agent-contract.json:\n  "
+        + "\n  ".join(failures)
+    )

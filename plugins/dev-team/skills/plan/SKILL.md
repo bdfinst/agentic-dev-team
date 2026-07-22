@@ -127,15 +127,18 @@ When in doubt, classify up (standard rather than trivial, complex rather than st
 
 #### 5b. Dispatch the selected reviewers
 
-The personas are subagent **prompt templates** (no frontmatter), dispatched directly via the Agent tool's own `model:` parameter — an alias the harness resolves natively (ADR 0026; no plugin-side resolution step). Pass `model: sonnet` on each persona dispatch; do not hard-code a different model without reason.
+Each persona is a registered agent — dispatch by `subagent_type` like any
+other agent. The harness reads each one's own `model:`/`effort:`
+frontmatter natively; there is no dispatch-time override to pass and no
+plugin-side resolution step.
 
-| Reviewer | Template | Model | Focus |
-| ---------- | ---------- | -------- | ------- |
-| Acceptance Test Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-acceptance.md` | `sonnet` | Per-slice Gherkin quality (determinism, isolation, implementation-independence), scenario gaps, error paths, criteria coverage, TDD traceability |
-| Design & Architecture Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-design.md` | `sonnet` | Coupling, abstractions, structural risks, pattern adherence |
-| UX Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-ux.md` | `sonnet` | User journey, error UX, cognitive load, accessibility |
-| Strategic Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-strategic.md` | `sonnet` | Problem fit, scope, slice boundaries, risk, opportunity cost |
-| Parallelization Critic | `${CLAUDE_PLUGIN_ROOT}/prompts/plan-review-parallelization.md` | `sonnet` | Same-wave independence: file-overlap collisions (from `scripts/plan_waves.py`), disjoint-file behavioral coupling, residual cycles/mis-layering |
+| Reviewer | Agent | Focus |
+| ---------- | ---------- | ------- |
+| Acceptance Test Critic | `plan-review-acceptance` | Per-slice Gherkin quality (determinism, isolation, implementation-independence), scenario gaps, error paths, criteria coverage, TDD traceability |
+| Design & Architecture Critic | `plan-review-design` | Coupling, abstractions, structural risks, pattern adherence |
+| UX Critic | `plan-review-ux` | User journey, error UX, cognitive load, accessibility |
+| Strategic Critic | `plan-review-strategic` | Problem fit, scope, slice boundaries, risk, opportunity cost |
+| Parallelization Critic | `plan-review-parallelization` | Same-wave independence: file-overlap collisions (from `scripts/plan_waves.py`), disjoint-file behavioral coupling, residual cycles/mis-layering |
 
 Pass each reviewer the full plan content. Also pass the Parallelization Critic the `scripts/plan_waves.py` JSON for this plan (its `collisions` array is the deterministic input). Each returns a structured verdict (`approve` or `needs-revision`) with issues. The Acceptance Test Critic is the gate for the scenarios authored in step 2 — it validates the per-slice Gherkin the same way `feature-file-validation` would, so no separate scenario-review pass is needed before the human gate. It is the one reviewer that always runs (every tier). A `needs-revision` from the Parallelization Critic triggers plan revision (re-wave the colliding slices) before the human sees the plan.
 

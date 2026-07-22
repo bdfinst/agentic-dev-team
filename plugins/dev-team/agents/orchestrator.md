@@ -235,20 +235,22 @@ Do **not** dispatch `security-engineer` on every task — its `effort: high` cos
 - **Agents**: Architect (primary), Product Manager (if requirements unclear), Orchestrator
 - **Input**: Research progress file from Phase 1 + approved design doc (if produced in Phase 1)
 - **Output**: An implementation plan with explicit file changes, test expectations, and acceptance criteria
-- **Automated plan review**: Before the human gate, dispatch **four plan review personas in parallel** as sub-agents. Each reviewer independently challenges the plan from a different critical perspective:
+- **Automated plan review**: Before the human gate, dispatch the plan review
+  personas in parallel as sub-agents — `plan-review-acceptance`,
+  `plan-review-design`, `plan-review-ux`, `plan-review-strategic`,
+  `plan-review-parallelization`. Each is a registered agent
+  (`agents/plan-review-<name>.md`); dispatch by `subagent_type` like any
+  other agent — the harness reads its `model:`/`effort:` frontmatter
+  natively, no dispatch-time override needed. The reviewer set scales to
+  plan tier and complexity; see the plan skill's
+  [Run plan review personas step](../skills/plan/SKILL.md#5-run-plan-review-personas)
+  for the tier classification (that table is the single source of truth —
+  do not re-duplicate the reviewer set here, it drifts).
 
-  | Reviewer | Template | Model | What it challenges |
-  |----------|----------|--------|--------------------|
-  | Acceptance Test Critic | `prompts/plan-review-acceptance.md` | `sonnet` | Criteria verifiability, scenario completeness, error paths, TDD traceability |
-  | Design & Architecture Critic | `prompts/plan-review-design.md` | `sonnet` | Coupling, abstraction quality, structural risks, pattern consistency |
-  | UX Critic | `prompts/plan-review-ux.md` | `sonnet` | User journey, error experience, cognitive load, accessibility |
-  | Strategic Critic | `prompts/plan-review-strategic.md` | `sonnet` | Problem-solution fit, scope, risk, opportunity cost |
-
-  These personas are prompt templates with no frontmatter, dispatched directly via the Agent tool's own `model:` parameter — pass `model: sonnet` on each, exactly as the plan skill's [Run plan review personas step](../skills/plan/SKILL.md#5-run-plan-review-personas) does. The harness resolves the alias natively; there is no plugin-side resolution step.
-
-  Each returns a `verdict` of `approve` or `needs-revision`. If **any** reviewer returns `needs-revision`, address the blocker issues before presenting to the human. Aggregate all findings (including warnings from approving reviewers) into the plan review summary.
-
-  The UX Critic self-skips for plans with no user-facing changes. The remaining three always run.
+  Each returns a `verdict` of `approve` or `needs-revision`. If **any**
+  dispatched reviewer returns `needs-revision`, address the blocker issues
+  before presenting to the human. Aggregate all findings (including
+  warnings from approving reviewers) into the plan review summary.
 - **Human gate**: Human reviews the plan and the aggregated review findings. This is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. If the plan is wrong, fix it here, not in code.
 - **Context**: Compact after this phase — write progress file, start fresh context for Phase 3
 
