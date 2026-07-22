@@ -121,12 +121,11 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 
 Concrete prompt templates in `prompts/` that the orchestrator and `/code-review` use when dispatching subagents, making behavior reproducible.
 
-The five plan-review critics (Acceptance, Design, Parallelization, Strategic, UX) moved from here to registered agents in the **Team Agents** table above (issue #1329) — they carry their own `model:`/`effort:` frontmatter now and are dispatched by `subagent_type`, the same as any other agent.
+The five plan-review critics (Acceptance, Design, Parallelization, Strategic, UX) moved from here to registered agents in the **Team Agents** table above (issue #1329) — they carry their own `model:`/`effort:` frontmatter now and are dispatched by `subagent_type`, the same as any other agent. The Plan Reviewer coordinator persona was separately removed as dead code with no live dispatcher (issue #1331).
 
 | Template | File | Used By |
 | ---------- | ------ | --------- |
 | Implementer | `prompts/implementer.md` | Orchestrator (Phase 3 implementation dispatch) |
-| Plan Reviewer | `prompts/plan-reviewer.md` | Orchestrator (Phase 2 automated pre-check) |
 | Quality Reviewer | `prompts/quality-reviewer.md` | Orchestrator (three-stage review gate 2) |
 | Spec Reviewer | `prompts/spec-reviewer.md` | Orchestrator (three-stage review gate 1) |
 
