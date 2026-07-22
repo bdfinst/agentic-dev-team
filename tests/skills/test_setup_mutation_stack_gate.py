@@ -4,11 +4,11 @@ Two layers of contract:
 
 1. Behavioral — the `mutation_stack_sections.py` helper maps a repo's
    `stacks` array to the sections /setup runs. A JS-only signal selects only
-   `js` (never a `dotnet` probe); a pure-Python/unrecognized signal selects
-   nothing and is NOT ambiguous (installs/probes nothing); a C#/.NET signal
-   selects `csharp`; polyglot selects each matching section; and only an
-   empty/missing signal is `ambiguous` (the sole path to the interactive
-   fallback).
+   `js` (never a `dotnet` probe); a Python signal selects `python` (mutmut);
+   an unrecognized signal (e.g. Ruby) selects nothing and is NOT ambiguous
+   (installs/probes nothing); a C#/.NET signal selects `csharp`; polyglot
+   selects each matching section; and only an empty/missing signal is
+   `ambiguous` (the sole path to the interactive fallback).
 
 2. Doc-shape — the SKILL.md prose calls the helper, each language subsection
    re-asserts its own gate as its literal first step, the interactive
@@ -57,18 +57,19 @@ def test_js_only_signal_runs_only_js_section() -> None:
     assert "java" not in result["sections"]
 
 
-def test_python_only_signal_installs_and_probes_nothing() -> None:
-    """A definite-but-unsupported stack (pure Python) selects nothing, is not
-    ambiguous, and carries the one-line note — so no fallback, no probes."""
+def test_python_signal_runs_mutmut_section() -> None:
+    """A Python stack selects the `python` (mutmut) section and carries no
+    unsupported-stack note."""
     result = mss.select_sections(["python"])
-    assert result["sections"] == []
+    assert result["sections"] == ["python"]
     assert result["ambiguous"] is False
-    assert result["note"] == "no mutation tooling for detected stack (python)"
+    assert result["note"] is None
 
 
 def test_unrecognized_signal_installs_nothing_not_ambiguous() -> None:
-    """An unrecognized-but-present stack behaves like Python: nothing, no
-    fallback (it is a definite signal, just unsupported here)."""
+    """An unrecognized-but-present stack (e.g. Ruby, Elixir) selects nothing,
+    is not ambiguous, and carries the one-line note — no fallback, no probes
+    (it is a definite signal, just unsupported here)."""
     result = mss.select_sections(["ruby", "elixir"])
     assert result["sections"] == []
     assert result["ambiguous"] is False
@@ -86,6 +87,15 @@ def test_polyglot_signal_runs_each_matching_section() -> None:
     """Polyglot repo runs every matching section, in canonical order."""
     result = mss.select_sections(["csharp", "typescript", "java"])
     assert result["sections"] == ["js", "java", "csharp"]
+    assert result["ambiguous"] is False
+    assert result["note"] is None
+
+
+def test_polyglot_signal_including_python_runs_all_sections() -> None:
+    """A polyglot repo with Python alongside another supported stack runs
+    both sections, in canonical order (`python` last)."""
+    result = mss.select_sections(["python", "typescript"])
+    assert result["sections"] == ["js", "python"]
     assert result["ambiguous"] is False
     assert result["note"] is None
 
@@ -151,13 +161,22 @@ def test_cli_missing_stack_file_is_ambiguous(tmp_path: Path) -> None:
     assert out["ambiguous"] is True
 
 
-def test_cli_python_only_note(tmp_path: Path) -> None:
+def test_cli_python_only_runs_mutmut_section(tmp_path: Path) -> None:
     _write_stack(tmp_path, ["python"])
+    r = _run_cli(".", cwd=tmp_path)
+    out = json.loads(r.stdout)
+    assert out["sections"] == ["python"]
+    assert out["ambiguous"] is False
+    assert out["note"] is None
+
+
+def test_cli_unrecognized_stack_note(tmp_path: Path) -> None:
+    _write_stack(tmp_path, ["ruby"])
     r = _run_cli(".", cwd=tmp_path)
     out = json.loads(r.stdout)
     assert out["sections"] == []
     assert out["ambiguous"] is False
-    assert out["note"] == "no mutation tooling for detected stack (python)"
+    assert out["note"] == "no mutation tooling for detected stack (ruby)"
 
 
 def test_cli_invalid_json_is_ambiguous(tmp_path: Path) -> None:
@@ -202,11 +221,19 @@ def test_each_section_reasserts_its_gate_first() -> None:
     js = section(_text(), r"^#### JS/TS", boundary_pattern=r"^#### ")
     java = section(_text(), r"^#### Java / Kotlin", boundary_pattern=r"^#### ")
     csharp = section(_text(), r"^#### C# / .NET", boundary_pattern=r"^#### ")
+    python = section(_text(), r"^#### Python", boundary_pattern=r"^#### ")
 
-    for body, key in ((js, "js"), (java, "java"), (csharp, "csharp")):
+    for body, key in ((js, "js"), (java, "java"), (csharp, "csharp"), (python, "python")):
         assert grep(r"Stack gate \(first step", body), f"{key} missing gate header"
         assert grep(rf"`{key}` is not in", body), f"{key} gate missing membership check"
         assert grep(r"return immediately", body), f"{key} gate missing early-return"
+
+
+def test_python_section_installs_mutmut() -> None:
+    """The Python subsection installs mutmut via pip, not a global-only tool."""
+    python = section(_text(), r"^#### Python", boundary_pattern=r"^#### ")
+    assert grep(r"mutmut", python)
+    assert grep(r"pip install", python, ignore_case=True)
 
 
 def test_csharp_gate_precedes_dotnet_probe() -> None:

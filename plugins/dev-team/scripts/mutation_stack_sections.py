@@ -13,6 +13,7 @@ array once and maps stack tokens to sections:
     typescript / node   -> js       (Stryker)
     java / kotlin        -> java     (pitest)
     csharp / dotnet      -> csharp   (Stryker.NET)
+    python                -> python  (mutmut)
 
 Output is a single JSON object on stdout:
 
@@ -27,9 +28,9 @@ Three distinct outcomes:
 
 - Definite stack that maps to sections -> run ONLY those sections
   (`ambiguous` false, `note` null).
-- Definite stack that maps to NO section (e.g. pure Python — no Python
-  mutation tool is wired in) -> `sections` empty, `ambiguous` false, `note`
-  set to `no mutation tooling for detected stack (<stacks>)`. Install
+- Definite stack that maps to NO section (e.g. Ruby, Elixir — no mutation
+  tool wired in for that stack) -> `sections` empty, `ambiguous` false,
+  `note` set to `no mutation tooling for detected stack (<stacks>)`. Install
   nothing; probe nothing.
 - Empty / missing / stacks-less signal -> `ambiguous` true. This is the ONLY
   outcome that authorizes the interactive "which languages?" fallback.
@@ -53,7 +54,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 # Canonical section order — polyglot repos run matching sections in this order.
-SECTION_ORDER = ["js", "java", "csharp"]
+SECTION_ORDER = ["js", "java", "csharp", "python"]
 
 # Stack token (lowercased) -> section key.
 STACK_TO_SECTION: Dict[str, str] = {
@@ -64,6 +65,7 @@ STACK_TO_SECTION: Dict[str, str] = {
     "kotlin": "java",
     "csharp": "csharp",
     "dotnet": "csharp",
+    "python": "python",
 }
 
 
