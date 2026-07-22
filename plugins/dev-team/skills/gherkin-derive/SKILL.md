@@ -75,12 +75,26 @@ order**, most authoritative first:
 Stop climbing the list once a surface is described by a higher-priority source —
 do not duplicate a route's scenarios from its tests.
 
+**Graph-assisted discovery.** If the target repo has `.codegraph/` (CodeGraph
+MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact
+lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` —
+verified context and semantic search), prefer them over raw `Grep` for
+locating routes, handlers, and exported signatures. Never assume either is
+present — fall back to `Read`/`Grep`/`Glob` when absent; the tools are simply
+unavailable (no error) on repos without an index.
+
 ## Step 3 — Author scenarios
 
 Use the same templates as `/gherkin-public`: **API Provider**, **UI**,
 **Batch / Scheduled Job**, **CLI / Library**, **API / Event Consumer**. Every
 scenario covers at least one success and one failure path, and every step is
 observable at the boundary — no internal calls.
+
+**Grounding failure scenarios.** When CodeGraph/Repowise are available, use
+`codegraph_explore` (or Repowise `get_context`/`search_codebase`) to inspect a
+surface's actual branches and error-handling depth before writing a failure
+scenario, rather than inferring it from the signature text alone. Falls back
+to reading the source directly when the tools are unavailable.
 
 **Label the provenance** in each `.feature` file header:
 
