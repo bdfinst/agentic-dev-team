@@ -1,8 +1,8 @@
 """mutmut (Python) mutation-testing adapter — Python port of mutmut.sh.
 
 mutmut scopes to a single file via `--paths-to-mutate` and completes in
-seconds-to-minutes for typical Python unit test suites. Results come from
-`mutmut results --json`.
+seconds-to-minutes for typical Python unit test suites. mutmut has no
+`--json` results output; survivors are read from `mutmut junitxml`.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Optional
 
@@ -23,8 +24,10 @@ def mutmut_detect() -> bool:
     if shutil.which("mutmut") is not None:
         return True
     try:
+        # `mutmut` is a `version` subcommand, not a `--version` flag — the
+        # flag form exits nonzero on the real CLI and always reads as absent.
         proc = subprocess.run(
-            ["python3", "-m", "mutmut", "--version"],
+            ["python3", "-m", "mutmut", "version"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             check=False,
@@ -112,8 +115,12 @@ def mutmut_run(output_file: Path) -> int:
         output_file.write_text("[]")
         return 0
 
-    # exit 1 with survivors is expected — still parse results.
-    if exit_code >= 2:
+    # mutmut's exit code is a bitmask: 1=fatal error, 2=survived, 4=timeout,
+    # 8=slow (any combination ORs together; 0 means every mutant was
+    # killed). Bit 1 (fatal error — e.g. the baseline test run itself
+    # failed) is the only outcome that invalidates the run; survivors
+    # (bit 2) are the expected, common case and must still be parsed.
+    if exit_code & 1:
         print(
             lib.emit_advisory(
                 f"MUTATION GATE ADVISORY: mutmut exited with code {exit_code}. "
@@ -123,32 +130,37 @@ def mutmut_run(output_file: Path) -> int:
         output_file.write_text("[]")
         return 0
 
-    # Read survivors JSON.
+    # Read survivors from `mutmut junitxml` — mutmut's `results` subcommand
+    # has no `--json` output; junitxml is the only structured report it
+    # ships. A <testcase> with a <failure> child is a survived mutant under
+    # the default suspicious/untested policies (both "ignore").
     try:
-        results = subprocess.run(
-            [*mutmut_prefix, "results", "--json"],
+        junit = subprocess.run(
+            [*mutmut_prefix, "junitxml"],
             capture_output=True,
             text=True,
             check=False,
         )
-        raw = results.stdout or "[]"
+        raw = junit.stdout or ""
     except (FileNotFoundError, OSError):
-        raw = "[]"
+        raw = ""
 
     try:
-        data = json.loads(raw)
-    except ValueError:
-        data = []
+        root = ET.fromstring(raw) if raw.strip() else None
+    except ET.ParseError:
+        root = None
 
     zero_kills = []
-    for mutant in data:
-        status = mutant.get("status", "")
-        if status in ("survived", ""):
+    if root is not None:
+        for testcase in root.iter("testcase"):
+            if testcase.find("failure") is None:
+                continue
+            line = testcase.get("line")
             zero_kills.append(
                 {
-                    "name": f"mutant_{mutant.get('id', '?')}",
-                    "file": mutant.get("filename"),
-                    "line": mutant.get("line_number"),
+                    "name": f"mutant_{testcase.get('name', '?')}",
+                    "file": testcase.get("file"),
+                    "line": int(line) if line and line.isdigit() else None,
                     "covered": 0,
                 }
             )

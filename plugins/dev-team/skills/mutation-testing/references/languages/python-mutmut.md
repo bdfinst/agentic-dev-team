@@ -2,26 +2,33 @@
 
 Tool: [mutmut](https://mutmut.readthedocs.io/). Detection: `mutmut` in requirements or pyproject.
 
+**Pin `mutmut<3`.** mutmut 3.x ships an incompatible config/CLI contract
+(`source_paths` in a `[mutmut]` setup.cfg section, no `--paths-to-mutate`
+flag, no `run`/`results`/`junitxml` subcommands in the same shape) that the
+adapter and this reference below do not speak. `pip install mutmut`
+unpinned resolves to 3.x today.
+
 ## Install / detect
 
 Both install paths are **local** — scoped to the active virtual environment (`.venv/bin/mutmut`), not the system-wide `pip`. Pick one:
 
 ```bash
 # (a) install directly into the active venv
-pip install mutmut
+pip install "mutmut<3"
 
 # (b) declare it in pyproject.toml and let pip resolve it as a dev dep
 # [project.optional-dependencies]
-# dev = ["mutmut"]
+# dev = ["mutmut<3"]
 pip install -e .[dev]
 ```
 
 Never `pip install --user mutmut` or run `pip install` outside a venv for this — that puts mutmut in a location whose `PATH` presence depends on the user's shell config, which is the silent-failure trap the skill's "prefer local install" note is trying to avoid.
 
-Confirm the tool resolves in the active venv before configuring a run:
+Confirm the tool resolves in the active venv before configuring a run
+(`version` is a subcommand — there is no `--version` flag):
 
 ```bash
-mutmut --version
+mutmut version
 ```
 
 ## Run (scoped)
@@ -32,17 +39,34 @@ mutmut --version
 mutmut run --paths-to-mutate=src/calculator.py
 ```
 
-## Per-mutant timeout flag
+## Per-mutant timeout
 
-```bash
-mutmut run --paths-to-mutate=src/calculator.py --timeout <seconds>
-```
-
-Default shipped: 60 s. Set `--timeout` to `timeout_seconds` (formula in [`SKILL.md`](../../SKILL.md) Step 1b). mutmut passes the value to the per-mutant subprocess.
+mutmut has no `--timeout <seconds>` flag. Its own per-mutant timeout is
+`baseline_time * test_time_multiplier + test_time_base` (`-m`/`-b`,
+defaults `2.0`/`0.0`) — a mutant whose test run exceeds that computed
+budget is reported `TIMEOUT`. The shipped adapter
+(`hooks/mutation_adapters/mutmut.py`) does not rely on this; it wraps the
+whole `mutmut run` invocation in an external, OS-level timeout
+(`ADAPTER_TIMEOUT`, from `MUTATION_GATE_TIMEOUT`, default 120s) so a
+runaway run is killed regardless of mutmut's own per-mutant accounting.
 
 ## Native report → schema mapping
 
-Source: `mutmut results --json`. Each surviving mutant carries `filename`, `line_number`, and a mutmut-specific mutation type.
+mutmut has no `--json` results output. Source: `mutmut junitxml` — a
+`<testcase>` with a `<failure>` child is a survived mutant under the
+default suspicious/untested policies (both `ignore`); one without is
+killed. `name`, `file`, and `line` come from the `<testcase>` attributes:
+
+```xml
+<testcase name="Mutant #8" file="src/calculator.py" line="12">
+  <failure type="failure" message="bad_survived">--- diff ---</failure>
+</testcase>
+```
+
+Map each `<failure>`-bearing `<testcase>` to a `survived` entry in the
+normalized envelope below (`operator` has no mutmut equivalent — omit it
+or leave `null`, unlike Stryker/pitest which name a mutator/operator per
+survivor):
 
 ```json
 {
@@ -55,10 +79,15 @@ Source: `mutmut results --json`. Each surviving mutant carries `filename`, `line
   "survived": 5,
   "equivalent": 1,
   "survivors": [
-    { "file": "src/calculator.py", "line": 12, "operator": "RelationalOperator", "status": "survived" }
+    { "file": "src/calculator.py", "line": 12, "operator": null, "status": "survived" }
   ]
 }
 ```
+
+This normalized envelope is produced by the triaging agent reading the
+native report (per this doc's mapping) — `mutation_report.py` and
+`mutation_kill_loop.py` have no mutmut-specific parsing yet (see
+[SKILL.md → Machine-readable output](../../SKILL.md#machine-readable-output)).
 
 ## Language-specific notes
 

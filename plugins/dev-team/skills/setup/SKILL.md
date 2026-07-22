@@ -688,16 +688,19 @@ python3 -m mutmut --version 2>/dev/null || mutmut --version 2>/dev/null
 **If not installed, install it locally — scoped to the active virtual
 environment, never `--user` or system-wide** (that puts mutmut in a location
 whose `PATH` presence depends on shell config, the silent-failure trap this
-step exists to avoid):
+step exists to avoid). **Pin `mutmut<3`** — mutmut 3.x ships an incompatible
+config/CLI contract (`source_paths` in a `[mutmut]` setup.cfg section, no
+`--paths-to-mutate` flag) that the shipped adapter
+(`hooks/mutation_adapters/mutmut.py`) does not speak:
 
 ```bash
-python3 -m pip install mutmut
+python3 -m pip install "mutmut<3"
 ```
 
 If the project declares dev dependencies in `pyproject.toml`
 (`[project.optional-dependencies]` / `[tool.poetry.group.dev.dependencies]`),
-prefer adding `mutmut` there and installing via the project's existing dev-
-dependency flow instead of a bare `pip install`.
+prefer adding `mutmut<3` there and installing via the project's existing
+dev-dependency flow instead of a bare `pip install`.
 
 **Verify:**
 

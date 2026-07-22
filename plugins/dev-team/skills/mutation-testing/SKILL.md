@@ -66,7 +66,7 @@ For tool-specific flag names and config-file keys (e.g. Stryker's `timeoutMS`, p
 
 Before running the full scan, run the tool against **one covered file** and confirm the mutation-switch mechanism is actually observing mutations at runtime. On some tool + test-framework combinations (issue [#554](https://github.com/bdfinst/agentic-dev-team/issues/554), [#557](https://github.com/bdfinst/agentic-dev-team/issues/557) on Stryker.NET + xunit.v3 + MTP), the tool cheerfully runs to completion but reports **every mutant as `Survived`** because the injected `ActiveMutation` env var never reaches the test host — the score looks like `0.00 %` but the run wasted hours. This gate catches that failure mode in one file's worth of wall-clock time.
 
-**Deterministic parse source.** Parse the tool's **report JSON** (Stryker's `StrykerOutput/<run>/reports/mutation-report.json`, pitest's `target/pit-reports/mutations.xml`, mutmut's `.mutmut-cache` export, etc.). **Do not parse stdout, the ANSI progress reporter output, or any log tail** — those are lossy, reporter-config-dependent, and don't survive redirection (see `## Capturing run output safely`). The gate is deterministic only when it reads the same artifact downstream steps read.
+**Deterministic parse source.** Parse the tool's **report JSON** (Stryker's `StrykerOutput/<run>/reports/mutation-report.json`, pitest's `target/pit-reports/mutations.xml`, mutmut's `mutmut junitxml` output, etc.). **Do not parse stdout, the ANSI progress reporter output, or any log tail** — those are lossy, reporter-config-dependent, and don't survive redirection (see `## Capturing run output safely`). The gate is deterministic only when it reads the same artifact downstream steps read.
 
 **Three-way decision** (from the parsed counts):
 
@@ -326,7 +326,7 @@ timeout_warning = timeout_pct > 0.05
 
 The honest score matches the sibling `mutation-kill` agent's formula so both surfaces read the same number. It differs from Stryker's own "mutation score" line (Stryker counts `Timeout` toward the numerator). When `timeout_warning` is true, the claimed score is not trustworthy: raise the tool's `additional-timeout` (or equivalent per-tool wall-clock budget) before treating either score as a gate. The warning is advisory — not a hard gate that fails the run — so a caller can decide policy without the skill forcing one.
 
-**Emitting adapters.** Adapters emit the additive score fields only when their native tool distinguishes `Timeout` and `NoCoverage` from `Killed`/`Survived`. Today that is Stryker (JS), **Stryker.NET**, pitest, and mutmut. Advisory-only tools that do not distinguish them — today's example is **go-mutesting** — omit the fields entirely rather than emit misleading zeros; the top-level `"advisory": true` flag is the caller's signal to treat the envelope as warn-not-block. Readers that consume the new fields MUST tolerate them being absent on an advisory envelope.
+**Emitting adapters.** Adapters emit the additive score fields only when their native tool distinguishes `Timeout` and `NoCoverage` from `Killed`/`Survived`. Today that is Stryker (JS), **Stryker.NET**, and pitest. Advisory-only tools that do not distinguish them — today's examples are **go-mutesting** and **mutmut** (`mutation_report.py`/`mutation_kill_loop.py` have no mutmut-specific parsing yet; only the PostToolUse gate's per-file adapter, `hooks/mutation_adapters/mutmut.py`, is wired) — omit the fields entirely rather than emit misleading zeros; the top-level `"advisory": true` flag is the caller's signal to treat the envelope as warn-not-block. Readers that consume the new fields MUST tolerate them being absent on an advisory envelope.
 
 **Error envelopes (exit code non-zero, `<path>` still written for caller diagnostics):**
 
@@ -337,7 +337,7 @@ The honest score matches the sibling `mutation-kill` agent's formula so both sur
 
 When `<path>` itself is unwritable (read-only directory, permission denied), the skill writes nothing to disk, prints the offending path to stderr, and exits non-zero. No partial JSON is left behind.
 
-Per-tool native-report mappings (Stryker → JSON, pitest XML → JSON, mutmut → JSON, Stryker.NET JSON, go-mutesting stdout) live with each language file under [`references/languages/`](references/languages/).
+Per-tool native-report mappings (Stryker → JSON, pitest XML → JSON, mutmut JUnit XML → JSON, Stryker.NET JSON, go-mutesting stdout) live with each language file under [`references/languages/`](references/languages/).
 
 ## When not to apply
 
