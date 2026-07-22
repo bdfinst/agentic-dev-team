@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
-"""mutation_report.py — parse a Stryker mutation-report.json and compute scores.
+"""mutation_report.py — parse a native mutation report and compute scores.
 
 Generic, stdlib-only, cross-platform (macOS, Linux, Windows). Sole runtime
 dependency is python3 (>= 3.8) on PATH. Carries no repo-specific literal —
 project names, controller names, and test-library names live in the report
 being parsed, never in this module.
+
+Two native report shapes are supported, normalized to the same internal
+``{"files": {"<path>": {"mutants": [...]}}}`` dict before scoring:
+
+- Stryker / Stryker.NET's own ``mutation-report.json`` — read directly via
+  the path-based functions (``score_report``, ``survivors_by_mutator``, …).
+- mutmut's ``mutmut junitxml`` output — mutmut has no JSON report of its
+  own; ``parse_mutmut_junitxml`` converts it into the same internal shape so
+  every downstream function (scoring, survivor extraction, file discovery)
+  works identically regardless of which tool produced the data.
 
 Two scores are computed side by side:
 
@@ -29,6 +39,7 @@ CompileError are excluded from both numerator and denominator.
 from __future__ import annotations
 
 import json
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
@@ -78,14 +89,9 @@ def _iter_mutants(data: dict):
             yield mutant
 
 
-def score_report(report_path: Path) -> ScoreSummary:
-    """Compute the honest and reported scores for a mutation report.
-
-    Returns a fully zeroed :class:`ScoreSummary` when the report is absent
-    or empty — never raises for a missing file.
-    """
-    data = _load_report(report_path)
-
+def _score_data(data: dict) -> ScoreSummary:
+    """Compute the honest and reported scores for an already-parsed report
+    dict (the ``{"files": {...}}`` shape shared by every supported tool)."""
     killed = survived = timeout = no_coverage = 0
     for mutant in _iter_mutants(data):
         status = mutant.get("status")
@@ -116,8 +122,19 @@ def score_report(report_path: Path) -> ScoreSummary:
     )
 
 
-def survivors_by_mutator(report_path: Path, file_path: str) -> Dict[str, List[dict]]:
-    """Return the Survived mutants for one source file, grouped by mutator name.
+def score_report(report_path: Path) -> ScoreSummary:
+    """Compute the honest and reported scores for a Stryker-shaped mutation
+    report on disk.
+
+    Returns a fully zeroed :class:`ScoreSummary` when the report is absent
+    or empty — never raises for a missing file.
+    """
+    return _score_data(_load_report(report_path))
+
+
+def _survivors_from_data(data: dict, file_path: str) -> Dict[str, List[dict]]:
+    """Return the Survived mutants for one source file, grouped by mutator
+    name, from an already-parsed report dict.
 
     Matches ``file_path`` against report keys by exact match first, then by
     basename, so a caller can pass either the full report key or just the
@@ -125,7 +142,6 @@ def survivors_by_mutator(report_path: Path, file_path: str) -> Dict[str, List[di
     uncovered mutants are not survivors. Returns ``{}`` when the file is not
     in the report or has no survivors.
     """
-    data = _load_report(report_path)
     files = data.get("files", {})
 
     info = files.get(file_path)
@@ -147,19 +163,31 @@ def survivors_by_mutator(report_path: Path, file_path: str) -> Dict[str, List[di
     return grouped
 
 
-def _files_with_status(report_path: Path, status: str) -> List[str]:
-    """Return the sorted report file keys having >= 1 mutant of ``status``.
+def survivors_by_mutator(report_path: Path, file_path: str) -> Dict[str, List[dict]]:
+    """Return the Survived mutants for one source file, grouped by mutator
+    name, from a Stryker-shaped mutation report on disk."""
+    return _survivors_from_data(_load_report(report_path), file_path)
 
-    The report keys are the file identifiers exactly as Stryker emits them
-    (relative source paths); the caller decides how to interpret them. Returns
-    ``[]`` for an absent/empty report — never raises.
+
+def _files_with_status_from_data(data: dict, status: str) -> List[str]:
+    """Return the sorted report file keys having >= 1 mutant of ``status``,
+    from an already-parsed report dict.
+
+    The report keys are the file identifiers exactly as the tool emits them
+    (relative source paths); the caller decides how to interpret them.
     """
-    data = _load_report(report_path)
     return sorted(
         key
         for key, info in data.get("files", {}).items()
         if any(m.get("status") == status for m in info.get("mutants", []))
     )
+
+
+def _files_with_status(report_path: Path, status: str) -> List[str]:
+    """Return the sorted report file keys having >= 1 mutant of ``status``,
+    from a Stryker-shaped mutation report on disk. Returns ``[]`` for an
+    absent/empty report — never raises."""
+    return _files_with_status_from_data(_load_report(report_path), status)
 
 
 def files_with_survivors(report_path: Path) -> List[str]:
@@ -178,3 +206,72 @@ def files_with_timeouts(report_path: Path) -> List[str]:
     modules call it instead of re-walking the report (AC4).
     """
     return _files_with_status(report_path, STATUS_TIMEOUT)
+
+
+# =============================================================================
+# mutmut — no native JSON report; junitxml is its only structured output.
+# =============================================================================
+def parse_mutmut_junitxml(xml_text: str) -> dict:
+    """Convert ``mutmut junitxml`` output into the internal ``{"files": {...}}``
+    shape every scoring/survivor function above already consumes.
+
+    mutmut marks a survived mutant with a ``<failure>`` child
+    (``message="bad_survived"``) and a timed-out mutant with a distinct
+    ``<error>`` child (``message="bad_timeout"``, ``error_type="timeout"``) —
+    the two are never conflated, so a real Timeout is never miscounted as a
+    Survived. Every other ``<testcase>`` — including a suspicious-but-ignored
+    mutant under mutmut's default ``suspicious_policy="ignore"`` — is Killed;
+    mutmut's default reporting granularity cannot distinguish "cleanly
+    killed" from "suspicious but ignored" any further than that. mutmut has
+    no NoCoverage concept (it always runs the full scoped test command
+    against every mutant), so that count is always zero here.
+
+    Malformed or empty input returns an empty ``{"files": {}}`` rather than
+    raising — callers see it as an empty report, same as a missing file.
+    """
+    files: Dict[str, dict] = {}
+    if not xml_text.strip():
+        return {"files": files}
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return {"files": files}
+
+    for testcase in root.iter("testcase"):
+        file_key = testcase.get("file")
+        if not file_key:
+            continue
+        if testcase.find("failure") is not None:
+            status = STATUS_SURVIVED
+        elif testcase.find("error") is not None:
+            status = STATUS_TIMEOUT
+        else:
+            status = STATUS_KILLED
+        line = testcase.get("line")
+        mutant = {
+            "id": testcase.get("name", "?"),
+            "mutatorName": "mutmut",
+            "status": status,
+            "location": {
+                "start": {"line": int(line) if line and line.isdigit() else None}
+            },
+            "replacement": "",
+        }
+        files.setdefault(file_key, {"mutants": []})["mutants"].append(mutant)
+
+    return {"files": files}
+
+
+def score_mutmut_junitxml(xml_text: str) -> ScoreSummary:
+    """Compute the honest and reported scores directly from ``mutmut
+    junitxml`` output (no report file on disk needed)."""
+    return _score_data(parse_mutmut_junitxml(xml_text))
+
+
+def survivors_from_mutmut_junitxml(
+    xml_text: str, file_path: str
+) -> Dict[str, List[dict]]:
+    """Return the Survived mutants for one file from ``mutmut junitxml``
+    output, grouped by mutator name (always ``"mutmut"`` — the tool names no
+    per-mutation operator the way Stryker/pitest do)."""
+    return _survivors_from_data(parse_mutmut_junitxml(xml_text), file_path)

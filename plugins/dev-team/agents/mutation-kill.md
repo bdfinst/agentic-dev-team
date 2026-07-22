@@ -49,8 +49,9 @@ re-describe or re-implement their mechanics:
 
 | Script | Deterministic responsibility it owns |
 | --- | --- |
-| `mutation_report.py` | Parse the report; compute the **honest** and **reported** scores; extract survivors per file grouped by mutator. |
-| `mutation_kill_loop.py` | The per-file loop: scoped run → score → survivor check → **your** generation → duplicate-guard → insert-before-class-close → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. |
+| `mutation_report.py` | Parse the report; compute the **honest** and **reported** scores; extract survivors per file grouped by mutator. Stryker/Stryker.NET's JSON report is read directly; mutmut's `junitxml` output is normalized into the same internal shape first (`parse_mutmut_junitxml` / `score_mutmut_junitxml` / `survivors_from_mutmut_junitxml`). |
+| `mutation_kill_loop.py` | The C#/Stryker.NET per-file loop: scoped run → score → survivor check → **your** generation → duplicate-guard → insert-before-class-close → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. |
+| `mutation_kill_loop_python.py` | The Python/mutmut per-file loop — same contract, adapted for pytest: scoped `mutmut run` (clears stale `.mutmut-cache` first) → score via `mutation_report` junitxml support → **your** generation → duplicate-guard → append-at-end-of-file (refuses on a class-based test file) → `py_compile` → scoped `pytest` → commit-on-green / revert-on-failure → no-improvement stop. Reuses `mutation_kill_loop.py`'s generic headless helpers rather than duplicating them. |
 | `stryker_shard_setup.py` | Generate one `stryker-config.shard-<slug>.json` per source project, `Stryker.sln`, and `stryker-pipeline.json` from a `.sln`. |
 | `stryker_shard_pipeline.py` | The unattended sharded pipeline: discover shards, one compounding git worktree per shard from `HEAD`, run Stryker through the wrapper's line-callback, timeout-abort, launch the survivor-fix loop **forced into `--headless`**, honest-score summary. |
 | `stryker_timeout_retry.py` | Emit a retry config scoped to only the timed-out files with an increased `additional-timeout`. |
@@ -153,7 +154,7 @@ assertion-only fixes once you reach Statement/Block.
 
 ## Speed: scoped + per-test coverage analysis
 
-The loop's scoped config sets per-test coverage (Stryker `coverageAnalysis: "perTest"`; pitest `withHistory`) so each mutant runs only its covering tests, not the full suite (observed 10–50× speedup). Scoped+per-test is the dev loop; the full run (coverage-analysis off) is the CI gate only.
+The loop's scoped config sets per-test coverage (Stryker `coverageAnalysis: "perTest"`; pitest `withHistory`) so each mutant runs only its covering tests, not the full suite (observed 10–50× speedup). Scoped+per-test is the dev loop; the full run (coverage-analysis off) is the CI gate only. mutmut has **no** per-test coverage equivalent — every mutant runs the entire `--runner` command — so scoping `--runner` itself to the smallest exercising test file is the only speed lever available for Python.
 
 ## Fresh build before a run
 
@@ -267,6 +268,7 @@ contract per language.
 | Java | pitest | `withHistory` | `@Test void …()` (JUnit 5) | `mvn compile -pl <mod> -q` | `mvn test -pl <mod> -Dtest=<class>` |
 | C# | Stryker.NET | `coverage-analysis: perTest` | `[Fact]` (xUnit) / `[Test]` (NUnit) | `dotnet build <proj> --nologo` | `dotnet test <proj> --filter FullyQualifiedName~<class>` |
 | Go | go-mutesting | (advisory; no per-test analysis) | `func Test…(t *testing.T)` | `go build ./…` | `go test -run Test… ./…` |
+| Python | mutmut | (none — no per-test coverage analysis; mutmut always runs the full scoped test command per mutant) | `def test_…():` (pytest, flat top-level function) | `python3 -m py_compile <file>` | `python3 -m pytest <file> -q` |
 
 ### Per-language prompt rules (for the generation call)
 
@@ -274,6 +276,7 @@ contract per language.
 - **Java** — match `@Test` + the assertion library in the file (AssertJ / JUnit / Hamcrest); match the fixture lifecycle (JUnit 5 / TestNG); no new `import` for already-imported classes.
 - **C#** — match `[Fact]`/`[Test]`; reuse the file's assertion library (FluentAssertions / AwesomeAssertions / NUnit `Assert`), mock library (Moq / NSubstitute), and fixture pattern (AutoFixture / builder).
 - **Go** — prefer table-driven tests; use `testify/assert` if already present, else stdlib `t.Errorf`; add no new package imports without checking `go.mod`.
+- **Python** — match the existing file's plain `assert` style (or `pytest.approx`/`pytest.raises`/`monkeypatch` when already used); flat top-level `def test_*():` functions only — no class wrapper (`mutation_kill_loop_python.py`'s insertion heuristic appends at end-of-file and refuses on a class-based test file); no new imports unless already present.
 
 ## Structurally unkillable files
 

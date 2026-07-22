@@ -53,7 +53,11 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # frontmatter grew a `color:` line under the new fleet-wide convention.
     # Bumped by 1 more (#1335): this agent (file-mutating) gained a
     # `memory: project` line under the same fleet-wide convention.
-    assert len(text.splitlines()) < 503
+    # Bumped by 3 more (#1357): Python/mutmut support added — a
+    # mutation_kill_loop_python.py row in the scripted-mechanics table, a
+    # Python row in the per-language translation table, and a Python prompt
+    # rule.
+    assert len(text.splitlines()) < 506
 
 
 def test_defines_honest_score_formula(text: str) -> None:
