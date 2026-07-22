@@ -276,19 +276,21 @@ and prints one JSON object:
 ```
 
 - `sections` — the sections to run, from `js` (JS/TS — Stryker), `java`
-  (Java/Kotlin — pitest), `csharp` (C#/.NET — Stryker.NET). The mapping is
-  `typescript`/`node`/`javascript` → `js`, `java`/`kotlin` → `java`,
-  `csharp`/`dotnet` → `csharp`. **Run every section in `sections` and no
-  others.** More than one may apply in a polyglot repo.
+  (Java/Kotlin — pitest), `csharp` (C#/.NET — Stryker.NET), `python`
+  (Python — mutmut). The mapping is `typescript`/`node`/`javascript` → `js`,
+  `java`/`kotlin` → `java`, `csharp`/`dotnet` → `csharp`, `python` →
+  `python`. **Run every section in `sections` and no others.** More than one
+  may apply in a polyglot repo.
 - `ambiguous` — `true` **only** when the stack signal is genuinely empty or
   missing (no `.claude/project-stack.json`, unreadable/invalid, or an empty
   `stacks` array). This is the **only** outcome that authorizes the
   interactive fallback below.
-- `note` — set when a definite stack matched no section (e.g. a pure-Python
-  repo — there is no Python mutation tool wired into this step). When `note`
-  is non-null, `sections` is empty and `ambiguous` is `false`: install
-  **nothing**, probe **nothing** (no `dotnet`, `node`, or `mvn`), print the
-  `note` line verbatim, and skip the rest of this step.
+- `note` — set when a definite stack matched no section (e.g. a Ruby or
+  Elixir repo — there is no mutation tool wired into this step for that
+  stack). When `note` is non-null, `sections` is empty and `ambiguous` is
+  `false`: install **nothing**, probe **nothing** (no `dotnet`, `node`,
+  `mvn`, or `pip`), print the `note` line verbatim, and skip the rest of
+  this step.
 
 **Interactive fallback — only when `ambiguous` is `true`.** When a definite
 stack was detected (`ambiguous` is `false`), never prompt; honor `sections`
@@ -303,12 +305,13 @@ with no recognizable stack) fall back to asking:
 > 1. **JS/TS** — Stryker (`@stryker-mutator/core`)
 > 2. **Java / Kotlin** — pitest (`pitest-maven` or `info.solidsoft.gradle.pitest`)
 > 3. **C# / .NET** — Stryker.NET (`dotnet-stryker`)
-> 4. **All of the above**
-> 5. **None — skip mutation tooling**
+> 4. **Python** — mutmut
+> 5. **All of the above**
+> 6. **None — skip mutation tooling**
 
-Parse the response. If they choose 4, treat it as selecting 1, 2, and 3
-(i.e. `sections` = `["js", "java", "csharp"]`). If 5, skip the rest of this
-step.
+Parse the response. If they choose 5, treat it as selecting 1, 2, 3, and 4
+(i.e. `sections` = `["js", "java", "csharp", "python"]`). If 6, skip the
+rest of this step.
 
 Each language subsection below **re-asserts its own gate as its literal
 first step** — a section whose key is not in `sections` returns immediately,
@@ -658,6 +661,52 @@ dotnet stryker --version 2>/dev/null || dotnet tool run dotnet-stryker --version
 
 ---
 
+#### Python — mutmut
+
+**Stack gate (first step — hard precondition):** if `python` is not in the
+Step 6 helper's `sections`, return immediately. Do **not** run the
+prerequisites probe below (no `command -v mutmut`, no `pip show mutmut`).
+Only proceed when `python` is in `sections`.
+
+**Prerequisites check:**
+
+```bash
+command -v python3 && python3 --version
+python3 -m pip --version
+```
+
+If `python3` or `pip` is not found, tell the user: "Python 3 with pip is
+required for mutmut. Install it from <https://www.python.org> and re-run
+`/setup`."
+
+**Check if mutmut is already installed in the active environment:**
+
+```bash
+python3 -m mutmut --version 2>/dev/null || mutmut --version 2>/dev/null
+```
+
+**If not installed, install it locally — scoped to the active virtual
+environment, never `--user` or system-wide** (that puts mutmut in a location
+whose `PATH` presence depends on shell config, the silent-failure trap this
+step exists to avoid):
+
+```bash
+python3 -m pip install mutmut
+```
+
+If the project declares dev dependencies in `pyproject.toml`
+(`[project.optional-dependencies]` / `[tool.poetry.group.dev.dependencies]`),
+prefer adding `mutmut` there and installing via the project's existing dev-
+dependency flow instead of a bare `pip install`.
+
+**Verify:**
+
+```bash
+python3 -m mutmut --version 2>/dev/null || mutmut --version
+```
+
+---
+
 ### 7. Select agent templates
 
 Based on detected stack, select applicable templates from `templates/agents/`:
@@ -762,10 +811,11 @@ Display a summary of everything installed and created:
 
 Report a mutation-testing line **only for sections actually in scope** — the
 `sections` the Step 6 helper returned (Stryker for `js`, pitest for `java`,
-Stryker.NET for `csharp`). Never list a tool for a stack that was not
-detected. When the helper's `note` was set (a detected stack with no
-mutation tool wired in, e.g. pure Python), report that one line verbatim —
-`no mutation tooling for detected stack (<stacks>)` — and no tool line.
+Stryker.NET for `csharp`, mutmut for `python`). Never list a tool for a
+stack that was not detected. When the helper's `note` was set (a detected
+stack with no mutation tool wired in, e.g. Ruby or Elixir), report that one
+line verbatim — `no mutation tooling for detected stack (<stacks>)` — and no
+tool line.
 
 ### Coverage baseline readiness (JS/TS only)
 - ✓ json-summary + coverage scope present   [ready + meaningful]
