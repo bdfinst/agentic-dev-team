@@ -6,6 +6,8 @@ tools: Read, Grep, Glob, Skill, mcp__codegraph__*, mcp__plugin_repowise_repowise
 model: sonnet
 effort: high
 color: green
+skills:
+  - feature-file-validation
 ---
 
 # Test Review

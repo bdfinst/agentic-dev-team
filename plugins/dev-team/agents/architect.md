@@ -5,6 +5,16 @@ tools: Read, Grep, Glob, Bash, Skill, mcp__codegraph__*, mcp__plugin_repowise_re
 model: opus
 effort: high
 color: cyan
+skills:
+  - quality-gate-pipeline
+  - design-doc
+  - design-it-twice
+  - hexagonal-architecture
+  - domain-driven-design
+  - specs
+  - threat-modeling
+  - api-design
+  - legacy-code
 ---
 
 # Architect Agent

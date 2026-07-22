@@ -5,6 +5,10 @@ tools: Read, Grep, Glob, Bash, Skill, mcp__codegraph__*, mcp__plugin_repowise_re
 model: opus
 effort: high
 color: cyan
+skills:
+  - threat-modeling
+  - governance-compliance
+  - quality-gate-pipeline
 ---
 
 # Security Engineer Agent

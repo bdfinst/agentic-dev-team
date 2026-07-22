@@ -5,6 +5,11 @@ tools: Read, Grep, Glob, Skill
 model: sonnet
 effort: high
 color: cyan
+skills:
+  - design-doc
+  - domain-driven-design
+  - human-oversight-protocol
+  - specs
 ---
 
 # Product Manager Agent

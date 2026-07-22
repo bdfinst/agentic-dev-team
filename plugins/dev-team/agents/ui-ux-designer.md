@@ -5,6 +5,9 @@ tools: Read, Grep, Glob, Skill
 model: sonnet
 effort: high
 color: cyan
+skills:
+  - quality-gate-pipeline
+  - design-doc
 ---
 
 # UI/UX Designer Agent

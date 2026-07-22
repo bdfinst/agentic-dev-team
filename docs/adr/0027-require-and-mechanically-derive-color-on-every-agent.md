@@ -33,7 +33,7 @@ can be asserted by a test gate instead of drifting silently. Priority order
 
 Applied to the current fleet: 1 agent purple (`orchestrator`), 7 yellow, 32
 green, 18 cyan — 58/58 resolve unambiguously, no ties. A new test gate
-(`tests/agents/test_agent_color_frontmatter.py`) asserts every agent's
+(`tests/agents/test_agent_fleet_conventions.py`) asserts every agent's
 declared `color:` equals the rule-computed value, failing loudly (naming the
 agent, its declared color, and the rule-computed color) on a mismatch or
 omission. `agent-create`/`agent-add` suggest-and-confirm the computed color
