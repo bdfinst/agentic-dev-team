@@ -1,18 +1,24 @@
-"""ADR 0008: every agent — current and future — must declare a valid `effort:`
-band in its YAML frontmatter. This gate fails CI if any agent file is missing
-the field or carries a value outside the allowed set, so the contract cannot
-silently rot the way `model: mid` did under the old vendor-named scheme.
+"""ADR 0026: every agent — current and future — must declare a valid `effort:`
+band in its YAML frontmatter (native harness field, `low|medium|high|xhigh|max`;
+this repo's own convention keeps every agent at `high` post-migration). This
+gate fails CI if any agent file is missing the field or carries a value
+outside the allowed set, so the contract cannot silently rot the way
+`model: mid` did under the retired vendor-named band scheme (ADR 0008,
+superseded).
 
-Allowed bands are the single source of truth below; extend here (and in the
-resolver) if a new band is added.
+Allowed bands are the single source of truth below; extend here if this
+repo's convention changes.
 
 Extended (issue #1040) to also gate:
-- Deprecated `model: haiku|sonnet|opus` tier field in frontmatter (must be
-  absent — use `effort:` instead).
 - Colon character in `description:` frontmatter field (breaks argument-hints
   and other tooling — per agent-audit SKILL.md check 10).
 - `Context needs: diff-only|full-file|project-structure` declaration anywhere
   in the agent body (per agent-audit SKILL.md check 9).
+
+`model:` (native harness field — alias, full ID, or `inherit`) is expected
+on every agent as of the #1284 migration; it is no longer deprecated. See
+`tests/repo/test_validate_agent_contract.py` for the full native-contract
+check.
 
 All checks cover both plugins/dev-team/agents/ and
 plugins/security-assessment/agents/. Add new plugin agent directories to
@@ -36,7 +42,6 @@ AGENTS_DIRS = [
     REPO_ROOT / "plugins" / "security-assessment" / "agents",
 ]
 ALLOWED_BANDS = ("low", "medium", "high")
-DEPRECATED_MODEL_TIERS = ("haiku", "sonnet", "opus")
 ALLOWED_CONTEXT_NEEDS = ("diff-only", "full-file", "project-structure", "artifact-stream")
 
 
@@ -146,28 +151,6 @@ def test_adr_0008_every_agent_declares_a_valid_effort_band() -> None:
         f"declare 'effort: <band>' where <band> is one of: {' '.join(ALLOWED_BANDS)}.\n"
         f"Missing effort: field:\n  " + "\n  ".join(missing) + "\n"
         "Invalid effort: value:\n  " + "\n  ".join(invalid)
-    )
-
-
-def test_no_deprecated_model_tier() -> None:
-    """FAIL if any agent declares a legacy model: haiku|sonnet|opus tier.
-
-    The deprecated `model:` field has been superseded by `effort:` (ADR 0008).
-    Remove `model:` from the frontmatter and rely on the effort band instead.
-    """
-    files = _agent_files_to_check()
-    violations = []
-    for agent_file in files:
-        model_val = _frontmatter_field(agent_file, "model")
-        if model_val.lower() in DEPRECATED_MODEL_TIERS:
-            rel = agent_file.relative_to(REPO_ROOT)
-            violations.append(f"{rel}: model: {model_val}")
-
-    assert not violations, (
-        "Deprecated model: tier found (superseded by effort:). "
-        "Remove the model: line from frontmatter — "
-        f"haiku→low, sonnet→medium, opus→high.\n"
-        "Violations:\n  " + "\n  ".join(violations)
     )
 
 

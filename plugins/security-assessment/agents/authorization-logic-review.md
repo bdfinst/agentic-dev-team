@@ -1,4 +1,5 @@
 ---
+model: opus
 effort: high
 name: authorization-logic-review
 description: Top-down authorization review. Maps the access-control model (RBAC/ABAC/ACL/tenancy), then verifies enforcement at every layer. Phase 1b peer agent.

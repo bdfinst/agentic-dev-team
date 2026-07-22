@@ -1,5 +1,6 @@
 ---
-effort: medium
+model: sonnet
+effort: high
 name: tool-finding-narrative-annotator
 description: Weaves findings into four narrative domains (PII flow, ML edge cases, messaging auth, crypto). Prose for the exec report. Synthesizes; does not detect.
 tools: Read, Grep, Glob

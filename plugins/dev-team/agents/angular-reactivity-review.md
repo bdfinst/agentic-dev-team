@@ -3,7 +3,8 @@
 name: angular-reactivity-review
 description: Angular Zone.js change-detection pitfalls, OnPush + immutability violations, RxJS subscription leaks, async-pipe alternatives
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
-effort: low
+model: haiku
+effort: high
 cites: [adversarial-review-protocol]
 scope:
   - **/*.component.ts

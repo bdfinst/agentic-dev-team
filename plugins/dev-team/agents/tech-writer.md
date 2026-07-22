@@ -2,7 +2,8 @@
 name: tech-writer
 description: Project documentation, terminology consistency, and ubiquitous language enforcement
 tools: Read, Grep, Glob, Edit, Write, Skill
-effort: medium
+model: sonnet
+effort: high
 ---
 
 # Technical Writer Agent

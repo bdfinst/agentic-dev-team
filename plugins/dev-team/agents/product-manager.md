@@ -2,7 +2,8 @@
 name: product-manager
 description: Requirements clarification, priority management, and stakeholder alignment
 tools: Read, Grep, Glob, Skill
-effort: medium
+model: sonnet
+effort: high
 ---
 
 # Product Manager Agent

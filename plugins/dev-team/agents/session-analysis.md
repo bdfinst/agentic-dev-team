@@ -2,7 +2,8 @@
 name: session-analysis
 description: Map an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions
 tools: Read
-effort: medium
+model: sonnet
+effort: high
 cites: [adversarial-review-protocol]
 ---
 

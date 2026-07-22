@@ -3,7 +3,8 @@
 name: claude-setup-review
 description: CLAUDE.md completeness, rules, skills, path accuracy, and agent frontmatter schema compliance
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
-effort: low
+model: haiku
+effort: high
 cites: [adversarial-review-protocol, directory-enumeration]
 enforcement: script
 scope: always
