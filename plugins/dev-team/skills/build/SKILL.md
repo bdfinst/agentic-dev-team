@@ -9,7 +9,7 @@ description: >-
   after /plan has been approved.
 argument-hint: "[--plan <path>] [--yes]"
 user-invocable: true
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion, Skill(verify *)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion
 ---
 
 # Build
@@ -191,7 +191,7 @@ Work each step **one behavior at a time** — never all the code then all the te
    - **UI changes (any complexity)**: After the relevant review passes (per-step for complex, at the slice checkpoint for standard), run browser verification via `/browse` in automated smoke test mode. Skip with warning if the dev server is not running. See `agents/orchestrator.md` Stage 3.
 5. **Mark step done** — Use the Edit tool to update the plan file's `## Build Progress` section on disk:
    - Change `- [ ] Step N.M: <title>` to `- [x] Step N.M: <title>` for the completed step.
-   - When every step under a slice is `[x]`, that is not the same as the slice being done — check off the parent `- [ ] Slice N: <title>` only after sub-steps 4.9 (verify) and 4.10 (invariants) both pass, if applicable; a slice with no runtime surface and no declared invariants has nothing further to wait on and may be checked off once its steps and review checkpoint(s) are done.
+   - When every step under a slice is `[x]`, that is not the same as the slice being done — check off the parent `- [ ] Slice N: <title>` only after sub-steps 4.9 (runtime verification) and 4.10 (invariants) both pass, if applicable; a slice with no runtime surface and no declared invariants has nothing further to wait on and may be checked off once its steps and review checkpoint(s) are done.
    - After all slices are `[x]`, change `**Status**: approved` to `**Status**: in-progress`.
    - This disk write is the durable commit. If a `/clear` occurs, `/continue` reads `## Build Progress` to determine the resume point without needing conversation history.
    - **Clear freeze scope (issue #865).** When every step under the slice is `[x]` and freeze was engaged for it (dispatch bookkeeping above), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py clear --hooks-dir <worktree>/hooks` before starting the next slice. A slice that never engaged freeze has nothing to clear.
@@ -208,17 +208,17 @@ Work each step **one behavior at a time** — never all the code then all the te
 
 A "done" step that only passed its own tests is not the same as a feature that works — a red suite catches structural regressions, not "it fails the first time someone actually runs it." Once a slice's steps are all `[x]` (sub-step 5) and its review checkpoint(s) have run (sub-steps 4/6), decide whether the slice has a runtime surface to exercise **before the slice may be marked `[x]` complete**:
 
-1. **Classify the slice's changed files**, per `knowledge/test-file-indicators.md`. If every changed file is a test file, or the rest are docs/config only (no source or runtime file changed), there is nothing for `/verify` to drive — record `outcome: "skipped"` with a `reason` (below) and continue.
-2. **Otherwise, invoke `/verify`** scoped to the slice's changed runtime files before the slice's checkbox is flipped to `[x]`. This generalizes the UI-only `/browse` smoke test (sub-step 4's UI bullet) into a universal completion criterion: APIs, CLIs, bots, and background jobs get the same "did this actually run" check UI changes already get.
-3. **Not bypassable by `--yes`, `DEV_TEAM_AUTO_APPROVE=1`, or no-TTY.** Contrast with the approval gates in Steps 2–3: those bypass a human judgment call when no human is present. This gate needs no human judgment — the agent runs `/verify` itself — so non-interactive mode never skips it. There is no override flag for this step.
-4. **A `/verify` failure is a failing test.** Per Step 5's "Quality ownership" language: do not mark the slice `[x]` or the plan `implemented`. Enter [Systematic Debugging](../systematic-debugging/SKILL.md), find the root cause, fix it, and re-run `/verify` before proceeding — never silently override.
+1. **Classify the slice's changed files**, per `knowledge/test-file-indicators.md`. If every changed file is a test file, or the rest are docs/config only (no source or runtime file changed), there is nothing to exercise at runtime — record `outcome: "skipped"` with a `reason` (below) and continue.
+2. **Otherwise, exercise the change end-to-end** using the project's own test/verification tooling — its test runner, checker scripts, or a direct invocation of the changed entry point (CLI command, API call, script run) — scoped to the slice's changed runtime files, before the slice's checkbox is flipped to `[x]`. This is a pattern, not a named command: there is no `/verify` skill shipped by this plugin, so pick whatever the project already uses to run/exercise the affected surface for real (e.g. its integration test suite, a smoke-test script, or manually invoking the changed function/endpoint/command). This generalizes the UI-only `/browse` smoke test (sub-step 4's UI bullet) into a universal completion criterion: APIs, CLIs, bots, and background jobs get the same "did this actually run" check UI changes already get.
+3. **Not bypassable by `--yes`, `DEV_TEAM_AUTO_APPROVE=1`, or no-TTY.** Contrast with the approval gates in Steps 2–3: those bypass a human judgment call when no human is present. This gate needs no human judgment — the agent runs the verification itself — so non-interactive mode never skips it. There is no override flag for this step.
+4. **A failed verification run is a failing test.** Per Step 5's "Quality ownership" language: do not mark the slice `[x]` or the plan `implemented`. Enter [Systematic Debugging](../systematic-debugging/SKILL.md), find the root cause, fix it, and re-run the verification before proceeding — never silently override.
 5. **Record the outcome.** Append exactly one JSON line per slice with a runtime surface to `metrics/verify-log.jsonl`, schema modeled on `metrics/review-value.jsonl` (sub-step 7):
 
    ```json
    {"timestamp":"<ISO8601>","plan":"<plan-file>","slice":"<N>","branch":"<branch>","files":["<changed runtime file>","..."],"outcome":"ran|skipped|failed-then-fixed","reason":"<set when outcome is skipped>"}
    ```
 
-   `outcome` is `ran` (`/verify` executed and passed), `skipped` (no runtime surface in the diff — `reason` states why, e.g. `"tests-only"` or `"docs-only"`), or `failed-then-fixed` (`/verify` failed at least once before the fix landed). `python3 scripts/progress_guardian.py --pre-pr` reads this log: a branch with runtime-surface changes and no matching entry fails the pre-PR gate the same way an incomplete step or a missing commit does.
+   `outcome` is `ran` (the verification ran and passed), `skipped` (no runtime surface in the diff — `reason` states why, e.g. `"tests-only"` or `"docs-only"`), or `failed-then-fixed` (the verification failed at least once before the fix landed). `python3 scripts/progress_guardian.py --pre-pr` reads this log: a branch with runtime-surface changes and no matching entry fails the pre-PR gate the same way an incomplete step or a missing commit does.
 
 ### 4.10. Run slice invariants (issue #865)
 
@@ -270,8 +270,9 @@ re-execution**; it renders data this run already produced:
   "not measured — no coverage tool detected."
 - **Residual risks**: derived-first from this run's `metrics/review-value.jsonl`
   entries with `outcome: "escalated"`, any non-interactive gate-bypass audit
-  lines printed in Steps 2–3, and any `/verify` `failed-then-fixed` entries in
-  `metrics/verify-log.jsonl`. "None identified" only when all of those are empty.
+  lines printed in Steps 2–3, and any `failed-then-fixed` runtime-verification
+  entries in `metrics/verify-log.jsonl`. "None identified" only when all of
+  those are empty.
 
 Follow the degradation rule: every one of the four section headers appears in
 the completion report even when a section has nothing to show — it states why.
@@ -312,7 +313,7 @@ unresolved escalation.
 
 - `/specs` produces the intent, architecture, and acceptance-criteria artifacts that inform the plan
 - `/plan` decomposes the feature into slices, authors each slice's Gherkin, and produces the plan this command executes
-- `/verify` exercises each runtime-surface slice end-to-end before it may be marked done (sub-step 4.9, issue #727)
+- Sub-step 4.9 exercises each runtime-surface slice end-to-end, using the project's own test/verification tooling scoped to the diff, before it may be marked done (issue #727) — this is a pattern to follow, not a named `/verify` command
 - `/code-review` runs the full review suite after implementation
 - `farley-score` scores the branch's tests (Farley Score) as the final pre-PR quality signal
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md` defines the structured evidence bundle assembled in Step 7.5 and surfaced in the Step 8 completion report

@@ -27,7 +27,10 @@ def build_text() -> str:
 
 
 def test_slice_checkbox_flip_defers_to_verify_and_invariants(build_text: str) -> None:
-    assert "sub-steps 4.9 (verify) and 4.10 (invariants) both pass" in build_text
+    assert (
+        "sub-steps 4.9 (runtime verification) and 4.10 (invariants) both pass"
+        in build_text
+    )
 
 
 def test_slice_checkbox_flip_no_longer_unqualified(build_text: str) -> None:

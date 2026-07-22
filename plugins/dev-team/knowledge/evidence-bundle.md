@@ -3,7 +3,7 @@
 A structured "what was checked, and what wasn't" statement carried by `/build`'s
 final output and `/pr`'s PR body. Verification here is a stack of scoped
 verifiers — unit suite, type check, lint, review agents, coverage delta,
-runtime `/verify`, Farley score — not one boolean. A green checkmark alone
+runtime verification (sub-step 4.9), Farley score — not one boolean. A green checkmark alone
 over-claims: it says checks passed but not what each one actually verified,
 what it structurally cannot verify for this diff, which regions remain
 untested, or what risk was consciously accepted. The bundle closes that gap.
