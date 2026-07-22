@@ -225,6 +225,49 @@ short-circuit; this gate covers the doc/config-**mixed** and config-only diffs
 the short-circuit does not. Bypassed by `--force` and by `--agent <name>` (an
 explicit single-agent request always runs that agent).
 
+**Change-size gate for small changesets (#1339).** After `Scope:` eligibility
+and the change-shape gate above have both been applied, apply this gate —
+never before, and never in a way that re-adds an agent either already removed.
+It narrows the `Scope: always` roster by diff *size* rather than file *type*:
+the pre-commit hook (`hooks/pre_commit_review.py`) only checks that a
+`.review-passed` hash matches the staged diff — it has no coupling to which or
+how many agents ran — so unconditionally dispatching the full panel on every
+review, down to a 2-line change, is this step's decision to make, not the
+hook's.
+
+**Applies only to diff-scoped reviews** — auto-scoped uncommitted changes, or
+`--since <ref>`. `--path`, `--all`, and the full-repository fallback review
+complete files, not a diff, so this gate never engages for those scopes
+(existing eligibility unchanged).
+
+Compute the numstat lines and feed them to the shared helper — for auto-scope,
+union unstaged and staged the same way step 1 unions `--name-only`:
+
+```bash
+# Auto-scope (uncommitted changes):
+{ git diff --numstat; git diff --cached --numstat; } | python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_size.py" --numstat-from -
+
+# --since <ref>:
+git diff --numstat <ref>...HEAD | python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_size.py" --numstat-from -
+```
+
+It prints `{"filesChanged": <int>, "addedLines": <int>, "qualifiesForFastPath":
+<bool>, "keepAgents": [...]}`. When `qualifiesForFastPath` is `true`, drop
+every `Scope: always` agent **not** in `keepAgents` (today: `security-review`,
+`correctness-review`, `spec-compliance-review`, `doc-review` — the four lenses
+that stay meaningful at any diff size; the rest are code-quality-at-scale
+concerns a diff this small essentially cannot exhibit meaningfully) and note
+the drop in the report (gated by change size, not by `Scope:`).
+`Scope:`-glob-matched agents are unaffected — they already run only against
+matching file types, so a diff this small already narrows their incremental
+cost to near-zero. The gate is **fail-safe**: any `git diff --numstat` error,
+binary-file marker, or unparseable line disqualifies the run (full panel), as
+does any file under `hooks/` or `skills/code-review/` (the enforcement
+machinery and this gate's own orchestration) — a change there is exactly the
+case where a cheap, self-certifying review is a problem, so it never qualifies
+for the shortcut it defines, regardless of size. Bypassed by `--force` and by
+`--agent <name>`, matching the change-shape gate's bypass list.
+
 ### 4. Run each enabled agent
 
 Spawn agents as parallel subagents in a single message using the Agent tool.
