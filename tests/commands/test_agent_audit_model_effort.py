@@ -1,9 +1,10 @@
-"""Tests for /agent-audit — it validates the effort vocabulary (effort:
-low|medium|high in frontmatter) and warns on a legacy model: tier name,
-naming the band to use.
+"""Tests for /agent-audit — it validates the native model:/effort: contract
+(ADR 0026) via the shared contract validator, plus this repo's own
+convention that every agent declares model:/effort: high.
 
 Ported from tests/commands/agent_audit_effort_tests.bats (issue #675:
-bats -> pytest).
+bats -> pytest); rewritten for epic #1284's native-contract migration
+(issue #1290).
 """
 
 from __future__ import annotations
@@ -17,16 +18,21 @@ AGENTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "agents"
 TEMPLATES_DIR = REPO_ROOT / "plugins" / "dev-team" / "templates" / "agents"
 
 
-def test_agent_audit_validates_effort_low_medium_high() -> None:
+def test_agent_audit_runs_the_shared_contract_validator() -> None:
     text = AUDIT.read_text(encoding="utf-8")
-    assert re.search(r"effort:.*low\|medium\|high", text)
+    assert "scripts/validate_agent_contract.py" in text
 
 
-def test_agent_audit_warns_on_legacy_model_tier_name() -> None:
-    # The audit names the deprecated model: tier and the band to use instead.
+def test_agent_audit_states_the_repo_convention_of_model_and_effort_high() -> None:
     text = AUDIT.read_text(encoding="utf-8")
-    assert re.search(r"deprecat", text, re.IGNORECASE)
-    assert re.search(r"model:.*(haiku|sonnet|opus)", text, re.IGNORECASE)
+    assert re.search(r"effort: high", text)
+    assert re.search(r"`model:`", text)
+
+
+def test_agent_audit_no_longer_treats_model_tier_as_deprecated() -> None:
+    # model: haiku|sonnet|opus is the native contract now, not a legacy tier.
+    text = AUDIT.read_text(encoding="utf-8")
+    assert not re.search(r"deprecat.*model:.*(haiku|sonnet|opus)", text, re.IGNORECASE | re.DOTALL)
 
 
 def test_agent_audit_no_longer_keys_on_retired_model_tier_body_line() -> None:

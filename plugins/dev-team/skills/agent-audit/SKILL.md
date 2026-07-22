@@ -102,28 +102,23 @@ review agents. Check:
    - MUST show the skip JSON response format
    - WARN if skip section is missing
 
-8. **Effort band**: Does the agent declare `effort: low|medium|high` in
-   its YAML frontmatter?
-   - All agents MUST declare the reasoning-effort band their task needs
-   - Valid values: `low`, `medium`, `high`
-   - WARN if missing or outside the valid set
-   - **Single source**: the band MUST be declared only in frontmatter — it is
-     the only value the resolver reads. WARN if a body `Effort:` line (or other
-     prose) restates the band; that duplicate is a drift source and must be
-     removed.
-   - **Deprecation (warn, never error this release)**: if the agent still
-     declares a legacy `model: haiku|sonnet|opus` tier in frontmatter, WARN
-     that the tier name is deprecated and name the band to use
-     (`haiku` → `low`, `sonnet` → `medium`, `opus` → `high`)
-   - **Full contract check**: for the complete official-contract validation
-     (required fields, `name` pattern, enum membership on any field present —
-     `model`, `effort`, `permissionMode`, `memory`, `isolation`, `color`,
-     `background`, `maxTurns` — unknown/misspelled-key warnings, and a
-     plugin-ignored-field warning for `hooks`/`mcpServers`/`permissionMode`),
-     run `python3 scripts/validate_agent_contract.py <file>` and fold any
-     `error`/`warning` finding into the report as FAIL/WARN. This runs
-     alongside the band check above until a later slice migrates agents to
-     native `model:`/`effort: high` frontmatter and retires the band itself.
+8. **Model/effort contract**: Does the agent's frontmatter conform to the
+   native Claude Code sub-agent contract (ADR 0026)?
+   - Run `python3 scripts/validate_agent_contract.py <file>` and fold every
+     `error` into FAIL and every `warning` into WARN in the report. This is
+     the sole frontmatter-contract check — required-field presence (`name`,
+     `description`), `name` pattern, enum membership on any field present
+     (`model`, `effort`, `permissionMode`, `memory`, `isolation`, `color`,
+     `background`, `maxTurns`), unknown/misspelled-key warnings, and the
+     plugin-ignored-field warning for `hooks`/`mcpServers`/`permissionMode`.
+   - **This repo's own convention**: every `plugins/dev-team/` and
+     `plugins/security-assessment/` agent declares `model:` (an alias, full
+     model ID, or `inherit`) and `effort: high` — WARN if either is missing,
+     since that is this repo's local practice, not a contract requirement.
+   - **Single source**: `model:`/`effort:` MUST be declared only in
+     frontmatter. WARN if a body line restates either as prose (e.g. an
+     `Effort:` line, or a body-level model-tier label) — that duplicate is a
+     drift source and must be removed.
 
 9. **Context needs**: Does the agent declare a `Context needs:` field?
    - All agents MUST declare what input context they need
