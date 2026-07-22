@@ -4,6 +4,7 @@ description: Reconnaissance agent that surveys a codebase's structure, entry poi
 tools: Read, Grep, Glob, Bash, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk, mcp__plugin_repowise_repowise__get_why
 model: opus
 effort: high
+color: cyan
 ---
 
 > **Implemented by:** scripts/codebase_recon.py

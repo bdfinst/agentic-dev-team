@@ -1,6 +1,7 @@
 ---
 model: sonnet
 effort: high
+color: cyan
 name: redteam-evasion-analyzer
 description: Interprets probe 05 (evasion) alongside probe 03 (sensitivity) and probe 04 (boundaries). Rates adversarial realism, explains evasion mechanism, recommends defenses.
 tools: Read, Grep

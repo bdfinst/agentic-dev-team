@@ -4,6 +4,7 @@ description: Adversarially critiques an implementation plan's technical design â
 tools: Read, Grep, Glob
 model: sonnet
 effort: high
+color: green
 ---
 
 # Plan Review: Design & Architecture Critic

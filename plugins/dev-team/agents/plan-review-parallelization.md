@@ -4,6 +4,7 @@ description: Verifies that an implementation plan's declared same-wave concurren
 tools: Read, Grep, Glob
 model: sonnet
 effort: high
+color: green
 ---
 
 # Plan Review: Parallelization Critic

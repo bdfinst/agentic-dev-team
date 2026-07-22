@@ -4,6 +4,7 @@ description: Design-time threat modeling and secure-architecture guidance before
 tools: Read, Grep, Glob, Bash, Skill, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk, mcp__plugin_repowise_repowise__get_why
 model: opus
 effort: high
+color: cyan
 ---
 
 # Security Engineer Agent

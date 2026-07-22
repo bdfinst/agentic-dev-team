@@ -81,11 +81,18 @@ the valid set: `model`: `sonnet|opus|haiku|fable|inherit` (or a full model
 ID); `effort`: `low|medium|high|xhigh|max`. Example:
 `Invalid effort 'frontier'. Valid values: low, medium, high, xhigh, max.`
 
-**Reject an invalid `--memory`/`--color`/`--isolation`/`--background` value**
-the same way, against that field's enum in `agent-contract.json`. `--max-turns`
-must be a positive integer; `--skills` entries are not validated against a
-fixed set (skill names are plugin-specific) but each must resolve to a real
-`$PLUGIN/skills/<name>/SKILL.md` — warn (not fail) if one doesn't.
+**Reject an invalid `--memory`/`--isolation`/`--background` value** the same
+way, against that field's enum in `agent-contract.json`. **`--color` is
+validated against only the 4 mechanically-valid colors**
+(`purple|green|yellow|cyan`, ADR 0027) — not the contract's full 8-color
+enum — because Step 5 below suggests a value the fleet's color test gate
+(`tests/agents/test_agent_color_frontmatter.py`) checks by exact equality
+with no escape valve; a `--color` value from the other 4 contract colors
+(`red|blue|orange|pink`) would pass this validation and then fail that gate.
+`--max-turns` must be a positive integer; `--skills` entries are not
+validated against a fixed set (skill names are plugin-specific) but each
+must resolve to a real `$PLUGIN/skills/<name>/SKILL.md` — warn (not fail) if
+one doesn't.
 
 ---
 
@@ -136,10 +143,10 @@ as a warning (not an error — custom tools are allowed).
 
 ---
 
-## Step 5 — Suggest and Confirm Model/Effort; Apply the Tools Default
+## Step 5 — Suggest and Confirm Model/Effort/Color; Apply the Tools Default
 
-`model` and `effort` are never silently defaulted — always suggested, then
-confirmed with the user:
+`model`, `effort`, and `color` are never silently defaulted — always
+suggested, then confirmed with the user:
 
 1. If `--model` was not provided, suggest by type: review→`haiku`,
    team→`sonnet`. If `--effort` was not provided, suggest `high` for either
@@ -154,13 +161,32 @@ If the user passed `--model` and/or `--effort` explicitly in Step 1, skip
 this prompt for that field entirely — an explicit flag is already a
 decision, not something to re-confirm.
 
+**Color** follows the same suggest-and-confirm shape, computed from the
+mechanical rule (ADR 0027): `Agent` in the resolved `tools:` → `purple`;
+else `Edit`/`Write` in `tools:` → `yellow`; else the name ends `-review` or
+starts `plan-review-` → `green`; else → `cyan`.
+
+1. If `--color` was not provided, compute the suggestion from the rule above
+   using the tools resolved in Step 4/this step and the agent's `name`.
+2. Emit: `Suggested color: <color> — accept? (yes/change)`.
+3. On `yes`: use the suggested value and continue.
+4. On `change`: ask `Color?`, validate against the same 4-color set the
+   Step 1 rejection rule uses (`purple|green|yellow|cyan` — not the
+   contract's full 8-color enum, since the fleet's color test gate checks
+   exact equality with the rule-computed value and has no escape valve for
+   the other 4). On an invalid answer, emit the same 4-value rejection
+   message as Step 1 and re-ask rather than aborting the whole flow.
+
+If the user passed `--color` explicitly in Step 1, skip this prompt — an
+explicit flag is already a decision, not something to re-confirm.
+
 `tools` keeps its silent default (`Read, Grep, Glob` for review agents when
 not specified) — no confirmation needed, it isn't a cost/capability choice
-the way model/effort are.
+the way model/effort/color are.
 
-`memory`, `isolation`, `color`, `maxTurns`, `background`, and `skills` have
-no forced default and no suggestion — omit each from frontmatter entirely
-unless the user passed it.
+`memory`, `isolation`, `maxTurns`, `background`, and `skills` have no forced
+default and no suggestion — omit each from frontmatter entirely unless the
+user passed it.
 
 ---
 

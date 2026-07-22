@@ -4,6 +4,7 @@ description: Full-stack development, code generation, implementation, and refact
 tools: Read, Grep, Glob, Edit, Write, Bash, Skill, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: sonnet
 effort: high
+color: yellow
 ---
 
 # Software Engineer Agent

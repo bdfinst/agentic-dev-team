@@ -59,6 +59,24 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | test-smell-review | `agents/test-smell-review.md` | xUnit test smells, test-double selection, test-pyramid layer placement |
 | token-efficiency-review | `agents/token-efficiency-review.md` | File/function size, LLM anti-patterns, token usage |
 
+## Color Convention
+
+Every agent declares `color:` (display color in the task list/transcript),
+required by this-repo convention on top of the optional official field
+(ADR 0027, same category as the `effort: high` convention, ADR 0026).
+Derived mechanically, not hand-picked — priority order, capability checked
+before naming:
+
+1. `tools:` contains `Agent` (bare or `Agent(...)`) → **purple** (orchestrator).
+2. Else `tools:` contains `Edit` or `Write` → **yellow** (changes files).
+3. Else name ends `-review` or starts `plan-review-` → **green** (reviewer).
+4. Else → **cyan** (all others).
+
+Current fleet: 1 purple, 7 yellow, 32 green, 18 cyan (58 agents total, no
+ties). `tests/agents/test_agent_color_frontmatter.py` asserts every agent's
+declared `color:` matches the rule; `agent-create`/`agent-add` suggest the
+computed value the same way they already do `model:`/`effort:`.
+
 ## Skills Registry
 
 Skills are reusable knowledge modules in `.claude/skills/` that agents reference. They define patterns, guidelines, and project structures without being tied to any single agent persona.

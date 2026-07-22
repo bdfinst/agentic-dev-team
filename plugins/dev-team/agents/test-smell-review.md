@@ -5,6 +5,7 @@ description: xUnit test smells, test double selection, and test-pyramid layer pl
 tools: Read, Grep, Glob, Skill, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: sonnet
 effort: high
+color: green
 ---
 
 # Test Smell Review

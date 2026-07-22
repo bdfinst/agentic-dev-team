@@ -4,6 +4,7 @@ description: Adversarially critiques an implementation plan's problem-solution f
 tools: Read, Grep, Glob
 model: sonnet
 effort: high
+color: green
 ---
 
 # Plan Review: Strategic Critic

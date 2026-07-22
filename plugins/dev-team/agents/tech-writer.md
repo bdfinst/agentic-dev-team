@@ -4,6 +4,7 @@ description: Project documentation, terminology consistency, and ubiquitous lang
 tools: Read, Grep, Glob, Edit, Write, Skill
 model: sonnet
 effort: high
+color: yellow
 ---
 
 # Technical Writer Agent

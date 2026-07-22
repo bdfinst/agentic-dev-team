@@ -1,6 +1,7 @@
 ---
 model: sonnet
 effort: high
+color: yellow
 name: redteam-report-generator
 description: Refines the red-team adversarial-report.md into an executive document. Assigns RED/AMBER/GREEN rating; produces remediation with effort estimates.
 tools: Read, Write, Grep

@@ -37,6 +37,10 @@ from typing import List
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# Deliberately a separate, narrower list from _plugin_dirs.PLUGIN_AGENTS_DIRS
+# (which adds marketplace-dev) -- keeping this file's own scope unchanged
+# avoids retroactively subjecting marketplace-dev's one agent to these
+# effort-band/description-colon/context-needs checks as a side effect.
 AGENTS_DIRS = [
     REPO_ROOT / "plugins" / "dev-team" / "agents",
     REPO_ROOT / "plugins" / "security-assessment" / "agents",

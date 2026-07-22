@@ -86,6 +86,10 @@
       "summary": "Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs.",
       "anchor": "review-agents"
     },
+    "Color Convention": {
+      "summary": "Every agent declares `color:` (display color in the task list/transcript),",
+      "anchor": "color-convention"
+    },
     "Skills Registry": {
       "summary": "Skills are reusable knowledge modules in `.claude/skills/` that agents reference.",
       "anchor": "skills-registry"
