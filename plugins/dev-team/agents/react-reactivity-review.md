@@ -5,15 +5,16 @@ description: React hook rules violations, stale closures in useEffect, missing d
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
 effort: high
-cites: [adversarial-review-protocol]
-scope:
-  - **/*.jsx
-  - **/*.tsx
-  - **/*.js
-  - **/*.ts
 ---
 
 # React Reactivity Review
+
+Scope:
+- **/*.jsx
+- **/*.tsx
+- **/*.js
+- **/*.ts
+Cites: [adversarial-review-protocol]
 
 Scope: React component and hook files (`.jsx`, `.tsx`, and `.js`/`.ts` files
 that import from `react`). Skip this agent entirely if the project has no

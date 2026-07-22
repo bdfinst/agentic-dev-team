@@ -7,12 +7,13 @@ canonical file changes, the agent silently keeps enforcing the stale rule. That
 drift is invisible until a reviewer and a builder disagree.
 
 This lint makes the dependency explicit and checkable. An agent declares the
-canonical sources it derives its rules from in a ``cites:`` frontmatter list::
+canonical sources it derives its rules from in a body-level ``Cites:``
+declaration (not frontmatter — ``cites:`` is not part of the official
+Claude Code sub-agent contract, see agent-contract.json)::
 
-    ---
-    name: complexity-review
-    cites: [complexity, object-calisthenics]   # skill names or knowledge files
-    ---
+    # Complexity Review
+
+    Cites: [complexity, object-calisthenics]   # skill names or knowledge files
 
 For every **normative token** the agent states — a numeric threshold (e.g.
 ``50``, ``80%``) appearing on a line that carries an RFC-2119 keyword
@@ -24,10 +25,10 @@ on them rather than free-text rule prose.
 
 Phase 1 is **non-blocking** (warnings only, exit 0):
 
-- ``cites:`` present and every normative token backed  -> no warning.
-- ``cites:`` present, a token uncited                  -> warning (token + line).
-- no ``cites:`` and no normative tokens                -> no warning.
-- no ``cites:`` but normative tokens present           -> one advisory warning.
+- ``Cites:`` present and every normative token backed  -> no warning.
+- ``Cites:`` present, a token uncited                  -> warning (token + line).
+- no ``Cites:`` and no normative tokens                -> no warning.
+- no ``Cites:`` but normative tokens present           -> one advisory warning.
 
 Code fences (``` / ~~~ blocks) and blockquote lines (``>``) are excluded so
 illustrative examples are never mistaken for normative rules.
@@ -50,22 +51,18 @@ NORMATIVE_RE = re.compile(
 THRESHOLD_RE = re.compile(r"(?<![\w.#-])\d+(?:\.\d+)?%?")
 
 
-def parse_frontmatter_cites(text: str) -> list[str] | None:
-    """Return the ``cites:`` list, or None when the field is absent.
+def parse_cites(body: str) -> list[str] | None:
+    """Return the ``Cites:`` list from the agent body, or None when absent.
 
-    Accepts an inline flow list (``cites: [a, b]``) or a block list (``cites:``
-    followed by ``  - a`` lines). Avoids a YAML dependency (the repo's bats
-    suites already shell to Python without PyYAML guaranteed here).
+    ``Cites:`` is a body-level declaration (not frontmatter — it is not part
+    of the official Claude Code sub-agent contract). Accepts an inline flow
+    list (``Cites: [a, b]``) or a block list (``Cites:`` followed by
+    ``- a`` lines). Avoids a YAML dependency (the repo's bats suites already
+    shell to Python without PyYAML guaranteed here).
     """
-    if not text.startswith("---"):
-        return None
-    end = text.find("\n---", 3)
-    if end == -1:
-        return None
-    fm = text[3:end]
-    lines = fm.splitlines()
+    lines = body.splitlines()
     for i, line in enumerate(lines):
-        m = re.match(r"\s*cites\s*:\s*(.*)$", line)
+        m = re.match(r"\s*Cites\s*:\s*(.*)$", line)
         if not m:
             continue
         rest = m.group(1).strip()
@@ -157,8 +154,8 @@ def resolve_cite(name: str, plugin_root: Path) -> Path | None:
 def lint_agent(path: Path, plugin_root: Path) -> list[str]:
     """Return a list of warning strings for one agent file (empty == clean)."""
     text = path.read_text()
-    cites = parse_frontmatter_cites(text)
     body, base = strip_frontmatter(text)
+    cites = parse_cites(body)
     tokens = normative_tokens(body)
     warnings: list[str] = []
     name = path.stem
@@ -168,7 +165,7 @@ def lint_agent(path: Path, plugin_root: Path) -> list[str]:
             warnings.append(
                 f"{name}: advisory — states {len(tokens)} normative token(s) "
                 f"(e.g. {tokens[0][1]!r} at line {tokens[0][0] + base - 1}) but "
-                f"declares no `cites:`; add a cites: list so the rules are "
+                f"declares no `Cites:`; add a Cites: list so the rules are "
                 f"checked against their canonical source."
             )
         return warnings

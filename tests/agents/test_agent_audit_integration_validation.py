@@ -47,8 +47,10 @@ def test_claude_setup_review_has_context_needs_project_structure() -> None:
 
 
 def test_orchestrator_declares_enforcement_script_and_implemented_by() -> None:
+    # `Enforcement: script` is a body-level declaration, not frontmatter
+    # (issue #1333).
     text = (AGENTS / "orchestrator.md").read_text(encoding="utf-8")
-    assert re.search(r"^enforcement:\s*script", text, re.MULTILINE)
+    assert re.search(r"^Enforcement:\s*script", text, re.MULTILINE)
     assert re.search(r"^> \*\*Implemented by:\*\*", text, re.MULTILINE)
 
 

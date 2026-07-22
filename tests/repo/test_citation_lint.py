@@ -2,6 +2,9 @@
 (issue #312). Phase 1 is advisory (always exit 0); these pin the warning
 behaviour on a tiny self-contained plugin tree.
 
+``Cites:`` is a body-level declaration, not frontmatter (issue #1333 — it is
+not part of the official Claude Code sub-agent contract).
+
 Ported from tests/repo/citation_lint_tests.bats (issue #572: bash -> Python).
 """
 
@@ -45,9 +48,9 @@ def test_cites_present_and_thresholds_backed_no_warning(plugin: Path) -> None:
     target.write_text(
         """---
 name: clean
-cites: [complexity, object-calisthenics]
 ---
 # Clean
+Cites: [complexity, object-calisthenics]
 Functions MUST be under 50 lines. Coverage SHOULD reach 80%.
 Classes MUST hold no more than 2 instance variables.
 """
@@ -63,9 +66,9 @@ def test_cites_present_but_threshold_uncited_warns(plugin: Path) -> None:
     target.write_text(
         """---
 name: drift
-cites: [complexity]
 ---
 # Drift
+Cites: [complexity]
 Functions MUST be under 40 lines.
 """
     )
@@ -107,7 +110,7 @@ Functions MUST be under 50 lines.
     out = res.stdout + res.stderr
     assert res.returncode == 0, out
     assert "advisory" in out
-    assert "declares no `cites:`" in out
+    assert "declares no `Cites:`" in out
 
 
 def test_thresholds_inside_code_fences_not_flagged(plugin: Path) -> None:
@@ -115,9 +118,9 @@ def test_thresholds_inside_code_fences_not_flagged(plugin: Path) -> None:
     target.write_text(
         """---
 name: fenced
-cites: [complexity]
 ---
 # Fenced
+Cites: [complexity]
 
 ```
 Functions MUST be under 40 lines.
@@ -135,9 +138,9 @@ def test_thresholds_inside_blockquotes_not_flagged(plugin: Path) -> None:
     target.write_text(
         """---
 name: quoted
-cites: [complexity]
 ---
 # Quoted
+Cites: [complexity]
 > Functions MUST be under 40 lines.
 """
     )
@@ -152,9 +155,9 @@ def test_cites_unknown_source_yields_warning(plugin: Path) -> None:
     target.write_text(
         """---
 name: badcite
-cites: [does-not-exist]
 ---
 # BadCite
+Cites: [does-not-exist]
 Functions MUST be under 50 lines.
 """
     )
@@ -170,11 +173,12 @@ def test_block_list_cites_syntax_parsed(plugin: Path) -> None:
     target.write_text(
         """---
 name: block
-cites:
-  - complexity
-  - object-calisthenics
 ---
 # Block
+Cites:
+- complexity
+- object-calisthenics
+
 Functions MUST be under 50 lines and hold no more than 2 variables.
 """
     )
@@ -189,9 +193,9 @@ def test_issue_refs_not_treated_as_thresholds(plugin: Path) -> None:
     target.write_text(
         """---
 name: issueref
-cites: [complexity]
 ---
 # IssueRef
+Cites: [complexity]
 This rule MUST follow the contract from #99 and #312.
 """
     )

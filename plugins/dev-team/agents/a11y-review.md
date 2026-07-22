@@ -5,19 +5,20 @@ description: WCAG 2.1 AA compliance, semantic HTML, ARIA, keyboard navigation, f
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
 effort: high
-cites: [adversarial-review-protocol]
-scope:
-  - **/*.svelte
-  - **/*.html
-  - **/*.jsx
-  - **/*.tsx
-  - **/*.vue
-  - **/*.razor
-  - **/*.cshtml
-  - **/*.jsp
 ---
 
 # Accessibility Review
+
+Scope:
+- **/*.svelte
+- **/*.html
+- **/*.jsx
+- **/*.tsx
+- **/*.vue
+- **/*.razor
+- **/*.cshtml
+- **/*.jsp
+Cites: [adversarial-review-protocol]
 
 Scope: UI component and template files only (.svelte, .html, .jsx, .tsx, .vue, .razor, .cshtml, .jsp).
 Skip non-component files (utilities, services, stores, configs, tests, routes/pages without markup).

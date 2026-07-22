@@ -4,10 +4,11 @@ effort: high
 name: recon-driven-scan
 description: Bridges RECON narrative risk claims to file/line evidence. Emits findings only when the source actually exhibits the described pattern. Phase 1b peer agent.
 tools: Read, Grep, Glob, Bash
-cites: [severity-floors]
 ---
 
 # RECON-Driven Scan Agent
+
+Cites: [severity-floors]
 
 Phase 1b peer agent. Reads the human-language risk descriptions in the
 Phase 0 RECON narrative and finds concrete file:line evidence in source for

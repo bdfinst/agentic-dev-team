@@ -184,10 +184,11 @@ def test_every_shipped_agent_across_every_plugin_has_no_contract_errors() -> Non
     `/agent-audit` or `/plugin-audit` — it catches contract violations even
     when nobody remembers to run either skill.
 
-    `warning`-severity findings (unknown frontmatter keys, plugin-ignored
-    fields) are informational only and not asserted away here — plugins may
-    carry non-contract keys (e.g. dev-team's `cites:`/`scope:`) by design;
-    `/agent-audit`/`/plugin-audit` surface those for a human to judge.
+    `warning`-severity findings for a **recognized** contract field that is
+    merely inert in context (e.g. `hooks:`/`mcpServers:`/`permissionMode:`
+    ignored for plugin-supplied agents) are informational only and not
+    asserted away here — that is a deployment-context note, not a contract
+    violation.
     """
     agents = _every_shipped_agent()
     assert agents, "no plugins/*/agents/*.md files found — did the layout change?"
@@ -206,4 +207,39 @@ def test_every_shipped_agent_across_every_plugin_has_no_contract_errors() -> Non
         "Agent frontmatter contract violation(s) — fix per "
         "plugins/marketplace-dev/knowledge/agent-contract.json:\n  "
         + "\n  ".join(failures)
+    )
+
+
+def test_every_shipped_agent_frontmatter_has_no_unrecognized_keys() -> None:
+    """Nothing should be in an agent's frontmatter that isn't defined by the
+    contract (issue #1333) — this is the gate that makes that a standing
+    guarantee rather than a one-time cleanup. Fails on any 'Unknown
+    frontmatter key' warning; a plugin-ignored-field warning for a
+    *recognized* field (hooks/mcpServers/permissionMode) is a different,
+    non-violating category and is not asserted away here.
+    """
+    agents = _every_shipped_agent()
+    assert agents, "no plugins/*/agents/*.md files found — did the layout change?"
+
+    failures: list[str] = []
+    for agent in agents:
+        result = run_validator(str(agent))
+        data = json.loads(result.stdout)
+        unknown_key_warnings = [
+            i
+            for i in data["issues"]
+            if i["severity"] == "warning"
+            and i["message"].startswith("Unknown frontmatter key")
+        ]
+        if unknown_key_warnings:
+            rel = agent.relative_to(REPO_ROOT)
+            for issue in unknown_key_warnings:
+                failures.append(f"{rel}: {issue['field']}: {issue['message']}")
+
+    assert not failures, (
+        "Agent frontmatter carries a key not defined by "
+        "plugins/marketplace-dev/knowledge/agent-contract.json — move it to "
+        "the agent's body instead (see docs/agent_info.md's 'Non-standard "
+        "body declarations' section for the existing Cites:/Scope:/"
+        "Enforcement: convention):\n  " + "\n  ".join(failures)
     )

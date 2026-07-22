@@ -5,17 +5,20 @@ description: Reusable component extraction and frontend duplication — repeated
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
 effort: high
-cites: [frontend-component-architecture, adversarial-review-protocol]
-scope:
-  - **/*.jsx
-  - **/*.tsx
-  - **/*.vue
-  - **/*.svelte
-  - **/*.component.ts
-  - **/*.component.html
 ---
 
 # Component Architecture Review
+
+Scope:
+- **/*.jsx
+- **/*.tsx
+- **/*.vue
+- **/*.svelte
+- **/*.component.ts
+- **/*.component.html
+Cites:
+- frontend-component-architecture
+- adversarial-review-protocol
 
 Scope: frontend component files (`.jsx`, `.tsx`, `.vue`, `.svelte`, Angular
 `*.component.ts` + their templates, and `.js`/`.ts` modules that render UI).

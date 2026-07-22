@@ -5,14 +5,15 @@ description: Token usage optimization, file length, CLAUDE.md size, LLM anti-pat
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
 effort: high
-cites: [adversarial-review-protocol]
-enforcement: script
-scope: always
 ---
 
 > **Implemented by:** scripts/token_efficiency_review.py
 
 # Token Efficiency Review
+
+Scope: always
+Cites: [adversarial-review-protocol]
+Enforcement: script
 
 Output JSON:
 

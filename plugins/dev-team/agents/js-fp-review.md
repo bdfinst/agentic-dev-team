@@ -5,17 +5,18 @@ description: Array mutations, parameter mutations, global state, impure patterns
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
 effort: high
-cites: [adversarial-review-protocol]
-scope:
-  - **/*.js
-  - **/*.ts
-  - **/*.jsx
-  - **/*.tsx
-  - **/*.mjs
-  - **/*.cjs
 ---
 
 # JS FP Review
+
+Scope:
+- **/*.js
+- **/*.ts
+- **/*.jsx
+- **/*.tsx
+- **/*.mjs
+- **/*.cjs
+Cites: [adversarial-review-protocol]
 
 Scope: JavaScript and TypeScript files only (`.js`, `.ts`, `.jsx`, `.tsx`).
 Skip this agent entirely if the project has no JS/TS files.

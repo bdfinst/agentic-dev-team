@@ -5,11 +5,15 @@ description: Injection, auth/authz, data exposure, security headers, crypto
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: opus
 effort: high
-cites: [owasp-detection, accepted-risks-schema, adversarial-review-protocol]
-scope: always
 ---
 
 # Security Review
+
+Scope: always
+Cites:
+- owasp-detection
+- accepted-risks-schema
+- adversarial-review-protocol
 
 Output JSON:
 

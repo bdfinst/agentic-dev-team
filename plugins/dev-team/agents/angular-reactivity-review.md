@@ -5,15 +5,16 @@ description: Angular Zone.js change-detection pitfalls, OnPush + immutability vi
 tools: Read, Grep, Glob, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
 effort: high
-cites: [adversarial-review-protocol]
-scope:
-  - **/*.component.ts
-  - **/*.component.html
-  - **/*.service.ts
-  - **/*.ts
 ---
 
 # Angular Reactivity Review
+
+Scope:
+- **/*.component.ts
+- **/*.component.html
+- **/*.service.ts
+- **/*.ts
+Cites: [adversarial-review-protocol]
 
 Scope: Angular component, directive, and service files (`.component.ts`,
 `.component.html`, `.service.ts`, and general `.ts` files in Angular projects).

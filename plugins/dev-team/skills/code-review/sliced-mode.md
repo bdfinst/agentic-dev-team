@@ -59,7 +59,7 @@ heuristic — any doubt yields non-declarative):
   panel** — `correctness-review` and `structure-review` only. The six-lens
   semantic panel is wasted on declaration files.
 - **Non-declarative slice**: run the **full panel** — the standard agent
-  eligibility rules from `SKILL.md` steps 3–4 (self-declared `scope:`,
+  eligibility rules from `SKILL.md` steps 3–4 (self-declared `Scope:`,
   framework reactivity lens, ai-provenance), scoped to the slice's files.
 
 The exact declarative rule is owned by `partition.py`; this file does not

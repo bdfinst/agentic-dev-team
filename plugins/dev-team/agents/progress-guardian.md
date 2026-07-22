@@ -4,11 +4,14 @@ description: Tracks plan step completion, enforces commit discipline, and gates 
 tools: Read, Grep, Glob
 model: haiku
 effort: high
-cites: [adversarial-review-protocol, directory-enumeration]
-enforcement: script
 ---
 
 # Progress Guardian
+
+Cites:
+- adversarial-review-protocol
+- directory-enumeration
+Enforcement: script
 
 > **Implemented by:** scripts/progress_guardian.py
 

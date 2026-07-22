@@ -165,7 +165,7 @@ Include the result in the agent report table under a `Code-Intel` column.
 
 **Fix (when `--fix` is passed)**: run `python3 scripts/check_review_agent_mcp_tools.py --fix`, which appends the missing names (merge, never replacing `Read, Grep, Glob`/`Skill`). Report `FIXED: <agent> — added code-intelligence MCP tools`.
 
-3. **Code-intelligence mapping invariant (non-review team agents)**: Every non-review team agent in the #1108 mapping MUST grant its **tier's** tools in `tools:` — the **narrow** tier (`software-engineer`, `mutation-kill`, `qa-engineer`, `data-flow-tracer`) grants codegraph + the four Repowise tools, with `data-flow-tracer` also carrying a scoped `Bash(graphify *)`; the **rationale** tier (`adr-author`, `architect`, `security-engineer`, `platform-engineer`, `codebase-recon`) additionally grants `mcp__plugin_repowise_repowise__get_why`. Coverage is the union of the mapping's config keys and a structural sweep (team agents by `## Behavioral Guidelines` **or** `enforcement: script`, minus `*-review`, minus a documented exclusion list), so a new team agent that is neither mapped nor excluded fails rather than silently escaping the mapping.
+3. **Code-intelligence mapping invariant (non-review team agents)**: Every non-review team agent in the #1108 mapping MUST grant its **tier's** tools in `tools:` — the **narrow** tier (`software-engineer`, `mutation-kill`, `qa-engineer`, `data-flow-tracer`) grants codegraph + the four Repowise tools, with `data-flow-tracer` also carrying a scoped `Bash(graphify *)`; the **rationale** tier (`adr-author`, `architect`, `security-engineer`, `platform-engineer`, `codebase-recon`) additionally grants `mcp__plugin_repowise_repowise__get_why`. Coverage is the union of the mapping's config keys and a structural sweep (team agents by `## Behavioral Guidelines` **or** `Enforcement: script`, minus `*-review`, minus a documented exclusion list), so a new team agent that is neither mapped nor excluded fails rather than silently escaping the mapping.
    - FAIL if a mapped agent's `tools:` line is missing any of its tier's names, or a swept team agent is in neither the mapping nor the exclusion list (unclassified).
    - PASS if every mapped agent grants its tier's tools and every swept agent is mapped or excluded.
    - Delegated to `scripts/check_agent_tool_mapping.py` (with `TIER_CONFIG`/`EXCLUSIONS` as the single source of truth, sharing `scripts/lib/mcp_tool_grants.py` with the review-agent check as a peer). This is the non-review counterpart to invariant 2: review agents keep their five-tool set there; the mapping check never evaluates `*-review` agents.
@@ -176,7 +176,7 @@ Include the result in the agent report table under a `Mapping` column.
 
 ### 2c. Audit team agent personas
 
-A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. **Exemption**: an agent that declares `enforcement: script` in its frontmatter is a script-enforced **prose spec**, not a persona-driven team agent — skip the persona checks below for it and instead verify it carries a `> **Implemented by:** <script>` pointer immediately after the H1. For each remaining team agent, check:
+A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. **Exemption**: an agent that declares `Enforcement: script` in its body is a script-enforced **prose spec**, not a persona-driven team agent — skip the persona checks below for it and instead verify it carries a `> **Implemented by:** <script>` pointer immediately after the H1. For each remaining team agent, check:
 
 1. **Persona paragraph**: Is there a `You are…` sentence immediately after the H1 heading and before the first `##` section?
    - The line must begin with `You are` (case-sensitive).
@@ -202,14 +202,15 @@ Reviewer agents sometimes inline normative rules — numeric thresholds like
 "under 50 lines" or "80% coverage" — independently of the canonical skill or
 knowledge file. When that source changes, the agent silently keeps enforcing
 the stale value. The citation lint makes the dependency explicit: an agent
-declares its sources in a `cites:` frontmatter list, and every numeric threshold
+declares its sources in a body-level `Cites:` list (not frontmatter — `cites`
+is not part of the official sub-agent contract), and every numeric threshold
 the agent states on an RFC-2119 line (MUST/SHOULD/SHALL/REQUIRED/NEVER/ALWAYS)
 must also appear in a cited source.
 
 Perform the check by reading (the same mechanical, deterministic style as the
 other audits — no judgment):
 
-1. Read each agent's frontmatter and look for a `cites:` list. Each entry names
+1. Read each agent's body and look for a `Cites:` list. Each entry names
    a skill (`skills/<name>/SKILL.md`) or knowledge file (`knowledge/<name>.md`).
 2. In the agent body, find every line carrying an RFC-2119 keyword
    (MUST/MUST NOT/SHOULD/SHALL/REQUIRED/NEVER/ALWAYS). Ignore lines inside code
@@ -219,17 +220,17 @@ other audits — no judgment):
 
 Classify:
 
-- `cites:` present and every threshold backed → PASS in the Citation column.
-- `cites:` present but a threshold absent from every cited source → WARN
+- `Cites:` present and every threshold backed → PASS in the Citation column.
+- `Cites:` present but a threshold absent from every cited source → WARN
   (possible drift): report the token + line number.
-- no `cites:` but the agent states thresholds → WARN (advisory): recommend
-  adding a `cites:` list.
-- no `cites:` and no thresholds → PASS (nothing to verify).
-- `cites:` an unknown source (no matching skill/knowledge file) → WARN.
+- no `Cites:` but the agent states thresholds → WARN (advisory): recommend
+  adding a `Cites:` list.
+- no `Cites:` and no thresholds → PASS (nothing to verify).
+- `Cites:` an unknown source (no matching skill/knowledge file) → WARN.
 
 **Phase 1 is non-blocking** — these are warnings, never failures. Do not
 red-line the audit on a citation warning; surface it as an action item so drift
-is visible while `cites:` adoption grows. CI runs the deterministic counterpart,
+is visible while `Cites:` adoption grows. CI runs the deterministic counterpart,
 `scripts/citation_lint.py` (also advisory, exit 0), on every PR.
 
 ### 2e. Registry completeness (preventive)
@@ -408,7 +409,7 @@ Read each file in `.claude/hooks/*.sh` and check:
 | Agent | cites | Drift / Advisory | Status |
 | --- | --- | --- | --- |
 | complexity-review | yes | — | PASS |
-| naming-review | no | states 1 threshold, no cites: | WARN |
+| naming-review | no | states 1 threshold, no Cites: | WARN |
 | ... | | | |
 
 ## Summary

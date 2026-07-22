@@ -4,7 +4,6 @@ description: Map an aggregated session digest to probable plugin causes and rank
 tools: Read
 model: sonnet
 effort: high
-cites: [adversarial-review-protocol]
 ---
 
 Output JSON:
@@ -18,6 +17,8 @@ Severity: error=high-severity recurring pattern (≥3 sessions) requiring a plug
 Context needs: full-file
 
 # Session Analysis
+
+Cites: [adversarial-review-protocol]
 
 Role: worker. You read **only** the deterministic session digest produced by
 `scripts/session_extract.py` (a metrics-only JSON object) and map its aggregated
