@@ -4567,7 +4567,7 @@
       "anchor": "5-run-plan-review-personas"
     },
     "6. Present for approval": {
-      "summary": "**Gate check before presenting.** Verify the `## Skipped (low value)` section captures every `LOW_VALUE` finding — no slice or TDD step may carry one.",
+      "summary": "**Gate check before presenting.** Verify the `## Skipped (low value)` section captures every `LOW_VALUE` finding — no slice or step may carry one.",
       "anchor": "6-present-for-approval"
     },
     "Integration": {
