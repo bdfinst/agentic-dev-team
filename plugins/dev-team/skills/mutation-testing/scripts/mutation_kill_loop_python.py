@@ -81,6 +81,19 @@ def run_scoped_mutmut(
     file changed) is silently reused otherwise, which was a real trap hit
     manually while dogfooding this loop by hand (#1354): every run must see
     its own fresh baseline, not a leftover one.
+
+    **Always reverts ``source_file`` in a ``finally``.** mutmut mutates the
+    real source file on disk for the duration of each mutant's test run and
+    restores it when that mutant finishes — but an internal mutmut crash
+    (a real, reproducible one: mutmut 2.5.1's own cache layer raises
+    ``AssertionError``/``ValueError`` on some files, confirmed while
+    dogfooding this exact function against
+    ``hooks/mutation_adapters/mutmut.py`` — see #1357) skips that restore
+    and leaves the mutated content on disk. Unlike Stryker.NET (which
+    instruments a separate build, never the real file), mutmut's crash
+    failure mode is "corrupt the file under test," so every scoped run must
+    unconditionally `git checkout --` it afterward — succeeding, failing, or
+    raising.
     """
     root = cwd or Path(".")
     (root / ".mutmut-cache").unlink(missing_ok=True)
@@ -96,14 +109,17 @@ def run_scoped_mutmut(
         "--simple-output",
     ]
     try:
-        subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
-    except (FileNotFoundError, OSError) as exc:
-        raise RuntimeError(f"mutmut run failed to start: {exc}") from exc
+        try:
+            subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
+        except (FileNotFoundError, OSError) as exc:
+            raise RuntimeError(f"mutmut run failed to start: {exc}") from exc
 
-    junit = subprocess.run(
-        [*prefix, "junitxml"], cwd=cwd, capture_output=True, text=True
-    )
-    return junit.stdout or ""
+        junit = subprocess.run(
+            [*prefix, "junitxml"], cwd=cwd, capture_output=True, text=True
+        )
+        return junit.stdout or ""
+    finally:
+        git_revert(Path(source_file), cwd=cwd)
 
 
 def extract_survivors(junitxml_text: str, source_file: str) -> List[dict]:
