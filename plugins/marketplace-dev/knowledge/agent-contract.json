@@ -1,0 +1,201 @@
+{
+    "source": "https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields",
+    "retrieved": "2026-07-22",
+    "scope": "Claude Code subagent definitions (.claude/agents/*.md and ~/.claude/agents/*.md)",
+    "required_fields": [
+        "name",
+        "description"
+    ],
+    "notes": [
+        "Only name and description are required; all other fields are optional.",
+        "Misspelled frontmatter keys are ignored silently (no error) \u2014 they do not take effect.",
+        "The markdown body below the frontmatter becomes the agent's system prompt.",
+        "Plugin-supplied subagents ignore the hooks, mcpServers, and permissionMode fields.",
+        "Fields with open value sets (tools, model full IDs) list examples/patterns rather than a closed enum.",
+        "effort's usable values depend on the chosen model \u2014 cross-check against model_efforts.json."
+    ],
+    "fields": {
+        "name": {
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "enum": null,
+            "default": null,
+            "description": "Unique identifier using lowercase letters and hyphens. Filename need not match; hooks receive this value as agent_type."
+        },
+        "description": {
+            "required": true,
+            "type": "string",
+            "enum": null,
+            "default": null,
+            "description": "When Claude should delegate to this subagent. Drives automatic delegation; be concrete about triggering conditions."
+        },
+        "tools": {
+            "required": false,
+            "type": "string_or_list",
+            "value_format": "Comma-separated string (e.g. 'Read, Grep, Glob, Bash') or YAML list.",
+            "valid_values": [
+                "Tool names, e.g. Read, Write, Edit, Grep, Glob, Bash",
+                "Agent (allow spawning any subagent) or Agent(type1, type2) (allowlist)",
+                "MCP patterns: mcp__<server> or mcp__<server>__*"
+            ],
+            "enum": null,
+            "default": "inherits all tools available in the main conversation",
+            "description": "Strict allowlist of tools the subagent may use. If no entry resolves to a real tool, the subagent fails to launch. Use the skills field to preload skills rather than listing Skill here."
+        },
+        "disallowedTools": {
+            "required": false,
+            "type": "string_or_list",
+            "value_format": "Comma-separated string or YAML list.",
+            "valid_values": [
+                "Tool names, e.g. Write, Edit",
+                "MCP patterns: mcp__<server>, mcp__<server>__*, or mcp__* (all MCP tools)"
+            ],
+            "enum": null,
+            "default": null,
+            "description": "Denylist of tools, removed from the inherited or specified set. Applied before tools is resolved."
+        },
+        "model": {
+            "required": false,
+            "type": "string",
+            "enum": [
+                "sonnet",
+                "opus",
+                "haiku",
+                "fable",
+                "inherit"
+            ],
+            "also_accepts": "A full model ID such as claude-opus-4-8 or claude-sonnet-5 (same values as the --model flag).",
+            "default": "inherit",
+            "description": "Model the subagent runs on: an alias, a full model ID, or inherit (use the main conversation's model)."
+        },
+        "effort": {
+            "required": false,
+            "type": "string",
+            "enum": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+            ],
+            "default": "inherits from session",
+            "description": "Reasoning/effort level while this subagent is active; overrides the session effort level. Available levels depend on the model (see model_efforts.json). 'ultracode' is a Claude Code menu concept, not a valid frontmatter value."
+        },
+        "permissionMode": {
+            "required": false,
+            "type": "string",
+            "enum": [
+                "default",
+                "acceptEdits",
+                "auto",
+                "dontAsk",
+                "bypassPermissions",
+                "plan",
+                "manual"
+            ],
+            "enum_notes": {
+                "manual": "Alias for default; requires Claude Code v2.1.200 or later."
+            },
+            "default": "default",
+            "description": "How the subagent handles permission prompts. Ignored for plugin subagents. A parent using bypassPermissions, acceptEdits, or auto takes precedence and cannot be overridden."
+        },
+        "maxTurns": {
+            "required": false,
+            "type": "integer",
+            "enum": null,
+            "default": null,
+            "description": "Maximum number of agentic turns before the subagent stops."
+        },
+        "skills": {
+            "required": false,
+            "type": "list",
+            "item_type": "string",
+            "enum": null,
+            "default": null,
+            "description": "Skill names to preload into the subagent's context at startup (full skill content is injected). Cannot preload skills that set disable-model-invocation: true."
+        },
+        "mcpServers": {
+            "required": false,
+            "type": "list",
+            "item_type": "string_or_object",
+            "value_format": "Each entry is either a string naming an already-configured server, or an inline server definition object keyed by server name.",
+            "inline_server_types": [
+                "stdio",
+                "http",
+                "sse",
+                "ws"
+            ],
+            "enum": null,
+            "default": null,
+            "description": "MCP servers scoped to this subagent. Ignored for plugin subagents."
+        },
+        "hooks": {
+            "required": false,
+            "type": "object",
+            "value_format": "Object keyed by hook event; each event maps to a list of { matcher, hooks: [{ type, command }] } entries.",
+            "hook_events": [
+                "PreToolUse",
+                "PostToolUse",
+                "Stop"
+            ],
+            "hook_entry_type": "command",
+            "enum": null,
+            "default": null,
+            "description": "Lifecycle hooks scoped to this subagent. All hook events are supported; the listed ones are most common. Stop is converted to SubagentStop at runtime. Ignored for plugin subagents."
+        },
+        "memory": {
+            "required": false,
+            "type": "string",
+            "enum": [
+                "user",
+                "project",
+                "local"
+            ],
+            "default": null,
+            "description": "Persistent memory scope enabling cross-session learning. Enables Read/Write/Edit tools automatically so the subagent can manage its memory files."
+        },
+        "background": {
+            "required": false,
+            "type": "boolean",
+            "enum": [
+                true,
+                false
+            ],
+            "default": "unset (Claude decides; runs in background by default as of v2.1.198)",
+            "description": "Set to true to always run this subagent as a background task, even when Claude needs its result right away."
+        },
+        "isolation": {
+            "required": false,
+            "type": "string",
+            "enum": [
+                "worktree"
+            ],
+            "default": "unset (no isolation)",
+            "description": "Set to worktree to run the subagent in a temporary git worktree with an isolated copy of the repository. 'worktree' is the only valid value; omit the field entirely for no isolation."
+        },
+        "color": {
+            "required": false,
+            "type": "string",
+            "enum": [
+                "red",
+                "blue",
+                "green",
+                "yellow",
+                "purple",
+                "orange",
+                "pink",
+                "cyan"
+            ],
+            "default": null,
+            "description": "Display color for the subagent in the task list and transcript."
+        },
+        "initialPrompt": {
+            "required": false,
+            "type": "string",
+            "enum": null,
+            "default": null,
+            "description": "Auto-submitted as the first user turn when this agent runs as the main session agent (via --agent or the agent setting). Commands and skills are processed; prepended to any user-provided prompt."
+        }
+    }
+}
