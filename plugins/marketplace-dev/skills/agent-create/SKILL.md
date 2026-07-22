@@ -57,14 +57,35 @@ Accept these inputs (from arguments or interactive prompts):
 | `description` | yes | one-line summary for frontmatter |
 | `tools` | no | comma-separated tool list |
 | `--plugin <dir>` | no | target plugin directory (resolved in Step 0) |
-| `--effort low\|medium\|high` | no | the reasoning-effort band the agent's task needs; defaults review→low, team→medium |
+| `--model sonnet\|opus\|haiku\|fable\|inherit\|<full model ID>` | no | model the agent runs on; a value is suggested and confirmed in Step 5 if omitted |
+| `--effort low\|medium\|high\|xhigh\|max` | no | reasoning effort for this agent; a value is suggested and confirmed in Step 5 if omitted |
+| `--memory user\|project\|local` | no | persistent memory scope; omitted unless specified |
+| `--isolation worktree` | no | run in an isolated git worktree; omitted unless specified |
+| `--color red\|blue\|green\|yellow\|purple\|orange\|pink\|cyan` | no | display color in the task list/transcript; omitted unless specified |
+| `--max-turns <int>` | no | cap on agentic turns before the subagent stops; omitted unless specified |
+| `--background true\|false` | no | always run as a background task; omitted unless specified |
+| `--skills <name1,name2,...>` | no | skill names to preload into context at startup; omitted unless specified |
 | `--context diff-only\|full-file\|project-structure` | no | sets `Context needs:` field in review body |
 | `--lang <exts>` | no | adds language scope line to review body (e.g. `Scope: .ts, .tsx files only`) |
 | `--dry` | no | display generated content without writing file or updating registry |
 
-Agents declare a vendor-neutral **effort band** (`effort: low|medium|high`), not a model name — the PreToolUse hook maps the band to a concrete model at dispatch.
+Agents declare the native Claude Code sub-agent contract — `model:` (an alias,
+a full model ID, or `inherit`) and `effort:` (a reasoning-effort level),
+resolved by the harness itself at dispatch, no plugin-owned resolution step.
+`${CLAUDE_PLUGIN_ROOT}/knowledge/agent-contract.json` is the single source of
+truth for every field's valid values.
 
-**Reject an invalid band.** If `--effort` is not one of `low`, `medium`, `high`, stop and emit the valid bands. Map a recognized legacy token in the message so the fix is obvious: `small`/`haiku` → `low`, `mid`/`sonnet` → `medium`, `frontier`/`opus` → `high`. Example: `Invalid effort 'frontier'. Valid bands: low, medium, high. (frontier → high)`.
+**Reject an invalid `--model` or `--effort` value.** If either flag is given
+and doesn't match `agent-contract.json`'s enum for that field, stop and emit
+the valid set: `model`: `sonnet|opus|haiku|fable|inherit` (or a full model
+ID); `effort`: `low|medium|high|xhigh|max`. Example:
+`Invalid effort 'frontier'. Valid values: low, medium, high, xhigh, max.`
+
+**Reject an invalid `--memory`/`--color`/`--isolation`/`--background` value**
+the same way, against that field's enum in `agent-contract.json`. `--max-turns`
+must be a positive integer; `--skills` entries are not validated against a
+fixed set (skill names are plugin-specific) but each must resolve to a real
+`$PLUGIN/skills/<name>/SKILL.md` — warn (not fail) if one doesn't.
 
 ---
 
@@ -115,14 +136,31 @@ as a warning (not an error — custom tools are allowed).
 
 ---
 
-## Step 5 — Apply Defaults
+## Step 5 — Suggest and Confirm Model/Effort; Apply the Tools Default
 
-| Setting | Review default | Team default |
-|---------|---------------|-------------|
-| `tools` | `Read, Grep, Glob` | (whatever user specified) |
-| `effort` | `low` | `medium` |
+`model` and `effort` are never silently defaulted — always suggested, then
+confirmed with the user:
 
-Only apply a default when the value was not specified by the user.
+1. If `--model` was not provided, suggest by type: review→`haiku`,
+   team→`sonnet`. If `--effort` was not provided, suggest `high` for either
+   type.
+2. Emit: `Suggested model: <model>, effort: <effort> — accept? (yes/change)`
+3. On `yes`: use the suggested values and continue.
+4. On `change`: ask `Model?` and/or `Effort?` for whichever the user wants to
+   change, validate each against `agent-contract.json`'s enum (the rejection
+   rule in Step 1), then continue with the confirmed values.
+
+If the user passed `--model` and/or `--effort` explicitly in Step 1, skip
+this prompt for that field entirely — an explicit flag is already a
+decision, not something to re-confirm.
+
+`tools` keeps its silent default (`Read, Grep, Glob` for review agents when
+not specified) — no confirmation needed, it isn't a cost/capability choice
+the way model/effort are.
+
+`memory`, `isolation`, `color`, `maxTurns`, `background`, and `skills` have
+no forced default and no suggestion — omit each from frontmatter entirely
+unless the user passed it.
 
 ---
 
@@ -184,10 +222,20 @@ Emit only official fields with non-empty values. Use this structure:
 name: <name>
 description: <description>
 tools: <comma-separated tool list>
-effort: <band>
+model: <alias|full-id|inherit>
+effort: <level>
+[memory: <user|project|local>]
+[isolation: worktree]
+[color: <color>]
+[maxTurns: <int>]
+[background: <true|false>]
+[skills: [<name>, ...]]
 [any additional fields the user requested and confirmed]
 ---
 ```
+
+Emit each bracketed optional field only when the user passed the
+corresponding flag in Step 1 — there is no forced default for any of them.
 
 Do not include `hooks`, `mcpServers`, or `permissionMode` unless the user
 confirmed their inclusion in Step 8.
@@ -438,7 +486,8 @@ Confirm both updates (or skips) in the completion report.
 ```
 Agent created: $PLUGIN/agents/<name>.md
 Type: <review|team>
-Effort: <band>
+Model: <alias|full-id|inherit>
+Effort: <level>
 Body: <N> lines
 Validation: PASS (/plugin-audit)
 Registry updated: $PLUGIN/knowledge/agent-registry.md (<type> Agents table) [or: skipped — file not found]

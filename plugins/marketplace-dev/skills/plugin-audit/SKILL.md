@@ -60,16 +60,19 @@ inside `PLUGIN`); accept `evals/<NAME>/fixtures/` or flat `evals/<NAME>/` layout
 
 For every agent file:
 
-1. **Frontmatter compliance** — `name`, `description`, and `effort` (one of
-   `low|medium|high`) are present; `tools` present. FAIL if `name`/`description`
-   missing or `effort` absent/invalid. For the full official-contract check
-   (required fields, name pattern, enum membership on any field present —
-   `model`, `permissionMode`, `memory`, `isolation`, `color`, `background`,
-   `maxTurns` — unknown-key and plugin-ignored-field warnings), run
+1. **Frontmatter compliance** — the native Claude Code sub-agent contract is
+   the only source of truth: `name` and `description` are the sole required
+   fields. Run
    `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/validate_agent_contract.py <file>`
-   and fold any `error`/`warning` finding into this table as FAIL/WARN. This
-   is advisory alongside the checks above until a future slice retires the
-   effort-band requirement in favor of the contract's own defaults.
+   and fold every `error` into FAIL and every `warning` into WARN in this
+   table — this covers required-field presence, `name` pattern, enum
+   membership on any field present (`model`, `effort`, `permissionMode`,
+   `memory`, `isolation`, `color`, `background`, `maxTurns`), unknown-key
+   warnings, and the plugin-ignored-field warning (`hooks`/`mcpServers`/
+   `permissionMode` are inert for plugin-supplied agents). There is no
+   separate hand-rolled `effort` check — a plugin's own convention (e.g.
+   dev-team's `effort: high` on every agent) is that plugin's local
+   preference, not a requirement this generalized gate enforces.
 2. **No colon in `description`** — the value must not contain `:` (breaks
    argument-hints). FAIL on a colon.
 3. **Skills–Skill invariant** — if the body has a `## Skills` heading, `tools:`
@@ -140,7 +143,6 @@ structural fixes and re-verify each:
 
 - Missing review-agent output schema → insert the JSON block after the H1.
 - Missing `## Skip` → insert the skip stub before `## Detect`.
-- Missing `effort` → insert `effort: low` (review) / `effort: medium` (team).
 - Colon in `description` → rewrite the value to remove colons (use `–`/`and`).
 - `## Skills` without `Skill` in tools → append `, Skill` to the `tools:` line.
 

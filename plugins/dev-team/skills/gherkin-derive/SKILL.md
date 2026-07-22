@@ -3,7 +3,8 @@ name: gherkin-derive
 description: >-
   Derive Gherkin scenarios directly from a codebase — standalone, with no
   prior legacy-modernization analysis. Discovers the public surface (OpenAPI,
-  routes, existing tests, then exported signatures), recommends a BDD binding
+  routes, existing tests, exported signatures, plus message-queue, cron, and
+  websocket/GraphQL surfaces), recommends a BDD binding
   mode via the bdd-value-guide rubric, and writes `.feature` files plus
   (in bdd-runner mode) pending step-definition stubs. Use it on its own to
   capture intended behavior before changing tests, or as Phase 2b of
@@ -92,6 +93,25 @@ locating routes, handlers, and exported signatures. Never assume either is
 present — fall back to `Read`/`Grep`/`Glob` when absent; the tools are simply
 unavailable (no error) on repos without an index.
 
+**Async / event / scheduled surfaces — a separate discovery pass, run
+regardless of the cascade above.** These have no OpenAPI equivalent and the
+1–4 cascade will never find them, yet Step 3 already has templates
+(**Batch / Scheduled Job**, **API / Event Consumer**) waiting to describe
+them. Scan for:
+
+- **Message-queue consumers/producers** — Kafka `@KafkaListener` /
+  `KafkaConsumer`, SQS handlers, RabbitMQ `@RabbitListener`, generic
+  `consume(...)` / `on_message(...)` callback registrations.
+- **Scheduled/cron entry points** — Spring `@Scheduled`, `node-cron` /
+  `cron.schedule(...)`, Quartz jobs, Kubernetes `CronJob` manifests.
+- **WebSocket / GraphQL handlers** — `@SubscribeMessage`, `io.on(...)` /
+  `socket.on(...)`, GraphQL resolver definitions (`Query`/`Mutation`/
+  `Subscription` fields).
+
+Each hit is its own surface: route message-queue and event hits to the
+**API / Event Consumer** template, and cron/scheduled hits to the
+**Batch / Scheduled Job** template.
+
 ## Step 3 — Author scenarios
 
 Use the same templates as `/gherkin-public`: **API Provider**, **UI**,
@@ -99,11 +119,18 @@ Use the same templates as `/gherkin-public`: **API Provider**, **UI**,
 scenario covers at least one success and one failure path, and every step is
 observable at the boundary — no internal calls.
 
-**Grounding failure scenarios.** When CodeGraph/Repowise are available, use
-`codegraph_explore` (or Repowise `get_context`/`search_codebase`) to inspect a
-surface's actual branches and error-handling depth before writing a failure
-scenario, rather than inferring it from the signature text alone. Falls back
-to reading the source directly when the tools are unavailable.
+**Ground every failure path in an observed condition.** Before filling a
+failure-scenario placeholder, locate a specific failure condition actually
+present in the code — a conditional, a thrown/raised exception, a documented
+or observed HTTP status code, a validation rule — and cite it in the scenario
+body. When CodeGraph/Repowise are available, use `codegraph_explore` (or
+Repowise `get_context`/`search_codebase`) to inspect a surface's actual
+branches and error-handling depth for this; fall back to reading the source
+directly when the tools are unavailable. Do not invent a generic
+`<invalid request>` / `<failure-mode-summary>` placeholder as a paraphrase of
+the surface's name or signature. When no such condition is discoverable for a
+surface, mark that scenario `# TODO: no observed failure path — hand-author`
+instead of fabricating one — an honest gap beats an invented scenario.
 
 **Label the provenance** in each `.feature` file header:
 
@@ -122,7 +149,7 @@ to reading the source directly when the tools are unavailable.
 Feature: <surface>
   Scenario: <success path>
     ...
-  Scenario: <failure path>
+  Scenario: <failure path — a real observed condition, or the hand-author TODO>
     ...
 ```
 
@@ -155,8 +182,9 @@ that pass silently.
 ## Step 6 — Report
 
 Print the mode, the count of surfaces by discovery source (OpenAPI / route /
-test / signature), and the paths written. In `none` mode, print only the
-one-line recommendation.
+test / signature / message-queue / scheduled-cron / websocket-graphql), the
+specification-vs-characterization split, and the paths written. In `none`
+mode, print only the one-line recommendation.
 
 **Call out characterization scenarios separately — never fold them into the
 same summary line as specification scenarios.** Print a distinct line: "N
