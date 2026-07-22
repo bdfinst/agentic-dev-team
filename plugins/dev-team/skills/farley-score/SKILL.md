@@ -13,6 +13,15 @@ Evaluates test quality using the 8 properties of good tests as described by Andr
 
 Attribution: Andrea Laforgia / Dave Farley — properties of good automated tests.
 
+**Locating the tests to score.** If the target repo has `.codegraph/`
+(CodeGraph MCP server, `codegraph_explore`) and/or a Repowise MCP server
+(`get_context`/`search_codebase`), prefer them over raw `Grep`/`Glob` for
+finding the test files in scope and the production code they exercise —
+grounding "Maintainable" and "Necessary" scores in real coupling and
+call-graph data instead of guessing from test names alone. Fall back to
+`Read`/`Grep`/`Glob` when neither tool is available; they simply won't exist
+on a repo without an index.
+
 ## The 8 Properties
 
 Each property is scored 1-10:
