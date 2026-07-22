@@ -2,7 +2,8 @@
 name: platform-engineer
 description: CI/CD pipeline design, deployment strategy (blue-green, canary, rolling), rollback planning, observability (SLOs, alerting, dashboards), and reliability/incident-mode design — dispatch when the user asks "how should we deploy this", "design the pipeline", "what's our rollback plan", "make this observable", or a plan step introduces new infrastructure, a new deployment target, or a production reliability concern
 tools: Read, Grep, Glob, Bash, Skill, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk, mcp__plugin_repowise_repowise__get_why
-effort: medium
+model: sonnet
+effort: high
 ---
 
 # Platform Engineer Agent

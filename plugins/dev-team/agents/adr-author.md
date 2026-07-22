@@ -2,7 +2,8 @@
 name: adr-author
 description: Creates and manages Architecture Decision Records (ADRs) with a decision framework for when to create one
 tools: Read, Write, Glob, Grep, Bash, Skill, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk, mcp__plugin_repowise_repowise__get_why
-effort: medium
+model: sonnet
+effort: high
 ---
 
 # ADR Author Agent

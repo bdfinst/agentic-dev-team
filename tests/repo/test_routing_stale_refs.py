@@ -3,13 +3,17 @@
 The canonical routing docs must describe the effort/ladder model and must
 NOT:
   - use `complexity:` as the frontmatter band key (the spec's old wording),
-  - present `model: <tier>` as the frontmatter contract (a frontmatter-style
-    line; legitimate inline prose about the deprecated form is allowed),
   - mention any file removed by this migration (the probe, the overrides
     cache, the retired SessionStart banner, the /v1/models endpoint).
 
 ADR 0004 and the CHANGELOG are intentionally NOT scanned: they are immutable
 historical records (ADR 0004 carries an "Amended by 0008" banner).
+
+ADR 0026 supersedes ADR 0008 and restores `model: <tier>` as the native,
+correct frontmatter contract (epic #1284) — the check that used to forbid it
+here is gone; `docs/model-routing.md`/`model-routing-overrides.md` and the
+rest of this file's assertions are retired along with the infrastructure
+they describe in #1288, not here.
 
 Ported from tests/repo/routing_stale_refs_tests.bats (#673).
 """
@@ -62,15 +66,6 @@ def test_no_canonical_routing_doc_mentions_a_removed_file() -> None:
 def test_no_canonical_routing_doc_uses_complexity_as_the_band_key() -> None:
     fails = _matches(r"complexity:\s*(low|medium|high)")
     assert not fails, "Stale complexity: band key found:\n" + "\n".join(fails)
-
-
-def test_no_canonical_routing_doc_presents_model_tier_as_the_frontmatter_contract() -> (
-    None
-):
-    # Frontmatter-style line (optional leading whitespace, then `model:`);
-    # inline prose mentioning the deprecated form mid-line is allowed.
-    fails = _matches(r"^\s*model:\s*(haiku|sonnet|opus)\b")
-    assert not fails, "model: <tier> presented as the contract:\n" + "\n".join(fails)
 
 
 def test_routing_contract_doc_and_override_guide_describe_effort_ladder_model() -> None:

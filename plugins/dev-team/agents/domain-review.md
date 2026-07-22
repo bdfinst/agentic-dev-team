@@ -3,6 +3,7 @@
 name: domain-review
 description: Domain boundaries, abstraction leaks, business logic placement
 tools: Read, Grep, Glob, Skill, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
+model: opus
 effort: high
 cites: [domain-modeling, ubiquitous-language, adversarial-review-protocol]
 scope: always

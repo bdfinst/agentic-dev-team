@@ -2,7 +2,8 @@
 name: progress-guardian
 description: Tracks plan step completion, enforces commit discipline, and gates plan changes through human approval
 tools: Read, Grep, Glob
-effort: low
+model: haiku
+effort: high
 cites: [adversarial-review-protocol, directory-enumeration]
 enforcement: script
 ---
