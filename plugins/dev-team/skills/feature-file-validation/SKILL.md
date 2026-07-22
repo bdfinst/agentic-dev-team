@@ -45,6 +45,8 @@ For each scenario, check whether test automation exists using two strategies. A 
 - **Strategy A — Step definition matching**: Find step definition files (per framework conventions) whose patterns match the scenario's step text. Covered when all steps have definitions.
 - **Strategy B — Test file naming**: Find test files named after the feature file (e.g., `login.feature` -> `login.test.ts`) that reference the scenario name.
 
+**Graph-assisted lookup.** If the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` — verified context and semantic search), prefer them over raw `Grep`/`Glob` for locating step definition files and matching test files under either strategy. Never assume either is present — fall back to `Grep`/`Glob`/`Read` when absent; the tools are simply unavailable (no error) on repos without an index.
+
 Report per feature file: total scenarios, covered, uncovered, partially covered.
 
 ## Step 4: Output
