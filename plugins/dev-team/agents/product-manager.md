@@ -4,6 +4,7 @@ description: Requirements clarification, priority management, and stakeholder al
 tools: Read, Grep, Glob, Skill
 model: sonnet
 effort: high
+color: cyan
 ---
 
 # Product Manager Agent

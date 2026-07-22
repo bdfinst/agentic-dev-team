@@ -49,8 +49,9 @@ def test_declares_required_frontmatter(text: str) -> None:
 def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # Budget bumped by 1 (#1284): every agent's frontmatter grew a `model:`
     # line when the native model:/effort: contract replaced the retired
-    # effort: <band> scheme.
-    assert len(text.splitlines()) < 501
+    # effort: <band> scheme. Bumped by 1 more (#1334): every agent's
+    # frontmatter grew a `color:` line under the new fleet-wide convention.
+    assert len(text.splitlines()) < 502
 
 
 def test_defines_honest_score_formula(text: str) -> None:

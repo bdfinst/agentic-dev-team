@@ -4,6 +4,7 @@ description: Tracks plan step completion, enforces commit discipline, and gates 
 tools: Read, Grep, Glob
 model: haiku
 effort: high
+color: cyan
 ---
 
 # Progress Guardian

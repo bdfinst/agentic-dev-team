@@ -1,6 +1,7 @@
 ---
 model: opus
 effort: high
+color: green
 name: business-logic-domain-review
 description: Business-logic review for ML/fraud services. Detects the 9 patterns in knowledge/domain-logic-patterns.md (fail-open, score manipulation, emulation bypass, etc.). Phase 1b peer agent.
 tools: Read, Grep, Glob

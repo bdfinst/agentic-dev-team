@@ -4,6 +4,7 @@ description: Map an aggregated session digest to probable plugin causes and rank
 tools: Read
 model: sonnet
 effort: high
+color: cyan
 ---
 
 Output JSON:

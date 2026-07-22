@@ -4,6 +4,7 @@ description: Traces a use case through all architecture layers, mapping data acc
 tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk, Bash(graphify *)
 model: sonnet
 effort: high
+color: cyan
 ---
 
 # Data Flow Tracer

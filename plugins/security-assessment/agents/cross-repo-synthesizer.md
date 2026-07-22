@@ -1,6 +1,7 @@
 ---
 model: sonnet
 effort: high
+color: cyan
 name: cross-repo-synthesizer
 description: Synthesizes attack-chain narratives from multi-repo RECON + shared-cred matches + service-comm diagram. Produces named attack chains citing findings by ID. Does not detect.
 tools: Read, Grep, Glob

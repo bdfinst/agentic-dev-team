@@ -5,6 +5,7 @@ description: WCAG 2.1 AA compliance, semantic HTML, ARIA, keyboard navigation, f
 tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
 effort: high
+color: green
 ---
 
 # Accessibility Review

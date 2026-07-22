@@ -4,6 +4,7 @@ description: Senior SDET — partner on acceptance criteria, coach teams on test
 tools: Read, Grep, Glob, Edit, Write, Bash, Bash(npx playwright *), Skill, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: sonnet
 effort: high
+color: yellow
 ---
 
 # QA / SDET Agent

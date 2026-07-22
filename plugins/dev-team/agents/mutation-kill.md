@@ -4,6 +4,7 @@ description: Autonomous mutation survivor-reduction loop — runs a scoped mutat
 tools: Read, Grep, Glob, Edit, Write, Bash, Skill, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: opus
 effort: high
+color: yellow
 ---
 
 # Mutation Kill Agent

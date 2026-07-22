@@ -4,6 +4,7 @@ description: Adversarially critiques an implementation plan's acceptance criteri
 tools: Read, Grep, Glob
 model: sonnet
 effort: high
+color: green
 ---
 
 # Plan Review: Acceptance Test Critic

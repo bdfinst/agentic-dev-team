@@ -4,6 +4,7 @@ description: User interface design, UX optimization, and accessibility complianc
 tools: Read, Grep, Glob, Skill
 model: sonnet
 effort: high
+color: cyan
 ---
 
 # UI/UX Designer Agent

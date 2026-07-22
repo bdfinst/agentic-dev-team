@@ -3,6 +3,7 @@ name: plugin-best-practices-review
 description: Plugin structural best practices — agent type appropriateness, frontmatter compliance, eval coverage, and body line-count budgets
 tools: Read, Grep, Glob
 effort: medium
+color: green
 ---
 # Plugin Best Practices Review
 
