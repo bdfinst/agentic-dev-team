@@ -119,11 +119,18 @@ Use the same templates as `/gherkin-public`: **API Provider**, **UI**,
 scenario covers at least one success and one failure path, and every step is
 observable at the boundary — no internal calls.
 
-**Grounding failure scenarios.** When CodeGraph/Repowise are available, use
-`codegraph_explore` (or Repowise `get_context`/`search_codebase`) to inspect a
-surface's actual branches and error-handling depth before writing a failure
-scenario, rather than inferring it from the signature text alone. Falls back
-to reading the source directly when the tools are unavailable.
+**Ground every failure path in an observed condition.** Before filling a
+failure-scenario placeholder, locate a specific failure condition actually
+present in the code — a conditional, a thrown/raised exception, a documented
+or observed HTTP status code, a validation rule — and cite it in the scenario
+body. When CodeGraph/Repowise are available, use `codegraph_explore` (or
+Repowise `get_context`/`search_codebase`) to inspect a surface's actual
+branches and error-handling depth for this; fall back to reading the source
+directly when the tools are unavailable. Do not invent a generic
+`<invalid request>` / `<failure-mode-summary>` placeholder as a paraphrase of
+the surface's name or signature. When no such condition is discoverable for a
+surface, mark that scenario `# TODO: no observed failure path — hand-author`
+instead of fabricating one — an honest gap beats an invented scenario.
 
 **Label the provenance** in each `.feature` file header:
 
@@ -142,7 +149,7 @@ to reading the source directly when the tools are unavailable.
 Feature: <surface>
   Scenario: <success path>
     ...
-  Scenario: <failure path>
+  Scenario: <failure path — a real observed condition, or the hand-author TODO>
     ...
 ```
 
