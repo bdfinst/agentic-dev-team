@@ -4,7 +4,7 @@ Checks:
   - CLAUDE.md present in plugin root
   - Agent frontmatter: required fields (name, description, effort)
   - Effort value membership in VALID_EFFORT
-  - Unsupported top-level fields (model → warning)
+  - Unsupported top-level fields (hooks/mcpServers/permissionMode → warning)
   - Filename kebab-case convention
   - name field matches filename stem
   - Path references in CLAUDE.md exist on disk (with file+line)
@@ -40,8 +40,11 @@ REQUIRED_FIELDS: List[str] = ["name", "description", "effort"]
 VALID_EFFORT: List[str] = ["low", "medium", "high"]
 
 # Fields that are valid in native Claude Code agents but silently ignored
-# when an agent is shipped as part of a plugin — warn, do not error.
-UNSUPPORTED_FIELDS: List[str] = ["model", "hooks", "mcpServers", "permissionMode"]
+# when an agent is shipped as part of a plugin — warn, do not error. `model`
+# is NOT in this list: per the verified contract (agent-contract.json), a
+# plugin agent's `model:` alias/full-ID/inherit value is honored normally —
+# only hooks/mcpServers/permissionMode are ignored for plugin-supplied agents.
+UNSUPPORTED_FIELDS: List[str] = ["hooks", "mcpServers", "permissionMode"]
 
 # Regex for valid kebab-case agent filenames (e.g. my-agent.md)
 KEBAB_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\.md$")

@@ -115,6 +115,15 @@ review agents. Check:
      declares a legacy `model: haiku|sonnet|opus` tier in frontmatter, WARN
      that the tier name is deprecated and name the band to use
      (`haiku` → `low`, `sonnet` → `medium`, `opus` → `high`)
+   - **Full contract check**: for the complete official-contract validation
+     (required fields, `name` pattern, enum membership on any field present —
+     `model`, `effort`, `permissionMode`, `memory`, `isolation`, `color`,
+     `background`, `maxTurns` — unknown/misspelled-key warnings, and a
+     plugin-ignored-field warning for `hooks`/`mcpServers`/`permissionMode`),
+     run `python3 scripts/validate_agent_contract.py <file>` and fold any
+     `error`/`warning` finding into the report as FAIL/WARN. This runs
+     alongside the band check above until a later slice migrates agents to
+     native `model:`/`effort: high` frontmatter and retires the band itself.
 
 9. **Context needs**: Does the agent declare a `Context needs:` field?
    - All agents MUST declare what input context they need

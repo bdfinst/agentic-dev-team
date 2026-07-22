@@ -108,13 +108,32 @@ def test_1_1_invalid_effort_value_ultra_is_exit_1(plugin_root: Path) -> None:
     assert any("ultra" in m or "effort" in m for m in msgs), msgs
 
 
-def test_1_1_top_level_model_field_is_exit_2_with_warning_severity(
+def test_1_1_top_level_model_field_is_accepted_no_warning(
+    plugin_root: Path,
+) -> None:
+    """A plugin agent's `model:` is honored per the verified contract
+    (agent-contract.json) — only hooks/mcpServers/permissionMode are ignored
+    for plugin-supplied agents, so `model:` alone must not warn."""
+    make_valid_claude_md(plugin_root)
+    (plugin_root / "agents" / "my-agent.md").write_text(
+        "---\nname: my-agent\ndescription: does stuff\neffort: low\n"
+        "model: claude-opus-4-5\n---\n\nBody.\n"
+    )
+    result = run_review(plugin_root, "--skip-llm")
+    data = json.loads(result.stdout)
+    non_llm_issues = [
+        i for i in data["issues"] if "llm-skipped" not in i.get("rule_id", "")
+    ]
+    assert non_llm_issues == [], non_llm_issues
+
+
+def test_1_1_top_level_permission_mode_field_is_exit_2_with_warning_severity(
     plugin_root: Path,
 ) -> None:
     make_valid_claude_md(plugin_root)
     (plugin_root / "agents" / "my-agent.md").write_text(
         "---\nname: my-agent\ndescription: does stuff\neffort: low\n"
-        "model: claude-opus-4-5\n---\n\nBody.\n"
+        "permissionMode: acceptEdits\n---\n\nBody.\n"
     )
     result = run_review(plugin_root, "--skip-llm")
     assert result.returncode == 2
