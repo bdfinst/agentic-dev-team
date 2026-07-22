@@ -22,7 +22,7 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 
 ## Review Agents
 
-Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them — they are never invoked directly by the user. Model assignment is enforced by the PreToolUse hook `hooks/agent_model_resolve.py`; each agent's `model:` frontmatter declares its tier alias and the hook resolves it to the active snapshot per the Resolution Procedure in `agents/orchestrator.md`. For the full dispatch pipeline, see [Code Review Process](code-review-process.md).
+Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them — they are never invoked directly by the user. Each agent declares its own `model:`/`effort:` frontmatter — the native Claude Code sub-agent contract, resolved by the harness itself (see Model/Effort Resolution in `agents/orchestrator.md`). For the full dispatch pipeline, see [Code Review Process](code-review-process.md).
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |

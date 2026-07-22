@@ -146,7 +146,7 @@ whose full phase table appears at the end of this page — and
 | Command | File | What It Does | Arguments |
 | --- | --- | --- | --- |
 | `/agent-audit` | `skills/agent-audit/SKILL.md` | Audit agents/skills/hooks for structural compliance | `[file-path \| --all] [--fix]` |
-| `/agent-eval` | `skills/agent-eval/SKILL.md` | Run eval fixtures, grade accuracy, detect regressions | `[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--integration] [--ablation <agent>] [--calibrate] [--no-cache] [--verbose]` |
+| `/agent-eval` | `skills/agent-eval/SKILL.md` | Run eval fixtures, grade accuracy, detect regressions | `[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--integration] [--ablation <agent>] [--no-cache] [--verbose]` |
 | `/harness-audit` | `skills/harness-audit/SKILL.md` | Analyze harness effectiveness and flag stale components | `[--output <path>]` |
 | `/session-review` | `skills/session-review/SKILL.md` | Mine real session transcripts and dispatch `session-analysis` to suggest improvements | `[--cwd <path>] [--transcript <file>] [--out <report>]` |
 | `/competitive-analysis` | `skills/competitive-analysis/SKILL.md` | Compare this plugin against external plugins, tools, or feature sets | `<comparison target>` |
@@ -166,7 +166,6 @@ whose full phase table appears at the end of this page — and
 | `/headless-run` | `skills/headless-run/SKILL.md` | Run a skill/command headlessly in an isolated subprocess | `<prompt-or-slash-command> [--cwd DIR] [--model MODEL] [--timeout SECS]` |
 | `/cost-report` | `skills/cost-report/SKILL.md` | Report actual token spend and dollar cost of dispatched work and flag regressions | `[--transcript <path>] [--tolerance <n>]` |
 | `/artifact-lifecycle` | `skills/artifact-lifecycle/SKILL.md` | Report on skill and agent usage data from `metrics/artifact-usage.json` | `[--json]` |
-| `/model-routing-check` | `skills/model-routing-check/SKILL.md` | Read-only diagnostic for effort-band model routing | `(none)` |
 | `/telemetry` | `skills/telemetry/SKILL.md` | Manage and report the opt-in usage telemetry beacon | `[on\|off\|status\|report]` |
 | `/version` | `skills/version/SKILL.md` | Report the installed plugin version | `(none)` |
 | `/upgrade` | `skills/upgrade/SKILL.md` | Check for and apply plugin updates from within a session | `(none)` |

@@ -1,9 +1,8 @@
 """Unit tests for the #821 benchmark harness's runner.
 
 All dispatch/checkout behavior is injected (no real subprocess, no real
-`claude` invocation, no network) — mirrors the dependency-injection style
-`scripts/agent_calibrate.py` uses for its `dispatch_fn`, rather than patching
-`subprocess.run` directly.
+`claude` invocation, no network) — plain dependency injection rather than
+patching `subprocess.run` directly.
 """
 
 from __future__ import annotations

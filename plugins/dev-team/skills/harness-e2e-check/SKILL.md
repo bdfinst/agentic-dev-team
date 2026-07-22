@@ -4,8 +4,8 @@ description: >-
   On-demand end-to-end integration check of the dev-team plugin's own
   harness mechanisms — failure-class routing, dead-end detection, evidence
   bundles, invariants/rollback, the REFACTOR-phase test-freeze guard family,
-  lesson-validation weighting, calibration/model-routing, and the
-  handoff rename — running each live rather than trusting a per-PR test
+  lesson-validation weighting, and the handoff rename — running each live
+  rather than trusting a per-PR test
   result. Originated as issue #907's post-merge integration test plan;
   this is that plan made repeatable. Use when the user says "run the
   harness e2e check", "re-run 907", "smoke-test the harness", or after any
@@ -49,7 +49,7 @@ isolated unit tests.
 Arguments: $ARGUMENTS
 
 - No argument: run all 8 items below.
-- `--item N`: run only item N (1-8).
+- `--item N`: run only item N (1-6).
 - `--output <path>`: write the full report to a specific path. Default:
   `reports/harness-e2e-check-<date>.md`.
 
@@ -125,18 +125,7 @@ a rollback **proposal** (`requires_human_approval: true`, never an automatic
 rollback). Repeat with `--mode insufficient` and confirm `"insufficient
 data"` — never `"neutral"` on a thin sample.
 
-### Item 6 — `/agent-eval` combined mode check
-
-Confirm `--calibrate` and `--ablation` reject being combined, and each still
-works standalone against current `main`.
-
-### Item 7 — `/model-routing-check` full chain
-
-Run `/model-routing-check` for real (it has its own embedded exec script +
-pytest suite — invoke both) and confirm the recalibration-staleness advisory
-reads real calibration records against the real floors table and cache.
-
-### Item 8 — `/handoff` rename verification
+### Item 6 — `/handoff` rename verification
 
 Covered permanently by
 `tests/repo/test_no_stale_context_summarization_references.py` — this item

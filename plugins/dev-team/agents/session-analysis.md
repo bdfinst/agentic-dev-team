@@ -49,7 +49,7 @@ Map digest signals to a concrete, named plugin artifact:
   Target: that skill's `SKILL.md`.
 - **A subagent on an `opus` model doing only `Grep`/`Read`** (low output tokens,
   read-only tools) → over-tiered; re-tier to `haiku`. Target: the agent's
-  `model:` frontmatter / model-routing.
+  `model:` frontmatter.
 - **High `accuracy.user_correction_turns` on a recurring topic** → a CLAUDE.md or
   skill instruction gap. Target: the relevant instruction.
 - **`rework.retried_bash_commands` / `repeated_verify_runs` high** → a loop that

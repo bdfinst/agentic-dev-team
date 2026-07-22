@@ -18,7 +18,7 @@ Feature work flows through three phases — **Research → Plan → Implement** 
 
 ## Model Routing
 
-Each agent declares an effort band (`effort: low|medium|high`) in its frontmatter. Band-to-model resolution is **enforced by a PreToolUse hook** (`hooks/agent_model_resolve.py`, registered in `settings.json` under `matcher: "Agent"`) backed by the resolver helper `hooks/lib/model_resolve.py`: it reads the band by `subagent_type` and maps it via the shipped default map in `knowledge/model-routing.json` or, when present, a per-environment ladder `.claude/model-ladder.json` (gitignored, hand-written for restricted endpoints). The session model captured at SessionStart is the fallback for an unmappable model, never a ceiling. See `agents/orchestrator.md` → Resolution Procedure for the full algorithm, `docs/model-routing.md` for the contract and `docs/model-routing-overrides.md` for ladder authoring, and `/model-routing-check` for a read-only diagnostic.
+Each agent declares `model:` (an alias, a full model ID, or `inherit`) and `effort:` (`low|medium|high|xhigh|max`) directly in its frontmatter — the native Claude Code sub-agent contract, resolved by the harness itself before dispatch. There is no plugin-side resolution hook, routing map, or per-environment ladder file (ADR 0026 retired that machinery once the native fields were confirmed to already provide it). See `agents/orchestrator.md` → Model/Effort Resolution.
 
 ## Knowledge Index
 
@@ -92,7 +92,7 @@ Before the human reviews a plan (Phase 2), a tier-scaled set of critical review 
 | Strategic Critic | `prompts/plan-review-strategic.md` | medium | Problem-solution fit, scope assessment, risk analysis, opportunity cost |
 | UX Critic | `prompts/plan-review-ux.md` | medium | User journey, error experience, cognitive load, accessibility (self-skips for non-UI plans) |
 
-Because these personas are prompt templates with **no frontmatter**, the PreToolUse model-resolve hook (which keys on `subagent_type`) cannot route them. `/plan` step 5b resolves the `medium` band to a model via `hooks/lib/model_resolve.py` before dispatch and passes it as the `model` override, so the personas honor the same ladder and per-environment overrides as every registered agent rather than a hard-coded model.
+Because these personas are prompt templates with **no frontmatter**, `/plan` step 5b passes `model: sonnet` directly as the dispatch-time override on each — the harness resolves the alias natively, the same way it would for any registered agent's own `model:` field.
 
 Each reviewer returns a structured `approve` or `needs-revision` verdict. If any reviewer flags blockers, the plan is revised before the human sees it (max 2 iterations). Warnings from the dispatched reviewers are aggregated into a Plan Review Summary appended to the plan file, which also records the chosen tier and reviewer set so the scaling decision is auditable.
 

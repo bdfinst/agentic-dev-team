@@ -37,7 +37,6 @@ This skill ships both halves so you don't rebuild them:
 |------|------|
 | `durable_runner.py` | The engine — grades one cell at a time, checkpoints after **every sample**, resumes at the next unbanked sample. Import it or run via the CLI. |
 | `run_eval.py` | CLI supervisor — `run`, `status`, and `ensure-alive` (the guard-relaunch primitive). |
-| `example_calibration.py` | A worked eval module (the model-band calibration pattern) to copy. |
 
 `${CLAUDE_PLUGIN_ROOT}` below is the plugin root; from this repo it is
 `plugins/dev-team`.
@@ -64,9 +63,8 @@ def flag(record):                   # optional -> bool: force a progress line
 ```
 
 `key` is the checkpoint identity — it must be byte-identical across relaunches
-(e.g. `f"{fixture}||{band}"`). `payload` is passed straight to `sample` and is
-**never persisted**, so `cells()` reconstructs it each launch. See
-`example_calibration.py` for a complete module.
+(e.g. `f"{fixture}||{variant}"`). `payload` is passed straight to `sample` and
+is **never persisted**, so `cells()` reconstructs it each launch.
 
 > **Keep `WORKERS` moderate.** When `sample` collapses a result to a bool, a
 > transport error (rate-limit → retries exhausted → False) is indistinguishable
@@ -76,20 +74,19 @@ def flag(record):                   # optional -> bool: force a progress line
 
 ## Steps
 
-1. **Write or pick the eval module.** For calibration, copy
-   `example_calibration.py`. Choose an `--out` directory under
-   `.claude/evals/<slug>/` (checkpoints live there and survive recycles).
+1. **Write the eval module** against the contract above. Choose an `--out`
+   directory under `.claude/evals/<slug>/` (checkpoints live there and
+   survive recycles).
 
 2. **Launch it durably** (backgrounded, from the repo root):
 
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/long-eval/run_eval.py ensure-alive \
-     --module ${CLAUDE_PLUGIN_ROOT}/skills/long-eval/example_calibration.py \
+     --module <path-to-your-module.py> \
      --out .claude/evals/<slug>
    ```
 
-   Swap `example_calibration.py` for your own module. `ensure-alive` starts the
-   run **detached** only if no live driver already
+   `ensure-alive` starts the run **detached** only if no live driver already
    owns that `--out` and it is not already `DONE`. It is safe to call any number
    of times — it never double-launches. This one command is the whole
    guard-relaunch.

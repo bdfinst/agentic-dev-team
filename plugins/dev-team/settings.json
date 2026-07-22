@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh hooks/py.sh hooks/session_model_banner.py"
+            "command": "sh hooks/py.sh hooks/pending_review_notify.py"
           },
           {
             "type": "command",
@@ -151,10 +151,6 @@
       {
         "matcher": "Agent|Task",
         "hooks": [
-          {
-            "type": "command",
-            "command": "sh hooks/py.sh hooks/agent_model_resolve.py"
-          },
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/context_ceiling_guard.py"
