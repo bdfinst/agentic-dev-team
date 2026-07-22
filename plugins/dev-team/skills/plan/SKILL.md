@@ -2,7 +2,7 @@
 name: plan
 description: >-
   Create a structured implementation plan with goal, acceptance criteria,
-  incremental TDD steps, and a pre-PR quality gate. Use this for tasks that
+  incremental Code-First Small Batches steps, and a pre-PR quality gate. Use this for tasks that
   need a plan but not the full three-phase orchestration, or when the user
   says "plan this", "make a plan", "break this down", or "how should I
   implement this".
@@ -61,14 +61,14 @@ When authoring each slice's Gherkin, cover:
 - **Edge cases** — empty collections, boundary values, concurrent access, idempotency.
 - **Error scenarios** — specify observable error behavior, not just "should fail".
 
-Keep scenarios implementation-independent (no databases, selectors, or internal data structures in step text) and deterministic. Every acceptance criterion from the spec must be covered by at least one scenario across the slices. Each TDD step traces back to one or more scenarios in its slice.
+Keep scenarios implementation-independent (no databases, selectors, or internal data structures in step text) and deterministic. Every acceptance criterion from the spec must be covered by at least one scenario across the slices. Each step traces back to one or more scenarios in its slice.
 
-**Filter `LOW_VALUE` findings out of the work streams.** A gap classified `LOW_VALUE` by `/specs` or `/test-health` (no branching logic, no observable outcome, coverage already provided by a higher-layer test) never becomes a slice or a TDD step. List such findings in a `## Skipped (low value)` section with their one-line rationale so the decision is visible — they document why the work was *not* planned, not deferred work to revisit. **The plan gate rejects any slice or step classified `LOW_VALUE`**: if a `LOW_VALUE` finding has leaked into a work stream, move it to the Skipped section before the human gate.
+**Filter `LOW_VALUE` findings out of the work streams.** A gap classified `LOW_VALUE` by `/specs` or `/test-health` (no branching logic, no observable outcome, coverage already provided by a higher-layer test) never becomes a slice or a step. List such findings in a `## Skipped (low value)` section with their one-line rationale so the decision is visible — they document why the work was *not* planned, not deferred work to revisit. **The plan gate rejects any slice or step classified `LOW_VALUE`**: if a `LOW_VALUE` finding has leaked into a work stream, move it to the Skipped section before the human gate.
 
 ### 3. Create the plan
 
 Write the plan file using the structure in `references/plan-template.md` (goal,
-acceptance criteria, per-slice Gherkin + TDD steps, parallelization DAG, complexity
+acceptance criteria, per-slice Gherkin + Code-First Small Batches steps, parallelization DAG, complexity
 classification, pre-PR gate, skipped-findings, risks, and the machine-parseable
 Build Progress section).
 
@@ -134,7 +134,7 @@ plugin-side resolution step.
 
 | Reviewer | Agent | Focus |
 | ---------- | ---------- | ------- |
-| Acceptance Test Critic | `plan-review-acceptance` | Per-slice Gherkin quality (determinism, isolation, implementation-independence), scenario gaps, error paths, criteria coverage, TDD traceability |
+| Acceptance Test Critic | `plan-review-acceptance` | Per-slice Gherkin quality (determinism, isolation, implementation-independence), scenario gaps, error paths, criteria coverage, step traceability |
 | Design & Architecture Critic | `plan-review-design` | Coupling, abstractions, structural risks, pattern adherence |
 | UX Critic | `plan-review-ux` | User journey, error UX, cognitive load, accessibility |
 | Strategic Critic | `plan-review-strategic` | Problem fit, scope, slice boundaries, risk, opportunity cost |
@@ -148,7 +148,7 @@ Pass each reviewer the full plan content. Also pass the Parallelization Critic t
 
 ### 6. Present for approval
 
-**Gate check before presenting.** Verify the `## Skipped (low value)` section captures every `LOW_VALUE` finding — no slice or TDD step may carry one. If a `LOW_VALUE` finding leaked into a work stream, move it to the Skipped section before the plan reaches the human.
+**Gate check before presenting.** Verify the `## Skipped (low value)` section captures every `LOW_VALUE` finding — no slice or step may carry one. If a `LOW_VALUE` finding leaked into a work stream, move it to the Skipped section before the plan reaches the human.
 
 **Surface any `scope_mismatches` (#865)** alongside the review summary, same visibility as `collisions` — never blocking. Unreconciled on approval → append it to `## Risks & Open Questions`.
 
