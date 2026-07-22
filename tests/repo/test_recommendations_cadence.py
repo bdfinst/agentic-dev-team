@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 
 BUILD = (PLUGIN_ROOT / "skills" / "build" / "SKILL.md").read_text()
-IMPLEMENTER = (PLUGIN_ROOT / "prompts" / "implementer.md").read_text()
+IMPLEMENTER = (PLUGIN_ROOT / "agents" / "implementer.md").read_text()
 PLAN = (PLUGIN_ROOT / "skills" / "plan" / "SKILL.md").read_text()
 PLAN_TEMPLATE = (
     PLUGIN_ROOT / "skills" / "plan" / "references" / "plan-template.md"
@@ -66,7 +66,7 @@ class TestRefactorOnEveryGreen:
 
     def test_refactor_step_is_mandated_in_both_build_and_implementer_docs(self) -> None:
         """The single cadence's refactor mandate must be documented consistently
-        in both the orchestrator-facing build doc and the implementer prompt."""
+        in both the orchestrator-facing build doc and the implementer agent."""
         for text in (BUILD, IMPLEMENTER):
             flat = _flat(text)
             assert re.search(r"never (deferred|skipped)", flat, re.IGNORECASE)
@@ -110,7 +110,7 @@ class TestImplementerDefaultCycle:
         assert re.search(r"IMPLEMENT\s*(→|->)\s*TEST\s*(→|->)\s*REFACTOR", flat)
 
     def test_implementer_states_there_is_no_cadence_to_resolve(self) -> None:
-        """ADR 0017: the implementer prompt must not describe a cadence choice."""
+        """ADR 0017: the implementer agent must not describe a cadence choice."""
         assert "--tdd" not in IMPLEMENTER
         flat = _flat(IMPLEMENTER)
         assert re.search(r"no cadence to resolve", flat, re.IGNORECASE)

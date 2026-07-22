@@ -11,6 +11,7 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 | ADR Author | [`adr-author.md`](../agents/adr-author.md) | Creates and manages Architecture Decision Records |
 | Architect | [`architect.md`](../agents/architect.md) | System design, tech decisions, scalability planning |
 | Codebase Recon | [`codebase-recon.md`](../agents/codebase-recon.md) | Surveys a codebase's structure, entry points, dependencies, security surface, and git history; produces a RECON artifact in `memory/` that other agents consume |
+| Implementer | [`implementer.md`](../agents/implementer.md) | Executes one plan step at a time in small per-behavior batches (Code-First Small Batches cadence). Dispatched by the Orchestrator's Phase 3, never directly |
 | Orchestrator | [`orchestrator.md`](../agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
 | Platform Engineer | [`platform-engineer.md`](../agents/platform-engineer.md) | Pipeline, deployment, reliability, observability |
 | Product Manager | [`product-manager.md`](../agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
@@ -43,11 +44,13 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
 | `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
 | `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
+| `quality-reviewer` | [`quality-reviewer.md`](../agents/quality-reviewer.md) | sonnet | Coordinates the Inline Review Checkpoint's review agents and drives the fix loop — Stage 2 of the three-stage inline review |
 | `react-reactivity-review` | [`react-reactivity-review.md`](../agents/react-reactivity-review.md) | sonnet | React hook violations, stale closures, missing deps, subscription leaks |
 | `refactor-opportunity-review` | [`refactor-opportunity-review.md`](../agents/refactor-opportunity-review.md) | sonnet | Post-GREEN refactoring opportunities |
 | `security-review` | [`security-review.md`](../agents/security-review.md) | opus | Injection, auth, data exposure |
 | `session-analysis` | [`session-analysis.md`](../agents/session-analysis.md) | sonnet | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
-| `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — first gate before quality review |
+| `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — general first gate before quality review (final `/code-review` gate; pre-build and batched/complex-slice checkpoints in `/build`) |
+| `spec-reviewer` | [`spec-reviewer.md`](../agents/spec-reviewer.md) | haiku | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review |
 | `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
 | `svelte-review` | [`svelte-review.md`](../agents/svelte-review.md) | sonnet | Svelte reactivity, closure state leaks |
 | `test-review` | [`test-review.md`](../agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
