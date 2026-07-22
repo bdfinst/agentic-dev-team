@@ -383,6 +383,31 @@ Self-reported per-task completion log, one file per calendar date.
 
 ---
 
+## `gherkin-derive-effectiveness.jsonl`
+
+Per-scenario roll-up correlating a `/gherkin-derive`-discovered surface with
+whatever coverage/mutation-delta data the calling workflow already measured,
+so there is a signal on whether BDD-derived scenarios track real
+coverage/mutation movement (issue #1296). One record per scenario per
+roll-up run — not deduplicated across runs, since coverage/mutation deltas
+are re-measured every convergence iteration.
+
+| Field | Type | Values / source |
+|---|---|---|
+| `surface` | string, nullable | The discovered surface name/path from `gherkin.md`'s surface-inventory table |
+| `discovery_source` | string, nullable | `openapi` \| `route` \| `test` \| `signature` (per `/gherkin-derive` Step 2), as recorded in the inventory |
+| `provenance` | string, nullable | `specification` \| `characterization`, as recorded in the inventory |
+| `binding_mode` | string, nullable | `none` \| `xunit-with-annotations` \| `bdd-runner` |
+| `bound_story` | number or string, nullable | The Story/issue id from `gherkin-bindings.json`, when that file exists for the run (only produced by `/gherkin-public`) |
+| `coverage_delta` | object, nullable | `{line_pct, branch_pct}` — workflow-level delta between the two coverage snapshots passed to the roll-up, not an isolated per-scenario attribution (no finer-grained mapping exists today) |
+| `mutation_delta` | object, nullable | `{survivors_after_delta}` — workflow-level survivor-count delta, same caveat as `coverage_delta` |
+
+- **Emitter:** `plugins/dev-team/scripts/gherkin_effectiveness_rollup.py`, invoked from `/quality-targets-converge` Step 6b after each convergence iteration's re-measure, when `gherkin.md` exists for the workflow slug.
+- **Consent:** unconditional (derived metrics only; no prompt/file-content capture).
+- **Consumers:** none yet — this is the roll-up a future `/harness-audit`-style review reads to compare BDD-derived vs. hand-written test effectiveness.
+
+---
+
 ## Adding a new stream
 
 1. Name it `metrics/<name>.jsonl` (or `.json` for a single-current-value
