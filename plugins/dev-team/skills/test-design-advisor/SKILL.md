@@ -35,6 +35,8 @@ Arguments: target file(s), module, or a description of the code to test. If no t
 
 Read the target. For each unit, determine whether it can be constructed and driven through its public API with controlled inputs. Use the decision flow in `knowledge/testability-patterns.md`. Record blockers: static factories/singletons, new-ed-up dependencies, hidden global/clock/RNG access, concrete-class coupling, private logic with no public path.
 
+**Graph-assisted testability assessment.** If the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` — verified context and semantic search), prefer them over raw `Grep`/`Read` for finding the unit's collaborators, its callers, and blast radius before recommending a seam. Never assume either is present — fall back to `Read`/`Grep`/`Glob` when absent; the tools are simply unavailable (no error) on repos without an index.
+
 ### 1b. Behavior pre-gates (escalate the layer by failure mode)
 
 Before pyramid placement, run the gates in `knowledge/test-layer-gates.md`. They **escalate upward only** — never lower the Step 2 pick; silent when none fire:
