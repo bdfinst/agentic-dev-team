@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.5.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.4.1...security-assessment-v3.5.0) (2026-07-22)
+
+
+### Features
+
+* migrate agent frontmatter to native model: and effort: high ([e8fa54b](https://github.com/bdfinst/agentic-dev-team/commit/e8fa54b0a14302173ebe3d81f013438554e174b5))
+* require and assign color: on every agent per the fleet rule ([#1334](https://github.com/bdfinst/agentic-dev-team/issues/1334)) ([677c805](https://github.com/bdfinst/agentic-dev-team/commit/677c805453a25d94150838943bd6b0d93c289a94))
+* require skills: preload and memory: project on qualifying agents ([#1335](https://github.com/bdfinst/agentic-dev-team/issues/1335)) ([e256120](https://github.com/bdfinst/agentic-dev-team/commit/e256120a0dd6b25f6de48c81ded5f454540d4d62))
+
+
+### Documentation
+
+* generate the MkDocs nav from the docs tree via awesome-pages ([70319b3](https://github.com/bdfinst/agentic-dev-team/commit/70319b3c176f9d9a67fa3e090aa15568f27ba3c9)), closes [#1280](https://github.com/bdfinst/agentic-dev-team/issues/1280)
+
+
+### Miscellaneous
+
+* move non-contract keys (cites, scope, enforcement) out of agent frontmatter into the body ([dc9ea06](https://github.com/bdfinst/agentic-dev-team/commit/dc9ea066a322c33988815e90b799821f8322d567)), closes [#1333](https://github.com/bdfinst/agentic-dev-team/issues/1333)
+
 ## [3.4.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.4.0...security-assessment-v3.4.1) (2026-07-20)
 
 
