@@ -67,13 +67,22 @@ order**, most authoritative first:
    routes. Each registered route is a surface.
 3. **Existing test names** — `describe` / `it` / `[Fact]` / `@Test` blocks. These
    yield **characterization** scenarios (current behavior, not intended
-   behavior). Use them only when OpenAPI and routes do not already cover the
-   surface.
+   behavior). Use them as the primary source only when OpenAPI and routes do
+   not already cover the surface. **Never treat a test's assertion as ground
+   truth on its own** — before accepting a test-derived scenario, cross-check
+   it against any other available signal (docstrings, comments, adjacent
+   OpenAPI/route info, obvious status-code conventions). Record what was
+   cross-checked (or that nothing was found) per Step 3.
 4. **Public function signatures + docstrings** — exported functions/classes with
    doc comments. The lowest-priority fallback for libraries with no HTTP surface.
 
-Stop climbing the list once a surface is described by a higher-priority source —
-do not duplicate a route's scenarios from its tests.
+Stop climbing the list for the **same surface description** once a
+higher-priority source covers it — do not duplicate a route's success/failure
+scenarios from its tests. But do not let this rule discard information: even
+when a surface is already covered by OpenAPI or a route, still scan its
+existing tests for error/edge branches that are **not** present in the
+documented spec, and add those as *supplemental* characterization scenarios
+rather than dropping them.
 
 **Graph-assisted discovery.** If the target repo has `.codegraph/` (CodeGraph
 MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact
@@ -103,11 +112,13 @@ to reading the source directly when the tools are unavailable.
 - Scenarios derived from existing tests or code are **characterization**
   scenarios — the header MUST state `# Characterization: current behavior, not
   intended behavior` so a reader never mistakes a captured bug for a spec.
+  They are hypotheses about intended behavior, not confirmed specs.
 
 ```gherkin
 # Source: <openapi path | route | test file | signature>
 # Provenance: specification | characterization
 # Characterization: current behavior, not intended behavior   (characterization only)
+# Cross-check: <docstring/OpenAPI/route signal that corroborates this, or "none found — unverified against intended behavior">   (characterization only)
 Feature: <surface>
   Scenario: <success path>
     ...
@@ -144,8 +155,17 @@ that pass silently.
 ## Step 6 — Report
 
 Print the mode, the count of surfaces by discovery source (OpenAPI / route /
-test / signature), the specification-vs-characterization split, and the paths
-written. In `none` mode, print only the one-line recommendation.
+test / signature), and the paths written. In `none` mode, print only the
+one-line recommendation.
+
+**Call out characterization scenarios separately — never fold them into the
+same summary line as specification scenarios.** Print a distinct line: "N
+scenarios captured from existing tests — confirm these are intended behavior,
+not bugs, before treating them as spec," listing which had no cross-check
+signal. This is what the operator uses to affirmatively accept each
+characterization scenario at the human gate (`/test-improve` Phase 2b's
+review, before Phase 3 triage proceeds) before it is treated as accepted
+living documentation rather than an unverified hypothesis.
 
 ## Key differences from `/gherkin-public`
 
@@ -159,8 +179,13 @@ written. In `none` mode, print only the one-line recommendation.
 
 ## Notes
 
-- Characterization scenarios capture *what the code does now*. Flag any that look
-  like latent bugs rather than silently encoding them as the spec.
+- Characterization scenarios capture *what the code does now* — never treat an
+  existing test as ground truth on its own. They are hypotheses about intended
+  behavior, not confirmed specs: cross-check them against any other signal
+  (docstrings, comments, adjacent OpenAPI/route info, status-code conventions),
+  record "none found" when no cross-check exists, and call them out separately
+  in the Step 6 report so the operator must affirmatively accept each one
+  before it becomes living documentation.
 - Where a UI flow cannot be inferred from code alone, emit a stub `.feature` with
   the header and a `# TODO: hand-author scenarios here` block — surface the gap
   rather than invent steps.
