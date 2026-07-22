@@ -98,10 +98,6 @@
       "summary": "Skills are reusable knowledge modules in `.claude/skills/` that agents reference.",
       "anchor": "skills-registry"
     },
-    "Subagent Prompt Templates": {
-      "summary": "Concrete prompt templates in `prompts/` that the orchestrator and `/code-review` use when dispatching subagents, making behavior reproducible.",
-      "anchor": "subagent-prompt-templates"
-    },
     "Knowledge Files": {
       "summary": "Knowledge files in `knowledge/` provide progressive disclosure — agents read them on demand during analysis rather than carrying all detection patterns inline.",
       "anchor": "knowledge-files"
@@ -2251,7 +2247,7 @@
       "anchor": "2-verify-plan-status"
     },
     "3. Verify acceptance criteria (gate)": {
-      "summary": "Before implementation begins, dispatch a spec-compliance-review subagent in **criteria verification mode** (see `${CLAUDE_PLUGIN_ROOT}/prompts/spec-reviewer.md` § Pre-build criteria verification mode).",
+      "summary": "Before implementation begins, dispatch the `spec-compliance-review` agent (by `subagent_type`) in **criteria verification mode**: pass it the plan's acceptance criteria and per-step test expectations, and ask it to evaluate the criteria themselves (see below) rather than a diff.",
       "anchor": "3-verify-acceptance-criteria-gate"
     },
     "4. Implement each step": {

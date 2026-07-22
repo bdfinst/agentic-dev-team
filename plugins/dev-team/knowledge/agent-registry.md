@@ -9,6 +9,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | ADR Author | `agents/adr-author.md` | 320 | Creates and manages Architecture Decision Records |
 | Architect | `agents/architect.md` | 360 | System design, architecture |
 | Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis. |
+| Implementer | `agents/implementer.md` | ~1,450 | Executes one plan step at a time in small per-behavior batches (Code-First Small Batches cadence). Dispatched by `agents/orchestrator.md` Phase 3, never directly. |
 | Orchestrator | `agents/orchestrator.md` | 500 | Task routing, model selection, review coordination |
 | Plan Review Acceptance Critic | `agents/plan-review-acceptance.md` | ~880 | Adversarial plan review — acceptance criteria, Gherkin scenario, and TDD step traceability quality. Dispatched by `/plan` step 5b, never directly. |
 | Plan Review Design Critic | `agents/plan-review-design.md` | ~920 | Adversarial plan review — coupling, abstraction, structural risk, and pattern-adherence quality. Dispatched by `/plan` step 5b, never directly. |
@@ -46,10 +47,12 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | naming-review | `agents/naming-review.md` | Intent-revealing names, boolean prefixes, magic values |
 | performance-review | `agents/performance-review.md` | Resource leaks, N+1 queries, unbounded growth |
 | progress-guardian | `agents/progress-guardian.md` | Plan adherence, commit discipline, scope creep detection |
+| quality-reviewer | `agents/quality-reviewer.md` | Coordinates the Inline Review Checkpoint's review agents and drives the fix loop — Stage 2 of the three-stage inline review, distinct from the `spec-reviewer`/`spec-compliance-review` spec-matching gates. Dispatched by `agents/orchestrator.md` Phase 3, never directly. |
 | refactor-opportunity-review | `agents/refactor-opportunity-review.md` | Post-GREEN refactoring opportunities, semantic vs structural duplication |
 | security-review | `agents/security-review.md` | Injection, auth/authz, data exposure, crypto |
 | session-analysis | `agents/session-analysis.md` | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
-| spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — first gate before quality review |
+| spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — general first gate before quality review (final `/code-review` gate; pre-build criteria-verification mode and batched/complex-slice checkpoints in `/build`) |
+| spec-reviewer | `agents/spec-reviewer.md` | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review, narrower and diff-scoped vs. `spec-compliance-review`'s broader file-scoped check. Dispatched by `agents/orchestrator.md` Phase 3, never directly. |
 | structure-review | `agents/structure-review.md` | SRP violations, DRY, coupling, file organization |
 | angular-reactivity-review | `agents/angular-reactivity-review.md` | Angular Zone.js change-detection pitfalls, OnPush + immutability violations, RxJS subscription leaks |
 | react-reactivity-review | `agents/react-reactivity-review.md` | React hook rules, stale closures in useEffect, missing dependency arrays, subscription leaks |
@@ -72,7 +75,7 @@ before naming:
 3. Else name ends `-review` or starts `plan-review-` → **green** (reviewer).
 4. Else → **cyan** (all others).
 
-Current fleet: 1 purple, 7 yellow, 32 green, 18 cyan (58 agents total, no
+Current fleet: 2 purple, 8 yellow, 32 green, 19 cyan (61 agents total, no
 ties). `tests/agents/test_agent_fleet_conventions.py` asserts every agent's
 declared `color:` matches the rule; `agent-create`/`agent-add` suggest the
 computed value the same way they already do `model:`/`effort:`.
@@ -89,7 +92,7 @@ same category as ADR 0026/0027):
   exactly `memory: project` (no other value, no omission). Neither tool →
   omit `memory:`.
 
-Current fleet: 12/58 agents carry `skills:`, 7/58 carry `memory: project`.
+Current fleet: 12/61 agents carry `skills:`, 9/61 carry `memory: project`.
 Same test file as color (`tests/agents/test_agent_fleet_conventions.py`)
 asserts both, via pure `classify_skills_declaration()` /
 `classify_memory_declaration()` functions; `agent-create`/`agent-add`
@@ -152,18 +155,6 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Test-Driven Development | `skills/test-driven-development/SKILL.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
 | Threat Modeling | `skills/threat-modeling/SKILL.md` | 600 | Security Engineer, Architect |
 | Ubiquitous Language | `skills/ubiquitous-language/SKILL.md` | ~800 | Architect, domain-review, Product Manager |
-
-## Subagent Prompt Templates
-
-Concrete prompt templates in `prompts/` that the orchestrator and `/code-review` use when dispatching subagents, making behavior reproducible.
-
-The five plan-review critics (Acceptance, Design, Parallelization, Strategic, UX) moved from here to registered agents in the **Team Agents** table above (issue #1329) — they carry their own `model:`/`effort:` frontmatter now and are dispatched by `subagent_type`, the same as any other agent. The Plan Reviewer coordinator persona was separately removed as dead code with no live dispatcher (issue #1331).
-
-| Template | File | Used By |
-| ---------- | ------ | --------- |
-| Implementer | `prompts/implementer.md` | Orchestrator (Phase 3 implementation dispatch) |
-| Quality Reviewer | `prompts/quality-reviewer.md` | Orchestrator (three-stage review gate 2) |
-| Spec Reviewer | `prompts/spec-reviewer.md` | Orchestrator (three-stage review gate 1) |
 
 ## Knowledge Files
 
