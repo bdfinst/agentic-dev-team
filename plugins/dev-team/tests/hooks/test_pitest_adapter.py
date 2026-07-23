@@ -11,6 +11,7 @@ code.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -238,13 +239,14 @@ def test_parse_derives_zero_kill_from_surefire_and_killing_tests(tmp_path, monke
     )
     out = tmp_path / "zk.json"
     pt.pitest_parse(xml, out)
-    import json
-
     data = json.loads(out.read_text())
     names = [d["name"] for d in data]
     # testAdd killed a mutant; testSub killed none → only testSub is a zero-kill.
     assert names == ["com.example.CalcTest.testSub"]
     assert data[0]["covered"] == 0
+    # zero-kill dict shape: file and line are explicit None.
+    assert data[0]["file"] is None
+    assert data[0]["line"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +286,11 @@ def test_run_builds_maven_argv_with_scoping(tmp_path, monkeypatch) -> None:
     assert "-DtargetClasses=com.example.Calc*" in argv
     assert "-DtargetTests=CalcTest" in argv
     assert "-DwithHistory" in argv
+    # Fixed pitest args must be present verbatim (kills the string mutants).
+    assert "-DtimeoutConst=60" in argv
+    assert "-DtimeoutFactor=2.5" in argv
+    assert "-DoutputFormats=XML" in argv
+    assert "-DtimestampedReports=false" in argv
 
 
 def test_run_builds_gradle_argv_when_gradle_project(tmp_path, monkeypatch) -> None:
@@ -388,3 +395,219 @@ def test_main_delegates_first_arg_as_output_path(monkeypatch) -> None:
     rc = pt.main(["out.json", "extra.json"])
     assert rc == 0
     assert captured["out"] == pt.Path("out.json")
+
+
+def test_main_reads_from_sys_argv_when_argv_none(monkeypatch):
+    captured = {}
+
+    def fake_run(out_file):
+        captured["out"] = out_file
+        return 0
+
+    monkeypatch.setattr(pt.sys, "argv", ["pitest.py", "out.json"])
+    monkeypatch.setattr(pt, "pitest_run", fake_run)
+    assert pt.main() == 0
+    assert captured["out"] == pt.Path("out.json")
+
+
+# ---------------------------------------------------------------------------
+# mutation-kill targeted survivors (#1354) — exact-text + argv-shape kills
+# ---------------------------------------------------------------------------
+
+
+def test_detect_false_advisory_exact_message(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert pt.pitest_detect() is False
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert ctx == (
+        "MUTATION GATE ADVISORY: pitest not found. Run /setup to configure it, "
+        "or add the pitest-maven plugin to pom.xml / pitest plugin to build.gradle "
+        "manually."
+    )
+
+
+def test_is_gradle_true_when_only_build_gradle_kts(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "build.gradle.kts").write_text("")
+    assert pt._is_gradle() is True
+
+
+def test_is_gradle_true_when_only_settings_gradle(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "settings.gradle").write_text("")
+    assert pt._is_gradle() is True
+
+
+def test_parse_missing_report_advisory_message(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ADAPTER_RUNNER_STDOUT", raising=False)
+    out = tmp_path / "zk.json"
+    missing = tmp_path / "nope.xml"
+    pt.pitest_parse(missing, out)
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert ctx == (
+        f"MUTATION GATE ADVISORY: pitest report not found at {missing}. "
+        "Skipping mutation gate."
+    )
+
+
+def test_parse_no_runner_stdout_advisory_exact_message(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ADAPTER_RUNNER_STDOUT", raising=False)
+    xml = tmp_path / "mutations.xml"
+    xml.write_text('<m><x status="KILLED"/><x status="SURVIVED"/></m>')
+    out = tmp_path / "zk.json"
+    pt.pitest_parse(xml, out)
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert ctx == (
+        "MUTATION GATE ADVISORY: pitest completed (1/2 mutants killed) but "
+        "per-test data unavailable — runner stdout was not captured. Manual "
+        "review recommended."
+    )
+
+
+def test_parse_detects_surefire_method_as_zero_kill(tmp_path, monkeypatch):
+    monkeypatch.setenv("ADAPTER_RUNNER_STDOUT", "testAdd   PASS\n")
+    xml = tmp_path / "mutations.xml"
+    xml.write_text("<mutations></mutations>")  # no killing tests
+    out = tmp_path / "zk.json"
+    pt.pitest_parse(xml, out)
+    assert [d["name"] for d in json.loads(out.read_text())] == ["testAdd"]
+
+
+def test_parse_ignores_dotted_non_method_lines(tmp_path, monkeypatch):
+    # A line with a dot but not a fully-qualified method must be ignored
+    # (the guard is `.match(...) and "." in line`, not `or`).
+    monkeypatch.setenv("ADAPTER_RUNNER_STDOUT", "com.foo.Bar extra words\n")
+    xml = tmp_path / "mutations.xml"
+    xml.write_text("<mutations></mutations>")
+    out = tmp_path / "zk.json"
+    pt.pitest_parse(xml, out)
+    assert json.loads(out.read_text()) == []
+
+
+def test_run_adds_module_flag_for_submodule(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pom.xml").write_text("<project/>")
+    sub = tmp_path / "svc"
+    sub.mkdir()
+    (sub / "pom.xml").write_text("<project/>")
+    monkeypatch.setenv("ADAPTER_COMMAND", "mvn test")
+    monkeypatch.setattr(
+        pt, "_changed_source_file", lambda: "svc/src/main/java/com/x/A.java"
+    )
+    report = tmp_path / "target" / "pit-reports"
+    report.mkdir(parents=True)
+    (report / "mutations.xml").write_text("<mutations/>")
+    captured = _capture_argv(monkeypatch)
+
+    assert pt.pitest_run(tmp_path / "out.json") == 0
+    argv = captured["argv"]
+    i = argv.index("-pl")
+    assert argv[i : i + 3] == ["-pl", "svc", "--also-make-dependents"]
+
+
+def test_run_gradle_uses_gradlew_wrapper_when_present(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "build.gradle").write_text("")
+    monkeypatch.setenv("ADAPTER_COMMAND", "gradle test")
+    monkeypatch.setattr(
+        pt, "_changed_source_file", lambda: "src/main/java/com/x/A.java"
+    )
+    monkeypatch.setattr(
+        pt.shutil,
+        "which",
+        lambda name: "/x/gradlew" if name == "./gradlew" else None,
+    )
+    report = tmp_path / "build" / "reports" / "pitest"
+    report.mkdir(parents=True)
+    (report / "mutations.xml").write_text("<mutations/>")
+    monkeypatch.setenv("PITEST_REPORT", str(report / "mutations.xml"))
+    captured = _capture_argv(monkeypatch)
+
+    assert pt.pitest_run(tmp_path / "out.json") == 0
+    assert captured["argv"][0] == "./gradlew"
+
+
+def test_run_maven_uses_mvnw_wrapper_when_present(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pom.xml").write_text("<project/>")
+    (tmp_path / "mvnw").write_text("#!/bin/sh\n")  # ./mvnw exists in cwd
+    monkeypatch.setenv("ADAPTER_COMMAND", "mvn test")
+    monkeypatch.setattr(
+        pt, "_changed_source_file", lambda: "src/main/java/com/x/A.java"
+    )
+    report = tmp_path / "target" / "pit-reports"
+    report.mkdir(parents=True)
+    (report / "mutations.xml").write_text("<mutations/>")
+    captured = _capture_argv(monkeypatch)
+
+    assert pt.pitest_run(tmp_path / "out.json") == 0
+    assert captured["argv"][0] == "./mvnw"
+
+
+def test_run_timeout_no_source_exact_message(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pom.xml").write_text("<project/>")
+    monkeypatch.setenv("ADAPTER_COMMAND", "mvn test")
+    monkeypatch.setattr(pt, "_changed_source_file", lambda: "")
+    _capture_argv(monkeypatch, returncode=124)
+
+    assert pt.pitest_run(tmp_path / "out.json") == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert ctx == (
+        "MUTATION GATE SKIPPED: pitest timed out after 300s. No source file "
+        "detected for scoping — scope manually with git diff. Or: "
+        "MUTATION_GATE_TIMEOUT=<seconds> to extend the limit."
+    )
+
+
+def test_run_timeout_with_source_exact_message(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pom.xml").write_text("<project/>")
+    monkeypatch.setenv("ADAPTER_COMMAND", "mvn test")
+    monkeypatch.setattr(
+        pt, "_changed_source_file", lambda: "src/main/java/com/x/A.java"
+    )
+    _capture_argv(monkeypatch, returncode=124)
+
+    assert pt.pitest_run(tmp_path / "out.json") == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert ctx == (
+        "MUTATION GATE SKIPPED: pitest timed out after 300s. Or: "
+        "MUTATION_GATE_TIMEOUT=<seconds> to extend the limit."
+    )
+
+
+def test_run_exit_one_no_report_advises_exit_code(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pom.xml").write_text("<project/>")
+    monkeypatch.setenv("ADAPTER_COMMAND", "mvn test")
+    monkeypatch.setattr(
+        pt, "_changed_source_file", lambda: "src/main/java/com/x/A.java"
+    )
+    _capture_argv(monkeypatch, returncode=1)  # no report on disk
+
+    assert pt.pitest_run(tmp_path / "out.json") == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert ctx == (
+        "MUTATION GATE ADVISORY: pitest exited with code 1 and produced no "
+        "report. Skipping mutation gate."
+    )
+
+
+def test_run_exit_zero_no_report_reaches_parse(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pom.xml").write_text("<project/>")
+    monkeypatch.setenv("ADAPTER_COMMAND", "mvn test")
+    monkeypatch.setattr(
+        pt, "_changed_source_file", lambda: "src/main/java/com/x/A.java"
+    )
+
+    # Real pitest_parse runs (not stubbed); with no report it reports "not found".
+    def fake_run(_seconds, argv, **_kwargs):
+        return subprocess.CompletedProcess(args=argv, returncode=0)
+
+    monkeypatch.setattr(pt.lib, "run_with_timeout", fake_run)
+
+    assert pt.pitest_run(tmp_path / "out.json") == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert "pitest report not found" in ctx
