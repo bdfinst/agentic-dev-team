@@ -832,9 +832,14 @@ tool line.
 - CodeGraph: ✓ installed + `.codegraph/` built (keyless)   [or: ✗ declined | ✗ failed]
 - Repowise:  ✓ installed + `.repowise/` indexed (keyless)   [or: ✗ declined | ✗ failed]
 - Graphify:  ✓ `graphify-out/` built (keyless AST; enrichment key-gated)   [or: ✗ declined | ✗ failed]
+  - settings.json guard: ✓ clean   [or: ✓ relocated N machine-specific graphify hook(s) to settings.local.json (#1367)]
 
 The separate "run index-codebase first" step is no longer required — accepting
-the group installs and builds all three indexes in the same run.
+the group installs and builds all three indexes in the same run. The
+settings.json guard line reports project-init's standing check (#1367) — it
+runs on every pass, including one where Graphify install itself is skipped
+because it's already present, so a repo carrying a machine-specific path from
+an install predating this guard gets self-healed the next time `/setup` runs.
 
 ### Created
 - `.claude/project-stack.json` — stack detection results

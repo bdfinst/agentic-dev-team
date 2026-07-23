@@ -482,7 +482,7 @@ command -v repowise > /dev/null 2>&1 && echo "installed" || echo "not-installed"
 [ -d "${PWD}/.repowise" ] && echo "indexed" || echo "not-indexed"
 ```
 
-#### Graphify — native integration, opt-in, with a CLAUDE.md guard
+#### Graphify — native integration, opt-in, with corruption/pollution guards
 
 Graphify (`graphifyy` on PyPI) is a multi-modal knowledge graph tool
 (code + docs + schemas + infra + images/video). Unlike CodeGraph it is a
@@ -494,6 +494,10 @@ This sub-section runs **only after the Graphify opt-in in Step 4c accepts** —
 that is, the user said yes. Its integration is repo-level, so none of the file
 writes below happen unless that opt-in was accepted; no model/API key is
 required to reach or complete this sub-section — the AST build is keyless.
+The one exception is the **Standing check** at the end of this sub-section
+(#1367), which runs on every `/project-init` pass regardless of the opt-in
+outcome — it audits `.claude/settings.json` for pollution left by a past
+install, not this run's.
 
 **Install (fallback chain):**
 
@@ -535,6 +539,57 @@ over-delete, taking unrelated pre-existing content with it. Guard every run:
    repo already carries).
 5. **On no corruption detected:** leave the installer's output as-is —
    nothing further to do.
+
+**Native integration, with the settings.json absolute-path guard (#1367).**
+The same `graphify install --project` call also writes PreToolUse hook
+entries into the target repo's shared, git-tracked `.claude/settings.json`,
+using the **absolute path to the graphify binary on this machine** (e.g.
+`/Users/alice/.local/bin/graphify`, or `uv tool`/`pipx`/`--user pip`
+equivalents that resolve differently per machine). If that file is
+committed as-is, it bakes one developer's path into the repo and silently
+breaks for every other clone/teammate whose graphify binary lives
+elsewhere. Immediately after running the installer:
+
+1. **Scan** `.claude/settings.json`'s `hooks.PreToolUse` array for any entry
+   whose command invokes graphify via an absolute filesystem path (POSIX or
+   Windows) instead of a bare, PATH-resolved `graphify` — that is the known
+   pollution, regardless of whether it was just written by this install or
+   left over from a previous one. (`scripts/lib/settings_hook_guard.py`
+   implements this scan/relocate logic in isolation and is unit-tested at
+   `tests/scripts/test_settings_hook_guard.py` — reuse its
+   `run_install_with_guard` function, which runs the installer then applies
+   the scan, rather than re-deriving the check by hand.)
+2. **On detected pollution:** relocate the polluting entry out of
+   `.claude/settings.json` into `.claude/settings.local.json` (already
+   gitignored, personal-machine scope — the same treatment already given to
+   the `.husky/post-commit`/`post-checkout` hooks below). The shared file
+   keeps everything else untouched. If the repo is git-tracked, check
+   `git log --all -- .claude/settings.json` — if any prior commit already
+   carries the polluting path, relocating it fixes the working tree but not
+   history; tell the operator the path may still be recoverable from history
+   and that scrubbing it (e.g. `git filter-repo`) is their call, not
+   something this guard does automatically.
+3. **On no pollution detected:** leave the installer's output as-is —
+   nothing further to do.
+
+**Standing check — run even when Graphify install is skipped.** The scan
+above only fires right after a fresh install; it does nothing for a repo
+that was graphify-installed *before* this guard existed (Graphify already
+present means it drops out of Step 4c's "missing set" and the installer
+never runs — see the idempotency rule above). So run this scan
+**unconditionally, once per `/project-init` (and therefore `/setup`) run
+whenever `.claude/settings.json` exists** — not gated behind the Graphify
+opt-in/install branch:
+
+```python
+from pathlib import Path
+from settings_hook_guard import fix_settings
+
+fix_settings(Path(".claude/settings.json"), Path(".claude/settings.local.json"))
+```
+
+This is what makes `/setup` self-healing for repos that already carry the
+baked-in path: no re-install, no opt-in prompt, just a scan-and-relocate.
 
 **Build the graph — keyless AST pass (issue #1224).** Graphify's AST
 structural graph builds with **no model/API key**: `graphify extract .` runs
@@ -582,6 +637,12 @@ graphify-out/
 ```
 
 (Or `.git/hooks/post-*` if the target repo does not use husky.)
+
+This covers the generated **git hooks** only. The machine-specific path
+`graphify install --project` writes into the *shared* `.claude/settings.json`
+itself is handled separately by the settings.json absolute-path guard
+above (#1367) — that file is not gitignored, so the fix there is to relocate
+the polluting entry, not to gitignore the whole file.
 
 ### Step 5: Verify — post-install probes
 

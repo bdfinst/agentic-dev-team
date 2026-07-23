@@ -24,7 +24,9 @@ mechanism.
 Contract (docs/python-hook-contract.md):
     Input : JSON on stdin (Claude Code PreToolUse:Bash payload)
     Exit 0: allow the tool call
-    Exit 2: block the tool call (feedback returned to Claude on stdout)
+    Exit 2: block the tool call (feedback returned to Claude on stdout,
+            mirrored to stderr — some hook-error wrappers only surface
+            stderr, and a stdout-only block message was going unseen)
 
 Stdlib-only. Python 3.8+.
 """
@@ -105,6 +107,16 @@ _BYPASS_BLOCK_MESSAGE = (
 )
 
 
+def _emit_block(message: str) -> None:
+    """Write a block message to both stdout and stderr (#1367).
+
+    Stdout stays the canonical UI channel; stderr is mirrored because some
+    hook-error wrappers surface only stderr on a nonzero hook exit.
+    """
+    sys.stdout.write(message)
+    sys.stderr.write(message)
+
+
 def _staged_names() -> List[str]:
     try:
         completed = subprocess.run(
@@ -154,7 +166,7 @@ def _record_bypass_audit(flag: str, reason: str, staged_count: int) -> None:
     metrics/override-audit.jsonl precedent for a bypass a human/agent
     actively chose, not passive usage telemetry.
     """
-    log = Path("metrics") / "gate-bypass-audit.jsonl"
+    audit_log_path = Path("metrics") / "gate-bypass-audit.jsonl"
     entry = {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "branch": _current_branch(),
@@ -163,8 +175,8 @@ def _record_bypass_audit(flag: str, reason: str, staged_count: int) -> None:
         "stagedFileCount": staged_count,
         "pluginVersion": _plugin_version(),
     }
-    log.parent.mkdir(parents=True, exist_ok=True)
-    with open(log, "a", encoding="utf-8") as handle:
+    audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(audit_log_path, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
 
 
@@ -198,7 +210,7 @@ def main() -> int:
                 cwd, "pre_commit_review", "Bash", "bypass", flag, session_id
             )
             return 0
-        sys.stdout.write(_BYPASS_BLOCK_MESSAGE)
+        _emit_block(_BYPASS_BLOCK_MESSAGE)
         return 2
 
     current_hash = review_gate_hash()
@@ -220,7 +232,7 @@ def main() -> int:
     # Block. Message goes to stdout (matching the .sh's `printf` — the .sh
     # writes to stdout, not stderr, so Claude sees it in the tool-call
     # feedback stream).
-    sys.stdout.write(_BLOCK_MESSAGE)
+    _emit_block(_BLOCK_MESSAGE)
     emit_boundary_event(
         cwd, "pre_commit_review", "Bash", "block", "pre-commit-review", session_id
     )
