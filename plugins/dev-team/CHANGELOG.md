@@ -1,5 +1,37 @@
 # Changelog
 
+## [10.18.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.18.1...dev-team-v10.18.2) (2026-07-23)
+
+
+### Bug Fixes
+
+* **coverage-delta,quality-targets-converge:** filter accepted survivors ([d9aa92d](https://github.com/bdfinst/agentic-dev-team/commit/d9aa92dd77b30f5a4b39fb3f5d81ecc5a6c67ea6))
+* **hooks:** accumulate multi-tool usage into the turn-mark sentinel's tools_used list ([13eb4a0](https://github.com/bdfinst/agentic-dev-team/commit/13eb4a0e976336acc9acefcb8a8e41bcb080fdcd))
+* **hooks:** close sentinel duplication, coercion bug, and read-modify-write race from code review ([94d779f](https://github.com/bdfinst/agentic-dev-team/commit/94d779f9e8b8a1fde414abd21ce0a344c260fcde))
+* **hooks:** compose single- and multi-tool nudge messages with precedence-ordered cues ([671ee5c](https://github.com/bdfinst/agentic-dev-team/commit/671ee5c6a2a26f70df310443429dcf2ee12c25b6))
+* **hooks:** read multi-family turn-mark sentinel; register Repowise PostToolUse matcher ([bc52091](https://github.com/bdfinst/agentic-dev-team/commit/bc52091dd6e0505b2272c000125b35108ce72270))
+* **hooks:** route code-intelligence nudge across CodeGraph, Repowise, and Graphify ([843c43c](https://github.com/bdfinst/agentic-dev-team/commit/843c43c2647506080bf8f76574482aa59cf8c50d))
+* **mutation-kill:** document accepted-survivor raw/adjusted score ([f0bbdc1](https://github.com/bdfinst/agentic-dev-team/commit/f0bbdc15014467df09bf30e274d058593d364ace))
+* **mutation-testing:** add accepted-survivor status, reason, dual score ([8a8d7e7](https://github.com/bdfinst/agentic-dev-team/commit/8a8d7e77a94e5998346372f159c3581e5076d33d))
+
+
+### Code Refactoring
+
+* **hooks:** extract shared turn-identity lib, rename codegraph_nudge to code_intelligence_nudge ([4088d0d](https://github.com/bdfinst/agentic-dev-team/commit/4088d0d87b94cb7b37a0ec2539a3ecae6dd2803b))
+* **hooks:** rename codegraph_turn_mark to code_intelligence_turn_mark, adopt turn-identity lib ([6b7d9c9](https://github.com/bdfinst/agentic-dev-team/commit/6b7d9c905d70b3b5584a9b87bcaa4886734dfd4a))
+
+
+### Documentation
+
+* **hooks:** fix cross-references and stale-ref test fixtures after the nudge-hook rename ([263e4ab](https://github.com/bdfinst/agentic-dev-team/commit/263e4aba607efcc61f8aa690c4c26e88288bab5f))
+* **hooks:** rewrite the code-intelligence-nudge mechanism doc for three tools ([308e61b](https://github.com/bdfinst/agentic-dev-team/commit/308e61bfacd78cf94590ac34a2adafa4eb1e9b8c))
+* **knowledge:** refresh CodeGraph/Repowise tool surfaces, add routing precedence guidance ([516621a](https://github.com/bdfinst/agentic-dev-team/commit/516621a1567b6b718fcbbf1985d84b8baa88d64b))
+
+
+### Miscellaneous
+
+* **hooks:** update registrations and cross-references for the renamed nudge hook ([305ab47](https://github.com/bdfinst/agentic-dev-team/commit/305ab4744d3bc4010934fb4904d9b09e7e1f4cf2))
+
 ## [10.18.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.18.0...dev-team-v10.18.1) (2026-07-23)
 
 
