@@ -202,6 +202,15 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/code_intelligence_turn_mark.py\""
           }
         ]
+      },
+      {
+        "matcher": "mcp__plugin_repowise_repowise__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/code_intelligence_turn_mark.py\""
+          }
+        ]
       }
     ],
     "SessionEnd": [

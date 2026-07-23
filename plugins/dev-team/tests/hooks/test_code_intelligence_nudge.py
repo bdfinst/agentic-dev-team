@@ -176,8 +176,10 @@ def test_silent_after_codegraph_used_this_turn(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     tx = tmp_path / "transcripts" / "abc123.jsonl"
     _write_transcript(tx, 3)
-    (tmp_path / ".claude" / "codegraph-turn-state.json").write_text(
-        json.dumps({"transcript_id": "abc123", "turn_counter": 3})
+    (tmp_path / ".claude" / "code-intelligence-turn-state.json").write_text(
+        json.dumps(
+            {"transcript_id": "abc123", "turn_counter": 3, "tools_used": ["codegraph"]}
+        )
     )
     r = _run(
         {
@@ -197,8 +199,10 @@ def test_warns_when_sentinel_is_for_prior_turn(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     tx = tmp_path / "transcripts" / "abc123.jsonl"
     _write_transcript(tx, 4)
-    (tmp_path / ".claude" / "codegraph-turn-state.json").write_text(
-        json.dumps({"transcript_id": "abc123", "turn_counter": 3})
+    (tmp_path / ".claude" / "code-intelligence-turn-state.json").write_text(
+        json.dumps(
+            {"transcript_id": "abc123", "turn_counter": 3, "tools_used": ["codegraph"]}
+        )
     )
     r = _run(
         {
@@ -218,8 +222,10 @@ def test_warns_when_sentinel_is_for_different_transcript(tmp_path: Path) -> None
     (tmp_path / "src").mkdir()
     tx = tmp_path / "transcripts" / "abc123.jsonl"
     _write_transcript(tx, 2)
-    (tmp_path / ".claude" / "codegraph-turn-state.json").write_text(
-        json.dumps({"transcript_id": "other", "turn_counter": 2})
+    (tmp_path / ".claude" / "code-intelligence-turn-state.json").write_text(
+        json.dumps(
+            {"transcript_id": "other", "turn_counter": 2, "tools_used": ["codegraph"]}
+        )
     )
     r = _run(
         {
@@ -602,8 +608,10 @@ def test_suppressed_when_used_this_turn(tmp_path: Path) -> None:
     (tmp_path / ".claude").mkdir()
     tx = tmp_path / "transcripts" / "abc123.jsonl"
     _write_transcript(tx, 3)
-    (tmp_path / ".claude" / "codegraph-turn-state.json").write_text(
-        json.dumps({"transcript_id": "abc123", "turn_counter": 3})
+    (tmp_path / ".claude" / "code-intelligence-turn-state.json").write_text(
+        json.dumps(
+            {"transcript_id": "abc123", "turn_counter": 3, "tools_used": ["codegraph"]}
+        )
     )
     r = _run(
         {
@@ -618,3 +626,128 @@ def test_suppressed_when_used_this_turn(tmp_path: Path) -> None:
     assert r.stderr.strip() == expected
     assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
     assert code_intelligence_nudge.CUES["graphify"] in r.stderr
+
+
+# --- Step 2.3: list-based sentinel (multi-family suppression) -------------
+
+
+def _write_sentinel(tmp_path: Path, tid: str, tc: int, tools_used) -> None:
+    (tmp_path / ".claude").mkdir(exist_ok=True)
+    (tmp_path / ".claude" / "code-intelligence-turn-state.json").write_text(
+        json.dumps({"transcript_id": tid, "turn_counter": tc, "tools_used": tools_used})
+    )
+
+
+def test_suppresses_only_families_used_this_turn(tmp_path: Path) -> None:
+    """Both codegraph and repowise present; only "codegraph" in tools_used
+    -> composed message omits CodeGraph, keeps Repowise."""
+    (tmp_path / ".codegraph").mkdir()
+    (tmp_path / ".repowise").mkdir()
+    tx = tmp_path / "transcripts" / "abc123.jsonl"
+    _write_transcript(tx, 3)
+    _write_sentinel(tmp_path, "abc123", 3, ["codegraph"])
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "transcript_path": str(tx),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(["repowise"])
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected
+    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge.CUES["repowise"] in r.stderr
+
+
+def test_three_present_two_used_shows_remaining_only(tmp_path: Path) -> None:
+    """All three present; codegraph and repowise already used this turn
+    -> composed message names only Graphify."""
+    (tmp_path / ".codegraph").mkdir()
+    (tmp_path / ".repowise").mkdir()
+    _graphify_index(tmp_path)
+    tx = tmp_path / "transcripts" / "abc123.jsonl"
+    _write_transcript(tx, 3)
+    _write_sentinel(tmp_path, "abc123", 3, ["codegraph", "repowise"])
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "transcript_path": str(tx),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(["graphify"])
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected
+    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge.CUES["repowise"] not in r.stderr
+    assert code_intelligence_nudge.CUES["graphify"] in r.stderr
+
+
+def test_full_suppression_when_all_used(tmp_path: Path) -> None:
+    """Both present tools already used this turn -> full suppression."""
+    (tmp_path / ".codegraph").mkdir()
+    (tmp_path / ".repowise").mkdir()
+    tx = tmp_path / "transcripts" / "abc123.jsonl"
+    _write_transcript(tx, 3)
+    _write_sentinel(tmp_path, "abc123", 3, ["codegraph", "repowise"])
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "transcript_path": str(tx),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    assert r.returncode == 0
+    assert r.stdout == ""
+    assert r.stderr == ""
+
+
+def test_corrupt_sentinel_read_fails_open(tmp_path: Path) -> None:
+    """Sentinel matches the current transcript/turn but tools_used is not a
+    list -> treated as no tool used this turn; the hook still warns, not
+    crashes."""
+    (tmp_path / ".codegraph").mkdir()
+    (tmp_path / ".repowise").mkdir()
+    tx = tmp_path / "transcripts" / "abc123.jsonl"
+    _write_transcript(tx, 3)
+    _write_sentinel(tmp_path, "abc123", 3, "not-a-list")
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "transcript_path": str(tx),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(["repowise", "codegraph"])
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected
+
+
+def test_legacy_sentinel_read_fails_open(tmp_path: Path) -> None:
+    """Sentinel matches the current transcript/turn but has no tools_used
+    field at all (pre-Slice-2 schema) -> treated as no tool used this turn;
+    the hook still warns, not crashes."""
+    (tmp_path / ".codegraph").mkdir()
+    (tmp_path / ".repowise").mkdir()
+    tx = tmp_path / "transcripts" / "abc123.jsonl"
+    _write_transcript(tx, 3)
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "code-intelligence-turn-state.json").write_text(
+        json.dumps({"transcript_id": "abc123", "turn_counter": 3})
+    )
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "transcript_path": str(tx),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(["repowise", "codegraph"])
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected

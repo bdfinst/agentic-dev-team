@@ -218,6 +218,15 @@
             "command": "sh hooks/py.sh hooks/code_intelligence_turn_mark.py"
           }
         ]
+      },
+      {
+        "matcher": "mcp__plugin_repowise_repowise__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/code_intelligence_turn_mark.py"
+          }
+        ]
       }
     ],
     "SessionEnd": [
