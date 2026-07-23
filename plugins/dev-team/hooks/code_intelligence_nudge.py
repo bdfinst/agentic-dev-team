@@ -2,12 +2,11 @@
 """code_intelligence_nudge — Claude Code PreToolUse hook.
 
 Renamed/generalized from codegraph_nudge.py (#593 / #572 Phase 3, #1368)
-now that this hook is growing beyond a single tool: it will nudge agents
-toward whichever of CodeGraph, Repowise, and Graphify are indexed in the
-project, not CodeGraph alone. `_detect_present_tools()` already reports
-all three; the single-tool CodeGraph-only nudge below is the still-current
-runtime behavior until multi-tool message composition and main() wiring
-land in a follow-up step of the same slice.
+now that this hook nudges agents toward whichever of CodeGraph, Repowise,
+and Graphify are indexed in the project, not CodeGraph alone.
+`_detect_present_tools()` reports which of the three are present;
+`_compose_message()` composes a single-tool or precedence-ordered
+combined message for whichever of those are not already used this turn.
 
 Runs before Read, Grep, Glob tool calls. Single-file Read calls, Grep with
 a file `path`, and Glob with a literal `pattern` pass silently.
@@ -51,13 +50,6 @@ except ImportError:  # pragma: no cover
 
     def count_user_lines(transcript_path: Path) -> int:  # type: ignore[misc]
         return 0
-
-
-WARN_MSG = (
-    "[codegraph-nudge] CodeGraph is initialized in this project. Prefer "
-    "codegraph_context or codegraph_explore for multi-file exploration; "
-    "Grep/Glob/Read for confirming a specific detail."
-)
 
 
 CUES = {
@@ -211,10 +203,6 @@ def main() -> int:
     cwd_str = str(payload.get("cwd") or "").strip()
     cwd = Path(cwd_str) if cwd_str else Path.cwd()
 
-    # Only act when this project has a CodeGraph index.
-    if not (cwd / ".codegraph").is_dir():
-        return 0
-
     tool_name = str(payload.get("tool_name") or "")
 
     # Read always targets exactly one file_path — never exploration.
@@ -236,16 +224,24 @@ def main() -> int:
     if not is_multi:
         return 0
 
+    qualifying = _detect_present_tools(cwd)
+    if not qualifying:
+        return 0
+
     transcript_path = str(payload.get("transcript_path") or "")
-    if _codegraph_used_this_turn(cwd, transcript_path):
+    if "codegraph" in qualifying and _codegraph_used_this_turn(cwd, transcript_path):
+        qualifying = [tool for tool in qualifying if tool != "codegraph"]
+
+    message = _compose_message(qualifying)
+    if message is None:
         return 0
 
     hook_dir = Path(__file__).resolve().parent
     if _careful_active(hook_dir):
-        print(f"{WARN_MSG} [blocked by /careful]", file=sys.stderr)
+        print(f"{message} [blocked by /careful]", file=sys.stderr)
         return 2
 
-    print(WARN_MSG, file=sys.stderr)
+    print(message, file=sys.stderr)
     return 0
 
 
