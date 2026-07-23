@@ -11,6 +11,7 @@ Byte-parity with the bash lib for the entry points mutation-gate.sh relies on:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
