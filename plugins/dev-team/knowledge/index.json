@@ -296,6 +296,10 @@
       "summary": "**CodeGraph** for fast structural queries while editing — callers,",
       "anchor": "when-to-use-which"
     },
+    "Routing precedence": {
+      "summary": "This is guidance for the *model* choosing which tool to reach for — it is",
+      "anchor": "routing-precedence"
+    },
     "None is guaranteed to be present": {
       "summary": "All three are optional and independently adopted per project:",
       "anchor": "none-is-guaranteed-to-be-present"
