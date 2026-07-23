@@ -327,3 +327,63 @@ def test_csharp_probe_file_section_cross_links_back_to_skill_md_step_2_for_the_l
     s = _csharp_probe_file_selection_section()
     assert "SKILL.md" in s
     assert "Step 2" in s
+
+
+# --- Issue #1369: "accepted" survivor status + reason + dual raw/adjusted
+# score ------------------------------------------------------------------
+
+
+def test_skill_schema_documents_status_accepted_on_survivor_entries():
+    assert '"accepted"' in _machine_readable_section()
+
+
+def test_skill_schema_requires_a_reason_string_on_accepted_and_equivalent_entries():
+    s = _machine_readable_section()
+    assert grep(r"reason", s, ignore_case=True)
+    assert grep(r"equivalent.{0,80}reason|reason.{0,80}equivalent", s, ignore_case=True)
+    assert grep(r"accepted.{0,80}reason|reason.{0,80}accepted", s, ignore_case=True)
+
+
+def test_skill_callers_must_filter_accepted_alongside_equivalent():
+    s = _machine_readable_section()
+    assert grep(r"filter.+equivalent.+accepted|equivalent.+accepted.+filter", s, ignore_case=True)
+
+
+def test_skill_schema_section_shows_the_raw_score_and_adjusted_score_formulas():
+    s = _machine_readable_section()
+    assert grep(
+        r"raw_score[[:space:]]*=[[:space:]]*Killed[[:space:]]*/[[:space:]]*"
+        r"\(Killed[[:space:]]*\+[[:space:]]*Survived[[:space:]]*\+[[:space:]]*NoCoverage\)",
+        s,
+    )
+    assert grep(
+        r"adjusted_score[[:space:]]*=[[:space:]]*Killed[[:space:]]*/[[:space:]]*"
+        r"\(Killed[[:space:]]*\+[[:space:]]*\(Survived[[:space:]]*-[[:space:]]*Accepted\)"
+        r"[[:space:]]*\+[[:space:]]*NoCoverage\)",
+        s,
+    )
+
+
+def test_skill_step_4_table_has_an_equivalent_row_and_an_accepted_this_pass_row():
+    s = _step_4_section()
+    assert r"| **Equivalent** |" in s
+    assert r"| **Accepted this pass** |" in s
+
+
+def test_skill_step_4_accepted_row_requires_per_mutant_reason_not_file_level_wave_off():
+    s = _step_4_section()
+    idx = s.find("**Accepted this pass**")
+    assert idx != -1
+    window = s[idx : idx + 400]
+    assert "reason" in window
+    assert "file-level" in window
+
+
+def test_skill_output_format_shows_raw_and_adjusted_score_line():
+    s = _output_format_section()
+    assert "Raw:" in s
+    assert "Adjusted" in s
+
+
+def test_skill_output_format_has_an_accepted_survivors_deferred_table():
+    assert "Accepted Survivors (deferred)" in _output_format_section()

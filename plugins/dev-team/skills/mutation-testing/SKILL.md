@@ -166,17 +166,19 @@ For each mutant, classify and act. **`NoCoverage` outranks `Survived`** — a su
 | Classification | Meaning | Action |
 | --- | --- | --- |
 | **NoCoverage** | No test exercises this code path at all | Add a test that reaches the path before worrying about killing the mutant — coverage is the prerequisite |
-| **Equivalent** | Mutation produces identical behavior | Mark excluded — no test can kill it |
+| **Equivalent** | Mutation produces identical behavior — no test could ever kill it | Mark `status: "equivalent"` with a `reason` string — excluded from the mutation denominator |
 | **Missing assertion** | Test executes the code but doesn't assert on affected output | Strengthen the assertion |
 | **Missing test case** | No test exercises the mutated path | Write a new test |
 | **Undertested boundary** | Mutation exposes a boundary/edge with no coverage | Add a boundary test |
-| **Acceptable risk** | Trivial code where the mutation doesn't matter | Document and skip |
+| **Accepted this pass** | A real, killable mutant intentionally deferred — not equivalent, just out of scope for now | Document and skip: mark `status: "accepted"` with a `reason` string per mutant (or tightly-scoped mutant group) — never a file-level wave-off |
+
+Equivalent and Accepted are not the same classification, even though both end in "document and skip." **Equivalent** means no test — now or ever — can distinguish the mutation from the original; it is permanently out of the honest denominator. **Accepted** means the mutant is genuinely killable and a future pass could kill it, but this pass deliberately chose not to chase it (out of scope, low signal, pre-existing debt); it counts against the raw score but not the adjusted score (see [Machine-readable output](#machine-readable-output)). Never mark a killable mutant `"equivalent"` to make the raw score look better — that is what `"accepted"` is for, and it carries its own visible accounting.
 
 **Recommended work order** — attack in this sequence, not by file order:
 
 1. **NoCoverage** first (each conversion moves the honest score as much as killing a survivor, and it's usually cheaper — the unreached path just needs a test that touches it).
 2. **Survived** next (assertion or coverage fix — see the mutation-type-aware guidance below).
-3. **Equivalent** last (documentation only; no test to write).
+3. **Equivalent** and **Accepted this pass** last (documentation only; no test to write — each still requires its own `reason` string).
 
 ### Mutation-type-aware triage
 
@@ -200,7 +202,7 @@ Assert.AreEqual("expected-value", response.Data.FieldName);
 1. **Read the source context** — what does the code do and why.
 2. **Check for equivalence** — does the mutation actually change observable behavior? Common equivalent patterns: dead code or unreachable branches; commutative-operation reorderings; conditions redundant with other guards; logging/debug-only code.
 3. **Find related tests** — which tests cover this code; what do they assert.
-4. **Classify** — missing assertion, missing test, boundary gap, or equivalent.
+4. **Classify** — missing assertion, missing test, boundary gap, equivalent, or accepted (real, killable, deliberately deferred this pass — record the `reason`).
 5. **Write the fix test** with RED-GREEN discipline: must fail against the mutant and pass against the original.
 
 **Graph-assisted triage.** For steps 1 and 3, prefer `codegraph_explore` (CodeGraph) or Repowise `get_context`/`search_codebase` over raw `Grep` when the target repo has an index — they surface a mutated line's callers and its covering tests directly, which is faster and more complete than grepping for the symbol name. Fall back to `Read`/`Grep`/`Glob` when neither tool is available; the tools are simply absent (no error) on repos without an index.
@@ -254,6 +256,8 @@ Report the **honest** figure as the operator's primary signal. Tool-claimed scor
 
 The illustrative counts below are self-consistent under those formulas (verify: `100 / (100+200+135) = 23.0 %`; `(100+430) / (100+200+430+135) = 61.3 %`; `430 / (100+200+430) = 58.9 %`). Do not tune wording without re-checking the arithmetic.
 
+When Step 4 marks one or more survivors `status: "accepted"` (a real, killable mutant intentionally deferred this pass — distinct from `"equivalent"`), also print the **raw/adjusted** pair so a documented deferral never reads as unaddressed test-quality debt: `raw_score` is the honest score restated (unchanged formula), `adjusted_score` excludes accepted survivors from the denominator. Verify: `24 / (24+11+0) = 68.57 %`; `24 / (24+(11-11)+0) = 100 %`.
+
 ```markdown
 ## Mutation Testing Results
 
@@ -264,6 +268,8 @@ The illustrative counts below are self-consistent under those formulas (verify: 
 > ⚠️ **Timeout warning:** 58.9% of run outcomes were timeouts (430 of 730). The claimed score
 > is not trustworthy — raise `additional-timeout` (per-tool flag; see the language reference)
 > before treating either score as a gate.
+
+**Raw:** 68.57% (24/35) · **Adjusted for 11 accepted survivors:** 100% (24/24)
 
 ### Surviving Mutants
 
@@ -277,8 +283,13 @@ The illustrative counts below are self-consistent under those formulas (verify: 
 |---|---|---|---|
 | 1 | calculator.ts:15 | ArithmeticOperator | Dead code — branch unreachable |
 
+### Accepted Survivors (deferred)
+| # | File:Line | Operator | Reason |
+|---|---|---|---|
+| 1 | splash.component.ts:31 | StringLiteral | Field overwritten unconditionally in `ngOnInit` before any assertion could observe it; deferred this pass |
+
 ### Recommended Test Additions
-(Specific test code for each non-equivalent survivor)
+(Specific test code for each non-equivalent, non-accepted survivor)
 ```
 
 ## Machine-readable output
@@ -297,21 +308,25 @@ When `--emit-json <path>` is set, write a structured result document to `<path>`
   "killed": 41,
   "survived": 6,
   "equivalent": 3,
+  "accepted": 0,
   "timeout": 0,
   "no_coverage": 0,
   "compile_error": 0,
   "honest_score": 87.2,
   "claimed_score": 87.2,
+  "raw_score": 87.2,
+  "adjusted_score": 87.2,
   "timeout_pct": 0.0,
   "timeout_warning": false,
   "survivors": [
     { "file": "src/calculator.ts", "line": 42, "operator": "ConditionalBoundary", "status": "survived" },
-    { "file": "src/calculator.ts", "line": 67, "operator": "ReturnValue",        "status": "equivalent" }
+    { "file": "src/calculator.ts", "line": 67, "operator": "ReturnValue",        "status": "equivalent", "reason": "Dead branch; unreachable after upstream guard" },
+    { "file": "src/calculator.ts", "line": 90, "operator": "StringLiteral",      "status": "accepted",   "reason": "Field overwritten unconditionally before any assertion could observe it; deferred this pass" }
   ]
 }
 ```
 
-Each entry in `survivors` carries `file`, `line`, `operator`, and `status` where `status` is `"survived"` or `"equivalent"`. Callers MUST filter `status: "equivalent"` before computing deltas so reclassifications between runs don't show up as regressions.
+Each entry in `survivors` carries `file`, `line`, `operator`, and `status` where `status` is `"survived"`, `"equivalent"`, or `"accepted"`. Every `"equivalent"` or `"accepted"` entry MUST carry a sibling `reason` string — a mutant cannot be excluded or deferred without a stated rationale; `"survived"` entries carry no `reason`. Callers MUST filter both `status: "equivalent"` AND `status: "accepted"` before computing deltas so reclassifications and documented deferrals between runs don't show up as regressions.
 
 An optional top-level `"advisory": true` flag marks a result from an advisory-only tool (go-mutesting today). When present, callers MUST treat the survivor count as warn-not-block — it never fails a gate. Absent (the default), the result is authoritative.
 
@@ -322,9 +337,13 @@ honest_score   = Killed / (Killed + Survived + NoCoverage)
 claimed_score  = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
 timeout_pct    = Timeout / (Killed + Survived + Timeout)
 timeout_warning = timeout_pct > 0.05
+raw_score      = Killed / (Killed + Survived + NoCoverage)                     // == honest_score; relabeled for the raw/adjusted pair below
+adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)        // excludes accepted survivors from the denominator
 ```
 
 The honest score matches the sibling `mutation-kill` agent's formula so both surfaces read the same number. It differs from Stryker's own "mutation score" line (Stryker counts `Timeout` toward the numerator). When `timeout_warning` is true, the claimed score is not trustworthy: raise the tool's `additional-timeout` (or equivalent per-tool wall-clock budget) before treating either score as a gate. The warning is advisory — not a hard gate that fails the run — so a caller can decide policy without the skill forcing one.
+
+`raw_score` and `adjusted_score` are a **separate, orthogonal pair** from `honest_score`/`claimed_score` — the latter accounts for `Timeout` inflation, the former accounts for consciously-**accepted** survivors. `Accepted` is the count of `survivors[]` entries with `status: "accepted"`; it is always `<= Survived` (an accepted mutant is a subset of the survived population, not an addition to it). `adjusted_score` MUST NEVER replace `raw_score` in a report — both print, labeled, alongside the "Accepted Survivors (deferred)" table (see [Output format](#output-format)) so a documented deferral stays visible rather than quietly improving the denominator.
 
 **Emitting adapters.** Adapters emit the additive score fields only when their native tool distinguishes `Timeout` and `NoCoverage` from `Killed`/`Survived`. Today that is Stryker (JS), **Stryker.NET**, and pitest. Advisory-only tools that do not distinguish them — today's examples are **go-mutesting** and **mutmut** (`mutation_report.py`/`mutation_kill_loop.py` have no mutmut-specific parsing yet; only the PostToolUse gate's per-file adapter, `hooks/mutation_adapters/mutmut.py`, is wired) — omit the fields entirely rather than emit misleading zeros; the top-level `"advisory": true` flag is the caller's signal to treat the envelope as warn-not-block. Readers that consume the new fields MUST tolerate them being absent on an advisory envelope.
 
