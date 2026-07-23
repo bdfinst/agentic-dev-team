@@ -108,37 +108,47 @@ def _compose_message(qualifying: list) -> Optional[str]:
     )
 
 
-def _codegraph_used_this_turn(cwd: Path, transcript_path: str) -> bool:
-    """True when a codegraph_* MCP tool ran earlier in the current turn.
+def _tools_used_this_turn(cwd: Path, transcript_path: str) -> list:
+    """Which tool families ran earlier in the current turn, per the
+    accumulating sentinel `code_intelligence_turn_mark.py` writes at
+    `$cwd/.claude/code-intelligence-turn-state.json`.
 
-    Signature parity with codegraph-nudge.sh's `codegraph_used_this_turn`:
-    reads $cwd/.claude/codegraph-turn-state.json, cross-checks against the
-    transcript_id (basename minus extension) and turn_counter (count of
-    `"type":"user"` markers in the last 1 MiB of the transcript).
-
-    Any parse or filesystem error → False (fail-open, matching the .sh's
-    `return 1`).
+    Cross-checks the sentinel's `transcript_id`/`turn_counter` against the
+    freshly computed values (same turn-identity computation the write side
+    uses, via turn_identity.py) — a mismatch means a new turn/transcript, so
+    the sentinel doesn't apply. A missing file, an unparseable/non-dict
+    payload, a mismatched identity, or a `tools_used` field that's missing
+    or not a list (legacy pre-Slice-2 schema, or corrupt) all resolve to
+    `[]` — fail-open, never a crash.
     """
-    sentinel = cwd / ".claude" / "codegraph-turn-state.json"
+    sentinel = cwd / ".claude" / "code-intelligence-turn-state.json"
     if not sentinel.is_file():
-        return False
+        return []
     if not transcript_path:
-        return False
+        return []
     tx = Path(transcript_path)
     if not tx.is_file():
-        return False
+        return []
     try:
         sentinel_data = json.loads(sentinel.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return False
+        return []
+    if not isinstance(sentinel_data, dict):
+        return []
     sentinel_tid = str(sentinel_data.get("transcript_id") or "")
     sentinel_tc = sentinel_data.get("turn_counter")
     if not sentinel_tid or sentinel_tc is None:
-        return False
+        return []
 
     current_tid = transcript_id(transcript_path)
     current_tc = count_user_lines(tx)
-    return sentinel_tid == current_tid and int(sentinel_tc) == current_tc
+    if sentinel_tid != current_tid or int(sentinel_tc) != current_tc:
+        return []
+
+    tools_used = sentinel_data.get("tools_used")
+    if not isinstance(tools_used, list):
+        return []
+    return tools_used
 
 
 def _is_multi_grep(tool_input: dict) -> bool:
@@ -229,8 +239,8 @@ def main() -> int:
         return 0
 
     transcript_path = str(payload.get("transcript_path") or "")
-    if "codegraph" in qualifying and _codegraph_used_this_turn(cwd, transcript_path):
-        qualifying = [tool for tool in qualifying if tool != "codegraph"]
+    used_this_turn = set(_tools_used_this_turn(cwd, transcript_path))
+    qualifying = [tool for tool in qualifying if tool not in used_this_turn]
 
     message = _compose_message(qualifying)
     if message is None:
