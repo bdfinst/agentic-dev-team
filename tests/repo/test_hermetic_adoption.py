@@ -75,7 +75,7 @@ def test_every_fixture_bats_file_that_runs_git_ops_loads_hermetic() -> None:
         "The following bats files do fixture git operations but do not "
         "source tests/lib/hermetic.bash + wire "
         "hermetic_setup/hermetic_teardown. See issue #546 for why this "
-        f"matters.\n" + "\n".join(f"  {o}" for o in offenders)
+        "matters.\n" + "\n".join(f"  {o}" for o in offenders)
     )
 
 
@@ -197,5 +197,5 @@ def test_every_python_fixture_that_runs_git_ops_uses_hermetic_env() -> None:
         "calls but do not route every call through "
         "plugins/dev-team/tests/lib/hermetic.hermetic_git_env() (env= on "
         "every git-mutating call site). See issue #715 / #546 for why this "
-        f"matters.\n" + "\n".join(f"  {o}" for o in offenders)
+        "matters.\n" + "\n".join(f"  {o}" for o in offenders)
     )

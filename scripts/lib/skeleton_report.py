@@ -28,7 +28,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from severity_rank import SEVERITY_ORDER, sort_index as _severity_sort_index  # noqa: E402
+from severity_rank import sort_index as _severity_sort_index  # noqa: E402
 
 PRESENTATIONAL_MAP = {
     "error": "HIGH",  # skeleton default — real pipeline maps with exploitability
@@ -101,8 +101,8 @@ def render_report(
         f"- **Findings summary**: CRITICAL: 0  HIGH: {by_pres['HIGH']}  MEDIUM: {by_pres['MEDIUM']}  LOW: {by_pres['LOW']}"
     )
     lines.append(
-        f"- **Languages detected**: "
-        + ", ".join(l.get("name", "?") for l in recon.get("languages", [])[:5])
+        "- **Languages detected**: "
+        + ", ".join(lg.get("name", "?") for lg in recon.get("languages", [])[:5])
         or "none"
     )
     ep_count = len(recon.get("entry_points", []))
@@ -169,8 +169,8 @@ def render_report(
             if f.get("owasp"):
                 lines.append(f"- **OWASP**: {', '.join(f['owasp'])}")
             lines.append(f"- **Message**: {f.get('message', '(none)')}")
-            lines.append(f"- **Attack scenario**: [LLM-SKIPPED]")
-            lines.append(f"- **Remediation**: [LLM-SKIPPED]")
+            lines.append("- **Attack scenario**: [LLM-SKIPPED]")
+            lines.append("- **Remediation**: [LLM-SKIPPED]")
             lines.append("")
 
     # ── Section 3 — Medium & Low Findings (condensed) ─────────────────────

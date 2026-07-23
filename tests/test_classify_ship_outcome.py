@@ -7,7 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 # Resolve module path without installing the package.
 LIB_DIR = Path(__file__).parent.parent / "plugins" / "dev-team" / "hooks" / "lib"

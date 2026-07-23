@@ -311,16 +311,6 @@ def parse_reference(reports_dir: Path) -> list[EmittedFinding]:
             if not severity:
                 severity = _level_from_id(rule_id)
 
-            # CWE (informational — not required for matching but emitted for stats)
-            cwe = None
-            for bl in block_lines:
-                cm = REF_FIELD_CWE.match(bl)
-                if cm:
-                    cwe_m = re.search(r"CWE-\d+", cm.group("cwe"))
-                    if cwe_m:
-                        cwe = cwe_m.group(0)
-                    break
-
             # File(s) + line(s)
             emitted_block = False
             for fm in REF_FILE_LINE.finditer(block):
@@ -622,11 +612,8 @@ def print_scorecard(scores: list[SystemScore]) -> None:
         [str(len(s.extra_emissions)) for s in scores],
     ))
 
-    # Per-concern recall
+    # Per-concern recall: group by reference_concern attribute from the expected list
     print("\n  Recall by reference concern:")
-    concerns = sorted({m.expected_id[:m.expected_id.rfind('-')] if '-' in m.expected_id else m.expected_id
-                       for s in scores for m in s.matches})
-    # Simpler: group by reference_concern attribute from the expected list
     expected, _sup, _ranks = load_ground_truth()
     by_concern: dict[str, list[str]] = {}
     for ef in expected:

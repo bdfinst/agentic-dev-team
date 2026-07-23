@@ -214,7 +214,7 @@ def check_install_hints() -> int:
         print(f"[FAIL] install-hint check: missing hints for {sorted(missing)}")
         return 1
 
-    print(f"[OK]   install-hint check: all 5 tier-1 tools present with canonical format")
+    print("[OK]   install-hint check: all 5 tier-1 tools present with canonical format")
     for t in sorted(found):
         print(f"         {found[t]}")
     return 0

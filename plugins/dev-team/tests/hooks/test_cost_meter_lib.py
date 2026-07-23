@@ -358,7 +358,6 @@ def test_cmd_record_rebuilds_from_scratch_on_pre_1094_state_schema(
 
 
 def test_purge_stale_removes_old_state_but_keeps_fresh(hermetic_cost_meter):
-    tmp_path = hermetic_cost_meter
     state_dir = cost_meter._state_dir()
     state_dir.mkdir(parents=True, exist_ok=True)
 

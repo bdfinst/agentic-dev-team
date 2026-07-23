@@ -703,9 +703,6 @@ def main(argv: list[str]) -> int:
 
     out_lines.append("\n\n## Stage-0 CORE and EDGE pass rates\n")
     s0 = stage0_summary(rows)
-    tasks_list = sorted({k[0] for k in s0})
-    arms_list = sorted({k[1] for k in s0})
-    clarities_list = sorted({k[2] for k in s0})
 
     for metric, label in [("core_pass_rate", "CORE"), ("edge_pass_rate", "EDGE")]:
         out_lines.append(f"\n### {label} pass rate\n")

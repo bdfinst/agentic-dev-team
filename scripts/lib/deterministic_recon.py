@@ -185,7 +185,7 @@ def identify_entry_points(files: list[Path], root: Path) -> list[dict]:
                     out.append({
                         "path": rel,
                         "kind": "module-index",
-                        "rationale": f"Listed as 'main' in package.json",
+                        "rationale": "Listed as 'main' in package.json",
                         "language": "JavaScript/TypeScript",
                     })
         except (json.JSONDecodeError, OSError):
@@ -340,7 +340,7 @@ def build_architecture(files: list[Path], root: Path) -> dict:
     # Summary is deterministic but thin
     summary_parts = []
     if layers:
-        layer_names = [l["name"] for l in layers]
+        layer_names = [layer["name"] for layer in layers]
         summary_parts.append(f"Code organized into {len(layers)} identifiable layer(s): {', '.join(layer_names)}.")
     else:
         summary_parts.append("No conventional layer structure detected.")

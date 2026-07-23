@@ -49,9 +49,11 @@ def persona_delta(expected_dir: Path, on_trials: list[dict],
             verdict = "within noise band" if flapped else "no effect"
             noeffect += 1
         elif delta > 0:
-            verdict = "persona ADDS detection value"; helps += 1
+            verdict = "persona ADDS detection value"
+            helps += 1
         else:
-            verdict = "persona REDUCES detection value"; hurts += 1
+            verdict = "persona REDUCES detection value"
+            hurts += 1
         rows[a] = {
             "mean_pass_persona_on": o["mean_pass_at_k"],
             "mean_pass_persona_off": f["mean_pass_at_k"],

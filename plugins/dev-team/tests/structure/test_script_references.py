@@ -21,7 +21,6 @@ import re
 import shlex
 from pathlib import Path
 
-import pytest
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 

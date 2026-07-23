@@ -31,13 +31,10 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import sys
 import tempfile
-import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"

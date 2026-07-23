@@ -18,7 +18,7 @@ from __future__ import annotations
 import csv
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional
 
 from .common import BenchmarkCase, run_with_timeout, unified_diff_hunks
 

@@ -23,13 +23,12 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
 # Allow importing sibling lib modules regardless of cwd
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.review_result import build_result, main_exit, skipped_llm_warning
+from lib.review_result import build_result, main_exit
 from lib import deterministic_recon
 
 # ---------------------------------------------------------------------------
@@ -88,7 +87,7 @@ def step3_entry_points(
         return []
 
     # LLM path: call `claude -p`
-    lang_summary = ", ".join(l.get("name", "?") for l in lang_stats[:5]) or "unknown"
+    lang_summary = ", ".join(lg.get("name", "?") for lg in lang_stats[:5]) or "unknown"
     prompt = (
         f"Analyze the repository at {root}. "
         f"Primary languages: {lang_summary}. "

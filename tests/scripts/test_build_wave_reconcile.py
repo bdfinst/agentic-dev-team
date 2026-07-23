@@ -12,7 +12,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPT_PY = _REPO_ROOT / "plugins" / "dev-team" / "scripts" / "build_wave_reconcile.py"

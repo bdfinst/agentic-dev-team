@@ -9,7 +9,6 @@ the 4 tasks. Prints a readable summary and writes a JSON summary.
 
 Usage: python3 scripts/analyze_refactor_experiment.py
 """
-import glob
 import json
 import statistics as st
 from collections import defaultdict
@@ -22,12 +21,12 @@ ARMS = ["tdd-refactor", "no-refactor-single", "one-shot-single", "continuous-sin
 
 def load():
     cells = defaultdict(dict)  # (task,arm,trial) -> {stage: row}
-    for l in open(MERGED):
-        l = l.strip()
-        if not l:
+    for line in open(MERGED):
+        line = line.strip()
+        if not line:
             continue
         try:
-            r = json.loads(l)
+            r = json.loads(line)
         except Exception:
             continue
         cells[(r["task"], r["arm"], r["trial"])][r["stage"]] = r
@@ -101,9 +100,12 @@ def main():
         cost_taskmed = [med(by_arm_task[(arm, t)]["cost"]) for t in tasks]
         cb = med(blast_taskmed)
         co = med(cost_taskmed)
-        mut = med(d["mutation"]); cov = med(d["coverage"]); mi = med(d["mi"])
+        mut = med(d["mutation"])
+        cov = med(d["coverage"])
+        mi = med(d["mi"])
         ccn = med(d["ccn"])
-        core = round(100 * st.mean(d["core"])); edge = round(100 * st.mean(d["edge"]))
+        core = round(100 * st.mean(d["core"]))
+        edge = round(100 * st.mean(d["edge"]))
         viol = sum(d["violation"])
         bpd = round(cb / co, 1) if cb and co else None
         summary["arms"][arm] = dict(cum_blast=cb, cost=co, blast_per_dollar=bpd,

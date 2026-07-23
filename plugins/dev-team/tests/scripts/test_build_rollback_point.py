@@ -8,6 +8,7 @@ the exact revert boundary.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,10 +20,30 @@ sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts"))
 
 import build_rollback_point  # noqa: E402
 
+_GIT_SCRUB_ENV_VARS = (
+    "GIT_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_WORK_TREE",
+    "GIT_PREFIX",
+    "GIT_REFLOG_ACTION",
+)
+
+
+def _hermetic_env() -> dict:
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_SCRUB_ENV_VARS}
+    env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+    env["GIT_CONFIG_SYSTEM"] = "/dev/null"
+    return env
+
 
 def _git(cwd: Path, *args: str) -> str:
     result = subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=True,
+        env=_hermetic_env(),
     )
     return result.stdout.strip()
 

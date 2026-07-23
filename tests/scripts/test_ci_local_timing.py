@@ -168,7 +168,9 @@ def test_check_set_and_order_identical_with_and_without_flag() -> None:
     assert off.returncode == on.returncode == 0
     # The section headers (one per check, printed by the aggregation loop) are the
     # check set + order; they must be identical whether or not timing is enabled.
-    headers = lambda text: [ln for ln in text.splitlines() if ln.startswith("\x1b[1m== ")]
+    def headers(text):
+        return [ln for ln in text.splitlines() if ln.startswith("\x1b[1m== ")]
+
     assert headers(off.stdout) == headers(on.stdout)
 
 
@@ -309,7 +311,9 @@ def test_changed_only_skip_renders_sentinel_and_keeps_selection() -> None:
     assert re.search(r"\d+\.\d{2}s$", oe_line)  # oe actually ran
 
     # Selection (the per-check section headers) is identical with/without timing.
-    headers = lambda t: [ln for ln in t.splitlines() if ln.startswith("\x1b[1m== ")]
+    def headers(t):
+        return [ln for ln in t.splitlines() if ln.startswith("\x1b[1m== ")]
+
     assert headers(on.stdout) == headers(off.stdout)
 
 

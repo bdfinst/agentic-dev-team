@@ -33,7 +33,6 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 _LIB_DIR = Path(__file__).resolve().parent / "lib"
 if str(_LIB_DIR) not in sys.path:

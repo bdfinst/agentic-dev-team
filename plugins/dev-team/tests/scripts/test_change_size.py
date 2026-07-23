@@ -145,7 +145,7 @@ class TestEvaluate:
         assert out["keepAgents"] == change_size.FAST_PATH_AGENTS
 
     def test_disqualifying_scope_reports_empty_keep_agents(self):
-        out = change_size.evaluate([f"600\t0\tbig.py"])
+        out = change_size.evaluate(["600\t0\tbig.py"])
         assert out["qualifiesForFastPath"] is False
         assert out["keepAgents"] == []
 

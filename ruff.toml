@@ -1,0 +1,22 @@
+# Config for `ruff check` (wired into scripts/ci-local.sh's chk_ruff gate).
+#
+# extend-exclude adds to ruff's built-in default exclude list rather than
+# replacing it. Every entry here is a corpus of intentionally non-conformant
+# or frozen snapshot Python that lint debt should never accrue against:
+#   - **/rule-fixtures, **/fixtures, **/fixture, **/fixture-repo: semgrep rule
+#     positive/negative snippets and eval-harness fixture repos — demonstration
+#     code, not maintained source.
+#   - **/acc_*.py: acceptance-test files "injected at grading" by the TDD/
+#     refactor-granularity experiment harnesses (evals/fixtures/exp-tdd-*,
+#     evals/refactor-granularity/tasks/*) — frozen grading corpora.
+#   - evals/refactor-granularity/tasks/*/{golden,reference}: canonical
+#     solution snapshots for the same experiment corpus.
+extend-exclude = [
+    "**/fixtures",
+    "**/fixture",
+    "**/fixture-repo",
+    "**/rule-fixtures",
+    "**/acc_*.py",
+    "evals/refactor-granularity/tasks/*/golden",
+    "evals/refactor-granularity/tasks/*/reference",
+]

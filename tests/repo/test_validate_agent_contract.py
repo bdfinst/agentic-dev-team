@@ -10,7 +10,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "validate_agent_contract.py"

@@ -51,7 +51,9 @@ pytest-xdist>=3.0
 # Required by the Python static-analysis lane (dev-team plugin): /build's
 # self-heal pass and /code-review's static pre-pass dispatch ruff (lint +
 # autofix, native SARIF; SARIF needs >= 0.3.1) whenever Python files are in
-# scope — including this repo's own Python sources.
+# scope — including this repo's own Python sources. Also the tool behind
+# chk_ruff in scripts/ci-local.sh, which lints the repo's own Python against
+# ruff.toml (repo root) as a blocking pre-push gate.
 ruff>=0.3.1
 
 # Required by the same Python static-analysis lane: mypy (type checking,

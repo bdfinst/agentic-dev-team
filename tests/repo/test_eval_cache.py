@@ -207,8 +207,8 @@ def test_model_dimension_changes_fingerprint(corpus: Path) -> None:
     """The fingerprint itself differs across models for the same inputs."""
     a = _run(corpus, "--fingerprint", "demo::demo-review", "--model", MODEL_A)
     b = _run(corpus, "--fingerprint", "demo::demo-review", "--model", MODEL_B)
-    sha_a = next(l for l in a.stdout.splitlines() if l.startswith("fingerprint: "))
-    sha_b = next(l for l in b.stdout.splitlines() if l.startswith("fingerprint: "))
+    sha_a = next(line for line in a.stdout.splitlines() if line.startswith("fingerprint: "))
+    sha_b = next(line for line in b.stdout.splitlines() if line.startswith("fingerprint: "))
     assert sha_a != sha_b
 
 

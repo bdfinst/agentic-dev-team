@@ -6,12 +6,19 @@ Ported from tests/scripts/progress_guardian_tests.bats (issue #676).
 pytest's tmp_path fixture replaces the bash hermetic helper's mktemp -d +
 rm -rf isolation (see tests/lib/hermetic.bash / issue #546) — every git
 fixture below runs against its own tmp_path, never the parent worktree's
-gitdir.
+gitdir. Every `git` subprocess also scrubs the git-exported env vars and
+redirects global/system config to /dev/null (issue #546/#715): a host
+~/.gitconfig with `commit.gpgsign = true` otherwise leaks into these `git
+commit` calls and races the gpg-agent when this file's tests run in parallel
+across pytest-xdist workers, producing flaky exit-128 failures — this is why
+ci-local.sh previously had to pin this file to a single worker via `--dist
+loadfile` (see scripts/ci-local.sh's chk_hook_units comment).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,9 +26,26 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PG = REPO_ROOT / "scripts" / "progress_guardian.py"
 
+_GIT_SCRUB_ENV_VARS = (
+    "GIT_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_WORK_TREE",
+    "GIT_PREFIX",
+    "GIT_REFLOG_ACTION",
+)
+
+
+def _hermetic_env() -> dict:
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_SCRUB_ENV_VARS}
+    env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+    env["GIT_CONFIG_SYSTEM"] = "/dev/null"
+    return env
+
 
 def _git(cwd: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+    subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, env=_hermetic_env()
+    )
 
 
 def _init_repo(cwd: Path) -> None:
