@@ -453,6 +453,11 @@ def test_probe_timeout_seconds_value():
     assert destructive_guard._PROBE_TIMEOUT_SECONDS == 1.0
 
 
+def test_config_file_names():
+    assert destructive_guard._COMMANDS_FILE.name == "destructive-commands.json"
+    assert destructive_guard._CAREFUL_FILE.name == "careful-state.json"
+
+
 def test_load_patterns_uses_inline_defaults_when_config_missing(monkeypatch, tmp_path):
     # Point the config at a nonexistent file so _load_json returns None and
     # the inline fallback lists are returned verbatim — pins every default.
@@ -829,6 +834,21 @@ def test_main_warn_full_output_and_boundary_event(monkeypatch, capsys):
     assert events == [
         ("/wd", "destructive_guard", "Bash", "warn", "Process destruction: kill -9", "s1")
     ]
+
+
+def test_main_warn_defaults_cwd_to_dot_and_session_to_none(monkeypatch, capsys):
+    # No cwd / session_id in the payload — cwd falls back to ".", session
+    # to None, both observable only through the boundary event.
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_load_escalations", lambda: [])
+    events = []
+    monkeypatch.setattr(
+        destructive_guard, "emit_boundary_event", lambda *a, **k: events.append(a)
+    )
+    _feed(monkeypatch, {"tool_input": {"command": "kill -9 1"}})
+    assert destructive_guard.main() == 0
+    assert events[0][0] == "."
+    assert events[0][5] is None
 
 
 def test_main_careful_full_output_and_boundary_event(monkeypatch, capsys):
