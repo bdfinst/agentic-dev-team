@@ -29,11 +29,11 @@ assert _spec is not None and _spec.loader is not None
 code_intelligence_nudge = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(code_intelligence_nudge)
 
-EXPECTED_WARN_MSG = (
-    "[codegraph-nudge] CodeGraph is initialized in this project. Prefer "
-    "codegraph_context or codegraph_explore for multi-file exploration; "
-    "Grep/Glob/Read for confirming a specific detail."
-)
+# Derived from the same composer main() calls, so this constant tracks
+# wording changes to CUES/_compose_message automatically — these tests are
+# about main()'s wiring (detection -> sentinel -> composition -> print/exit),
+# not about the exact prose, which is covered by test_single_tool_message_per_tool.
+EXPECTED_WARN_MSG = code_intelligence_nudge._compose_message(["codegraph"])
 
 
 @pytest.fixture(autouse=True)
@@ -107,7 +107,10 @@ def test_silent_on_read_when_codegraph_present(tmp_path: Path) -> None:
 # --- Step 3: Grep/Glob heuristic -----------------------------------------
 
 
-def test_warns_on_grep_with_directory_path(tmp_path: Path) -> None:
+def test_codegraph_only_regression(tmp_path: Path) -> None:
+    """Only .codegraph/ present -> the pre-Step-1.3 single-tool CodeGraph
+    nudge still fires, naming codegraph_explore with its differentiator
+    clause, and mentions neither Repowise nor Graphify."""
     (tmp_path / ".codegraph").mkdir()
     (tmp_path / "src").mkdir()
     r = _run(
@@ -119,6 +122,9 @@ def test_warns_on_grep_with_directory_path(tmp_path: Path) -> None:
     )
     assert r.returncode == 0
     assert r.stderr.strip() == EXPECTED_WARN_MSG
+    assert "codegraph_explore" in r.stderr
+    assert "Repowise" not in r.stderr
+    assert "Graphify" not in r.stderr
 
 
 def test_silent_on_grep_with_file_path(tmp_path: Path) -> None:
@@ -248,7 +254,7 @@ def test_warns_when_sentinel_missing(tmp_path: Path) -> None:
 # --- Step 5: careful-mode escalation --------------------------------------
 
 
-def test_blocks_in_careful_mode(tmp_path: Path) -> None:
+def test_careful_mode_blocks(tmp_path: Path) -> None:
     (tmp_path / ".codegraph").mkdir()
     (tmp_path / "src").mkdir()
     _CAREFUL_STATE.write_text(json.dumps({"active": True}))
@@ -444,3 +450,171 @@ def test_closing_line_identical_across_variants() -> None:
 
 def test_compose_message_returns_none_for_empty_list() -> None:
     assert code_intelligence_nudge._compose_message([]) is None
+
+
+# --- main() wiring: multi-tool detection + composition (Step 1.3) ----------
+
+
+def _graphify_index(root: Path) -> None:
+    (root / "graphify-out").mkdir(parents=True, exist_ok=True)
+    (root / "graphify-out" / "graph.json").write_text("{}")
+
+
+def test_repowise_only(tmp_path: Path) -> None:
+    (tmp_path / ".repowise").mkdir()
+    r = _run(
+        {
+            "tool_name": "Glob",
+            "cwd": str(tmp_path),
+            "tool_input": {"pattern": "**/*.ts"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(["repowise"])
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected
+    assert "get_context" in r.stderr
+    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge.CUES["graphify"] not in r.stderr
+
+
+def test_graphify_only(tmp_path: Path) -> None:
+    _graphify_index(tmp_path)
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(["graphify"])
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected
+    assert "graphify query" in r.stderr
+    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge.CUES["repowise"] not in r.stderr
+
+
+def test_two_present_combined(tmp_path: Path) -> None:
+    (tmp_path / ".codegraph").mkdir()
+    (tmp_path / ".repowise").mkdir()
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(["repowise", "codegraph"])
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected
+    repowise_idx = r.stderr.index(code_intelligence_nudge.CUES["repowise"])
+    codegraph_idx = r.stderr.index(code_intelligence_nudge.CUES["codegraph"])
+    assert repowise_idx < codegraph_idx
+
+
+def test_three_present_combined(tmp_path: Path) -> None:
+    (tmp_path / ".codegraph").mkdir()
+    (tmp_path / ".repowise").mkdir()
+    _graphify_index(tmp_path)
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(
+        ["codegraph", "repowise", "graphify"]
+    )
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected
+    graphify_idx = r.stderr.index(code_intelligence_nudge.CUES["graphify"])
+    repowise_idx = r.stderr.index(code_intelligence_nudge.CUES["repowise"])
+    codegraph_idx = r.stderr.index(code_intelligence_nudge.CUES["codegraph"])
+    assert graphify_idx < repowise_idx < codegraph_idx
+
+
+def test_none_present_silent(tmp_path: Path) -> None:
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    assert r.returncode == 0
+    assert r.stdout == ""
+    assert r.stderr == ""
+
+
+def test_read_never_nudges(tmp_path: Path) -> None:
+    (tmp_path / ".codegraph").mkdir()
+    _graphify_index(tmp_path)
+    (tmp_path / "foo.txt").write_text("hi")
+    r = _run(
+        {
+            "tool_name": "Read",
+            "cwd": str(tmp_path),
+            "tool_input": {"file_path": str(tmp_path / "foo.txt")},
+        }
+    )
+    assert r.returncode == 0
+    assert r.stdout == ""
+    assert r.stderr == ""
+
+
+def test_single_file_grep_never_nudges(tmp_path: Path) -> None:
+    (tmp_path / ".codegraph").mkdir()
+    _graphify_index(tmp_path)
+    (tmp_path / "foo.txt").write_text("hi")
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "tool_input": {"pattern": "foo", "path": str(tmp_path / "foo.txt")},
+        }
+    )
+    assert r.returncode == 0
+    assert r.stdout == ""
+    assert r.stderr == ""
+
+
+def test_literal_glob_never_nudges(tmp_path: Path) -> None:
+    (tmp_path / ".codegraph").mkdir()
+    _graphify_index(tmp_path)
+    r = _run(
+        {
+            "tool_name": "Glob",
+            "cwd": str(tmp_path),
+            "tool_input": {"pattern": "package.json"},
+        }
+    )
+    assert r.returncode == 0
+    assert r.stdout == ""
+    assert r.stderr == ""
+
+
+def test_suppressed_when_used_this_turn(tmp_path: Path) -> None:
+    """Both codegraph and graphify present; codegraph already used this
+    turn -> composed message omits the CodeGraph line, keeps Graphify."""
+    (tmp_path / ".codegraph").mkdir()
+    _graphify_index(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    tx = tmp_path / "transcripts" / "abc123.jsonl"
+    _write_transcript(tx, 3)
+    (tmp_path / ".claude" / "codegraph-turn-state.json").write_text(
+        json.dumps({"transcript_id": "abc123", "turn_counter": 3})
+    )
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "transcript_path": str(tx),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(["graphify"])
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected
+    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge.CUES["graphify"] in r.stderr
