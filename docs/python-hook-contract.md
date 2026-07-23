@@ -108,6 +108,19 @@ across macOS + Linux + Windows Git Bash.
   degenerate inputs, timing traces during `DEV_TEAM_DEBUG=1`.
 - Never write user-actionable messages to stderr alone. Duplicate them to
   stdout with the `ADVISORY:` prefix if the operator needs to see them.
+- **Exception — exit-2 (block) messages: mirror to stderr in addition to
+  stdout** (`pre_commit_review.py`, #1367). Some Claude Code hook-error
+  wrappers surface only stderr on a nonzero hook exit; a stdout-only block
+  message can go completely unseen there, leaving only a generic "hook
+  error, no stderr output" with no actionable reason. Stdout stays the
+  canonical, primary UI channel — stderr is additive duplication for block
+  paths specifically, not a general license to move messages to stderr.
+  Treat dual-write as the standard for any new exit-2 hook, or any existing
+  one you touch. Hooks not yet converged: stderr-only today
+  (`contract_version_guard.py`, `context_ceiling_guard.py`,
+  `pre_commit_knowledge_index.py`); stdout-only today
+  (`destructive_guard.py`, `eval_compliance_check.py`). Converging them is a
+  separate cleanup, not implied by this note.
 - The parity harness normalizes stderr before comparison. It strips ISO-8601
   timestamps, PIDs, and tmpdir path prefixes. Nothing else. If two
   implementations diverge on anything past those three axes, that is a
