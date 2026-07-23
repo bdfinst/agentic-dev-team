@@ -114,6 +114,29 @@ that reaches the line kills the mutant (no specific-value assertion required).
 file with 27 NoCoverage mutants at 0% score drags the overall number down more
 than a file with 20 Survived at 70%; fix the NoCoverage first.
 
+### Accepted survivors: raw vs adjusted score
+
+A per-file/round report can carry individual survivors marked `status: "accepted"`
+— a real, killable mutant you deliberately deferred this pass (not equivalent;
+just out of scope, low-signal, or pre-existing debt). This is **per-mutant**
+granularity underneath the file-level `EXCLUDED` convention below, not a
+replacement for it — see [Structurally unkillable
+files](#structurally-unkillable-files). Every accepted entry carries a `reason`
+string; never accept a mutant silently.
+
+When any survivor is accepted, print both:
+
+```
+raw_score      = honest_score (unchanged)
+adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)
+```
+
+labeled clearly (e.g. `Raw: 68.57% (24/35) · Adjusted for 11 accepted survivors:
+100% (24/24)`), plus a per-mutant "Accepted Survivors (deferred)" table (file,
+line, operator, reason) — mirroring the existing equivalent-mutants table. Never
+let `adjusted_score` stand alone; `raw_score` plus the reason table is what keeps
+a documented deferral from silently vanishing.
+
 ## Shard vs full-run scores are not comparable
 
 Scoped per-file ("shard") runs produce far higher timeout rates than full runs
