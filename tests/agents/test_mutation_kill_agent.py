@@ -57,7 +57,10 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # mutation_kill_loop_python.py row in the scripted-mechanics table, a
     # Python row in the per-language translation table, and a Python prompt
     # rule.
-    assert len(text.splitlines()) < 506
+    # Bumped by 23 more (#1369): a new "Accepted survivors: raw vs adjusted
+    # score" subsection documenting per-mutant status: "accepted" deferrals
+    # alongside the existing file-level EXCLUDED convention.
+    assert len(text.splitlines()) < 529
 
 
 def test_defines_honest_score_formula(text: str) -> None:
@@ -84,6 +87,30 @@ def test_no_coverage_is_first_class_prioritized_signal(text: str) -> None:
         text,
         re.IGNORECASE,
     )
+
+
+# --- Issue #1369: per-mutant accepted-survivor deferral + raw/adjusted score
+
+
+def test_defines_accepted_survivors_subsection(text: str) -> None:
+    assert re.search(r"^### Accepted survivors", text, re.MULTILINE)
+
+
+def test_accepted_survivors_section_defines_raw_and_adjusted_score(text: str) -> None:
+    assert re.search(
+        r"adjusted_score\s*=\s*Killed\s*/\s*\(Killed\s*\+\s*\(Survived\s*-\s*Accepted\)"
+        r"\s*\+\s*NoCoverage\)",
+        text,
+    )
+    assert "raw_score" in text
+
+
+def test_accepted_survivors_section_requires_a_reason_and_never_replaces_file_level_excluded(
+    text: str,
+) -> None:
+    assert re.search(r"reason", text, re.IGNORECASE)
+    assert "EXCLUDED" in text
+    assert re.search(r"per-mutant", text, re.IGNORECASE)
 
 
 def test_loop_starts_with_fresh_build_prohibits_no_build(text: str, flat: str) -> None:
