@@ -1,13 +1,23 @@
 #!/usr/bin/env python3
-"""Python port of hooks/codegraph-turn-mark.sh (#594 / #572 Phase 3).
+"""Renamed/generalized from codegraph_turn_mark.py (#594 / #572 Phase 3, #1368).
 
-Byte-compatible port of the Claude Code PostToolUse hook. Fires after any
-`mcp__codegraph__*` tool call completes. Writes a sentinel at
+Claude Code PostToolUse hook. Fires after a tool call completes and
+`_tool_family()` recognizes its name as belonging to a supported
+code-intelligence tool family — currently `mcp__codegraph__*` ("codegraph")
+and `mcp__plugin_repowise_repowise__*` ("repowise"). Writes a sentinel at
 `${CLAUDE_PROJECT_DIR:-$PWD}/.claude/codegraph-turn-state.json` that the nudge
-hook (`codegraph-nudge.sh`) consults to suppress its warning during the rest
-of the current turn.
+hook (`code_intelligence_nudge.py`) consults to suppress its warning for
+whichever tool family was used during the rest of the current turn.
 
-Sentinel schema (same as the .sh):
+`_transcript_id`/`_count_user_lines` are imported from the shared
+`hooks/lib/turn_identity.py` module (falling back to local reimplementations
+only if that import fails) so this hook and the nudge hook can never drift
+apart on how a "turn" is identified.
+
+Sentinel schema (unchanged in this step — Step 2.2 upgrades it to an
+accumulating `tools_used` list; for now the write-path stays codegraph-only,
+recognizing but not yet acting on the "repowise" family `_tool_family` can
+return):
     { "transcript_id": <string>, "turn_counter": <int> }
     - transcript_id: basename of transcript_path with extension stripped
     - turn_counter:  count of `"type":"user"` lines in the transcript file,
@@ -25,30 +35,35 @@ Contract (docs/python-hook-contract.md):
     Posture: fail-open. Any internal error → exit 0; sentinel may not be
              written, the nudge hook will simply emit its (advisory) warning.
 
-Stdlib-only (json/os/pathlib/re/sys/tempfile). Python 3.8+. See ADR 0014.
+Stdlib-only (json/os/pathlib/sys/tempfile). Python 3.8+. See ADR 0014.
 
-Refs: #572 (bash → Python migration epic).
+Refs: #572 (bash → Python migration epic), #1368 (multi-tool nudge).
 """
 
 from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 import tempfile
 from pathlib import Path
 
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
 
-# Same 1 MiB tail window the .sh applies via `tail -c 1048576`. Kept as a
-# module-level constant so the nudge-hook port (future PR) can import it
-# instead of re-declaring the magic number.
-_TAIL_WINDOW_BYTES = 1_048_576
+sys.path.insert(0, str(_LIB_DIR))
+try:
+    from turn_identity import (  # type: ignore[import-not-found]
+        count_user_lines as _count_user_lines,
+        transcript_id as _transcript_id,
+    )
+except ImportError:  # pragma: no cover
 
-# Matches the .sh's `grep -c '"type":"user"'` — literal substring, no JSON
-# parsing. Transcripts are JSONL and the marker is stable across all
-# assistant/user records the harness writes.
-_USER_LINE_RE = re.compile(rb'"type":"user"')
+    def _transcript_id(path: str) -> str:  # type: ignore[misc]
+        return Path(path).stem
+
+    def _count_user_lines(transcript_path: Path) -> int:  # type: ignore[misc]
+        return 0
 
 
 def _read_stdin() -> str:
@@ -70,46 +85,19 @@ def _load_input(raw: str) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def _is_codegraph_tool(name: str) -> bool:
-    # Same prefix filter as the .sh's `case "$TOOL_NAME" in mcp__codegraph__*)`.
-    return name.startswith("mcp__codegraph__")
+def _tool_family(name: str) -> str | None:
+    """Classify a tool name into the family whose usage this hook marks.
 
-
-def _transcript_id(transcript_path: str) -> str:
-    """basename(transcript_path) with the last extension stripped.
-
-    Mirrors the .sh's two-step:
-        TRANSCRIPT_ID=$(basename "$TRANSCRIPT_PATH")
-        TRANSCRIPT_ID="${TRANSCRIPT_ID%.*}"
-
-    `${var%.*}` removes the shortest suffix matching `.*`, i.e. the final
-    extension only. `Path.stem` matches that behavior for the shapes the
-    harness emits (`.jsonl`, `.json`, no extension).
+    Same prefix filter the .sh applied via
+    `case "$TOOL_NAME" in mcp__codegraph__*)`, generalized to also recognize
+    Repowise's MCP server prefix. Any other tool name (or a name matching
+    neither prefix) returns None.
     """
-    return Path(transcript_path).stem
-
-
-def _count_user_lines(transcript_path: Path) -> int:
-    """Count `"type":"user"` occurrences in the last 1 MiB of the transcript.
-
-    Errors → 0 (fail-open, matches the .sh's `|| echo 0`). Reads a bounded
-    tail so growing transcripts don't turn every codegraph call into a
-    full-file scan.
-    """
-    try:
-        with transcript_path.open("rb") as fh:
-            try:
-                fh.seek(0, os.SEEK_END)
-                size = fh.tell()
-                offset = max(0, size - _TAIL_WINDOW_BYTES)
-                fh.seek(offset)
-            except (OSError, ValueError):
-                # Non-seekable? Read from the top; small transcripts stay cheap.
-                fh.seek(0)
-            data = fh.read()
-    except OSError:
-        return 0
-    return len(_USER_LINE_RE.findall(data))
+    if name.startswith("mcp__codegraph__"):
+        return "codegraph"
+    if name.startswith("mcp__plugin_repowise_repowise__"):
+        return "repowise"
+    return None
 
 
 def _write_sentinel_atomic(sentinel: Path, payload: dict) -> None:
@@ -158,7 +146,11 @@ def main() -> int:
 
     payload = _load_input(raw)
     tool_name = payload.get("tool_name") or ""
-    if not isinstance(tool_name, str) or not _is_codegraph_tool(tool_name):
+    # Step 2.2/2.3 will widen this to accumulate every recognized family into
+    # the sentinel's tools_used list; for now the sentinel schema/write-path
+    # stays codegraph-only, matching the behavior preserved from before this
+    # rename (see plans/multi-tool-code-intelligence-nudge.md Step 2.1).
+    if not isinstance(tool_name, str) or _tool_family(tool_name) != "codegraph":
         return 0
 
     transcript_path_str = payload.get("transcript_path") or ""

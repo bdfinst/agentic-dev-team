@@ -2,15 +2,12 @@
 slice-2-extend-the-turn-mark-sentinel-to-repowise-list-based-schema.feature
 (plan: plans/multi-tool-code-intelligence-nudge.md, issue #1368).
 
-INTERIM reference (Step 1.1 scope-extension, ahead of Slice 2 itself):
-Slice 2 (Step 2.1) renames plugins/dev-team/hooks/codegraph_turn_mark.py ->
-code_intelligence_turn_mark.py and its test file. Until that lands, this
-file points at the pre-rename suite
-(plugins/dev-team/tests/hooks/test_codegraph_turn_mark.py) so
+Slice 2 Step 2.1 renamed plugins/dev-team/hooks/codegraph_turn_mark.py ->
+code_intelligence_turn_mark.py and its test file
+(plugins/dev-team/tests/hooks/test_code_intelligence_turn_mark.py) — this
+file points at the renamed suite so
 tests/repo/test_feature_spec_refs.py's `# Enforced by:` check has a real,
-non-empty target instead of a dangling reference. Slice 2 MUST update the
-path below (and this file's docstring) to the renamed test file once it
-lands — do not let this go stale.
+non-empty target.
 """
 
 from __future__ import annotations
@@ -26,7 +23,7 @@ _HOOK_TEST = (
     / "dev-team"
     / "tests"
     / "hooks"
-    / "test_codegraph_turn_mark.py"
+    / "test_code_intelligence_turn_mark.py"
 )
 
 

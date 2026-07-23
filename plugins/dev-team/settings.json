@@ -215,7 +215,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh hooks/py.sh hooks/codegraph_turn_mark.py"
+            "command": "sh hooks/py.sh hooks/code_intelligence_turn_mark.py"
           }
         ]
       }

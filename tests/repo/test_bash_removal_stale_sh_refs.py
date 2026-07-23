@@ -60,7 +60,7 @@ STALE_REFS = [
     StaleRef(
         "plugins/dev-team/docs/codegraph-nudge.md",
         "codegraph-turn-mark.sh",
-        "plugins/dev-team/hooks/codegraph_turn_mark.py",
+        "plugins/dev-team/hooks/code_intelligence_turn_mark.py",
     ),
     StaleRef(
         "plugins/dev-team/skills/freeze/SKILL.md",

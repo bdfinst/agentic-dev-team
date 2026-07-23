@@ -19,29 +19,63 @@ _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
 if str(_HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_DIR))
 
-import codegraph_turn_mark as hook  # type: ignore[import-not-found]  # noqa: E402
+import code_intelligence_turn_mark as hook  # type: ignore[import-not-found]  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# _is_codegraph_tool
+# _tool_family
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "tool_name,expected",
+    "tool_name",
     [
-        ("mcp__codegraph__codegraph_explore", True),
-        ("mcp__codegraph__codegraph_node", True),
-        ("mcp__codegraph__anything_else", True),
-        ("mcp__othermcp__thing", False),
-        ("Read", False),
-        ("Bash", False),
-        ("", False),
-        ("codegraph_explore", False),
+        "mcp__codegraph__codegraph_explore",
+        "mcp__codegraph__codegraph_node",
+        "mcp__codegraph__anything_else",
     ],
 )
-def test_is_codegraph_tool(tool_name: str, expected: bool) -> None:
-    assert hook._is_codegraph_tool(tool_name) is expected
+def test_tool_family_codegraph(tool_name: str) -> None:
+    assert hook._tool_family(tool_name) == "codegraph"
+
+
+@pytest.mark.parametrize(
+    "tool_name",
+    [
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why",
+    ],
+)
+def test_tool_family_repowise(tool_name: str) -> None:
+    assert hook._tool_family(tool_name) == "repowise"
+
+
+@pytest.mark.parametrize(
+    "tool_name",
+    [
+        "mcp__othermcp__thing",
+        "Read",
+        "Bash",
+        "",
+        "codegraph_explore",
+    ],
+)
+def test_tool_family_none_for_other_tools(tool_name: str) -> None:
+    assert hook._tool_family(tool_name) is None
+
+
+def test_uses_shared_turn_identity_lib() -> None:
+    """No local duplicate of the tail-window logic remains — both
+    `_transcript_id` and `_count_user_lines` must be the shared-lib
+    functions imported from `turn_identity.py`, not local reimplementations.
+    """
+    import turn_identity  # type: ignore[import-not-found]
+
+    assert hook._transcript_id is turn_identity.transcript_id
+    assert hook._count_user_lines is turn_identity.count_user_lines
+    assert not hasattr(hook, "_TAIL_WINDOW_BYTES")
+    assert not hasattr(hook, "_USER_LINE_RE")
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +142,7 @@ def test_count_user_lines_scans_tail_only_for_large_transcript(
 
 
 def _run_hook(stdin: str, cwd: Path, env: dict) -> subprocess.CompletedProcess:
-    hook_path = _HOOKS_DIR / "codegraph_turn_mark.py"
+    hook_path = _HOOKS_DIR / "code_intelligence_turn_mark.py"
     return subprocess.run(
         [sys.executable, str(hook_path)],
         input=stdin.encode("utf-8"),
