@@ -28,12 +28,12 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
 
 import minimal_yaml  # noqa: E402,F401
-from minimal_yaml import (
+from minimal_yaml import (  # noqa: E402
     FrontmatterError,
     YamlError,
     extract_frontmatter_block,
     parse_yaml,
-)  # noqa: E402
+)
 
 
 def test_yaml_import_is_not_used_by_this_module():

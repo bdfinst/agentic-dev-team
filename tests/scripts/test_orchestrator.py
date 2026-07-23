@@ -6,13 +6,11 @@ Tests classification, fast-path routing, phase state persistence,
 
 from __future__ import annotations
 
-import asyncio
-import json
 import os
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -20,7 +18,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import orchestrator as orch
+import orchestrator as orch  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +241,7 @@ async def test_gather_called_with_two_tasks_for_two_personas():
         return await original_dispatch_persona(persona, plan, skip_llm=True)
 
     with patch.object(orch, "dispatch_persona", side_effect=counting_dispatch):
-        results = await orch.dispatch_personas(personas, plan={}, skip_llm=True)
+        await orch.dispatch_personas(personas, plan={}, skip_llm=True)
 
     assert len(dispatched) == 2
     assert set(dispatched) == set(personas)

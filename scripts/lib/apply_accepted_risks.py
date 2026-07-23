@@ -29,7 +29,7 @@ import fnmatch
 import json
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -348,7 +348,7 @@ def main() -> int:
     write_jsonl(args.suppressed_out, suppressed)
     write_jsonl(args.audit_log_out, audit)
 
-    print(f"\nWrote:")
+    print("\nWrote:")
     print(f"  {args.findings} (rewritten, {len(surviving)} findings)")
     print(f"  {args.suppressed_out} ({len(suppressed)} suppressed)")
     print(f"  {args.audit_log_out} ({len(audit)} audit entries)")

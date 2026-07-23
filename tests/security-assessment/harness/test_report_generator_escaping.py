@@ -19,7 +19,6 @@ out of the Markdown/HTML context unescaped.
 
 from __future__ import annotations
 
-import importlib
 import os
 import sys
 from pathlib import Path

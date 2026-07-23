@@ -50,7 +50,7 @@ def load(paths: list[Path]) -> dict:
         if text[0] == "[":
             items = json.loads(text)
         else:
-            items = [json.loads(l) for l in text.splitlines() if l.strip()]
+            items = [json.loads(line) for line in text.splitlines() if line.strip()]
         for r in items:
             key = (r["task"], r["arm"], r["trial"], r["stage"])
             rows[key] = r

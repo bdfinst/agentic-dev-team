@@ -90,7 +90,7 @@ section() { printf '\n%s== %s ==%s\n' "$bold" "$1" "$reset"; }
 # tools per job, so a full-toolchain gate here would false-fail those jobs.
 if [ -z "$ONLY" ]; then
   missing=()
-  for t in shellcheck jq python3 semgrep; do
+  for t in shellcheck jq python3 semgrep ruff; do
     command -v "$t" >/dev/null 2>&1 || missing+=("$t")
   done
   if [ "${#missing[@]}" -gt 0 ]; then
@@ -211,6 +211,12 @@ chk_eslint() {
     printf '%s∼ skipped (npx not found)%s\n' "$yellow" "$reset"
   fi
 }
+# Python lint (ruff.toml at repo root excludes fixture/eval-corpus snippet
+# dirs — see that file's header comment for why). Same tool /code-review and
+# /build's self-heal dispatch on Python files (plugins/dev-team/skills/
+# static-analysis-integration/SKILL.md); this gate keeps the repo's own
+# Python at the bar those skills hold contributor changes to.
+chk_ruff() { ruff check .; }
 # plugins/dev-team/tests/hooks/parity/ (the .sh↔.py parity harness) was retired
 # in #618 (epic #572) once every shipped hook + script became Python-only. The
 # going-forward coverage lives in plugins/dev-team/tests/hooks/test_*.py and
@@ -289,6 +295,7 @@ CHECKS=(
   "nav integrity (mkdocs nav → assembled file)::chk_nav_integrity"
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"
+  "ruff check (Python lint)::chk_ruff"
   "plugin hook + script unit tests (pytest plugins/dev-team/tests)::chk_hook_units"
 )
 

@@ -24,7 +24,6 @@ from pathlib import Path
 def aggregate(log: Path) -> dict:
     commands: Counter = Counter()
     skills: Counter = Counter()
-    gates: Counter = Counter()  # outcome -> count, per gate name
     gate_by_name: dict[str, Counter] = {}
     total_events = 0
     for line in log.read_text().splitlines():

@@ -7,7 +7,6 @@ Produces: results/06_validation.json
 """
 from __future__ import annotations
 
-import math
 from typing import Any
 
 from ..lib import http_client, result_store, scoring

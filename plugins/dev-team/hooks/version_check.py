@@ -17,10 +17,8 @@ Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
 

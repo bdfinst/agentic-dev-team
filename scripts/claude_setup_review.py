@@ -276,7 +276,7 @@ def check_duplicate_names(agents_dir: Path) -> List[dict]:
                         + ", ".join(files)
                     ),
                     file=files[0],
-                    suggested_fix=f"Rename one of the agents to a unique name.",
+                    suggested_fix="Rename one of the agents to a unique name.",
                 )
             )
 

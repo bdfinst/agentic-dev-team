@@ -25,8 +25,8 @@ SCHEMA_PATH = REPO / "plugins/dev-team/knowledge/schemas/unified-finding-v1.json
 
 # Import the SARIF parser from the sibling static-analysis-tools validator.
 sys.path.insert(0, str(REPO / "evals/static-analysis-tools"))
-from validate import parse_sarif, load_schema_registry  # type: ignore
-from jsonschema import Draft202012Validator
+from validate import parse_sarif, load_schema_registry  # type: ignore  # noqa: E402
+from jsonschema import Draft202012Validator  # noqa: E402
 
 
 def run_tool(script: Path, target: Path) -> dict[str, Any]:
@@ -80,7 +80,7 @@ def main() -> int:
     assert_sarif_shape(sarif, "entropy-check")
     try:
         assert_rule_ids(sarif, {"short-secret", "low-entropy-secret", "weak-placeholder", "cross-env-reuse"})
-        print(f"  [OK] all 4 expected rule_ids fired on fixture")
+        print("  [OK] all 4 expected rule_ids fired on fixture")
     except AssertionError as e:
         print(f"  [FAIL] {e}")
         fail += 1
@@ -98,7 +98,7 @@ def main() -> int:
     assert_sarif_shape(sarif, "model-hash-verify")
     try:
         assert_rule_ids(sarif, {"integrity-failure", "no-provenance"})
-        print(f"  [OK] both expected rule_ids fired on fixture")
+        print("  [OK] both expected rule_ids fired on fixture")
     except AssertionError as e:
         print(f"  [FAIL] {e}")
         fail += 1

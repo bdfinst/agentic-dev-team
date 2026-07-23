@@ -10,7 +10,6 @@ Produces: results/08_report.json  AND  results/adversarial-report.md
 from __future__ import annotations
 
 import html
-import json
 from datetime import datetime, timezone
 
 from .. import config
@@ -157,7 +156,7 @@ def run() -> None:
 
     # Markdown report (human-readable; refined in place by the analyst agent)
     md_lines = [
-        f"# Adversarial ML Red-Team Report",
+        "# Adversarial ML Red-Team Report",
         "",
         f"**Target**: `{config.TARGET_URL}`  ",
         f"**Generated**: {report['generated_at']}",

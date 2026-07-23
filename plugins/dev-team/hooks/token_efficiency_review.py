@@ -15,7 +15,6 @@ Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 from pathlib import Path

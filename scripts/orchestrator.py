@@ -293,7 +293,9 @@ def main(argv=None) -> int:
     classify_fn = None
     if args.classify:
         size = args.classify
-        classify_fn = lambda req, _size=size: {"size": _size}
+
+        def classify_fn(req, _size=size):
+            return {"size": _size}
 
     exit_code = asyncio.run(
         run_pipeline(

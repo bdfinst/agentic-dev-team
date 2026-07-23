@@ -379,7 +379,7 @@ def measure_lizard(workdir, prod):
     m = re.search(r"^\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\d+\s+file", r.stdout, re.M)
     if not m:
         # fallback: the averages row before "file analyzed"
-        rows = [l for l in r.stdout.splitlines() if re.match(r"\s*[\d.]+\s+[\d.]+\s+[\d.]+", l)]
+        rows = [line for line in r.stdout.splitlines() if re.match(r"\s*[\d.]+\s+[\d.]+\s+[\d.]+", line)]
         if rows:
             nums = re.findall(r"[\d.]+", rows[-1])
             if len(nums) >= 4:
@@ -395,7 +395,7 @@ def measure_smells(workdir, tests):
     for p in tests:
         try:
             src = p.read_text()
-            test_loc += len([l for l in src.splitlines() if l.strip()])
+            test_loc += len([line for line in src.splitlines() if line.strip()])
             tree = ast.parse(src)
         except Exception:
             continue
@@ -556,7 +556,8 @@ def _do_stage(workdir, arm, doc, model, env, run_root, cell, change):
     a = ARMS[arm]
     parts = []
     attempted = None
-    raw = lambda suffix="": run_root / "raw" / f"{cell}{suffix}.json"
+    def raw(suffix=""):
+        return run_root / "raw" / f"{cell}{suffix}.json"
     if a["authorship"] == "single":
         wp = change_write_prompt(arm, doc) if change else write_prompt_single(arm, doc)
         parts.append(dispatch(workdir, wp, model, env, raw()))

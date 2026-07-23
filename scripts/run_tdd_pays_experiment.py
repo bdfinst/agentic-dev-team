@@ -42,11 +42,11 @@ from statistics import mean, stdev
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 
-from run_integration_eval import extract_golden_repo, init_worktree, run_commands
-from run_tdd_experiment import (
+from run_integration_eval import extract_golden_repo, init_worktree, run_commands  # noqa: E402
+from run_tdd_experiment import (  # noqa: E402
     contamination_flags, make_cell_home, cell_env, dispatch,
     count_agent_tests, split_py_files, measure_coverage, measure_mutation,
-    inject_grade_files, TEST_NAME,
+    inject_grade_files,
 )
 
 MODEL_DEFAULT = "claude-sonnet-4-6"
@@ -230,8 +230,8 @@ def measure_blast_radius(workdir: Path, from_sha: str | None) -> dict:
         name_re = subprocess.run(
             ["git", "diff", from_sha, "HEAD", "--", "*.py"],
             cwd=str(workdir), capture_output=True, text=True, check=False)
-        api_lines = [l for l in name_re.stdout.split("\n")
-                     if l.startswith(("+def ", "-def ", "+class ", "-class "))]
+        api_lines = [line for line in name_re.stdout.split("\n")
+                     if line.startswith(("+def ", "-def ", "+class ", "-class "))]
         out["api_churn"] = len(api_lines)
     except (subprocess.CalledProcessError, OSError, ValueError):
         pass
@@ -366,7 +366,7 @@ def run_stage0(stem: str, arm: str, clarity: str, trial: int,
     workdir = Path(tempfile.mkdtemp(prefix=f"exp-{cell_id}-"))
     extract_golden_repo(fixture_dir / espec["goldenRepo"], workdir)
     init_worktree(workdir)
-    base_sha = _git_commit_all(workdir, "baseline")
+    _git_commit_all(workdir, "baseline")
 
     spec_file = espec["specClear"] if clarity == "clear" else espec["specVague"]
     if (fixture_dir / spec_file).exists():
@@ -389,7 +389,7 @@ def run_stage0(stem: str, arm: str, clarity: str, trial: int,
 
     core_files = espec.get("coreGradeFiles", [])
     edge_files = espec.get("edgeGradeFiles", [])
-    injected = inject_grade_files(fixture_dir, workdir, core_files + edge_files)
+    inject_grade_files(fixture_dir, workdir, core_files + edge_files)
     core_results = run_commands(workdir, espec.get("coreTestCommands", []))
     edge_results = run_commands(workdir, espec.get("edgeTestCommands", []))
 
@@ -669,8 +669,8 @@ def main(argv: list[str]) -> int:
                         args.model, args.skip_dispatch, not args.no_capture,
                         plugin_template=plugin_tpl)
                     prior_sha = stage0_row.pop("_post_build_sha", None)
-                    prod_paths = stage0_row.pop("_prod_paths", [])
-                    test_paths = stage0_row.pop("_test_paths", [])
+                    stage0_row.pop("_prod_paths", [])
+                    stage0_row.pop("_test_paths", [])
                     stage0_row.pop("_worktree", None)
                     if cell_key + ("stage0",) not in done_stages:
                         fh.write(json.dumps(stage0_row) + "\n")
