@@ -138,6 +138,16 @@ def test_skill_documents_filtering_status_equivalent_before_computing_delta():
     )
 
 
+def test_skill_documents_filtering_status_accepted_before_computing_delta():
+    # Issue #1369: a documented, rationale-bearing "accepted" deferral must
+    # never read as a regression — filtered the same way "equivalent" is.
+    assert grep(
+        r"filter.+accepted|accepted.+(filter|exclude)|exclude.+accepted",
+        _text(),
+        ignore_case=True,
+    )
+
+
 # --- Atomic-write semantics for mutation-history.json ----------------------
 
 

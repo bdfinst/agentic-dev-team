@@ -86,6 +86,7 @@ def test_non_commit_silent(repo: Path) -> None:
     r = _run({"tool_name": "Bash", "tool_input": {"command": "ls -la"}}, cwd=repo)
     assert r.returncode == 0
     assert r.stdout == ""
+    assert r.stderr == ""
 
 
 def test_no_verify_bypass_without_reason_blocks(repo: Path) -> None:
@@ -96,6 +97,9 @@ def test_no_verify_bypass_without_reason_blocks(repo: Path) -> None:
     )
     assert r.returncode == 2
     assert "GATE_BYPASS_REASON" in r.stdout
+    assert "GATE_BYPASS_REASON" in r.stderr
+    # #1367: stderr mirrors stdout byte-for-byte, not just a similar message.
+    assert r.stdout == r.stderr
     assert not (repo / "metrics" / "gate-bypass-audit.jsonl").exists()
 
 
@@ -127,6 +131,7 @@ def test_no_verify_bypass_empty_reason_blocks(repo: Path) -> None:
     )
     assert r.returncode == 2
     assert "GATE_BYPASS_REASON" in r.stdout
+    assert "GATE_BYPASS_REASON" in r.stderr
 
 
 def test_bare_n_bypass_without_reason_blocks(repo: Path) -> None:
@@ -136,6 +141,7 @@ def test_bare_n_bypass_without_reason_blocks(repo: Path) -> None:
         cwd=repo,
     )
     assert r.returncode == 2
+    assert "GATE_BYPASS_REASON" in r.stderr
     assert "GATE_BYPASS_REASON" in r.stdout
 
 
@@ -195,6 +201,9 @@ def test_missing_gate_file_blocks(repo: Path) -> None:
     assert "BLOCKED" in r.stdout
     assert "/code-review" in r.stdout
     assert "--no-verify" in r.stdout
+    # #1367: mirrored to stderr so wrappers that only surface stderr on a
+    # nonzero hook exit (rather than the hook's own stdout) still show why.
+    assert "BLOCKED" in r.stderr
 
 
 def test_matching_gate_file_passes_and_is_consumed(repo: Path) -> None:
@@ -221,6 +230,7 @@ def test_stale_gate_file_blocks(repo: Path) -> None:
     )
     assert r.returncode == 2
     assert "BLOCKED" in r.stdout
+    assert "BLOCKED" in r.stderr
     # Gate file preserved because it did NOT match.
     assert (repo / ".review-passed").exists()
 
@@ -235,3 +245,5 @@ def test_extra_staged_file_after_review_blocks(repo: Path) -> None:
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
     assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+    assert "BLOCKED" in r.stderr
