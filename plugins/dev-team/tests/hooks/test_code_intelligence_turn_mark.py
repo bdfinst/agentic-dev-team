@@ -1,8 +1,6 @@
 """Unit tests for the Python port of hooks/codegraph-turn-mark.sh (#594).
 
 White-box tests on the port's helpers + end-to-end sentinel-write behavior.
-Byte-parity with the .sh is enforced by the parity harness at
-tests/hooks/parity/test_codegraph_turn_mark_parity.py.
 """
 
 from __future__ import annotations
@@ -20,6 +18,8 @@ if str(_HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_DIR))
 
 import code_intelligence_turn_mark as hook  # type: ignore[import-not-found]  # noqa: E402
+
+_SENTINEL_NAME = "code-intelligence-turn-state.json"
 
 
 # ---------------------------------------------------------------------------
@@ -153,74 +153,193 @@ def _run_hook(stdin: str, cwd: Path, env: dict) -> subprocess.CompletedProcess:
     )
 
 
-def test_happy_path_writes_sentinel_with_expected_shape(tmp_path: Path) -> None:
+def _stdin_for(tool_name: str, transcript_path: str) -> str:
+    return json.dumps({"tool_name": tool_name, "transcript_path": transcript_path})
+
+
+def _write_sentinel(tmp_path: Path, payload: dict) -> Path:
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
+    sentinel.parent.mkdir(parents=True, exist_ok=True)
+    sentinel.write_text(json.dumps(payload))
+    return sentinel
+
+
+def test_writes_fresh_sentinel_when_none_exists_codegraph(tmp_path: Path) -> None:
     transcript = tmp_path / "t.jsonl"
     transcript.write_text('{"type":"user"}\n{"type":"assistant"}\n{"type":"user"}\n')
-    stdin = json.dumps(
-        {
-            "tool_name": "mcp__codegraph__codegraph_explore",
-            "transcript_path": "t.jsonl",
-        }
-    )
     result = _run_hook(
-        stdin,
+        _stdin_for("mcp__codegraph__codegraph_explore", "t.jsonl"),
         tmp_path,
-        {
-            "CLAUDE_PROJECT_DIR": str(tmp_path),
-            "PATH": "/usr/bin:/bin",
-        },
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
     )
     assert result.returncode == 0
     assert result.stdout == b""
 
-    sentinel = tmp_path / ".claude" / "codegraph-turn-state.json"
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
     assert sentinel.is_file()
     payload = json.loads(sentinel.read_text())
-    assert payload == {"transcript_id": "t", "turn_counter": 2}
+    assert payload == {"transcript_id": "t", "turn_counter": 2, "tools_used": ["codegraph"]}
+
+
+def test_writes_fresh_sentinel_when_none_exists_repowise(tmp_path: Path) -> None:
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text('{"type":"user"}\n')
+    result = _run_hook(
+        _stdin_for("mcp__plugin_repowise_repowise__get_context", "t.jsonl"),
+        tmp_path,
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 0
+
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
+    payload = json.loads(sentinel.read_text())
+    assert payload == {"transcript_id": "t", "turn_counter": 1, "tools_used": ["repowise"]}
+
+
+def test_accumulates_within_same_turn(tmp_path: Path) -> None:
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text('{"type":"user"}\n')
+    _write_sentinel(
+        tmp_path,
+        {"transcript_id": "t", "turn_counter": 1, "tools_used": ["codegraph"]},
+    )
+    result = _run_hook(
+        _stdin_for("mcp__plugin_repowise_repowise__get_risk", "t.jsonl"),
+        tmp_path,
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 0
+
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
+    payload = json.loads(sentinel.read_text())
+    assert payload == {
+        "transcript_id": "t",
+        "turn_counter": 1,
+        "tools_used": ["codegraph", "repowise"],
+    }
+
+
+def test_resets_on_new_turn_counter(tmp_path: Path) -> None:
+    transcript = tmp_path / "t.jsonl"
+    # Two user markers now — a later turn_counter than the sentinel's 1.
+    transcript.write_text('{"type":"user"}\n{"type":"user"}\n')
+    _write_sentinel(
+        tmp_path,
+        {"transcript_id": "t", "turn_counter": 1, "tools_used": ["codegraph"]},
+    )
+    result = _run_hook(
+        _stdin_for("mcp__plugin_repowise_repowise__get_risk", "t.jsonl"),
+        tmp_path,
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 0
+
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
+    payload = json.loads(sentinel.read_text())
+    assert payload == {
+        "transcript_id": "t",
+        "turn_counter": 2,
+        "tools_used": ["repowise"],
+    }
+
+
+def test_resets_on_new_transcript_id(tmp_path: Path) -> None:
+    transcript = tmp_path / "other.jsonl"
+    transcript.write_text('{"type":"user"}\n')
+    # Sentinel belongs to a different transcript_id at the same turn_counter.
+    _write_sentinel(
+        tmp_path,
+        {"transcript_id": "t", "turn_counter": 1, "tools_used": ["codegraph"]},
+    )
+    result = _run_hook(
+        _stdin_for("mcp__plugin_repowise_repowise__get_risk", "other.jsonl"),
+        tmp_path,
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 0
+
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
+    payload = json.loads(sentinel.read_text())
+    assert payload == {
+        "transcript_id": "other",
+        "turn_counter": 1,
+        "tools_used": ["repowise"],
+    }
+
+
+def test_corrupt_tools_used_field_recovers_on_write(tmp_path: Path) -> None:
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text('{"type":"user"}\n')
+    # Same transcript/turn, but tools_used is a string, not a list.
+    _write_sentinel(
+        tmp_path,
+        {"transcript_id": "t", "turn_counter": 1, "tools_used": "codegraph"},
+    )
+    result = _run_hook(
+        _stdin_for("mcp__plugin_repowise_repowise__get_context", "t.jsonl"),
+        tmp_path,
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 0
+
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
+    payload = json.loads(sentinel.read_text())
+    assert payload == {
+        "transcript_id": "t",
+        "turn_counter": 1,
+        "tools_used": ["repowise"],
+    }
+
+
+def test_legacy_schema_without_tools_used_fails_open(tmp_path: Path) -> None:
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text('{"type":"user"}\n')
+    # Pre-Slice-2 schema: matches transcript/turn but has no tools_used at all.
+    _write_sentinel(tmp_path, {"transcript_id": "t", "turn_counter": 1})
+    result = _run_hook(
+        _stdin_for("mcp__codegraph__codegraph_explore", "t.jsonl"),
+        tmp_path,
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 0
+
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
+    payload = json.loads(sentinel.read_text())
+    assert payload == {
+        "transcript_id": "t",
+        "turn_counter": 1,
+        "tools_used": ["codegraph"],
+    }
 
 
 def test_non_codegraph_tool_writes_no_sentinel(tmp_path: Path) -> None:
-    stdin = json.dumps({"tool_name": "Read", "transcript_path": "t.jsonl"})
+    stdin = _stdin_for("Read", "t.jsonl")
     (tmp_path / "t.jsonl").write_text('{"type":"user"}\n')
     result = _run_hook(
         stdin,
         tmp_path,
-        {
-            "CLAUDE_PROJECT_DIR": str(tmp_path),
-            "PATH": "/usr/bin:/bin",
-        },
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
     )
     assert result.returncode == 0
-    assert not (tmp_path / ".claude" / "codegraph-turn-state.json").exists()
+    assert not (tmp_path / ".claude" / _SENTINEL_NAME).exists()
 
 
 def test_missing_transcript_writes_no_sentinel(tmp_path: Path) -> None:
-    stdin = json.dumps(
-        {
-            "tool_name": "mcp__codegraph__codegraph_node",
-            "transcript_path": "does-not-exist.jsonl",
-        }
-    )
+    stdin = _stdin_for("mcp__codegraph__codegraph_node", "does-not-exist.jsonl")
     result = _run_hook(
         stdin,
         tmp_path,
-        {
-            "CLAUDE_PROJECT_DIR": str(tmp_path),
-            "PATH": "/usr/bin:/bin",
-        },
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
     )
     assert result.returncode == 0
-    assert not (tmp_path / ".claude" / "codegraph-turn-state.json").exists()
+    assert not (tmp_path / ".claude" / _SENTINEL_NAME).exists()
 
 
 def test_malformed_stdin_fails_open(tmp_path: Path) -> None:
     result = _run_hook(
         "this is {not[ json",
         tmp_path,
-        {
-            "CLAUDE_PROJECT_DIR": str(tmp_path),
-            "PATH": "/usr/bin:/bin",
-        },
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
     )
     assert result.returncode == 0
     assert result.stdout == b""
@@ -231,68 +350,53 @@ def test_empty_stdin_fails_open(tmp_path: Path) -> None:
     result = _run_hook(
         "",
         tmp_path,
-        {
-            "CLAUDE_PROJECT_DIR": str(tmp_path),
-            "PATH": "/usr/bin:/bin",
-        },
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
     )
     assert result.returncode == 0
 
 
-def test_atomic_sentinel_write_leaves_no_temp_files(tmp_path: Path) -> None:
+def test_atomic_write_preserved(tmp_path: Path) -> None:
+    """Carried-over non-functional regression guard (not new behavior in
+    this step): the write is still tempfile+rename, leaving no stray temp
+    files behind in `.claude/`."""
     (tmp_path / "t.jsonl").write_text('{"type":"user"}\n')
-    stdin = json.dumps(
-        {
-            "tool_name": "mcp__codegraph__codegraph_explore",
-            "transcript_path": "t.jsonl",
-        }
-    )
+    stdin = _stdin_for("mcp__codegraph__codegraph_explore", "t.jsonl")
     _run_hook(
         stdin,
         tmp_path,
-        {
-            "CLAUDE_PROJECT_DIR": str(tmp_path),
-            "PATH": "/usr/bin:/bin",
-        },
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
     )
     files = sorted(p.name for p in (tmp_path / ".claude").iterdir())
-    assert files == ["codegraph-turn-state.json"], f"leftover temp files: {files}"
+    assert files == [_SENTINEL_NAME], f"leftover temp files: {files}"
 
 
-def test_sentinel_json_bytes_match_jq_default_indent2(tmp_path: Path) -> None:
-    """The .sh writes via `jq -n` which pretty-prints with indent=2.
-
-    The port must match byte-for-byte so the parity harness passes.
-    """
+def test_sentinel_json_bytes_match_pretty_indent2(tmp_path: Path) -> None:
+    """Pretty-printed with `indent=2` and a trailing newline, matching the
+    original .sh's `jq -n` output shape."""
     (tmp_path / "t.jsonl").write_text('{"type":"user"}\n')
-    stdin = json.dumps(
-        {
-            "tool_name": "mcp__codegraph__codegraph_explore",
-            "transcript_path": "t.jsonl",
-        }
-    )
+    stdin = _stdin_for("mcp__codegraph__codegraph_explore", "t.jsonl")
     _run_hook(
         stdin,
         tmp_path,
-        {
-            "CLAUDE_PROJECT_DIR": str(tmp_path),
-            "PATH": "/usr/bin:/bin",
-        },
+        {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
     )
-    sentinel = tmp_path / ".claude" / "codegraph-turn-state.json"
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
     raw = sentinel.read_bytes()
-    assert raw == (b'{\n  "transcript_id": "t",\n  "turn_counter": 1\n}\n')
+    assert raw == (
+        b'{\n'
+        b'  "transcript_id": "t",\n'
+        b'  "turn_counter": 1,\n'
+        b'  "tools_used": [\n'
+        b'    "codegraph"\n'
+        b'  ]\n'
+        b'}\n'
+    )
 
 
 def test_project_dir_falls_back_to_cwd(tmp_path: Path) -> None:
     """CLAUDE_PROJECT_DIR unset → PROJECT_DIR = $PWD (subprocess cwd)."""
     (tmp_path / "t.jsonl").write_text('{"type":"user"}\n')
-    stdin = json.dumps(
-        {
-            "tool_name": "mcp__codegraph__codegraph_explore",
-            "transcript_path": "t.jsonl",
-        }
-    )
+    stdin = _stdin_for("mcp__codegraph__codegraph_explore", "t.jsonl")
     result = _run_hook(stdin, tmp_path, {"PATH": "/usr/bin:/bin"})
     assert result.returncode == 0
-    assert (tmp_path / ".claude" / "codegraph-turn-state.json").is_file()
+    assert (tmp_path / ".claude" / _SENTINEL_NAME).is_file()

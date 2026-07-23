@@ -5,29 +5,40 @@ Claude Code PostToolUse hook. Fires after a tool call completes and
 `_tool_family()` recognizes its name as belonging to a supported
 code-intelligence tool family — currently `mcp__codegraph__*` ("codegraph")
 and `mcp__plugin_repowise_repowise__*` ("repowise"). Writes a sentinel at
-`${CLAUDE_PROJECT_DIR:-$PWD}/.claude/codegraph-turn-state.json` that the nudge
-hook (`code_intelligence_nudge.py`) consults to suppress its warning for
-whichever tool family was used during the rest of the current turn.
+`${CLAUDE_PROJECT_DIR:-$PWD}/.claude/code-intelligence-turn-state.json` that
+the nudge hook (`code_intelligence_nudge.py`) will consult (Step 2.3) to
+suppress its warning for whichever tool family was used during the rest of
+the current turn.
 
 `_transcript_id`/`_count_user_lines` are imported from the shared
 `hooks/lib/turn_identity.py` module (falling back to local reimplementations
 only if that import fails) so this hook and the nudge hook can never drift
 apart on how a "turn" is identified.
 
-Sentinel schema (unchanged in this step — Step 2.2 upgrades it to an
-accumulating `tools_used` list; for now the write-path stays codegraph-only,
-recognizing but not yet acting on the "repowise" family `_tool_family` can
-return):
-    { "transcript_id": <string>, "turn_counter": <int> }
+Sentinel schema (Step 2.2 — accumulating `tools_used` list, written to
+`.claude/code-intelligence-turn-state.json`):
+    { "transcript_id": <string>, "turn_counter": <int>, "tools_used": [<string>, ...] }
     - transcript_id: basename of transcript_path with extension stripped
     - turn_counter:  count of `"type":"user"` lines in the transcript file,
                      scanning only the last 1 MiB so a monotonically growing
                      transcript stays O(1) per fire (same cap the nudge hook
                      applies on its side).
+    - tools_used:    families (e.g. "codegraph", "repowise") recognized so
+                     far this turn, in first-used order, deduplicated.
 
-Both fields are computed the same way the nudge hook recomputes them at
-PreToolUse time, so a same-turn match suppresses the warning and a next-turn
-mismatch (new user message → counter bumps) resets it.
+Before writing, any existing sentinel is read back. When its transcript_id
+and turn_counter match the freshly computed values (same turn), the newly
+recognized family is merged into the existing `tools_used` list (deduped,
+order preserved); otherwise — new turn, new transcript, or a
+missing/legacy/corrupt sentinel — the sentinel is rewritten from scratch
+with only the new family. A `tools_used` field that exists but isn't a
+list, or a sentinel that fails to parse at all, is treated as an empty list
+rather than raised (fail-open on the write side, mirroring the nudge hook's
+read-side handling of the same shapes).
+
+Both `transcript_id`/`turn_counter` are computed the same way the nudge hook
+recomputes them at PreToolUse time, so a same-turn match accumulates and a
+next-turn mismatch (new user message → counter bumps) resets it.
 
 Contract (docs/python-hook-contract.md):
     Input : PostToolUse JSON on stdin
@@ -100,6 +111,50 @@ def _tool_family(name: str) -> str | None:
     return None
 
 
+def _matches_current_turn(existing: dict, tid: str, tc: int) -> bool:
+    """True when an existing sentinel's identity fields match the freshly
+    computed transcript_id/turn_counter for *this* call — i.e. it was
+    written earlier in the same turn and should be accumulated into, not
+    reset. Named to mirror the nudge hook's own (separate-process,
+    read-side) same-turn comparison — both delegate the underlying
+    transcript_id/turn_counter computation to turn_identity.py, so only
+    this merge/reset decision is hook-specific.
+    """
+    return existing.get("transcript_id") == tid and existing.get("turn_counter") == tc
+
+
+def _existing_tools_used(sentinel: Path, tid: str, tc: int) -> list:
+    """Read back any prior sentinel's `tools_used` for the current turn.
+
+    Fail-open on every corrupt/legacy shape — an unreadable file, invalid
+    JSON, a non-dict payload, a mismatched transcript/turn (new turn), a
+    missing `tools_used` field (legacy pre-Slice-2 schema), or a
+    `tools_used` present but not a list — all resolve to "start fresh",
+    i.e. an empty list, never a raised exception.
+    """
+    if not sentinel.is_file():
+        return []
+    try:
+        existing = json.loads(sentinel.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return []
+    if not isinstance(existing, dict):
+        return []
+    if not _matches_current_turn(existing, tid, tc):
+        return []
+    tools_used = existing.get("tools_used")
+    if not isinstance(tools_used, list):
+        return []
+    return tools_used
+
+
+def _merge_tools_used(existing: list, family: str) -> list:
+    """Append `family` to `existing`, deduped, preserving first-seen order."""
+    if family in existing:
+        return list(existing)
+    return list(existing) + [family]
+
+
 def _write_sentinel_atomic(sentinel: Path, payload: dict) -> None:
     """Atomic write via a tempfile in the same directory + rename.
 
@@ -116,7 +171,7 @@ def _write_sentinel_atomic(sentinel: Path, payload: dict) -> None:
     # same atomic-mv semantic on macOS + Linux + Windows Git Bash.
     try:
         fd, tmp_path = tempfile.mkstemp(
-            prefix=".codegraph-turn-state.",
+            prefix=".code-intelligence-turn-state.",
             dir=str(parent),
         )
     except OSError:
@@ -146,11 +201,8 @@ def main() -> int:
 
     payload = _load_input(raw)
     tool_name = payload.get("tool_name") or ""
-    # Step 2.2/2.3 will widen this to accumulate every recognized family into
-    # the sentinel's tools_used list; for now the sentinel schema/write-path
-    # stays codegraph-only, matching the behavior preserved from before this
-    # rename (see plans/multi-tool-code-intelligence-nudge.md Step 2.1).
-    if not isinstance(tool_name, str) or _tool_family(tool_name) != "codegraph":
+    family = _tool_family(tool_name) if isinstance(tool_name, str) else None
+    if family is None:
         return 0
 
     transcript_path_str = payload.get("transcript_path") or ""
@@ -161,12 +213,17 @@ def main() -> int:
         return 0
 
     project_dir = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
-    sentinel = project_dir / ".claude" / "codegraph-turn-state.json"
+    sentinel = project_dir / ".claude" / "code-intelligence-turn-state.json"
 
     tid = _transcript_id(transcript_path_str)
     tc = _count_user_lines(transcript_path)
 
-    _write_sentinel_atomic(sentinel, {"transcript_id": tid, "turn_counter": tc})
+    tools_used = _merge_tools_used(_existing_tools_used(sentinel, tid, tc), family)
+
+    _write_sentinel_atomic(
+        sentinel,
+        {"transcript_id": tid, "turn_counter": tc, "tools_used": tools_used},
+    )
     return 0
 
 
