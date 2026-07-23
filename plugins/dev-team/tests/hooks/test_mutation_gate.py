@@ -495,3 +495,146 @@ def test_mutmut_dispatch_returns_zero_when_undetected(monkeypatch, capsys):
     assert mutation_gate.main() == 0
     assert ran == []
     assert "decision" not in capsys.readouterr().out
+
+
+def test_stryker_dispatch_returns_zero_when_undetected(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_detect", lambda: False)
+    ran = []
+    monkeypatch.setattr(
+        mutation_gate.stryker, "stryker_run", lambda path: ran.append(path)
+    )
+    _feed(monkeypatch, _green("npm test"))
+    assert mutation_gate.main() == 0
+    assert ran == []
+    assert "decision" not in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Exact advisory text (kills token-level string mutants in the messages)
+# ---------------------------------------------------------------------------
+
+
+def test_jq_missing_advisory_is_verbatim(monkeypatch, capsys):
+    monkeypatch.setattr(mutation_gate.shutil, "which", lambda name: None)
+    _feed(monkeypatch, '{"tool_input":{"command":"npm test"}}')
+    assert mutation_gate.main() == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert ctx == (
+        "MUTATION GATE ADVISORY: jq is required but not installed. Run "
+        "/setup to install it, or: brew install jq (macOS) / apt install jq "
+        "(Linux) / winget install jqlang.jq (Windows)."
+    )
+
+
+def test_no_adapter_advisory_is_verbatim(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    _feed(monkeypatch, _green("go test ./..."))
+    assert mutation_gate.main() == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert ctx == (
+        "MUTATION GATE ADVISORY: no mutation testing adapter for this "
+        "language. Run /setup to install one (supports JS/TS via "
+        "Stryker, Java via pitest, C# via Stryker.NET)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# ADAPTER_* environment configured for the subprocess adapter
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_configures_adapter_environment(monkeypatch):
+    from mutation_adapters import lib as adapter_lib
+
+    # Seed a prior RED state whose runner output must flow into the adapter.
+    adapter_lib.write_state(
+        "fail",
+        json.dumps({"tool_response": {"exit_code": 1, "output": "PRIOR RED OUTPUT"}}),
+    )
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_detect", lambda: True)
+
+    captured = {}
+
+    def fake_run(path):
+        captured["timeout"] = os.environ.get("ADAPTER_TIMEOUT")
+        captured["command"] = os.environ.get("ADAPTER_COMMAND")
+        captured["runner_stdout"] = os.environ.get("ADAPTER_RUNNER_STDOUT")
+        Path(path).write_text("[]")
+        return 0
+
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_run", fake_run)
+    _feed(monkeypatch, _green("npm test"))
+    assert mutation_gate.main() == 0
+    assert captured["timeout"] == "60"
+    assert captured["command"] == "npm test"
+    assert captured["runner_stdout"] == "PRIOR RED OUTPUT"
+
+
+def test_adapter_timeout_env_overrides_default(monkeypatch):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    monkeypatch.setenv("MUTATION_GATE_TIMEOUT", "30")
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_detect", lambda: True)
+
+    captured = {}
+
+    def fake_run(path):
+        captured["timeout"] = os.environ.get("ADAPTER_TIMEOUT")
+        Path(path).write_text("[]")
+        return 0
+
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_run", fake_run)
+    _feed(monkeypatch, _green("npm test"))
+    assert mutation_gate.main() == 0
+    assert captured["timeout"] == "30"
+
+
+# ---------------------------------------------------------------------------
+# Block edge cases — invalid zero-kills JSON, cwd default
+# ---------------------------------------------------------------------------
+
+
+def test_invalid_zero_kills_json_emits_no_block(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_detect", lambda: True)
+    monkeypatch.setattr(
+        mutation_gate.stryker,
+        "stryker_run",
+        lambda path: Path(path).write_text("{ not valid json"),
+    )
+    _feed(monkeypatch, _green("npm test"))
+    assert mutation_gate.main() == 0
+    assert "decision" not in capsys.readouterr().out
+
+
+def test_block_boundary_event_defaults_cwd_to_dot(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_detect", lambda: True)
+    monkeypatch.setattr(
+        mutation_gate.stryker,
+        "stryker_run",
+        lambda path: Path(path).write_text(json.dumps([{"name": "weakTest"}])),
+    )
+    events = []
+    monkeypatch.setattr(
+        mutation_gate, "emit_boundary_event", lambda *a, **k: events.append(a)
+    )
+    # No cwd / session_id in the payload.
+    _feed(monkeypatch, _green("npm test"))
+    assert mutation_gate.main() == 0
+    assert events[0][0] == "."
+    assert events[0][5] is None
