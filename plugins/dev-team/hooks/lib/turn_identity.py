@@ -47,3 +47,31 @@ def count_user_lines(transcript_path: Path) -> int:
     except OSError:
         return 0
     return tail.count(_USER_LINE_MARKER)
+
+
+# Single source of truth for the sentinel's location relative to the
+# project dir — both code_intelligence_nudge.py (read side) and
+# code_intelligence_turn_mark.py (write side) used to hardcode this
+# path independently.
+SENTINEL_RELATIVE_PATH = Path(".claude") / "code-intelligence-turn-state.json"
+
+
+def matches_current_turn(sentinel: dict, tid: str, tc: int) -> bool:
+    """True when `sentinel`'s identity fields match the freshly computed
+    transcript_id/turn_counter for the current call — i.e. the sentinel was
+    written earlier in the *same* turn.
+
+    Owns the type coercion once for both sides of the sentinel contract:
+    `transcript_id` is compared as a string (coercing a missing/`None`
+    value to `""`), and `turn_counter` is compared via `int()` wrapped in a
+    try/except — a non-numeric or otherwise uncoercible value (corrupt
+    sentinel) resolves to `False` rather than raising, matching this
+    module's fail-open posture.
+    """
+    sentinel_tid = str(sentinel.get("transcript_id") or "")
+    if sentinel_tid != tid:
+        return False
+    try:
+        return int(sentinel.get("turn_counter")) == tc
+    except (TypeError, ValueError):
+        return False

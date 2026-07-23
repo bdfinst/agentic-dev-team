@@ -42,8 +42,15 @@ except ImportError:  # pragma: no cover
         return None
 
 try:
-    from turn_identity import count_user_lines, transcript_id  # type: ignore[import-not-found]
+    from turn_identity import (  # type: ignore[import-not-found]
+        SENTINEL_RELATIVE_PATH,
+        count_user_lines,
+        matches_current_turn,
+        transcript_id,
+    )
 except ImportError:  # pragma: no cover
+
+    SENTINEL_RELATIVE_PATH = Path(".claude") / "code-intelligence-turn-state.json"  # type: ignore[misc]
 
     def transcript_id(path: str) -> str:  # type: ignore[misc]
         return Path(path).stem
@@ -51,8 +58,17 @@ except ImportError:  # pragma: no cover
     def count_user_lines(transcript_path: Path) -> int:  # type: ignore[misc]
         return 0
 
+    def matches_current_turn(sentinel: dict, tid: str, tc: int) -> bool:  # type: ignore[misc]
+        sentinel_tid = str(sentinel.get("transcript_id") or "")
+        if sentinel_tid != tid:
+            return False
+        try:
+            return int(sentinel.get("turn_counter")) == tc
+        except (TypeError, ValueError):
+            return False
 
-CUES = {
+
+_CUES = {
     "graphify": (
         'graphify query "<question>" — cross-artifact: code + docs + schemas + '
         "infra (non-code content; not a faster CodeGraph/Repowise)"
@@ -70,6 +86,12 @@ CUES = {
 _LABELS = {"graphify": "Graphify", "repowise": "Repowise", "codegraph": "CodeGraph"}
 
 # Fixed message order — never the filesystem/detection order the caller passes in.
+# This specific order (graphify, repowise, codegraph) was chosen during plan
+# review to remove the CodeGraph-first primacy bias that motivated this whole
+# generalization (#1368): CodeGraph used to be the only tool this hook named,
+# so listing it first here would silently re-establish it as the "default,
+# most-likely-tried" tool. Graphify and Repowise get equal billing ahead of
+# it instead.
 _PRECEDENCE = ["graphify", "repowise", "codegraph"]
 
 _CLOSING_LINE = "Grep/Glob/Read for confirming a specific detail."
@@ -79,7 +101,7 @@ def _cue_line(tool: str, *, bulleted: bool) -> str:
     """Format one tool's cue — bulleted for the combined message, bare for
     the single-tool message. Shared by both `_compose_message` branches so
     the underlying cue text can't drift between the two message shapes."""
-    return f"- {CUES[tool]}" if bulleted else CUES[tool]
+    return f"- {_CUES[tool]}" if bulleted else _CUES[tool]
 
 
 def _compose_message(qualifying: list) -> Optional[str]:
@@ -121,7 +143,7 @@ def _tools_used_this_turn(cwd: Path, transcript_path: str) -> list:
     or not a list (legacy pre-Slice-2 schema, or corrupt) all resolve to
     `[]` — fail-open, never a crash.
     """
-    sentinel = cwd / ".claude" / "code-intelligence-turn-state.json"
+    sentinel = cwd / SENTINEL_RELATIVE_PATH
     if not sentinel.is_file():
         return []
     if not transcript_path:
@@ -135,14 +157,10 @@ def _tools_used_this_turn(cwd: Path, transcript_path: str) -> list:
         return []
     if not isinstance(sentinel_data, dict):
         return []
-    sentinel_tid = str(sentinel_data.get("transcript_id") or "")
-    sentinel_tc = sentinel_data.get("turn_counter")
-    if not sentinel_tid or sentinel_tc is None:
-        return []
 
     current_tid = transcript_id(transcript_path)
     current_tc = count_user_lines(tx)
-    if sentinel_tid != current_tid or int(sentinel_tc) != current_tc:
+    if not matches_current_turn(sentinel_data, current_tid, current_tc):
         return []
 
     tools_used = sentinel_data.get("tools_used")

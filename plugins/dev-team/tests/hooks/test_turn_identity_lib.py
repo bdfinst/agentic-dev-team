@@ -47,3 +47,29 @@ def test_count_user_lines_tail_window(tmp_path: Path):
 
 def test_count_user_lines_missing_file_returns_zero(tmp_path: Path):
     assert turn_identity.count_user_lines(tmp_path / "nope.jsonl") == 0
+
+
+def test_matches_current_turn_true_on_exact_match():
+    sentinel = {"transcript_id": "abc123", "turn_counter": 3}
+    assert turn_identity.matches_current_turn(sentinel, "abc123", 3) is True
+
+
+def test_matches_current_turn_false_on_mismatched_transcript():
+    sentinel = {"transcript_id": "other", "turn_counter": 3}
+    assert turn_identity.matches_current_turn(sentinel, "abc123", 3) is False
+
+
+def test_matches_current_turn_false_on_mismatched_counter():
+    sentinel = {"transcript_id": "abc123", "turn_counter": 2}
+    assert turn_identity.matches_current_turn(sentinel, "abc123", 3) is False
+
+
+def test_matches_current_turn_corrupt_turn_counter_returns_false():
+    """A non-numeric turn_counter must fail closed to False rather than
+    raise — the regression guard for the read-side crash bug where
+    `int(sentinel_tc)` could raise ValueError/TypeError uncaught."""
+    sentinel = {"transcript_id": "abc123", "turn_counter": "not-a-number"}
+    assert turn_identity.matches_current_turn(sentinel, "abc123", 3) is False
+
+    sentinel_list = {"transcript_id": "abc123", "turn_counter": ["nope"]}
+    assert turn_identity.matches_current_turn(sentinel_list, "abc123", 3) is False

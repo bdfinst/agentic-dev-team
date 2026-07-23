@@ -20,7 +20,7 @@ NUDGE_HOOK_PATH = (
 
 def _load_nudge_hook_module():
     """Load code_intelligence_nudge.py directly so this test reads its
-    CUES dict off the live module, never a copy that can silently drift."""
+    _CUES dict off the live module, never a copy that can silently drift."""
     spec = importlib.util.spec_from_file_location(
         "code_intelligence_nudge", NUDGE_HOOK_PATH
     )
@@ -31,7 +31,7 @@ def _load_nudge_hook_module():
 
 
 def _cue_entry_point(tool: str, cue: str) -> str:
-    """Extract the tool's entry-point name from its CUES prose.
+    """Extract the tool's entry-point name from its _CUES prose.
 
     Each cue is `"<entry-point stuff> — <what it's for>"`. graphify's
     entry point is its two-word CLI invocation; repowise's cue lists
@@ -80,17 +80,17 @@ def test_doc_has_routing_precedence_section():
 
 def test_doc_ties_to_hook_cues_entry_points():
     """Regression guard: each tool's current entry-point name, read live off
-    the hook's own CUES dict (not a hardcoded paraphrase), must appear
-    somewhere in the doc — so a future CUES edit that isn't mirrored here
+    the hook's own _CUES dict (not a hardcoded paraphrase), must appear
+    somewhere in the doc — so a future _CUES edit that isn't mirrored here
     fails loudly instead of drifting silently (#1368)."""
     module = _load_nudge_hook_module()
     text = _text()
-    for tool, cue in module.CUES.items():
+    for tool, cue in module._CUES.items():
         entry_point = _cue_entry_point(tool, cue)
         assert entry_point, f"could not derive an entry point for {tool}"
         assert entry_point in text, (
             f"doc does not mention {tool}'s current entry point {entry_point!r} "
-            f"(from CUES[{tool!r}] = {cue!r})"
+            f"(from _CUES[{tool!r}] = {cue!r})"
         )
 
 
