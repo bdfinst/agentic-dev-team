@@ -611,3 +611,49 @@ def test_run_exit_zero_no_report_reaches_parse(tmp_path, monkeypatch, capsys):
     assert pt.pitest_run(tmp_path / "out.json") == 0
     ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
     assert "pitest report not found" in ctx
+
+
+def test_run_gradle_uses_default_report_path(tmp_path, monkeypatch, capsys):
+    # No PITEST_REPORT env → the gradle branch uses its documented default path.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "build.gradle").write_text("")
+    monkeypatch.delenv("PITEST_REPORT", raising=False)
+    monkeypatch.delenv("ADAPTER_RUNNER_STDOUT", raising=False)
+    monkeypatch.setenv("ADAPTER_COMMAND", "gradle test")
+    monkeypatch.setattr(pt, "_changed_source_file", lambda: "src/main/java/com/x/A.java")
+    report = tmp_path / "build" / "reports" / "pitest"
+    report.mkdir(parents=True)
+    (report / "mutations.xml").write_text('<m><x status="KILLED"/></m>')
+
+    def fake_run(_seconds, argv, **_kwargs):
+        return subprocess.CompletedProcess(args=argv, returncode=0)
+
+    monkeypatch.setattr(pt.lib, "run_with_timeout", fake_run)
+
+    assert pt.pitest_run(tmp_path / "out.json") == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    # Report found at the default gradle path → the "not found" advisory must not fire.
+    assert "report not found" not in ctx
+    assert "1/1 mutants killed" in ctx
+
+
+def test_run_gradle_honors_pitest_report_env(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "build.gradle").write_text("")
+    monkeypatch.delenv("ADAPTER_RUNNER_STDOUT", raising=False)
+    monkeypatch.setenv("ADAPTER_COMMAND", "gradle test")
+    monkeypatch.setattr(pt, "_changed_source_file", lambda: "src/main/java/com/x/A.java")
+    custom = tmp_path / "custom" / "pit.xml"
+    custom.parent.mkdir(parents=True)
+    custom.write_text('<m><x status="KILLED"/></m>')
+    monkeypatch.setenv("PITEST_REPORT", str(custom))
+
+    def fake_run(_seconds, argv, **_kwargs):
+        return subprocess.CompletedProcess(args=argv, returncode=0)
+
+    monkeypatch.setattr(pt.lib, "run_with_timeout", fake_run)
+
+    assert pt.pitest_run(tmp_path / "out.json") == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    # The custom PITEST_REPORT path was honored (not the default) → report found.
+    assert "report not found" not in ctx
