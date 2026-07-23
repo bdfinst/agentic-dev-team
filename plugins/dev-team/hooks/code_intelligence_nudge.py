@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""codegraph_nudge — Claude Code PreToolUse hook (Python port).
+"""code_intelligence_nudge — Claude Code PreToolUse hook.
 
-Python port of hooks/codegraph-nudge.sh (#593 / #572 Phase 3).
+Renamed/generalized from codegraph_nudge.py (#593 / #572 Phase 3, #1368)
+now that this hook is growing beyond a single tool: it will nudge agents
+toward whichever of CodeGraph, Repowise, and Graphify are indexed in the
+project, not CodeGraph alone. `_detect_present_tools()` already reports
+all three; the single-tool CodeGraph-only nudge below is the still-current
+runtime behavior until multi-tool message composition and main() wiring
+land in a follow-up step of the same slice.
 
-Runs before Read, Grep, Glob tool calls. When the project has a
-CodeGraph index (.codegraph/ in cwd), nudges agents toward codegraph_*
-MCP tools for multi-file exploration. Single-file Read calls, Grep with
+Runs before Read, Grep, Glob tool calls. Single-file Read calls, Grep with
 a file `path`, and Glob with a literal `pattern` pass silently.
 
 Contract (docs/python-hook-contract.md):
@@ -22,7 +26,6 @@ Stdlib-only. Python 3.8+.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -38,6 +41,16 @@ except ImportError:  # pragma: no cover
 
     def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
         return None
+
+try:
+    from turn_identity import count_user_lines, transcript_id  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover
+
+    def transcript_id(path: str) -> str:  # type: ignore[misc]
+        return Path(path).stem
+
+    def count_user_lines(transcript_path: Path) -> int:  # type: ignore[misc]
+        return 0
 
 
 WARN_MSG = (
@@ -75,21 +88,8 @@ def _codegraph_used_this_turn(cwd: Path, transcript_path: str) -> bool:
     if not sentinel_tid or sentinel_tc is None:
         return False
 
-    current_tid = tx.stem
-    # Tail the last 1 MiB — the .sh caps for the same reason (transcripts
-    # grow unbounded across long sessions).
-    try:
-        with tx.open("rb") as fh:
-            fh.seek(0, os.SEEK_END)
-            size = fh.tell()
-            offset = max(0, size - 1_048_576)
-            fh.seek(offset, os.SEEK_SET)
-            tail = fh.read()
-    except OSError:
-        return False
-
-    marker = b'"type":"user"'
-    current_tc = tail.count(marker)
+    current_tid = transcript_id(transcript_path)
+    current_tc = count_user_lines(tx)
     return sentinel_tid == current_tid and int(sentinel_tc) == current_tc
 
 
@@ -105,6 +105,34 @@ def _is_multi_glob(tool_input: dict) -> bool:
     """Glob is multi when the pattern contains a glob metacharacter."""
     pattern = str(tool_input.get("pattern") or "")
     return any(c in pattern for c in ("*", "?", "["))
+
+
+def _detect_present_tools(cwd: Path) -> list:
+    """Return which of codegraph/repowise/graphify are indexed in `cwd`.
+
+    codegraph: `.codegraph/` directory. repowise: `.repowise/` directory.
+    graphify: `graphify-out/graph.json` regular file. Each check is wrapped
+    so any OSError (wrong type — e.g. a file where a dir is expected, or a
+    permission error) is treated as "not present," never raised — this
+    hook is a nudge, never a gate.
+    """
+    present = []
+    try:
+        if (cwd / ".codegraph").is_dir():
+            present.append("codegraph")
+    except OSError:
+        pass
+    try:
+        if (cwd / ".repowise").is_dir():
+            present.append("repowise")
+    except OSError:
+        pass
+    try:
+        if (cwd / "graphify-out" / "graph.json").is_file():
+            present.append("graphify")
+    except OSError:
+        pass
+    return present
 
 
 def _careful_active(hook_dir: Path) -> bool:

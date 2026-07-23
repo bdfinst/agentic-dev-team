@@ -126,7 +126,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh hooks/py.sh hooks/codegraph_nudge.py"
+            "command": "sh hooks/py.sh hooks/code_intelligence_nudge.py"
           }
         ]
       },
@@ -135,7 +135,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh hooks/py.sh hooks/codegraph_nudge.py"
+            "command": "sh hooks/py.sh hooks/code_intelligence_nudge.py"
           }
         ]
       },
@@ -144,7 +144,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh hooks/py.sh hooks/codegraph_nudge.py"
+            "command": "sh hooks/py.sh hooks/code_intelligence_nudge.py"
           }
         ]
       },
