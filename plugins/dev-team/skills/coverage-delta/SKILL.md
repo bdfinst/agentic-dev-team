@@ -53,7 +53,7 @@ When the gate fires:
 
 1. Invoke `/mutation-testing --scope <expanded --story-files> --emit-json <tmp> --workflow-managed-approval`. The `--workflow-managed-approval` flag is allowed here because `/test-improve` Phase 0 captured operator approval at the workflow boundary (see `mutation-testing` `## Constraints` carve-out).
 2. **Baseline-of-record per file.** For each file in `--story-files`, look up the most recent entry in `memory/<workflow>/<slug>/mutation-history.json`; that entry's `survivors_after` is the baseline-of-record. If no prior entry exists, the file's status is `first_measurement` (`survivors_before: null`, `delta: null`).
-3. **Filter `status: "equivalent"` survivors** from the `/mutation-testing` output before computing delta — reclassifications between runs must not show up as regressions.
+3. **Filter `status: "equivalent"` AND `status: "accepted"` survivors** from the `/mutation-testing` output before computing delta — reclassifications between runs, and documented rationale-bearing deferrals, must not show up as regressions.
 4. Compute `delta = survivors_after - survivors_before` (skip when `first_measurement`) and assign a status per file:
    - `ok` — `delta <= 0`.
    - `net_new_survivors` — `delta > 0`. The result block lists each new survivor by `file:line:operator`.

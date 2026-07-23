@@ -14,11 +14,11 @@ For each file in `--story-files`, the baseline is the most recent entry in `memo
 
 When two `/coverage-delta` invocations close within the same second, both append entries — neither overwrites the other. The status logic uses the largest `captured_at`, so the most recent close wins.
 
-## Equivalent-mutant filter
+## Equivalent- and accepted-mutant filter
 
-`/mutation-testing` emits each survivor with `status: "survived"` or `status: "equivalent"`. Filter `status: "equivalent"` survivors before computing the delta — reclassifications between runs must not show up as regressions.
+`/mutation-testing` emits each survivor with `status: "survived"`, `status: "equivalent"`, or `status: "accepted"` (the latter two always carry a `reason` string). Filter both `status: "equivalent"` and `status: "accepted"` survivors before computing the delta — reclassifications between runs, and documented, rationale-bearing deferrals, must not show up as regressions.
 
-Implementation: `jq '.survivors | map(select(.status == "survived")) | length'` on the `--emit-json` document.
+Implementation: `jq '.survivors | map(select(.status == "survived")) | length'` on the `--emit-json` document. Selecting only `"survived"` already excludes both `"equivalent"` and `"accepted"` — no additional exclusion logic is needed when a new status value is added to the enum.
 
 ## Status classification (per file)
 

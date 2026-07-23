@@ -122,6 +122,14 @@ def test_step_2_or_6_operator_report_names_mutation_reused_n_measured_m_cost_sav
     assert grep(r"reused.+measured|mutation: reused", _text(), ignore_case=True)
 
 
+# --- Issue #1369: "accepted" survivors filtered the same way "equivalent"
+# ones already are, so a documented deferral never reads as a regression.
+
+
+def test_step_2_filters_status_accepted_alongside_status_equivalent():
+    assert grep(r'"equivalent".+"accepted"|"accepted".+"equivalent"', _step2())
+
+
 # --- Step 4 and Step 5 byte-identical to snapshot ------------------------
 
 
