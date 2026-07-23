@@ -178,4 +178,4 @@ points bear directly on the fallback path in this doc:
   `plugins/<plugin>/knowledge/agent-registry.md`.
 - Next-session fallback only: set `DEV_TEAM_CLOUD_INSTALL=1` to enable the
   `SessionStart` hook.
-- Authoritative summary: `CLAUDE.md` → *Cloud sessions (claude.ai/code)*.
+- Authoritative summary: the `cloud-setup` skill (`.claude/skills/cloud-setup/SKILL.md`) or [`docs/cloud-setup.md`](cloud-setup.md).
