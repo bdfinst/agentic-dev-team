@@ -60,9 +60,9 @@ _JUNIT_ONE_SURVIVOR = """<?xml version="1.0" ?>
 """
 
 
-def _stub_run_with_timeout(returncode: int):
+def _stub_run_with_timeout(returncode: int, stderr: str = ""):
     def fake_run(_seconds, argv, **_kwargs):
-        return subprocess.CompletedProcess(args=argv, returncode=returncode)
+        return subprocess.CompletedProcess(args=argv, returncode=returncode, stderr=stderr)
 
     return fake_run
 
@@ -349,6 +349,33 @@ def test_run_fatal_error_advisory_names_exit_code_and_skip(tmp_path, monkeypatch
     out_file = tmp_path / "z.json"
     assert mm.mutmut_run(out_file) == 0
     assert "exited with code 1. Skipping mutation gate." in capsys.readouterr().out
+
+
+def test_run_fatal_error_names_python_314_pickle_crash_when_detected(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """mutmut<3 crashes with `TypeError: cannot pickle 'itertools.count'
+    object` on Python 3.13+ (a parso/pony-ORM deepcopy incompatibility,
+    #1359) — a real, reproducible fatal error, not a generic one. The
+    advisory should name the known cause and the fix (install mutmut into
+    a <=3.12 venv) rather than leaving the operator to rediscover it."""
+    monkeypatch.setattr(mm, "_changed_python_source", lambda: "src/calc.py")
+    monkeypatch.setattr(mm, "_mutmut_argv", lambda: ["mutmut"])
+    monkeypatch.setattr(
+        mm.lib,
+        "run_with_timeout",
+        _stub_run_with_timeout(
+            1, stderr="TypeError: cannot pickle 'itertools.count' object"
+        ),
+    )
+    monkeypatch.setattr(mm.subprocess, "run", _stub_subprocess_run(""))
+
+    out_file = tmp_path / "z.json"
+    assert mm.mutmut_run(out_file) == 0
+    out = capsys.readouterr().out
+    assert "exited with code 1. Skipping mutation gate." in out
+    assert "Python 3.13+" in out
+    assert "<=3.12" in out
 
 
 # ---------------------------------------------------------------------------
