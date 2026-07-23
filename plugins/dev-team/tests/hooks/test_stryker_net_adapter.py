@@ -62,3 +62,173 @@ def test_run_no_advisory_on_clean_output(tmp_path, monkeypatch, capsys) -> None:
 
     assert rc == 0
     assert "#1156" not in out
+
+
+# ---------------------------------------------------------------------------
+# _is_cs_source() — pure predicate, previously untested
+# ---------------------------------------------------------------------------
+
+
+def test_is_cs_source_true_for_plain_cs() -> None:
+    assert sn._is_cs_source("Widget.cs") is True
+
+
+def test_is_cs_source_false_for_non_cs_extension() -> None:
+    assert sn._is_cs_source("Widget.txt") is False
+
+
+def test_is_cs_source_false_for_test_file() -> None:
+    assert sn._is_cs_source("WidgetTest.cs") is False
+
+
+def test_is_cs_source_false_for_spec_file() -> None:
+    assert sn._is_cs_source("WidgetSpec.cs") is False
+
+
+# ---------------------------------------------------------------------------
+# _default_report_path() — default vs env override
+# ---------------------------------------------------------------------------
+
+
+def test_default_report_path_uses_documented_default(monkeypatch) -> None:
+    monkeypatch.delenv("STRYKER_NET_REPORT", raising=False)
+    assert sn._default_report_path() == sn.Path("StrykerOutput/mutation-report.json")
+
+
+def test_default_report_path_honors_env_override(monkeypatch) -> None:
+    monkeypatch.setenv("STRYKER_NET_REPORT", "custom/report.json")
+    assert sn._default_report_path() == sn.Path("custom/report.json")
+
+
+# ---------------------------------------------------------------------------
+# stryker_net_detect() — manifest, dotnet probe, advisory
+# ---------------------------------------------------------------------------
+
+
+def test_detect_true_when_tools_manifest_names_stryker(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".config").mkdir()
+    (tmp_path / ".config" / "dotnet-tools.json").write_text(
+        '{"tools": {"dotnet-stryker": {"version": "4.0.0"}}}'
+    )
+    monkeypatch.setattr(sn.shutil, "which", lambda _name: None)
+    assert sn.stryker_net_detect() is True
+
+
+def test_detect_true_via_dotnet_stryker_version_probe(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sn.shutil, "which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None
+    )
+    calls = {}
+
+    def fake_run(argv, **_kwargs):
+        calls["argv"] = argv
+        return subprocess.CompletedProcess(args=argv, returncode=0)
+
+    monkeypatch.setattr(sn.subprocess, "run", fake_run)
+    assert sn.stryker_net_detect() is True
+    assert calls["argv"] == ["dotnet", "stryker", "--version"]
+
+
+def test_detect_false_advisory_names_setup_and_tool_install(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sn.shutil, "which", lambda _name: None)
+    assert sn.stryker_net_detect() is False
+    assert (
+        "Run /setup to install it, or run: dotnet tool install dotnet-stryker"
+        in capsys.readouterr().out
+    )
+
+
+# ---------------------------------------------------------------------------
+# _shard_for_file() — shard-config prefix matching
+# ---------------------------------------------------------------------------
+
+
+def test_shard_for_file_returns_none_for_empty_input(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert sn._shard_for_file("") is None
+
+
+def test_shard_for_file_matches_mutate_prefix(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "stryker-config.shard-foo.json").write_text(
+        '{"stryker-config": {"mutate": ["src/Foo.Bar/**/*.cs"]}}'
+    )
+    result = sn._shard_for_file("src/Foo.Bar/Thing.cs")
+    assert result == sn.Path("stryker-config.shard-foo.json")
+
+
+def test_shard_for_file_returns_none_when_prefix_does_not_match(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "stryker-config.shard-foo.json").write_text(
+        '{"stryker-config": {"mutate": ["src/Foo.Bar/**/*.cs"]}}'
+    )
+    assert sn._shard_for_file("src/Other/Thing.cs") is None
+
+
+# ---------------------------------------------------------------------------
+# stryker_net_run() — timeout and no-report advisory paths
+# ---------------------------------------------------------------------------
+
+
+def test_run_timeout_writes_empty_list_and_advises(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sn, "_changed_cs_file", lambda: "")
+
+    def fake_run(_seconds, argv, **_kwargs):
+        return subprocess.CompletedProcess(args=argv, returncode=124, stdout=b"")
+
+    monkeypatch.setattr(sn.lib, "run_with_timeout", fake_run)
+
+    out_file = tmp_path / "out.json"
+    assert sn.stryker_net_run(out_file) == 0
+    assert out_file.read_text() == "[]"
+    out = capsys.readouterr().out
+    assert "Stryker.NET timed out after 600s. For large repos" in out
+    assert "Or: ADAPTER_TIMEOUT=<seconds> to " in out
+
+
+def test_run_nonzero_exit_without_report_writes_empty_and_advises(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sn, "_changed_cs_file", lambda: "")
+
+    def fake_run(_seconds, argv, **_kwargs):
+        return subprocess.CompletedProcess(args=argv, returncode=3, stdout=b"")
+
+    monkeypatch.setattr(sn.lib, "run_with_timeout", fake_run)
+
+    out_file = tmp_path / "out.json"
+    assert sn.stryker_net_run(out_file) == 0
+    assert out_file.read_text() == "[]"
+    assert (
+        "exited with code 3 and produced no report. Skipping mutation gate."
+        in capsys.readouterr().out
+    )
+
+
+# ---------------------------------------------------------------------------
+# main() — argument handling + delegation
+# ---------------------------------------------------------------------------
+
+
+def test_main_no_args_returns_2_with_exact_message(capsys) -> None:
+    rc = sn.main([])
+    assert rc == 2
+    assert capsys.readouterr().err == "stryker_net.py: OUTPUT_FILE argument required\n"
+
+
+def test_main_delegates_first_arg_as_output_path(monkeypatch) -> None:
+    captured = {}
+
+    def fake_run(out_file):
+        captured["out"] = out_file
+        return 0
+
+    monkeypatch.setattr(sn, "stryker_net_run", fake_run)
+    rc = sn.main(["out.json", "extra.json"])
+    assert rc == 0
+    assert captured["out"] == sn.Path("out.json")
