@@ -166,9 +166,9 @@ A second `PreToolUse` hook (`hooks/destructive_guard.py`) monitors Bash tool cal
 
 By default, destructive commands produce a **warning** (exit 0). When `/careful` mode is active, they are **blocked** (exit 2).
 
-### CodeGraph Nudge
+### Code-Intelligence Nudge
 
-A `PreToolUse` hook (`hooks/codegraph_nudge.py`) registered on `Read`, `Grep`, and `Glob` recommends `codegraph_*` MCP tools over multi-file exploration when the project has a CodeGraph index (`.codegraph/` in cwd). The hook is silent for single-file Read calls, for Grep with a regular-file `path`, for Glob with a literal `pattern`, and when a `codegraph_*` MCP tool has been used earlier in the current turn (tracked via a sentinel written by a companion `PostToolUse` hook on `mcp__codegraph__.*`). Warns to stderr by default; blocks (`exit 2`) under `/careful`. Fail-open posture throughout — any internal error exits 0. See `docs/codegraph-nudge.md` for the full mechanism.
+A `PreToolUse` hook (`hooks/code_intelligence_nudge.py`) registered on `Read`, `Grep`, and `Glob` detects which of CodeGraph (`.codegraph/`), Repowise (`.repowise/`), and Graphify (`graphify-out/graph.json`) are present in the project and recommends whichever are present and not yet used this turn over multi-file exploration — composing a single-tool message when only one is present, or a combined, precedence-ordered message (Graphify, then Repowise, then CodeGraph) when two or more are. The hook is silent for single-file Read calls, for Grep with a regular-file `path`, for Glob with a literal `pattern`, and for any tool already used earlier in the current turn (tracked via a sentinel accumulating `tools_used`, written by a companion `PostToolUse` hook on `mcp__codegraph__.*` and `mcp__plugin_repowise_repowise__.*`). Warns to stderr by default; blocks (`exit 2`) under `/careful`. Fail-open posture throughout — any internal error, or a missing/malformed detection or sentinel surface, exits 0. See `docs/code-intelligence-nudge.md` for the full mechanism.
 
 ### Context Ceiling Guard
 
