@@ -60,6 +60,62 @@ WARN_MSG = (
 )
 
 
+CUES = {
+    "graphify": (
+        'graphify query "<question>" — cross-artifact: code + docs + schemas + '
+        "infra (non-code content; not a faster CodeGraph/Repowise)"
+    ),
+    "repowise": (
+        "repowise get_context / get_risk / get_why — risk, rationale, code "
+        "health, dead code (not raw call-graph structure)"
+    ),
+    "codegraph": (
+        "codegraph_explore — structure, call graph, blast radius (not risk, "
+        "rationale, or non-code content)"
+    ),
+}
+
+_LABELS = {"graphify": "Graphify", "repowise": "Repowise", "codegraph": "CodeGraph"}
+
+# Fixed message order — never the filesystem/detection order the caller passes in.
+_PRECEDENCE = ["graphify", "repowise", "codegraph"]
+
+_CLOSING_LINE = "Grep/Glob/Read for confirming a specific detail."
+
+
+def _cue_line(tool: str, *, bulleted: bool) -> str:
+    """Format one tool's cue — bulleted for the combined message, bare for
+    the single-tool message. Shared by both `_compose_message` branches so
+    the underlying cue text can't drift between the two message shapes."""
+    return f"- {CUES[tool]}" if bulleted else CUES[tool]
+
+
+def _compose_message(qualifying: list) -> Optional[str]:
+    """Compose the nudge message for the given qualifying tools.
+
+    `qualifying` is reordered by `_PRECEDENCE` before composing — the
+    message's tool order never varies with filesystem/detection order.
+    Zero qualifying tools → None (full suppression).
+    """
+    ordered = [tool for tool in _PRECEDENCE if tool in qualifying]
+    if not ordered:
+        return None
+
+    if len(ordered) == 1:
+        tool = ordered[0]
+        return (
+            f"[code-intelligence-nudge] {_LABELS[tool]} is initialized in this "
+            f"project. Prefer {_cue_line(tool, bulleted=False)} for multi-file "
+            f"exploration; {_CLOSING_LINE}"
+        )
+
+    bullets = "\n".join(_cue_line(tool, bulleted=True) for tool in ordered)
+    return (
+        "[code-intelligence-nudge] Multiple code-intelligence indexes found. "
+        f"Pick whichever matches your question:\n{bullets}\n{_CLOSING_LINE}"
+    )
+
+
 def _codegraph_used_this_turn(cwd: Path, transcript_path: str) -> bool:
     """True when a codegraph_* MCP tool ran earlier in the current turn.
 

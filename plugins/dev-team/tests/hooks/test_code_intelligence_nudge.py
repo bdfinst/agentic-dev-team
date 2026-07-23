@@ -392,3 +392,55 @@ def test_graphify_dir_without_graph_json_does_not_nudge(tmp_path: Path) -> None:
     """graphify-out/ present but graph.json missing → graphify not detected."""
     (tmp_path / "graphify-out").mkdir()
     assert "graphify" not in code_intelligence_nudge._detect_present_tools(tmp_path)
+
+
+# --- _compose_message -------------------------------------------------------
+
+
+def test_single_tool_message_per_tool() -> None:
+    for tool, differentiator in (
+        ("graphify", "non-code content"),
+        ("repowise", "not raw call-graph structure"),
+        ("codegraph", "not risk, rationale, or non-code content"),
+    ):
+        msg = code_intelligence_nudge._compose_message([tool])
+        assert msg is not None
+        assert "[code-intelligence-nudge]" in msg
+        assert code_intelligence_nudge._LABELS[tool] in msg
+        assert differentiator in msg
+        # No cross-contamination from the other two tools' cues.
+        for other in ("graphify", "repowise", "codegraph"):
+            if other != tool:
+                assert code_intelligence_nudge.CUES[other] not in msg
+
+
+def test_combined_message_two_tools_precedence_order() -> None:
+    msg = code_intelligence_nudge._compose_message(["codegraph", "repowise"])
+    assert msg is not None
+    assert "Multiple code-intelligence indexes found" in msg
+    repowise_idx = msg.index(code_intelligence_nudge.CUES["repowise"])
+    codegraph_idx = msg.index(code_intelligence_nudge.CUES["codegraph"])
+    assert repowise_idx < codegraph_idx
+
+
+def test_combined_message_three_tools_precedence_order() -> None:
+    msg = code_intelligence_nudge._compose_message(
+        ["codegraph", "graphify", "repowise"]
+    )
+    assert msg is not None
+    graphify_idx = msg.index(code_intelligence_nudge.CUES["graphify"])
+    repowise_idx = msg.index(code_intelligence_nudge.CUES["repowise"])
+    codegraph_idx = msg.index(code_intelligence_nudge.CUES["codegraph"])
+    assert graphify_idx < repowise_idx < codegraph_idx
+
+
+def test_closing_line_identical_across_variants() -> None:
+    single = code_intelligence_nudge._compose_message(["codegraph"])
+    combined = code_intelligence_nudge._compose_message(["codegraph", "repowise"])
+    assert single is not None and combined is not None
+    assert single.endswith(code_intelligence_nudge._CLOSING_LINE)
+    assert combined.endswith(code_intelligence_nudge._CLOSING_LINE)
+
+
+def test_compose_message_returns_none_for_empty_list() -> None:
+    assert code_intelligence_nudge._compose_message([]) is None
