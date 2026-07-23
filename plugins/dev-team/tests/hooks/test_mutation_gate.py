@@ -25,12 +25,37 @@ def _feed(monkeypatch, text: str) -> None:
     monkeypatch.setattr("sys.stdin", io.StringIO(text))
 
 
+_ADAPTER_ENV_KEYS = (
+    "ADAPTER_TIMEOUT",
+    "ADAPTER_COMMAND",
+    "ADAPTER_RUNNER_STDOUT",
+    "ADAPTER_SOURCE_FILE",
+)
+
+
 @pytest.fixture(autouse=True)
 def _hermetic_tmpdir(monkeypatch, tmp_path):
     monkeypatch.setenv("TMPDIR", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("MUTATION_GATE_SKIP", raising=False)
     monkeypatch.delenv("MUTATION_GATE_TIMEOUT", raising=False)
+    yield
+    # mutation_gate.main() sets ADAPTER_* via plain `os.environ[...] = ...`
+    # (real config for a real subprocess adapter, not monkeypatch.setenv) —
+    # monkeypatch.delenv(key, raising=False) called *before* the test is a
+    # no-op when the key is absent at that point (MonkeyPatch.delitem only
+    # records an undo entry when the key currently exists; raising=False on a
+    # missing key just returns without appending to the undo stack), so it
+    # cannot pre-register cleanup for a key main() is about to create.
+    # Without this explicit teardown, running this file leaks
+    # ADAPTER_TIMEOUT=60 into the real process environment for every test
+    # that runs afterward in the same (possibly xdist-parallel) worker —
+    # observed corrupting test_mutmut_adapter.py's default-timeout
+    # assertions under CI's worker grouping (#1359's PR CI failure; this
+    # file's own local run never surfaced it since nothing after it in the
+    # same file depends on these defaults).
+    for key in _ADAPTER_ENV_KEYS:
+        os.environ.pop(key, None)
 
 
 def test_main_returns_zero_on_empty_stdin(monkeypatch):
