@@ -209,3 +209,167 @@ def test_run_malformed_junitxml_yields_empty_list_not_a_crash(tmp_path, monkeypa
 
     assert rc == 0
     assert out_file.read_text() == "[]"
+
+
+# ---------------------------------------------------------------------------
+# _is_python_source() — pure predicate, previously wholly untested
+# ---------------------------------------------------------------------------
+
+
+def test_is_python_source_true_for_plain_py() -> None:
+    assert mm._is_python_source("calculator.py") is True
+
+
+def test_is_python_source_false_for_non_py_extension() -> None:
+    assert mm._is_python_source("calculator.txt") is False
+
+
+def test_is_python_source_false_for_test_prefixed_file() -> None:
+    assert mm._is_python_source("test_calculator.py") is False
+
+
+def test_is_python_source_false_for_underscore_test_suffix() -> None:
+    assert mm._is_python_source("calculator_test.py") is False
+
+
+def test_is_python_source_false_for_nested_test_path() -> None:
+    assert mm._is_python_source("pkg/test_calculator.py") is False
+
+
+# ---------------------------------------------------------------------------
+# _derive_python_source() — prefix/suffix stripping + dir search order
+# ---------------------------------------------------------------------------
+
+
+def test_derive_python_source_strips_test_prefix_and_finds_src(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "calculator.py").write_text("x = 1\n")
+    assert mm._derive_python_source("test_calculator.py") == "src/calculator.py"
+
+
+def test_derive_python_source_strips_test_suffix_and_finds_cwd(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "widget.py").write_text("x = 1\n")
+    assert mm._derive_python_source("widget_test.py") == "widget.py"
+
+
+def test_derive_python_source_checks_lib_directory(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib" / "gadget.py").write_text("x = 1\n")
+    assert mm._derive_python_source("test_gadget.py") == "lib/gadget.py"
+
+
+def test_derive_python_source_falls_back_to_input_when_no_source(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert mm._derive_python_source("test_absent.py") == "test_absent.py"
+
+
+# ---------------------------------------------------------------------------
+# _mutmut_argv() — console-script vs module-form fallback
+# ---------------------------------------------------------------------------
+
+
+def test_mutmut_argv_uses_console_script_when_on_path(monkeypatch) -> None:
+    monkeypatch.setattr(
+        mm.shutil, "which", lambda name: "/usr/local/bin/mutmut" if name == "mutmut" else None
+    )
+    assert mm._mutmut_argv() == ["mutmut"]
+
+
+def test_mutmut_argv_falls_back_to_python_module_form(monkeypatch) -> None:
+    monkeypatch.setattr(mm.shutil, "which", lambda _name: None)
+    assert mm._mutmut_argv() == ["python3", "-m", "mutmut"]
+
+
+# ---------------------------------------------------------------------------
+# mutmut_detect() — exact program name + full advisory text
+# ---------------------------------------------------------------------------
+
+
+def test_detect_probes_the_exact_program_name(monkeypatch) -> None:
+    monkeypatch.setattr(
+        mm.shutil, "which", lambda name: "/bin/mutmut" if name == "mutmut" else None
+    )
+    monkeypatch.setattr(
+        mm.subprocess,
+        "run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(args=argv, returncode=2),
+    )
+    assert mm.mutmut_detect() is True
+
+
+def test_detect_advisory_names_setup_and_pip_install(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(mm.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(
+        mm.subprocess,
+        "run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(args=argv, returncode=2),
+    )
+    assert mm.mutmut_detect() is False
+    out = capsys.readouterr().out
+    assert "Run /setup to install it, or: pip install mutmut" in out
+
+
+# ---------------------------------------------------------------------------
+# mutmut_run() — advisory text on the timeout and fatal-error paths
+# ---------------------------------------------------------------------------
+
+
+def test_run_timeout_advisory_names_seconds_and_env_override(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(mm, "_changed_python_source", lambda: "src/calc.py")
+    monkeypatch.setattr(mm, "_mutmut_argv", lambda: ["mutmut"])
+    monkeypatch.setattr(mm.lib, "run_with_timeout", _stub_run_with_timeout(124))
+    monkeypatch.setattr(mm.subprocess, "run", _stub_subprocess_run(""))
+
+    out_file = tmp_path / "z.json"
+    assert mm.mutmut_run(out_file) == 0
+    out = capsys.readouterr().out
+    assert "120s. Or: MUTATION_GATE_TIMEOUT=<seconds> to extend the limit." in out
+
+
+def test_run_timeout_no_source_advisory_names_missing_scope(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(mm, "_changed_python_source", lambda: "")
+    monkeypatch.setattr(mm, "_mutmut_argv", lambda: ["mutmut"])
+    monkeypatch.setattr(mm.lib, "run_with_timeout", _stub_run_with_timeout(124))
+    monkeypatch.setattr(mm.subprocess, "run", _stub_subprocess_run(""))
+
+    out_file = tmp_path / "z.json"
+    assert mm.mutmut_run(out_file) == 0
+    assert "120s. No source file detected" in capsys.readouterr().out
+
+
+def test_run_fatal_error_advisory_names_exit_code_and_skip(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(mm, "_changed_python_source", lambda: "src/calc.py")
+    monkeypatch.setattr(mm, "_mutmut_argv", lambda: ["mutmut"])
+    monkeypatch.setattr(mm.lib, "run_with_timeout", _stub_run_with_timeout(1))
+    monkeypatch.setattr(mm.subprocess, "run", _stub_subprocess_run(""))
+
+    out_file = tmp_path / "z.json"
+    assert mm.mutmut_run(out_file) == 0
+    assert "exited with code 1. Skipping mutation gate." in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# main() — argument handling + delegation to mutmut_run
+# ---------------------------------------------------------------------------
+
+
+def test_main_no_args_returns_2_with_exact_message(capsys) -> None:
+    rc = mm.main([])
+    assert rc == 2
+    assert capsys.readouterr().err == "mutmut.py: OUTPUT_FILE argument required\n"
+
+
+def test_main_delegates_first_arg_as_output_path(monkeypatch) -> None:
+    captured = {}
+
+    def fake_run(out_file):
+        captured["out"] = out_file
+        return 0
+
+    monkeypatch.setattr(mm, "mutmut_run", fake_run)
+    rc = mm.main(["result.json", "extra.json"])
+    assert rc == 0
+    assert captured["out"] == mm.Path("result.json")
