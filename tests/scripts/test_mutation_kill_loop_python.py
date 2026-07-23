@@ -108,6 +108,77 @@ def test_run_scoped_mutmut_reverts_source_file_on_the_success_path_too(
     assert reverted == [Path("src/a.py")]
 
 
+def test_run_scoped_mutmut_reverts_test_file_too_when_mutmut_crashes(
+    tmp_path: Path, monkeypatch
+):
+    """mutmut 2.5.1 has also been observed to corrupt the *runner's test
+    file* (truncate it to empty via a crashed .bak-restore, #1359) — not
+    just the source file. run_scoped_mutmut must revert both when a
+    test_file is supplied, even when the mutmut subprocess itself raises."""
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    def boom(*_a, **_k):
+        raise RuntimeError("simulated mutmut internal crash")
+
+    monkeypatch.setattr(loop.subprocess, "run", boom)
+
+    reverted = []
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+
+    with pytest.raises(RuntimeError):
+        loop.run_scoped_mutmut(
+            "src/a.py",
+            test_command="pytest",
+            test_file=Path("tests/test_a.py"),
+            cwd=tmp_path,
+        )
+
+    assert reverted == [Path("src/a.py"), Path("tests/test_a.py")]
+
+
+def test_run_scoped_mutmut_reverts_test_file_on_the_success_path_too(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    reverted = []
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+
+    loop.run_scoped_mutmut(
+        "src/a.py",
+        test_command="pytest",
+        test_file=Path("tests/test_a.py"),
+        cwd=tmp_path,
+    )
+
+    assert reverted == [Path("src/a.py"), Path("tests/test_a.py")]
+
+
+def test_run_scoped_mutmut_does_not_revert_test_file_when_not_supplied(
+    tmp_path: Path, monkeypatch
+):
+    """Backward compatibility: callers that don't pass test_file (none did
+    before #1359) must see identical behavior to before this change."""
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    reverted = []
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+
+    loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
+
+    assert reverted == [Path("src/a.py")]
+
+
 def test_extract_survivors_filters_to_target_file():
     xml = _junit(
         _survived("Mutant #1", "src/a.py", 5),
@@ -221,6 +292,49 @@ def test_run_for_file_stops_immediately_on_zero_survivors(tmp_path: Path, monkey
 
     assert calls["generate"] == 0
     assert "test_new" not in test_file.read_text(encoding="utf-8")
+
+
+def test_run_for_file_does_not_treat_zero_mutants_as_convergence(
+    tmp_path: Path, monkeypatch
+):
+    """mutmut<3 crashes on Python 3.13+ ('TypeError: cannot pickle
+    itertools.count object', #1359) and produces a junitxml report with
+    zero testcases at all — indistinguishable from real survivors=0 by
+    count alone. run_for_file must not log "no survivors — done" (a false
+    convergence claim) for this case, and must never call generate()."""
+    empty_junit = (
+        '<?xml version="1.0" ?>\n'
+        '<testsuites disabled="0" errors="0" failures="0" tests="0" time="0.0">'
+        '<testsuite disabled="0" errors="0" failures="0" name="mutmut" '
+        'skipped="0" tests="0" time="0"/></testsuites>\n'
+    )
+    monkeypatch.setattr(loop, "run_scoped_mutmut", lambda *a, **k: empty_junit)
+
+    calls = {"generate": 0}
+
+    def fake_generate(*_args):
+        calls["generate"] += 1
+        return "def test_new():\n    assert True\n"
+
+    test_file = tmp_path / "test_a.py"
+    test_file.write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+    source_file = tmp_path / "a.py"
+    source_file.write_text("x = 1\n", encoding="utf-8")
+
+    logged = []
+    loop.run_for_file(
+        "src/a.py",
+        test_file=test_file,
+        source_path=source_file,
+        test_command="pytest",
+        generate=fake_generate,
+        log=logged.append,
+    )
+
+    assert calls["generate"] == 0
+    assert not any("no survivors" in line for line in logged)
+    assert any("zero mutants generated" in line for line in logged)
+    assert any("NOT convergence" in line for line in logged)
 
 
 def test_run_for_file_generates_inserts_and_commits_on_green(tmp_path: Path, monkeypatch):
