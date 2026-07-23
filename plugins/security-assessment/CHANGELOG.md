@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.5.0...security-assessment-v3.6.0) (2026-07-23)
+
+
+### Features
+
+* **ci:** wire ruff check into ci-local.sh's pre-push gate ([e2ecbf4](https://github.com/bdfinst/agentic-dev-team/commit/e2ecbf434767b56f4862edcb3faef68d551960da)), closes [#1362](https://github.com/bdfinst/agentic-dev-team/issues/1362)
+
 ## [3.5.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.4.1...security-assessment-v3.5.0) (2026-07-22)
 
 

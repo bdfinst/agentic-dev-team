@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.18.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.17.0...dev-team-v10.18.0) (2026-07-23)
+
+
+### Features
+
+* **ci:** wire ruff check into ci-local.sh's pre-push gate ([e2ecbf4](https://github.com/bdfinst/agentic-dev-team/commit/e2ecbf434767b56f4862edcb3faef68d551960da)), closes [#1362](https://github.com/bdfinst/agentic-dev-team/issues/1362)
+
 ## [10.17.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.16.0...dev-team-v10.17.0) (2026-07-22)
 
 
