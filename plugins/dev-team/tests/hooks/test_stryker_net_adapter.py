@@ -232,3 +232,66 @@ def test_main_delegates_first_arg_as_output_path(monkeypatch) -> None:
     rc = sn.main(["out.json", "extra.json"])
     assert rc == 0
     assert captured["out"] == sn.Path("out.json")
+
+
+# ---------------------------------------------------------------------------
+# stryker_net_run() — the dotnet-stryker argv the adapter constructs
+# ---------------------------------------------------------------------------
+
+
+def _capture_argv(monkeypatch):
+    captured = {}
+
+    def fake_run(_seconds, argv, **_kwargs):
+        captured["argv"] = argv
+        return subprocess.CompletedProcess(args=argv, returncode=0, stdout=b"")
+
+    monkeypatch.setattr(sn.lib, "run_with_timeout", fake_run)
+    monkeypatch.setattr(sn.lib, "parse_stryker_kills", lambda _rp, _of: None)
+    return captured
+
+
+def test_run_builds_expected_default_stryker_argv(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sn, "_changed_cs_file", lambda: "")
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("STRYKER_SINCE_TARGET", raising=False)
+    captured = _capture_argv(monkeypatch)
+
+    sn.stryker_net_run(tmp_path / "out.json")
+    argv = captured["argv"]
+
+    assert argv[:2] == ["dotnet", "stryker"]
+    assert argv[argv.index("--reporter") + 1] == "json"
+    assert argv[argv.index("--coverage-analysis") + 1] == "perTest"
+    assert argv[argv.index("--mutation-level") + 1] == "Standard"
+    assert argv[argv.index("--output") + 1] == "StrykerOutput/gate-shard"
+
+
+def test_run_uses_matching_shard_config_and_scopes_mutate_to_changed_file(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "stryker-config.shard-foo.json").write_text(
+        '{"stryker-config": {"mutate": ["src/Foo/**/*.cs"]}}'
+    )
+    monkeypatch.setattr(sn, "_changed_cs_file", lambda: "src/Foo/Thing.cs")
+    captured = _capture_argv(monkeypatch)
+
+    sn.stryker_net_run(tmp_path / "out.json")
+    argv = captured["argv"]
+
+    assert argv[argv.index("--config-file") + 1] == "stryker-config.shard-foo.json"
+    assert argv[argv.index("--mutate") + 1] == "**/Thing.cs"
+
+
+def test_run_appends_since_flag_when_env_set_outside_ci(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sn, "_changed_cs_file", lambda: "")
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("STRYKER_SINCE_TARGET", "origin/main")
+    captured = _capture_argv(monkeypatch)
+
+    sn.stryker_net_run(tmp_path / "out.json")
+
+    assert "--since:origin/main" in captured["argv"]
