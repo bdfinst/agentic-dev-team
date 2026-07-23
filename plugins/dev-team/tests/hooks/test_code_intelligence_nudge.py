@@ -30,7 +30,7 @@ code_intelligence_nudge = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(code_intelligence_nudge)
 
 # Derived from the same composer main() calls, so this constant tracks
-# wording changes to CUES/_compose_message automatically — these tests are
+# wording changes to _CUES/_compose_message automatically — these tests are
 # about main()'s wiring (detection -> sentinel -> composition -> print/exit),
 # not about the exact prose, which is covered by test_single_tool_message_per_tool.
 EXPECTED_WARN_MSG = code_intelligence_nudge._compose_message(["codegraph"])
@@ -423,15 +423,15 @@ def test_single_tool_message_per_tool() -> None:
         # No cross-contamination from the other two tools' cues.
         for other in ("graphify", "repowise", "codegraph"):
             if other != tool:
-                assert code_intelligence_nudge.CUES[other] not in msg
+                assert code_intelligence_nudge._CUES[other] not in msg
 
 
 def test_combined_message_two_tools_precedence_order() -> None:
     msg = code_intelligence_nudge._compose_message(["codegraph", "repowise"])
     assert msg is not None
     assert "Multiple code-intelligence indexes found" in msg
-    repowise_idx = msg.index(code_intelligence_nudge.CUES["repowise"])
-    codegraph_idx = msg.index(code_intelligence_nudge.CUES["codegraph"])
+    repowise_idx = msg.index(code_intelligence_nudge._CUES["repowise"])
+    codegraph_idx = msg.index(code_intelligence_nudge._CUES["codegraph"])
     assert repowise_idx < codegraph_idx
 
 
@@ -440,9 +440,9 @@ def test_combined_message_three_tools_precedence_order() -> None:
         ["codegraph", "graphify", "repowise"]
     )
     assert msg is not None
-    graphify_idx = msg.index(code_intelligence_nudge.CUES["graphify"])
-    repowise_idx = msg.index(code_intelligence_nudge.CUES["repowise"])
-    codegraph_idx = msg.index(code_intelligence_nudge.CUES["codegraph"])
+    graphify_idx = msg.index(code_intelligence_nudge._CUES["graphify"])
+    repowise_idx = msg.index(code_intelligence_nudge._CUES["repowise"])
+    codegraph_idx = msg.index(code_intelligence_nudge._CUES["codegraph"])
     assert graphify_idx < repowise_idx < codegraph_idx
 
 
@@ -479,8 +479,8 @@ def test_repowise_only(tmp_path: Path) -> None:
     assert r.returncode == 0
     assert r.stderr.strip() == expected
     assert "get_context" in r.stderr
-    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
-    assert code_intelligence_nudge.CUES["graphify"] not in r.stderr
+    assert code_intelligence_nudge._CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge._CUES["graphify"] not in r.stderr
 
 
 def test_graphify_only(tmp_path: Path) -> None:
@@ -496,8 +496,8 @@ def test_graphify_only(tmp_path: Path) -> None:
     assert r.returncode == 0
     assert r.stderr.strip() == expected
     assert "graphify query" in r.stderr
-    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
-    assert code_intelligence_nudge.CUES["repowise"] not in r.stderr
+    assert code_intelligence_nudge._CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge._CUES["repowise"] not in r.stderr
 
 
 def test_two_present_combined(tmp_path: Path) -> None:
@@ -513,8 +513,8 @@ def test_two_present_combined(tmp_path: Path) -> None:
     expected = code_intelligence_nudge._compose_message(["repowise", "codegraph"])
     assert r.returncode == 0
     assert r.stderr.strip() == expected
-    repowise_idx = r.stderr.index(code_intelligence_nudge.CUES["repowise"])
-    codegraph_idx = r.stderr.index(code_intelligence_nudge.CUES["codegraph"])
+    repowise_idx = r.stderr.index(code_intelligence_nudge._CUES["repowise"])
+    codegraph_idx = r.stderr.index(code_intelligence_nudge._CUES["codegraph"])
     assert repowise_idx < codegraph_idx
 
 
@@ -534,9 +534,9 @@ def test_three_present_combined(tmp_path: Path) -> None:
     )
     assert r.returncode == 0
     assert r.stderr.strip() == expected
-    graphify_idx = r.stderr.index(code_intelligence_nudge.CUES["graphify"])
-    repowise_idx = r.stderr.index(code_intelligence_nudge.CUES["repowise"])
-    codegraph_idx = r.stderr.index(code_intelligence_nudge.CUES["codegraph"])
+    graphify_idx = r.stderr.index(code_intelligence_nudge._CUES["graphify"])
+    repowise_idx = r.stderr.index(code_intelligence_nudge._CUES["repowise"])
+    codegraph_idx = r.stderr.index(code_intelligence_nudge._CUES["codegraph"])
     assert graphify_idx < repowise_idx < codegraph_idx
 
 
@@ -624,8 +624,8 @@ def test_suppressed_when_used_this_turn(tmp_path: Path) -> None:
     expected = code_intelligence_nudge._compose_message(["graphify"])
     assert r.returncode == 0
     assert r.stderr.strip() == expected
-    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
-    assert code_intelligence_nudge.CUES["graphify"] in r.stderr
+    assert code_intelligence_nudge._CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge._CUES["graphify"] in r.stderr
 
 
 # --- Step 2.3: list-based sentinel (multi-family suppression) -------------
@@ -657,8 +657,8 @@ def test_suppresses_only_families_used_this_turn(tmp_path: Path) -> None:
     expected = code_intelligence_nudge._compose_message(["repowise"])
     assert r.returncode == 0
     assert r.stderr.strip() == expected
-    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
-    assert code_intelligence_nudge.CUES["repowise"] in r.stderr
+    assert code_intelligence_nudge._CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge._CUES["repowise"] in r.stderr
 
 
 def test_three_present_two_used_shows_remaining_only(tmp_path: Path) -> None:
@@ -681,9 +681,9 @@ def test_three_present_two_used_shows_remaining_only(tmp_path: Path) -> None:
     expected = code_intelligence_nudge._compose_message(["graphify"])
     assert r.returncode == 0
     assert r.stderr.strip() == expected
-    assert code_intelligence_nudge.CUES["codegraph"] not in r.stderr
-    assert code_intelligence_nudge.CUES["repowise"] not in r.stderr
-    assert code_intelligence_nudge.CUES["graphify"] in r.stderr
+    assert code_intelligence_nudge._CUES["codegraph"] not in r.stderr
+    assert code_intelligence_nudge._CUES["repowise"] not in r.stderr
+    assert code_intelligence_nudge._CUES["graphify"] in r.stderr
 
 
 def test_full_suppression_when_all_used(tmp_path: Path) -> None:
@@ -715,6 +715,39 @@ def test_corrupt_sentinel_read_fails_open(tmp_path: Path) -> None:
     tx = tmp_path / "transcripts" / "abc123.jsonl"
     _write_transcript(tx, 3)
     _write_sentinel(tmp_path, "abc123", 3, "not-a-list")
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "transcript_path": str(tx),
+            "tool_input": {"pattern": "foo"},
+        }
+    )
+    expected = code_intelligence_nudge._compose_message(["repowise", "codegraph"])
+    assert r.returncode == 0
+    assert r.stderr.strip() == expected
+
+
+def test_corrupt_turn_counter_in_sentinel_fails_open_and_warns(tmp_path: Path) -> None:
+    """Sentinel's turn_counter is non-numeric (corrupt) -> matches_current_turn
+    fails closed to False rather than raising `int()` uncaught; the nudge
+    still fires instead of being silently swallowed by the top-level
+    `except Exception` in `__main__`. Regression guard for the
+    correctness-review crash bug."""
+    (tmp_path / ".codegraph").mkdir()
+    (tmp_path / ".repowise").mkdir()
+    tx = tmp_path / "transcripts" / "abc123.jsonl"
+    _write_transcript(tx, 3)
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "code-intelligence-turn-state.json").write_text(
+        json.dumps(
+            {
+                "transcript_id": "abc123",
+                "turn_counter": "not-a-number",
+                "tools_used": ["codegraph"],
+            }
+        )
+    )
     r = _run(
         {
             "tool_name": "Grep",

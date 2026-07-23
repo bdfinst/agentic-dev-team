@@ -6,6 +6,7 @@ White-box tests on the port's helpers + end-to-end sentinel-write behavior.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -67,15 +68,20 @@ def test_tool_family_none_for_other_tools(tool_name: str) -> None:
 
 def test_uses_shared_turn_identity_lib() -> None:
     """No local duplicate of the tail-window logic remains — both
-    `_transcript_id` and `_count_user_lines` must be the shared-lib
+    `transcript_id` and `count_user_lines` must be the shared-lib
     functions imported from `turn_identity.py`, not local reimplementations.
+    Binding names are unprefixed, matching the shared module's own export
+    names (not the hook-local `_transcript_id`/`_count_user_lines` aliases
+    this hook used before the naming-review cleanup).
     """
     import turn_identity  # type: ignore[import-not-found]
 
-    assert hook._transcript_id is turn_identity.transcript_id
-    assert hook._count_user_lines is turn_identity.count_user_lines
+    assert hook.transcript_id is turn_identity.transcript_id
+    assert hook.count_user_lines is turn_identity.count_user_lines
+    assert hook.matches_current_turn is turn_identity.matches_current_turn
     assert not hasattr(hook, "_TAIL_WINDOW_BYTES")
     assert not hasattr(hook, "_USER_LINE_RE")
+    assert not hasattr(hook, "_matches_current_turn")
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +99,7 @@ def test_uses_shared_turn_identity_lib() -> None:
     ],
 )
 def test_transcript_id(path: str, expected: str) -> None:
-    assert hook._transcript_id(path) == expected
+    assert hook.transcript_id(path) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -108,17 +114,17 @@ def test_count_user_lines_counts_type_user_markers(tmp_path: Path) -> None:
         '{"type":"assistant","content":"b"}\n'
         '{"type":"user","content":"c"}\n'
     )
-    assert hook._count_user_lines(transcript) == 2
+    assert hook.count_user_lines(transcript) == 2
 
 
 def test_count_user_lines_zero_when_no_user_markers(tmp_path: Path) -> None:
     transcript = tmp_path / "t.jsonl"
     transcript.write_text('{"type":"assistant"}\n{"type":"tool_use"}\n')
-    assert hook._count_user_lines(transcript) == 0
+    assert hook.count_user_lines(transcript) == 0
 
 
 def test_count_user_lines_zero_when_file_missing(tmp_path: Path) -> None:
-    assert hook._count_user_lines(tmp_path / "nope.jsonl") == 0
+    assert hook.count_user_lines(tmp_path / "nope.jsonl") == 0
 
 
 def test_count_user_lines_scans_tail_only_for_large_transcript(
@@ -133,7 +139,7 @@ def test_count_user_lines_scans_tail_only_for_large_transcript(
     head = '{"type":"assistant"}\n' * (1_500_000 // len('{"type":"assistant"}\n') + 1)
     tail = '{"type":"user"}\n{"type":"user"}\n'
     transcript.write_text(head + tail)
-    assert hook._count_user_lines(transcript) == 2
+    assert hook.count_user_lines(transcript) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -357,8 +363,11 @@ def test_empty_stdin_fails_open(tmp_path: Path) -> None:
 
 def test_atomic_write_preserved(tmp_path: Path) -> None:
     """Carried-over non-functional regression guard (not new behavior in
-    this step): the write is still tempfile+rename, leaving no stray temp
-    files behind in `.claude/`."""
+    this step): the write is still tempfile+rename, leaving no stray
+    mkstemp temp files behind in `.claude/`. The `.lock` file is a new,
+    intentional, persistent artifact from the read-modify-write lock
+    (concurrency-review fix) — not a leftover temp file — so it's expected
+    here, not absent."""
     (tmp_path / "t.jsonl").write_text('{"type":"user"}\n')
     stdin = _stdin_for("mcp__codegraph__codegraph_explore", "t.jsonl")
     _run_hook(
@@ -367,7 +376,9 @@ def test_atomic_write_preserved(tmp_path: Path) -> None:
         {"CLAUDE_PROJECT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"},
     )
     files = sorted(p.name for p in (tmp_path / ".claude").iterdir())
-    assert files == [_SENTINEL_NAME], f"leftover temp files: {files}"
+    assert files == sorted([_SENTINEL_NAME, f"{_SENTINEL_NAME}.lock"]), (
+        f"leftover temp files: {files}"
+    )
 
 
 def test_sentinel_json_bytes_match_pretty_indent2(tmp_path: Path) -> None:
@@ -400,3 +411,86 @@ def test_project_dir_falls_back_to_cwd(tmp_path: Path) -> None:
     result = _run_hook(stdin, tmp_path, {"PATH": "/usr/bin:/bin"})
     assert result.returncode == 0
     assert (tmp_path / ".claude" / _SENTINEL_NAME).is_file()
+
+
+# ---------------------------------------------------------------------------
+# Read-modify-write lock — no lost updates under concurrent writers
+# (concurrency-review)
+# ---------------------------------------------------------------------------
+
+
+def test_concurrent_writes_do_not_lose_updates(tmp_path: Path) -> None:
+    """Two concurrent PostToolUse invocations for *different* tool families
+    in the same turn must both survive in the final `tools_used` list.
+
+    `CODE_INTELLIGENCE_TURN_MARK_TEST_DELAY_MS` widens the window between
+    each process's read and write so the two subprocesses are guaranteed to
+    overlap — without the read-modify-write lock, both would read the same
+    empty `tools_used`, and whichever writes last would clobber the other's
+    update (lost-update race). With the lock, the second process's read
+    can't happen until the first's write (and lock release) completes, so
+    both families accumulate correctly regardless of interleaving.
+    """
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text('{"type":"user"}\n')
+
+    hook_path = _HOOKS_DIR / "code_intelligence_turn_mark.py"
+    env = {
+        "CLAUDE_PROJECT_DIR": str(tmp_path),
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "CODE_INTELLIGENCE_TURN_MARK_TEST_DELAY_MS": "300",
+    }
+    stdins = [
+        _stdin_for("mcp__codegraph__codegraph_explore", "t.jsonl"),
+        _stdin_for("mcp__plugin_repowise_repowise__get_context", "t.jsonl"),
+    ]
+    procs = [
+        subprocess.Popen(
+            [sys.executable, str(hook_path)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(tmp_path),
+            env=env,
+        )
+        for _ in stdins
+    ]
+    for proc, stdin in zip(procs, stdins):
+        proc.stdin.write(stdin.encode("utf-8"))
+        proc.stdin.close()
+    for proc in procs:
+        assert proc.wait(timeout=10) == 0
+
+    sentinel = tmp_path / ".claude" / _SENTINEL_NAME
+    payload = json.loads(sentinel.read_text())
+    assert sorted(payload["tools_used"]) == ["codegraph", "repowise"]
+
+
+# ---------------------------------------------------------------------------
+# __main__ guard — fail-open on an uncaught exception (correctness-review)
+# ---------------------------------------------------------------------------
+
+
+def test_main_guard_fails_open_on_unexpected_exception(monkeypatch) -> None:
+    """An exception `main()` itself doesn't catch (here: stdin.read() raising
+    something other than the `(OSError, ValueError)` `_read_stdin` guards
+    against) must still exit 0, per the module's own documented "fail-open,
+    any internal error -> exit 0" posture and to match the sibling nudge
+    hook's identical `__main__` guard.
+
+    Runs the real file via `runpy.run_path(..., run_name="__main__")` so this
+    exercises the actual `if __name__ == "__main__":` block, not a
+    reimplementation of it.
+    """
+    import runpy
+    import sys as _sys
+
+    class _BoomStdin:
+        def read(self) -> str:
+            raise RuntimeError("boom — not OSError/ValueError, so _read_stdin can't swallow it")
+
+    monkeypatch.setattr(_sys, "stdin", _BoomStdin())
+    hook_path = _HOOKS_DIR / "code_intelligence_turn_mark.py"
+    with pytest.raises(SystemExit) as exc_info:
+        runpy.run_path(str(hook_path), run_name="__main__")
+    assert exc_info.value.code == 0

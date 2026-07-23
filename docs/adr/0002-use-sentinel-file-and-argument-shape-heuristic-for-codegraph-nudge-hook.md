@@ -9,6 +9,8 @@ Accepted
 Tooling documented by [3. Document ADR tooling workflow as a skill](0003-document-adr-tooling-workflow-as-a-skill.md)
 
 > **Path and tooling note (2026-07-20):** the plugin was renamed `agentic-dev-team` → `dev-team` in the bfinster marketplace; substitute `plugins/dev-team/` for `plugins/agentic-dev-team/` to locate current files. Separately, the bash-removal effort (ADR 0014, completed by ADR 0015) rewrote every shipped hook under `plugins/dev-team/` — including `codegraph-nudge.sh`, `codegraph-turn-mark.sh`, and `destructive-guard.sh` — as Python (`.py`), and their `.bats` tests as pytest `test_*.py` files. This ADR is preserved verbatim as a historical record.
+>
+> **Generalization note (2026-07-23, #1368):** the two hooks were renamed again and generalized to cover three code-intelligence tools instead of just CodeGraph — `codegraph_nudge.py` → `code_intelligence_nudge.py` (read side) and `codegraph_turn_mark.py` → `code_intelligence_turn_mark.py` (write side, gaining a second PostToolUse matcher for Repowise's `mcp__plugin_repowise_repowise__*` prefix alongside the original `mcp__codegraph__*`). The sentinel itself was renamed `codegraph-turn-state.json` → `code-intelligence-turn-state.json`, and its schema extended from `{transcript_id, turn_counter}` to add an accumulating `tools_used: [<string>, ...]` list, so the nudge can suppress its warning per-family (e.g. omit CodeGraph's line once CodeGraph has been used this turn, while still naming Repowise or Graphify) instead of the earlier all-or-nothing suppression. This ADR's sentinel-file and argument-shape decisions are otherwise unchanged; this note documents the rename/schema drift, not a new decision.
 
 ## Context
 
