@@ -8,7 +8,7 @@ always-allowed safe-allowlist entries).
 `_careful_active()` reads a fixed path (hooks/careful-state.json) rather
 than an env-overridable location, so the blocked-path test writes that file
 directly — mirroring the precedent already established in
-plugins/dev-team/tests/hooks/test_codegraph_nudge.py's `clean_careful_state`
+plugins/dev-team/tests/hooks/test_code_intelligence_nudge.py's `clean_careful_state`
 fixture. A leaked file would silently flip every other test into block
 mode, so the fixture wipes it before AND after every test.
 """

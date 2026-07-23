@@ -2,7 +2,7 @@
 
 Extracted from the identical `_read_stdin_json()` copy-pasted across 7 hooks
 (pre_commit_review.py, pre_commit_knowledge_index.py, knowledge_index.py,
-mutation_testing_smoke_gate.py, codegraph_nudge.py, codegraph_bootstrap.py,
+mutation_testing_smoke_gate.py, code_intelligence_nudge.py, codegraph_bootstrap.py,
 bash_retry_guard.py). Behavior: read stdin, parse JSON, return the dict on
 success — None on empty input, malformed JSON, a non-dict JSON value
 (e.g. a list or scalar), or an OSError while reading.
