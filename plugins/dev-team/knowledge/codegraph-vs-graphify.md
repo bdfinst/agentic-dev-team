@@ -74,14 +74,14 @@ function."
   with structure attached. Nothing is written to a project-tracked
   `.mcp.json`, and `.codegraph/` is never committed — only
   `.codegraph/codegraph.db` stays gitignored and machine-local, per project.
-- `hooks/codegraph_nudge.py` (PreToolUse on `Read`/`Grep`/`Glob`) recommends
-  the `codegraph_*` MCP tools over multi-file Read/Grep/Glob exploration
+- `hooks/code_intelligence_nudge.py` (PreToolUse on `Read`/`Grep`/`Glob`)
+  recommends `codegraph_explore` over multi-file Read/Grep/Glob exploration
   whenever `.codegraph/` exists and no CodeGraph tool has been used yet in
   the current turn; see
-  [`docs/codegraph-nudge.md`](../docs/codegraph-nudge.md) for the full
-  sentinel mechanism. `hooks/codegraph_bootstrap.py` (SessionStart) rebuilds
-  the local `.db` on a fresh clone when `.codegraph/` is committed but the
-  machine-local database is missing.
+  [`docs/code-intelligence-nudge.md`](../docs/code-intelligence-nudge.md)
+  for the full sentinel mechanism. `hooks/codegraph_bootstrap.py`
+  (SessionStart) rebuilds the local `.db` on a fresh clone when
+  `.codegraph/` is committed but the machine-local database is missing.
 
 ### Repowise
 
@@ -123,8 +123,9 @@ function."
   concepts), and `graphify explain "<concept>"` (plain-language explanation
   of a single node).
 - PreToolUse nudge hooks in `.claude/settings.json` (this repo's own,
-  separate from the plugin's `codegraph-nudge`) steer codebase questions
-  toward `graphify query` when `graphify-out/graph.json` already exists.
+  separate from the plugin's `code-intelligence-nudge`) steer codebase
+  questions toward `graphify query` when `graphify-out/graph.json` already
+  exists.
 - Keep the graph current after edits with `graphify update .`
   (incremental, AST-only, no LLM cost).
 
@@ -177,8 +178,9 @@ All three are optional and independently adopted per project:
 - Graphify requires someone to run `/graphify` (or `graphify extract`) at
   least once; a project can go its entire life without `graphify-out/`.
 
-Plugin behavior must not assume any of the three exists. The `codegraph-nudge`
-hook already fails open when `.codegraph/` is absent, Repowise/CodeGraph MCP
-grants are inert when their servers are absent, and no shipped `dev-team`
-skill or agent depends on `graphify-out/` being present. `Read`/`Grep`/`Glob`
-is the always-available fallback.
+Plugin behavior must not assume any of the three exists. The
+`code-intelligence-nudge` hook already fails open when none of the three
+are present, Repowise/CodeGraph MCP grants are inert when their servers are
+absent, and no shipped `dev-team` skill or agent depends on
+`graphify-out/` being present. `Read`/`Grep`/`Glob` is the always-available
+fallback.
