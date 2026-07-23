@@ -444,3 +444,428 @@ def test_main_uses_descriptive_pattern_group_names():
         "safe_patterns",
     ):
         assert descriptive in source
+
+
+# --- Module constants -------------------------------------------------------
+
+
+def test_probe_timeout_seconds_value():
+    assert destructive_guard._PROBE_TIMEOUT_SECONDS == 1.0
+
+
+def test_load_patterns_uses_inline_defaults_when_config_missing(monkeypatch, tmp_path):
+    # Point the config at a nonexistent file so _load_json returns None and
+    # the inline fallback lists are returned verbatim — pins every default.
+    monkeypatch.setattr(destructive_guard, "_COMMANDS_FILE", tmp_path / "absent.json")
+    assert destructive_guard._load_patterns() == (
+        ["rm -rf", "rm -r", "rm -fr"],
+        ["drop table", "drop database", "truncate"],
+        [
+            "git push --force",
+            "git push -f",
+            "git reset --hard",
+            "git clean -f",
+            "git clean -fd",
+            "git checkout -- .",
+            "git branch -D",
+        ],
+        ["kill -9", "killall", "pkill"],
+        ["chmod 777"],
+        [
+            "rm -rf node_modules",
+            "rm -rf dist",
+            "rm -rf build",
+            "rm -rf .cache",
+            "rm -rf coverage",
+            "rm -rf tmp",
+            "rm -rf __pycache__",
+        ],
+    )
+
+
+def test_load_patterns_maps_each_config_key(monkeypatch, tmp_path):
+    # A distinct marker per key proves each category is read from the right
+    # JSON key, in the documented (file, db, git, process, permission, safe)
+    # return order.
+    config = {
+        "file_destruction": ["F1"],
+        "database_destruction": ["D1"],
+        "git_destruction": ["G1"],
+        "process_destruction": ["P1"],
+        "permission_escalation": ["E1"],
+        "safe_allowlist": ["S1"],
+    }
+    config_path = tmp_path / "cmds.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(destructive_guard, "_COMMANDS_FILE", config_path)
+    assert destructive_guard._load_patterns() == (
+        ["F1"],
+        ["D1"],
+        ["G1"],
+        ["P1"],
+        ["E1"],
+        ["S1"],
+    )
+
+
+# --- Pure helpers -----------------------------------------------------------
+
+
+def test_read_stdin_returns_empty_on_error(monkeypatch):
+    class _Boom:
+        def read(self):
+            raise OSError("no stdin")
+
+    monkeypatch.setattr("sys.stdin", _Boom())
+    assert destructive_guard._read_stdin() == ""
+
+
+def test_extract_command_variants():
+    assert (
+        destructive_guard._extract_command({"tool_input": {"command": "rm -rf /"}})
+        == "rm -rf /"
+    )
+    # tool_input not a dict
+    assert destructive_guard._extract_command({"tool_input": "notdict"}) == ""
+    # command key absent
+    assert destructive_guard._extract_command({"tool_input": {}}) == ""
+    # command not a string
+    assert destructive_guard._extract_command({"tool_input": {"command": 123}}) == ""
+
+
+def test_careful_active_variants(monkeypatch, tmp_path):
+    def _set(content: str) -> None:
+        path = tmp_path / "careful.json"
+        path.write_text(content, encoding="utf-8")
+        monkeypatch.setattr(destructive_guard, "_CAREFUL_FILE", path)
+
+    _set('{"active": true}')
+    assert destructive_guard._careful_active() is True
+    _set('{"active": false}')
+    assert destructive_guard._careful_active() is False
+    # A string "true" is treated as active (bash string comparison parity).
+    _set('{"active": "true"}')
+    assert destructive_guard._careful_active() is True
+    _set('{"active": "nope"}')
+    assert destructive_guard._careful_active() is False
+    _set("{}")
+    assert destructive_guard._careful_active() is False
+    # Missing config file -> inactive.
+    monkeypatch.setattr(destructive_guard, "_CAREFUL_FILE", tmp_path / "absent.json")
+    assert destructive_guard._careful_active() is False
+
+
+def test_run_git_passes_expected_subprocess_args(monkeypatch):
+    captured = {}
+
+    def _fake_run(*args, **kwargs):
+        captured["cmd"] = args[0]
+        captured["kwargs"] = kwargs
+        return _FakeCompleted(0, "main\n")
+
+    monkeypatch.setattr(destructive_guard.subprocess, "run", _fake_run)
+    assert destructive_guard._run_git(["rev-parse", "--abbrev-ref", "HEAD"]) == "main"
+    assert captured["cmd"] == ["git", "rev-parse", "--abbrev-ref", "HEAD"]
+    assert captured["kwargs"]["capture_output"] is True
+    assert captured["kwargs"]["text"] is True
+    assert captured["kwargs"]["timeout"] == destructive_guard._PROBE_TIMEOUT_SECONDS
+    assert captured["kwargs"]["check"] is False
+
+
+def test_current_branch_returns_name(monkeypatch):
+    captured = {}
+
+    def _fake(args):
+        captured["args"] = args
+        return "feature/x"
+
+    monkeypatch.setattr(destructive_guard, "_run_git", _fake)
+    assert destructive_guard._current_branch() == "feature/x"
+    assert captured["args"] == ["rev-parse", "--abbrev-ref", "HEAD"]
+
+
+def test_current_branch_none_when_no_repo(monkeypatch):
+    monkeypatch.setattr(destructive_guard, "_run_git", lambda args: None)
+    assert destructive_guard._current_branch() is None
+
+
+def test_default_branch_symbolic_ref_strips_all_but_last_segment(monkeypatch):
+    captured = {}
+
+    def _fake(args):
+        captured["args"] = args
+        return "origin/release/main" if args[0] == "symbolic-ref" else None
+
+    monkeypatch.setattr(destructive_guard, "_run_git", _fake)
+    assert destructive_guard._default_branch() == "main"
+    assert captured["args"] == [
+        "symbolic-ref",
+        "--short",
+        "refs/remotes/origin/HEAD",
+    ]
+
+
+def test_default_branch_falls_back_to_master_only(monkeypatch):
+    def _fake(args):
+        if args[0] == "symbolic-ref":
+            return None
+        if args == ["rev-parse", "--verify", "--quiet", "refs/heads/master"]:
+            return "cafe"
+        return None
+
+    monkeypatch.setattr(destructive_guard, "_run_git", _fake)
+    assert destructive_guard._default_branch() == "master"
+
+
+def test_remote_url_passes_expected_args(monkeypatch):
+    captured = {}
+
+    def _fake(args):
+        captured["args"] = args
+        return "git@github.com:org/repo.git"
+
+    monkeypatch.setattr(destructive_guard, "_run_git", _fake)
+    assert destructive_guard._remote_url() == "git@github.com:org/repo.git"
+    assert captured["args"] == ["remote", "get-url", "origin"]
+
+
+def test_ci_active_recognizes_truthy_and_falsy_values(monkeypatch):
+    for value, expected in [
+        ("1", True),
+        ("true", True),
+        ("  TRUE  ", True),
+        ("0", False),
+        ("false", False),
+        ("FALSE", False),
+        ("", False),
+    ]:
+        monkeypatch.setenv("CI", value)
+        assert destructive_guard._ci_active() is expected
+
+
+def test_matches_any_skips_empty_patterns():
+    # The first (empty) pattern is skipped; the real one still matches.
+    assert destructive_guard._matches_any("rm -rf x", ["", "rm -rf"]) == "rm -rf"
+    assert destructive_guard._matches_any("safe cmd", ["", "nomatch"]) is None
+
+
+def test_emit_appends_newline(capsys):
+    destructive_guard._emit("hello")
+    assert capsys.readouterr().out == "hello\n"
+
+
+def test_load_escalations_filters_invalid_entries(monkeypatch, tmp_path):
+    config = {
+        "escalations": [
+            {"pattern": "git push --force", "when": {}},
+            {"no_pattern": "x"},
+            "notadict",
+            {"pattern": 123},
+        ]
+    }
+    config_path = tmp_path / "cmds.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(destructive_guard, "_COMMANDS_FILE", config_path)
+    assert destructive_guard._load_escalations() == [
+        {"pattern": "git push --force", "when": {}}
+    ]
+
+
+def test_find_escalation_rule_matches_by_pattern():
+    rules = [{"pattern": "a"}, {"pattern": "b", "x": 1}]
+    assert destructive_guard._find_escalation_rule(rules, "b") == {"pattern": "b", "x": 1}
+    assert destructive_guard._find_escalation_rule(rules, "z") is None
+
+
+def test_condition_target_branch_default_named_target():
+    assert (
+        destructive_guard._condition_target_branch_default(
+            "git push --force origin main",
+            "git push --force origin main",
+            "git push --force",
+            None,
+            "main",
+        )
+        is True
+    )
+
+
+def test_condition_target_branch_default_bare_on_default_branch():
+    assert (
+        destructive_guard._condition_target_branch_default(
+            "git push --force", "git push --force", "git push --force", "main", "main"
+        )
+        is True
+    )
+
+
+def test_condition_target_branch_default_bare_off_default_branch():
+    assert (
+        destructive_guard._condition_target_branch_default(
+            "git push --force",
+            "git push --force",
+            "git push --force",
+            "feature",
+            "main",
+        )
+        is False
+    )
+
+
+def test_condition_target_branch_default_unresolved_default_is_false():
+    assert (
+        destructive_guard._condition_target_branch_default(
+            "git push --force", "git push --force", "git push --force", "main", None
+        )
+        is False
+    )
+
+
+def test_condition_current_branch_default_matrix():
+    cond = destructive_guard._condition_current_branch_default
+    assert cond("main", "main") is True
+    assert cond("feature", "main") is False
+    assert cond(None, "main") is False
+    assert cond("main", None) is False
+
+
+def test_rule_escalates_requires_non_empty_when_dict():
+    escalates = destructive_guard._rule_escalates
+    assert escalates({}, "c", "c", "p", None, None) is False
+    assert escalates({"when": {}}, "c", "c", "p", None, None) is False
+    assert escalates({"when": "x"}, "c", "c", "p", None, None) is False
+
+
+def test_rule_escalates_unknown_condition_key_does_not_escalate():
+    assert (
+        destructive_guard._rule_escalates(
+            {"when": {"unknown": "x"}}, "c", "c", "p", "main", "main"
+        )
+        is False
+    )
+
+
+def test_rule_escalates_target_branch_default_true():
+    assert (
+        destructive_guard._rule_escalates(
+            {"when": {"target_branch": "default"}},
+            "git push --force origin main",
+            "git push --force origin main",
+            "git push --force",
+            "main",
+            "main",
+        )
+        is True
+    )
+
+
+def test_override_active_variants(monkeypatch):
+    var = destructive_guard._OVERRIDE_ENV_VAR
+    monkeypatch.setenv(var, "1")
+    assert destructive_guard._override_active() is True
+    monkeypatch.setenv(var, " 1 ")
+    assert destructive_guard._override_active() is True
+    monkeypatch.setenv(var, "0")
+    assert destructive_guard._override_active() is False
+    monkeypatch.delenv(var, raising=False)
+    assert destructive_guard._override_active() is False
+
+
+# --- main() decision paths --------------------------------------------------
+
+
+def test_main_empty_command_returns_zero(monkeypatch, capsys):
+    _feed(monkeypatch, {"tool_input": {"command": ""}})
+    assert destructive_guard.main() == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_main_non_matching_command_returns_zero(monkeypatch, capsys):
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    _feed(monkeypatch, {"tool_input": {"command": "ls -la"}})
+    assert destructive_guard.main() == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_main_warns_on_file_destruction(monkeypatch, capsys):
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_load_escalations", lambda: [])
+    _feed(monkeypatch, {"tool_input": {"command": "rm -rf /var/data"}})
+    assert destructive_guard.main() == 0
+    assert (
+        "CAUTION: Destructive command detected (File destruction: rm -rf)."
+        in capsys.readouterr().out
+    )
+
+
+def test_main_warns_on_database_destruction(monkeypatch, capsys):
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_load_escalations", lambda: [])
+    _feed(monkeypatch, {"tool_input": {"command": "drop table users"}})
+    assert destructive_guard.main() == 0
+    assert (
+        "CAUTION: Destructive command detected (Database destruction: drop table)."
+        in capsys.readouterr().out
+    )
+
+
+def test_main_warn_full_output_and_boundary_event(monkeypatch, capsys):
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_load_escalations", lambda: [])
+    events = []
+    monkeypatch.setattr(
+        destructive_guard, "emit_boundary_event", lambda *a, **k: events.append(a)
+    )
+    _feed(
+        monkeypatch,
+        {"tool_input": {"command": "kill -9 1234"}, "cwd": "/wd", "session_id": "s1"},
+    )
+    assert destructive_guard.main() == 0
+    assert capsys.readouterr().out == (
+        "CAUTION: Destructive command detected (Process destruction: kill -9).\n"
+        "Command: kill -9 1234\n"
+        "This action is hard to reverse. Confirm with the user before proceeding.\n"
+    )
+    assert events == [
+        ("/wd", "destructive_guard", "Bash", "warn", "Process destruction: kill -9", "s1")
+    ]
+
+
+def test_main_careful_full_output_and_boundary_event(monkeypatch, capsys):
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: True)
+    events = []
+    monkeypatch.setattr(
+        destructive_guard, "emit_boundary_event", lambda *a, **k: events.append(a)
+    )
+    _feed(
+        monkeypatch,
+        {"tool_input": {"command": "kill -9 1234"}, "cwd": "/wd", "session_id": "s1"},
+    )
+    assert destructive_guard.main() == 2
+    assert capsys.readouterr().out == (
+        "BLOCKED: Destructive command detected (Process destruction: kill -9).\n"
+        "Command: kill -9 1234\n"
+        "Careful mode is active. This command has been blocked.\n"
+        "Use /careful off to disable careful mode, or confirm with the user.\n"
+    )
+    assert events == [
+        ("/wd", "destructive_guard", "Bash", "block", "Process destruction: kill -9", "s1")
+    ]
+
+
+def test_main_escalation_block_emits_full_output(monkeypatch, capsys):
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "main")
+    monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
+    monkeypatch.delenv(destructive_guard._OVERRIDE_ENV_VAR, raising=False)
+    _feed(monkeypatch, {"tool_input": {"command": "git push --force origin main"}})
+    assert destructive_guard.main() == 2
+    assert capsys.readouterr().out == (
+        "BLOCKED: Destructive command detected (Git destruction: git push --force).\n"
+        "Command: git push --force origin main\n"
+        "This command targets the default branch (main); force-push, reset, and "
+        "branch-delete are hard-blocked on the default branch regardless of "
+        "careful mode.\n"
+        "Set DEV_TEAM_GUARD_OVERRIDE=1 for this single command to override, or "
+        "confirm with the user.\n"
+    )
