@@ -800,3 +800,356 @@ def test_dedupe_rekeyed_on_band_identity_worked_1m_case(tmp_path: Path) -> None:
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
     assert b"[full-summary]" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# #1354 mutant-kill pass: exact-value assertions on the band action strings,
+# _build_label, the transcript-scan skip branches, and helper edges. Substring
+# `in` checks passed even against XX-wrapped string mutants (the original text
+# stays a substring), so these assert the FULL concatenated strings and that
+# no XX marker leaks — plus direct-call coverage of the helpers.
+# ---------------------------------------------------------------------------
+
+
+_NUDGE_ACTION = (
+    "Consider running /handoff (write a memory/ progress file, continue in a "
+    "fresh context) and defer non-essential agents/skills."
+)
+_RUN_NOW_ACTION = (
+    "Run /handoff now — write a memory/ progress file and continue in a "
+    "fresh context."
+)
+_FULL_SUMMARY_ACTION = (
+    "Write a full summary to memory/ and start a new conversation now — "
+    "context is well past the effective ceiling."
+)
+_KNOB_FOOTER = (
+    "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) / "
+    "DEV_TEAM_CONTEXT_CEILING_PCT / DEV_TEAM_CONTEXT_ABS_CEILING;\n"
+    "DEV_TEAM_CONTEXT_STRICT=on hard-blocks; "
+    "DEV_TEAM_CONTEXT_CEILING=off disables."
+)
+
+
+def test_format_message_nudge_action_and_footer_are_exact() -> None:
+    msg = hook._format_message(
+        150_000, 1_000_000, 150_000, "absolute", "detected", "x"
+    )
+    assert _NUDGE_ACTION in msg
+    assert _KNOB_FOOTER in msg
+    assert "XX" not in msg
+
+
+def test_format_message_run_now_action_and_footer_are_exact() -> None:
+    msg = hook._format_message(
+        190_000, 1_000_000, 150_000, "absolute", "detected", "x"
+    )
+    assert _RUN_NOW_ACTION in msg
+    assert _KNOB_FOOTER in msg
+    assert "XX" not in msg
+
+
+def test_format_message_full_summary_action_is_exact_no_footer() -> None:
+    msg = hook._format_message(
+        226_000, 1_000_000, 150_000, "absolute", "detected", "x"
+    )
+    assert _FULL_SUMMARY_ACTION in msg
+    assert _KNOB_FOOTER not in msg
+    assert "XX" not in msg
+
+
+# --- _build_label: exact labels for Skill and Agent branches ---
+
+
+def test_build_label_skill_uses_skill_key_verbatim() -> None:
+    assert hook._build_label("Skill", {"skill": "plan"}) == "invoking skill 'plan'"
+
+
+def test_build_label_skill_falls_back_to_name_key() -> None:
+    assert hook._build_label("Skill", {"name": "foo"}) == "invoking skill 'foo'"
+
+
+def test_build_label_skill_missing_both_is_question_mark() -> None:
+    assert hook._build_label("Skill", {}) == "invoking skill '?'"
+
+
+def test_build_label_skill_non_string_value_is_question_mark() -> None:
+    assert hook._build_label("Skill", {"skill": 123}) == "invoking skill '?'"
+
+
+def test_build_label_agent_uses_subagent_type_verbatim() -> None:
+    assert (
+        hook._build_label("Agent", {"subagent_type": "dev-team:doc-review"})
+        == "loading agent 'dev-team:doc-review'"
+    )
+
+
+def test_build_label_agent_missing_is_question_mark() -> None:
+    assert hook._build_label("Agent", {}) == "loading agent '?'"
+
+
+def test_build_label_agent_non_string_value_is_question_mark() -> None:
+    assert hook._build_label("Agent", {"subagent_type": 5}) == "loading agent '?'"
+
+
+# --- _measure_occupancy: skip-branch and `or 0` / `> 0` boundary edges ---
+
+
+def _usage_line(**usage: object) -> str:
+    return json.dumps({"message": {"usage": usage}})
+
+
+def test_measure_occupancy_skips_blank_line_before_usage(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("\n" + _usage_line(input_tokens=7, cache_read_input_tokens=3) + "\n")
+    assert hook._measure_occupancy(tr) == 10
+
+
+def test_measure_occupancy_skips_non_json_line_before_usage(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("not json\n" + _usage_line(input_tokens=8) + "\n")
+    assert hook._measure_occupancy(tr) == 8
+
+
+def test_measure_occupancy_skips_non_dict_row_before_usage(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("[]\n" + _usage_line(input_tokens=9) + "\n")
+    assert hook._measure_occupancy(tr) == 9
+
+
+def test_measure_occupancy_skips_non_dict_message_before_usage(
+    tmp_path: Path,
+) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(
+        json.dumps({"message": 123}) + "\n" + _usage_line(input_tokens=11) + "\n"
+    )
+    assert hook._measure_occupancy(tr) == 11
+
+
+def test_measure_occupancy_skips_non_int_usage_before_valid(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(
+        _usage_line(input_tokens="oops")
+        + "\n"
+        + _usage_line(input_tokens=13)
+        + "\n"
+    )
+    assert hook._measure_occupancy(tr) == 13
+
+
+def test_measure_occupancy_absent_input_tokens_counts_as_zero(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(_usage_line(cache_read_input_tokens=100) + "\n")
+    assert hook._measure_occupancy(tr) == 100
+
+
+def test_measure_occupancy_absent_cache_read_counts_as_zero(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(_usage_line(input_tokens=100) + "\n")
+    assert hook._measure_occupancy(tr) == 100
+
+
+def test_measure_occupancy_all_zero_total_is_none(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(
+        _usage_line(
+            input_tokens=0, cache_read_input_tokens=0, cache_creation_input_tokens=0
+        )
+        + "\n"
+    )
+    assert hook._measure_occupancy(tr) is None
+
+
+def test_measure_occupancy_total_of_one_is_returned(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(_usage_line(input_tokens=1) + "\n")
+    assert hook._measure_occupancy(tr) == 1
+
+
+# --- _detect_window: matched flag and skip branches ---
+
+
+def test_detect_window_returns_true_for_haiku_model(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 100_000, model="claude-haiku-4-5")
+    assert hook._detect_window(tr) == (200_000, True)
+
+
+def test_detect_window_returns_true_for_large_window_model(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 100_000, model="claude-opus-4-8")
+    assert hook._detect_window(tr) == (1_000_000, True)
+
+
+def _model_line(model: str) -> str:
+    return json.dumps({"message": {"model": model}})
+
+
+def test_detect_window_skips_blank_line_before_model(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("\n" + _model_line("claude-opus-4-8") + "\n")
+    assert hook._detect_window(tr) == (1_000_000, True)
+
+
+def test_detect_window_skips_non_json_line_before_model(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("not json\n" + _model_line("claude-opus-4-8") + "\n")
+    assert hook._detect_window(tr) == (1_000_000, True)
+
+
+def test_detect_window_skips_non_dict_row_before_model(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("[]\n" + _model_line("claude-opus-4-8") + "\n")
+    assert hook._detect_window(tr) == (1_000_000, True)
+
+
+def test_detect_window_skips_non_dict_message_before_model(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(
+        json.dumps({"message": 5}) + "\n" + _model_line("claude-opus-4-8") + "\n"
+    )
+    assert hook._detect_window(tr) == (1_000_000, True)
+
+
+def test_resolve_window_provenance_is_detected_string(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 100_000, model="claude-haiku-4-5")
+    assert hook._resolve_window(tr) == (200_000, "detected")
+
+
+# --- small helper boundaries ---
+
+
+def test_positive_int_env_value_one_is_kept(monkeypatch) -> None:
+    monkeypatch.setenv("X_TEST_ONE", "1")
+    assert hook._positive_int_env("X_TEST_ONE", 40) == 1
+
+
+def test_env_window_override_value_one_is_kept(monkeypatch) -> None:
+    monkeypatch.setenv("DEV_TEAM_CONTEXT_WINDOW", "1")
+    assert hook._env_window_override() == 1
+
+
+def test_extract_skill_name_non_string_is_empty() -> None:
+    assert hook._extract_skill_name({"skill": 123}) == ""
+
+
+def test_marker_path_uses_tmpdir_and_session_filename(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    marker = hook._marker_path("s1")
+    assert marker.parent == tmp_path
+    assert marker.name == "dev-team-ctx-ceiling-s1.last"
+
+
+def test_read_last_bucket_missing_file_is_zero(tmp_path: Path) -> None:
+    assert hook._read_last_bucket(tmp_path / "nope.last") == 0
+
+
+def test_read_last_bucket_non_numeric_is_zero(tmp_path: Path) -> None:
+    marker = tmp_path / "m.last"
+    marker.write_text("abc")
+    assert hook._read_last_bucket(marker) == 0
+
+
+def test_read_last_bucket_numeric_is_parsed(tmp_path: Path) -> None:
+    marker = tmp_path / "m.last"
+    marker.write_text("5")
+    assert hook._read_last_bucket(marker) == 5
+
+
+def test_band_threshold_zero_is_nudge() -> None:
+    # threshold_tokens <= 0 short-circuits to NUDGE before the 1.5x/1.25x math.
+    assert hook._band_for_threshold_multiple(100, 0) == hook._BAND_NUDGE
+
+
+def test_band_threshold_one_reaches_full_summary() -> None:
+    # threshold 1: 1*3//2 == 1, occ 100 >= 1 -> full-summary (not nudge).
+    assert (
+        hook._band_for_threshold_multiple(100, 1) == hook._BAND_FULL_SUMMARY
+    )
+
+
+# --- gated-tool and recovery-skill membership (frozenset string mutants) ---
+
+
+def test_task_tool_is_gated_like_agent(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 100_000)
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    result = _run(_mkinput("Task", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"100000 of 200000 tokens" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "skill", ["context-loading-protocol", "review-summary", "session-review"]
+)
+def test_recovery_skills_are_never_gated_even_strict(
+    tmp_path: Path, skill: str
+) -> None:
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 180_000)
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    env["DEV_TEAM_CONTEXT_STRICT"] = "on"
+    result = _run(_mkinput("Skill", {"skill": skill}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr == b""
+
+
+# --- _resolve_verdict / main fail-open paths ---
+
+
+def test_non_dict_tool_input_is_coerced_not_crashed(tmp_path: Path) -> None:
+    """A non-dict tool_input must be coerced to {} — the mutant that sets it
+    to None would crash in _build_label. Over-ceiling Agent must still warn."""
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 100_000)
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    stdin = json.dumps(
+        {
+            "tool_name": "Agent",
+            "session_id": "s1",
+            "transcript_path": str(tr),
+            "tool_input": ["not", "a", "dict"],
+            "cwd": _BOUNDARY_EVENTS_SCRATCH_CWD,
+        }
+    )
+    result = _run(stdin, env)
+    assert result.returncode == 0
+    assert b"100000 of 200000 tokens" in result.stderr
+
+
+def test_missing_transcript_path_key_fails_open_exit_zero(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    stdin = json.dumps({"tool_name": "Agent", "tool_input": {"subagent_type": "x"}})
+    result = _run(stdin, env)
+    assert result.returncode == 0
+    assert result.stderr == b""
+
+
+def test_transcript_present_but_no_usage_fails_open_exit_zero(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(_model_line("claude-haiku-4-5") + "\n")  # model, but no usage
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr == b""
+
+
+def test_warn_stderr_has_no_leaked_mutation_marker(tmp_path: Path) -> None:
+    """Guards the `message + "\\n"` write and any format-string mutant that
+    would inject an `XX` marker into the emitted stderr."""
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 100_000)
+    env = _base_env(tmp_path)
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+    result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+    assert result.returncode == 0
+    assert b"XX" not in result.stderr
+    assert result.stderr.endswith(b"\n")
