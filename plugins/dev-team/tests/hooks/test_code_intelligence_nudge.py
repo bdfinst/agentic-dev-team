@@ -1,12 +1,13 @@
-"""Unit tests for hooks/codegraph_nudge.py (#593).
+"""Unit tests for hooks/code_intelligence_nudge.py (#593, #1368).
 
 Mirror of tests/hooks/codegraph_nudge.bats (parallel and turn-mark hook
-tests). The mark hook stays out-of-scope for this slice — only
-codegraph-nudge is being ported here.
+tests). The mark hook stays out-of-scope for this slice — only the nudge
+hook is being ported/generalized here.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -16,8 +17,17 @@ import pytest
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "codegraph_nudge.py"
+_HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "code_intelligence_nudge.py"
 _CAREFUL_STATE = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "careful-state.json"
+
+# Load the hook module by explicit file path so unit tests can exercise its
+# internal helpers (e.g. _detect_present_tools) directly, without spawning a
+# subprocess per assertion — see test_cost_meter_lib.py (#1120) for the same
+# precedent/rationale.
+_spec = importlib.util.spec_from_file_location("code_intelligence_nudge_lib", _HOOK)
+assert _spec is not None and _spec.loader is not None
+code_intelligence_nudge = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(code_intelligence_nudge)
 
 EXPECTED_WARN_MSG = (
     "[codegraph-nudge] CodeGraph is initialized in this project. Prefer "
@@ -333,3 +343,52 @@ def test_pass_silently_on_unrelated_tool(tmp_path: Path) -> None:
     )
     assert r.returncode == 0
     assert r.stderr == ""
+
+
+# --- _detect_present_tools -------------------------------------------------
+
+
+def test_detects_each_tool_independently(tmp_path: Path) -> None:
+    codegraph_only = tmp_path / "codegraph_only"
+    codegraph_only.mkdir()
+    (codegraph_only / ".codegraph").mkdir()
+    assert code_intelligence_nudge._detect_present_tools(codegraph_only) == [
+        "codegraph"
+    ]
+
+    repowise_only = tmp_path / "repowise_only"
+    repowise_only.mkdir()
+    (repowise_only / ".repowise").mkdir()
+    assert code_intelligence_nudge._detect_present_tools(repowise_only) == [
+        "repowise"
+    ]
+
+    graphify_only = tmp_path / "graphify_only"
+    graphify_only.mkdir()
+    (graphify_only / "graphify-out").mkdir()
+    (graphify_only / "graphify-out" / "graph.json").write_text("{}")
+    assert code_intelligence_nudge._detect_present_tools(graphify_only) == [
+        "graphify"
+    ]
+
+
+def test_detects_none_present(tmp_path: Path) -> None:
+    assert code_intelligence_nudge._detect_present_tools(tmp_path) == []
+
+
+def test_graphify_path_wrong_type_fails_open(tmp_path: Path) -> None:
+    """graphify-out/graph.json as a directory (not a regular file) → not present."""
+    (tmp_path / "graphify-out" / "graph.json").mkdir(parents=True)
+    assert "graphify" not in code_intelligence_nudge._detect_present_tools(tmp_path)
+
+
+def test_repowise_path_wrong_type_fails_open(tmp_path: Path) -> None:
+    """.repowise as a regular file (not a directory) → not present."""
+    (tmp_path / ".repowise").write_text("not a directory")
+    assert "repowise" not in code_intelligence_nudge._detect_present_tools(tmp_path)
+
+
+def test_graphify_dir_without_graph_json_does_not_nudge(tmp_path: Path) -> None:
+    """graphify-out/ present but graph.json missing → graphify not detected."""
+    (tmp_path / "graphify-out").mkdir()
+    assert "graphify" not in code_intelligence_nudge._detect_present_tools(tmp_path)
