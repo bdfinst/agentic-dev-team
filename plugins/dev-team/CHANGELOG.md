@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.18.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.18.0...dev-team-v10.18.1) (2026-07-23)
+
+
+### Bug Fixes
+
+* **mutation-kill:** protect the test file mutmut may corrupt; detect the Python 3.13+ pickle crash ([83d484c](https://github.com/bdfinst/agentic-dev-team/commit/83d484c0a4a178738ef04399172a4ec4940e9ce9))
+* **mutation-kill:** restore os import dropped by main's ruff-wiring rebase ([bb30b21](https://github.com/bdfinst/agentic-dev-team/commit/bb30b2172cc20644bc8ced57169a5944caf2823f))
+* **mutation-kill:** stop test_mutation_gate.py from leaking ADAPTER_* env into later tests ([ccfeaba](https://github.com/bdfinst/agentic-dev-team/commit/ccfeaba9886c54bc67cf820a415a12e5c181d719))
+
 ## [10.18.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.17.0...dev-team-v10.18.0) (2026-07-23)
 
 
