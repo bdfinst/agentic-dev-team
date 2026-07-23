@@ -96,7 +96,8 @@ def mutmut_run(output_file: Path) -> int:
         timeout_seconds,
         argv,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
     )
     exit_code = completed.returncode
 
@@ -121,10 +122,21 @@ def mutmut_run(output_file: Path) -> int:
     # failed) is the only outcome that invalidates the run; survivors
     # (bit 2) are the expected, common case and must still be parsed.
     if exit_code & 1:
+        stderr = completed.stderr or ""
+        if "cannot pickle" in stderr and "itertools.count" in stderr:
+            hint = (
+                " Known cause: mutmut<3 crashes on Python 3.13+ "
+                "('TypeError: cannot pickle itertools.count object', a "
+                "parso/pony-ORM deepcopy incompatibility) — install mutmut "
+                "into a venv running Python <=3.12; the --runner test "
+                "command can stay on the project's real interpreter."
+            )
+        else:
+            hint = ""
         print(
             lib.emit_advisory(
                 f"MUTATION GATE ADVISORY: mutmut exited with code {exit_code}. "
-                "Skipping mutation gate."
+                f"Skipping mutation gate.{hint}"
             )
         )
         output_file.write_text("[]")

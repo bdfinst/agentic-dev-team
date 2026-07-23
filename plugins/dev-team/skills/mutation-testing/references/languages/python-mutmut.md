@@ -24,6 +24,8 @@ pip install -e .[dev]
 
 Never `pip install --user mutmut` or run `pip install` outside a venv for this — that puts mutmut in a location whose `PATH` presence depends on the user's shell config, which is the silent-failure trap the skill's "prefer local install" note is trying to avoid.
 
+**The mutmut venv's own Python must be <= 3.12 — distinct from the `--runner`'s interpreter.** `mutmut<3` (2.5.1) crashes under Python 3.13+ with `TypeError: cannot pickle 'itertools.count' object` (a parso/pony-ORM deepcopy incompatibility inside mutmut's own line-caching layer) and produces a junitxml report with **zero testcases at all** — indistinguishable from a fully-converged file by survivor count alone (#1359). This is a version constraint on the interpreter mutmut *itself* runs under, not on the project: build the mutmut venv with `python3.12 -m venv <path>` (or any <=3.12 interpreter) even when the project's real Python is newer, and point `--runner` at the project's normal interpreter (e.g. `--runner "python3 -m pytest ..."`, which can be 3.13+) — only the mutmut process itself needs the older Python. `mutation_kill_loop_python.py`'s `run_for_file` treats a report with zero total mutants (`killed + survived + timeout + no_coverage == 0`) as a crash signal, not convergence, and stops without declaring `survivors == 0` — but avoiding the crash in the first place is cheaper than recovering from it every round.
+
 Confirm the tool resolves in the active venv before configuring a run
 (`version` is a subcommand — there is no `--version` flag):
 
