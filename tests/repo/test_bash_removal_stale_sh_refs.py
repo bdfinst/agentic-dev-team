@@ -53,12 +53,12 @@ STALE_REFS = [
         "plugins/dev-team/hooks/pre_tool_guard.py",
     ),
     StaleRef(
-        "plugins/dev-team/docs/codegraph-nudge.md",
+        "plugins/dev-team/docs/code-intelligence-nudge.md",
         "destructive-guard.sh",
         "plugins/dev-team/hooks/destructive_guard.py",
     ),
     StaleRef(
-        "plugins/dev-team/docs/codegraph-nudge.md",
+        "plugins/dev-team/docs/code-intelligence-nudge.md",
         "codegraph-turn-mark.sh",
         "plugins/dev-team/hooks/code_intelligence_turn_mark.py",
     ),
