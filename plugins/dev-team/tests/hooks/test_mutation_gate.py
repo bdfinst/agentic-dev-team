@@ -207,3 +207,291 @@ def test_main_emits_no_adapter_advisory(monkeypatch, capsys):
         "no mutation testing adapter"
         in payload["hookSpecificOutput"]["additionalContext"]
     )
+
+
+# ---------------------------------------------------------------------------
+# Dependency guard + emit helpers
+# ---------------------------------------------------------------------------
+
+
+def test_jq_missing_emits_exact_advisory(monkeypatch, capsys):
+    monkeypatch.setattr(mutation_gate.shutil, "which", lambda name: None)
+    _feed(monkeypatch, '{"tool_input":{"command":"npm test"}}')
+    assert mutation_gate.main() == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert "jq is required but not installed" in ctx
+    assert "brew install jq" in ctx
+    assert "apt install jq" in ctx
+    assert "winget install jqlang.jq" in ctx
+    assert "/setup" in ctx
+
+
+def test_jq_guard_checks_for_jq(monkeypatch, capsys):
+    # Prove the guard probes specifically for "jq", not some other binary.
+    probed = []
+    monkeypatch.setattr(
+        mutation_gate.shutil, "which", lambda name: probed.append(name) or None
+    )
+    _feed(monkeypatch, '{"tool_input":{"command":"npm test"}}')
+    assert mutation_gate.main() == 0
+    assert "jq" in probed
+
+
+def test_emit_advisory_pretty_structure_and_indent(capsys):
+    mutation_gate._emit_advisory_pretty("hello world")
+    out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert payload["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
+    assert payload["hookSpecificOutput"]["additionalContext"] == "hello world"
+    # indent=2 produces a two-space-indented key.
+    assert '\n  "hookSpecificOutput"' in out
+
+
+def test_emit_block_pretty_structure_and_indent(capsys):
+    mutation_gate._emit_block_pretty("because reasons")
+    out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert payload["decision"] == "block"
+    assert payload["reason"] == "because reasons"
+    assert '\n  "decision"' in out
+
+
+def test_main_returns_zero_on_non_dict_payload(monkeypatch):
+    _feed(monkeypatch, "[1, 2, 3]")
+    assert mutation_gate.main() == 0
+
+
+def test_no_adapter_advisory_names_supported_tools(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    adapter_lib.write_state(
+        "fail",
+        json.dumps({"tool_response": {"exit_code": 1, "output": "1 failing"}}),
+    )
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "tool_input": {"command": "go test ./..."},
+                "tool_response": {"exit_code": 0, "output": "ok"},
+            }
+        ),
+    )
+    assert mutation_gate.main() == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert "Run /setup to install one" in ctx
+    assert "Stryker" in ctx
+    assert "pitest" in ctx
+    assert "Stryker.NET" in ctx
+
+
+# ---------------------------------------------------------------------------
+# Skip env short-circuits BEFORE any dispatch
+# ---------------------------------------------------------------------------
+
+
+def test_skip_env_suppresses_dispatch(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    adapter_lib.write_state(
+        "fail",
+        json.dumps({"tool_response": {"exit_code": 1, "output": "1 failing"}}),
+    )
+    # A dispatch would emit a block if reached; the skip must prevent it.
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_detect", lambda: True)
+    monkeypatch.setattr(
+        mutation_gate.stryker,
+        "stryker_run",
+        lambda path: (Path(path).write_text(json.dumps([{"name": "t"}])), 0)[1],
+    )
+    monkeypatch.setenv("MUTATION_GATE_SKIP", "1")
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "tool_input": {"command": "npm test"},
+                "tool_response": {"exit_code": 0, "output": "5 passing"},
+            }
+        ),
+    )
+    assert mutation_gate.main() == 0
+    assert "decision" not in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Block boundary-event arguments
+# ---------------------------------------------------------------------------
+
+
+def test_block_emits_boundary_event_with_expected_args(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    adapter_lib.write_state(
+        "fail",
+        json.dumps({"tool_response": {"exit_code": 1, "output": "1 failing"}}),
+    )
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_detect", lambda: True)
+
+    def fake_run(path):
+        Path(path).write_text(json.dumps([{"name": "flakyTest"}]))
+        return 0
+
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_run", fake_run)
+
+    events = []
+    monkeypatch.setattr(
+        mutation_gate, "emit_boundary_event", lambda *a, **k: events.append(a)
+    )
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "tool_input": {"command": "npm test"},
+                "tool_response": {"exit_code": 0, "output": "5 passing"},
+                "cwd": "/wd",
+                "session_id": "sess-9",
+            }
+        ),
+    )
+    assert mutation_gate.main() == 0
+    assert events == [
+        ("/wd", "mutation_gate", "Bash", "block", "mutation-gate-zero-kills", "sess-9")
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Stryker source-file derivation into ADAPTER_SOURCE_FILE
+# ---------------------------------------------------------------------------
+
+
+def test_stryker_dispatch_sets_source_file_env_from_last_arg(monkeypatch):
+    from mutation_adapters import lib as adapter_lib
+
+    adapter_lib.write_state(
+        "fail",
+        json.dumps({"tool_response": {"exit_code": 1, "output": "1 failing"}}),
+    )
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_detect", lambda: True)
+
+    captured = {}
+
+    def fake_run(path):
+        captured["source_file"] = os.environ.get("ADAPTER_SOURCE_FILE")
+        Path(path).write_text("[]")
+        return 0
+
+    monkeypatch.setattr(mutation_gate.stryker, "stryker_run", fake_run)
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "tool_input": {"command": "npm test src/calc.test.ts"},
+                "tool_response": {"exit_code": 0, "output": "ok"},
+            }
+        ),
+    )
+    assert mutation_gate.main() == 0
+    # last arg "src/calc.test.ts" -> derive_source_file -> "src/calc.ts".
+    assert captured["source_file"] == "src/calc.ts"
+
+
+# ---------------------------------------------------------------------------
+# Adapter dispatch branches (pitest / stryker-net / mutmut)
+# ---------------------------------------------------------------------------
+
+
+def _seed_red(adapter_lib):
+    adapter_lib.write_state(
+        "fail",
+        json.dumps({"tool_response": {"exit_code": 1, "output": "1 failing"}}),
+    )
+
+
+def _green(command):
+    return json.dumps(
+        {
+            "tool_input": {"command": command},
+            "tool_response": {"exit_code": 0, "output": "ok"},
+        }
+    )
+
+
+def test_pitest_dispatch_returns_zero_when_undetected(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    monkeypatch.setattr(mutation_gate.pitest, "pitest_detect", lambda: False)
+    ran = []
+    monkeypatch.setattr(
+        mutation_gate.pitest, "pitest_run", lambda path: ran.append(path)
+    )
+    _feed(monkeypatch, _green("mvn test"))
+    assert mutation_gate.main() == 0
+    assert ran == []  # undetected -> never runs
+    assert "decision" not in capsys.readouterr().out
+
+
+def test_pitest_dispatch_emits_block_on_zero_kills(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    monkeypatch.setattr(mutation_gate.pitest, "pitest_detect", lambda: True)
+    monkeypatch.setattr(
+        mutation_gate.pitest,
+        "pitest_run",
+        lambda path: Path(path).write_text(json.dumps([{"name": "weakTest"}])),
+    )
+    _feed(monkeypatch, _green("mvn test"))
+    assert mutation_gate.main() == 0
+    assert json.loads(capsys.readouterr().out)["decision"] == "block"
+
+
+def test_stryker_net_dispatch_emits_block_on_zero_kills(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    monkeypatch.setattr(
+        mutation_gate.stryker_net, "stryker_net_detect", lambda: True
+    )
+    monkeypatch.setattr(
+        mutation_gate.stryker_net,
+        "stryker_net_run",
+        lambda path: Path(path).write_text(json.dumps([{"name": "weakTest"}])),
+    )
+    _feed(monkeypatch, _green("dotnet test"))
+    assert mutation_gate.main() == 0
+    assert json.loads(capsys.readouterr().out)["decision"] == "block"
+
+
+def test_mutmut_dispatch_emits_block_on_zero_kills(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    monkeypatch.setattr(mutation_gate.mutmut, "mutmut_detect", lambda: True)
+    monkeypatch.setattr(
+        mutation_gate.mutmut,
+        "mutmut_run",
+        lambda path: Path(path).write_text(json.dumps([{"name": "weakTest"}])),
+    )
+    _feed(monkeypatch, _green("pytest"))
+    assert mutation_gate.main() == 0
+    assert json.loads(capsys.readouterr().out)["decision"] == "block"
+
+
+def test_mutmut_dispatch_returns_zero_when_undetected(monkeypatch, capsys):
+    from mutation_adapters import lib as adapter_lib
+
+    _seed_red(adapter_lib)
+    monkeypatch.setattr(mutation_gate.mutmut, "mutmut_detect", lambda: False)
+    ran = []
+    monkeypatch.setattr(
+        mutation_gate.mutmut, "mutmut_run", lambda path: ran.append(path)
+    )
+    _feed(monkeypatch, _green("pytest"))
+    assert mutation_gate.main() == 0
+    assert ran == []
+    assert "decision" not in capsys.readouterr().out
