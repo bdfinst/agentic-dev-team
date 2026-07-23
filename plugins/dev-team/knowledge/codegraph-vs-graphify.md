@@ -25,14 +25,19 @@ files.
 A codebase-documentation / wiki engine (`repowise` on PyPI) that indexes a
 repository into a queryable knowledge base and exposes it as an **MCP
 server**. Its tools answer *contextual* questions about the code rather than
-raw structural ones: `get_context` / `get_symbol` return documented context
+raw structural ones: `get_overview` returns an architecture-level summary of
+the whole workspace; `get_context` / `get_symbol` return documented context
 and verified skeletons for a file, module, or symbol; `search_codebase` is
-semantic (natural-language) search; `get_risk` estimates the modification
-risk of a change; `get_why` surfaces the recorded architectural-decision
-rationale behind a piece of code. It can index without any LLM API key
-(a keyless index), writing its store under `.repowise/`. Because it layers
-documentation, risk, and rationale on top of structure, it complements
-CodeGraph's pure call-graph view.
+semantic (natural-language) search; `get_answer` answers a free-form question
+against the indexed wiki; `get_risk` estimates the modification risk of a
+change; `get_why` surfaces the recorded architectural-decision rationale
+behind a piece of code; `get_health` reports code-health signals (churn,
+complexity, coverage-adjacent risk) and `get_dead_code` flags unreferenced
+code — both workspace-scoped rather than file-scoped, so they run over the
+whole indexed repo instead of a single symbol. It can index without any LLM
+API key (a keyless index), writing its store under `.repowise/`. Because it
+layers documentation, risk, rationale, and workspace-wide health signals on
+top of structure, it complements CodeGraph's pure call-graph view.
 
 ### Graphify
 
@@ -61,10 +66,13 @@ function."
 - **Strictly personal, user-level tooling — never committed.** Once
   initialized, the skill prints the manual command
   (`claude mcp add codegraph -- codegraph serve --mcp`) for the user to
-  register the `codegraph` MCP server at **user scope**, exposing
-  `mcp__codegraph__*` tools (e.g. `codegraph_context`, `codegraph_explore`)
-  to Claude Code sessions on that machine. Nothing is written to a
-  project-tracked `.mcp.json`, and `.codegraph/` is never committed — only
+  register the `codegraph` MCP server at **user scope**, exposing a single
+  tool, `codegraph_explore` (`mcp__codegraph__explore`), to Claude Code
+  sessions on that machine. One call returns the verbatim source of the
+  relevant symbols grouped by file, the call path among them, and a
+  blast-radius summary of what depends on them — Read-equivalent output, but
+  with structure attached. Nothing is written to a project-tracked
+  `.mcp.json`, and `.codegraph/` is never committed — only
   `.codegraph/codegraph.db` stays gitignored and machine-local, per project.
 - `hooks/codegraph_nudge.py` (PreToolUse on `Read`/`Grep`/`Glob`) recommends
   the `codegraph_*` MCP tools over multi-file Read/Grep/Glob exploration
@@ -84,7 +92,7 @@ function."
   LLM API key and stores its index under `.repowise/`, which is gitignored so
   the index never clutters the repo.
 - Registered as an MCP server, it exposes
-  `mcp__plugin_repowise_repowise__{get_context,get_symbol,search_codebase,get_risk,get_why}`
+  `mcp__plugin_repowise_repowise__{get_overview,get_context,get_symbol,search_codebase,get_answer,get_risk,get_why,get_health,get_dead_code}`
   (and more) to Claude Code sessions.
 - **Server-name coupling caveat.** The tool names agents grant use the literal
   server prefix `mcp__plugin_repowise_repowise__*`. If a given install exposes
@@ -127,12 +135,28 @@ function."
   index of code symbols.
 - **Repowise** for *contextual* code questions — documented context and
   verified skeletons (`get_context`/`get_symbol`), semantic search
-  (`search_codebase`), modification risk (`get_risk`), and decision rationale
-  (`get_why`). Reach for it when the question is "what does this do / why does
-  it exist / how risky is changing it," not "who calls it."
+  (`search_codebase`), modification risk (`get_risk`), decision rationale
+  (`get_why`), and workspace-wide code health/dead-code signals
+  (`get_health`/`get_dead_code`). Reach for it when the question is "what
+  does this do / why does it exist / how risky is changing it / how healthy
+  is this area," not "who calls it."
 - **Graphify** for architecture and onboarding questions that span code
   *and* docs, schemas, and infrastructure — anything broader than "who
   calls this function."
+
+### Routing precedence
+
+This is guidance for the *model* choosing which tool to reach for — it is
+not hook-enforced logic; nothing in `code_intelligence_nudge.py` inspects
+the question text, since only the model sees the natural-language task
+behind a Read/Grep/Glob call. When more than one tool is indexed, prefer in
+this order:
+
+1. **Non-code content** (docs, schemas, infra, cross-artifact questions) →
+   **Graphify**.
+2. **Risk, rationale, code health, or dead code** → **Repowise**.
+3. **Pure structure or call-graph** (who calls this, what does this affect)
+   → **CodeGraph**.
 
 The three overlap only lightly: CodeGraph is the fastest for pure call
 graphs, Repowise adds documentation/risk/rationale over structure, and
