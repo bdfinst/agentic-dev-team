@@ -72,6 +72,7 @@ def run_scoped_mutmut(
     source_file: str,
     *,
     test_command: str,
+    test_file: Optional[Path] = None,
     cwd: Optional[Path] = None,
 ) -> str:
     """Run mutmut scoped to one file; return the ``mutmut junitxml`` output.
@@ -82,18 +83,28 @@ def run_scoped_mutmut(
     manually while dogfooding this loop by hand (#1354): every run must see
     its own fresh baseline, not a leftover one.
 
-    **Always reverts ``source_file`` in a ``finally``.** mutmut mutates the
-    real source file on disk for the duration of each mutant's test run and
-    restores it when that mutant finishes — but an internal mutmut crash
-    (a real, reproducible one: mutmut 2.5.1's own cache layer raises
-    ``AssertionError``/``ValueError`` on some files, confirmed while
-    dogfooding this exact function against
+    **Always reverts ``source_file`` (and ``test_file``, when given) in a
+    ``finally``.** mutmut mutates the real source file on disk for the
+    duration of each mutant's test run and restores it when that mutant
+    finishes — but an internal mutmut crash (a real, reproducible one: mutmut
+    2.5.1's own cache layer raises ``AssertionError``/``ValueError`` on some
+    files, confirmed while dogfooding this exact function against
     ``hooks/mutation_adapters/mutmut.py`` — see #1357) skips that restore
     and leaves the mutated content on disk. Unlike Stryker.NET (which
     instruments a separate build, never the real file), mutmut's crash
     failure mode is "corrupt the file under test," so every scoped run must
     unconditionally `git checkout --` it afterward — succeeding, failing, or
     raising.
+
+    The **test file** the ``--runner`` command exercises is exposed to the
+    same failure mode — mutmut 2.5.1 has also been observed to truncate the
+    runner's test file to empty via a crashed ``.bak``-restore (#1359),
+    which silently breaks the *next* round's baseline (mutmut then reports
+    zero mutants — a false "converged" positive, not real coverage). Passing
+    ``test_file`` reverts it alongside ``source_file`` in the same
+    ``finally``; each round's ``git checkout --`` restores exactly the
+    state committed at the end of the previous round, which is always the
+    correct baseline for the round about to run.
     """
     root = cwd or Path(".")
     (root / ".mutmut-cache").unlink(missing_ok=True)
@@ -120,6 +131,8 @@ def run_scoped_mutmut(
         return junit.stdout or ""
     finally:
         git_revert(Path(source_file), cwd=cwd)
+        if test_file is not None:
+            git_revert(test_file, cwd=cwd)
 
 
 def extract_survivors(junitxml_text: str, source_file: str) -> List[dict]:
@@ -294,7 +307,7 @@ def run_for_file(
             junitxml_text = initial_junitxml
         else:
             junitxml_text = run_scoped_mutmut(
-                source_file, test_command=test_command, cwd=cwd
+                source_file, test_command=test_command, test_file=test_file, cwd=cwd
             )
 
         survivors = extract_survivors(junitxml_text, source_file)
@@ -305,6 +318,19 @@ def run_for_file(
             f"survivors={survivor_count}"
         )
 
+        total_mutants = (
+            summary.killed + summary.survived + summary.timeout + summary.no_coverage
+        )
+        if total_mutants == 0:
+            log(
+                "  zero mutants generated — this is NOT convergence. mutmut "
+                "produced no results at all (a real internal crash — e.g. "
+                "the known Python 3.13+ pickle incompatibility, 'TypeError: "
+                "cannot pickle itertools.count object' — or a file with no "
+                "executable statements). Stopping without declaring "
+                "survivors == 0 (#1359)."
+            )
+            return
         if survivor_count == 0:
             log("  no survivors — done")
             return
