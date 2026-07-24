@@ -59,7 +59,7 @@ A real system is usually several of these. Each surface is assessed separately.
 
 Find every test suite in the repo. For each, record: MinimumCD type, what it actually exercises, whether it is deterministic, and what it requires to run (DB URL, broker, downstream service, secrets, sleep, real clock).
 
-If in-repo tests are sparse, the application is not necessarily untested — see Step 2b before concluding.
+If in-repo tests are sparse, the application is not necessarily untested — see Step 2b (locate and harvest out-of-repo tests) before concluding.
 
 ### Step 2b: Locate and harvest out-of-repo tests
 
@@ -129,7 +129,7 @@ To include it in the assessment, point the skill at it:
 /cd-test-architecture <path> --external-tests "manual regression scripts in Confluence, linked here: ..."
 ```
 
-The skill harvests those sources as a behavior inventory (Step 2b) and builds the migration path around re-expressing each behavior as a deterministic, in-repo, gated test:
+The skill harvests those sources as a behavior inventory (Step 2b — locate and harvest out-of-repo tests) and builds the migration path around re-expressing each behavior as a deterministic, in-repo, gated test:
 
 | External source | Re-expressed as |
 |---|---|
@@ -273,5 +273,5 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 | [`skills/mutation-testing/SKILL.md`](../skills/mutation-testing/SKILL.md) | Assertion-strength check (do tests catch real bugs?); folded into `test-health` |
 | [`skills/test-design/SKILL.md`](../skills/test-design/SKILL.md) | The `/test-design` orchestrator skill — dispatches review agents, scores with Farley, optionally invokes the advisor |
 | [`skills/test-design-advisor/SKILL.md`](../skills/test-design-advisor/SKILL.md) | The unit/module design advisor skill |
-| [`skills/farley-score/SKILL.md`](../skills/farley-score/SKILL.md) | Farley Score — Dave Farley's 8 properties scored 1–10, called by `/test-design` Step 3 |
+| [`skills/farley-score/SKILL.md`](../skills/farley-score/SKILL.md) | Farley Score — Dave Farley's 8 properties scored 1–10, called by `/test-design` Step 3 (Score the in-scope tests via Farley Score) |
 | [`skills/test-health/SKILL.md`](../skills/test-health/SKILL.md) | Strategic suite-wide rollup; delegates to `cd-test-architecture`, `/test-design`, `mutation-testing` |

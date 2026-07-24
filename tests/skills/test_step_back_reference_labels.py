@@ -73,3 +73,46 @@ def test_cd_test_architecture_step_1_and_2b_headings_are_unchanged():
     text = _cd_test_architecture_text()
     assert "### 1. Inventory the application's components" in text
     assert "### 2b. Locate and harvest out-of-repo tests" in text
+
+
+# --- docs/test-evaluation.md -------------------------------------------------
+
+
+def test_test_evaluation_names_step_2b_at_the_sparse_tests_check():
+    text = _test_evaluation_text()
+    assert (
+        "see Step 2b (locate and harvest out-of-repo tests) before concluding."
+        in text
+    )
+
+
+def test_test_evaluation_names_step_2b_at_the_behavior_inventory_intro():
+    text = _test_evaluation_text()
+    assert (
+        "as a behavior inventory (Step 2b — locate and harvest out-of-repo tests) "
+        "and builds the migration path" in text
+    )
+
+
+def test_test_evaluation_names_the_cross_skill_step_3_in_the_farley_score_row():
+    text = _test_evaluation_text()
+    assert (
+        "called by `/test-design` Step 3 (Score the in-scope tests via Farley Score)"
+        in text
+    )
+
+
+def test_test_evaluation_has_no_bare_step_2b_back_reference_left():
+    text = _test_evaluation_text()
+    assert "(Step 2b)" not in text
+    assert "Step 2b before concluding" not in text
+
+
+def test_test_evaluation_has_no_bare_cross_skill_step_3_reference_left():
+    text = _test_evaluation_text()
+    assert "`/test-design` Step 3 |" not in text
+
+
+def test_test_evaluation_step_2b_heading_is_unchanged():
+    text = _test_evaluation_text()
+    assert "### Step 2b: Locate and harvest out-of-repo tests" in text
