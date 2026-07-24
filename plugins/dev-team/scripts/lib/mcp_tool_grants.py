@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Shared plumbing for the code-intelligence MCP tool-grant checks.
 
-Two sibling check scripts consume this module as peers — neither is the other's
+Three sibling check scripts consume this module as peers — none is any other's
 library:
 
 - ``check_review_agent_mcp_tools.py`` — the 24 read-only ``*-review`` agents, all
   granted the same ``BASE_MCP_TOOLS`` set (#1102).
 - ``check_agent_tool_mapping.py`` — the non-review team agents, granted per-tier
   sets built from ``BASE_MCP_TOOLS`` (± ``GET_WHY``) (#1108).
+- ``check_security_assessment_mcp_tools.py`` — the security-assessment plugin's
+  code-reading agents, granted the same ``BASE_MCP_TOOLS`` set as the review-agent
+  check above, but discovered via a named roster rather than a filename glob
+  (#1388).
 
 This module owns the canonical tool-name constants and the frontmatter
-``tools:``-line parse/fix plumbing both checks need. The fix helpers take a
+``tools:``-line parse/fix plumbing all three checks need. The fix helpers take a
 caller-supplied ``required`` list so each check can request its own set (the
 5-name review/narrow set, or the 6-name rationale set) without duplicating the
 merge logic.

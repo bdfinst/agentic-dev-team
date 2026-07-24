@@ -103,7 +103,7 @@ Analyze the diff against the base branch (`git diff <base>...HEAD`) and commit h
   loop, from the run's artifacts: the plan's `## Approval` auto-approval record and
   any auto-passed gate lines from the build output; the plan's stated stances on
   `knowledge/decision-defaults.md` axes; the spec's `## Ambiguity Log` entries
-  classified `inferable`; `assumptions` entries from implementer step outputs;
+  classified `inferable`; `assumptions` entries from software-engineer step outputs;
   auto-applied review fixes with `confidence: medium`; and deferred follow-ups.
   Omit the section only when every gate had an interactive human approval.
 - **Evidence bundle**: Assemble per `${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md`

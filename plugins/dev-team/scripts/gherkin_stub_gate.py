@@ -13,19 +13,28 @@ files for the per-language pending marker and fails, listing every remaining
 file:line, when any stub was never filled in.
 
 Per-language pending markers (`gherkin-derive/SKILL.md` Step 4's table,
-reused here — not re-derived):
+reused here — not re-derived). C# carries two markers: `PendingStepException`
+is Reqnroll's current auto-suggested stub, and `StepIsPending()` is its
+deprecated-since-3.3.4 predecessor — still recognized so an older or
+not-yet-regenerated stub isn't a false negative
+(`knowledge/test-stack-profiles/bdd-frameworks.md`):
 
-| Language | Framework                          | Pending marker              |
-|----------|-------------------------------------|------------------------------|
-| JS/TS    | Cucumber.js                         | `this.pending()`             |
-| Java     | Cucumber-JVM                        | `PendingException`           |
-| C#       | Reqnroll (xUnit/NUnit/MSTest)       | `StepIsPending()`             |
-| Go       | Godog                                | `godog.ErrPending`           |
+| Language | Framework                          | Pending marker(s)                          |
+|----------|-------------------------------------|----------------------------------------------|
+| JS/TS    | Cucumber.js                         | `this.pending()`                             |
+| Java     | Cucumber-JVM                        | `PendingException`                           |
+| C#       | Reqnroll (xUnit/NUnit/MSTest)       | `PendingStepException`, `StepIsPending()`    |
+| Go       | Godog                                | `godog.ErrPending`                           |
 
 The language for a given step-definition file is resolved from its
-extension — `.js`/`.ts`/`.mjs`/`.cjs` → JS/TS, `.java` → Java, `.cs` → C#,
-`.go` → Go. Files with an unrecognized extension are skipped (not every file
-under a step-definitions directory is necessarily a step-definition file).
+extension, matched **case-insensitively** — `.js`/`.ts`/`.mjs`/`.cjs` →
+JS/TS, `.java` → Java, `.cs` → C#, `.go` → Go. Files with an unrecognized
+extension are skipped (not every file under a step-definitions directory is
+necessarily a step-definition file). Vendored/generated trees
+(`.git`, `node_modules`, `vendor`, `dist`, `build`, and virtualenv
+directories) are pruned during the scan — the same exclusion set
+`detect_bdd_convention.py` uses — so a stray dependency tree under a scanned
+directory is never walked or grepped.
 
 Stdlib-only. Python 3.8+ (ADR 0014/0015).
 
@@ -41,27 +50,54 @@ import json
 import sys
 from pathlib import Path
 
-# Extension -> (language label, pending marker substring).
+# Extension (lowercase) -> (language label, pending marker substrings).
 _MARKERS_BY_EXT = {
-    ".js": ("JS/TS", "this.pending()"),
-    ".ts": ("JS/TS", "this.pending()"),
-    ".mjs": ("JS/TS", "this.pending()"),
-    ".cjs": ("JS/TS", "this.pending()"),
-    ".java": ("Java", "PendingException"),
-    ".cs": ("C#", "StepIsPending()"),
-    ".go": ("Go", "godog.ErrPending"),
+    ".js": ("JS/TS", ("this.pending()",)),
+    ".ts": ("JS/TS", ("this.pending()",)),
+    ".mjs": ("JS/TS", ("this.pending()",)),
+    ".cjs": ("JS/TS", ("this.pending()",)),
+    ".java": ("Java", ("PendingException",)),
+    ".cs": ("C#", ("PendingStepException", "StepIsPending()")),
+    ".go": ("Go", ("godog.ErrPending",)),
 }
+
+# Vendored/generated directory names to never walk into or treat as signal —
+# the same exclusion set scripts/detect_bdd_convention.py uses.
+VENDORED_DIR_NAMES = frozenset({".git", "node_modules", "vendor", "dist", "build"})
+_VIRTUALENV_MARKER = "pyvenv.cfg"
+
+
+def _is_vendored_dir(directory: Path) -> bool:
+    """True for vendored/generated trees the scan must never walk into."""
+    if directory.name in VENDORED_DIR_NAMES:
+        return True
+    return (directory / _VIRTUALENV_MARKER).is_file()
+
+
+def _iter_files(root: Path):
+    """Yield files under `root`, pruning vendored trees and symlinks."""
+    pending_dirs = [root]
+    while pending_dirs:
+        directory = pending_dirs.pop()
+        for entry in sorted(directory.iterdir()):
+            if entry.is_symlink():
+                continue
+            if entry.is_dir() and not _is_vendored_dir(entry):
+                pending_dirs.append(entry)
+            elif entry.is_file():
+                yield entry
 
 
 def find_step_definition_files(directories: list[Path]) -> list[Path]:
     """Return every file under `directories` whose extension is a known
-    step-definition language, sorted for deterministic output."""
+    step-definition language (matched case-insensitively), pruning vendored
+    trees, sorted for deterministic output."""
     found: list[Path] = []
     for directory in directories:
         if not directory.is_dir():
             continue
-        for path in directory.rglob("*"):
-            if path.is_file() and path.suffix in _MARKERS_BY_EXT:
+        for path in _iter_files(directory):
+            if path.suffix.lower() in _MARKERS_BY_EXT:
                 found.append(path)
     return sorted(set(found))
 
@@ -70,19 +106,21 @@ def find_pending_stubs(files: list[Path]) -> list[dict]:
     """Return one entry per pending-marker occurrence: {file, line, language, text}."""
     pending: list[dict] = []
     for path in files:
-        language, marker = _MARKERS_BY_EXT[path.suffix]
+        language, markers = _MARKERS_BY_EXT[path.suffix.lower()]
         text = path.read_text(encoding="utf-8", errors="replace")
         for line_no, line in enumerate(text.splitlines(), start=1):
-            if marker in line:
-                pending.append(
-                    {
-                        "file": str(path),
-                        "line": line_no,
-                        "language": language,
-                        "marker": marker,
-                        "text": line.strip(),
-                    }
-                )
+            for marker in markers:
+                if marker in line:
+                    pending.append(
+                        {
+                            "file": str(path),
+                            "line": line_no,
+                            "language": language,
+                            "marker": marker,
+                            "text": line.strip(),
+                        }
+                    )
+                    break  # one marker match per line is enough to flag it
     return pending
 
 
