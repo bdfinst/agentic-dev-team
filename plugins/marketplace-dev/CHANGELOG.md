@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.1](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.2.0...marketplace-dev-v1.2.1) (2026-07-24)
+
+
+### Bug Fixes
+
+* resolve 492 pre-existing ruff findings across the repo's Python code ([f71cf7d](https://github.com/bdfinst/agentic-dev-team/commit/f71cf7d7d4cec655925db469c68862abc3d8b9b3))
+
+
+### Miscellaneous
+
+* lint fix ([7712986](https://github.com/bdfinst/agentic-dev-team/commit/77129868cc31ed28177ca6a1beacaee7474274db))
+
 ## [1.2.0](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.1.1...marketplace-dev-v1.2.0) (2026-07-22)
 
 

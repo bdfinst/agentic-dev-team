@@ -1,5 +1,34 @@
 # Changelog
 
+## [10.19.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.18.2...dev-team-v10.19.0) (2026-07-24)
+
+
+### Features
+
+* add bdd-runner completion gate and security-assessment MCP tool checks ([155bb0e](https://github.com/bdfinst/agentic-dev-team/commit/155bb0edef8a8ed59c39416ae50474d4eefc1cf8))
+
+
+### Bug Fixes
+
+* address code-review findings for gherkin gate and dropped implementer behavior ([a9e6cb5](https://github.com/bdfinst/agentic-dev-team/commit/a9e6cb5f47c20d3f96e5cd7bf7de1dae3927703d))
+* extract shared single-pass runner for MCP tool-grant check scripts ([966f79a](https://github.com/bdfinst/agentic-dev-team/commit/966f79ae34b33bace14b9be866c3cd4d60c89a1e)), closes [#1392](https://github.com/bdfinst/agentic-dev-team/issues/1392) [#1393](https://github.com/bdfinst/agentic-dev-team/issues/1393)
+* reconcile security-assessment MCP tool roster with the roster main already applied ([75c3a13](https://github.com/bdfinst/agentic-dev-team/commit/75c3a13a333cdf1299b93aeb8d14f691484fbd3d))
+* resolve 492 pre-existing ruff findings across the repo's Python code ([f71cf7d](https://github.com/bdfinst/agentic-dev-team/commit/f71cf7d7d4cec655925db469c68862abc3d8b9b3))
+* **session-review:** correct two wrong step-number back-references (2b→3b, 0→1) and name Step 3 ([0f5ac36](https://github.com/bdfinst/agentic-dev-team/commit/0f5ac360b6bfe8407ff1112d99f5755b98fafbe0))
+* **setup:** gitignore .review-passed and .mcp.json by default ([e7a018f](https://github.com/bdfinst/agentic-dev-team/commit/e7a018f1818e0a3d971dcffed670fad2f8fdf205))
+
+
+### Documentation
+
+* **cd-test-architecture:** name Step 2b/Step 1 in back-references ([27c9159](https://github.com/bdfinst/agentic-dev-team/commit/27c9159db43f953c8bce29fcff69ab5e823f6e1b))
+* **docker-image-audit:** name Step 2b in the hadolint-limitations back-reference ([f8c54b0](https://github.com/bdfinst/agentic-dev-team/commit/f8c54b0e123788550dfd7efa40b3dc9b6e76c059))
+* **test-evaluation:** name Step 2b and the cross-skill Step 3 in back-references ([f151980](https://github.com/bdfinst/agentic-dev-team/commit/f151980d2624110dc88adc2c186ddafc67de6341))
+
+
+### Miscellaneous
+
+* lint fix ([7712986](https://github.com/bdfinst/agentic-dev-team/commit/77129868cc31ed28177ca6a1beacaee7474274db))
+
 ## [10.18.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.18.1...dev-team-v10.18.2) (2026-07-23)
 
 

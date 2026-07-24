@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.7.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.6.0...security-assessment-v3.7.0) (2026-07-24)
+
+
+### Features
+
+* add bdd-runner completion gate and security-assessment MCP tool checks ([155bb0e](https://github.com/bdfinst/agentic-dev-team/commit/155bb0edef8a8ed59c39416ae50474d4eefc1cf8))
+* **security-assessment:** add graph-assisted-discovery guidance to skills ([d28d72c](https://github.com/bdfinst/agentic-dev-team/commit/d28d72c0a4890caf6412219b955871c252e380cd))
+* **security-assessment:** grant CodeGraph/Repowise MCP tools to code-reading agents ([023cc6a](https://github.com/bdfinst/agentic-dev-team/commit/023cc6a15bf635bcad56d648bfcfb44f42ef578b))
+
+
+### Bug Fixes
+
+* reconcile security-assessment MCP tool roster with the roster main already applied ([75c3a13](https://github.com/bdfinst/agentic-dev-team/commit/75c3a13a333cdf1299b93aeb8d14f691484fbd3d))
+* resolve 492 pre-existing ruff findings across the repo's Python code ([f71cf7d](https://github.com/bdfinst/agentic-dev-team/commit/f71cf7d7d4cec655925db469c68862abc3d8b9b3))
+* **security-assessment:** resolve code-review findings on skill/CLAUDE.md prose ([1b58c06](https://github.com/bdfinst/agentic-dev-team/commit/1b58c06716ceb85c76f31db669948d0b95eec8a6))
+
+
+### Documentation
+
+* **security-assessment:** fix Hooks/Knowledge count drift in CLAUDE.md ([b60e82a](https://github.com/bdfinst/agentic-dev-team/commit/b60e82a04c5308a16ee45d7befa7d955efa3799a))
+
+
+### Miscellaneous
+
+* lint fix ([7712986](https://github.com/bdfinst/agentic-dev-team/commit/77129868cc31ed28177ca6a1beacaee7474274db))
+
 ## [3.6.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.5.0...security-assessment-v3.6.0) (2026-07-23)
 
 
