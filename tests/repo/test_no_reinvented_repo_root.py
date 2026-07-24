@@ -26,9 +26,10 @@ import re
 
 from _repo_root import REPO_ROOT
 
-# The one sanctioned definition site. Every other file must import from it.
-_ALLOWED_DEFINITION_SITE = REPO_ROOT / "_repo_root.py"
-
+# _repo_root.py itself (the one sanctioned definition site) needs no explicit
+# exemption below: it resolves REPO_ROOT via .resolve().parent (no
+# .parents[N]), so it can never match _PATTERN, and it also lives outside
+# _TEST_DIRS, so _test_files() never yields it anyway.
 _PATTERN = re.compile(
     r"^[ \t]*_?REPO_ROOT\s*=\s*Path\(__file__\)\.resolve\(\)\.parents\[\d+\]\s*$",
     re.MULTILINE,
@@ -49,8 +50,6 @@ def _test_files():
 def test_no_file_reinvents_repo_root_resolution():
     offenders = []
     for path in _test_files():
-        if path == _ALLOWED_DEFINITION_SITE:
-            continue
         text = path.read_text(encoding="utf-8")
         if _PATTERN.search(text):
             offenders.append(str(path.relative_to(REPO_ROOT)))
