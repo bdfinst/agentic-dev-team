@@ -30,7 +30,7 @@ You have been invoked with the `/session-review` command.
 1. **Never read raw transcripts yourself.** All heavy parsing is the
    deterministic extractor's job; you read only its KB-sized digest. Spending
    model tokens to study token spend defeats the purpose. The one exception is
-   the gated raw-log tier (Step 2b): even there *you* never read a raw log — you
+   the gated raw-log tier (Step 3b — the raw-log semantic tier): even there *you* never read a raw log — you
    dispatch one isolated sub-agent per flagged log and keep only its metrics-only
    findings.
 2. **Suggest, never apply.** Output a ranked report and hand off; do not edit
@@ -141,7 +141,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
 (Pass `--transcript <file>` or `--cwd <path>` through from `$ARGUMENTS`.) If the
 extractor finds no transcripts, tell the user and stop — nothing to review.
 
-**If a telemetry repo synced in Step 0**, also build the cross-machine rollup
+**If a telemetry repo synced in Step 1 (cross-machine telemetry sync)**, also build the cross-machine rollup
 (the union of every host's digest, #178) and prefer it for analysis — it sees
 all machines and projects, not just this one:
 
@@ -170,7 +170,7 @@ Each recommendation carries a `lever`: **hint** (rare — surface only),
 **instruction-rule** (recurring; hand to `/feedback-learning`), or **hook**
 (frequent *and* deterministically matchable; validate via `/agent-eval` before
 shipping). "Matchable" is the deterministic side of the rules-vs-prompts ≤10% FP
-policy. Use the escalation `lever` to set the hand-off in Step 3.
+policy. Use the escalation `lever` to set the hand-off in Step 3 (Analyze, digest-only).
 
 Optionally compute the **gate correlation** (process eval, #111) — does bypassing
 the pre-commit review gate correlate with more rework across sessions?
@@ -199,7 +199,7 @@ The digest is quantitative, so it is **blind to frictions with no count-signatur
 operator habit (deferring decisions with no owner). Surface those with a **bounded**
 second tier: the deterministic digest decides *where* it is worth spending tokens,
 then you read only those few raw logs. This tier needs the cross-machine digests
-(the `$CLONE/digests` from Step 0); if no telemetry repo synced, **skip it**.
+(the `$CLONE/digests` from Step 1 (cross-machine telemetry sync)); if no telemetry repo synced, **skip it**.
 
 1. Flag the worst sessions (deterministic, zero model tokens):
 
@@ -238,7 +238,7 @@ lens `{methodology|harness|devex}`), the evidence (metrics only), the concrete
 target artifact, the proposed change, and the hand-off destination from the table
 below. Nothing is auto-applied.
 
-The **`methodology`** lens (from Step 2b only) observes the *operator's own habits*
+The **`methodology`** lens (from Step 3b — the raw-log semantic tier — only) observes the *operator's own habits*
 (e.g. deferring decisions with no owner). These have **no target artifact and no
 hook** — their hand-off is "to the human, as an observation." Put them under their
 own report heading; never route them to a gate.

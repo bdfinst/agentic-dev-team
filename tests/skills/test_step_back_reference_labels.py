@@ -116,3 +116,68 @@ def test_test_evaluation_has_no_bare_cross_skill_step_3_reference_left():
 def test_test_evaluation_step_2b_heading_is_unchanged():
     text = _test_evaluation_text()
     assert "### Step 2b: Locate and harvest out-of-repo tests" in text
+
+
+# --- session-review/SKILL.md --------------------------------------------------
+
+
+def test_session_review_corrects_raw_log_tier_step_number_at_orchestrator_constraints():
+    text = _session_review_text()
+    assert (
+        "the gated raw-log tier (Step 3b — the raw-log semantic tier): even there"
+        in text
+    )
+
+
+def test_session_review_corrects_telemetry_sync_step_number_at_extract():
+    text = _session_review_text()
+    assert (
+        "**If a telemetry repo synced in Step 1 (cross-machine telemetry sync)**, "
+        "also build the cross-machine rollup" in text
+    )
+
+
+def test_session_review_names_step_3_at_the_escalation_lever_handoff():
+    text = _session_review_text()
+    assert "set the hand-off in Step 3 (Analyze, digest-only)." in text
+
+
+def test_session_review_corrects_telemetry_sync_step_number_at_raw_log_tier():
+    text = _session_review_text()
+    assert (
+        "the `$CLONE/digests` from Step 1 (cross-machine telemetry sync)); "
+        "if no telemetry repo synced" in text
+    )
+
+
+def test_session_review_corrects_raw_log_tier_step_number_at_methodology_lens():
+    text = _session_review_text()
+    assert (
+        "from Step 3b — the raw-log semantic tier — only) observes the "
+        "*operator's own habits*" in text
+    )
+
+
+def test_session_review_has_no_wrong_step_2b_for_raw_log_tier_left():
+    text = _session_review_text()
+    assert "(Step 2b)" not in text
+    assert "from Step 2b only" not in text
+
+
+def test_session_review_has_no_wrong_step_0_for_telemetry_sync_left():
+    text = _session_review_text()
+    assert "synced in Step 0" not in text
+    assert "digests` from Step 0" not in text
+
+
+def test_session_review_has_no_bare_step_3_at_escalation_lever_left():
+    text = _session_review_text()
+    assert "hand-off in Step 3." not in text
+
+
+def test_session_review_step_headings_are_unchanged():
+    text = _session_review_text()
+    assert "### 0. Queued Findings — surface pending-review queue before fresh analysis" in text
+    assert "### 1. Cross-machine Telemetry — validate config, then sync (#178)" in text
+    assert "### 3. Analyze (digest-only)" in text
+    assert "### 3b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)" in text
