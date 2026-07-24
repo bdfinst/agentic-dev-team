@@ -39,7 +39,7 @@ Opt-out: add this snippet to your `settings.local.json`:
 
 ## SARIF-first tool orchestration
 
-Findings flow through the shared SARIF parser in `plugins/dev-team/skills/static-analysis-integration` and normalize to the unified finding envelope v1.0 defined in `plugins/dev-team/knowledge/security-primitives-contract.md`. This plugin ships three **custom semgrep rulesets** (`knowledge/semgrep-rules/{ml-patterns,llm-safety,fraud-domain}.yaml`) alongside invocations of the usual community rulesets (`p/security-audit`, `p/owasp-top-ten`, etc.).
+Findings flow through the shared SARIF parser in `plugins/dev-team/skills/static-analysis-integration` and normalize to the unified finding envelope v1.0 defined in `plugins/dev-team/knowledge/security-primitives-contract.md`. This plugin ships seven **custom semgrep rulesets** (`knowledge/semgrep-rules/{crypto-anti-patterns,datastore-patterns,fraud-domain,llm-safety,messaging-patterns,ml-patterns,serialization-patterns}.yaml`) alongside invocations of the usual community rulesets (`p/security-audit`, `p/owasp-top-ten`, etc.).
 
 ## LLM-safety coverage bound (verbatim, required)
 
@@ -101,7 +101,7 @@ See `install.sh`. It performs four checks:
 
 **Skills** (3):
 
-- `false-positive-reduction` — 5-stage rubric + joern / LLM-fallback
+- `false-positive-reduction` — 6-stage rubric (Stage 0 devil's advocate + Stages 1–5) + joern / LLM-fallback
 - `compliance-mapping` — pattern-table first with LLM edge annotation
 - `security-assessment-pipeline` — declarative phase graph for `/security-assessment`
 
@@ -130,7 +130,7 @@ See `install.sh`. It performs four checks:
 - `authz-review-categories.yaml` — rule-ID categories and CWE assignments used by `authorization-logic-review`
 - `recon-driven-patterns.yaml` — RECON narrative claim → search-pattern library used by `recon-driven-scan`
 - `severity-floors.json` — allow-list of recognized severity-floor classes for `scripts/apply-severity-floors.sh`
-- `semgrep-rules/{ml-patterns,llm-safety,fraud-domain,crypto-anti-patterns}.yaml` — 18 custom rules across 4 rulesets
+- `semgrep-rules/{crypto-anti-patterns,datastore-patterns,fraud-domain,llm-safety,messaging-patterns,ml-patterns,serialization-patterns}.yaml` — 36 custom rules across 7 rulesets
 
 **Harness** (Python, under `harness/`):
 
