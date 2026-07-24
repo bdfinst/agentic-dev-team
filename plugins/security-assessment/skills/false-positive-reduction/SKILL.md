@@ -93,6 +93,10 @@ Disposition rules:
 - Ensure two findings with identical exploitability profiles receive identical presentational severity across the run.
 - If a finding falls between two severity levels, prefer the higher — better to over-flag than miss. Use exploitability score (0–10) to break ties deterministically per the severity-mapping table in the primitives contract.
 
+## Graph-assisted discovery
+
+If the target repo has `.codegraph/` (CodeGraph MCP server — `codegraph_explore`/`get_symbol` for fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` for semantic search), prefer them over raw `Grep`/`Read` when tracing call graphs. This benefits **Stage 1 reachability analysis** most directly: following inbound calls from a finding location back to production entry points is exactly the callers/impact query these tools are built for, and is especially useful in Joern-absent (LLM-fallback) mode where reachability is otherwise reasoned from grep over call sites. Never assume either tool is present — fall back to `Read`/`Grep`/`Glob` when neither is present; the tools are simply unavailable (no error) on repos without an index.
+
 ## Exploitability scoring (0–10)
 
 Per-finding score determines presentational severity bucket (see primitives contract § Severity mapping). Factors:
