@@ -266,13 +266,43 @@ chk_hook_units() {
       workers=$(( cores - cores / 3 ))
       [ "$workers" -ge 2 ] || workers=2
     fi
-    parallel=(-n "$workers" --dist loadfile)
+    # loadgroup is a strict superset of loadfile: ungrouped tests still get
+    # file-level grouping, but tests carrying an explicit xdist_group mark
+    # (e.g. "careful-state-shared-file", test-improve issue-1354 Story 6)
+    # are additionally forced onto the SAME worker even across different
+    # files — closing a real, observed flakiness source: several test files
+    # write to hooks/careful-state.json, a fixed real path (not
+    # tmp_path-isolated by design — see those files' own docstrings), and
+    # loadfile alone doesn't stop two DIFFERENT files' tests from racing on
+    # it when scheduled to different workers concurrently.
+    parallel=(-n "$workers" --dist loadgroup)
   fi
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
     tests/docs tests/knowledge tests/bats tests/skills tests/scripts \
     --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
     --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py \
     ${parallel[@]+"${parallel[@]}"}
+}
+# Informational coverage report over the plugin's own source (.coveragerc) —
+# a SEPARATE, SERIAL run, deliberately not folded into chk_hook_units above.
+# Sharing chk_hook_units's parallel run with an informational, always-slower
+# --cov pass was the wrong design regardless of cause: determinism (a hard
+# quality target) on the gate every push depends on outranks this report's
+# own wall-clock (test-improve issue-1354, Story 1). Always exits 0 —
+# informational only, and a coverage-run-only failure (extremely unlikely,
+# since it's the same tests) is logged, not gated.
+chk_coverage_report() {
+  if ! python3 -c 'import pytest_cov' >/dev/null 2>&1; then
+    printf '%s∼ skipped (pytest-cov not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
+    return 0
+  fi
+  python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
+    tests/docs tests/knowledge tests/bats tests/skills tests/scripts \
+    --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
+    --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py \
+    --cov=plugins/dev-team/hooks --cov=scripts --cov-report=term -q \
+    || printf '%s∼ coverage-instrumented run reported test failures — informational only, not gating%s\n' "$yellow" "$reset"
+  return 0
 }
 
 # Ordered list of "label::function". Order defines both the replay order and the
@@ -299,10 +329,22 @@ CHECKS=(
   "plugin hook + script unit tests (pytest plugins/dev-team/tests)::chk_hook_units"
 )
 
-# --only=fn[,fn...] : keep just the named checks (CI invokes per-job subsets).
+# Opt-in-only checks: never run as part of the default (no --only) full gate,
+# only reachable via an explicit --only=<fn>. Distinct from the checks above,
+# which always run. chk_coverage_report is the first entry — it duplicates
+# chk_hook_units's full suite run under coverage instrumentation, so folding
+# it into the default gate would roughly double every push's/CI's wall-clock
+# for an informational report most invocations don't need. Run it on demand:
+# `bash scripts/ci-local.sh --only=chk_coverage_report`.
+OPTIONAL_CHECKS=(
+  "coverage report (informational; pytest --cov)::chk_coverage_report"
+)
+
+# --only=fn[,fn...] : keep just the named checks (CI invokes per-job subsets;
+# developers reach OPTIONAL_CHECKS entries the same way).
 if [ -n "$ONLY" ]; then
   filtered=()
-  for entry in ${CHECKS[@]+"${CHECKS[@]}"}; do
+  for entry in ${CHECKS[@]+"${CHECKS[@]}"} ${OPTIONAL_CHECKS[@]+"${OPTIONAL_CHECKS[@]}"}; do
     fn="${entry##*::}"
     case ",$ONLY," in *",$fn,"*) filtered+=("$entry") ;; esac
   done
