@@ -195,6 +195,31 @@ characterization scenario at the human gate (`/test-improve` Phase 2b's
 review, before Phase 3 triage proceeds) before it is treated as accepted
 living documentation rather than an unverified hypothesis.
 
+**`bdd-runner` mode — report the pending-stub gate honestly (issue #1391).**
+Choosing `bdd-runner` mode is a decision to end up with fully executing,
+Gherkin-bound tests, not just scaffolded placeholders — but this skill's own
+Step 4 only ever *generates* pending stubs; it never fills them in (that
+happens later, in `/test-improve` Phase 4 or whatever follow-up work the
+operator does after a standalone run). Run the gate and report its real
+status rather than an unconditional "done":
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitions-dir>
+```
+
+- Print the gate's result as its own report line: `N step definition(s)
+  pending — bdd-runner binding is not complete until these are filled in`,
+  listing each `file:line` the gate names, or `bdd-runner binding complete —
+  0 pending step definitions` when it exits 0.
+- **Never claim the surface's tests are "done" or "complete" while the gate
+  reports pending stubs.** Immediately after a fresh Step 4 run every
+  newly-generated stub is expected to be pending — that is not a failure of
+  this skill, but the report must say so plainly rather than silently
+  omitting the gate's output. Re-running gherkin-derive after some step
+  definitions were filled in elsewhere reports the accurate mixed state.
+- Skip entirely in `none` and `xunit-with-annotations` modes (no step
+  definitions are generated in either).
+
 ## Key differences from `/gherkin-public`
 
 - Does **not** require any prior assessment file — derives the surface itself

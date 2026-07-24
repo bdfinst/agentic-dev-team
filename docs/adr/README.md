@@ -28,3 +28,4 @@
 * [26. Adopt native model:/effort: agent frontmatter, retire the band resolver](0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)
 * [27. Require and mechanically derive color on every agent](0027-require-and-mechanically-derive-color-on-every-agent.md)
 * [28. Require skills: preload and memory: project on matching agents](0028-require-skills-preload-and-memory-project-on-matching-agents.md)
+* [29. Code-modifying agent personas remain separate from software-engineer](0029-code-modifying-agent-personas-remain-separate-from-software-engineer.md)

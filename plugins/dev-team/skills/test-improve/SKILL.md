@@ -431,6 +431,29 @@ Iterate the approved Phase-4 Story set. For **each Story**:
    survivors but makes **no commit** — the operator is instructed to apply
    changes manually. Advisory-only handling matches the Phase-0 Go advisory.
 
+#### Pending-stub gate (`bdd-runner` mode only, issue #1391)
+
+After **all Phase-4 Stories have closed**, and only when Phase 0 selected
+`bdd-runner` binding mode, run the completion gate before Phase 4 may be
+reported closed — a hard gate, not prose:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitions-dir>
+```
+
+(`<step-definitions-dir>` is wherever `/gherkin-derive`'s Step 2b run wrote
+step-definition files — recorded in `memory/test-improve/<slug>/gherkin.md`.)
+
+- **Exit 0 (no pending stubs)** — Phase 4 proceeds to the end-of-phase review
+  loop below.
+- **Non-zero (pending stubs remain)** — Phase 4 is **not done**. Surface the
+  gate's listed `file:line` pending step definitions to the operator; do not
+  report the phase closed. Route each remaining stub back into the per-Story
+  build loop (step 2 above — fill in the step definition against the parser
+  wired at Phase 2b) rather than silently leaving it pending.
+- Skip entirely when binding mode is `none` or `xunit-with-annotations` (no
+  step definitions exist to gate on).
+
 #### End-of-phase review loop
 
 After **all Phase-4 Stories have closed**, run the review loop over the

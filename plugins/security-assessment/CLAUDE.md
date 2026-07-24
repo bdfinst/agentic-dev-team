@@ -117,19 +117,19 @@ See `install.sh`. It performs four checks:
 
 - `PreToolUse:Bash` → `redteam-guard.sh` (blocks direct orchestrator invocation)
 - `PostToolUse:Edit|Write` → `static-scan-on-edit.sh` (auto-scan on writes)
-- `PreToolUse:Agent` + `PostToolUse:Agent` → `agent-dispatch-log.sh` (logs agent dispatch)
+- `PreToolUse:Agent` + `PostToolUse:Agent` → `agent-dispatch-log.sh` (times every agent dispatch to `memory/agent-dispatches.jsonl`)
 
 **Knowledge** (9):
 
 - `domain-logic-patterns.md` — fraud domain anti-pattern reference
 - `compliance-patterns.yaml` — 11-pattern regulatory mapping table
 - `redteam-authorization.md` — self-cert artifact format
-- `disclaimers.md` — verbatim disclaimer wording cited by agents/skills (compliance mapping, red-team report)
-- `exec-report-section6-spec.md` — detailed spec for the exec report's Section 6 (methodology and scope), loaded on demand by `exec-report-generator`
-- `phase-1b-adapters.md` — how each Phase 1b agent's output is appended to the unified finding stream
-- `authz-review-categories.yaml` — rule-ID categories and CWE assignments used by `authorization-logic-review`
-- `recon-driven-patterns.yaml` — RECON narrative claim → search-pattern library used by `recon-driven-scan`
-- `severity-floors.json` — allow-list of recognized severity-floor classes for `scripts/apply-severity-floors.sh`
+- `severity-floors.json` — allow-listed floor classes for `scripts/apply-severity-floors.sh`
+- `disclaimers.md` — verbatim-wording disclaimers cited by agents and skills
+- `exec-report-section6-spec.md` — detailed spec for the exec report's Methodology/Scope section
+- `recon-driven-patterns.yaml` — RECON claim → search-pattern library for `recon-driven-scan`
+- `authz-review-categories.yaml` — rule-ID categories and CWE assignments for `authorization-logic-review`
+- `phase-1b-adapters.md` — Phase 1b finding-stream append paths per agent output shape
 - `semgrep-rules/{crypto-anti-patterns,datastore-patterns,fraud-domain,llm-safety,messaging-patterns,ml-patterns,serialization-patterns}.yaml` — 36 custom rules across 7 rulesets
 
 **Harness** (Python, under `harness/`):
