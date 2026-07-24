@@ -16,7 +16,7 @@ def _text() -> str:
 
 
 def _phase_2_section() -> str:
-    return section(_text(), r"^### Phase 2", exclude_pattern=r"Phase 2b")
+    return section(_text(), r"^### Phase 2", exclude_pattern=r"Phase 3")
 
 
 def test_body_contains_a_phase_2_section_header():
@@ -53,7 +53,7 @@ def test_phase_2_names_the_ordering_constraint_baseline_before_any_test_file_mod
 
 def test_phase_2_documents_the_no_baseline_skip_path_for_off_and_kill_loop():
     """#1126: both `off` and `kill-loop` skip the Phase-2 mutation baseline —
-    `kill-loop` runs the kill loop in Phase 4 but takes no baseline first."""
+    `kill-loop` runs the kill loop in Phase 5 but takes no baseline first."""
     s = _phase_2_section()
     # The skip is documented and names both no-baseline modes.
     assert grep(r"not[[:space:]]+invoked|skip", s, ignore_case=True)

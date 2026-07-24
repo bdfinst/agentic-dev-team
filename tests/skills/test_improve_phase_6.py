@@ -1,13 +1,13 @@
-"""Contract for /test-improve Phase 6 — validate via /quality-targets-converge.
+"""Contract for /test-improve Phase 6 — refactor-decision prompt.
 
-Issue #536, Slice 9.
+Issue #536, Slice 7.
 
-Ported from tests/skills/test_improve_phase_6_tests.bats (issue #674).
+Ported from tests/skills/test_improve_phase_4b_tests.bats (issue #674).
 """
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep, grep_multiline, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 
@@ -24,43 +24,38 @@ def test_body_contains_a_phase_6_section_header():
     assert grep(r"^### Phase 6", _text())
 
 
-def test_phase_6_invokes_quality_targets_converge_workflow_test_improve():
-    assert grep(
-        r"/quality-targets-converge.*--workflow[[:space:]]+test-improve",
-        _phase_6_section(),
-    )
+def test_phase_6_shows_the_refactor_required_list_with_seam_behavior_risk_columns():
+    s = _phase_6_section()
+    assert grep(r"seam", s, ignore_case=True)
+    assert grep(r"behavior", s, ignore_case=True)
+    assert grep(r"risk", s, ignore_case=True)
 
 
-def test_phase_6_mutation_target_is_skipped_not_waived_when_phase_0_disabled_mutation():
+def test_phase_6_prompt_uses_y_b_q():
+    assert grep(r"\[y/b/q\]|\[y\].*\[b\].*\[q\]", _phase_6_section())
+
+
+def test_phase_6_y_advances_to_phase_7():
     assert grep(
-        r"mutation.*(skip|not[[:space:]]+enabled).*not[[:space:]]+waiv|not[[:space:]]+waiv.*skip",
+        r"\[y\].*Phase[[:space:]]+7|Phase[[:space:]]+7.*\[y\]",
         _phase_6_section(),
         ignore_case=True,
     )
 
 
-def test_phase_6_mutation_target_is_advisory_on_go():
-    assert grep(r"Go.*advisory|advisory.*Go", _phase_6_section(), ignore_case=True)
-
-
-def test_phase_6_mutation_target_reads_per_tristate_mode():
-    """#1126: the Phase-6 mutation target reads `not enabled` for `off`,
-    a final-survivor count for `kill-loop`, and a baseline delta for
-    `baseline+kill-loop`."""
+def test_phase_6_b_writes_refactor_backlog_md_and_skips_to_phase_8():
     s = _phase_6_section()
-    # Bind each mode token to its own reading (bounded proximity) so a
-    # scrambled mode→reading mapping cannot pass.
-    assert grep_multiline(r"`off`.{0,160}not enabled", s, ignore_case=True)
-    assert grep_multiline(r"`kill-loop`.{0,160}final[- ]surviv", s, ignore_case=True)
-    assert grep_multiline(r"`baseline\+kill-loop`.{0,160}baseline[- ]delta|`baseline\+kill-loop`.{0,160}baseline-to-achieved", s, ignore_case=True)
+    assert grep(r"memory/test-improve/<slug>/refactor-backlog\.md", s)
+    assert grep(
+        r"\[b\].*(Phase[[:space:]]+8|skip)|skip.*Phase[[:space:]]+8.*\[b\]",
+        s,
+        ignore_case=True,
+    )
 
 
-def test_phase_6_surfaces_coverage_lt_90_re_run_prompt_with_y_n_shape():
-    s = _phase_6_section()
-    assert grep(r"coverage.*90|<[[:space:]]*90", s, ignore_case=True)
-    assert grep(r"re-run|rerun", s, ignore_case=True)
-    assert grep(r"\[y/n\]|\[y\].*\[n\]", s)
-
-
-def test_phase_6_coverage_lt_90_prompt_lists_backlogged_refactor_required_items():
-    assert grep(r"REFACTOR_REQUIRED|backlog", _phase_6_section(), ignore_case=True)
+def test_phase_6_q_quits_before_phase_8():
+    assert grep(
+        r"\[q\].*(quit|no[[:space:]]+further|stop|exit)",
+        _phase_6_section(),
+        ignore_case=True,
+    )

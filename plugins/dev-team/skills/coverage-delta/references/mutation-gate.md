@@ -67,4 +67,4 @@ When the step is skipped (no `--story-files`), the block is `{"status": "ok", "m
 
 ## Worker/policy boundary
 
-The worker never halts on a status value. The exit code is `0` on every status above (including `net_new_survivors`) and non-zero ONLY on tool execution failure. The orchestrator (`/test-improve` Phase 4) reads `status` from the result block and decides whether to pause Story close (typically via the `mutation-kill` agent's `[c/r/w/q]` prompt). This is the worker/policy separation `plugins/dev-team/CLAUDE.md` describes — measurement here, policy upstream.
+The worker never halts on a status value. The exit code is `0` on every status above (including `net_new_survivors`) and non-zero ONLY on tool execution failure. The orchestrator (`/test-improve` Phase 5) reads `status` from the result block and decides whether to pause Story close (typically via the `mutation-kill` agent's `[c/r/w/q]` prompt). This is the worker/policy separation `plugins/dev-team/CLAUDE.md` describes — measurement here, policy upstream.

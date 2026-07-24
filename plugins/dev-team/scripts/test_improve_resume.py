@@ -10,16 +10,18 @@ from the run's memory directory `memory/test-improve/<slug>/`.
 Deterministic rules (spec = issue #1151):
 
 - Scan ONLY the resolved slug's directory for completed-phase progress files
-  `phase-0.md` … `phase-7.md`, plus `phase-4b.md`. The slug derives from the
-  `<repo-path>` (last path segment), so a run is never conflated with an
-  unrelated slug under the same `memory/test-improve/` root.
-- Find the HIGHEST-numbered completed phase, ordering `phase-4b` BETWEEN
-  `phase-4` and `phase-5`.
+  `phase-0.md` … `phase-9.md`, excluding `phase-3.md` (Phase 3 — Gherkin
+  derive — is conditional and tracked via `gherkin.md`, not a numbered
+  progress file; see below). The slug derives from the `<repo-path>` (last
+  path segment), so a run is never conflated with an unrelated slug under the
+  same `memory/test-improve/` root.
+- Find the HIGHEST-numbered completed phase.
 - Resume at the NEXT phase in the pipeline sequence
-  `0, 1, 2, 3, 4, 4b, 5, 6, 7`, with one deliberate skip: a completed
-  `phase-4b.md` resumes at Phase 6 (matching the Phase-4b `[b]`/`[q]`
-  skip-to-6 flow), and a completed `phase-4.md` with no `phase-4b.md`
-  resumes at Phase 4b.
+  `0, 1, 2, 3, 4, 5, 6, 7, 8, 9`, with two deliberate skips: a completed
+  `phase-2.md` resumes at Phase 4 directly (Phase 3 has no tracked progress
+  file), a completed `phase-6.md` resumes at Phase 8 (matching the Phase-6
+  `[b]`/`[q]` skip-to-8 flow), and a completed `phase-5.md` with no
+  `phase-6.md` resumes at Phase 6.
 - No memory dir / no phase files → ERROR (do NOT silently start at Phase 0).
 - `phase-0.md` must exist or the resume errors, for BOTH auto-detect and an
   explicit `--explicit <n>` — `--from-phase` never re-prompts Phase-0 inputs.
@@ -28,9 +30,9 @@ Deterministic rules (spec = issue #1151):
 
 Output is JSON on stdout so the skill can consume it deterministically:
 
-    {"resolved_phase": "5", "latest_completed": "phase-4b.md",
-     "reason": "latest completed: phase-4b.md",
-     "message": "Resuming at Phase 5 (latest completed: phase-4b.md).",
+    {"resolved_phase": "7", "latest_completed": "phase-6.md",
+     "reason": "latest completed: phase-6.md",
+     "message": "Resuming at Phase 7 (latest completed: phase-6.md).",
      "complete": false, "error": null}
 
 Exit codes: 0 = resolved (or already complete), 2 = error (message on
@@ -47,38 +49,39 @@ import re
 import sys
 from pathlib import Path
 
-# Pipeline order. `4b` sits between `4` and `5`; rank is used only to pick the
-# highest completed file, NEXT_PHASE encodes where to resume from each.
+# Pipeline order, skipping `3` (Phase 3 has no numbered progress file — see
+# module docstring). Rank is used only to pick the highest completed file,
+# NEXT_PHASE encodes where to resume from each.
 PHASE_RANK: dict[str, int] = {
     "0": 0,
     "1": 1,
     "2": 2,
-    "3": 3,
-    "4": 4,
-    "4b": 5,
-    "5": 6,
-    "6": 7,
-    "7": 8,
+    "4": 3,
+    "5": 4,
+    "6": 5,
+    "7": 6,
+    "8": 7,
+    "9": 8,
 }
 
-# Where to resume given the highest completed phase. `4b` skips Phase 5 and
-# resumes at Phase 6 (matching the `[b]`/`[q]` skip-to-6 flow); `5` also
-# resumes at Phase 6. `7` (last phase) has no successor — the run is complete.
+# Where to resume given the highest completed phase. `2` skips Phase 3 (no
+# tracked progress file) and resumes at Phase 4. `6` skips Phase 7 and
+# resumes at Phase 8 (matching the `[b]`/`[q]` skip-to-8 flow); `7` also
+# resumes at Phase 8. `9` (last phase) has no successor — the run is
+# complete.
 NEXT_PHASE: dict[str, str | None] = {
     "0": "1",
     "1": "2",
-    "2": "3",
-    "3": "4",
-    "4": "4b",
-    "4b": "6",
+    "2": "4",
+    "4": "5",
     "5": "6",
-    "6": "7",
-    "7": None,
+    "6": "8",
+    "7": "8",
+    "8": "9",
+    "9": None,
 }
 
-# `4b` before `4` so the anchored match is unambiguous (both still parse
-# correctly thanks to backtracking, but this reads clearest).
-_PHASE_FILE_RE = re.compile(r"^phase-(0|1|2|3|4b|4|5|6|7)\.md$")
+_PHASE_FILE_RE = re.compile(r"^phase-(0|1|2|4|5|6|7|8|9)\.md$")
 
 # Slugify: lowercase, drop chars outside [a-z0-9 -], spaces->hyphens, collapse,
 # trim. Matches build_knowledge_index.slugify so slugs stay consistent.
@@ -103,7 +106,7 @@ def derive_slug(repo_path: str) -> str:
 
 
 def scan_phase_files(memory_dir: Path) -> list[str]:
-    """Return the phase tokens (e.g. '0', '4b') whose progress files exist in
+    """Return the phase tokens (e.g. '0', '4') whose progress files exist in
     `memory_dir`, sorted by pipeline rank. Non-phase files are ignored."""
     if not memory_dir.is_dir():
         return []
@@ -121,7 +124,7 @@ def resolve_auto(tokens: list[str]) -> tuple[str | None, str, bool]:
     """Given the completed phase tokens, return
     (resolved_phase, highest_token, complete).
 
-    resolved_phase is None when the run is already complete (phase-7 done)."""
+    resolved_phase is None when the run is already complete (phase-9 done)."""
     highest = max(tokens, key=lambda t: PHASE_RANK[t])
     nxt = NEXT_PHASE[highest]
     return nxt, highest, nxt is None

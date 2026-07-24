@@ -40,11 +40,11 @@ def test_skill_invokes_the_resume_helper():
     assert "scripts/test_improve_resume.py" in body
 
 
-def test_skill_documents_4b_ordering_resolution():
+def test_skill_documents_6_ordering_resolution():
     body = collapsed(_text())
-    # phase-4 with no 4b -> Phase 4b; phase-4b completed -> Phase 6.
-    assert grep(r"phase-4b", body)
-    assert "skip-to-6" in body
+    # phase-5 with no phase-6 -> Phase 6; phase-6 completed -> Phase 8.
+    assert grep(r"phase-6", body)
+    assert "skip-to-8" in body
 
 
 def test_skill_documents_error_when_no_phase_files():
@@ -60,7 +60,7 @@ def test_skill_documents_explicit_override():
 
 
 def test_handoff_hints_mention_autodetect_form():
-    # All four resume hints (Phases 1, 4, 5, 6) gain the no-arg mention.
+    # All four resume hints (Phases 1, 5, 7, 8) gain the no-arg mention.
     text = _text()
     hint_lines = [
         line

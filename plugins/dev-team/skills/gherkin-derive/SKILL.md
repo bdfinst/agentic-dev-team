@@ -7,7 +7,7 @@ description: >-
   websocket/GraphQL surfaces), recommends a BDD binding
   mode via the bdd-value-guide rubric, and writes `.feature` files plus
   (in bdd-runner mode) pending step-definition stubs. Use it on its own to
-  capture intended behavior before changing tests, or as Phase 2b of
+  capture intended behavior before changing tests, or as Phase 3 of
   `/test-improve`. Creates no tracker Stories.
 argument-hint: "<repo-path> [--mode none|xunit-with-annotations|bdd-runner] [--repo-slug <slug>]"
 role: worker
@@ -24,7 +24,7 @@ a repo's public surface directly from code — it does **not** require any prior
 public-boundary Gherkin authoring worker used standalone.
 
 Usable two ways: on its own to capture intended behavior before any test change,
-or as the Phase-2b sub-step of `/test-improve`.
+or as the Phase-3 sub-step of `/test-improve`.
 
 ## Parse Arguments
 
@@ -176,8 +176,8 @@ that pass silently.
 - `step_definitions/<surface>_steps.<ext>` pending stubs (`bdd-runner` only).
 - A surface inventory at `memory/<workflow>/<slug>/gherkin.md` listing each
   discovered surface, its discovery source, provenance, mode, and the files
-  written. `/test-improve` reads this at Phase 3 (triage) and Phase 4 (build)
-  to bind tests to the derived scenarios.
+  written. `/test-improve` reads this at Phase 4 (plan fixes) and Phase 5
+  (build) to bind tests to the derived scenarios.
 
 ## Step 6 — Report
 
@@ -191,15 +191,15 @@ same summary line as specification scenarios.** Print a distinct line: "N
 scenarios captured from existing tests — confirm these are intended behavior,
 not bugs, before treating them as spec," listing which had no cross-check
 signal. This is what the operator uses to affirmatively accept each
-characterization scenario at the human gate (`/test-improve` Phase 2b's
-review, before Phase 3 triage proceeds) before it is treated as accepted
+characterization scenario at the human gate (`/test-improve` Phase 3's
+review, before Phase 4 proceeds) before it is treated as accepted
 living documentation rather than an unverified hypothesis.
 
 **`bdd-runner` mode — report the pending-stub gate honestly (issue #1391).**
 Choosing `bdd-runner` mode is a decision to end up with fully executing,
 Gherkin-bound tests, not just scaffolded placeholders — but this skill's own
 Step 4 only ever *generates* pending stubs; it never fills them in (that
-happens later, in `/test-improve` Phase 4 or whatever follow-up work the
+happens later, in `/test-improve` Phase 5 or whatever follow-up work the
 operator does after a standalone run). Run the gate and report its real
 status rather than an unconditional "done":
 
@@ -225,8 +225,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitio
 - Does **not** require any prior assessment file — derives the surface itself
   from code.
 - Does **not** create tracker Stories — the calling orchestrator (e.g.
-  `/test-improve` Phase 3) owns triage.
-- Usable standalone or as `/test-improve` Phase 2b.
+  `/test-improve` Phase 4) owns triage.
+- Usable standalone or as `/test-improve` Phase 3.
 - `/gherkin-public` remains a separate public-boundary Gherkin authoring
   worker.
 

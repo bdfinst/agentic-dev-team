@@ -8,7 +8,7 @@ description: >-
   picks the largest gap, and dispatches the smallest action that moves it.
   Stops only when all four targets are green or each gap is explicitly
   waived by the operator with a recorded reason. Called by `/test-improve`
-  (Phase 6) via `--workflow test-improve`.
+  (Phase 8) via `--workflow test-improve`.
 argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--max-iterations <n>] [--refactor-mode <no-refactor|refactor-allowed>]"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write, Skill(coverage-delta *), Skill(mutation-testing *)
@@ -67,7 +67,7 @@ Read `.dev-team/quality-targets.json` if it exists; otherwise use defaults:
 In one pass before the loop body:
 
 - **Coverage** — invoke `/coverage-delta <repo> --workflow <workflow>` (no `--story`). Result lives in `memory/<workflow>/<slug>/coverage-history.json`.
-- **Mutation scope — branch-vs-base changed set (cumulative, NOT whole-repo).** Phase-6 validation measures mutation only over the code this branch changed, accumulated across every session on the branch — never the whole repo (issue #1208). Resolve the scope in three moves:
+- **Mutation scope — branch-vs-base changed set (cumulative, NOT whole-repo).** Phase-8 validation measures mutation only over the code this branch changed, accumulated across every session on the branch — never the whole repo (issue #1208). Resolve the scope in three moves:
 
   1. **Resolve the branch base** (same idiom as `/build`'s Farley-Score step — `skills/build/SKILL.md` Step 7 sub-step 1): `git merge-base HEAD origin/HEAD`, falling back to `origin/main`, then `main`, `master`, `develop`. **Degenerate-base guard (issue #916):** treat **base == HEAD, or every candidate ref unresolvable** (single-branch / no-remote repo where `merge-base` fails outright, or every commit landed directly on the fallback branch so `merge-base` resolves to HEAD) as a resolution **failure**, not a valid base. On resolution failure, fall back to the plan's recorded plan-start anchor — the same anchor `/build` resolves against (issue #865): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_rollback_point.py get-by-symbolic --path memory/build-rollback.json --symbolic plan-start --repo <repo> --ancestor-of HEAD` (the `--repo`/`--ancestor-of` args reject a stale `plan-start` from an unrelated earlier build). If a qualifying entry is found, use its `sha` as `<base>`. If none is found, print `Branch-base resolution degraded — cannot bound the changed set; scoping to the full in-scope component list this run.` and scope to the full in-scope component list **only as a surfaced last resort** — so a widened run is visible in the output, never a silent whole-repo default.
   2. **Cumulative changed set:** `git diff --name-only <base>...HEAD` (three-dot — everything the branch added since it forked, across all sessions, not just the last commit).
@@ -151,7 +151,7 @@ For the picked gap, dispatch the smallest action — by emitting a recommendatio
 | Surviving mutant on an uncovered line | Propose a downstream Story to add a test that hits the line *and* asserts the behavior. |
 | Coverage gap on a single file, existing seam | Propose a downstream Story to add a component test for the uncovered branch at the existing seam. |
 | Coverage gap on a single file, no existing seam, `--refactor-mode refactor-allowed` | Propose a paired `[Refactor-for-testability]` Story (today's behavior, unchanged). |
-| Coverage gap on a single file, no existing seam, `--refactor-mode no-refactor` | Do **not** propose a `[Refactor-for-testability]` Story — the operator already closed that decision at Phase 4b. Instead, write an entry (seam-needed / behavior-gained / estimated-risk) to `memory/<workflow>/<slug>/refactor-backlog.md`, appending to the file Phase 4b writes if it already exists rather than creating a second backlog file. |
+| Coverage gap on a single file, no existing seam, `--refactor-mode no-refactor` | Do **not** propose a `[Refactor-for-testability]` Story — the operator already closed that decision at Phase 6. Instead, write an entry (seam-needed / behavior-gained / estimated-risk) to `memory/<workflow>/<slug>/refactor-backlog.md`, appending to the file Phase 6 writes if it already exists rather than creating a second backlog file. |
 | Behavior-preserving (invariant) test refactor — a `done()`→`async`/`await` rewrite, a real-timer→`fakeAsync` migration, a callback→promise conversion that changes no assertion and kills no mutant | **Skip it — do not dispatch a Story.** These migrations preserve test semantics, so they close no coverage / mutation / determinism gap; dispatching work for them is pure churn. Log the skip with its rationale to `memory/<workflow>/<slug>/refactor-backlog.md` (the same backlog the no-refactor row appends to) as `invariant-refactor-skipped: <file> — <migration> — no gap closed`, so the decision is auditable rather than silent. |
 | Wall-clock regression | Identify the slowest tests (top 10). Propose a Story to swap a local container for an in-memory double where both prove the behavior. |
 
@@ -164,7 +164,7 @@ For the picked gap, dispatch the smallest action — by emitting a recommendatio
 
 This keeps the approved Gherkin as the single source of intended behavior even when convergence discovers a gap. The operator stays the only author of intent.
 
-Each recommendation lands as a new child issue on the parent (via the same CLI dispatch convention as `/issues-from-assessment`) or as a new file under `./plans/<workflow>/phase-5/`. The orchestrator then drives `/build` against each.
+Each recommendation lands as a new child issue on the parent (via the same CLI dispatch convention as `/issues-from-assessment`) or as a new file under `./plans/<workflow>/phase-7/`. The orchestrator then drives `/build` against each.
 
 ### 5. Re-measure + decide whether to loop
 
@@ -195,7 +195,7 @@ Same CLI pattern as `/coverage-baseline` and `/coverage-delta`.
 
 ### 6b. Gherkin effectiveness roll-up (conditional)
 
-When `memory/<workflow>/<slug>/gherkin.md` exists (Phase 2b ran — see
+When `memory/<workflow>/<slug>/gherkin.md` exists (Phase 3 ran — see
 `/gherkin-derive`), run the roll-up after every iteration's re-measure so
 there is a standing signal on whether the derived scenarios track real
 coverage/mutation movement (issue #1296):
@@ -216,7 +216,7 @@ Omit any flag whose file doesn't exist for this run (e.g. no
 `/gherkin-derive` and never ran `/gherkin-public`) — the script degrades
 gracefully and still records provenance/binding-mode per scenario with the
 correlated field left `null`. When `gherkin.md` is absent (binding mode
-`none`, or Phase 2b never ran), skip this step entirely — there is nothing
+`none`, or Phase 3 never ran), skip this step entirely — there is nothing
 to roll up. This is a metrics side-effect only; it never changes convergence
 gaps or which action Step 4 dispatches.
 
@@ -242,8 +242,8 @@ Print:
 
 ## Examples / Integration
 
-- `/test-improve` invokes this worker from Phase 6 with `--workflow test-improve`; paths resolve as `memory/test-improve/<slug>/` and `./plans/test-improve/phase-6/`.
-- `/test-improve` invokes this worker from Phase 6 with `--workflow test-improve`; the same template resolves with `<workflow>` = `test-improve`.
+- `/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; paths resolve as `memory/test-improve/<slug>/` and `./plans/test-improve/phase-8/`.
+- `/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; the same template resolves with `<workflow>` = `test-improve`.
 
 ## Notes
 

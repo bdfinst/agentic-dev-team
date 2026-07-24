@@ -5,7 +5,7 @@ description: >-
   the same coverage tool against the current suite, computes the delta on
   line+branch percentages, and posts it to the parent issue (or local
   `FEATURE.md`). Called after each Story so the operator sees coverage move
-  with every test added. Called by `/test-improve` (Phase 4) via
+  with every test added. Called by `/test-improve` (Phase 5) via
   `--workflow test-improve`.
 argument-hint: "<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--story <id-or-path>] [--story-files <glob-or-comma-list>]"
 user-invocable: true
@@ -14,7 +14,7 @@ allowed-tools: Read, Glob, Grep, Bash, Write
 
 # Coverage Delta
 
-Role: worker. Reports coverage change vs. the captured baseline. One snapshot per Story so the operator can see whether each add actually moved the needle. Callers with a phase model (such as `/test-improve`, where the baseline lands in Phase 2 and per-Story deltas fire in Phase 4) label snapshots by phase; phase-less workflows omit that label.
+Role: worker. Reports coverage change vs. the captured baseline. One snapshot per Story so the operator can see whether each add actually moved the needle. Callers with a phase model (such as `/test-improve`, where the baseline lands in Phase 2 and per-Story deltas fire in Phase 5) label snapshots by phase; phase-less workflows omit that label.
 
 You have been invoked with the `/coverage-delta` command.
 
@@ -25,7 +25,7 @@ Arguments: $ARGUMENTS
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL (or empty for local-files).
 - `--repo-slug <slug>` — `memory/<workflow>/` namespace.
-- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-improve`. Orchestrators pass their own namespace (e.g. `/test-improve` passes `test-improve` for its Phase-4 per-Story deltas).
+- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-improve`. Orchestrators pass their own namespace (e.g. `/test-improve` passes `test-improve` for its Phase-5 per-Story deltas).
 - `--story <id-or-path>` — optional Story this delta is attributed to. Used as the snapshot label.
 - `--story-files <glob-or-comma-list>` — production-code files the Story touched (typically from `/build`'s commit diff, tests filtered out). When both `--story` AND a non-empty `--story-files` are present, Step 2b runs scoped mutation; otherwise it is a no-op so `/quality-targets-converge` can keep calling this worker without `--story-files` exactly as before.
 
@@ -43,7 +43,7 @@ If the run fails, surface the first error and stop. Do not post a delta from a b
 
 ### 2b. Measure scoped mutation (only when both `--story` AND `--story-files` are present)
 
-**Worker boundary.** This worker measures and reports; it does NOT halt the workflow on net-new survivors. Policy enforcement is the orchestrator's job (`/test-improve` Phase 4 reads the structured `status` field this step emits and decides whether to pause Story close via the mutation-kill agent's `[c/r/w/q]` prompt).
+**Worker boundary.** This worker measures and reports; it does NOT halt the workflow on net-new survivors. Policy enforcement is the orchestrator's job (`/test-improve` Phase 5 reads the structured `status` field this step emits and decides whether to pause Story close via the mutation-kill agent's `[c/r/w/q]` prompt).
 
 **Implementation detail** — baseline-of-record lookup, equivalent-mutant filter, classification table, atomic-write idiom: [`references/mutation-gate.md`](references/mutation-gate.md). This section pins the contract (flags, status enum, exit-code rule, schema keys); the reference holds the mechanics.
 
@@ -60,7 +60,7 @@ When the gate fires:
    - `first_measurement` — no prior entry.
    - `tool_unavailable` — `/mutation-testing` returned the `no_tool_installed` envelope. The result block names `/setup` as the install path and includes `language: "<detected>"`. If a prior history entry recorded a different tool, surface that as `prior_tool: "<name>"` so the operator sees the disappearance.
    - `skipped_empty_scope` — `--story-files` expanded to zero files. No mutation run; one history entry recorded with this status.
-5. Append per-file entries to `mutation-history.json` via **temp-file-then-rename** (write to `<path>.tmp` then `mv -f <path>.tmp <path>`). This keeps parallel `/coverage-delta` writes from interleaving when two Phase-4 Stories close within the same second. Direct overwrite of `mutation-history.json` is forbidden.
+5. Append per-file entries to `mutation-history.json` via **temp-file-then-rename** (write to `<path>.tmp` then `mv -f <path>.tmp <path>`). This keeps parallel `/coverage-delta` writes from interleaving when two Phase-5 Stories close within the same second. Direct overwrite of `mutation-history.json` is forbidden.
 
 **Exit code.** This step's exit code is `0` on every status above, including `net_new_survivors` — the worker carries the signal in the status field, not the exit code. The exit code is non-zero ONLY on tool execution failure (a crash inside `/mutation-testing`, an unwritable history path, malformed JSON from the underlying tool). This is the worker/policy boundary: orchestrator reads `status`, worker reports cleanly.
 
@@ -138,5 +138,5 @@ If the delta is **negative** (a Story made coverage worse), surface that as a wa
 ## Notes
 
 - This worker is read-only on the repo's source — it runs the coverage command and parses the report. It does not modify tests or production code.
-- Snapshots accumulate; nothing is overwritten. The full history feeds `/quality-targets-converge` in Phase 5.
+- Snapshots accumulate; nothing is overwritten. The full history feeds `/quality-targets-converge` in Phase 7.
 - Wall-clock for the coverage run is not tracked here — that's `/quality-targets-converge`'s job.

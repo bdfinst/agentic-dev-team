@@ -20,7 +20,7 @@ Only a **top-level human invocation** writes to `DEV_TEAM_REPORTS/`:
 - `/code-review` (interactive, no `--json`) writes
   `DEV_TEAM_REPORTS/code-review.md` — **unless** `--internal` is passed (the
   sanctioned callers today are `/build`'s Step 6 backstop review and
-  `/test-improve`'s Phase 4/5 end-of-phase review loop — see below for
+  `/test-improve`'s Phase 5/7 end-of-phase review loop — see below for
   `/ship`'s Step 5, a deliberate, documented exception that keeps writing
   the report) or `--json` is passed (CI/`/pr` callers — `--json` never
   writes a file, full stop).
@@ -36,7 +36,7 @@ or output format.
 
 `/ship`'s Step 5 ("Review") dispatches `/code-review` with neither
 `--internal` nor `--json` — so it writes `DEV_TEAM_REPORTS/code-review.md`
-by default, unlike `/build`'s Step 6 and `/test-improve`'s Phase 4/5 review
+by default, unlike `/build`'s Step 6 and `/test-improve`'s Phase 5/7 review
 loop above. This is a **deliberate, stated exception** to the "only a
 top-level human invocation writes" rule, not an unaudited gap (issue #982):
 

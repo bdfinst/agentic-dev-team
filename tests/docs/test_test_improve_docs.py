@@ -22,19 +22,19 @@ def test_test_improve_flow_svg_exists_and_is_valid_svg() -> None:
     assert re.search(r"</svg>", text)
 
 
-def test_test_improve_flow_svg_carries_text_labels_for_all_7_phases() -> None:
+def test_test_improve_flow_svg_carries_text_labels_for_all_10_phases() -> None:
     text = SVG.read_text(encoding="utf-8")
     for phase in (
         "Phase 0",
         "Phase 1",
         "Phase 2",
-        "Phase 2b",
         "Phase 3",
         "Phase 4",
-        "Phase 4b",
         "Phase 5",
         "Phase 6",
         "Phase 7",
+        "Phase 8",
+        "Phase 9",
     ):
         assert phase in text, f"missing: {phase}"
 
