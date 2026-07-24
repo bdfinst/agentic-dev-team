@@ -34,7 +34,8 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
 from mcp_tool_grants import (
     BASE_MCP_TOOLS,
-    parse_tools,
+    parse_tools,  # noqa: F401 -- re-exported: imported directly by this script's own tests
+    run_grants_check,
 )
 from mcp_tool_grants import (
     fix_tools_line as _fix_tools_line,
@@ -100,6 +101,10 @@ def _skill_missing(skill_file: Path) -> list[str]:
     return list(SKILL_REQUIRED_PHRASES)
 
 
+def _targets(agents: list[Path]) -> dict[str, tuple[Path, list[str]]]:
+    return {agent_file.stem: (agent_file, MCP_TOOL_NAMES) for agent_file in agents}
+
+
 def apply_fixes(agents: list[Path]) -> tuple[dict[str, list[str]], list[str]]:
     """Append missing MCP tools to each review agent. Returns (fixed, unfixable).
 
@@ -107,27 +112,13 @@ def apply_fixes(agents: list[Path]) -> tuple[dict[str, list[str]], list[str]]:
     to (a missing line, or a block-list form) — these are reported and cause a
     non-zero exit rather than a silent false "OK" (they can't be auto-fixed).
     """
-    fixed: dict[str, list[str]] = {}
-    unfixable: list[str] = []
-    for agent_file in agents:
-        text = agent_file.read_text(encoding="utf-8")
-        if parse_tools(text) is None:
-            unfixable.append(agent_file.stem)
-            continue
-        new_text, added = fix_tools_line(text)
-        if added:
-            agent_file.write_text(new_text, encoding="utf-8")
-            fixed[agent_file.stem] = added
+    _offenders, fixed, unfixable = run_grants_check(_targets(agents), apply_fix=True)
     return fixed, unfixable
 
 
 def find_offenders(agents: list[Path]) -> dict[str, list[str]]:
     """Return {agent: missing tool names} for review agents lacking any of the five."""
-    offenders: dict[str, list[str]] = {}
-    for agent_file in agents:
-        missing = missing_mcp_tools(agent_file.read_text(encoding="utf-8"))
-        if missing:
-            offenders[agent_file.stem] = missing
+    offenders, _fixed, _unfixable = run_grants_check(_targets(agents))
     return offenders
 
 

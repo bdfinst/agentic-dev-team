@@ -48,9 +48,7 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 from mcp_tool_grants import (
     BASE_MCP_TOOLS,
     GET_WHY,
-    fix_tools_line,
-    missing_tools,
-    parse_tools,
+    run_grants_check,
 )
 
 # Tiers ---------------------------------------------------------------------
@@ -115,6 +113,14 @@ def swept_agents(agents_dir: Path) -> list[str]:
     return out
 
 
+def _targets(agents_dir: Path) -> dict[str, tuple[Path, list[str]]]:
+    return {name: (agents_dir / f"{name}.md", required) for name, required in TIER_CONFIG.items()}
+
+
+def _unclassified(covered: list[str]) -> list[str]:
+    return sorted(name for name in covered if name not in TIER_CONFIG and name not in EXCLUSIONS)
+
+
 def evaluate(agents_dir: Path) -> dict:
     """Return the mapping report: covered set, offenders, unclassified.
 
@@ -124,28 +130,13 @@ def evaluate(agents_dir: Path) -> dict:
     """
     swept = swept_agents(agents_dir)
     covered = sorted(set(TIER_CONFIG) | set(swept))
-
-    offenders: dict[str, list[str]] = {}
-    unclassified: list[str] = []
-    for name in covered:
-        if name in TIER_CONFIG:
-            path = agents_dir / f"{name}.md"
-            if not path.is_file():
-                offenders[name] = list(TIER_CONFIG[name])  # named target missing
-                continue
-            missing = missing_tools(path.read_text(encoding="utf-8"), TIER_CONFIG[name])
-            if missing:
-                offenders[name] = missing
-        elif name in EXCLUSIONS:
-            continue
-        else:
-            unclassified.append(name)
+    offenders, _fixed, _unfixable = run_grants_check(_targets(agents_dir))
 
     return {
         "covered": covered,
         "swept": swept,
         "offenders": offenders,
-        "unclassified": sorted(unclassified),
+        "unclassified": _unclassified(covered),
     }
 
 
@@ -155,18 +146,7 @@ def apply_fixes(agents_dir: Path) -> dict[str, list[str]]:
     Unclassified agents are not auto-fixed (they need a human classification
     decision) — the caller reports them and exits non-zero.
     """
-    fixed: dict[str, list[str]] = {}
-    for name, required in TIER_CONFIG.items():
-        path = agents_dir / f"{name}.md"
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8")
-        if parse_tools(text) is None:
-            continue
-        new_text, added = fix_tools_line(text, required)
-        if added:
-            path.write_text(new_text, encoding="utf-8")
-            fixed[name] = added
+    _offenders, fixed, _unfixable = run_grants_check(_targets(agents_dir), apply_fix=True)
     return fixed
 
 
@@ -182,12 +162,11 @@ def main(argv=None) -> int:
         print(f"ERROR: agents directory not found: {agents_dir}", file=sys.stderr)
         return 1
 
-    if args.fix:
-        fixed = apply_fixes(agents_dir)
-
-    report = evaluate(agents_dir)
-    offenders = report["offenders"]
-    unclassified = report["unclassified"]
+    swept = swept_agents(agents_dir)
+    covered = sorted(set(TIER_CONFIG) | set(swept))
+    offenders, fixed, _unfixable = run_grants_check(_targets(agents_dir), apply_fix=args.fix)
+    unclassified = _unclassified(covered)
+    report = {"covered": covered, "swept": swept, "offenders": offenders, "unclassified": unclassified}
     rc = 1 if (offenders or unclassified) else 0
 
     if args.json:

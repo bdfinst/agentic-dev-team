@@ -41,9 +41,7 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
 from mcp_tool_grants import (
     BASE_MCP_TOOLS,
-    fix_tools_line,
-    missing_tools,
-    parse_tools,
+    run_grants_check,
 )
 
 # The security-assessment code-reading agents (#1388) — the 8 agents that
@@ -84,17 +82,15 @@ def _agents_dir_default() -> Path:
     return Path(__file__).parent.parent.parent / "security-assessment" / "agents"
 
 
+def _targets(agents_dir: Path) -> dict[str, tuple[Path, list[str]]]:
+    return {
+        name: (agents_dir / f"{name}.md", BASE_MCP_TOOLS) for name in CODE_READING_AGENTS
+    }
+
+
 def find_offenders(agents_dir: Path) -> dict[str, list[str]]:
     """Return {agent: missing tool names} for code-reading agents under-granted."""
-    offenders: dict[str, list[str]] = {}
-    for name in CODE_READING_AGENTS:
-        path = agents_dir / f"{name}.md"
-        if not path.is_file():
-            offenders[name] = list(BASE_MCP_TOOLS)  # named target missing
-            continue
-        missing = missing_tools(path.read_text(encoding="utf-8"), BASE_MCP_TOOLS)
-        if missing:
-            offenders[name] = missing
+    offenders, _fixed, _unfixable = run_grants_check(_targets(agents_dir))
     return offenders
 
 
@@ -108,18 +104,7 @@ def unclassified_agents(agents_dir: Path) -> list[str]:
 
 def apply_fixes(agents_dir: Path) -> dict[str, list[str]]:
     """Append missing BASE_MCP_TOOLS to each under-granted code-reading agent."""
-    fixed: dict[str, list[str]] = {}
-    for name in CODE_READING_AGENTS:
-        path = agents_dir / f"{name}.md"
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8")
-        if parse_tools(text) is None:
-            continue
-        new_text, added = fix_tools_line(text, BASE_MCP_TOOLS)
-        if added:
-            path.write_text(new_text, encoding="utf-8")
-            fixed[name] = added
+    _offenders, fixed, _unfixable = run_grants_check(_targets(agents_dir), apply_fix=True)
     return fixed
 
 
@@ -135,10 +120,7 @@ def main(argv=None) -> int:
         print(f"ERROR: agents directory not found: {agents_dir}", file=sys.stderr)
         return 1
 
-    if args.fix:
-        fixed = apply_fixes(agents_dir)
-
-    offenders = find_offenders(agents_dir)
+    offenders, fixed, _unfixable = run_grants_check(_targets(agents_dir), apply_fix=args.fix)
     unclassified = unclassified_agents(agents_dir)
     rc = 1 if (offenders or unclassified) else 0
 
