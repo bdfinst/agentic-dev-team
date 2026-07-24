@@ -769,9 +769,14 @@ this blanket ignore would wrongly hide).
 
 `/test-improve`, `/build`, and the review workflows write per-run resume
 state, progress bookkeeping, reports, and metrics into `memory/`, `reports/`,
-`metrics/`, and `plans/`. These are regeneratable runtime artifacts, not
-deliverables — but `/build` commits the working tree per completed step, so
-without an ignore rule they land in the project's history (issue #1101).
+`metrics/`, and `plans/`; `/code-review` additionally writes a
+`.review-passed` gate file at the repo root, consumed and deleted by the
+pre-commit hook on the next matching commit — but left behind whenever that
+commit never happens (files edited after review, or `--no-verify`), cluttering
+`git status` and risking capture by a stray `git add -A` (issue #1377). These
+are regeneratable runtime artifacts, not deliverables — but `/build` commits
+the working tree per completed step, so without an ignore rule they land in
+the project's history (issue #1101).
 
 In a downstream project, `memory/` is exclusively dev-team runtime state, so
 the whole folder is safe to ignore. Idempotently append the block (create
@@ -781,11 +786,12 @@ the whole folder is safe to ignore. Idempotently append the block (create
 MARKER="# dev-team workflow runtime artifacts"
 if ! grep -qF "$MARKER" .gitignore 2>/dev/null; then
   printf '\n%s\n%s\n' \
-    "$MARKER (regeneratable; not deliverables — issue #1101)" \
+    "$MARKER (regeneratable; not deliverables — issues #1101, #1377)" \
     "memory/
 reports/
 metrics/
-plans/" >> .gitignore
+plans/
+.review-passed" >> .gitignore
   echo "gitignore-updated"
 else
   echo "gitignore-already-covered"
@@ -796,6 +802,37 @@ If the project relocated `reports/` via `DEV_TEAM_REPORTS` or `metrics/` via
 `DEV_TEAM_TASK_METRICS`, add that path instead of the default. Record whether
 the block was added for the Step 12 report. Under `--dry-run`, report what
 would be appended without writing.
+
+**`.mcp.json` machine-specific-path hygiene (issue #1376).** Separately —
+still downstream-projects-only, same Step 2 `in-repo` skip — a project's
+`.mcp.json` (written by `index-codebase`/Repowise setup or hand-registered
+MCP servers) commonly bakes in the absolute filesystem path of the machine
+that wrote it (e.g. a Repowise or CodeGraph server's `args` array). If
+committed, every other clone inherits a path that doesn't exist on their
+machine and the server fails to start. Idempotently append its own block
+(independent marker, so this check runs and self-heals even on a repo where
+the runtime-artifacts block above was already added by an older `/setup`):
+
+```bash
+MCP_MARKER="# dev-team hygiene — machine-specific MCP config"
+if ! grep -qF "$MCP_MARKER" .gitignore 2>/dev/null; then
+  printf '\n%s\n%s\n' \
+    "$MCP_MARKER (absolute-path pollution — issue #1376)" \
+    ".mcp.json" >> .gitignore
+  echo "mcp-json-gitignore-updated"
+else
+  echo "mcp-json-gitignore-already-covered"
+fi
+```
+
+This ignores `.mcp.json` going forward regardless of whether it currently
+exists — the same "detect it whenever we write or see it" contract issue
+#1376 asks for. If `.mcp.json` is already tracked by git (`git ls-files
+--error-unmatch .mcp.json` exits 0), tell the operator to `git rm --cached
+.mcp.json` themselves rather than doing it automatically — untracking is a
+history-visible action `/setup` should not take silently. Record whether the
+block was added for the Step 12 report. Under `--dry-run`, report what would
+be appended without writing.
 
 ### 12. Report
 
@@ -845,7 +882,7 @@ an install predating this guard gets self-healed the next time `/setup` runs.
 - `.claude/project-stack.json` — stack detection results
 - `.claude/CLAUDE.md` — project conventions
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
-- `.gitignore` — dev-team runtime artifacts (memory/, reports/, metrics/, plans/)   [downstream only; omit if already covered]
+- `.gitignore` — dev-team runtime artifacts (memory/, reports/, metrics/, plans/, .review-passed) plus `.mcp.json` machine-specific-path hygiene (#1376)   [downstream only; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
 
 ### Recommendations
