@@ -63,6 +63,10 @@ __pycache__/
 *.py[cod]
 *.pyo
 
+# pytest-cov data file (chk_hook_units's informational coverage report,
+# scripts/ci-local.sh) — regenerated on every run, never committed.
+.coverage
+
 # Repowise codebase-documentation MCP cache (session counters, wiki/omissions
 # sqlite dbs) — local tool state, regenerated per session, never committed.
 .repowise/
