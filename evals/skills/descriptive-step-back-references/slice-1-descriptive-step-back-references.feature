@@ -24,7 +24,7 @@ Feature: Step back-references name the step's action
   Scenario: test-evaluation.md's cross-skill Farley-Score back-reference is descriptive
     Given plugins/dev-team/docs/test-evaluation.md
     When prose refers to /test-design's own Step 3 in the Farley Score reference-table row
-    Then the reference names it as "Score the in-scope tests (Farley Score)"
+    Then the reference names it as "Score the in-scope tests via Farley Score"
     And no bare "/test-design\` Step 3" with no accompanying description remains in the file
 
   Scenario: session-review's raw-log-tier back-references are corrected and descriptive
