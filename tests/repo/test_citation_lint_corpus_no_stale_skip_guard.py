@@ -9,9 +9,8 @@ a reader into thinking the corpus test can legitimately be skipped.
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 CORPUS_TEST = REPO_ROOT / "tests" / "repo" / "test_citation_lint_corpus.py"
 LINT = REPO_ROOT / "scripts" / "citation_lint.py"
 

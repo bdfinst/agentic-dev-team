@@ -12,9 +12,9 @@ satisfied" check and reinstall on every run.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 DEV_SETUP = REPO_ROOT / "scripts" / "dev-setup.sh"
 REQUIREMENTS = REPO_ROOT / "requirements-dev.txt"
 
@@ -29,6 +29,7 @@ DIST_TO_MODULE = {
     "pytest": "pytest",
     "pytest-asyncio": "pytest_asyncio",
     "pytest-xdist": "xdist",
+    "pytest-cov": "pytest_cov",
     "ruff": None,
     "mypy": "mypy",
 }

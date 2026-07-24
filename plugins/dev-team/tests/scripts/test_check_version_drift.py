@@ -13,12 +13,13 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(
     0, str(_REPO_ROOT / "plugins" / "dev-team" / "skills" / "upgrade" / "scripts")
 )
 
-import check_version_drift  # noqa: E402
+import check_version_drift
 
 
 def _seed(cfg: Path, *, installed="10.1.0", catalog="10.1.0", registry=True):

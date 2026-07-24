@@ -11,7 +11,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _HOOKS_LIB = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
 
 # Load by explicit file path (not a bare `import turn_identity`) so the

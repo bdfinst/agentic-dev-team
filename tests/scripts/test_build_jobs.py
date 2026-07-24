@@ -9,11 +9,11 @@ import importlib.util
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _SCRIPT_PY = _REPO_ROOT / "plugins" / "dev-team" / "scripts" / "build_jobs.py"
 
 

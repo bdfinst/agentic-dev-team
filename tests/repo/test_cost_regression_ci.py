@@ -13,7 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 CHECK = REPO_ROOT / "scripts" / "cost-regression-check.sh"
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
 

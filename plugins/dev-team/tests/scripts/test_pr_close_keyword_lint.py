@@ -8,12 +8,12 @@ the same sentence, and a closing keyword match that contradicts a
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts"))
 
-import pr_close_keyword_lint as lint  # noqa: E402
+import pr_close_keyword_lint as lint
 
 
 def test_negated_closing_keyword_is_flagged():

@@ -11,7 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _SCRIPT_PY = _REPO_ROOT / "plugins" / "dev-team" / "scripts" / "issue_deps.py"
 _FIX = _REPO_ROOT / "tests" / "fixtures" / "plans"
 

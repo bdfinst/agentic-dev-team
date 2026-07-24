@@ -16,7 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _HOOKS_DIR = _REPO_ROOT / "plugins" / "dev-team" / "hooks"
 _HOOK_PY = _HOOKS_DIR / "verify_guard.py"
 _EDIT_MARKER_PY = _HOOKS_DIR / "verify_guard_edit_marker.py"

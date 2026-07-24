@@ -13,16 +13,14 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(
     0, str(_REPO_ROOT / "plugins" / "dev-team" / "skills" / "harness-audit" / "scripts")
 )
 
-import lesson_validate as lv  # noqa: E402
-
+import lesson_validate as lv
 
 # ---------------------------------------------------------------------------
 # Helpers

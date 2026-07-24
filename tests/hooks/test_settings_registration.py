@@ -7,9 +7,9 @@ Ported from tests/hooks/settings_registration_test.bats (issue #676).
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SETTINGS = REPO_ROOT / "plugins" / "dev-team" / "settings.json"
 
 

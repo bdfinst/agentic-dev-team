@@ -26,7 +26,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 HOOK_FILES = [PLUGIN / "settings.json", PLUGIN / "hooks" / "hooks.json"]
 

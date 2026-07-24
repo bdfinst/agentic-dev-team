@@ -11,16 +11,16 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SCRIPT = REPO_ROOT / "scripts" / "oe_scoring_staleness.py"
 
 
 @pytest.fixture
-def suite(tmp_path: Path) -> Dict[str, Path]:
+def suite(tmp_path: Path) -> dict[str, Path]:
     suite_dir = tmp_path / "suite"
     root = tmp_path / "root"
     manifest = tmp_path / "manifest.json"
@@ -42,7 +42,7 @@ def suite(tmp_path: Path) -> Dict[str, Path]:
     return {"suite": suite_dir, "root": root, "manifest": manifest}
 
 
-def _write(suite: Dict[str, Path]) -> subprocess.CompletedProcess:
+def _write(suite: dict[str, Path]) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
             sys.executable,
@@ -60,7 +60,7 @@ def _write(suite: Dict[str, Path]) -> subprocess.CompletedProcess:
     )
 
 
-def _check(suite: Dict[str, Path], *extra: str) -> subprocess.CompletedProcess:
+def _check(suite: dict[str, Path], *extra: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
             sys.executable,
@@ -78,20 +78,20 @@ def _check(suite: Dict[str, Path], *extra: str) -> subprocess.CompletedProcess:
     )
 
 
-def test_fresh_snapshot_reports_ok_and_exits_0(suite: Dict[str, Path]) -> None:
+def test_fresh_snapshot_reports_ok_and_exits_0(suite: dict[str, Path]) -> None:
     _write(suite)
     result = _check(suite)
     assert result.returncode == 0
     assert "OK — all scored" in result.stdout + result.stderr
 
 
-def test_missing_manifest_is_reported_and_exits_nonzero(suite: Dict[str, Path]) -> None:
+def test_missing_manifest_is_reported_and_exits_nonzero(suite: dict[str, Path]) -> None:
     result = _check(suite)
     assert result.returncode != 0
     assert "NO MANIFEST" in result.stdout + result.stderr
 
 
-def test_changed_subject_spec_marks_its_pairs_stale(suite: Dict[str, Path]) -> None:
+def test_changed_subject_spec_marks_its_pairs_stale(suite: dict[str, Path]) -> None:
     _write(suite)
     (suite["root"] / "specs" / "alpha.md").write_text("alpha v2 (edited)\n")
     result = _check(suite)
@@ -105,7 +105,7 @@ def test_changed_subject_spec_marks_its_pairs_stale(suite: Dict[str, Path]) -> N
 
 
 def test_changed_expected_file_marks_all_that_fixtures_pairs_stale(
-    suite: Dict[str, Path],
+    suite: dict[str, Path],
 ) -> None:
     _write(suite)
     (suite["suite"] / "expected" / "oe-01-thing.json").write_text(
@@ -119,7 +119,7 @@ def test_changed_expected_file_marks_all_that_fixtures_pairs_stale(
     assert "expected criteria changed" in out
 
 
-def test_new_never_scored_fixture_is_reported_as_new(suite: Dict[str, Path]) -> None:
+def test_new_never_scored_fixture_is_reported_as_new(suite: dict[str, Path]) -> None:
     _write(suite)
     (suite["suite"] / "expected" / "oe-02-new.json").write_text(
         '{"fixture":"oe-02-new.md","subjects":["alpha"]}\n'
@@ -133,7 +133,7 @@ def test_new_never_scored_fixture_is_reported_as_new(suite: Dict[str, Path]) -> 
     assert "never scored" in out
 
 
-def test_warn_only_prints_the_alert_but_exits_0(suite: Dict[str, Path]) -> None:
+def test_warn_only_prints_the_alert_but_exits_0(suite: dict[str, Path]) -> None:
     _write(suite)
     (suite["root"] / "specs" / "alpha.md").write_text("alpha v2\n")
     result = _check(suite, "--warn-only")

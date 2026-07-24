@@ -9,15 +9,12 @@ from __future__ import annotations
 import io
 import json
 import sys
-from pathlib import Path
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
 
-import session_learning_trigger as slt  # noqa: E402
-
+import session_learning_trigger as slt
 
 # ---------------------------------------------------------------------------
 # _load_counter

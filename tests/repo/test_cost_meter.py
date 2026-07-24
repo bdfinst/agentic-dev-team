@@ -28,7 +28,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 METER = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "cost_meter.py"
 HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "cost_meter.py"
 

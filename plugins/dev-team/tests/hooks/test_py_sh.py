@@ -17,7 +17,8 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 PY_SH = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "py.sh"
 
 # A real interpreter the fakes delegate to when running an actual script.

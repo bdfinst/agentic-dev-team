@@ -8,11 +8,10 @@ Ported from tests/repo/gitignore_overrides.bats (#673).
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
 
 
 @pytest.mark.parametrize(

@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Dict
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 REAL_HOOK = REPO_ROOT / ".husky" / "pre-push"
 
 
-def _git(root: Path, env: Dict[str, str], *args: str) -> subprocess.CompletedProcess:
+def _git(root: Path, env: dict[str, str], *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", *args],
         cwd=str(root),
@@ -31,7 +31,7 @@ def _git(root: Path, env: Dict[str, str], *args: str) -> subprocess.CompletedPro
     )
 
 
-def _refs_snapshot(git_dir: Path, env: Dict[str, str]) -> str:
+def _refs_snapshot(git_dir: Path, env: dict[str, str]) -> str:
     result = subprocess.run(
         [
             "git",
@@ -50,7 +50,7 @@ def _refs_snapshot(git_dir: Path, env: Dict[str, str]) -> str:
 
 
 def test_e2e_real_git_push_through_shipped_hook_leaves_refs_stable(
-    tmp_path: Path, hermetic_env: Dict[str, str]
+    tmp_path: Path, hermetic_env: dict[str, str]
 ) -> None:
     # Build a scratch bare + worktree scaffold.
     bare = tmp_path / "remote.git"
@@ -130,7 +130,7 @@ def test_e2e_real_git_push_through_shipped_hook_leaves_refs_stable(
 
 
 def test_e2e_shipped_pre_push_refuses_to_complete_if_ref_moves_during_hook(
-    tmp_path: Path, hermetic_env: Dict[str, str]
+    tmp_path: Path, hermetic_env: dict[str, str]
 ) -> None:
     # Build a scratch worktree + bare.
     bare = tmp_path / "remote.git"

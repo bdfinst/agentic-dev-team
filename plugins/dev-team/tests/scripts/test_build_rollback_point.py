@@ -15,10 +15,11 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts"))
 
-import build_rollback_point  # noqa: E402
+import build_rollback_point
 
 _GIT_SCRUB_ENV_VARS = (
     "GIT_DIR",

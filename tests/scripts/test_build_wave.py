@@ -15,8 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPT_PY = _REPO_ROOT / "plugins" / "dev-team" / "scripts" / "build_wave.py"
 _FIX = _REPO_ROOT / "tests" / "fixtures" / "plans"
 

@@ -21,15 +21,15 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from _repo_root import REPO_ROOT
+
 HARNESS = REPO_ROOT / "plugins" / "security-assessment" / "harness"
 
 os.environ.setdefault("TARGET_URL", "http://127.0.0.1:8000")
 sys.path.insert(0, str(HARNESS))
 
-from redteam import orchestrator  # noqa: E402  (path set above)
+from redteam import orchestrator
 
 report_generator = orchestrator._import_agent("08_report_generator.py")
 

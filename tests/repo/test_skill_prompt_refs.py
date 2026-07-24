@@ -16,21 +16,21 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List, Tuple
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SKILLS_DIR = REPO_ROOT / "plugins" / "dev-team" / "skills"
 PROMPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "prompts"
 
 _REF_RE = re.compile(r"prompts/[a-zA-Z0-9_-]+\.md")
 
 
-def _skill_md_files() -> List[Path]:
+def _skill_md_files() -> list[Path]:
     return sorted(SKILLS_DIR.rglob("SKILL.md"))
 
 
-def _lines_with_ref() -> List[Tuple[Path, str]]:
-    hits: List[Tuple[Path, str]] = []
+def _lines_with_ref() -> list[tuple[Path, str]]:
+    hits: list[tuple[Path, str]] = []
     for f in _skill_md_files():
         for line in f.read_text().splitlines():
             if _REF_RE.search(line):

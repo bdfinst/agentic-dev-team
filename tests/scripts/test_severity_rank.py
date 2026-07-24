@@ -7,13 +7,13 @@ now share a single canonical ordering from scripts/lib/severity_rank.py.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 LIB = REPO_ROOT / "scripts" / "lib"
 sys.path.insert(0, str(LIB))
 
-import severity_rank  # noqa: E402
+import severity_rank
 
 
 def test_severity_order_is_highest_first() -> None:

@@ -18,12 +18,12 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _PLUGIN_ROOT = _REPO_ROOT / "plugins" / "dev-team"
 sys.path.insert(0, str(_PLUGIN_ROOT / "hooks"))
 
-from mutation_adapters import lib  # noqa: E402
-
+from mutation_adapters import lib
 
 # ---------------------------------------------------------------------------
 # JSON emit helpers

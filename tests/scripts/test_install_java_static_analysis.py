@@ -21,7 +21,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SCRIPT = REPO_ROOT / "scripts" / "install-java-static-analysis.py"
 
 # Modules the installer may import — all stdlib, per ADR 0014.

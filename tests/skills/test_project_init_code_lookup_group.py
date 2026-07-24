@@ -26,9 +26,8 @@ grep, no state-mutating operations.
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "project-init" / "SKILL.md"
 
 

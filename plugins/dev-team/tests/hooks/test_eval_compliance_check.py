@@ -19,11 +19,12 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "eval_compliance_check.py"
 
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
-import eval_compliance_check as ecc  # noqa: E402
+import eval_compliance_check as ecc
 
 _AGENT_BODY = """---
 name: security-review

@@ -10,9 +10,9 @@ bats -> pytest); rewritten for epic #1284's native-contract migration
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 AUDIT = REPO_ROOT / "plugins" / "dev-team" / "skills" / "agent-audit" / "SKILL.md"
 AGENTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "agents"
 TEMPLATES_DIR = REPO_ROOT / "plugins" / "dev-team" / "templates" / "agents"

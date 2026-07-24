@@ -8,10 +8,8 @@ Ported from tests/hooks/no_probe_refs_tests.bats (issue #676).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
+from _repo_root import REPO_ROOT
 
 # ---------------------------------------------------------------------------
 # Step 4.1 — the probe files are gone

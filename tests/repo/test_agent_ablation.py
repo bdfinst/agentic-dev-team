@@ -25,7 +25,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SCRIPTS = REPO_ROOT / "scripts"
 RIE_PATH = SCRIPTS / "run_integration_eval.py"
 ABLATION_PATH = SCRIPTS / "eval_ablation.py"

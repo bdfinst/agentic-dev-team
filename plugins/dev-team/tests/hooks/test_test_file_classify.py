@@ -10,15 +10,15 @@ import json
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
 
-from test_file_classify import (  # noqa: E402
+from test_file_classify import (
     STALE_AFTER_SECONDS,
     is_test_file,
     read_build_phase,
 )
-
 
 # ---------------------------------------------------------------------------
 # is_test_file — one assertion per indicator row

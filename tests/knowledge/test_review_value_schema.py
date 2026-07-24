@@ -14,11 +14,10 @@ The schema is documented in three places that must stay in sync: the
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 _PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
 TELEMETRY = _PLUGIN / "knowledge" / "telemetry-schema.md"

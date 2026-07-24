@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 BUILDER = (
     REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "build_knowledge_index.py"
 )

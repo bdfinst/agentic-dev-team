@@ -12,11 +12,12 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 LIB_DIR = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
 sys.path.insert(0, str(LIB_DIR))
 
-import model_resolve  # noqa: E402
+import model_resolve
 
 
 @pytest.fixture

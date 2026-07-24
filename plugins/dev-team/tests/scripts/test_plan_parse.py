@@ -8,22 +8,19 @@ to lock down the API-level contract (missing depends line yields
 from __future__ import annotations
 
 import sys
-from pathlib import Path
-from typing import List
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib"))
 
-import plan_parse  # noqa: E402
-
+import plan_parse
 
 # ---------------------------------------------------------------------------
 # Behavioural tests — API surface
 # ---------------------------------------------------------------------------
 
 
-def _rows(source: str) -> List[tuple]:
+def _rows(source: str) -> list[tuple]:
     return plan_parse.parse_slices(source.splitlines())
 
 

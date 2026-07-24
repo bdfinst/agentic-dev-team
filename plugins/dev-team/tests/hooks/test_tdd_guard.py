@@ -9,11 +9,11 @@ from pathlib import Path
 
 import pytest
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
 
-import tdd_guard  # noqa: E402
+import tdd_guard
 
 
 @pytest.fixture(autouse=True)

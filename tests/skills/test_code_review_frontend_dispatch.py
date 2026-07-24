@@ -17,9 +17,8 @@ Three contracts:
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS = REPO_ROOT / "plugins" / "dev-team" / "agents"
 SKILLS = REPO_ROOT / "plugins" / "dev-team" / "skills"
 CODE_REVIEW = (SKILLS / "code-review" / "SKILL.md").read_text(encoding="utf-8")

@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import List
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
 
 
 def test_test_modernize_skill_directory_is_gone() -> None:
@@ -55,7 +54,7 @@ def test_no_exclusive_bats_fixture_for_test_modernize_or_test_upgrade_remains() 
         assert not (REPO_ROOT / rel).is_file(), f"{rel} should have been removed"
 
 
-def _grep_files(pattern: str, paths: List[Path]) -> List[str]:
+def _grep_files(pattern: str, paths: list[Path]) -> list[str]:
     existing = [str(p) for p in paths if p.exists()]
     if not existing:
         return []

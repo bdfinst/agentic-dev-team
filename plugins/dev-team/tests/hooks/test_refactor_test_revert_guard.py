@@ -14,11 +14,12 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
 
-import refactor_test_revert_guard as guard  # noqa: E402
+import refactor_test_revert_guard as guard
 
 _WRITTEN_AT = "2026-07-04T10:00:00+00:00"
 _WRITTEN_AT_EPOCH = 1783159200.0

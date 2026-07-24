@@ -13,11 +13,10 @@ its invariants actually passed) comes back.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 BUILD = REPO_ROOT / "plugins" / "dev-team" / "skills" / "build" / "SKILL.md"
 
 
