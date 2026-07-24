@@ -125,3 +125,44 @@ def fix_tools_line(text, required):
     new_line = m.group(1) + ", ".join(new_tokens)
     new_text = text[: m.start()] + new_line + text[m.end() - len(m.group(3)) :]
     return new_text, added
+
+
+def run_grants_check(targets, apply_fix=False):
+    """Single read+parse pass per target, shared by all three grant-check scripts.
+
+    ``targets`` is ``{name: (path, required)}``. Each target's file is read from
+    disk **at most once** regardless of ``apply_fix`` — the offender computation
+    below reuses the (possibly just-fixed) in-memory text rather than re-reading,
+    which is what let ``--fix`` runs silently do a second full read+parse pass
+    per file in the three callers before this helper existed (#1392).
+
+    Returns ``(offenders, fixed, unfixable)``:
+      - ``offenders``: ``{name: [missing tool names]}``, reflecting the
+        post-fix state when ``apply_fix`` is true.
+      - ``fixed``: ``{name: [tool names added]}`` — populated only when
+        ``apply_fix`` is true.
+      - ``unfixable``: ``[name, ...]`` — targets whose file exists but has no
+        appendable inline ``tools:`` line — populated only when ``apply_fix``
+        is true (mirrors each caller's prior ``apply_fixes()`` semantics).
+    """
+    offenders = {}
+    fixed = {}
+    unfixable = []
+    for name, (path, required) in targets.items():
+        if not path.is_file():
+            offenders[name] = list(required)
+            continue
+        text = path.read_text(encoding="utf-8")
+        if apply_fix:
+            if parse_tools(text) is None:
+                unfixable.append(name)
+            else:
+                new_text, added = fix_tools_line(text, required)
+                if added:
+                    path.write_text(new_text, encoding="utf-8")
+                    fixed[name] = added
+                    text = new_text
+        missing = missing_tools(text, required)
+        if missing:
+            offenders[name] = missing
+    return offenders, fixed, unfixable
