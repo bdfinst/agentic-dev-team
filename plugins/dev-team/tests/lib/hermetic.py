@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict, Optional
 
 _DANGEROUS_GIT_VARS = (
     "GIT_DIR",
@@ -26,7 +25,7 @@ _DANGEROUS_GIT_VARS = (
 )
 
 
-def hermetic_git_env(home: Optional[Path] = None) -> Dict[str, str]:
+def hermetic_git_env(home: Path | None = None) -> dict[str, str]:
     """Return an environment safe to pass to subprocess git mutations.
 
     Strips the five dangerous git-exported vars so a fixture's own `git`

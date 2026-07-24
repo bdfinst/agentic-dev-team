@@ -13,7 +13,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
 
@@ -21,9 +21,9 @@ _HARNESS_DIR = Path(__file__).resolve().parents[2] / "evals" / "code-review-benc
 if str(_HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(_HARNESS_DIR))
 
-import runner  # noqa: E402
+import runner
 
-_CASE: Dict[str, Any] = {
+_CASE: dict[str, Any] = {
     "dataset": "defects4j",
     "project": "Lang",
     "bug_id": "1",
@@ -63,8 +63,8 @@ def _seed_checkout(workdir: str, files) -> None:
 
 
 def _dispatch_result(
-    review_json: Dict[str, Any] = _REVIEW_JSON, cost_usd: Any = 4.48
-) -> Dict[str, Any]:
+    review_json: dict[str, Any] = _REVIEW_JSON, cost_usd: Any = 4.48
+) -> dict[str, Any]:
     """A dispatch_fn return value shaped like the real `make_isolated_dispatch_fn`
     output: both the raw wrapper stdout AND the already-extracted `result_text`
     (the runner reads `result_text` directly; it does not re-parse `raw_stdout`),
@@ -83,7 +83,7 @@ def test_run_case_hit(tmp_path: Path) -> None:
         _seed_checkout(workdir, ["src/Foo.java"])
         return True
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         assert "--json" in prompt
         assert os.path.isdir(cwd)
         # Fix-only scope: only the ground-truth file should be present.
@@ -139,7 +139,7 @@ def test_run_case_uses_ground_truth_fn_when_case_has_none(tmp_path: Path) -> Non
     def ground_truth_fn(workdir: str):
         return [{"file": "src/Foo.java", "start_line": 10, "end_line": 12}]
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         return _dispatch_result()
 
     record = runner.run_case(
@@ -167,7 +167,7 @@ def test_run_case_uses_ground_truth_fn_when_case_has_none(tmp_path: Path) -> Non
     ],
 )
 def test_run_case_non_source_ground_truth_is_skipped(
-    tmp_path: Path, language: str, files: List[str]
+    tmp_path: Path, language: str, files: list[str]
 ) -> None:
     """#965: ground truth touching only non-source files (a changelog entry
     and a package.json/pom.xml, say) must not be scored as a recall miss —
@@ -180,7 +180,7 @@ def test_run_case_non_source_ground_truth_is_skipped(
     )
     dispatched = []
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         dispatched.append(prompt)
         return _dispatch_result()
 
@@ -212,7 +212,7 @@ def test_run_case_non_source_ground_truth_is_skipped(
     ],
 )
 def test_run_case_is_scored_when_source_is_touched_or_language_unmapped(
-    tmp_path: Path, language: str, files: List[str]
+    tmp_path: Path, language: str, files: list[str]
 ) -> None:
     """Must NOT skip: a non-source file alongside a real source file (only
     ZERO recognized extensions triggers the skip), a non-`.js` recognized
@@ -231,7 +231,7 @@ def test_run_case_is_scored_when_source_is_touched_or_language_unmapped(
         _seed_checkout(workdir, files)
         return True
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         dispatched.append(prompt)
         return _dispatch_result()
 
@@ -266,7 +266,7 @@ def test_run_case_unparseable_json_is_skipped(tmp_path: Path) -> None:
         _seed_checkout(workdir, ["src/Foo.java"])
         return True
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         return {
             "raw_stdout": json.dumps({"result": "not json at all"}),
             "result_text": "not json at all",
@@ -311,7 +311,7 @@ def test_run_case_full_repo_scope_passes_full_checkout(tmp_path: Path) -> None:
         _seed_checkout(workdir, ["src/Foo.java", "src/Unrelated.java"])
         return True
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         seen_cwd["cwd"] = cwd
         assert (Path(cwd) / "src" / "Unrelated.java").is_file()
         return _dispatch_result()
@@ -335,10 +335,10 @@ def test_run_case_records_test_verification_against_full_checkout(
         _seed_checkout(workdir, ["src/Foo.java"])
         return True
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         return _dispatch_result()
 
-    def test_fn(checkout_dir: str) -> Dict[str, Any]:
+    def test_fn(checkout_dir: str) -> dict[str, Any]:
         # Called against the full checkout, not the fix-only scoped copy —
         # assert while the checkout dir still exists (run_case tears it
         # down in its `finally` before returning).
@@ -367,10 +367,10 @@ def test_run_case_test_fn_exception_does_not_crash_the_case(tmp_path: Path) -> N
         _seed_checkout(workdir, ["src/Foo.java"])
         return True
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         return _dispatch_result()
 
-    def test_fn(checkout_dir: str) -> Dict[str, Any]:
+    def test_fn(checkout_dir: str) -> dict[str, Any]:
         raise RuntimeError("boom")
 
     record = runner.run_case(
@@ -390,7 +390,7 @@ def test_run_case_test_verification_none_without_test_fn(tmp_path: Path) -> None
         _seed_checkout(workdir, ["src/Foo.java"])
         return True
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         return _dispatch_result()
 
     record = runner.run_case(
@@ -598,7 +598,7 @@ class _RetryFakeIsolatedDispatch:
         return cmd
 
 
-def _wrapper_stdout(result_text: Optional[str], is_error: bool = False) -> str:
+def _wrapper_stdout(result_text: str | None, is_error: bool = False) -> str:
     return json.dumps({"result": result_text, "is_error": is_error})
 
 
@@ -937,7 +937,7 @@ def test_run_case_skip_reason_notes_retry_when_retry_attempted(tmp_path: Path) -
         _seed_checkout(workdir, ["src/Foo.java"])
         return True
 
-    def dispatch_fn(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
         return {
             "raw_stdout": json.dumps({"result": "still prose"}),
             "result_text": "still prose",
@@ -1040,7 +1040,7 @@ def test_make_isolated_dispatch_fn_applies_plugin_path_override(
     import subprocess as subprocess_module
 
     installed_path = plugins_dir / "installed_plugins.json"
-    seen: Dict[str, Any] = {}
+    seen: dict[str, Any] = {}
 
     def fake_run(cmd, **kwargs):
         # home gets rmtree'd in dispatch()'s `finally` right after this

@@ -19,7 +19,7 @@ _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
 if str(_HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_DIR))
 
-import destructive_guard  # type: ignore[import-not-found]  # noqa: E402
+import destructive_guard  # type: ignore[import-not-found]
 
 
 @pytest.fixture(autouse=True)
@@ -794,7 +794,7 @@ def test_main_non_matching_command_returns_zero(monkeypatch, capsys):
 
 def test_main_warns_on_file_destruction(monkeypatch, capsys):
     monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
-    monkeypatch.setattr(destructive_guard, "_load_escalations", lambda: [])
+    monkeypatch.setattr(destructive_guard, "_load_escalations", list)
     _feed(monkeypatch, {"tool_input": {"command": "rm -rf /var/data"}})
     assert destructive_guard.main() == 0
     assert (
@@ -805,7 +805,7 @@ def test_main_warns_on_file_destruction(monkeypatch, capsys):
 
 def test_main_warns_on_database_destruction(monkeypatch, capsys):
     monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
-    monkeypatch.setattr(destructive_guard, "_load_escalations", lambda: [])
+    monkeypatch.setattr(destructive_guard, "_load_escalations", list)
     _feed(monkeypatch, {"tool_input": {"command": "drop table users"}})
     assert destructive_guard.main() == 0
     assert (
@@ -816,7 +816,7 @@ def test_main_warns_on_database_destruction(monkeypatch, capsys):
 
 def test_main_warn_full_output_and_boundary_event(monkeypatch, capsys):
     monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
-    monkeypatch.setattr(destructive_guard, "_load_escalations", lambda: [])
+    monkeypatch.setattr(destructive_guard, "_load_escalations", list)
     events = []
     monkeypatch.setattr(
         destructive_guard, "emit_boundary_event", lambda *a, **k: events.append(a)
@@ -840,7 +840,7 @@ def test_main_warn_defaults_cwd_to_dot_and_session_to_none(monkeypatch, capsys):
     # No cwd / session_id in the payload — cwd falls back to ".", session
     # to None, both observable only through the boundary event.
     monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
-    monkeypatch.setattr(destructive_guard, "_load_escalations", lambda: [])
+    monkeypatch.setattr(destructive_guard, "_load_escalations", list)
     events = []
     monkeypatch.setattr(
         destructive_guard, "emit_boundary_event", lambda *a, **k: events.append(a)

@@ -32,7 +32,6 @@ import argparse
 import json
 import os
 import sys
-from typing import List, Optional, Tuple
 
 PLUGIN = "dev-team"
 
@@ -53,7 +52,7 @@ def load(path: str):
         return None
 
 
-def resolve_market(cfg: str) -> Optional[str]:
+def resolve_market(cfg: str) -> str | None:
     """The marketplace id the plugin is installed from (the ``@<market>`` half
     of its ``installed_plugins.json`` key), or None if it is not installed."""
     installed = (
@@ -69,7 +68,7 @@ def resolve_market(cfg: str) -> Optional[str]:
     )
 
 
-def settings_candidates(cfg: str) -> List[str]:
+def settings_candidates(cfg: str) -> list[str]:
     """Settings files to consult, project-scoped first (mirrors the CLI/UI
     precedence), falling back to the config-dir user settings."""
     cwd = os.getcwd()
@@ -94,7 +93,7 @@ def check(cfg: str) -> str:
     return "disabled"
 
 
-def _target(cfg: str, market: str) -> Tuple[str, dict]:
+def _target(cfg: str, market: str) -> tuple[str, dict]:
     """Pick the settings file to write, seeding a fresh config-dir entry from the
     marketplace registry when no existing file already declares the market."""
     for path in settings_candidates(cfg):
@@ -128,7 +127,7 @@ def enable(cfg: str) -> str:
     return f"enabled for '{market}' in {path}"
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check", action="store_true", help="Report status only.")

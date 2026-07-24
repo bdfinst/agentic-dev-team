@@ -52,15 +52,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Iterable, Iterator, Optional
 
 _TYPE_FIELDS = ("event", "type", "hook", "workflow")
 _GATE_OUTCOME_FIELDS = ("decision", "outcome")
 _TS_FIELDS = ("ts", "timestamp")
 
 
-def _first_present(entry: dict, candidates) -> Optional[str]:
+def _first_present(entry: dict, candidates) -> str | None:
     for field in candidates:
         if field in entry and entry[field] is not None:
             return entry[field]
@@ -90,10 +90,10 @@ def load_stream(path) -> Iterator[dict]:
 
 def filter_entries(
     entries: Iterable[dict],
-    event_type: Optional[str] = None,
-    session_id: Optional[str] = None,
-    since: Optional[str] = None,
-    gate_outcome: Optional[str] = None,
+    event_type: str | None = None,
+    session_id: str | None = None,
+    since: str | None = None,
+    gate_outcome: str | None = None,
 ) -> Iterator[dict]:
     """Apply every provided filter (AND-composed) to `entries`, a pure filter.
 

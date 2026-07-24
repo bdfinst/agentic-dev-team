@@ -18,13 +18,11 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import List, Optional
-
 
 _VERIFY_SUCCESS_OUTCOMES = {"ran", "failed-then-fixed"}
 
 
-def _timestamp_field(record: dict) -> Optional[str]:
+def _timestamp_field(record: dict) -> str | None:
     """Return the timestamp string from a JSONL record, trying common field names."""
     for key in ("timestamp", "logged_at", "ts"):
         if key in record:
@@ -32,7 +30,7 @@ def _timestamp_field(record: dict) -> Optional[str]:
     return None
 
 
-def _read_since(path: Path, since_iso: str) -> List[dict]:
+def _read_since(path: Path, since_iso: str) -> list[dict]:
     """
     Return all JSON records from *path* whose timestamp >= since_iso.
 
@@ -42,7 +40,7 @@ def _read_since(path: Path, since_iso: str) -> List[dict]:
     if not path.exists():
         return []
 
-    results: List[dict] = []
+    results: list[dict] = []
     with path.open(encoding="utf-8") as fh:
         for raw in fh:
             raw = raw.strip()

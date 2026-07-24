@@ -27,7 +27,7 @@ SCRIPTS_DIR = (
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import mutation_report  # noqa: E402
+import mutation_report
 
 
 # =============================================================================

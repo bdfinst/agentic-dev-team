@@ -25,9 +25,9 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # _timeout — portable wrapper: `timeout` > `gtimeout` > unbounded fallback
@@ -38,7 +38,7 @@ def run_with_timeout(
     seconds: int,
     argv: Sequence[str],
     **kwargs: Any,
-) -> "subprocess.CompletedProcess[bytes]":
+) -> subprocess.CompletedProcess[bytes]:
     """Run `argv` with the given `seconds` wall-clock cap, mirroring bash `_timeout`.
 
     Prefers `timeout`/`gtimeout` on PATH (so the runner keeps its bash-native
@@ -142,7 +142,7 @@ def _state_dir() -> Path:
     return Path(os.environ.get("TMPDIR", "/tmp")) / "mutation-gate"
 
 
-def state_file_path(cwd: Optional[Path] = None) -> Path:
+def state_file_path(cwd: Path | None = None) -> Path:
     """Return the per-project state file path (`session-<hash>`)."""
     base = str(cwd if cwd is not None else Path.cwd())
     digest = hashlib.sha256(base.encode("utf-8")).hexdigest()[:12]
@@ -162,7 +162,7 @@ def _purge_stale_states(state_dir: Path) -> None:
             pass
 
 
-def write_state(result: str, event_json: str, cwd: Optional[Path] = None) -> None:
+def write_state(result: str, event_json: str, cwd: Path | None = None) -> None:
     """Write the state file from a PostToolUse event body.
 
     `result` is "pass" or "fail"; `event_json` is the raw stdin JSON string —
@@ -189,7 +189,7 @@ def write_state(result: str, event_json: str, cwd: Optional[Path] = None) -> Non
     target.write_text(json.dumps(payload))
 
 
-def read_state(cwd: Optional[Path] = None) -> str:
+def read_state(cwd: Path | None = None) -> str:
     """Return the state JSON as a string, or `""` if absent / stale.
 
     Stale files (> TTL) are deleted lazily on read so subsequent calls don't
@@ -262,7 +262,7 @@ def is_red_to_green(prev_result: str, cur_result: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _tokens(command: str) -> List[str]:
+def _tokens(command: str) -> list[str]:
     return command.strip().split()
 
 
@@ -394,7 +394,7 @@ def first_changed_file(is_source_predicate: Callable[[str], bool]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def parse_stryker_kills(report_file: Path, output_file: Path) -> Optional[str]:
+def parse_stryker_kills(report_file: Path, output_file: Path) -> str | None:
     """Parse Stryker JSON, write zero-kills to `output_file`.
 
     Returns None on success; returns the advisory JSON string when the report
@@ -419,14 +419,14 @@ def parse_stryker_kills(report_file: Path, output_file: Path) -> Optional[str]:
     mutants = data.get("mutants", [])
 
     killing_set = set()
-    coverage: Dict[str, int] = {}
+    coverage: dict[str, int] = {}
     for mutant in mutants:
         for t in mutant.get("killedBy", []):
             killing_set.add(t)
         for t in mutant.get("coveredBy", []):
             coverage[t] = coverage.get(t, 0) + 1
 
-    zero_kills: List[Dict[str, Any]] = []
+    zero_kills: list[dict[str, Any]] = []
     for test in sorted(set(coverage.keys()) - killing_set):
         zero_kills.append(
             {
@@ -446,7 +446,7 @@ def parse_stryker_kills(report_file: Path, output_file: Path) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def format_blocking_reason(zero_kills_file: Path, command: str) -> str:  # noqa: ARG001
+def format_blocking_reason(zero_kills_file: Path, command: str) -> str:
     """Return the multi-line human-readable reason string for a blocked gate.
 
     `command` is unused (kept for signature parity with bash) — the message

@@ -36,17 +36,16 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _SCRIPT_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from stdin_json import read_stdin_json  # noqa: E402
-from test_file_classify import is_test_file, read_build_phase  # noqa: E402
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
-from refactor_test_freeze_guard import audit  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
+from refactor_test_freeze_guard import audit
+from stdin_json import read_stdin_json
+from test_file_classify import is_test_file, read_build_phase
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -67,7 +66,7 @@ RECOVERY = (
 
 # Inline fallback — kept in the same order as the shipped JSON so behavior
 # is byte-identical when the config file is missing or malformed.
-_DEFAULT_PATTERNS: List[Tuple[str, str]] = [
+_DEFAULT_PATTERNS: list[tuple[str, str]] = [
     (
         "sed-i",
         r"\bsed\s+-i(?:\.\S+)?\s+(?:-e\s+)?(?:'[^']*'|\"[^\"]*\")\s+(?P<target>[^\s;&|]+)",
@@ -89,7 +88,7 @@ _DEFAULT_PATTERNS: List[Tuple[str, str]] = [
 ]
 
 
-def _load_patterns() -> List[Tuple[str, str]]:
+def _load_patterns() -> list[tuple[str, str]]:
     """Load (id, regex) pairs from the config file, falling back to inline
     defaults on any error — attempt-and-degrade, matches destructive_guard.py."""
     try:
@@ -101,7 +100,7 @@ def _load_patterns() -> List[Tuple[str, str]]:
     raw = data.get("patterns")
     if not isinstance(raw, list):
         return list(_DEFAULT_PATTERNS)
-    pairs: List[Tuple[str, str]] = []
+    pairs: list[tuple[str, str]] = []
     for entry in raw:
         if not isinstance(entry, dict):
             continue
@@ -113,8 +112,8 @@ def _load_patterns() -> List[Tuple[str, str]]:
 
 
 def _extract_all_targets(
-    command: str, patterns: List[Tuple[str, str]]
-) -> List[Tuple[str, str]]:
+    command: str, patterns: list[tuple[str, str]]
+) -> list[tuple[str, str]]:
     """Return (rule_id, raw_target) for every occurrence of every pattern
     that matches the command, evaluated independently rather than
     short-circuited at the first hit (#914).
@@ -128,7 +127,7 @@ def _extract_all_targets(
     second targeting a test file), so every occurrence of a matching pattern
     is collected via `re.finditer`, not just its first occurrence via
     `re.search`. Never raises."""
-    matches: List[Tuple[str, str]] = []
+    matches: list[tuple[str, str]] = []
     for rule_id, regex in patterns:
         try:
             found = list(re.finditer(regex, command))
@@ -146,8 +145,7 @@ def _normalize_target(target: str) -> str:
     stripped = target.strip()
     if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in ("'", '"'):
         stripped = stripped[1:-1]
-    if stripped.startswith("./"):
-        stripped = stripped[2:]
+    stripped = stripped.removeprefix("./")
     return stripped
 
 
@@ -165,15 +163,15 @@ def _resolve_relative(target: str, project_dir: Path) -> str:
     return normalized
 
 
-def _matches_staged_or_new_test(rel_target: str, staged: List[str]) -> bool:
+def _matches_staged_or_new_test(rel_target: str, staged: list[str]) -> bool:
     if rel_target in staged:
         return True
     return is_test_file(rel_target)
 
 
 def evaluate(
-    command: str, project_dir: Path, now: Optional[float] = None
-) -> Tuple[int, List[str], Optional[str]]:
+    command: str, project_dir: Path, now: float | None = None
+) -> tuple[int, list[str], str | None]:
     """Return (exit_code, stdout_lines, matched_rule_id).
 
     `matched_rule_id` is the pattern id that triggered a block, or None
@@ -196,15 +194,15 @@ def evaluate(
 
         step = state.get("step") if isinstance(state.get("step"), str) else None
         audit(project_dir, "bash-freeze", "block", file=rel_target, step=step)
-        step_label = " (step {})".format(step) if step else ""
+        step_label = f" (step {step})" if step else ""
         return (
             2,
             [
-                "[BLOCK] Tests are frozen during REFACTOR{}.".format(step_label),
+                f"[BLOCK] Tests are frozen during REFACTOR{step_label}.",
                 "A refactor step must never change a test — refactoring is",
                 "behavior-preserving by definition (tests-frozen invariant, Rec 4,",
                 "docs/experiments/RECOMMENDATIONS.md).",
-                "File: {}".format(rel_target),
+                f"File: {rel_target}",
                 "Recovery: leave REFACTOR and return to the TEST phase, make the",
                 "test change there, re-verify the full suite green (pasted",
                 "evidence), then re-enter REFACTOR.",
@@ -243,7 +241,7 @@ def main() -> int:
             project_dir,
             "bash-freeze",
             "fail-open",
-            reason="internal error: {}".format(exc),
+            reason=f"internal error: {exc}",
         )
         return 0
     for line in lines:

@@ -21,7 +21,6 @@ import os
 import sys
 import uuid
 from pathlib import Path
-from typing import List, Optional
 
 LEDGER_SCHEMA = "code-review-ledger/v1"
 SECTION_SCHEMA = "code-review-section/v1"
@@ -61,7 +60,7 @@ def _atomic_write_json(path: Path, obj) -> None:
 # --- ledger + section operations ----------------------------------------------
 
 
-def init_ledger(slices: List[dict], cap: int, root: str) -> dict:
+def init_ledger(slices: list[dict], cap: int, root: str) -> dict:
     """Write a fresh ledger recording every slice as ``pending``; return it.
 
     Idempotent for a given ``(slices, cap)`` — the same inputs always produce
@@ -85,7 +84,7 @@ def init_ledger(slices: List[dict], cap: int, root: str) -> dict:
     return ledger
 
 
-def read_ledger(root: str) -> Optional[dict]:
+def read_ledger(root: str) -> dict | None:
     """Return the ledger dict, or ``None`` if no ledger exists yet."""
     path = ledger_path(root)
     if not path.exists():
@@ -114,7 +113,7 @@ def mark_done(root: str, slice_id: str) -> None:
     _atomic_write_json(ledger_path(root), ledger)
 
 
-def pending_slices(slices: List[dict], root: str) -> List[dict]:
+def pending_slices(slices: list[dict], root: str) -> list[dict]:
     """Return the slices still needing review — those with no section artifact.
 
     **Disk is the source of truth**, not the ledger's ``status`` field. A slice
@@ -126,7 +125,7 @@ def pending_slices(slices: List[dict], root: str) -> List[dict]:
     return [s for s in slices if not section_path(root, s["id"]).exists()]
 
 
-def check_resume_cap(root: str, requested_cap: Optional[int]) -> None:
+def check_resume_cap(root: str, requested_cap: int | None) -> None:
     """Raise if ``--resume`` is given a cap differing from the recorded one.
 
     Repartitioning with a different cap would desync the new slice ids from the
@@ -146,7 +145,7 @@ def check_resume_cap(root: str, requested_cap: Optional[int]) -> None:
         )
 
 
-def write_section(slice_record: dict, findings: list, panel: List[str], root: str) -> Path:
+def write_section(slice_record: dict, findings: list, panel: list[str], root: str) -> Path:
     """Persist a reviewed slice's findings and mark it done in the ledger.
 
     ``slice_record`` is a partition record (``id``/``files``/``is_declarative``).
@@ -176,7 +175,7 @@ def _load_json_arg(value: str):
     return json.loads(p.read_text() if p.exists() else value)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
 

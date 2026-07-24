@@ -11,7 +11,6 @@ from collections import defaultdict
 from pathlib import Path
 from statistics import mean, stdev
 
-
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def load_rows(paths: list[Path]) -> list[dict]:

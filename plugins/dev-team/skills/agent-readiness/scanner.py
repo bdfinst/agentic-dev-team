@@ -27,8 +27,7 @@ HERE = Path(__file__).resolve().parent
 # skills/agent-readiness -> skills -> dev-team -> hooks/lib (stdlib-only YAML
 # subset parser; see ADR 0014/0015 — no third-party imports in shipped code).
 sys.path.insert(0, str(HERE.parents[1] / "hooks" / "lib"))
-from minimal_yaml import parse_yaml  # noqa: E402
-
+from minimal_yaml import parse_yaml
 
 # --------------------------------------------------------------------------
 # Small filesystem helpers (all detection is file-presence/heuristic).

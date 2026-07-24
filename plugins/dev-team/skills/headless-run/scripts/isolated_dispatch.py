@@ -60,7 +60,6 @@ import sys
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
 
 # Inherited env vars that carry the parent session's / Remote runtime's identity.
 # Removing them stops the nested dispatch from re-adopting the parent identity
@@ -105,7 +104,7 @@ def new_session_id() -> str:
     return str(uuid.uuid4())
 
 
-def make_cell_home(root: Optional[Path] = None) -> Path:
+def make_cell_home(root: Path | None = None) -> Path:
     """Create an isolated throwaway HOME + config dir for one dispatch.
 
     Like run_tdd_experiment.make_cell_home, but a self-contained tempdir the
@@ -152,7 +151,7 @@ def _make_bulky_state_ignorer(source_root: str):
     because the name matches.
     """
 
-    def _ignore(root: str, names: List[str]) -> List[str]:
+    def _ignore(root: str, names: list[str]) -> list[str]:
         if root != source_root:
             return []
         return [n for n in names if n in _CLAUDE_DIR_EXCLUDE]
@@ -160,7 +159,7 @@ def _make_bulky_state_ignorer(source_root: str):
     return _ignore
 
 
-def copy_auth_state(home: Path, source_home: Optional[Path] = None) -> bool:
+def copy_auth_state(home: Path, source_home: Path | None = None) -> bool:
     """Copy `~/.claude.json` + (most of) `~/.claude/` into the fresh cell
     home so the dispatch keeps its Claude Code OAuth login (#957).
 
@@ -206,7 +205,7 @@ def copy_auth_state(home: Path, source_home: Optional[Path] = None) -> bool:
     return True
 
 
-def build_env(home: Path, base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def build_env(home: Path, base: dict[str, str] | None = None) -> dict[str, str]:
     """Return a SCRUBBED environment rooted at a fresh HOME.
 
     Starts from `base` (defaults to os.environ), drops every parent
@@ -232,10 +231,10 @@ def build_cmd(
     prompt: str,
     session_id: str,
     model: str,
-    cwd: Optional[str] = None,  # accepted for symmetry; cwd is applied at run time
-    skip_permissions: Optional[bool] = None,
+    cwd: str | None = None,  # accepted for symmetry; cwd is applied at run time
+    skip_permissions: bool | None = None,
     resume: bool = False,
-) -> List[str]:
+) -> list[str]:
     """The `claude -p` argv for one isolated dispatch.
 
     Default (`resume=False`): always carries `--session-id <uuid>` (the
@@ -267,7 +266,7 @@ def build_cmd(
     return cmd
 
 
-def _normalize_result(stdout: str) -> Dict:
+def _normalize_result(stdout: str) -> dict:
     """Parse the `--output-format json` result into the fields a harness wants."""
     result = {
         "session_id": None,
@@ -348,7 +347,7 @@ def run(
     return 1 if result["is_error"] else 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run a Claude Code prompt headlessly in an isolated subprocess."
     )

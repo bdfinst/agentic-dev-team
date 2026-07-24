@@ -24,7 +24,6 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 _LOG_NAME = "boundary-events.jsonl"
 
@@ -52,7 +51,7 @@ def emit_boundary_event(
     tool: str,
     decision: str,
     matched_rule: str,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
 ) -> None:
     """Append one compact JSON line to `<cwd>/metrics/boundary-events.jsonl`.
 

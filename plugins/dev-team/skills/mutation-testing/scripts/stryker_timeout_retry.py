@@ -22,8 +22,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
 
 import mutation_report
 
@@ -31,7 +31,7 @@ DEFAULT_ADDITIONAL_TIMEOUT_MS = 10000
 RETRY_CONFIG_NAME = "stryker-config.timeout-retry.json"
 
 
-def timeout_files_from_report(report_path: Path) -> Dict[str, int]:
+def timeout_files_from_report(report_path: Path) -> dict[str, int]:
     """Return ``{source_file: timeout_count}`` for every file with Timeouts.
 
     Timeout-file discovery and the ``Timeout`` status literal are delegated to
@@ -53,7 +53,7 @@ def timeout_files_from_report(report_path: Path) -> Dict[str, int]:
     }
 
 
-def build_mutate_globs(paths: Sequence[str]) -> List[str]:
+def build_mutate_globs(paths: Sequence[str]) -> list[str]:
     """Scope ``mutate`` to only the given files, by basename glob, so no other
     file is re-mutated on the retry pass. Backslashes are normalized so a
     Windows-style report path still yields a POSIX basename glob."""
@@ -110,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(list(sys.argv[1:] if argv is None else argv))
 
     by_file = timeout_files_from_report(Path(args.report))

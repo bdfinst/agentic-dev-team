@@ -24,7 +24,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from typing import Optional, Tuple
 
 PLUGIN = "dev-team"
 
@@ -45,7 +44,7 @@ def load(path: str):
         return None
 
 
-def installed(cfg: str) -> Tuple[Optional[str], Optional[str]]:
+def installed(cfg: str) -> tuple[str | None, str | None]:
     """(version, marketplace) for the installed dev-team plugin, or (None, None)."""
     plugins = (
         load(os.path.join(cfg, "plugins", "installed_plugins.json")) or {}
@@ -56,7 +55,7 @@ def installed(cfg: str) -> Tuple[Optional[str], Optional[str]]:
     return None, None
 
 
-def latest(cfg: str, market: str) -> Optional[str]:
+def latest(cfg: str, market: str) -> str | None:
     """The dev-team version the cached marketplace catalog offers, or None."""
     reg = load(os.path.join(cfg, "plugins", "known_marketplaces.json")) or {}
     loc = (reg.get(market) or {}).get("installLocation")

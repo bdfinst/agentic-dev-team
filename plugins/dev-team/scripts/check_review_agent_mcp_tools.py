@@ -32,11 +32,15 @@ from pathlib import Path
 # the other's library). See scripts/lib/mcp_tool_grants.py.
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
-from mcp_tool_grants import (  # noqa: E402
+from mcp_tool_grants import (
     BASE_MCP_TOOLS,
-    fix_tools_line as _fix_tools_line,
-    missing_tools as _missing_tools,
     parse_tools,
+)
+from mcp_tool_grants import (
+    fix_tools_line as _fix_tools_line,
+)
+from mcp_tool_grants import (
+    missing_tools as _missing_tools,
 )
 
 # The five code-intelligence MCP tool names granted to read-only review agents.

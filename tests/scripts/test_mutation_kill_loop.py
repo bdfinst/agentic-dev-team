@@ -28,7 +28,7 @@ SCRIPTS_DIR = (
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import mutation_kill_loop as loop  # noqa: E402
+import mutation_kill_loop as loop
 
 FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
 
@@ -157,7 +157,6 @@ def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
 
     def fake_subprocess_run(argv, **kwargs):
         calls.append(("subprocess.run", argv, kwargs))
-        return None
 
     monkeypatch.setattr(loop.wrapper, "resolve_dotnet_root", spy_resolve)
     monkeypatch.setattr(loop.wrapper, "default_probe_candidates", spy_candidates)

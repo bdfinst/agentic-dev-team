@@ -4,12 +4,11 @@ import pathlib
 import subprocess
 import sys
 
-
 # Ensure the lib module is importable from any working directory.
 _LIB_DIR = pathlib.Path(__file__).parent.parent.parent / "plugins" / "dev-team" / "hooks" / "lib"
 sys.path.insert(0, str(_LIB_DIR))
 
-from autoship_log import append_round  # noqa: E402
+from autoship_log import append_round
 
 
 class TestAppendRound:

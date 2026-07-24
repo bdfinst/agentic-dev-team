@@ -14,10 +14,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 from . import lib
-
 
 DEFAULT_REPORT = "reports/mutation/mutation.json"
 
@@ -54,7 +52,7 @@ def derive_source_file(test_file: str) -> str:
     return re.sub(r"\.(test|spec)\.(ts|tsx|js|jsx|mjs)$", r".\2", test_file)
 
 
-def _read_configured_timeout_ms() -> Optional[int]:
+def _read_configured_timeout_ms() -> int | None:
     """Return the project's `timeoutMS` from Stryker config, or None.
 
     Checks `.strykerrc.json` first (pure JSON), then greps `stryker.config.*`.
@@ -102,7 +100,7 @@ def stryker_run(output_file: Path) -> int:
     report = _report_path()
     report.parent.mkdir(parents=True, exist_ok=True)
 
-    stryker_args: List[str] = ["--reporters", "json", "--coverageAnalysis", "perTest"]
+    stryker_args: list[str] = ["--reporters", "json", "--coverageAnalysis", "perTest"]
     if src_file:
         stryker_args += ["--mutate", src_file]
 
@@ -147,7 +145,7 @@ def stryker_run(output_file: Path) -> int:
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         print("stryker.py: OUTPUT_FILE argument required", file=sys.stderr)

@@ -15,8 +15,9 @@ import re
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional, Sequence
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 _FILE_HEADER_RE = re.compile(r"^\+\+\+ b/(?P<path>.+?)(?:\t.*)?$", re.MULTILINE)
 _HUNK_HEADER_RE = re.compile(
@@ -35,7 +36,7 @@ class Hunk:
     new_start: int
     new_end: int
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "file": self.file,
             "start_line": self.old_start,
@@ -49,20 +50,20 @@ class BenchmarkCase:
     project: str
     bug_id: str
     language: str  # "java" | "javascript"
-    ground_truth_files: List[str] = field(default_factory=list)
-    ground_truth_hunks: List[Dict[str, Any]] = field(default_factory=list)
-    description: Optional[str] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
+    ground_truth_files: list[str] = field(default_factory=list)
+    ground_truth_hunks: list[dict[str, Any]] = field(default_factory=list)
+    description: str | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
 
     @property
     def case_id(self) -> str:
         return f"{self.dataset}:{self.project}:{self.bug_id}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def unified_diff_hunks(diff_text: str) -> List[Hunk]:
+def unified_diff_hunks(diff_text: str) -> list[Hunk]:
     """Parse a unified diff into (file, old_start, old_end, new_start, new_end) hunks.
 
     Skips binary diffs (no `+++ b/` header pair for a `diff --git` block) and
@@ -71,8 +72,8 @@ def unified_diff_hunks(diff_text: str) -> List[Hunk]:
     both supported — each hunk keeps its own file, taken from the nearest
     preceding `+++ b/<path>` header.
     """
-    hunks: List[Hunk] = []
-    current_file: Optional[str] = None
+    hunks: list[Hunk] = []
+    current_file: str | None = None
     lines = diff_text.splitlines()
     for line in lines:
         file_match = _FILE_HEADER_RE.match(line)
@@ -104,7 +105,7 @@ def run_with_timeout(
     seconds: int,
     argv: Sequence[str],
     **kwargs: Any,
-) -> "subprocess.CompletedProcess":
+) -> subprocess.CompletedProcess:
     """Run `argv` with a wall-clock cap. Mirrors
     `plugins/dev-team/hooks/mutation_adapters/lib.py`'s `run_with_timeout`:
     prefers `timeout`/`gtimeout` on PATH, falls back to `subprocess.run(timeout=...)`.

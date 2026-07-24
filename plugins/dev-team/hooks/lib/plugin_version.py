@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-from typing import Optional
 
 PLUGIN = "dev-team"
 
@@ -98,7 +97,7 @@ def resolve(cfg: str, cwd: str):
     return f"{PLUGIN}@{market} v{version} (scope: {scope})", 0
 
 
-def main(argv: Optional[list] = None) -> int:
+def main(argv: list | None = None) -> int:
     cfg = config_dir()
     line, code = resolve(cfg, os.getcwd())
     if code == 0:

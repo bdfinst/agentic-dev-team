@@ -92,7 +92,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 # hooks/lib/cost_meter.py -> plugin root is three parents up.
 _PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -131,7 +130,7 @@ def _purge_stale(state_dir: Path) -> None:
             pass
 
 
-def _read_new_lines(path: Path, offset: int) -> Tuple[int, List[str]]:
+def _read_new_lines(path: Path, offset: int) -> tuple[int, list[str]]:
     """Tail `path` from `offset`, returning (new_offset, complete_lines).
 
     Reads in binary mode and stops at the last full line so a line still
@@ -158,7 +157,7 @@ def _read_new_lines(path: Path, offset: int) -> Tuple[int, List[str]]:
     return new_offset, lines
 
 
-def _load_state(state_file: Path) -> Optional[dict]:
+def _load_state(state_file: Path) -> dict | None:
     if not state_file.is_file():
         return None
     try:
@@ -311,7 +310,7 @@ def _agent_type_key(rec: dict, agent_types: dict) -> str:
     return "unattributed"
 
 
-def _subagent_files(transcript_path: Path) -> List[Path]:
+def _subagent_files(transcript_path: Path) -> list[Path]:
     """Sibling per-subagent transcript files for a session transcript.
 
     Newer harness versions store sidechain turns in
@@ -483,7 +482,7 @@ def cmd_report(args, pricing) -> int:
 
 
 def _record_state_is_usable(
-    state: Optional[dict], size: int, subagent_paths: List[Path]
+    state: dict | None, size: int, subagent_paths: list[Path]
 ) -> bool:
     """Whether a persisted `record` state can be resumed from (#732, #1094).
 
@@ -685,7 +684,7 @@ def _parse_ts(s: str):
 def cmd_pace(args, pricing) -> int:
     """Account-level pace: cumulative spend over a rolling window, projected
     against a budget for a billing period; flags when pace would exhaust it."""
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
 
     log = Path(args.log)
     if not log.is_file():

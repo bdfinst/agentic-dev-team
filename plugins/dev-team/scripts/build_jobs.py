@@ -23,10 +23,9 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import List, Optional
 
 
-def _default_max_parallel_builds(cpu_count: Optional[int]) -> int:
+def _default_max_parallel_builds(cpu_count: int | None) -> int:
     """Default `DEV_TEAM_MAX_PARALLEL_BUILDS` ceiling when the env var is unset:
     fan a wave out as wide as the machine allows, bounded by the harness's own
     concurrency cap `min(16, cores-2)` and floored at 1 (#1170). Takes the core
@@ -45,10 +44,10 @@ def _norm(value: str) -> int:
     if not value.isdigit():
         return 1
     n = int(value)
-    return n if n >= 1 else 1
+    return max(n, 1)
 
 
-def _parse_argv(argv: List[str]) -> tuple:
+def _parse_argv(argv: list[str]) -> tuple:
     """Return (jobs_str, width_str). Bash's arg loop: unknown flags → usage
     error + exit 2. Missing arg to a known flag reads empty (bash `${2:-}`)."""
     jobs = ""
@@ -68,7 +67,7 @@ def _parse_argv(argv: List[str]) -> tuple:
     return jobs, width
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     jobs_raw, width_raw = _parse_argv(argv)
 
     # Unset env → per-host default ceiling min(16, cores-2); an explicit value
@@ -81,10 +80,8 @@ def main(argv: List[str]) -> int:
     jobs = _norm(jobs_raw if jobs_raw else str(max_))
 
     eff = jobs
-    if max_ < eff:
-        eff = max_
-    if width < eff:
-        eff = width
+    eff = min(eff, max_)
+    eff = min(eff, width)
 
     # Bash: requested=${JOBS:-(unset)} — literal "(unset)" when empty.
     requested = jobs_raw if jobs_raw else "(unset)"

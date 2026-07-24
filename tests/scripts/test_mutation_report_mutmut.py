@@ -23,7 +23,7 @@ SCRIPTS_DIR = (
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import mutation_report  # noqa: E402
+import mutation_report
 
 
 def _junit(*testcases: str, failures: int = 0, errors: int = 0) -> str:

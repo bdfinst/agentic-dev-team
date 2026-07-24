@@ -18,7 +18,6 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
@@ -82,7 +81,7 @@ def _read_json(raw: bytes) -> dict:
         return {}
 
 
-def _check_claude_md(path: Path) -> Optional[str]:
+def _check_claude_md(path: Path) -> str | None:
     """Character-count check for CLAUDE.md files."""
     name = path.name.lower()
     if name not in ("claude.md",):
@@ -99,14 +98,14 @@ def _check_claude_md(path: Path) -> Optional[str]:
     return None
 
 
-def _line_count_from_lines(lines: List[str]) -> int:
+def _line_count_from_lines(lines: list[str]) -> int:
     return len(lines)
 
 
-def _long_functions_from_lines(lines: List[str], limit: int = 50) -> List[str]:
+def _long_functions_from_lines(lines: list[str], limit: int = 50) -> list[str]:
     """Return a list of `  Line N: <name> (<len> lines)` for functions
     longer than `limit`. Mirrors the .sh's awk block."""
-    findings: List[str] = []
+    findings: list[str] = []
     func_start = 0
     func_name = ""
     lineno = 0
@@ -129,12 +128,12 @@ def _long_functions_from_lines(lines: List[str], limit: int = 50) -> List[str]:
     return findings
 
 
-def _check_source_file(path: Path) -> List[str]:
+def _check_source_file(path: Path) -> list[str]:
     """Return warning lines for source-file length + long functions.
 
     Reads the file's content exactly once and reuses the resulting lines for
     both checks (line-count, long-function scan)."""
-    warnings: List[str] = []
+    warnings: list[str] = []
     if path.suffix.lower() not in _SOURCE_EXTS:
         return warnings
     try:
@@ -169,7 +168,7 @@ def main() -> int:
     if not file_path.is_file():
         return 0
 
-    warnings: List[str] = []
+    warnings: list[str] = []
     claude_md_warning = _check_claude_md(file_path)
     if claude_md_warning:
         warnings.append(claude_md_warning)

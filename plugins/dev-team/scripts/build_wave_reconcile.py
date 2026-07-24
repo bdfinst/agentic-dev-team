@@ -25,7 +25,7 @@ import re
 import shlex
 import subprocess
 import sys
-from typing import List, Sequence
+from collections.abc import Sequence
 
 # Default hard ceiling for --test-cmd so a hung suite can never block the
 # wave pipeline indefinitely. Override (test-only injection seam) via
@@ -122,7 +122,7 @@ def _run_test_cmd(cmd: str) -> int:
     """
     timeout = _test_cmd_timeout_seconds()
     use_shell = bool(_SHELL_METACHARACTERS_RE.search(cmd))
-    args: str | List[str] = cmd if use_shell else shlex.split(cmd)
+    args: str | list[str] = cmd if use_shell else shlex.split(cmd)
     try:
         proc = subprocess.run(
             args,
@@ -155,7 +155,7 @@ def _run_test_cmd(cmd: str) -> int:
     return 0
 
 
-def _parse_argv(argv: List[str]) -> argparse.Namespace | int:
+def _parse_argv(argv: list[str]) -> argparse.Namespace | int:
     ap = argparse.ArgumentParser(add_help=False)
     ap.add_argument("--into", default="")
     ap.add_argument("--base", default="")
@@ -163,8 +163,8 @@ def _parse_argv(argv: List[str]) -> argparse.Namespace | int:
     ap.add_argument("branches", nargs="*")
     # Preserve the bash script's error contract: any unknown option or missing
     # required flag exits 2 with the same usage line.
-    known: List[str] = []
-    branches: List[str] = []
+    known: list[str] = []
+    branches: list[str] = []
     i = 0
     while i < len(argv):
         tok = argv[i]
@@ -199,7 +199,7 @@ def _usage() -> None:
     )
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     parsed = _parse_argv(argv)
     if isinstance(parsed, int):
         return parsed
@@ -207,7 +207,7 @@ def main(argv: List[str]) -> int:
     into: str = parsed.into
     base: str = parsed.base
     test_cmd: str = parsed.test_cmd
-    branches: List[str] = parsed.branches
+    branches: list[str] = parsed.branches
 
     # Deterministic merge order → reproducible tree regardless of caller order.
     sorted_branches = sorted(branches)

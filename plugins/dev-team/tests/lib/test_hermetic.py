@@ -9,7 +9,7 @@ _LIB = Path(__file__).resolve().parent
 if str(_LIB) not in sys.path:
     sys.path.insert(0, str(_LIB))
 
-import hermetic  # type: ignore[import-not-found]  # noqa: E402
+import hermetic  # type: ignore[import-not-found]
 
 _DANGEROUS = (
     "GIT_DIR",

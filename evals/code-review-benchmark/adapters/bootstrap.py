@@ -23,7 +23,7 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .common import run_with_timeout
 
@@ -63,7 +63,7 @@ def _clone_if_missing(
     return proc.returncode == 0
 
 
-def _resolve_java11_home(run_fn=DEFAULT_RUN_FN, timeout: int = 10) -> Optional[str]:
+def _resolve_java11_home(run_fn=DEFAULT_RUN_FN, timeout: int = 10) -> str | None:
     """Best-effort discovery of a Java 11 JDK's home (#951).
 
     Defects4J 3.x requires exactly Java 11 — on a machine whose default
@@ -106,7 +106,7 @@ def _resolve_java11_home(run_fn=DEFAULT_RUN_FN, timeout: int = 10) -> Optional[s
     return str(mac_home) if mac_home.is_dir() else str(prefix)
 
 
-def _resolve_perl5lib(home: Optional[Path] = None) -> Optional[str]:
+def _resolve_perl5lib(home: Path | None = None) -> str | None:
     """`~/perl5/lib/perl5` — the `cpanm --local-lib=~/perl5` convention for
     installing Defects4J's own CPAN dependencies (see its `cpanfile`)
     without a system-wide Perl module install."""
@@ -115,8 +115,8 @@ def _resolve_perl5lib(home: Optional[Path] = None) -> Optional[str]:
 
 
 def build_defects4j_env(
-    run_fn=DEFAULT_RUN_FN, perl5_home: Optional[Path] = None
-) -> Optional[Dict[str, str]]:
+    run_fn=DEFAULT_RUN_FN, perl5_home: Path | None = None
+) -> dict[str, str] | None:
     """Merge `JAVA_HOME`/`PATH`/`PERL5LIB` overrides into a copy of the
     current environment, scoped to `defects4j` subprocess calls only.
 
@@ -144,10 +144,10 @@ def build_defects4j_env(
 
 
 def ensure_bugsjs_home(
-    explicit_home: Optional[str],
+    explicit_home: str | None,
     run_fn=DEFAULT_RUN_FN,
     cache_dir: Path = CACHE_DIR,
-) -> Optional[str]:
+) -> str | None:
     """Return a usable BugsJS/bug-dataset home, cloning into the cache if none was given."""
     if explicit_home:
         return explicit_home
@@ -158,12 +158,12 @@ def ensure_bugsjs_home(
 
 
 def ensure_defects4j_home(
-    explicit_home: Optional[str],
+    explicit_home: str | None,
     run_fn=DEFAULT_RUN_FN,
     init_timeout: int = 1800,
     cache_dir: Path = CACHE_DIR,
-    perl5_home: Optional[Path] = None,
-) -> Optional[Dict[str, Any]]:
+    perl5_home: Path | None = None,
+) -> dict[str, Any] | None:
     """Return `{"home": str, "bin": str, "env": Optional[dict]}` for a usable
     Defects4J install.
 

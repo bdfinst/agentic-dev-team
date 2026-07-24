@@ -39,14 +39,15 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
-
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
 
 sys.path.insert(0, str(_LIB_DIR))
 try:
+    from boundary_events import (  # type: ignore[import-not-found]
+        emit_boundary_event as _emit_boundary_event,
+    )
     from pre_commit_detect import (  # type: ignore[import-not-found]
         bypass_flag_name,
         has_bypass_flag,
@@ -54,9 +55,6 @@ try:
     )
     from review_gate_hash import review_gate_hash  # type: ignore[import-not-found]
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
-    from boundary_events import (  # type: ignore[import-not-found]
-        emit_boundary_event as _emit_boundary_event,
-    )
 except ImportError:  # pragma: no cover
 
     def is_git_commit_command(_: str) -> bool:  # type: ignore[misc]
@@ -65,13 +63,13 @@ except ImportError:  # pragma: no cover
     def has_bypass_flag(_: str) -> bool:  # type: ignore[misc]
         return False
 
-    def bypass_flag_name(_: str) -> Optional[str]:  # type: ignore[misc]
+    def bypass_flag_name(_: str) -> str | None:  # type: ignore[misc]
         return None
 
     def review_gate_hash(cwd=None) -> str:  # type: ignore[misc]
         return ""
 
-    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+    def read_stdin_json() -> dict | None:  # type: ignore[misc]
         return None
 
     def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
@@ -117,7 +115,7 @@ def _emit_block(message: str) -> None:
     sys.stderr.write(message)
 
 
-def _staged_names() -> List[str]:
+def _staged_names() -> list[str]:
     try:
         completed = subprocess.run(
             ["git", "diff", "--cached", "--name-only"],

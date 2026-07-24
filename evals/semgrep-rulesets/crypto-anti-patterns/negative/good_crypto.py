@@ -1,5 +1,6 @@
 """Negative fixture — should produce zero matches."""
 import hashlib
+
 import requests
 from Crypto.Cipher import AES
 

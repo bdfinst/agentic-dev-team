@@ -26,8 +26,7 @@ _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
 if str(_HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_DIR))
 
-import context_ceiling_guard as hook  # type: ignore[import-not-found]  # noqa: E402
-
+import context_ceiling_guard as hook  # type: ignore[import-not-found]
 
 _HOOK_PY = _HOOKS_DIR / "context_ceiling_guard.py"
 

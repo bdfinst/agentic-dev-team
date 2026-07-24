@@ -35,8 +35,8 @@ import re
 import sys
 import uuid
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
 
 # ── Constants ──────────────────────────────────────────────────────────────
 
@@ -134,10 +134,10 @@ def discover_solution(repo_root: Path) -> Path:
 # ── Solution parsing ─────────────────────────────────────────────────────────
 
 
-def parse_projects(sln_path: Path) -> List[dict]:
+def parse_projects(sln_path: Path) -> list[dict]:
     """Return [{name, path, rel}] for every .csproj entry in the solution."""
     text = sln_path.read_text(encoding="utf-8")
-    projects: List[dict] = []
+    projects: list[dict] = []
     for name, rel_path in _SLN_PROJECT_RE.findall(text):
         norm = rel_path.replace("\\", "/")
         abs_path = (sln_path.parent / norm).resolve()
@@ -145,7 +145,7 @@ def parse_projects(sln_path: Path) -> List[dict]:
     return projects
 
 
-def parse_guids(sln_path: Path) -> Dict[str, str]:
+def parse_guids(sln_path: Path) -> dict[str, str]:
     """Return {project_name: GUID} for an existing sln (empty if absent)."""
     if not sln_path.exists():
         return {}
@@ -156,7 +156,7 @@ def parse_guids(sln_path: Path) -> Dict[str, str]:
 # ── Classification ───────────────────────────────────────────────────────────
 
 
-def test_patterns(cfg: dict) -> List[str]:
+def test_patterns(cfg: dict) -> list[str]:
     return cfg.get("test_project_patterns", DEFAULT_TEST_PATTERNS)
 
 
@@ -201,7 +201,7 @@ def _full_slug(name: str) -> str:
     return _sanitize_slug(_kebab(name).replace(".", "-"))
 
 
-def assign_slugs(sources: Sequence[dict]) -> Dict[str, dict]:
+def assign_slugs(sources: Sequence[dict]) -> dict[str, dict]:
     """Map a unique slug to each source project.
 
     A bare last-segment slug is used when unique; when two projects share a
@@ -210,7 +210,7 @@ def assign_slugs(sources: Sequence[dict]) -> Dict[str, dict]:
     overwrites another.
     """
     base_counts = Counter(slug(src["name"]) for src in sources)
-    assigned: Dict[str, dict] = {}
+    assigned: dict[str, dict] = {}
     used: set = set()
     for src in sources:
         base = slug(src["name"])
@@ -232,7 +232,7 @@ def build_shards(
     sources: Sequence[dict],
     tests: Sequence[dict],
     repo_root: Path,
-) -> Dict[str, dict]:
+) -> dict[str, dict]:
     """Return {slug: shard-info} pairing each source with its test projects.
 
     A source whose name prefix-matches no test project falls back to the full
@@ -242,7 +242,7 @@ def build_shards(
     assigned = assign_slugs(sources)
     all_test_paths = [_rel_to_root(t["path"], repo_root) for t in tests]
 
-    shards: Dict[str, dict] = {}
+    shards: dict[str, dict] = {}
     for shard_slug, src in assigned.items():
         src_lower = src["name"].lower()
         matched = [t for t in tests if t["name"].lower().startswith(src_lower)]
@@ -293,8 +293,8 @@ def generate_stryker_sln(
     existing_guids = parse_guids(repo_root / STRYKER_SLN_NAME)
     main_guids = parse_guids(main_sln)
 
-    project_lines: List[str] = []
-    config_lines: List[str] = []
+    project_lines: list[str] = []
+    config_lines: list[str] = []
     for proj in list(sources) + list(tests):
         guid = (
             existing_guids.get(proj["name"])
@@ -330,7 +330,7 @@ def generate_stryker_sln(
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
-def _resolve_solution(args: argparse.Namespace, repo_root: Path) -> Optional[Path]:
+def _resolve_solution(args: argparse.Namespace, repo_root: Path) -> Path | None:
     """Return the solution path, or None (after printing an error) on failure."""
     if args.solution:
         sln_path = repo_root / args.solution
@@ -349,7 +349,7 @@ def _resolve_solution(args: argparse.Namespace, repo_root: Path) -> Optional[Pat
         return None
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Auto-configure Stryker shards from a C# solution file",
     )

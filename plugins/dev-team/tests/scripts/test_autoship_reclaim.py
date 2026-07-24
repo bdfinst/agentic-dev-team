@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 
-import autoship_reclaim  # noqa: E402
+import autoship_reclaim
 
 
 def _issue(number: int, labeled_at: str, state: str = "OPEN", labels=None) -> dict:

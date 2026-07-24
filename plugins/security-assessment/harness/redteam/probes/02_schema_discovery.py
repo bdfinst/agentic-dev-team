@@ -18,7 +18,7 @@ import re
 from typing import Any
 
 from .. import config
-from ..lib import http_client, result_store, feature_dict
+from ..lib import feature_dict, http_client, result_store
 
 
 def _try_openapi() -> list[str]:

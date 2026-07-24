@@ -21,8 +21,9 @@ import argparse
 import os
 import random
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -69,7 +70,7 @@ def _positive_int(raw: str) -> int:
     return value
 
 
-def _parse_bug_ids(raw: Optional[str]) -> Optional[set]:
+def _parse_bug_ids(raw: str | None) -> set | None:
     """Parse `--bug-ids`' comma-separated string into a set of bug-id strings.
 
     `None` in, `None` out — distinguishes "flag not given" from "flag given
@@ -83,17 +84,17 @@ def _parse_bug_ids(raw: Optional[str]) -> Optional[set]:
 def _list_cases(
     dataset: str,
     home: str,
-    project_filter: Optional[str],
-    limit_projects: Optional[int],
-    sample: Optional[int],
-    bug_ids: Optional[set] = None,
-) -> List[Any]:
+    project_filter: str | None,
+    limit_projects: int | None,
+    sample: int | None,
+    bug_ids: set | None = None,
+) -> list[Any]:
     adapter = defects4j_adapter if dataset == "defects4j" else bugsjs_adapter
     projects = [project_filter] if project_filter else adapter.list_projects(home)
     if limit_projects is not None:
         projects = projects[:limit_projects]
 
-    cases: List[Any] = []
+    cases: list[Any] = []
     for project in projects:
         project_cases = adapter.list_bugs(project, home)
         if bug_ids is not None:
@@ -112,7 +113,7 @@ def _make_checkout_fn(
     case: Any,
     home: str,
     defects4j_bin: str = "defects4j",
-    defects4j_env: Optional[Dict[str, str]] = None,
+    defects4j_env: dict[str, str] | None = None,
 ):
     if dataset == "defects4j":
         return lambda workdir: defects4j_adapter.checkout(
@@ -136,8 +137,8 @@ def _make_test_fn(
     case: Any,
     enabled: bool,
     defects4j_bin: str = "defects4j",
-    defects4j_env: Optional[Dict[str, str]] = None,
-) -> Optional[Callable[[str], Dict[str, Any]]]:
+    defects4j_env: dict[str, str] | None = None,
+) -> Callable[[str], dict[str, Any]] | None:
     """Build `run_case`'s `test_fn`, or `None` when verification is disabled.
 
     Diagnostic only (see runner.run_case) — never gates/skips a case.
@@ -167,7 +168,7 @@ def run(args: argparse.Namespace) -> int:
         return 0
 
     defects4j_bin = "defects4j"
-    defects4j_env: Optional[Dict[str, str]] = None
+    defects4j_env: dict[str, str] | None = None
     if args.dataset == "defects4j":
         explicit_home = args.defects4j_home or os.environ.get("DEFECTS4J_HOME")
         resolved = bootstrap.ensure_defects4j_home(explicit_home)
@@ -262,7 +263,7 @@ def run(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
 
-    def _make_kwargs(case: Any) -> Dict[str, Any]:
+    def _make_kwargs(case: Any) -> dict[str, Any]:
         return {
             "checkout_fn": _make_checkout_fn(
                 args.dataset, case, home, defects4j_bin, defects4j_env
@@ -449,7 +450,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 

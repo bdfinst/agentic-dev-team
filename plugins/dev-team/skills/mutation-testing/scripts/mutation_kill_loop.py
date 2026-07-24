@@ -30,9 +30,9 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence
 
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report
@@ -42,7 +42,7 @@ import mutation_report
 # text, and the current test text, it returns the raw text of new test
 # methods to insert. The loop owns everything *around* this call; the
 # callable owns the single genuinely-LLM step.
-Generator = Callable[[str, List[dict], str, str], str]
+Generator = Callable[[str, list[dict], str, str], str]
 
 # The exact message the bare-CLI startup preflight prints. Pinned so the
 # contract test can assert it verbatim.
@@ -78,10 +78,10 @@ class LoopConfig:
     ``.sln`` hidden during a scoped run.
     """
 
-    project: Optional[str]
-    test_projects: List[str]
-    mutate: List[str]
-    solution: Optional[str]
+    project: str | None
+    test_projects: list[str]
+    mutate: list[str]
+    solution: str | None
 
 
 def load_loop_config(config_path: Path) -> LoopConfig:
@@ -101,12 +101,12 @@ def load_loop_config(config_path: Path) -> LoopConfig:
     )
 
 
-def dotnet_build_targets(config: LoopConfig) -> List[str]:
+def dotnet_build_targets(config: LoopConfig) -> list[str]:
     """Build targets are exactly the configured test-projects."""
     return list(config.test_projects)
 
 
-def dotnet_test_targets(config: LoopConfig) -> List[str]:
+def dotnet_test_targets(config: LoopConfig) -> list[str]:
     """Test targets are exactly the configured test-projects."""
     return list(config.test_projects)
 
@@ -149,7 +149,7 @@ def run_scoped_stryker(
     *,
     output_dir: Path,
     stryker_bin: str = "dotnet-stryker",
-    cwd: Optional[Path] = None,
+    cwd: Path | None = None,
 ) -> Path:
     """Run Stryker scoped to one file; return the report path.
 
@@ -192,7 +192,7 @@ def run_scoped_stryker(
     return Path(output_dir) / "reports" / "mutation-report.json"
 
 
-def extract_survivors(report_path: Path, source_file: str) -> List[dict]:
+def extract_survivors(report_path: Path, source_file: str) -> list[dict]:
     """Return the surviving mutants for one source file (flattened).
 
     Delegates grouping/extraction to :func:`mutation_report.survivors_by_mutator`.
@@ -234,14 +234,14 @@ _METHOD_RE = re.compile(
 _FILE_SCOPED_NS_RE = re.compile(r"^\s*namespace\s+[\w.]+\s*;", re.MULTILINE)
 
 
-def detect_duplicate_methods(test_text: str, new_text: str) -> List[str]:
+def detect_duplicate_methods(test_text: str, new_text: str) -> list[str]:
     """Return the method names in ``new_text`` that already exist in the file."""
     existing = set(_METHOD_RE.findall(test_text))
     incoming = _METHOD_RE.findall(new_text)
     return [name for name in incoming if name in existing]
 
 
-def _find_block_namespace_class_close(lines: Sequence[str]) -> Optional[int]:
+def _find_block_namespace_class_close(lines: Sequence[str]) -> int | None:
     """Return the index of the class-closing brace, or None to refuse.
 
     Walks from the end: finds the namespace-closing brace (a line whose
@@ -318,7 +318,7 @@ def apply_generated_methods(test_file: Path, new_methods: str) -> InsertOutcome:
 # =============================================================================
 # Verify / commit / revert — all dotnet & git go through subprocess.
 # =============================================================================
-def dotnet_build(targets: Sequence[str], *, cwd: Optional[Path] = None) -> bool:
+def dotnet_build(targets: Sequence[str], *, cwd: Path | None = None) -> bool:
     """Build every configured test-project. False if any target fails."""
     for target in targets:
         rc = subprocess.run(
@@ -333,7 +333,7 @@ def dotnet_build(targets: Sequence[str], *, cwd: Optional[Path] = None) -> bool:
 
 
 def dotnet_test(
-    targets: Sequence[str], test_filter: str, *, cwd: Optional[Path] = None
+    targets: Sequence[str], test_filter: str, *, cwd: Path | None = None
 ) -> bool:
     """Run the scoped test filter across every test-project. False on any
     non-zero exit or reported failure."""
@@ -363,12 +363,12 @@ def dotnet_test(
     return True
 
 
-def git_revert(test_file: Path, *, cwd: Optional[Path] = None) -> None:
+def git_revert(test_file: Path, *, cwd: Path | None = None) -> None:
     """Discard working-tree changes to one file (``git checkout -- <file>``)."""
     subprocess.run(["git", "checkout", "--", str(test_file)], cwd=cwd)
 
 
-def git_commit(message: str, test_file: Path, *, cwd: Optional[Path] = None) -> bool:
+def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> bool:
     """Stage and commit only ``test_file``. Returns True on a successful commit."""
     subprocess.run(["git", "add", str(test_file)], cwd=cwd)
     rc = subprocess.run(
@@ -400,9 +400,9 @@ def run_for_file(
     output_dir: Path,
     generate: Generator,
     max_rounds: int = 5,
-    initial_report_path: Optional[Path] = None,
+    initial_report_path: Path | None = None,
     stryker_bin: str = "dotnet-stryker",
-    cwd: Optional[Path] = None,
+    cwd: Path | None = None,
     log: Callable[[str], None] = print,
 ) -> None:
     """Drive the deterministic survivor-kill loop for one source file.
@@ -412,7 +412,7 @@ def run_for_file(
     duplicate/insert guards, build/test verification, revert-on-failure,
     commit-on-green, and the no-improvement stop — is mechanical.
     """
-    prev_survivors: Optional[int] = None
+    prev_survivors: int | None = None
 
     for round_num in range(1, max_rounds + 1):
         if initial_report_path is not None and round_num == 1:
@@ -474,7 +474,7 @@ def run_for_file(
 # =============================================================================
 # Headless generation — shell to `claude --print` for unattended runs.
 # =============================================================================
-def resolve_model(explicit: Optional[str] = None) -> Optional[str]:
+def resolve_model(explicit: str | None = None) -> str | None:
     """Resolve the generation model: ``--model`` > ``DEV_TEAM_MUTATION_MODEL``
     > ``None``. When ``None``, ``--model`` is omitted from the ``claude --print``
     invocation and the Claude CLI uses its own default — the plugin never pins a
@@ -500,7 +500,7 @@ def strip_code_fences(text: str) -> str:
     return text.strip()
 
 
-def build_survivor_summary(survivors: List[dict], *, limit: int = 40) -> str:
+def build_survivor_summary(survivors: list[dict], *, limit: int = 40) -> str:
     """Render surviving mutants as a compact, framework-agnostic list."""
     lines = []
     for mutant in survivors[:limit]:
@@ -515,7 +515,7 @@ def build_survivor_summary(survivors: List[dict], *, limit: int = 40) -> str:
 
 def build_generation_prompt(
     source_file: str,
-    survivors: List[dict],
+    survivors: list[dict],
     source_text: str,
     test_text: str,
     *,
@@ -563,7 +563,7 @@ def claude_cli_available() -> bool:
 
 
 def make_headless_generator(
-    model: Optional[str] = None, *, cwd: Optional[Path] = None
+    model: str | None = None, *, cwd: Path | None = None
 ) -> Generator:
     """Return a :data:`Generator` that shells to ``claude --print``.
 
@@ -576,7 +576,7 @@ def make_headless_generator(
 
     def generate(
         source_file: str,
-        survivors: List[dict],
+        survivors: list[dict],
         source_text: str,
         test_text: str,
     ) -> str:
@@ -634,7 +634,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return p.parse_args(list(argv))
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point.
 
     The CLI has no way to inject an agent generator (that path calls

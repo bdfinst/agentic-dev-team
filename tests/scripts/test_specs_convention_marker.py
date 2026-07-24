@@ -29,8 +29,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parents[2] / "plugins" / "dev-team" / "sc
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-import specs_convention_marker  # type: ignore[import-not-found]  # noqa: E402
-
+import specs_convention_marker  # type: ignore[import-not-found]
 
 _SCRIPT_PY = _SCRIPT_DIR / "specs_convention_marker.py"
 

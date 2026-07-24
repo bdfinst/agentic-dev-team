@@ -19,7 +19,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 
 def _load_counter(state_file: Path) -> int:
@@ -66,7 +65,7 @@ def _write_state(state_file: Path, counter: int) -> None:
 
 
 def _dispatch_background_analysis(
-    cwd: Path, session_id: Optional[str], hook_dir: Path
+    cwd: Path, session_id: str | None, hook_dir: Path
 ) -> None:
     """Fire-and-forget background analysis run. Silent on any failure."""
     session_extract = (
@@ -107,7 +106,7 @@ def _dispatch_background_analysis(
     )
 
     try:
-        subprocess.Popen(  # noqa: S603 — intentional detached child
+        subprocess.Popen(
             ["sh", "-c", shell_body],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

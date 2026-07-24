@@ -64,7 +64,7 @@ def _load_known_broken() -> set[str]:
         if line:
             out.add(line)
     return out
-_ERR_RE = re.compile(r"Rule parse error in rule \S*?\.?([a-z0-9._-]+):", re.I)
+_ERR_RE = re.compile(r"Rule parse error in rule \S*?\.?([a-z0-9._-]+):", re.IGNORECASE)
 
 
 def _run_semgrep(ruleset: Path):

@@ -20,7 +20,6 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Optional
 
 _SYMBOLIC_VALUES = ("slice-start", "wave-start", "plan-start")
 
@@ -29,9 +28,9 @@ def resolve_rollback_point(
     symbolic: str,
     *,
     repo_root: str,
-    slice_start: Optional[str] = None,
-    wave_start: Optional[str] = None,
-    plan_start: Optional[str] = None,
+    slice_start: str | None = None,
+    wave_start: str | None = None,
+    plan_start: str | None = None,
 ) -> str:
     """Resolve a symbolic rollback value (or an explicit ref) to a concrete
     commit SHA. Raises `ValueError` if the ref cannot be resolved, and
@@ -63,7 +62,7 @@ def resolve_rollback_point(
     return result.stdout.strip()
 
 
-def _load(path: Path) -> Dict[str, dict]:
+def _load(path: Path) -> dict[str, dict]:
     if not path.exists():
         return {}
     try:
@@ -85,7 +84,7 @@ def record_rollback_point(path: Path, slice_id: str, symbolic: str, sha: str) ->
     path.write_text(json.dumps(data, indent=2) + "\n")
 
 
-def get_rollback_point(path: Path, slice_id: str) -> Optional[dict]:
+def get_rollback_point(path: Path, slice_id: str) -> dict | None:
     """Retrieve the recorded rollback point for `slice_id`, or `None`."""
     return _load(path).get(slice_id)
 
@@ -108,9 +107,9 @@ def find_rollback_point_by_symbolic(
     path: Path,
     symbolic: str,
     *,
-    repo_root: Optional[str] = None,
-    ancestor_of: Optional[str] = None,
-) -> Optional[dict]:
+    repo_root: str | None = None,
+    ancestor_of: str | None = None,
+) -> dict | None:
     """Find a recorded entry (any slice) whose `symbolic` value matches, or
     `None` if none qualifies.
 
@@ -143,7 +142,7 @@ def find_rollback_point_by_symbolic(
     return None
 
 
-def main(argv: Optional[list] = None) -> int:
+def main(argv: list | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="build_rollback_point.py",
         description="Resolve and record a slice's rollback point (issue #865).",

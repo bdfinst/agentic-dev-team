@@ -20,11 +20,9 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.review_result import build_result, main_exit, make_issue
-
 
 # ---------------------------------------------------------------------------
 # Artifact resolution
@@ -50,9 +48,9 @@ def resolve_artifacts(base_dir: Path, repo: str, phase: int) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def extract_scenario_titles(feature_files: List[Path]) -> List[str]:
+def extract_scenario_titles(feature_files: list[Path]) -> list[str]:
     """Return all Scenario titles from a list of .feature files."""
-    titles: List[str] = []
+    titles: list[str] = []
     scenario_re = re.compile(r"^\s+Scenario:\s+(.+)$")
     for path in feature_files:
         try:
@@ -71,14 +69,14 @@ def validate_phase_2(paths: dict) -> tuple:
 
     Returns (errors, warnings).
     """
-    errors: List[dict] = []
-    warnings: List[dict] = []
+    errors: list[dict] = []
+    warnings: list[dict] = []
 
     features_dir: Path = paths["features_dir"]
     bindings_path: Path = paths["bindings_json"]
 
     # Gather feature files
-    feature_files: List[Path] = []
+    feature_files: list[Path] = []
     if features_dir.is_dir():
         feature_files = list(features_dir.glob("*.feature"))
 
@@ -142,8 +140,8 @@ def validate_phase_3(paths: dict) -> tuple:
 
     Returns (errors, warnings).
     """
-    errors: List[dict] = []
-    warnings: List[dict] = []
+    errors: list[dict] = []
+    warnings: list[dict] = []
 
     disabled_path: Path = paths["disabled_tests_json"]
 
@@ -206,7 +204,7 @@ def validate_phase_3(paths: dict) -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def parse_coverage_number(text: str) -> Optional[float]:
+def parse_coverage_number(text: str) -> float | None:
     """Extract the first coverage percentage or decimal from text.
 
     Tries: 'Coverage: 80%', 'coverage: 80.0', 'current coverage: 78.5%'
@@ -225,8 +223,8 @@ def validate_phase_4(paths: dict) -> tuple:
 
     Returns (errors, warnings).
     """
-    errors: List[dict] = []
-    warnings: List[dict] = []
+    errors: list[dict] = []
+    warnings: list[dict] = []
 
     phase3_path: Path = paths["phase3_md"]
     phase4_path: Path = paths["phase_md"]
@@ -301,8 +299,8 @@ def validate_phase_5(paths: dict) -> tuple:
 
     Returns (errors, warnings).
     """
-    errors: List[dict] = []
-    warnings: List[dict] = []
+    errors: list[dict] = []
+    warnings: list[dict] = []
 
     phase5_path: Path = paths["phase_md"]
     text = phase5_path.read_text(encoding="utf-8")

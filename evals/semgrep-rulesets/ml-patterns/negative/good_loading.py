@@ -1,6 +1,7 @@
 """Negative fixture — should produce zero matches."""
-import torch
 import hashlib
+
+import torch
 
 
 def load_safe_torch(fname):

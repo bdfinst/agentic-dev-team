@@ -41,7 +41,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 
 def _default_settings_paths() -> str:
@@ -49,7 +48,7 @@ def _default_settings_paths() -> str:
     return f".claude/settings.json:{home}/.claude/settings.json"
 
 
-def _settings_paths() -> List[str]:
+def _settings_paths() -> list[str]:
     raw = os.environ.get("BASEREF_SETTINGS_PATHS")
     if raw is None:
         raw = _default_settings_paths()
@@ -58,7 +57,7 @@ def _settings_paths() -> List[str]:
     return [p for p in raw.split(":") if p]
 
 
-def _load_worktree_baseref(path: Path) -> Optional[str]:
+def _load_worktree_baseref(path: Path) -> str | None:
     """Return the .worktree.baseRef value from `path`, or None on any error.
 
     None distinguishes 'file unreadable or malformed' (skip to next file)
@@ -98,7 +97,7 @@ def _detect() -> str:
     return "unset"
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else list(argv)
     if not args or args[0] != "detect":
         # Byte-parity with the .sh's usage message: name it after the .sh

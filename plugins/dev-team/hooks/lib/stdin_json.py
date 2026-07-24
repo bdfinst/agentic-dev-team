@@ -15,10 +15,9 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Optional
 
 
-def read_stdin_json() -> Optional[dict]:
+def read_stdin_json() -> dict | None:
     """Read stdin, parse as JSON, return the dict on success.
 
     Returns None on:

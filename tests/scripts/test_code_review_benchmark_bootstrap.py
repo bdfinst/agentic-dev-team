@@ -11,7 +11,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List
 
 import pytest
 
@@ -19,14 +18,14 @@ _HARNESS_DIR = Path(__file__).resolve().parents[2] / "evals" / "code-review-benc
 if str(_HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(_HARNESS_DIR))
 
-from adapters import bootstrap  # noqa: E402
+from adapters import bootstrap
 
 
 class _FakeRun:
     def __init__(self, returncode: int = 0, stdout: str = "") -> None:
         self.returncode = returncode
         self.stdout = stdout
-        self.calls: List[dict] = []
+        self.calls: list[dict] = []
 
     def __call__(self, timeout, argv, **kwargs):
         self.calls.append({"timeout": timeout, "argv": list(argv), "kwargs": kwargs})

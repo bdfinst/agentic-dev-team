@@ -25,8 +25,8 @@ SCHEMA_PATH = REPO / "plugins/dev-team/knowledge/schemas/unified-finding-v1.json
 
 # Import the SARIF parser from the sibling static-analysis-tools validator.
 sys.path.insert(0, str(REPO / "evals/static-analysis-tools"))
-from validate import parse_sarif, load_schema_registry  # type: ignore  # noqa: E402
-from jsonschema import Draft202012Validator  # noqa: E402
+from jsonschema import Draft202012Validator
+from validate import load_schema_registry, parse_sarif  # type: ignore
 
 
 def run_tool(script: Path, target: Path) -> dict[str, Any]:

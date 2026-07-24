@@ -67,8 +67,8 @@ _CORRECTION_RE = re.compile(
     r"\b(no|actually|revert|undo|not what i (asked|wanted)|that's wrong|"
     r"that is wrong|wrong|stop|don't|do not)\b"
 )
-_PERMISSION_RE = re.compile(r"permission|denied|not allowed|blocked by", re.I)
-_OLDSTRING_RE = re.compile(r"old_string|not found|no match|string to replace", re.I)
+_PERMISSION_RE = re.compile(r"permission|denied|not allowed|blocked by", re.IGNORECASE)
+_OLDSTRING_RE = re.compile(r"old_string|not found|no match|string to replace", re.IGNORECASE)
 _EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
 # Gate signal (#111): a `git commit`, and whether it bypassed the pre-commit
 # review gate (--no-verify, or a bare -n in any position) — mirrors the rule in
@@ -162,8 +162,8 @@ def _accumulate_token_signals(
     is_sidechain: bool,
     pricing: dict,
     tokens_total: Counter,
-    by_model: "dict[str, Counter]",
-    by_skill: "dict[str, Counter]",
+    by_model: dict[str, Counter],
+    by_skill: dict[str, Counter],
     by_subagent: Counter,
 ) -> float:
     """Token-accounting concern: usage/cost totals split by model, skill, and
@@ -196,7 +196,7 @@ def _accumulate_skill_agent_signals(
     content,
     skills_invoked: Counter,
     agents_invoked: Counter,
-    active: "dict[str, str | None]",
+    active: dict[str, str | None],
 ) -> None:
     """Skill/agent-detection concern. `skill` is the legacy attributionSkill
     tag (kept as a fallback — real transcripts don't emit it, #182);
@@ -226,7 +226,7 @@ def _accumulate_skill_agent_signals(
 
 
 def _track_tool_call(
-    block: dict, pending_tool: "dict[str, str]", tool_calls: Counter
+    block: dict, pending_tool: dict[str, str], tool_calls: Counter
 ) -> None:
     """Error-classification bookkeeping: count every tool invocation (the
     error-rate denominator) and remember its id -> name so a later
@@ -240,7 +240,7 @@ def _track_tool_call(
 
 def _classify_tool_result(
     block: dict,
-    pending_tool: "dict[str, str]",
+    pending_tool: dict[str, str],
     tool_errors: Counter,
     error_counts: Counter,
 ) -> None:
@@ -260,7 +260,7 @@ def _classify_tool_result(
 
 
 def _track_edit(
-    block: dict, sid, edits_per_file: Counter, verify_edited_since: "dict[str, bool]"
+    block: dict, sid, edits_per_file: Counter, verify_edited_since: dict[str, bool]
 ) -> None:
     """Edit-tracking concern: count Edit/Write/... calls per file basename,
     so repeated edits to the same file (a rework signal) can be derived. Also
@@ -279,8 +279,8 @@ def _track_bash(
     sid,
     bash_commands: Counter,
     bash_signal_counts: Counter,
-    last_verify_norm: "dict[str, str]",
-    verify_edited_since: "dict[str, bool]",
+    last_verify_norm: dict[str, str],
+    verify_edited_since: dict[str, bool],
 ) -> None:
     """Bash-retry / commit-bypass / stuck-verify-loop concern (#111, #708):
     normalize the command for near-identical retry detection, detect a

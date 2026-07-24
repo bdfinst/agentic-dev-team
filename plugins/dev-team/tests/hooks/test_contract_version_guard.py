@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pytest
 
-
 _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
 if str(_HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_DIR))
@@ -24,9 +23,8 @@ _TESTS_LIB = Path(__file__).resolve().parents[2] / "tests" / "lib"
 if str(_TESTS_LIB) not in sys.path:
     sys.path.insert(0, str(_TESTS_LIB))
 
-import contract_version_guard as hook  # type: ignore[import-not-found]  # noqa: E402
-from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
-
+import contract_version_guard as hook  # type: ignore[import-not-found]
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 # ---------------------------------------------------------------------------
 # extract_version

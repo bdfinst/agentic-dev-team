@@ -12,13 +12,11 @@ from pathlib import Path
 
 import pytest
 
-
 _HOOKS = Path(__file__).resolve().parents[2] / "hooks"
 if str(_HOOKS) not in sys.path:
     sys.path.insert(0, str(_HOOKS))
 
-import mutation_testing_smoke_gate as gate  # type: ignore[import-not-found]  # noqa: E402
-
+import mutation_testing_smoke_gate as gate  # type: ignore[import-not-found]
 
 # --- trigger detection -----------------------------------------------------
 

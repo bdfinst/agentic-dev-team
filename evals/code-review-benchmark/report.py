@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any
 
 
-def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
         return []
     records = []
@@ -31,7 +32,7 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
     return records
 
 
-def _recall(records: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+def _recall(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
     records = list(records)
     attempted = len(records)
     hits = sum(1 for r in records if r.get("hit"))
@@ -43,15 +44,15 @@ def _recall(records: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _group_by(
-    records: List[Dict[str, Any]], key: str
-) -> Dict[str, List[Dict[str, Any]]]:
-    grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    records: list[dict[str, Any]], key: str
+) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for r in records:
         grouped[r.get(key, "unknown")].append(r)
     return grouped
 
 
-def _fmt_recall(stats: Dict[str, Any]) -> str:
+def _fmt_recall(stats: dict[str, Any]) -> str:
     if stats["recall"] is None:
         return "n/a (0 attempted)"
     return f"{stats['hits']}/{stats['attempted']} ({stats['recall']:.0%})"
@@ -63,7 +64,7 @@ def build_report(results_dir: Any) -> str:
     results = _read_jsonl(results_dir / "results.jsonl")
     skipped = _read_jsonl(results_dir / "skipped.jsonl")
 
-    lines: List[str] = ["# /code-review Benchmark Report", ""]
+    lines: list[str] = ["# /code-review Benchmark Report", ""]
 
     overall = _recall(results)
     lines.append(f"Overall recall: {_fmt_recall(overall)}")
@@ -96,7 +97,7 @@ def build_report(results_dir: Any) -> str:
     lines.append("")
     lines.append("| Dataset | Project | Hits | Attempted | Recall |")
     lines.append("| --- | --- | --- | --- | --- |")
-    by_project: Dict[tuple, List[Dict[str, Any]]] = defaultdict(list)
+    by_project: dict[tuple, list[dict[str, Any]]] = defaultdict(list)
     for r in results:
         by_project[(r.get("dataset"), r.get("project"))].append(r)
     for (dataset, project), recs in sorted(by_project.items()):

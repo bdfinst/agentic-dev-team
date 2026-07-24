@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List, Optional
 
 from _plugin_dirs import (
     PLUGIN_AGENTS_DIRS,
@@ -37,8 +36,8 @@ from _plugin_dirs import (
 ALLOWED_COLORS = ("purple", "yellow", "green", "cyan")
 
 
-def _agent_files() -> List[Path]:
-    files: List[Path] = []
+def _agent_files() -> list[Path]:
+    files: list[Path] = []
     for agents_dir in PLUGIN_AGENTS_DIRS:
         files.extend(agents_dir.glob("*.md"))
     return sorted(files)
@@ -58,7 +57,7 @@ def _skills_section_text(body: str) -> str:
     return match.group(1) if match else ""
 
 
-def _skills_list(fm: str) -> List[str]:
+def _skills_list(fm: str) -> list[str]:
     """Parse a `skills:` YAML block-list from an already-extracted frontmatter
     block. Returns [] if the key is absent or has no list items. Assumes
     2-space indentation on each item -- every agent's skills: list in this
@@ -95,7 +94,7 @@ def compute_expected_color(agent_file: Path, tools: str) -> str:
     return "cyan"
 
 
-def classify_declared_color(declared: str, expected: str) -> Optional[str]:
+def classify_declared_color(declared: str, expected: str) -> str | None:
     """Return a violation reason for one agent's declared vs. expected color,
     or None if it's compliant. Pure function -- no filesystem access -- so
     the missing/invalid/mismatched branches are unit-testable without needing
@@ -205,7 +204,7 @@ def test_classify_compliant_color_passes() -> None:
 # ---------------------------------------------------------------------------
 
 
-def classify_skills_declaration(declared: List[str], skills_section_text: str) -> Optional[str]:
+def classify_skills_declaration(declared: list[str], skills_section_text: str) -> str | None:
     """Return a violation reason for one agent's skills: declaration against
     its own `## Skills` section text, or None if compliant. Pure function --
     no filesystem access -- so the missing/unknown-name branches are
@@ -304,7 +303,7 @@ def test_skills_list_empty_when_key_absent() -> None:
 # ---------------------------------------------------------------------------
 
 
-def classify_memory_declaration(memory: str, tools: str) -> Optional[str]:
+def classify_memory_declaration(memory: str, tools: str) -> str | None:
     """Return a violation reason for one agent's memory: declaration against
     its tools:, or None if compliant (including "not applicable" for a
     non-file-mutating agent). Pure function -- no filesystem access -- so

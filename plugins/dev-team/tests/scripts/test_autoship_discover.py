@@ -13,7 +13,7 @@ import pytest
 _SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
-import autoship_discover  # noqa: E402
+import autoship_discover
 
 
 def _issue(**overrides) -> dict:

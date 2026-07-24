@@ -19,7 +19,6 @@ from typing import Any
 
 from ..lib import http_client, result_store, scoring
 
-
 SCORE_TARGET = 0.4   # low-fraud score we are trying to achieve
 RANDOM_SEARCH_ITERATIONS = 30
 GREEDY_ITERATIONS = 20

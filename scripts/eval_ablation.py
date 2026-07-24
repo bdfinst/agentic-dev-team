@@ -65,8 +65,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from eval_grade import run_grading  # noqa: E402
-from eval_variance import aggregate_trials  # noqa: E402
+from eval_grade import run_grading
+from eval_variance import aggregate_trials
 
 
 def _passing(expected_dir: Path, actuals: dict, only: set | None) -> set:

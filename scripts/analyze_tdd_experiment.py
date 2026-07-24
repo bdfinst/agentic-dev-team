@@ -128,7 +128,7 @@ def sign_test(diffs: list[float]) -> dict:
     if n == 0:
         return {"n": 0, "pos": 0, "neg": 0, "p": 1.0}
     k = min(pos, n - pos)
-    tail = sum(math.comb(n, i) for i in range(0, k + 1)) / (2 ** n)
+    tail = sum(math.comb(n, i) for i in range(k + 1)) / (2 ** n)
     return {"n": n, "pos": pos, "neg": n - pos, "p": round(min(1.0, 2 * tail), 4)}
 
 

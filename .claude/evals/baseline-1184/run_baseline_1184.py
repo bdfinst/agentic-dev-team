@@ -18,15 +18,15 @@ would be checkpointed as one. Fewer concurrent dispatches => fewer 429s => fewer
 false FAILs corrupting the baseline. Durability no longer depends on worker count
 (the checkpoint handles that), so there is no reason to risk it.
 """
+import concurrent.futures
+import json
 import os
 import sys
-import json
 import threading
-import concurrent.futures
 from pathlib import Path
 
 sys.path.insert(0, "scripts")
-import agent_calibrate as ac  # noqa: E402
+import agent_calibrate as ac
 
 REPO = Path(".").resolve()
 SAMPLES = 5

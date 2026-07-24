@@ -36,8 +36,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import PurePosixPath
-from typing import Iterable, List
 
 # The lenses this gate can skip. Both are code-only lenses that no-op on diffs
 # with no executable logic to reason about.
@@ -119,7 +119,7 @@ def has_runtime_surface(files: Iterable[str]) -> bool:
     return any(_has_runtime_surface_file(f) for f in files if str(f).strip())
 
 
-def lenses_to_skip(files: Iterable[str]) -> List[str]:
+def lenses_to_skip(files: Iterable[str]) -> list[str]:
     """Return the low-yield lenses to skip for this changeset.
 
     Empty when the changeset has any runtime surface (run every lens). Otherwise

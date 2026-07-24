@@ -51,13 +51,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 # Canonical section order — polyglot repos run matching sections in this order.
 SECTION_ORDER = ["js", "java", "csharp", "python"]
 
 # Stack token (lowercased) -> section key.
-STACK_TO_SECTION: Dict[str, str] = {
+STACK_TO_SECTION: dict[str, str] = {
     "typescript": "js",
     "node": "js",
     "javascript": "js",
@@ -69,7 +68,7 @@ STACK_TO_SECTION: Dict[str, str] = {
 }
 
 
-def select_sections(stacks: Optional[List[str]]) -> Dict[str, object]:
+def select_sections(stacks: list[str] | None) -> dict[str, object]:
     """Map a `stacks` array to the sections /setup Step 6 should run.
 
     Returns a dict with `sections`, `stacks`, `ambiguous`, and `note`.
@@ -103,7 +102,7 @@ def select_sections(stacks: Optional[List[str]]) -> Dict[str, object]:
     }
 
 
-def read_stacks(project_dir: Path) -> Optional[List[str]]:
+def read_stacks(project_dir: Path) -> list[str] | None:
     """Return the `stacks` array from `<project_dir>/.claude/project-stack.json`.
 
     Returns None when the file is missing, unreadable, not valid JSON, or has
@@ -122,7 +121,7 @@ def read_stacks(project_dir: Path) -> Optional[List[str]]:
     return stacks
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "project_dir",
@@ -138,7 +137,7 @@ def main(argv: List[str]) -> int:
     args = parser.parse_args(argv[1:])
 
     if args.stacks is not None:
-        stacks: Optional[List[str]] = [s for s in args.stacks.split(",") if s.strip()]
+        stacks: list[str] | None = [s for s in args.stacks.split(",") if s.strip()]
     else:
         stacks = read_stacks(Path(args.project_dir))
 

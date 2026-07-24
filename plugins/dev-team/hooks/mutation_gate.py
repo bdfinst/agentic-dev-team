@@ -21,15 +21,14 @@ import shutil
 import sys
 from pathlib import Path
 
-
 _HOOK_DIR = Path(__file__).resolve().parent
 # Add the plugin hooks dir to sys.path so the mutation_adapters package resolves.
 sys.path.insert(0, str(_HOOK_DIR))
 sys.path.insert(0, str(_HOOK_DIR / "lib"))
 
-from mutation_adapters import lib as adapter_lib  # noqa: E402
-from mutation_adapters import mutmut, pitest, stryker, stryker_net  # noqa: E402
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
+from mutation_adapters import lib as adapter_lib
+from mutation_adapters import mutmut, pitest, stryker, stryker_net
 
 
 def emit_boundary_event(*args, **kwargs) -> None:

@@ -34,7 +34,6 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-
 # ── YAML frontmatter parsing ─────────────────────────────────────────────────
 # Lightweight YAML parser for the narrow shape we accept. Avoids pyyaml dep.
 

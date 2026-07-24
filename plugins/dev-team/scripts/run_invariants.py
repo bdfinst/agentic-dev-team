@@ -20,12 +20,12 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, NamedTuple, Optional
+from typing import NamedTuple
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
-import plan_parse  # noqa: E402
+import plan_parse
 
 
 class InvariantResult(NamedTuple):
@@ -35,10 +35,10 @@ class InvariantResult(NamedTuple):
     stderr: str
 
 
-def run_invariants(commands: List[str], repo_root: str) -> List[InvariantResult]:
+def run_invariants(commands: list[str], repo_root: str) -> list[InvariantResult]:
     """Run each command from `repo_root`, stopping at the first failure.
     Returns the results for every command actually run (in order)."""
-    results: List[InvariantResult] = []
+    results: list[InvariantResult] = []
     for command in commands:
         proc = subprocess.run(
             command,
@@ -55,7 +55,7 @@ def run_invariants(commands: List[str], repo_root: str) -> List[InvariantResult]
     return results
 
 
-def invariants_for_slice(plan_path: Path, slice_id: str) -> List[str]:
+def invariants_for_slice(plan_path: Path, slice_id: str) -> list[str]:
     """Return the parsed Invariants commands declared for `slice_id`, or
     `[]` when the slice declares none."""
     fields = plan_parse.parse_slice_optional_fields(
@@ -67,7 +67,7 @@ def invariants_for_slice(plan_path: Path, slice_id: str) -> List[str]:
     return list(entry.get("invariants") or [])
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="run_invariants.py",
         description="Run a slice's declared Invariants commands (issue #865).",

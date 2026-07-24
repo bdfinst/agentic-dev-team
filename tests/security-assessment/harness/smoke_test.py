@@ -94,7 +94,7 @@ def check_probes_load() -> None:
     sys.path.insert(0, str(HARNESS))
     os.environ.setdefault("TARGET_URL", "http://127.0.0.1:8000")
     try:
-        from redteam import orchestrator  # noqa: E402  (path set above)
+        from redteam import orchestrator
     except Exception as e:  # pragma: no cover - reported as a failure
         fail(f"could not import redteam.orchestrator: {type(e).__name__}: {e}")
         return

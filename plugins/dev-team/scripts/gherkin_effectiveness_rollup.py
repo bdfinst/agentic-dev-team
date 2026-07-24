@@ -40,7 +40,6 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 DEFAULT_OUT = Path("metrics/gherkin-derive-effectiveness.jsonl")
 
@@ -48,7 +47,7 @@ _TABLE_ROW_RE = re.compile(r"^\s*\|(.+)\|\s*$")
 _SEPARATOR_CELL_RE = re.compile(r"^\s*:?-{2,}:?\s*$")
 
 # Header keywords this parser recognizes, mapped to the output field name.
-_COLUMN_KEYWORDS: Dict[str, str] = {
+_COLUMN_KEYWORDS: dict[str, str] = {
     "surface": "surface",
     "source": "discovery_source",
     "provenance": "provenance",
@@ -61,11 +60,11 @@ class RollupWarning(Exception):
     """Non-fatal condition worth surfacing on stderr; callers keep going."""
 
 
-def _split_row(line: str) -> List[str]:
+def _split_row(line: str) -> list[str]:
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
-def parse_surface_table(text: str) -> List[Dict[str, str]]:
+def parse_surface_table(text: str) -> list[dict[str, str]]:
     """Return one dict per data row of the first markdown table whose header
     matches at least one column in `_COLUMN_KEYWORDS`. Returns [] if no such
     table is found."""
@@ -85,7 +84,7 @@ def parse_surface_table(text: str) -> List[Dict[str, str]]:
                             field_for_col[idx] = field
                             break
                 if field_for_col:
-                    rows: List[Dict[str, str]] = []
+                    rows: list[dict[str, str]] = []
                     j = i + 2
                     while j < len(lines) and _TABLE_ROW_RE.match(lines[j]):
                         cells = _split_row(lines[j])
@@ -102,7 +101,7 @@ def parse_surface_table(text: str) -> List[Dict[str, str]]:
     return []
 
 
-def load_scenarios(gherkin_md: Optional[Path]) -> List[Dict[str, str]]:
+def load_scenarios(gherkin_md: Path | None) -> list[dict[str, str]]:
     if gherkin_md is None:
         return []
     if not gherkin_md.is_file():
@@ -113,7 +112,7 @@ def load_scenarios(gherkin_md: Optional[Path]) -> List[Dict[str, str]]:
     return rows
 
 
-def load_json(path: Optional[Path]) -> Optional[dict]:
+def load_json(path: Path | None) -> dict | None:
     if path is None:
         return None
     if not path.is_file():
@@ -122,7 +121,7 @@ def load_json(path: Optional[Path]) -> Optional[dict]:
         return json.load(fh)
 
 
-def load_bindings(bindings_json: Optional[Path]) -> Dict[str, object]:
+def load_bindings(bindings_json: Path | None) -> dict[str, object]:
     data = load_json(bindings_json)
     return data if isinstance(data, dict) else {}
 
@@ -135,7 +134,7 @@ def scenario_key(surface: str) -> str:
     return surface.strip()
 
 
-def coverage_delta(baseline: Optional[dict], current: Optional[dict]) -> Optional[dict]:
+def coverage_delta(baseline: dict | None, current: dict | None) -> dict | None:
     if not baseline or not current:
         return None
     delta = {}
@@ -146,7 +145,7 @@ def coverage_delta(baseline: Optional[dict], current: Optional[dict]) -> Optiona
     return delta or None
 
 
-def mutation_delta(baseline: Optional[dict], current: Optional[dict]) -> Optional[dict]:
+def mutation_delta(baseline: dict | None, current: dict | None) -> dict | None:
     if not baseline or not current:
         return None
     b, c = baseline.get("survivors_after"), current.get("survivors_after")
@@ -156,11 +155,11 @@ def mutation_delta(baseline: Optional[dict], current: Optional[dict]) -> Optiona
 
 
 def build_records(
-    scenarios: List[Dict[str, str]],
-    bindings: Dict[str, object],
-    cov_delta: Optional[dict],
-    mut_delta: Optional[dict],
-) -> List[dict]:
+    scenarios: list[dict[str, str]],
+    bindings: dict[str, object],
+    cov_delta: dict | None,
+    mut_delta: dict | None,
+) -> list[dict]:
     records = []
     for row in scenarios:
         surface = row.get("surface", "")
@@ -177,7 +176,7 @@ def build_records(
     return records
 
 
-def append_jsonl(records: List[dict], out_path: Path) -> int:
+def append_jsonl(records: list[dict], out_path: Path) -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("a", encoding="utf-8") as fh:
         for record in records:
@@ -186,7 +185,7 @@ def append_jsonl(records: List[dict], out_path: Path) -> int:
     return len(records)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gherkin-md", type=Path, help="surface inventory markdown (gherkin.md)")
     parser.add_argument("--bindings-json", type=Path, help="gherkin-bindings.json, if present")

@@ -17,7 +17,7 @@ _HOOKS_LIB = Path(__file__).resolve().parents[2] / "hooks" / "lib"
 if str(_HOOKS_LIB) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB))
 
-import verify_guard_state as vgs  # type: ignore[import-not-found]  # noqa: E402
+import verify_guard_state as vgs  # type: ignore[import-not-found]
 
 
 def test_state_key_prefers_session_id() -> None:
@@ -78,7 +78,7 @@ def test_cksum_matches_bash_retry_guard_algorithm() -> None:
     _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
     if str(_HOOKS_DIR) not in sys.path:
         sys.path.insert(0, str(_HOOKS_DIR))
-    import bash_retry_guard  # type: ignore[import-not-found]  # noqa: E402
+    import bash_retry_guard  # type: ignore[import-not-found]
 
     for text in ["npm test", "pytest -q", "", "weird\tinput\nwith  spaces"]:
         assert vgs.cksum(text) == bash_retry_guard._cksum(text)

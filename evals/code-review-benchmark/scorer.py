@@ -10,7 +10,7 @@ issue the review correctly found.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 DEFAULT_TOLERANCE = 3
 
@@ -19,7 +19,7 @@ def _normalize_path(path: str) -> str:
     return path.lstrip("./")
 
 
-def _matches(finding: Dict[str, Any], hunk: Dict[str, Any], tolerance: int) -> bool:
+def _matches(finding: dict[str, Any], hunk: dict[str, Any], tolerance: int) -> bool:
     if _normalize_path(str(finding.get("file", ""))) != _normalize_path(
         str(hunk.get("file", ""))
     ):
@@ -33,10 +33,10 @@ def _matches(finding: Dict[str, Any], hunk: Dict[str, Any], tolerance: int) -> b
 
 
 def score(
-    ground_truth_hunks: List[Dict[str, Any]],
-    findings: List[Dict[str, Any]],
+    ground_truth_hunks: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
     tolerance: int = DEFAULT_TOLERANCE,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Score one case's findings against its ground truth.
 
     Returns `{"hit": bool, "matched": [...], "unmatched": [...]}`. `matched`
@@ -44,8 +44,8 @@ def score(
     finding possibly matching more than one hunk collapsed to one entry);
     `unmatched` holds every other finding, verbatim.
     """
-    matched: List[Dict[str, Any]] = []
-    unmatched: List[Dict[str, Any]] = []
+    matched: list[dict[str, Any]] = []
+    unmatched: list[dict[str, Any]] = []
     for finding in findings:
         if any(_matches(finding, hunk, tolerance) for hunk in ground_truth_hunks):
             matched.append(finding)

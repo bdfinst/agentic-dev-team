@@ -25,12 +25,11 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
-import plan_parse  # noqa: E402
+import plan_parse
 
 _SCOPE_ENFORCEMENT_RE = re.compile(
     r"^\*\*Scope enforcement:?\*\*\s*:?\s*(.+)$", re.IGNORECASE | re.MULTILINE
@@ -50,7 +49,7 @@ def scope_enforcement_enabled(plan_text: str) -> bool:
     return match.group(1).strip().lower().startswith("freeze")
 
 
-def declared_files_for_slice(plan_text: str, slice_id: str) -> List[str]:
+def declared_files_for_slice(plan_text: str, slice_id: str) -> list[str]:
     """Return the tokenized slice-level `**Files:**` declaration for
     `slice_id`, or `[]` when the slice declares none."""
     rows = plan_parse.parse_slices(plan_text.splitlines())
@@ -60,19 +59,19 @@ def declared_files_for_slice(plan_text: str, slice_id: str) -> List[str]:
     return []
 
 
-def bookkeeping_allowlist(plan_path: Path) -> List[str]:
+def bookkeeping_allowlist(plan_path: Path) -> list[str]:
     """The fixed allowlist every freeze must include so `/build` never
     self-blocks its own progress writes: the plan file itself, plus
     `memory/**` and `metrics/**`."""
     return [plan_path.name, "memory/**", "metrics/**"]
 
 
-def build_allowed_patterns(plan_path: Path, plan_text: str, slice_id: str) -> List[str]:
+def build_allowed_patterns(plan_path: Path, plan_text: str, slice_id: str) -> list[str]:
     declared = declared_files_for_slice(plan_text, slice_id)
     return declared + bookkeeping_allowlist(plan_path)
 
 
-def write_freeze_state(hooks_dir: Path, allowed_patterns: List[str]) -> Path:
+def write_freeze_state(hooks_dir: Path, allowed_patterns: list[str]) -> Path:
     hooks_dir.mkdir(parents=True, exist_ok=True)
     state_path = hooks_dir / FREEZE_STATE_FILENAME
     payload = {
@@ -92,7 +91,7 @@ def clear_freeze_state(hooks_dir: Path) -> Path:
     return state_path
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="build_slice_scope.py",
         description="Engage/clear /build's per-slice freeze scope lock (issue #865).",

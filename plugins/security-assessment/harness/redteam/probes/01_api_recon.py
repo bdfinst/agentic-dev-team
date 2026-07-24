@@ -11,7 +11,6 @@ from __future__ import annotations
 from .. import config
 from ..lib import http_client, result_store
 
-
 DOC_PATHS = [
     "/openapi.json", "/openapi.yaml", "/swagger.json", "/swagger-ui.html",
     "/docs", "/redoc", "/api-docs", "/v2/api-docs", "/v3/api-docs",
