@@ -54,7 +54,7 @@ Map the deployable/testable surfaces and assign each its pattern from `component
 
 Find the test suites **in the repo** and classify each against the six types in `cd-test-architecture.md`. For each, record: type, what it actually exercises, whether it is deterministic, and **what it requires to run** (DB URL, broker, downstream service, secrets, sleep, real clock).
 
-If in-repo tests are sparse or absent, the application is not necessarily untested — it may be tested out-of-repo (see Step 2b). Do not conclude "no tests" without checking.
+If in-repo tests are sparse or absent, the application is not necessarily untested — it may be tested out-of-repo (see Step 2b — locate and harvest out-of-repo tests). Do not conclude "no tests" without checking.
 
 ### 2b. Locate and harvest out-of-repo tests
 
@@ -64,13 +64,13 @@ When `--external-tests` is given (or in-repo tests are sparse and the user point
 - **Postman / Insomnia / `.http` collections** — each request + its assertions describes an API contract and a scenario. Extract: endpoint, request shape, expected response, and which success/failure scenario it covers.
 - **Manual test scripts / spreadsheets / recorded UI flows** — extract each step as a behavior the team cares about (a candidate component/E2E scenario), and note it is currently human-executed and non-repeatable.
 
-Produce a behavior inventory from these sources, mapped to the component patterns from Step 1. This becomes the **basis for improvement** — the behaviors to re-express as deterministic, in-repo, gated tests.
+Produce a behavior inventory from these sources, mapped to the component patterns from Step 1 (inventory the application's components). This becomes the **basis for improvement** — the behaviors to re-express as deterministic, in-repo, gated tests.
 
 ### 3. Diagnose CD-fitness gaps
 
 Flag, with evidence:
 
-- **Out-of-repo / third-party-runner testing** — the component's tests live in another repo, a separate QA runner, Postman collections, or manual scripts rather than alongside the code. **This is an anti-pattern**, even when that external coverage is extensive: the tests cannot gate the component's own merges, are not versioned with the code they verify, are usually non-deterministic and environment-coupled, and silently drift from the code. The goal state is deterministic tests co-located with the code and run in its pipeline. Flag this explicitly and treat the external suite as the *source material* (Step 2b), not the destination.
+- **Out-of-repo / third-party-runner testing** — the component's tests live in another repo, a separate QA runner, Postman collections, or manual scripts rather than alongside the code. **This is an anti-pattern**, even when that external coverage is extensive: the tests cannot gate the component's own merges, are not versioned with the code they verify, are usually non-deterministic and environment-coupled, and silently drift from the code. The goal state is deterministic tests co-located with the code and run in its pipeline. Flag this explicitly and treat the external suite as the *source material* (Step 2b — locate and harvest out-of-repo tests), not the destination.
 - **Manual / non-repeatable testing** — behavior verified only by humans following scripts. Non-repeatable, unsuitable for any gate; each such script is a behavior to automate.
 - **Mis-typed gate tests** — "unit/component" tests that require a real dependency or are non-deterministic (real clock/RNG/network/sleep). These cannot be a pre-merge gate.
 - **Configured-dependency tests** — tests that need the rest of the system stood up to run.
@@ -93,7 +93,7 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 ### 5. Produce a migration path
 
-Order the moves from current → target, lowest-risk first. The spine is **baseline before refactor**: get behavior under test at existing seams *without changing code*, then refactor under that green baseline (never behavior + structure in one step). When tests are out-of-repo (Step 2b), the harvested behaviors feed that baseline. Typical full sequence:
+Order the moves from current → target, lowest-risk first. The spine is **baseline before refactor**: get behavior under test at existing seams *without changing code*, then refactor under that green baseline (never behavior + structure in one step). When tests are out-of-repo (Step 2b — locate and harvest out-of-repo tests), the harvested behaviors feed that baseline. Typical full sequence:
 
 1. **Characterization baseline (no refactoring)** — at the outermost reachable seam, write outside-in tests that lock in current behavior; harvest any out-of-repo/manual behaviors into this inventory and reproduce them here. Get green.
 2. **Introduce owned adapters and seams — under the baseline** (Adapter Rule; `testability-patterns.md`; DDD skills suggest where boundaries/seams belong). Refactor only with the baseline green.
