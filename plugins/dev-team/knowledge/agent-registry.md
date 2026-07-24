@@ -9,7 +9,6 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | ADR Author | `agents/adr-author.md` | 320 | Creates and manages Architecture Decision Records |
 | Architect | `agents/architect.md` | 360 | System design, architecture |
 | Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis. |
-| Implementer | `agents/implementer.md` | ~1,450 | Executes one plan step at a time in small per-behavior batches (Code-First Small Batches cadence). Dispatched by `agents/orchestrator.md` Phase 3, never directly. |
 | Orchestrator | `agents/orchestrator.md` | 500 | Task routing, model selection, review coordination |
 | Plan Review Acceptance Critic | `agents/plan-review-acceptance.md` | ~880 | Adversarial plan review — acceptance criteria, Gherkin scenario, and TDD step traceability quality. Dispatched by `/plan` step 5b, never directly. |
 | Plan Review Design Critic | `agents/plan-review-design.md` | ~920 | Adversarial plan review — coupling, abstraction, structural risk, and pattern-adherence quality. Dispatched by `/plan` step 5b, never directly. |
@@ -23,7 +22,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Software Engineer | `agents/software-engineer.md` | 320 | Code generation, implementation |
 | Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
 | UI/UX Designer | `agents/ui-ux-designer.md` | 300 | Interface design, UX |
-| **All team agents** | | **~9,360** | |
+| **All team agents** | | **~7,910** | |
 
 ## Review Agents
 

@@ -5,7 +5,7 @@ color: yellow
 memory: project
 name: exec-report-generator
 description: Synthesizes the publication-ready executive report from upstream artifacts. Emits a 7-section per-repo report (plus cross-repo summary for multi-repo runs).
-tools: Read, Write, Glob, Grep
+tools: Read, Write, Glob, Grep, mcp__codegraph__codegraph_explore, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 ---
 
 # Executive Report Generator

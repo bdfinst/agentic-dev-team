@@ -174,6 +174,15 @@ Include the result in the agent report table under a `Mapping` column.
 
 **Fix (when `--fix` is passed)**: run `python3 scripts/check_agent_tool_mapping.py --fix`, which appends the missing tier names (merge, never replacing existing grants). Unclassified agents are reported, not auto-fixed — classify each into `TIER_CONFIG` or `EXCLUSIONS`. Report `FIXED: <agent> — added code-intelligence mapping tools`.
 
+4. **Code-intelligence grant invariant (security-assessment plugin, issue #1388)**: Invariants 2 and 3 above cover `plugins/dev-team/agents/` only. Every agent in `CODE_READING_AGENTS` (`authorization-logic-review`, `business-logic-domain-review`, `cross-repo-synthesizer`, `deep-code-reasoning`, `exec-report-generator`, `fp-reduction`, `recon-driven-scan`, `tool-finding-narrative-annotator`) MUST grant the same five-tool `BASE_MCP_TOOLS` set in `tools:`. The remaining `plugins/security-assessment/agents/*.md` files interpret a fixed set of upstream probe/report artifacts via `Read`/`Grep` only (no `Glob`) and are excluded — the grant would be inert for them.
+   - FAIL if a code-reading agent's `tools:` line is missing one or more of the five names, or an agent on disk is in neither roster (unclassified).
+   - PASS if every code-reading agent grants all five and every agent on disk is classified.
+   - Delegated to `plugins/dev-team/scripts/check_security_assessment_mcp_tools.py` (sharing `scripts/lib/mcp_tool_grants.py`'s `BASE_MCP_TOOLS` as the single source of truth with invariants 2 and 3). Wired into `scripts/ci-local.sh` as `chk_sa_mcp_tools` so drift fails CI, not just this manual audit pass.
+
+Include the result in the agent report table under a `SA-MCP` column.
+
+**Fix (when `--fix` is passed)**: run `python3 plugins/dev-team/scripts/check_security_assessment_mcp_tools.py --fix`, which appends the missing names (merge, never replacing existing grants). Unclassified agents are reported, not auto-fixed — classify each into `CODE_READING_AGENTS` or `NON_CODE_READING_AGENTS`. Report `FIXED: <agent> — added code-intelligence MCP tools`.
+
 ### 2c. Audit team agent personas
 
 A file is a **team agent** when its body contains a `## Behavioral Guidelines` section. **Exemption**: an agent that declares `Enforcement: script` in its body is a script-enforced **prose spec**, not a persona-driven team agent — skip the persona checks below for it and instead verify it carries a `> **Implemented by:** <script>` pointer immediately after the H1. For each remaining team agent, check:

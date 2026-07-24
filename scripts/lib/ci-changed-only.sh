@@ -29,6 +29,7 @@ ci_watched_paths() {
     chk_ruff)               printf '%s' "*.py ruff.toml" ;;
     chk_oe_staleness)       printf '%s' "" ;;  # advisory; intentionally always-run (no stable watched path)
     chk_parity)             printf '%s' "plugins/dev-team/tests/hooks/parity/ plugins/dev-team/hooks/" ;;
+    chk_sa_mcp_tools)       printf '%s' "plugins/security-assessment/agents/ plugins/dev-team/scripts/check_security_assessment_mcp_tools.py plugins/dev-team/scripts/lib/mcp_tool_grants.py" ;;
     *)                      printf '%s' "" ;;
   esac
 }
