@@ -80,7 +80,7 @@ def load_slices_config(path: Path) -> list[dict[str, Any]]:
     seen_names = set()
     for i, s in enumerate(slices):
         if not isinstance(s, dict):
-            raise ValueError(f"slices[{i}] must be an object")
+            raise TypeError(f"slices[{i}] must be an object")
         missing = [f for f in REQUIRED_SLICE_FIELDS if f not in s]
         if missing:
             raise ValueError(
@@ -435,7 +435,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         configured = load_slices_config(Path(args.slices_config))
         selected = resolve_slice_selection(configured, args.slice)
-    except ValueError as e:
+    except (ValueError, TypeError) as e:
         sys.stderr.write(f"error: {e}\n")
         return 2
 
@@ -518,8 +518,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
                 ] = s["name"]
             print(format_progress_line(order, states))
-            for future in futures:
-                name = futures[future]
+            for future, name in futures.items():
                 exit_codes[name] = future.result()
                 states[name] = "done" if exit_codes[name] == 0 else "failed"
                 print(format_progress_line(order, states))

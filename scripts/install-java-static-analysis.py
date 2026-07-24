@@ -35,7 +35,7 @@ def main() -> int:
         return 0
     if shutil.which("pmd") is not None:  # PATH fallback (env-override installs)
         version = subprocess.run(
-            ["pmd", "--version"], capture_output=True, text=True
+            ["pmd", "--version"], capture_output=True, text=True, check=False
         ).stdout.strip()
         print(f"pmd already installed on PATH: {version}")
         return 0

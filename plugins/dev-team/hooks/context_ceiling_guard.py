@@ -90,7 +90,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 
@@ -396,19 +396,25 @@ _BAND_SCALE = 100
 _BAND_ACTIONS = {
     _BAND_NUDGE: (
         "nudge",
-        "Consider running /handoff (write a memory/ progress "
-        "file, continue in a fresh context) and defer non-essential "
-        "agents/skills.",
+        (
+            "Consider running /handoff (write a memory/ progress "
+            "file, continue in a fresh context) and defer non-essential "
+            "agents/skills."
+        ),
     ),
     _BAND_RUN_NOW: (
         "run-now",
-        "Run /handoff now — write a memory/ progress file "
-        "and continue in a fresh context.",
+        (
+            "Run /handoff now — write a memory/ progress file "
+            "and continue in a fresh context."
+        ),
     ),
     _BAND_FULL_SUMMARY: (
         "full-summary",
-        "Write a full summary to memory/ and start a new conversation now "
-        "— context is well past the effective ceiling.",
+        (
+            "Write a full summary to memory/ and start a new conversation now "
+            "— context is well past the effective ceiling."
+        ),
     ),
 }
 

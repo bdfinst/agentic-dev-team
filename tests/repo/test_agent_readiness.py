@@ -26,6 +26,7 @@ def _run_scanner(*args: str) -> subprocess.CompletedProcess:
         [sys.executable, str(SCANNER), *args],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

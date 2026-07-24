@@ -31,21 +31,20 @@ def collect_missing(node, missing):
     elif isinstance(node, dict):
         for value in node.values():
             collect_missing(value, missing)
-    elif isinstance(node, str):
-        if not os.path.exists(os.path.join(OUT, node)):
-            missing.append(node)
+    elif isinstance(node, str) and not os.path.exists(os.path.join(OUT, node)):
+        missing.append(node)
 
 
 def main():
     with open(CONFIG) as handle:
         nav = yaml.safe_load(handle).get("nav")
     if not nav:
-        print("no nav defined in %s — nothing to check" % CONFIG)
+        print(f"no nav defined in {CONFIG} — nothing to check")
         return 0
     missing = []
     collect_missing(nav, missing)
     if missing:
-        print("nav entries with no matching file under %s/:" % OUT)
+        print(f"nav entries with no matching file under {OUT}/:")
         for entry in missing:
             print("  -", entry)
         print("\nAssemble first (scripts/assemble-docs.sh); a missing entry means "

@@ -138,9 +138,11 @@ def init_worktree(workdir: Path) -> None:
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
     }
-    subprocess.run(["git", "init"], **quiet)
-    subprocess.run(["git", "add", "-A"], **quiet)
-    subprocess.run(
+    # check=True is already supplied via the `quiet` dict-unpack above; ruff's
+    # PLW1510 can't see through **quiet, so these are intentionally left as-is.
+    subprocess.run(["git", "init"], **quiet)  # noqa: PLW1510
+    subprocess.run(["git", "add", "-A"], **quiet)  # noqa: PLW1510
+    subprocess.run(  # noqa: PLW1510
         [
             "git",
             "-c",
@@ -274,6 +276,7 @@ def run_commands(workdir: Path, commands: list[str]) -> list[dict]:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
+                check=False,
             )
             stderr_first = ""
             if proc.stderr:

@@ -230,7 +230,7 @@ def test_empty_command_passes_silently(tmp_path):
 
 def test_new_test_file_creation_is_blocked_preemptively(tmp_path):
     _write_state(tmp_path)  # baseline staged file is src/thing.test.js only
-    code, lines, matched_rule = guard.evaluate(
+    code, _lines, matched_rule = guard.evaluate(
         "tee src/rogue.spec.js <<< 'x'", tmp_path, now=_NOW
     )
     assert code == 2
@@ -273,7 +273,7 @@ def test_main_fails_open_on_internal_error(tmp_path, monkeypatch, capsys):
 def test_missing_pattern_file_falls_back_to_defaults(tmp_path, monkeypatch):
     _write_state(tmp_path)
     monkeypatch.setattr(guard, "_PATTERNS_FILE", tmp_path / "does-not-exist.json")
-    code, lines, matched_rule = guard.evaluate(
+    code, _lines, matched_rule = guard.evaluate(
         "sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW
     )
     assert code == 2
@@ -285,7 +285,7 @@ def test_malformed_pattern_file_falls_back_to_defaults(tmp_path, monkeypatch):
     bogus = tmp_path / "bogus-patterns.json"
     bogus.write_text("{not json")
     monkeypatch.setattr(guard, "_PATTERNS_FILE", bogus)
-    code, lines, matched_rule = guard.evaluate(
+    code, _lines, matched_rule = guard.evaluate(
         "sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW
     )
     assert code == 2

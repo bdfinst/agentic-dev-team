@@ -24,5 +24,6 @@ def test_knowledge_index_is_current_with_working_tree() -> None:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr

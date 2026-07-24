@@ -183,6 +183,7 @@ def test_e2e_shipped_pre_push_refuses_to_complete_if_ref_moves_during_hook(
         env=push_env,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode != 0
 
@@ -198,5 +199,6 @@ def test_e2e_shipped_pre_push_refuses_to_complete_if_ref_moves_during_hook(
         env=hermetic_env,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert verify.returncode != 0

@@ -52,6 +52,7 @@ def _source_and_call(
         capture_output=True,
         text=True,
         env=_hermetic_env(),
+        check=False,
     )
 
 
@@ -210,6 +211,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         env=_hermetic_env(),
+        check=False,
     )
 
 
@@ -220,6 +222,7 @@ def _run_script(cwd: Path, *args: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         env=_hermetic_env(),
+        check=False,
     )
 
 

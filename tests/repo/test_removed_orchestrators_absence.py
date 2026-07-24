@@ -63,6 +63,7 @@ def _grep_files(pattern: str, paths: list[Path]) -> list[str]:
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode not in (0, 1):
         raise AssertionError(result.stderr)

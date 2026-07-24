@@ -58,6 +58,7 @@ def _run(case: Path, *extra: str) -> dict:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     return json.loads(res.stdout) if res.stdout.strip() else {}
@@ -103,6 +104,7 @@ def test_write_baseline_stamps_model_field(case: Path) -> None:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     data = json.loads(baseline.read_text())
@@ -126,6 +128,7 @@ def test_write_baseline_omits_model_when_never_provided(case: Path) -> None:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     data = json.loads(baseline.read_text())
@@ -149,6 +152,7 @@ def test_write_baseline_carries_forward_prior_model_when_omitted(case: Path) -> 
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     data = json.loads(baseline.read_text())
@@ -170,6 +174,7 @@ def test_variance_append_writes_a_metrics_only_trend_record(case: Path) -> None:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     lines = trend.read_text().splitlines()

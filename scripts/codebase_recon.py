@@ -102,6 +102,7 @@ def step3_entry_points(
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout.strip())
@@ -158,6 +159,7 @@ def step4_architecture(
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout.strip())
@@ -215,6 +217,7 @@ def step5_security_surface(
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout.strip())
@@ -352,6 +355,7 @@ def step7_emit(
         [sys.executable, str(inventory_script), str(root), "--slug", slug],
         capture_output=True,
         text=True,
+        check=False,
     )
     if inventory_result.returncode != 0:
         errors.append(
@@ -381,9 +385,11 @@ def step7_emit(
     }
 
     # Schema validation
+    import jsonschema
+
     try:
         validate_schema(artifact)
-    except Exception as exc:
+    except jsonschema.ValidationError as exc:
         errors.append(
             {
                 "severity": "error",

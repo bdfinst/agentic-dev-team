@@ -54,6 +54,7 @@ def corpus(tmp_path: Path) -> Path:
 def _run(corpus: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(CACHE), "--repo-root", str(corpus), *args],
+        check=False,
         capture_output=True,
         text=True,
     )

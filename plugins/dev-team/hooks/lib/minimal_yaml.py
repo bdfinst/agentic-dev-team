@@ -81,9 +81,13 @@ def _strip_comment(line: str) -> str:
             in_single = not in_single
         elif ch == '"' and not in_single:
             in_double = not in_double
-        elif ch == "#" and not in_single and not in_double:
-            if i == 0 or line[i - 1] in (" ", "\t"):
-                return line[:i]
+        elif (
+            ch == "#"
+            and not in_single
+            and not in_double
+            and (i == 0 or line[i - 1] in (" ", "\t"))
+        ):
+            return line[:i]
     return line
 
 
@@ -115,9 +119,13 @@ def _split_key_value(content: str) -> tuple[str, str] | None:
             in_single = not in_single
         elif ch == '"' and not in_single:
             in_double = not in_double
-        elif ch == ":" and not in_single and not in_double:
-            if i + 1 == len(content) or content[i + 1] in (" ", "\t"):
-                return content[:i].strip(), content[i + 1 :].strip()
+        elif (
+            ch == ":"
+            and not in_single
+            and not in_double
+            and (i + 1 == len(content) or content[i + 1] in (" ", "\t"))
+        ):
+            return content[:i].strip(), content[i + 1 :].strip()
     return None
 
 
@@ -337,7 +345,7 @@ def _parse_node(lines: list[str], i: int, indent: int) -> tuple[Any, int]:
         return None, i
     if content == "-" or content.startswith("- "):
         return _parse_sequence(lines, i, indent)
-    if content.startswith("[") or content.startswith("{"):
+    if content.startswith(("[", "{")):
         # A flow collection whose opening bracket is on its own line, e.g.
         #   skills:
         #     [

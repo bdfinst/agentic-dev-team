@@ -293,7 +293,7 @@ def measure_coverage(workdir: Path, env: dict, prod: list[Path]) -> dict:
         out["tests_passed"] = (_pytest_rc(workdir, env) == 0)
     subprocess.run(
         ["python3", "-m", "coverage", "json", "-o", str(workdir / "cov.json")],
-        cwd=str(workdir), env=cov_env, capture_output=True, text=True)
+        cwd=str(workdir), env=cov_env, capture_output=True, text=True, check=False)
     try:
         data = json.loads((workdir / "cov.json").read_text())
         prod_names = {str(p.relative_to(workdir)) for p in prod}
@@ -338,7 +338,7 @@ PYTEST_TIMEOUT = 30
 def _run_timed(cmd: list[str], **kw):
     """subprocess.run with PYTEST_TIMEOUT; on timeout return rc=124."""
     try:
-        return subprocess.run(cmd, timeout=PYTEST_TIMEOUT, **kw)
+        return subprocess.run(cmd, timeout=PYTEST_TIMEOUT, check=False, **kw)
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(cmd, 124, "", "timeout")
 
@@ -622,11 +622,14 @@ def main(argv: list[str]) -> int:
     arms = tuple(dict.fromkeys(args.arm)) if args.arm else ARMS
     plugin_template = Path(args.build_home_template) if args.build_home_template \
         else None
-    if any(a in PLUGIN_ARMS for a in arms) and not args.skip_dispatch:
-        if plugin_template is None or not (plugin_template / ".claude").is_dir():
-            print("error: build-pipeline arm needs --build-home-template pointing "
-                  "at a dir containing a plugin-enabled .claude/", file=sys.stderr)
-            return 2
+    if (
+        any(a in PLUGIN_ARMS for a in arms)
+        and not args.skip_dispatch
+        and (plugin_template is None or not (plugin_template / ".claude").is_dir())
+    ):
+        print("error: build-pipeline arm needs --build-home-template pointing "
+              "at a dir containing a plugin-enabled .claude/", file=sys.stderr)
+        return 2
     exp_dir = Path(args.experiments_dir)
     fixtures_dir = Path(args.fixtures_dir)
     if not exp_dir.is_dir():

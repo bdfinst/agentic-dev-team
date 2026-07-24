@@ -236,15 +236,14 @@ def _agent_checks(
     if _grep_i_matches(
         content,
         r"javascript\\\|typescript\\\|python\\\|ruby\\\|go\\\|rust\\\|java",
+    ) and not _grep_i_matches(
+        content,
+        r"scope:|\.js\b|\.ts\b|\.py\b|\.rb\b|\.go\b|\.rs\b|\.java\b|files only",
     ):
-        if not _grep_i_matches(
-            content,
-            r"scope:|\.js\b|\.ts\b|\.py\b|\.rb\b|\.go\b|\.rs\b|\.java\b|files only",
-        ):
-            warn(
-                f"{agent_name}: Mentions a language but doesn't declare "
-                f"file scope (e.g., 'Scope: *.js, *.ts files only')."
-            )
+        warn(
+            f"{agent_name}: Mentions a language but doesn't declare "
+            f"file scope (e.g., 'Scope: *.js, *.ts files only')."
+        )
 
     parts: list[str] = ["\n"]
     if fails:
@@ -334,9 +333,10 @@ def _skill_checks(content: str, skill_name: str) -> str:
         warn(f"{skill_name}: Missing argument parsing section.")
 
     # 5. Report section for review-related skills (WARN)
-    if _grep_i_matches(content, r"review|audit|fix"):
-        if not _grep_i_matches(content, r"report|summary|output"):
-            warn(f"{skill_name}: Review-related skill missing report/summary section.")
+    if _grep_i_matches(content, r"review|audit|fix") and not _grep_i_matches(
+        content, r"report|summary|output"
+    ):
+        warn(f"{skill_name}: Review-related skill missing report/summary section.")
 
     if not fails and not warnings:
         return ""

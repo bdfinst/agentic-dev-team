@@ -30,5 +30,6 @@ def test_knowledge_index_is_not_gitignored() -> None:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode != 0

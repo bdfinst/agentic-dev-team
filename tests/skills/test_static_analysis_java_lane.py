@@ -262,6 +262,7 @@ def test_full_repo_walk_reports_nothing_from_excluded_dirs(tmp_path):
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode in (0, 4), result.stderr
     report = json.loads(result.stdout)

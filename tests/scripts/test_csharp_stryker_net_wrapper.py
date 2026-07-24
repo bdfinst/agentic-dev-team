@@ -623,11 +623,11 @@ class TestConcurrentRunStrykerTracking:
         threads = [
             threading.Thread(
                 target=wrapper.run_stryker,
-                kwargs=dict(
-                    stryker_bin="fake-stryker",
-                    stryker_args=[],
-                    logfile=tmp_path / f"slice-{i}.log",
-                ),
+                kwargs={
+                    "stryker_bin": "fake-stryker",
+                    "stryker_args": [],
+                    "logfile": tmp_path / f"slice-{i}.log",
+                },
                 daemon=True,
             )
             for i in range(2)

@@ -135,12 +135,12 @@ def make_scoped_config(config: LoopConfig, source_file: str) -> dict:
 
 
 def _write_scoped_config(config: LoopConfig, source_file: str) -> Path:
-    tmp = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         suffix=".json", delete=False, mode="w", prefix="stryker-scoped-"
-    )
-    json.dump(make_scoped_config(config, source_file), tmp)
-    tmp.close()
-    return Path(tmp.name)
+    ) as tmp:
+        json.dump(make_scoped_config(config, source_file), tmp)
+        path = Path(tmp.name)
+    return path
 
 
 def run_scoped_stryker(
@@ -183,6 +183,7 @@ def run_scoped_stryker(
             ],
             env=env,
             cwd=cwd,
+            check=False,
         )
     finally:
         if sln is not None and sln_hidden is not None:
@@ -326,6 +327,7 @@ def dotnet_build(targets: Sequence[str], *, cwd: Path | None = None) -> bool:
             capture_output=True,
             text=True,
             cwd=cwd,
+            check=False,
         ).returncode
         if rc != 0:
             return False
@@ -352,6 +354,7 @@ def dotnet_test(
             capture_output=True,
             text=True,
             cwd=cwd,
+            check=False,
         )
         failed = 0
         for line in (result.stdout + result.stderr).splitlines():
@@ -365,17 +368,18 @@ def dotnet_test(
 
 def git_revert(test_file: Path, *, cwd: Path | None = None) -> None:
     """Discard working-tree changes to one file (``git checkout -- <file>``)."""
-    subprocess.run(["git", "checkout", "--", str(test_file)], cwd=cwd)
+    subprocess.run(["git", "checkout", "--", str(test_file)], cwd=cwd, check=False)
 
 
 def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> bool:
     """Stage and commit only ``test_file``. Returns True on a successful commit."""
-    subprocess.run(["git", "add", str(test_file)], cwd=cwd)
+    subprocess.run(["git", "add", str(test_file)], cwd=cwd, check=False)
     rc = subprocess.run(
         ["git", "commit", "-m", message],
         capture_output=True,
         text=True,
         cwd=cwd,
+        check=False,
     ).returncode
     return rc == 0
 
@@ -555,7 +559,7 @@ def claude_cli_available() -> bool:
     """True if the Claude CLI responds to ``--version``."""
     try:
         result = subprocess.run(
-            [CLAUDE_CLI, "--version"], capture_output=True, text=True
+            [CLAUDE_CLI, "--version"], capture_output=True, text=True, check=False
         )
     except (FileNotFoundError, OSError):
         return False
@@ -590,6 +594,7 @@ def make_headless_generator(
             capture_output=True,
             text=True,
             cwd=cwd,
+            check=False,
         )
         if result.returncode != 0:
             raise RuntimeError(

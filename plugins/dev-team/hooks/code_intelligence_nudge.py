@@ -274,6 +274,5 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception:
-        # Fail-open on any unexpected error — the hook is a nudge, never a gate.
+    except Exception:  # noqa: BLE001 -- fail-open on any unexpected error; the hook is a nudge, never a gate
         sys.exit(0)

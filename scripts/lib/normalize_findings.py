@@ -78,7 +78,7 @@ def process_sarif_file(sarif_path: Path, target_path_prefix: str | None) -> list
 
     try:
         findings = parse_sarif(doc)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # malformed SARIF from any tool can fail parsing in many shapes (KeyError/ValueError/TypeError); skip this file and keep processing the batch
         print(
             f"  [skip] {sarif_path.name}: parse error {type(e).__name__}: {e}",
             file=sys.stderr,

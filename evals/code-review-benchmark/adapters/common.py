@@ -114,13 +114,13 @@ def run_with_timeout(
     kwargs.setdefault("check", False)
     timeout_bin = shutil.which("timeout") or shutil.which("gtimeout")
     if timeout_bin is not None:
-        return subprocess.run([timeout_bin, str(seconds), *argv], **kwargs)
+        return subprocess.run([timeout_bin, str(seconds), *argv], **kwargs)  # noqa: PLW1510  # check is guaranteed present via kwargs.setdefault above
     sys.stderr.write(
         "code-review-benchmark: timeout unavailable (install coreutils for "
         "gtimeout); run is unbounded\n"
     )
     try:
-        return subprocess.run(list(argv), timeout=seconds, **kwargs)
+        return subprocess.run(list(argv), timeout=seconds, **kwargs)  # noqa: PLW1510  # check is guaranteed present via kwargs.setdefault above
     except subprocess.TimeoutExpired as exc:
         return subprocess.CompletedProcess(
             args=list(argv),

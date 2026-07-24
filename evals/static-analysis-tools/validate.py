@@ -244,7 +244,7 @@ def run() -> int:
 
         try:
             actual = parse_sarif(sarif)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # per-tool fixture can raise anything; record and keep validating remaining tools
             fail += 1
             print(f"[FAIL] {tool}: parser raised: {e}")
             continue

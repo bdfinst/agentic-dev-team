@@ -30,7 +30,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +54,7 @@ def _parse_yaml_frontmatter(path: Path) -> dict:
         import yaml  # type: ignore
         data = yaml.safe_load(yaml_block)
         if not isinstance(data, dict):
-            raise ValueError(f"{path}: frontmatter is not a mapping")
+            raise TypeError(f"{path}: frontmatter is not a mapping")
         return data
     except ImportError:
         return _mini_yaml(yaml_block)
@@ -88,7 +88,7 @@ def _iso_to_date(s: Any) -> date:
     if isinstance(s, date):
         return s
     if not isinstance(s, str):
-        raise ValueError(f"expires must be ISO-8601 date, got {type(s).__name__}: {s!r}")
+        raise TypeError(f"expires must be ISO-8601 date, got {type(s).__name__}: {s!r}")
     try:
         return date.fromisoformat(s.strip())
     except ValueError as e:
@@ -146,7 +146,7 @@ def load_rules(path: Path) -> list[Rule]:
     fm = _parse_yaml_frontmatter(path)
     raw_rules = fm.get("rules") or []
     if not isinstance(raw_rules, list):
-        raise ValueError(f"{path}: 'rules' must be a list (got {type(raw_rules).__name__})")
+        raise TypeError(f"{path}: 'rules' must be a list (got {type(raw_rules).__name__})")
     return [_validate_rule(r, i) for i, r in enumerate(raw_rules)]
 
 
@@ -210,9 +210,8 @@ def match_finding(finding: dict, rules: list[Rule], today: date,
             warnings.append(f"EXPIRED: rule {rule.id!r} past {rule.expires.isoformat()} (owner: {rule.owner}); stopped suppressing")
             continue
         # rule_id match
-        if rule.scope == "finding":
-            if not _rule_id_matches(rule.rule_id, finding.get("rule_id", "")):
-                continue
+        if rule.scope == "finding" and not _rule_id_matches(rule.rule_id, finding.get("rule_id", "")):
+            continue
         # file match
         if not _file_matches(rule.files, finding.get("file", ""), target_root):
             continue
@@ -279,7 +278,7 @@ def main() -> int:
         print(f"ACCEPTED-RISKS schema error: {e}", file=sys.stderr)
         return 2
 
-    today = date.today()
+    today = datetime.now(tz=timezone.utc).date()
     expired_rules = [r for r in rules if _is_expired(r, today)]
     active_rules = [r for r in rules if not _is_expired(r, today)]
 

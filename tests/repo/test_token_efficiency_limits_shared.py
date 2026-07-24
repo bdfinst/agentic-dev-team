@@ -19,7 +19,7 @@ CI_SCRIPT = REPO_ROOT / "scripts" / "token_efficiency_review.py"
 def test_shared_limits_module_exists_with_expected_values() -> None:
     assert LIMITS_MODULE.is_file(), "expected hooks/lib/token_efficiency_limits.py"
     ns: dict = {}
-    exec(
+    exec(  # noqa: S102 - executing the repo's own constants module to read its values
         compile(LIMITS_MODULE.read_text(encoding="utf-8"), str(LIMITS_MODULE), "exec"),
         ns,
     )

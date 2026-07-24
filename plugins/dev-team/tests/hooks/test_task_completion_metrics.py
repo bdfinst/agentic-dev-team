@@ -26,6 +26,7 @@ def _run(stdin: str, env: dict | None = None, cwd: Path | None = None):
         text=True,
         env=full_env,
         cwd=str(cwd) if cwd else None,
+        check=False,
     )
     return result
 

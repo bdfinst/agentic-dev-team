@@ -45,7 +45,12 @@ def _git(
     work: Path, hermetic_env: dict[str, str], *args: str
 ) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["git", *args], cwd=str(work), env=hermetic_env, capture_output=True, text=True
+        ["git", *args],
+        cwd=str(work),
+        env=hermetic_env,
+        check=False,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -58,6 +63,7 @@ def _commit_hook(
         cwd=str(work),
         env=hermetic_env,
         input=payload,
+        check=False,
         capture_output=True,
         text=True,
     )

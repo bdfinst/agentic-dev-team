@@ -41,7 +41,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 _COMMANDS_FILE = _SCRIPT_DIR / "destructive-commands.json"
 _CAREFUL_FILE = _SCRIPT_DIR / "careful-state.json"
@@ -350,20 +350,18 @@ def _rule_escalates(
     when = rule.get("when")
     if not isinstance(when, dict) or not when:
         return False
-    if when.get("target_branch") == "default":
-        if not _condition_target_branch_default(
-            command, command_lower, pattern, current_branch, default_branch
-        ):
-            return False
-    if when.get("current_branch") == "default":
-        if not _condition_current_branch_default(current_branch, default_branch):
-            return False
+    if when.get("target_branch") == "default" and not _condition_target_branch_default(
+        command, command_lower, pattern, current_branch, default_branch
+    ):
+        return False
+    if when.get("current_branch") == "default" and not _condition_current_branch_default(
+        current_branch, default_branch
+    ):
+        return False
     # Only the two recognized condition keys are supported today; an
     # unrecognized key alone would otherwise vacuously escalate.
     known_keys = {"target_branch", "current_branch"}
-    if not set(when.keys()) & known_keys:
-        return False
-    return True
+    return bool(set(when.keys()) & known_keys)
 
 
 def _override_active() -> bool:

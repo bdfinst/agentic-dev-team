@@ -168,7 +168,7 @@ def c4_module_size(root: Path, cfg: dict) -> dict:
     if not counts:
         return _score(0, "no source files detected for size analysis")
     counts.sort()
-    p90 = counts[min(len(counts) - 1, int(round(0.9 * (len(counts) - 1))))]
+    p90 = counts[min(len(counts) - 1, round(0.9 * (len(counts) - 1)))]
     th = cfg["thresholds"]
     if p90 <= th["file_size_p90_small"]:
         return _score(

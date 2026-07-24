@@ -53,7 +53,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 
@@ -100,9 +100,7 @@ def is_single_file_mutate(value: str) -> bool:
     (*, ?, [) AND no semicolon (Stryker.NET's multi-file separator)."""
     if not value:
         return False
-    if any(c in value for c in ("*", "?", "[", ";")):
-        return False
-    return True
+    return not any(c in value for c in ("*", "?", "[", ";"))
 
 
 # ---------------------------------------------------------------------------

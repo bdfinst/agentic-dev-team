@@ -76,9 +76,7 @@ def should_skip_dir(name: str) -> bool:
 
 
 def should_skip_file(path: Path) -> bool:
-    if path.suffix in SKIP_SUFFIXES:
-        return True
-    return False
+    return path.suffix in SKIP_SUFFIXES
 
 
 def shannon_entropy(data: bytes) -> float:

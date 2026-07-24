@@ -88,5 +88,5 @@ def emit_boundary_event(
 
         with open(log, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    except Exception:  # noqa: BLE001 — fail-open by design, see module docstring
+    except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
         pass

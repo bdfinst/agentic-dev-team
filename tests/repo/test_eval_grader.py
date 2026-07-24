@@ -51,6 +51,7 @@ def _grade(case: Path, *args: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         cwd=str(case),
+        check=False,
     )
 
 

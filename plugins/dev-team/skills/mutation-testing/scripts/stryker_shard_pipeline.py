@@ -34,7 +34,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Sequence
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import csharp_stryker_net_wrapper as wrapper
@@ -71,7 +71,11 @@ class ShardSetupMissing(Exception):
 
 def ts() -> str:
     """Wall-clock ``HH:MM:SS`` stamp for per-shard progress lines."""
-    return datetime.now().strftime("%H:%M:%S")
+    # Local wall-clock time is the point (a human-readable progress line),
+    # not a comparable timestamp — go through UTC-aware then convert back
+    # to the system local zone so the value stays tz-aware for DTZ005
+    # without changing the displayed (local) hour/minute/second.
+    return datetime.now(timezone.utc).astimezone().strftime("%H:%M:%S")
 
 
 def shard_config_path(repo_root: Path, shard: str) -> Path:

@@ -46,6 +46,7 @@ def run_invariants(commands: list[str], repo_root: str) -> list[InvariantResult]
             cwd=repo_root,
             capture_output=True,
             text=True,
+            check=False,
         )
         results.append(
             InvariantResult(command, proc.returncode, proc.stdout, proc.stderr)

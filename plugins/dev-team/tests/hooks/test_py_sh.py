@@ -97,13 +97,14 @@ def sandbox(tmp_path):
             capture_output=True,
             text=True,
             env=env,
+            check=False,
         )
 
     return bindir, marker, env, run
 
 
 def test_prefers_python3(sandbox):
-    bindir, marker, env, run = sandbox
+    bindir, marker, _env, run = sandbox
     _fake_valid(bindir / "python3", "python3")
     _fake_valid(bindir / "python", "python")  # present but should not win
     r = run()
@@ -113,7 +114,7 @@ def test_prefers_python3(sandbox):
 
 
 def test_falls_back_to_python_when_no_python3(sandbox):
-    bindir, marker, env, run = sandbox
+    bindir, marker, _env, run = sandbox
     _fake_valid(bindir / "python", "python")
     r = run()
     assert r.returncode == 0
@@ -122,7 +123,7 @@ def test_falls_back_to_python_when_no_python3(sandbox):
 
 
 def test_falls_back_to_py_launcher(sandbox):
-    bindir, marker, env, run = sandbox
+    bindir, marker, _env, run = sandbox
     _fake_valid(bindir / "py", "py", launcher_flag="-3")
     r = run()
     assert r.returncode == 0
@@ -131,7 +132,7 @@ def test_falls_back_to_py_launcher(sandbox):
 
 
 def test_rejects_windows_store_stub(sandbox):
-    bindir, marker, env, run = sandbox
+    bindir, marker, _env, run = sandbox
     _fake_stub(bindir / "python3")  # the stub masquerades as python3
     _fake_valid(bindir / "python", "python")
     r = run()
@@ -141,7 +142,7 @@ def test_rejects_windows_store_stub(sandbox):
 
 
 def test_rejects_python2(sandbox):
-    bindir, marker, env, run = sandbox
+    bindir, marker, _env, run = sandbox
     _fake_py2(bindir / "python3")  # a py2 masquerading as python3
     _fake_valid(bindir / "python", "python")
     r = run()
@@ -150,7 +151,7 @@ def test_rejects_python2(sandbox):
 
 
 def test_exit_2_when_nothing_valid(sandbox):
-    bindir, marker, env, run = sandbox
+    bindir, _marker, _env, run = sandbox
     _fake_stub(bindir / "python3")  # only a stub, nothing else
     r = run()
     assert r.returncode == 2
@@ -168,7 +169,7 @@ def test_dev_team_python_override_wins(sandbox):
 
 
 def test_cache_short_circuits_second_call(sandbox):
-    bindir, marker, env, run = sandbox
+    bindir, marker, _env, run = sandbox
     _fake_valid(bindir / "python", "python")
     assert run().returncode == 0
     # Cache now records `python`. A second call must reuse it without re-probing
@@ -185,6 +186,7 @@ def test_resolves_with_real_interpreter_no_path_override():
         [_SH, str(PY_SH), "-c", "print('OK')"],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert r.returncode == 0
     assert "OK" in r.stdout

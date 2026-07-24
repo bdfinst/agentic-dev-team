@@ -52,7 +52,9 @@ def run_with_timeout(
     kwargs.setdefault("check", False)
     timeout_bin = shutil.which("timeout") or shutil.which("gtimeout")
     if timeout_bin is not None:
-        return subprocess.run([timeout_bin, str(seconds), *argv], **kwargs)
+        # `check` is already guaranteed present via the `setdefault` above;
+        # ruff can't see through `**kwargs` to confirm it statically.
+        return subprocess.run([timeout_bin, str(seconds), *argv], **kwargs)  # noqa: PLW1510
     # No coreutils timeout available — emit the same advisory as bash lib
     # to stderr so the JSON stdout channel stays clean.
     sys.stderr.write(
@@ -60,7 +62,9 @@ def run_with_timeout(
         "run is unbounded\n"
     )
     try:
-        return subprocess.run(list(argv), timeout=seconds, **kwargs)
+        # `check` is already guaranteed present via the `setdefault` above;
+        # ruff can't see through `**kwargs` to confirm it statically.
+        return subprocess.run(list(argv), timeout=seconds, **kwargs)  # noqa: PLW1510
     except subprocess.TimeoutExpired as exc:
         # Synthesize a CompletedProcess with the timeout-native exit code so
         # callers keep their `exit == 124` branch.
@@ -275,9 +279,7 @@ def is_test_command(command: str) -> bool:
     if head == "npm":
         if len(tokens) >= 2 and tokens[1] == "test":
             return True
-        if len(tokens) >= 3 and tokens[1] == "run" and tokens[2] == "test":
-            return True
-        return False
+        return len(tokens) >= 3 and tokens[1] == "run" and tokens[2] == "test"
     if head == "npx" and len(tokens) >= 2 and tokens[1] in {"vitest", "jest"}:
         return True
     if (
@@ -304,9 +306,7 @@ def is_test_command(command: str) -> bool:
         return True
     if head == "go" and len(tokens) >= 2 and tokens[1] == "test":
         return True
-    if head == "cargo" and len(tokens) >= 2 and tokens[1] == "test":
-        return True
-    return False
+    return head == "cargo" and len(tokens) >= 2 and tokens[1] == "test"
 
 
 # ---------------------------------------------------------------------------

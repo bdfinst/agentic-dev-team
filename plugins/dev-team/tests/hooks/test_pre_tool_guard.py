@@ -97,7 +97,7 @@ def test_load_guards_reads_custom_patterns(tmp_path):
 
 def test_load_guards_falls_back_when_malformed(tmp_path):
     (tmp_path / "guards.json").write_text("{not-json")
-    blocked, warn = pre_tool_guard._load_guards(tmp_path / "guards.json")
+    blocked, _warn = pre_tool_guard._load_guards(tmp_path / "guards.json")
     assert ".env" in blocked
 
 

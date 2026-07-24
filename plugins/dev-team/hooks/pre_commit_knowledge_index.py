@@ -124,6 +124,5 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception:
-        # Fail-open on any unexpected error — the gate must never crash a commit.
+    except Exception:  # noqa: BLE001  # Fail-open on any unexpected error — the gate must never crash a commit.
         sys.exit(0)

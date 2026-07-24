@@ -253,9 +253,8 @@ def grep_security_surface(files: list[Path], root: Path) -> dict:
             continue
         rel = str(f.relative_to(root))
         for kind, patterns in SECURITY_SURFACE_PATTERNS.items():
-            if any(p.search(text) for p in patterns):
-                if rel not in out[kind]:
-                    out[kind].append(rel)
+            if any(p.search(text) for p in patterns) and rel not in out[kind]:
+                out[kind].append(rel)
     return out
 
 
@@ -270,37 +269,37 @@ def probe_git_history(root: Path) -> dict:
 
     try:
         branches = subprocess.run(["git", "-C", str(root), "branch", "--list"],
-                                  capture_output=True, text=True, timeout=10).stdout.splitlines()
+                                  capture_output=True, text=True, timeout=10, check=False).stdout.splitlines()
         branch_names = [b.strip().lstrip("* ") for b in branches]
         current = subprocess.run(["git", "-C", str(root), "rev-parse", "--abbrev-ref", "HEAD"],
-                                 capture_output=True, text=True, timeout=10).stdout.strip()
+                                 capture_output=True, text=True, timeout=10, check=False).stdout.strip()
         out["branches"]["current"] = current
         out["branches"]["names"] = branch_names[:20]
         out["branches"]["main_count"] = sum(1 for b in branch_names if b in ("main", "master", "develop"))
         out["branches"]["feature_count"] = max(0, len(branch_names) - out["branches"]["main_count"])
 
         last = subprocess.run(["git", "-C", str(root), "log", "-1", "--format=%cI"],
-                              capture_output=True, text=True, timeout=10).stdout.strip()
+                              capture_output=True, text=True, timeout=10, check=False).stdout.strip()
         if last:
             out["recent_activity"]["last_commit_date"] = last
 
         commits = subprocess.run(
             ["git", "-C", str(root), "log", "--since=30 days ago", "--oneline"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=10, check=False,
         ).stdout.strip().splitlines()
         authors = subprocess.run(
             ["git", "-C", str(root), "log", "--since=30 days ago", "--format=%ae"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=10, check=False,
         ).stdout.strip().splitlines()
         out["recent_activity"]["commits_last_30d"] = len(commits)
-        out["recent_activity"]["authors_last_30d"] = len(set(a for a in authors if a))
+        out["recent_activity"]["authors_last_30d"] = len({a for a in authors if a})
 
         # Sensitive file history — files ever touched
         tree_files = subprocess.run(
             ["git", "-C", str(root), "log", "--all", "--name-only", "--format="],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=30, check=False,
         ).stdout.splitlines()
-        for path in set(p for p in tree_files if p):
+        for path in {p for p in tree_files if p}:
             for pattern in SENSITIVE_FILE_PATTERNS:
                 if pattern.search(path):
                     in_tree = (root / path).exists()

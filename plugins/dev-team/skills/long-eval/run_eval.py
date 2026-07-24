@@ -107,7 +107,6 @@ def _ensure_alive(args):
         _status(args)
         return
     out_dir.mkdir(parents=True, exist_ok=True)
-    log = open(out_dir / "driver.log", "ab")
     cmd = [
         sys.executable, str(Path(__file__).resolve()), "run",
         "--module", str(Path(args.module).resolve()),
@@ -119,7 +118,10 @@ def _ensure_alive(args):
         cmd += ["--workers", str(args.workers)]
     # start_new_session detaches the child so it outlives this short-lived
     # supervisor call (and is only killed by the next container recycle).
-    subprocess.Popen(cmd, stdout=log, stderr=log, start_new_session=True, close_fds=True)
+    # The child inherits its own dup'd copy of the fd on exec, so closing
+    # our handle when the `with` block exits does not affect it.
+    with open(out_dir / "driver.log", "ab") as log:
+        subprocess.Popen(cmd, stdout=log, stderr=log, start_new_session=True, close_fds=True)
     print("RELAUNCHED (was dead)")
     _status(args)
 

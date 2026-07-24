@@ -536,17 +536,17 @@ def _loop_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutants):
         loop, "git_commit", lambda msg, tf, **k: events.append(("commit", msg)) or True
     )
 
-    kwargs = dict(
-        source_file="PaymentService.cs",
-        config=config,
-        test_file=test_file,
-        source_path=source_path,
-        output_dir=tmp_path / "out",
-        generate=generator,
-        initial_report_path=report,
-        max_rounds=3,
-        log=lambda m: None,
-    )
+    kwargs = {
+        "source_file": "PaymentService.cs",
+        "config": config,
+        "test_file": test_file,
+        "source_path": source_path,
+        "output_dir": tmp_path / "out",
+        "generate": generator,
+        "initial_report_path": report,
+        "max_rounds": 3,
+        "log": lambda m: None,
+    }
     return kwargs, events
 
 

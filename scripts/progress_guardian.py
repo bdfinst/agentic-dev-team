@@ -103,6 +103,7 @@ def run_git(args: list[str], cwd: str) -> str:
             capture_output=True,
             text=True,
             cwd=cwd,
+            check=False,
         )
         return result.stdout
     except (FileNotFoundError, OSError):
@@ -223,7 +224,7 @@ def _parse_slice_files(plan_text: str, slice_header: str) -> list[str]:
             continue
         if not in_block:
             continue
-        if line.startswith("## ") or line.startswith("### "):
+        if line.startswith(("## ", "### ")):
             break
         fm = SLICE_FILES_RE.match(line)
         if fm:
@@ -244,7 +245,7 @@ def _parse_slice_files(plan_text: str, slice_header: str) -> list[str]:
                 break
         if not in_block:
             continue
-        if line.startswith("## ") or line.startswith("### "):
+        if line.startswith(("## ", "### ")):
             break
         fm = SLICE_FILES_RE.match(line)
         if fm:
@@ -749,6 +750,7 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> list[dict]:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode != 0 or not result.stdout.strip():
             return [

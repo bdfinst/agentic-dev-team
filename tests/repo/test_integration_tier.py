@@ -91,6 +91,7 @@ def case(tmp_path: Path) -> Path:
 def _grade(case: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(GRADE), *args],
+        check=False,
         capture_output=True,
         text=True,
     )
@@ -104,6 +105,7 @@ def _run_runner(
         env = extra_env
     return subprocess.run(
         [sys.executable, str(RUNNER), *args],
+        check=False,
         capture_output=True,
         text=True,
         env=env,
@@ -254,6 +256,7 @@ def test_runner_skip_dispatch_builds_worktree_records_exit_zero(case: Path) -> N
             "--out",
             str(case / "actuals.json"),
         ],
+        check=False,
         capture_output=True,
         text=True,
     )
@@ -338,6 +341,7 @@ def test_runner_missing_claude_errors_naming_component(case: Path) -> None:
             "--out",
             str(case / "actuals.json"),
         ],
+        check=False,
         capture_output=True,
         text=True,
         env=env,
@@ -395,7 +399,7 @@ def test_extract_golden_repo_rejects_dotdot_traversal(tmp_path: Path) -> None:
     tarball = tmp_path / "golden.tar.gz"
     _tarball_with_member(tarball, "../../../../../../etc/passwd")
 
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         runner_module.extract_golden_repo(tarball, dest)
 
     assert not (Path("/etc/passwd_pwned")).exists()  # sanity: no stray writes
@@ -413,7 +417,7 @@ def test_extract_golden_repo_rejects_prefix_sibling_bypass(tmp_path: Path) -> No
     tarball = tmp_path / "golden.tar.gz"
     _tarball_with_member(tarball, "../out-evil/pwned.txt")
 
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         runner_module.extract_golden_repo(tarball, dest)
 
     assert not sibling_escape.exists(), (

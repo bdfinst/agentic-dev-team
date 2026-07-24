@@ -185,7 +185,7 @@ def compute_waves(plan_path: Path) -> dict:
     }
 
 
-def main(argv: list[str] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="plan_waves.py",
         description="Compute parallel build waves from a plan's slice DAG.",

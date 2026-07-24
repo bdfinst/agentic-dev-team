@@ -6,7 +6,7 @@ def score_transaction(request, model):
     # Expected match: fraud-domain.fail-open-scoring (ERROR)
     try:
         score = model.predict(request.features)
-    except Exception:
+    except Exception:  # noqa: BLE001 -- intentional fail-open anti-pattern fixture for fraud-domain.fail-open-scoring
         return {"decision": "allow", "score": 0.0}
 
     # Expected match: fraud-domain.emulation-mode-bypass (WARNING)

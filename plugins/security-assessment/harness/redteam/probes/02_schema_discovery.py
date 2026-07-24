@@ -36,7 +36,7 @@ def _try_openapi() -> list[str]:
         paths = spec.get("paths", {})
         for path_key, ops in paths.items():
             if config.MODEL_ENDPOINT.rstrip("/") in path_key:
-                for _method, op in ops.items():
+                for op in ops.values():
                     if not isinstance(op, dict):
                         continue
                     rb = op.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {})

@@ -39,7 +39,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     uses."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 
@@ -58,6 +58,7 @@ def _git(project_dir: Path, args: list[str]) -> str | None:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -173,7 +174,7 @@ def main() -> int:
     session_id = payload.get("session_id") if isinstance(payload, dict) else None
     try:
         exit_code, lines = evaluate(project_dir, session_id=session_id)
-    except Exception as exc:  # fail open — never revert, never block
+    except Exception as exc:  # noqa: BLE001 - fail open — never revert, never block
         audit(project_dir, "revert", "fail-open", reason=f"internal error: {exc}")
         return 0
     for line in lines:

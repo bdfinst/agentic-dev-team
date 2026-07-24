@@ -97,9 +97,7 @@ def _is_pitest_source(line: str) -> bool:
     """True for a non-test Java/Kotlin/Groovy/Scala source path."""
     if not re.search(r"\.(java|kt|groovy|scala)$", line):
         return False
-    if "Test" in line or "Spec" in line:
-        return False
-    return True
+    return not ("Test" in line or "Spec" in line)
 
 
 def _changed_source_file() -> str:

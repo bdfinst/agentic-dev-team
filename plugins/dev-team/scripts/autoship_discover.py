@@ -183,9 +183,7 @@ def is_eligible(issue: dict[str, Any], label: str) -> bool:
         return False
     if _is_epic(issue):
         return False
-    if _has_open_linked_pr(issue):
-        return False
-    return True
+    return not _has_open_linked_pr(issue)
 
 
 def select_eligible(

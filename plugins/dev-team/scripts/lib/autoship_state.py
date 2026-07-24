@@ -40,7 +40,10 @@ def is_stale(labeled_at: datetime, stale_after_hours: float, now: datetime) -> b
 
 def _iso8601(raw: str) -> datetime:
     """`argparse` `type=` validator for an ISO-8601 timestamp string."""
-    return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ")
+    # Deliberately naive: `is_stale`'s `now` (autoship_reclaim.py) strips
+    # tzinfo from its UTC clock read to match this, so both sides of the
+    # subtraction stay naive-UTC. Making this tz-aware would break that pairing.
+    return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ")  # noqa: DTZ007
 
 
 def positive_float_validator(flag_name: str):

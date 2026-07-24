@@ -121,12 +121,12 @@ def run_scoped_mutmut(
     ]
     try:
         try:
-            subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
+            subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False)
         except (FileNotFoundError, OSError) as exc:
             raise RuntimeError(f"mutmut run failed to start: {exc}") from exc
 
         junit = subprocess.run(
-            [*prefix, "junitxml"], cwd=cwd, capture_output=True, text=True
+            [*prefix, "junitxml"], cwd=cwd, capture_output=True, text=True, check=False
         )
         return junit.stdout or ""
     finally:
@@ -237,6 +237,7 @@ def python_compiles(test_file: Path, *, cwd: Path | None = None) -> bool:
         capture_output=True,
         text=True,
         cwd=cwd,
+        check=False,
     ).returncode
     return rc == 0
 
@@ -248,23 +249,25 @@ def run_scoped_pytest(test_file: Path, *, cwd: Path | None = None) -> bool:
         capture_output=True,
         text=True,
         cwd=cwd,
+        check=False,
     ).returncode
     return rc == 0
 
 
 def git_revert(test_file: Path, *, cwd: Path | None = None) -> None:
     """Discard working-tree changes to one file (``git checkout -- <file>``)."""
-    subprocess.run(["git", "checkout", "--", str(test_file)], cwd=cwd)
+    subprocess.run(["git", "checkout", "--", str(test_file)], cwd=cwd, check=False)
 
 
 def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> bool:
     """Stage and commit only ``test_file``. Returns True on a successful commit."""
-    subprocess.run(["git", "add", str(test_file)], cwd=cwd)
+    subprocess.run(["git", "add", str(test_file)], cwd=cwd, check=False)
     rc = subprocess.run(
         ["git", "commit", "-m", message],
         capture_output=True,
         text=True,
         cwd=cwd,
+        check=False,
     ).returncode
     return rc == 0
 
@@ -441,7 +444,7 @@ def make_headless_generator(
         if model:
             cmd += ["--model", model]
         cmd.append(prompt)
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, check=False)
         if result.returncode != 0:
             raise RuntimeError(
                 f"claude CLI failed (exit {result.returncode}): {result.stderr[:500]}"

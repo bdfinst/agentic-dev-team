@@ -29,6 +29,7 @@ def run_adapter(stdin_text: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
 
 

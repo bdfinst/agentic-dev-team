@@ -100,6 +100,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception:
-        # Absolute fail-open guarantee.
+    except Exception:  # noqa: BLE001 - fail-open by design; absolute
+        # fail-open guarantee — this hook must never block on an
+        # unexpected error.
         sys.exit(0)

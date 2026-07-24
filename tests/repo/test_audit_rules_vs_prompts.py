@@ -29,6 +29,7 @@ def _run(env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
         env=full_env,
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

@@ -205,6 +205,7 @@ def test_cli_prints_result(tmp_path):
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0
     assert result.stdout.strip() == "success"

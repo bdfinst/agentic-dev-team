@@ -23,7 +23,10 @@ def _ts(days_ago: int) -> str:
 
 def _run(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(METER), "pace", *args], capture_output=True, text=True
+        [sys.executable, str(METER), "pace", *args],
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 

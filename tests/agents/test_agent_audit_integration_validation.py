@@ -64,7 +64,7 @@ def test_mutation_gate_hook_import_clean() -> None:
         "s.loader.exec_module(m); print('ok')"
     )
     result = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "ok" in result.stdout
@@ -80,7 +80,7 @@ def test_eval_compliance_check_hook_import_clean() -> None:
         "s.loader.exec_module(m); print('ok')"
     )
     result = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "ok" in result.stdout
@@ -97,5 +97,6 @@ def test_both_hooks_parse_cleanly_under_py_compile() -> None:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr

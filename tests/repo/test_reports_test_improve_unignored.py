@@ -30,6 +30,7 @@ def _is_ignored(relpath: str) -> bool:
         ["git", "check-ignore", "-q", "--", relpath],
         cwd=REPO_ROOT,
         env=_ENV,
+        check=False,
     )
     # exit 0 = ignored, 1 = not ignored, 128 = error.
     assert result.returncode in (0, 1), f"git check-ignore errored on {relpath}"

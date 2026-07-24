@@ -63,6 +63,7 @@ def _run(case: Path, *args: str) -> dict:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     return json.loads(res.stdout)

@@ -85,6 +85,7 @@ def _run(root: Path) -> subprocess.CompletedProcess:
         [sys.executable, str(CHECK), "--root", str(root)],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

@@ -51,6 +51,7 @@ def _run_lint() -> subprocess.CompletedProcess:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
