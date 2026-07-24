@@ -172,7 +172,7 @@ Use the exact wording in `knowledge/disclaimers.md` § "Compliance mapping discl
 
 ## Graph-assisted discovery
 
-If the target repo has `.codegraph/` (CodeGraph MCP server — `codegraph_explore`/`get_symbol` for fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` for semantic search), prefer them over raw `Grep`/`Read` — useful when the `compliance-edge-annotator` agent needs to inspect the finding's surrounding code to refine a citation. Never assume either tool is present — fall back to `Read`/`Grep`/`Glob` when neither is present; the tools are simply unavailable (no error) on repos without an index.
+If the target repo has `.codegraph/` (CodeGraph MCP server — `codegraph_explore`/`get_symbol` for fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` for semantic search, `get_risk` for modification-risk context), prefer them over raw `Grep`/`Read` — useful when the `compliance-edge-annotator` agent needs to inspect the finding's surrounding code to refine a citation. Never assume either tool is present — fall back to `Read`/`Grep`/`Glob` when neither is present; the tools are simply unavailable (no error) on repos without an index.
 
 ## Related
 
